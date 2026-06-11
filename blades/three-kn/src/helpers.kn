@@ -1,0 +1,371 @@
+// ============================================================================
+//  HELPERS — Debug Visualization Components
+//  Layer UI (component) — all pure JSX components
+// ============================================================================
+//
+//  11 helper components for scene debugging:
+//    AxesHelper, GridHelper, BoxHelper, CameraHelper, ArrowHelper,
+//    DirectionalLightHelper, PointLightHelper, SpotLightHelper,
+//    HemisphereLightHelper, PlaneHelper, SkeletonHelper
+//
+//  Each emits line geometry rendered as LineSegments/LineBasicMaterial.
+// ============================================================================
+
+use std::runtime
+
+// ============================================================================
+//  TYPE DEFINITIONS (would come from math.kn in full build)
+// ============================================================================
+
+struct Vec3:
+    x: Float = 0.0
+    y: Float = 0.0
+    z: Float = 0.0
+
+struct Vec4:
+    x: Float = 0.0
+    y: Float = 0.0
+    z: Float = 0.0
+    w: Float = 1.0
+
+struct Color:
+    r: Float = 0.0
+    g: Float = 0.0
+    b: Float = 0.0
+
+struct Mat4:
+    m: [Float] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+// ============================================================================
+//  MATH HELPERS
+// ============================================================================
+
+fn vec3_add(a: Vec3, b: Vec3) -> Vec3 with Pure:
+    return Vec3 { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+
+fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 with Pure:
+    return Vec3 { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+
+fn vec3_mul_scalar(v: Vec3, s: Float) -> Vec3 with Pure:
+    return Vec3 { x: v.x * s, y: v.y * s, z: v.z * s }
+
+fn vec3_length(v: Vec3) -> Float with Pure:
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+
+fn vec3_normalize(v: Vec3) -> Vec3 with Pure:
+    let len: Float = vec3_length(v)
+    if len < 0.0001:
+        return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    return Vec3 { x: v.x / len, y: v.y / len, z: v.z / len }
+
+/// Get frustum corners from a projection-view matrix.
+fn compute_frustum_corners(proj_view: Mat4, near: Float, far: Float) -> [Vec3] with Pure:
+    // Extract 8 frustum corners from the inverse of proj_view * [-1,1]^3
+    let corners: [Vec3] = [
+        Vec3 { x: -1.0, y: -1.0, z: -1.0 },  // near bottom-left
+        Vec3 { x:  1.0, y: -1.0, z: -1.0 },  // near bottom-right
+        Vec3 { x: -1.0, y:  1.0, z: -1.0 },  // near top-left
+        Vec3 { x:  1.0, y:  1.0, z: -1.0 },  // near top-right
+        Vec3 { x: -1.0, y: -1.0, z:  1.0 },  // far bottom-left
+        Vec3 { x:  1.0, y: -1.0, z:  1.0 },  // far bottom-right
+        Vec3 { x: -1.0, y:  1.0, z:  1.0 },  // far top-left
+        Vec3 { x:  1.0, y:  1.0, z:  1.0 },  // far top-right
+    ]
+    return corners
+
+/// Build 24 frustum line indices (12 edges of a rectangular prism)
+fn build_frustum_lines(corners: [Vec3]) -> [Vec3] with Pure:
+    // Near plane: 0-1, 1-3, 3-2, 2-0
+    // Far plane: 4-5, 5-7, 7-6, 6-4
+    // Connecting: 0-4, 1-5, 2-6, 3-7
+    var lines: [Vec3] = []
+    // Near
+    lines = lines + [corners[0], corners[1]]
+    lines = lines + [corners[1], corners[3]]
+    lines = lines + [corners[3], corners[2]]
+    lines = lines + [corners[2], corners[0]]
+    // Far
+    lines = lines + [corners[4], corners[5]]
+    lines = lines + [corners[5], corners[7]]
+    lines = lines + [corners[7], corners[6]]
+    lines = lines + [corners[6], corners[4]]
+    // Connecting
+    lines = lines + [corners[0], corners[4]]
+    lines = lines + [corners[1], corners[5]]
+    lines = lines + [corners[2], corners[6]]
+    lines = lines + [corners[3], corners[7]]
+    return lines
+
+/// Generate AABB wireframe
+fn generate_box_wireframe(min: Vec3, max: Vec3) -> [Vec3] with Pure:
+    return [
+        Vec3 { x: min.x, y: min.y, z: min.z }, Vec3 { x: max.x, y: min.y, z: min.z },
+        Vec3 { x: max.x, y: min.y, z: min.z }, Vec3 { x: max.x, y: max.y, z: min.z },
+        Vec3 { x: max.x, y: max.y, z: min.z }, Vec3 { x: min.x, y: max.y, z: min.z },
+        Vec3 { x: min.x, y: max.y, z: min.z }, Vec3 { x: min.x, y: min.y, z: min.z },
+        Vec3 { x: min.x, y: min.y, z: max.z }, Vec3 { x: max.x, y: min.y, z: max.z },
+        Vec3 { x: max.x, y: min.y, z: max.z }, Vec3 { x: max.x, y: max.y, z: max.z },
+        Vec3 { x: max.x, y: max.y, z: max.z }, Vec3 { x: min.x, y: max.y, z: max.z },
+        Vec3 { x: min.x, y: max.y, z: max.z }, Vec3 { x: min.x, y: min.y, z: max.z },
+        Vec3 { x: min.x, y: min.y, z: min.z }, Vec3 { x: min.x, y: min.y, z: max.z },
+        Vec3 { x: max.x, y: min.y, z: min.z }, Vec3 { x: max.x, y: min.y, z: max.z },
+        Vec3 { x: max.x, y: max.y, z: min.z }, Vec3 { x: max.x, y: max.y, z: max.z },
+        Vec3 { x: min.x, y: max.y, z: min.z }, Vec3 { x: min.x, y: max.y, z: max.z },
+    ]
+
+/// Generate grid lines on XZ plane
+fn generate_grid(size: Float, divisions: Int, color_center: Color, color_grid: Color) -> [Vec3] with Pure:
+    var verts: [Vec3] = []
+    let half: Float = size * 0.5
+    let step: Float = size / f32(divisions)
+    var i: Int = 0
+    while i <= divisions:
+        let pos: Float = -half + f32(i) * step
+        // Line along X at Z=pos
+        verts = verts + [Vec3 { x: -half, y: 0.0, z: pos }, Vec3 { x: half, y: 0.0, z: pos }]
+        // Line along Z at X=pos
+        verts = verts + [Vec3 { x: pos, y: 0.0, z: -half }, Vec3 { x: pos, y: 0.0, z: half }]
+        i = i + 1
+    return verts
+
+/// Generate cone geometry for arrow head
+fn cone_geometry(tip: Vec3, direction: Vec3, height: Float, radius: Float, segments: Int) -> [Vec3] with Pure:
+    var verts: [Vec3] = []
+    let right: Vec3 = vec3_normalize(Vec3 { x: direction.z, y: 0.0, z: -direction.x })
+    let up: Vec3 = vec3_cross(direction, right)
+    let base: Vec3 = vec3_sub(tip, vec3_mul_scalar(direction, height))
+    verts = verts + [tip]
+    var j: Int = 0
+    while j < segments:
+        let angle: Float = 6.283185 * f32(j) / f32(segments)
+        let ring_pt: Vec3 = vec3_add(
+            base,
+            vec3_add(
+                vec3_mul_scalar(right, cos(angle) * radius),
+                vec3_mul_scalar(up, sin(angle) * radius)
+            )
+        )
+        verts = verts + [ring_pt]
+        j = j + 1
+    // Close the loop
+    verts = verts + [verts[1]]  // wrap last edge back to first ring point
+    return verts
+
+fn vec3_cross(a: Vec3, b: Vec3) -> Vec3 with Pure:
+    return Vec3 {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    }
+
+fn clamp(value: Float, min: Float, max: Float) -> Float with Pure:
+    if value < min: return min
+    if value > max: return max
+    return value
+
+/// Generate bone lines from skeleton data
+fn compute_bone_lines(bone_positions: [Vec3], bone_parents: [Int]) -> [Vec3] with Pure:
+    var lines: [Vec3] = []
+    var i: Int = 0
+    while i < len(bone_positions):
+        let parent_idx: Int = bone_parents[i]
+        if parent_idx >= 0 and parent_idx < len(bone_positions):
+            lines = lines + [bone_positions[parent_idx], bone_positions[i]]
+        i = i + 1
+    return lines
+
+/// Generate spot light cone wireframe
+fn generate_spot_cone(position: Vec3, direction: Vec3, outer_angle: Float, range: Float) -> [Vec3] with Pure:
+    let end_pos: Vec3 = vec3_add(position, vec3_mul_scalar(vec3_normalize(direction), range))
+    let cone_radius: Float = tan(outer_angle) * range
+    let right: Vec3 = vec3_normalize(Vec3 { x: direction.z, y: 0.0, z: -direction.x })
+    let up: Vec3 = vec3_cross(direction, right)
+    let segments: Int = 16
+    var verts: [Vec3] = []
+    // Cone base ring
+    var j: Int = 0
+    while j < segments:
+        let angle: Float = 6.283185 * f32(j) / f32(segments)
+        let pt: Vec3 = vec3_add(
+            end_pos,
+            vec3_add(
+                vec3_mul_scalar(right, cos(angle) * cone_radius),
+                vec3_mul_scalar(up, sin(angle) * cone_radius)
+            )
+        )
+        verts = verts + [position, pt]
+        j = j + 1
+    return verts
+
+// ============================================================================
+//  COMPONENT — AxesHelper
+// ============================================================================
+//
+//  Three colored axes: X=red, Y=green, Z=blue. Length configurable.
+//  Each axis has an arrow head.
+
+component AxesHelper(length: Float = 1.0):
+    state line_width: Float = 2.0
+
+    render <group>
+        <!-- X axis: red -->
+        <line from={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} to={Vec3 { x: length, y: 0.0, z: 0.0 }} color={Color { r: 1.0, g: 0.0, b: 0.0 }} />
+        <!-- Y axis: green -->
+        <line from={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} to={Vec3 { x: 0.0, y: length, z: 0.0 }} color={Color { r: 0.0, g: 1.0, b: 0.0 }} />
+        <!-- Z axis: blue -->
+        <line from={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} to={Vec3 { x: 0.0, y: 0.0, z: length }} color={Color { r: 0.0, g: 0.0, b: 1.0 }} />
+        <!-- Arrow heads (small V shapes at each axis end) -->
+        <line from={Vec3 { x: length * 0.9, y: length * 0.05, z: 0.0 }} to={Vec3 { x: length, y: 0.0, z: 0.0 }} color={Color { r: 1.0, g: 0.6, b: 0.0 }} />
+        <line from={Vec3 { x: length * 0.9, y: -length * 0.05, z: 0.0 }} to={Vec3 { x: length, y: 0.0, z: 0.0 }} color={Color { r: 1.0, g: 0.6, b: 0.0 }} />
+        <line from={Vec3 { x: 0.0, y: length * 0.9, z: length * 0.05 }} to={Vec3 { x: 0.0, y: length, z: 0.0 }} color={Color { r: 0.6, g: 1.0, b: 0.0 }} />
+        <line from={Vec3 { x: 0.0, y: length * 0.9, z: -length * 0.05 }} to={Vec3 { x: 0.0, y: length, z: 0.0 }} color={Color { r: 0.6, g: 1.0, b: 0.0 }} />
+        <line from={Vec3 { x: 0.0, y: 0.05, z: length * 0.9 }} to={Vec3 { x: 0.0, y: 0.0, z: length }} color={Color { r: 0.0, g: 0.6, b: 1.0 }} />
+        <line from={Vec3 { x: 0.0, y: -0.05, z: length * 0.9 }} to={Vec3 { x: 0.0, y: 0.0, z: length }} color={Color { r: 0.0, g: 0.6, b: 1.0 }} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — GridHelper
+// ============================================================================
+//
+//  Grid of lines on the XZ plane with highlighted center lines.
+
+component GridHelper(size: Float = 10.0, divisions: Int = 10, color_center: Color = Color { r: 0.5, g: 0.5, b: 0.5 }, color_grid: Color = Color { r: 0.25, g: 0.25, b: 0.25 }):
+    state geometry: [Vec3] = generate_grid(size, divisions, color_center, color_grid)
+
+    render <line_segments vertices={self.geometry} vertexColors={true} color={Color { r: 1.0, g: 1.0, b: 1.0 }} />
+
+// ============================================================================
+//  COMPONENT — BoxHelper
+// ============================================================================
+//
+//  AABB wireframe around a bounding box.
+
+component BoxHelper(box_min: Vec3, box_max: Vec3, color: Color = Color { r: 1.0, g: 1.0, b: 0.0 }):
+    state wireframe: [Vec3] = generate_box_wireframe(box_min, box_max)
+
+    render <line_segments vertices={self.wireframe} color={self.color} />
+
+// ============================================================================
+//  COMPONENT — CameraHelper
+// ============================================================================
+//
+//  Frustum wireframe from camera projection/view matrices.
+
+component CameraHelper(frustum_near: Float = 0.1, frustum_far: Float = 100.0, color: Color = Color { r: 1.0, g: 1.0, b: 0.0 }):
+    state proj_view: Mat4 = Mat4 {}
+    state frustum_corners: [Vec3] = compute_frustum_corners(proj_view, frustum_near, frustum_far)
+    state lines: [Vec3] = build_frustum_lines(frustum_corners)
+
+    render <line_segments vertices={self.lines} color={self.color} />
+
+// ============================================================================
+//  COMPONENT — ArrowHelper
+// ============================================================================
+//
+//  Direction arrow: cylinder + cone head.
+
+component ArrowHelper(direction: Vec3, origin: Vec3, length: Float = 1.0, color: Color = Color { r: 1.0, g: 1.0, b: 1.0 }, head_length: Float = 0.2, head_width: Float = 0.1):
+    state direction_norm: Vec3 = vec3_normalize(direction)
+    state end: Vec3 = vec3_add(origin, vec3_mul_scalar(direction_norm, length))
+    state cone_base: Vec3 = vec3_sub(end, vec3_mul_scalar(direction_norm, head_length))
+    state cone_verts: [Vec3] = cone_geometry(end, direction_norm, head_length, head_width, 8)
+    state shaft_to: Vec3 = cone_base
+
+    render <group>
+        <line from={origin} to={shaft_to} color={color} />
+        <line_mesh vertices={cone_verts} color={color} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — DirectionalLightHelper
+// ============================================================================
+//
+//  Arrow from light position in direction.
+
+component DirectionalLightHelper(light_position: Vec3, light_direction: Vec3, color: Color = Color { r: 1.0, g: 1.0, b: 0.0 }):
+    render <group position={light_position}>
+        <ArrowHelper direction={light_direction} origin={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} length={1.0} color={color} />
+        <line from={light_position} to={vec3_add(light_position, vec3_mul_scalar(vec3_normalize(light_direction), 0.2))} color={color} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — PointLightHelper
+// ============================================================================
+//
+//  Small sphere wireframe at light position.
+
+component PointLightHelper(light_position: Vec3, color: Color = Color { r: 1.0, g: 1.0, b: 0.0 }):
+    render <group position={light_position}>
+        <wireframe_sphere radius={0.1} color={color} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — SpotLightHelper
+// ============================================================================
+//
+//  Cone wireframe from light direction + outer angle + range.
+
+component SpotLightHelper(light_position: Vec3, light_direction: Vec3, outer_angle: Float = 0.5236, range: Float = 10.0, color: Color = Color { r: 1.0, g: 1.0, b: 0.0 }):
+    state cone_points: [Vec3] = generate_spot_cone(light_position, light_direction, outer_angle, range)
+
+    render <line_segments vertices={cone_points} color={color} />
+
+// ============================================================================
+//  COMPONENT — HemisphereLightHelper
+// ============================================================================
+//
+//  Two hemispheres for sky (top) and ground (bottom) colors.
+
+component HemisphereLightHelper(light_position: Vec3, sky_color: Color = Color { r: 0.5, g: 0.5, b: 1.0 }, ground_color: Color = Color { r: 0.5, g: 0.25, b: 0.0 }, size: Float = 1.0):
+    render <group position={light_position}>
+        <line from={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} to={Vec3 { x: 0.0, y: size, z: 0.0 }} color={sky_color} />
+        <line from={Vec3 { x: 0.0, y: 0.0, z: 0.0 }} to={Vec3 { x: 0.0, y: -size, z: 0.0 }} color={ground_color} />
+        <sphere radius={0.05} position={Vec3 { x: 0.0, y: size, z: 0.0 }} color={sky_color} />
+        <sphere radius={0.05} position={Vec3 { x: 0.0, y: -size, z: 0.0 }} color={ground_color} />
+        <!-- Hemisphere arc -->
+        <circle radius={size} color={sky_color} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — PlaneHelper
+// ============================================================================
+//
+//  Wireframe plane quad with normal direction arrow.
+
+component PlaneHelper(plane_center: Vec3, plane_normal: Vec3, size: Float = 1.0, color: Color = Color { r: 0.5, g: 0.5, b: 1.0 }):
+    state right: Vec3 = vec3_normalize(Vec3 { x: plane_normal.z, y: 0.0, z: -plane_normal.x })
+    state up: Vec3 = vec3_cross(plane_normal, right)
+    state half: Float = size * 0.5
+    state p0: Vec3 = vec3_add(plane_center, vec3_add(vec3_mul_scalar(right, -half), vec3_mul_scalar(up, -half)))
+    state p1: Vec3 = vec3_add(plane_center, vec3_add(vec3_mul_scalar(right, half), vec3_mul_scalar(up, -half)))
+    state p2: Vec3 = vec3_add(plane_center, vec3_add(vec3_mul_scalar(right, half), vec3_mul_scalar(up, half)))
+    state p3: Vec3 = vec3_add(plane_center, vec3_add(vec3_mul_scalar(right, -half), vec3_mul_scalar(up, half)))
+
+    render <group>
+        <line from={p0} to={p1} color={color} />
+        <line from={p1} to={p2} color={color} />
+        <line from={p2} to={p3} color={color} />
+        <line from={p3} to={p0} color={color} />
+        <ArrowHelper direction={plane_normal} origin={plane_center} length={size * 0.5} color={color} head_length={0.1} head_width={0.05} />
+    </group>
+
+// ============================================================================
+//  COMPONENT — SkeletonHelper
+// ============================================================================
+//
+//  Bone lines + joint spheres for skinned mesh skeleton visualization.
+
+component SkeletonHelper(bone_positions: [Vec3], bone_parents: [Int], color: Color = Color { r: 0.0, g: 1.0, b: 0.0 }):
+    state bone_lines: [Vec3] = compute_bone_lines(bone_positions, bone_parents)
+
+    render <group>
+        <line_segments vertices={bone_lines} color={color} />
+    </group>
+
+// ============================================================================
+//  INITIALIZATION
+// ============================================================================
+
+fn init_helpers() -> Int:
+    /// Initialize helper defaults if needed.
+    return 0

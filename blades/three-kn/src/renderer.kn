@@ -1,0 +1,413 @@
+// ============================================================================
+// three-kn — Render Pipeline Orchestrator
+// File: src/renderer.kn
+// Layer: GPU Pipeline — Orchestrator DAG
+// Constructs: world (1), shatter struct (1), law (6), patch (3),
+//             resonate (1), pulse (1), axiom (5), converge (2),
+//             orchestraste (1), fn (8)
+// ============================================================================
+
+use std::graphics
+use std::gpu
+use std::runtime
+use std::intent
+use std::math
+
+// ============================================================================
+// Stub types — from other three-kn layers
+// ============================================================================
+
+struct Frustum:
+    planes: [Vec4]
+
+struct InstanceData:
+    transform: Mat4
+    aabb_min: Vec3
+    aabb_max: Vec3
+
+world SceneGraphWorld:
+    state nodes: [InstanceData] = []
+    state epoch: Int = 0
+
+world CameraState:
+    state frustum: Frustum = Frustum { planes: [] }
+    state epoch: Int = 0
+
+world LightState:
+    state shadow_casters_count: Int = 0
+    state epoch: Int = 0
+
+world MaterialState:
+    state epoch: Int = 0
+
+world TextureRegistry:
+    state epoch: Int = 0
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const RENDERER_MAX_TEXTURES: Int = 64
+const RENDERER_MAX_DRAW_COMMANDS: Int = 8192
+const RENDERER_OPAQUE_SORT: Int = 0
+const RENDERER_TRANSPARENT_SORT: Int = 1
+
+// ============================================================================
+// Shatter Struct — DrawCommand (SoA layout for GPU sort)
+// ============================================================================
+
+shatter struct DrawCommand:
+    sort_key: [Float]
+    mesh_id: [Int]
+    material_id: [Int]
+    instance_count: [Int]
+    first_index: [Int]
+    index_count: [Int]
+    vertex_offset: [Int]
+    pipeline_id: [Int]
+    transparent: [Int]
+    distance: [Float]
+
+// ============================================================================
+// World — GPURenderState
+// ============================================================================
+
+world GPURenderState:
+    state session: Int = 0
+    state backend_id: String = "auto"
+    state width: Int = 1280
+    state height: Int = 720
+    state pixel_ratio: Float = 1.0
+    state epoch: Int = 0
+    state frame_count: Int = 0
+    state last_frame_gpu_time_ms: Float = 0.0
+    state draw_calls_this_frame: Int = 0
+    state triangles_this_frame: Int = 0
+    state backbuffer_texture_id: Int = 0
+    state depth_texture_id: Int = 0
+    state gbuffer_albedo_id: Int = 0
+    state gbuffer_normal_id: Int = 0
+    state gbuffer_roughness_metallic_id: Int = 0
+    state gbuffer_emissive_id: Int = 0
+    state gbuffer_depth_id: Int = 0
+    state hdr_buffer_id: Int = 0
+    state velocity_buffer_id: Int = 0
+    state bloom_buffer_a_id: Int = 0
+    state bloom_buffer_b_id: Int = 0
+    state ssao_buffer_id: Int = 0
+    state dof_near_id: Int = 0
+    state dof_far_id: Int = 0
+    state current_pipeline_id: Int = 0
+    state current_mesh_id: Int = 0
+    state instance_count: Int = 0
+    state visibility: [UInt] = []
+    state draw_commands: [DrawCommand] = []
+    state sorted_indices_opaque: [UInt] = []
+    state sorted_indices_transparent: [UInt] = []
+    state bloom_enabled: Bool = false
+    state ssao_enabled: Bool = false
+    state dof_enabled: Bool = false
+    state motion_blur_enabled: Bool = false
+
+// ============================================================================
+// Law Invariants
+// ============================================================================
+
+law gbuffer_size_matches(state: GPURenderState) -> Bool:
+    let w = state.width
+    let h = state.height
+    return w > 0 and h > 0 and w <= 16384 and h <= 16384
+
+law session_valid(state: GPURenderState) -> Bool:
+    return state.session > 0
+
+law render_targets_valid(state: GPURenderState) -> Bool:
+    return state.backbuffer_texture_id > 0 and state.depth_texture_id > 0
+
+law no_double_begin_frame(state: GPURenderState) -> Bool:
+    return state.draw_calls_this_frame >= 0
+
+law frame_stats_valid(state: GPURenderState) -> Bool:
+    return state.draw_calls_this_frame >= 0 and state.triangles_this_frame >= 0
+
+law visibility_count_matches(state: GPURenderState) -> Bool:
+    return state.instance_count == len(state.visibility)
+
+// ============================================================================
+// Patch Operations
+// ============================================================================
+
+patch begin_frame(state: GPURenderState, width: Int, height: Int) -> GPURenderState:
+    let status = graphics_begin_frame(state.session, 16.0)
+    state.width = width
+    state.height = height
+    state.draw_calls_this_frame = 0
+    state.triangles_this_frame = 0
+    state.epoch = state.epoch + 1
+    return state
+
+patch end_frame(state: GPURenderState) -> GPURenderState:
+    let status = graphics_end_frame(state.session)
+    state.epoch = state.epoch + 1
+    return state
+
+patch present_frame(state: GPURenderState) -> GPURenderState:
+    let status = graphics_present(state.session)
+    state.frame_count = state.frame_count + 1
+    state.epoch = state.epoch + 1
+    return state
+
+// ============================================================================
+// Resonate
+// ============================================================================
+
+resonate GPURenderState.frame_count dampen 16ms:
+    let _new_count = resonate_new_i64
+    let _old_count = resonate_old_i64
+
+// ============================================================================
+// Pulse — 60 FPS frame clock
+// ============================================================================
+
+pulse frame_clock every 16ms jitter 2ms:
+    let _tick = pulse_tick
+    let _dt = pulse_dt_ms
+    let _missed = pulse_missed
+
+// ============================================================================
+// Axiom Declarations
+// ============================================================================
+
+fn axiom_compute_fallback(value: Int) -> Int:
+    return 0
+
+fn axiom_float_texture_fallback(value: Int) -> Int:
+    return 0
+
+fn axiom_indirect_draw_fallback(value: Int) -> Int:
+    return 0
+
+fn axiom_anisotropic_fallback(value: Int) -> Int:
+    return 0
+
+fn axiom_tesselation_fallback(value: Int) -> Int:
+    return 0
+
+axiom has_compute_shaders:
+    when target("llvm")
+    when capability("gpu.compute")
+    guarantee "supports_compute"
+    fallback axiom_compute_fallback
+
+axiom has_float_textures:
+    when target("llvm")
+    when capability("gpu.float_textures")
+    guarantee "supports_float_textures"
+    fallback axiom_float_texture_fallback
+
+axiom has_indirect_draw:
+    when target("llvm")
+    when capability("gpu.indirect_draw")
+    guarantee "supports_indirect_draw"
+    fallback axiom_indirect_draw_fallback
+
+axiom has_anisotropic_filtering:
+    when target("llvm")
+    when capability("gpu.anisotropic")
+    guarantee "supports_anisotropic"
+    fallback axiom_anisotropic_fallback
+
+axiom has_tesselation:
+    when target("llvm")
+    when capability("gpu.tesselation")
+    guarantee "supports_tesselation"
+    fallback axiom_tesselation_fallback
+
+// ============================================================================
+// Converge — Cull Instances
+// ============================================================================
+
+fn cull_cpu_scalar(nodes: [InstanceData], frustum: Frustum) -> [Bool]:
+    let count = len(nodes)
+    let mut result = []
+    let mut idx = 0
+    while idx < count:
+        let node = nodes[idx]
+        let aabb_min = node.aabb_min
+        let aabb_max = node.aabb_max
+        let center = (aabb_max + aabb_min) * 0.5
+        let half_ext = (aabb_max - aabb_min) * 0.5
+        let mut visible = true
+        let mut plane_idx = 0
+        while plane_idx < 6:
+            let plane = frustum.planes[plane_idx]
+            let abs_n = vec3(abs(plane.x), abs(plane.y), abs(plane.z))
+            let distance = dot(plane.xyz, center) + plane.w + dot(abs_n, half_ext)
+            if distance < 0.0:
+                visible = false
+                plane_idx = 6
+            plane_idx = plane_idx + 1
+        result = result + [visible]
+        idx = idx + 1
+    return result
+
+fn cull_cpu_simd(nodes: [InstanceData], frustum: Frustum) -> [Bool]:
+    return cull_cpu_scalar(nodes, frustum)
+
+converge cull_instances(nodes: [InstanceData], frustum: Frustum, world: GPURenderState) -> [Bool]:
+    spec reference:
+        return cull_cpu_scalar(nodes, frustum)
+    fast cpu_simd when capability("cpu.simd"):
+        return cull_cpu_simd(nodes, frustum)
+    fast gpu_compute when capability("gpu.compute"):
+        dispatch "shader::cull_frustum::compute" [256, 1, 1]
+        return []
+    verify random(16)
+
+// ============================================================================
+// Converge — Sort Draws
+// ============================================================================
+
+fn sort_cpu(draws: [DrawCommand], mode: Int) -> [DrawCommand]:
+    return draws
+
+converge sort_draws(draws: [DrawCommand], mode: Int, world: GPURenderState) -> [DrawCommand]:
+    spec reference:
+        return sort_cpu(draws, mode)
+    fast gpu_bitonic when capability("gpu.compute"):
+        dispatch "shader::sort_opaque::compute" [256, 1, 1]
+        return draws
+    fast gpu_radix when capability("gpu.compute"):
+        dispatch "shader::sort_transparent::compute" [256, 1, 1]
+        return draws
+    verify random(8)
+
+// ============================================================================
+// Orchestrate — render_frame
+// ============================================================================
+// 9-stage GPU pipeline DAG replacing Three.js ~38-file WebGLRenderer.
+
+orchestrate render_frame(
+    scene: SceneGraphWorld,
+    camera: CameraState,
+    lights: LightState,
+    materials: MaterialState,
+    textures: TextureRegistry,
+    world: GPURenderState
+) -> GPURenderState:
+
+    stage begin: cpu begin_frame(world, 1280, 720)
+        residency host policy static
+
+    stage frustum_cull: converge cull_instances(scene.nodes, camera.frustum, world)
+        after begin
+        residency device transfer host_to_device
+        guarded by has_compute_shaders fallback degrade begin
+        policy telemetry_prefer_gpu
+
+    stage sort_opaque: converge sort_draws(world.draw_commands, 0, world)
+        after frustum_cull
+        residency device
+        policy telemetry_prefer_gpu
+
+    stage shadow_maps: gpu compute_shadow_maps(lights, world)
+        after begin
+        residency device transfer host_to_device
+        guarded by has_compute_shaders fallback degrade sort_opaque
+        policy telemetry_prefer_gpu
+
+    stage opaque_pass: gpu render_opaque_pass(scene, camera, lights, materials, textures, world)
+        deps [frustum_cull, shadow_maps, sort_opaque]
+        residency device transfer shared_view
+        policy telemetry_prefer_gpu
+
+    stage sort_transparent: converge sort_draws(world.draw_commands, 1, world)
+        after opaque_pass
+        residency device
+        policy telemetry_prefer_gpu
+
+    stage transparent_pass: gpu render_transparent_pass(scene, camera, lights, materials, textures, world)
+        after sort_transparent
+        residency device transfer shared_view
+        policy telemetry_prefer_gpu
+
+    stage postprocess: gpu apply_postprocess(world)
+        after transparent_pass
+        residency device
+        policy telemetry_prefer_gpu
+
+    stage present: cpu present_frame(world)
+        after postprocess
+        residency host transfer device_to_host
+        policy static
+
+    return world
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+pub fn graphics_session_init(app_name: String, width: Int, height: Int) -> Int with IO:
+    let session_id = graphics_session_create(app_name, width, height)
+    if session_id > 0:
+        let backend_ok = graphics_backend_select(session_id, "auto")
+    return session_id
+
+pub fn render_opaque_pass(
+    scene: SceneGraphWorld, camera: CameraState,
+    lights: LightState, materials: MaterialState,
+    textures: TextureRegistry, state: GPURenderState
+) -> Void with GPU:
+    let pipeline_id = state.current_pipeline_id
+    let mesh_id = state.current_mesh_id
+    if pipeline_id > 0 and mesh_id > 0:
+        let draw_ok = graphics_draw_mesh(state.session, pipeline_id, mesh_id, 1)
+    return
+
+pub fn render_transparent_pass(
+    scene: SceneGraphWorld, camera: CameraState,
+    lights: LightState, materials: MaterialState,
+    textures: TextureRegistry, state: GPURenderState
+) -> Void with GPU:
+    let pipeline_id = state.current_pipeline_id
+    let mesh_id = state.current_mesh_id
+    if pipeline_id > 0 and mesh_id > 0:
+        let draw_ok = graphics_draw_mesh(state.session, pipeline_id, mesh_id, 1)
+    return
+
+pub fn apply_postprocess(world: GPURenderState) -> Void with GPU:
+    if world.bloom_enabled:
+        dispatch "shader::bloom::compute" [8, 8, 1]
+    if world.ssao_enabled:
+        dispatch "shader::ssao::compute" [8, 8, 1]
+    if world.dof_enabled:
+        dispatch "shader::dof::compute" [8, 8, 1]
+    if world.motion_blur_enabled:
+        dispatch "shader::motion_blur::compute" [8, 8, 1]
+    dispatch "shader::tonemap::compute" [8, 8, 1]
+    return
+
+pub fn compute_shadow_maps(lights: LightState, world: GPURenderState) -> Void with GPU:
+    if lights.shadow_casters_count > 0:
+        dispatch "shader::shadow_map::compute" [8, 8, 1]
+    return
+
+pub fn create_render_targets(state: GPURenderState, width: Int, height: Int) -> GPURenderState with IO:
+    let session = state.session
+    if session <= 0:
+        return state
+    let color_size = width * height * 16
+    let depth_size = width * height * 4
+    let hdr = graphics_buffer_create(session, "storage", "hdr_buffer", color_size, 16)
+    let depth = graphics_buffer_create(session, "storage", "depth_buffer", depth_size, 4)
+    state.hdr_buffer_id = hdr
+    state.depth_buffer_id = depth
+    state.width = width
+    state.height = height
+    state.epoch = state.epoch + 1
+    return state
+
+pub fn update_frame_stats(state: GPURenderState, gpu_time_ms: Float) -> GPURenderState:
+    state.last_frame_gpu_time_ms = gpu_time_ms
+    state.epoch = state.epoch + 1
+    return state

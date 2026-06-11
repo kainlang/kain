@@ -1,0 +1,671 @@
+// ============================================================================
+//  EXTRA — Curves, Paths, Shapes, and PMREM Pipeline
+//  Layer 0 (trait, struct, impl, fn), Layer 4 (orchestrate pmrem_pipeline)
+// ============================================================================
+//
+//  Implements the Three.js Curve/Path/Shape system plus the PMREM GPU
+//  compute pipeline for environment map prefiltering.
+//
+//  Curves: LineCurve, CubicBezier, QuadraticBezier, CatmullRom, Spline, Ellipse
+//  Path: sequential curve builder (move_to, line_to, bezier_curve_to, etc.)
+//  Shape: closed path + holes + triangulation (ear-clipping)
+//  PMREM: 3-stage GPU compute pipeline (equirect→cubemap → GGX prefilter → irradiance)
+// ============================================================================
+
+use std::intent
+
+// ============================================================================
+//  MATH TYPES AND HELPERS
+// ============================================================================
+
+struct Vec2:
+    x: Float = 0.0
+    y: Float = 0.0
+
+struct Vec3:
+    x: Float = 0.0
+    y: Float = 0.0
+    z: Float = 0.0
+
+fn vec2_add(a: Vec2, b: Vec2) -> Vec2 with Pure:
+    return Vec2 { x: a.x + b.x, y: a.y + b.y }
+
+fn vec2_sub(a: Vec2, b: Vec2) -> Vec2 with Pure:
+    return Vec2 { x: a.x - b.x, y: a.y - b.y }
+
+fn vec2_mul_scalar(v: Vec2, s: Float) -> Vec2 with Pure:
+    return Vec2 { x: v.x * s, y: v.y * s }
+
+fn vec2_length(v: Vec2) -> Float with Pure:
+    return sqrt(v.x * v.x + v.y * v.y)
+
+fn vec2_dot(a: Vec2, b: Vec2) -> Float with Pure:
+    return a.x * b.x + a.y * b.y
+
+fn vec2_cross_scalar(a: Vec2, b: Vec2) -> Float with Pure:
+    return a.x * b.y - a.y * b.x
+
+fn vec3_add(a: Vec3, b: Vec3) -> Vec3 with Pure:
+    return Vec3 { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+
+fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 with Pure:
+    return Vec3 { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+
+fn vec3_mul_scalar(v: Vec3, s: Float) -> Vec3 with Pure:
+    return Vec3 { x: v.x * s, y: v.y * s, z: v.z * s }
+
+fn vec3_length(v: Vec3) -> Float with Pure:
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+
+fn vec3_normalize(v: Vec3) -> Vec3 with Pure:
+    let len: Float = vec3_length(v)
+    if len < 0.0001:
+        return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    return Vec3 { x: v.x / len, y: v.y / len, z: v.z / len }
+
+fn clamp(value: Float, min: Float, max: Float) -> Float with Pure:
+    if value < min: return min
+    if value > max: return max
+    return value
+
+// ============================================================================
+//  TRAIT — Curve<T>
+// ============================================================================
+//
+//  A parametric curve in 2D or 3D space. T is Vec2 for 2D, Vec3 for 3D.
+
+trait Curve<T>:
+    /// Returns the point on the curve at parameter t ∈ [0, 1].
+    fn get_point(self: Self, t: Float) -> T with Pure
+
+    /// Returns the tangent (derivative) at parameter t ∈ [0, 1].
+    fn get_tangent(self: Self, t: Float) -> T with Pure
+
+    /// Returns an array of `divisions + 1` points sampling the curve uniformly in t.
+    fn get_points(self: Self, divisions: Int) -> [T] with Pure:
+        var points: [T] = []
+        var i: Int = 0
+        while i <= divisions:
+            points = points + [self.get_point(f32(i) / f32(divisions))]
+            i = i + 1
+        return points
+
+    /// Returns the approximate length of the curve by sampling.
+    fn get_length(self: Self) -> Float with Pure:
+        let samples: Int = 100
+        var length: Float = 0.0
+        var prev: T = self.get_point(0.0)
+        var i: Int = 1
+        while i <= samples:
+            let curr: T = self.get_point(f32(i) / f32(samples))
+            length = length + distance(curr, prev)
+            prev = curr
+            i = i + 1
+        return length
+
+// ============================================================================
+//  DISTANCE — Helper for Curve<T> trait
+// ============================================================================
+
+fn distance(a: Vec2, b: Vec2) -> Float with Pure:
+    return vec2_length(vec2_sub(a, b))
+
+fn distance(a: Vec3, b: Vec3) -> Float with Pure:
+    return vec3_length(vec3_sub(a, b))
+
+// ============================================================================
+//  STRUCT — CurvePath<T>
+// ============================================================================
+//
+//  A concatenated sequence of curves.
+
+struct CurvePath<T>:
+    curves: [Curve<T>]
+    closed: Bool = false
+
+impl <T> CurvePath<T>:
+    fn get_point(self: Self, t: Float) -> T with Pure:
+        if len(self.curves) == 0:
+            // Use default construction — Vec2 or Vec3 zero
+            // This is a placeholder since Kain doesn't have T::default()
+            // We'd use the appropriate zero struct for Vec2 or Vec3
+            if T is Vec2:
+                return Vec2 { x: 0.0, y: 0.0 }
+            return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+        if len(self.curves) == 1:
+            return self.curves[0].get_point(t)
+
+        let total_length: Float = self.get_total_length()
+        if total_length <= 0.0:
+            return self.curves[0].get_point(0.0)
+
+        let target_dist: Float = t * total_length
+        var cum_dist: Float = 0.0
+        var i: Int = 0
+        while i < len(self.curves):
+            let curve_len: Float = self.curves[i].get_length()
+            if target_dist <= cum_dist + curve_len:
+                let local_t: Float = (target_dist - cum_dist) / curve_len
+                return self.curves[i].get_point(clamp(local_t, 0.0, 1.0))
+            cum_dist = cum_dist + curve_len
+            i = i + 1
+        return self.curves[len(self.curves) - 1].get_point(1.0)
+
+    fn get_total_length(self: Self) -> Float with Pure:
+        var total: Float = 0.0
+        var i: Int = 0
+        while i < len(self.curves):
+            total = total + self.curves[i].get_length()
+            i = i + 1
+        return total
+
+    fn get_points(self: Self, divisions: Int) -> [T] with Pure:
+        if len(self.curves) == 0:
+            return []
+        if len(self.curves) == 1:
+            return self.curves[0].get_points(divisions)
+
+        // Distribute divisions proportionally to curve length
+        let total_length: Float = self.get_total_length()
+        var points: [T] = []
+        var remaining: Int = divisions
+        var i: Int = 0
+        while i < len(self.curves):
+            let curve_len: Float = self.curves[i].get_length()
+            let curve_div: Int = int(f32(remaining) * (curve_len / total_length))
+            if curve_div < 1:
+                curve_div = 1
+            let curve_pts: [T] = self.curves[i].get_points(curve_div)
+            points = points + curve_pts
+            remaining = remaining - curve_div
+            i = i + 1
+        return points
+
+// ============================================================================
+//  STRUCT — Path (2D Path Builder)
+// ============================================================================
+
+struct Path:
+    curves: [Curve<Vec2>]
+    current_point: Vec2 = Vec2 { x: 0.0, y: 0.0 }
+    closed: Bool = false
+
+impl Path:
+    fn move_to(self: Self, point: Vec2) -> Self with Pure:
+        return Path {
+            curves: self.curves,
+            current_point: point,
+            closed: self.closed
+        }
+
+    fn line_to(self: Self, point: Vec2) -> Self with Pure:
+        let line: LineCurve = LineCurve { start: self.current_point, end: point }
+        return Path {
+            curves: self.curves + [line],
+            current_point: point,
+            closed: self.closed
+        }
+
+    fn bezier_curve_to(self: Self, cp1: Vec2, cp2: Vec2, end: Vec2) -> Self with Pure:
+        let cb: CubicBezier = CubicBezier {
+            v0: Vec3 { x: self.current_point.x, y: self.current_point.y, z: 0.0 },
+            v1: Vec3 { x: cp1.x, y: cp1.y, z: 0.0 },
+            v2: Vec3 { x: cp2.x, y: cp2.y, z: 0.0 },
+            v3: Vec3 { x: end.x, y: end.y, z: 0.0 }
+        }
+        return Path {
+            curves: self.curves + [cb],
+            current_point: end,
+            closed: self.closed
+        }
+
+    fn quadratic_curve_to(self: Self, cp: Vec2, end: Vec2) -> Self with Pure:
+        let qb: QuadraticBezier = QuadraticBezier {
+            v0: Vec3 { x: self.current_point.x, y: self.current_point.y, z: 0.0 },
+            v1: Vec3 { x: cp.x, y: cp.y, z: 0.0 },
+            v2: Vec3 { x: end.x, y: end.y, z: 0.0 }
+        }
+        return Path {
+            curves: self.curves + [qb],
+            current_point: end,
+            closed: self.closed
+        }
+
+    fn close_path(self: Self) -> Self with Pure:
+        if len(self.curves) > 0:
+            let start: Vec2 = self.curves[0].get_point(0.0)
+            if vec2_length(vec2_sub(self.current_point, start)) > 0.0001:
+                return self.line_to(start)
+        return Path {
+            curves: self.curves,
+            current_point: self.current_point,
+            closed: true
+        }
+
+    fn get_points(self: Self, divisions: Int) -> [Vec2] with Pure:
+        if len(self.curves) == 0:
+            return []
+        return self.curves[0].get_points(divisions)
+
+// ============================================================================
+//  STRUCT — Shape
+// ============================================================================
+//
+//  A closed 2D shape with optional holes. Supports triangulation.
+
+struct Shape:
+    outer_path: Path
+    holes: [Path] = []
+
+impl Shape:
+    fn extract_points(self: Self, divisions: Int) -> [Vec2] with Pure:
+        let outer_pts: [Vec2] = self.outer_path.get_points(divisions)
+        var all_points: [Vec2] = outer_pts
+        var h: Int = 0
+        while h < len(self.holes):
+            all_points = all_points + self.holes[h].get_points(divisions / 2)
+            h = h + 1
+        return all_points
+
+    fn get_point(self: Self, t: Float) -> Vec2 with Pure:
+        return self.outer_path.curves[0].get_point(t)
+
+    fn get_tangent(self: Self, t: Float) -> Vec2 with Pure:
+        return self.outer_path.curves[0].get_tangent(t)
+
+// ============================================================================
+//  EAR-CLIPPING TRIANGULATION
+// ============================================================================
+
+fn is_convex_vertex(prev: Vec2, curr: Vec2, next: Vec2) -> Bool with Pure:
+    /// Returns true if the vertex at `curr` is convex (interior angle < 180°).
+    let edge1: Vec2 = vec2_sub(prev, curr)
+    let edge2: Vec2 = vec2_sub(next, curr)
+    return vec2_cross_scalar(edge1, edge2) > 0.0
+
+fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> Bool with Pure:
+    /// Barycentric check: is point p inside triangle (a, b, c)?
+    let v0: Vec2 = vec2_sub(c, a)
+    let v1: Vec2 = vec2_sub(b, a)
+    let v2: Vec2 = vec2_sub(p, a)
+
+    let dot00: Float = vec2_dot(v0, v0)
+    let dot01: Float = vec2_dot(v0, v1)
+    let dot02: Float = vec2_dot(v0, v2)
+    let dot11: Float = vec2_dot(v1, v1)
+    let dot12: Float = vec2_dot(v1, v2)
+
+    let denom: Float = dot00 * dot11 - dot01 * dot01
+    if denom == 0.0:
+        return false
+
+    let inv_denom: Float = 1.0 / denom
+    let u: Float = (dot11 * dot02 - dot01 * dot12) * inv_denom
+    let v: Float = (dot00 * dot12 - dot01 * dot02) * inv_denom
+
+    return u >= 0.0 and v >= 0.0 and u + v < 1.0
+
+fn contains_any_vertex(vertices: [Vec2], a: Vec2, b: Vec2, c: Vec2) -> Bool with Pure:
+    /// Check if any vertex in the list (besides a, b, c) is inside triangle (a, b, c).
+    var i: Int = 0
+    while i < len(vertices):
+        let p: Vec2 = vertices[i]
+        // Skip the triangle's own vertices
+        if (abs_f(p.x - a.x) < 0.0001 and abs_f(p.y - a.y) < 0.0001) or
+           (abs_f(p.x - b.x) < 0.0001 and abs_f(p.y - b.y) < 0.0001) or
+           (abs_f(p.x - c.x) < 0.0001 and abs_f(p.y - c.y) < 0.0001):
+            i = i + 1
+            continue
+        if point_in_triangle(p, a, b, c):
+            return true
+        i = i + 1
+    return false
+
+fn remove_at_index(arr: [Vec2], idx: Int) -> [Vec2] with Pure:
+    var result: [Vec2] = []
+    var i: Int = 0
+    while i < len(arr):
+        if i != idx:
+            result = result + [arr[i]]
+        i = i + 1
+    return result
+
+fn abs_f(v: Float) -> Float with Pure:
+    if v < 0.0: return -v
+    return v
+
+/// Triangulate a polygon using ear-clipping algorithm.
+/// Returns flat triangle vertex array [v0, v1, v2, v0, v1, v2, ...].
+fn triangulate_shape(shape: Shape, divisions: Int) -> [Vec2] with Pure:
+    let polygon: [Vec2] = shape.extract_points(divisions)
+    var remaining: [Vec2] = polygon
+    var triangles: [Vec2] = []
+    var count: Int = len(remaining)
+
+    while count > 3:
+        var found_ear: Bool = false
+        var i: Int = 0
+        while i < count and not found_ear:
+            let prev: Vec2 = remaining[(i - 1 + count) % count]
+            let curr: Vec2 = remaining[i]
+            let next: Vec2 = remaining[(i + 1) % count]
+
+            if is_convex_vertex(prev, curr, next):
+                if not contains_any_vertex(remaining, prev, curr, next):
+                    // Clip the ear
+                    triangles = triangles + [prev, curr, next]
+                    remaining = remove_at_index(remaining, i)
+                    count = count - 1
+                    found_ear = true
+            i = i + 1
+
+        if not found_ear:
+            // Fallback: force-clip the first convex vertex
+            var j: Int = 0
+            while j < count:
+                let pv: Vec2 = remaining[(j - 1 + count) % count]
+                let cv: Vec2 = remaining[j]
+                let nv: Vec2 = remaining[(j + 1) % count]
+                if is_convex_vertex(pv, cv, nv):
+                    triangles = triangles + [pv, cv, nv]
+                    remaining = remove_at_index(remaining, j)
+                    count = count - 1
+                    j = count + 1  // break
+                j = j + 1
+
+    // Final triangle
+    if count == 3:
+        triangles = triangles + [remaining[0], remaining[1], remaining[2]]
+
+    return triangles
+
+// ============================================================================
+//  CURVE IMPLEMENTATIONS
+// ============================================================================
+
+// --- LineCurve (2D) ---
+
+struct LineCurve:
+    start: Vec2
+    end: Vec2
+
+impl Curve<Vec2> for LineCurve:
+    fn get_point(self: Self, t: Float) -> Vec2 with Pure:
+        let t_clamped: Float = clamp(t, 0.0, 1.0)
+        return Vec2 {
+            x: self.start.x + (self.end.x - self.start.x) * t_clamped,
+            y: self.start.y + (self.end.y - self.start.y) * t_clamped
+        }
+
+    fn get_tangent(self: Self, t: Float) -> Vec2 with Pure:
+        return vec2_normalize(vec2_sub(self.end, self.start))
+
+// --- CubicBezier (3D) ---
+
+struct CubicBezier:
+    v0: Vec3  // start
+    v1: Vec3  // control 1
+    v2: Vec3  // control 2
+    v3: Vec3  // end
+
+impl Curve<Vec3> for CubicBezier:
+    fn get_point(self: Self, t: Float) -> Vec3 with Pure:
+        let u: Float = 1.0 - t
+        let u2: Float = u * u
+        let u3: Float = u2 * u
+        let t2: Float = t * t
+        let t3: Float = t2 * t
+        return vec3_add(
+            vec3_add(
+                vec3_mul_scalar(self.v0, u3),
+                vec3_mul_scalar(self.v1, 3.0 * u2 * t)
+            ),
+            vec3_add(
+                vec3_mul_scalar(self.v2, 3.0 * u * t2),
+                vec3_mul_scalar(self.v3, t3)
+            )
+        )
+
+    fn get_tangent(self: Self, t: Float) -> Vec3 with Pure:
+        let u: Float = 1.0 - t
+        let u2: Float = u * u
+        let t2: Float = t * t
+        return vec3_add(
+            vec3_add(
+                vec3_mul_scalar(vec3_sub(self.v1, self.v0), 3.0 * u2),
+                vec3_mul_scalar(vec3_sub(self.v2, self.v1), 6.0 * u * t)
+            ),
+            vec3_mul_scalar(vec3_sub(self.v3, self.v2), 3.0 * t2)
+        )
+
+// --- QuadraticBezier (3D) ---
+
+struct QuadraticBezier:
+    v0: Vec3  // start
+    v1: Vec3  // control
+    v2: Vec3  // end
+
+impl Curve<Vec3> for QuadraticBezier:
+    fn get_point(self: Self, t: Float) -> Vec3 with Pure:
+        let u: Float = 1.0 - t
+        let u2: Float = u * u
+        let t2: Float = t * t
+        return vec3_add(
+            vec3_mul_scalar(self.v0, u2),
+            vec3_add(
+                vec3_mul_scalar(self.v1, 2.0 * u * t),
+                vec3_mul_scalar(self.v2, t2)
+            )
+        )
+
+    fn get_tangent(self: Self, t: Float) -> Vec3 with Pure:
+        let u: Float = 1.0 - t
+        return vec3_add(
+            vec3_mul_scalar(vec3_sub(self.v1, self.v0), 2.0 * u),
+            vec3_mul_scalar(vec3_sub(self.v2, self.v1), 2.0 * t)
+        )
+
+// --- CatmullRom (3D) ---
+
+struct CatmullRomCurve:
+    points: [Vec3]
+    closed: Bool = false
+    curve_type: String = "centripetal"
+
+impl Curve<Vec3> for CatmullRomCurve:
+    fn get_point(self: Self, t: Float) -> Vec3 with Pure:
+        let t_clamped: Float = clamp(t, 0.0, 1.0)
+        if len(self.points) < 2:
+            if len(self.points) == 1:
+                return self.points[0]
+            return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+        // Find segment
+        let num_segments: Int = len(self.points) - 1
+        if self.closed:
+            num_segments = len(self.points)
+        let segment_t: Float = t_clamped * f32(num_segments)
+        let seg_idx: Int = int(segment_t)
+        let local_t: Float = segment_t - f32(seg_idx)
+
+        // Get 4 control points for Catmull-Rom
+        let p0: Vec3 = self.points[(seg_idx - 1 + len(self.points)) % len(self.points)]
+        let p1: Vec3 = self.points[seg_idx]
+        let p2: Vec3 = self.points[(seg_idx + 1) % len(self.points)]
+        let p3: Vec3 = self.points[(seg_idx + 2) % len(self.points)]
+
+        // Centripetal Catmull-Rom
+        let t2: Float = local_t * local_t
+        let t3: Float = t2 * local_t
+        return vec3_add(
+            vec3_add(
+                vec3_mul_scalar(p1, 2.0 * t2 - t3 - t2),
+                vec3_mul_scalar(p2, 3.0 * t2 - 2.0 * t2)
+            ),
+            vec3_add(
+                vec3_mul_scalar(vec3_sub(p2, p0), t3 - 2.0 * t2 + local_t),
+                vec3_mul_scalar(vec3_sub(p3, p1), t3 - t2)
+            )
+        )
+
+    fn get_tangent(self: Self, t: Float) -> Vec3 with Pure:
+        let epsilon: Float = 0.001
+        let p_plus: Vec3 = self.get_point(min(t + epsilon, 1.0))
+        let p_minus: Vec3 = self.get_point(max(t - epsilon, 0.0))
+        return vec3_normalize(vec3_sub(p_plus, p_minus))
+
+// --- SplineCurve (3D) ---
+
+struct SplineCurve:
+    points: [Vec3]
+    tension: Float = 0.5
+
+impl Curve<Vec3> for SplineCurve:
+    fn get_point(self: Self, t: Float) -> Vec3 with Pure:
+        let t_clamped: Float = clamp(t, 0.0, 1.0)
+        if len(self.points) < 2:
+            if len(self.points) == 1:
+                return self.points[0]
+            return Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+        let num_segments: Int = len(self.points) - 1
+        let segment_t: Float = t_clamped * f32(num_segments)
+        let seg_idx: Int = int(segment_t)
+        let local_t: Float = segment_t - f32(seg_idx)
+
+        let p0: Vec3 = self.points[max(seg_idx - 1, 0)]
+        let p1: Vec3 = self.points[seg_idx]
+        let p2: Vec3 = self.points[min(seg_idx + 1, len(self.points) - 1)]
+        let p3: Vec3 = self.points[min(seg_idx + 2, len(self.points) - 1)]
+
+        let tension: Float = self.tension
+        let t2: Float = local_t * local_t
+        let t3: Float = t2 * local_t
+
+        // Kochanek-Bartels (TCB) with tension only
+        let m1: Vec3 = vec3_mul_scalar(vec3_sub(p2, p0), (1.0 - tension) * 0.5)
+        let m2: Vec3 = vec3_mul_scalar(vec3_sub(p3, p1), (1.0 - tension) * 0.5)
+
+        return vec3_add(
+            vec3_add(
+                vec3_mul_scalar(p1, 2.0 * t3 - 3.0 * t2 + 1.0),
+                vec3_mul_scalar(m1, t3 - 2.0 * t2 + local_t)
+            ),
+            vec3_add(
+                vec3_mul_scalar(p2, -2.0 * t3 + 3.0 * t2),
+                vec3_mul_scalar(m2, t3 - t2)
+            )
+        )
+
+    fn get_tangent(self: Self, t: Float) -> Vec3 with Pure:
+        let epsilon: Float = 0.001
+        let p_plus: Vec3 = self.get_point(min(t + epsilon, 1.0))
+        let p_minus: Vec3 = self.get_point(max(t - epsilon, 0.0))
+        return vec3_normalize(vec3_sub(p_plus, p_minus))
+
+// --- EllipseCurve (2D) ---
+
+struct EllipseCurve:
+    a_x: Float = 0.0
+    a_y: Float = 0.0
+    x_radius: Float = 1.0
+    y_radius: Float = 1.0
+    start_angle: Float = 0.0
+    end_angle: Float = 6.283185
+    clockwise: Bool = false
+    rotation: Float = 0.0
+
+impl Curve<Vec2> for EllipseCurve:
+    fn get_point(self: Self, t: Float) -> Vec2 with Pure:
+        let t_clamped: Float = clamp(t, 0.0, 1.0)
+        let angle: Float = self.start_angle + (self.end_angle - self.start_angle) * t_clamped
+        let cos_angle: Float = cos(angle)
+        let sin_angle: Float = sin(angle)
+        let cos_rot: Float = cos(self.rotation)
+        let sin_rot: Float = sin(self.rotation)
+
+        let rx: Float = self.x_radius
+        let ry: Float = self.y_radius
+        let x: Float = self.a_x + rx * cos_angle * cos_rot - ry * sin_angle * sin_rot
+        let y: Float = self.a_y + rx * cos_angle * sin_rot + ry * sin_angle * cos_rot
+
+        return Vec2 { x: x, y: y }
+
+    fn get_tangent(self: Self, t: Float) -> Vec2 with Pure:
+        let epsilon: Float = 0.001
+        let p_plus: Vec2 = self.get_point(min(t + epsilon, 1.0))
+        let p_minus: Vec2 = self.get_point(max(t - epsilon, 0.0))
+        let diff: Vec2 = vec2_sub(p_plus, p_minus)
+        let len: Float = vec2_length(diff)
+        if len < 0.0001:
+            return Vec2 { x: 1.0, y: 0.0 }
+        return Vec2 { x: diff.x / len, y: diff.y / len }
+
+// ============================================================================
+//  VEC2 NORMALIZE HELP
+// ============================================================================
+
+fn vec2_normalize(v: Vec2) -> Vec2 with Pure:
+    let len: Float = vec2_length(v)
+    if len < 0.0001:
+        return Vec2 { x: 0.0, y: 0.0 }
+    return Vec2 { x: v.x / len, y: v.y / len }
+
+// ============================================================================
+//  MIN/MAX HELP
+// ============================================================================
+
+fn min(a: Float, b: Float) -> Float with Pure:
+    if a < b: return a
+    return b
+
+fn max(a: Float, b: Float) -> Float with Pure:
+    if a > b: return a
+    return b
+
+// ============================================================================
+//  ORCHESTRATE — PMREM Pipeline
+// ============================================================================
+//
+//  3-stage GPU compute DAG for environment map prefiltering:
+//    1. equirect_to_cubemap: convert equirect HDR to 6-face cubemap
+//    2. ggx_prefilter: sample GGX VNDF per mip level
+//    3. irradiance_convolution: cosine-weighted hemisphere sampling
+
+/// Law: ensure the generated env map is complete
+law env_map_complete(output_count: Int, expected_count: Int) -> Bool:
+    return output_count == expected_count
+
+orchestrate pmrem_pipeline(env_map_id: Int, cubemap_size: Int) -> Int:
+    stage equirect_to_cubemap: gpu dispatch "shader::pmrem_equirect_to_cubemap::compute" [cubemap_size / 8, cubemap_size / 8, 6]
+        residency device
+        transfer host_to_device
+
+    stage ggx_prefilter: gpu dispatch "shader::pmrem_ggx_vndf::compute" [cubemap_size / 8, cubemap_size / 8, 6 * 6]
+        after equirect_to_cubemap
+        residency device
+        transfer none
+
+    stage irradiance_convolution: gpu dispatch "shader::pmrem_irradiance::compute" [cubemap_size / 16, cubemap_size / 16, 6]
+        after ggx_prefilter
+        residency device
+        transfer device_to_host
+
+    stage register_env: patch register_env_map(env_map_id)
+        after irradiance_convolution
+        residency host
+        policy static
+
+    return register_env
+
+/// Patch to register generated env map in texture registry
+patch register_env_map(env_map_id: Int) -> Int:
+    // In full build, this writes to TextureRegistry
+    return env_map_id
+
+// ============================================================================
+//  INITIALIZATION
+// ============================================================================
+
+fn init_extra() -> Int:
+    return 0

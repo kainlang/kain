@@ -1,0 +1,229 @@
+// ============================================================================
+// camera.kn — Camera System
+// ============================================================================
+//
+// Ladder: LAYER 1 (world) + LAYER 2 (law + patch) + LAYER 3 (converge)
+//
+// Provides world CameraState with projection parameters, derived matrices,
+// and converge dispatch for 4 projection types:
+// Perspective, Orthographic, Cube (6-face 90° FOV), Stereo (dual eye).
+//
+// GPU binding convention (§6): @0-@9 — per-frame data,
+// @0 camera MVP, @6 projection, @7 view, @8 model.
+//
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Camera projection type. Three-kn compresses six Three.js camera classes
+/// to 4 projection variants dispatchable via converge.
+pub enum ProjectionKind:
+    Perspective
+    Orthographic
+    Cube
+    Stereo
+
+// ============================================================================
+// COMPONENT PANEL (WORLD SURFACE)
+// ============================================================================
+
+component CameraPanel():
+    render <panel title="Camera State" />
+
+// ============================================================================
+// WORLD — CameraState (Authority)
+// ============================================================================
+
+/// Compiler-owned camera state. Holds projection parameters, derived
+/// matrices, and view matrix for a single active camera.
+pub world CameraState:
+    // Projection type discriminator
+    state projection_type: Int = 0              // ProjectionKind::Perspective
+
+    // Perspective parameters
+    state fov: Float = 50.0                     // vertical field of view (degrees)
+    state aspect: Float = 1.0                   // width / height
+    state near: Float = 0.1
+    state far: Float = 2000.0
+
+    // Orthographic parameters
+    state left: Float = -1.0
+    state right: Float = 1.0
+    state top: Float = 1.0
+    state bottom: Float = -1.0
+
+    // Stereo parameters
+    state eye_separation: Float = 0.064         // interpupillary distance (meters)
+
+    // View parameters
+    state position: Vec3 = vec3(0.0, 0.0, 0.0)
+    state target: Vec3 = vec3(0.0, 0.0, -1.0)
+    state up: Vec3 = vec3(0.0, 1.0, 0.0)
+
+    // Derived matrices (computed by patches or converge)
+    state projection_matrix: Mat4 = mat4_identity()
+    state view_matrix: Mat4 = mat4_identity()
+    state view_projection_matrix: Mat4 = mat4_identity()
+
+    // Versioning
+    state epoch: Int = 0
+    state zoom: Float = 1.0
+
+    surface native_ui => CameraPanel
+
+// ============================================================================
+// WORLD — CameraStateMirror (Read-Only Mirror)
+// ============================================================================
+
+/// Read-only mirror of CameraState for renderer access.
+pub world CameraStateMirror:
+    state projection_type_copy: Int = 0
+    state fov_copy: Float = 50.0
+    state aspect_copy: Float = 1.0
+    state near_copy: Float = 0.1
+    state far_copy: Float = 2000.0
+    state position_copy: Vec3 = vec3(0.0, 0.0, 0.0)
+    state projection_matrix_copy: Mat4 = mat4_identity()
+    state view_matrix_copy: Mat4 = mat4_identity()
+    state view_projection_matrix_copy: Mat4 = mat4_identity()
+    state epoch_copy: Int = 0
+    surface web => CameraPanel
+
+// ============================================================================
+// ENTANGLE — Authority ↔ Mirror
+// ============================================================================
+
+entangle CameraState.projection_type <-> CameraStateMirror.projection_type_copy with single_writer
+entangle CameraState.fov <-> CameraStateMirror.fov_copy with single_writer
+entangle CameraState.aspect <-> CameraStateMirror.aspect_copy with single_writer
+entangle CameraState.near <-> CameraStateMirror.near_copy with single_writer
+entangle CameraState.far <-> CameraStateMirror.far_copy with single_writer
+entangle CameraState.position <-> CameraStateMirror.position_copy with single_writer
+entangle CameraState.projection_matrix <-> CameraStateMirror.projection_matrix_copy with single_writer
+entangle CameraState.view_matrix <-> CameraStateMirror.view_matrix_copy with single_writer
+entangle CameraState.view_projection_matrix <-> CameraStateMirror.view_projection_matrix_copy with single_writer
+entangle CameraState.epoch <-> CameraStateMirror.epoch_copy with single_writer
+
+// ============================================================================
+// LAW — Invariant Predicates
+// ============================================================================
+
+/// Near plane must be positive.
+pub law camera_near_positive(near: Float) -> Bool:
+    return near > 0.0
+
+/// Far plane must be greater than near plane.
+pub law camera_far_greater_than_near(near: Float, far: Float) -> Bool:
+    return far > near
+
+/// Aspect ratio must be positive.
+pub law camera_aspect_positive(aspect: Float) -> Bool:
+    return aspect > 0.0
+
+/// FOV must be in valid range.
+pub law camera_fov_valid(fov: Float) -> Bool:
+    return fov > 0.0 and fov < 180.0
+
+/// Full camera state validity check.
+pub law camera_state_valid(cam: CameraState) -> Bool:
+    let near_ok = camera_near_positive(cam.near)
+    let far_ok = camera_far_greater_than_near(cam.near, cam.far)
+    let aspect_ok = camera_aspect_positive(cam.aspect)
+    let fov_ok = camera_fov_valid(cam.fov)
+    return near_ok and far_ok and aspect_ok and fov_ok
+
+// ============================================================================
+// CONVERGE — Projection Type Dispatch
+// ============================================================================
+
+/// Select projection matrix builder based on projection type.
+/// Takes the camera state and returns the appropriate projection matrix.
+/// The spec creates a perspective projection.
+pub fn select_projection(cam: CameraState) -> Mat4:
+    if cam.projection_type == ProjectionKind::Orthographic as Int:
+        let left = cam.left / cam.zoom
+        let right = cam.right / cam.zoom
+        let top = cam.top / cam.zoom
+        let bottom = cam.bottom / cam.zoom
+        return mat4_orthographic(left, right, bottom, top, cam.near, cam.far)
+    elif cam.projection_type == ProjectionKind::Cube as Int:
+        return mat4_perspective(1.57079632679, 1.0, cam.near, cam.far)
+    elif cam.projection_type == ProjectionKind::Stereo as Int:
+        let fov_rad = degrees_to_radians(cam.fov / cam.zoom)
+        let eye_offset = cam.eye_separation / 2.0
+        let eye_translate = mat4_translation(vec3(-eye_offset, 0.0, 0.0))
+        let proj = mat4_perspective(fov_rad, cam.aspect, cam.near, cam.far)
+        return mat4_mul(proj, eye_translate)
+    else:
+        // Perspective (default)
+        let fov_rad = degrees_to_radians(cam.fov / cam.zoom)
+        return mat4_perspective(fov_rad, cam.aspect, cam.near, cam.far)
+
+// ============================================================================
+// PATCH — Projection and View Updates
+// ============================================================================
+
+/// Switch camera to perspective mode with given parameters.
+pub patch set_perspective(cam: CameraState, fov: Float, aspect: Float, near: Float, far: Float) -> Int:
+    cam.projection_type = ProjectionKind::Perspective as Int
+    cam.fov = fov
+    cam.aspect = aspect
+    cam.near = near
+    cam.far = far
+    cam.projection_matrix = select_projection(cam)
+    cam.view_projection_matrix = mat4_mul(cam.projection_matrix, cam.view_matrix)
+    cam.epoch = cam.epoch + 1
+    return cam.epoch
+
+/// Switch camera to orthographic mode with given parameters.
+pub patch set_orthographic(cam: CameraState, left: Float, right: Float, top: Float, bottom: Float, near: Float, far: Float) -> Int:
+    cam.projection_type = ProjectionKind::Orthographic as Int
+    cam.left = left
+    cam.right = right
+    cam.top = top
+    cam.bottom = bottom
+    cam.near = near
+    cam.far = far
+    cam.projection_matrix = select_projection(cam)
+    cam.view_projection_matrix = mat4_mul(cam.projection_matrix, cam.view_matrix)
+    cam.epoch = cam.epoch + 1
+    return cam.epoch
+
+/// Update the view matrix from camera position/target/up.
+pub patch update_view(cam: CameraState, position: Vec3, target: Vec3, up: Vec3) -> Int:
+    cam.position = position
+    cam.target = target
+    cam.up = up
+    cam.view_matrix = mat4_look_at(position, target, up)
+    cam.view_projection_matrix = mat4_mul(cam.projection_matrix, cam.view_matrix)
+    cam.epoch = cam.epoch + 1
+    return cam.epoch
+
+/// Set the aspect ratio (called on window resize).
+pub patch set_aspect(cam: CameraState, aspect: Float) -> Int:
+    cam.aspect = aspect
+    cam.projection_matrix = select_projection(cam)
+    cam.view_projection_matrix = mat4_mul(cam.projection_matrix, cam.view_matrix)
+    cam.epoch = cam.epoch + 1
+    return cam.epoch
+
+// ============================================================================
+// PUBLIC UTILITY FUNCTIONS
+// ============================================================================
+
+/// Build view matrix from position, target, and up vectors.
+pub fn build_view(position: Vec3, target: Vec3, up: Vec3) -> Mat4 with Pure:
+    return mat4_look_at(position, target, up)
+
+/// Build a perspective projection matrix.
+pub fn build_perspective_matrix(fov: Float, aspect: Float, near: Float, far: Float) -> Mat4 with Pure:
+    let fov_rad = degrees_to_radians(fov)
+    return mat4_perspective(fov_rad, aspect, near, far)
+
+/// Build an orthographic projection matrix.
+pub fn build_orthographic_matrix(left: Float, right: Float, bottom: Float, top: Float, near: Float, far: Float) -> Mat4 with Pure:
+    return mat4_orthographic(left, right, bottom, top, near, far)
