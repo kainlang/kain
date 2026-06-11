@@ -1,0 +1,28 @@
+# CI overrides — loaded AFTER .bazelrc via --bazelrc=.bazelrc.ci
+# Overrides Windows-specific Z: drive paths for GitHub Actions Linux runners.
+
+# Redirect Bazel output/cache to CI-friendly temp space
+startup --output_user_root=/tmp/bazel-out
+common --repository_cache=/tmp/bazel-cache/repo
+build --disk_cache=/tmp/bazel-cache/disk
+
+# Override Z: drive temp paths
+common --repo_env=TMP=/tmp
+common --repo_env=TEMP=/tmp
+common --repo_env=TMPDIR=/tmp
+common --action_env=TMP=/tmp
+common --action_env=TEMP=/tmp
+common --action_env=TMPDIR=/tmp
+test --test_env=TMP=/tmp
+test --test_env=TEMP=/tmp
+test --test_env=TMPDIR=/tmp
+
+# CI doesn't have LIBCLANG_PATH by default
+common --repo_env=LIBCLANG_PATH=
+common --action_env=LIBCLANG_PATH=
+
+# Keep CI lean — don't hog all CPUs on shared runners
+build --jobs=2
+build --local_resources=cpu=2
+build --local_resources=memory=6144
+test --local_test_jobs=1

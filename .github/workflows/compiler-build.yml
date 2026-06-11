@@ -1,0 +1,66 @@
+name: Compiler Build & Smoke
+
+# Only fires when the Rust compiler crates or build config change.
+# Pushing Kain .kn files, docs, blades, etc. → no CI run.
+on:
+  push:
+    paths:
+      - 'crates/**'
+      - 'scripts/**'
+      - '.bazelrc'
+      - '.bazelrc.ci'
+      - '.bazelversion'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'WORKSPACE*'
+      - 'toolchain/**'
+      - '.github/workflows/compiler-build.yml'
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'scripts/**'
+      - '.bazelrc'
+      - '.bazelrc.ci'
+      - '.bazelversion'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'WORKSPACE*'
+      - 'toolchain/**'
+      - '.github/workflows/compiler-build.yml'
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Cache Bazel artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/bazel-cache
+            /tmp/bazel-out
+          key: bazel-compiler-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'crates/**/Cargo.toml', '.bazelversion') }}
+          restore-keys: |
+            bazel-compiler-${{ runner.os }}-
+
+      - name: Build compiler (opt, dev config)
+        run: |
+          bazel --bazelrc=.bazelrc --bazelrc=.bazelrc.ci \
+            build //:kain --config=dev --verbose_failures
+
+      - name: Run key crate tests
+        run: |
+          bazel --bazelrc=.bazelrc --bazelrc=.bazelrc.ci \
+            test //:key_crate_tests --config=dev --test_output=errors
+
+      - name: Run developer smoke tests
+        run: |
+          bazel --bazelrc=.bazelrc --bazelrc=.bazelrc.ci \
+            test //:developer_smoke_tests --config=dev --test_output=errors

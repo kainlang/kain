@@ -1,0 +1,59 @@
+name: Native Runtime Build & Test
+
+# Only fires when the native C runtime or build config change.
+# Completely independent from the compiler workflow.
+on:
+  push:
+    paths:
+      - 'runtime/**'
+      - 'scripts/**'
+      - '.bazelrc'
+      - '.bazelrc.ci'
+      - '.bazelversion'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'WORKSPACE*'
+      - '.github/workflows/runtime-build.yml'
+  pull_request:
+    paths:
+      - 'runtime/**'
+      - 'scripts/**'
+      - '.bazelrc'
+      - '.bazelrc.ci'
+      - '.bazelversion'
+      - 'MODULE.bazel'
+      - 'BUILD.bazel'
+      - 'WORKSPACE*'
+      - '.github/workflows/runtime-build.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Cache Bazel artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/bazel-cache
+            /tmp/bazel-out
+          key: bazel-runtime-${{ runner.os }}-${{ hashFiles('.bazelversion', 'runtime/**/*.c', 'runtime/**/*.h', 'runtime/**/BUILD.bazel') }}
+          restore-keys: |
+            bazel-runtime-${{ runner.os }}-
+
+      - name: Build native C runtime
+        run: |
+          bazel --bazelrc=.bazelrc --bazelrc=.bazelrc.ci \
+            build //runtime:native_core_runtime --config=dev --verbose_failures
+
+      - name: Run native runtime tests
+        run: |
+          bazel --bazelrc=.bazelrc --bazelrc=.bazelrc.ci \
+            test //runtime:native_runtime_tests --config=dev --test_output=errors
