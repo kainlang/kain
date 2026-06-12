@@ -6,24 +6,22 @@
 //
 //  TREE STRUCTURE (v0.2):
 //
-//    RootSupervisor (monitors sub-supervisors only)
-//    ├── IoLaneSupervisor (OneForOne — RouterActor)
-//    │   └── RouterActor
-//    ├── GatewaySupervisor (OneForOne — RateLimiter, AuthGate)
+//    RootSupervisor (OneForOne on top-level children)
+//    ├── RouterActor           (OneForOne — router crash doesn't kill pool)
+//    ├── GatewaySupervisor     (delegates RateLimiter + AuthGate)
 //    │   ├── RateLimiter
 //    │   └── AuthGate
-//    └── WorkerPoolSupervisor (standalone — owns its workers)
+//    └── WorkerPoolSupervisor  (standalone — owns its workers)
 //        └── WorkerActor × N
 //
-//  ESCALATION CHAIN:
-//    - RouterActor crashes → IoLaneSupervisor restarts it (OneForOne).
-//      Workers, RateLimiter, and AuthGate are unaffected.
-//    - IoLaneSupervisor hits restart limit → escalates to RootSupervisor.
-//    - RootSupervisor tracks total escalations across all sub-supervisors.
+//  v0.1 TRAP (FIXED): RootSupervisor used OneForAll — a RouterActor crash
+//    from a malformed HTTP packet killed RateLimiter, AuthGate, AND the
+//    entire WorkerPool. A retry of the toxic packet triggered 5-restarts-
+//    in-60s and killed the server binary.
 //
-//  v0.1 trap (FIXED): RootSupervisor used OneForAll on ALL leaf actors.
-//    A malformed HTTP packet crashing RouterActor would tear down the entire
-//    WorkerPool, causing 5-restarts-in-60s and binary death on retry.
+//  v0.2 FIX: RootSupervisor now uses OneForOne. Only the crashed child
+//    restarts. The RouterActor, gateway actors, and worker pool are
+//    independently fault-contained.
 // ============================================================================
 
 use std::actor
@@ -39,63 +37,60 @@ use worker
 const SUP_MAX_RESTARTS: Int = 5
 
 // ============================================================================
-//  IoLaneSupervisor — OneForOne on RouterActor
+//  ROOT SUPERVISOR — OneForOne Strategy (v0.2)
 //
-//  Isolates the router actor from the rest of the system. A router crash
-//  from a malformed HTTP packet no longer kills the worker pool or gateways.
-//  On each RouterActor restart, dependencies are re-wired automatically.
+//  Children: RouterActor, GatewaySupervisor, WorkerPoolSupervisor
+//
+//  v0.2 CHANGE: OneForOne instead of OneForAll.
+//  When a child dies, ONLY that child is restarted. Siblings are unaffected.
+//  Per-child restart tracking with escalation on excessive restarts.
+//
+//  The GatewaySupervisor is treated as a single child by RootSupervisor;
+//  its internal children (RateLimiter, AuthGate) are managed with OneForOne
+//  by GatewaySupervisor itself.
 // ============================================================================
 
-actor IoLaneSupervisor:
-    state router: RouterActor
-    state cfg: GreebleConfig
-    state rl_id: Int = 0
-    state ag_id: Int = 0
-    state pool_id: Int = 0
-    state restart_count: Int = 0
+actor RootSupervisor:
+    state children: Array<Int> = []
+    state child_names: Array<String> = []
+    state restart_counts: Array<Int> = []
     state escalation_count: Int = 0
 
-    // ---- Child Exit Handler (OneForOne) ----------------------------------
-
     on ChildExited(child_id: Int, exit_reason: Int):
-        self.restart_count = self.restart_count + 1
+        var i: Int = 0
+        while i < len(self.children):
+            if self.children[i] == child_id:
+                self.restart_counts[i] = self.restart_counts[i] + 1
+                if self.restart_counts[i] > SUP_MAX_RESTARTS:
+                    self.escalation_count = self.escalation_count + 1
+                else:
+                    let name = self.child_names[i]
+                    let new_id = actor_spawn(name, "")
+                    self.children[i] = new_id
+                    self.restart_counts[i] = 0
+                i = len(self.children)
+            i = i + 1
 
-        // Intensity check: if we've restarted too many times, escalate
-        if self.restart_count > SUP_MAX_RESTARTS:
-            self.escalation_count = self.escalation_count + 1
-            // v0.2: escalation is tracked but the supervisor does NOT
-            // terminate itself — the RootSupervisor handles policy.
-        else:
-            // OneForOne: restart ONLY the RouterActor
-            self.router = spawn_router(self.cfg)
-            let router_id: Int = self.router as Int
-            // Re-wire dependencies that were lost on restart
-            send self.router.SetDependencies(
-                rate_limiter_id = self.rl_id,
-                auth_gate_id = self.ag_id,
-                worker_pool_id = self.pool_id,
-            )
-            // Re-establish monitoring on the new instance
-            let _ = actor_monitor(self as Int, router_id)
-
-    // ---- Dependency Injection (called once after all actors are up) ------
-
-    on SetDeps(rl_id: Int, ag_id: Int, pool_id: Int):
-        self.rl_id = rl_id
-        self.ag_id = ag_id
-        self.pool_id = pool_id
-
-    // ---- Telemetry -------------------------------------------------------
+    on RegisterChild(child_id: Int, name: String):
+        push(self.children, child_id)
+        push(self.child_names, name)
+        push(self.restart_counts, 0)
 
     on GetTelemetry(reply_to: P, unused: Int):
-        let packed = pack(self.restart_count, self.escalation_count)
+        var total_restarts: Int = 0
+        var k: Int = 0
+        while k < len(self.restart_counts):
+            total_restarts = total_restarts + self.restart_counts[k]
+            k = k + 1
+        let packed = pack(total_restarts, self.escalation_count)
         send reply_to.Reply(value = packed)
 
 
 // ============================================================================
-//  GatewaySupervisor — OneForOne on RateLimiter + AuthGate
+//  GATEWAY SUPERVISOR — OneForOne Strategy
 //
-//  Manages gateway actors with per-child restart policies:
+//  Children: RateLimiter, AuthGate
+//  Restart policies vary per child:
 //    PERMANENT  — always restart (RateLimiter)
 //    TRANSIENT  — restart on non-zero exit (AuthGate)
 //    TEMPORARY  — never restart
@@ -106,33 +101,21 @@ actor GatewaySupervisor:
     state child_policies: Array<Int> = []
     state restart_counts: Array<Int> = []
 
-    // ---- Child Exit Handler -----------------------------------------------
-
     on ChildExited(child_id: Int, exit_reason: Int):
         var i: Int = 0
         while i < len(self.children):
             if self.children[i] == child_id:
                 self.restart_counts[i] = self.restart_counts[i] + 1
                 let policy = self.child_policies[i]
-
-                // OneForOne: only restart the failed child
                 if policy == SUP_POLICY_PERMANENT:
-                    // Always restart regardless of exit reason
                     let new_id = actor_spawn("gateway-child", "")
                     self.children[i] = new_id
-
                 elif policy == SUP_POLICY_TRANSIENT:
-                    // Restart only on abnormal exit (exit_reason != 0)
                     if exit_reason != 0:
                         let new_id = actor_spawn("gateway-child", "")
                         self.children[i] = new_id
-
-                // SUP_POLICY_TEMPORARY: never restart — child stays dead
-
                 i = len(self.children)
             i = i + 1
-
-    // ---- Spawn Child with Restart Policy ----------------------------------
 
     on SpawnChild(actor_name: String, init_payload: String, restart_policy: Int):
         let child_id = actor_spawn(actor_name, init_payload)
@@ -142,110 +125,46 @@ actor GatewaySupervisor:
 
 
 // ============================================================================
-//  RootSupervisor — Top-Level Supervisor (v0.2)
-//
-//  Supervises ONLY the sub-supervisors: IoLaneSupervisor, GatewaySupervisor,
-//  WorkerPoolSupervisor. Does NOT hold direct leaf actors.
-//
-//  v0.2 CHANGE: RootSupervisor no longer uses OneForAll on leaf actors.
-//  Each sub-supervisor uses OneForOne. The RootSupervisor only tracks
-//  escalation counts and total restarts across the tree.
-// ============================================================================
-
-actor RootSupervisor:
-    state io_lane: IoLaneSupervisor
-    state gateway: GatewaySupervisor
-    state worker_pool: WorkerPoolSupervisor
-    state escalation_count: Int = 0
-
-    // ---- Child Exit Handler (track only — sub-supervisors handle restart)
-
-    on ChildExited(child_id: Int, exit_reason: Int):
-        // v0.2: sub-supervisors handle their own children.
-        // The root only tracks escalation count for telemetry.
-        // A sub-supervisor escalation is detected via monitoring.
-        self.escalation_count = self.escalation_count + 1
-
-    // ---- Telemetry Query --------------------------------------------------
-
-    on GetTelemetry(reply_to: P, unused: Int):
-        // Collect restart counts from sub-supervisors
-        let io_restarts: Int = ask(self.io_lane, "GetTelemetry", 0) as Int
-        let io_total = unpack_first(io_restarts)
-        let _io_esc = unpack_second(io_restarts)
-        // Gateway + worker pool restarts tracked by root escalation counter
-        let total_restarts: Int = io_total + self.escalation_count
-        let packed = pack(total_restarts, self.escalation_count)
-        send reply_to.Reply(value = packed)
-
-
-// ============================================================================
 //  PUBLIC API
 // ============================================================================
 
 pub fn spawn_supervision_tree(config: GreebleConfig) -> Int:
-    // ---- 1. Spawn leaf actors -------------------------------------------
     let router_actor: RouterActor = spawn_router(config)
     let rl = spawn_rate_limiter(1000)
     let ag = spawn_auth_gate()
     let pool = spawn_worker_pool(config.worker_pool_size, config.mailbox_capacity)
 
-    // ---- 2. Spawn sub-supervisors ---------------------------------------
-    let io_lane = spawn IoLaneSupervisor(
-        router = router_actor,
-        cfg = config,
-    )
     let gateway = spawn GatewaySupervisor()
-    let io_lane_id: Int = io_lane as Int
     let gateway_id: Int = gateway as Int
 
-    // ---- 3. Wire dependency IDs into IoLaneSupervisor -------------------
-    //     (so it can re-wire them after router restarts)
-    send io_lane.SetDeps(
-        rl_id = rl as Int,
-        ag_id = ag as Int,
-        pool_id = pool as Int,
-    )
-
-    // ---- 4. Wire dependency IDs into RouterActor (initial) --------------
     send router_actor.SetDependencies(
         rate_limiter_id = rl as Int,
         auth_gate_id = ag as Int,
         worker_pool_id = pool as Int,
     )
 
-    // ---- 5. Link sub-supervisors to their children ----------------------
-    //     IoLaneSupervisor monitors RouterActor
-    let _ = actor_monitor(io_lane_id, router_actor as Int)
-    //     GatewaySupervisor monitors RateLimiter + AuthGate
-    let _ = actor_monitor(gateway_id, rl as Int)
-    let _ = actor_monitor(gateway_id, ag as Int)
-
-    // ---- 6. Spawn RootSupervisor and link to sub-supervisors ------------
-    let root_sup = spawn RootSupervisor(
-        io_lane = io_lane,
-        gateway = gateway,
-        worker_pool = pool,
-    )
+    let root_sup = spawn RootSupervisor()
     let root_id: Int = root_sup as Int
-    let _ = actor_monitor(root_id, io_lane_id)
+
+    send root_sup.RegisterChild(child_id = router_actor as Int, name = "RouterActor")
+    send root_sup.RegisterChild(child_id = gateway_id, name = "GatewaySupervisor")
+    send root_sup.RegisterChild(child_id = pool as Int, name = "WorkerPoolSupervisor")
+
+    let _ = actor_monitor(root_id, router_actor as Int)
     let _ = actor_monitor(root_id, gateway_id)
     let _ = actor_monitor(root_id, pool as Int)
 
-    // ---- 7. Register root in actor registry -----------------------------
     let _ = actor_registry_register("greeble-root", root_id)
 
     return root_id
 
 pub fn supervisor_restart_count(sup_id: Int) -> Int:
-    // v0.2: query the runtime for actual restart attempts from this supervisor
     let native = actor_supervision_restart_attempt_count(sup_id)
     if native >= 0:
         return native
     return 0
 
 pub fn supervisor_escalation_count(sup_id: Int) -> Int:
-    // v0.2: query the runtime for actual escalation count
     let native = actor_supervision_escalation_count(sup_id)
     if native >= 0:
         return native

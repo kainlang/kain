@@ -60,8 +60,8 @@ fn spawn_echo_actors(count: Int) -> Array<Int>:
     var ids: Array<Int> = []
     var i: Int = 0
     while i < count:
-        let actor = spawn EchoActor(id = i)
-        let id: Int = actor as Int
+        let actor_var = spawn EchoActor(id = i)
+        let id: Int = actor_var as Int
         if id > 0:
             push(ids, id)
         i = i + 1
@@ -75,8 +75,8 @@ fn spawn_measured(count: Int) -> (Int, Int):
     var spawned: Int = 0
     var i: Int = 0
     while i < count:
-        let actor = spawn EchoActor(id = i)
-        let id: Int = actor as Int
+        let actor_var = spawn EchoActor(id = i)
+        let id: Int = actor_var as Int
         if id > 0:
             spawned = spawned + 1
         i = i + 1

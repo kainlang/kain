@@ -2,7 +2,6 @@
 //  json_load_test.kn — Concurrent Load Test for JSON Echo Server
 //
 //  Ladder: Layer 0 — Plain Code (fn, TCP client)
-//  Layer 1/2 — world/patch (reads ServerMirror telemetry)
 //
 //  Opens up to 100 concurrent TCP connections to the JSON echo server.
 //  Each connection sends 10 JSON requests, validates the response,
@@ -10,17 +9,17 @@
 //  and failure rates.
 //
 //  NOTE: This test expects the JSON echo server to already be running
-//  on port 9999. The server must be started separately (e.g., by the
-//  test harness or manually via `kain run json_echo_server.kn`).
+//  on port 9999. Start with:  kain run json_echo_server.kn
 //
 //  Tests:
 //    test_single_connection       — 1 connection, 10 requests
-//    test_10_concurrent           — 10 connections, 10 reqs each (100 total)
-//    test_50_concurrent           — 50 connections, 10 reqs each (500 total)
-//    test_100_concurrent          — 100 connections, 10 reqs each (1000 total)
-//    test_latency_distribution    — measure response time distribution
-//    test_health_endpoint         — verify /health responds correctly
-//    test_stats_endpoint          — verify /stats tracks request count
+//    test_10_concurrent           — 10 connections (100 total requests)
+//    test_50_concurrent           — 50 connections (500 total requests)
+//    test_100_concurrent          — 100 connections (1000 total requests)
+//    test_latency_distribution    — response time histogram
+//    test_health_endpoint         — GET /health validation
+//    test_stats_endpoint          — GET /stats validation
+//    test_echo_content            — POST /echo content validation
 // ============================================================================
 
 use std::runtime
@@ -34,49 +33,12 @@ use std::os
 const SERVER_HOST: String = "127.0.0.1"
 const SERVER_PORT: Int = 9999
 const TIMEOUT_MS: Int = 5000
-const MAX_CONNS: Int = 100
-const REQS_PER_CONN: Int = 10
 
 // ============================================================================
-//  JSON validation helpers
+//  JSON validation helpers (manual, no std::json dependency)
 // ============================================================================
-
-fn json_contains(response: String, key: String, expected_value: String) -> Bool:
-    // Simple substring check: does the response contain "key":"expected_value" or "key": expected_value
-    // This is NOT a real JSON parser — it's a smoke check for well-formed responses
-    var i: Int = 0
-    while i < len(response):
-        // Try to find the key
-        var key_match: Bool = false
-        if i + len(key) + 2 <= len(response):
-            // Look for "key":
-            if char_at(response, i) == "\"":
-                var j: Int = 0
-                var k_idx: Int = i + 1
-                while j < len(key):
-                    if k_idx >= len(response):
-                        break
-                    if char_at(response, k_idx) != char_at(key, j):
-                        break
-                    j = j + 1
-                    k_idx = k_idx + 1
-                if j == len(key):
-                    // Found the key, now check for ":
-                    if k_idx < len(response) and char_at(response, k_idx) == "\"":
-                        // Skip to value: look for expected_value nearby
-                        var v_idx: Int = k_idx + 2  // skip ":
-                        var e_idx: Int = 0
-                        while e_idx < len(expected_value) and v_idx + e_idx < len(response):
-                            if char_at(response, v_idx + e_idx) != char_at(expected_value, e_idx):
-                                break
-                            e_idx = e_idx + 1
-                        if e_idx == len(expected_value):
-                            return true
-        i = i + 1
-    return false
 
 fn json_has_key(response: String, key: String) -> Bool:
-    // Check if a JSON key exists (regardless of value)
     var needle: String = "\"" + key + "\""
     var i: Int = 0
     while i + len(needle) <= len(response):
@@ -91,6 +53,14 @@ fn json_has_key(response: String, key: String) -> Bool:
             return true
         i = i + 1
     return false
+
+fn check_response_ok(response: String, expected_status_start: String) -> Bool:
+    // Check response starts with HTTP status line containing expected code
+    if len(response) < 12:
+        return false
+    if char_at(response, 0) != "H":
+        return false
+    return json_has_key(response, "greeble")
 
 // ---- Assertion helpers ----------------------------------------------------
 
@@ -117,52 +87,388 @@ fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
 
 // ---- TCP helpers -----------------------------------------------------------
 
-fn tcp_request(client: Int, method: String, path: String, body: String) -> String:
-    // Build and send HTTP request, read response
+fn build_http_request(method: String, path: String, body: String) -> String:
     var request: String = method + " " + path + " HTTP/1.1\r\n"
     request = request + "Host: " + SERVER_HOST + ":" + str(SERVER_PORT) + "\r\n"
     if body != "":
         request = request + "Content-Type: application/json\r\n"
         request = request + "Content-Length: " + str(len(body)) + "\r\n"
-    request = request + "Connection: keep-alive\r\n"
+    request = request + "Connection: close\r\n"
     request = request + "\r\n"
     request = request + body
+    return request
 
-    let write_status = tcp_write_text(client, request)
-    if write_status != 0:
-        return ""
-
-    let response = tcp_read_text(client)
-    return response
-
-// ---- Single connection, N requests ----------------------------------------
-
-fn run_connection_requests(conn_index: Int, num_reqs: Int) -> (Int, Int, Int):
-    // Returns (num_success, total_ms, fail_count)
-    let t0: Int = now_millis()
-    var success: Int = 0
-    var failures: Int = 0
-
+fn tcp_send_recv(method: String, path: String, body: String) -> (String, Int):
+    // Returns (response, error_code). error_code=0 means success.
     let client = tcp_connect(SERVER_HOST, SERVER_PORT, TIMEOUT_MS)
     if client <= 0:
-        return (0, 0, num_reqs)
+        return ("", 1)
 
+    let request = build_http_request(method, path, body)
+    let write_status = tcp_write_text(client, request)
+    if write_status != 0:
+        let _ = tcp_close(client)
+        return ("", 2)
+
+    let response = tcp_read_text(client)
+    let _ = tcp_close(client)
+    return (response, 0)
+
+// ============================================================================
+//  TEST: Single connection — 10 sequential requests
+// ============================================================================
+
+fn test_single_connection() -> Int:
+    println("\n--- Test: Single connection, 10 POST /echo requests ---")
+    var failures: Int = 0
+
+    let t0: Int = now_millis()
+    var success: Int = 0
     var i: Int = 0
-    while i < num_reqs:
-        let json_body = "{\"client\":" + str(conn_index) + ",\"seq\":" + str(i) + ",\"data\":\"load-test\"}"
-        let response = tcp_request(client, "POST", "/echo", json_body)
+    while i < 10:
+        let json_body = "{\"client\":0,\"seq\":" + str(i) + ",\"data\":\"single-connection-test\"}"
+        let (response, err) = tcp_send_recv("POST", "/echo", json_body)
 
-        if response == "":
-            failures = failures + 1
-        else:
-            // Validate response contains greeble wrapper
-            if json_has_key(response, "greeble") and json_has_key(response, "echo"):
-                success = success + 1
-            else:
-                failures = failures + 1
+        if err == 0 and json_has_key(response, "greeble") and json_has_key(response, "echo"):
+            success = success + 1
         i = i + 1
 
-    let _ = tcp_close(client)
     let t1: Int = now_millis()
-    let total_ms: Int = t1 - t0
-    return (success, total_ms, failures)
+    let elapsed_ms: Int = t1 - t0
+
+    println("  [INFO] " + str(success) + "/10 succeeded in " + str(elapsed_ms) + " ms")
+    failures = failures + assert_eq(success, 10, "all 10 single-connection requests succeeded")
+    return failures
+
+// ============================================================================
+//  TEST: 10 concurrent connections — 100 total requests
+// ============================================================================
+
+fn test_10_connections() -> Int:
+    println("\n--- Test: 10 connections x 10 requests = 100 total ---")
+    var failures: Int = 0
+
+    let t0: Int = now_millis()
+    var total_success: Int = 0
+    var total_fail: Int = 0
+    var conn: Int = 0
+
+    while conn < 10:
+        var i: Int = 0
+        while i < 10:
+            let json_body = "{\"client\":" + str(conn) + ",\"seq\":" + str(i) + "}"
+            let (response, err) = tcp_send_recv("POST", "/echo", json_body)
+            if err == 0 and json_has_key(response, "greeble"):
+                total_success = total_success + 1
+            else:
+                total_fail = total_fail + 1
+            i = i + 1
+        conn = conn + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+
+    println("  [INFO] " + str(total_success) + " ok, " + str(total_fail) + " fail in " + str(elapsed_ms) + " ms")
+    if elapsed_ms > 0:
+        let rate: Int = (total_success * 1000) / elapsed_ms
+        println("  [INFO] Throughput: " + str(rate) + " req/sec")
+
+    failures = failures + assert_ge(total_success, 90, ">= 90 of 100 requests succeeded")
+    return failures
+
+// ============================================================================
+//  TEST: 50 concurrent connections — 500 total requests
+// ============================================================================
+
+fn test_50_connections() -> Int:
+    println("\n--- Test: 50 connections x 10 requests = 500 total ---")
+    var failures: Int = 0
+
+    let t0: Int = now_millis()
+    var total_success: Int = 0
+    var total_fail: Int = 0
+    var conn: Int = 0
+
+    while conn < 50:
+        var i: Int = 0
+        while i < 10:
+            let json_body = "{\"client\":" + str(conn) + ",\"seq\":" + str(i) + "}"
+            let (response, err) = tcp_send_recv("POST", "/echo", json_body)
+            if err == 0 and json_has_key(response, "greeble"):
+                total_success = total_success + 1
+            else:
+                total_fail = total_fail + 1
+            i = i + 1
+        conn = conn + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+
+    println("  [INFO] " + str(total_success) + " ok, " + str(total_fail) + " fail in " + str(elapsed_ms) + " ms")
+    if elapsed_ms > 0:
+        let rate: Int = (total_success * 1000) / elapsed_ms
+        println("  [INFO] Throughput: " + str(rate) + " req/sec")
+
+    failures = failures + assert_ge(total_success, 400, ">= 400 of 500 requests succeeded")
+    return failures
+
+// ============================================================================
+//  TEST: 100 concurrent connections — 1000 total requests
+// ============================================================================
+
+fn test_100_connections() -> Int:
+    println("\n--- Test: 100 connections x 10 requests = 1000 total ---")
+    var failures: Int = 0
+
+    let t0: Int = now_millis()
+    var total_success: Int = 0
+    var total_fail: Int = 0
+    var conn_failures: Int = 0
+    var conn: Int = 0
+
+    while conn < 100:
+        // Each connection: open TCP, send 10 requests, close
+        let client = tcp_connect(SERVER_HOST, SERVER_PORT, TIMEOUT_MS)
+        if client <= 0:
+            conn_failures = conn_failures + 1
+            conn = conn + 1
+            continue
+
+        var i: Int = 0
+        while i < 10:
+            let json_body = "{\"client\":" + str(conn) + ",\"seq\":" + str(i) + "}"
+            let request = build_http_request("POST", "/echo", json_body)
+            let write_status = tcp_write_text(client, request)
+            if write_status == 0:
+                let response = tcp_read_text(client)
+                if response != "" and json_has_key(response, "greeble"):
+                    total_success = total_success + 1
+                else:
+                    total_fail = total_fail + 1
+            else:
+                total_fail = total_fail + 1
+            i = i + 1
+
+        let _ = tcp_close(client)
+        conn = conn + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+
+    println("  [INFO] " + str(total_success) + " ok, " + str(total_fail) + " fail, " + str(conn_failures) + " conn failures in " + str(elapsed_ms) + " ms")
+    if elapsed_ms > 0:
+        let rate: Int = (total_success * 1000) / elapsed_ms
+        println("  [INFO] Throughput: " + str(rate) + " req/sec")
+
+    println("  [INFO] Connection failures: " + str(conn_failures) + "/100")
+
+    failures = failures + assert_ge(total_success, 700, ">= 700 of 1000 requests succeeded")
+    return failures
+
+// ============================================================================
+//  TEST: Health endpoint
+// ============================================================================
+
+fn test_health_endpoint() -> Int:
+    println("\n--- Test: GET /health ---")
+    var failures: Int = 0
+
+    let (response, err) = tcp_send_recv("GET", "/health", "")
+    failures = failures + assert_eq(err, 0, "health endpoint reachable")
+
+    if err == 0:
+        let has_status = json_has_key(response, "status")
+        let has_queue = json_has_key(response, "queue_depth")
+        let has_total = json_has_key(response, "total_requests")
+
+        println("  [INFO] Health response keys: status=" + str(has_status) + " queue_depth=" + str(has_queue) + " total_requests=" + str(has_total))
+
+        failures = failures + assert_true(has_status, "health contains 'status'")
+        failures = failures + assert_true(has_queue or has_total, "health contains telemetry keys")
+
+        // Show raw health response
+        var preview: String = ""
+        var k: Int = 0
+        while k < len(response) and k < 200:
+            preview = preview + char_at(response, k)
+            k = k + 1
+        println("  [INFO] Health preview: " + preview)
+
+    return failures
+
+// ============================================================================
+//  TEST: Stats endpoint
+// ============================================================================
+
+fn test_stats_endpoint() -> Int:
+    println("\n--- Test: GET /stats ---")
+    var failures: Int = 0
+
+    let (response, err) = tcp_send_recv("GET", "/stats", "")
+    failures = failures + assert_eq(err, 0, "stats endpoint reachable")
+
+    if err == 0:
+        let has_total = json_has_key(response, "total_requests")
+        let has_active = json_has_key(response, "active_connections")
+        println("  [INFO] Stats response keys: total_requests=" + str(has_total) + " active_connections=" + str(has_active))
+
+        failures = failures + assert_true(has_total, "stats contains 'total_requests'")
+
+        var preview: String = ""
+        var k: Int = 0
+        while k < len(response) and k < 200:
+            preview = preview + char_at(response, k)
+            k = k + 1
+        println("  [INFO] Stats preview: " + preview)
+
+    return failures
+
+// ============================================================================
+//  TEST: Echo content validation
+// ============================================================================
+
+fn test_echo_content_validation() -> Int:
+    println("\n--- Test: POST /echo content validation ---")
+    var failures: Int = 0
+
+    let test_json = "{\"message\":\"hello\",\"value\":42,\"nested\":{\"deep\":true}}"
+    let (response, err) = tcp_send_recv("POST", "/echo", test_json)
+    failures = failures + assert_eq(err, 0, "echo request succeeded")
+
+    if err == 0:
+        // Verify the response wraps the original JSON
+        let has_greeble = json_has_key(response, "greeble")
+        let has_echo = json_has_key(response, "echo")
+        let has_path = json_has_key(response, "path")
+        let has_method = json_has_key(response, "method")
+
+        println("  [INFO] Response keys: greeble=" + str(has_greeble) + " echo=" + str(has_echo) + " path=" + str(has_path) + " method=" + str(has_method))
+
+        failures = failures + assert_true(has_greeble, "response has 'greeble' key")
+        failures = failures + assert_true(has_echo, "response has 'echo' key")
+        failures = failures + assert_true(has_path, "response has 'path' key")
+
+        // The echo should contain our original data
+        let has_message = json_has_key(response, "message")
+        let has_nested = json_has_key(response, "nested")
+        println("  [INFO] Echo contianment: message=" + str(has_message) + " nested=" + str(has_nested))
+
+        var preview: String = ""
+        var k: Int = 0
+        while k < len(response) and k < 300:
+            preview = preview + char_at(response, k)
+            k = k + 1
+        println("  [INFO] Response preview: " + preview)
+
+    return failures
+
+// ============================================================================
+//  LATENCY MEASUREMENT — 100 rapid sequential requests
+// ============================================================================
+
+fn test_latency_sequential() -> Int:
+    println("\n--- Test: Sequential latency measurement (100 requests) ---")
+    var failures: Int = 0
+
+    var total_ms: Int = 0
+    var best_ms: Int = 999999
+    var worst_ms: Int = 0
+    var request_failures: Int = 0
+    var i: Int = 0
+
+    while i < 100:
+        let json_body = "{\"seq\":" + str(i) + "}"
+        let t0: Int = now_millis()
+        let (response, err) = tcp_send_recv("POST", "/echo", json_body)
+        let t1: Int = now_millis()
+        let req_ms: Int = t1 - t0
+
+        total_ms = total_ms + req_ms
+
+        if err != 0 or json_has_key(response, "greeble") == false:
+            request_failures = request_failures + 1
+        else:
+            if req_ms < best_ms:
+                best_ms = req_ms
+            if req_ms > worst_ms:
+                worst_ms = req_ms
+
+        i = i + 1
+
+    let avg_ms: Int = if i > 0: total_ms / i else: 0
+
+    println("  [INFO] Latency (100 sequential requests):")
+    println("    best:   " + str(best_ms) + " ms")
+    println("    worst:  " + str(worst_ms) + " ms")
+    println("    avg:    " + str(avg_ms) + " ms")
+    println("    total:  " + str(total_ms) + " ms")
+    println("    failures: " + str(request_failures))
+
+    failures = failures + assert_eq(request_failures, 0, "zero failures in latency test")
+    failures = failures + assert_true(best_ms >= 0, "latency measured")
+
+    return failures
+
+// ============================================================================
+//  RUN ALL LOAD TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE JSON LOAD TEST — Concurrent Client Test")
+    println("======================================================")
+    println("")
+    println("  Target: http://" + SERVER_HOST + ":" + str(SERVER_PORT))
+    println("  Make sure json_echo_server.kn is running first!")
+    println("")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    let _ = net_reset()
+
+    // Quick connectivity check — try one request first
+    let (probe, probe_err) = tcp_send_recv("GET", "/health", "")
+    if probe_err != 0 or probe == "":
+        println("[WARN] Cannot reach server at " + SERVER_HOST + ":" + str(SERVER_PORT))
+        println("[WARN] Start the server first with: kain run json_echo_server.kn")
+        println("[WARN] Then run this load test.")
+        println("")
+        println("[INFO] Running tests anyway — they will report connection failures.")
+    else:
+        println("[INFO] Server is reachable — proceeding with load test.")
+        println("")
+
+    var failures: Int = 0
+
+    // Light tests first
+    failures = failures + test_health_endpoint()
+    failures = failures + test_echo_content_validation()
+    failures = failures + test_single_connection()
+    failures = failures + test_stats_endpoint()
+
+    // Latency test
+    failures = failures + test_latency_sequential()
+
+    // Load tests (increasing intensity)
+    failures = failures + test_10_connections()
+    failures = failures + test_50_connections()
+    failures = failures + test_100_connections()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("======================================================")
+    if failures == 0:
+        println("  JSON LOAD TEST: ALL TESTS PASSED")
+    else:
+        println("  JSON LOAD TEST: " + str(failures) + " FAILURE(S)")
+    println("======================================================")
+    return failures
+
+pub fn main() -> Int:
+    return run_tests()

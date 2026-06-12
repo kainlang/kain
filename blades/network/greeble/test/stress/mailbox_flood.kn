@@ -111,8 +111,8 @@ fn test_mailbox_fill_256() -> Int:
     println("\n--- Test: Fill 256-capacity mailbox ---")
     var failures: Int = 0
 
-    let actor = spawn FloodActor()
-    let id: Int = actor as Int
+    let a = spawn FloodActor()
+    let id: Int = a as Int
     let count: Int = 256
 
     let (send_failures, elapsed_ms) = fire_messages(id, count)
@@ -125,7 +125,7 @@ fn test_mailbox_fill_256() -> Int:
     os_sleep_millis(500)
 
     // Verify actor processed messages
-    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let stats: Int = ask(a, "GetStats", 0) as Int
     let received: Int = stats % 1000000
     let checksum: Int = stats / 1000000
 
@@ -139,8 +139,8 @@ fn test_mailbox_overflow_512() -> Int:
     println("\n--- Test: Overflow 256-capacity with 512 sends ---")
     var failures: Int = 0
 
-    let actor = spawn FloodActor()
-    let id: Int = actor as Int
+    let a = spawn FloodActor()
+    let id: Int = a as Int
     let count: Int = 512
 
     let (send_failures, elapsed_ms) = fire_messages(id, count)
@@ -150,7 +150,7 @@ fn test_mailbox_overflow_512() -> Int:
     // Wait for processing
     os_sleep_millis(1000)
 
-    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let stats: Int = ask(a, "GetStats", 0) as Int
     let received: Int = stats % 1000000
     let checksum: Int = stats / 1000000
 
@@ -167,8 +167,8 @@ fn test_mailbox_tsunami_10K() -> Int:
     println("\n--- Test: Tsunami — 10000 fire-and-forget sends ---")
     var failures: Int = 0
 
-    let actor = spawn FloodActor()
-    let id: Int = actor as Int
+    let a = spawn FloodActor()
+    let id: Int = a as Int
     let count: Int = 10000
 
     let (send_failures, elapsed_ms) = fire_messages(id, count)
@@ -182,7 +182,7 @@ fn test_mailbox_tsunami_10K() -> Int:
     // Wait for processing
     os_sleep_millis(2000)
 
-    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let stats: Int = ask(a, "GetStats", 0) as Int
     let received: Int = stats % 1000000
     let checksum: Int = stats / 1000000
 
@@ -192,7 +192,7 @@ fn test_mailbox_tsunami_10K() -> Int:
     failures = failures + assert_ge(received, 100, "received >= 100 of 10K")
 
     // Check actor is still alive post-flood
-    let sentinel: Int = ask(actor, "GetSentinel", 42) as Int
+    let sentinel: Int = ask(a, "GetSentinel", 42) as Int
     failures = failures + assert_true(sentinel > 0, "actor alive after tsunami (sentinel=" + str(sentinel) + ")")
 
     dump_scheduler_telemetry("10K tsunami")
@@ -202,8 +202,8 @@ fn test_mailbox_tsunami_100K() -> Int:
     println("\n--- Test: MEGA-TSUNAMI — 100000 fire-and-forget sends ---")
     var failures: Int = 0
 
-    let actor = spawn FloodActor()
-    let id: Int = actor as Int
+    let a = spawn FloodActor()
+    let id: Int = a as Int
     let count: Int = 100000
 
     let t0: Int = now_millis()
@@ -229,7 +229,7 @@ fn test_mailbox_tsunami_100K() -> Int:
     // Longer wait for 100K messages
     os_sleep_millis(5000)
 
-    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let stats: Int = ask(a, "GetStats", 0) as Int
     let received: Int = stats % 1000000
     let checksum: Int = stats / 1000000
 
@@ -238,7 +238,7 @@ fn test_mailbox_tsunami_100K() -> Int:
     failures = failures + assert_ge(received, 100, "received >= 100 of 100K")
 
     // Final health check
-    let sentinel: Int = ask(actor, "GetSentinel", 777) as Int
+    let sentinel: Int = ask(a, "GetSentinel", 777) as Int
     failures = failures + assert_true(sentinel > 0, "actor alive after mega-tsunami")
 
     dump_scheduler_telemetry("100K mega-tsunami")
@@ -248,25 +248,25 @@ fn test_mailbox_post_flood_health() -> Int:
     println("\n--- Test: Post-flood actor health ---")
     var failures: Int = 0
 
-    let actor = spawn FloodActor()
-    let id: Int = actor as Int
+    let a = spawn FloodActor()
+    let id: Int = a as Int
 
     // Send a moderate flood
     let (_, _) = fire_messages(id, 500)
     os_sleep_millis(500)
 
     // Now ping with ask to verify synchronous response still works
-    let result1: Int = ask(actor, "GetSentinel", 1) as Int
+    let result1: Int = ask(a, "GetSentinel", 1) as Int
     failures = failures + assert_ge(result1, 1, "first sentinel after flood")
 
     // Send another batch
     let (_, _) = fire_messages(id, 200)
     os_sleep_millis(300)
 
-    let result2: Int = ask(actor, "GetSentinel", 2) as Int
+    let result2: Int = ask(a, "GetSentinel", 2) as Int
     failures = failures + assert_ge(result2, 2, "second sentinel after second flood")
 
-    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let stats: Int = ask(a, "GetStats", 0) as Int
     let received: Int = stats % 1000000
     println("  [INFO] Total received after all floods: " + str(received))
 

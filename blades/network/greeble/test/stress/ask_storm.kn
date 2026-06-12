@@ -132,8 +132,8 @@ fn test_ask_100() -> Int:
     println("\n--- Test: 100 ask() calls ---")
     var failures: Int = 0
 
-    let actor = spawn ComputeActor()
-    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 100, "100 asks")
+    let a = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(a, 100, "100 asks")
 
     failures = failures + assert_eq(ask_failures, 0, "zero ask failures (100)")
     failures = failures + assert_eq(processed, 100, "all 100 processed")
@@ -147,8 +147,8 @@ fn test_ask_1000() -> Int:
     println("\n--- Test: 1000 ask() calls ---")
     var failures: Int = 0
 
-    let actor = spawn ComputeActor()
-    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 1000, "1000 asks")
+    let a = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(a, 1000, "1000 asks")
 
     failures = failures + assert_eq(ask_failures, 0, "zero ask failures (1000)")
     failures = failures + assert_eq(processed, 1000, "all 1000 processed")
@@ -162,8 +162,8 @@ fn test_ask_10000() -> Int:
     println("\n--- Test: 10000 ask() calls ---")
     var failures: Int = 0
 
-    let actor = spawn ComputeActor()
-    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 10000, "10K asks")
+    let a = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(a, 10000, "10K asks")
 
     failures = failures + assert_eq(ask_failures, 0, "zero ask failures (10K)")
     failures = failures + assert_eq(processed, 10000, "all 10000 processed")
@@ -182,7 +182,7 @@ fn test_ask_latency_distribution() -> Int:
     println("\n--- Test: ask() latency distribution ---")
     var failures: Int = 0
 
-    let actor = spawn ComputeActor()
+    let a = spawn ComputeActor()
     let rounds: Int = 1000
     let t0: Int = now_millis()
 
@@ -196,7 +196,7 @@ fn test_ask_latency_distribution() -> Int:
         let bt0: Int = now_millis()
         var inner: Int = 0
         while inner < 100:
-            let _result: Int = ask(actor, "Add", inner, batch) as Int
+            let _result: Int = ask(a, "Add", inner, batch) as Int
             inner = inner + 1
         let bt1: Int = now_millis()
         let batch_ms: Int = bt1 - bt0

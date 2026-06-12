@@ -124,7 +124,7 @@ fn dump_scheduler_telemetry(label: String):
 
 fn test_actor_compute_heavy() -> (Int, Int, Int):
     // Returns (elapsed_ms, checksum, failures)
-    let actor = spawn CpuActor()
+    let a = spawn CpuActor()
 
     let t0: Int = now_millis()
     var last_result: Int = 0
@@ -132,7 +132,7 @@ fn test_actor_compute_heavy() -> (Int, Int, Int):
 
     var i: Int = 0
     while i < BENCH_ROUNDS:
-        let result: Int = ask(actor, "HeavyCompute", i) as Int
+        let result: Int = ask(a, "HeavyCompute", i) as Int
         if result < 0:
             ask_failures = ask_failures + 1
         last_result = result
@@ -156,7 +156,7 @@ fn test_direct_fn_compute_heavy() -> (Int, Int):
     return (elapsed_ms, checksum)
 
 fn test_actor_string_concat() -> (Int, Int, Int):
-    let actor = spawn StringCpuActor()
+    let a = spawn StringCpuActor()
 
     let t0: Int = now_millis()
     var last_result: Int = 0
@@ -165,7 +165,7 @@ fn test_actor_string_concat() -> (Int, Int, Int):
     var count: Int = 1000
     var i: Int = 0
     while i < count:
-        let result: Int = ask(actor, "Concat", "base" + str(i)) as Int
+        let result: Int = ask(a, "Concat", "base" + str(i)) as Int
         if result < 0:
             ask_failures = ask_failures + 1
         last_result = result

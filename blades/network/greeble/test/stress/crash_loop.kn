@@ -91,8 +91,8 @@ fn dump_scheduler_telemetry(label: String):
 
 fn crash_one_cycle(cycle_id: Int) -> Int:
     // Returns 0 on success, 1 on failure
-    let actor = spawn CrashTarget(cycle_id = cycle_id)
-    let id: Int = actor as Int
+    let a = spawn CrashTarget(cycle_id = cycle_id)
+    let id: Int = a as Int
     if id <= 0:
         return 1
 
