@@ -1,0 +1,550 @@
+// runtime.kn — Runtime function table + KainType↔CType mapping
+// STREAM: ECHO
+// Consumed by: GOLF (codegen uses this to emit declare statements)
+//
+// Defines the complete runtime function table (200+ LLVM declare entries)
+// organized by category. Maps Kain type names to LLVM IR type strings and
+// C type strings. Provides declare-statement emission utilities.
+
+use std::fmt
+
+// ── Runtime Function Category Constants ──
+
+pub const RT_CORE:            String = "core"
+pub const RT_STDLIB:          String = "stdlib"
+pub const RT_ACTOR:           String = "actor"
+pub const RT_MEMORY:          String = "memory"
+pub const RT_OWNERSHIP:       String = "ownership"
+pub const RT_MACHINE:         String = "machine"
+pub const RT_GPU:             String = "gpu"
+pub const RT_PYTHON:          String = "python"
+pub const RT_MATH_INTRINSIC:  String = "math_intrinsic"
+pub const RT_FS:              String = "fs"
+pub const RT_PROCESS:         String = "process"
+pub const RT_STARTUP:         String = "startup"
+pub const RT_JSON:            String = "json"
+pub const RT_COLLECTIONS:     String = "collections"
+pub const RT_CONVERGE:        String = "converge"
+pub const RT_STRING:          String = "string"
+
+// ── RuntimeFunction Struct ──
+// Describes a single runtime function that the LLVM codegen must emit as
+// a `declare` statement. All type strings use LLVM IR syntax.
+
+pub struct RuntimeFunction:
+    name:         String
+    return_type:  String
+    param_types:  Array<String>
+    is_vararg:    Bool
+    calling_conv: String
+    attributes:   Array<String>
+    category:     String
+
+// ── RuntimeTable Struct ──
+// The complete table of all runtime functions the compiler must declare.
+
+pub struct RuntimeTable:
+    functions: Array<RuntimeFunction>
+
+// ── Helper: create a runtime function entry ──
+
+pub fn rtf(
+    name: String,
+    return_type: String,
+    param_types: Array<String>,
+    category: String
+) -> RuntimeFunction:
+    return RuntimeFunction {
+        name: name,
+        return_type: return_type,
+        param_types: param_types,
+        is_vararg: false,
+        calling_conv: "ccc",
+        attributes: [],
+        category: category,
+    }
+
+pub fn rtf_attrs(
+    name: String,
+    return_type: String,
+    param_types: Array<String>,
+    category: String,
+    attributes: Array<String>
+) -> RuntimeFunction:
+    return RuntimeFunction {
+        name: name,
+        return_type: return_type,
+        param_types: param_types,
+        is_vararg: false,
+        calling_conv: "ccc",
+        attributes: attributes,
+        category: category,
+    }
+
+// ── Runtime Table Initialization ──
+// Populates the complete runtime function table with ALL functions the
+// LLVM codegen must declare. Organized by category matching the research
+// doc §§5.1–5.11.
+
+pub fn runtime_table_init() -> RuntimeTable:
+    let mut funcs: Array<RuntimeFunction> = []
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.1  Core Runtime — Print, String, Allocation, Clock
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("print_i64", "void", ["i64"], RT_CORE))
+    push(funcs, rtf("print_f64", "void", ["double"], RT_CORE))
+    push(funcs, rtf("print_bool", "void", ["i1"], RT_CORE))
+    push(funcs, rtf("print_str", "void", ["i8*", "i64"], RT_CORE))
+    push(funcs, rtf("print_ptr", "void", ["i8*"], RT_CORE))
+    push(funcs, rtf("KAIN_alloc", "i8*", ["i64"], RT_CORE))
+    push(funcs, rtf("string_new", "i8*", ["i8*"], RT_CORE))
+    push(funcs, rtf("to_string", "i8*", ["i64"], RT_CORE))
+    push(funcs, rtf("to_string_f64", "i8*", ["double"], RT_CORE))
+    push(funcs, rtf("to_string_bool", "i8*", ["i1"], RT_CORE))
+    push(funcs, rtf("str_concat", "i8*", ["i8*", "i8*"], RT_STRING))
+    push(funcs, rtf("str_concat3", "i8*", ["i8*", "i8*", "i8*"], RT_STRING))
+    push(funcs, rtf("str_concat4", "i8*", ["i8*", "i8*", "i8*", "i8*"], RT_STRING))
+    push(funcs, rtf("str_concat5", "i8*", ["i8*", "i8*", "i8*", "i8*", "i8*"], RT_STRING))
+    push(funcs, rtf("strlen", "i64", ["i8*"], RT_STRING))
+    push(funcs, rtf("clock_wrapper", "i64", [], RT_CORE))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.2  Stdlib ABI — Option
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_option_none", "i8*", [], RT_STDLIB))
+    push(funcs, rtf("abi_option_some", "i8*", ["i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_option_is_some", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_is_none", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_unwrap", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_unwrap_ptr", "i8*", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_unwrap_f64", "double", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_ptr_is_some", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_ptr_is_none", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_eq", "i1", ["i8*", "i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_option_release", "void", ["i8*"], RT_STDLIB))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.2  Stdlib ABI — Result
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_result_ok", "i8*", ["i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_result_err", "i8*", ["i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_result_is_ok", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_is_err", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_unwrap", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_unwrap_err", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_unwrap_ptr", "i8*", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_unwrap_f64", "double", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_result_release", "void", ["i8*"], RT_STDLIB))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.2  Stdlib ABI — Future / Async
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_future_ready_from_value", "i8*", ["i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_future_state", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_future_is_ready", "i1", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_future_is_pending", "i1", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_async_sleep_future", "i8*", ["i64"], RT_STDLIB))
+    push(funcs, rtf("abi_async_spawn_future", "i8*", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_future_release", "void", ["i8*"], RT_STDLIB))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.2  Stdlib ABI — Patch, Resonance, Entangle
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_patch_begin", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_patch_record_i64", "i64", ["i8*", "i8*", "i64", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_patch_commit", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_patch_rollback", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_patch_journal_count", "i64", [], RT_STDLIB))
+    push(funcs, rtf("abi_resonate_exit", "void", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_resonate_should_fire_i64", "i1", ["i8*", "i64", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_resonate_fire_count", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_resonate_absorb_count", "i64", ["i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_entangle_record_i64", "i64", ["i8*", "i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_entangle_register", "i64", ["i8*", "i8*", "i8*"], RT_STDLIB))
+    push(funcs, rtf("abi_entangle_propagation_count", "i64", [], RT_STDLIB))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.3  Actor Runtime ABI
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("kain_actor_spawn", "i64", ["i8*", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_send", "i32", ["i64", "i8*", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_event_emit", "i32", ["i8*", "i8*", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_receive", "i32", ["i8*", "i8*", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_try_receive", "i32", ["i8*", "i8*", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_message_release", "void", ["i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_ref_from_id", "void", ["i64", "i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_ref_is_live", "i32", ["i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_reply_port_new", "i8*", [], RT_ACTOR))
+    push(funcs, rtf("kain_actor_reply_port_send", "i32", ["i64", "i8*", "i64"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_reply_port_wait", "i32", ["i8*", "i64", "i8*", "i64", "i64*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_mailbox_depth", "i64", ["i8*"], RT_ACTOR))
+    push(funcs, rtf("kain_actor_runtime_shutdown", "void", [], RT_ACTOR))
+    push(funcs, rtf("kain_actor_registry_count", "i64", [], RT_ACTOR))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.4  Memory Helper ABI
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("__kain_alloc", "i8*", ["i64", "i64", "i32"], RT_MEMORY))
+    push(funcs, rtf("__kain_realloc", "i8*", ["i8*", "i64", "i64", "i32"], RT_MEMORY))
+    push(funcs, rtf("__kain_ptr_offset", "i8*", ["i8*", "i64", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_mem_load", "void", ["i8*", "i8*", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_mem_store", "void", ["i8*", "i8*", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_atomic_load_seqcst", "i64", ["i8*"], RT_MEMORY))
+    push(funcs, rtf("__kain_atomic_store_seqcst", "void", ["i8*", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_atomic_add_seqcst", "i64", ["i8*", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_atomic_exchange_seqcst", "i64", ["i8*", "i64"], RT_MEMORY))
+    push(funcs, rtf("__kain_atomic_compare_exchange_seqcst", "i1", ["i8*", "i64", "i64", "i8*"], RT_MEMORY))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.5  Ownership State ABI
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("__kain_ownership_register", "i32", ["i8*", "i64", "i64"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_begin_collapse", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_end_collapse", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_begin_observe", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_end_observe", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_decay", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_state", "i32", ["i8*"], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_ownership_flush_deferred_decay", "void", [], RT_OWNERSHIP))
+    push(funcs, rtf("__kain_fanout_i64", "i32", ["i64", "i64", "i8*", "i8*"], RT_OWNERSHIP))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.6  Machine Stones — Axiom, Pulse, Shatter, Teleport
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("kain_machine_axiom_accept", "i64", ["i8*", "i8*", "i64"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_axiom_check", "i1", ["i8*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_pulse_start", "i64", ["i64", "i64", "i64", "i8*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_pulse_snapshot", "void", ["i64", "i64", "i64", "i64*", "i64*", "i64*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_pulse_stop_all", "void", [], RT_MACHINE))
+    push(funcs, rtf("kain_machine_pulse_total_fire_count", "i64", [], RT_MACHINE))
+    push(funcs, rtf("kain_machine_pulse_tick", "i64", [], RT_MACHINE))
+    push(funcs, rtf("kain_machine_teleport_ptr", "i8*", ["i8*", "i8*", "i8*", "i8*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_teleport_note", "void", ["i8*", "i8*", "i8*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_teleport_count", "i64", [], RT_MACHINE))
+    push(funcs, rtf("kain_machine_shatter_alloc", "i8*", ["i64", "i64"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_shatter_lane_ptr", "i8*", ["i8*", "i64", "i64"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_shatter_lane_base", "i8*", ["i8*", "i64"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_shatter_free", "void", ["i8*"], RT_MACHINE))
+    push(funcs, rtf("kain_machine_now_ns", "i64", [], RT_MACHINE))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.7  GPU, Converge, Orchestrate
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_gpu_dispatch", "i64", ["i8*", "i64", "i64", "i64"], RT_GPU))
+    push(funcs, rtf("abi_gpu_readback", "i64", ["i8*"], RT_GPU))
+    push(funcs, rtf("abi_gpu_buffer_create", "i64", ["i8*", "i64", "i64"], RT_GPU))
+    push(funcs, rtf("abi_gpu_buffer_release", "void", ["i64"], RT_GPU))
+    push(funcs, rtf("abi_cpu_feature_mask", "i64", [], RT_GPU))
+    push(funcs, rtf("abi_cpu_capability_mask_for_key", "i64", ["i8*"], RT_GPU))
+    push(funcs, rtf("abi_cuda_last_error_kind", "i8*", [], RT_GPU))
+    push(funcs, rtf("abi_cuda_last_error_message", "i8*", [], RT_GPU))
+    push(funcs, rtf("abi_cuda_last_status", "i64", [], RT_GPU))
+    push(funcs, rtf("abi_converge_select_lane_for_key", "i64", ["i64", "i64", "i64", "i64"], RT_CONVERGE))
+    push(funcs, rtf("abi_converge_record_telemetry", "i64", ["i64", "i64", "i64", "i64", "i64"], RT_CONVERGE))
+    push(funcs, rtf("abi_converge_mismatch_count", "i64", [], RT_CONVERGE))
+    push(funcs, rtf("abi_converge_mismatch_report", "void", ["i64", "i64", "i64"], RT_CONVERGE))
+    push(funcs, rtf("abi_orchestrate_stage_begin", "i64", ["i8*", "i8*"], RT_CONVERGE))
+    push(funcs, rtf("abi_orchestrate_stage_end_i64", "i64", ["i8*", "i8*", "i64"], RT_CONVERGE))
+    push(funcs, rtf("abi_orchestrate_degrade", "i64", ["i8*"], RT_CONVERGE))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.8  Runtime Init / Shutdown / FS / Process
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_runtime_init", "i64", [], RT_STARTUP))
+    push(funcs, rtf("abi_runtime_shutdown", "i64", [], RT_STARTUP))
+    push(funcs, rtf("abi_runtime_heap_validate", "i64", [], RT_STARTUP))
+    push(funcs, rtf("__kain_crash_handler_init", "void", [], RT_STARTUP))
+    push(funcs, rtf("kain_fanout_runtime_shutdown", "void", [], RT_STARTUP))
+
+    push(funcs, rtf("abi_fs_read_text", "i8*", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_write_text", "i64", ["i8*", "i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_read_text_len", "i8*", ["i8*", "i64"], RT_FS))
+    push(funcs, rtf("abi_fs_write_text_len", "i64", ["i8*", "i8*", "i64"], RT_FS))
+    push(funcs, rtf("abi_fs_atomic_write_text", "i64", ["i8*", "i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_read_bytes", "i8*", ["i8*", "i64*"], RT_FS))
+    push(funcs, rtf("abi_fs_write_bytes", "i64", ["i8*", "i8*", "i64"], RT_FS))
+    push(funcs, rtf("abi_fs_exists", "i1", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_is_file", "i1", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_is_dir", "i1", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_remove", "i64", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_rename", "i64", ["i8*", "i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_mkdir", "i64", ["i8*"], RT_FS))
+    push(funcs, rtf("abi_fs_file_size", "i64", ["i8*"], RT_FS))
+
+    push(funcs, rtf("abi_process_spawn", "i64", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_wait", "i64", ["i64", "i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_exit_code", "i64", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_spec_create", "i64", ["i8*"], RT_PROCESS))
+    push(funcs, rtf("abi_process_spec_add_arg", "i64", ["i64", "i8*"], RT_PROCESS))
+    push(funcs, rtf("abi_process_spec_set_cwd", "i64", ["i64", "i8*"], RT_PROCESS))
+    push(funcs, rtf("abi_process_spec_set_env", "i64", ["i64", "i8*", "i8*"], RT_PROCESS))
+    push(funcs, rtf("abi_process_spec_destroy", "i64", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_kill", "i64", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_close", "i64", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_stdout_capture_text", "i8*", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_stderr_capture_text", "i8*", ["i64"], RT_PROCESS))
+    push(funcs, rtf("abi_process_output_text", "i8*", ["i8*", "i8*", "i8*", "i8*", "i64"], RT_PROCESS))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.9  Python Interop
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("py_import_with_context", "i64", ["i8*", "i8*"], RT_PYTHON))
+    push(funcs, rtf("py_call_args", "i64", ["i64", "i64", "i64"], RT_PYTHON))
+    push(funcs, rtf("py_call_raw_args", "i64", ["i64", "i64"], RT_PYTHON))
+    push(funcs, rtf("py_buffer_view", "i64", ["i64"], RT_PYTHON))
+    push(funcs, rtf("py_region_begin", "i64", [], RT_PYTHON))
+    push(funcs, rtf("py_region_end", "i64", ["i64"], RT_PYTHON))
+    push(funcs, rtf("py_buffer_view_byte_length", "i64", ["i64"], RT_PYTHON))
+    push(funcs, rtf("py_buffer_view_release", "void", ["i64"], RT_PYTHON))
+    push(funcs, rtf("kain_shared_buffer_byte_length", "i64", ["i64"], RT_PYTHON))
+    push(funcs, rtf("kain_shared_buffer_release", "void", ["i64"], RT_PYTHON))
+    push(funcs, rtf("py_region_call_float_fn", "double", ["i64", "i64", "i64"], RT_PYTHON))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.10 JSON, Array, Map, String Utilities
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("json_box_float", "i64", ["double"], RT_JSON))
+    push(funcs, rtf("json_box_runtime_array", "i64", ["i8*", "i64"], RT_JSON))
+    push(funcs, rtf("json_retain", "void", ["i64"], RT_JSON))
+    push(funcs, rtf("json_release", "void", ["i64"], RT_JSON))
+    push(funcs, rtf("json_object_set_i64", "void", ["i64", "i8*", "i64", "i64"], RT_JSON))
+    push(funcs, rtf("json_object_get_i64", "i64", ["i64", "i8*", "i64"], RT_JSON))
+
+    push(funcs, rtf("array_new", "i8*", ["i64"], RT_COLLECTIONS))
+    push(funcs, rtf("array_push", "void", ["i8*", "i64"], RT_COLLECTIONS))
+    push(funcs, rtf("array_get", "i64", ["i8*", "i64"], RT_COLLECTIONS))
+    push(funcs, rtf("array_set", "void", ["i8*", "i64", "i64"], RT_COLLECTIONS))
+    push(funcs, rtf("array_len", "i64", ["i8*"], RT_COLLECTIONS))
+    push(funcs, rtf("array_release", "void", ["i8*"], RT_COLLECTIONS))
+
+    push(funcs, rtf("map_set_static_prehashed", "void", ["i64", "i8*", "i64", "i64", "i64", "i64"], RT_COLLECTIONS))
+    push(funcs, rtf("map_get_prehashed", "i64", ["i64", "i8*", "i64", "i64", "i64"], RT_COLLECTIONS))
+
+    push(funcs, rtf("find_substring_from_known_lengths", "i64", ["i8*", "i64", "i8*", "i64", "i64"], RT_STRING))
+    push(funcs, rtf("memchr", "i8*", ["i8*", "i32", "i64"], RT_STRING))
+    push(funcs, rtf("memcmp", "i32", ["i8*", "i8*", "i64"], RT_STRING))
+    push(funcs, rtf("memcpy", "i8*", ["i8*", "i8*", "i64"], RT_STRING))
+    push(funcs, rtf("memset", "i8*", ["i8*", "i32", "i64"], RT_STRING))
+
+    // ═══════════════════════════════════════════════════════════════
+    // §5.11 LLVM Math Intrinsics
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("llvm.floor.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.ceil.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.fabs.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.sqrt.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.fptosi.sat.i64.f64", "i64", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.fptosi.sat.i32.f64", "i32", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.fptosi.sat.i8.f64", "i8", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.fptoui.sat.i64.f64", "i64", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.sin.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.cos.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.pow.f64", "double", ["double", "double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.exp.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.log.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.log2.f64", "double", ["double"], RT_MATH_INTRINSIC))
+    push(funcs, rtf("llvm.log10.f64", "double", ["double"], RT_MATH_INTRINSIC))
+
+    // ═══════════════════════════════════════════════════════════════
+    // Additional Core / Stdlib Utilities
+    // ═══════════════════════════════════════════════════════════════
+    push(funcs, rtf("abi_net_reset", "void", [], RT_STDLIB))
+    push(funcs, rtf("abi_process_reset", "void", [], RT_STDLIB))
+    push(funcs, rtf("abi_attrition_capture_configure_from_env", "void", [], RT_STDLIB))
+    push(funcs, rtf("abi_panic", "void", ["i8*", "i64"], RT_STDLIB))
+    push(funcs, rtf("abi_debug_break", "void", [], RT_STDLIB))
+
+    return RuntimeTable { functions: funcs }
+
+// ── KainType → LLVM IR Type Mapping ──
+// Maps Kain type names to LLVM IR type strings for use in declare
+// statements, function signatures, and struct definitions.
+
+pub fn kain_type_to_llvm_ir_str(ty_name: String) -> String:
+    if ty_name == "Int" or ty_name == "i64":      return "i64"
+    if ty_name == "I32" or ty_name == "i32":      return "i32"
+    if ty_name == "I16" or ty_name == "i16":      return "i16"
+    if ty_name == "I8" or ty_name == "i8":        return "i8"
+    if ty_name == "I128" or ty_name == "i128":    return "i128"
+    if ty_name == "Isize":                        return "i64"
+    if ty_name == "UInt" or ty_name == "u64":     return "i64"
+    if ty_name == "U32" or ty_name == "u32":      return "i32"
+    if ty_name == "U16" or ty_name == "u16":      return "i16"
+    if ty_name == "U8" or ty_name == "u8":        return "i8"
+    if ty_name == "U128" or ty_name == "u128":    return "i128"
+    if ty_name == "Usize":                        return "i64"
+    if ty_name == "Float" or ty_name == "f64":    return "double"
+    if ty_name == "F32" or ty_name == "f32":      return "float"
+    if ty_name == "Bool":                         return "i1"
+    if ty_name == "String":                       return "{i8*, i64}"
+    if ty_name == "Char":                         return "i32"
+    if ty_name == "Byte":                         return "i8"
+    if ty_name == "Unit" or ty_name == "void":    return "void"
+    if ty_name == "Never":                        return "void"
+    if ty_name == "ptr<T>" or ty_name == "ptr":   return "i8*"
+    if ty_name == "Option<T>":                    return "{i64, i64}"
+    if ty_name == "Result<T,E>":                  return "{i64, i64, i64}"
+    if ty_name == "Future<T>":                    return "i8*"
+    return "i64"
+
+// ── KainType → C Type String Mapping ──
+// Maps Kain type names to C type strings for ABI compatibility.
+
+pub fn kain_type_to_c_type(ty_name: String) -> String:
+    if ty_name == "Int" or ty_name == "i64":      return "int64_t"
+    if ty_name == "I32" or ty_name == "i32":      return "int32_t"
+    if ty_name == "I16" or ty_name == "i16":      return "int16_t"
+    if ty_name == "I8" or ty_name == "i8":        return "int8_t"
+    if ty_name == "I128" or ty_name == "i128":    return "__int128"
+    if ty_name == "Isize":                        return "int64_t"
+    if ty_name == "UInt" or ty_name == "u64":     return "uint64_t"
+    if ty_name == "U32" or ty_name == "u32":      return "uint32_t"
+    if ty_name == "U16" or ty_name == "u16":      return "uint16_t"
+    if ty_name == "U8" or ty_name == "u8":        return "uint8_t"
+    if ty_name == "U128" or ty_name == "u128":    return "unsigned __int128"
+    if ty_name == "Usize":                        return "uint64_t"
+    if ty_name == "Float" or ty_name == "f64":    return "double"
+    if ty_name == "F32" or ty_name == "f32":      return "float"
+    if ty_name == "Bool":                         return "int"
+    if ty_name == "String":                       return "KainString"
+    if ty_name == "Char":                         return "uint32_t"
+    if ty_name == "Byte":                         return "uint8_t"
+    if ty_name == "Unit" or ty_name == "void":    return "void"
+    if ty_name == "Never":                        return "void"
+    if ty_name == "ptr<T>" or ty_name == "ptr":   return "void*"
+    return "int64_t"
+
+// ── C ABI Policy — Platform-specific type sizes ──
+
+pub const C_ABI_LP64:   Int = 0
+pub const C_ABI_LLP64:  Int = 1
+
+pub fn c_type_size(type_name: String, abi: Int) -> Int:
+    if type_name == "int":       return 4
+    if type_name == "long":
+        if abi == C_ABI_LP64:   return 8
+        return 4
+    if type_name == "long long":  return 8
+    if type_name == "void*":      return 8
+    if type_name == "size_t":     return 8
+    if type_name == "int64_t":    return 8
+    if type_name == "int32_t":    return 4
+    if type_name == "int16_t":    return 2
+    if type_name == "int8_t":     return 1
+    if type_name == "uint64_t":   return 8
+    if type_name == "uint32_t":   return 4
+    if type_name == "uint16_t":   return 2
+    if type_name == "uint8_t":    return 1
+    if type_name == "double":     return 8
+    if type_name == "float":      return 4
+    return 8
+
+// ── LLVM Target Triple ──
+
+pub fn target_triple_for_platform() -> String:
+    return "x86_64-pc-windows-msvc"
+
+pub fn target_triple_linux() -> String:
+    return "x86_64-unknown-linux-gnu"
+
+pub fn target_triple_macos() -> String:
+    return "arm64-apple-darwin"
+
+pub fn data_layout_string() -> String:
+    return "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+
+// ── Emit LLVM Declare Statements from Runtime Table ──
+// GOLF calls this from codegen to emit all runtime function declarations.
+
+pub fn emit_runtime_declares(table: RuntimeTable) -> String:
+    let mut output: String = ""
+    output = output + "; ── Runtime Function Declarations ──\n"
+    output = output + "; Generated by runtime_table_init() — "
+    output = output + str(len(table.functions)) + " functions\n\n"
+
+    var i: Int = 0
+    while i < len(table.functions):
+        let fn_entry: RuntimeFunction = table.functions[i]
+        output = output + runtime_fn_to_declare(fn_entry)
+        i = i + 1
+
+    return output
+
+// ── Format a Single Runtime Function as an LLVM `declare` Statement ──
+
+pub fn runtime_fn_to_declare(fn_entry: RuntimeFunction) -> String:
+    let mut decl: String = "declare "
+
+    if fn_entry.calling_conv == "win64cc":
+        decl = decl + "win64cc "
+    if fn_entry.calling_conv == "x86_64_sysvcc":
+        decl = decl + "x86_64_sysvcc "
+    if fn_entry.calling_conv == "fastcc":
+        decl = decl + "fastcc "
+    if fn_entry.calling_conv == "coldcc":
+        decl = decl + "coldcc "
+
+    decl = decl + fn_entry.return_type + " @\"" + fn_entry.name + "\"("
+
+    var j: Int = 0
+    while j < len(fn_entry.param_types):
+        if j > 0:
+            decl = decl + ", "
+        decl = decl + fn_entry.param_types[j]
+        j = j + 1
+
+    if fn_entry.is_vararg:
+        if len(fn_entry.param_types) > 0:
+            decl = decl + ", "
+        decl = decl + "..."
+
+    decl = decl + ")"
+
+    var k: Int = 0
+    while k < len(fn_entry.attributes):
+        decl = decl + " " + fn_entry.attributes[k]
+        k = k + 1
+
+    decl = decl + "\n"
+    return decl
+
+// ── Lookup a Runtime Function by Name ──
+
+pub fn runtime_table_lookup(table: RuntimeTable, symbol: String) -> RuntimeFunction:
+    var i: Int = 0
+    while i < len(table.functions):
+        if table.functions[i].name == symbol:
+            return table.functions[i]
+        i = i + 1
+    return RuntimeFunction {
+        name: symbol,
+        return_type: "void",
+        param_types: [],
+        is_vararg: false,
+        calling_conv: "ccc",
+        attributes: [],
+        category: "unknown",
+    }
+
+// ── Lookup Runtime Functions by Category ──
+
+pub fn runtime_table_by_category(table: RuntimeTable, category: String) -> Array<RuntimeFunction>:
+    let mut result: Array<RuntimeFunction> = []
+    var i: Int = 0
+    while i < len(table.functions):
+        if table.functions[i].category == category:
+            push(result, table.functions[i])
+        i = i + 1
+    return result
+
+// ── Count Functions by Category ──
+
+pub fn runtime_table_category_count(table: RuntimeTable, category: String) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(table.functions):
+        if table.functions[i].category == category:
+            count = count + 1
+        i = i + 1
+    return count

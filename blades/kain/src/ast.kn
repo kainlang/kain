@@ -1,0 +1,173 @@
+// ast.kn — AST tag constants and AstNode struct
+// ═══════════════════════════════════════════════════════════════════════
+// SECTION: STREAM ALPHA — AST tag constants (DO NOT MODIFY outside ALPHA)
+// ═══════════════════════════════════════════════════════════════════════
+// Consumed by: DELTA (parser), FOXTROT (typechecker), GOLF (codegen)
+//
+// NOTE: The AstNode struct and helper functions are in the DELTA section
+//       at the bottom of this file. See `// ═══ SECTION: STREAM DELTA ═══`.
+
+// ── Item Kinds (38) ──
+pub const AST_ITEM_FUNCTION:        Int = 0
+pub const AST_ITEM_STRUCT:          Int = 1
+pub const AST_ITEM_ENUM:            Int = 2
+pub const AST_ITEM_TRAIT:           Int = 3
+pub const AST_ITEM_IMPL:            Int = 4
+pub const AST_ITEM_TYPE_ALIAS:      Int = 5
+pub const AST_ITEM_USE:             Int = 6
+pub const AST_ITEM_MOD:             Int = 7
+pub const AST_ITEM_CONST:           Int = 8
+pub const AST_ITEM_COMPTIME:        Int = 9
+pub const AST_ITEM_MACRO:           Int = 10
+pub const AST_ITEM_TEST:            Int = 11
+pub const AST_ITEM_PATCH:           Int = 12
+pub const AST_ITEM_LAW:             Int = 13
+pub const AST_ITEM_AXIOM:           Int = 14
+pub const AST_ITEM_CONVERGE:        Int = 15
+pub const AST_ITEM_WORLD:           Int = 16
+pub const AST_ITEM_ENTANGLE:        Int = 17
+pub const AST_ITEM_ORCHESTRATE:     Int = 18
+pub const AST_ITEM_PULSE:           Int = 19
+pub const AST_ITEM_RESONATE:        Int = 20
+pub const AST_ITEM_COMPONENT:       Int = 21
+pub const AST_ITEM_SHADER:          Int = 22
+pub const AST_ITEM_ACTOR:           Int = 23
+pub const AST_ITEM_IMPORT:          Int = 24
+pub const AST_ITEM_MATERIAL_GRAPH:  Int = 25
+pub const AST_ITEM_GRAPH_EDITOR:    Int = 26
+pub const AST_ITEM_PROGRAM:         Int = 37
+
+// ── Statement Kinds (12) ──
+pub const AST_STMT_LET:             Int = 50
+pub const AST_STMT_RETURN:          Int = 51
+pub const AST_STMT_DEFER:           Int = 52
+pub const AST_STMT_FOR:             Int = 53
+pub const AST_STMT_FANOUT:          Int = 54
+pub const AST_STMT_WHILE:           Int = 55
+pub const AST_STMT_LOOP:            Int = 56
+pub const AST_STMT_BREAK:           Int = 57
+pub const AST_STMT_CONTINUE:        Int = 58
+pub const AST_STMT_DISPATCH:        Int = 59
+pub const AST_STMT_EXPR:            Int = 60
+pub const AST_STMT_ITEM:            Int = 61
+
+// ── Expression Kinds (64) ──
+pub const AST_EXPR_INT:             Int = 100
+pub const AST_EXPR_FLOAT:           Int = 101
+pub const AST_EXPR_STRING:          Int = 102
+pub const AST_EXPR_FSTRING:         Int = 103
+pub const AST_EXPR_BOOL:            Int = 104
+pub const AST_EXPR_NONE:            Int = 105
+pub const AST_EXPR_IDENT:           Int = 106
+pub const AST_EXPR_BINARY:          Int = 107
+pub const AST_EXPR_UNARY:           Int = 108
+pub const AST_EXPR_CALL:            Int = 109
+pub const AST_EXPR_METHOD_CALL:     Int = 110
+pub const AST_EXPR_FIELD:           Int = 111
+pub const AST_EXPR_INDEX:           Int = 112
+pub const AST_EXPR_ASSIGN:          Int = 113
+pub const AST_EXPR_IF:              Int = 114
+pub const AST_EXPR_MATCH:           Int = 115
+pub const AST_EXPR_BLOCK:           Int = 116
+pub const AST_EXPR_RANGE:           Int = 117
+pub const AST_EXPR_STRUCT_LIT:      Int = 118
+pub const AST_EXPR_ENUM_VARIANT:    Int = 119
+pub const AST_EXPR_ARRAY:           Int = 120
+pub const AST_EXPR_TUPLE:           Int = 121
+pub const AST_EXPR_REF:             Int = 122
+pub const AST_EXPR_DEREF:           Int = 123
+pub const AST_EXPR_CAST:            Int = 124
+pub const AST_EXPR_TRY:             Int = 125
+pub const AST_EXPR_AWAIT:           Int = 126
+pub const AST_EXPR_SPAWN:           Int = 127
+pub const AST_EXPR_SEND:            Int = 128
+pub const AST_EXPR_EMIT:            Int = 129
+pub const AST_EXPR_COLLAPSE:        Int = 130
+pub const AST_EXPR_OBSERVE:         Int = 131
+pub const AST_EXPR_DECAY:           Int = 132
+pub const AST_EXPR_SHARE:           Int = 133
+pub const AST_EXPR_TELEPORT:        Int = 134
+pub const AST_EXPR_LAMBDA:          Int = 135
+pub const AST_EXPR_ASM:             Int = 136
+pub const AST_EXPR_ALLOC:           Int = 137
+pub const AST_EXPR_PTR_OFFSET:      Int = 138
+pub const AST_EXPR_MEM_LOAD:        Int = 139
+pub const AST_EXPR_MEM_STORE:       Int = 140
+pub const AST_EXPR_ATOMIC_LOAD:     Int = 141
+pub const AST_EXPR_ATOMIC_STORE:    Int = 142
+pub const AST_EXPR_ATOMIC_ADD:      Int = 143
+pub const AST_EXPR_ATOMIC_CMPXCHG:  Int = 144
+pub const AST_EXPR_ATOMIC_FENCE:    Int = 145
+pub const AST_EXPR_CPU_FENCE:       Int = 146
+pub const AST_EXPR_CPU_CACHE_FLUSH: Int = 147
+pub const AST_EXPR_SIZEOF:          Int = 148
+pub const AST_EXPR_ALIGNOF:         Int = 149
+pub const AST_EXPR_BITCAST:         Int = 150
+pub const AST_EXPR_JSX:             Int = 151
+pub const AST_EXPR_MACRO_CALL:      Int = 152
+pub const AST_EXPR_COMPTIME:        Int = 153
+pub const AST_EXPR_UNINIT:          Int = 154
+pub const AST_EXPR_ALLOCA:          Int = 155
+pub const AST_EXPR_PAREN:           Int = 156
+
+// ── Pattern Kinds (9) ──
+pub const AST_PAT_WILDCARD:         Int = 200
+pub const AST_PAT_LITERAL:          Int = 201
+pub const AST_PAT_BINDING:          Int = 202
+pub const AST_PAT_STRUCT:           Int = 203
+pub const AST_PAT_TUPLE:            Int = 204
+pub const AST_PAT_VARIANT:          Int = 205
+pub const AST_PAT_SLICE:            Int = 206
+pub const AST_PAT_OR:               Int = 207
+pub const AST_PAT_RANGE:            Int = 208
+
+// ── Type AST Kinds (14) ──
+pub const AST_TYPE_NAMED:           Int = 300
+pub const AST_TYPE_TUPLE:           Int = 301
+pub const AST_TYPE_ARRAY:           Int = 302
+pub const AST_TYPE_SLICE:           Int = 303
+pub const AST_TYPE_REF:             Int = 304
+pub const AST_TYPE_PTR:             Int = 305
+pub const AST_TYPE_FUNCTION:        Int = 306
+pub const AST_TYPE_OPTION:          Int = 307
+pub const AST_TYPE_RESULT:          Int = 308
+pub const AST_TYPE_INFER:           Int = 309
+pub const AST_TYPE_NEVER:           Int = 310
+pub const AST_TYPE_UNIT:            Int = 311
+pub const AST_TYPE_IMPL_TRAIT:      Int = 312
+pub const AST_TYPE_GENERIC:         Int = 313
+
+// ── BinaryOp Kinds (21) ──
+pub const BINOP_ADD:     Int = 0
+pub const BINOP_SUB:     Int = 1
+pub const BINOP_MUL:     Int = 2
+pub const BINOP_DIV:     Int = 3
+pub const BINOP_MOD:     Int = 4
+pub const BINOP_POW:     Int = 5
+pub const BINOP_EQ:      Int = 6
+pub const BINOP_NE:      Int = 7
+pub const BINOP_LT:      Int = 8
+pub const BINOP_GT:      Int = 9
+pub const BINOP_LE:      Int = 10
+pub const BINOP_GE:      Int = 11
+pub const BINOP_AND:     Int = 12
+pub const BINOP_OR:      Int = 13
+pub const BINOP_BIT_AND: Int = 14
+pub const BINOP_BIT_OR:  Int = 15
+pub const BINOP_BIT_XOR: Int = 16
+pub const BINOP_SHL:     Int = 17
+pub const BINOP_SHR:     Int = 18
+pub const BINOP_RANGE:       Int = 19
+pub const BINOP_RANGE_INCL:  Int = 20
+
+// ── UnaryOp Kinds (6) ──
+pub const UNOP_NEG:     Int = 0
+pub const UNOP_NOT:     Int = 1
+pub const UNOP_BIT_NOT: Int = 2
+pub const UNOP_REF:     Int = 3
+pub const UNOP_REF_MUT: Int = 4
+pub const UNOP_DEREF:   Int = 5
+
+// ═══════════════════════════════════════════════════════════════════════
+// END STREAM ALPHA SECTION — DELTA appends AstNode struct below this line
+// ═══════════════════════════════════════════════════════════════════════

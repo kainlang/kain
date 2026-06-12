@@ -1,0 +1,118 @@
+// ============================================================================
+//  build.kn — Build config scaffolding with markscript table schema
+//  STREAM: CHARLIE
+//  Consumed by: GOLF (as shared config definition)
+//
+//  This file defines the Kain-side representation of the build configuration
+//  as exported constants and helper functions. The primary config data lives
+//  in build.md (markscript tables), but this file provides:
+//    - Column name constants matching the Metadata table schema
+//    - Default value constants for all config fields
+//    - A helper to write default config into a markscript VM as a table
+//
+//  Ladder rung: Layer 0 (fn) — plain constants and helpers.
+// ============================================================================
+
+use std::markscript
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Column names (in order) matching the Metadata table schema
+//
+// The Metadata table in build.md has key-value row layout:
+//   | Key | Value |
+//   |-----|-------|
+//   | name | kainc |
+//   | target | llvm |
+//   | ...
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub const KEY_NAME:         String = "name"
+pub const KEY_TARGET:       String = "target"
+pub const KEY_PROFILE:      String = "profile"
+pub const KEY_OPTIMIZE:     String = "optimize"
+pub const KEY_LTO:          String = "lto"
+pub const KEY_ENTRY:        String = "entry"
+pub const KEY_SOURCE_ROOT:  String = "source_root"
+pub const KEY_DEPS:         String = "deps"
+pub const KEY_OUTPUT:       String = "output"
+pub const KEY_RUNTIME:      String = "runtime"
+pub const KEY_LINKER:       String = "linker"
+pub const KEY_LINKER_FLAGS: String = "linker_flags"
+pub const KEY_CC:           String = "cc"
+pub const KEY_CC_FLAGS:     String = "cc_flags"
+pub const KEY_TEST_ROOT:    String = "test_root"
+pub const KEY_DOC_ROOT:     String = "doc_root"
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Default values (aligned with BuildConfig struct defaults)
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub const DEFAULT_NAME:         String = "kainc"
+pub const DEFAULT_TARGET:       String = "llvm"
+pub const DEFAULT_PROFILE:      String = "debug"
+pub const DEFAULT_OPTIMIZE:     String = "false"
+pub const DEFAULT_LTO:          String = "none"
+pub const DEFAULT_ENTRY:        String = "src/main.kn"
+pub const DEFAULT_SOURCE_ROOT:  String = "src/"
+pub const DEFAULT_DEPS:         String = ""
+pub const DEFAULT_OUTPUT:       String = "kainc"
+pub const DEFAULT_RUNTIME:      String = "kain_runtime"
+pub const DEFAULT_LINKER:       String = "clang"
+pub const DEFAULT_LINKER_FLAGS: String = ""
+pub const DEFAULT_CC:           String = "clang"
+pub const DEFAULT_CC_FLAGS:     String = ""
+pub const DEFAULT_TEST_ROOT:    String = "spec/"
+pub const DEFAULT_DOC_ROOT:     String = "docs/"
+
+// ═════════════════════════════════════════════════════════════════════════════
+// All metadata keys in table order (for iteration)
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn metadata_keys() -> Array<String>:
+    return [
+        KEY_NAME, KEY_TARGET, KEY_PROFILE, KEY_OPTIMIZE, KEY_LTO,
+        KEY_ENTRY, KEY_SOURCE_ROOT, KEY_DEPS, KEY_OUTPUT, KEY_RUNTIME,
+        KEY_LINKER, KEY_LINKER_FLAGS, KEY_CC, KEY_CC_FLAGS,
+        KEY_TEST_ROOT, KEY_DOC_ROOT,
+    ]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// All default values in table order (parallel to metadata_keys)
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn metadata_defaults() -> Array<String>:
+    return [
+        DEFAULT_NAME, DEFAULT_TARGET, DEFAULT_PROFILE, DEFAULT_OPTIMIZE,
+        DEFAULT_LTO, DEFAULT_ENTRY, DEFAULT_SOURCE_ROOT, DEFAULT_DEPS,
+        DEFAULT_OUTPUT, DEFAULT_RUNTIME, DEFAULT_LINKER, DEFAULT_LINKER_FLAGS,
+        DEFAULT_CC, DEFAULT_CC_FLAGS, DEFAULT_TEST_ROOT, DEFAULT_DOC_ROOT,
+    ]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Look up a config value by key from a markscript Metadata table
+//
+// Usage:
+//   let handle = markscript.mks_find_table(vm, "Metadata")
+//   let name = get_config_string(vm, handle, KEY_NAME, DEFAULT_NAME)
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn get_config_string(vm: MarkScriptVM, handle: Int, key: String, default_val: String) -> String:
+    let rows: Int = markscript.mks_table_rows(vm, handle)
+    var row: Int = 0
+    while row < rows:
+        let row_key: String = markscript.mks_table_get_string(vm, handle, row, 0, "")
+        if row_key == key:
+            return markscript.mks_table_get_string(vm, handle, row, 1, default_val)
+        row = row + 1
+    return default_val
+
+pub fn get_config_bool(vm: MarkScriptVM, handle: Int, key: String, default_val: Bool) -> Bool:
+    let rows: Int = markscript.mks_table_rows(vm, handle)
+    var row: Int = 0
+    while row < rows:
+        let row_key: String = markscript.mks_table_get_string(vm, handle, row, 0, "")
+        if row_key == key:
+            let val: String = markscript.mks_table_get_string(vm, handle, row, 1, "")
+            return val == "true" or val == "1"
+        row = row + 1
+    return default_val

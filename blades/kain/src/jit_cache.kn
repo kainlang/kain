@@ -1,0 +1,113 @@
+// =============================================================================
+//  jit_cache.kn — shatter struct code cache for JIT-compiled functions
+//  STREAM: BRAVO
+//
+//  Uses shatter struct for Structure-of-Arrays (SoA) layout.
+//  Hashes are stored contiguously → 8 hashes per 64-byte cache line
+//  vs 1 hash per cache line in AoS layout. Linear scans are L1-cache friendly.
+//
+//  All cache functions use functional style (value in, value out) — same
+//  pattern as blades/markscript/src/jit.kn.
+// =============================================================================
+
+// ── Shatter-Struct Code Cache ───────────────────────────────────────────────
+
+shatter struct CacheStore:
+    hashes:   Array<Int>
+    ptrs:     Array<ptr<Byte>>
+    sizes:    Array<Int>
+    count:    Int
+    hits:     Int
+    misses:   Int
+    bytes:    Int
+    compiles: Int
+
+// ── Constructor ─────────────────────────────────────────────────────────────
+
+pub fn cache_store_new() -> CacheStore:
+    return CacheStore {
+        hashes: [],
+        ptrs: [],
+        sizes: [],
+        count: 0,
+        hits: 0,
+        misses: 0,
+        bytes: 0,
+        compiles: 0,
+    }
+
+// ── Lookup — linear scan of hashes array (SoA: contiguous in L1 cache) ─────
+
+pub fn cache_store_lookup(cache: CacheStore, hash: Int) -> ptr<Byte>:
+    var i: Int = 0
+    while i < cache.count:
+        if cache.hashes[i] == hash:
+            return cache.ptrs[i]
+        i = i + 1
+    return int_to_ptr(0, "ptr<Byte>")
+
+// ── Check — lookup with hit/miss telemetry (returns result + updated cache) ─
+
+pub fn cache_store_check(cache: CacheStore, hash: Int) -> CacheStore:
+    var i: Int = 0
+    while i < cache.count:
+        if cache.hashes[i] == hash:
+            var c: CacheStore = cache
+            c.hits = c.hits + 1
+            return c
+        i = i + 1
+    var c: CacheStore = cache
+    c.misses = c.misses + 1
+    return c
+
+// ── Register — add new compiled entry to cache ──────────────────────────────
+
+pub fn cache_store_register(cache: CacheStore, hash: Int, ptr: ptr<Byte>, size: Int) -> CacheStore:
+    var c: CacheStore = cache
+    c.hashes.push(hash)
+    c.ptrs.push(ptr)
+    c.sizes.push(size)
+    c.count = c.count + 1
+    c.bytes = c.bytes + size
+    c.compiles = c.compiles + 1
+    return c
+
+// ── Record hit (without lookup) ─────────────────────────────────────────────
+
+pub fn cache_store_record_hit(cache: CacheStore) -> CacheStore:
+    var c: CacheStore = cache
+    c.hits = c.hits + 1
+    return c
+
+// ── Record miss (without lookup) ────────────────────────────────────────────
+
+pub fn cache_store_record_miss(cache: CacheStore) -> CacheStore:
+    var c: CacheStore = cache
+    c.misses = c.misses + 1
+    return c
+
+// ── Telemetry ───────────────────────────────────────────────────────────────
+
+pub fn cache_store_hit_rate(cache: CacheStore) -> Float:
+    let total: Float = (cache.hits + cache.misses) as Float
+    if total == 0.0:
+        return 0.0
+    return (cache.hits as Float) / total
+
+pub fn cache_store_stats_str(cache: CacheStore) -> String:
+    var result: String = "cache: "
+    result = result + str(cache.count) + " entries, "
+    result = result + str(cache.hits) + " hits, "
+    result = result + str(cache.misses) + " misses, "
+    result = result + str(cache.bytes) + " bytes, "
+    result = result + str(cache.compiles) + " compiles, "
+    result = result + "hit_rate=" + str(cache_store_hit_rate(cache))
+    return result
+
+// ── Entry count / total bytes ───────────────────────────────────────────────
+
+pub fn cache_store_entry_count(cache: CacheStore) -> Int:
+    return cache.count
+
+pub fn cache_store_total_bytes(cache: CacheStore) -> Int:
+    return cache.bytes

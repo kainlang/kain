@@ -1,0 +1,146 @@
+// =============================================================================
+//  jit_orc.kn — Path B: OrcJIT via LLVM-C API
+//  STREAM: BRAVO
+//
+//  STATUS: STUB — Pending ECHO's delivery of llvm_ffi.kn with
+//          `include <llvm-c/Orc.h> as llvm_orc` and
+//          `include <llvm-c/Core.h> as llvm_core` declarations.
+//
+//  This file provides the OrcJIT integration skeleton. When ECHO delivers
+//  llvm_ffi.kn with LLVM-C type aliases, GOLF or a follow-up stream will
+//  wire the actual LLVM-C calls by replacing TODO blocks with real FFI calls.
+//
+//  Architecture:
+//    1. LLVMInitializeNativeTarget() + LLVMInitializeNativeAsmPrinter()
+//    2. LLVMOrcCreateLLJIT() — create the LLJIT instance
+//    3. LLVMOrcLLJITAddLLVMIRModule() — add an in-memory LLVM IR module
+//    4. LLVMOrcLLJITLookup() — look up a compiled function by symbol name
+//    5. call_jit_code(code_ptr) — from jit_metal.kn — execute via trampoline
+//
+//  Fallback: When LLVM DLL is unavailable, jit_orc_available() returns false,
+//  which causes the JIT dispatcher to route through Path A (jit_x86.kn).
+//
+//  The trampoline from jit_metal.kn (call_jit_code() / call_jit_trampoline())
+//  is the convergence point for BOTH paths.
+// =============================================================================
+
+use src::jit_metal
+
+// ── OrcJIT State ────────────────────────────────────────────────────────────
+
+pub struct OrcJitState:
+    initialized: Bool
+    jit_handle:   ptr<Byte>    // LLVMOrcLLJITRef — opaque pointer to LLJIT instance
+    has_llvm:     Bool         // true if LLVM shared library loaded successfully
+
+// ── Initialization ──────────────────────────────────────────────────────────
+//
+//  TODO: After ECHO delivers llvm_ffi.kn:
+//    use src::llvm_ffi   (for LLVM-C type aliases and include declarations)
+//
+//    include <llvm-c/Target.h> as llvm_target
+//    include <llvm-c/Orc.h> as llvm_orc
+//    include <llvm-c/Core.h> as llvm_core
+//    include <llvm-c/Analysis.h> as llvm_analysis
+//
+//  Then replace the stub with:
+//    llvm_target::LLVMInitializeNativeTarget()
+//    llvm_target::LLVMInitializeNativeAsmPrinter()
+//    state.jit_handle = llvm_orc::LLVMOrcCreateLLJIT()
+//    state.has_llvm = (ptr_to_int(state.jit_handle) != 0)
+
+pub fn jit_orc_init() -> OrcJitState:
+    // STUB: LLVM not available until ECHO delivers llvm_ffi.kn
+    // When wired, this probes for the LLVM shared library and initializes
+    // the native target + OrcJIT instance.
+    let mut state: OrcJitState = OrcJitState {
+        initialized: false,
+        jit_handle: jit_metal.null_ptr_byte(),
+        has_llvm: false,
+    }
+
+    // TODO: LLVM probe — check if LLVM DLL is loadable
+    // let llvm_target_ok: Bool = llvm_native_target_available()
+    // if llvm_target_ok:
+    //     with Unsafe:
+    //         llvm_target::LLVMInitializeNativeTarget()
+    //         llvm_target::LLVMInitializeNativeAsmPrinter()
+    //         state.jit_handle = llvm_orc::LLVMOrcCreateLLJIT()
+    //         state.has_llvm = ptr_to_int(state.jit_handle) != 0
+    //         state.initialized = state.has_llvm
+
+    state.initialized = true
+    return state
+
+// ── Availability check ──────────────────────────────────────────────────────
+
+pub fn jit_orc_available(state: OrcJitState) -> Bool:
+    return state.has_llvm
+
+// ── Module compilation ──────────────────────────────────────────────────────
+//
+//  TODO: After ECHO delivers llvm_ffi.kn:
+//    fn jit_orc_compile_module(jit: ptr<Byte>, module: ptr<Byte>) -> Bool with Unsafe:
+//        let verified: Int = llvm_analysis::LLVMVerifyModule(module, 0, null_ptr_byte())
+//        if verified != 0:
+//            return false
+//        let tracker: ptr<Byte> = llvm_orc::LLVMOrcLLJITAddLLVMIRModule(jit, module)
+//        return ptr_to_int(tracker) != 0
+
+pub fn jit_orc_compile_module(jit: ptr<Byte>, module: ptr<Byte>) -> Bool with Unsafe:
+    // STUB: OrcJIT module compilation not yet wired
+    // TODO: Wire llvm_analysis::LLVMVerifyModule + llvm_orc::LLVMOrcLLJITAddLLVMIRModule
+    return false
+
+// ── Symbol lookup ───────────────────────────────────────────────────────────
+//
+//  TODO: After ECHO delivers llvm_ffi.kn:
+//    fn jit_orc_lookup(jit: ptr<Byte>, symbol: String) -> ptr<Byte> with Unsafe:
+//        let addr: Int = 0
+//        let status: Int = llvm_orc::LLVMOrcLLJITLookup(jit, bitcast(addr), symbol)
+//        if status != 0:
+//            return jit_metal.null_ptr_byte()
+//        return int_to_ptr(addr, "ptr<Byte>")
+
+pub fn jit_orc_lookup(jit: ptr<Byte>, symbol: String) -> ptr<Byte> with Unsafe:
+    // STUB: OrcJIT symbol lookup not yet wired
+    // TODO: Wire llvm_orc::LLVMOrcLLJITLookup
+    return jit_metal.null_ptr_byte()
+
+// ── Compile-and-call flow ───────────────────────────────────────────────────
+//
+//  Full Path B pipeline: LLVM IR module → OrcJIT compile → symbol lookup →
+//  asm trampoline execution.
+//
+//  TODO: After ECHO delivers llvm_ffi.kn:
+//    1. Verify module with LLVMVerifyModule
+//    2. Add module to LLJIT with LLVMOrcLLJITAddLLVMIRModule
+//    3. Look up entry symbol with LLVMOrcLLJITLookup
+//    4. Execute via jit_metal.call_jit_code(code_ptr)
+
+pub fn jit_orc_compile_and_call(state: OrcJitState, module: ptr<Byte>, entry_name: String) -> Int with Unsafe:
+    // STUB: returns -1 until OrcJIT is wired
+    // When wired:
+    //   if not jit_orc_available(state): return -3
+    //   let ok = jit_orc_compile_module(state.jit_handle, module)
+    //   if not ok: return -1
+    //   let code_ptr = jit_orc_lookup(state.jit_handle, entry_name)
+    //   if ptr_to_int(code_ptr) == 0: return -1
+    //   return jit_metal.call_jit_code(code_ptr)
+    return -1
+
+// ── Cleanup ─────────────────────────────────────────────────────────────────
+//
+//  TODO: After ECHO delivers llvm_ffi.kn:
+//    fn jit_orc_dispose(state: *mut OrcJitState) with Unsafe:
+//        if state.has_llvm:
+//            llvm_orc::LLVMOrcDisposeLLJIT(state.jit_handle)
+//        state.has_llvm = false
+
+pub fn jit_orc_dispose(state: OrcJitState) -> OrcJitState with Unsafe:
+    // STUB: cleanup is a no-op until OrcJIT is wired
+    var s: OrcJitState = state
+    if s.has_llvm:
+        // TODO: llvm_orc::LLVMOrcDisposeLLJIT(s.jit_handle)
+        s.has_llvm = false
+    return s

@@ -1,0 +1,130 @@
+// =============================================================================
+//  jit_metal.kn — W^X memory lifecycle + shared asm trampoline
+//  STREAM: BRAVO
+//  Consumed by: jit_x86.kn, jit_orc.kn, jit.kn
+//
+//  The W^X contract:
+//    Pages transition RW → write code → RX → cache_flush → full_fence → execute
+//    Pages are NEVER simultaneously writable and executable.
+//
+//  The asm trampoline is the convergence point for both JIT paths.
+//  Contract:
+//    INPUT:  code_ptr in scratch[0] (passed via RDI on x86-64 System V)
+//    OUTPUT: return value in scratch[1] (captured from RAX after call)
+//    The JIT-compiled code must: save/restore RBP+RBX, return in RAX, end with RET
+// =============================================================================
+
+use std::machine
+
+// ── W^X Memory Lifecycle ───────────────────────────────────────────────────
+
+pub fn jit_compile_and_run(code_bytes: Array<Int>, code_size: Int) -> Int with Unsafe:
+    // Step 1: Compute aligned allocation size
+    let page_size: Int = vm_page_size()
+    let alloc_size: Int = align_to_page(code_size, page_size)
+
+    // Step 2: Allocate RW pages
+    let pages: ptr<Int> = vm_map(alloc_size)
+    if ptr_to_int(pages) == 0:
+        return -1  // ERR_JIT_VM_MAP_FAILED
+
+    // Step 3: Write JIT code into RW pages (collapse scope enforces exclusive write)
+    collapse pages:
+        var i: Int = 0
+        while i < code_size:
+            let bp: ptr<Byte> = int_to_ptr(ptr_to_int(pages) + i, "ptr<Byte>")
+            mem_store(bp, code_bytes[i] as Byte, "Byte")
+            i = i + 1
+        0
+    // out of collapse — pages now Idle
+
+    // Step 4: Transition RW → RX (W^X enforcement — pages are no longer writable)
+    let prot: Int = vm_protect_execute_read(pages, alloc_size)
+    if prot != 0:
+        decay pages
+        return -2  // ERR_JIT_PROTECT_FAILED
+
+    // Step 5: Flush instruction cache — clflush every cache line
+    let cls: Int = cpu_cache_line_bytes()
+    var ci: Int = 0
+    while ci < alloc_size:
+        let fp: ptr<Int> = int_to_ptr(ptr_to_int(pages) + ci, "ptr<Int>")
+        cache_flush(fp)
+        ci = ci + cls
+
+    // Step 6: Full memory fence — guarantees all stores + cache flushes are globally visible
+    full_fence()
+
+    // Step 7: Execute via asm trampoline
+    let result: Int = call_jit_trampoline(pages)
+
+    // Step 8: Release pages
+    decay pages
+    return result
+
+// ── Shared Asm Trampoline ───────────────────────────────────────────────────
+//
+//  Pattern PROVEN in blades/markscript/src/jit.kn (17 self-tests pass)
+//  and blades/markscript/test/jit_asm_test.kn (returns 42).
+//
+//  binding:
+//    scratch[0] = code_ptr  →  loaded from [rdi] into RAX
+//    scratch[1] = result    →  captured from RAX after CALL
+//
+//  Clobbers: all caller-saved registers on x86-64 System V ABI
+//    rax, rcx, rdx, rdi, rsi, r8, r9, r10, r11
+//    RBP + RBX are callee-saved → JIT code must preserve them
+
+pub fn call_jit_trampoline(code_pages: ptr<Int>) -> Int with Unsafe:
+    let scratch: ptr<Int> = alloc_zeroed(2, "Int")
+    defer decay scratch
+
+    // Store code pointer into scratch[0]
+    mem_store(scratch, ptr_to_int(code_pages), "Int")
+
+    // Execute: mov rax, [rdi]; call rax; mov [rdi+8], rax
+    let sc_int: Int = ptr_to_int(scratch)
+    asm("mov rax, [rdi]\ncall rax\nmov [rdi+8], rax",
+        sc_int,
+        constraints = "{rdi}",
+        clobbers = "rax,rcx,rdx,rdi,rsi,r8,r9,r10,r11",
+        memory = true, intel = true)
+
+    // Load result from scratch[1]
+    let result_slot: ptr<Int> = int_to_ptr(ptr_to_int(scratch) + 8, "ptr<Int>")
+    let result: Int = mem_load(result_slot, "Int")
+    return result
+
+// ── Public convenience: call an already-compiled code pointer ────────────────
+//  Takes raw ptr<Byte> code pointer (e.g., from cache, from OrcJIT lookup).
+
+pub fn call_jit_code(code_ptr: ptr<Byte>) -> Int with Unsafe:
+    // Safety check: refuse null code pointer
+    if ptr_to_int(code_ptr) == 0:
+        return -1
+    let scratch: ptr<Int> = alloc_zeroed(2, "Int")
+    defer decay scratch
+
+    mem_store(scratch, ptr_to_int(code_ptr), "Int")
+    let sc_int: Int = ptr_to_int(scratch)
+
+    asm("mov rax, [rdi]\ncall rax\nmov [rdi+8], rax",
+        sc_int,
+        constraints = "{rdi}",
+        clobbers = "rax,rcx,rdx,rdi,rsi,r8,r9,r10,r11",
+        memory = true, intel = true)
+
+    let result_slot: ptr<Int> = int_to_ptr(ptr_to_int(scratch) + 8, "ptr<Int>")
+    let result: Int = mem_load(result_slot, "Int")
+    return result
+
+// ── Utility ─────────────────────────────────────────────────────────────────
+
+pub fn align_to_page(size: Int, page_size: Int) -> Int:
+    if size % page_size == 0:
+        return size
+    return ((size / page_size) + 1) * page_size
+
+// Convenience null pointer factory
+pub fn null_ptr_byte() -> ptr<Byte>:
+    return int_to_ptr(0, "ptr<Byte>")

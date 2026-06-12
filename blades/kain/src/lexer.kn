@@ -1,0 +1,778 @@
+// lexer.kn — Hand-written DFA Lexer + Indent Processor
+// STREAM: ALPHA
+// Consumed by: DELTA (parser)
+//
+// Converts UTF-8 source text into Array<Token>, then the indent processor
+// inserts synthetic Indent/Dedent/Newline/Eof tokens.
+//
+// Uses value semantics throughout (no ptr parameters) for bootstrap
+// compiler compatibility. Functions that modify state return the new state.
+//
+// Keyword recognition: 58 hard keywords produce dedicated token constants.
+// All contextual keywords arrive as TOKEN_IDENT and are resolved later.
+
+use token
+use error
+use span
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESULT STRUCTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Returned by functions that produce a token AND a new lexer state
+pub struct TokenResult:
+    token: Token
+    state: LexerState
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEXER STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct LexerState:
+    source:      String
+    file_path:   String
+    pos:         Int          // current byte position
+    line_no:     Int          // current 1-based line
+    col_no:      Int          // current 1-based column
+    tokens:      Array<Token>
+    errors:      KcDiagnosticBag
+
+pub fn lexer_new(source: String, file_path: String) -> LexerState:
+    return LexerState {
+        source: source,
+        file_path: file_path,
+        pos: 0,
+        line_no: 1,
+        col_no: 1,
+        tokens: [],
+        errors: kc_diag_bag_new(),
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHARACTER CLASSIFICATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn lexer_is_digit(c: String) -> Bool:
+    return c >= "0" and c <= "9"
+
+pub fn lexer_is_hex_digit(c: String) -> Bool:
+    return lexer_is_digit(c) or (c >= "a" and c <= "f") or (c >= "A" and c <= "F")
+
+pub fn lexer_is_oct_digit(c: String) -> Bool:
+    return c >= "0" and c <= "7"
+
+pub fn lexer_is_bin_digit(c: String) -> Bool:
+    return c == "0" or c == "1"
+
+pub fn lexer_is_alpha(c: String) -> Bool:
+    return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+
+pub fn lexer_is_alnum(c: String) -> Bool:
+    return lexer_is_alpha(c) or lexer_is_digit(c)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POSITION MANAGEMENT — all return new LexerState
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Peek current character — returns "" at EOF
+pub fn lexer_current(state: LexerState) -> String:
+    if state.pos >= len(state.source):
+        return ""
+    return state.source[state.pos]
+
+// Peek ahead by N bytes from current position
+pub fn lexer_peek(state: LexerState, ahead: Int) -> String:
+    let idx: Int = state.pos + ahead
+    if idx >= len(state.source):
+        return ""
+    return state.source[idx]
+
+// Advance position by N bytes, updating line_no/col_no counters
+pub fn lexer_advance(state: LexerState, n: Int) -> LexerState:
+    let mut new_state: LexerState = state
+    var i: Int = 0
+    while i < n and new_state.pos < len(new_state.source):
+        if new_state.source[new_state.pos] == "\n":
+            new_state.line_no = new_state.line_no + 1
+            new_state.col_no = 1
+        else:
+            new_state.col_no = new_state.col_no + 1
+        new_state.pos = new_state.pos + 1
+        i = i + 1
+    return new_state
+
+// Push a token onto the accumulated token list
+pub fn lexer_push(state: LexerState, kind: TokenKind, text: String,
+                   start_line: Int, start_col: Int, start_pos: Int) -> LexerState:
+    let mut new_state: LexerState = state
+    let tok: Token = token_new(kind, text, start_line, start_col, start_pos)
+    new_state.tokens.push(tok)
+    return new_state
+
+// Push an error diagnostic
+pub fn lexer_error(state: LexerState, message: String, kind_str: String, start_pos: Int) -> LexerState:
+    let mut new_state: LexerState = state
+    let loc: Span = span_line_col(new_state.source, start_pos)
+    let src_line: String = ""
+    let diag: KcDiagnostic = kc_diagnostic_new(SEV_ERROR, new_state.file_path, loc.line_start,
+        loc.col_start, message, kind_str, start_pos, new_state.pos, src_line)
+    new_state.errors = kc_diag_bag_add_error(new_state.errors, diag)
+    return new_state
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYWORD MAP — 58 hard-lexer keywords → token constants
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn lexer_keyword_map(name: String) -> TokenKind:
+    // Core Control & Binding (20)
+    if name == "fn":         return TOKEN_FN
+    if name == "let":        return TOKEN_LET
+    if name == "mut":        return TOKEN_MUT
+    if name == "var":        return TOKEN_VAR
+    if name == "const":      return TOKEN_CONST
+    if name == "if":         return TOKEN_IF
+    if name == "else":       return TOKEN_ELSE
+    if name == "elif":       return TOKEN_ELIF
+    if name == "match":      return TOKEN_MATCH
+    if name == "for":        return TOKEN_FOR
+    if name == "while":      return TOKEN_WHILE
+    if name == "loop":       return TOKEN_LOOP
+    if name == "break":      return TOKEN_BREAK
+    if name == "continue":   return TOKEN_CONTINUE
+    if name == "defer":      return TOKEN_DEFER
+    if name == "return":     return TOKEN_RETURN
+    if name == "await":      return TOKEN_AWAIT
+    if name == "in":         return TOKEN_IN
+    if name == "with":       return TOKEN_WITH
+    if name == "as":         return TOKEN_AS
+    // Types, Modules & Visibility (10)
+    if name == "type":       return TOKEN_TYPE_KW
+    if name == "struct":     return TOKEN_STRUCT
+    if name == "enum":       return TOKEN_ENUM
+    if name == "trait":      return TOKEN_TRAIT
+    if name == "impl":       return TOKEN_IMPL
+    if name == "pub":        return TOKEN_PUB
+    if name == "mod":        return TOKEN_MOD
+    if name == "use":        return TOKEN_USE
+    if name == "self":       return TOKEN_SELF_LOWER
+    if name == "Self":       return TOKEN_SELF_UPPER
+    // Built-in Literals (3)
+    if name == "true":       return TOKEN_TRUE
+    if name == "false":      return TOKEN_FALSE
+    if name == "none":       return TOKEN_NONE
+    // Effects (7)
+    if name == "Pure":       return TOKEN_PURE
+    if name == "IO":         return TOKEN_IO
+    if name == "async":      return TOKEN_ASYNC_KW
+    if name == "Async":      return TOKEN_ASYNC
+    if name == "GPU":        return TOKEN_GPU
+    if name == "Reactive":   return TOKEN_REACTIVE
+    if name == "Unsafe":     return TOKEN_UNSAFE
+    // First-Class Citizens (18)
+    if name == "component":  return TOKEN_COMPONENT
+    if name == "shader":     return TOKEN_SHADER
+    if name == "actor":      return TOKEN_ACTOR
+    if name == "state":      return TOKEN_STATE
+    if name == "spawn":      return TOKEN_SPAWN
+    if name == "send":       return TOKEN_SEND
+    if name == "receive":    return TOKEN_RECEIVE
+    if name == "emit":       return TOKEN_EMIT
+    if name == "comptime":   return TOKEN_COMPTIME
+    if name == "macro":      return TOKEN_MACRO
+    if name == "vertex":     return TOKEN_VERTEX
+    if name == "fragment":   return TOKEN_FRAGMENT
+    if name == "collapse":   return TOKEN_COLLAPSE
+    if name == "observe":    return TOKEN_OBSERVE
+    if name == "decay":      return TOKEN_DECAY
+    if name == "share":      return TOKEN_SHARE
+    if name == "fanout":     return TOKEN_FANOUT
+    if name == "test":       return TOKEN_TEST
+    // Operator Aliases (2)
+    if name == "and":        return TOKEN_AND
+    if name == "or":         return TOKEN_OR
+    // Not a keyword → sentinel
+    return TOKEN_ERROR
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEXER SUB-ROUTINES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Lex an identifier or keyword: [a-zA-Z_][a-zA-Z0-9_]*
+pub fn lexer_lex_ident(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = state
+    let mut name: String = ""
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if lexer_is_alnum(c) or c == "_":
+            name = name + c
+            cur = lexer_advance(cur, 1)
+        else:
+            break
+    let kw: TokenKind = lexer_keyword_map(name)
+    let kind: TokenKind = if kw == TOKEN_ERROR: TOKEN_IDENT else: kw
+    return TokenResult { token: token_new(kind, name, start_line, start_col, start_pos), state: cur }
+
+// Process escape after backslash already consumed (state.pos is at the escape char)
+pub fn lexer_lex_escape_after_backslash(state: LexerState) -> TokenResult:
+    if state.pos >= len(state.source):
+        return TokenResult { token: token_new(TOKEN_CHAR, "\\", state.line_no, state.col_no, state.pos), state: state }
+    let mut cur: LexerState = state
+    let ec: String = cur.source[cur.pos]
+    cur = lexer_advance(cur, 1)
+    if ec == "n":  return TokenResult { token: token_new(TOKEN_CHAR, "\n", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "t":  return TokenResult { token: token_new(TOKEN_CHAR, "\t", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "r":  return TokenResult { token: token_new(TOKEN_CHAR, "\r", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "\\": return TokenResult { token: token_new(TOKEN_CHAR, "\\", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "\"": return TokenResult { token: token_new(TOKEN_CHAR, "\"", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "'":  return TokenResult { token: token_new(TOKEN_CHAR, "'", state.line_no, state.col_no, state.pos), state: cur }
+    if ec == "0":  return TokenResult { token: token_new(TOKEN_CHAR, "\0", state.line_no, state.col_no, state.pos), state: cur }
+    return TokenResult { token: token_new(TOKEN_CHAR, "\\" + ec, state.line_no, state.col_no, state.pos), state: cur }
+
+// Lex a string literal: the opening " has already been consumed
+// is_fstring: true for f"..." format strings (the f has been consumed too)
+pub fn lexer_lex_string(state: LexerState, start_line: Int, start_col: Int,
+                         start_pos: Int, is_fstring: Bool) -> TokenResult:
+    let mut cur: LexerState = state
+    let mut value: String = ""
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if c == "\n":
+            // Unterminated string literal at end of line
+            cur = lexer_error(cur, "unterminated string literal", ERR_LEX_UNTERMINATED_STRING, start_pos)
+            cur = lexer_advance(cur, 1)
+            let tok: Token = token_new(TOKEN_STRING, value, start_line, start_col, start_pos)
+            tok.literal_string = value
+            return TokenResult { token: tok, state: cur }
+        if c == "\\":
+            cur = lexer_advance(cur, 1)  // skip backslash
+            let esc: TokenResult = lexer_lex_escape_after_backslash(cur)
+            cur = esc.state
+            value = value + esc.token.text
+        elif c == "\"":
+            cur = lexer_advance(cur, 1)  // skip closing quote
+            let kind: TokenKind = if is_fstring: TOKEN_FSTRING else: TOKEN_STRING
+            let tok: Token = token_new(kind, value, start_line, start_col, start_pos)
+            tok.literal_string = value
+            return TokenResult { token: tok, state: cur }
+        else:
+            value = value + c
+            cur = lexer_advance(cur, 1)
+    // EOF without closing quote
+    cur = lexer_error(cur, "unterminated string literal", ERR_LEX_UNTERMINATED_STRING, start_pos)
+    let tok: Token = token_new(TOKEN_STRING, value, start_line, start_col, start_pos)
+    tok.literal_string = value
+    return TokenResult { token: tok, state: cur }
+
+// Lex a character literal: 'c' or '\n'
+pub fn lexer_lex_char(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = lexer_advance(state, 1)  // skip opening '
+    if cur.pos >= len(cur.source):
+        cur = lexer_error(cur, "unterminated character literal", ERR_LEX_UNTERMINATED_CHAR, start_pos)
+        return TokenResult { token: token_new(TOKEN_CHAR, "", start_line, start_col, start_pos), state: cur }
+    let c: String = cur.source[cur.pos]
+    var char_val: String = ""
+    var char_kind: TokenKind = TOKEN_CHAR
+    if c == "\\":
+        cur = lexer_advance(cur, 1)  // skip backslash
+        let esc: TokenResult = lexer_lex_escape_after_backslash(cur)
+        cur = esc.state
+        char_val = esc.token.text
+    else:
+        char_val = c
+        cur = lexer_advance(cur, 1)
+    // Expect closing '
+    if cur.pos < len(cur.source) and cur.source[cur.pos] == "'":
+        cur = lexer_advance(cur, 1)  // skip closing '
+    else:
+        cur = lexer_error(cur, "unterminated character literal", ERR_LEX_UNTERMINATED_CHAR, start_pos)
+    let tok: Token = token_new(TOKEN_CHAR, char_val, start_line, start_col, start_pos)
+    tok.literal_string = char_val
+    return TokenResult { token: tok, state: cur }
+
+// ── Numeric Literal Helpers ──
+
+// Convert ASCII digit char to integer (0-9)
+pub fn lexer_char_to_val(c: String) -> Int:
+    return c as Int
+
+// Convert hex digit char to integer value
+pub fn lexer_hex_digit_val(c: String) -> Int:
+    if c >= "0" and c <= "9": return lexer_char_to_val(c)
+    if c >= "a" and c <= "f": return 10 + (lexer_char_to_val(c) - lexer_char_to_val("a"))
+    if c >= "A" and c <= "F": return 10 + (lexer_char_to_val(c) - lexer_char_to_val("A"))
+    return 0
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NUMBER LITERAL LEXERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Lex hex literal: 0x[0-9a-fA-F][0-9a-fA-F_]*
+pub fn lexer_lex_hex_number(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = lexer_advance(state, 2)  // skip 0x
+    var value: Int = 0
+    var has_digits: Bool = false
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if lexer_is_hex_digit(c):
+            let digit: Int = lexer_hex_digit_val(c)
+            value = (value * 16) + digit
+            has_digits = true
+            cur = lexer_advance(cur, 1)
+        elif c == "_":
+            cur = lexer_advance(cur, 1)
+        else:
+            break
+    let tok: Token = token_new(TOKEN_INT, "", start_line, start_col, start_pos)
+    tok.literal_int = value
+    return TokenResult { token: tok, state: cur }
+
+// Lex octal literal: 0o[0-7][0-7_]*
+pub fn lexer_lex_oct_number(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = lexer_advance(state, 2)  // skip 0o
+    var value: Int = 0
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if lexer_is_oct_digit(c):
+            let digit: Int = lexer_char_to_val(c)
+            value = (value * 8) + digit
+            cur = lexer_advance(cur, 1)
+        elif c == "_":
+            cur = lexer_advance(cur, 1)
+        else:
+            break
+    let tok: Token = token_new(TOKEN_INT, "", start_line, start_col, start_pos)
+    tok.literal_int = value
+    return TokenResult { token: tok, state: cur }
+
+// Lex binary literal: 0b[01][01_]*
+pub fn lexer_lex_bin_number(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = lexer_advance(state, 2)  // skip 0b
+    var value: Int = 0
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if lexer_is_bin_digit(c):
+            let digit: Int = lexer_char_to_val(c)
+            value = (value * 2) + digit
+            cur = lexer_advance(cur, 1)
+        elif c == "_":
+            cur = lexer_advance(cur, 1)
+        else:
+            break
+    let tok: Token = token_new(TOKEN_INT, "", start_line, start_col, start_pos)
+    tok.literal_int = value
+    return TokenResult { token: tok, state: cur }
+
+// Lex decimal integer or float: [0-9][0-9_]* ( . [0-9][0-9_]* )?
+pub fn lexer_lex_dec_number(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let mut cur: LexerState = state
+    var int_part: Int = 0
+    var raw_text: String = ""
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if lexer_is_digit(c):
+            int_part = (int_part * 10) + lexer_char_to_val(c)
+            raw_text = raw_text + c
+            cur = lexer_advance(cur, 1)
+        elif c == "_":
+            cur = lexer_advance(cur, 1)
+        else:
+            break
+    // Check for float: decimal point followed by digit
+    if cur.pos < len(cur.source) and cur.source[cur.pos] == ".":
+        let peek: String = lexer_peek(cur, 1)
+        if lexer_is_digit(peek):
+            cur = lexer_advance(cur, 1)  // skip .
+            var frac_part: Int = 0
+            var frac_scale: Int = 1
+            while cur.pos < len(cur.source):
+                let c: String = cur.source[cur.pos]
+                if lexer_is_digit(c):
+                    frac_part = (frac_part * 10) + lexer_char_to_val(c)
+                    frac_scale = frac_scale * 10
+                    cur = lexer_advance(cur, 1)
+                elif c == "_":
+                    cur = lexer_advance(cur, 1)
+                else:
+                    break
+            let float_val: Float = (int_part as Float) + ((frac_part as Float) / (frac_scale as Float))
+            let tok: Token = token_new(TOKEN_FLOAT, raw_text + "." + str(frac_part), start_line, start_col, start_pos)
+            tok.literal_float = float_val
+            return TokenResult { token: tok, state: cur }
+    // Plain integer
+    let tok: Token = token_new(TOKEN_INT, raw_text, start_line, start_col, start_pos)
+    tok.literal_int = int_part
+    return TokenResult { token: tok, state: cur }
+
+// Lex a numeric literal — dispatches on prefix
+pub fn lexer_lex_number(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let c0: String = state.source[state.pos]
+    if c0 == "0" and state.pos + 1 < len(state.source):
+        let c1: String = state.source[state.pos + 1]
+        if c1 == "x" or c1 == "X":
+            return lexer_lex_hex_number(state, start_line, start_col, start_pos)
+        if c1 == "o" or c1 == "O":
+            return lexer_lex_oct_number(state, start_line, start_col, start_pos)
+        if c1 == "b" or c1 == "B":
+            return lexer_lex_bin_number(state, start_line, start_col, start_pos)
+    return lexer_lex_dec_number(state, start_line, start_col, start_pos)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPERATOR / PUNCTUATION LEXER — longest-match dispatch
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn lexer_lex_operator(state: LexerState, start_line: Int, start_col: Int, start_pos: Int) -> TokenResult:
+    let c: String = state.source[state.pos]
+
+    // + family: ++ += +
+    if c == "+":
+        if lexer_peek(state, 1) == "+":
+            return TokenResult { token: token_new(TOKEN_PLUS_PLUS, "++", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_PLUS_EQ, "+=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_PLUS, "+", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // - family: -- -= -> -
+    if c == "-":
+        if lexer_peek(state, 1) == "-":
+            return TokenResult { token: token_new(TOKEN_MINUS_MINUS, "--", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_MINUS_EQ, "-=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == ">":
+            return TokenResult { token: token_new(TOKEN_ARROW, "->", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_MINUS, "-", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // * family: ** *= *
+    if c == "*":
+        if lexer_peek(state, 1) == "*":
+            return TokenResult { token: token_new(TOKEN_POWER, "**", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_STAR_EQ, "*=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_STAR, "*", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // / family: // (comment) /= /
+    if c == "/":
+        if lexer_peek(state, 1) == "/":
+            // Line comment — skip to end of line
+            let mut cur: LexerState = lexer_advance(state, 2)
+            while cur.pos < len(cur.source) and cur.source[cur.pos] != "\n":
+                cur = lexer_advance(cur, 1)
+            // Skip the comment, return NOTHING — caller should retry
+            return TokenResult { token: token_new(TOKEN_COMMENT, "", start_line, start_col, start_pos), state: cur }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_SLASH_EQ, "/=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_SLASH, "/", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // % family: %= %
+    if c == "%":
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_PERCENT_EQ, "%=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_PERCENT, "%", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // & family: && &= &
+    if c == "&":
+        if lexer_peek(state, 1) == "&":
+            return TokenResult { token: token_new(TOKEN_AND, "&&", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_AMP_EQ, "&=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_AMP, "&", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // | family: || |= |
+    if c == "|":
+        if lexer_peek(state, 1) == "|":
+            return TokenResult { token: token_new(TOKEN_OR, "||", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_PIPE_EQ, "|=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_PIPE, "|", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // ^ family: ^= ^
+    if c == "^":
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_CARET_EQ, "^=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_CARET, "^", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // ~ family: ~
+    if c == "~":
+        return TokenResult { token: token_new(TOKEN_TILDE, "~", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // = family: == => =
+    if c == "=":
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_EQ_EQ, "==", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == ">":
+            return TokenResult { token: token_new(TOKEN_FAT_ARROW, "=>", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_EQ, "=", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // ! family: != !
+    if c == "!":
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_NOT_EQ, "!=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_NOT, "!", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // < family: <<= << <= </ <
+    if c == "<":
+        if lexer_peek(state, 1) == "<" and lexer_peek(state, 2) == "=":
+            return TokenResult { token: token_new(TOKEN_SHL_EQ, "<<=", start_line, start_col, start_pos), state: lexer_advance(state, 3) }
+        if lexer_peek(state, 1) == "<":
+            return TokenResult { token: token_new(TOKEN_SHL, "<<", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_LT_EQ, "<=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "/":
+            return TokenResult { token: token_new(TOKEN_LT_SLASH, "</", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_LT, "<", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // > family: >>= >> >= >
+    if c == ">":
+        if lexer_peek(state, 1) == ">" and lexer_peek(state, 2) == "=":
+            return TokenResult { token: token_new(TOKEN_SHR_EQ, ">>=", start_line, start_col, start_pos), state: lexer_advance(state, 3) }
+        if lexer_peek(state, 1) == ">":
+            return TokenResult { token: token_new(TOKEN_SHR, ">>", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == "=":
+            return TokenResult { token: token_new(TOKEN_GT_EQ, ">=", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_GT, ">", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // . family: ... .. .
+    if c == ".":
+        if lexer_peek(state, 1) == "." and lexer_peek(state, 2) == ".":
+            return TokenResult { token: token_new(TOKEN_DOT_DOT_DOT, "...", start_line, start_col, start_pos), state: lexer_advance(state, 3) }
+        if lexer_peek(state, 1) == ".":
+            return TokenResult { token: token_new(TOKEN_DOT_DOT, "..", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_DOT, ".", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // : family: :: :
+    if c == ":":
+        if lexer_peek(state, 1) == ":":
+            return TokenResult { token: token_new(TOKEN_COLON_COLON, "::", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_COLON, ":", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // ? family: ?? ?. ?
+    if c == "?":
+        if lexer_peek(state, 1) == "?":
+            return TokenResult { token: token_new(TOKEN_QUESTION_QUESTION, "??", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        if lexer_peek(state, 1) == ".":
+            return TokenResult { token: token_new(TOKEN_QUESTION_DOT, "?.", start_line, start_col, start_pos), state: lexer_advance(state, 2) }
+        return TokenResult { token: token_new(TOKEN_QUESTION, "?", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // Simple single-char punctuation
+    if c == "(":
+        return TokenResult { token: token_new(TOKEN_LPAREN, "(", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == ")":
+        return TokenResult { token: token_new(TOKEN_RPAREN, ")", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == "[":
+        return TokenResult { token: token_new(TOKEN_LBRACKET, "[", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == "]":
+        return TokenResult { token: token_new(TOKEN_RBRACKET, "]", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == "{":
+        return TokenResult { token: token_new(TOKEN_LBRACE, "{", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == "}":
+        return TokenResult { token: token_new(TOKEN_RBRACE, "}", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == ",":
+        return TokenResult { token: token_new(TOKEN_COMMA, ",", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == ";":
+        return TokenResult { token: token_new(TOKEN_SEMI, ";", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+    if c == "@":
+        return TokenResult { token: token_new(TOKEN_AT, "@", start_line, start_col, start_pos), state: lexer_advance(state, 1) }
+
+    // Unrecognized character
+    let mut cur: LexerState = lexer_advance(state, 1)
+    cur = lexer_error(cur, "unexpected character: " + c, ERR_LEX_UNEXPECTED_CHAR, start_pos)
+    return TokenResult { token: token_new(TOKEN_ERROR, c, start_line, start_col, start_pos), state: cur }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN LEXER DFA — lexer_next_token
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Returns the next token and the new lexer state.
+// Callers must check if token.kind is TOKEN_COMMENT and retry.
+pub fn lexer_next_token(state: LexerState) -> TokenResult:
+    let mut cur: LexerState = state
+
+    // Skip whitespace except newlines
+    while cur.pos < len(cur.source):
+        let c: String = cur.source[cur.pos]
+        if c == " " or c == "\t" or c == "\r":
+            cur = lexer_advance(cur, 1)
+            continue
+        break
+
+    // Check EOF
+    if cur.pos >= len(cur.source):
+        return TokenResult { token: token_new(TOKEN_EOF, "", cur.line_no, cur.col_no, cur.pos), state: cur }
+
+    let c: String = cur.source[cur.pos]
+    let start_line: Int = cur.line_no
+    let start_col: Int = cur.col_no
+    let start_pos: Int = cur.pos
+
+    // Newline — capture trailing whitespace
+    if c == "\n":
+        cur = lexer_advance(cur, 1)
+        var ws: String = "\n"
+        while cur.pos < len(cur.source):
+            let nc: String = cur.source[cur.pos]
+            if nc == " " or nc == "\t" or nc == "\r":
+                ws = ws + nc
+                cur = lexer_advance(cur, 1)
+            else:
+                break
+        let tok: Token = token_new(TOKEN_NEWLINE, ws, start_line, start_col, start_pos)
+        tok.literal_string = ws
+        return TokenResult { token: tok, state: cur }
+
+    // Line comment //
+    if c == "/" and lexer_peek(cur, 1) == "/":
+        cur = lexer_advance(cur, 2)
+        while cur.pos < len(cur.source) and cur.source[cur.pos] != "\n":
+            cur = lexer_advance(cur, 1)
+        // Skip the comment, return next real token
+        return lexer_next_token(cur)
+
+    // Hash comment # — only at start of line
+    if c == "#":
+        let is_line_start: Bool = start_col == 1 or (start_pos > 0 and state.source[start_pos - 1] == "\n")
+        if is_line_start:
+            cur = lexer_advance(cur, 1)
+            while cur.pos < len(cur.source) and cur.source[cur.pos] != "\n":
+                cur = lexer_advance(cur, 1)
+            return lexer_next_token(cur)
+
+    // String literal "..."
+    if c == "\"":
+        cur = lexer_advance(cur, 1)  // skip opening "
+        return lexer_lex_string(cur, start_line, start_col, start_pos, false)
+
+    // Format string f"..."
+    if c == "f" and lexer_peek(cur, 1) == "\"":
+        cur = lexer_advance(cur, 2)  // skip f"
+        return lexer_lex_string(cur, start_line, start_col, start_pos, true)
+
+    // Character literal 'c'
+    if c == "'":
+        return lexer_lex_char(cur, start_line, start_col, start_pos)
+
+    // Number literal
+    if lexer_is_digit(c):
+        return lexer_lex_number(cur, start_line, start_col, start_pos)
+
+    // Identifier or keyword
+    if lexer_is_alpha(c) or c == "_":
+        return lexer_lex_ident(cur, start_line, start_col, start_pos)
+
+    // Operators and punctuation
+    return lexer_lex_operator(cur, start_line, start_col, start_pos)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVENIENCE — tokenize entire source in one call
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn lexer_tokenize_all(source: String, file_path: String) -> Array<Token>:
+    let mut cur: LexerState = lexer_new(source, file_path)
+    let mut out_tokens: Array<Token> = []
+    loop:
+        let tr: TokenResult = lexer_next_token(cur)
+        cur = tr.state
+        let tok: Token = tr.token
+        let is_eof: Bool = tok.kind == TOKEN_EOF
+        // Skip comment tokens — they're discarded
+        if tok.kind != TOKEN_COMMENT and tok.kind != TOKEN_HASH_COMMENT:
+            out_tokens.push(tok)
+        if is_eof:
+            break
+        if cur.pos >= len(source):
+            break
+    return out_tokens
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INDENT PROCESSOR — post-lexer pass
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Compute indent level from a whitespace string (tab = 4 spaces)
+pub fn compute_indent(ws: String) -> Int:
+    var total: Int = 0
+    var i: Int = 1  // skip the leading \n
+    while i < len(ws):
+        if ws[i] == " ":
+            total = total + 1
+        elif ws[i] == "\t":
+            total = total + 4  // tab = 4 spaces
+        i = i + 1
+    return total
+
+pub fn indent_process(raw_tokens: Array<Token>) -> Array<Token>:
+    let mut out_toks: Array<Token> = []
+    let mut indent_stack: Array<Int> = []
+    indent_stack.push(0)
+    var stk_len: Int = 1  // current logical length
+    var paren_depth: Int = 0
+    var bracket_depth: Int = 0
+    var brace_depth: Int = 0
+
+    var i: Int = 0
+    let n: Int = len(raw_tokens)
+    while i < n:
+        let tok: Token = raw_tokens[i]
+
+        // Track bracket depths for suppression logic
+        if tok.kind == TOKEN_LPAREN:
+            paren_depth = paren_depth + 1
+        if tok.kind == TOKEN_RPAREN:
+            paren_depth = if paren_depth > 0: paren_depth - 1 else: 0
+        if tok.kind == TOKEN_LBRACKET:
+            bracket_depth = bracket_depth + 1
+        if tok.kind == TOKEN_RBRACKET:
+            bracket_depth = if bracket_depth > 0: bracket_depth - 1 else: 0
+        if tok.kind == TOKEN_LBRACE:
+            brace_depth = brace_depth + 1
+        if tok.kind == TOKEN_RBRACE:
+            brace_depth = if brace_depth > 0: brace_depth - 1 else: 0
+
+        // Handle newlines
+        if tok.kind == TOKEN_NEWLINE:
+            // Suppress inside any bracket group
+            if paren_depth > 0 or bracket_depth > 0 or brace_depth > 0:
+                i = i + 1
+                continue
+
+            // Suppress blank lines (consecutive newlines)
+            if i + 1 < n and raw_tokens[i + 1].kind == TOKEN_NEWLINE:
+                i = i + 1
+                continue
+
+            // Compute indent from whitespace
+            let ws: String = tok.literal_string
+            let indent: Int = compute_indent(ws)
+
+            let current: Int = indent_stack[stk_len - 1]
+
+            if indent > current:
+                // INDENT: push and emit
+                indent_stack.push(indent)
+                stk_len = stk_len + 1
+                out_toks.push(tok)  // Newline
+                let indent_tok: Token = token_new(TOKEN_INDENT, "", tok.line_no, tok.col_no, tok.byte_offset)
+                out_toks.push(indent_tok)
+            elif indent < current:
+                // DEDENT: pop until match, emit one DEDENT per pop
+                out_toks.push(tok)  // Newline
+                while stk_len > 1 and indent_stack[stk_len - 1] > indent:
+                    stk_len = stk_len - 1
+                    let dedent_tok: Token = token_new(TOKEN_DEDENT, "", tok.line_no, tok.col_no, tok.byte_offset)
+                    out_toks.push(dedent_tok)
+            else:
+                // Same indent level
+                out_toks.push(tok)
+        else:
+            out_toks.push(tok)
+
+        i = i + 1
+
+    // EOF cleanup: unwind remaining indent stack
+    while stk_len > 1:
+        stk_len = stk_len - 1
+        let dedent_tok: Token = token_new(TOKEN_DEDENT, "", 0, 0, 0)
+        out_toks.push(dedent_tok)
+
+    // Append Eof
+    let eof_tok: Token = token_new(TOKEN_EOF, "", 0, 0, 0)
+    out_toks.push(eof_tok)
+
+    return out_toks

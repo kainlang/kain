@@ -1,0 +1,99 @@
+// error.kn — Diagnostic struct and error constants
+// STREAM: ALPHA — sole owner
+// Consumed by: ALL streams
+//
+// NOTE: Named KcDiagnostic to avoid collision with stdlib's Diagnostic struct.
+
+pub struct KcDiagnostic:
+    severity:    Int     // 0=error, 1=warning, 2=note, 3=help
+    file_path:   String
+    line_no:     Int
+    column:      Int
+    message:     String
+    error_kind:  String
+    span_start:  Int
+    span_end:    Int
+    source_line: String
+
+pub const SEV_ERROR:   Int = 0
+pub const SEV_WARNING: Int = 1
+pub const SEV_NOTE:    Int = 2
+pub const SEV_HELP:    Int = 3
+
+pub const MAX_ERRORS: Int = 50
+
+// ── Error Kind Constants ──
+pub const ERR_LEX_UNTERMINATED_STRING: String = "E0001"
+pub const ERR_LEX_UNEXPECTED_CHAR:     String = "E0002"
+pub const ERR_LEX_INT_OVERFLOW:        String = "E0003"
+pub const ERR_LEX_UNTERMINATED_CHAR:   String = "E0004"
+pub const ERR_PARSE_EXPECTED_TOKEN:    String = "E0100"
+pub const ERR_PARSE_RESERVED_ID:       String = "E0101"
+pub const ERR_PARSE_EXPECTED_ITEM:     String = "E0102"
+pub const ERR_PARSE_EXPECTED_EXPR:     String = "E0103"
+pub const ERR_PARSE_JSX_TAG_MISMATCH:  String = "E0104"
+pub const ERR_TYPE_MISMATCH:           String = "E0200"
+pub const ERR_TYPE_DUPLICATE:          String = "E0201"
+pub const ERR_TYPE_NOT_FOUND:          String = "E0202"
+pub const ERR_TYPE_EFFECT_VIOLATION:   String = "E0203"
+pub const ERR_TYPE_NON_EXHAUSTIVE:     String = "E0204"
+pub const ERR_TYPE_CANNOT_ASSIGN_IMM:  String = "E0205"
+pub const ERR_MONO_CONFLICT:           String = "E0300"
+pub const ERR_MONO_TRAIT_BOUND:        String = "E0301"
+pub const ERR_MONO_CANNOT_INFER:       String = "E0302"
+pub const ERR_CODEGEN_VERIFY_FAILED:   String = "E0400"
+pub const ERR_CODEGEN_TYPE_UNRESOLVED: String = "E0401"
+pub const ERR_JIT_VM_MAP_FAILED:       String = "E0500"
+pub const ERR_JIT_PROTECT_FAILED:      String = "E0501"
+pub const ERR_JIT_ORC_INIT_FAILED:     String = "E0502"
+pub const ERR_JIT_LOOKUP_FAILED:       String = "E0503"
+pub const ERR_CLI_FILE_NOT_FOUND:      String = "E0600"
+pub const ERR_CLI_WORKSPACE_NOT_FOUND: String = "E0601"
+pub const ERR_CLI_LINKER_NOT_FOUND:    String = "E0602"
+pub const ERR_RUNTIME_HEADER_NOT_FOUND: String = "E0700"
+
+pub fn kc_diagnostic_new(severity: Int, path: String, line_no: Int, col: Int,
+                          message: String, kind: String,
+                          span_start: Int, span_end: Int, source_line: String) -> KcDiagnostic:
+    return KcDiagnostic {
+        severity: severity,
+        file_path: path,
+        line_no: line_no,
+        column: col,
+        message: message,
+        error_kind: kind,
+        span_start: span_start,
+        span_end: span_end,
+        source_line: source_line,
+    }
+
+// KcDiagnosticBag — accumulator for errors/warnings
+pub struct KcDiagnosticBag:
+    errors:   Array<KcDiagnostic>
+    warnings: Array<KcDiagnostic>
+    notes:    Array<KcDiagnostic>
+
+pub fn kc_diag_bag_new() -> KcDiagnosticBag:
+    return KcDiagnosticBag {
+        errors: [],
+        warnings: [],
+        notes: [],
+    }
+
+// Return a new bag with the error added
+pub fn kc_diag_bag_add_error(bag: KcDiagnosticBag, d: KcDiagnostic) -> KcDiagnosticBag:
+    let mut new_bag: KcDiagnosticBag = bag
+    new_bag.errors.push(d)
+    return new_bag
+
+// Return a new bag with the warning added
+pub fn kc_diag_bag_add_warning(bag: KcDiagnosticBag, d: KcDiagnostic) -> KcDiagnosticBag:
+    let mut new_bag: KcDiagnosticBag = bag
+    new_bag.warnings.push(d)
+    return new_bag
+
+pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
+    return len(bag.errors) > 0
+
+pub fn kc_diag_bag_too_many(bag: KcDiagnosticBag) -> Bool:
+    return len(bag.errors) >= MAX_ERRORS

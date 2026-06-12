@@ -1,0 +1,314 @@
+// builtins.kn — Builtin type and function registration
+// STREAM: ECHO
+// Consumed by: FOXTROT (typechecker calls register_builtin_types at TypeEnv init)
+//
+// Registers all primitive types (I8–I128, U8–U128, Isize, Usize, Bool, Unit,
+// String, Char, Byte, Float, F32), builtin functions (alloc, mem_load,
+// mem_store, ptr_offset, asm, atomics, vm_*, sizeof, alignof, bitcast),
+// and the three-layer stdlib pattern.
+
+// ── BuiltinType Struct ──
+// Describes a primitive type registered into the TypeEnv at startup.
+
+pub struct BuiltinType:
+    kain_name:   String
+    llvm_type:   String
+    c_type:      String
+    size_bytes:  Int
+    align_bytes: Int
+    is_signed:   Bool
+
+// ── BuiltinFunction Struct ──
+// Describes a builtin function recognized by the typechecker.
+
+pub struct BuiltinFunction:
+    name:        String
+    return_type: String
+    param_types: Array<String>
+    effects:     Array<String>
+    is_extern:   Bool
+    link_name:   String
+
+// ═══════════════════════════════════════════════════════════════════
+// Primitive Type Registration
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn builtin_types_init() -> Array<BuiltinType>:
+    let mut types: Array<BuiltinType> = []
+
+    // ── Signed Integer Types ──
+    push(types, BuiltinType { kain_name: "I8",    llvm_type: "i8",   c_type: "int8_t",    size_bytes: 1,  align_bytes: 1,  is_signed: true })
+    push(types, BuiltinType { kain_name: "I16",   llvm_type: "i16",  c_type: "int16_t",   size_bytes: 2,  align_bytes: 2,  is_signed: true })
+    push(types, BuiltinType { kain_name: "I32",   llvm_type: "i32",  c_type: "int32_t",   size_bytes: 4,  align_bytes: 4,  is_signed: true })
+    push(types, BuiltinType { kain_name: "I64",   llvm_type: "i64",  c_type: "int64_t",   size_bytes: 8,  align_bytes: 8,  is_signed: true })
+    push(types, BuiltinType { kain_name: "I128",  llvm_type: "i128", c_type: "__int128",   size_bytes: 16, align_bytes: 16, is_signed: true })
+    push(types, BuiltinType { kain_name: "Isize", llvm_type: "i64",  c_type: "int64_t",   size_bytes: 8,  align_bytes: 8,  is_signed: true })
+    push(types, BuiltinType { kain_name: "Int",   llvm_type: "i64",  c_type: "int64_t",   size_bytes: 8,  align_bytes: 8,  is_signed: true })
+
+    // ── Unsigned Integer Types ──
+    push(types, BuiltinType { kain_name: "U8",    llvm_type: "i8",   c_type: "uint8_t",   size_bytes: 1,  align_bytes: 1,  is_signed: false })
+    push(types, BuiltinType { kain_name: "U16",   llvm_type: "i16",  c_type: "uint16_t",  size_bytes: 2,  align_bytes: 2,  is_signed: false })
+    push(types, BuiltinType { kain_name: "U32",   llvm_type: "i32",  c_type: "uint32_t",  size_bytes: 4,  align_bytes: 4,  is_signed: false })
+    push(types, BuiltinType { kain_name: "U64",   llvm_type: "i64",  c_type: "uint64_t",  size_bytes: 8,  align_bytes: 8,  is_signed: false })
+    push(types, BuiltinType { kain_name: "U128",  llvm_type: "i128", c_type: "unsigned __int128", size_bytes: 16, align_bytes: 16, is_signed: false })
+    push(types, BuiltinType { kain_name: "Usize", llvm_type: "i64",  c_type: "uint64_t",  size_bytes: 8,  align_bytes: 8,  is_signed: false })
+    push(types, BuiltinType { kain_name: "UInt",  llvm_type: "i64",  c_type: "uint64_t",  size_bytes: 8,  align_bytes: 8,  is_signed: false })
+
+    // ── Float Types ──
+    push(types, BuiltinType { kain_name: "F32",   llvm_type: "float",  c_type: "float",   size_bytes: 4,  align_bytes: 4,  is_signed: true })
+    push(types, BuiltinType { kain_name: "F64",   llvm_type: "double", c_type: "double",  size_bytes: 8,  align_bytes: 8,  is_signed: true })
+    push(types, BuiltinType { kain_name: "Float", llvm_type: "double", c_type: "double",  size_bytes: 8,  align_bytes: 8,  is_signed: true })
+
+    // ── Boolean / Character / Byte ──
+    push(types, BuiltinType { kain_name: "Bool",  llvm_type: "i1",   c_type: "int",       size_bytes: 1,  align_bytes: 1,  is_signed: false })
+    push(types, BuiltinType { kain_name: "Char",  llvm_type: "i32",  c_type: "uint32_t",  size_bytes: 4,  align_bytes: 4,  is_signed: false })
+    push(types, BuiltinType { kain_name: "Byte",  llvm_type: "i8",   c_type: "uint8_t",   size_bytes: 1,  align_bytes: 1,  is_signed: false })
+
+    // ── Zero-Size / Never Types ──
+    push(types, BuiltinType { kain_name: "Unit",  llvm_type: "void", c_type: "void",      size_bytes: 0,  align_bytes: 1,  is_signed: false })
+    push(types, BuiltinType { kain_name: "Never", llvm_type: "void", c_type: "void",      size_bytes: 0,  align_bytes: 1,  is_signed: false })
+
+    // ── String ──
+    push(types, BuiltinType { kain_name: "String", llvm_type: "{i8*, i64}", c_type: "KainString", size_bytes: 16, align_bytes: 8, is_signed: false })
+
+    // ── Pointer ──
+    push(types, BuiltinType { kain_name: "ptr",   llvm_type: "i8*",  c_type: "void*",     size_bytes: 8,  align_bytes: 8,  is_signed: false })
+    push(types, BuiltinType { kain_name: "ref",   llvm_type: "i8*",  c_type: "void*",     size_bytes: 8,  align_bytes: 8,  is_signed: false })
+
+    // ── Option<T> ──
+    push(types, BuiltinType { kain_name: "Option", llvm_type: "{i64, i64}", c_type: "KainOption", size_bytes: 16, align_bytes: 8, is_signed: false })
+
+    // ── Result<T,E> ──
+    push(types, BuiltinType { kain_name: "Result", llvm_type: "{i64, i64, i64}", c_type: "KainResult", size_bytes: 24, align_bytes: 8, is_signed: false })
+
+    // ── Future<T> ──
+    push(types, BuiltinType { kain_name: "Future", llvm_type: "i8*", c_type: "void*",    size_bytes: 8,  align_bytes: 8,  is_signed: false })
+
+    // ── Atomic Types ──
+    push(types, BuiltinType { kain_name: "AtomicInt",  llvm_type: "i64", c_type: "int64_t",  size_bytes: 8,  align_bytes: 8,  is_signed: true })
+    push(types, BuiltinType { kain_name: "AtomicBool", llvm_type: "i32", c_type: "int32_t",  size_bytes: 4,  align_bytes: 4,  is_signed: false })
+    push(types, BuiltinType { kain_name: "AtomicPtr",  llvm_type: "i8*", c_type: "void*",   size_bytes: 8,  align_bytes: 8,  is_signed: false })
+
+    // ── Trait Object (dynamic dispatch) ──
+    push(types, BuiltinType { kain_name: "TraitObject", llvm_type: "{i8*, i8*}", c_type: "KainClosure", size_bytes: 16, align_bytes: 8, is_signed: false })
+
+    // ── Array<T> (growable runtime array) ──
+    push(types, BuiltinType { kain_name: "RuntimeArray", llvm_type: "{i64, i64, i8*}", c_type: "KainArray", size_bytes: 24, align_bytes: 8, is_signed: false })
+
+    // ── Actor reference ──
+    push(types, BuiltinType { kain_name: "ActorRef", llvm_type: "{i64, i64}", c_type: "KainActorRef", size_bytes: 16, align_bytes: 8, is_signed: false })
+
+    return types
+
+// ═══════════════════════════════════════════════════════════════════
+// Builtin Function Registration
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn builtin_functions_init() -> Array<BuiltinFunction>:
+    let mut funcs: Array<BuiltinFunction> = []
+
+    // ── Memory Allocation ──
+    push(funcs, bf_extern("alloc", "ptr<Byte>", ["Int"], "alloc"))
+    push(funcs, bf_extern("alloc_zeroed", "ptr<Byte>", ["Int"], "alloc_zeroed"))
+    push(funcs, bf_extern("realloc_mem", "ptr<Byte>", ["ptr<Byte>", "Int", "Int"], "realloc_mem"))
+
+    // ── Pointer Arithmetic ──
+    push(funcs, bf_extern("ptr_offset", "ptr<Byte>", ["ptr<Byte>", "Int", "String"], "ptr_offset"))
+    push(funcs, bf_extern("ptr_to_int", "Int", ["ptr<Byte>"], "ptr_to_int"))
+    push(funcs, bf_extern("int_to_ptr", "ptr<Byte>", ["Int", "String"], "int_to_ptr"))
+
+    // ── Memory Load / Store ──
+    push(funcs, bf_extern("mem_load", "Int", ["ptr<Byte>", "String"], "mem_load"))
+    push(funcs, bf_extern("mem_store", "Unit", ["ptr<Byte>", "Int", "String"], "mem_store"))
+
+    // ── Bitcast / Type Punning ──
+    push(funcs, bf_extern("bitcast", "Int", ["Int", "String"], "bitcast"))
+
+    // ── Inline Assembly ──
+    push(funcs, BuiltinFunction {
+        name: "asm", return_type: "Unit", param_types: ["String"],
+        effects: ["Unsafe"], is_extern: false, link_name: "",
+    })
+
+    // ── CPU Fences ──
+    push(funcs, bf_extern("lfence", "Unit", [], "lfence"))
+    push(funcs, bf_extern("sfence", "Unit", [], "sfence"))
+    push(funcs, bf_extern("mfence", "Unit", [], "mfence"))
+    push(funcs, bf_extern("full_fence", "Unit", [], "full_fence"))
+
+    // ── Cache Control ──
+    push(funcs, bf_extern("cache_flush", "Unit", ["ptr<Byte>"], "cache_flush"))
+    push(funcs, bf_extern("cpu_cache_line_bytes", "Int", [], "cpu_cache_line_bytes"))
+
+    // ── Atomics ──
+    push(funcs, bf_extern("atomic_load", "Int", ["ptr<Byte>"], "atomic_load"))
+    push(funcs, bf_extern("atomic_store", "Unit", ["ptr<Byte>", "Int"], "atomic_store"))
+    push(funcs, bf_extern("atomic_add", "Int", ["ptr<Byte>", "Int"], "atomic_add"))
+    push(funcs, bf_extern("atomic_exchange", "Int", ["ptr<Byte>", "Int"], "atomic_exchange"))
+    push(funcs, bf_extern("atomic_compare_exchange", "Bool", ["ptr<Byte>", "Int", "Int"], "atomic_compare_exchange"))
+    push(funcs, bf_extern("atomic_fence", "Unit", [], "atomic_fence"))
+
+    // ── Virtual Memory ──
+    push(funcs, bf_extern("vm_page_size", "Int", [], "vm_page_size"))
+    push(funcs, bf_extern("vm_map", "ptr<Byte>", ["Int"], "vm_map"))
+    push(funcs, bf_extern("vm_reserve", "ptr<Byte>", ["Int"], "vm_reserve"))
+    push(funcs, bf_extern("vm_commit", "Int", ["ptr<Byte>", "Int"], "vm_commit"))
+    push(funcs, bf_extern("vm_decommit", "Int", ["ptr<Byte>", "Int"], "vm_decommit"))
+    push(funcs, bf_extern("vm_unmap", "Int", ["ptr<Byte>", "Int"], "vm_unmap"))
+
+    // ── VM Protection ──
+    push(funcs, bf_extern("vm_protect_none", "Int", ["ptr<Byte>", "Int"], "vm_protect_none"))
+    push(funcs, bf_extern("vm_protect_read", "Int", ["ptr<Byte>", "Int"], "vm_protect_read"))
+    push(funcs, bf_extern("vm_protect_read_write", "Int", ["ptr<Byte>", "Int"], "vm_protect_read_write"))
+    push(funcs, bf_extern("vm_protect_execute_read", "Int", ["ptr<Byte>", "Int"], "vm_protect_execute_read"))
+    push(funcs, bf_extern("vm_protect_execute_read_write", "Int", ["ptr<Byte>", "Int"], "vm_protect_execute_read_write"))
+
+    // ── VM Locking ──
+    push(funcs, bf_extern("vm_lock", "Int", ["ptr<Byte>", "Int"], "vm_lock"))
+    push(funcs, bf_extern("vm_unlock", "Int", ["ptr<Byte>", "Int"], "vm_unlock"))
+
+    // ── CPU Intrinsics ──
+    push(funcs, bf_extern("rdtsc", "Int", [], "rdtsc"))
+    push(funcs, bf_extern("cpuid_eax", "Int", ["Int", "Int"], "cpuid_eax"))
+    push(funcs, bf_extern("cpuid_ebx", "Int", ["Int", "Int"], "cpuid_ebx"))
+    push(funcs, bf_extern("cpu_feature_mask", "Int", [], "cpu_feature_mask"))
+    push(funcs, bf_extern("cpu_capability_mask_for_key", "Int", ["String"], "cpu_capability_mask_for_key"))
+
+    // ── Size / Alignment ──
+    push(funcs, bf_extern("sizeof", "Int", ["String"], "sizeof"))
+    push(funcs, bf_extern("alignof", "Int", ["String"], "alignof"))
+
+    // ── Runtime Lifecycle (not Unsafe but builtin) ──
+    push(funcs, BuiltinFunction {
+        name: "runtime_init", return_type: "Int", param_types: [],
+        effects: ["IO"], is_extern: true, link_name: "abi_runtime_init",
+    })
+    push(funcs, BuiltinFunction {
+        name: "runtime_shutdown", return_type: "Int", param_types: [],
+        effects: ["IO"], is_extern: true, link_name: "abi_runtime_shutdown",
+    })
+
+    return funcs
+
+// ── Helper: create a builtin @extern function entry ──
+
+fn bf_extern(name: String, return_type: String, param_types: Array<String>, link_name: String) -> BuiltinFunction:
+    return BuiltinFunction {
+        name: name,
+        return_type: return_type,
+        param_types: param_types,
+        effects: ["Unsafe"],
+        is_extern: true,
+        link_name: link_name,
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// Unsafe Builtin Detection
+// ═══════════════════════════════════════════════════════════════════
+
+// Builtin functions that require the Unsafe effect.
+pub const BUILTIN_UNSAFE_NAMES: Array<String> = [
+    "asm",
+    "bitcast",
+    "lfence",
+    "sfence",
+    "mfence",
+    "clflush",
+    "mem_load",
+    "mem_store",
+    "ptr_offset",
+    "ptr_to_int",
+    "int_to_ptr",
+    "alloc",
+    "alloc_zeroed",
+    "realloc_mem",
+    "atomic_load",
+    "atomic_store",
+    "atomic_add",
+    "atomic_exchange",
+    "atomic_compare_exchange",
+    "sizeof",
+    "alignof",
+    "vm_page_size",
+    "vm_map",
+    "vm_reserve",
+    "vm_commit",
+    "vm_decommit",
+    "vm_unmap",
+    "vm_protect_none",
+    "vm_protect_read",
+    "vm_protect_read_write",
+    "vm_protect_execute_read",
+    "vm_protect_execute_read_write",
+    "vm_lock",
+    "vm_unlock",
+    "cache_flush",
+    "full_fence",
+    "rdtsc",
+    "cpuid_eax",
+    "cpuid_ebx",
+    "cpu_feature_mask",
+    "cpu_capability_mask_for_key",
+]
+
+pub fn is_builtin_unsafe(name: String) -> Bool:
+    var i: Int = 0
+    while i < len(BUILTIN_UNSAFE_NAMES):
+        if BUILTIN_UNSAFE_NAMES[i] == name:
+            return true
+        i = i + 1
+    return false
+
+// ── Lookup builtin type by Kain name ──
+
+pub fn builtin_type_lookup(types: Array<BuiltinType>, name: String) -> BuiltinType:
+    var i: Int = 0
+    while i < len(types):
+        if types[i].kain_name == name:
+            return types[i]
+        i = i + 1
+    return BuiltinType {
+        kain_name: name,
+        llvm_type: "i64",
+        c_type: "int64_t",
+        size_bytes: 8,
+        align_bytes: 8,
+        is_signed: true,
+    }
+
+// ── Lookup builtin function by name ──
+
+pub fn builtin_function_lookup(funcs: Array<BuiltinFunction>, name: String) -> BuiltinFunction:
+    var i: Int = 0
+    while i < len(funcs):
+        if funcs[i].name == name:
+            return funcs[i]
+        i = i + 1
+    return BuiltinFunction {
+        name: name,
+        return_type: "Int",
+        param_types: [],
+        effects: [],
+        is_extern: false,
+        link_name: "",
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// Three-Layer Stdlib Pattern (Reference)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Layer 1: @extern fn abi_X(...)    — raw ABI declaration, emits LLVM declare
+// Layer 2: pub fn native_X(...)     — thin wrapper, interpreter-interceptable
+// Layer 3: pub fn X(...)            — versioned, documented public API
+//
+// Example:
+//   @extern fn abi_runtime_init() -> Int
+//   pub fn native_runtime_init() -> Int:
+//       return abi_runtime_init()
+//   pub fn runtime_init() -> Int:
+//       return native_runtime_init()
+//
+// The `native_` layer exists because the interpreter cannot call @extern
+// functions directly — it needs a Rust-native implementation. The native_X
+// function acts as a dispatch point: the interpreter provides a native stub,
+// while the LLVM codegen inlines through to the raw abi_X call.

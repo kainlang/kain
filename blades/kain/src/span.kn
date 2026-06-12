@@ -1,0 +1,56 @@
+// span.kn — Source location helpers
+// STREAM: ALPHA
+// Consumed by: DELTA (parser), FOXTROT (typechecker)
+
+pub struct Span:
+    line_start: Int
+    col_start:  Int
+    line_end:   Int
+    col_end:    Int
+    byte_start: Int
+    byte_end:   Int
+
+pub fn span_new(line_s: Int, col_s: Int, line_e: Int, col_e: Int, byte_s: Int, byte_e: Int) -> Span:
+    return Span {
+        line_start: line_s,
+        col_start: col_s,
+        line_end: line_e,
+        col_end: col_e,
+        byte_start: byte_s,
+        byte_end: byte_e,
+    }
+
+// Convert byte offset to (line_no, col_no) — both 1-based
+pub fn span_line_col(source: String, byte_offset: Int) -> Span:
+    var line_no: Int = 1
+    var col_no: Int = 1
+    var i: Int = 0
+    while i < byte_offset and i < len(source):
+        let c: String = source[i]
+        if c == "\n":
+            line_no = line_no + 1
+            col_no = 1
+        else:
+            col_no = col_no + 1
+        i = i + 1
+    return Span {
+        line_start: line_no,
+        col_start: col_no,
+        line_end: line_no,
+        col_end: col_no,
+        byte_start: byte_offset,
+        byte_end: byte_offset,
+    }
+
+// Create a span from two byte offsets (start, end)
+pub fn span_from_offsets(source: String, byte_start: Int, byte_end: Int) -> Span:
+    let start: Span = span_line_col(source, byte_start)
+    let end: Span = span_line_col(source, byte_end)
+    return Span {
+        line_start: start.line_start,
+        col_start: start.col_start,
+        line_end: end.line_end,
+        col_end: end.col_end,
+        byte_start: byte_start,
+        byte_end: byte_end,
+    }
