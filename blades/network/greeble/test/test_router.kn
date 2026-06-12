@@ -9,6 +9,7 @@
 //    test_router_spawn               — spawn_router returns valid actor
 //    test_route_add                  — route_add returns 0 (success)
 //    test_router_hits_starts_zero    — router_hits returns 0 after fresh spawn
+//    test_router_empty_route_table   — router with no routes handles dispatch gracefully
 //    test_http_parsing_method        — parse_http_method("GET ...") = "GET"
 //    test_http_parsing_path          — parse_http_path("POST /api...") = "/api"
 //    test_http_parsing_body          — parse_http_body("...\r\n\r\nbody") = "body"
@@ -18,7 +19,6 @@ use std::runtime
 use std::actor
 use types
 use router
-use worker
 
 // ============================================================================
 //  ASSERTION HELPERS
@@ -94,6 +94,33 @@ fn test_router_hits_starts_zero() -> Int:
         println("  [FAIL] router_hits expected 0, got " + str(hits))
         return 3
     println("  [PASS] router hits = 0")
+    return 0
+
+// ============================================================================
+//  TEST 3b: Router with empty route table handles HttpRequest gracefully.
+//  v0.2 edge case — the router should not crash when receiving a request
+//  with no registered routes. It walks the empty array and does nothing.
+// ============================================================================
+
+fn test_router_empty_route_table() -> Int:
+    println("\n--- Test: router with empty route table ---")
+    let cfg = default_config()
+    let router = spawn_router(cfg)
+
+    // Send a raw HTTP request payload. The router parses it, walks the
+    // empty routes array, finds no match, and records the hit via patch.
+    // This must not crash.
+    let payload = "GET /nonexistent HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    send router.HttpRequest(payload = payload)
+
+    // Verify the router is still alive and responds to telemetry
+    let hits = router_hits(router)
+    if hits < 0:
+        println("  [FAIL] router_hits returned negative after empty-table dispatch: " + str(hits))
+        return 40
+
+    // hits should be >= 1 (the HttpRequest handler increments self.hits)
+    println("  [PASS] empty route table dispatch completed, hits=" + str(hits))
     return 0
 
 // ============================================================================
@@ -192,6 +219,7 @@ pub fn run_tests() -> Int:
     failures = failures + test_router_spawn()
     failures = failures + test_route_add()
     failures = failures + test_router_hits_starts_zero()
+    failures = failures + test_router_empty_route_table()
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:

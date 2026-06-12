@@ -1,5 +1,5 @@
 // ============================================================================
-//  gateway.kn — Gateway actors: RateLimiter, AuthGate
+//  gateway.kn — Gateway actors: RateLimiter, AuthGate (v0.2)
 //
 //  Ladder: Layer 7 — Systems (actor)
 //  Cross-cutting gateway concerns — rate limiting and authentication —
@@ -9,11 +9,18 @@
 //  by the actor's single window (simplified model). AuthGate manages a
 //  runtime token list with add/revoke operations.
 //
+//  BACKPRESSURE (v0.2):
+//    Under DDoS at 100K req/s, the RateLimiter's bounded mailbox (default 256)
+//    saturates in microseconds. Callers should check actor_is_running(limiter_id)
+//    before dispatching. If the rate limiter is unreachable, the router should
+//    respond 503 immediately rather than queueing into a saturated mailbox.
+//    This pushes rejection to the OS boundary (TCP connection refused / RST).
+//
 //  Public API:
-//    spawn_rate_limiter(max_per_window)  → actor ID
-//    spawn_auth_gate()                    → actor ID
-//    rate_limiter_check(id, key)          → pack(1|0, remaining_hits)
-//    auth_gate_validate(id, token)        → 1|0
+//    spawn_rate_limiter(max_per_window)  → RateLimiter actor
+//    spawn_auth_gate()                    → AuthGate actor
+//    rate_limiter_check(limiter, key)     → ask "Check" → pack(1|0, remaining)
+//    auth_gate_validate(gate, token)      → ask "Validate" → 1|0
 // ============================================================================
 
 use std::actor
@@ -46,7 +53,9 @@ actor RateLimiter:
     on Check(reply_to: P, client_key: String):
         let now: Int = now_millis()
 
-        // Reset window if this is the first check or window has expired
+        // Reset window if this is the first check or window has expired.
+        // Window expiry: when elapsed >= RATE_LIMITER_WINDOW_MS, the counter
+        // resets and a fresh window begins. This prevents permanent lockout.
         if self.window_start_ms == 0:
             self.window_hits = 0
             self.window_start_ms = now
@@ -56,7 +65,8 @@ actor RateLimiter:
                 self.window_hits = 0
                 self.window_start_ms = now
 
-        // Check limit and reply
+        // Check limit and reply.
+        // allowed=1 means the request passes; allowed=0 means it's denied.
         if self.window_hits < self.max_per_window:
             self.window_hits = self.window_hits + 1
             let remaining: Int = self.max_per_window - self.window_hits

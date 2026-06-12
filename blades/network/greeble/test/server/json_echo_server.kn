@@ -1,0 +1,304 @@
+// ============================================================================
+//  json_echo_server.kn — Full JSON HTTP Server on Greeble
+//
+//  Ladder: Layer 0 (fn, parse), Layer 1 (world, entangle), Layer 2 (patch),
+//          Layer 7 (actor, supervision tree)
+//
+//  A production-style HTTP server that:
+//    - Listens on port 9999
+//    - Accepts POST /echo with JSON body → wraps in {"greeble":"ok", ...}
+//    - Exposes GET /health → JSON telemetry
+//    - Exposes GET /stats → request count from ServerMirror
+//    - Uses greeble's supervision tree and dual-world state
+//
+//  Design: We don't fork greeble — we import its source modules and run
+//  a minimal HTTP server pump loop alongside the greeble actor tree.
+// ============================================================================
+
+use std::runtime
+use std::net
+use std::actor
+use std::os
+use std::intent
+
+// Import greeble source directly (relative to project root via build.kn)
+use types
+use state
+use telemetry
+use supervisor
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const TEST_PORT: Int = 9999
+const MAX_REQUESTS: Int = 10000
+
+// ============================================================================
+//  JSON Builder Helpers — Manual JSON construction (no std::json dependency)
+// ============================================================================
+
+fn json_escape(s: String) -> String:
+    // Minimal JSON string escaping — handles quotes and backslashes
+    var result: String = ""
+    var i: Int = 0
+    while i < len(s):
+        let c = char_at(s, i)
+        if c == "\"":
+            result = result + "\\\""
+        elif c == "\\":
+            result = result + "\\\\"
+        elif c == "\n":
+            result = result + "\\n"
+        elif c == "\r":
+            result = result + "\\r"
+        elif c == "\t":
+            result = result + "\\t"
+        else:
+            result = result + c
+        i = i + 1
+    return result
+
+fn build_echo_response(request_body: String, request_path: String, request_method: String) -> String:
+    // Wraps the incoming JSON body with a greeble envelope
+    var resp: String = "{"
+    resp = resp + "\"greeble\":\"ok\""
+    resp = resp + ",\"echo\":"
+    if request_body == "":
+        resp = resp + "null"
+    else:
+        resp = resp + request_body
+    resp = resp + ",\"path\":\"" + json_escape(request_path) + "\""
+    resp = resp + ",\"method\":\"" + request_method + "\""
+    resp = resp + "}"
+    return resp
+
+fn build_health_json() -> String:
+    // Returns a health-check JSON document with telemetry
+    let queue_depth: Int = actor_scheduler_queue_depth()
+    let busy: Int = actor_scheduler_busy_workers()
+    let worker_count: Int = actor_scheduler_worker_count()
+    let active: Int = actor_scheduler_active_workers()
+    let pjc: Int = patch_journal_count()
+    let epc: Int = entangle_propagation_count()
+    let requests: Int = ServerMirror.total_requests_copy
+
+    var resp: String = "{"
+    resp = resp + "\"status\":\"ok\""
+    resp = resp + ",\"queue_depth\":" + str(queue_depth)
+    resp = resp + ",\"busy_workers\":" + str(busy)
+    resp = resp + ",\"worker_count\":" + str(worker_count)
+    resp = resp + ",\"active_workers\":" + str(active)
+    resp = resp + ",\"patch_journal\":" + str(pjc)
+    resp = resp + ",\"entangle_prop\":" + str(epc)
+    resp = resp + ",\"total_requests\":" + str(requests)
+    resp = resp + "}"
+    return resp
+
+fn build_stats_json() -> String:
+    // Returns request statistics from ServerMirror (entangled from ServerAuthority)
+    let active: Int = ServerMirror.active_connections_copy
+    let total: Int = ServerMirror.total_requests_copy
+    let errors: Int = ServerMirror.total_errors_copy
+    let epoch: Int = ServerMirror.epoch_copy
+
+    var resp: String = "{"
+    resp = resp + "\"active_connections\":" + str(active)
+    resp = resp + ",\"total_requests\":" + str(total)
+    resp = resp + ",\"total_errors\":" + str(errors)
+    resp = resp + ",\"epoch\":" + str(epoch)
+    resp = resp + "}"
+    return resp
+
+// ============================================================================
+//  Parse a raw HTTP payload into method + path + body
+// ============================================================================
+
+fn parse_http(payload: String) -> (String, String, String):
+    // Returns (method, path, body)
+    var method: String = ""
+    var path: String = ""
+    var body: String = ""
+    var state: Int = 0  // 0=method, 1=path, 2=headers, 3=body
+    var i: Int = 0
+    var word: String = ""
+
+    while i < len(payload):
+        let c = char_at(payload, i)
+
+        if state == 0:
+            if c == " ":
+                method = word
+                word = ""
+                state = 1
+            else:
+                word = word + c
+
+        elif state == 1:
+            if c == " ":
+                path = word
+                word = ""
+                state = 2
+            else:
+                word = word + c
+
+        elif state == 2:
+            // Look for \r\n\r\n to transition to body
+            if i + 3 < len(payload):
+                let c0 = char_at(payload, i)
+                let c1 = char_at(payload, i + 1)
+                let c2 = char_at(payload, i + 2)
+                let c3 = char_at(payload, i + 3)
+                if c0 == "\r" and c1 == "\n" and c2 == "\r" and c3 == "\n":
+                    // Rest is body
+                    var j: Int = i + 4
+                    while j < len(payload):
+                        body = body + char_at(payload, j)
+                        j = j + 1
+                    return (method, path, body)
+
+        i = i + 1
+
+    return (method, path, body)
+
+// ============================================================================
+//  Strip query string from path (path?query=val → path)
+// ============================================================================
+
+fn strip_query(p: String) -> String:
+    var clean: String = ""
+    var i: Int = 0
+    while i < len(p):
+        let c = char_at(p, i)
+        if c == "?":
+            return clean
+        clean = clean + c
+        i = i + 1
+    return clean
+
+// ============================================================================
+//  SERVER MAIN — Pump loop that handles HTTP requests
+// ============================================================================
+
+pub fn run_json_echo_server(cfg: GreebleConfig) -> Int:
+    // ---- Bootstrap supervision tree ----------------------------------------
+    let _root_id = spawn_supervision_tree(cfg)
+
+    // ---- Create HTTP server ------------------------------------------------
+    let server = http_server_create_localhost(cfg.port)
+    if server <= 0:
+        println("[FATAL] Failed to create HTTP server on port " + str(cfg.port))
+        return 1
+
+    if http_server_listen(server) != 0:
+        println("[FATAL] Failed to listen on port " + str(cfg.port))
+        return 2
+
+    let actual_port = http_server_local_port(server)
+    println("")
+    println("  ==============================================")
+    println("   JSON Echo Server — Greeble Test Server")
+    println("  ==============================================")
+    println("   Listening: http://127.0.0.1:" + str(actual_port))
+    println("   POST /echo  — echo back JSON with greeble wrapper")
+    println("   GET /health — server health + telemetry JSON")
+    println("   GET /stats  — request counts from dual-world state")
+    println("  ==============================================")
+    println("")
+
+    // ---- Request pump loop -------------------------------------------------
+    var request_count: Int = 0
+    var error_count: Int = 0
+    var handled: Int = 0
+
+    while request_count < MAX_REQUESTS:
+        // Pump the HTTP server to process incoming connections
+        let incoming = http_server_pump(server, 500)
+        if incoming > 0:
+            // Process ALL available requests
+            var processed_this_batch: Int = 0
+            while processed_this_batch < 100:
+                let req_id = http_server_next_request(server)
+                if req_id <= 0:
+                    break
+
+                let method = http_request_method(req_id)
+                let path = http_request_path(req_id)
+                let clean_path = strip_query(path)
+                let body = http_request_body_text(req_id)
+
+                request_count = request_count + 1
+                processed_this_batch = processed_this_batch + 1
+
+                // Track in dual-world state
+                let _epoch = increment_requests(ServerAuthority)
+
+                // Route based on method + path
+                if method == "GET" and clean_path == "/health":
+                    let health_json = build_health_json()
+                    let _ = http_respond_text(req_id, 200, health_json)
+                    handled = handled + 1
+
+                elif method == "GET" and clean_path == "/stats":
+                    let stats_json = build_stats_json()
+                    let _ = http_respond_text(req_id, 200, stats_json)
+                    handled = handled + 1
+
+                elif method == "POST" and clean_path == "/echo":
+                    let echo_json = build_echo_response(body, path, method)
+                    let _ = http_respond_text(req_id, 200, echo_json)
+                    handled = handled + 1
+
+                elif method == "GET" and clean_path == "/":
+                    let welcome = "{\"service\":\"greeble-json-echo\",\"version\":\"0.1.0\",\"endpoints\":[\"POST /echo\",\"GET /health\",\"GET /stats\"]}"
+                    let _ = http_respond_text(req_id, 200, welcome)
+                    handled = handled + 1
+
+                else:
+                    // 404 for unknown routes
+                    let not_found = "{\"error\":\"not_found\",\"path\":\"" + json_escape(clean_path) + "\"}"
+                    let _ = http_respond_text(req_id, 404, not_found)
+                    error_count = error_count + 1
+
+        // Yield control briefly
+        os_sleep_millis(10)
+
+    // ---- Shutdown ----------------------------------------------------------
+    let _ = http_server_close(server)
+
+    println("")
+    println("  Server handled " + str(handled) + " requests, " + str(error_count) + " 404s")
+    println("  Total pump requests seen: " + str(request_count))
+    return 0
+
+// ============================================================================
+//  RUN JSON ECHO SERVER (in-process, blocks until MAX_REQUESTS or Ctrl+C)
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE JSON ECHO SERVER — Integration Test")
+    println("======================================================")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    let _ = net_reset()
+
+    let cfg = default_config()
+    cfg.port = TEST_PORT
+    cfg.worker_pool_size = 4
+    cfg.mailbox_capacity = 64
+
+    let status = run_json_echo_server(cfg)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    return status
+
+pub fn main() -> Int:
+    return run_tests()

@@ -1,0 +1,168 @@
+// ============================================================================
+//  json_load_test.kn — Concurrent Load Test for JSON Echo Server
+//
+//  Ladder: Layer 0 — Plain Code (fn, TCP client)
+//  Layer 1/2 — world/patch (reads ServerMirror telemetry)
+//
+//  Opens up to 100 concurrent TCP connections to the JSON echo server.
+//  Each connection sends 10 JSON requests, validates the response,
+//  and reports timing. Measures throughput, latency distribution,
+//  and failure rates.
+//
+//  NOTE: This test expects the JSON echo server to already be running
+//  on port 9999. The server must be started separately (e.g., by the
+//  test harness or manually via `kain run json_echo_server.kn`).
+//
+//  Tests:
+//    test_single_connection       — 1 connection, 10 requests
+//    test_10_concurrent           — 10 connections, 10 reqs each (100 total)
+//    test_50_concurrent           — 50 connections, 10 reqs each (500 total)
+//    test_100_concurrent          — 100 connections, 10 reqs each (1000 total)
+//    test_latency_distribution    — measure response time distribution
+//    test_health_endpoint         — verify /health responds correctly
+//    test_stats_endpoint          — verify /stats tracks request count
+// ============================================================================
+
+use std::runtime
+use std::net
+use std::os
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const SERVER_HOST: String = "127.0.0.1"
+const SERVER_PORT: Int = 9999
+const TIMEOUT_MS: Int = 5000
+const MAX_CONNS: Int = 100
+const REQS_PER_CONN: Int = 10
+
+// ============================================================================
+//  JSON validation helpers
+// ============================================================================
+
+fn json_contains(response: String, key: String, expected_value: String) -> Bool:
+    // Simple substring check: does the response contain "key":"expected_value" or "key": expected_value
+    // This is NOT a real JSON parser — it's a smoke check for well-formed responses
+    var i: Int = 0
+    while i < len(response):
+        // Try to find the key
+        var key_match: Bool = false
+        if i + len(key) + 2 <= len(response):
+            // Look for "key":
+            if char_at(response, i) == "\"":
+                var j: Int = 0
+                var k_idx: Int = i + 1
+                while j < len(key):
+                    if k_idx >= len(response):
+                        break
+                    if char_at(response, k_idx) != char_at(key, j):
+                        break
+                    j = j + 1
+                    k_idx = k_idx + 1
+                if j == len(key):
+                    // Found the key, now check for ":
+                    if k_idx < len(response) and char_at(response, k_idx) == "\"":
+                        // Skip to value: look for expected_value nearby
+                        var v_idx: Int = k_idx + 2  // skip ":
+                        var e_idx: Int = 0
+                        while e_idx < len(expected_value) and v_idx + e_idx < len(response):
+                            if char_at(response, v_idx + e_idx) != char_at(expected_value, e_idx):
+                                break
+                            e_idx = e_idx + 1
+                        if e_idx == len(expected_value):
+                            return true
+        i = i + 1
+    return false
+
+fn json_has_key(response: String, key: String) -> Bool:
+    // Check if a JSON key exists (regardless of value)
+    var needle: String = "\"" + key + "\""
+    var i: Int = 0
+    while i + len(needle) <= len(response):
+        var matched: Bool = true
+        var j: Int = 0
+        while j < len(needle):
+            if char_at(response, i + j) != char_at(needle, j):
+                matched = false
+                break
+            j = j + 1
+        if matched:
+            return true
+        i = i + 1
+    return false
+
+// ---- Assertion helpers ----------------------------------------------------
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
+    if actual >= minimum:
+        println("  [PASS] " + msg + " = " + str(actual) + " (>= " + str(minimum) + ")")
+        return 0
+    println("  [FAIL] " + msg + ": expected >= " + str(minimum) + " got " + str(actual))
+    return 1
+
+// ---- TCP helpers -----------------------------------------------------------
+
+fn tcp_request(client: Int, method: String, path: String, body: String) -> String:
+    // Build and send HTTP request, read response
+    var request: String = method + " " + path + " HTTP/1.1\r\n"
+    request = request + "Host: " + SERVER_HOST + ":" + str(SERVER_PORT) + "\r\n"
+    if body != "":
+        request = request + "Content-Type: application/json\r\n"
+        request = request + "Content-Length: " + str(len(body)) + "\r\n"
+    request = request + "Connection: keep-alive\r\n"
+    request = request + "\r\n"
+    request = request + body
+
+    let write_status = tcp_write_text(client, request)
+    if write_status != 0:
+        return ""
+
+    let response = tcp_read_text(client)
+    return response
+
+// ---- Single connection, N requests ----------------------------------------
+
+fn run_connection_requests(conn_index: Int, num_reqs: Int) -> (Int, Int, Int):
+    // Returns (num_success, total_ms, fail_count)
+    let t0: Int = now_millis()
+    var success: Int = 0
+    var failures: Int = 0
+
+    let client = tcp_connect(SERVER_HOST, SERVER_PORT, TIMEOUT_MS)
+    if client <= 0:
+        return (0, 0, num_reqs)
+
+    var i: Int = 0
+    while i < num_reqs:
+        let json_body = "{\"client\":" + str(conn_index) + ",\"seq\":" + str(i) + ",\"data\":\"load-test\"}"
+        let response = tcp_request(client, "POST", "/echo", json_body)
+
+        if response == "":
+            failures = failures + 1
+        else:
+            // Validate response contains greeble wrapper
+            if json_has_key(response, "greeble") and json_has_key(response, "echo"):
+                success = success + 1
+            else:
+                failures = failures + 1
+        i = i + 1
+
+    let _ = tcp_close(client)
+    let t1: Int = now_millis()
+    let total_ms: Int = t1 - t0
+    return (success, total_ms, failures)

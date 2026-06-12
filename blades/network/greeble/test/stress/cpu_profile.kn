@@ -1,0 +1,309 @@
+// ============================================================================
+//  cpu_profile.kn — CPU Profiling: Actor vs Direct fn Benchmark
+//
+//  Ladder: Layer 0 (fn) vs Layer 7 (actor)
+//  Compare actor-based computation with direct function calls. Measure
+//  overhead of message dispatch, actor scheduling, and mailbox management.
+//
+//  Tests:
+//    test_actor_compute_pure     — Pure arithmetic inside actor handlers
+//    test_actor_string_concat    — String concatenation stress in actors
+//    test_direct_fn_compute      — Direct fn calls for comparison baseline
+//    test_direct_fn_string       — Direct string ops for comparison baseline
+//    test_actor_vs_fn_overhead   — Calculate actor dispatch overhead ratio
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::os
+
+const MODULUS: Int = 1000000007
+const BENCH_ROUNDS: Int = 10000
+const HEAVY_ROUNDS: Int = 100000
+
+// ---- Compute-intensive actor ------------------------------------------------
+
+actor CpuActor:
+    state processed: Int = 0
+    state checksum: Int = 0
+
+    on HeavyCompute(reply_to: P, seed: Int):
+        self.processed = self.processed + 1
+        // Simulate pure computation — multiply-add chain
+        var result: Int = seed
+        var i: Int = 0
+        while i < 100:
+            result = ((result * 31) + 7 + i) % MODULUS
+            i = i + 1
+        self.checksum = (self.checksum + result) % MODULUS
+        send reply_to.Reply(value = result)
+
+    on LightCompute(reply_to: P, a: Int, b: Int):
+        self.processed = self.processed + 1
+        let result: Int = (a * b + self.processed) % MODULUS
+        self.checksum = (self.checksum + result) % MODULUS
+        send reply_to.Reply(value = result)
+
+// ---- String processing actor ------------------------------------------------
+
+actor StringCpuActor:
+    state processed: Int = 0
+    state total_len: Int = 0
+
+    on Concat(reply_to: P, seed: String):
+        self.processed = self.processed + 1
+        // Build a string with repeated concatenation
+        var result: String = seed
+        var i: Int = 0
+        while i < 20:
+            result = result + "_" + str(i)
+            i = i + 1
+        self.total_len = self.total_len + len(result)
+        send reply_to.Reply(value = len(result))
+
+    on Echo(reply_to: P, data: String):
+        self.processed = self.processed + 1
+        send reply_to.Reply(value = len(data))
+
+// ---- Direct function equivalents (Layer 0 baseline) -------------------------
+
+fn direct_heavy(seed: Int) -> Int:
+    var result: Int = seed
+    var i: Int = 0
+    while i < 100:
+        result = ((result * 31) + 7 + i) % MODULUS
+        i = i + 1
+    return result
+
+fn direct_light(a: Int, b: Int, processed: Int) -> Int:
+    return (a * b + processed) % MODULUS
+
+fn direct_concat(seed: String) -> Int:
+    var result: String = seed
+    var i: Int = 0
+    while i < 20:
+        result = result + "_" + str(i)
+        i = i + 1
+    return len(result)
+
+// ---- Helpers ---------------------------------------------------------------
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
+    if actual >= minimum:
+        println("  [PASS] " + msg + " = " + str(actual) + " (>= " + str(minimum) + ")")
+        return 0
+    println("  [FAIL] " + msg + ": expected >= " + str(minimum) + " got " + str(actual))
+    return 1
+
+fn dump_scheduler_telemetry(label: String):
+    println("  --- scheduler after " + label + " ---")
+    println("    queue_depth       = " + str(actor_scheduler_queue_depth()))
+    println("    max_queue_depth   = " + str(actor_scheduler_max_queue_depth()))
+    println("    busy_workers      = " + str(actor_scheduler_busy_workers()))
+    println("    active_workers    = " + str(actor_scheduler_active_workers()))
+    println("    total_enqueued    = " + str(actor_scheduler_total_enqueued()))
+    println("    total_dequeued    = " + str(actor_scheduler_total_dequeued()))
+
+// ============================================================================
+//  TEST: Actor-based heavy computation
+// ============================================================================
+
+fn test_actor_compute_heavy() -> (Int, Int, Int):
+    // Returns (elapsed_ms, checksum, failures)
+    let actor = spawn CpuActor()
+
+    let t0: Int = now_millis()
+    var last_result: Int = 0
+    var ask_failures: Int = 0
+
+    var i: Int = 0
+    while i < BENCH_ROUNDS:
+        let result: Int = ask(actor, "HeavyCompute", i) as Int
+        if result < 0:
+            ask_failures = ask_failures + 1
+        last_result = result
+        i = i + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (elapsed_ms, last_result, ask_failures)
+
+fn test_direct_fn_compute_heavy() -> (Int, Int):
+    // Returns (elapsed_ms, checksum)
+    let t0: Int = now_millis()
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < BENCH_ROUNDS:
+        let result: Int = direct_heavy(i)
+        checksum = (checksum + result) % MODULUS
+        i = i + 1
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (elapsed_ms, checksum)
+
+fn test_actor_string_concat() -> (Int, Int, Int):
+    let actor = spawn StringCpuActor()
+
+    let t0: Int = now_millis()
+    var last_result: Int = 0
+    var ask_failures: Int = 0
+
+    var count: Int = 1000
+    var i: Int = 0
+    while i < count:
+        let result: Int = ask(actor, "Concat", "base" + str(i)) as Int
+        if result < 0:
+            ask_failures = ask_failures + 1
+        last_result = result
+        i = i + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (elapsed_ms, last_result, ask_failures)
+
+fn test_direct_string_concat() -> (Int, Int):
+    let t0: Int = now_millis()
+    var total: Int = 0
+    var i: Int = 0
+    while i < 1000:
+        let result: Int = direct_concat("base" + str(i))
+        total = (total + result) % MODULUS
+        i = i + 1
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (elapsed_ms, total)
+
+// ============================================================================
+//  RUN ALL CPU PROFILE TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE CPU PROFILE — Actor vs Direct fn Benchmark")
+    println("======================================================")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    // ---- Heavy compute: actor vs direct -----------------------------------
+    println("\n--- Benchmark: Heavy Compute (100 multiplies per call, " + str(BENCH_ROUNDS) + " rounds) ---")
+
+    let (actor_heavy_ms, actor_heavy_checksum, actor_heavy_failures) = test_actor_compute_heavy()
+    println("  [INFO] Actor heavy compute: " + str(actor_heavy_ms) + " ms, " + str(actor_heavy_failures) + " failures, checksum=" + str(actor_heavy_checksum))
+
+    let (direct_heavy_ms, direct_heavy_checksum) = test_direct_fn_compute_heavy()
+    println("  [INFO] Direct fn heavy compute: " + str(direct_heavy_ms) + " ms, checksum=" + str(direct_heavy_checksum))
+
+    if actor_heavy_ms > 0 and direct_heavy_ms > 0:
+        let overhead_ratio: Int = (actor_heavy_ms * 100) / direct_heavy_ms
+        println("  [INFO] Actor overhead ratio: " + str(overhead_ratio) + "% (" + str(direct_heavy_ms) + "ms -> " + str(actor_heavy_ms) + "ms)")
+        println("  [INFO] Actor overhead is " + str(overhead_ratio - 100) + "% slower than direct fn")
+    else:
+        println("  [INFO] Elapsed too small to calculate ratio")
+
+    failures = failures + assert_eq(actor_heavy_failures, 0, "zero actor heavy compute failures")
+
+    dump_scheduler_telemetry("heavy compute")
+
+    // ---- Light compute: actor vs direct -----------------------------------
+    println("\n--- Benchmark: Light Compute (1 multiply per call, " + str(HEAVY_ROUNDS) + " rounds) ---")
+
+    let actor2 = spawn CpuActor()
+    let t2: Int = now_millis()
+    var light_failures: Int = 0
+    var light_checksum: Int = 0
+    var j: Int = 0
+    while j < HEAVY_ROUNDS:
+        let r: Int = ask(actor2, "LightCompute", j, j + 1) as Int
+        if r < 0:
+            light_failures = light_failures + 1
+        light_checksum = (light_checksum + r) % MODULUS
+        j = j + 1
+    let t3: Int = now_millis()
+    let actor_light_ms: Int = t3 - t2
+    println("  [INFO] Actor light compute: " + str(actor_light_ms) + " ms, " + str(light_failures) + " failures, checksum=" + str(light_checksum))
+
+    let t4: Int = now_millis()
+    var direct_light_checksum: Int = 0
+    var k: Int = 0
+    while k < HEAVY_ROUNDS:
+        let r: Int = direct_light(k, k + 1, k)
+        direct_light_checksum = (direct_light_checksum + r) % MODULUS
+        k = k + 1
+    let t5: Int = now_millis()
+    let direct_light_ms: Int = t5 - t4
+    println("  [INFO] Direct fn light compute: " + str(direct_light_ms) + " ms, checksum=" + str(direct_light_checksum))
+
+    if actor_light_ms > 0 and direct_light_ms > 0:
+        let overhead_light: Int = (actor_light_ms * 100) / direct_light_ms
+        println("  [INFO] Actor overhead ratio (light): " + str(overhead_light) + "% (" + str(direct_light_ms) + "ms -> " + str(actor_light_ms) + "ms)")
+    else:
+        println("  [INFO] Elapsed too small to calculate ratio")
+
+    failures = failures + assert_eq(light_failures, 0, "zero actor light compute failures")
+
+    dump_scheduler_telemetry("light compute")
+
+    // ---- String concat: actor vs direct -----------------------------------
+    println("\n--- Benchmark: String Concat (20 concats each, 1000 rounds) ---")
+
+    let (actor_str_ms, actor_str_result, actor_str_failures) = test_actor_string_concat()
+    println("  [INFO] Actor string concat: " + str(actor_str_ms) + " ms, " + str(actor_str_failures) + " failures, len=" + str(actor_str_result))
+
+    let (direct_str_ms, direct_str_total) = test_direct_string_concat()
+    println("  [INFO] Direct fn string concat: " + str(direct_str_ms) + " ms, total=" + str(direct_str_total))
+
+    if actor_str_ms > 0 and direct_str_ms > 0:
+        let overhead_str: Int = (actor_str_ms * 100) / direct_str_ms
+        println("  [INFO] Actor overhead ratio (string): " + str(overhead_str) + "%")
+    else:
+        println("  [INFO] Elapsed too small to calculate ratio")
+
+    failures = failures + assert_eq(actor_str_failures, 0, "zero actor string concat failures")
+
+    // ---- Summary ----------------------------------------------------------
+    println("")
+    println("======================================================")
+    println("  CPU PROFILE SUMMARY")
+    println("======================================================")
+    println("  Heavy compute (100 ops x " + str(BENCH_ROUNDS) + "):")
+    println("    Actor:  " + str(actor_heavy_ms) + " ms")
+    println("    Direct: " + str(direct_heavy_ms) + " ms")
+    println("  Light compute (1 op x " + str(HEAVY_ROUNDS) + "):")
+    println("    Actor:  " + str(actor_light_ms) + " ms")
+    println("    Direct: " + str(direct_light_ms) + " ms")
+    println("  String concat (20 concats x 1000):")
+    println("    Actor:  " + str(actor_str_ms) + " ms")
+    println("    Direct: " + str(direct_str_ms) + " ms")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    if failures == 0:
+        println("  CPU PROFILE: ALL TESTS PASSED")
+    else:
+        println("  CPU PROFILE: " + str(failures) + " FAILURE(S)")
+    return failures
+
+pub fn main() -> Int:
+    return run_tests()

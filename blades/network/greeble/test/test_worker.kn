@@ -12,6 +12,7 @@
 //    test_worker_pool_spawn               — spawn pool of 4, verify pool exists
 //    test_worker_pool_dispatch            — dispatch request, verify processed
 //    test_worker_pool_round_robin         — dispatch 8 to pool of 4, all workers used
+//    test_worker_pool_zero_workers        — spawn pool of 0 (edge case)
 // ============================================================================
 
 use std::runtime
@@ -175,6 +176,35 @@ fn test_worker_pool_dispatch() -> Int:
         + " pool total=" + str(total_processed) + " checksum=" + str(total_checksum))
     return 0
 
+//  Test: Spawn worker pool with 0 workers — edge case.
+//  v0.2: The pool supervisor spawns but has no workers. Dispatching to an
+//  empty pool would crash on workers[0] access. This test documents the
+//  expected behavior: the pool supervisor is valid but Dispatch would fail.
+fn test_worker_pool_zero_workers() -> Int:
+    println("\n--- Test: WorkerPool with 0 workers (edge case) ---")
+    let pool = spawn_worker_pool(0, 64)
+
+    let id: Int = pool as Int
+    if id <= 0:
+        println("  [FAIL] zero-worker pool returned non-positive ID: " + str(id))
+        return 18
+
+    // Verify pool exists and responds to GetPoolStats
+    let stats: Int = ask(pool, "GetPoolStats", 0) as Int
+    let total_processed = unpack_first(stats)
+    let total_checksum = unpack_second(stats)
+
+    if total_processed != 0:
+        println("  [FAIL] zero-worker pool total_processed expected 0, got " + str(total_processed))
+        return 19
+
+    // NOTE: Dispatching to a zero-worker pool would index into empty workers[]
+    // array and crash. This is known — callers should validate pool size > 0
+    // before dispatching. The supervisor itself is valid.
+
+    println("  [PASS] zero-worker pool exists, stats are 0/0")
+    return 0
+
 //  Test: Dispatch 8 requests across pool of 4, all workers get at least 1
 fn test_worker_pool_round_robin() -> Int:
     println("\n--- Test: WorkerPool round-robin dispatch ---")
@@ -225,6 +255,7 @@ pub fn run_tests() -> Int:
     failures = failures + test_worker_pool_spawn()
     failures = failures + test_worker_pool_dispatch()
     failures = failures + test_worker_pool_round_robin()
+    failures = failures + test_worker_pool_zero_workers()
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:
