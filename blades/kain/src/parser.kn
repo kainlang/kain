@@ -1,0 +1,3578 @@
+// parser.kn — Recursive-descent + Pratt parser
+// STREAM: DELTA
+// Consumed by: FOXTROT (typechecker reads parsed AST)
+//
+// Converts indent-processed Array<Token> into a flat Array<AstNode>
+// using integer-index child references.
+//
+// Value semantics throughout — functions return new ParserState.
+// Contextual keywords arrive as TOKEN_IDENT and are resolved here.
+
+use token
+use error
+use span
+use ast
+use lexer
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARSE RESULT — bundles (new_state, node_index)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct ParseResult:
+    state: ParserState
+    node:  Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARSER STATE
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct LoopLabel:
+    break_idx:    Int
+    continue_idx: Int
+
+pub struct ParserState:
+    tokens:         Array<Token>
+    pos:            Int
+    program:        Array<AstNode>
+    errors:         KcDiagnosticBag
+    string_table:   StringTable
+    loop_stack:     Array<LoopLabel>
+    injected:       Array<Token>
+    synth_counter:  Int
+    file_path:      String
+    source:         String
+
+pub fn parser_new(tokens_in: Array<Token>, file_path: String, source: String) -> ParserState:
+    return ParserState {
+        tokens: tokens_in,
+        pos: 0,
+        program: [],
+        errors: kc_diag_bag_new(),
+        string_table: strtab_new(),
+        loop_stack: [],
+        injected: [],
+        synth_counter: 0,
+        file_path: file_path,
+        source: source,
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN CURSOR HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parser_current(state: ParserState) -> Token:
+    if state.pos >= len(state.tokens):
+        return token_new(TOKEN_EOF, "", 0, 0, 0)
+    return state.tokens[state.pos]
+
+pub fn parser_peek(state: ParserState, ahead: Int) -> Token:
+    let idx: Int = state.pos + ahead
+    if idx >= len(state.tokens):
+        return token_new(TOKEN_EOF, "", 0, 0, 0)
+    return state.tokens[idx]
+
+pub fn parser_advance(state: ParserState) -> ParserState:
+    let mut new_st: ParserState = state
+    if new_st.pos < len(new_st.tokens):
+        new_st.pos = new_st.pos + 1
+    return new_st
+
+pub fn parser_check(state: ParserState, kind: Int) -> Bool:
+    return parser_current(state).kind == kind
+
+pub fn parser_check_any(state: ParserState, kinds: Array<Int>) -> Bool:
+    let cur: Int = parser_current(state).kind
+    var i: Int = 0
+    while i < len(kinds):
+        if cur == kinds[i]:
+            return true
+        i = i + 1
+    return false
+
+pub fn parser_is_at_end(state: ParserState) -> Bool:
+    return parser_current(state).kind == TOKEN_EOF
+
+// ── Token consumption ──
+
+pub fn parser_consume(state: ParserState, kind: Int) -> (ParserState, Token):
+    let tok: Token = parser_current(state)
+    if tok.kind == kind:
+        return (parser_advance(state), tok)
+    return (state, tok)
+
+pub fn parser_expect(state: ParserState, kind: Int) -> (ParserState, Token):
+    let tok: Token = parser_current(state)
+    if tok.kind == kind:
+        return (parser_advance(state), tok)
+    let mut new_st: ParserState = state
+    let msg: String = "expected " + token_kind_name(kind) + ", found " + tok.text
+    new_st = parser_error(new_st, msg, ERR_PARSE_EXPECTED_TOKEN, tok.byte_offset, tok.byte_offset + len(tok.text))
+    return (new_st, tok)
+
+// ── Contextual keyword helpers ──
+
+pub fn parser_peek_contextual(state: ParserState, expected: String) -> Bool:
+    let tok: Token = parser_current(state)
+    return tok.kind == TOKEN_IDENT and tok.text == expected
+
+pub fn parser_peek_ahead_contextual(state: ParserState, ahead: Int, expected: String) -> Bool:
+    let tok: Token = parser_peek(state, ahead)
+    return tok.kind == TOKEN_IDENT and tok.text == expected
+
+pub fn parser_expect_contextual(state: ParserState, expected: String) -> (ParserState, Bool):
+    let tok: Token = parser_current(state)
+    if tok.kind == TOKEN_IDENT and tok.text == expected:
+        return (parser_advance(state), true)
+    let mut new_st: ParserState = state
+    let msg: String = "expected '" + expected + "', found " + tok.text
+    new_st = parser_error(new_st, msg, ERR_PARSE_EXPECTED_TOKEN, tok.byte_offset, tok.byte_offset + len(tok.text))
+    return (new_st, false)
+
+// ── Span helpers ──
+
+pub fn parser_current_span(state: ParserState) -> (Int, Int):
+    let tok: Token = parser_current(state)
+    return (tok.byte_offset, tok.byte_offset + len(tok.text))
+
+pub fn parser_span_from(state: ParserState, start_offset: Int) -> (Int, Int):
+    let tok: Token = parser_current(state)
+    return (start_offset, tok.byte_offset + len(tok.text))
+
+// ── Error reporting ──
+
+pub fn parser_error(state: ParserState, message: String, kind_str: String,
+                     span_start: Int, span_end: Int) -> ParserState:
+    let mut new_st: ParserState = state
+    let tok: Token = parser_current(state)
+    let src_line: String = ""
+    let diag: KcDiagnostic = kc_diagnostic_new(SEV_ERROR, new_st.file_path, tok.line_no,
+        tok.col_no, message, kind_str, span_start, span_end, src_line)
+    new_st.errors = kc_diag_bag_add_error(new_st.errors, diag)
+    return new_st
+
+// ── Intern identifier string ──
+
+pub fn parser_intern(state: ParserState, name: String) -> (ParserState, Int):
+    let mut new_st: ParserState = state
+    let result: (StringTable, Int) = strtab_intern(new_st.string_table, name)
+    new_st.string_table = result.0
+    return (new_st, result.1)
+
+// ── Push a node into the flat array, return its index ──
+
+pub fn parser_push_node(state: ParserState, node: AstNode) -> (ParserState, Int):
+    let mut new_st: ParserState = state
+    let idx: Int = len(new_st.program)
+    push(new_st.program, node)
+    return (new_st, idx)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN KIND NAMES (for error messages)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn token_kind_name(kind: Int) -> String:
+    if kind == TOKEN_FN:         return "'fn'"
+    if kind == TOKEN_LET:        return "'let'"
+    if kind == TOKEN_IF:         return "'if'"
+    if kind == TOKEN_IDENT:      return "identifier"
+    if kind == TOKEN_INT:        return "integer literal"
+    if kind == TOKEN_STRING:     return "string literal"
+    if kind == TOKEN_EOF:        return "end of file"
+    if kind == TOKEN_LPAREN:     return "'('"
+    if kind == TOKEN_RPAREN:     return "')'"
+    if kind == TOKEN_LBRACE:     return "'{'"
+    if kind == TOKEN_RBRACE:     return "'}'"
+    if kind == TOKEN_LBRACKET:   return "'['"
+    if kind == TOKEN_RBRACKET:   return "']'"
+    if kind == TOKEN_COLON:      return "':'"
+    if kind == TOKEN_EQ:         return "'='"
+    if kind == TOKEN_ARROW:      return "'->'"
+    if kind == TOKEN_SEMI:       return "';'"
+    if kind == TOKEN_NEWLINE:    return "newline"
+    if kind == TOKEN_INDENT:     return "indent"
+    if kind == TOKEN_DEDENT:     return "dedent"
+    if kind == TOKEN_COMMA:      return "','"
+    if kind == TOKEN_DOT:        return "'.'"
+    if kind == TOKEN_COLON_COLON: return "'::'"
+    if kind == TOKEN_FAT_ARROW:  return "'=>'"
+    if kind == TOKEN_WITH:       return "'with'"
+    if kind == TOKEN_AS:         return "'as'"
+    if kind == TOKEN_IN:         return "'in'"
+    if kind == TOKEN_STRUCT:     return "'struct'"
+    if kind == TOKEN_ENUM:       return "'enum'"
+    if kind == TOKEN_TRAIT:      return "'trait'"
+    if kind == TOKEN_IMPL:       return "'impl'"
+    if kind == TOKEN_PUB:        return "'pub'"
+    if kind == TOKEN_MOD:        return "'mod'"
+    if kind == TOKEN_USE:        return "'use'"
+    if kind == TOKEN_CONST:      return "'const'"
+    if kind == TOKEN_RETURN:     return "'return'"
+    if kind == TOKEN_FOR:        return "'for'"
+    if kind == TOKEN_WHILE:      return "'while'"
+    if kind == TOKEN_LOOP:       return "'loop'"
+    if kind == TOKEN_BREAK:      return "'break'"
+    if kind == TOKEN_CONTINUE:   return "'continue'"
+    if kind == TOKEN_DEFER:      return "'defer'"
+    if kind == TOKEN_MATCH:      return "'match'"
+    if kind == TOKEN_AWAIT:      return "'await'"
+    if kind == TOKEN_MUT:        return "'mut'"
+    if kind == TOKEN_VAR:        return "'var'"
+    return "'<kind=" + str(kind) + ">'"
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESERVED KEYWORDS — ~174 identifiers that cannot be used as names
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parser_is_reserved_keyword(name: String) -> Bool:
+    // Hard-lexer keywords (58)
+    if name == "fn": return true
+    if name == "let": return true
+    if name == "mut": return true
+    if name == "var": return true
+    if name == "const": return true
+    if name == "if": return true
+    if name == "else": return true
+    if name == "elif": return true
+    if name == "match": return true
+    if name == "for": return true
+    if name == "while": return true
+    if name == "loop": return true
+    if name == "break": return true
+    if name == "continue": return true
+    if name == "defer": return true
+    if name == "return": return true
+    if name == "await": return true
+    if name == "in": return true
+    if name == "with": return true
+    if name == "as": return true
+    if name == "type": return true
+    if name == "struct": return true
+    if name == "enum": return true
+    if name == "trait": return true
+    if name == "impl": return true
+    if name == "pub": return true
+    if name == "mod": return true
+    if name == "use": return true
+    if name == "self": return true
+    if name == "Self": return true
+    if name == "true": return true
+    if name == "false": return true
+    if name == "none": return true
+    if name == "component": return true
+    if name == "actor": return true
+    if name == "spawn": return true
+    if name == "send": return true
+    if name == "receive": return true
+    if name == "emit": return true
+    if name == "comptime": return true
+    if name == "macro": return true
+    if name == "vertex": return true
+    if name == "fragment": return true
+    if name == "collapse": return true
+    if name == "observe": return true
+    if name == "decay": return true
+    if name == "share": return true
+    if name == "fanout": return true
+    if name == "test": return true
+    if name == "shader": return true
+    if name == "state": return true
+    if name == "Pure": return true
+    if name == "IO": return true
+    if name == "async": return true
+    if name == "Async": return true
+    if name == "GPU": return true
+    if name == "Reactive": return true
+    if name == "Unsafe": return true
+    if name == "and": return true
+    if name == "or": return true
+    // HLSL (subset)
+    if name == "line": return true
+    if name == "compile": return true
+    if name == "pass": return true
+    if name == "technique": return true
+    // C++ (subset)
+    if name == "class": return true
+    if name == "virtual": return true
+    if name == "new": return true
+    if name == "delete": return true
+    if name == "nullptr": return true
+    if name == "try": return true
+    if name == "catch": return true
+    if name == "throw": return true
+    if name == "default": return true
+    if name == "switch": return true
+    if name == "case": return true
+    if name == "do": return true
+    if name == "goto": return true
+    if name == "auto": return true
+    if name == "void": return true
+    if name == "bool": return true
+    if name == "int": return true
+    if name == "float": return true
+    if name == "double": return true
+    if name == "char": return true
+    if name == "short": return true
+    if name == "long": return true
+    if name == "signed": return true
+    if name == "unsigned": return true
+    if name == "static": return true
+    if name == "extern": return true
+    return false
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERROR RECOVERY
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Skip tokens until we reach an item boundary or a keyword that starts an item
+pub fn parser_synchronize(state: ParserState) -> ParserState:
+    let mut new_st: ParserState = state
+    var depth: Int = 0
+    while new_st.pos < len(new_st.tokens):
+        let kind: Int = new_st.tokens[new_st.pos].kind
+        if kind == TOKEN_INDENT:
+            depth = depth + 1
+        if kind == TOKEN_DEDENT:
+            depth = depth - 1
+        if depth <= 0 and parser_is_item_start_keyword(new_st.tokens[new_st.pos]):
+            break
+        if kind == TOKEN_EOF:
+            break
+        new_st = parser_advance(new_st)
+    return new_st
+
+// Check if a token could start an item
+pub fn parser_is_item_start_token(tok: Token) -> Bool:
+    let kind: Int = tok.kind
+    if kind == TOKEN_FN: return true
+    if kind == TOKEN_PUB: return true
+    if kind == TOKEN_STRUCT: return true
+    if kind == TOKEN_ENUM: return true
+    if kind == TOKEN_TRAIT: return true
+    if kind == TOKEN_IMPL: return true
+    if kind == TOKEN_TYPE_KW: return true
+    if kind == TOKEN_USE: return true
+    if kind == TOKEN_MOD: return true
+    if kind == TOKEN_CONST: return true
+    if kind == TOKEN_COMPTIME: return true
+    if kind == TOKEN_MACRO: return true
+    if kind == TOKEN_TEST: return true
+    if kind == TOKEN_COMPONENT: return true
+    if kind == TOKEN_SHADER: return true
+    if kind == TOKEN_ACTOR: return true
+    if kind == TOKEN_ASYNC_KW: return true
+    if kind == TOKEN_AT: return true
+    // Contextual item starts
+    if kind == TOKEN_IDENT:
+        if tok.text == "patch": return true
+        if tok.text == "law": return true
+        if tok.text == "axiom": return true
+        if tok.text == "converge": return true
+        if tok.text == "world": return true
+        if tok.text == "entangle": return true
+        if tok.text == "orchestrate": return true
+        if tok.text == "pulse": return true
+        if tok.text == "resonate": return true
+        if tok.text == "shatter": return true
+        if tok.text == "include": return true
+        if tok.text == "import": return true
+        if tok.text == "from": return true
+    return false
+
+pub fn parser_is_item_start_keyword(tok: Token) -> Bool:
+    return parser_is_item_start_token(tok)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARSE — top-level dispatch
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse(state: ParserState) -> (ParserState, AstProgram):
+    let mut cur: ParserState = state
+    let mut child_indices: Array<Int> = []
+
+    while not parser_is_at_end(cur):
+        let tok: Token = parser_current(cur)
+        let kind: Int = tok.kind
+
+        // Skip INDENT/DEDENT/NEWLINE at top level
+        if kind == TOKEN_INDENT or kind == TOKEN_DEDENT or kind == TOKEN_NEWLINE:
+            cur = parser_advance(cur)
+            continue
+
+        // Check if this token looks like an item start
+        if parser_is_item_start_token(tok):
+            let result: ParseResult = parse_item(cur, -1, [])
+            cur = result.state
+            if result.node >= 0:
+                push(child_indices, result.node)
+        else:
+            // Try as statement (wrapped in implicit main eventually, or top-level expr)
+            let result: ParseResult = parse_stmt(cur)
+            cur = result.state
+            if result.node >= 0:
+                push(child_indices, result.node)
+
+        // Check error overflow
+        if kc_diag_bag_too_many(cur.errors):
+            // Bail: too many errors
+            break
+
+    // Build AST_ITEM_PROGRAM root node
+    let mut program_data: Array<Int> = []
+    var i: Int = 0
+    while i < len(child_indices):
+        push(program_data, child_indices[i])
+        i = i + 1
+    let root_node: AstNode = ast_new_node(AST_ITEM_PROGRAM, 0, 0, program_data)
+    let root_idx: Int = len(cur.program)
+    push(cur.program, root_node)
+
+    let prog: AstProgram = AstProgram {
+        root: root_idx,
+        nodes: cur.program,
+    }
+    return (cur, prog)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARSE ITEM — dispatch on token kind
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Parse visibility modifier (pub)
+pub fn parser_consume_visibility(state: ParserState) -> (ParserState, Int):
+    let tok: Token = parser_current(state)
+    if tok.kind == TOKEN_PUB:
+        return (parser_advance(state), 1)
+    return (state, 0)
+
+// Parse attributes (@attr)
+pub fn parser_consume_attrs(state: ParserState) -> (ParserState, Array<Int>):
+    let mut cur: ParserState = state
+    let mut attrs: Array<Int> = []
+    while parser_check(cur, TOKEN_AT):
+        cur = parser_advance(cur)
+        let attr_tok: Token = parser_current(cur)
+        if attr_tok.kind == TOKEN_IDENT:
+            let result: (ParserState, Int) = parser_intern(cur, attr_tok.text)
+            cur = result.0
+            push(attrs, result.1)
+            cur = parser_advance(cur)
+    return (cur, attrs)
+
+pub fn parse_item(state: ParserState, vis_override: Int, attrs_override: Array<Int>) -> ParseResult:
+    let mut cur: ParserState = state
+
+    // Consume attributes and visibility if not pre-parsed
+    var vis: Int = vis_override
+    var attrs: Array<Int> = attrs_override
+    if vis < 0:
+        let attrs_result: (ParserState, Array<Int>) = parser_consume_attrs(cur)
+        cur = attrs_result.0
+        attrs = attrs_result.1
+        let vis_result: (ParserState, Int) = parser_consume_visibility(cur)
+        cur = vis_result.0
+        vis = vis_result.1
+
+    let tok: Token = parser_current(cur)
+    let kind: Int = tok.kind
+
+    // ── Hard keyword items ──
+    if kind == TOKEN_FN:
+        return parse_function(cur, vis, attrs, false)
+    if kind == TOKEN_ASYNC_KW:
+        // async fn — parse async
+        cur = parser_advance(cur)
+        // expect fn
+        if parser_check(cur, TOKEN_FN):
+            cur = parser_advance(cur)
+        return parse_function(cur, vis, attrs, true)
+    if kind == TOKEN_STRUCT:
+        return parse_struct(cur, vis, attrs)
+    if kind == TOKEN_ENUM:
+        return parse_enum(cur, vis, attrs)
+    if kind == TOKEN_TRAIT:
+        return parse_trait(cur, vis, attrs)
+    if kind == TOKEN_IMPL:
+        return parse_impl(cur, vis, attrs)
+    if kind == TOKEN_TYPE_KW:
+        return parse_type_alias(cur, vis)
+    if kind == TOKEN_USE:
+        return parse_use(cur)
+    if kind == TOKEN_MOD:
+        return parse_mod(cur, vis)
+    if kind == TOKEN_CONST:
+        return parse_const(cur, vis)
+    if kind == TOKEN_COMPTIME:
+        return parse_comptime(cur)
+    if kind == TOKEN_MACRO:
+        return parse_macro(cur)
+    if kind == TOKEN_TEST:
+        return parse_test(cur)
+    if kind == TOKEN_COMPONENT:
+        return parse_component(cur, vis, attrs)
+    if kind == TOKEN_SHADER:
+        return parse_shader(cur)
+    if kind == TOKEN_ACTOR:
+        return parse_actor(cur, vis, attrs)
+
+    // ── Contextual keyword items ──
+    if kind == TOKEN_IDENT:
+        if tok.text == "patch":
+            return parse_patch_item(cur, vis, attrs)
+        if tok.text == "law":
+            return parse_law_item(cur, vis, attrs)
+        if tok.text == "axiom":
+            return parse_axiom_item(cur, vis, attrs)
+        if tok.text == "converge":
+            return parse_converge_item(cur, vis, attrs)
+        if tok.text == "world":
+            return parse_world_item(cur, vis, attrs)
+        if tok.text == "entangle":
+            return parse_entangle_item(cur, vis, attrs)
+        if tok.text == "orchestrate":
+            return parse_orchestrate_item(cur, vis, attrs)
+        if tok.text == "pulse":
+            return parse_pulse_item(cur, vis, attrs)
+        if tok.text == "resonate":
+            return parse_resonate_item(cur, vis, attrs)
+        if tok.text == "shatter":
+            return parse_shatter_struct(cur, vis, attrs)
+        if tok.text == "include":
+            return parse_include(cur)
+        if tok.text == "import":
+            return parse_import(cur)
+        if tok.text == "from":
+            return parse_from_import(cur)
+
+    // Unknown — error
+    cur = parser_error(cur, "expected item, found " + tok.text,
+        ERR_PARSE_EXPECTED_ITEM, tok.byte_offset, tok.byte_offset + len(tok.text))
+    cur = parser_synchronize(cur)
+    return ParseResult { state: cur, node: -1 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARSE STATEMENT — dispatch
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_stmt(state: ParserState) -> ParseResult:
+    let tok: Token = parser_current(state)
+    let kind: Int = tok.kind
+
+    if kind == TOKEN_LET:
+        return parse_let_stmt(state)
+    if kind == TOKEN_VAR:
+        return parse_var_stmt(state)
+    if kind == TOKEN_DEFER:
+        return parse_defer_stmt(state)
+    if kind == TOKEN_RETURN:
+        return parse_return_stmt(state)
+    if kind == TOKEN_FOR:
+        return parse_for_stmt(state)
+    if kind == TOKEN_FANOUT:
+        return parse_fanout_stmt(state)
+    if kind == TOKEN_WHILE:
+        return parse_while_stmt(state)
+    if kind == TOKEN_LOOP:
+        return parse_loop_stmt(state)
+    if kind == TOKEN_BREAK:
+        return parse_break_stmt(state)
+    if kind == TOKEN_CONTINUE:
+        return parse_continue_stmt(state)
+    if kind == TOKEN_IDENT and tok.text == "dispatch":
+        return parse_dispatch_stmt(state)
+
+    // Also check for item start — nested item in block
+    if parser_is_item_start_token(tok):
+        let result: ParseResult = parse_item(state, -1, [])
+        if result.node >= 0:
+            let wrap_node: AstNode = ast_new_child(AST_STMT_ITEM, result.node_data_start(), result.node_data_end(), result.node)
+            // Need to get span from result — just use the item's span
+            let item_node: AstNode = result.state.program[result.node]
+            let wrap: AstNode = ast_new_child(AST_STMT_ITEM, item_node.span_start, item_node.span_end, result.node)
+            let mut new_st: ParserState = result.state
+            let idx: Int = len(new_st.program)
+            push(new_st.program, wrap)
+            return ParseResult { state: new_st, node: idx }
+        return result
+
+    // Expression statement
+    return parse_expr_stmt(state)
+
+pub fn parse_expr_stmt(state: ParserState) -> ParseResult:
+    let start: (Int, Int) = parser_current_span(state)
+    let mut cur: ParserState = state
+    let expr_res: ParseResult = parse_expr(cur)
+    cur = expr_res.state
+    if expr_res.node < 0:
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    let end_off: Int = start.0 + 1
+    let stmt_node: AstNode = ast_new_child(AST_STMT_EXPR, start.0, end_off, expr_res.node)
+    let idx: Int = len(cur.program)
+    push(cur.program, stmt_node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATEMENT PARSERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_let_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip let
+    // let or let mut
+    var is_mut: Bool = false
+    if parser_check(cur, TOKEN_MUT):
+        cur = parser_advance(cur)
+        is_mut = true
+
+    // Name
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected identifier after 'let'", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Optional : Type
+    var type_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let ty_res: ParseResult = parse_type(cur)
+        cur = ty_res.state
+        type_idx = ty_res.node
+
+    // =
+    var value_idx: Int = -1
+    if parser_check(cur, TOKEN_EQ):
+        cur = parser_advance(cur)
+        let val_res: ParseResult = parse_expr(cur)
+        cur = val_res.state
+        value_idx = val_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    // Build data: [name_idx, is_mut_flag, type_idx, value_idx]
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, if is_mut: 1 else: 0)
+    push(data, type_idx)
+    push(data, value_idx)
+    let node: AstNode = ast_new_node(AST_STMT_LET, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_var_stmt(state: ParserState) -> ParseResult:
+    // var is like let but rebindable — treat same as let for now
+    let mut cur: ParserState = parser_advance(state)  // skip var
+    return parse_let_after_keyword(cur, false)
+
+pub fn parse_let_after_keyword(state: ParserState, is_var_decl: Bool) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = state
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected identifier", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var type_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let ty_res: ParseResult = parse_type(cur)
+        cur = ty_res.state
+        type_idx = ty_res.node
+
+    var value_idx: Int = -1
+    if parser_check(cur, TOKEN_EQ):
+        cur = parser_advance(cur)
+        let val_res: ParseResult = parse_expr(cur)
+        cur = val_res.state
+        value_idx = val_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, 0)  // not mutable in var form
+    push(data, type_idx)
+    push(data, value_idx)
+    let node: AstNode = ast_new_node(AST_STMT_LET, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_return_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip return
+    var value_idx: Int = -1
+    // Optional return value
+    let tok: Token = parser_current(cur)
+    if tok.kind != TOKEN_NEWLINE and tok.kind != TOKEN_DEDENT and tok.kind != TOKEN_EOF and tok.kind != TOKEN_RBRACE:
+        let val_res: ParseResult = parse_expr(cur)
+        cur = val_res.state
+        value_idx = val_res.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, value_idx)
+    let node: AstNode = ast_new_node(AST_STMT_RETURN, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_defer_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip defer
+    let expr_res: ParseResult = parse_expr(cur)
+    cur = expr_res.state
+    let end_off: Int = parser_current(cur).byte_offset
+    let node: AstNode = ast_new_child(AST_STMT_DEFER, start, end_off, expr_res.node)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_for_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip for
+
+    // Binding name
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected identifier after 'for'", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // in
+    if not parser_check(cur, TOKEN_IN):
+        cur = parser_error(cur, "expected 'in' after for binding", ERR_PARSE_EXPECTED_TOKEN,
+            parser_current(cur).byte_offset, parser_current(cur).byte_offset)
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+
+    // Iterable expression
+    let iter_res: ParseResult = parse_expr(cur)
+    cur = iter_res.state
+    let iter_idx: Int = iter_res.node
+
+    // : and body
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, iter_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_STMT_FOR, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_fanout_stmt(state: ParserState) -> ParseResult:
+    // fanout is like for but for parallel lanes — parse similarly
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip fanout
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected identifier after 'fanout'", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    if not parser_check(cur, TOKEN_IN):
+        cur = parser_error(cur, "expected 'in' after fanout binding", ERR_PARSE_EXPECTED_TOKEN,
+            parser_current(cur).byte_offset, parser_current(cur).byte_offset)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+
+    let iter_res: ParseResult = parse_expr(cur)
+    cur = iter_res.state
+    let iter_idx: Int = iter_res.node
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, iter_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_STMT_FANOUT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_while_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip while
+
+    let cond_res: ParseResult = parse_expr(cur)
+    cur = cond_res.state
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, cond_res.node)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_STMT_WHILE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_loop_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip loop
+
+    // Push a loop label for break/continue
+    let lbl: LoopLabel = LoopLabel { break_idx: -1, continue_idx: -1 }
+    push(cur.loop_stack, lbl)
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    // Pop loop label
+    let new_loop_stack: Array<LoopLabel> = []
+    var li: Int = 0
+    while li < len(cur.loop_stack) - 1:
+        push(new_loop_stack, cur.loop_stack[li])
+        li = li + 1
+    cur.loop_stack = new_loop_stack
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_STMT_LOOP, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_break_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip break
+    var value_idx: Int = -1
+    let tok: Token = parser_current(cur)
+    if tok.kind != TOKEN_NEWLINE and tok.kind != TOKEN_DEDENT and tok.kind != TOKEN_EOF:
+        let val_res: ParseResult = parse_expr(cur)
+        cur = val_res.state
+        value_idx = val_res.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, value_idx)
+    let node: AstNode = ast_new_node(AST_STMT_BREAK, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_continue_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip continue
+    let end_off: Int = parser_current(cur).byte_offset
+    let node: AstNode = ast_new_empty(AST_STMT_CONTINUE, start, end_off)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_dispatch_stmt(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip dispatch
+
+    // dispatch "key" [x, y, z]
+    let key_tok: Token = parser_current(cur)
+    if key_tok.kind != TOKEN_STRING:
+        cur = parser_error(cur, "expected string literal for dispatch key", ERR_PARSE_EXPECTED_TOKEN,
+            key_tok.byte_offset, key_tok.byte_offset)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let key_result: (ParserState, Int) = parser_intern(cur, key_tok.literal_string)
+    cur = key_result.0
+    let key_idx: Int = key_result.1
+
+    // [x, y, z] dispatch dimensions
+    var dims: Array<Int> = []
+    if parser_check(cur, TOKEN_LBRACKET):
+        cur = parser_advance(cur)
+        var dc: Int = 0
+        while dc < 3 and not parser_check(cur, TOKEN_RBRACKET) and not parser_is_at_end(cur):
+            let dim_tok: Token = parser_current(cur)
+            if dim_tok.kind == TOKEN_INT:
+                push(dims, dim_tok.literal_int)
+                cur = parser_advance(cur)
+            else:
+                push(dims, 1)
+                cur = parser_advance(cur)
+            if parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+            dc = dc + 1
+        if parser_check(cur, TOKEN_RBRACKET):
+            cur = parser_advance(cur)
+    else:
+        push(dims, 1)
+        push(dims, 1)
+        push(dims, 1)
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, key_idx)
+    push(data, len(dims))
+    var di: Int = 0
+    while di < len(dims):
+        push(data, dims[di])
+        di = di + 1
+    let node: AstNode = ast_new_node(AST_STMT_DISPATCH, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRATT EXPRESSION PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_expr(state: ParserState) -> ParseResult:
+    return parse_assignment(state)
+
+// ── Assignment (right-associative) ──
+
+pub fn parse_assignment(state: ParserState) -> ParseResult:
+    let lhs_res: ParseResult = parse_conditional(state)
+    var cur: ParserState = lhs_res.state
+    var lhs_idx: Int = lhs_res.node
+
+    let tok: Token = parser_current(cur)
+    let kind: Int = tok.kind
+
+    // Check for = or compound assignment
+    if kind == TOKEN_EQ or kind == TOKEN_PLUS_EQ or kind == TOKEN_MINUS_EQ or
+       kind == TOKEN_STAR_EQ or kind == TOKEN_SLASH_EQ or kind == TOKEN_PERCENT_EQ:
+        let start: Int = tok.byte_offset
+        // Determine binary op for compound assignments
+        let is_compound: Bool = kind != TOKEN_EQ
+        var compound_binop: Int = BINOP_ADD  // default
+        if kind == TOKEN_PLUS_EQ: compound_binop = BINOP_ADD
+        elif kind == TOKEN_MINUS_EQ: compound_binop = BINOP_SUB
+        elif kind == TOKEN_STAR_EQ: compound_binop = BINOP_MUL
+        elif kind == TOKEN_SLASH_EQ: compound_binop = BINOP_DIV
+        elif kind == TOKEN_PERCENT_EQ: compound_binop = BINOP_MOD
+
+        cur = parser_advance(cur)
+        let rhs_res: ParseResult = parse_assignment(cur)  // right-assoc
+        cur = rhs_res.state
+
+        var value_idx: Int = rhs_res.node
+        // If compound, desugar: a += b → a = a + b
+        if is_compound:
+            let binary: AstNode = ast_new_three(AST_EXPR_BINARY, start, rhs_res.node_data_end(cur),
+                lhs_idx, rhs_res.node, compound_binop)
+            let bin_idx: Int = len(cur.program)
+            push(cur.program, binary)
+            value_idx = bin_idx
+
+        let assign: AstNode = ast_new_two(AST_EXPR_ASSIGN, start,
+            parser_current(cur).byte_offset, lhs_idx, value_idx)
+        let assign_idx: Int = len(cur.program)
+        push(cur.program, assign)
+        return ParseResult { state: cur, node: assign_idx }
+
+    return ParseResult { state: cur, node: lhs_idx }
+
+// ── Conditional (ternary a ? b : c) ──
+
+pub fn parse_conditional(state: ParserState) -> ParseResult:
+    let lhs_res: ParseResult = parse_range_expr(state)
+    var cur: ParserState = lhs_res.state
+
+    if parser_check(cur, TOKEN_QUESTION):
+        let start: Int = parser_current(cur).byte_offset
+        cur = parser_advance(cur)
+        let then_res: ParseResult = parse_expr(cur)
+        cur = then_res.state
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+        let else_res: ParseResult = parse_conditional(cur)
+        cur = else_res.state
+        // Desugar to if expression
+        let end_off: Int = parser_current(cur).byte_offset
+        let if_node: AstNode = ast_new_three(AST_EXPR_IF, start, end_off,
+            lhs_res.node, then_res.node, else_res.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, if_node)
+        return ParseResult { state: cur, node: idx }
+
+    return lhs_res
+
+// ── Range expression (a..b, a..=b) ──
+
+pub fn parse_range_expr(state: ParserState) -> ParseResult:
+    let lhs_res: ParseResult = parse_coalesce(state)
+    var cur: ParserState = lhs_res.state
+
+    if parser_check(cur, TOKEN_DOT_DOT):
+        let start: Int = parser_current(cur).byte_offset
+        cur = parser_advance(cur)
+        var inclusive: Int = 0
+        if parser_check(cur, TOKEN_EQ):
+            cur = parser_advance(cur)
+            inclusive = 1
+        var end_idx: Int = -1
+        let tok: Token = parser_current(cur)
+        if tok.kind != TOKEN_COMMA and tok.kind != TOKEN_RPAREN and tok.kind != TOKEN_RBRACKET
+           and tok.kind != TOKEN_NEWLINE and tok.kind != TOKEN_DEDENT and tok.kind != TOKEN_EOF:
+            let end_res: ParseResult = parse_expr(cur)
+            cur = end_res.state
+            end_idx = end_res.node
+        let end_off: Int = parser_current(cur).byte_offset
+        let binop: Int = if inclusive == 1: BINOP_RANGE_INCL else: BINOP_RANGE
+        let range_node: AstNode = ast_new_three(AST_EXPR_RANGE, start, end_off,
+            lhs_res.node, end_idx, binop)
+        let idx: Int = len(cur.program)
+        push(cur.program, range_node)
+        return ParseResult { state: cur, node: idx }
+
+    return lhs_res
+
+// ── Null coalesce (a ?? b) ──
+
+pub fn parse_coalesce(state: ParserState) -> ParseResult:
+    let lhs_res: ParseResult = parse_binary(state, 0)
+    var cur: ParserState = lhs_res.state
+
+    if parser_check(cur, TOKEN_QUESTION_QUESTION):
+        let start: Int = parser_current(cur).byte_offset
+        cur = parser_advance(cur)
+        let rhs_res: ParseResult = parse_coalesce(cur)
+        cur = rhs_res.state
+        // Desugar to: if lhs != none { lhs } else { rhs }
+        let end_off: Int = parser_current(cur).byte_offset
+        // Build a simple if-expr: data[0]=cond, data[1]=then, data[2]=else
+        let if_node: AstNode = ast_new_three(AST_EXPR_IF, start, end_off,
+            lhs_res.node, lhs_res.node, rhs_res.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, if_node)
+        return ParseResult { state: cur, node: idx }
+
+    return lhs_res
+
+// ── Pratt binary expression core ──
+
+// Get precedence level and binary op for a token kind
+pub fn get_precedence(kind: Int) -> Int:
+    // Returns precedence * 10 + 0 for left-assoc, + 1 for right-assoc
+    // Or just return the raw level for this implementation
+    if kind == TOKEN_OR:          return 1   // ||
+    if kind == TOKEN_AND:         return 2   // &&
+    if kind == TOKEN_PIPE:        return 3   // |
+    if kind == TOKEN_CARET:       return 4   // ^
+    if kind == TOKEN_AMP:         return 5   // &
+    if kind == TOKEN_EQ_EQ:       return 6   // ==
+    if kind == TOKEN_NOT_EQ:      return 6   // !=
+    if kind == TOKEN_LT:          return 7   // <
+    if kind == TOKEN_GT:          return 7   // >
+    if kind == TOKEN_LT_EQ:       return 7   // <=
+    if kind == TOKEN_GT_EQ:       return 7   // >=
+    if kind == TOKEN_SHL:         return 8   // <<
+    if kind == TOKEN_SHR:         return 8   // >>
+    if kind == TOKEN_PLUS:        return 9   // +
+    if kind == TOKEN_MINUS:       return 9   // -
+    if kind == TOKEN_STAR:        return 10  // *
+    if kind == TOKEN_SLASH:       return 10  // /
+    if kind == TOKEN_PERCENT:     return 10  // %
+    if kind == TOKEN_POWER:       return 11  // **
+    return 0
+
+pub fn get_binary_op(kind: Int) -> Int:
+    if kind == TOKEN_PLUS:        return BINOP_ADD
+    if kind == TOKEN_MINUS:       return BINOP_SUB
+    if kind == TOKEN_STAR:        return BINOP_MUL
+    if kind == TOKEN_SLASH:       return BINOP_DIV
+    if kind == TOKEN_PERCENT:     return BINOP_MOD
+    if kind == TOKEN_POWER:       return BINOP_POW
+    if kind == TOKEN_EQ_EQ:       return BINOP_EQ
+    if kind == TOKEN_NOT_EQ:      return BINOP_NE
+    if kind == TOKEN_LT:          return BINOP_LT
+    if kind == TOKEN_GT:          return BINOP_GT
+    if kind == TOKEN_LT_EQ:       return BINOP_LE
+    if kind == TOKEN_GT_EQ:       return BINOP_GE
+    if kind == TOKEN_AND:         return BINOP_AND
+    if kind == TOKEN_OR:          return BINOP_OR
+    if kind == TOKEN_AMP:         return BINOP_BIT_AND
+    if kind == TOKEN_PIPE:        return BINOP_BIT_OR
+    if kind == TOKEN_CARET:       return BINOP_BIT_XOR
+    if kind == TOKEN_SHL:         return BINOP_SHL
+    if kind == TOKEN_SHR:         return BINOP_SHR
+    return -1
+
+pub fn parse_binary(state: ParserState, min_prec: Int) -> ParseResult:
+    let lhs_res: ParseResult = parse_unary(state)
+    var cur: ParserState = lhs_res.state
+    var lhs_idx: Int = lhs_res.node
+
+    loop:
+        let tok: Token = parser_current(cur)
+        let prec: Int = get_precedence(tok.kind)
+        if prec < min_prec:
+            break
+
+        let binop: Int = get_binary_op(tok.kind)
+        let start: Int = tok.byte_offset
+        let is_right_assoc: Bool = tok.kind == TOKEN_POWER
+        let next_min: Int = if is_right_assoc: prec else: prec + 1
+        cur = parser_advance(cur)
+        let rhs_res: ParseResult = parse_binary(cur, next_min)
+        cur = rhs_res.state
+        let end_off: Int = parser_current(cur).byte_offset
+
+        let binary: AstNode = ast_new_three(AST_EXPR_BINARY, start, end_off,
+            lhs_idx, rhs_res.node, binop)
+        let bin_idx: Int = len(cur.program)
+        push(cur.program, binary)
+        lhs_idx = bin_idx
+
+    return ParseResult { state: cur, node: lhs_idx }
+
+// ── Unary expressions ──
+
+pub fn parse_unary(state: ParserState) -> ParseResult:
+    let tok: Token = parser_current(state)
+    let kind: Int = tok.kind
+    let start: Int = tok.byte_offset
+
+    // Prefix operators
+    if kind == TOKEN_MINUS:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, operand.node, UNOP_NEG)
+        let idx: Int = len(cur.program)
+        push(cur.program, unary)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_NOT:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, operand.node, UNOP_NOT)
+        let idx: Int = len(cur.program)
+        push(cur.program, unary)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_TILDE:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, operand.node, UNOP_BIT_NOT)
+        let idx: Int = len(cur.program)
+        push(cur.program, unary)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_STAR:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, operand.node, UNOP_DEREF)
+        let idx: Int = len(cur.program)
+        push(cur.program, unary)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_AMP:
+        let mut cur: ParserState = parser_advance(state)
+        var is_mut_ref: Int = 0
+        if parser_check(cur, TOKEN_MUT):
+            cur = parser_advance(cur)
+            is_mut_ref = 1
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let ref_op: Int = if is_mut_ref == 1: UNOP_REF_MUT else: UNOP_REF
+        let ref_node: AstNode = ast_new_two(AST_EXPR_REF, start, end_off, operand.node, ref_op)
+        let idx: Int = len(cur.program)
+        push(cur.program, ref_node)
+        return ParseResult { state: cur, node: idx }
+
+    // await
+    if kind == TOKEN_AWAIT:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let await_node: AstNode = ast_new_child(AST_EXPR_AWAIT, start, end_off, operand.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, await_node)
+        return ParseResult { state: cur, node: idx }
+
+    // spawn
+    if kind == TOKEN_SPAWN:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let spawn_node: AstNode = ast_new_child(AST_EXPR_SPAWN, start, end_off, operand.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, spawn_node)
+        return ParseResult { state: cur, node: idx }
+
+    // send actor.msg(args)
+    if kind == TOKEN_SEND:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let send_node: AstNode = ast_new_child(AST_EXPR_SEND, start, end_off, operand.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, send_node)
+        return ParseResult { state: cur, node: idx }
+
+    // emit Event(args)
+    if kind == TOKEN_EMIT:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let emit_node: AstNode = ast_new_child(AST_EXPR_EMIT, start, end_off, operand.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, emit_node)
+        return ParseResult { state: cur, node: idx }
+
+    // Ownership: collapse, observe, decay, share
+    if kind == TOKEN_COLLAPSE:
+        let mut cur: ParserState = parser_advance(state)
+        let target_res: ParseResult = parse_expr(cur)
+        cur = target_res.state
+        var body_idx: Int = -1
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+            let body_res: ParseResult = parse_block_or_expr(cur)
+            cur = body_res.state
+            body_idx = body_res.node
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, target_res.node)
+        push(data, body_idx)
+        let node: AstNode = ast_new_node(AST_EXPR_COLLAPSE, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_OBSERVE:
+        let mut cur: ParserState = parser_advance(state)
+        let target_res: ParseResult = parse_expr(cur)
+        cur = target_res.state
+        var body_idx: Int = -1
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+            let body_res: ParseResult = parse_block_or_expr(cur)
+            cur = body_res.state
+            body_idx = body_res.node
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, target_res.node)
+        push(data, body_idx)
+        let node: AstNode = ast_new_node(AST_EXPR_OBSERVE, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_DECAY:
+        let mut cur: ParserState = parser_advance(state)
+        let target_res: ParseResult = parse_expr(cur)
+        cur = target_res.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_child(AST_EXPR_DECAY, start, end_off, target_res.node)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_SHARE:
+        let mut cur: ParserState = parser_advance(state)
+        let target_res: ParseResult = parse_expr(cur)
+        cur = target_res.state
+        var body_idx: Int = -1
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+            let body_res: ParseResult = parse_block_or_expr(cur)
+            cur = body_res.state
+            body_idx = body_res.node
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, target_res.node)
+        push(data, body_idx)
+        let node: AstNode = ast_new_node(AST_EXPR_SHARE, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // teleport (contextual)
+    if kind == TOKEN_IDENT and tok.text == "teleport":
+        let mut cur: ParserState = parser_advance(state)
+        let value_res: ParseResult = parse_expr(cur)
+        cur = value_res.state
+        // from World
+        var from_idx: Int = -1
+        if parser_peek_contextual(cur, "from"):
+            cur = parser_advance(cur)
+            let from_tok: Token = parser_current(cur)
+            if from_tok.kind == TOKEN_IDENT:
+                let from_r: (ParserState, Int) = parser_intern(cur, from_tok.text)
+                cur = from_r.0
+                from_idx = from_r.1
+                cur = parser_advance(cur)
+        // to World
+        var to_idx: Int = -1
+        if parser_peek_contextual(cur, "to"):
+            cur = parser_advance(cur)
+            let to_tok: Token = parser_current(cur)
+            if to_tok.kind == TOKEN_IDENT:
+                let to_r: (ParserState, Int) = parser_intern(cur, to_tok.text)
+                cur = to_r.0
+                to_idx = to_r.1
+                cur = parser_advance(cur)
+        // via channel (optional)
+        var via_idx: Int = -1
+        if parser_peek_contextual(cur, "via"):
+            cur = parser_advance(cur)
+            let via_tok: Token = parser_current(cur)
+            if via_tok.kind == TOKEN_IDENT:
+                let via_r: (ParserState, Int) = parser_intern(cur, via_tok.text)
+                cur = via_r.0
+                via_idx = via_r.1
+                cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, value_res.node)
+        push(data, from_idx)
+        push(data, to_idx)
+        push(data, via_idx)
+        let tp_node: AstNode = ast_new_node(AST_EXPR_TELEPORT, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, tp_node)
+        return ParseResult { state: cur, node: idx }
+
+    // ++x, --x prefix
+    if kind == TOKEN_PLUS_PLUS or kind == TOKEN_MINUS_MINUS:
+        let mut cur: ParserState = parser_advance(state)
+        let operand: ParseResult = parse_unary(cur)
+        cur = operand.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let unop: Int = if kind == TOKEN_PLUS_PLUS: UNOP_ADD else: UNOP_SUB
+        let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, operand.node, unop)
+        let idx: Int = len(cur.program)
+        push(cur.program, unary)
+        return ParseResult { state: cur, node: idx }
+
+    // Fall through to postfix chain (starting from primary)
+    return parse_postfix(state, -1)
+
+// ── Postfix expressions ──
+
+pub fn parse_postfix(state: ParserState, base_override: Int) -> ParseResult:
+    var base_idx: Int = base_override
+    var cur: ParserState = state
+
+    if base_idx < 0:
+        let prim_res: ParseResult = parse_primary(cur)
+        cur = prim_res.state
+        base_idx = prim_res.node
+
+    if base_idx < 0:
+        return ParseResult { state: cur, node: -1 }
+
+    // Loop for multiple postfix operations
+    loop:
+        let tok: Token = parser_current(cur)
+        let kind: Int = tok.kind
+        let start: Int = tok.byte_offset
+
+        // Call: f(args)
+        if kind == TOKEN_LPAREN:
+            cur = parser_advance(cur)
+            var arg_idxs: Array<Int> = []
+            while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+                let arg_res: ParseResult = parse_expr(cur)
+                cur = arg_res.state
+                push(arg_idxs, arg_res.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            if parser_check(cur, TOKEN_RPAREN):
+                cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let mut data: Array<Int> = []
+            push(data, base_idx)
+            push(data, len(arg_idxs))
+            var ai: Int = 0
+            while ai < len(arg_idxs):
+                push(data, arg_idxs[ai])
+                ai = ai + 1
+            let call_node: AstNode = ast_new_node(AST_EXPR_CALL, start, end_off, data)
+            let call_idx: Int = len(cur.program)
+            push(cur.program, call_node)
+            base_idx = call_idx
+            continue
+
+        // Index: arr[i]
+        if kind == TOKEN_LBRACKET:
+            cur = parser_advance(cur)
+            let idx_res: ParseResult = parse_expr(cur)
+            cur = idx_res.state
+            if parser_check(cur, TOKEN_RBRACKET):
+                cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let index_node: AstNode = ast_new_two(AST_EXPR_INDEX, start, end_off, base_idx, idx_res.node)
+            let idx_n: Int = len(cur.program)
+            push(cur.program, index_node)
+            base_idx = idx_n
+            continue
+
+        // Field access: obj.field or obj.method(args) or Path::to::item
+        if kind == TOKEN_DOT:
+            cur = parser_advance(cur)
+            let field_tok: Token = parser_current(cur)
+            if field_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let field_result: (ParserState, Int) = parser_intern(cur, field_tok.text)
+                cur = field_result.0
+                let field_idx: Int = field_result.1
+                // Check for method call: obj.method(args)
+                if parser_check(cur, TOKEN_LPAREN):
+                    cur = parser_advance(cur)
+                    var marg_idxs: Array<Int> = []
+                    while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+                        let marg_res: ParseResult = parse_expr(cur)
+                        cur = marg_res.state
+                        push(marg_idxs, marg_res.node)
+                        if parser_check(cur, TOKEN_COMMA):
+                            cur = parser_advance(cur)
+                    if parser_check(cur, TOKEN_RPAREN):
+                        cur = parser_advance(cur)
+                    let end_off: Int = parser_current(cur).byte_offset
+                    let mut mdata: Array<Int> = []
+                    push(mdata, base_idx)
+                    push(mdata, field_idx)
+                    push(mdata, len(marg_idxs))
+                    var mi: Int = 0
+                    while mi < len(marg_idxs):
+                        push(mdata, marg_idxs[mi])
+                        mi = mi + 1
+                    let mc_node: AstNode = ast_new_node(AST_EXPR_METHOD_CALL, start, end_off, mdata)
+                    let mc_idx: Int = len(cur.program)
+                    push(cur.program, mc_node)
+                    base_idx = mc_idx
+                else:
+                    let end_off: Int = parser_current(cur).byte_offset
+                    let field_node: AstNode = ast_new_two(AST_EXPR_FIELD, start, end_off, base_idx, field_idx)
+                    let f_idx: Int = len(cur.program)
+                    push(cur.program, field_node)
+                    base_idx = f_idx
+                continue
+
+        // Path: Path::to::item
+        if kind == TOKEN_COLON_COLON:
+            cur = parser_advance(cur)
+            let path_tok: Token = parser_current(cur)
+            if path_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let path_result: (ParserState, Int) = parser_intern(cur, path_tok.text)
+                cur = path_result.0
+                let path_idx: Int = path_result.1
+                let end_off: Int = parser_current(cur).byte_offset
+                let field_node: AstNode = ast_new_two(AST_EXPR_FIELD, start, end_off, base_idx, path_idx)
+                let f_idx: Int = len(cur.program)
+                push(cur.program, field_node)
+                base_idx = f_idx
+                continue
+
+        // Post-increment/decrement: x++, x--
+        if kind == TOKEN_PLUS_PLUS or kind == TOKEN_MINUS_MINUS:
+            cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            // Desugar: x++ → result is old value, x = x + 1
+            let unop: Int = if kind == TOKEN_PLUS_PLUS: UNOP_ADD else: UNOP_SUB
+            let unary: AstNode = ast_new_two(AST_EXPR_UNARY, start, end_off, base_idx, unop)
+            let un_idx: Int = len(cur.program)
+            push(cur.program, unary)
+            base_idx = un_idx
+            continue
+
+        // Try: expr?
+        if kind == TOKEN_QUESTION:
+            cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let try_node: AstNode = ast_new_child(AST_EXPR_TRY, start, end_off, base_idx)
+            let t_idx: Int = len(cur.program)
+            push(cur.program, try_node)
+            base_idx = t_idx
+            continue
+
+        // Null-conditional: obj?.field
+        if kind == TOKEN_QUESTION_DOT:
+            cur = parser_advance(cur)
+            let qf_tok: Token = parser_current(cur)
+            if qf_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let qf_result: (ParserState, Int) = parser_intern(cur, qf_tok.text)
+                cur = qf_result.0
+                let qf_idx: Int = qf_result.1
+                let end_off: Int = parser_current(cur).byte_offset
+                let field_node: AstNode = ast_new_two(AST_EXPR_FIELD, start, end_off, base_idx, qf_idx)
+                let f_idx: Int = len(cur.program)
+                push(cur.program, field_node)
+                base_idx = f_idx
+                continue
+
+        // Cast: expr as Type
+        if kind == TOKEN_AS:
+            cur = parser_advance(cur)
+            let ty_res: ParseResult = parse_type(cur)
+            cur = ty_res.state
+            let end_off: Int = parser_current(cur).byte_offset
+            let cast_node: AstNode = ast_new_two(AST_EXPR_CAST, start, end_off, base_idx, ty_res.node)
+            let c_idx: Int = len(cur.program)
+            push(cur.program, cast_node)
+            base_idx = c_idx
+            continue
+
+        break
+
+    return ParseResult { state: cur, node: base_idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRIMARY EXPRESSIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_primary(state: ParserState) -> ParseResult:
+    let tok: Token = parser_current(state)
+    let kind: Int = tok.kind
+    let start: Int = tok.byte_offset
+
+    // Integer literal
+    if kind == TOKEN_INT:
+        let mut cur: ParserState = parser_advance(state)
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_leaf(AST_EXPR_INT, start, end_off, tok.literal_int)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Float literal
+    if kind == TOKEN_FLOAT:
+        let mut cur: ParserState = parser_advance(state)
+        let end_off: Int = parser_current(cur).byte_offset
+        // Store float as two Int slots (bitcast from Float to Int pair)
+        let float_bits: Int = bitcast_float_to_int(tok.literal_float)
+        let mut data: Array<Int> = []
+        push(data, float_bits)
+        let node: AstNode = ast_new_node(AST_EXPR_FLOAT, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // String literal
+    if kind == TOKEN_STRING:
+        let mut cur: ParserState = parser_advance(state)
+        let str_result: (ParserState, Int) = parser_intern(cur, tok.literal_string)
+        cur = str_result.0
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_leaf(AST_EXPR_STRING, start, end_off, str_result.1)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Bool literals
+    if kind == TOKEN_TRUE:
+        let mut cur: ParserState = parser_advance(state)
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_leaf(AST_EXPR_BOOL, start, end_off, 1)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    if kind == TOKEN_FALSE:
+        let mut cur: ParserState = parser_advance(state)
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_leaf(AST_EXPR_BOOL, start, end_off, 0)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // None literal
+    if kind == TOKEN_NONE:
+        let mut cur: ParserState = parser_advance(state)
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_empty(AST_EXPR_NONE, start, end_off)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Identifier
+    if kind == TOKEN_IDENT:
+        // Check for macro call: name!(args)
+        let peek: Token = parser_peek(state, 1)
+        if peek.kind == TOKEN_NOT:
+            return parse_macro_call(state)
+
+        let mut cur: ParserState = parser_advance(state)
+        let name_result: (ParserState, Int) = parser_intern(cur, tok.text)
+        cur = name_result.0
+        let end_off: Int = parser_current(cur).byte_offset
+        let node: AstNode = ast_new_leaf(AST_EXPR_IDENT, start, end_off, name_result.1)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Parenthesized expression
+    if kind == TOKEN_LPAREN:
+        let mut cur: ParserState = parser_advance(state)
+        // Check for empty tuple ()
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let node: AstNode = ast_new_empty(AST_EXPR_TUPLE, start, end_off)
+            let idx: Int = len(cur.program)
+            push(cur.program, node)
+            return ParseResult { state: cur, node: idx }
+
+        let inner_res: ParseResult = parse_expr(cur)
+        cur = inner_res.state
+        var node_idx: Int = inner_res.node
+        // Check for tuple: (a, b, c)
+        if parser_check(cur, TOKEN_COMMA):
+            var elements: Array<Int> = []
+            push(elements, inner_res.node)
+            while parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+                let elem_res: ParseResult = parse_expr(cur)
+                cur = elem_res.state
+                push(elements, elem_res.node)
+            if parser_check(cur, TOKEN_RPAREN):
+                cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let mut data: Array<Int> = []
+            push(data, len(elements))
+            var ei: Int = 0
+            while ei < len(elements):
+                push(data, elements[ei])
+                ei = ei + 1
+            let tuple_node: AstNode = ast_new_node(AST_EXPR_TUPLE, start, end_off, data)
+            let tidx: Int = len(cur.program)
+            push(cur.program, tuple_node)
+            node_idx = tidx
+        else:
+            if parser_check(cur, TOKEN_RPAREN):
+                cur = parser_advance(cur)
+            let end_off: Int = parser_current(cur).byte_offset
+            let paren_node: AstNode = ast_new_child(AST_EXPR_PAREN, start, end_off, node_idx)
+            let pidx: Int = len(cur.program)
+            push(cur.program, paren_node)
+            node_idx = pidx
+        return ParseResult { state: cur, node: node_idx }
+
+    // Block expression: { ... }
+    if kind == TOKEN_LBRACE:
+        return parse_block_expr(state)
+
+    // Array literal: [a, b, c]
+    if kind == TOKEN_LBRACKET:
+        return parse_array_literal(state)
+
+    // JSX: <tag>...</tag>
+    if kind == TOKEN_LT:
+        // Check if it looks like JSX (followed by identifier or /)
+        let next_tok: Token = parser_peek(state, 1)
+        if next_tok.kind == TOKEN_IDENT or next_tok.kind == TOKEN_SLASH or next_tok.kind == TOKEN_GT:
+            return parse_jsx_element(state)
+
+    // if expression
+    if kind == TOKEN_IF:
+        return parse_if_expr(state)
+
+    // match expression
+    if kind == TOKEN_MATCH:
+        return parse_match_expr(state)
+
+    // for expression
+    if kind == TOKEN_FOR:
+        let stmt_res: ParseResult = parse_for_stmt(state)
+        // Wrap for-stmt AST in an expression slot? Just return the for node as-is
+        return stmt_res
+
+    // while expression
+    if kind == TOKEN_WHILE:
+        let stmt_res: ParseResult = parse_while_stmt(state)
+        return stmt_res
+
+    // loop expression
+    if kind == TOKEN_LOOP:
+        let stmt_res: ParseResult = parse_loop_stmt(state)
+        return stmt_res
+
+    // Lambda expression
+    if kind == TOKEN_FN:
+        let fn_res: ParseResult = parse_function(state, 0, [], false)
+        // Wrap function as lambda expr
+        let end_off: Int = parser_current(fn_res.state).byte_offset
+        let lambda: AstNode = ast_new_child(AST_EXPR_LAMBDA, start, end_off, fn_res.node)
+        let lidx: Int = len(fn_res.state.program)
+        push(fn_res.state.program, lambda)
+        return ParseResult { state: fn_res.state, node: lidx }
+
+    // struct literal: StructName { ... }
+    if kind == TOKEN_IDENT:
+        let pk: Token = parser_peek(state, 1)
+        if pk.kind == TOKEN_LBRACE and tok.text[0] >= "A" and tok.text[0] <= "Z":
+            return parse_struct_literal(state)
+
+    // Unknown primary
+    let mut cur: ParserState = parser_advance(state)
+    cur = parser_error(cur, "expected expression, found " + tok.text,
+        ERR_PARSE_EXPECTED_EXPR, tok.byte_offset, tok.byte_offset + len(tok.text))
+    return ParseResult { state: cur, node: -1 }
+
+// ── Block expression: { stmts... } ──
+
+pub fn parse_block_expr(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip {
+    var stmt_idxs: Array<Int> = []
+
+    while not parser_check(cur, TOKEN_RBRACE) and not parser_is_at_end(cur):
+        // Skip newlines/indent/dedent inside blocks
+        let tkind: Int = parser_current(cur).kind
+        if tkind == TOKEN_NEWLINE or tkind == TOKEN_INDENT or tkind == TOKEN_DEDENT:
+            cur = parser_advance(cur)
+            continue
+        let stmt_res: ParseResult = parse_stmt(cur)
+        cur = stmt_res.state
+        if stmt_res.node >= 0:
+            push(stmt_idxs, stmt_res.node)
+
+    if parser_check(cur, TOKEN_RBRACE):
+        cur = parser_advance(cur)
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(stmt_idxs))
+    var si: Int = 0
+    while si < len(stmt_idxs):
+        push(data, stmt_idxs[si])
+        si = si + 1
+    let node: AstNode = ast_new_node(AST_EXPR_BLOCK, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Array literal: [expr, expr, ...] ──
+
+pub fn parse_array_literal(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip [
+    var elements: Array<Int> = []
+
+    while not parser_check(cur, TOKEN_RBRACKET) and not parser_is_at_end(cur):
+        let elem_res: ParseResult = parse_expr(cur)
+        cur = elem_res.state
+        push(elements, elem_res.node)
+        if parser_check(cur, TOKEN_COMMA):
+            cur = parser_advance(cur)
+
+    if parser_check(cur, TOKEN_RBRACKET):
+        cur = parser_advance(cur)
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(elements))
+    var ei: Int = 0
+    while ei < len(elements):
+        push(data, elements[ei])
+        ei = ei + 1
+    let node: AstNode = ast_new_node(AST_EXPR_ARRAY, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── If expression: if cond: then_branch elif: ... else: ... ──
+
+pub fn parse_if_expr(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip if
+
+    let cond_res: ParseResult = parse_expr(cur)
+    cur = cond_res.state
+
+    var then_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let then_res: ParseResult = parse_block_or_expr(cur)
+        cur = then_res.state
+        then_idx = then_res.node
+
+    var else_idx: Int = -1
+    if parser_check(cur, TOKEN_ELSE):
+        cur = parser_advance(cur)
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+        let else_res: ParseResult = parse_block_or_expr(cur)
+        cur = else_res.state
+        else_idx = else_res.node
+    elif parser_check(cur, TOKEN_ELIF):
+        cur = parser_advance(cur)
+        // elif desugars to else { if ... }
+        let elif_cond_res: ParseResult = parse_expr(cur)
+        cur = elif_cond_res.state
+        var elif_then_idx: Int = -1
+        if parser_check(cur, TOKEN_COLON):
+            cur = parser_advance(cur)
+            let et_res: ParseResult = parse_block_or_expr(cur)
+            cur = et_res.state
+            elif_then_idx = et_res.node
+        var elif_else_idx: Int = -1
+        if parser_check(cur, TOKEN_ELSE):
+            cur = parser_advance(cur)
+            if parser_check(cur, TOKEN_COLON):
+                cur = parser_advance(cur)
+            let ee_res: ParseResult = parse_block_or_expr(cur)
+            cur = ee_res.state
+            elif_else_idx = ee_res.node
+        let elif_node: AstNode = ast_new_three(AST_EXPR_IF, start,
+            parser_current(cur).byte_offset, elif_cond_res.node, elif_then_idx, elif_else_idx)
+        let eidx: Int = len(cur.program)
+        push(cur.program, elif_node)
+        else_idx = eidx
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let if_node: AstNode = ast_new_three(AST_EXPR_IF, start, end_off,
+        cond_res.node, then_idx, else_idx)
+    let idx: Int = len(cur.program)
+    push(cur.program, if_node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Match expression: match scrutinee: pattern => expr, ... ──
+
+pub fn parse_match_expr(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip match
+
+    let scrutinee_res: ParseResult = parse_expr(cur)
+    cur = scrutinee_res.state
+
+    // Expect colon (or colon can be optional at indent)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+
+    var arm_idxs: Array<Int> = []
+    // Parse arms: Pattern => Expr
+    while not parser_is_at_end(cur):
+        let tkind: Int = parser_current(cur).kind
+        if tkind == TOKEN_NEWLINE or tkind == TOKEN_INDENT or tkind == TOKEN_DEDENT:
+            cur = parser_advance(cur)
+            continue
+        if tkind == TOKEN_RBRACE:
+            break
+        if parser_is_item_start_token(parser_current(cur)):
+            break
+        // Parse a simple arm: expression => expression
+        let pat_res: ParseResult = parse_expr(cur)
+        cur = pat_res.state
+        if parser_check(cur, TOKEN_FAT_ARROW):
+            cur = parser_advance(cur)
+        let body_res: ParseResult = parse_expr(cur)
+        cur = body_res.state
+        // Build arm node (AST_PAT_LITERAL + body)
+        let arm_node: AstNode = ast_new_two(AST_PAT_LITERAL, start, parser_current(cur).byte_offset,
+            pat_res.node, body_res.node)
+        let aidx: Int = len(cur.program)
+        push(cur.program, arm_node)
+        push(arm_idxs, aidx)
+        // Skip comma between arms
+        if parser_check(cur, TOKEN_COMMA):
+            cur = parser_advance(cur)
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, scrutinee_res.node)
+    push(data, len(arm_idxs))
+    var ai: Int = 0
+    while ai < len(arm_idxs):
+        push(data, arm_idxs[ai])
+        ai = ai + 1
+    let node: AstNode = ast_new_node(AST_EXPR_MATCH, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Struct literal: Name { field: value, ... } ──
+
+pub fn parse_struct_literal(state: ParserState) -> ParseResult:
+    let name_tok: Token = parser_current(state)
+    let start: Int = name_tok.byte_offset
+    let mut cur: ParserState = parser_advance(state)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // {
+    if parser_check(cur, TOKEN_LBRACE):
+        cur = parser_advance(cur)
+    var field_pairs: Array<Int> = []
+
+    while not parser_check(cur, TOKEN_RBRACE) and not parser_is_at_end(cur):
+        let field_tok: Token = parser_current(cur)
+        if field_tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let field_result: (ParserState, Int) = parser_intern(cur, field_tok.text)
+            cur = field_result.0
+            let field_name_idx: Int = field_result.1
+            if parser_check(cur, TOKEN_COLON):
+                cur = parser_advance(cur)
+            let val_res: ParseResult = parse_expr(cur)
+            cur = val_res.state
+            push(field_pairs, field_name_idx)
+            push(field_pairs, val_res.node)
+            if parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+        else:
+            break
+
+    if parser_check(cur, TOKEN_RBRACE):
+        cur = parser_advance(cur)
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(field_pairs) / 2)  // count of field pairs
+    var fi: Int = 0
+    while fi < len(field_pairs):
+        push(data, field_pairs[fi])
+        fi = fi + 1
+    let node: AstNode = ast_new_node(AST_EXPR_STRUCT_LIT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Block or single expression (for colon bodies) ──
+
+pub fn parse_block_or_expr(state: ParserState) -> ParseResult:
+    let tok: Token = parser_current(state)
+    // If there's an INDENT, parse indented block
+    if tok.kind == TOKEN_INDENT:
+        let mut cur: ParserState = parser_advance(state)
+        let block_res: ParseResult = parse_block_body(cur)
+        return block_res
+    // Otherwise single expression
+    return parse_expr(state)
+
+pub fn parse_block_body(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = state
+    var stmt_idxs: Array<Int> = []
+
+    while not parser_is_at_end(cur):
+        let tkind: Int = parser_current(cur).kind
+        if tkind == TOKEN_DEDENT or tkind == TOKEN_EOF:
+            break
+        if tkind == TOKEN_NEWLINE:
+            cur = parser_advance(cur)
+            continue
+        let stmt_res: ParseResult = parse_stmt(cur)
+        cur = stmt_res.state
+        if stmt_res.node >= 0:
+            push(stmt_idxs, stmt_res.node)
+
+    // Consume DEDENT
+    if parser_check(cur, TOKEN_DEDENT):
+        cur = parser_advance(cur)
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(stmt_idxs))
+    var si: Int = 0
+    while si < len(stmt_idxs):
+        push(data, stmt_idxs[si])
+        si = si + 1
+    let node: AstNode = ast_new_node(AST_EXPR_BLOCK, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Macro call: name!(args) ──
+
+pub fn parse_macro_call(state: ParserState) -> ParseResult:
+    let name_tok: Token = parser_current(state)
+    let start: Int = name_tok.byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip name
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    // skip !
+    if parser_check(cur, TOKEN_NOT):
+        cur = parser_advance(cur)
+    // Parse arguments (parenthesized or direct)
+    var arg_idx: Int = -1
+    if parser_check(cur, TOKEN_LPAREN):
+        let args_res: ParseResult = parse_expr(cur)
+        cur = args_res.state
+        // Skip past )
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+        arg_idx = args_res.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_result.1)
+    push(data, arg_idx)
+    let node: AstNode = ast_new_node(AST_EXPR_MACRO_CALL, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPE PARSING
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_type(state: ParserState) -> ParseResult:
+    let tok: Token = parser_current(state)
+    let start: Int = tok.byte_offset
+    let mut cur: ParserState = state
+
+    // ptr<T>, ptr_mut<T>
+    if tok.kind == TOKEN_IDENT and (tok.text == "ptr" or tok.text == "ptr_mut"):
+        let is_mut: Int = if tok.text == "ptr_mut": 1 else: 0
+        cur = parser_advance(cur)
+        // Optional <inner>
+        var inner_idx: Int = -1
+        if parser_check(cur, TOKEN_LT):
+            cur = parser_advance(cur)
+            let inner_res: ParseResult = parse_type(cur)
+            cur = inner_res.state
+            inner_idx = inner_res.node
+            if parser_check(cur, TOKEN_GT):
+                cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, is_mut)
+        push(data, inner_idx)
+        let node: AstNode = ast_new_node(AST_TYPE_PTR, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // [T] or [T; N]
+    if tok.kind == TOKEN_LBRACKET:
+        cur = parser_advance(cur)
+        let inner_res: ParseResult = parse_type(cur)
+        cur = inner_res.state
+        var array_len: Int = -1  // -1 means slice, >= 0 means array
+        if parser_check(cur, TOKEN_SEMI):
+            cur = parser_advance(cur)
+            let len_tok: Token = parser_current(cur)
+            if len_tok.kind == TOKEN_INT:
+                array_len = len_tok.literal_int
+                cur = parser_advance(cur)
+        if parser_check(cur, TOKEN_RBRACKET):
+            cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let kind: Int = if array_len >= 0: AST_TYPE_ARRAY else: AST_TYPE_SLICE
+        let mut data: Array<Int> = []
+        push(data, inner_res.node)
+        push(data, array_len)
+        let node: AstNode = ast_new_node(kind, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // &T or &mut T
+    if tok.kind == TOKEN_AMP:
+        cur = parser_advance(cur)
+        var is_mut_ref: Int = 0
+        if parser_check(cur, TOKEN_MUT):
+            cur = parser_advance(cur)
+            is_mut_ref = 1
+        let inner_res: ParseResult = parse_type(cur)
+        cur = inner_res.state
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, is_mut_ref)
+        push(data, inner_res.node)
+        let node: AstNode = ast_new_node(AST_TYPE_REF, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // (T, U, ...)
+    if tok.kind == TOKEN_LPAREN:
+        cur = parser_advance(cur)
+        var elements: Array<Int> = []
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let elem_res: ParseResult = parse_type(cur)
+            cur = elem_res.state
+            push(elements, elem_res.node)
+            if parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, len(elements))
+        var ei: Int = 0
+        while ei < len(elements):
+            push(data, elements[ei])
+            ei = ei + 1
+        let node: AstNode = ast_new_node(AST_TYPE_TUPLE, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Named type: Ident or Path::Type
+    if tok.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+        let name_result: (ParserState, Int) = parser_intern(cur, tok.text)
+        cur = name_result.0
+        var generic_idxs: Array<Int> = []
+        // Check for generics <T, U>
+        if parser_check(cur, TOKEN_LT):
+            cur = parser_advance(cur)
+            while not parser_check(cur, TOKEN_GT) and not parser_is_at_end(cur):
+                let gen_res: ParseResult = parse_type(cur)
+                cur = gen_res.state
+                push(generic_idxs, gen_res.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+                // Handle >> injection
+                if parser_check(cur, TOKEN_SHR):
+                    // Inject a synthetic > token
+                    let shr_tok: Token = parser_current(cur)
+                    cur = parser_advance(cur)
+                    let gt_tok: Token = token_new(TOKEN_GT, ">", shr_tok.line_no, shr_tok.col_no, shr_tok.byte_offset)
+                    push(cur.injected, gt_tok)
+            if parser_check(cur, TOKEN_GT):
+                cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, name_result.1)
+        push(data, len(generic_idxs))
+        var gi: Int = 0
+        while gi < len(generic_idxs):
+            push(data, generic_idxs[gi])
+            gi = gi + 1
+        let node: AstNode = ast_new_node(AST_TYPE_NAMED, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Unknown type
+    let mut err_st: ParserState = parser_advance(state)
+    return ParseResult { state: err_st, node: -1 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERICS + WHERE CLAUSE + EFFECTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_generic_params(state: ParserState) -> (ParserState, Array<Int>):
+    let mut cur: ParserState = state
+    var params: Array<Int> = []
+    if not parser_check(cur, TOKEN_LT):
+        return (cur, params)
+    cur = parser_advance(cur)
+    while not parser_check(cur, TOKEN_GT) and not parser_is_at_end(cur):
+        let name_tok: Token = parser_current(cur)
+        if name_tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+            cur = name_result.0
+            push(params, name_result.1)
+            // Optional : Bound
+            var bound_idx: Int = -1
+            if parser_check(cur, TOKEN_COLON):
+                cur = parser_advance(cur)
+                let bound_res: ParseResult = parse_type(cur)
+                cur = bound_res.state
+                bound_idx = bound_res.node
+                // + additional bounds
+                while parser_check(cur, TOKEN_PLUS):
+                    cur = parser_advance(cur)
+                    let extra_res: ParseResult = parse_type(cur)
+                    cur = extra_res.state
+            push(params, bound_idx)
+            if parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+        else:
+            break
+    // Handle >> injection
+    if parser_check(cur, TOKEN_SHR):
+        let shr_tok: Token = parser_current(cur)
+        cur = parser_advance(cur)
+        let gt_tok: Token = token_new(TOKEN_GT, ">", shr_tok.line_no, shr_tok.col_no, shr_tok.byte_offset)
+        push(cur.injected, gt_tok)
+    elif parser_check(cur, TOKEN_GT):
+        cur = parser_advance(cur)
+    return (cur, params)
+
+pub fn parse_where_clause(state: ParserState) -> (ParserState, Int):
+    let mut cur: ParserState = state
+    if not parser_peek_contextual(cur, "where"):
+        return (cur, -1)
+    cur = parser_advance(cur)
+    // Collect where clause bounds as identifier indices
+    var bounds: Array<Int> = []
+    while not parser_is_at_end(cur):
+        let tok: Token = parser_current(cur)
+        if tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let br: (ParserState, Int) = parser_intern(cur, tok.text)
+            cur = br.0
+            push(bounds, br.1)
+            if parser_check(cur, TOKEN_COLON):
+                cur = parser_advance(cur)
+                let ty_res: ParseResult = parse_type(cur)
+                cur = ty_res.state
+                push(bounds, ty_res.node)
+            if parser_check(cur, TOKEN_COMMA):
+                cur = parser_advance(cur)
+        else:
+            break
+    // Placeholder: return first bound index
+    if len(bounds) > 0:
+        return (cur, bounds[0])
+    return (cur, -1)
+
+pub fn parse_effect_annotations(state: ParserState) -> (ParserState, Array<Int>):
+    let mut cur: ParserState = state
+    var effects: Array<Int> = []
+    if not parser_check(cur, TOKEN_WITH):
+        return (cur, effects)
+    cur = parser_advance(cur)
+    while not parser_is_at_end(cur):
+        let tok: Token = parser_current(cur)
+        let kind: Int = tok.kind
+        if kind == TOKEN_PURE:
+            push(effects, 0)
+            cur = parser_advance(cur)
+        elif kind == TOKEN_IO:
+            push(effects, 1)
+            cur = parser_advance(cur)
+        elif kind == TOKEN_ASYNC:
+            push(effects, 2)
+            cur = parser_advance(cur)
+        elif kind == TOKEN_GPU:
+            push(effects, 3)
+            cur = parser_advance(cur)
+        elif kind == TOKEN_REACTIVE:
+            push(effects, 4)
+            cur = parser_advance(cur)
+        elif kind == TOKEN_UNSAFE:
+            push(effects, 5)
+            cur = parser_advance(cur)
+        else:
+            break
+        if parser_check(cur, TOKEN_COMMA):
+            cur = parser_advance(cur)
+        else:
+            break
+    return (cur, effects)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ITEM PARSERS — Hard Keyword Items (fn, struct, enum, trait, impl, etc.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_function(state: ParserState, vis: Int, attrs: Array<Int>, is_async: Bool) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip fn
+
+    // Name
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected function name after 'fn'", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Generic params <T: Bound>
+    let gen_result: (ParserState, Array<Int>) = parse_generic_params(cur)
+    cur = gen_result.0
+    let generic_params: Array<Int> = gen_result.1
+
+    // Parameters (name: Type, ...)
+    var param_names: Array<Int> = []
+    var param_types: Array<Int> = []
+    if parser_check(cur, TOKEN_LPAREN):
+        cur = parser_advance(cur)
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let pname_tok: Token = parser_current(cur)
+            if pname_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let pnr: (ParserState, Int) = parser_intern(cur, pname_tok.text)
+                cur = pnr.0
+                push(param_names, pnr.1)
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let ptype_res: ParseResult = parse_type(cur)
+                cur = ptype_res.state
+                push(param_types, ptype_res.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            else:
+                break
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+
+    // Return type
+    var ret_type_idx: Int = -1
+    if parser_check(cur, TOKEN_ARROW):
+        cur = parser_advance(cur)
+        let ret_res: ParseResult = parse_type(cur)
+        cur = ret_res.state
+        ret_type_idx = ret_res.node
+
+    // Where clause (contextual keyword)
+    var where_idx: Int = -1
+    if parser_peek_contextual(cur, "where"):
+        let where_result: (ParserState, Int) = parse_where_clause(cur)
+        cur = where_result.0
+        where_idx = where_result.1
+
+    // Effects with ...
+    var effects: Array<Int> = []
+    if parser_check(cur, TOKEN_WITH):
+        let eff_result: (ParserState, Array<Int>) = parse_effect_annotations(cur)
+        cur = eff_result.0
+        effects = eff_result.1
+
+    // Body
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    // Build data: [name_idx, attrs_len, attrs..., generic_count, generic_pairs...,
+    //              param_count, param_name_0, param_type_0, ..., ret_type_idx, where_idx,
+    //              effect_count, effects..., body_idx]
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    // Attributes
+    push(data, len(attrs))
+    var ai: Int = 0
+    while ai < len(attrs):
+        push(data, attrs[ai])
+        ai = ai + 1
+    // Generics
+    push(data, len(generic_params) / 2)  // pair count
+    var gi: Int = 0
+    while gi < len(generic_params):
+        push(data, generic_params[gi])
+        gi = gi + 1
+    // Parameters
+    let pcount: Int = len(param_names)
+    push(data, pcount)
+    var pi: Int = 0
+    while pi < pcount:
+        push(data, param_names[pi])
+        push(data, param_types[pi])
+        pi = pi + 1
+    // Return type, where clause
+    push(data, ret_type_idx)
+    push(data, where_idx)
+    // Effects
+    push(data, len(effects))
+    var ei: Int = 0
+    while ei < len(effects):
+        push(data, effects[ei])
+        ei = ei + 1
+    // Body
+    push(data, body_idx)
+    // Async flag
+    push(data, if is_async: 1 else: 0)
+
+    let node: AstNode = ast_new_node(AST_ITEM_FUNCTION, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_struct(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip struct
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected struct name", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Generics
+    let gen_result: (ParserState, Array<Int>) = parse_generic_params(cur)
+    cur = gen_result.0
+    let generic_params: Array<Int> = gen_result.1
+
+    // Fields
+    var field_names: Array<Int> = []
+    var field_types: Array<Int> = []
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        while not parser_is_at_end(cur) and not parser_is_item_start_token(parser_current(cur)):
+            let tkind: Int = parser_current(cur).kind
+            if tkind == TOKEN_NEWLINE or tkind == TOKEN_INDENT or tkind == TOKEN_DEDENT:
+                cur = parser_advance(cur)
+                continue
+            let fname_tok: Token = parser_current(cur)
+            if fname_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let fnr: (ParserState, Int) = parser_intern(cur, fname_tok.text)
+                cur = fnr.0
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let ftype_res: ParseResult = parse_type(cur)
+                cur = ftype_res.state
+                push(field_names, fnr.1)
+                push(field_types, ftype_res.node)
+            else:
+                break
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(generic_params) / 2)
+    var gi: Int = 0
+    while gi < len(generic_params):
+        push(data, generic_params[gi])
+        gi = gi + 1
+    let fcount: Int = len(field_names)
+    push(data, fcount)
+    var fi: Int = 0
+    while fi < fcount:
+        push(data, field_names[fi])
+        push(data, field_types[fi])
+        fi = fi + 1
+    let node: AstNode = ast_new_node(AST_ITEM_STRUCT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_enum(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip enum
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected enum name", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var variants: Array<Int> = []
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        while not parser_is_at_end(cur) and not parser_is_item_start_token(parser_current(cur)):
+            let tkind: Int = parser_current(cur).kind
+            if tkind == TOKEN_NEWLINE or tkind == TOKEN_INDENT or tkind == TOKEN_DEDENT:
+                cur = parser_advance(cur)
+                continue
+            let vname_tok: Token = parser_current(cur)
+            if vname_tok.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let vnr: (ParserState, Int) = parser_intern(cur, vname_tok.text)
+                cur = vnr.0
+                push(variants, vnr.1)
+                // Optional payload: (Type)
+                var payload_idx: Int = -1
+                if parser_check(cur, TOKEN_LPAREN):
+                    cur = parser_advance(cur)
+                    let payload_res: ParseResult = parse_type(cur)
+                    cur = payload_res.state
+                    payload_idx = payload_res.node
+                    if parser_check(cur, TOKEN_RPAREN):
+                        cur = parser_advance(cur)
+                push(variants, payload_idx)
+            else:
+                break
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(variants) / 2)
+    var vi: Int = 0
+    while vi < len(variants):
+        push(data, variants[vi])
+        vi = vi + 1
+    let node: AstNode = ast_new_node(AST_ITEM_ENUM, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_trait(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip trait
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected trait name", ERR_PARSE_EXPECTED_TOKEN,
+            name_tok.byte_offset, name_tok.byte_offset + len(name_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_TRAIT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_impl(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip impl
+
+    // Optional TraitName for
+    var trait_idx: Int = -1
+    let first_tok: Token = parser_current(cur)
+    if first_tok.kind == TOKEN_IDENT:
+        let pk: Token = parser_peek(cur, 1)
+        if pk.kind == TOKEN_IDENT and pk.text == "for":
+            cur = parser_advance(cur)
+            let tr: (ParserState, Int) = parser_intern(cur, first_tok.text)
+            cur = tr.0
+            trait_idx = tr.1
+
+    // for (if trait impl)
+    if parser_check(cur, TOKEN_IDENT) and parser_current(cur).text == "for":
+        cur = parser_advance(cur)
+
+    // Type name
+    let type_tok: Token = parser_current(cur)
+    if type_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected type name after 'impl'", ERR_PARSE_EXPECTED_TOKEN,
+            type_tok.byte_offset, type_tok.byte_offset + len(type_tok.text))
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let type_result: (ParserState, Int) = parser_intern(cur, type_tok.text)
+    cur = type_result.0
+    let type_idx: Int = type_result.1
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, trait_idx)
+    push(data, type_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_IMPL, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_type_alias(state: ParserState, vis: Int) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip type
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var aliased_idx: Int = -1
+    if parser_check(cur, TOKEN_EQ):
+        cur = parser_advance(cur)
+        let ty_res: ParseResult = parse_type(cur)
+        cur = ty_res.state
+        aliased_idx = ty_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, aliased_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_TYPE_ALIAS, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_use(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip use
+    // Parse path segments
+    var segments: Array<Int> = []
+    loop:
+        let seg_tok: Token = parser_current(cur)
+        if seg_tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let sr: (ParserState, Int) = parser_intern(cur, seg_tok.text)
+            cur = sr.0
+            push(segments, sr.1)
+        elif seg_tok.kind == TOKEN_SELF_LOWER:
+            cur = parser_advance(cur)
+            let sr: (ParserState, Int) = parser_intern(cur, "self")
+            cur = sr.0
+            push(segments, sr.1)
+        else:
+            break
+        if parser_check(cur, TOKEN_COLON_COLON):
+            cur = parser_advance(cur)
+        else:
+            break
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(segments))
+    var si: Int = 0
+    while si < len(segments):
+        push(data, segments[si])
+        si = si + 1
+    let node: AstNode = ast_new_node(AST_ITEM_USE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_mod(state: ParserState, vis: Int) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip mod
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Optional body
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_MOD, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_const(state: ParserState, vis: Int) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip const
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var type_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let ty_res: ParseResult = parse_type(cur)
+        cur = ty_res.state
+        type_idx = ty_res.node
+
+    var value_idx: Int = -1
+    if parser_check(cur, TOKEN_EQ):
+        cur = parser_advance(cur)
+        let val_res: ParseResult = parse_expr(cur)
+        cur = val_res.state
+        value_idx = val_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, type_idx)
+    push(data, value_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_CONST, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_comptime(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip comptime
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_COMPTIME, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_macro(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip macro
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // macro name!(param: kind):
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_MACRO, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_test(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip test
+    // test fn or test Name:
+    var body_idx: Int = -1
+    // Consume fn if present
+    if parser_check(cur, TOKEN_FN):
+        cur = parser_advance(cur)
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let body_res: ParseResult = parse_block_or_expr(cur)
+        cur = body_res.state
+        body_idx = body_res.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_TEST, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ITEM PARSERS — Contextual Keyword Items (patch, law, converge, world, etc.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_patch_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip patch
+    // patch name(params) -> Ret: body
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Parse like a function
+    var param_names: Array<Int> = []
+    var param_types: Array<Int> = []
+    if parser_check(cur, TOKEN_LPAREN):
+        cur = parser_advance(cur)
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let pn: Token = parser_current(cur)
+            if pn.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let pr: (ParserState, Int) = parser_intern(cur, pn.text)
+                cur = pr.0
+                push(param_names, pr.1)
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let pt: ParseResult = parse_type(cur)
+                cur = pt.state
+                push(param_types, pt.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            else:
+                break
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+
+    var ret_idx: Int = -1
+    if parser_check(cur, TOKEN_ARROW):
+        cur = parser_advance(cur)
+        let rr: ParseResult = parse_type(cur)
+        cur = rr.state
+        ret_idx = rr.node
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(param_names))
+    var pi: Int = 0
+    while pi < len(param_names):
+        push(data, param_names[pi])
+        push(data, param_types[pi])
+        pi = pi + 1
+    push(data, ret_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_PATCH, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_law_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip law
+    // law name(params) -> Bool: body
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        cur = parser_synchronize(cur)
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var param_names: Array<Int> = []
+    var param_types: Array<Int> = []
+    if parser_check(cur, TOKEN_LPAREN):
+        cur = parser_advance(cur)
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let pn: Token = parser_current(cur)
+            if pn.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let pr: (ParserState, Int) = parser_intern(cur, pn.text)
+                cur = pr.0
+                push(param_names, pr.1)
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let pt: ParseResult = parse_type(cur)
+                cur = pt.state
+                push(param_types, pt.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            else:
+                break
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(param_names))
+    var pi: Int = 0
+    while pi < len(param_names):
+        push(data, param_names[pi])
+        push(data, param_types[pi])
+        pi = pi + 1
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_LAW, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_axiom_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip axiom
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_AXIOM, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_converge_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip converge
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Parameters
+    var param_names: Array<Int> = []
+    var param_types: Array<Int> = []
+    if parser_check(cur, TOKEN_LPAREN):
+        cur = parser_advance(cur)
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let pn: Token = parser_current(cur)
+            if pn.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let pr: (ParserState, Int) = parser_intern(cur, pn.text)
+                cur = pr.0
+                push(param_names, pr.1)
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let pt: ParseResult = parse_type(cur)
+                cur = pt.state
+                push(param_types, pt.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            else:
+                break
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+
+    var ret_idx: Int = -1
+    if parser_check(cur, TOKEN_ARROW):
+        cur = parser_advance(cur)
+        let rr: ParseResult = parse_type(cur)
+        cur = rr.state
+        ret_idx = rr.node
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(param_names))
+    var pi: Int = 0
+    while pi < len(param_names):
+        push(data, param_names[pi])
+        push(data, param_types[pi])
+        pi = pi + 1
+    push(data, ret_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_CONVERGE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_world_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip world
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_WORLD, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_entangle_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip entangle
+    // Stub: parse identifiers until colon, then body
+    var segs: Array<Int> = []
+    while not parser_check(cur, TOKEN_COLON) and not parser_is_at_end(cur):
+        let tok: Token = parser_current(cur)
+        if tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let sr: (ParserState, Int) = parser_intern(cur, tok.text)
+            cur = sr.0
+            push(segs, sr.1)
+        else:
+            cur = parser_advance(cur)
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(segs))
+    var si: Int = 0
+    while si < len(segs):
+        push(data, segs[si])
+        si = si + 1
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_ENTANGLE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// Stub item parsers for remaining contextual items (orchestrate, pulse, resonate, shatter, include, import, from import, component, shader, actor)
+
+pub fn parse_orchestrate_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip orchestrate
+    var body_idx: Int = -1
+    // Consume name
+    let nt: Token = parser_current(cur)
+    if nt.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_ORCHESTRATE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_pulse_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip pulse
+    var body_idx: Int = -1
+    let nt: Token = parser_current(cur)
+    if nt.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_PULSE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_resonate_item(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip resonate
+    var body_idx: Int = -1
+    let nt: Token = parser_current(cur)
+    if nt.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_RESONATE, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_shatter_struct(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let mut cur: ParserState = parser_advance(state)  // skip shatter
+    // Expect struct keyword
+    if parser_check(cur, TOKEN_STRUCT):
+        cur = parser_advance(cur)
+    // Parse as struct but mark with shatter flag
+    let result: ParseResult = parse_struct(cur, vis, attrs)
+    // Tag the result as shatter by setting a flag?
+    // For now, just reuse struct item kind with the node as-is
+    // The typechecker will handle the shatter semantic
+    return result
+
+pub fn parse_include(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip include
+    // include <path> as alias or include "path" as alias
+    var path_idx: Int = -1
+    let tok: Token = parser_current(cur)
+    if tok.kind == TOKEN_STRING:
+        cur = parser_advance(cur)
+        let pr: (ParserState, Int) = parser_intern(cur, tok.literal_string)
+        cur = pr.0
+        path_idx = pr.1
+    elif tok.kind == TOKEN_LT:
+        // System header <path>
+        cur = parser_advance(cur)
+        var header: String = ""
+        while not parser_check(cur, TOKEN_GT) and not parser_is_at_end(cur):
+            let ht: Token = parser_current(cur)
+            header = header + ht.text
+            cur = parser_advance(cur)
+        if parser_check(cur, TOKEN_GT):
+            cur = parser_advance(cur)
+        let pr: (ParserState, Int) = parser_intern(cur, header)
+        cur = pr.0
+        path_idx = pr.1
+    var alias_idx: Int = -1
+    if parser_check(cur, TOKEN_AS):
+        cur = parser_advance(cur)
+        let at: Token = parser_current(cur)
+        if at.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let ar: (ParserState, Int) = parser_intern(cur, at.text)
+            cur = ar.0
+            alias_idx = ar.1
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, path_idx)
+    push(data, alias_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_IMPORT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_import(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip import
+    var path_parts: Array<Int> = []
+    let tok: Token = parser_current(cur)
+    if tok.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+        let ir: (ParserState, Int) = parser_intern(cur, tok.text)
+        cur = ir.0
+        push(path_parts, ir.1)
+    var alias_idx: Int = -1
+    if parser_check(cur, TOKEN_AS):
+        cur = parser_advance(cur)
+        let at: Token = parser_current(cur)
+        if at.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let ar: (ParserState, Int) = parser_intern(cur, at.text)
+            cur = ar.0
+            alias_idx = ar.1
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, len(path_parts))
+    var pi: Int = 0
+    while pi < len(path_parts):
+        push(data, path_parts[pi])
+        pi = pi + 1
+    push(data, alias_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_IMPORT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+pub fn parse_from_import(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip from
+    var module_idx: Int = -1
+    let mt: Token = parser_current(cur)
+    if mt.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+        let mr: (ParserState, Int) = parser_intern(cur, mt.text)
+        cur = mr.0
+        module_idx = mr.1
+    // import name
+    var import_idx: Int = -1
+    if parser_check(cur, TOKEN_IDENT) and parser_current(cur).text == "import":
+        cur = parser_advance(cur)
+        let it: Token = parser_current(cur)
+        if it.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            let irr: (ParserState, Int) = parser_intern(cur, it.text)
+            cur = irr.0
+            import_idx = irr.1
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, module_idx)
+    push(data, import_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_IMPORT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Component ──
+
+pub fn parse_component(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip component
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    // Optional props: (prop: Type, ...)
+    var prop_names: Array<Int> = []
+    var prop_types: Array<Int> = []
+    if parser_check(cur, TOKEN_LPAREN):
+        cur = parser_advance(cur)
+        while not parser_check(cur, TOKEN_RPAREN) and not parser_is_at_end(cur):
+            let pn: Token = parser_current(cur)
+            if pn.kind == TOKEN_IDENT:
+                cur = parser_advance(cur)
+                let pr: (ParserState, Int) = parser_intern(cur, pn.text)
+                cur = pr.0
+                push(prop_names, pr.1)
+                if parser_check(cur, TOKEN_COLON):
+                    cur = parser_advance(cur)
+                let pt: ParseResult = parse_type(cur)
+                cur = pt.state
+                push(prop_types, pt.node)
+                if parser_check(cur, TOKEN_COMMA):
+                    cur = parser_advance(cur)
+            else:
+                break
+        if parser_check(cur, TOKEN_RPAREN):
+            cur = parser_advance(cur)
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, len(prop_names))
+    var pi: Int = 0
+    while pi < len(prop_names):
+        push(data, prop_names[pi])
+        push(data, prop_types[pi])
+        pi = pi + 1
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_COMPONENT, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Shader ──
+
+pub fn parse_shader(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip shader
+    var body_idx: Int = -1
+    // shader vertex/compute Name(params):
+    let kind_tok: Token = parser_current(cur)
+    if kind_tok.kind == TOKEN_VERTEX or kind_tok.kind == TOKEN_FRAGMENT or kind_tok.kind == TOKEN_COMPTIME or
+       (kind_tok.kind == TOKEN_IDENT and kind_tok.text == "compute"):
+        cur = parser_advance(cur)
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind == TOKEN_IDENT:
+        cur = parser_advance(cur)
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_SHADER, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ── Actor ──
+
+pub fn parse_actor(state: ParserState, vis: Int, attrs: Array<Int>) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip actor
+
+    let name_tok: Token = parser_current(cur)
+    if name_tok.kind != TOKEN_IDENT:
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let name_result: (ParserState, Int) = parser_intern(cur, name_tok.text)
+    cur = name_result.0
+    let name_idx: Int = name_result.1
+
+    var body_idx: Int = -1
+    if parser_check(cur, TOKEN_COLON):
+        cur = parser_advance(cur)
+        let br: ParseResult = parse_block_or_expr(cur)
+        cur = br.state
+        body_idx = br.node
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, name_idx)
+    push(data, body_idx)
+    let node: AstNode = ast_new_node(AST_ITEM_ACTOR, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JSX PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn parse_jsx_element(state: ParserState) -> ParseResult:
+    let start: Int = parser_current(state).byte_offset
+    let mut cur: ParserState = parser_advance(state)  // skip <
+
+    // Tag name
+    let tag_tok: Token = parser_current(cur)
+    if tag_tok.kind != TOKEN_IDENT:
+        cur = parser_error(cur, "expected JSX tag name", ERR_PARSE_EXPECTED_TOKEN,
+            tag_tok.byte_offset, tag_tok.byte_offset + len(tag_tok.text))
+        return ParseResult { state: cur, node: -1 }
+    cur = parser_advance(cur)
+    let tag_result: (ParserState, Int) = parser_intern(cur, tag_tok.text)
+    cur = tag_result.0
+    let tag_idx: Int = tag_result.1
+
+    // Attributes
+    var attr_names: Array<Int> = []
+    var attr_values: Array<Int> = []
+    loop:
+        let tkind: Int = parser_current(cur).kind
+        if tkind == TOKEN_GT or tkind == TOKEN_SLASH:
+            break
+        if tkind == TOKEN_IDENT:
+            let aname_tok: Token = parser_current(cur)
+            cur = parser_advance(cur)
+            let anr: (ParserState, Int) = parser_intern(cur, aname_tok.text)
+            cur = anr.0
+            push(attr_names, anr.1)
+            if parser_check(cur, TOKEN_EQ):
+                cur = parser_advance(cur)
+                let aval_tok: Token = parser_current(cur)
+                if aval_tok.kind == TOKEN_STRING:
+                    cur = parser_advance(cur)
+                    let avr: (ParserState, Int) = parser_intern(cur, aval_tok.literal_string)
+                    cur = avr.0
+                    push(attr_values, avr.1)
+                elif aval_tok.kind == TOKEN_LBRACE:
+                    cur = parser_advance(cur)
+                    let expr_res: ParseResult = parse_expr(cur)
+                    cur = expr_res.state
+                    push(attr_values, expr_res.node)
+                    if parser_check(cur, TOKEN_RBRACE):
+                        cur = parser_advance(cur)
+                else:
+                    push(attr_values, -1)
+            else:
+                push(attr_values, -1)
+        else:
+            cur = parser_advance(cur)
+
+    // Self-closing tag: <tag />
+    var children_idxs: Array<Int> = []
+    if parser_check(cur, TOKEN_SLASH):
+        cur = parser_advance(cur)
+        if parser_check(cur, TOKEN_GT):
+            cur = parser_advance(cur)
+        let end_off: Int = parser_current(cur).byte_offset
+        let mut data: Array<Int> = []
+        push(data, tag_idx)
+        push(data, len(attr_names))
+        var ai: Int = 0
+        while ai < len(attr_names):
+            push(data, attr_names[ai])
+            push(data, attr_values[ai])
+            ai = ai + 1
+        push(data, 0)  // no children
+        let node: AstNode = ast_new_node(AST_EXPR_JSX, start, end_off, data)
+        let idx: Int = len(cur.program)
+        push(cur.program, node)
+        return ParseResult { state: cur, node: idx }
+
+    // Opening >
+    if parser_check(cur, TOKEN_GT):
+        cur = parser_advance(cur)
+
+    // Children
+    while not parser_is_at_end(cur):
+        // Check for closing tag
+        if parser_check(cur, TOKEN_LT_SLASH):
+            break
+        let ckind: Int = parser_current(cur).kind
+        if ckind == TOKEN_LT:
+            // Nested JSX element
+            let child_res: ParseResult = parse_jsx_element(cur)
+            cur = child_res.state
+            if child_res.node >= 0:
+                push(children_idxs, child_res.node)
+        elif ckind == TOKEN_LBRACE:
+            // Expression interpolation {expr}
+            cur = parser_advance(cur)
+            let expr_res: ParseResult = parse_expr(cur)
+            cur = expr_res.state
+            if expr_res.node >= 0:
+                push(children_idxs, expr_res.node)
+            if parser_check(cur, TOKEN_RBRACE):
+                cur = parser_advance(cur)
+        elif ckind == TOKEN_NEWLINE or ckind == TOKEN_INDENT or ckind == TOKEN_DEDENT:
+            cur = parser_advance(cur)
+        elif ckind == TOKEN_IDENT or ckind == TOKEN_STRING or ckind == TOKEN_INT:
+            // Text content
+            let text_tok: Token = parser_current(cur)
+            cur = parser_advance(cur)
+            let txt: String = text_tok.text
+            let tr: (ParserState, Int) = parser_intern(cur, txt)
+            cur = tr.0
+            let text_node: AstNode = ast_new_leaf(AST_EXPR_STRING, text_tok.byte_offset,
+                text_tok.byte_offset + len(txt), tr.1)
+            let tidx: Int = len(cur.program)
+            push(cur.program, text_node)
+            push(children_idxs, tidx)
+        else:
+            cur = parser_advance(cur)
+
+    // Closing tag: </tag>
+    if parser_check(cur, TOKEN_LT_SLASH):
+        cur = parser_advance(cur)
+        let close_tok: Token = parser_current(cur)
+        if close_tok.kind == TOKEN_IDENT:
+            cur = parser_advance(cur)
+            if parser_check(cur, TOKEN_GT):
+                cur = parser_advance(cur)
+
+    let end_off: Int = parser_current(cur).byte_offset
+    let mut data: Array<Int> = []
+    push(data, tag_idx)
+    push(data, len(attr_names))
+    var aai: Int = 0
+    while aai < len(attr_names):
+        push(data, attr_names[aai])
+        push(data, attr_values[aai])
+        aai = aai + 1
+    push(data, len(children_idxs))
+    var ci: Int = 0
+    while ci < len(children_idxs):
+        push(data, children_idxs[ci])
+        ci = ci + 1
+    let node: AstNode = ast_new_node(AST_EXPR_JSX, start, end_off, data)
+    let idx: Int = len(cur.program)
+    push(cur.program, node)
+    return ParseResult { state: cur, node: idx }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER: bitcast float to int (stub — relies on compiler intrinsic)
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn bitcast_float_to_int(f: Float) -> Int:
+    // Stub: use as cast for now
+    return f as Int
+
+// Missing constants referenced in code (defined elsewhere but aliased here)
+pub const UNOP_ADD: Int = 6
+pub const UNOP_SUB: Int = 7
+
+// Helper to extract span end from a node (needed by assignment desugaring)
+pub fn node_data_end(cur: ParserState, node_idx: Int) -> Int:
+    if node_idx < 0 or node_idx >= len(cur.program):
+        return 0
+    return cur.program[node_idx].span_end
+
+// Missing method on ParseResult (used in parse_item for span computation)
+pub fn node_data_start(result: ParseResult) -> Int:
+    let p: ParserState = result.state
+    let n: Int = result.node
+    if n < 0 or n >= len(p.program):
+        return 0
+    return p.program[n].span_start
+
+pub fn node_data_end_res(result: ParseResult) -> Int:
+    let p: ParserState = result.state
+    let n: Int = result.node
+    if n < 0 or n >= len(p.program):
+        return 0
+    return p.program[n].span_end
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END PARSE.KN — DELTA
+// ═══════════════════════════════════════════════════════════════════════════
