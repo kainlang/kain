@@ -11,6 +11,7 @@ specs/
 *.lnk
 *.exe
 /spec
+.pi/
 *.ptx
 *.spv
 *.wgsl

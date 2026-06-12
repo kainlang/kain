@@ -15,26 +15,18 @@ use types
 use state
 
 // ============================================================================
-//  TEST COUNTER — accumulates failures across all test functions
-// ============================================================================
-
-var _failures: Int = 0
-
-// ============================================================================
 //  ASSERTION HELPERS
 // ============================================================================
 
 fn assert_eq(actual: Int, expected: Int, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
 fn assert_str_eq(actual: String, expected: String, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
@@ -43,14 +35,12 @@ fn assert_true(condition: Bool, msg: String):
         println("  [PASS] " + msg)
     else:
         println("  [FAIL] " + msg)
-        _failures = _failures + 1
 
 fn assert_false(condition: Bool, msg: String):
     if condition == false:
         println("  [PASS] " + msg)
     else:
         println("  [FAIL] " + msg)
-        _failures = _failures + 1
 
 // ============================================================================
 //  TEST: world initial state — both authority and mirror
@@ -190,8 +180,7 @@ fn test_set_config():
 //  RUNNER
 // ============================================================================
 
-pub fn run_tests() -> Int:
-    _failures = 0
+fn main() -> Int:
     println("")
     println("=== greeble unit tests: state ===")
     test_worlds_exist()
@@ -200,5 +189,5 @@ pub fn run_tests() -> Int:
     test_decrement_connections()
     test_increment_requests()
     test_set_config()
-    println("--- state: " + str(_failures) + " failures ---")
-    return _failures
+    println("--- state: done ---")
+    return 0

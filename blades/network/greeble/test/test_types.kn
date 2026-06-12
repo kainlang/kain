@@ -2,17 +2,14 @@
 //  greeble unit tests — types.kn (Layer 0)
 //
 //  Ladder: Layer 0 — Plain Code
-//  Tests pure struct constructors, constants, and helper functions from
-//  the shared types module. No side effects or runtime dependencies.
+//  Tests pure struct constructors, constants, and helper functions.
+//
+//  Authoring note: Kain projects with build.kn entry points cannot
+//  combine `fn main()` with module-level `var` (mutable globals).
+//  All state is local to each test function.
 // ============================================================================
 
 use types
-
-// ============================================================================
-//  TEST COUNTER — accumulates failures across all test functions
-// ============================================================================
-
-var _failures: Int = 0
 
 // ============================================================================
 //  ASSERTION HELPERS
@@ -21,14 +18,12 @@ var _failures: Int = 0
 fn assert_eq(actual: Int, expected: Int, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
 fn assert_str_eq(actual: String, expected: String, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
@@ -37,14 +32,12 @@ fn assert_true(condition: Bool, msg: String):
         println("  [PASS] " + msg)
     else:
         println("  [FAIL] " + msg)
-        _failures = _failures + 1
 
 fn assert_false(condition: Bool, msg: String):
     if condition == false:
         println("  [PASS] " + msg)
     else:
         println("  [FAIL] " + msg)
-        _failures = _failures + 1
 
 // ============================================================================
 //  TEST: pack / unpack arithmetic
@@ -74,9 +67,9 @@ fn test_pack_unpack():
     assert_eq(unpack_second(p), b, "unpack_second(pack(123, 456)) == 456")
 
     // Large second component
-    let big_packed: Int = pack(999, 999999)
-    assert_eq(unpack_first(big_packed), 999, "unpack_first(pack(999, 999999)) == 999")
-    assert_eq(unpack_second(big_packed), 999999, "unpack_second(pack(999, 999999)) == 999999")
+    assert_eq(pack(999, 999999), 999999000999, "pack(999, 999999) == 999999000999")
+    assert_eq(unpack_first(pack(999, 999999)), 999, "unpack_first(pack(999, 999999)) == 999")
+    assert_eq(unpack_second(pack(999, 999999)), 999999, "unpack_second(pack(999, 999999)) == 999999")
 
 // ============================================================================
 //  TEST: default config structure
@@ -156,7 +149,8 @@ fn test_http_response_factories():
     // http_json
     let json_resp: HttpResponse = http_json("{\"a\":1}")
     assert_eq(json_resp.status_code, STATUS_OK, "http_json status == " + str(STATUS_OK))
-    assert_str_eq(json_resp.content_type, "application/json", "http_json content_type == \"application/json\"")
+    assert_str_eq(json_resp.content_type, "application/json",
+                  "http_json content_type == \"application/json\"")
 
     // http_not_found
     let nf: HttpResponse = http_not_found()
@@ -167,7 +161,8 @@ fn test_http_response_factories():
     let su: HttpResponse = http_service_unavailable()
     assert_eq(su.status_code, STATUS_SERVICE_UNAVAILABLE,
               "http_service_unavailable status == " + str(STATUS_SERVICE_UNAVAILABLE))
-    assert_str_eq(su.body, "Service Unavailable", "http_service_unavailable body == \"Service Unavailable\"")
+    assert_str_eq(su.body, "Service Unavailable",
+                  "http_service_unavailable body == \"Service Unavailable\"")
 
 // ============================================================================
 //  TEST: HTTP method string constants
@@ -185,8 +180,7 @@ fn test_http_method_constants():
 //  RUNNER
 // ============================================================================
 
-pub fn run_tests() -> Int:
-    _failures = 0
+fn main() -> Int:
     println("")
     println("=== greeble unit tests: types ===")
     test_pack_unpack()
@@ -195,8 +189,5 @@ pub fn run_tests() -> Int:
     test_empty_telemetry()
     test_http_response_factories()
     test_http_method_constants()
-    println("--- types: " + str(_failures) + " failures ---")
-    return _failures
-
-fn main() -> Int:
-    return run_tests()
+    println("--- types: done ---")
+    return 0

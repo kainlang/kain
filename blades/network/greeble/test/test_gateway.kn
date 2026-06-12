@@ -56,7 +56,7 @@ fn test_rate_limiter_spawn() -> Int:
         return 1
 
     // Verify it responds to Check with a non-negative packed result
-    let result = ask(limiter, "Check", "ping")
+    let result: Int = ask(limiter, "Check", "ping") as Int
     if result < 0:
         println("  [FAIL] Check returned negative: " + str(result))
         return 2
@@ -72,7 +72,7 @@ fn test_rate_limiter_allows_under_limit() -> Int:
 
     var i: Int = 0
     while i < 5:
-        let result = ask(limiter, "Check", "key_" + str(i))
+        let result: Int = ask(limiter, "Check", "key_" + str(i)) as Int
         let allowed = unpack_first(result)
         if allowed != 1:
             println("  [FAIL] request " + str(i) + " denied (allowed=" + str(allowed) + ")")
@@ -95,7 +95,7 @@ fn test_rate_limiter_denies_over_limit() -> Int:
     // First 3 should be allowed
     var i: Int = 0
     while i < 3:
-        let result = ask(limiter, "Check", "burst")
+        let result: Int = ask(limiter, "Check", "burst") as Int
         let allowed = unpack_first(result)
         if allowed != 1:
             println("  [FAIL] request " + str(i+1) + "/3 denied, expected allowed=1")
@@ -103,7 +103,7 @@ fn test_rate_limiter_denies_over_limit() -> Int:
         i = i + 1
 
     // 4th should be denied
-    let result4 = ask(limiter, "Check", "burst")
+    let result4: Int = ask(limiter, "Check", "burst") as Int
     let allowed4 = unpack_first(result4)
     if allowed4 != 0:
         println("  [FAIL] 4th request allowed (allowed=" + str(allowed4) + "), expected denied")
@@ -131,7 +131,7 @@ fn test_auth_gate_spawn() -> Int:
         return 5
 
     // Validate a token with no tokens added — should return 0 (not found)
-    let found = ask(gate, "Validate", "token1")
+    let found: Int = ask(gate, "Validate", "token1") as Int
     if found != 0:
         println("  [FAIL] Validate returned " + str(found) + ", expected 0 (empty gate)")
         return 6
@@ -148,13 +148,13 @@ fn test_auth_gate_add_and_validate() -> Int:
     send gate.AddToken(token = "secret")
 
     // Validate the good token — should return 1
-    let found_good = ask(gate, "Validate", "secret")
+    let found_good: Int = ask(gate, "Validate", "secret") as Int
     if found_good != 1:
         println("  [FAIL] Validate(\"secret\") returned " + str(found_good) + ", expected 1")
         return 7
 
     // Validate a wrong token — should return 0
-    let found_wrong = ask(gate, "Validate", "wrong")
+    let found_wrong: Int = ask(gate, "Validate", "wrong") as Int
     if found_wrong != 0:
         println("  [FAIL] Validate(\"wrong\") returned " + str(found_wrong) + ", expected 0")
         return 8
@@ -175,13 +175,13 @@ fn test_auth_gate_revoke() -> Int:
     send gate.RevokeToken(token = "temp")
 
     // Validate revoked token — should return 0
-    let found_revoked = ask(gate, "Validate", "temp")
+    let found_revoked: Int = ask(gate, "Validate", "temp") as Int
     if found_revoked != 0:
         println("  [FAIL] Validate(\"temp\") after revoke returned " + str(found_revoked) + ", expected 0")
         return 9
 
     // Validate permanent token — should still return 1
-    let found_perm = ask(gate, "Validate", "permanent")
+    let found_perm: Int = ask(gate, "Validate", "permanent") as Int
     if found_perm != 1:
         println("  [FAIL] Validate(\"permanent\") after revoke returned " + str(found_perm) + ", expected 1")
         return 10

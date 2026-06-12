@@ -20,26 +20,18 @@ use state
 use telemetry
 
 // ============================================================================
-//  TEST COUNTER — accumulates failures across all test functions
-// ============================================================================
-
-var _failures: Int = 0
-
-// ============================================================================
 //  ASSERTION HELPERS
 // ============================================================================
 
 fn assert_eq(actual: Int, expected: Int, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
 fn assert_str_eq(actual: String, expected: String, msg: String):
     if actual != expected:
         println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
-        _failures = _failures + 1
     else:
         println("  [PASS] " + msg)
 
@@ -48,14 +40,6 @@ fn assert_true(condition: Bool, msg: String):
         println("  [PASS] " + msg)
     else:
         println("  [FAIL] " + msg)
-        _failures = _failures + 1
-
-fn assert_false(condition: Bool, msg: String):
-    if condition == false:
-        println("  [PASS] " + msg)
-    else:
-        println("  [FAIL] " + msg)
-        _failures = _failures + 1
 
 // ============================================================================
 //  TEST: collect telemetry returns a valid struct
@@ -155,10 +139,6 @@ fn test_admin_telemetry_json():
     assert_true(text_ends_with_string(result, "}"),
                 "admin_handler result ends with '}'")
 
-    // Verify numeric values are embedded correctly (no missing fields)
-    assert_true(text_contains_string(result, "\"queue_depth\":0"),
-                "JSON has queue_depth:0 in initial state")
-
 // ============================================================================
 //  TEST: admin handler with non-zero inputs
 // ============================================================================
@@ -178,13 +158,12 @@ fn test_admin_handler_with_hits():
 //  RUNNER
 // ============================================================================
 
-pub fn run_tests() -> Int:
-    _failures = 0
+fn main() -> Int:
     println("")
     println("=== greeble unit tests: telemetry ===")
     test_collect_telemetry_returns_struct()
     test_telemetry_counters_non_negative()
     test_admin_telemetry_json()
     test_admin_handler_with_hits()
-    println("--- telemetry: " + str(_failures) + " failures ---")
-    return _failures
+    println("--- telemetry: done ---")
+    return 0

@@ -55,7 +55,7 @@ fn test_worker_spawn_and_process() -> Int:
         return 1
 
     // Process a request — returns packed(processed, checksum)
-    let result = ask(worker, "Process", "hello")
+    let result: Int = ask(worker, "Process", "hello") as Int
     let processed = unpack_first(result)
     let checksum = unpack_second(result)
 
@@ -66,8 +66,8 @@ fn test_worker_spawn_and_process() -> Int:
         println("  [FAIL] checksum expected > 0, got " + str(checksum))
         return 3
 
-    // GetStats should confirm processed=1
-    let stats = ask(worker, "GetStats", 0)
+    // GetStats should confirm processed = 1
+    let stats: Int = ask(worker, "GetStats", 0) as Int
     let stats_processed = unpack_first(stats)
     let stats_checksum = unpack_second(stats)
 
@@ -89,9 +89,9 @@ fn test_worker_multiple_requests() -> Int:
     let worker = spawn WorkerActor(id = 2)
 
     var i: Int = 0
-    var last_packed = 0
+    var last_packed: Int = 0
     while i < 5:
-        last_packed = ask(worker, "Process", "req_" + str(i))
+        last_packed = ask(worker, "Process", "req_" + str(i)) as Int
         i = i + 1
 
     let final_processed = unpack_first(last_packed)
@@ -123,7 +123,7 @@ fn test_worker_pool_spawn() -> Int:
         return 8
 
     // Verify pool responds to GetPoolStats
-    let stats = ask(pool, "GetPoolStats", 0)
+    let stats: Int = ask(pool, "GetPoolStats", 0) as Int
     let total_processed = unpack_first(stats)
     let total_checksum = unpack_second(stats)
 
@@ -144,7 +144,7 @@ fn test_worker_pool_dispatch() -> Int:
     let pool = spawn_worker_pool(4, 64)
 
     // Dispatch one request
-    let result = ask(pool, "Dispatch", "request1")
+    let result: Int = ask(pool, "Dispatch", "request1") as Int
     if result < 0:
         println("  [FAIL] Dispatch returned negative: " + str(result))
         return 11
@@ -160,7 +160,7 @@ fn test_worker_pool_dispatch() -> Int:
         return 13
 
     // GetPoolStats should confirm total_processed >= 1
-    let stats = ask(pool, "GetPoolStats", 0)
+    let stats: Int = ask(pool, "GetPoolStats", 0) as Int
     let total_processed = unpack_first(stats)
     let total_checksum = unpack_second(stats)
 
@@ -182,13 +182,13 @@ fn test_worker_pool_round_robin() -> Int:
 
     // Dispatch 8 requests
     var i: Int = 0
-    var last_result = 0
+    var last_result: Int = 0
     while i < 8:
-        last_result = ask(pool, "Dispatch", "round_robin_" + str(i))
+        last_result = ask(pool, "Dispatch", "round_robin_" + str(i)) as Int
         i = i + 1
 
     // Pool stats should show total_processed = 8
-    let stats = ask(pool, "GetPoolStats", 0)
+    let stats: Int = ask(pool, "GetPoolStats", 0) as Int
     let total_processed = unpack_first(stats)
     let total_checksum = unpack_second(stats)
 
