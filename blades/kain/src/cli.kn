@@ -1,276 +1,300 @@
-// ============================================================================
-//  cli.kn — CLI argument parser and dispatcher for Kain starter projects
+// cli.kn — CLI argument parsing + subcommand tree
+// STREAM: GOLF
 //
-//  Design follows markscript's proven pattern:
-//    get_user_args()  → portable argv wrapper (strips executable path)
-//    parse_args()     → flag + subcommand parsing → CliConfig
-//    usage()          → clap-like help text, exit codes, subcommands
+// Parses command-line arguments into a CliConfig and dispatches to the
+// appropriate subcommand. All compilation work is delegated to CHARLIE's
+// orchestrator entry points (orch_*_cli).
 //
-//  Ladder: Layer 0 — plain fn with Pure effect. No world, no actor.
-//  Just CLI hygiene that translates argv into a typed config struct.
-//
-//  Subcommands:
-//    run <file>       Execute the default pipeline (default when <file> given)
-//    check <file>     Validate and verify (compile-only)
-//    help             Show this help message
-//    version          Show version
-//    exec <expr>      Execute a one-shot expression
-//
-//  Exit codes:
-//    0   — success
-//    1   — help or version shown (not an error)
-//    2   — error — file not found, parse failure, runtime
-//    3   — unknown subcommand or flag
-// ============================================================================
+// SELF-CONTAINED: local stubs for orchestrator functions when imported
+// standalone. When combined with orchestrator.kn, the real implementations
+// are available.
 
-use std::process
+use std::fs
 
-// ============================================================================
-//  EXIT CODE CONSTANTS
-// ============================================================================
+// ── Forward declarations for orchestrator functions (from orchestrator.kn) ──
+// These are resolved at link time when all files are combined.
 
-pub const EXIT_OK:      Int = 0
-pub const EXIT_HELP:    Int = 1   // help or version shown (no error)
-pub const EXIT_ERROR:   Int = 2   // file not found, parse failure, runtime error
-pub const EXIT_UNKNOWN: Int = 3   // unknown subcommand or flag
+pub fn orch_check_cli(input_path: String) -> Int with IO:
+    println("[ORCH STUB] orch_check_cli: " + input_path)
+    return 0
 
-// ============================================================================
-//  SUBCOMMAND CONSTANTS
-// ============================================================================
+pub fn orch_build_cli(input_path: String, target: String, profile: String, stage: String) -> Int with IO:
+    println("[ORCH STUB] orch_build_cli: " + input_path)
+    return 0
 
-pub const SUBCMD_RUN:     String = "run"
-pub const SUBCMD_CHECK:   String = "check"
-pub const SUBCMD_HELP:    String = "help"
-pub const SUBCMD_VERSION: String = "version"
-pub const SUBCMD_EXEC:    String = "exec"
-pub const SUBCMD_NONE:    String = ""
+pub fn orch_run_cli(input_path: String) -> Int with IO:
+    println("[ORCH STUB] orch_run_cli: " + input_path)
+    return 0
 
-// ============================================================================
-//  CLI CONFIG — typed result of CLI argument parsing
-// ============================================================================
+pub fn orch_test_cli(input_path: String) -> Int with IO:
+    println("[ORCH STUB] orch_test_cli: " + input_path)
+    return 0
+
+pub fn orch_selfhost_cli(verify: Bool) -> Int with IO:
+    println("[ORCH STUB] orch_selfhost_cli: verify=" + str(verify))
+    return 0
+
+// ═══════════════════════════════════════════════════════════════════
+// Subcommand Constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub const SUBCMD_CHECK:      Int = 0
+pub const SUBCMD_BUILD:      Int = 1
+pub const SUBCMD_RUN:        Int = 2
+pub const SUBCMD_TEST:       Int = 3
+pub const SUBCMD_SELFHOST:   Int = 4
+pub const SUBCMD_FMT:        Int = 5
+pub const SUBCMD_AMALGAMATE: Int = 6
+pub const SUBCMD_DOCTOR:     Int = 7
+pub const SUBCMD_CONFIG:     Int = 8
+pub const SUBCMD_CLEAN:      Int = 9
+pub const SUBCMD_HELP:       Int = 10
+pub const SUBCMD_VERSION:    Int = 11
+
+// ═══════════════════════════════════════════════════════════════════
+// CliConfig
+// ═══════════════════════════════════════════════════════════════════
 
 pub struct CliConfig:
-    subcommand:   String     // "run", "check", "help", "version", "exec"
-    filepath:     String     // path to input file
-    output_path:  String     // --output / -o value
-    quiet:        Bool       // suppress runtime logging (--quiet, -q)
-    json:         Bool       // structured JSON output (--json)
-    show_help:    Bool       // --help / -h flag
-    show_version: Bool       // --version / -v flag
+    subcommand:       Int
+    input_path:       String
+    target:           String
+    profile:          String
+    json_output:      Bool
+    json_out_path:    String
+    verbose:          Bool
+    debug_info:       Bool
+    verify_ouroboros: Bool
+    stage:            String
+    extra_args:       Array<String>
 
-// ============================================================================
-//  DEFAULT CONFIG  —  sensible zero values
-// ============================================================================
-
-pub fn default_config() -> CliConfig:
+pub fn cli_config_default() -> CliConfig:
     return CliConfig {
-        subcommand: SUBCMD_RUN,
-        filepath: "",
-        output_path: "",
-        quiet: false,
-        json: false,
-        show_help: false,
-        show_version: false,
+        subcommand:       SUBCMD_HELP,
+        input_path:       ".",
+        target:           "llvm",
+        profile:          "debug",
+        json_output:      false,
+        json_out_path:    "",
+        verbose:          false,
+        debug_info:       false,
+        verify_ouroboros: false,
+        stage:            "",
+        extra_args:       [],
     }
 
-// ============================================================================
-//  GET USER ARGS  —  strips argv[0] (executable path)
-//
-//  Uses process_user_args() which portably handles the argv[0] stripping
-//  across native and interpreter lanes.
-// ============================================================================
+// ═══════════════════════════════════════════════════════════════════
+// parse_args — parse OS argv into CliConfig
+// ═══════════════════════════════════════════════════════════════════
 
-pub fn get_user_args() -> Array<String>:
-    return process_user_args()
+pub fn parse_args(args: Array<String>) -> CliConfig:
+    let mut config: CliConfig = cli_config_default()
 
-// ============================================================================
-//  USAGE  —  clap-like help text
-// ============================================================================
+    if len(args) < 2:
+        return config
 
-pub fn usage() -> String:
-    var text = "Starter CLI 0.1.0\n"
-    text = text + "A Kain starter project for CLI tools.\n"
-    text = text + "\n"
-    text = text + "USAGE:\n"
-    text = text + "  starter <subcommand> [options] [args]\n"
-    text = text + "  starter [<file>]                Default subcommand: run\n"
-    text = text + "\n"
-    text = text + "SUBCOMMANDS:\n"
-    text = text + "  run <file>          Execute the default pipeline (default)\n"
-    text = text + "  check <file>        Validate and verify, no execution\n"
-    text = text + "  exec <expr>         Execute a one-shot expression\n"
-    text = text + "  help                Show this help message\n"
-    text = text + "  version             Show version and exit\n"
-    text = text + "\n"
-    text = text + "FLAGS:\n"
-    text = text + "  -h, --help          Show this help message and exit\n"
-    text = text + "  -v, --version       Show version and exit\n"
-    text = text + "  -q, --quiet         Suppress runtime logging and telemetry\n"
-    text = text + "      --json          Output structured JSON (where supported)\n"
-    text = text + "  -o, --output <path> Output path for results\n"
-    text = text + "\n"
-    text = text + "EXAMPLES:\n"
-    text = text + "  starter run input.txt          Run with input file\n"
-    text = text + "  starter check input.txt        Validate input\n"
-    text = text + "  starter exec 'compute 42'      One-shot expression\n"
-    text = text + "  starter --help                 Show this help\n"
-    text = text + "  starter --version              Show version\n"
-    text = text + "  starter -q --json run data     Quiet JSON output\n"
-    text = text + "\n"
-    text = text + "EXIT CODES:\n"
-    text = text + "  0   Success\n"
-    text = text + "  1   Help or version shown (no error)\n"
-    text = text + "  2   Error — file not found, parse failure, runtime\n"
-    text = text + "  3   Unknown subcommand or flag\n"
-    return text
+    let subcmd: String = args[1]
 
-pub fn version() -> String:
-    return "Starter CLI 0.1.0\n"
+    // ── Subcommand detection ──
+    if subcmd == "check":
+        config.subcommand = SUBCMD_CHECK
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "build":
+        config.subcommand = SUBCMD_BUILD
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "run":
+        config.subcommand = SUBCMD_RUN
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "test":
+        config.subcommand = SUBCMD_TEST
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "selfhost":
+        config.subcommand = SUBCMD_SELFHOST
+    elif subcmd == "fmt" or subcmd == "format":
+        config.subcommand = SUBCMD_FMT
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "amalgamate":
+        config.subcommand = SUBCMD_AMALGAMATE
+        if len(args) > 2:
+            config.input_path = args[2]
+    elif subcmd == "doctor":
+        config.subcommand = SUBCMD_DOCTOR
+    elif subcmd == "config":
+        config.subcommand = SUBCMD_CONFIG
+    elif subcmd == "clean":
+        config.subcommand = SUBCMD_CLEAN
+    elif subcmd == "--version" or subcmd == "-V" or subcmd == "version":
+        config.subcommand = SUBCMD_VERSION
+    elif subcmd == "--help" or subcmd == "-h" or subcmd == "help":
+        config.subcommand = SUBCMD_HELP
 
-// ============================================================================
-//  RECOGNIZED SUBCOMMAND SET
-// ============================================================================
+    // ── Flag parsing ──
+    var i: Int = 2
+    while i < len(args):
+        let arg: String = args[i]
 
-fn is_subcommand(s: String) -> Bool:
-    if s == SUBCMD_RUN:     return true
-    if s == SUBCMD_CHECK:   return true
-    if s == SUBCMD_HELP:    return true
-    if s == SUBCMD_VERSION: return true
-    if s == SUBCMD_EXEC:    return true
-    return false
+        if arg == "--target" or arg == "-t":
+            if i + 1 < len(args):
+                i = i + 1
+                config.target = args[i]
+        elif arg == "--profile":
+            if i + 1 < len(args):
+                i = i + 1
+                config.profile = args[i]
+        elif arg == "--json":
+            config.json_output = true
+            if i + 1 < len(args):
+                let next_val: String = args[i + 1]
+                if next_val != "" and str_starts_with_char(next_val, 0, "-"):
+                    // Next is not a flag — treat as output path
+                    // Actually we can't easily check this in bootstrap Kain
+                    // Just skip; json_out_path stays ""
+                    let dummy: Int = 0
+        elif arg == "--json-out":
+            if i + 1 < len(args):
+                i = i + 1
+                config.json_out_path = args[i]
+        elif arg == "--debug" or arg == "-g":
+            config.debug_info = true
+        elif arg == "--verify-ouroboros":
+            config.verify_ouroboros = true
+        elif arg == "--stage":
+            if i + 1 < len(args):
+                i = i + 1
+                config.stage = args[i]
+        elif arg == "-v" or arg == "--verbose":
+            config.verbose = true
+        elif arg == "--":
+            // Capture remaining args after --
+            var ei: Int = i + 1
+            while ei < len(args):
+                config.extra_args.push(args[ei])
+                ei = ei + 1
+            i = len(args)  // exit loop
+        elif str_starts_with_char(arg, 0, "-"):
+            // Unknown flag — silently skip
+            let dummy: Int = 0
 
-// ============================================================================
-//  PARSE ARGS  —  translate argv into CliConfig
-//
-//  Subcommand-first parsing:
-//    starter run file.txt     → subcommand="run",   filepath="file.txt"
-//    starter check file.txt   → subcommand="check",  filepath="file.txt"
-//    starter exec '<expr>'    → subcommand="exec",   filepath='<expr>'
-//    starter file.txt         → no subcommand, defaults to "run"
-//    starter                  → no args, shows help
-//    starter --help           → show_help=true
-//
-//  Flags can appear anywhere (after subcommand, before file, etc.).
-//  -- stops flag parsing.
-// ============================================================================
+        i = i + 1
 
-pub fn parse_args(argv: Array<String>) -> CliConfig:
-    var cfg = default_config()
-    var found_subcommand = false
-    var found_positional = false
-    var flags_done = false     // after --, everything is positional
+    return config
 
-    var index = 0
-    while index < len(argv):
-        let arg = argv[index]
+// ── Helper: check if string starts with a given first character ──
+pub fn str_starts_with_char(s: String, start_idx: Int, ch: String) -> Bool:
+    if len(s) <= start_idx:
+        return false
+    return s[start_idx] == ch
 
-        // After --, no more flag parsing
-        if arg == "--":
-            flags_done = true
-            index = index + 1
-            continue
+// ═══════════════════════════════════════════════════════════════════
+// run_subcommand — dispatch to the correct handler
+// ═══════════════════════════════════════════════════════════════════
 
-        // Flag parsing (before --)
-        if flags_done == false and char_at(arg, 0) == "-":
-            if arg == "--help" or arg == "-h":
-                cfg.show_help = true
+pub fn run_subcommand(config: CliConfig) -> Int with IO:
+    if config.subcommand == SUBCMD_HELP:
+        print_help()
+        return 0
+    elif config.subcommand == SUBCMD_VERSION:
+        println("kainc 0.1.0-alpha (2026-06-12)")
+        println("Target: x86_64-pc-windows-msvc")
+        return 0
+    elif config.subcommand == SUBCMD_CHECK:
+        return run_check(config)
+    elif config.subcommand == SUBCMD_BUILD:
+        return run_build(config)
+    elif config.subcommand == SUBCMD_RUN:
+        return run_run(config)
+    elif config.subcommand == SUBCMD_TEST:
+        return run_test(config)
+    elif config.subcommand == SUBCMD_SELFHOST:
+        return run_selfhost(config)
+    elif config.subcommand == SUBCMD_FMT:
+        return run_fmt(config)
+    elif config.subcommand == SUBCMD_DOCTOR:
+        return run_doctor(config)
+    elif config.subcommand == SUBCMD_CLEAN:
+        return run_clean(config)
 
-            elif arg == "--version" or arg == "-v":
-                cfg.show_version = true
+    return 0
 
-            elif arg == "--quiet" or arg == "-q":
-                cfg.quiet = true
+// ═══════════════════════════════════════════════════════════════════
+// Subcommand Handlers
+// ═══════════════════════════════════════════════════════════════════
 
-            elif arg == "--json":
-                cfg.json = true
+pub fn run_check(config: CliConfig) -> Int with IO:
+    println("[kainc] check: " + config.input_path)
+    // Delegate to orchestrator
+    return orch_check_cli(config.input_path)
 
-            elif arg == "--output" or arg == "-o":
-                if index + 1 < len(argv):
-                    cfg.output_path = argv[index + 1]
-                    index = index + 1
+pub fn run_build(config: CliConfig) -> Int with IO:
+    println("[kainc] build: " + config.input_path + " (target: " + config.target + ", profile: " + config.profile + ")")
+    return orch_build_cli(config.input_path, config.target, config.profile, config.stage)
 
-            // Unknown flags are silently skipped for extensibility
+pub fn run_run(config: CliConfig) -> Int with IO:
+    println("[kainc] run: " + config.input_path)
+    return orch_run_cli(config.input_path)
 
-            index = index + 1
-            continue
+pub fn run_test(config: CliConfig) -> Int with IO:
+    println("[kainc] test: " + config.input_path)
+    return orch_test_cli(config.input_path)
 
-        // Positional argument parsing
-        if found_subcommand == false:
-            if is_subcommand(arg):
-                cfg.subcommand = arg
-                found_subcommand = true
+pub fn run_selfhost(config: CliConfig) -> Int with IO:
+    println("[kainc] selfhost (verify_ouroboros: " + str(config.verify_ouroboros) + ")")
+    return orch_selfhost_cli(config.verify_ouroboros)
 
-                // Special subcommands that take no filepath
-                if arg == SUBCMD_HELP or arg == SUBCMD_VERSION:
-                    index = index + 1
-                    continue
+pub fn run_fmt(config: CliConfig) -> Int with IO:
+    println("[kainc] fmt: " + config.input_path + " — not yet implemented")
+    return 0
 
-                // Subcommands that consume the next positional
-                index = index + 1
-                continue
+pub fn run_doctor(config: CliConfig) -> Int with IO:
+    println("kainc 0.1.0-alpha (2026-06-12)")
+    println("Target: x86_64-pc-windows-msvc")
+    println("Profile: " + config.profile)
+    println("Source root: src/")
+    println("Doctor: environment check — STUB")
+    return 0
 
-            else:
-                // No subcommand found — first positional is a filepath,
-                // subcommand defaults to "run"
-                cfg.filepath = arg
-                found_positional = true
-                found_subcommand = true   // implicit "run"
-                index = index + 1
-                continue
+pub fn run_clean(config: CliConfig) -> Int with IO:
+    println("[kainc] clean — not yet implemented")
+    return 0
 
-        // We have a subcommand but haven't consumed positional values yet
-        if found_subcommand and found_positional == false:
-            if cfg.subcommand == SUBCMD_RUN:
-                cfg.filepath = arg
-                found_positional = true
+// ═══════════════════════════════════════════════════════════════════
+// Help Text
+// ═══════════════════════════════════════════════════════════════════
 
-            elif cfg.subcommand == SUBCMD_CHECK:
-                cfg.filepath = arg
-                found_positional = true
-
-            elif cfg.subcommand == SUBCMD_EXEC:
-                cfg.filepath = arg     // store expression as filepath
-                found_positional = true
-
-            else:
-                // Unexpected positional for this subcommand
-                found_positional = true
-
-            index = index + 1
-            continue
-
-        // Extra positional args — silently ignored for extensibility
-        index = index + 1
-
-    // Post-processing: if no subcommand detected and no filepath,
-    // default to showing help
-    if found_subcommand == false:
-        cfg.subcommand = SUBCMD_HELP
-
-    return cfg
-
-// ============================================================================
-//  SUBCOMMAND DISPATCH HELPERS
-// ============================================================================
-
-// Check if a subcommand requires a filepath and it's missing
-pub fn needs_filepath(subcommand: String) -> Bool:
-    if subcommand == SUBCMD_RUN:     return true
-    if subcommand == SUBCMD_CHECK:   return true
-    return false
-
-// Check if a subcommand needs execution (not just info display)
-pub fn needs_execution(subcommand: String) -> Bool:
-    if subcommand == SUBCMD_RUN:     return true
-    if subcommand == SUBCMD_CHECK:   return true
-    if subcommand == SUBCMD_EXEC:    return true
-    return false
-
-// Human-readable subcommand name for error messages
-pub fn subcommand_name(subcommand: String) -> String:
-    if subcommand == SUBCMD_RUN:     return "run"
-    if subcommand == SUBCMD_CHECK:   return "check"
-    if subcommand == SUBCMD_HELP:    return "help"
-    if subcommand == SUBCMD_VERSION: return "version"
-    if subcommand == SUBCMD_EXEC:    return "exec"
-    return "unknown"
+pub fn print_help() with IO:
+    println("kainc — Kain Self-Host Compiler 0.1.0-alpha")
+    println("")
+    println("Usage: kainc <command> [options] [input]")
+    println("")
+    println("Commands:")
+    println("  check <file>      Typecheck Kain source files")
+    println("  build <file>      Compile to native executable")
+    println("  run <file>        Compile and execute")
+    println("  test <file>       Run inline test cases")
+    println("  selfhost          Bootstrap self-compilation")
+    println("  fmt <file>        Format Kain source")
+    println("  doctor            Environment diagnostics")
+    println("  clean             Clean build artifacts")
+    println("  help              Show this help")
+    println("  version           Print version")
+    println("")
+    println("Options:")
+    println("  --target <t>      Compilation target (llvm, jit, c, rust)")
+    println("  --profile <p>     Build profile (debug, release)")
+    println("  --json            Output JSON diagnostics")
+    println("  --json-out <path> Write JSON report to file")
+    println("  --debug, -g       Include debug info")
+    println("  --stage <s>       Build stage to execute")
+    println("  --verify-ouroboros Verify self-host round-trip")
+    println("  --verbose, -v     Verbose output")
+    println("")
+    println("Examples:")
+    println("  kainc check src/main.kn")
+    println("  kainc build src/ --target llvm")
+    println("  kainc run app.kn -- -arg1 -arg2")
+    println("  kainc selfhost --verify-ouroboros")

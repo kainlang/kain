@@ -1,0 +1,352 @@
+// compiler.kn — DriverSession pipeline: Resolve→Lex→Parse→Typecheck→Mono→Codegen
+// STREAM: GOLF
+//
+// Coordinates the full compilation pipeline. SELF-CONTAINED for bootstrap
+// checking — all upstream types are mirrored locally. When combined via
+// ouroboros source_order, the real implementations from other streams
+// take precedence.
+
+use std::fs
+
+// ═══════════════════════════════════════════════════════════════════
+// Local type mirrors (standalone check compatibility)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct KcDiagnostic:
+    severity:    Int
+    file_path:   String
+    line_no:     Int
+    column:      Int
+    message:     String
+    error_kind:  String
+    span_start:  Int
+    span_end:    Int
+
+pub struct KcDiagnosticBag:
+    messages: Array<KcDiagnostic>
+
+pub fn kc_diag_bag_new() -> KcDiagnosticBag:
+    return KcDiagnosticBag { messages: [] }
+
+pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
+    return len(bag.messages) > 0
+
+pub struct Token:
+    kind:    Int
+    text:    String
+    line_no: Int
+    col_no:  Int
+
+pub struct AstNode:
+    kind:       Int
+    span_start: Int
+    span_end:   Int
+    data:       Array<Int>
+
+pub struct AstProgram:
+    root:  Int
+    nodes: Array<AstNode>
+
+pub fn ast_data_len(node: AstNode) -> Int:
+    return len(node.data)
+
+pub fn ast_data_get(node: AstNode, index: Int) -> Int:
+    if index < 0 or index >= len(node.data):
+        return -1
+    return node.data[index]
+
+pub struct ResolvedType:
+    kind:          Int
+    int_size:      Int
+    float_size:    Int
+    name:          Int
+    inner_type:    Int
+    array_len:     Int
+    tuple_types:   Int
+    tuple_len:     Int
+    result_ok:     Int
+    result_err:    Int
+    fn_params:     Int
+    fn_param_count: Int
+    fn_ret:        Int
+    fn_effects:    Int
+    ref_mut:       Bool
+
+pub struct TypedItem:
+    kind:          Int
+    name:          String
+    name_idx:      Int
+    resolved_type: ResolvedType
+    ast_index:     Int
+    effects:       Int
+
+pub struct TypedProgram:
+    items:  Array<TypedItem>
+    errors: KcDiagnosticBag
+
+pub struct MonomorphizedProgram:
+    items:       Array<TypedItem>
+    mangled_map: Array<String>
+
+pub struct BuildConfig:
+    name:        String
+    target:      String
+    profile:     String
+    entry:       String
+    source_root: String
+    output:      String
+
+pub fn build_config_default() -> BuildConfig:
+    return BuildConfig {
+        name: "kainc", target: "llvm", profile: "debug",
+        entry: "src/main.kn", source_root: "src/", output: "kainc",
+    }
+
+// ── Forward stub types for upstream modules ──
+
+pub struct LexerState:
+    source:    String
+    file_path: String
+
+pub struct LexTokensResult:
+    tokens: Array<Token>
+    errors: KcDiagnosticBag
+
+pub struct ParserState:
+    tokens:   Array<Token>
+    errors:   KcDiagnosticBag
+    prog:     AstProgram
+
+pub struct ProgResult:
+    state:   ParserState
+    program: AstProgram
+
+pub struct TypeEnv:
+    all_types: Array<ResolvedType>
+
+// ── Stub functions (resolved at ouroboros combine time) ──
+
+pub fn lexer_new(source: String, file_path: String) -> LexerState:
+    return LexerState { source: source, file_path: file_path }
+
+pub fn lexer_tokenize_all(state: LexerState) -> LexTokensResult:
+    return LexTokensResult { tokens: [], errors: kc_diag_bag_new() }
+
+pub fn parser_new(tokens: Array<Token>, file_path: String, source: String) -> ParserState:
+    return ParserState { tokens: tokens, errors: kc_diag_bag_new(),
+        prog: AstProgram { root: 0, nodes: [] } }
+
+pub fn parse(state: ParserState) -> ProgResult:
+    return ProgResult { state: state, program: state.prog }
+
+pub fn type_env_new() -> TypeEnv:
+    return TypeEnv { all_types: [] }
+
+pub fn typecheck(env: TypeEnv, prog: AstProgram) -> TypedProgram:
+    return TypedProgram { items: [], errors: kc_diag_bag_new() }
+
+pub fn monomorphize(typed: TypedProgram, env: TypeEnv) -> MonomorphizedProgram:
+    return MonomorphizedProgram { items: typed.items, mangled_map: [] }
+
+pub fn codegen_textual(prog: MonomorphizedProgram, triple: String, debug: Bool) -> String:
+    return "; stub\n"
+
+pub fn target_triple_for_platform() -> String:
+    return "x86_64-pc-windows-msvc"
+
+// ═══════════════════════════════════════════════════════════════════
+// Pipeline Phase Constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub const PHASE_RESOLVE:    Int = 0
+pub const PHASE_LEX:        Int = 1
+pub const PHASE_PARSE:      Int = 2
+pub const PHASE_TYPECHECK:  Int = 3
+pub const PHASE_MONO:       Int = 4
+pub const PHASE_CODEGEN:    Int = 5
+pub const PHASE_LINK:       Int = 6
+
+pub fn phase_name(phase: Int) -> String:
+    if phase == PHASE_RESOLVE:    return "Resolve"
+    if phase == PHASE_LEX:        return "Lex"
+    if phase == PHASE_PARSE:      return "Parse"
+    if phase == PHASE_TYPECHECK:  return "Typecheck"
+    if phase == PHASE_MONO:       return "Monomorphize"
+    if phase == PHASE_CODEGEN:    return "Codegen"
+    if phase == PHASE_LINK:       return "Link"
+    return "Unknown"
+
+// ═══════════════════════════════════════════════════════════════════
+// DriverSession
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct DriverSession:
+    source:          String
+    file_path:       String
+    diagnostics:     KcDiagnosticBag
+    config:          BuildConfig
+    progress_phase:  Int
+    frontend_cache:  Int
+    checked_cache:   Int
+    debug_info:      Bool
+
+pub fn driver_session_new() -> DriverSession:
+    return DriverSession {
+        source:          "",
+        file_path:       "",
+        diagnostics:     kc_diag_bag_new(),
+        config:          build_config_default(),
+        progress_phase:  PHASE_RESOLVE,
+        frontend_cache:  0,
+        checked_cache:   0,
+        debug_info:      false,
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// CompileResult + CheckResult
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct CompileResult:
+    success:    Bool
+    output:     String
+    exit_code:  Int
+    errors:     KcDiagnosticBag
+
+pub fn compile_result_ok(output: String) -> CompileResult:
+    return CompileResult {
+        success: true, output: output, exit_code: 0,
+        errors: kc_diag_bag_new(),
+    }
+
+pub fn compile_result_error(errors: KcDiagnosticBag) -> CompileResult:
+    return CompileResult {
+        success: false, output: "", exit_code: 1,
+        errors: errors,
+    }
+
+pub struct CheckResult:
+    success:      Bool
+    diagnostics:  KcDiagnosticBag
+
+// ═══════════════════════════════════════════════════════════════════
+// driver_session_compile — full pipeline entry
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn driver_session_compile(session: DriverSession, source: String,
+                               source_path: String, target: String) -> CompileResult with IO:
+    let mut r: DriverSession = session
+    r.source = source
+    r.file_path = source_path
+
+    // ── Phase 0: Resolve ──
+    r = emit_progress(r, PHASE_RESOLVE)
+    let ws_root: String = discover_workspace(source_path)
+    if ws_root != "":
+        let dummy: Int = 0
+
+    // ── Phase 1: Lex ──
+    r = emit_progress(r, PHASE_LEX)
+    let lexer_state: LexerState = lexer_new(r.source, r.file_path)
+    let toks_result: LexTokensResult = lexer_tokenize_all(lexer_state)
+    if kc_diag_bag_has_errors(toks_result.errors):
+        return compile_result_error(toks_result.errors)
+    let tokens: Array<Token> = toks_result.tokens
+
+    // ── Phase 2: Parse ──
+    r = emit_progress(r, PHASE_PARSE)
+    let parser_state: ParserState = parser_new(tokens, r.file_path, r.source)
+    let prog_result: ProgResult = parse(parser_state)
+    if kc_diag_bag_has_errors(prog_result.state.errors):
+        return compile_result_error(prog_result.state.errors)
+
+    // ── Phase 3: Typecheck ──
+    r = emit_progress(r, PHASE_TYPECHECK)
+    let env: TypeEnv = type_env_new()
+    let typed: TypedProgram = typecheck(env, prog_result.program)
+    if kc_diag_bag_has_errors(typed.errors):
+        return compile_result_error(typed.errors)
+
+    // ── Phase 4: Monomorphize ──
+    r = emit_progress(r, PHASE_MONO)
+    let mono: MonomorphizedProgram = monomorphize(typed, env)
+
+    // ── Phase 5: Codegen ──
+    r = emit_progress(r, PHASE_CODEGEN)
+    let llvm_text: String = codegen_textual(mono,
+        target_triple_for_platform(), r.debug_info)
+
+    if target == "llvm":
+        return compile_result_ok(llvm_text)
+    elif target == "jit":
+        return compile_result_ok(llvm_text)
+
+    return compile_result_ok(llvm_text)
+
+// ═══════════════════════════════════════════════════════════════════
+// driver_session_check — lex+parse+typecheck only
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn driver_session_check(session: DriverSession, source: String,
+                              source_path: String) -> CheckResult with IO:
+    let mut r: DriverSession = session
+    r.source = source
+    r.file_path = source_path
+
+    let lexer_state: LexerState = lexer_new(r.source, r.file_path)
+    let toks_result: LexTokensResult = lexer_tokenize_all(lexer_state)
+    if kc_diag_bag_has_errors(toks_result.errors):
+        return CheckResult { success: false, diagnostics: toks_result.errors }
+
+    let parser_state: ParserState = parser_new(toks_result.tokens, r.file_path, r.source)
+    let prog_result: ProgResult = parse(parser_state)
+    if kc_diag_bag_has_errors(prog_result.state.errors):
+        return CheckResult { success: false, diagnostics: prog_result.state.errors }
+
+    let env: TypeEnv = type_env_new()
+    let typed: TypedProgram = typecheck(env, prog_result.program)
+    if kc_diag_bag_has_errors(typed.errors):
+        return CheckResult { success: false, diagnostics: typed.errors }
+
+    return CheckResult { success: true, diagnostics: kc_diag_bag_new() }
+
+// ═══════════════════════════════════════════════════════════════════
+// emit_progress — report pipeline phase change
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn emit_progress(session: DriverSession, phase: Int) -> DriverSession:
+    let mut r: DriverSession = session
+    r.progress_phase = phase
+    let phase_str: String = phase_name(phase)
+    println("[kainc] " + phase_str + "...")
+    return r
+
+// ═══════════════════════════════════════════════════════════════════
+// discover_workspace
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn discover_workspace(start_path: String) -> String with IO:
+    var current: String = start_path
+    if fs_is_file(current):
+        current = fs_parent_dir(current)
+
+    var iterations: Int = 0
+    while iterations < 20:
+        if fs_exists(current + "/KAIN.toml"):
+            return current
+        if fs_exists(current + "/kain.toml"):
+            return current
+        if fs_exists(current + "/build.kn"):
+            return current
+
+        let parent: String = fs_parent_dir(current)
+        if parent == current or parent == "":
+            break
+        current = parent
+        iterations = iterations + 1
+
+    return ""
+
+// ── FS stubs ──
+pub fn fs_is_file(path: String) -> Bool with IO: return false
+pub fn fs_parent_dir(path: String) -> String with IO: return ""
+pub fn fs_exists(path: String) -> Bool with IO: return false

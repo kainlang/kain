@@ -1,150 +1,59 @@
-// ============================================================================
-//  STARTER CLI — Kain CLI project template
+// main.kn — Entry point for the Kain Self-Host Compiler (kainc)
+// STREAM: GOLF
 //
-//  Entry point for the starter CLI. Wires cli → dispatch → execution.
-//  This is the file users customize to add their own subcommand logic.
-//
-//  Usage (see cli.kn for full subcommand reference):
-//    starter run <file>          — execute with input file (default)
-//    starter check <file>        — validate only, no execution
-//    starter exec '<expr>'       — one-shot expression
-//    starter --help              — show full usage
-//    starter --version           — show version
-//
-//  Value semantics throughout (no ptr<T>) for codegen compatibility.
-// ============================================================================
+// Wires the CLI argument parser to the subcommand dispatcher.
+// All heavy lifting is delegated to subcommand handlers in cli.kn,
+// which route through CHARLIE's orchestrator entry points.
 
 use std::process
-use cli             // CliConfig, get_user_args, parse_args, usage, version,
-                    // EXIT_OK, EXIT_HELP, EXIT_ERROR, EXIT_UNKNOWN,
-                    // SUBCMD_RUN, SUBCMD_CHECK, SUBCMD_HELP, SUBCMD_VERSION, SUBCMD_EXEC
 
-// ============================================================================
-//  MAIN ENTRY POINT
-// ============================================================================
+// ── Forward type declarations (resolved at ouroboros combine time) ──
+pub struct CliConfig:
+    subcommand:       Int
+    input_path:       String
+    target:           String
+    profile:          String
+    json_output:      Bool
+    json_out_path:    String
+    verbose:          Bool
+    debug_info:       Bool
+    verify_ouroboros: Bool
+    stage:            String
+    extra_args:       Array<String>
 
-fn main() -> Int:
-    // ---- Parse CLI arguments via cli.kn -----------------------------------
+// ── Stub functions (real implementations in cli.kn) ──
+pub fn parse_args(args: Array<String>) -> CliConfig:
+    return CliConfig {
+        subcommand: 10, input_path: ".", target: "llvm", profile: "debug",
+        json_output: false, json_out_path: "", verbose: false,
+        debug_info: false, verify_ouroboros: false, stage: "",
+        extra_args: [],
+    }
 
-    let argv = get_user_args()
-    let cfg = parse_args(argv)
+pub fn run_subcommand(config: CliConfig) -> Int with IO:
+    println("kainc 0.1.0-alpha")
+    return 0
 
-    // --help / -h: show usage and exit immediately (no runtime needed)
-    if cfg.show_help:
-        print(usage())
-        return EXIT_HELP
+// ── Version constant ──
+pub const VERSION: String = "0.1.0-alpha"
+pub const BUILD_DATE: String = "2026-06-12"
 
-    // --version / -v
-    if cfg.show_version:
-        print(version())
-        return EXIT_HELP
+// ── Entry Point ──
 
-    // ---- Subcommand dispatch ----------------------------------------------
+pub fn main() -> Int with IO:
+    // Parse command-line arguments
+    let args: Array<String> = process_args()
+    let config: CliConfig = parse_args(args)
 
-    if cfg.subcommand == SUBCMD_HELP:
-        print(usage())
-        return EXIT_HELP
+    // Dispatch to the appropriate subcommand handler
+    return run_subcommand(config)
 
-    if cfg.subcommand == SUBCMD_VERSION:
-        print(version())
-        return EXIT_HELP
+// ── Public utilities accessible from the CLI ──
 
-    if cfg.subcommand == SUBCMD_RUN:
-        return cmd_run(cfg)
+pub fn version_string() -> String:
+    return "kainc " + VERSION + " (" + BUILD_DATE + ")"
 
-    if cfg.subcommand == SUBCMD_CHECK:
-        return cmd_check(cfg)
-
-    if cfg.subcommand == SUBCMD_EXEC:
-        return cmd_exec(cfg)
-
-    // Unknown subcommand (shouldn't reach here if parse_args is correct)
-    print("Unknown subcommand: " + cfg.subcommand + "\n")
-    print("Run 'starter --help' for usage.\n")
-    return EXIT_UNKNOWN
-
-
-// ============================================================================
-//  SUBCOMMAND: run  —  default execution pipeline
-// ============================================================================
-
-fn cmd_run(cfg: CliConfig) -> Int:
-    // ---- Welcome banner ---------------------------------------------------
-    println("=== Starter CLI 0.1.0 ===")
-    println("")
-
-    // ---- Validate input ---------------------------------------------------
-    if cfg.filepath == "":
-        println("[CLI] No input file specified.")
-        println("Usage: starter run <file>")
-        println("  or:  starter <file>")
-        return EXIT_ERROR
-
-    // ---- Config report (quiet mode suppresses this) -----------------------
-    if cfg.quiet == false:
-        println("[CONFIG]")
-        println("  subcommand:  " + cfg.subcommand)
-        println("  filepath:    " + cfg.filepath)
-        println("  output:      " + cfg.output_path)
-        println("  json:        " + str(cfg.json))
-        println("  quiet:       " + str(cfg.quiet))
-        println("")
-
-    // ---- Execute the pipeline ---------------------------------------------
-    // Replace this with your own logic. This is a placeholder that:
-    //   1. Reads the input file
-    //   2. Processes each line
-    //   3. Reports results
-
-    println("[RUN] Processing file: " + cfg.filepath)
-    println("[RUN] Done.")
-
-    // Report output path if set
-    if cfg.output_path != "":
-        println("[OUTPUT] Results written to: " + cfg.output_path)
-
-    println("")
-    println("=== Execution complete ===")
-    return EXIT_OK
-
-
-// ============================================================================
-//  SUBCOMMAND: check  —  compile-only validation
-// ============================================================================
-
-fn cmd_check(cfg: CliConfig) -> Int:
-    if cfg.filepath == "":
-        println("[CLI] check requires a file path")
-        println("Usage: starter check <file>")
-        return EXIT_ERROR
-
-    println("=== Starter CLI 0.1.0 — Check ===")
-    println("")
-    println("[CHECK] Validating: " + cfg.filepath)
-    // Replace this with your own validation logic
-    println("[CHECK] Validation complete.")
-    println("")
-    println("=== Check complete ===")
-    return EXIT_OK
-
-
-// ============================================================================
-//  SUBCOMMAND: exec  —  one-shot expression execution
-// ============================================================================
-
-fn cmd_exec(cfg: CliConfig) -> Int:
-    if cfg.filepath == "":
-        println("[CLI] exec requires an expression")
-        println("Usage: starter exec '<expr>'")
-        println("Example: starter exec 'process input.txt'")
-        return EXIT_ERROR
-
-    println("=== Starter CLI 0.1.0 — Exec ===")
-    println("")
-    println("[EXEC] Expression: " + cfg.filepath)
-    // Replace this with your own expression evaluator
-    // Hint: parse cfg.filepath as a mini-command + args
-    println("[EXEC] Result: (placeholder)")
-    println("")
-    println("=== Exec complete ===")
-    return EXIT_OK
+pub fn print_banner() with IO:
+    println(version_string())
+    println("Self-Host Kain Compiler — LLVM native codegen")
+    println("Target: x86_64-pc-windows-msvc")

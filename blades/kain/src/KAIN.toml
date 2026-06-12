@@ -1,0 +1,45 @@
+[package]
+name = "kainc"
+version = "0.1.0"
+description = "Kain Self-Host Compiler"
+authors = ["Kain Compiler Team"]
+license = "MIT"
+
+[build]
+entry = "src/main.kn"
+source_root = "src/"
+output = "kainc"
+target = "llvm"
+profile = "debug"
+
+[dependencies]
+stdlib = ["std::text", "std::machine", "std::markscript", "std::fs", "std::collections", "std::fmt"]
+
+[source_order]
+files = [
+    "token.kn",
+    "error.kn",
+    "span.kn",
+    "ast.kn",
+    "lexer.kn",
+    "builtins.kn",
+    "runtime.kn",
+    "llvm_ffi.kn",
+    "jit_metal.kn",
+    "jit_x86.kn",
+    "jit_orc.kn",
+    "jit_cache.kn",
+    "jit.kn",
+    "parser.kn",
+    "types.kn",
+    "effects.kn",
+    "monomorphize.kn",
+    "codegen.kn",
+    "orchestrator.kn",
+    "compiler.kn",
+    "cli.kn",
+    "main.kn",
+]
+
+[c_ffi]
+enabled = false
