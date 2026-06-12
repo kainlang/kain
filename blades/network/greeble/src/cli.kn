@@ -1,0 +1,159 @@
+// ============================================================================
+//  cli.kn — Greeble CLI argument parser
+//
+//  Ladder: Layer 0 — Plain Code
+//  Translates argv into GreebleConfig. No subcommands — greeble is a server,
+//  not a multi-tool. Flags control port, workers, dashboard, telemetry.
+//
+//  Usage:
+//    greeble.exe                           # defaults: port 8080, 8 workers
+//    greeble.exe --port 3000               # custom port
+//    greeble.exe --workers 16              # 16 worker actors
+//    greeble.exe --dashboard               # enable live terminal dashboard
+//    greeble.exe --no-telemetry            # disable /_telemetry JSON endpoint
+//    greeble.exe --port 3000 --dashboard --workers 32
+//    greeble.exe --help                    # show usage
+//    greeble.exe --version                 # show version
+// ============================================================================
+
+use std::process
+use types
+
+// ============================================================================
+//  GET USER ARGS
+// ============================================================================
+
+pub fn get_user_args() -> Array<String>:
+    return process_user_args()
+
+// ============================================================================
+//  USAGE
+// ============================================================================
+
+pub fn usage() -> String:
+    var text = "Greeble " + GREEBLE_VERSION + " — Erlang-style actor server\n"
+    text = text + "\n"
+    text = text + "USAGE:\n"
+    text = text + "  greeble.exe [flags]\n"
+    text = text + "\n"
+    text = text + "FLAGS:\n"
+    text = text + "  -p, --port <N>         HTTP listen port (default: " + str(DEFAULT_PORT) + ")\n"
+    text = text + "  -w, --workers <N>      Worker pool size (default: " + str(DEFAULT_WORKER_POOL_SIZE) + ")\n"
+    text = text + "  -m, --mailbox <N>      Mailbox capacity, 0=unbounded (default: " + str(DEFAULT_MAILBOX_CAPACITY) + ")\n"
+    text = text + "  -d, --dashboard        Enable live terminal dashboard\n"
+    text = text + "      --dashboard-ms <N> Dashboard tick interval in ms (default: " + str(DEFAULT_DASHBOARD_INTERVAL_MS) + ")\n"
+    text = text + "      --no-telemetry     Disable /_telemetry JSON endpoint\n"
+    text = text + "  -h, --help             Show this help and exit\n"
+    text = text + "  -v, --version          Show version and exit\n"
+    text = text + "\n"
+    text = text + "EXAMPLES:\n"
+    text = text + "  greeble.exe                                    # defaults\n"
+    text = text + "  greeble.exe --port 3000 --dashboard            # dev mode with ticker\n"
+    text = text + "  greeble.exe --workers 32 --mailbox 512         # tuned for load\n"
+    text = text + "  greeble.exe --port 8080 --no-telemetry         # minimal production\n"
+    text = text + "\n"
+    text = text + "EXIT CODES:\n"
+    text = text + "  0   Success\n"
+    text = text + "  1   Help or version shown (no error)\n"
+    text = text + "  2   Network platform unavailable\n"
+    text = text + "  3   Server creation failed (port in use?)\n"
+    text = text + "  4   Supervision tree spawn failed\n"
+    return text
+
+pub fn version_text() -> String:
+    return "Greeble " + GREEBLE_VERSION + " — Erlang-style actor server framework\n"
+
+// ============================================================================
+//  PARSE ARGS — translate argv into GreebleConfig
+// ============================================================================
+
+pub fn parse_args(argv: Array<String>) -> GreebleConfig:
+    var cfg = default_config()
+    var flags_done = false
+
+    var index = 0
+    while index < len(argv):
+        let arg = argv[index]
+
+        // After --, no more flag parsing
+        if arg == "--":
+            flags_done = true
+            index = index + 1
+            continue
+
+        if flags_done == false:
+            if arg == "--help" or arg == "-h":
+                cfg.show_help = true
+
+            elif arg == "--version" or arg == "-v":
+                cfg.show_version = true
+
+            elif arg == "--port" or arg == "-p":
+                if index + 1 < len(argv):
+                    cfg.port = str_to_int(argv[index + 1], DEFAULT_PORT)
+                    index = index + 1
+
+            elif arg == "--workers" or arg == "-w":
+                if index + 1 < len(argv):
+                    let n = str_to_int(argv[index + 1], DEFAULT_WORKER_POOL_SIZE)
+                    if n > 0:
+                        cfg.worker_pool_size = n
+                    index = index + 1
+
+            elif arg == "--mailbox" or arg == "-m":
+                if index + 1 < len(argv):
+                    cfg.mailbox_capacity = str_to_int(argv[index + 1], DEFAULT_MAILBOX_CAPACITY)
+                    index = index + 1
+
+            elif arg == "--dashboard" or arg == "-d":
+                cfg.show_dashboard = true
+
+            elif arg == "--dashboard-ms":
+                if index + 1 < len(argv):
+                    let ms = str_to_int(argv[index + 1], DEFAULT_DASHBOARD_INTERVAL_MS)
+                    if ms > 0:
+                        cfg.dashboard_interval_ms = ms
+                    index = index + 1
+
+            elif arg == "--no-telemetry":
+                cfg.enable_telemetry_json = false
+
+        index = index + 1
+
+    return cfg
+
+// ============================================================================
+//  str_to_int — safe string to integer conversion
+// ============================================================================
+
+fn str_to_int(s: String, fallback: Int) -> Int:
+    if s == "":
+        return fallback
+    var result: Int = 0
+    var i: Int = 0
+    while i < len(s):
+        let c = char_at(s, i)
+        if c == "0":
+            result = result * 10
+        elif c == "1":
+            result = result * 10 + 1
+        elif c == "2":
+            result = result * 10 + 2
+        elif c == "3":
+            result = result * 10 + 3
+        elif c == "4":
+            result = result * 10 + 4
+        elif c == "5":
+            result = result * 10 + 5
+        elif c == "6":
+            result = result * 10 + 6
+        elif c == "7":
+            result = result * 10 + 7
+        elif c == "8":
+            result = result * 10 + 8
+        elif c == "9":
+            result = result * 10 + 9
+        else:
+            return fallback
+        i = i + 1
+    return result

@@ -1,0 +1,79 @@
+// ============================================================================
+//  telemetry.kn — Greeble Telemetry Collection (Layer 0)
+//
+//  Ladder: Layer 0 — Plain Code
+//  Pure functions that snapshot runtime telemetry from the actor scheduler,
+//  intent subsystem, and machine-stones pulse counter. Reads mirror state
+//  for accumulated request count.
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::intent
+use types
+use state
+
+// ============================================================================
+//  collect_telemetry — Snapshot All Runtime Counters
+// ============================================================================
+
+pub fn collect_telemetry(router_hits: Int, sup_restarts: Int, sup_escalations: Int) -> TelemetrySnapshot:
+    let qd: Int = actor_scheduler_queue_depth()
+    let bw: Int = actor_scheduler_busy_workers()
+    let wc: Int = actor_scheduler_worker_count()
+    let mqd: Int = actor_scheduler_max_queue_depth()
+    let ofs: Int = actor_scheduler_overflow_thread_spawns()
+    let aw: Int = actor_scheduler_active_workers()
+    let pjc: Int = patch_journal_count()
+    let epc: Int = entangle_propagation_count()
+    let cmc: Int = converge_mismatch_count()
+    let pfc: Int = runtime_machine_pulse_total_fire_count()
+    let mirrored_reqs: Int = ServerMirror.total_requests_copy
+    return TelemetrySnapshot {
+        uptime_seconds: 0,
+        router_hits: router_hits + mirrored_reqs,
+        scheduler_queue_depth: qd,
+        scheduler_max_queue_depth: mqd,
+        scheduler_active_workers: aw,
+        scheduler_busy_workers: bw,
+        scheduler_worker_count: wc,
+        scheduler_overflow_spawns: ofs,
+        supervision_restart_count: sup_restarts,
+        supervision_escalation_count: sup_escalations,
+        patch_journal_count: pjc,
+        entangle_propagation_count: epc,
+        converge_mismatch_count: cmc,
+        pulse_total_fire_count: pfc,
+        registered_actor_count: 0,
+    }
+
+// ============================================================================
+//  telemetry_to_json — Manual JSON Builder
+// ============================================================================
+
+fn telemetry_to_json(snapshot: TelemetrySnapshot) -> String:
+    let body: String = "{"
+    body = body + "\"uptime_seconds\":" + str(snapshot.uptime_seconds) + ","
+    body = body + "\"router_hits\":" + str(snapshot.router_hits) + ","
+    body = body + "\"queue_depth\":" + str(snapshot.scheduler_queue_depth) + ","
+    body = body + "\"busy_workers\":" + str(snapshot.scheduler_busy_workers) + ","
+    body = body + "\"worker_count\":" + str(snapshot.scheduler_worker_count) + ","
+    body = body + "\"max_queue_depth\":" + str(snapshot.scheduler_max_queue_depth) + ","
+    body = body + "\"active_workers\":" + str(snapshot.scheduler_active_workers) + ","
+    body = body + "\"overflow_spawns\":" + str(snapshot.scheduler_overflow_spawns) + ","
+    body = body + "\"restarts\":" + str(snapshot.supervision_restart_count) + ","
+    body = body + "\"escalations\":" + str(snapshot.supervision_escalation_count) + ","
+    body = body + "\"patch_journal_count\":" + str(snapshot.patch_journal_count) + ","
+    body = body + "\"entangle_prop_count\":" + str(snapshot.entangle_propagation_count) + ","
+    body = body + "\"converge_mismatches\":" + str(snapshot.converge_mismatch_count) + ","
+    body = body + "\"pulse_fires\":" + str(snapshot.pulse_total_fire_count)
+    body = body + "}"
+    return body
+
+// ============================================================================
+//  admin_telemetry_handler — One-Call Telemetry String
+// ============================================================================
+
+pub fn admin_telemetry_handler(router_hits: Int, sup_restarts: Int, sup_escalations: Int) -> String:
+    let snapshot: TelemetrySnapshot = collect_telemetry(router_hits, sup_restarts, sup_escalations)
+    return telemetry_to_json(snapshot)

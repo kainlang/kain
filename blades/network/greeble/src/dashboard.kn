@@ -1,0 +1,45 @@
+// ============================================================================
+//  dashboard.kn — Greeble Live Terminal Dashboard (L5 Temporal)
+//
+//  Ladder: Layer 5 — Temporal (pulse commented out, pattern shown)
+//  A single-line \r-overwriting terminal dashboard that renders telemetry
+//  every second. The pulse block is left commented so the consumer
+//  (main.kn) can wire it into their own pulse schedule with live tick
+//  counters.
+//
+//  \r is valid in Kain string literals (lexer.rs:456).
+//  print() is a built-in (no newline); println() includes newline.
+//  No fflush available, so first tick uses println() to force flush.
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::intent
+use types
+
+// ============================================================================
+//  format_dashboard_line — One-Line \r Dashboard String
+// ============================================================================
+
+pub fn format_dashboard_line(t: TelemetrySnapshot) -> String:
+    return "\r[greeble " + str(t.uptime_seconds) + "s]  reqs=" + str(t.router_hits) + "  q=" + str(t.scheduler_queue_depth) + "  busy=" + str(t.scheduler_busy_workers) + "/" + str(t.scheduler_worker_count) + "  rst=" + str(t.supervision_restart_count) + "  ent=" + str(t.entangle_propagation_count)
+
+// ============================================================================
+//  PULSE PATTERN — commented for consumer wiring
+//
+//  Wire into any main.kn pulse block:
+//
+//  pulse greeble_dashboard every 1000ms jitter 5ms:
+//      let snap = collect_telemetry(hits, restarts, escalations)
+//      snap.uptime_seconds = pulse_tick
+//      let line = format_dashboard_line(snap)
+//      if pulse_tick == 0:
+//          println(line)
+//      else:
+//          print(line)
+// ============================================================================
+
+// Usage note:
+// Import with:  use dashboard
+// The consumer owns the pulse block. This module provides only the
+// formatting function. See the pattern above for integration.

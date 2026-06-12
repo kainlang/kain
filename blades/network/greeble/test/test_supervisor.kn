@@ -1,0 +1,160 @@
+// ============================================================================
+//  test_supervisor.kn — Supervision Tree Integration Tests
+//
+//  Ladder: Layer 0 — Plain Code (test functions)
+//  Exercises the supervision tree bootstrap, registry integration, and
+//  telemetry stubs from supervisor.kn.
+//
+//  Tests:
+//    test_supervision_tree_spawns       — root ID is non-zero
+//    test_root_registered_in_registry   — "greeble-root" in actor_registry
+//    test_supervisor_restart_count       — 0 after fresh spawn (v0.1 stub)
+//    test_supervisor_escalation_count    — 0 after fresh spawn (v0.1 stub)
+//    test_router_spawned                — spawn_router returns valid actor
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::intent
+use types
+use state
+use router
+use gateway
+use worker
+use supervisor
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+// ============================================================================
+//  TEST 1: Supervision tree spawns and returns non-zero root ID
+// ============================================================================
+
+fn test_supervision_tree_spawns() -> Int:
+    println("\n--- Test: supervision tree spawns ---")
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    if root_id <= 0:
+        println("  [FAIL] spawn_supervision_tree returned non-positive: " + str(root_id))
+        return 1
+    println("  [PASS] supervision tree spawned, root ID = " + str(root_id))
+    return 0
+
+// ============================================================================
+//  TEST 2: Root supervisor registered in actor registry
+// ============================================================================
+
+fn test_root_registered_in_registry() -> Int:
+    println("\n--- Test: root registered in registry ---")
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    // Registry should have "greeble-root" pointing at root_id
+    let found = actor_registry_lookup("greeble-root")
+    if found != root_id:
+        println("  [FAIL] actor_registry_lookup(\"greeble-root\") returned "
+            + str(found) + " expected " + str(root_id))
+        return 2
+    println("  [PASS] \"greeble-root\" registered as " + str(found))
+    return 0
+
+// ============================================================================
+//  TEST 3: Supervisor restart count is 0 after fresh spawn
+// ============================================================================
+
+fn test_supervisor_restart_count() -> Int:
+    println("\n--- Test: supervisor restart count starts at 0 ---")
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    // v0.1 returns 0 (stub — cannot ask on Int at LLVM codegen time)
+    let count = supervisor_restart_count(root_id)
+    if count != 0:
+        println("  [FAIL] restart count expected 0, got " + str(count))
+        return 3
+    println("  [PASS] restart count = 0")
+    return 0
+
+// ============================================================================
+//  TEST 4: Supervisor escalation count is 0 after fresh spawn
+// ============================================================================
+
+fn test_supervisor_escalation_count() -> Int:
+    println("\n--- Test: supervisor escalation count starts at 0 ---")
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    let count = supervisor_escalation_count(root_id)
+    if count != 0:
+        println("  [FAIL] escalation count expected 0, got " + str(count))
+        return 4
+    println("  [PASS] escalation count = 0")
+    return 0
+
+// ============================================================================
+//  TEST 5: Router spawned via spawn_router returns valid actor
+// ============================================================================
+
+fn test_router_spawned() -> Int:
+    println("\n--- Test: router spawned ---")
+    let cfg = default_config()
+    let router = spawn_router(cfg)
+
+    let id: Int = router as Int
+    if id <= 0:
+        println("  [FAIL] router ID is non-positive: " + str(id))
+        return 5
+
+    let valid = actor_id_is_valid(id)
+    if valid == false:
+        println("  [FAIL] router ID " + str(id) + " is not valid")
+        return 6
+
+    println("  [PASS] router spawned, ID=" + str(id) + " valid=" + str(valid))
+    return 0
+
+// ============================================================================
+//  RUN ALL SUPERVISOR TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("=== GREEBLE SUPERVISOR TESTS ===")
+    println("")
+    println("Testing: supervision tree bootstrap, registry, telemetry stubs")
+
+    let init = runtime_init()
+    if init != 0:
+        println("  [CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_supervision_tree_spawns()
+    failures = failures + test_root_registered_in_registry()
+    failures = failures + test_supervisor_restart_count()
+    failures = failures + test_supervisor_escalation_count()
+    failures = failures + test_router_spawned()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("  [WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("=== SUPERVISOR TESTS: " + str(failures) + " failure(s) ===")
+    return failures

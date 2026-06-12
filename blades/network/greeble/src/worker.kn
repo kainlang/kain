@@ -1,0 +1,102 @@
+// ============================================================================
+//  worker.kn — Worker pool actors: WorkerActor, WorkerPoolSupervisor
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Homogeneous worker actors for request processing with a pool supervisor
+//  that handles round-robin dispatch and aggregate stats collection.
+//
+//  WorkerActor:
+//    Processes individual requests, maintains processed count and checksum.
+//  WorkerPoolSupervisor:
+//    Round-robin dispatches to registered workers. Aggregates stats.
+//
+//  Public API:
+//    spawn_worker_pool(size, mailbox_capacity)  → pool supervisor actor
+// ============================================================================
+
+use std::actor
+use types
+
+
+// ============================================================================
+//  WorkerActor  —  Processes requests, tracks internal state
+//
+//  state:
+//    id         — unique worker index (0..pool_size-1)
+//    processed  — number of requests handled since spawn
+//    checksum   — running checksum: (checksum + processed + len(body)) % MOD
+// ============================================================================
+
+const WORKER_MODULUS: Int = 1000000007
+
+actor WorkerActor:
+    state id: Int = 0
+    state processed: Int = 0
+    state checksum: Int = 0
+
+    on Process(reply_to: P, request_body: String):
+        self.processed = self.processed + 1
+        self.checksum = (self.checksum + self.processed + len(request_body)) % WORKER_MODULUS
+        send reply_to.Reply(value = pack(self.processed, self.checksum))
+
+    on GetStats(reply_to: P, unused: Int):
+        send reply_to.Reply(value = pack(self.processed, self.checksum))
+
+
+// ============================================================================
+//  WorkerPoolSupervisor  —  Round-robin dispatcher and stats aggregator
+//
+//  state:
+//    workers      — array of WorkerActor IDs registered in the pool
+//    next_worker  — round-robin cursor
+//
+//  on RegisterWorker(worker_id):
+//    Adds a worker to the pool. Sent by spawn_worker_pool() after each spawn.
+//  on Dispatch(reply_to, request_body):
+//    Picks the next worker in round-robin, forwards via ask, returns result.
+//  on GetPoolStats(reply_to):
+//    Asks every worker for GetStats, sums processed + checksum, replies packed.
+// ============================================================================
+
+actor WorkerPoolSupervisor:
+    state workers: Array<WorkerActor> = []
+    state next_worker: Int = 0
+
+    on RegisterWorker(worker_id: WorkerActor):
+        push(self.workers, worker_id)
+
+    on Dispatch(reply_to: P, request_body: String):
+        // Round-robin selection
+        let worker: WorkerActor = self.workers[self.next_worker]
+        self.next_worker = (self.next_worker + 1) % len(self.workers)
+
+        // Forward request and relay the result
+        let result: Int = ask(worker, "Process", request_body)
+        send reply_to.Reply(value = result)
+
+    on GetPoolStats(reply_to: P, unused: Int):
+        var total_processed: Int = 0
+        var total_checksum: Int = 0
+        var i: Int = 0
+        while i < len(self.workers):
+            let result: Int = ask(self.workers[i], "GetStats", 0)
+            total_processed = total_processed + unpack_first(result)
+            total_checksum = total_checksum + unpack_second(result)
+            i = i + 1
+        send reply_to.Reply(value = pack(total_processed, total_checksum))
+
+
+// ============================================================================
+//  Public API
+// ============================================================================
+
+pub fn spawn_worker_pool(size: Int, mailbox_capacity: Int) -> WorkerPoolSupervisor:
+    let supervisor = spawn WorkerPoolSupervisor()
+
+    var i: Int = 0
+    while i < size:
+        let worker = spawn WorkerActor(id = i)
+        send supervisor.RegisterWorker(worker_id = worker)
+        i = i + 1
+
+    return supervisor

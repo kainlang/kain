@@ -1,0 +1,202 @@
+// ============================================================================
+//  test_router.kn — Router Integration Tests
+//
+//  Ladder: Layer 0 (Plain Code) + Layer 7 (actor ask/send where needed)
+//  Exercises route registration, telemetry queries, and pure HTTP parsing
+//  helpers from router.kn.
+//
+//  Tests:
+//    test_router_spawn               — spawn_router returns valid actor
+//    test_route_add                  — route_add returns 0 (success)
+//    test_router_hits_starts_zero    — router_hits returns 0 after fresh spawn
+//    test_http_parsing_method        — parse_http_method("GET ...") = "GET"
+//    test_http_parsing_path          — parse_http_path("POST /api...") = "/api"
+//    test_http_parsing_body          — parse_http_body("...\r\n\r\nbody") = "body"
+// ============================================================================
+
+use std::runtime
+use std::actor
+use types
+use router
+use worker
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_eq_str(actual: String, expected: String, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+// ============================================================================
+//  TEST 1: spawn_router returns a valid actor
+// ============================================================================
+
+fn test_router_spawn() -> Int:
+    println("\n--- Test: router spawn ---")
+    let cfg = default_config()
+    let router = spawn_router(cfg)
+
+    let id: Int = router as Int
+    let valid = actor_id_is_valid(id)
+    if valid == false:
+        println("  [FAIL] router ID " + str(id) + " is not valid")
+        return 1
+    println("  [PASS] router spawned, ID=" + str(id))
+    return 0
+
+// ============================================================================
+//  TEST 2: route_add returns 0 (success indicator)
+// ============================================================================
+
+fn test_route_add() -> Int:
+    println("\n--- Test: route add ---")
+    let cfg = default_config()
+    let router = spawn_router(cfg)
+
+    // Register a simple GET /test route with a dummy handler
+    let handler_id: Int = 1001
+    let status = route_add(router, "GET", "/test", handler_id, "TestMsg")
+    if status != 0:
+        println("  [FAIL] route_add returned " + str(status) + " expected 0")
+        return 2
+    println("  [PASS] route_add returned 0")
+    return 0
+
+// ============================================================================
+//  TEST 3: router_hits returns 0 after fresh spawn
+// ============================================================================
+
+fn test_router_hits_starts_zero() -> Int:
+    println("\n--- Test: router hits start at 0 ---")
+    let cfg = default_config()
+    let router = spawn_router(cfg)
+
+    let hits = router_hits(router)
+    if hits != 0:
+        println("  [FAIL] router_hits expected 0, got " + str(hits))
+        return 3
+    println("  [PASS] router hits = 0")
+    return 0
+
+// ============================================================================
+//  TEST 4: HTTP parsing — method extraction
+// ============================================================================
+
+fn test_http_parsing_method() -> Int:
+    println("\n--- Test: HTTP method parsing ---")
+
+    let get_payload = "GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    let method = parse_http_method(get_payload)
+    let r1 = assert_eq_str(method, "GET", "GET request method = \"GET\"")
+
+    let post_payload = "POST /api/data HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"key\":\"val\"}"
+    let post_method = parse_http_method(post_payload)
+    let r2 = assert_eq_str(post_method, "POST", "POST request method = \"POST\"")
+
+    let put_payload = "PUT /api/update/1 HTTP/1.1\r\n\r\n"
+    let put_method = parse_http_method(put_payload)
+    let r3 = assert_eq_str(put_method, "PUT", "PUT request method = \"PUT\"")
+
+    return r1 + r2 + r3
+
+// ============================================================================
+//  TEST 5: HTTP parsing — path extraction (strips query string)
+// ============================================================================
+
+fn test_http_parsing_path() -> Int:
+    println("\n--- Test: HTTP path parsing ---")
+
+    let simple = "GET /index.html HTTP/1.1\r\n\r\n"
+    let p1 = parse_http_path(simple)
+    let r1 = assert_eq_str(p1, "/index.html", "simple path = \"/index.html\"")
+
+    let with_query = "POST /api/search?q=hello&page=1 HTTP/1.1\r\n\r\n"
+    let p2 = parse_http_path(with_query)
+    let r2 = assert_eq_str(p2, "/api/search", "path with query strips to \"/api/search\"")
+
+    let root = "GET / HTTP/1.1\r\n\r\n"
+    let p3 = parse_http_path(root)
+    let r3 = assert_eq_str(p3, "/", "root path = \"/\"")
+
+    let no_query = "PUT /api/users/42 HTTP/1.1\r\n\r\n"
+    let p4 = parse_http_path(no_query)
+    let r4 = assert_eq_str(p4, "/api/users/42", "no-query path = \"/api/users/42\"")
+
+    return r1 + r2 + r3 + r4
+
+// ============================================================================
+//  TEST 6: HTTP parsing — body extraction (after \r\n\r\n)
+// ============================================================================
+
+fn test_http_parsing_body() -> Int:
+    println("\n--- Test: HTTP body parsing ---")
+
+    let with_body = "POST /api/data HTTP/1.1\r\nHost: localhost\r\nContent-Length: 11\r\n\r\nhello world"
+    let b1 = parse_http_body(with_body)
+    let r1 = assert_eq_str(b1, "hello world", "body = \"hello world\"")
+
+    let empty = "GET / HTTP/1.1\r\n\r\n"
+    let b2 = parse_http_body(empty)
+    let r2 = assert_eq_str(b2, "", "no body returns \"\"")
+
+    let json_body = "POST /api HTTP/1.1\r\n\r\n{\"a\":1,\"b\":2}"
+    let b3 = parse_http_body(json_body)
+    let r3 = assert_eq_str(b3, "{\"a\":1,\"b\":2}", "JSON body preserved")
+
+    return r1 + r2 + r3
+
+// ============================================================================
+//  RUN ALL ROUTER TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("=== GREEBLE ROUTER TESTS ===")
+    println("")
+    println("Testing: router spawn, route registration, telemetry, HTTP parsing")
+
+    var failures: Int = 0
+
+    // Pure HTTP parsing tests — no runtime needed
+    println("")
+    println("-- HTTP Parsing Tests (pure functions) --")
+    failures = failures + test_http_parsing_method()
+    failures = failures + test_http_parsing_path()
+    failures = failures + test_http_parsing_body()
+
+    // Actor-based tests — need runtime
+    println("")
+    println("-- Actor Tests (runtime required) --")
+    let init = runtime_init()
+    if init != 0:
+        println("  [CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    failures = failures + test_router_spawn()
+    failures = failures + test_route_add()
+    failures = failures + test_router_hits_starts_zero()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("  [WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("=== ROUTER TESTS: " + str(failures) + " failure(s) ===")
+    return failures

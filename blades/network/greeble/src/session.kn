@@ -1,0 +1,67 @@
+// ============================================================================
+//  session.kn — Session lifecycle actors
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Per-connection session actors with link/monitor lifecycle management.
+//
+//  SessionActor:
+//    Manages per-connection state: request count, creation time, and
+//    delegation to a worker pool for request processing.
+//    The worker pool is passed through each Request message (not stored
+//    in actor state) to keep ask working with the actor type directly.
+//
+//  Public API:
+//    spawn_session(connection_id)                → session actor
+//    session_monitor(session, monitor_id)         → monitor status
+// ============================================================================
+
+use std::actor
+use types
+use worker
+
+
+// ============================================================================
+//  SessionActor  —  Per-connection request handler
+//
+//  state:
+//    connection_id   — opaque connection handle (for tracing/linking)
+//    created_at_ms   — epoch ms when the session was spawned
+//    request_count   — number of requests handled
+//
+//  on Request(reply_to, body, worker_pool):
+//    Increments request_count, delegates to the worker pool via ask,
+//    returns the worker pool's result.
+//    worker_pool is received as a message parameter (not stored in state)
+//    so ask() sees the actor type directly.
+//  on Close():
+//    No-op — session closure is managed by supervision lifecycle.
+// ============================================================================
+
+actor SessionActor:
+    state connection_id: Int = 0
+    state created_at_ms: Int = 0
+    state request_count: Int = 0
+
+    on Request(reply_to: P, body: String, worker_pool: WorkerPoolSupervisor):
+        self.request_count = self.request_count + 1
+        let result: Int = ask(worker_pool, "Dispatch", body)
+        send reply_to.Reply(value = result)
+
+    on Close():
+        let _ = 0
+
+
+// ============================================================================
+//  Public API
+// ============================================================================
+
+pub fn spawn_session(connection_id: Int) -> SessionActor:
+    let session = spawn SessionActor(
+        connection_id = connection_id,
+        created_at_ms = now_millis()
+    )
+    let _ = actor_link(session as Int, connection_id)
+    return session
+
+pub fn session_monitor(session: SessionActor, monitor_id: Int) -> Int:
+    return actor_monitor(session as Int, monitor_id)

@@ -1,0 +1,190 @@
+// ============================================================================
+//  greeble unit tests — telemetry.kn (Layer 0)
+//
+//  Ladder: Layer 0 — Plain Code (with runtime dependencies)
+//  Tests the runtime telemetry collection pipeline, JSON serialization,
+//  and the admin handler that wraps both steps.
+//
+//  These are the heaviest unit tests because they gate on the real
+//  actor scheduler, intent subsystem, and pulse counter. Results are
+//  meaningful even when the server isn't fully initialized — scheduler
+//  and intent counters fall back to 0 / initial values.
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::intent
+use std::text
+use types
+use state
+use telemetry
+
+// ============================================================================
+//  TEST COUNTER — accumulates failures across all test functions
+// ============================================================================
+
+var _failures: Int = 0
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_str_eq(actual: String, expected: String, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_true(condition: Bool, msg: String):
+    if condition:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+fn assert_false(condition: Bool, msg: String):
+    if condition == false:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+// ============================================================================
+//  TEST: collect telemetry returns a valid struct
+// ============================================================================
+
+fn test_collect_telemetry_returns_struct():
+    println("--- collect telemetry returns struct ---")
+
+    let snapshot: TelemetrySnapshot = collect_telemetry(0, 0, 0)
+
+    // uptime_seconds is 0 — collect_telemetry leaves it at 0, the caller
+    // (dashboard or admin handler) sets it from wall-clock time.
+    assert_eq(snapshot.uptime_seconds, 0, "uptime_seconds default 0 (caller sets it)")
+
+    // All counters are accessible and non-negative
+    assert_true(snapshot.router_hits >= 0, "router_hits >= 0")
+    assert_true(snapshot.scheduler_queue_depth >= 0, "scheduler_queue_depth >= 0")
+
+    // Router hits absorb the mirrored request count (initially 0)
+    assert_eq(snapshot.router_hits, 0, "router_hits == 0 (no requests yet)")
+
+// ============================================================================
+//  TEST: all runtime telemetry counters are non-negative
+// ============================================================================
+
+fn test_telemetry_counters_non_negative():
+    println("--- telemetry counters non-negative ---")
+
+    let snapshot: TelemetrySnapshot = collect_telemetry(0, 0, 0)
+
+    // Scheduler counters — always >= 0
+    assert_true(snapshot.scheduler_queue_depth >= 0, "scheduler_queue_depth >= 0")
+    assert_true(snapshot.scheduler_max_queue_depth >= 0, "scheduler_max_queue_depth >= 0")
+    assert_true(snapshot.scheduler_active_workers >= 0, "scheduler_active_workers >= 0")
+    assert_true(snapshot.scheduler_busy_workers >= 0, "scheduler_busy_workers >= 0")
+    assert_true(snapshot.scheduler_overflow_spawns >= 0, "scheduler_overflow_spawns >= 0")
+
+    // Supervisor counters
+    assert_true(snapshot.supervision_restart_count >= 0, "supervision_restart_count >= 0")
+    assert_true(snapshot.supervision_escalation_count >= 0, "supervision_escalation_count >= 0")
+
+    // Intent subsystem
+    assert_true(snapshot.patch_journal_count >= 0, "patch_journal_count >= 0")
+    assert_true(snapshot.entangle_propagation_count >= 0, "entangle_propagation_count >= 0")
+    assert_true(snapshot.converge_mismatch_count >= 0, "converge_mismatch_count >= 0")
+
+    // Runtime machine stones
+    assert_true(snapshot.pulse_total_fire_count >= 0, "pulse_total_fire_count >= 0")
+
+// ============================================================================
+//  TEST: telemetry JSON output via the public admin handler
+//
+//  Note: telemetry_to_json is module-private; we validate its output
+//  through admin_telemetry_handler which calls it internally.
+// ============================================================================
+
+fn test_admin_telemetry_json():
+    println("--- admin handler JSON ---")
+
+    // Zero counters — clean state JSON
+    let result: String = admin_telemetry_handler(0, 0, 0)
+
+    // Non-empty valid JSON
+    assert_true(result != "", "admin_handler result is non-empty")
+    assert_true(text_starts_with_string(result, "{"),
+                "admin_handler result starts with '{'")
+
+    // Must contain all expected telemetry keys
+    assert_true(text_contains_string(result, "queue_depth"),
+                "JSON contains 'queue_depth'")
+    assert_true(text_contains_string(result, "restarts"),
+                "JSON contains 'restarts'")
+    assert_true(text_contains_string(result, "uptime_seconds"),
+                "JSON contains 'uptime_seconds'")
+    assert_true(text_contains_string(result, "router_hits"),
+                "JSON contains 'router_hits'")
+    assert_true(text_contains_string(result, "busy_workers"),
+                "JSON contains 'busy_workers'")
+    assert_true(text_contains_string(result, "worker_count"),
+                "JSON contains 'worker_count'")
+    assert_true(text_contains_string(result, "active_workers"),
+                "JSON contains 'active_workers'")
+    assert_true(text_contains_string(result, "overflow_spawns"),
+                "JSON contains 'overflow_spawns'")
+    assert_true(text_contains_string(result, "escalations"),
+                "JSON contains 'escalations'")
+    assert_true(text_contains_string(result, "patch_journal_count"),
+                "JSON contains 'patch_journal_count'")
+    assert_true(text_contains_string(result, "entangle_prop_count"),
+                "JSON contains 'entangle_prop_count'")
+    assert_true(text_contains_string(result, "converge_mismatches"),
+                "JSON contains 'converge_mismatches'")
+    assert_true(text_contains_string(result, "pulse_fires"),
+                "JSON contains 'pulse_fires'")
+
+    // Ends with '}'
+    assert_true(text_ends_with_string(result, "}"),
+                "admin_handler result ends with '}'")
+
+    // Verify numeric values are embedded correctly (no missing fields)
+    assert_true(text_contains_string(result, "\"queue_depth\":0"),
+                "JSON has queue_depth:0 in initial state")
+
+// ============================================================================
+//  TEST: admin handler with non-zero inputs
+// ============================================================================
+
+fn test_admin_handler_with_hits():
+    println("--- admin handler with non-zero inputs ---")
+
+    let result: String = admin_telemetry_handler(42, 5, 1)
+
+    assert_true(result != "", "handler result with counters non-empty")
+    assert_true(text_contains_string(result, "42"),
+                "JSON contains router_hits value 42")
+    assert_true(text_contains_string(result, "\"restarts\":5"),
+                "JSON contains restarts:5")
+
+// ============================================================================
+//  RUNNER
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    _failures = 0
+    println("")
+    println("=== greeble unit tests: telemetry ===")
+    test_collect_telemetry_returns_struct()
+    test_telemetry_counters_non_negative()
+    test_admin_telemetry_json()
+    test_admin_handler_with_hits()
+    println("--- telemetry: " + str(_failures) + " failures ---")
+    return _failures

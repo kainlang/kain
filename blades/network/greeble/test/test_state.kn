@@ -1,0 +1,204 @@
+// ============================================================================
+//  greeble unit tests — state.kn (Layer 1 + Layer 2)
+//
+//  Ladder: Layer 1 (State Authority) — world initial state and access
+//          Layer 2 (State Integrity) — law predicates and patch mutations
+//
+//  Tests verify:
+//    - Dual-world initial state (ServerAuthority + ServerMirror)
+//    - Law predicates for invariant guarding
+//    - Patch journal mutations that bump epoch counters
+// ============================================================================
+
+use std::runtime
+use types
+use state
+
+// ============================================================================
+//  TEST COUNTER — accumulates failures across all test functions
+// ============================================================================
+
+var _failures: Int = 0
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_str_eq(actual: String, expected: String, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_true(condition: Bool, msg: String):
+    if condition:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+fn assert_false(condition: Bool, msg: String):
+    if condition == false:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+// ============================================================================
+//  TEST: world initial state — both authority and mirror
+// ============================================================================
+
+fn test_worlds_exist():
+    println("--- worlds initial state ---")
+
+    // ServerAuthority initial values
+    assert_str_eq(ServerAuthority.config_json, "{}", "ServerAuthority.config_json initial")
+    assert_eq(ServerAuthority.active_connections, 0, "ServerAuthority.active_connections initial")
+    assert_eq(ServerAuthority.total_requests, 0, "ServerAuthority.total_requests initial")
+    assert_eq(ServerAuthority.total_errors, 0, "ServerAuthority.total_errors initial")
+    assert_eq(ServerAuthority.epoch, 0, "ServerAuthority.epoch initial")
+
+    // ServerMirror initial values (copy fields from entangle)
+    assert_str_eq(ServerMirror.config_json_copy, "{}", "ServerMirror.config_json_copy initial")
+    assert_eq(ServerMirror.active_connections_copy, 0, "ServerMirror.active_connections_copy initial")
+    assert_eq(ServerMirror.total_requests_copy, 0, "ServerMirror.total_requests_copy initial")
+    assert_eq(ServerMirror.total_errors_copy, 0, "ServerMirror.total_errors_copy initial")
+    assert_eq(ServerMirror.epoch_copy, 0, "ServerMirror.epoch_copy initial")
+
+// ============================================================================
+//  TEST: law predicates
+// ============================================================================
+
+fn test_laws_hold():
+    println("--- law predicates ---")
+
+    // connections_non_negative
+    assert_true(connections_non_negative(0), "connections_non_negative(0) == true")
+    assert_false(connections_non_negative(-1), "connections_non_negative(-1) == false")
+    assert_true(connections_non_negative(100), "connections_non_negative(100) == true")
+
+    // requests_non_negative
+    assert_true(requests_non_negative(0), "requests_non_negative(0) == true")
+    assert_false(requests_non_negative(-5), "requests_non_negative(-5) == false")
+    assert_true(requests_non_negative(999), "requests_non_negative(999) == true")
+
+    // epoch_monotonic — new epoch must be strictly greater than old
+    assert_true(epoch_monotonic(5, 10), "epoch_monotonic(5, 10) == true")
+    assert_false(epoch_monotonic(10, 5), "epoch_monotonic(10, 5) == false")
+    assert_false(epoch_monotonic(7, 7), "epoch_monotonic(7, 7) == false (equal)")
+    assert_true(epoch_monotonic(0, 1), "epoch_monotonic(0, 1) == true")
+
+// ============================================================================
+//  TEST: increment connections patch
+// ============================================================================
+
+fn test_increment_connections():
+    println("--- increment connections ---")
+
+    let epoch_before: Int = ServerAuthority.epoch
+    let conn_before: Int = ServerAuthority.active_connections
+
+    let result: Int = increment_connections(ServerAuthority)
+
+    assert_eq(ServerAuthority.active_connections, conn_before + 1,
+              "active_connections incremented by 1")
+    assert_true(ServerAuthority.epoch > epoch_before,
+                "epoch advanced after increment_connections")
+    assert_eq(result, ServerAuthority.epoch,
+              "patch returns the new epoch value")
+
+// ============================================================================
+//  TEST: decrement connections patch
+// ============================================================================
+
+fn test_decrement_connections():
+    println("--- decrement connections ---")
+
+    // Ensure at least one connection exists to decrement
+    let _ = increment_connections(ServerAuthority)
+
+    let epoch_before: Int = ServerAuthority.epoch
+    let conn_before: Int = ServerAuthority.active_connections
+
+    let result: Int = decrement_connections(ServerAuthority)
+
+    assert_eq(ServerAuthority.active_connections, conn_before - 1,
+              "active_connections decremented by 1")
+    assert_true(ServerAuthority.epoch > epoch_before,
+                "epoch advanced after decrement_connections")
+    assert_eq(result, ServerAuthority.epoch,
+              "patch returns the new epoch value")
+
+    // Decrement again — should not go below zero (guarded by patch logic)
+    let _ = decrement_connections(ServerAuthority)
+    assert_true(ServerAuthority.active_connections >= 0,
+                "active_connections never goes negative")
+
+// ============================================================================
+//  TEST: increment requests patch
+// ============================================================================
+
+fn test_increment_requests():
+    println("--- increment requests ---")
+
+    let epoch_before: Int = ServerAuthority.epoch
+    let req_before: Int = ServerAuthority.total_requests
+
+    let result: Int = increment_requests(ServerAuthority)
+
+    assert_eq(ServerAuthority.total_requests, req_before + 1,
+              "total_requests incremented by 1")
+    assert_true(ServerAuthority.epoch > epoch_before,
+                "epoch advanced after increment_requests")
+    assert_eq(result, ServerAuthority.epoch,
+              "patch returns the new epoch value")
+
+    // Multiple increments accumulate
+    let _ = increment_requests(ServerAuthority)
+    let _ = increment_requests(ServerAuthority)
+    assert_eq(ServerAuthority.total_requests, req_before + 3,
+              "three increments produce req_before + 3")
+
+// ============================================================================
+//  TEST: set config patch
+// ============================================================================
+
+fn test_set_config():
+    println("--- set config ---")
+
+    let epoch_before: Int = ServerAuthority.epoch
+
+    let test_json: String = "{\"key\":\"val\"}"
+    let result: Int = set_config(ServerAuthority, test_json)
+
+    assert_str_eq(ServerAuthority.config_json, test_json,
+                  "config_json updated to provided JSON")
+    assert_true(ServerAuthority.epoch > epoch_before,
+                "epoch advanced after set_config")
+    assert_eq(result, ServerAuthority.epoch,
+              "patch returns the new epoch value")
+
+// ============================================================================
+//  RUNNER
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    _failures = 0
+    println("")
+    println("=== greeble unit tests: state ===")
+    test_worlds_exist()
+    test_laws_hold()
+    test_increment_connections()
+    test_decrement_connections()
+    test_increment_requests()
+    test_set_config()
+    println("--- state: " + str(_failures) + " failures ---")
+    return _failures

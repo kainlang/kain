@@ -1,0 +1,118 @@
+// ============================================================================
+//  gateway.kn — Gateway actors: RateLimiter, AuthGate
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Cross-cutting gateway concerns — rate limiting and authentication —
+//  implemented as isolated mailbox-driven actors.
+//
+//  RateLimiter uses a sliding-window algorithm. Each client key is tracked
+//  by the actor's single window (simplified model). AuthGate manages a
+//  runtime token list with add/revoke operations.
+//
+//  Public API:
+//    spawn_rate_limiter(max_per_window)  → actor ID
+//    spawn_auth_gate()                    → actor ID
+//    rate_limiter_check(id, key)          → pack(1|0, remaining_hits)
+//    auth_gate_validate(id, token)        → 1|0
+// ============================================================================
+
+use std::actor
+use types
+
+// ============================================================================
+//  RateLimiter  —  Sliding window rate limiter
+//
+//  state:
+//    window_hits       — number of requests counted in the current window
+//    window_start_ms   — epoch ms when the current window started
+//    max_per_window    — maximum allowed requests per window
+//
+//  on Check(reply_to, client_key):
+//    If the window has expired (>= RATE_LIMITER_WINDOW_MS), reset it.
+//    If under the limit, increment and reply with pack(1, remaining).
+//    Otherwise reply with pack(0, remaining).
+//
+//  The client_key is accepted but the limiter uses a single shared window;
+//  a per-key limiter would require a dictionary or world-level state.
+// ============================================================================
+
+pub const RATE_LIMITER_WINDOW_MS: Int = 1000
+
+actor RateLimiter:
+    state window_hits: Int = 0
+    state window_start_ms: Int = 0
+    state max_per_window: Int = 1000
+
+    on Check(reply_to: P, client_key: String):
+        let now: Int = now_millis()
+
+        // Reset window if this is the first check or window has expired
+        if self.window_start_ms == 0:
+            self.window_hits = 0
+            self.window_start_ms = now
+        else:
+            let elapsed: Int = now - self.window_start_ms
+            if elapsed >= RATE_LIMITER_WINDOW_MS:
+                self.window_hits = 0
+                self.window_start_ms = now
+
+        // Check limit and reply
+        if self.window_hits < self.max_per_window:
+            self.window_hits = self.window_hits + 1
+            let remaining: Int = self.max_per_window - self.window_hits
+            send reply_to.Reply(value = pack(1, remaining))
+        else:
+            let remaining: Int = self.max_per_window - self.window_hits
+            send reply_to.Reply(value = pack(0, remaining))
+
+
+// ============================================================================
+//  AuthGate  —  Token-based authentication actor
+//
+//  state:
+//    valid_tokens  — growable list of accepted token strings
+//
+//  on Validate(reply_to, token):
+//    Returns 1 if token is found in valid_tokens, 0 otherwise.
+//  on AddToken(token):
+//    Appends a token to valid_tokens. Fire-and-forget, no reply.
+//  on RevokeToken(token):
+//    Removes all occurrences of the token from valid_tokens.
+//    Builds a new array (no in-place removal).
+// ============================================================================
+
+actor AuthGate:
+    state valid_tokens: Array<String> = []
+
+    on Validate(reply_to: P, token: String):
+        var found: Int = 0
+        var i: Int = 0
+        while i < len(self.valid_tokens):
+            if self.valid_tokens[i] == token:
+                found = 1
+                i = len(self.valid_tokens) // break
+            i = i + 1
+        send reply_to.Reply(value = found)
+
+    on AddToken(token: String):
+        push(self.valid_tokens, token)
+
+    on RevokeToken(token: String):
+        var new_tokens: Array<String> = []
+        var i: Int = 0
+        while i < len(self.valid_tokens):
+            if self.valid_tokens[i] != token:
+                push(new_tokens, self.valid_tokens[i])
+            i = i + 1
+        self.valid_tokens = new_tokens
+
+
+// ============================================================================
+//  Public API
+// ============================================================================
+
+pub fn spawn_rate_limiter(max_per_window: Int) -> RateLimiter:
+    return spawn RateLimiter(max_per_window = max_per_window)
+
+pub fn spawn_auth_gate() -> AuthGate:
+    return spawn AuthGate()

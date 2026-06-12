@@ -1,0 +1,346 @@
+// ============================================================================
+//  test_e2e.kn — Greeble End-to-End Integration Tests
+//
+//  Ladder: Layer 0 (Plain Code) + Layer 1/2 (world/patch) + Layer 7 (actor)
+//  Exercises full server bootstrap via spawn_supervision_tree, telemetry
+//  collection via collect_telemetry, dashboard format via format_dashboard_line,
+//  world patch/entangle integration, and clean shutdown.
+//
+//  Does NOT call greeble_start (which creates an HTTP server). Instead
+//  replicates the bootstrap steps by calling spawn_supervision_tree directly.
+//
+//  Tests:
+//    test_full_bootstrap                  — spawn tree + verify registry +
+//                                           telemetry non-negative + shutdown
+//    test_telemetry_after_bootstrap       — collect_telemetry after bootstrap
+//    test_dashboard_line_format           — format_dashboard_line with known values
+//    test_entangle_propagation_after_patch — confirm entangle fires after patch
+//    test_patch_journal_count_increments   — confirm patch journal advances
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::net
+use std::intent
+use types
+use state
+use telemetry
+use dashboard
+use supervisor
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_non_negative(value: Int, label: String) -> Int:
+    if value < 0:
+        println("  [FAIL] " + label + " is negative: " + str(value))
+        return 1
+    println("  [PASS] " + label + " = " + str(value) + " (non-negative)")
+    return 0
+
+// ============================================================================
+//  STRING UTILITY — check if a string contains a substring
+// ============================================================================
+
+fn str_contains(s: String, substr: String) -> Bool:
+    if len(s) < len(substr):
+        return false
+    var i: Int = 0
+    while i < len(s):
+        if i + len(substr) <= len(s):
+            var matched: Bool = true
+            var j: Int = 0
+            while j < len(substr):
+                if char_at(s, i + j) != char_at(substr, j):
+                    matched = false
+                    j = len(substr)
+                j = j + 1
+            if matched:
+                return true
+        i = i + 1
+    return false
+
+// ============================================================================
+//  TEST 1: Full bootstrap — spawn tree, verify registry + telemetry
+// ============================================================================
+
+fn test_full_bootstrap() -> Int:
+    println("\n--- Test: full bootstrap ---")
+    var failures: Int = 0
+
+    // Bootstrap the supervision tree
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    // Verify root supervisor registered
+    let found = actor_registry_lookup("greeble-root")
+    if found != root_id:
+        println("  [FAIL] \"greeble-root\" registry lookup returned "
+            + str(found) + " expected " + str(root_id))
+        failures = failures + 1
+    else:
+        println("  [PASS] \"greeble-root\" registered as " + str(found))
+
+    // Collect telemetry — should have non-negative counters
+    let snap = collect_telemetry(0, 0, 0)
+
+    println("  [info] scheduler_queue_depth=" + str(snap.scheduler_queue_depth)
+        + " worker_count=" + str(snap.scheduler_worker_count)
+        + " busy=" + str(snap.scheduler_busy_workers)
+        + " patch_journal=" + str(snap.patch_journal_count)
+        + " entangle_prop=" + str(snap.entangle_propagation_count))
+
+    // All telemetry counters must be non-negative
+    failures = failures + assert_non_negative(snap.scheduler_queue_depth, "scheduler_queue_depth")
+    failures = failures + assert_non_negative(snap.scheduler_max_queue_depth, "scheduler_max_queue_depth")
+    failures = failures + assert_non_negative(snap.scheduler_active_workers, "scheduler_active_workers")
+    failures = failures + assert_non_negative(snap.scheduler_busy_workers, "scheduler_busy_workers")
+    failures = failures + assert_non_negative(snap.scheduler_worker_count, "scheduler_worker_count")
+    failures = failures + assert_non_negative(snap.scheduler_overflow_spawns, "scheduler_overflow_spawns")
+    failures = failures + assert_non_negative(snap.patch_journal_count, "patch_journal_count")
+    failures = failures + assert_non_negative(snap.entangle_propagation_count, "entangle_propagation_count")
+    failures = failures + assert_non_negative(snap.converge_mismatch_count, "converge_mismatch_count")
+    failures = failures + assert_non_negative(snap.pulse_total_fire_count, "pulse_total_fire_count")
+
+    return failures
+
+// ============================================================================
+//  TEST 2: Telemetry after bootstrap — verify snapshot fields
+// ============================================================================
+
+fn test_telemetry_after_bootstrap() -> Int:
+    println("\n--- Test: telemetry after bootstrap ---")
+    var failures: Int = 0
+
+    // Bootstrap
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+    let _ = root_id
+
+    // Collect telemetry with known router_hits, restarts, escalations
+    let snap = collect_telemetry(42, 0, 0)
+
+    // Verify snapshot fields exist and are well-formed
+    println("  [info] uptime=" + str(snap.uptime_seconds)
+        + " hits=" + str(snap.router_hits)
+        + " reg_actors=" + str(snap.registered_actor_count))
+
+    // router_hits should reflect the 42 we passed (combined with mirror)
+    if snap.router_hits < 42:
+        println("  [FAIL] router_hits expected >= 42, got " + str(snap.router_hits))
+        failures = failures + 1
+    else:
+        println("  [PASS] router_hits = " + str(snap.router_hits))
+
+    // The scheduler should have active worker threads after init
+    if snap.scheduler_worker_count <= 0:
+        println("  [FAIL] scheduler_worker_count expected > 0, got " + str(snap.scheduler_worker_count))
+        failures = failures + 1
+    else:
+        println("  [PASS] scheduler_worker_count = " + str(snap.scheduler_worker_count))
+
+    return failures
+
+// ============================================================================
+//  TEST 3: Dashboard line format with known TelemetrySnapshot
+// ============================================================================
+
+fn test_dashboard_line_format() -> Int:
+    println("\n--- Test: dashboard line format ---")
+    var failures: Int = 0
+
+    // Create a TelemetrySnapshot with known values
+    let snap = TelemetrySnapshot {
+        uptime_seconds: 99,
+        router_hits: 473,
+        scheduler_queue_depth: 7,
+        scheduler_max_queue_depth: 12,
+        scheduler_active_workers: 4,
+        scheduler_busy_workers: 3,
+        scheduler_worker_count: 8,
+        scheduler_overflow_spawns: 0,
+        supervision_restart_count: 1,
+        supervision_escalation_count: 0,
+        patch_journal_count: 5,
+        entangle_propagation_count: 12,
+        converge_mismatch_count: 0,
+        pulse_total_fire_count: 0,
+        registered_actor_count: 4,
+    }
+
+    // Call the newly-public format_dashboard_line
+    let dash_line = format_dashboard_line(snap)
+
+    if len(dash_line) == 0:
+        println("  [FAIL] dashboard dash_line is empty")
+        return 1
+
+    // Verify it starts with "\r[greeble"
+    if char_at(dash_line, 0) != "\r":
+        println("  [FAIL] dashboard dash_line does not start with \\r")
+        failures = failures + 1
+    else:
+        println("  [PASS] dash_line starts with \\r")
+
+    if str_contains(dash_line, "[greeble") == false:
+        println("  [FAIL] dashboard dash_line missing \"[greeble\" marker")
+        failures = failures + 1
+    else:
+        println("  [PASS] dash_line contains \"[greeble\"")
+
+    // Verify it contains the uptime value (99)
+    let uptime_str = str(snap.uptime_seconds)
+    if str_contains(dash_line, uptime_str) == false:
+        println("  [FAIL] dashboard dash_line missing uptime value \"" + uptime_str + "\"")
+        failures = failures + 1
+    else:
+        println("  [PASS] dash_line contains uptime \"" + uptime_str + "\"")
+
+    // Verify it contains "reqs=" with the hits count
+    if str_contains(dash_line, "reqs=") == false:
+        println("  [FAIL] dashboard dash_line missing \"reqs=\"")
+        failures = failures + 1
+    else:
+        println("  [PASS] dash_line contains \"reqs=\"")
+
+    // Verify it contains entangle count
+    if str_contains(dash_line, "ent=") == false:
+        println("  [FAIL] dashboard dash_line missing \"ent=\"")
+        failures = failures + 1
+    else:
+        println("  [PASS] dash_line contains \"ent=\"")
+
+    // Show the actual dashboard output for visual verification
+    println("  [info] dashboard output: " + dash_line)
+    return failures
+
+// ============================================================================
+//  TEST 4: Entangle propagation after patch
+// ============================================================================
+
+fn test_entangle_propagation_after_patch() -> Int:
+    println("\n--- Test: entangle propagation after patch ---")
+    var failures: Int = 0
+
+    // Bootstrap supervision tree (sets up worlds + entangle)
+    let cfg = default_config()
+    let _root_id = spawn_supervision_tree(cfg)
+
+    // Record propagation count before patch
+    let epc_before = entangle_propagation_count()
+    println("  [info] entangle_propagation_count before = " + str(epc_before))
+
+    // Perform a patch — this modifies ServerAuthority.total_requests,
+    // which is entangled with ServerMirror.total_requests_copy
+    let _epoch = increment_requests(ServerAuthority)
+
+    // Record after patch
+    let epc_after = entangle_propagation_count()
+    println("  [info] entangle_propagation_count after = " + str(epc_after))
+
+    // Verify propagation count increased (strict check)
+    if epc_after <= epc_before:
+        println("  [FAIL] entangle_propagation_count did not increase: before="
+            + str(epc_before) + " after=" + str(epc_after))
+        failures = failures + 1
+    else:
+        println("  [PASS] entangle_propagation_count increased: Δ"
+            + str(epc_after - epc_before))
+
+    return failures
+
+// ============================================================================
+//  TEST 5: Patch journal count increments after patch
+// ============================================================================
+
+fn test_patch_journal_count_increments() -> Int:
+    println("\n--- Test: patch journal count increments ---")
+    var failures: Int = 0
+
+    // Bootstrap
+    let cfg = default_config()
+    let _root_id = spawn_supervision_tree(cfg)
+
+    // Record journal count before
+    let pjc_before = patch_journal_count()
+    println("  [info] patch_journal_count before = " + str(pjc_before))
+
+    // Perform a different patch — increment_connections
+    let _epoch = increment_connections(ServerAuthority)
+
+    // Record after
+    let pjc_after = patch_journal_count()
+    println("  [info] patch_journal_count after = " + str(pjc_after))
+
+    // Verify journal count increased
+    if pjc_after <= pjc_before:
+        println("  [FAIL] patch_journal_count did not increase: before="
+            + str(pjc_before) + " after=" + str(pjc_after))
+        failures = failures + 1
+    else:
+        println("  [PASS] patch_journal_count increased: Δ"
+            + str(pjc_after - pjc_before))
+
+    return failures
+
+// ============================================================================
+//  RUN ALL END-TO-END TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("=== GREEBLE END-TO-END TESTS ===")
+    println("")
+    println("Testing: full bootstrap, telemetry, dashboard format,")
+    println("         entangle propagation, patch journal, clean shutdown")
+
+    var failures: Int = 0
+
+    // Dashboard format test is pure — no runtime needed
+    println("")
+    println("-- Pure Function Tests --")
+    failures = failures + test_dashboard_line_format()
+
+    // Actor/world/patch tests — need runtime
+    println("")
+    println("-- Actor/World/Patch Tests (runtime required) --")
+
+    let init = runtime_init()
+    if init != 0:
+        println("  [CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    let _ = net_reset()
+
+    failures = failures + test_full_bootstrap()
+    failures = failures + test_telemetry_after_bootstrap()
+    failures = failures + test_entangle_propagation_after_patch()
+    failures = failures + test_patch_journal_count_increments()
+
+    // Clean shutdown as the final implicit test
+    println("")
+    println("-- Shutdown --")
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        failures = failures + 1
+        println("  [FAIL] runtime_shutdown returned " + str(shutdown) + " expected 0")
+    else:
+        println("  [PASS] runtime_shutdown returned 0")
+
+    println("")
+    println("=== END-TO-END TESTS: " + str(failures) + " failure(s) ===")
+    return failures

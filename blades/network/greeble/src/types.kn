@@ -1,0 +1,158 @@
+// ============================================================================
+//  types.kn — Greeble shared types, constants, and helpers
+//
+//  Ladder: Layer 0 — Plain Code
+//  Pure structs, consts, and fn with no effects. Everything in the project
+//  depends on this file, so it has zero imports beyond the language builtins.
+// ============================================================================
+
+// ---- Version & Identity ---------------------------------------------------
+
+pub const GREEBLE_VERSION: String = "0.1.0"
+
+// ---- Defaults -------------------------------------------------------------
+
+pub const DEFAULT_PORT: Int = 8080
+pub const DEFAULT_WORKER_POOL_SIZE: Int = 8
+pub const DEFAULT_MAILBOX_CAPACITY: Int = 256
+pub const DEFAULT_DASHBOARD_INTERVAL_MS: Int = 1000
+
+// ---- Supervision ----------------------------------------------------------
+
+pub const MAX_RESTARTS_PER_WINDOW: Int = 5
+pub const RESTART_WINDOW_MS: Int = 60000
+
+// ---- Pack/Unpack Arithmetic -----------------------------------------------
+
+pub const PACK_MOD: Int = 1000000
+
+pub fn pack(a: Int, b: Int) -> Int:
+    return a + b * PACK_MOD
+
+pub fn unpack_first(packed: Int) -> Int:
+    return packed % PACK_MOD
+
+pub fn unpack_second(packed: Int) -> Int:
+    return packed / PACK_MOD
+
+// ---- Supervisor Strategy Constants ----------------------------------------
+
+pub const SUP_STRATEGY_ONE_FOR_ONE: Int = 0
+pub const SUP_STRATEGY_ONE_FOR_ALL: Int = 1
+pub const SUP_STRATEGY_REST_FOR_ONE: Int = 2
+pub const SUP_STRATEGY_SIMPLE_ONE_FOR_ONE: Int = 3
+
+pub const SUP_POLICY_PERMANENT: Int = 0
+pub const SUP_POLICY_TEMPORARY: Int = 1
+pub const SUP_POLICY_TRANSIENT: Int = 2
+
+// ---- GreebleConfig — server configuration ---------------------------------
+
+pub struct GreebleConfig:
+    port: Int
+    worker_pool_size: Int
+    mailbox_capacity: Int
+    show_dashboard: Bool
+    dashboard_interval_ms: Int
+    enable_telemetry_json: Bool
+    show_help: Bool
+    show_version: Bool
+
+pub fn default_config() -> GreebleConfig:
+    return GreebleConfig {
+        port: DEFAULT_PORT,
+        worker_pool_size: DEFAULT_WORKER_POOL_SIZE,
+        mailbox_capacity: DEFAULT_MAILBOX_CAPACITY,
+        show_dashboard: false,
+        dashboard_interval_ms: DEFAULT_DASHBOARD_INTERVAL_MS,
+        enable_telemetry_json: true,
+        show_help: false,
+        show_version: false,
+    }
+
+// ---- TelemetrySnapshot — live dashboard / JSON snapshot -------------------
+
+pub struct TelemetrySnapshot:
+    uptime_seconds: Int
+    router_hits: Int
+    scheduler_queue_depth: Int
+    scheduler_max_queue_depth: Int
+    scheduler_active_workers: Int
+    scheduler_busy_workers: Int
+    scheduler_worker_count: Int
+    scheduler_overflow_spawns: Int
+    supervision_restart_count: Int
+    supervision_escalation_count: Int
+    patch_journal_count: Int
+    entangle_propagation_count: Int
+    converge_mismatch_count: Int
+    pulse_total_fire_count: Int
+    registered_actor_count: Int
+
+pub fn empty_telemetry() -> TelemetrySnapshot:
+    return TelemetrySnapshot {
+        uptime_seconds: 0,
+        router_hits: 0,
+        scheduler_queue_depth: 0,
+        scheduler_max_queue_depth: 0,
+        scheduler_active_workers: 0,
+        scheduler_busy_workers: 0,
+        scheduler_worker_count: 0,
+        scheduler_overflow_spawns: 0,
+        supervision_restart_count: 0,
+        supervision_escalation_count: 0,
+        patch_journal_count: 0,
+        entangle_propagation_count: 0,
+        converge_mismatch_count: 0,
+        pulse_total_fire_count: 0,
+        registered_actor_count: 0,
+    }
+
+// ---- HttpRequest — parsed incoming HTTP request ----------------------------
+
+pub struct HttpRequest:
+    method: String
+    path: String
+    query: String
+    headers: String    // raw header block for simplicity
+    body: String
+
+// ---- RouteEntry — single route in the router table ------------------------
+
+pub struct RouteEntry:
+    method: String
+    path: String
+    handler_id: Int
+    message_kind: String
+
+// ---- HttpResponse — response built by handlers -----------------------------
+
+pub struct HttpResponse:
+    status_code: Int
+    body: String
+    content_type: String
+
+pub fn http_ok(body: String) -> HttpResponse:
+    return HttpResponse { status_code: 200, body: body, content_type: "text/plain" }
+
+pub fn http_json(body: String) -> HttpResponse:
+    return HttpResponse { status_code: 200, body: body, content_type: "application/json" }
+
+pub fn http_not_found() -> HttpResponse:
+    return HttpResponse { status_code: 404, body: "Not Found", content_type: "text/plain" }
+
+pub fn http_service_unavailable() -> HttpResponse:
+    return HttpResponse { status_code: 503, body: "Service Unavailable", content_type: "text/plain" }
+
+// ---- HTTP Method Constants -------------------------------------------------
+
+pub const HTTP_GET: String = "GET"
+pub const HTTP_POST: String = "POST"
+pub const HTTP_PUT: String = "PUT"
+pub const HTTP_DELETE: String = "DELETE"
+
+// ---- Status Codes ----------------------------------------------------------
+
+pub const STATUS_OK: Int = 200
+pub const STATUS_NOT_FOUND: Int = 404
+pub const STATUS_SERVICE_UNAVAILABLE: Int = 503

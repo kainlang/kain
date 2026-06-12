@@ -1,0 +1,95 @@
+// ============================================================================
+//  state.kn — Greeble Dual-World State (L1 Authority + L2 Integrity)
+//
+//  Ladder: Layer 1 (State Authority) + Layer 2 (State Integrity)
+//
+//  ServerAuthority owns mutable server state; ServerMirror receives
+//  single-writer entanglement propagation. Laws guard the invariant
+//  boundaries. Patches journal every mutation through the compiler-owned
+//  patch journal and bump epoch counters so entangle/resonate/orchestrate
+//  layers can detect change.
+// ============================================================================
+
+use std::intent
+use std::runtime
+use types
+
+// ============================================================================
+//  STUB COMPONENT — required for world surface projection
+// ============================================================================
+
+component GreebleStub():
+    render <text value="greeble-server" />
+
+// ============================================================================
+//  WORLDS — Layer 1 State Authority
+// ============================================================================
+
+world ServerAuthority:
+    state config_json: String = "{}"
+    state active_connections: Int = 0
+    state total_requests: Int = 0
+    state total_errors: Int = 0
+    state epoch: Int = 0
+    surface native_ui => GreebleStub
+
+world ServerMirror:
+    state config_json_copy: String = "{}"
+    state active_connections_copy: Int = 0
+    state total_requests_copy: Int = 0
+    state total_errors_copy: Int = 0
+    state epoch_copy: Int = 0
+    surface web => GreebleStub
+
+// ============================================================================
+//  ENTANGLE — Compiler-Owned Bidirectional Sync
+// ============================================================================
+
+entangle ServerAuthority.config_json <-> ServerMirror.config_json_copy with single_writer
+entangle ServerAuthority.active_connections <-> ServerMirror.active_connections_copy with single_writer
+entangle ServerAuthority.total_requests <-> ServerMirror.total_requests_copy with single_writer
+entangle ServerAuthority.total_errors <-> ServerMirror.total_errors_copy with single_writer
+entangle ServerAuthority.epoch <-> ServerMirror.epoch_copy with single_writer
+
+// ============================================================================
+//  LAWS — Layer 2 Invariant Predicates
+// ============================================================================
+
+law connections_non_negative(n: Int) -> Bool:
+    return n >= 0
+
+law requests_non_negative(n: Int) -> Bool:
+    return n >= 0
+
+law epoch_monotonic(old: Int, new_epoch: Int) -> Bool:
+    return new_epoch > old
+
+// ============================================================================
+//  PATCHES — Layer 2 Journaled Mutation
+// ============================================================================
+
+patch increment_connections(authority: ServerAuthority) -> Int:
+    authority.active_connections = authority.active_connections + 1
+    authority.epoch = authority.epoch + 1
+    return authority.epoch
+
+patch decrement_connections(authority: ServerAuthority) -> Int:
+    if authority.active_connections > 0:
+        authority.active_connections = authority.active_connections - 1
+    authority.epoch = authority.epoch + 1
+    return authority.epoch
+
+patch increment_requests(authority: ServerAuthority) -> Int:
+    authority.total_requests = authority.total_requests + 1
+    authority.epoch = authority.epoch + 1
+    return authority.epoch
+
+patch increment_errors(authority: ServerAuthority) -> Int:
+    authority.total_errors = authority.total_errors + 1
+    authority.epoch = authority.epoch + 1
+    return authority.epoch
+
+patch set_config(authority: ServerAuthority, json: String) -> Int:
+    authority.config_json = json
+    authority.epoch = authority.epoch + 1
+    return authority.epoch

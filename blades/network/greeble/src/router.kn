@@ -1,0 +1,170 @@
+// ============================================================================
+//  router.kn — HTTP Router Actor
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Receives raw HTTP payloads, parses method/path/body, matches against
+//  registered routes, dispatches to handler actors, and tracks telemetry.
+//
+//  Dependencies:
+//    types.kn  — RouteEntry, GreebleConfig, HttpRequest
+//    state.kn  — ServerAuthority, ServerMirror, increment_requests
+// ============================================================================
+
+use std::actor
+use std::net
+use types
+use state
+
+// ============================================================================
+//  HTTP PARSING HELPERS — Pure L0, parse raw HTTP payload string into parts
+// ============================================================================
+
+pub fn parse_http_method(payload: String) -> String:
+    var i: Int = 0
+    var result: String = ""
+    while i < len(payload):
+        let c = char_at(payload, i)
+        if c == " ":
+            return result
+        result = result + c
+        i = i + 1
+    return result
+
+pub fn parse_http_path(payload: String) -> String:
+    var i: Int = 0
+    var spaces: Int = 0
+    var path: String = ""
+    var after_first_space: Bool = false
+    while i < len(payload):
+        let c = char_at(payload, i)
+        if c == " ":
+            spaces = spaces + 1
+            if spaces == 1:
+                after_first_space = true
+            elif spaces == 2:
+                // Strip query string from path
+                var clean: String = ""
+                var j: Int = 0
+                while j < len(path):
+                    let pc = char_at(path, j)
+                    if pc == "?":
+                        return clean
+                    clean = clean + pc
+                    j = j + 1
+                return clean
+        elif after_first_space:
+            path = path + c
+        i = i + 1
+    return path
+
+pub fn parse_http_body(payload: String) -> String:
+    var i: Int = 0
+    while i < len(payload):
+        if i + 3 < len(payload):
+            let c0 = char_at(payload, i)
+            let c1 = char_at(payload, i + 1)
+            let c2 = char_at(payload, i + 2)
+            let c3 = char_at(payload, i + 3)
+            if c0 == "\r" and c1 == "\n" and c2 == "\r" and c3 == "\n":
+                var body: String = ""
+                var j: Int = i + 4
+                while j < len(payload):
+                    body = body + char_at(payload, j)
+                    j = j + 1
+                return body
+        i = i + 1
+    return ""
+
+// ============================================================================
+//  ROUTE MATCHING — Simple exact match with /* catch-all
+// ============================================================================
+
+fn match_route(route_path: String, request_path: String) -> Bool:
+    if route_path == "/*":
+        return true
+    return route_path == request_path
+
+// ============================================================================
+//  ROUTER ACTOR — L7 Message-Dispatched State Machine
+//
+//  Receives raw HTTP, parses, routes, dispatches, tracks telemetry.
+// ============================================================================
+
+actor RouterActor:
+    state routes: Array<RouteEntry> = []
+    state hits: Int = 0
+    state rate_limiter_id: Int = 0
+    state auth_gate_id: Int = 0
+    state worker_pool_id: Int = 0
+
+    // ---- Main HTTP Request Handler ----------------------------------------
+
+    on HttpRequest(payload: String):
+        self.hits = self.hits + 1
+
+        let method = parse_http_method(payload)
+        let path = parse_http_path(payload)
+        let body = parse_http_body(payload)
+
+        // Walk registered routes, find first match
+        var matched: Bool = false
+        var i: Int = 0
+        while i < len(self.routes):
+            let route = self.routes[i]
+            if route.method == method and match_route(route.path, path):
+                // Dispatch to the handler actor via native Int-based actor_send
+                let _ = actor_send(route.handler_id, route.message_kind, body)
+                matched = true
+                i = len(self.routes)
+            i = i + 1
+
+        // Record request in world state telemetry
+        let _ = increment_requests(ServerAuthority)
+
+    // ---- Route Management -------------------------------------------------
+
+    on RegisterRoute(method: String, path: String, handler_id: Int, message_kind: String):
+        let entry = RouteEntry {
+            method: method,
+            path: path,
+            handler_id: handler_id,
+            message_kind: message_kind,
+        }
+        push(self.routes, entry)
+
+    // ---- Dependency Injection (set up after all actors spawned) -----------
+
+    on SetDependencies(rate_limiter_id: Int, auth_gate_id: Int, worker_pool_id: Int):
+        self.rate_limiter_id = rate_limiter_id
+        self.auth_gate_id = auth_gate_id
+        self.worker_pool_id = worker_pool_id
+
+    // ---- Telemetry --------------------------------------------------------
+
+    on GetTelemetry(reply_to: P, unused: Int):
+        send reply_to.Reply(value = self.hits)
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+pub fn spawn_router(config: GreebleConfig) -> RouterActor:
+    return spawn RouterActor()
+
+pub fn route_add(router_var: RouterActor, method: String, path: String, handler_id: Int, message_kind: String) -> Int:
+    send router_var.RegisterRoute(
+        method = method,
+        path = path,
+        handler_id = handler_id,
+        message_kind = message_kind,
+    )
+    return 0
+
+pub fn router_hits(router_var: RouterActor) -> Int:
+    return ask(router_var, "GetTelemetry", 0)
+
+pub fn router_hits_from_id(router_id: Int) -> Int:
+    // v0.1: read from entangled world state mirror instead of asking actor via Int.
+    // The actor's hits counter is tracked by increment_requests on ServerAuthority,
+    // which propagates to ServerMirror via entangle.
+    return ServerMirror.total_requests_copy

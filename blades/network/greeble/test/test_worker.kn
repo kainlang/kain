@@ -1,0 +1,235 @@
+// ============================================================================
+//  test_worker.kn — Worker Actor Unit Tests
+//
+//  Ladder: Layer 0 — Plain Code (test functions)
+//  Exercises the WorkerActor and WorkerPoolSupervisor actors from worker.kn.
+//
+//  WorkerActor tests:
+//    test_worker_spawn_and_process        — spawn, process one request, get stats
+//    test_worker_multiple_requests        — process 5 requests, verify stats
+//
+//  WorkerPoolSupervisor tests:
+//    test_worker_pool_spawn               — spawn pool of 4, verify pool exists
+//    test_worker_pool_dispatch            — dispatch request, verify processed
+//    test_worker_pool_round_robin         — dispatch 8 to pool of 4, all workers used
+// ============================================================================
+
+use std::runtime
+use std::actor
+use types
+use worker
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_false(condition: Bool, msg: String) -> Int:
+    return assert_true(condition == false, msg)
+
+// ============================================================================
+//  WORKER ACTOR TESTS
+// ============================================================================
+
+//  Test: Spawn WorkerActor, process one request, verify stats
+fn test_worker_spawn_and_process() -> Int:
+    println("\n--- Test: WorkerActor spawn and process ---")
+    let worker = spawn WorkerActor(id = 1)
+
+    let id: Int = worker as Int
+    if id <= 0:
+        println("  [FAIL] worker ID is non-positive: " + str(id))
+        return 1
+
+    // Process a request — returns packed(processed, checksum)
+    let result = ask(worker, "Process", "hello")
+    let processed = unpack_first(result)
+    let checksum = unpack_second(result)
+
+    if processed != 1:
+        println("  [FAIL] processed count expected 1, got " + str(processed))
+        return 2
+    if checksum <= 0:
+        println("  [FAIL] checksum expected > 0, got " + str(checksum))
+        return 3
+
+    // GetStats should confirm processed=1
+    let stats = ask(worker, "GetStats", 0)
+    let stats_processed = unpack_first(stats)
+    let stats_checksum = unpack_second(stats)
+
+    if stats_processed != processed:
+        println("  [FAIL] GetStats processed=" + str(stats_processed) + " expected " + str(processed))
+        return 4
+    if stats_checksum != checksum:
+        println("  [FAIL] GetStats checksum=" + str(stats_checksum) + " expected " + str(checksum))
+        return 5
+
+    println("  [PASS] WorkerActor spawned ID=" + str(id)
+        + " processed=" + str(processed)
+        + " checksum=" + str(checksum))
+    return 0
+
+//  Test: Process 5 requests, verify cumulative stats
+fn test_worker_multiple_requests() -> Int:
+    println("\n--- Test: WorkerActor multiple requests ---")
+    let worker = spawn WorkerActor(id = 2)
+
+    var i: Int = 0
+    var last_packed = 0
+    while i < 5:
+        last_packed = ask(worker, "Process", "req_" + str(i))
+        i = i + 1
+
+    let final_processed = unpack_first(last_packed)
+    let final_checksum = unpack_second(last_packed)
+
+    if final_processed != 5:
+        println("  [FAIL] final processed count expected 5, got " + str(final_processed))
+        return 6
+    if final_checksum <= 0:
+        println("  [FAIL] final checksum expected > 0, got " + str(final_checksum))
+        return 7
+
+    println("  [PASS] 5 requests processed=" + str(final_processed)
+        + " checksum=" + str(final_checksum))
+    return 0
+
+// ============================================================================
+//  WORKER POOL SUPERVISOR TESTS
+// ============================================================================
+
+//  Test: Spawn worker pool of 4, verify pool supervisor exists
+fn test_worker_pool_spawn() -> Int:
+    println("\n--- Test: WorkerPool spawn ---")
+    let pool = spawn_worker_pool(4, 64)
+
+    let id: Int = pool as Int
+    if id <= 0:
+        println("  [FAIL] pool supervisor ID is non-positive: " + str(id))
+        return 8
+
+    // Verify pool responds to GetPoolStats
+    let stats = ask(pool, "GetPoolStats", 0)
+    let total_processed = unpack_first(stats)
+    let total_checksum = unpack_second(stats)
+
+    if total_processed != 0:
+        println("  [FAIL] initial total_processed expected 0, got " + str(total_processed))
+        return 9
+    if total_checksum != 0:
+        println("  [FAIL] initial total_checksum expected 0, got " + str(total_checksum))
+        return 10
+
+    println("  [PASS] WorkerPool spawned ID=" + str(id)
+        + " workers=4 total_processed=" + str(total_processed))
+    return 0
+
+//  Test: Dispatch a single request, verify pool processes it
+fn test_worker_pool_dispatch() -> Int:
+    println("\n--- Test: WorkerPool dispatch ---")
+    let pool = spawn_worker_pool(4, 64)
+
+    // Dispatch one request
+    let result = ask(pool, "Dispatch", "request1")
+    if result < 0:
+        println("  [FAIL] Dispatch returned negative: " + str(result))
+        return 11
+
+    let dispatched_processed = unpack_first(result)
+    let dispatched_checksum = unpack_second(result)
+
+    if dispatched_processed != 1:
+        println("  [FAIL] dispatched processed expected 1, got " + str(dispatched_processed))
+        return 12
+    if dispatched_checksum <= 0:
+        println("  [FAIL] dispatched checksum expected > 0, got " + str(dispatched_checksum))
+        return 13
+
+    // GetPoolStats should confirm total_processed >= 1
+    let stats = ask(pool, "GetPoolStats", 0)
+    let total_processed = unpack_first(stats)
+    let total_checksum = unpack_second(stats)
+
+    if total_processed < 1:
+        println("  [FAIL] pool total_processed expected >= 1, got " + str(total_processed))
+        return 14
+    if total_checksum <= 0:
+        println("  [FAIL] pool total_checksum expected > 0, got " + str(total_checksum))
+        return 15
+
+    println("  [PASS] Dispatch processed=" + str(dispatched_processed)
+        + " pool total=" + str(total_processed) + " checksum=" + str(total_checksum))
+    return 0
+
+//  Test: Dispatch 8 requests across pool of 4, all workers get at least 1
+fn test_worker_pool_round_robin() -> Int:
+    println("\n--- Test: WorkerPool round-robin dispatch ---")
+    let pool = spawn_worker_pool(4, 64)
+
+    // Dispatch 8 requests
+    var i: Int = 0
+    var last_result = 0
+    while i < 8:
+        last_result = ask(pool, "Dispatch", "round_robin_" + str(i))
+        i = i + 1
+
+    // Pool stats should show total_processed = 8
+    let stats = ask(pool, "GetPoolStats", 0)
+    let total_processed = unpack_first(stats)
+    let total_checksum = unpack_second(stats)
+
+    if total_processed != 8:
+        println("  [FAIL] round-robin total_processed expected 8, got " + str(total_processed))
+        return 16
+    if total_checksum <= 0:
+        println("  [FAIL] round-robin total_checksum expected > 0, got " + str(total_checksum))
+        return 17
+
+    println("  [PASS] 8 dispatches across 4 workers:"
+        + " processed=" + str(total_processed)
+        + " checksum=" + str(total_checksum))
+    return 0
+
+// ============================================================================
+//  RUN ALL WORKER TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("=== GREEBLE WORKER ACTOR TESTS ===")
+    println("")
+    println("Testing: WorkerActor spawn, process; WorkerPool spawn, dispatch, round-robin")
+
+    let init = runtime_init()
+    if init != 0:
+        println("  [CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_worker_spawn_and_process()
+    failures = failures + test_worker_multiple_requests()
+    failures = failures + test_worker_pool_spawn()
+    failures = failures + test_worker_pool_dispatch()
+    failures = failures + test_worker_pool_round_robin()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("  [WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("=== WORKER TESTS: " + str(failures) + " failure(s) ===")
+    return failures

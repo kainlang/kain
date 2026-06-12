@@ -1,0 +1,221 @@
+// ============================================================================
+//  test_gateway.kn — Gateway Actor Unit Tests
+//
+//  Ladder: Layer 0 — Plain Code (test functions)
+//  Exercises the RateLimiter and AuthGate actors from gateway.kn.
+//
+//  RateLimiter tests (sliding-window rate limiter):
+//    test_rate_limiter_spawn               — spawn returns valid actor
+//    test_rate_limiter_allows_under_limit   — under-limit requests pass
+//    test_rate_limiter_denies_over_limit   — over-limit requests blocked
+//
+//  AuthGate tests (token-based authentication):
+//    test_auth_gate_spawn                  — spawn returns valid actor
+//    test_auth_gate_add_and_validate       — add token, validate ok/bad
+//    test_auth_gate_revoke                 — add then revoke token
+// ============================================================================
+
+use std::runtime
+use std::actor
+use types
+use gateway
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_false(condition: Bool, msg: String) -> Int:
+    return assert_true(condition == false, msg)
+
+// ============================================================================
+//  RATE LIMITER TESTS
+// ============================================================================
+
+//  Test: spawn_rate_limiter returns a valid actor
+fn test_rate_limiter_spawn() -> Int:
+    println("\n--- Test: RateLimiter spawn ---")
+    let limiter = spawn_rate_limiter(10)
+
+    let id: Int = limiter as Int
+    if id <= 0:
+        println("  [FAIL] rate_limiter ID is non-positive: " + str(id))
+        return 1
+
+    // Verify it responds to Check with a non-negative packed result
+    let result = ask(limiter, "Check", "ping")
+    if result < 0:
+        println("  [FAIL] Check returned negative: " + str(result))
+        return 2
+
+    println("  [PASS] RateLimiter spawned ID=" + str(id) + " check=" + str(result))
+    return 0
+
+//  Test: Under-limit requests all pass (allowed=1)
+fn test_rate_limiter_allows_under_limit() -> Int:
+    println("\n--- Test: RateLimiter allows under limit ---")
+    let limiter = spawn_rate_limiter(10)
+    var failures: Int = 0
+
+    var i: Int = 0
+    while i < 5:
+        let result = ask(limiter, "Check", "key_" + str(i))
+        let allowed = unpack_first(result)
+        if allowed != 1:
+            println("  [FAIL] request " + str(i) + " denied (allowed=" + str(allowed) + ")")
+            failures = failures + 1
+        i = i + 1
+
+    if failures > 0:
+        println("  [FAIL] " + str(failures) + " under-limit requests denied")
+        return 3
+
+    println("  [PASS] all 5 under-limit requests allowed")
+    return 0
+
+//  Test: Over-limit requests are denied (4th Check returns allowed=0)
+fn test_rate_limiter_denies_over_limit() -> Int:
+    println("\n--- Test: RateLimiter denies over limit ---")
+    let limiter = spawn_rate_limiter(3)
+    var failures: Int = 0
+
+    // First 3 should be allowed
+    var i: Int = 0
+    while i < 3:
+        let result = ask(limiter, "Check", "burst")
+        let allowed = unpack_first(result)
+        if allowed != 1:
+            println("  [FAIL] request " + str(i+1) + "/3 denied, expected allowed=1")
+            failures = failures + 1
+        i = i + 1
+
+    // 4th should be denied
+    let result4 = ask(limiter, "Check", "burst")
+    let allowed4 = unpack_first(result4)
+    if allowed4 != 0:
+        println("  [FAIL] 4th request allowed (allowed=" + str(allowed4) + "), expected denied")
+        failures = failures + 1
+
+    if failures > 0:
+        println("  [FAIL] " + str(failures) + " over-limit check(s) wrong")
+        return 4
+
+    println("  [PASS] 3 allowed + 1 denied: over-limit enforcement works")
+    return 0
+
+// ============================================================================
+//  AUTH GATE TESTS
+// ============================================================================
+
+//  Test: spawn_auth_gate returns a valid actor with empty token list
+fn test_auth_gate_spawn() -> Int:
+    println("\n--- Test: AuthGate spawn ---")
+    let gate = spawn_auth_gate()
+
+    let id: Int = gate as Int
+    if id <= 0:
+        println("  [FAIL] auth_gate ID is non-positive: " + str(id))
+        return 5
+
+    // Validate a token with no tokens added — should return 0 (not found)
+    let found = ask(gate, "Validate", "token1")
+    if found != 0:
+        println("  [FAIL] Validate returned " + str(found) + ", expected 0 (empty gate)")
+        return 6
+
+    println("  [PASS] AuthGate spawned ID=" + str(id) + " empty validate=" + str(found))
+    return 0
+
+//  Test: Add a token, validate it, validate a wrong token
+fn test_auth_gate_add_and_validate() -> Int:
+    println("\n--- Test: AuthGate add and validate ---")
+    let gate = spawn_auth_gate()
+
+    // Add a token (fire-and-forget)
+    send gate.AddToken(token = "secret")
+
+    // Validate the good token — should return 1
+    let found_good = ask(gate, "Validate", "secret")
+    if found_good != 1:
+        println("  [FAIL] Validate(\"secret\") returned " + str(found_good) + ", expected 1")
+        return 7
+
+    // Validate a wrong token — should return 0
+    let found_wrong = ask(gate, "Validate", "wrong")
+    if found_wrong != 0:
+        println("  [FAIL] Validate(\"wrong\") returned " + str(found_wrong) + ", expected 0")
+        return 8
+
+    println("  [PASS] good token=1, wrong token=0")
+    return 0
+
+//  Test: Add then revoke a token, validate it is gone
+fn test_auth_gate_revoke() -> Int:
+    println("\n--- Test: AuthGate revoke ---")
+    let gate = spawn_auth_gate()
+
+    // Add temporary token
+    send gate.AddToken(token = "temp")
+    send gate.AddToken(token = "permanent")
+
+    // Revoke the temporary one
+    send gate.RevokeToken(token = "temp")
+
+    // Validate revoked token — should return 0
+    let found_revoked = ask(gate, "Validate", "temp")
+    if found_revoked != 0:
+        println("  [FAIL] Validate(\"temp\") after revoke returned " + str(found_revoked) + ", expected 0")
+        return 9
+
+    // Validate permanent token — should still return 1
+    let found_perm = ask(gate, "Validate", "permanent")
+    if found_perm != 1:
+        println("  [FAIL] Validate(\"permanent\") after revoke returned " + str(found_perm) + ", expected 1")
+        return 10
+
+    println("  [PASS] revoked=0, permanent=1")
+    return 0
+
+// ============================================================================
+//  RUN ALL GATEWAY TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("=== GREEBLE GATEWAY ACTOR TESTS ===")
+    println("")
+    println("Testing: RateLimiter spawn, allow, deny; AuthGate spawn, validate, revoke")
+
+    let init = runtime_init()
+    if init != 0:
+        println("  [CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_rate_limiter_spawn()
+    failures = failures + test_rate_limiter_allows_under_limit()
+    failures = failures + test_rate_limiter_denies_over_limit()
+    failures = failures + test_auth_gate_spawn()
+    failures = failures + test_auth_gate_add_and_validate()
+    failures = failures + test_auth_gate_revoke()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("  [WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("=== GATEWAY TESTS: " + str(failures) + " failure(s) ===")
+    return failures

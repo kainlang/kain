@@ -1,0 +1,201 @@
+// ============================================================================
+//  greeble unit tests — types.kn (Layer 0)
+//
+//  Ladder: Layer 0 — Plain Code
+//  Tests pure struct constructors, constants, and helper functions from
+//  the shared types module. No side effects or runtime dependencies.
+// ============================================================================
+
+use types
+
+// ============================================================================
+//  TEST COUNTER — accumulates failures across all test functions
+// ============================================================================
+
+var _failures: Int = 0
+
+// ============================================================================
+//  ASSERTION HELPERS
+// ============================================================================
+
+fn assert_eq(actual: Int, expected: Int, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_str_eq(actual: String, expected: String, msg: String):
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected \"" + expected + "\" got \"" + actual + "\"")
+        _failures = _failures + 1
+    else:
+        println("  [PASS] " + msg)
+
+fn assert_true(condition: Bool, msg: String):
+    if condition:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+fn assert_false(condition: Bool, msg: String):
+    if condition == false:
+        println("  [PASS] " + msg)
+    else:
+        println("  [FAIL] " + msg)
+        _failures = _failures + 1
+
+// ============================================================================
+//  TEST: pack / unpack arithmetic
+// ============================================================================
+
+fn test_pack_unpack():
+    println("--- pack / unpack ---")
+
+    // pack(5, 7) = 5 + 7 * PACK_MOD
+    let packed: Int = pack(5, 7)
+    assert_eq(packed, 7000005, "pack(5, 7) == 7000005")
+
+    // Unpack components
+    assert_eq(unpack_first(packed), 5, "unpack_first(pack(5, 7)) == 5")
+    assert_eq(unpack_second(packed), 7, "unpack_second(pack(5, 7)) == 7")
+
+    // Zero boundary
+    assert_eq(pack(0, 0), 0, "pack(0, 0) == 0")
+    assert_eq(unpack_first(0), 0, "unpack_first(0) == 0")
+    assert_eq(unpack_second(0), 0, "unpack_second(0) == 0")
+
+    // Round-trip symmetry
+    let a: Int = 123
+    let b: Int = 456
+    let p: Int = pack(a, b)
+    assert_eq(unpack_first(p), a, "unpack_first(pack(123, 456)) == 123")
+    assert_eq(unpack_second(p), b, "unpack_second(pack(123, 456)) == 456")
+
+    // Large second component
+    let big_packed: Int = pack(999, 999999)
+    assert_eq(unpack_first(big_packed), 999, "unpack_first(pack(999, 999999)) == 999")
+    assert_eq(unpack_second(big_packed), 999999, "unpack_second(pack(999, 999999)) == 999999")
+
+// ============================================================================
+//  TEST: default config structure
+// ============================================================================
+
+fn test_default_config():
+    println("--- default config ---")
+
+    let cfg: GreebleConfig = default_config()
+
+    assert_eq(cfg.port, DEFAULT_PORT, "default port == " + str(DEFAULT_PORT))
+    assert_eq(cfg.worker_pool_size, DEFAULT_WORKER_POOL_SIZE,
+              "default worker_pool_size == " + str(DEFAULT_WORKER_POOL_SIZE))
+    assert_eq(cfg.mailbox_capacity, DEFAULT_MAILBOX_CAPACITY,
+              "default mailbox_capacity == " + str(DEFAULT_MAILBOX_CAPACITY))
+    assert_eq(cfg.dashboard_interval_ms, DEFAULT_DASHBOARD_INTERVAL_MS,
+              "default dashboard_interval_ms == " + str(DEFAULT_DASHBOARD_INTERVAL_MS))
+
+    // Boolean fields
+    assert_false(cfg.show_dashboard, "default show_dashboard == false")
+    assert_true(cfg.enable_telemetry_json, "default enable_telemetry_json == true")
+    assert_false(cfg.show_help, "default show_help == false")
+    assert_false(cfg.show_version, "default show_version == false")
+
+// ============================================================================
+//  TEST: module-level constants
+// ============================================================================
+
+fn test_constants():
+    println("--- constants ---")
+
+    assert_str_eq(GREEBLE_VERSION, "0.1.0", "GREEBLE_VERSION == \"0.1.0\"")
+    assert_true(DEFAULT_PORT > 0, "DEFAULT_PORT > 0")
+    assert_eq(DEFAULT_PORT, 8080, "DEFAULT_PORT == 8080")
+    assert_eq(PACK_MOD, 1000000, "PACK_MOD == 1000000")
+    assert_true(MAX_RESTARTS_PER_WINDOW > 0, "MAX_RESTARTS_PER_WINDOW > 0")
+    assert_true(RESTART_WINDOW_MS > 0, "RESTART_WINDOW_MS > 0")
+
+// ============================================================================
+//  TEST: empty telemetry snapshot — all fields zero
+// ============================================================================
+
+fn test_empty_telemetry():
+    println("--- empty telemetry ---")
+
+    let t: TelemetrySnapshot = empty_telemetry()
+
+    assert_eq(t.uptime_seconds, 0, "uptime_seconds == 0")
+    assert_eq(t.router_hits, 0, "router_hits == 0")
+    assert_eq(t.scheduler_queue_depth, 0, "scheduler_queue_depth == 0")
+    assert_eq(t.scheduler_max_queue_depth, 0, "scheduler_max_queue_depth == 0")
+    assert_eq(t.scheduler_active_workers, 0, "scheduler_active_workers == 0")
+    assert_eq(t.scheduler_busy_workers, 0, "scheduler_busy_workers == 0")
+    assert_eq(t.scheduler_worker_count, 0, "scheduler_worker_count == 0")
+    assert_eq(t.scheduler_overflow_spawns, 0, "scheduler_overflow_spawns == 0")
+    assert_eq(t.supervision_restart_count, 0, "supervision_restart_count == 0")
+    assert_eq(t.supervision_escalation_count, 0, "supervision_escalation_count == 0")
+    assert_eq(t.patch_journal_count, 0, "patch_journal_count == 0")
+    assert_eq(t.entangle_propagation_count, 0, "entangle_propagation_count == 0")
+    assert_eq(t.converge_mismatch_count, 0, "converge_mismatch_count == 0")
+    assert_eq(t.pulse_total_fire_count, 0, "pulse_total_fire_count == 0")
+    assert_eq(t.registered_actor_count, 0, "registered_actor_count == 0")
+
+// ============================================================================
+//  TEST: HTTP response factory functions
+// ============================================================================
+
+fn test_http_response_factories():
+    println("--- HTTP response factories ---")
+
+    // http_ok
+    let ok_resp: HttpResponse = http_ok("hello")
+    assert_eq(ok_resp.status_code, STATUS_OK, "http_ok status == " + str(STATUS_OK))
+    assert_str_eq(ok_resp.body, "hello", "http_ok body == \"hello\"")
+    assert_str_eq(ok_resp.content_type, "text/plain", "http_ok content_type == \"text/plain\"")
+
+    // http_json
+    let json_resp: HttpResponse = http_json("{\"a\":1}")
+    assert_eq(json_resp.status_code, STATUS_OK, "http_json status == " + str(STATUS_OK))
+    assert_str_eq(json_resp.content_type, "application/json", "http_json content_type == \"application/json\"")
+
+    // http_not_found
+    let nf: HttpResponse = http_not_found()
+    assert_eq(nf.status_code, STATUS_NOT_FOUND, "http_not_found status == " + str(STATUS_NOT_FOUND))
+    assert_str_eq(nf.body, "Not Found", "http_not_found body == \"Not Found\"")
+
+    // http_service_unavailable
+    let su: HttpResponse = http_service_unavailable()
+    assert_eq(su.status_code, STATUS_SERVICE_UNAVAILABLE,
+              "http_service_unavailable status == " + str(STATUS_SERVICE_UNAVAILABLE))
+    assert_str_eq(su.body, "Service Unavailable", "http_service_unavailable body == \"Service Unavailable\"")
+
+// ============================================================================
+//  TEST: HTTP method string constants
+// ============================================================================
+
+fn test_http_method_constants():
+    println("--- HTTP method constants ---")
+
+    assert_str_eq(HTTP_GET, "GET", "HTTP_GET == \"GET\"")
+    assert_str_eq(HTTP_POST, "POST", "HTTP_POST == \"POST\"")
+    assert_str_eq(HTTP_PUT, "PUT", "HTTP_PUT == \"PUT\"")
+    assert_str_eq(HTTP_DELETE, "DELETE", "HTTP_DELETE == \"DELETE\"")
+
+// ============================================================================
+//  RUNNER
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    _failures = 0
+    println("")
+    println("=== greeble unit tests: types ===")
+    test_pack_unpack()
+    test_default_config()
+    test_constants()
+    test_empty_telemetry()
+    test_http_response_factories()
+    test_http_method_constants()
+    println("--- types: " + str(_failures) + " failures ---")
+    return _failures
+
+// No standalone main() — this module is imported by test_runner.kn
