@@ -1,20 +1,16 @@
 // ============================================================================
-//  dashboard.kn — Greeble Live Terminal Dashboard (L5 Temporal)
+//  dashboard.kn — Greeble Live Terminal Dashboard (L5 Temporal) (v0.2)
 //
-//  Ladder: Layer 5 — Temporal (pulse commented out, pattern shown)
+//  Ladder: Layer 5 — Temporal (pulse wired by consumer in main.kn)
 //  A single-line \r-overwriting terminal dashboard that renders telemetry
-//  every second. The pulse block is left commented so the consumer
-//  (main.kn) can wire it into their own pulse schedule with live tick
-//  counters.
+//  every second. This module is pure formatting — the consumer (main.kn)
+//  owns the pulse block and passes live tick counters.
 //
 //  \r is valid in Kain string literals (lexer.rs:456).
 //  print() is a built-in (no newline); println() includes newline.
 //  No fflush available, so first tick uses println() to force flush.
 // ============================================================================
 
-use std::runtime
-use std::actor
-use std::intent
 use types
 
 // ============================================================================
@@ -41,5 +37,5 @@ pub fn format_dashboard_line(t: TelemetrySnapshot) -> String:
 
 // Usage note:
 // Import with:  use dashboard
-// The consumer owns the pulse block. This module provides only the
-// formatting function. See the pattern above for integration.
+// The consumer (main.kn) owns the pulse block. This module provides only
+// the formatting function.

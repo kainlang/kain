@@ -1,9 +1,10 @@
 // ============================================================================
-//  pipeline.kn — Request Processing Pipeline (stub for v0.1)
+//  pipeline.kn — Request Processing Pipeline (v0.2)
 //
 //  Ladder: Layer 4 — Stage Graph (orchestrate)
 //  Full orchestrate DAG with rate limiter, auth gate, and worker dispatch
-//  will be wired in v0.2. For v0.1, provide a pass-through.
+//  will be wired in a future version. For v0.2, provides a pass-through
+//  that returns the body length as a placeholder.
 // ============================================================================
 
 use types

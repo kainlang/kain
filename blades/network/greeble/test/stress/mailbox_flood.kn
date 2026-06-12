@@ -1,0 +1,311 @@
+// ============================================================================
+//  mailbox_flood.kn — Bounded Mailbox Flood Test
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Flood a bounded-mailbox actor with fire-and-forget sends. Measure
+//  saturation point, drop behavior, and post-flood health.
+//
+//  Tests:
+//    test_mailbox_fill_256      — send exactly 256 messages, check saturation
+//    test_mailbox_overflow_512  — send 512 messages to 256-capacity mailbox
+//    test_mailbox_tsunami_10K   — send 10K fire-and-forget sends
+//    test_mailbox_tsunami_100K  — send 100K fire-and-forget sends
+//    test_mailbox_post_flood    — verify actor still alive after flood
+//    test_mailbox_drop_rate     — measure dropped messages
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::os
+
+// ---- Drop-counting actor with bounded mailbox ------------------------------
+
+actor FloodActor:
+    state received: Int = 0
+    state dropped: Int = 0
+    state checksum: Int = 0
+    state max_burst: Int = 0
+
+    on FireAndForget(payload: Int):
+        self.received = self.received + 1
+        self.checksum = (self.checksum + payload) % 1000000007
+        if self.received > self.max_burst:
+            self.max_burst = self.received
+
+    on GetStats(reply_to: P, unused: Int):
+        let packed: Int = self.received + self.checksum * 1000000
+        send reply_to.Reply(value = packed)
+
+    on GetSentinel(reply_to: P, sentinel: Int):
+        self.received = self.received + 1
+        send reply_to.Reply(value = self.received)
+
+// ---- Slow actor for backpressure testing -----------------------------------
+
+actor SlowActor:
+    state received: Int = 0
+    state delay_ms: Int = 10
+
+    on FireAndForget(payload: Int):
+        // Simulate slow processing
+        os_sleep_millis(self.delay_ms)
+        self.received = self.received + 1
+
+    on GetStats(reply_to: P, unused: Int):
+        send reply_to.Reply(value = self.received)
+
+// ---- Helpers ---------------------------------------------------------------
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
+    if actual >= minimum:
+        println("  [PASS] " + msg + " = " + str(actual) + " (>= " + str(minimum) + ")")
+        return 0
+    println("  [FAIL] " + msg + ": expected >= " + str(minimum) + " got " + str(actual))
+    return 1
+
+fn dump_scheduler_telemetry(label: String):
+    println("  --- scheduler after " + label + " ---")
+    println("    queue_depth       = " + str(actor_scheduler_queue_depth()))
+    println("    max_queue_depth   = " + str(actor_scheduler_max_queue_depth()))
+    println("    active_workers    = " + str(actor_scheduler_active_workers()))
+    println("    busy_workers      = " + str(actor_scheduler_busy_workers()))
+    println("    total_enqueued    = " + str(actor_scheduler_total_enqueued()))
+    println("    total_dequeued    = " + str(actor_scheduler_total_dequeued()))
+    println("    overflow_spawns   = " + str(actor_scheduler_overflow_thread_spawns()))
+
+// ---- Fire N messages at an actor -------------------------------------------
+
+fn fire_messages(actor_id: Int, count: Int) -> (Int, Int):
+    // Returns (send_failures, elapsed_ms)
+    let t0: Int = now_millis()
+    var failures: Int = 0
+    var i: Int = 0
+    while i < count:
+        let status: Int = actor_send(actor_id, "FireAndForget", str(i))
+        if status != 0:
+            failures = failures + 1
+        i = i + 1
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (failures, elapsed_ms)
+
+// ============================================================================
+//  TEST CASES
+// ============================================================================
+
+fn test_mailbox_fill_256() -> Int:
+    println("\n--- Test: Fill 256-capacity mailbox ---")
+    var failures: Int = 0
+
+    let actor = spawn FloodActor()
+    let id: Int = actor as Int
+    let count: Int = 256
+
+    let (send_failures, elapsed_ms) = fire_messages(id, count)
+
+    println("  [INFO] Sent " + str(count) + " messages in " + str(elapsed_ms) + " ms, " + str(send_failures) + " send failures")
+
+    failures = failures + assert_eq(send_failures, 0, "zero send failures at 256")
+
+    // Wait for processing
+    os_sleep_millis(500)
+
+    // Verify actor processed messages
+    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let received: Int = stats % 1000000
+    let checksum: Int = stats / 1000000
+
+    println("  [INFO] Actor received: " + str(received) + " / " + str(count) + " checksum=" + str(checksum))
+    failures = failures + assert_ge(received, 200, "received >= 200 of 256")
+
+    dump_scheduler_telemetry("256 fill")
+    return failures
+
+fn test_mailbox_overflow_512() -> Int:
+    println("\n--- Test: Overflow 256-capacity with 512 sends ---")
+    var failures: Int = 0
+
+    let actor = spawn FloodActor()
+    let id: Int = actor as Int
+    let count: Int = 512
+
+    let (send_failures, elapsed_ms) = fire_messages(id, count)
+
+    println("  [INFO] Sent " + str(count) + " messages in " + str(elapsed_ms) + " ms, " + str(send_failures) + " send failures")
+
+    // Wait for processing
+    os_sleep_millis(1000)
+
+    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let received: Int = stats % 1000000
+    let checksum: Int = stats / 1000000
+
+    let dropped: Int = count - received
+    println("  [INFO] Received: " + str(received) + "/" + str(count) + ", dropped: " + str(dropped) + " checksum=" + str(checksum))
+
+    // At least some should get through
+    failures = failures + assert_ge(received, 100, "received >= 100 of 512")
+
+    dump_scheduler_telemetry("512 overflow")
+    return failures
+
+fn test_mailbox_tsunami_10K() -> Int:
+    println("\n--- Test: Tsunami — 10000 fire-and-forget sends ---")
+    var failures: Int = 0
+
+    let actor = spawn FloodActor()
+    let id: Int = actor as Int
+    let count: Int = 10000
+
+    let (send_failures, elapsed_ms) = fire_messages(id, count)
+
+    println("  [INFO] Fired " + str(count) + " sends in " + str(elapsed_ms) + " ms, " + str(send_failures) + " failures")
+
+    if elapsed_ms > 0:
+        let rate: Int = (count * 1000) / elapsed_ms
+        println("  [INFO] Send rate: " + str(rate) + " msgs/sec")
+
+    // Wait for processing
+    os_sleep_millis(2000)
+
+    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let received: Int = stats % 1000000
+    let checksum: Int = stats / 1000000
+
+    let dropped: Int = count - received
+    println("  [INFO] Received: " + str(received) + "/" + str(count) + ", dropped: " + str(dropped))
+
+    failures = failures + assert_ge(received, 100, "received >= 100 of 10K")
+
+    // Check actor is still alive post-flood
+    let sentinel: Int = ask(actor, "GetSentinel", 42) as Int
+    failures = failures + assert_true(sentinel > 0, "actor alive after tsunami (sentinel=" + str(sentinel) + ")")
+
+    dump_scheduler_telemetry("10K tsunami")
+    return failures
+
+fn test_mailbox_tsunami_100K() -> Int:
+    println("\n--- Test: MEGA-TSUNAMI — 100000 fire-and-forget sends ---")
+    var failures: Int = 0
+
+    let actor = spawn FloodActor()
+    let id: Int = actor as Int
+    let count: Int = 100000
+
+    let t0: Int = now_millis()
+    var send_failures: Int = 0
+    var i: Int = 0
+    while i < count:
+        let status: Int = actor_send(id, "FireAndForget", str(i % 10000))
+        if status != 0:
+            send_failures = send_failures + 1
+        // Minimal yield every 10K to avoid overwhelming the caller
+        if i % 10000 == 0 and i > 0:
+            os_sleep_millis(10)
+        i = i + 1
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+
+    println("  [INFO] Fired " + str(count) + " sends in " + str(elapsed_ms) + " ms, " + str(send_failures) + " failures")
+
+    if elapsed_ms > 0:
+        let rate: Int = (count * 1000) / elapsed_ms
+        println("  [INFO] Send rate: " + str(rate) + " msgs/sec")
+
+    // Longer wait for 100K messages
+    os_sleep_millis(5000)
+
+    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let received: Int = stats % 1000000
+    let checksum: Int = stats / 1000000
+
+    println("  [INFO] Received: " + str(received) + "/" + str(count) + " checksum=" + str(checksum))
+
+    failures = failures + assert_ge(received, 100, "received >= 100 of 100K")
+
+    // Final health check
+    let sentinel: Int = ask(actor, "GetSentinel", 777) as Int
+    failures = failures + assert_true(sentinel > 0, "actor alive after mega-tsunami")
+
+    dump_scheduler_telemetry("100K mega-tsunami")
+    return failures
+
+fn test_mailbox_post_flood_health() -> Int:
+    println("\n--- Test: Post-flood actor health ---")
+    var failures: Int = 0
+
+    let actor = spawn FloodActor()
+    let id: Int = actor as Int
+
+    // Send a moderate flood
+    let (_, _) = fire_messages(id, 500)
+    os_sleep_millis(500)
+
+    // Now ping with ask to verify synchronous response still works
+    let result1: Int = ask(actor, "GetSentinel", 1) as Int
+    failures = failures + assert_ge(result1, 1, "first sentinel after flood")
+
+    // Send another batch
+    let (_, _) = fire_messages(id, 200)
+    os_sleep_millis(300)
+
+    let result2: Int = ask(actor, "GetSentinel", 2) as Int
+    failures = failures + assert_ge(result2, 2, "second sentinel after second flood")
+
+    let stats: Int = ask(actor, "GetStats", 0) as Int
+    let received: Int = stats % 1000000
+    println("  [INFO] Total received after all floods: " + str(received))
+
+    return failures
+
+// ============================================================================
+//  RUN ALL MAILBOX FLOOD TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE MAILBOX FLOOD — Bounded Mailbox Test")
+    println("======================================================")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_mailbox_fill_256()
+    failures = failures + test_mailbox_overflow_512()
+    failures = failures + test_mailbox_tsunami_10K()
+    failures = failures + test_mailbox_post_flood_health()
+    failures = failures + test_mailbox_tsunami_100K()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("======================================================")
+    if failures == 0:
+        println("  MAILBOX FLOOD: ALL TESTS PASSED")
+    else:
+        println("  MAILBOX FLOOD: " + str(failures) + " FAILURE(S)")
+    println("======================================================")
+    return failures
+
+pub fn main() -> Int:
+    return run_tests()

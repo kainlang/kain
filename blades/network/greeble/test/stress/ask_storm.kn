@@ -1,0 +1,291 @@
+// ============================================================================
+//  ask_storm.kn — ask() Call Stress Test
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Fire thousands of synchronous ask() calls at a single actor. Measure
+//  round-trip latency, mailbox pressure, and timeout behavior.
+//
+//  Tests:
+//    test_ask_100           — 100 sequential ask calls, measure latency
+//    test_ask_1000          — 1000 sequential ask calls
+//    test_ask_10000         — 10K ask calls, check timing
+//    test_ask_latency_dist  — measure min/max/avg latency
+//    test_ask_after_storm   — ask calls after heavy actor creation
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::os
+
+// ---- Compute actor for CPU-bound ask tests ---------------------------------
+
+actor ComputeActor:
+    state processed: Int = 0
+    state checksum: Int = 0
+    state modulus: Int = 1000000007
+
+    on Multiply(reply_to: P, a: Int, b: Int):
+        self.processed = self.processed + 1
+        let result: Int = ((a * b) + self.processed) % self.modulus
+        self.checksum = (self.checksum + result) % self.modulus
+        send reply_to.Reply(value = result)
+
+    on Add(reply_to: P, a: Int, b: Int):
+        self.processed = self.processed + 1
+        let result: Int = (a + b + self.processed) % self.modulus
+        self.checksum = (self.checksum + result) % self.modulus
+        send reply_to.Reply(value = result)
+
+    on GetStats(reply_to: P, unused: Int):
+        send reply_to.Reply(value = pack_stat(self.processed, self.checksum))
+
+// ---- String-bound actor for copy pressure ----------------------------------
+
+actor StringActor:
+    state processed: Int = 0
+    state total_len: Int = 0
+
+    on Concat(reply_to: P, prefix: String, suffix: String):
+        self.processed = self.processed + 1
+        let result = prefix + "_" + suffix
+        self.total_len = self.total_len + len(result)
+        send reply_to.Reply(value = self.total_len)
+
+    on EchoRaw(reply_to: P, payload: Int):
+        self.processed = self.processed + 1
+        send reply_to.Reply(value = payload)
+
+// ---- Helpers ---------------------------------------------------------------
+
+fn pack_stat(processed: Int, checksum: Int) -> Int:
+    return processed + checksum * 1000000
+
+fn unpack_stat(packed: Int) -> (Int, Int):
+    let processed: Int = packed % 1000000
+    let checksum: Int = packed / 1000000
+    return (processed, checksum)
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
+    if actual >= minimum:
+        println("  [PASS] " + msg + " = " + str(actual) + " (>= " + str(minimum) + ")")
+        return 0
+    println("  [FAIL] " + msg + ": expected >= " + str(minimum) + " got " + str(actual))
+    return 1
+
+fn dump_scheduler_telemetry(label: String):
+    println("  --- scheduler after " + label + " ---")
+    println("    queue_depth       = " + str(actor_scheduler_queue_depth()))
+    println("    max_queue_depth   = " + str(actor_scheduler_max_queue_depth()))
+    println("    active_workers    = " + str(actor_scheduler_active_workers()))
+    println("    busy_workers      = " + str(actor_scheduler_busy_workers()))
+    println("    total_enqueued    = " + str(actor_scheduler_total_enqueued()))
+    println("    total_dequeued    = " + str(actor_scheduler_total_dequeued()))
+
+// ============================================================================
+//  TEST: Sequential ask() calls with latency measurement
+// ============================================================================
+
+fn run_ask_batch(actor_variable: ComputeActor, count: Int, label: String) -> (Int, Int, Int, Int):
+    // Returns (failures, min_us, max_us, total_us — microsecond timing via ms approximation)
+    let t0: Int = now_millis()
+    var last_result: Int = 0
+    var ask_failures: Int = 0
+
+    var i: Int = 0
+    while i < count:
+        let a: Int = i % 100
+        let b: Int = (i * 7) % 100
+        let result: Int = ask(actor_variable, "Multiply", a, b) as Int
+        if result < 0:
+            ask_failures = ask_failures + 1
+        last_result = result
+        i = i + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    if elapsed_ms <= 0:
+        elapsed_ms = 1
+
+    // Get stats from the actor
+    let stats: Int = ask(actor_variable, "GetStats", 0) as Int
+    let (processed, checksum) = unpack_stat(stats)
+
+    println("  [INFO] " + label + ": " + str(count) + " asks, " + str(elapsed_ms) + " ms, processed=" + str(processed) + " checksum=" + str(checksum) + " failures=" + str(ask_failures))
+
+    return (ask_failures, elapsed_ms, processed, last_result)
+
+fn test_ask_100() -> Int:
+    println("\n--- Test: 100 ask() calls ---")
+    var failures: Int = 0
+
+    let actor = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 100, "100 asks")
+
+    failures = failures + assert_eq(ask_failures, 0, "zero ask failures (100)")
+    failures = failures + assert_eq(processed, 100, "all 100 processed")
+    if elapsed_ms > 0:
+        let rate: Int = (100 * 1000) / elapsed_ms
+        println("  [INFO] ask rate: " + str(rate) + " asks/sec")
+
+    return failures
+
+fn test_ask_1000() -> Int:
+    println("\n--- Test: 1000 ask() calls ---")
+    var failures: Int = 0
+
+    let actor = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 1000, "1000 asks")
+
+    failures = failures + assert_eq(ask_failures, 0, "zero ask failures (1000)")
+    failures = failures + assert_eq(processed, 1000, "all 1000 processed")
+    if elapsed_ms > 0:
+        let rate: Int = (1000 * 1000) / elapsed_ms
+        println("  [INFO] ask rate: " + str(rate) + " asks/sec")
+
+    return failures
+
+fn test_ask_10000() -> Int:
+    println("\n--- Test: 10000 ask() calls ---")
+    var failures: Int = 0
+
+    let actor = spawn ComputeActor()
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(actor, 10000, "10K asks")
+
+    failures = failures + assert_eq(ask_failures, 0, "zero ask failures (10K)")
+    failures = failures + assert_eq(processed, 10000, "all 10000 processed")
+
+    if elapsed_ms > 0:
+        let rate: Int = (10000 * 1000) / elapsed_ms
+        println("  [INFO] ask rate: " + str(rate) + " asks/sec")
+        failures = failures + assert_true(elapsed_ms < 30000, "10K asks finish under 30s")
+    else:
+        failures = failures + assert_true(elapsed_ms == 0, "elapsed_ms not negative")
+
+    dump_scheduler_telemetry("10K asks")
+    return failures
+
+fn test_ask_latency_distribution() -> Int:
+    println("\n--- Test: ask() latency distribution ---")
+    var failures: Int = 0
+
+    let actor = spawn ComputeActor()
+    let rounds: Int = 1000
+    let t0: Int = now_millis()
+
+    var worst_ms: Int = 0
+    var best_ms: Int = 999999
+    var total_ms: Int = 0
+
+    // Measure individual ask timing in groups of 100
+    var batch: Int = 0
+    while batch < 10:
+        let bt0: Int = now_millis()
+        var inner: Int = 0
+        while inner < 100:
+            let _result: Int = ask(actor, "Add", inner, batch) as Int
+            inner = inner + 1
+        let bt1: Int = now_millis()
+        let batch_ms: Int = bt1 - bt0
+        total_ms = total_ms + batch_ms
+        if batch_ms < best_ms:
+            best_ms = batch_ms
+        if batch_ms > worst_ms:
+            worst_ms = batch_ms
+        batch = batch + 1
+
+    let avg_ms: Int = total_ms / 10
+
+    println("  [INFO] 1000 asks in 10 batches of 100:")
+    println("    best batch:  " + str(best_ms) + " ms")
+    println("    worst batch: " + str(worst_ms) + " ms")
+    println("    avg batch:   " + str(avg_ms) + " ms")
+
+    failures = failures + assert_true(best_ms >= 0, "best latency >= 0")
+    failures = failures + assert_true(avg_ms < 60000, "avg latency under 60s per 100")
+
+    return failures
+
+fn test_ask_after_spawn_storm() -> Int:
+    println("\n--- Test: ask() after actor spawn storm ---")
+    var failures: Int = 0
+
+    let main_actor = spawn ComputeActor()
+
+    // Warm up
+    let _warm: Int = ask(main_actor, "Multiply", 1, 1) as Int
+    let pre_stats: Int = ask(main_actor, "GetStats", 0) as Int
+    let (pre_processed, pre_checksum) = unpack_stat(pre_stats)
+    println("  [INFO] Pre-storm: processed=" + str(pre_processed) + " checksum=" + str(pre_checksum))
+
+    // Spawn 200 actors in the background
+    var spawned: Int = 0
+    var i: Int = 0
+    while i < 200:
+        let temp = spawn ComputeActor()
+        let temp_id: Int = temp as Int
+        if temp_id > 0:
+            spawned = spawned + 1
+        i = i + 1
+    println("  [INFO] Spawned " + str(spawned) + " actors alongside main actor")
+
+    // Now send more ask() calls to the main actor
+    let (ask_failures, elapsed_ms, processed, _last) = run_ask_batch(main_actor, 500, "post-storm 500 asks")
+
+    failures = failures + assert_eq(ask_failures, 0, "zero ask failures after storm")
+    failures = failures + assert_ge(processed, 501, "processed >= 501 after storm")
+
+    // Verify that one of the spawned actors also works
+    dump_scheduler_telemetry("ask after storm")
+    return failures
+
+// ============================================================================
+//  RUN ALL ASK STORM TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE ASK STORM — ask() Throughput Test")
+    println("======================================================")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_ask_100()
+    failures = failures + test_ask_1000()
+    failures = failures + test_ask_latency_distribution()
+    failures = failures + test_ask_after_spawn_storm()
+    failures = failures + test_ask_10000()  // LAST — heavy test
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("======================================================")
+    if failures == 0:
+        println("  ASK STORM: ALL TESTS PASSED")
+    else:
+        println("  ASK STORM: " + str(failures) + " FAILURE(S)")
+    println("======================================================")
+    return failures
+
+pub fn main() -> Int:
+    return run_tests()

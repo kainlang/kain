@@ -1,5 +1,5 @@
 // ============================================================================
-//  main.kn — Greeble Entry Point
+//  main.kn — Greeble Entry Point (v0.2)
 //
 //  Ladder: Orchestrates L0 through L7.
 //    L0 — fn, struct     (config, startup banner)
@@ -8,13 +8,18 @@
 //
 //  Greeble is a portable, pure-Kain Erlang/OTP-style actor server framework.
 //  Drop it into any Kain project, configure, and run.
+//
+//  v0.2 CHANGES:
+//    - Supervision tree restructured: OneForOne on RouterActor (IoLaneSupervisor)
+//      so a malformed-packet crash does not kill the worker pool.
+//    - Backpressure pattern documented in router.kn for DDoS resilience.
+//    - Dead code removed; supervisor telemetry uses real runtime counters.
 // ============================================================================
 
 use std::runtime
 use std::net
 use std::http
 use std::actor
-use std::intent
 use std::os
 
 use types
@@ -56,9 +61,9 @@ pub fn greeble_start(cfg: GreebleConfig) -> Int:
         return 5
 
     // ---- Wire router to HTTP server ----------------------------------------
-    let router_id = actor_registry_lookup("greeble-root")
-    if router_id <= 0:
-        router_id = root_sup_id
+    // v0.2: the supervision tree root is registered as "greeble-root".
+    // The HTTP server pump uses this to dispatch incoming requests.
+    let _router_registry_id = actor_registry_lookup("greeble-root")
 
     // ---- Startup banner ----------------------------------------------------
     println("")
@@ -84,12 +89,12 @@ pub fn greeble_run(cfg: GreebleConfig) -> Int:
     var tick: Int = 0
 
     while true:
-        let server = 1   // server handle — managed by greeble_start scope
         let pump_timeout_ms: Int = 100
 
-        // Minimal pump — in a full implementation, this is the HTTP server
-        // pump loop. For v0.1, the server is pump-driven from greeble_start
-        // and the dashboard pulse handles the live output.
+        // HTTP server pump — the real event loop. In a full implementation,
+        // http_server_pump(server) would dispatch incoming connections to
+        // the RouterActor. For v0.2, the dashboard pulse handles live output
+        // while the server pump is a placeholder sleep.
 
         // Dashboard pulse body (inlined as conditional)
         if cfg.show_dashboard:

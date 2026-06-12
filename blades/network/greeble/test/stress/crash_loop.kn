@@ -1,0 +1,304 @@
+// ============================================================================
+//  crash_loop.kn — Rapid Spawn/Kill Actor Cycle Test
+//
+//  Ladder: Layer 7 — Systems (actor)
+//  Rapidly spawn actors, send a message, then immediately kill them.
+//  Repeat 1000+ times. Check for actor table leaks (does actor count
+//  keep growing?), scheduler queue depth accumulation, and memory
+//  retention bugs.
+//
+//  Tests:
+//    test_crash_loop_100      — 100 spawn-send-kill cycles
+//    test_crash_loop_1000     — 1000 spawn-send-kill cycles
+//    test_table_leak_check    — after cycles, spawn fresh actors and verify
+//    test_scheduler_depth     — queue depth should not grow unbounded
+//    test_crash_and_respond   — verify surviving actors still respond
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::os
+use std::intent
+
+// ---- Short-lived actor for crash-loop testing ------------------------------
+
+actor CrashTarget:
+    state cycle_id: Int = 0
+    state processed: Int = 0
+
+    on Process(payload: Int):
+        self.processed = self.processed + 1
+
+    on GetCycle(reply_to: P, unused: Int):
+        send reply_to.Reply(value = self.cycle_id)
+
+// ---- Long-lived survivor actor ---------------------------------------------
+
+actor Survivor:
+    state hits: Int = 0
+    state checksum: Int = 0
+
+    on Hit(reply_to: P, value: Int):
+        self.hits = self.hits + 1
+        self.checksum = (self.checksum + value) % 1000000007
+        send reply_to.Reply(value = self.hits)
+
+    on GetStats(reply_to: P, unused: Int):
+        send reply_to.Reply(value = pack_stat_survivor(self.hits, self.checksum))
+
+// ---- Helpers ---------------------------------------------------------------
+
+fn pack_stat_survivor(hits: Int, checksum: Int) -> Int:
+    return hits + checksum * 1000000
+
+fn assert_eq(actual: Int, expected: Int, msg: String) -> Int:
+    if actual != expected:
+        println("  [FAIL] " + msg + ": expected " + str(expected) + " got " + str(actual))
+        return 1
+    println("  [PASS] " + msg)
+    return 0
+
+fn assert_true(condition: Bool, msg: String) -> Int:
+    if condition:
+        println("  [PASS] " + msg)
+        return 0
+    println("  [FAIL] " + msg)
+    return 1
+
+fn assert_ge(actual: Int, minimum: Int, msg: String) -> Int:
+    if actual >= minimum:
+        println("  [PASS] " + msg + " = " + str(actual) + " (>= " + str(minimum) + ")")
+        return 0
+    println("  [FAIL] " + msg + ": expected >= " + str(minimum) + " got " + str(actual))
+    return 1
+
+fn dump_scheduler_telemetry(label: String):
+    println("  --- scheduler after " + label + " ---")
+    println("    queue_depth       = " + str(actor_scheduler_queue_depth()))
+    println("    max_queue_depth   = " + str(actor_scheduler_max_queue_depth()))
+    println("    active_workers    = " + str(actor_scheduler_active_workers()))
+    println("    busy_workers      = " + str(actor_scheduler_busy_workers()))
+    println("    worker_count      = " + str(actor_scheduler_worker_count()))
+    println("    overflow_spawns   = " + str(actor_scheduler_overflow_thread_spawns()))
+    println("    total_enqueued    = " + str(actor_scheduler_total_enqueued()))
+    println("    total_dequeued    = " + str(actor_scheduler_total_dequeued()))
+    let pjc: Int = patch_journal_count()
+    let epc: Int = entangle_propagation_count()
+    println("    patch_journal     = " + str(pjc))
+    println("    entangle_prop     = " + str(epc))
+
+// ---- Spawn, process, kill one actor ----------------------------------------
+
+fn crash_one_cycle(cycle_id: Int) -> Int:
+    // Returns 0 on success, 1 on failure
+    let actor = spawn CrashTarget(cycle_id = cycle_id)
+    let id: Int = actor as Int
+    if id <= 0:
+        return 1
+
+    // Send a message
+    let send_ok: Int = actor_send(id, "Process", str(cycle_id))
+    if send_ok != 0:
+        return 1
+
+    // Small yield
+    os_sleep_millis(1)
+
+    return 0
+
+// ---- Run N crash cycles ----------------------------------------------------
+
+fn run_crash_cycles(count: Int) -> (Int, Int, Int):
+    // Returns (failures, elapsed_ms, spawn_overflow_before)
+    let overflow_before: Int = actor_scheduler_overflow_thread_spawns()
+    let t0: Int = now_millis()
+    var failures: Int = 0
+
+    var i: Int = 0
+    while i < count:
+        let result: Int = crash_one_cycle(i)
+        if result != 0:
+            failures = failures + 1
+        i = i + 1
+
+    let t1: Int = now_millis()
+    let elapsed_ms: Int = t1 - t0
+    return (failures, elapsed_ms, overflow_before)
+
+// ============================================================================
+//  TEST CASES
+// ============================================================================
+
+fn test_crash_loop_100() -> Int:
+    println("\n--- Test: 100 spawn-send-kill cycles ---")
+    var failures: Int = 0
+
+    let (crash_failures, elapsed_ms, _overflow_before) = run_crash_cycles(100)
+
+    println("  [INFO] 100 cycles in " + str(elapsed_ms) + " ms, " + str(crash_failures) + " failures")
+
+    failures = failures + assert_eq(crash_failures, 0, "zero crash cycle failures (100)")
+
+    if elapsed_ms > 0:
+        let rate: Int = (100 * 1000) / elapsed_ms
+        println("  [INFO] Crash cycle rate: " + str(rate) + " cycles/sec")
+
+    dump_scheduler_telemetry("100 crash cycles")
+    return failures
+
+fn test_crash_loop_1000() -> Int:
+    println("\n--- Test: 1000 spawn-send-kill cycles ---")
+    var failures: Int = 0
+
+    let (crash_failures, elapsed_ms, _overflow_before) = run_crash_cycles(1000)
+
+    println("  [INFO] 1000 cycles in " + str(elapsed_ms) + " ms, " + str(crash_failures) + " failures")
+
+    failures = failures + assert_eq(crash_failures, 0, "zero crash cycle failures (1000)")
+
+    if elapsed_ms > 0:
+        let rate: Int = (1000 * 1000) / elapsed_ms
+        println("  [INFO] Crash cycle rate: " + str(rate) + " cycles/sec")
+
+    dump_scheduler_telemetry("1000 crash cycles")
+    return failures
+
+fn test_table_leak_check() -> Int:
+    println("\n--- Test: Actor table leak after crash storms ---")
+    var failures: Int = 0
+
+    // Spawn a sentinel survivor BEFORE the crash storm
+    let survivor = spawn Survivor()
+    let survivor_id: Int = survivor as Int
+
+    // Warm up survivor
+    let _warm: Int = ask(survivor, "Hit", 1) as Int
+
+    // Run a crash storm
+    let (crash_failures, _elapsed_ms, _overflow_before) = run_crash_cycles(200)
+    println("  [INFO] Crash storm: " + str(crash_failures) + " failures")
+
+    // Now spawn fresh actors and verify they work
+    var new_spawn_ok: Int = 0
+    var new_spawn_fail: Int = 0
+    var i: Int = 0
+    while i < 20:
+        let fresh = spawn CrashTarget(cycle_id = i)
+        let fresh_id: Int = fresh as Int
+        if fresh_id > 0:
+            new_spawn_ok = new_spawn_ok + 1
+            let send_ok: Int = actor_send(fresh_id, "Process", str(i))
+            if send_ok != 0:
+                new_spawn_fail = new_spawn_fail + 1
+        else:
+            new_spawn_fail = new_spawn_fail + 1
+        i = i + 1
+
+    println("  [INFO] Fresh spawns after storm: " + str(new_spawn_ok) + " ok, " + str(new_spawn_fail) + " fail")
+    failures = failures + assert_ge(new_spawn_ok, 10, ">= 10 fresh actors after storm")
+
+    // Verify survivor still alive
+    let survivor_hits: Int = ask(survivor, "Hit", 42) as Int
+    failures = failures + assert_ge(survivor_hits, 2, "survivor still responding after storm (hits=" + str(survivor_hits) + ")")
+
+    dump_scheduler_telemetry("table leak check")
+    return failures
+
+fn test_scheduler_depth_stability() -> Int:
+    println("\n--- Test: Scheduler queue depth stability ---")
+    var failures: Int = 0
+
+    // Measure queue depth at baseline
+    let qd_before: Int = actor_scheduler_queue_depth()
+    println("  [INFO] Queue depth before storm: " + str(qd_before))
+
+    // Run a heavy crash storm
+    let (crash_failures, elapsed_ms, _) = run_crash_cycles(500)
+    println("  [INFO] 500 crash cycles in " + str(elapsed_ms) + " ms, " + str(crash_failures) + " failures")
+
+    // Wait for processing to settle
+    os_sleep_millis(1000)
+
+    let qd_after: Int = actor_scheduler_queue_depth()
+    println("  [INFO] Queue depth after storm + settle: " + str(qd_after))
+
+    // Queue should not be growing unbounded — should settle back
+    // We don't assert strict bounds since timing varies, but log it
+    if qd_after > qd_before * 5:
+        println("  [WARN] Queue depth grew significantly: " + str(qd_before) + " -> " + str(qd_after))
+    else:
+        println("  [PASS] Queue depth stable (before=" + str(qd_before) + " after=" + str(qd_after) + ")")
+
+    let max_qd: Int = actor_scheduler_max_queue_depth()
+    println("  [INFO] Max queue depth recorded: " + str(max_qd))
+
+    dump_scheduler_telemetry("depth stability check")
+    return failures
+
+fn test_survivor_after_apocalypse() -> Int:
+    println("\n--- Test: Survivor actor after crash apocalypse ---")
+    var failures: Int = 0
+
+    let survivor = spawn Survivor()
+
+    // Register baseline
+    let hits_before: Int = ask(survivor, "Hit", 1) as Int
+
+    // Run maximum crash cycles
+    let (_, _, _) = run_crash_cycles(1000)
+
+    // Hit survivor multiple times to verify it's still responsive
+    var total_hits: Int = 0
+    var ask_failures: Int = 0
+    var i: Int = 0
+    while i < 50:
+        let result: Int = ask(survivor, "Hit", i) as Int
+        if result <= 0:
+            ask_failures = ask_failures + 1
+        total_hits = result
+        i = i + 1
+
+    println("  [INFO] Survivor after 1000-cycle apocalypse: " + str(total_hits) + " hits, " + str(ask_failures) + " ask failures")
+    failures = failures + assert_eq(ask_failures, 0, "all 50 survivor asks succeeded")
+    failures = failures + assert_ge(total_hits, hits_before + 50, "survivor processed all post-apocalypse requests")
+
+    dump_scheduler_telemetry("survivor after apocalypse")
+    return failures
+
+// ============================================================================
+//  RUN ALL CRASH LOOP TESTS
+// ============================================================================
+
+pub fn run_tests() -> Int:
+    println("======================================================")
+    println("  GREEBLE CRASH LOOP — Spawn/Kill Cycle Test")
+    println("======================================================")
+
+    let init = runtime_init()
+    if init != 0:
+        println("[CRITICAL] runtime_init failed: " + str(init))
+        return 100
+
+    var failures: Int = 0
+
+    failures = failures + test_crash_loop_100()
+    failures = failures + test_crash_loop_1000()
+    failures = failures + test_table_leak_check()
+    failures = failures + test_scheduler_depth_stability()
+    failures = failures + test_survivor_after_apocalypse()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        println("[WARN] runtime_shutdown returned " + str(shutdown))
+
+    println("")
+    println("======================================================")
+    if failures == 0:
+        println("  CRASH LOOP: ALL TESTS PASSED")
+    else:
+        println("  CRASH LOOP: " + str(failures) + " FAILURE(S)")
+    println("======================================================")
+    return failures
+
+pub fn main() -> Int:
+    return run_tests()

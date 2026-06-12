@@ -1,9 +1,20 @@
 // ============================================================================
-//  router.kn — HTTP Router Actor
+//  router.kn — HTTP Router Actor (v0.2)
 //
 //  Ladder: Layer 7 — Systems (actor)
 //  Receives raw HTTP payloads, parses method/path/body, matches against
 //  registered routes, dispatches to handler actors, and tracks telemetry.
+//
+//  BACKPRESSURE PATTERN (v0.2):
+//    When dispatching to gateway actors (RateLimiter, AuthGate), the router
+//    should check whether the target actor is reachable before forwarding.
+//    The recommended pattern for v0.2+ implementations:
+//
+//      1. Use actor_is_running(gateway_id) to check liveness.
+//      2. If the gateway is unreachable or actor_scheduler_queue_depth()
+//         exceeds a threshold, respond with HTTP 503 immediately.
+//      3. This pushes rejection to the OS boundary (TCP RST / connection
+//         refused) rather than saturating the actor mailbox.
 //
 //  Dependencies:
 //    types.kn  — RouteEntry, GreebleConfig, HttpRequest
@@ -11,7 +22,6 @@
 // ============================================================================
 
 use std::actor
-use std::net
 use types
 use state
 
@@ -164,7 +174,10 @@ pub fn router_hits(router_var: RouterActor) -> Int:
     return ask(router_var, "GetTelemetry", 0)
 
 pub fn router_hits_from_id(router_id: Int) -> Int:
-    // v0.1: read from entangled world state mirror instead of asking actor via Int.
+    // v0.2: read from entangled world state mirror.
     // The actor's hits counter is tracked by increment_requests on ServerAuthority,
     // which propagates to ServerMirror via entangle.
+    // Note: router_id is accepted but unused — total request count is an
+    // aggregate across all routers via the world state, not per-router.
+    let _ = router_id
     return ServerMirror.total_requests_copy

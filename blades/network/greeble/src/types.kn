@@ -8,7 +8,7 @@
 
 // ---- Version & Identity ---------------------------------------------------
 
-pub const GREEBLE_VERSION: String = "0.1.0"
+pub const GREEBLE_VERSION: String = "0.2.0"
 
 // ---- Defaults -------------------------------------------------------------
 
