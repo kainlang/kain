@@ -1918,10 +1918,11 @@ pub fn quat_from_to_rotation(from: Vec3, to: Vec3) -> Quat:
     if dot >= 0.999999:
         return quat_identity()
     if dot <= -0.999999:
-        let axis = vec3_normalize_or_zero(vec3_cross(a, vec3(1.0, 0.0, 0.0)))
-        if vec3_length(axis) <= EPSILON:
-            let axis = vec3_normalize_or_zero(vec3_cross(a, vec3(0.0, 1.0, 0.0)))
-        return quat_from_axis_angle(axis, PI)
+        let axis_right = vec3_normalize_or_zero(vec3_cross(a, vec3(1.0, 0.0, 0.0)))
+        if vec3_length(axis_right) > EPSILON:
+            return quat_from_axis_angle(axis_right, PI)
+        let axis_up = vec3_normalize_or_zero(vec3_cross(a, vec3(0.0, 1.0, 0.0)))
+        return quat_from_axis_angle(axis_up, PI)
     let axis = vec3_normalize_or_zero(vec3_cross(a, b))
     let cos_half = sqrt((1.0 + dot) * 0.5)
     let sin_half = sqrt((1.0 - dot) * 0.5)
@@ -2491,28 +2492,58 @@ pub fn is_power_of_two(n: Int) -> Bool:
     return (n & (n - 1)) == 0
 
 // ============================================================================
-// NUMERICAL METHODS
+// NUMERICAL METHODS — Trait-based (zero function-pointer overhead)
 // ============================================================================
+//
+// These functions use compile-time monomorphization via the `RealFunction`
+// trait instead of fn-typed parameters, working around the LLVM indirect-call
+// codegen gap (codegen Gap 4).
+//
+// Usage:
+//   1. Define a struct holding any parameters your function needs
+//   2. impl RealFunction for MyStruct (only `eval` is required)
+//   3. Call newton_raphson<MyStruct>(my_instance, initial, tolerance, max_iters)
+//
+// Example:
+//   struct MyQuadratic:
+//       a: Float; b: Float; c: Float
+//   impl RealFunction for MyQuadratic:
+//       fn eval(self: Self, x: Float) -> Float:
+//           return self.a * x * x + self.b * x + self.c
+//   let f = MyQuadratic { a: 1.0, b: 0.0, c: -2.0 }
+//   let root = newton_raphson<MyQuadratic>(f, 1.5, 0.0001, 100)
 
-pub fn newton_raphson(f: fn(Float) -> Float, f_prime: fn(Float) -> Float, initial: Float, tolerance: Float, max_iters: Int) -> Float:
+/// Trait for single-variable real-valued functions.
+pub trait RealFunction:
+    /// Evaluate f(x).
+    fn eval(self: Self, x: Float) -> Float
+
+    /// Evaluate f'(x). Default: central finite differences with h = 0.0001.
+    fn derivative(self: Self, x: Float) -> Float:
+        let h: Float = 0.0001
+        return (self.eval(x + h) - self.eval(x - h)) / (2.0 * h)
+
+/// Newton-Raphson root-finding. Requires both `eval` and `derivative`.
+pub fn newton_raphson<T: RealFunction>(f: T, initial: Float, tolerance: Float, max_iters: Int) -> Float:
     var x = initial
     var iter = 0
     while iter < max_iters:
-        let fx = f(x)
+        let fx = f.eval(x)
         if abs(fx) <= tolerance:
             return x
-        let fpx = f_prime(x)
+        let fpx = f.derivative(x)
         if abs(fpx) <= EPSILON:
             return x
         x = x - fx / fpx
         iter = iter + 1
     return x
 
-pub fn bisection(f: fn(Float) -> Float, lo: Float, hi: Float, tolerance: Float, max_iters: Int) -> Float:
+/// Bisection root-finding in [lo, hi]. Requires only `eval`.
+pub fn bisection<T: RealFunction>(f: T, lo: Float, hi: Float, tolerance: Float, max_iters: Int) -> Float:
     var a = lo
     var b = hi
-    var fa = f(a)
-    var fb = f(b)
+    var fa = f.eval(a)
+    var fb = f.eval(b)
     if abs(fa) <= tolerance:
         return a
     if abs(fb) <= tolerance:
@@ -2522,7 +2553,7 @@ pub fn bisection(f: fn(Float) -> Float, lo: Float, hi: Float, tolerance: Float, 
     var iter = 0
     while iter < max_iters:
         let mid = (a + b) * 0.5
-        let fmid = f(mid)
+        let fmid = f.eval(mid)
         if abs(fmid) <= tolerance or (b - a) * 0.5 <= tolerance:
             return mid
         if fa * fmid < 0.0:
@@ -2534,20 +2565,22 @@ pub fn bisection(f: fn(Float) -> Float, lo: Float, hi: Float, tolerance: Float, 
         iter = iter + 1
     return (a + b) * 0.5
 
-pub fn adaptive_simpson(f: fn(Float) -> Float, a: Float, b: Float, tolerance: Float, max_depth: Int) -> Float:
+/// Adaptive Simpson's quadrature over [a, b]. Requires only `eval`.
+pub fn adaptive_simpson<T: RealFunction>(f: T, a: Float, b: Float, tolerance: Float, max_depth: Int) -> Float:
     let h = b - a
     let c = (a + b) * 0.5
-    let fa = f(a)
-    let fb = f(b)
-    let fc = f(c)
+    let fa = f.eval(a)
+    let fb = f.eval(b)
+    let fc = f.eval(c)
     let s = (h / 6.0) * (fa + 4.0 * fc + fb)
     return adaptive_simpson_recursive(f, a, b, c, fa, fb, fc, s, tolerance, max_depth, 0)
 
-fn adaptive_simpson_recursive(f: fn(Float) -> Float, a: Float, b: Float, c: Float, fa: Float, fb: Float, fc: Float, whole: Float, tolerance: Float, max_depth: Int, depth: Int) -> Float:
+/// Internal recursive subdivision for adaptive Simpson's quadrature.
+fn adaptive_simpson_recursive<T: RealFunction>(f: T, a: Float, b: Float, c: Float, fa: Float, fb: Float, fc: Float, whole: Float, tolerance: Float, max_depth: Int, depth: Int) -> Float:
     let left_c = (a + c) * 0.5
     let right_c = (c + b) * 0.5
-    let fl = f(left_c)
-    let fr = f(right_c)
+    let fl = f.eval(left_c)
+    let fr = f.eval(right_c)
     let h = b - a
     let left_s = (h / 12.0) * (fa + 4.0 * fl + fc)
     let right_s = (h / 12.0) * (fc + 4.0 * fr + fb)

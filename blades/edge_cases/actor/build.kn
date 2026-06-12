@@ -1,0 +1,20 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("actor-edge-cases")
+    app = app.kind("kain_executable")
+    app = app.entry("src/main.kn")
+    app = app.source_root("src")
+    app = app.module_root("src")
+    app = app.target("llvm")
+
+    let check = check_task("check-llvm")
+    check = check.project(app)
+    check = check.target("llvm")
+    check = check.inputs("src/**/*.kn")
+
+    let graph = build_graph()
+    graph = graph.project(app)
+    graph = graph.task(check)
+
+    return graph

@@ -8,40 +8,91 @@
       "name": "Kain Standard Library",
       "file": "kain-tools.ts",
       "label": "Kain Stdlib",
-      "description": "Navigate Kain's massive standard library — 65+ modules, 3500+ public symbols. List modules, inspect symbols, read signatures and docs, view source code, and explore the full keyword reference.",
+      "description": "Navigate Kain's massive standard library \u00e2\u20ac\u201d 65+ modules, 3500+ public symbols. List modules, inspect symbols, read signatures and docs, view source code, and explore the full keyword reference.",
       "promptSnippet": "Query Kain stdlib modules, symbols, docs, keywords, and source",
       "promptGuidelines": [
-        "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, and looking up language keywords.",
+        "Use kain_stdlib for all Kain standard library lookups \u00e2\u20ac\u201d finding symbols, checking function signatures, reading source, and looking up language keywords.",
         "For semantic code search over real Kain examples, use the kain_examples tool instead."
       ],
       "actions": {
-        "list_modules":     { "sig": "", "label": "List Modules",     "description": "List all Kain stdlib modules with public/private symbol counts and source paths." },
-        "get_symbols":      { "sig": "(mod)", "label": "Get Module Symbols", "description": "List all symbols defined in a specific Kain stdlib module (e.g. 'math', 'os')." },
-        "search_symbols":   { "sig": "(query)", "label": "Search Symbols",   "description": "Fuzzy-search Kain stdlib symbols by name, signature, or docs across the entire standard library or within a specific module." },
-        "get_details":      { "sig": "(mod,sym)", "label": "Get Symbol Details", "description": "Get full documentation, signature, kind, and location for any stdlib symbol." },
-        "get_source":       { "sig": "(mod,sym)", "label": "Get Symbol Source", "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor." },
-        "list_keywords":    { "sig": "", "label": "List Keywords",    "description": "Full Kain language keyword reference — compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords." },
-        "get_keyword":      { "sig": "(kw)", "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." }
+        "list_modules": {
+          "sig": "",
+          "label": "List Modules",
+          "description": "List all Kain stdlib modules with public/private symbol counts and source paths."
+        },
+        "get_symbols": {
+          "sig": "(mod)",
+          "label": "Get Module Symbols",
+          "description": "List all symbols defined in a specific Kain stdlib module (e.g. 'math', 'os')."
+        },
+        "search_symbols": {
+          "sig": "(query)",
+          "label": "Search Symbols",
+          "description": "Fuzzy-search Kain stdlib symbols by name, signature, or docs across the entire standard library or within a specific module."
+        },
+        "get_details": {
+          "sig": "(mod,sym)",
+          "label": "Get Symbol Details",
+          "description": "Get full documentation, signature, kind, and location for any stdlib symbol."
+        },
+        "get_source": {
+          "sig": "(mod,sym)",
+          "label": "Get Symbol Source",
+          "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor."
+        },
+        "list_keywords": {
+          "sig": "",
+          "label": "List Keywords",
+          "description": "Full Kain language keyword reference \u00e2\u20ac\u201d compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords."
+        },
+        "get_keyword": {
+          "sig": "(kw)",
+          "label": "Get Keyword Help",
+          "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples."
+        }
       }
     },
-
     {
       "id": "kain_bazel",
       "name": "Kain Bazel",
       "file": "kain-bazel-tools.ts",
       "label": "Kain Bazel",
-      "description": "Build, test, and manage the Kain repo with Bazel — compile targets, run test suites, manage the Bazel server lifecycle, sync native runtime build files, and check binary freshness.",
+      "description": "Build, test, and manage the Kain repo with Bazel \u00e2\u20ac\u201d compile targets, run test suites, manage the Bazel server lifecycle, sync native runtime build files, and check binary freshness.",
       "promptSnippet": "Build, test, and manage the Kain Bazel build system",
       "promptGuidelines": [
         "Use kain_bazel for all Bazel operations: building the compiler, running smoke tests, managing server lifecycle, syncing runtime builds, and checking binary staleness."
       ],
       "actions": {
-        "build":        { "sig": "(target)", "label": "Build",       "description": "Build any Bazel target. Common presets: //:kain (compiler CLI), //:kn (launcher), //runtime:all (native runtime), //:kain --config=release." },
-        "test":         { "sig": "(target)", "label": "Test",        "description": "Run any Bazel test target. Common: //:developer_smoke_tests, //:crate_tests, //:key_crate_tests, //runtime:native_runtime_tests." },
-        "server":       { "sig": "(action)", "label": "Server",      "description": "Manage the Bazel server lifecycle: status (check if alive), start (warm up), stop (shutdown), restart (cycle). A cold server adds 30-90s startup cost." },
-        "sync":         { "sig": "(mode?)", "label": "Sync",        "description": "Check or regenerate native runtime Bazel build files. 'check' validates no drift; 'sync' regenerates from runtime/native manifests." },
-        "binary_age":   { "sig": "(bin?)", "label": "Binary Age",  "description": "Check when the kain/kn binaries were last built and compare against the latest source commit. Detects stale binaries that need rebuilding." },
-        "freshness":    { "sig": "", "label": "Freshness",   "description": "Full repo freshness audit: Bazel server status + binary age vs source + native runtime sync status + last git commit. Single go/no-go signal." }
+        "build": {
+          "sig": "(target)",
+          "label": "Build",
+          "description": "Build any Bazel target. Common presets: //:kain (compiler CLI), //:kn (launcher), //runtime:all (native runtime), //:kain --config=release."
+        },
+        "test": {
+          "sig": "(target)",
+          "label": "Test",
+          "description": "Run any Bazel test target. Common: //:developer_smoke_tests, //:crate_tests, //:key_crate_tests, //runtime:native_runtime_tests."
+        },
+        "server": {
+          "sig": "(action)",
+          "label": "Server",
+          "description": "Manage the Bazel server lifecycle: status (check if alive), start (warm up), stop (shutdown), restart (cycle). A cold server adds 30-90s startup cost."
+        },
+        "sync": {
+          "sig": "(mode?)",
+          "label": "Sync",
+          "description": "Check or regenerate native runtime Bazel build files. 'check' validates no drift; 'sync' regenerates from runtime/native manifests."
+        },
+        "binary_age": {
+          "sig": "(bin?)",
+          "label": "Binary Age",
+          "description": "Check when the kain/kn binaries were last built and compare against the latest source commit. Detects stale binaries that need rebuilding."
+        },
+        "freshness": {
+          "sig": "",
+          "label": "Freshness",
+          "description": "Full repo freshness audit: Bazel server status + binary age vs source + native runtime sync status + last git commit. Single go/no-go signal."
+        }
       }
     },
     {
@@ -49,21 +100,44 @@
       "name": "Kain Language",
       "file": "kain-lang-tools.ts",
       "label": "Kain Lang",
-      "description": "Compile, check, run, and test Kain source files and projects — LLVM native builds, workspace compilation, smoke tests, and GPU artifact generation.",
+      "description": "Compile, check, run, and test Kain source files and projects \u00e2\u20ac\u201d LLVM native builds, workspace compilation, smoke tests, and GPU artifact generation.",
       "promptSnippet": "Compile, check, and run Kain source files and projects",
       "promptGuidelines": [
         "Use kain_lang when you need to compile Kain files to native code, run blades, check syntax/type correctness, or generate GPU shader artifacts."
       ],
       "actions": {
-        "check":        { "sig": "(target?) +json", "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output. Set json:true for structured diagnostics." },
-        "build":        { "sig": "(target?)", "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda." },
-        "run":          { "sig": "(target?)", "label": "Run",         "description": "Compile and execute a Kain file or project." },
-        "test":         { "sig": "(target?)", "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
-        "amalgamate":   { "sig": "(target?)", "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },
-        "gpu_artifacts":{ "sig": "(target?)", "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
+        "check": {
+          "sig": "(target?) +json",
+          "label": "Check",
+          "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output. Set json:true for structured diagnostics."
+        },
+        "build": {
+          "sig": "(target?)",
+          "label": "Build",
+          "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda."
+        },
+        "run": {
+          "sig": "(target?)",
+          "label": "Run",
+          "description": "Compile and execute a Kain file or project."
+        },
+        "test": {
+          "sig": "(target?)",
+          "label": "Test",
+          "description": "Run Kain-language test fixtures and inline #[test] blocks."
+        },
+        "amalgamate": {
+          "sig": "(target?)",
+          "label": "Amalgamate",
+          "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file."
+        },
+        "gpu_artifacts": {
+          "sig": "(target?)",
+          "label": "GPU Artifacts",
+          "description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts."
+        }
       }
     },
-
     {
       "id": "kain_native",
       "name": "Kain Native Compiler",
@@ -73,12 +147,16 @@
       "promptSnippet": "Compile Kain source to native binaries (.exe, .dll, .lib, .obj) in one shot",
       "promptGuidelines": [
         "Use kain_native to compile Kain source to native binaries without manual IR editing or clang invocation.",
-        "Default emit is 'exe' — produces a standalone executable next to the source file.",
+        "Default emit is 'exe' \u00e2\u20ac\u201d produces a standalone executable next to the source file.",
         "Use emit:'sharedlib' to produce a .dll/.so for FFI interop with Python, Node.js, Rust, C, etc.",
         "The wrapper auto-detects whether the source needs libc and links accordingly."
       ],
       "actions": {
-        "build": { "sig": "(target)", "label": "Build", "description": "Compile a Kain .kn file to native binary. emit: exe(default), sharedlib, staticlib, object, llvm-ir. output: optional override path." }
+        "build": {
+          "sig": "(target)",
+          "label": "Build",
+          "description": "Compile a Kain .kn file to native binary. emit: exe(default), sharedlib, staticlib, object, llvm-ir. output: optional override path."
+        }
       }
     },
     {
@@ -86,20 +164,36 @@
       "name": "Git",
       "file": "git-tools.ts",
       "label": "Git",
-      "description": "Repository operations router — git status, diff (with per-file history context), commit log (scoped to file or folder), and a recent activity feed grouped by day with area breakdown. All actions operate on the current git working tree.",
+      "description": "Repository operations router \u00e2\u20ac\u201d git status, diff (with per-file history context), commit log (scoped to file or folder), and a recent activity feed grouped by day with area breakdown. All actions operate on the current git working tree.",
       "promptSnippet": "Repository operations: status, diff+history, log, recent activity",
       "promptGuidelines": [
-        "Use git for any git repository operations — checking status, showing diffs with context, browsing history, or seeing recent activity.",
-        "Use git action:'diff' for the 'what changed + why has it been changing' question — it pairs each diff hunk with recent history on the touched files.",
-        "Use git action:'recent' to see what's been changing across the repo, grouped by day with area breakdown (stdlib, crates, runtime, blades, …).",
+        "Use git for any git repository operations \u00e2\u20ac\u201d checking status, showing diffs with context, browsing history, or seeing recent activity.",
+        "Use git action:'diff' for the 'what changed + why has it been changing' question \u00e2\u20ac\u201d it pairs each diff hunk with recent history on the touched files.",
+        "Use git action:'recent' to see what's been changing across the repo, grouped by day with area breakdown (stdlib, crates, runtime, blades, \u00e2\u20ac\u00a6).",
         "Use git action:'log' path:'X:/crates/foo/' to browse commit history scoped to a specific file or folder.",
         "Use git action:'status' for a quick branch + dirty + last-commit snapshot."
       ],
       "actions": {
-        "status":  { "sig": "()",                                                  "label": "Status",  "description": "Branch, last commit, dirty state (staged/unstaged/untracked counts). Quick health check." },
-        "diff":    { "sig": "(path?, staged?, against?, history_per_file?, context?)", "label": "Diff",    "description": "Show working tree diff. For each touched file, also show recent history (last N commits touching it) so you know why it's been changing. Path scopes to a file/folder. staged:true shows staged changes. against:'main' diffs vs a ref." },
-        "log":     { "sig": "(path?, limit?, author?, since?)",                    "label": "Log",     "description": "Show commit history. path scopes to a file/folder. limit caps the result (default 20). author and since filter the range." },
-        "recent":  { "sig": "(limit?, since?, area?)",                             "label": "Recent",  "description": "Recent activity feed grouped by day with area breakdown. area filters to a top-level folder like 'crates' or 'stdlib'." }
+        "status": {
+          "sig": "()",
+          "label": "Status",
+          "description": "Branch, last commit, dirty state (staged/unstaged/untracked counts). Quick health check."
+        },
+        "diff": {
+          "sig": "(path?, staged?, against?, history_per_file?, context?)",
+          "label": "Diff",
+          "description": "Show working tree diff. For each touched file, also show recent history (last N commits touching it) so you know why it's been changing. Path scopes to a file/folder. staged:true shows staged changes. against:'main' diffs vs a ref."
+        },
+        "log": {
+          "sig": "(path?, limit?, author?, since?)",
+          "label": "Log",
+          "description": "Show commit history. path scopes to a file/folder. limit caps the result (default 20). author and since filter the range."
+        },
+        "recent": {
+          "sig": "(limit?, since?, area?)",
+          "label": "Recent",
+          "description": "Recent activity feed grouped by day with area breakdown. area filters to a top-level folder like 'crates' or 'stdlib'."
+        }
       }
     },
     {
@@ -114,8 +208,16 @@
         "If kain_sync_binary fails, read BAZEL.md for the full Bazel workflow, server lifecycle, and build/sync guide."
       ],
       "actions": {
-        "binary": { "sig": "", "label": "Sync Binary", "description": "Build (if needed) and copy the latest kain.exe + kn.exe from Bazel output to ~/.kain/bin/. Falls back with BAZEL.md guidance on failure." },
-        "status": { "sig": "", "label": "Binary Status", "description": "Show when kain.exe was last built, its age, Bazel server state, git HEAD, and sync stamp info — all in one place." }
+        "binary": {
+          "sig": "",
+          "label": "Sync Binary",
+          "description": "Build (if needed) and copy the latest kain.exe + kn.exe from Bazel output to ~/.kain/bin/. Falls back with BAZEL.md guidance on failure."
+        },
+        "status": {
+          "sig": "",
+          "label": "Binary Status",
+          "description": "Show when kain.exe was last built, its age, Bazel server state, git HEAD, and sync stamp info \u00e2\u20ac\u201d all in one place."
+        }
       }
     },
     {
@@ -130,9 +232,116 @@
         "Run tools action:'list' at the start of any session to see the full tool arsenal with descriptions."
       ],
       "actions": {
-        "list":         { "sig": "", "label": "List Tools",     "description": "List every available tool grouped by domain, with full descriptions and action breakdowns." },
-        "search":       { "sig": "(query)", "label": "Search Tools",   "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring." },
-        "which":        { "sig": "(task)", "label": "Which Tool",     "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface." }
+        "list": {
+          "sig": "",
+          "label": "List Tools",
+          "description": "List every available tool grouped by domain, with full descriptions and action breakdowns."
+        },
+        "search": {
+          "sig": "(query)",
+          "label": "Search Tools",
+          "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring."
+        },
+        "which": {
+          "sig": "(task)",
+          "label": "Which Tool",
+          "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface."
+        }
+      }
+    },
+    {
+      "id": "oracle",
+      "name": "Oracle UI Validator",
+      "file": "oracle.ts",
+      "label": "Oracle",
+      "description": "Gaslight-proof Windows UI validator \u2014 queries the OS directly via Win32 P/Invoke + BitBlt + SendInput to find windows, capture screenshots, inject real input, and verify UI state changes. Returns structured JSON telemetry that no LLM can fake. Use after ANY kain build/kain_native that produces a .exe to prove the app actually works.",
+      "promptSnippet": "Gaslight-proof Windows UI validator: find windows, capture screenshots, inject input, verify UI state",
+      "promptGuidelines": [
+        "Use oracle after ANY kain build / kain_native / bazel build that produces a Kain .exe \u2014 verification is mandatory, not optional.",
+        "The canonical workflow: scan \u2192 launch \u2192 debug \u2192 find \u2192 matrix \u2192 verify \u2192 delta. Never skip a step.",
+        "oracle scan --dir <project> to find the freshest .exe; oracle launch <exe> --wait 3000 to start it.",
+        "oracle debug --pid <pid> to diagnose why a process didn't create a GUI window (rejection reasons: TERMINAL, INVISIBLE, ZERO_SIZE).",
+        "oracle matrix --handle 0xN --text to mathematically prove the window is rendering (all zeros = black screen = FAIL).",
+        "oracle verify --handle 0xN --do 'click:X,Y' --expect 'pixels>100' for end-to-end UI interaction proof.",
+        "oracle delta --handle 0xN to prove the render loop is alive (frozen = dead).",
+        "If any step fails, STOP \u2014 never claim a Kain app works from console output alone. Report the Oracle JSON evidence."
+      ],
+      "actions": {
+        "scan": {
+          "sig": "",
+          "label": "Scan for .exe",
+          "description": "Find the most recently built .exe files in a directory tree. Use after kain build to locate the output binary."
+        },
+        "launch": {
+          "sig": "(exe)",
+          "label": "Launch .exe",
+          "description": "Start an executable and return its PID. Optional --wait ms, --args, --cwd, --find (auto-locate window after launch)."
+        },
+        "debug": {
+          "sig": "(pid)",
+          "label": "Debug Window Creation",
+          "description": "Show ALL windows a process created and WHY each was rejected. Verdict tells you if it's a console app, hidden, or crashed."
+        },
+        "find": {
+          "sig": "(keyword)",
+          "label": "Find Window",
+          "description": "Locate a valid GUI window by title keyword, PID, or process name. Polls until timeout with configurable interval."
+        },
+        "info": {
+          "sig": "(handle)",
+          "label": "Window Info",
+          "description": "Full OS-level metadata for a window: handle, title, class, dimensions, position, PID, process name, visibility."
+        },
+        "capture": {
+          "sig": "(handle)",
+          "label": "Capture Screenshot",
+          "description": "Take a PNG screenshot of a window using BitBlt+CAPTUREBLT (captures windowed GPU content). Optionally client-area only."
+        },
+        "matrix": {
+          "sig": "(handle)",
+          "label": "Pixel Matrix",
+          "description": "Generate a brightness (0-9) or color hex grid of the window. All zeros = black screen = app not rendering. Mathematical proof, not visual guesswork."
+        },
+        "click": {
+          "sig": "(handle)",
+          "label": "Click",
+          "description": "Inject a real OS-level left mouse click at window client coordinates via SendInput."
+        },
+        "type": {
+          "sig": "(handle)",
+          "label": "Type Text",
+          "description": "Inject real OS-level keystrokes (Unicode) into a window via SendInput."
+        },
+        "delta": {
+          "sig": "(handle)",
+          "label": "Frame Delta",
+          "description": "Capture two frames N ms apart and diff them. Proves whether the render loop is alive or frozen."
+        },
+        "verify": {
+          "sig": "(handle)",
+          "label": "Verify UI",
+          "description": "End-to-end UI proof: execute action (click/type), wait, capture before/after, diff, check expectation. E.g. prove a button click changed the UI."
+        },
+        "kill": {
+          "sig": "(pid)",
+          "label": "Kill Process",
+          "description": "Kill a process by PID or keyword match."
+        },
+        "list": {
+          "sig": "",
+          "label": "List All Windows",
+          "description": "Enumerate all visible non-terminal GUI windows on the system with handles and metadata."
+        },
+        "version": {
+          "sig": "",
+          "label": "Version",
+          "description": "Show oracle.exe version info."
+        },
+        "help": {
+          "sig": "",
+          "label": "Help",
+          "description": "Print full usage reference with all commands and examples."
+        }
       }
     },
     {
@@ -149,16 +358,40 @@
         "Use z3 action:'extract' to materialize proof cases from a source file (path, optional symbol/line, save=true to write to a pack).",
         "Use z3 action:'admin' for low-frequency ops: init_proof_pack, list_templates, discover_proof_packs, etc. (action + payload dict).",
         "Use z3 action:'regress' to turn a Z3 counterexample into a regression test skeleton (template, counterexample, test_name?).",
-        "All actions accept an opaque `args` object that the z3-mcp server validates — when in doubt, call z3 action:'admin' with action='list_templates' first to see what kinds/cases are available.",
+        "All actions accept an opaque `args` object that the z3-mcp server validates \u00e2\u20ac\u201d when in doubt, call z3 action:'admin' with action='list_templates' first to see what kinds/cases are available.",
         "Forward slashes in paths on Windows (X:/mcp/...). The server requires Z3_MCP_ROOT and Z3_MCP_POLYTOOLS_ROOT env vars, which the extension sets automatically from Z3_MCP_ROOT and Z3_MCP_POLYTOOLS_ROOT env vars (with sensible defaults)."
       ],
       "actions": {
-        "analyze":  { "sig": "(args)", "label": "Analyze Source",         "description": "Analyze a source file for proof opportunities. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, debug? }. Forwards to MCP tool analyze_source_file." },
-        "extract":  { "sig": "(args)", "label": "Extract Proof Cases",    "description": "Extract structured proof cases from a source file. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, save?, overwrite?, pack_path?, debug? }. Forwards to MCP tool extract_source_proof_cases." },
-        "check":    { "sig": "(args)", "label": "Check SMT2",             "description": "Run Z3 on raw SMT-LIB v2 input. args: { smt2, timeout_ms?, include_model?, include_stats?, project_root?, report_name? }. Forwards to MCP tool check_smt2. Returns { status: sat|unsat|unknown, model?, stats? }." },
-        "prove":    { "sig": "(args)", "label": "Run Proof",              "description": "Run a structured proof case via the DSL. args: { kind, case, timeout_ms?, project_root?, report_name? }. Forwards to MCP tool prove. Use kind from the helper catalog (size_add_ok, size_mul_ok, ptr_offset_ok, content_length_ok, buffer_growth_ok, signed_unsigned_cast_ok, range_check, bitvec_equiv, state_machine_check, optimize, find_counterexample)." },
-        "admin":    { "sig": "(args)", "label": "Admin (tool_router)",    "description": "Low-frequency admin actions via the MCP tool_router. args: { action, payload? }. Actions include: init_proof_pack, run_proof_pack, list_templates, suggest_proof_targets, coverage_report, query_proof_inventory, materialize_proof_candidates, automate_proof_candidates, discover_proof_packs, discover_proof_plugins, init_proof_plugin, install_proof_plugin, read_proof_plugin, run_workspace_proofs, how_to_use, claim_proof_task, proof_task_list, save_proof_case, save_proof_case_to_pack, read_proof_pack, inventory_pack_symbols." },
-        "regress":  { "sig": "(args)", "label": "Counterexample → Test",  "description": "Turn a Z3 counterexample into a regression test skeleton. args: { template, counterexample, test_name?, function_name?, language?, output_path?, context? }. language defaults to 'c'. Forwards to MCP tool counterexample_to_test." }
+        "analyze": {
+          "sig": "(args)",
+          "label": "Analyze Source",
+          "description": "Analyze a source file for proof opportunities. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, debug? }. Forwards to MCP tool analyze_source_file."
+        },
+        "extract": {
+          "sig": "(args)",
+          "label": "Extract Proof Cases",
+          "description": "Extract structured proof cases from a source file. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, save?, overwrite?, pack_path?, debug? }. Forwards to MCP tool extract_source_proof_cases."
+        },
+        "check": {
+          "sig": "(args)",
+          "label": "Check SMT2",
+          "description": "Run Z3 on raw SMT-LIB v2 input. args: { smt2, timeout_ms?, include_model?, include_stats?, project_root?, report_name? }. Forwards to MCP tool check_smt2. Returns { status: sat|unsat|unknown, model?, stats? }."
+        },
+        "prove": {
+          "sig": "(args)",
+          "label": "Run Proof",
+          "description": "Run a structured proof case via the DSL. args: { kind, case, timeout_ms?, project_root?, report_name? }. Forwards to MCP tool prove. Use kind from the helper catalog (size_add_ok, size_mul_ok, ptr_offset_ok, content_length_ok, buffer_growth_ok, signed_unsigned_cast_ok, range_check, bitvec_equiv, state_machine_check, optimize, find_counterexample)."
+        },
+        "admin": {
+          "sig": "(args)",
+          "label": "Admin (tool_router)",
+          "description": "Low-frequency admin actions via the MCP tool_router. args: { action, payload? }. Actions include: init_proof_pack, run_proof_pack, list_templates, suggest_proof_targets, coverage_report, query_proof_inventory, materialize_proof_candidates, automate_proof_candidates, discover_proof_packs, discover_proof_plugins, init_proof_plugin, install_proof_plugin, read_proof_plugin, run_workspace_proofs, how_to_use, claim_proof_task, proof_task_list, save_proof_case, save_proof_case_to_pack, read_proof_pack, inventory_pack_symbols."
+        },
+        "regress": {
+          "sig": "(args)",
+          "label": "Counterexample \u00e2\u2020\u2019 Test",
+          "description": "Turn a Z3 counterexample into a regression test skeleton. args: { template, counterexample, test_name?, function_name?, language?, output_path?, context? }. language defaults to 'c'. Forwards to MCP tool counterexample_to_test."
+        }
       }
     }
   ]

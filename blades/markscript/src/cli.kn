@@ -74,6 +74,11 @@ const SUBCOMMAND_HANDLERS: String = "handlers"
 const SUBCOMMAND_DOC:    String = "doc"
 const SUBCOMMAND_JIT:     String = "jit"
 const SUBCOMMAND_JIT_RUN: String = "jit-run"
+const SUBCOMMAND_PIPE:    String = "pipe"
+const SUBCOMMAND_WATCH:   String = "watch"
+const SUBCOMMAND_BUILD:   String = "build"
+const SUBCOMMAND_TEST:    String = "test"
+const SUBCOMMAND_CLEAN:   String = "clean"
 const SUBCOMMAND_NONE:    String = ""
 
 pub fn default_config() -> MksConfig:
@@ -93,51 +98,118 @@ pub fn default_config() -> MksConfig:
 // ===========================================================================
 
 pub fn usage() -> String:
-    var text = "MarkScript Runtime Engine 1.0\n"
-    text = text + "Prose-native scripting runtime for Kain.\n"
-    text = text + "Your documentation is your program.\n"
-    text = text + "\n"
-    text = text + "USAGE:\n"
-    text = text + "  mks <subcommand> [options] [args]\n"
-    text = text + "  mks [<file>]                    Default subcommand: run\n"
-    text = text + "\n"
-    text = text + "SUBCOMMANDS:\n"
-    text = text + "  run <file.md>       Compile and execute a markscript file (default)\n"
-    text = text + "  check <file.md>     Compile-only — validate bytecode, no VM execution\n"
-    text = text + "  disasm <file.md>    Disassemble — dump bytecode opcodes and exit\n"
-    text = text + "  repl                Interactive REPL — type intents, see results\n"
-    text = text + "  eval <intent>       One-shot — compile and dispatch a single intent\n"
-    text = text + "  init <name>         Scaffold a new markscript project directory\n"
-    text = text + "  handlers            List all registered IVT handlers\n"
-    text = text + "  doc <file.md>       Render as clean documentation (strip VM output)\n"
-    text = text + "  jit                 Run JIT self-test and diagnostics\n"
-    text = text + "  jit-run <file.md>   Compile and execute via JIT (no VM)\n"
-    text = text + "\n"
-    text = text + "FLAGS:\n"
-    text = text + "  -h, --help          Show this help message and exit\n"
-    text = text + "  -v, --version       Show version and exit\n"
-    text = text + "  -q, --quiet         Suppress runtime logging and telemetry\n"
-    text = text + "      --json          Output structured JSON (where supported)\n"
-    text = text + "\n"
-    text = text + "EXAMPLES:\n"
-    text = text + "  mks run game_engine.md        Compile and run a game script\n"
-    text = text + "  mks check script.md           Validate a markscript file\n"
-    text = text + "  mks disasm servo.md           Dump bytecode\n"
-    text = text + "  mks repl                      Start interactive session\n"
-    text = text + "  mks eval '> print \"hello\"'   One-shot intent\n"
-    text = text + "  mks init my-pipeline           Create a new markscript project\n"
-    text = text + "  mks handlers                   List registered handlers\n"
-    text = text + "\n"
-    text = text + "EXIT CODES:\n"
-    text = text + "  0   Success\n"
-    text = text + "  1   Help or version shown (no error)\n"
-    text = text + "  2   Error — file not found, parse failure, runtime\n"
-    text = text + "  3   Unknown subcommand or flag\n"
-    text = text + "\n"
-    text = text + "INVARIANTS:\n"
-    text = text + "  Markdown has no syntax errors. Every #, >, |, and ``` is valid.\n"
-    text = text + "  The only errors are runtime errors — name not found, arity mismatch,\n"
-    text = text + "  bounds violation, import failure.\n"
+    var text = "MarkScript Runtime Engine 1.0
+"
+    text = text + "Prose-native scripting runtime for Kain.
+"
+    text = text + "Your documentation is your program.
+"
+    text = text + "
+"
+    text = text + "USAGE:
+"
+    text = text + "  mks <subcommand> [options] [args]
+"
+    text = text + "  mks [<file>]                    Default subcommand: run
+"
+    text = text + "
+"
+    text = text + "SUBCOMMANDS:
+"
+    text = text + "  run <file.md>       Compile and execute a markscript file (default)
+"
+    text = text + "  check <file.md>     Compile-only — validate bytecode, no VM execution
+"
+    text = text + "  disasm <file.md>    Disassemble — dump bytecode opcodes and exit
+"
+    text = text + "  repl                Interactive REPL — type intents, see results
+"
+    text = text + "  eval <intent>       One-shot — compile and dispatch a single intent
+"
+    text = text + "  init <name>         Scaffold a new markscript project directory
+"
+    text = text + "  handlers            List all registered IVT handlers
+"
+    text = text + "  doc <file.md>       Render as clean documentation (strip VM output)
+"
+    text = text + "  jit                 Run JIT self-test and diagnostics
+"
+    text = text + "  jit-run <file.md>   Compile and execute via JIT (no VM)
+"
+    text = text + "  pipe                Read stdin, execute as markscript, write accumulator
+"
+    text = text + "  watch <file.md>     Watch file for changes and re-execute on save
+"
+    text = text + "  build [target]      Auto-detect and build a project
+"
+    text = text + "  test [target]       Run tests for any project
+"
+    text = text + "  clean [target]      Clean build artifacts
+"
+    text = text + "
+"
+    text = text + "FLAGS:
+"
+    text = text + "  -h, --help          Show this help message and exit
+"
+    text = text + "  -v, --version       Show version and exit
+"
+    text = text + "  -q, --quiet         Suppress runtime logging and telemetry
+"
+    text = text + "      --json          Output structured JSON (where supported)
+"
+    text = text + "
+"
+    text = text + "EXAMPLES:
+"
+    text = text + "  mks run game_engine.md        Compile and run a game script
+"
+    text = text + "  mks check script.md           Validate a markscript file
+"
+    text = text + "  mks disasm servo.md           Dump bytecode
+"
+    text = text + "  mks repl                      Start interactive session
+"
+    text = text + "  mks eval '> print \"hello\"'   One-shot intent
+"
+    text = text + "  mks init my-pipeline           Create a new markscript project
+"
+    text = text + "  mks handlers                   List registered handlers
+"
+    text = text + "  mks build                     Auto-detect and build project
+"
+    text = text + "  mks build Cargo.toml          Build a Rust project
+"
+    text = text + "  mks test                      Run project tests
+"
+    text = text + "  mks clean                     Clean build artifacts
+"
+    text = text + "  mks watch build.md --json     Watch with JSON output
+"
+    text = text + "  echo '> print hi' | mks pipe  Unix filter mode
+"
+    text = text + "
+"
+    text = text + "EXIT CODES:
+"
+    text = text + "  0   Success
+"
+    text = text + "  1   Help or version shown (no error)
+"
+    text = text + "  2   Error — file not found, parse failure, runtime
+"
+    text = text + "  3   Unknown subcommand or flag
+"
+    text = text + "
+"
+    text = text + "INVARIANTS:
+"
+    text = text + "  Markdown has no syntax errors. Every #, >, |, and ``` is valid.
+"
+    text = text + "  The only errors are runtime errors — name not found, arity mismatch,
+"
+    text = text + "  bounds violation, import failure.
+"
     return text
 
 pub fn version() -> String:
@@ -191,6 +263,11 @@ fn is_subcommand(s: String) -> Bool:
     if s == SUBCOMMAND_DOC:    return true
     if s == SUBCOMMAND_JIT:     return true
     if s == SUBCOMMAND_JIT_RUN:  return true
+    if s == SUBCOMMAND_PIPE:    return true
+    if s == SUBCOMMAND_WATCH:   return true
+    if s == SUBCOMMAND_BUILD:   return true
+    if s == SUBCOMMAND_TEST:    return true
+    if s == SUBCOMMAND_CLEAN:   return true
     return false
 
 // ===========================================================================
@@ -256,7 +333,7 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
                 found_subcommand = true
 
                 // Special subcommands that take no filepath
-                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS or arg == SUBCOMMAND_JIT or arg == SUBCOMMAND_JIT_RUN:
+                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS or arg == SUBCOMMAND_JIT or arg == SUBCOMMAND_JIT_RUN or arg == SUBCOMMAND_PIPE:
                     // Nothing more needed
                     index = index + 1
                     continue
@@ -305,6 +382,22 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
                 cfg.filepath = arg
                 found_positional = true
 
+            elif cfg.subcommand == SUBCOMMAND_WATCH:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_BUILD:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_TEST:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_CLEAN:
+                cfg.filepath = arg
+                found_positional = true
+
             else:
                 // Unexpected positional for this subcommand
                 // Fall through — extra args are ignored
@@ -334,6 +427,10 @@ pub fn needs_filepath(subcommand: String) -> Bool:
     if subcommand == SUBCOMMAND_DOC:     return true
     if subcommand == SUBCOMMAND_JIT:      return false
     if subcommand == SUBCOMMAND_JIT_RUN:   return true
+    if subcommand == SUBCOMMAND_WATCH:   return true
+    if subcommand == SUBCOMMAND_BUILD:   return false  // optional target
+    if subcommand == SUBCOMMAND_TEST:    return false  // optional target
+    if subcommand == SUBCOMMAND_CLEAN:   return false  // optional target
     return false
 
 // Check if a subcommand is "needs-rebuild" (doesn't just print info)
@@ -356,4 +453,212 @@ pub fn subcommand_name(subcommand: String) -> String:
     if subcommand == SUBCOMMAND_DOC:     return "doc"
     if subcommand == SUBCOMMAND_JIT:      return "jit"
     if subcommand == SUBCOMMAND_JIT_RUN:   return "jit-run"
+    if subcommand == SUBCOMMAND_PIPE:    return "pipe"
+    if subcommand == SUBCOMMAND_WATCH:   return "watch"
+    if subcommand == SUBCOMMAND_BUILD:   return "build"
+    if subcommand == SUBCOMMAND_TEST:    return "test"
+    if subcommand == SUBCOMMAND_CLEAN:   return "clean"
     return "unknown"
+
+// ===========================================================================
+//  BUILD AUTO-DETECTION — map target file to build command
+// ===========================================================================
+
+// Given a target file (Cargo.toml, CMakeLists.txt, etc.), return the
+// build command string for process_output_text.
+pub fn detect_build_command(target: String) -> String:
+    if target == "":
+        return ""
+
+    let lower = str_to_lower(target)
+
+    // Check by filename
+    if lower == "cargo.toml" or ends_with_str(lower, "/cargo.toml"):
+        return "cargo build"
+    if lower == "cmakelists.txt" or ends_with_str(lower, "/cmakelists.txt"):
+        return "cmake -B build && cmake --build build"
+    if lower == "package.json" or ends_with_str(lower, "/package.json"):
+        return "npm run build"
+    if lower == "makefile" or ends_with_str(lower, "/makefile"):
+        return "make"
+    if lower == "go.mod" or ends_with_str(lower, "/go.mod"):
+        return "go build"
+    if lower == "pyproject.toml" or ends_with_str(lower, "/pyproject.toml"):
+        return "pip install -e ."
+    if lower == "setup.py" or ends_with_str(lower, "/setup.py"):
+        return "python setup.py build"
+
+    // Check by extension
+    if ends_with_str(lower, ".kn"):
+        return "kain build"
+    if ends_with_str(lower, ".md") or ends_with_str(lower, ".markscript"):
+        return ""  // markscript — handled by cmd_build itself
+
+    // Unknown
+    return ""
+
+// Given a target file, return the test command.
+pub fn detect_test_command(target: String) -> String:
+    if target == "":
+        return ""
+
+    let lower = str_to_lower(target)
+
+    if lower == "cargo.toml" or ends_with_str(lower, "/cargo.toml"):
+        return "cargo test"
+    if lower == "package.json" or ends_with_str(lower, "/package.json"):
+        return "npm test"
+    if lower == "makefile" or ends_with_str(lower, "/makefile"):
+        return "make test"
+    if lower == "go.mod" or ends_with_str(lower, "/go.mod"):
+        return "go test"
+    if ends_with_str(lower, ".kn"):
+        return "kain test"
+
+    return ""
+
+// Given a target file, return the clean command.
+pub fn detect_clean_command(target: String) -> String:
+    if target == "":
+        return ""
+
+    let lower = str_to_lower(target)
+
+    if lower == "cargo.toml" or ends_with_str(lower, "/cargo.toml"):
+        return "cargo clean"
+    if lower == "package.json" or ends_with_str(lower, "/package.json"):
+        return "npm run clean"
+    if lower == "makefile" or ends_with_str(lower, "/makefile"):
+        return "make clean"
+    if lower == "go.mod" or ends_with_str(lower, "/go.mod"):
+        return "go clean"
+
+    return ""
+
+// Discover Mksfile/build target in current directory.
+// Priority: Mksfile.md → build.md → README.md → auto-detect
+pub fn discover_mks_target() -> String:
+    if fs_exists("Mksfile.md"):
+        return "Mksfile.md"
+    if fs_exists("build.md"):
+        return "build.md"
+    if fs_exists("README.md"):
+        return "README.md"
+
+    // Auto-detect: look for known build files
+    if fs_exists("Cargo.toml"):
+        return "Cargo.toml"
+    if fs_exists("CMakeLists.txt"):
+        return "CMakeLists.txt"
+    if fs_exists("package.json"):
+        return "package.json"
+    if fs_exists("Makefile"):
+        return "Makefile"
+    if fs_exists("go.mod"):
+        return "go.mod"
+    if fs_exists("pyproject.toml"):
+        return "pyproject.toml"
+    if fs_exists("build.kn"):
+        return "build.kn"
+
+    return ""
+
+// ===========================================================================
+//  JSON HELPERS
+// ===========================================================================
+
+// Simple JSON string escaping
+pub fn json_escape_str(s: String) -> String:
+    var result: String = "\""
+    let view = text_from(s)
+    let sl = text_len(view)
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch == "\\":
+            result = result + "\\\\"
+        elif ch == "\"":
+            result = result + "\\\""
+        elif ch == "\n":
+            result = result + "\\n"
+        elif ch == "\r":
+            result = result + "\\r"
+        elif ch == "\t":
+            result = result + "\\t"
+        else:
+            result = result + ch
+        i = i + 1
+    result = result + "\""
+    return result
+
+// Emit a JSON key-value pair
+pub fn json_pair(key: String, value: String, comma: Bool) -> String:
+    var ln = "  " + json_escape_str(key) + ": " + value
+    if comma:
+        ln = ln + ","
+    return ln + "\n"
+
+// Emit a JSON key-int pair
+pub fn json_pair_int(key: String, value: Int, comma: Bool) -> String:
+    var ln = "  " + json_escape_str(key) + ": " + str(value)
+    if comma:
+        ln = ln + ","
+    return ln + "\n"
+
+// Emit a JSON key-bool pair
+pub fn json_pair_bool(key: String, value: Bool, comma: Bool) -> String:
+    var val_str = "false"
+    if value:
+        val_str = "true"
+    var ln = "  " + json_escape_str(key) + ": " + val_str
+    if comma:
+        ln = ln + ","
+    return ln + "\n"
+
+// Emit a JSON string array
+pub fn json_array_str(items: Array<String>, comma: Bool) -> String:
+    var result = "["
+    var i: Int = 0
+    while i < len(items):
+        if i > 0:
+            result = result + ", "
+        result = result + json_escape_str(items[i])
+        i = i + 1
+    result = result + "]"
+    if comma:
+        result = result + ","
+    return result + "\n"
+
+// ===========================================================================
+//  STRING HELPERS
+// ===========================================================================
+
+fn str_to_lower(t: String) -> String:
+    var result: String = ""
+    let view = text_from(t)
+    let sl = text_len(view)
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        if cv >= 65 and cv <= 90:
+            result = result + text_chr(cv + 32)
+        else:
+            result = result + ch
+        i = i + 1
+    return result
+
+fn ends_with_str(s: String, suffix: String) -> Bool:
+    let sv = text_from(s)
+    let sl = text_len(sv)
+    let fv = text_from(suffix)
+    let fl = text_len(fv)
+    if fl > sl:
+        return false
+    var i: Int = 0
+    while i < fl:
+        let si = sl - fl + i
+        if text_char_at(sv, si) != text_char_at(fv, i):
+            return false
+        i = i + 1
+    return true

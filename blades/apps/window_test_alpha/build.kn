@@ -1,6 +1,6 @@
 // ============================================================================
 //  FILE EXPLORER BUILD AUTHORITY
-//  Pure Kain stdlib file explorer — no C interop, no Python, no Kaintana.
+//  Pure Kain std::ui file explorer — no C interop, no Python, no Kaintana.
 // ============================================================================
 
 use std::build
@@ -8,8 +8,8 @@ use std::build
 fn build(ctx: BuildContext) -> BuildGraph:
     let app = project("file-explorer")
         .kind("kain_executable")
-        .version("0.1.0")
-        .description("Basic File Explorer — Pure Kain std::ui and std::fs")
+        .version("0.2.0")
+        .description("Pure Kain File Explorer — std::ui + std::fs, software backend")
         .entry("src/main.kn")
         .source_root("src")
         .module_root("src")

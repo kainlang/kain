@@ -1,0 +1,40 @@
+// ============================================================================
+//  VULKAN TEMPLATE — Math Helpers
+//  Thin convenience wrappers around std::math.
+//  Ladder rung: Layer 0 (fn) — pure utility functions.
+//
+//  For production uniform buffer updates, extend with:
+//    - Float → IEEE 754 hex encoding (via ptr<Float> + mem_store + bitcast)
+//    - Mat4 → 64-byte hex (column-major std140 layout)
+// ============================================================================
+
+use std::math
+
+/// Safe clamp: constrain value to [lo, hi].
+pub fn clampf(value: Float, lo: Float, hi: Float) -> Float with Pure:
+    if value < lo: return lo
+    if value > hi: return hi
+    return value
+
+/// Clamp integer to range.
+pub fn clampi(value: Int, lo: Int, hi: Int) -> Int with Pure:
+    if value < lo: return lo
+    if value > hi: return hi
+    return value
+
+/// Linear interpolation: a + (b - a) * t.
+pub fn lerpf(a: Float, b: Float, t: Float) -> Float with Pure:
+    return a + (b - a) * t
+
+/// Convert an angle from degrees to radians.
+pub fn deg2rad(degrees: Float) -> Float with Pure:
+    return degrees_to_radians(degrees)
+
+/// Convert an angle from radians to degrees.
+pub fn rad2deg(radians: Float) -> Float with Pure:
+    return radians_to_degrees(radians)
+
+/// Smooth damp: approach target at a given rate per second.
+/// current + (target - current) * min(1.0, rate * dt)
+pub fn dampf(current: Float, target: Float, rate: Float, dt: Float) -> Float with Pure:
+    return current + (target - current) * clampf(rate * dt, 0.0, 1.0)

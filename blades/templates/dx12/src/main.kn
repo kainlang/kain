@@ -1,0 +1,278 @@
+// ============================================================================
+//  MAIN — DX12 Starter Template Entry Point
+//  Layer 0: fn — imperative game loop with Win32 input + std::graphics
+// ============================================================================
+//
+//  Architecture:
+//    Window:  graphics_session_create opens the DX12 swapchain window
+//    Input:   GetAsyncKeyState (keyboard), GetCursorPos/SetCursorPos (mouse)
+//    Render:  graphics_begin_frame → graphics_draw_mesh → graphics_end_frame → graphics_present
+//    Camera:  WASD move + mouse look flyby camera
+//
+//  Build:  kain build dx12/build.kn -t llvm
+//  Run:    kain run dx12/build.kn
+//  Exit:   Press Escape
+// ============================================================================
+
+include <windows.h> as win
+
+use std::runtime
+use std::graphics
+use std::math
+
+use camera
+use mesh
+use shaders
+
+// ============================================================================
+//  MANUAL WIN32 EXTERN DECLARATIONS
+//  Functions not auto-extracted by `include <windows.h> as win`
+//  are declared here with `@extern @link_name` and `my_` prefix.
+// ============================================================================
+
+@extern @link_name("GetAsyncKeyState")
+fn my_GetAsyncKeyState(vKey: Int) -> Int
+
+@extern @link_name("GetCursorPos")
+fn my_GetCursorPos(lpPoint: ptr<Int>) -> Int
+
+@extern @link_name("SetCursorPos")
+fn my_SetCursorPos(x: Int, y: Int) -> Int
+
+@extern @link_name("ShowCursor")
+fn my_ShowCursor(bShow: Int) -> Int
+
+@extern @link_name("GetSystemMetrics")
+fn my_GetSystemMetrics(nIndex: Int) -> Int
+
+@extern @link_name("Sleep")
+fn my_Sleep(dwMilliseconds: Int) -> Void
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1280
+const WIN_H: Int = 720
+const APP_NAME: String = "dx12-template"
+
+// Virtual key codes
+const VK_W: Int = 0x57
+const VK_A: Int = 0x41
+const VK_S: Int = 0x53
+const VK_D: Int = 0x44
+const VK_Q: Int = 0x51
+const VK_E: Int = 0x45
+const VK_ESCAPE: Int = 0x1B
+const VK_SHIFT: Int = 0x10
+
+// System metrics
+const SM_CXSCREEN: Int = 0
+const SM_CYSCREEN: Int = 1
+
+// ============================================================================
+//  INPUT HELPERS
+// ============================================================================
+
+/// Check if a virtual key is currently held down.
+fn key_down(vk: Int) -> Bool:
+    return (my_GetAsyncKeyState(vk) & 0x8000) != 0
+
+/// Read current cursor position using GetCursorPos.
+/// Returns (x, y) in screen coordinates.
+fn read_cursor_pos() -> (Int, Int) with Unsafe:
+    let point = alloc_zeroed(2, "Int")       // POINT = {LONG x; LONG y;} = 8 bytes = 2 Ints
+    let ok = my_GetCursorPos(point)
+    let mx = if ok != 0: mem_load(ptr_offset(point, 0, "Int"), "Int") else: 0
+    let my = if ok != 0: mem_load(ptr_offset(point, 1, "Int"), "Int") else: 0
+    decay point
+    return (mx, my)
+
+// ============================================================================
+//  ERROR HELPERS
+// ============================================================================
+
+fn fatal(label: String, code: Int) -> Int:
+    let _ = 0
+    return code
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int with Unsafe:
+    // --- Initialize runtime ---
+    let init_ok = runtime_init()
+    if init_ok != 0:
+        return 1
+
+    // --- Create graphics session (opens DX12 window) ---
+    let gfx = graphics_session_create(APP_NAME, WIN_W, WIN_H)
+    if gfx <= 0:
+        let _ = runtime_shutdown()
+        return 2
+
+    // --- Select DX12 backend ---
+    let backend_ok = graphics_backend_select(gfx, "dx12")
+    if backend_ok <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return 3
+
+    let active_backend = graphics_active_backend(gfx)
+
+    // --- Load shaders from embedded SPIR-V hex ---
+    let vs_id = graphics_shader_spirv_from_hex(
+        gfx, "dx12.vertex", "vertex", "main",
+        shaders_vertex_shader_hex(),
+    )
+    if vs_id <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("vertex shader", 4)
+
+    let fs_id = graphics_shader_spirv_from_hex(
+        gfx, "dx12.fragment", "fragment", "main",
+        shaders_fragment_shader_hex(),
+    )
+    if fs_id <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("fragment shader", 5)
+
+    // --- Create vertex buffer ---
+    let vbo_hex = mesh_cube_vertex_hex()
+    let vbo = graphics_buffer_create_from_hex(
+        gfx, "vertex", "cube-vertices", vbo_hex,
+        mesh_CUBE_VERTEX_STRIDE,
+    )
+    if vbo <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("vertex buffer", 6)
+
+    // --- Create index buffer ---
+    let ibo_hex = mesh_cube_index_hex()
+    let ibo = graphics_buffer_create_from_hex(
+        gfx, "index", "cube-indices", ibo_hex,
+        mesh_CUBE_INDEX_STRIDE,
+    )
+    if ibo <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("index buffer", 7)
+
+    // --- Create mesh ---
+    let mesh_id = graphics_mesh_create(
+        gfx, "cube", vbo, ibo,
+        mesh_CUBE_VERTEX_COUNT,
+        mesh_CUBE_INDEX_COUNT,
+    )
+    if mesh_id <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("mesh", 8)
+
+    // --- Create pipeline ---
+    let pipeline_id = graphics_pipeline_create(
+        gfx, "dx12-pipeline", vs_id, fs_id, active_backend,
+    )
+    if pipeline_id <= 0:
+        let _ = graphics_session_destroy(gfx)
+        let _ = runtime_shutdown()
+        return fatal("pipeline", 9)
+
+    // ====================================================================
+    //  CAMERA + INPUT SETUP
+    // ====================================================================
+
+    let aspect = (WIN_W as Float) / (WIN_H as Float)
+    var cam = FlybyCamera::create(0.0, 2.0, 5.0)
+    let dt: Float = 0.016  // ~60fps fixed timestep
+
+    // --- Mouse look: hide cursor and center it ---
+    let _cursor_off = my_ShowCursor(0)
+    let screen_cx = my_GetSystemMetrics(SM_CXSCREEN) / 2
+    let screen_cy = my_GetSystemMetrics(SM_CYSCREEN) / 2
+    let _init_center = my_SetCursorPos(screen_cx, screen_cy)
+
+    // Read initial position for first-frame delta
+    let (prev_mx, prev_my) = read_cursor_pos()
+    var last_mx = prev_mx
+    var last_my = prev_my
+
+    // ====================================================================
+    //  MAIN RENDER LOOP
+    // ====================================================================
+
+    var running: Bool = true
+    var frame: Int = 0
+
+    while running:
+        // --- Check exit ---
+        if key_down(VK_ESCAPE):
+            running = false
+            break
+
+        // ================================================================
+        //  INPUT POLLING
+        // ================================================================
+
+        // Keyboard movement
+        let fwd: Float  = if key_down(VK_W): 1.0 else: 0.0
+        let bwd: Float  = if key_down(VK_S): 1.0 else: 0.0
+        let left: Float = if key_down(VK_A): 1.0 else: 0.0
+        let right: Float = if key_down(VK_D): 1.0 else: 0.0
+        let up: Float   = if key_down(VK_E): 1.0 else: 0.0
+        let down: Float = if key_down(VK_Q): 1.0 else: 0.0
+
+        // Speed boost with Shift
+        let speed_mult: Float = if key_down(VK_SHIFT): 3.0 else: 1.0
+
+        // Mouse look — read cursor position, compute delta, reset to center
+        let (cur_mx, cur_my) = read_cursor_pos()
+        let mouse_dx: Float = (cur_mx - last_mx) as Float
+        let mouse_dy: Float = (cur_my - last_my) as Float
+        last_mx = cur_mx
+        last_my = cur_my
+        let _recenter = my_SetCursorPos(screen_cx, screen_cy)
+        // Update last position tracking to center after recenter
+        last_mx = screen_cx
+        last_my = screen_cy
+
+        // ================================================================
+        //  CAMERA UPDATE
+        // ================================================================
+        var cam_input = camera_input_zero(dt)
+        cam_input.move_forward = fwd * speed_mult
+        cam_input.move_backward = bwd * speed_mult
+        cam_input.move_left = left * speed_mult
+        cam_input.move_right = right * speed_mult
+        cam_input.move_up = up * speed_mult
+        cam_input.move_down = down * speed_mult
+        cam_input.mouse_dx = mouse_dx
+        cam_input.mouse_dy = mouse_dy
+
+        cam = camera_update(cam, cam_input)
+        let _mvp = camera_view_projection(cam, aspect)
+
+        // ================================================================
+        //  GPU RENDERING
+        // ================================================================
+        let _begin = graphics_begin_frame(gfx, dt * 1000.0)
+        let _draw = graphics_draw_mesh(gfx, pipeline_id, mesh_id, 1)
+        let _end = graphics_end_frame(gfx)
+        let _present = graphics_present(gfx)
+
+        // --- Frame pacing (~60fps) ---
+        my_Sleep(16)
+        frame = frame + 1
+
+    // ====================================================================
+    //  CLEANUP
+    // ====================================================================
+    let _show_cursor = my_ShowCursor(1)
+    let _destroy = graphics_session_destroy(gfx)
+    let _shutdown = runtime_shutdown()
+
+    return 0

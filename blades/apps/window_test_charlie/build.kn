@@ -1,0 +1,47 @@
+// ============================================================================
+//  MAZE GAME BUILD AUTHORITY
+//  Pure Kain stdlib windowing — no C, no interop, no blade dependencies.
+//  First-Person Raycaster Maze Game (Wolfenstein 3D-style)
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("kain-maze-racer")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("First-person maze raycaster – pure Kain std::ui")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let defaults = build_defaults()
+        .entry("src/main.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/maze.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .defaults(defaults)
+        .run(run)
+        .task(check)
+        .task(exe)

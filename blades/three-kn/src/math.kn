@@ -576,11 +576,11 @@ pub impl QuatWrapper:
             return QuatWrapper { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
         if dot_val < -1.0 + eps:
             let right_vec = vec3_right()
-            let mut axis = vec3_cross(from_vec, right_vec)
-            if vec3_length(axis) < eps:
-                let up_vec = vec3_up()
-                axis = vec3_cross(from_vec, up_vec)
-            let norm_axis = vec3_normalize_or_zero(axis)
+            let axis_right = vec3_cross(from_vec, right_vec)
+            if vec3_length(axis_right) < eps:
+                let up_axis = vec3_normalize_or_zero(vec3_cross(from_vec, vec3_up()))
+                return from_internal_quat(quat_from_axis_angle(up_axis, PI))
+            let norm_axis = vec3_normalize_or_zero(axis_right)
             return from_internal_quat(quat_from_axis_angle(norm_axis, PI))
         let axis = vec3_cross(from_vec, to_vec)
         let cos_half = sqrt((1.0 + dot_val) * 0.5)

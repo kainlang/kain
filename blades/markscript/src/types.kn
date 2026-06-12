@@ -17,14 +17,21 @@ pub const MARK_FLOAT:  Int = 1
 pub const MARK_STRING: Int = 2
 pub const MARK_TABLE:  Int = 3
 pub const MARK_CODE:   Int = 4
+pub const MARK_BOOL:   Int = 5   // BETA: Boolean (distinct from Int)
+pub const MARK_ARRAY:  Int = 6   // BETA: Array of MarkValues
+pub const MARK_DICT:   Int = 7   // BETA: String→MarkValue map
+pub const MARK_WIDGET: Int = 8   // DELTA: UI widget reference
+pub const MARK_EVENT:  Int = 9   // DELTA: UI event reference
 
 // --- Typed runtime value --------------------------------------------------
 
 pub struct MarkValue:
-    kind:      Int       // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE
+    kind:      Int       // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE, MARK_BOOL, MARK_ARRAY, MARK_DICT, MARK_WIDGET, MARK_EVENT
     int_val:   Int
     float_val: Float
     str_val:   String
+    bool_val:  Bool      // BETA: for MARK_BOOL
+    handle_val: Int       // DELTA: for MARK_WIDGET/MARK_EVENT — widget/event handle reference
 
 // --- Table / matrix record ------------------------------------------------
 
@@ -53,6 +60,17 @@ pub struct VarEntry:
     name_hash: Int
     value:     MarkValue
 
+// --- Process record (GAMMA: PID tracking for spawn/await/kill) -------------
+
+pub struct ProcessRecord:
+    pid:        Int       // OS process ID
+    handle:     Int       // process resource handle from process_spawn
+    command:    String    // command string that launched this process
+    status:     Int       // 0=running, 1=exited, 2=killed
+    exit_code:  Int       // exit code (valid when status != 0)
+    stdout:     String    // captured stdout
+    stderr:     String    // captured stderr
+
 // ===========================================================================
 //  CONSTRUCTOR HELPERS — build typed MarkValue instances
 // ===========================================================================
@@ -62,7 +80,9 @@ pub fn mark_int(val: Int) -> MarkValue:
         kind: MARK_INT,
         int_val: val,
         float_val: 0.0,
-        str_val: ""
+        str_val: "",
+        bool_val: false,
+        handle_val: 0
     }
 
 pub fn mark_float(val: Float) -> MarkValue:
@@ -70,7 +90,9 @@ pub fn mark_float(val: Float) -> MarkValue:
         kind: MARK_FLOAT,
         int_val: 0,
         float_val: val,
-        str_val: ""
+        str_val: "",
+        bool_val: false,
+        handle_val: 0
     }
 
 pub fn mark_string(val: String) -> MarkValue:
@@ -78,7 +100,39 @@ pub fn mark_string(val: String) -> MarkValue:
         kind: MARK_STRING,
         int_val: 0,
         float_val: 0.0,
-        str_val: val
+        str_val: val,
+        bool_val: false,
+        handle_val: 0
+    }
+
+pub fn mark_bool(val: Bool) -> MarkValue:
+    return MarkValue {
+        kind: MARK_BOOL,
+        int_val: 0,
+        float_val: 0.0,
+        str_val: "",
+        bool_val: val,
+        handle_val: 0
+    }
+
+pub fn mark_array(handle: Int) -> MarkValue:
+    return MarkValue {
+        kind: MARK_ARRAY,
+        int_val: handle,
+        float_val: 0.0,
+        str_val: "",
+        bool_val: false,
+        handle_val: 0
+    }
+
+pub fn mark_dict(handle: Int) -> MarkValue:
+    return MarkValue {
+        kind: MARK_DICT,
+        int_val: handle,
+        float_val: 0.0,
+        str_val: "",
+        bool_val: false,
+        handle_val: 0
     }
 
 pub fn mark_empty() -> MarkValue:
@@ -86,7 +140,29 @@ pub fn mark_empty() -> MarkValue:
         kind: MARK_INT,
         int_val: 0,
         float_val: 0.0,
-        str_val: ""
+        str_val: "",
+        bool_val: false,
+        handle_val: 0
+    }
+
+pub fn mark_widget(handle: Int) -> MarkValue:
+    return MarkValue {
+        kind: MARK_WIDGET,
+        int_val: handle,
+        float_val: 0.0,
+        str_val: "",
+        bool_val: false,
+        handle_val: handle
+    }
+
+pub fn mark_event(event_id: Int) -> MarkValue:
+    return MarkValue {
+        kind: MARK_EVENT,
+        int_val: event_id,
+        float_val: 0.0,
+        str_val: "",
+        bool_val: false,
+        handle_val: event_id
     }
 
 // ===========================================================================
@@ -104,6 +180,18 @@ pub fn mark_value_to_string(val: MarkValue) -> String:
         return "<table>"
     elif val.kind == MARK_CODE:
         return "<code>"
+    elif val.kind == MARK_BOOL:
+        if val.bool_val:
+            return "true"
+        return "false"
+    elif val.kind == MARK_ARRAY:
+        return "<array:" + str(val.int_val) + ">"
+    elif val.kind == MARK_DICT:
+        return "<dict:" + str(val.int_val) + ">"
+    elif val.kind == MARK_WIDGET:
+        return "<widget:" + str(val.handle_val) + ">"
+    elif val.kind == MARK_EVENT:
+        return "<event:" + str(val.handle_val) + ">"
     else:
         return "<unknown:" + str(val.kind) + ">"
 
@@ -301,3 +389,48 @@ pub fn widen_column_type(existing: Int, new_cell_type: Int) -> Int:
     if existing == MARK_FLOAT and new_cell_type == MARK_INT:
         return MARK_FLOAT
     return existing
+
+// ===========================================================================
+//  WIDGET RECORD — DELTA: UI widget reference stored in VM state
+// ===========================================================================
+
+pub struct WidgetProperty:
+    name:  String
+    value: MarkValue
+
+pub struct WidgetRecord:
+    handle:     Int              // unique widget handle
+    name:       String           // widget path (e.g. "button.submit")
+    kind:       String           // widget type (e.g. "button", "input", "preview")
+    parent:     Int              // parent widget handle (-1 for root)
+    properties: Array<WidgetProperty>  // widget properties
+
+pub fn widget_record_new(handle: Int, name: String, kind: String) -> WidgetRecord:
+    return WidgetRecord {
+        handle: handle,
+        name: name,
+        kind: kind,
+        parent: -1,
+        properties: []
+    }
+
+// Find a property by name in a widget's properties array
+pub fn widget_prop_get(widget: WidgetRecord, prop_name: String) -> MarkValue:
+    var i: Int = 0
+    while i < len(widget.properties):
+        if widget.properties[i].name == prop_name:
+            return widget.properties[i].value
+        i = i + 1
+    return mark_empty()
+
+// Set a property by name. Appends if not found, updates if found.
+pub fn widget_prop_set(widget: WidgetRecord, prop_name: String, value: MarkValue) -> WidgetRecord:
+    var w = widget
+    var i: Int = 0
+    while i < len(w.properties):
+        if w.properties[i].name == prop_name:
+            w.properties[i].value = value
+            return w
+        i = i + 1
+    push(w.properties, WidgetProperty { name: prop_name, value: value })
+    return w

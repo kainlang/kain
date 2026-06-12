@@ -1,0 +1,321 @@
+// ============================================================================
+//  STD::MARKSCRIPT — Reusable Kain Embedding Module (DELTA)
+//
+//  Clean, public API for embedding the Markscript VM in any Kain program.
+//  Any Kain app can `use std::markscript` (via this blade) to:
+//    - Load and execute .md files
+//    - Run markscript strings
+//    - Register custom intent handlers
+//    - Extract table data from compiled sources
+//    - Query widget state from the VM
+//
+//  Ladder rung: Layer 0 (fn) — plain module exporting functions.
+//  Value semantics throughout.
+// ============================================================================
+
+use lexer        // create_lexer, LexerState
+use parser       // compile_source, hash_name
+use vm           // MarkScriptVM, HandlerResult, ExecResult,
+                 // init_vm, execute_bytecode, resume_execution,
+                 // register_handler, lookup_handler,
+                 // find_widget, add_widget, set_widget_prop, get_widget_prop
+use bridge       // init_vm_with_builtins, register_builtin, dispatch_fn,
+                 // FN_*, register_stdlib_handlers
+use types        // MarkValue, MatrixRecord, WidgetRecord, WidgetProperty,
+                 // mark_int, mark_string, mark_float, mark_widget, mark_event, mark_empty,
+                 // mark_value_to_string, MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE,
+                 // MARK_WIDGET, MARK_EVENT,
+                 // widget_record_new, widget_prop_get, widget_prop_set
+use error        // MarkError, error_ok, format_error
+use std::fs      // fs_read_text
+use std::text    // text_from, text_len, text_char_at
+
+// ===========================================================================
+//  CORE EMBEDDING API
+// ===========================================================================
+
+/// Create a new VM pre-loaded with built-in handlers.
+/// Use mks_register() to add custom intent handlers.
+pub fn mks_new_vm() -> MarkScriptVM:
+    return init_vm_with_builtins()
+
+/// Load and execute a markscript file. Returns the final VM state.
+/// Reads the file from disk, compiles it, and runs it through the VM.
+/// Tables and routines are available via mks_tables() and mks_table_get_*().
+pub fn mks_run_file(path: String) -> MarkScriptVM:
+    let source = fs_read_text(path)
+    if source == "":
+        var vm = mks_new_vm()
+        return vm
+    return mks_run_string(source)
+
+/// Load and execute a markscript string. Returns the final VM state.
+/// Compiles the markdown source to bytecode and runs it through the VM.
+/// Any blockquote intents marked with > are dispatched to registered handlers.
+pub fn mks_run_string(source: String) -> MarkScriptVM:
+    var vm = mks_new_vm()
+    let lexer_state = create_lexer(source)
+    let bc = compile_source(lexer_state)
+    let bc_len = len(bc)
+    if bc_len == 0:
+        return vm
+
+    // Execute bytecode
+    let er = execute_bytecode(vm, bc)
+    vm = er.vm
+
+    // Run handler loop for any pending dispatches
+    var current_er = er
+    var iteration: Int = 0
+    let max_iterations: Int = 100
+
+    while current_er.handler_id > 0 and iteration < max_iterations:
+        let fn_id = current_er.handler_id
+
+        // Extract args from stack
+        var args: Array<MarkValue> = []
+        let stk_len = len(current_er.vm.stack)
+        var ai: Int = 0
+        while ai < stk_len:
+            push(args, current_er.vm.stack[ai])
+            ai = ai + 1
+        // Clear stack to prevent leaking across dispatches
+        while stk_len > 0:
+            pop(current_er.vm.stack)
+            ai = ai - 1
+
+        let hr = dispatch_fn(current_er.vm, fn_id, args)
+
+        if hr.err != "":
+            // Debug: handler error occurred
+            let _discard = hr.err
+
+        let next_er = resume_execution(current_er.vm, bc, hr)
+        current_er = next_er
+        iteration = iteration + 1
+
+    vm = current_er.vm
+    return vm
+
+/// Register a custom intent handler. Returns updated VM.
+/// The handler will be dispatched when an intent matching `phrase` is encountered
+/// in a blockquote (> phrase) or called from the mini-language.
+pub fn mks_register(vm: MarkScriptVM, phrase: String, handler_id: Int) -> MarkScriptVM:
+    let phrase_hash = hash_name(phrase)
+    return register_handler(vm, phrase_hash, handler_id)
+
+/// Run a markscript string with a pre-existing VM (reuses handlers, variables, widgets).
+pub fn mks_run_with_vm(vm: MarkScriptVM, source: String) -> MarkScriptVM:
+    let lexer_state = create_lexer(source)
+    let bc = compile_source(lexer_state)
+    let bc_len = len(bc)
+    if bc_len == 0:
+        return vm
+
+    let er = execute_bytecode(vm, bc)
+    var current_er = er
+    var iteration: Int = 0
+    let max_iterations: Int = 100
+
+    while current_er.handler_id > 0 and iteration < max_iterations:
+        let fn_id = current_er.handler_id
+        var args: Array<MarkValue> = []
+        let stk_len = len(current_er.vm.stack)
+        var ai: Int = 0
+        while ai < stk_len:
+            push(args, current_er.vm.stack[ai])
+            ai = ai + 1
+        while stk_len > 0:
+            pop(current_er.vm.stack)
+            ai = ai - 1
+
+        let hr = dispatch_fn(current_er.vm, fn_id, args)
+        let next_er = resume_execution(current_er.vm, bc, hr)
+        current_er = next_er
+        iteration = iteration + 1
+
+    return current_er.vm
+
+// ===========================================================================
+//  TABLE DATA ACCESSORS
+// ===========================================================================
+
+/// Get all data tables from the VM. Returns array of MatrixRecord.
+/// Each table has handle_id, cols, rows, col_types, and flat row-major data.
+pub fn mks_tables(vm: MarkScriptVM) -> Array<MatrixRecord>:
+    return vm.data_table
+
+/// Get a table by its handle index. Returns MatrixRecord or an empty record.
+pub fn mks_table(vm: MarkScriptVM, handle: Int) -> MatrixRecord:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        if vm.data_table[i].handle_id == handle:
+            return vm.data_table[i]
+        i = i + 1
+    // Return empty record
+    return MatrixRecord { handle_id: -1, cols: 0, rows: 0, col_types: [], data: [] }
+
+/// Get an Int value from a table cell by (handle, row, col).
+/// Returns the default if the cell is out of bounds or not an Int.
+pub fn mks_table_get_int(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: Int) -> Int:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        let dt = vm.data_table[i]
+        if dt.handle_id == handle:
+            if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols:
+                return default_val
+            let idx = row * dt.cols + col
+            if idx >= 0 and idx < len(dt.data):
+                let cell = dt.data[idx]
+                if cell.kind == MARK_INT:
+                    return cell.int_val
+                elif cell.kind == MARK_FLOAT:
+                    // Truncate to int
+                    let fv = cell.float_val
+                    if fv >= 0.0:
+                        return fv as Int
+                    else:
+                        return -((-fv) as Int) - 1
+        i = i + 1
+    return default_val
+
+/// Get a String value from a table cell by (handle, row, col).
+pub fn mks_table_get_string(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: String) -> String:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        let dt = vm.data_table[i]
+        if dt.handle_id == handle:
+            if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols:
+                return default_val
+            let idx = row * dt.cols + col
+            if idx >= 0 and idx < len(dt.data):
+                let cell = dt.data[idx]
+                if cell.kind == MARK_STRING:
+                    return cell.str_val
+                elif cell.kind == MARK_INT:
+                    return str(cell.int_val)
+                elif cell.kind == MARK_FLOAT:
+                    return str(cell.float_val)
+        i = i + 1
+    return default_val
+
+/// Get a Float value from a table cell by (handle, row, col).
+pub fn mks_table_get_float(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: Float) -> Float:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        let dt = vm.data_table[i]
+        if dt.handle_id == handle:
+            if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols:
+                return default_val
+            let idx = row * dt.cols + col
+            if idx >= 0 and idx < len(dt.data):
+                let cell = dt.data[idx]
+                if cell.kind == MARK_FLOAT:
+                    return cell.float_val
+                elif cell.kind == MARK_INT:
+                    return cell.int_val as Float
+        i = i + 1
+    return default_val
+
+/// Find a table by its header name.
+/// Searches for the first table with a matching first-cell (title) value.
+/// Returns handle index, or -1 if not found.
+pub fn mks_find_table(vm: MarkScriptVM, title: String) -> Int:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        let dt = vm.data_table[i]
+        // The first column header (row 0, col 0) is typically the table's "name" column title
+        if dt.rows > 0 and dt.cols > 0:
+            let first_cell = dt.data[0]
+            if first_cell.kind == MARK_STRING and first_cell.str_val == title:
+                return dt.handle_id
+            elif first_cell.kind == MARK_INT:
+                // Try matching by int conversion
+                let _discard2 = 0
+        i = i + 1
+    return -1
+
+/// Get the number of rows in a table by handle.
+pub fn mks_table_rows(vm: MarkScriptVM, handle: Int) -> Int:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        if vm.data_table[i].handle_id == handle:
+            return vm.data_table[i].rows
+        i = i + 1
+    return 0
+
+/// Get the number of columns in a table by handle.
+pub fn mks_table_cols(vm: MarkScriptVM, handle: Int) -> Int:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        if vm.data_table[i].handle_id == handle:
+            return vm.data_table[i].cols
+        i = i + 1
+    return 0
+
+// ===========================================================================
+//  WIDGET OPERATIONS (via VM widget table)
+// ===========================================================================
+
+/// Find a widget by path name in the VM's widget registry.
+/// Returns widget handle, or -1 if not found.
+pub fn mks_find_widget(vm: MarkScriptVM, name: String) -> Int:
+    return find_widget(vm, name)
+
+/// Create a widget in the VM's widget registry.
+/// Returns updated VM. The widget handle is vm.widget_count - 1.
+pub fn mks_create_widget(vm: MarkScriptVM, name: String, kind: String) -> MarkScriptVM:
+    return add_widget(vm, name, kind)
+
+/// Set a property on a widget by handle.
+pub fn mks_widget_set(vm: MarkScriptVM, handle: Int, prop: String, value: MarkValue) -> MarkScriptVM:
+    return set_widget_prop(vm, handle, prop, value)
+
+/// Get a property from a widget by handle.
+pub fn mks_widget_get(vm: MarkScriptVM, handle: Int, prop: String) -> MarkValue:
+    return get_widget_prop(vm, handle, prop)
+
+// ===========================================================================
+//  VM VARIABLE ACCESSORS
+// ===========================================================================
+
+/// Find a variable by name in the VM's variable store.
+/// Returns the variable value or mark_empty() if not found.
+pub fn mks_get_var(vm: MarkScriptVM, name: String) -> MarkValue:
+    let name_hash = hash_name(name)
+    var i: Int = 0
+    while i < vm.var_count:
+        if i < len(vm.variables) and vm.variables[i].name_hash == name_hash:
+            return vm.variables[i].value
+        i = i + 1
+    return mark_empty()
+
+// ===========================================================================
+//  CONVENIENCE CONVERSIONS
+// ===========================================================================
+
+/// Convert a MarkValue to an Int (with default).
+pub fn mks_to_int(v: MarkValue, default_val: Int) -> Int:
+    if v.kind == MARK_INT:
+        return v.int_val
+    elif v.kind == MARK_FLOAT:
+        return v.float_val as Int
+    return default_val
+
+/// Convert a MarkValue to a String (with default).
+pub fn mks_to_string(v: MarkValue, default_val: String) -> String:
+    if v.kind == MARK_STRING:
+        return v.str_val
+    elif v.kind == MARK_INT:
+        return str(v.int_val)
+    elif v.kind == MARK_FLOAT:
+        return str(v.float_val)
+    return default_val
+
+/// Convert a MarkValue to a Float (with default).
+pub fn mks_to_float(v: MarkValue, default_val: Float) -> Float:
+    if v.kind == MARK_FLOAT:
+        return v.float_val
+    elif v.kind == MARK_INT:
+        return v.int_val as Float
+    return default_val

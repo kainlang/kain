@@ -1,0 +1,21 @@
+// Gap 5: return in match arm (ret + dead br + invalid PHI predecessor)
+fn lookup(v: Int) -> Int:
+    match v:
+        0 =>
+            let _ = 1
+            return 42
+        1 =>
+            let _ = 1
+            return 99
+        _ =>
+            let _ = 1
+            return v * 2
+    return 0
+
+fn main() -> Int:
+    let r1 = lookup(0)
+    let r2 = lookup(1)
+    let r3 = lookup(7)
+    if r1 == 42 and r2 == 99 and r3 == 14:
+        return 0
+    return 1

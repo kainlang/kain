@@ -1,16 +1,17 @@
- MarkScript — The Prose-Native Scripting Runtime for Kain
+# MarkScript — The Prose-Native Scripting Runtime for Kain
 
 > **Your documentation is your program. Your README IS the executable.**
 
-MarkScript is a **markdown-native bytecode VM** that serves as Kain's companion language for configuration, orchestration, and executable documentation. It compiles through Kain's LLVM backend to native code. No interpreter, no runtime dependency — a standalone `.exe`.
+MarkScript is a **markdown-native bytecode VM** that serves as Kain's companion language for configuration, orchestration, UI scripting, build systems, and executable documentation. It compiles through Kain's LLVM backend to native code — a standalone `.exe` with zero runtime dependencies beyond the Kain native runtime.
 
 **Core property:** Markdown has no syntax errors. Every `#`, `>`, `|`, and `` ``` `` is valid. The only errors are *runtime* errors — name not found, arity mismatch, bounds violation, import failure.
 
 ```
 mks run README.md                  → 625 bytecode ops, 21 data tables → EXECUTED
-mks run game_engine.md             → 142 bytecode ops, 6 data tables  → EXECUTED
-mks run servo_controller.md        → 161 bytecode ops, 6 data tables  → EXECUTED
-mks run fizzbuzz.md                → 21 VM opcodes, full FizzBuzz     → EXECUTED
+mks run examples/pong.md           → 8 domains, 24 routines, 9 tables → EXECUTED
+mks run examples/fizzbuzz.md       → 23 VM opcodes, full FizzBuzz     → EXECUTED
+mks build Cargo.toml               → auto-detects Rust → cargo build  → EXECUTED
+mks pipe < build.md                → stdin → markscript → stdout      → EXECUTED
 ```
 
 **This README is a valid MarkScript program.** Running `mks run README.md` compiles itself — the headings are domains, sections are routines, tables are data matrices, and code blocks are extracted.
@@ -27,11 +28,22 @@ kain build
 # Run a markdown script
 mks run examples/game_engine.md
 
+# Build any project from prose
+mks build Cargo.toml          # auto-detects Rust → cargo build
+mks build CMakeLists.txt      # auto-detects C → cmake + make
+mks build build.md            # runs a markscript build definition
+
 # Validate a script without executing
-mks check examples/data_pipeline.md
+mks check examples/data_pipeline.md --json
 
 # Disassemble bytecode
 mks disasm examples/servo_controller.md
+
+# Watch a file and re-execute on change
+mks watch build.md
+
+# Use as a Unix filter
+echo '> print "hello"' | mks pipe
 ```
 
 ### Prerequisites
@@ -39,6 +51,23 @@ mks disasm examples/servo_controller.md
 - **Kain toolchain** (`kain build`, `kain check`)
 - **Native runtime** — auto-linked during `kain build`
 - **Windows, Linux, or WSL** — targets x86_64
+
+---
+
+## What's New in 2.0
+
+MarkScript 2.0 is the result of a four-lane parallel strike hardening every subsystem. Key upgrades:
+
+| Area | 1.0 | 2.0 |
+|------|-----|-----|
+| **VM Opcodes** | 20 | 23 (for-loops, fn calls, return) |
+| **IVT Handlers** | 12 | 78 (stdlib, process lifecycle, UI events) |
+| **CLI Subcommands** | 8 | 13 (pipe, watch, build, test, clean) |
+| **Test Coverage** | 22 cases | 114 cases + 6 Z3 proofs + 17 benchmarks |
+| **Embedding** | Manual API | `std::markscript` module + UI event bridge |
+| **Config** | Tables only | Schema validation, code generation, layered merge |
+
+Full details: [`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 
@@ -56,53 +85,35 @@ mks disasm examples/servo_controller.md
 | `init` | `mks init <name>` | Scaffold a new markscript project directory |
 | `handlers` | `mks handlers` | List all registered IVT handlers |
 | `doc` | `mks doc <file.md>` | Render clean documentation (strip VM output) |
+| `pipe` | `stdin \| mks pipe` | Read stdin, execute as markscript, write stdout |
+| `watch` | `mks watch <file.md>` | Poll file mtime every 500ms, re-execute on change |
+| `build` | `mks build [target]` | Auto-detect + build Rust/C/C++/Node/Python/Go/Kain |
+| `test` | `mks test [target]` | Auto-detect + run tests for any project |
+| `clean` | `mks clean [target]` | Auto-detect + clean artifacts |
 
 ### Flags
 
 | Flag | Description |
 |------|-------------|
-| `-h, --help` | Show help message and exit |
-| `-v, --version` | Show version and exit |
+| `-h, --help` | Show full usage text and exit |
+| `-v, --version` | Print version string and exit |
 | `-q, --quiet` | Suppress runtime logging and telemetry |
-| `--json` | Output structured JSON (where supported) |
+| `--json` | Output structured JSON (all subcommands) |
 
-### Exit Codes
+### Build Auto-Detection
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Help or version shown (no error) |
-| `2` | Error — file not found, parse failure, runtime |
-| `3` | Unknown subcommand or flag |
+`mks build` auto-detects project type and delegates to the correct tool:
 
-### Examples
-
-```bash
-# Default mode (no subcommand = run)
-mks examples/game_engine.md
-mks game_engine.md
-
-# Validate bytecode without executing
-mks check examples/data_pipeline.md
-
-# Debug bytecode
-mks disasm examples/servo_controller.md
-
-# Interactive session
-mks repl
-
-# One-shot intent
-mks eval '> print "hello world"'
-
-# Scaffold a new project
-mks init my-pipeline
-
-# List registered IVT handlers
-mks handlers
-
-# Suppress runtime telemetry
-mks -q run examples/fizzbuzz.md
-```
+| File Found | Build Command |
+|-----------|---------------|
+| `Cargo.toml` | `cargo build` |
+| `CMakeLists.txt` | `cmake -B build && cmake --build build` |
+| `package.json` | `npm run build` |
+| `*.kn` / `build.kn` | `kain build` |
+| `pyproject.toml` | `pip install -e .` |
+| `Makefile` | `make` |
+| `go.mod` | `go build` |
+| `build.md` / `Mksfile.md` | `mks run` (markscript build pipeline) |
 
 ---
 
@@ -148,62 +159,62 @@ OP_PUSH_PARAM hash("apply gravity")
 OP_EXECUTE_CALL
 ```
 
-The IVT maps phrase hashes to handler IDs at runtime. When a handler is registered for `"apply gravity"`, the VM dispatches to it. Built-in handlers include `print`, `assert`, `read file`, `write file`, `run`, and `import kain`.
+The IVT maps phrase hashes to handler IDs at runtime. **78 built-in handlers** bridge to the Kain stdlib — filesystem, process management, math, string operations, JSON, networking, time, regex, templates, random, and UI events. See [`docs/IVT_AND_HANDLERS.md`](docs/IVT_AND_HANDLERS.md) for the full registry.
+
+### Process Lifecycle
+
+```markdown
+> spawn "cargo build"       # start + track PID
+> await 0                    # wait for process[0]
+> exitcode 0                 # push exit code
+> assert 0                   # verify success
+
+> env RUST_BACKTRACE=1 run "cargo test"
+
+> pipe "cat data.txt" | "grep ERROR"
+```
+
+### UI Scripting
+
+```markdown
+> create widget button "submit"
+> set widget "submit" "text" "Click Me"
+> find widget "input.hex"
+> get widget "input.hex" "text"
+```
 
 ### Data Tables — `| col1 | col2 |`
 
-A markdown table is a **matrix** — parsed into a contiguous `Array<Int>` stored in the VM's data table.
+A markdown table is a **matrix** — parsed into a contiguous `Array<Int>` stored in the VM's data table. Tables support schema validation via `@schema`.
 
 ```markdown
-| Object | Mass | Velocity_X | Velocity_Y |
-|--------|------|------------|------------|
-| Player | 80   | 0          | -9         |
-| Crate  | 200  | 12         | 0          |
+@schema "schemas/server_schema.md"
+
+| Host | Port | Workers | TLS |
+|------|------|---------|-----|
+| 0.0.0.0 | 8080 | 4 | false |
 ```
 
 Compiles to:
 ```
-OP_PUSH_MATRIX handle=0 cols=4 rows=2 data_count=8
-[80, 0, -9, 200, 12, 0]
+OP_PUSH_MATRIX handle=0 cols=4 rows=1 data_count=4
 ```
 
 **Properties:**
 - Separator rows (`|---|`) are detected and skipped
 - The row before the separator is the header (column names)
 - Values are stored contiguous in bytecode — zero copy, zero indirection
-- Tables are accessible at runtime by handle ID
+- Tables are accessible at runtime by handle ID via `mks_table_get_*()`
+- Schema validation catches type errors, missing required fields, and constraint violations
 
-### Fenced Code Blocks — `` ```lang ``
+### Config → Code Generation
 
-Fenced code blocks extract code content for the host runtime.
-
-````markdown
-```kain
-fn pid_compute(setpoint: Int, measured: Int, kp: Int) -> Int:
-    let error = setpoint - measured
-    return error * kp / 100
-```
-````
-
-Compiles to:
-```
-OP_FENCED_CODE lang_hash=3284219 content_hash=<hash_of_content>
-```
-
-Language tag and content hash are stored in the VM's `code_blocks` array for dispatch at runtime.
-
-### Inline Text — Documentation
-
-Plain text between structural tokens is consumed as `TOK_TEXTSTR` and silently skipped by the parser. Write documentation freely between structural elements.
-
-```markdown
-# PhysicsSim
-
-The physics engine runs a fixed timestep loop. This text is documentation.
-It produces no bytecode.
-
-## ComputeForces
-> apply gravity
+```bash
+mks gen config.md --target json       # → config.json
+mks gen config.md --target toml       # → config.toml
+mks gen config.md --target env        # → .env
+mks gen config.md --target kain       # → Kain struct + loader
+mks gen config.md --target typescript # → TypeScript interface
 ```
 
 ### The Markscript Mini-Language (Inside ` ```markscript ` Blocks)
@@ -220,7 +231,18 @@ while n <= 100:
     n = n + 1
 ```
 
-Supports: variables, `while` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `/`, `%`), `print()`, `str()`, `len()`.
+Supports: variables, `while`/`for` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `/`, `%`), `print()`, `str()`, `len()`, array literals `[1, 2, 3]`, dict literals `{key: value}`, function definitions `fn name():`, `return`.
+
+### `@import` — Multi-File Composition
+
+The `@import` directive merges external markdown files at compile time. Paths resolve relative to the importing file, imported domains and routines merge into the calling namespace, and circular imports are detected at compile time (max depth: 16).
+
+Imports are resolved at compile-time, before bytecode emission. Rules:
+- Paths resolve relative to the importing file
+- Imported domains and routines merge into the calling namespace
+- Duplicate domain names: last import wins (warning emitted)
+- Circular imports: hard error at compile time
+- Max depth: 16
 
 ---
 
@@ -235,7 +257,6 @@ Supports: variables, `while` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `
     │  LEXER (lexer.kn)           │
     │  22 token types - headings, │
     │  blockquotes, tables, fences│
-    │  Pure value semantics       │
     └──────────┬──────────────────┘
                │ tokens
                ▼
@@ -246,25 +267,25 @@ Supports: variables, `while` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `
     │ • Intents → OP_PUSH_PARAM +   │
     │              OP_EXECUTE_CALL   │
     │ • @import resolution          │
+    │ • Mini-language → VM opcodes  │
     └──────────┬────────────────────┘
                │ bytecode (Array<Int>)
                ▼
     ┌──────────────────────────────┐
     │ VIRTUAL MACHINE (vm.kn)      │
-    │ 20 opcodes, stack-based      │
+    │ 23 opcodes, stack-based      │
     │ IVT dispatch for intents     │
     │ Data table, call stack, vars │
+    │ Processes, widgets, arrays   │
     │ JMP/JZ/JN for control flow   │
     └──────────┬───────────────────┘
                │ ExecResult
                ▼
     ┌──────────────────────────────┐
-    │ HANDLER DISPATCH (bridge.kn) │
-    │ 12 built-in handlers:        │
-    │ fs_read, fs_write, fs_exists │
-    │ process_run, process_spawn   │
-    │ import_kain, assert, println │
-    │ str, len, push, pop          │
+    │ HANDLER DISPATCH             │
+    │ bridge.kn (78 handlers)      │
+    │ bridge_stdlib.kn (stdlib)    │
+    │ Core, BETA, GAMMA, DELTA     │
     └──────────────────────────────┘
 ```
 
@@ -273,86 +294,65 @@ Supports: variables, `while` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `
 | File | LOC | Role |
 |------|-----|------|
 | `src/lexer.kn` | ~350 | Tokenizer — 22 token types, value semantics |
-| `src/parser.kn` | ~500 | Parser + Compiler — single-pass, bytecode emission, `@import` |
-| `src/vm.kn` | ~620 | Virtual Machine — 20 opcodes, stack, data table, IVT |
-| `src/main.kn` | ~510 | CLI driver, subcommand dispatch, REPL, handler loop |
-| `src/cli.kn` | ~310 | Argument parser, usage text, MksConfig |
-| `src/bridge.kn` | ~480 | IVT handler registry, 12 built-in Kain stdlib bridges |
-| `src/types.kn` | ~210 | MarkValue, MatrixRecord, type inference |
-| `src/error.kn` | ~150 | MarkError, formatting, did-you-mean |
-| `src/import.kn` | ~220 | `@import` resolution, cycle detection |
-| **Total** | **~3,400** | |
+| `src/parser.kn` | ~500 | Single-pass bytecode compiler, @import, mini-language |
+| `src/vm.kn` | ~847 | Virtual Machine — 23 opcodes, stack, IVT, processes, widgets, arrays |
+| `src/main.kn` | ~1,406 | CLI driver, 13 subcommands, --json, auto-discovery |
+| `src/cli.kn` | ~664 | Argument parser, build auto-detection, JSON output |
+| `src/bridge.kn` | ~1,331 | IVT handler registry — 78 handlers, dispatch, registration |
+| `src/bridge_stdlib.kn` | ~414 | BETA: 35 stdlib handler functions across 10 domains |
+| `src/types.kn` | ~436 | MarkValue (10 kinds), MatrixRecord, ProcessRecord, WidgetRecord |
+| `src/error.kn` | ~150 | MarkError (6 kinds), formatting, did-you-mean |
+| `src/import.kn` | ~220 | @import resolution, cycle detection |
+| `src/jit.kn` | ~670 | x86-64 JIT compiler for all opcodes |
+| `src/std_markscript.kn` | ~321 | Clean embedding API for Kain programs |
+| `src/markscript_ui.kn` | ~295 | UI event binding bridge |
+| `src/schema.kn` | ~345 | Config schema validation |
+| `src/gen.kn` | ~524 | Config → code generator (json/toml/env/kain/typescript) |
+| `src/config.kn` | ~409 | Layered config merging |
+| **Total** | **~7,500** | |
 
-### The IVT (Intent Vector Table)
+### Handler Registry
 
-The IVT maps hashed natural-language phrases to handler IDs. Twelve built-in handlers bridge to the Kain stdlib:
-
-| Handler | Intent Pattern | Kain Bridge |
-|---------|---------------|-------------|
-| `FN_FS_READ_TEXT` | `> read file "path"` | `std::fs::fs_read_text()` |
-| `FN_FS_WRITE_TEXT` | `> write file "path" "content"` | `std::fs::fs_write_text()` |
-| `FN_FS_EXISTS` | `> file exists "path"` | `std::fs::fs_path_exists()` |
-| `FN_PROCESS_OUTPUT` | `> run "command"` | `std::process::process_spawn()` |
-| `FN_PROCESS_SPAWN` | `> spawn "command"` | Full process API |
-| `FN_IMPORT_KAIN` | `> import kain "module"` | Kain module loader |
-| `FN_ASSERT` | `> assert value expected` | Equality check on error |
-| `FN_PRINTLN` | `> print value` | `println(str(value))` |
-| `FN_STR` | Implicit | `str()` conversion |
-| `FN_LEN` | Implicit | `len()` container length |
-| `FN_PUSH` | Implicit | Push to VM stack |
-| `FN_POP` | Implicit | Pop from VM stack |
-
-Add custom handlers by registering Kain functions into the IVT — see `docs/IVT_AND_HANDLERS.md`.
-
-### `@import` — Multi-File Composition
-
-```markdown
-@import "path/to/other.md"
-@import "../shared/handlers.md"
-```
-
-Imports are resolved at compile-time, before bytecode emission. Rules:
-- Paths resolve relative to the importing file
-- Imported domains and routines merge into the calling namespace
-- Duplicate domain names: last import wins (warning emitted)
-- Circular imports: hard error at compile time
-- Max depth: 16
-
-### Error Model
-
-```
-Error: <kind>: <message>
-  at line <N>, domain "<domain>", routine "<routine>"
-  suggestion: <suggestion>
-```
-
-**Error kinds:** `name error`, `arity error`, `bounds error`, `type error`, `import error`, `circular import`.
-
-When an IVT lookup fails, the error engine searches registered handlers for the closest match (edit distance ≤ 3):
-
-```
-Error: name error: unknown intent "apply graviti"
-  at line 14, domain "PhysicsSim", routine "physics_tick"
-  suggestion: did you mean "apply gravity"?
-```
+| Range | Count | Owner | Category |
+|-------|-------|-------|----------|
+| 1-12 | 12 | Core | Filesystem, process, assert, print, str, len, push, pop |
+| 13-50 | 38 | BETA | Stdlib: string, math, json, fs, process, time, net, regex, template, random |
+| 51-59 | 9 | GAMMA | Process lifecycle: spawn tracked, await, kill, pipe, env, cwd |
+| 71-78 | 8 | DELTA | UI scripting: click, key, focus, close, find widget, get/set property, create widget |
+| **Total** | **78** | | |
 
 ---
 
 ## Embedding MarkScript in Kain
 
-Any Kain program can embed the MarkScript VM:
+Any Kain program can embed the MarkScript VM via `std::markscript`:
 
 ```kain
-let content = fs_read_text("config.md")
-let lex = create_lexer(content)
-let bc = compile_source(lex)
-let vm = init_vm_with_builtins()
-let result = execute_bytecode(vm, bc)
-// result.vm.data_table — parsed tables
-// result.value — final accumulator
+use std::markscript
+
+let vm = markscript.mks_new_vm()
+let vm = markscript.mks_run_file("config.md")
+
+// Access parsed tables as typed data
+let host = markscript.mks_table_get_string(vm, 0, 0, 0)  // "0.0.0.0"
+let port = markscript.mks_table_get_int(vm, 0, 0, 1)     // 8080
+
+// Iterate all tables
+let tables = markscript.mks_tables(vm)
 ```
 
-Both MarkScript and Kain compile through the same LLVM backend to the same native binary. Both link against the same C runtime. Both access the same stdlib. The separation is at the language level only.
+For UI apps, use `std::markscript_ui` to bind markscript intents to widget events:
+
+```kain
+use std::markscript_ui
+
+let session = markscript_ui.mks_ui_create_from_file("ui.md")
+// ui.md tables define window, layout, presets, event bindings
+// Changing the UI means editing ui.md — not the Kain code
+markscript_ui.mks_ui_run(session)
+```
+
+See `mks/ui.md` + `mks/src/main.kn` for a working hex color mixer that loads its entire UI spec from markscript tables at runtime.
 
 ---
 
@@ -361,54 +361,68 @@ Both MarkScript and Kain compile through the same LLVM backend to the same nativ
 ```
 markscript/
 ├── README.md                  ← this file (self-executing docs)
+├── CHANGELOG.md               ← full version history (self-validating)
 ├── MARKSCRIPT.MD              ← canonical specification & contract
 ├── build.kn                   ← Kain project authority
-├── KAIN.toml                  ← blade metadata
 ├── docs/                      ← authoring guides
 │   ├── GETTING_STARTED.md
 │   ├── AUTHORING_GUIDE.md
 │   ├── CLI_REFERENCE.md
 │   ├── IVT_AND_HANDLERS.md
-│   └── POSSIBILITIES.md
+│   ├── POSSIBILITIES.md
+│   ├── JIT_DESIGN.md
+│   └── TEST_MATRIX.md         ← complete opcode/error/handler coverage
 ├── src/                       ← Kain source (the VM implementation)
-│   ├── main.kn                — CLI, subcommand dispatch
-│   ├── cli.kn                 — argument parser
+│   ├── main.kn                — CLI (13 subcommands), handler loop, --json
+│   ├── cli.kn                 — argument parser, auto-detection, MksConfig
 │   ├── lexer.kn               — 22-token tokenizer
-│   ├── parser.kn              — single-pass bytecode compiler
-│   ├── vm.kn                  — 20-opcode stack VM
-│   ├── types.kn               — MarkValue, MatrixRecord
-│   ├── bridge.kn              — IVT handler registry
-│   ├── error.kn               — runtime error formatting
+│   ├── parser.kn              — single-pass bytecode compiler, mini-language
+│   ├── vm.kn                  — 23-opcode stack VM, IVT, state management
+│   ├── types.kn               — MarkValue (10 kinds), MatrixRecord, WidgetRecord
+│   ├── bridge.kn              — 78-handler IVT registry + dispatch
+│   ├── bridge_stdlib.kn       — BETA: 35 stdlib handler functions
+│   ├── error.kn               — runtime error formatting, did-you-mean
 │   ├── import.kn              — @import resolution
-│   ├── test_lexer.kn          — tokenizer tests
-│   └── test_markscript_parser.kn — parser tests
+│   ├── jit.kn                 — x86-64 JIT compiler
+│   ├── std_markscript.kn      — clean embedding API for Kain programs
+│   ├── markscript_ui.kn       — UI event binding bridge
+│   ├── schema.kn              — config schema validation
+│   ├── gen.kn                 — config → code generator
+│   └── config.kn              — layered config merging
+├── std/                       ← Markscript stdlib (93 markdown files)
+│   ├── build.md               — canonical build definition format
+│   ├── process.md             — full process lifecycle intents
+│   ├── math.md, string.md, fs.md, time.md, json.md
+│   ├── git.md, docker.md, k8s.md, ci.md
+│   └── ... (93 total, 10 wired to real IVT handlers)
+├── test/                      ← Test suite (114 cases)
+│   ├── e2e_pipeline.kn        — 22-case end-to-end pipeline test
+│   ├── edge_cases.kn          — 20 boundary/error cases
+│   ├── bridge_handlers.kn     — 16 handler dispatch tests
+│   ├── combinatorial_matrix.kn — 39 combinatorial coverage tests
+│   ├── test_runner.kn         — unified test runner with filtering
+│   ├── jit_*.kn               — JIT integration tests
+│   └── test_lexer.kn, test_markscript_parser.kn
+├── z3/                        ← Z3 proof packs (6 files)
+│   ├── vm_invariants.z3       — stack + arithmetic safety
+│   ├── var_store_integrity.z3 — variable store correctness
+│   └── call_stack_integrity.z3 — call/ret pairing
+├── benchmarks/                ← Benchmark suite (17 benchmarks)
+├── attrition/                 ← Sabotage definitions (20 cases)
 ├── examples/                  ← executable example scripts
+│   ├── pong.md                — complete Pong game (8 domains, 24 routines, 9 tables)
+│   ├── fizzbuzz.md            — mini-language: loops, if/else, vars
 │   ├── game_engine.md         — physics/AI/rendering loop
 │   ├── data_pipeline.md       — streaming ETL pipeline
 │   ├── servo_controller.md    — 6-axis servo with PID
-│   ├── fizzbuzz.md            — full FizzBuzz in markscript
-│   ├── pong.md                — complete Pong game spec (30+ intents)
-│   ├── compute_pipeline.md    — neural compute pipeline
-│   ├── render_loop.md         — GPU render loop
-│   └── ...
-└── projects/
-    └── mks-ultra/             — Markscript-embedded Kain physics engine
-        ├── build.kn           — references markscript src/
-        ├── src/engine/        — Vec3, RigidBody, collision, integrator
-        └── scripts/sim.md     — N-body simulation in Markscript
+│   ├── kain_project_config.md — KAIN.toml equivalent in markscript
+│   └── ... (25 total)
+├── mks/                       ← Hex color mixer (markscript-driven Kain UI)
+│   ├── ui.md                  — UI spec in markscript tables
+│   ├── readme.md              — markscript build orchestrator
+│   └── src/                   — Kain UI implementation (loads ui.md at runtime)
+└── schemas/                   ← Config schema definitions
 ```
-
----
-
-## Examples
-
-| Example | Domains | Routines | Data | What It Shows |
-|---------|---------|----------|------|---------------|
-| `game_engine.md` | 3 | 3 | 3 tables | Physics, AI, rendering loop |
-| `data_pipeline.md` | 1 | 4 | 4 tables | ETL pipeline with latency metrics |
-| `servo_controller.md` | 1 | 4 | 2 tables | PID control + C ISR |
-| `fizzbuzz.md` | 1 | 3 | 0 | Full mini-language: loops, if/else, vars |
-| `pong.md` | 8 | 24 | 9 tables | Complete game architecture in prose |
 
 ---
 
@@ -418,20 +432,30 @@ markscript/
 |----------|---------|
 | A general-purpose language | That's Kain. MarkScript orchestrates Kain |
 | A replacement for Kain | No type system, memory model, ownership, or effects |
-| A compiler platform | Cannot express generics or code generation |
-| A build system | Dispatches TO Kain's build system through intents |
+| A compiler platform | Cannot express generics or code generation (but can dispatch TO Kain's compiler) |
 | A package manager | Dependency management belongs to Kain |
+
+**What MarkScript IS:**
+- ✅ A build system for any language (auto-detects Rust/C/C++/Node/Python/Go/Kain)
+- ✅ A config format with schema validation and code generation
+- ✅ A UI scripting engine embeddable in Kain apps
+- ✅ A CI/CD pipeline definition language
+- ✅ A process orchestrator with full lifecycle management
+- ✅ Executable documentation — your README is your test suite
 
 ---
 
 ## Further Reading
 
+- **`CHANGELOG.md`** — Full version history (self-validating markscript)
 - **`MARKSCRIPT.MD`** — Canonical specification, invariants, 1.0 contract
 - **`docs/GETTING_STARTED.md`** — Build, run, first script in 2 minutes
 - **`docs/AUTHORING_GUIDE.md`** — Complete markdown→semantics mapping
 - **`docs/CLI_REFERENCE.md`** — Full subcommand and flag reference
-- **`docs/IVT_AND_HANDLERS.md`** — The intent dispatch system explained
+- **`docs/IVT_AND_HANDLERS.md`** — The 78-handler intent dispatch system
 - **`docs/POSSIBILITIES.md`** — What you can build with MarkScript
+- **`docs/JIT_DESIGN.md`** — x86-64 JIT architecture
+- **`docs/TEST_MATRIX.md`** — Complete coverage documentation
 
 ---
 

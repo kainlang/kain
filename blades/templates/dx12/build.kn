@@ -1,0 +1,46 @@
+// ============================================================================
+//  DX12 TEMPLATE BUILD AUTHORITY
+//  Pure Kain std::graphics with DirectX 12 backend — 3D cube + flyby camera
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("dx12-template")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("DX12 Starter — colored 3D cube with WASD+mouse flyby camera. Pure Kain std::graphics with DirectX 12 backend.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let defaults = build_defaults()
+        .entry("src/main.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/dx12-template.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .defaults(defaults)
+        .run(run)
+        .task(check)
+        .task(exe)

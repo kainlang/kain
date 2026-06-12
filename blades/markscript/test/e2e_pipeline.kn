@@ -614,7 +614,7 @@ fn test_e3_error_import_not_found():
 //  MAIN — Run all tests
 // ============================================================================
 
-pub fn main():
+pub fn run_tests():
     println("=== MARKSCRIPT END-TO-END PIPELINE INTEGRATION TEST ===\n")
 
     // ── Category A: Lexer ──

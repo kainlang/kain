@@ -1,0 +1,39 @@
+// ============================================================================
+//  greeble test runner — entry point for all unit tests
+//
+//  Usage:
+//    kain run blades/network/greeble/test/test_runner.kn --target llvm
+//
+//  Imports each test module and runs all suites sequentially.
+//  Returns non-zero if any suite has failures.
+// ============================================================================
+
+use types
+use test_types
+use test_state
+use test_telemetry
+
+fn banner():
+    println("")
+    println("╔══════════════════════════════════════════╗")
+    println("║        GREELE UNIT TEST SUITE           ║")
+    println("╚══════════════════════════════════════════╝")
+
+fn footer(total_failures: Int):
+    println("")
+    if total_failures == 0:
+        println("  RESULT: ALL TESTS PASSED")
+    else:
+        println("  RESULT: " + str(total_failures) + " FAILURE(S) DETECTED")
+    println("")
+
+fn main() -> Int:
+    banner()
+
+    let t1: Int = test_types.run_tests()
+    let t2: Int = test_state.run_tests()
+    let t3: Int = test_telemetry.run_tests()
+
+    let total: Int = t1 + t2 + t3
+    footer(total)
+    return total

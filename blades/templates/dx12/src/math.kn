@@ -1,0 +1,67 @@
+// ============================================================================
+//  MATH — Lightweight 3D math helpers for the DX12 starter template
+//  Layer 0: struct + fn Pure — thin re-exports over std::math
+// ============================================================================
+//
+//  std::math provides: Vec3, Mat4, vec3(), mat4_identity(), mat4_look_at(),
+//  mat4_perspective(), mat4_mul(), mat4_transform_point(), vec3_add(),
+//  vec3_sub(), vec3_mul_scalar(), vec3_normalize(), vec3_cross(), vec3_dot(),
+//  sin(), cos(), degrees_to_radians(), radians_to_degrees()
+//
+//  This module adds only the helpers that don't exist in std::math.
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+//  FLOAT HELPERS
+// ============================================================================
+
+/// Clamp a float value between min and max bounds.
+pub fn clamp_float(val: Float, lo: Float, hi: Float) -> Float with Pure:
+    if val < lo: return lo
+    if val > hi: return hi
+    return val
+
+// ============================================================================
+//  VEC3 DIRECTION HELPERS
+// ============================================================================
+
+/// Compute the forward direction vector from yaw and pitch angles (in radians).
+/// Yaw rotates around Y axis (left/right look), pitch rotates around X axis (up/down).
+pub fn forward_from_yaw_pitch(yaw: Float, pitch: Float) -> Vec3 with Pure:
+    let cos_pitch = cos(pitch)
+    return vec3(
+        sin(yaw) * cos_pitch,
+        sin(pitch),
+        -cos(yaw) * cos_pitch,
+    )
+
+/// Compute the right direction vector from yaw (in radians).
+pub fn right_from_yaw(yaw: Float) -> Vec3 with Pure:
+    return vec3(
+        cos(yaw),
+        0.0,
+        sin(yaw),
+    )
+
+// ============================================================================
+//  MVP HELPER
+// ============================================================================
+
+/// Build a combined Model-View-Projection matrix from camera state.
+pub fn build_mvp(
+    position: Vec3,
+    yaw: Float,
+    pitch: Float,
+    fov_radians: Float,
+    aspect: Float,
+    near_plane: Float,
+    far_plane: Float,
+) -> Mat4 with Pure:
+    let forward = forward_from_yaw_pitch(yaw, pitch)
+    let target = vec3_add(position, forward)
+    let up = vec3(0.0, 1.0, 0.0)
+    let view = mat4_look_at(position, target, up)
+    let proj = mat4_perspective(fov_radians, aspect, near_plane, far_plane)
+    return mat4_mul(proj, view)

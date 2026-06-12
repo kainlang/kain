@@ -112,7 +112,7 @@ pulse frame_clock every 16ms jitter 2ms:
 //  ENTRY POINT
 // ============================================================================
 
-fn three_kn_entry() -> Int with IO:
+fn main() -> Int with IO:
     let init_status: Int = runtime_init()
     if init_status != 0:
         return init_status

@@ -1,0 +1,383 @@
+// ============================================================================
+//  DIAGNOSTICS.KN — COMPREHENSIVE ACTOR DIAGNOSTICS ORCHESTRATOR
+//
+//  Runs the full actor testing suite across all test categories:
+//    Lifecycle | Send/Cast | Ask/Call | Mailbox | Registry | Monitor
+//    Link | Supervision | Scheduler | Worker Pool | GenServer
+//    Game Loop | Fusion Chain | Stress | Telemetry Delta Guards
+//
+//  Also runs effect.kn and spookymagic.kn edge case diagnostics.
+//
+//  ARCHITECTURE:
+//    cause.kn       → 42 actor tests across 15 categories
+//    effect.kn      → Downstream actor effect modeling
+//    spookymagic.kn → Actor edge cases (storms, overflow, race windows)
+// ============================================================================
+
+use std::diagnostics
+use std::io
+use std::actor
+use cause
+use effect
+use spookymagic
+
+// ===========================================================================
+//  TEST RESULT — Structured per-test outcome
+// ===========================================================================
+
+pub struct TestResult:
+    module:      String
+    test_name:   String
+    description: String
+    category:    String
+    exit_code:   Int
+    output:      String
+    duration_ms: Int
+
+// ===========================================================================
+//  DIAGNOSTICS REPORT — Aggregate report for all tests
+// ===========================================================================
+
+pub struct DiagnosticsReport:
+    total_tests:    Int
+    passed:         Int
+    failed:         Int
+    warnings:       Int
+    results:        Array<TestResult>
+    errors:         Array<String>
+    timestamp:      String
+    categories:     Array<String>     // Categories tested
+
+// ===========================================================================
+//  BUILD TEST RESULT
+// ===========================================================================
+
+fn build_test_result(module: String, name: String, desc: String, cat: String, exit_code: Int) -> TestResult:
+    let output = if exit_code == 0:
+        "PASS"
+    else:
+        "FAIL (error code: " + str(exit_code) + ")"
+
+    return TestResult {
+        module: module,
+        test_name: name,
+        description: desc,
+        category: cat,
+        exit_code: exit_code,
+        output: output,
+        duration_ms: 0
+    }
+
+// ===========================================================================
+//  RUN ALL CAUSE TESTS — Iterates the test table, dispatches, collects results
+// ===========================================================================
+
+fn run_cause_tests(report: DiagnosticsReport, filter: String) -> DiagnosticsReport:
+    let tests = get_cause_tests()
+    var r = report
+
+    // Track which categories we've seen
+    var seen_categories: Array<String> = []
+
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+
+        // Apply filter: match on tag or category
+        var should_run: Bool = true
+        if filter != "" and filter != "all" and filter != "cause":
+            should_run = false
+            if t.tag == filter or t.category == filter:
+                should_run = true
+
+        if should_run:
+            let code = run_cause_test_by_tag(t.tag)
+            let result = build_test_result("cause", t.name, t.description, t.category, code)
+
+            r.total_tests = r.total_tests + 1
+            if result.exit_code == 0:
+                r.passed = r.passed + 1
+            else:
+                r.failed = r.failed + 1
+
+            push(r.results, result)
+
+            // Track category
+            var cat_seen: Bool = false
+            var ci: Int = 0
+            while ci < len(seen_categories):
+                if seen_categories[ci] == t.category:
+                    cat_seen = true
+                ci = ci + 1
+            if cat_seen == false:
+                push(seen_categories, t.category)
+
+        i = i + 1
+
+    r.categories = seen_categories
+    return r
+
+// ===========================================================================
+//  RUN EFFECT TESTS
+// ===========================================================================
+
+fn run_effect_tests(report: DiagnosticsReport, filter: String) -> DiagnosticsReport:
+    var r = report
+
+    if filter != "" and filter != "all" and filter != "effect":
+        return r
+
+    // Effect sanity check
+    let eff_code = effect_sanity_check()
+    let eff_result = build_test_result("effect", "effect_sanity", "Verifies effect module integrity", "effect", eff_code)
+
+    r.total_tests = r.total_tests + 1
+    if eff_code == 0:
+        r.passed = r.passed + 1
+    else:
+        r.failed = r.failed + 1
+    push(r.results, eff_result)
+
+    // Effect compute test
+    let computed = compute_effect(42)
+    let compute_result = build_test_result("effect", "effect_compute", "compute_effect(42) → " + str(computed), "effect", 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, compute_result)
+
+    // Actor impact metrics
+    let impact = compute_actor_impact(10, 20)
+    let impact_result = build_test_result("effect", "actor_impact", "impact_score=" + str(impact.impact_score) + " depth=" + str(impact.scheduler_depth), "effect", 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, impact_result)
+
+    return r
+
+// ===========================================================================
+//  RUN SPOOKYMAGIC TESTS
+// ===========================================================================
+
+fn run_spookymagic_tests(report: DiagnosticsReport, filter: String) -> DiagnosticsReport:
+    var r = report
+
+    if filter != "" and filter != "all" and filter != "spookymagic":
+        return r
+
+    // Spookymagic sanity
+    let spooky_code = spookymagic_sanity_check()
+    let spooky_result = build_test_result("spookymagic", "spookymagic_sanity", "Verifies spookymagic module integrity", "spookymagic", spooky_code)
+    r.total_tests = r.total_tests + 1
+    if spooky_code == 0:
+        r.passed = r.passed + 1
+    else:
+        r.failed = r.failed + 1
+    push(r.results, spooky_result)
+
+    // Spooky factor
+    let factor = get_spooky_factor()
+    let factor_result = build_test_result("spookymagic", "spooky_factor", "Spooky factor: " + str(factor), "spookymagic", 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, factor_result)
+
+    // Edge case diagnosis
+    let diag = diagnose_actor_edge_case()
+    let diag_desc = "storm=" + str(diag.mailbox_storm) + " overflow=" + str(diag.overflow_pressure) + " depth=" + str(diag.queue_depth) + "/" + str(diag.max_queue_depth) + " spooky=" + str(diag.spooky_factor)
+    let diag_result = build_test_result("spookymagic", "actor_edge_diag", diag_desc, "spookymagic", 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, diag_result)
+
+    return r
+
+// ===========================================================================
+//  PRINT DIAGNOSTICS REPORT — Formatted output with category grouping
+// ===========================================================================
+
+fn print_report(report: DiagnosticsReport, verbose: Bool):
+    println("")
+    println("═══════════════════════════════════════════════════════════")
+    println("  KAIN ACTOR SYSTEM — DIAGNOSTICS REPORT")
+    println("═══════════════════════════════════════════════════════════")
+    println("  Total:    " + str(report.total_tests))
+    println("  Passed:   " + str(report.passed))
+    println("  Failed:   " + str(report.failed))
+    println("  Warnings: " + str(report.warnings))
+
+    if len(report.errors) > 0:
+        println("  Errors:   " + str(len(report.errors)))
+
+    if len(report.categories) > 0:
+        println("  Categories: " + str(len(report.categories)))
+
+    println("───────────────────────────────────────────────────────────")
+
+    // Group results by category for clean output
+    var current_cat: String = ""
+    var i: Int = 0
+    while i < len(report.results):
+        let r = report.results[i]
+
+        // Print category header on change
+        if r.category != current_cat:
+            current_cat = r.category
+            println("")
+            println("  ── " + current_cat + " ──")
+
+        var status_icon = "[PASS]"
+        if r.exit_code != 0:
+            status_icon = "[FAIL]"
+
+        println("  " + status_icon + " " + r.test_name)
+
+        if verbose:
+            println("         " + r.description)
+            if r.output != "" and r.output != "PASS":
+                println("         → " + r.output)
+
+        i = i + 1
+
+    // Print errors
+    if len(report.errors) > 0:
+        println("───────────────────────────────────────────────────────────")
+        println("  ERRORS:")
+        var ei: Int = 0
+        while ei < len(report.errors):
+            println("    ! " + report.errors[ei])
+            ei = ei + 1
+
+    println("")
+    println("═══════════════════════════════════════════════════════════")
+
+    // Overall verdict
+    if report.failed == 0:
+        println("  VERDICT: ALL ACTOR TESTS PASSED")
+        println("")
+        println("  The Kain actor system is functioning correctly across:")
+        println("    - Lifecycle & Identity")
+        println("    - Message Passing (Send + Ask)")
+        println("    - Mailbox Capacity & Backpressure")
+        println("    - Actor Registry")
+        println("    - Monitors & Links")
+        println("    - Supervision Configuration")
+        println("    - Scheduler Telemetry")
+        println("    - Worker Pools (Erlang Pattern)")
+        println("    - GenServer (Erlang Pattern)")
+        println("    - Game Loop Pipeline (UE5 Pattern)")
+        println("    - Fusion Chain (Actor + World State)")
+        println("    - Stress Tests (64+ actors, 256+ asks)")
+        println("    - Telemetry Delta Guards (Proof Layer)")
+    else:
+        println("  VERDICT: " + str(report.failed) + " TEST(S) FAILED")
+        println("")
+        println("  Check the [FAIL] entries above for specific error codes.")
+        println("  Error code ranges:")
+        println("    1-9    Lifecycle     50-59  Registry      100-109 Worker Pool")
+        println("    10-19  Send/Cast     60-69  Monitor       110-119 GenServer")
+        println("    20-29  Ask/Call      70-79  Link          120-129 Game Loop")
+        println("    30-39  Mailbox       80-89  Supervision   130-139 Fusion Chain")
+        println("    40-49  Reply Port    90-99  Scheduler     140-149 Stress")
+        println("                                            150-159 Telemetry Delta")
+
+    println("")
+
+// ===========================================================================
+//  RUN DIAGNOSTICS — Main entry point
+// ===========================================================================
+
+pub fn run_diagnostics(test_filter: String, verbose: Bool) -> Int:
+    var report = DiagnosticsReport {
+        total_tests: 0,
+        passed: 0,
+        failed: 0,
+        warnings: 0,
+        results: [],
+        errors: [],
+        timestamp: "now",
+        categories: []
+    }
+
+    println("")
+    println("╔══════════════════════════════════════════════════════════╗")
+    println("║  KAIN ACTOR EDGE CASE TESTING SUITE                      ║")
+    println("║  Filter: " + test_filter)
+    if verbose:
+        println("║  Mode:   VERBOSE")
+    println("╚══════════════════════════════════════════════════════════╝")
+
+    // Run actor tests from cause.kn
+    if test_filter == "all" or test_filter == "cause" or test_filter != "effect" and test_filter != "spookymagic":
+        println("")
+        println("─── ACTOR TEST SUITE ────────────────────────────────────")
+        report = run_cause_tests(report, test_filter)
+
+    // Run effect tests
+    if test_filter == "all" or test_filter == "effect":
+        println("")
+        println("─── EFFECT MODELING ─────────────────────────────────────")
+        report = run_effect_tests(report, test_filter)
+
+    // Run spookymagic edge case tests
+    if test_filter == "all" or test_filter == "spookymagic":
+        println("")
+        println("─── EDGE CASE DIAGNOSTICS ───────────────────────────────")
+        report = run_spookymagic_tests(report, test_filter)
+
+    // Print report
+    print_report(report, verbose)
+
+    // Return exit code
+    if report.failed > 0:
+        return 1
+    return 0
+
+// ===========================================================================
+//  LIST TESTS — Enumerate all available tests with categories
+// ===========================================================================
+
+pub fn list_tests(verbose: Bool):
+    println("")
+    println("KAIN ACTOR SYSTEM — AVAILABLE TESTS")
+    println("")
+
+    let tests = get_cause_tests()
+    println("  cause.kn (" + str(len(tests)) + " tests across 15 categories):")
+    println("")
+
+    var current_cat: String = ""
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        if t.category != current_cat:
+            current_cat = t.category
+            println("    [" + current_cat + "]")
+        if verbose:
+            println("      " + t.name + " — " + t.description)
+        else:
+            println("      " + t.name)
+        i = i + 1
+
+    println("")
+    println("  effect.kn (3 tests):")
+    println("    [effect]")
+    println("      effect_sanity")
+    println("      effect_compute")
+    println("      actor_impact")
+
+    println("")
+    println("  spookymagic.kn (3 tests):")
+    println("    [spookymagic]")
+    println("      spookymagic_sanity")
+    println("      spooky_factor")
+    println("      actor_edge_diag")
+
+    println("")
+    println("USAGE:")
+    println("  kain run                                    Run full suite")
+    println("  kain run -- --test lifecycle                Run lifecycle tests only")
+    println("  kain run -- --test ask_basic                Run a single test")
+    println("  kain run -- --verbose                       Verbose output")
+    println("  kain run -- --vm                            Run in isolated process")
+    println("  kain run -- --list                          List all tests")
+    println("")

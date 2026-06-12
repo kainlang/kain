@@ -200,3 +200,10 @@ pub fn run_tests() -> Int:
     println("")
     println("=== ROUTER TESTS: " + str(failures) + " failure(s) ===")
     return failures
+
+// ============================================================================
+//  ENTRY POINT
+// ============================================================================
+
+pub fn main() -> Int:
+    return run_tests()

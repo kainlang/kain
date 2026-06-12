@@ -1,0 +1,470 @@
+// ============================================================================
+//  Kain Maze — First-Person Raycaster (Wolfenstein 3D-style)
+//  Pure Kain std::ui. No C, no Python, no interop.
+//
+//  Ladder rung: Layer 0 (fn) — raw imperative event loop with raycasting.
+// ============================================================================
+
+use std::ui
+use std::runtime
+use std::time
+use std::math
+use std::fmt
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 900
+const WIN_H: Int = 700
+const STRIP_W: Int = 4
+const MAP_W: Int = 16
+const MAP_H: Int = 16
+const NUM_STRIPS: Int = WIN_W / STRIP_W  // 225
+const MOVE_SPEED: Float = 3.5
+const ROT_SPEED: Float = 2.5
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn abs_f(v: Float) -> Float:
+    return if v < 0: -v else: v
+
+fn my_clamp(v: Float, lo: Float, hi: Float) -> Float:
+    return if v < lo: lo elif v > hi: hi else: v
+
+fn maze_get(m: [Int], x: Int, y: Int, w: Int) -> Int:
+    if x >= 0 and x < w and y >= 0 and y < MAP_H:
+        return m[y * w + x]
+    return 1  // treat out of bounds as wall
+
+// ============================================================================
+//  COLLISION
+// ============================================================================
+
+fn can_move_to(m: [Int], x: Float, y: Float) -> Bool:
+    let margin: Float = 0.15
+    let x0 = (x - margin) as Int
+    let x1 = (x + margin) as Int
+    let y0 = (y - margin) as Int
+    let y1 = (y + margin) as Int
+
+    if maze_get(m, x0, y0, MAP_W) > 0: return false
+    if maze_get(m, x1, y0, MAP_W) > 0: return false
+    if maze_get(m, x0, y1, MAP_W) > 0: return false
+    if maze_get(m, x1, y1, MAP_W) > 0: return false
+    return true
+
+// ============================================================================
+//  BUILD MINIMAP TEXTURE (single 16x16 RGBA8 hex string)
+// ============================================================================
+
+fn build_minimap_hex(m: [Int], w: Int) -> String:
+    var hex: String = ""
+    var cell_i: Int = 0
+    while cell_i < w * MAP_H:
+        let cell = m[cell_i]
+        if cell == 1:
+            // Red brick
+            hex = hex + "CC8866FF"
+        elif cell == 2:
+            // Blue stone
+            hex = hex + "6688CCFF"
+        elif cell == 3:
+            // Green moss
+            hex = hex + "66AA66FF"
+        else:
+            // Floor: transparent
+            hex = hex + "00000000"
+        cell_i = cell_i + 1
+    return hex
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    // --- Initialize native runtime ---
+    let _ = native_runtime_init()
+    defer native_runtime_shutdown()
+
+    // --- Create window ---
+    let session = ui_host_session_create(
+        "kain-maze",
+        "Kain Maze — First-Person Raycaster",
+        WIN_W, WIN_H, "winit",
+    )
+    if session <= 0:
+        return 1
+    defer ui_session_destroy(session)
+
+    // --- Fonts ---
+    let mono_font  = ui_font_create(session, "font.mono",  "Consolas", 14.0)
+    let title_font = ui_font_create(session, "font.title", "Consolas", 18.0)
+
+    // --- Nodes for rendering ---
+    let bg_node      = ui_node_create(session, "bg")
+    let wall_node    = ui_node_create(session, "wall")
+    let hud_node     = ui_node_create(session, "hud")
+    let mmap_node    = ui_node_create(session, "mmap")
+    let dot_node     = ui_node_create(session, "dot")
+    let cross_node   = ui_node_create(session, "cross")
+
+    // --- The Maze (1D array, 16x16, row-major) ---
+    // 0 = floor, 1 = wall
+    let maze: [Int] = [
+        // 0=floor, 1=red brick, 2=blue stone, 3=green moss
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 1, 1, 1, 0, 1, 0, 1, 2, 2, 0, 1, 1, 0, 1,
+        1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 1,
+        1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 2, 2, 0, 1, 1,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1,
+        1, 2, 2, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+        1, 0, 1, 1, 2, 2, 2, 1, 1, 0, 1, 1, 1, 2, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1,
+        1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1,
+        1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 0, 1, 3, 3, 0, 1, 0, 1, 1, 1, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ]
+
+    // --- Build minimap texture (once) ---
+    let mmap_hex = build_minimap_hex(maze, MAP_W)
+    let mmap_tex = ui_texture_create_from_hex(session, "minimap", MAP_W, MAP_H, "rgba8", mmap_hex)
+
+    // --- Player state ---
+    var pos_x: Float = 2.5
+    var pos_y: Float = 2.5
+    var dir_angle: Float = 0.0  // radians, 0 = east
+
+    // --- Exit flag ---
+    var should_exit: Bool = false
+    var handle_escape: Bool = true
+
+    // --- FPS tracking ---
+    var frame_count: Int = 0
+    var fps_timer: Int = now_millis()
+    var fps_display: Int = 0
+
+    // --- Timing ---
+    var last_frame_ms: Int = now_millis()
+
+    // ====================================================================
+    //  MAIN GAME LOOP
+    // ====================================================================
+    while (ui_host_should_close(session) == 0) and (should_exit == false):
+        // --- Delta time ---
+        let now_ms = now_millis()
+        let raw_delta = (now_ms - last_frame_ms) as Float
+        last_frame_ms = now_ms
+        let dt_sec = my_clamp(raw_delta / 1000.0, 0.001, 0.05)
+
+        ui_host_pump(session)
+        ui_begin_frame(session, raw_delta)
+
+        // ================================================================
+        //  INPUT — Poll all events
+        // ================================================================
+        var evt: Int = ui_poll_event(session)
+        while evt > 0:
+            let kind: String = ui_event_kind(session)
+            if kind == "key":
+                let kc: Int = ui_event_key_code(session)
+
+                // Movement deltas for this frame
+                let move_dt: Float = dt_sec * MOVE_SPEED
+                let rot_dt: Float  = dt_sec * ROT_SPEED
+
+                if kc == 87:   // W — forward
+                    let dx = fast_cos(dir_angle) * move_dt
+                    let dy = fast_sin(dir_angle) * move_dt
+                    let nx = pos_x + dx
+                    let ny = pos_y + dy
+                    if can_move_to(maze, nx, ny):
+                        pos_x = nx
+                        pos_y = ny
+                    elif can_move_to(maze, nx, pos_y):
+                        pos_x = nx
+                    elif can_move_to(maze, pos_x, ny):
+                        pos_y = ny
+
+                if kc == 83:   // S — backward
+                    let dx = fast_cos(dir_angle) * move_dt
+                    let dy = fast_sin(dir_angle) * move_dt
+                    let nx = pos_x - dx
+                    let ny = pos_y - dy
+                    if can_move_to(maze, nx, ny):
+                        pos_x = nx
+                        pos_y = ny
+                    elif can_move_to(maze, nx, pos_y):
+                        pos_x = nx
+                    elif can_move_to(maze, pos_x, ny):
+                        pos_y = ny
+
+                if kc == 65:   // A — strafe left
+                    let pa = dir_angle - PI / 2.0
+                    let dx = fast_cos(pa) * move_dt
+                    let dy = fast_sin(pa) * move_dt
+                    let nx = pos_x + dx
+                    let ny = pos_y + dy
+                    if can_move_to(maze, nx, ny):
+                        pos_x = nx
+                        pos_y = ny
+
+                if kc == 68:   // D — strafe right
+                    let pa = dir_angle + PI / 2.0
+                    let dx = fast_cos(pa) * move_dt
+                    let dy = fast_sin(pa) * move_dt
+                    let nx = pos_x + dx
+                    let ny = pos_y + dy
+                    if can_move_to(maze, nx, ny):
+                        pos_x = nx
+                        pos_y = ny
+
+                if kc == 37:   // Left arrow
+                    dir_angle = dir_angle - rot_dt
+                    if dir_angle < 0:
+                        dir_angle = dir_angle + TAU
+
+                if kc == 39:   // Right arrow
+                    dir_angle = dir_angle + rot_dt
+                    if dir_angle >= TAU:
+                        dir_angle = dir_angle - TAU
+
+                if kc == 27:   // Escape — exit
+                    should_exit = true
+                    break
+
+                // Mouse capture toggle with M
+                if kc == 77:
+                    let _ = 0
+
+            evt = ui_poll_event(session)
+
+        // ================================================================
+        //  RENDER — Background (ceiling + floor)
+        // ================================================================
+        let win_wf: Float = WIN_W as Float
+        let win_hf: Float = WIN_H as Float
+        let half_h: Float = win_hf / 2.0
+
+        // Ceiling (dark blue-gray)
+        ui_style_color_rgba(session, bg_node, "bg.fill", 0.08, 0.08, 0.20, 1.0)
+        ui_render_box_at(session, bg_node, 0.0, 0.0, win_wf, half_h, "bg.fill")
+
+        // Floor (warm dark brown)
+        ui_style_color_rgba(session, bg_node, "bg.fill", 0.18, 0.12, 0.07, 1.0)
+        ui_render_box_at(session, bg_node, 0.0, half_h, win_wf, half_h, "bg.fill")
+
+        // ================================================================
+        //  RENDER — 3D Walls via Raycasting (DDA algorithm)
+        // ================================================================
+        let fov: Float          = PI / 3.0
+        let fov_half: Float     = fov / 2.0
+        let angle_step: Float   = fov / NUM_STRIPS as Float
+        let strip_wf: Float     = STRIP_W as Float
+        let screen_center_y: Float = win_hf / 2.0
+
+        for strip_i in 0..NUM_STRIPS:
+            // Ray angle for the centre of this strip
+            let angle_offset: Float = fov_half - angle_step * (strip_i as Float + 0.5)
+            let ray_angle: Float = dir_angle - angle_offset
+            let dir_x: Float = fast_cos(ray_angle)
+            let dir_y: Float = fast_sin(ray_angle)
+
+            // --- DDA init ---
+            let map_x: Int = pos_x as Int
+            let map_y: Int = pos_y as Int
+            let delta_dist_x: Float = abs_f(1.0 / dir_x)
+            let delta_dist_y: Float = abs_f(1.0 / dir_y)
+
+            var step_x: Int = 0
+            var side_dist_x: Float = 0.0
+            if dir_x < 0:
+                step_x = -1
+                side_dist_x = (pos_x - (map_x as Float)) * delta_dist_x
+            else:
+                step_x = 1
+                side_dist_x = ((map_x as Float) + 1.0 - pos_x) * delta_dist_x
+
+            var step_y: Int = 0
+            var side_dist_y: Float = 0.0
+            if dir_y < 0:
+                step_y = -1
+                side_dist_y = (pos_y - (map_y as Float)) * delta_dist_y
+            else:
+                step_y = 1
+                side_dist_y = ((map_y as Float) + 1.0 - pos_y) * delta_dist_y
+
+            // --- DDA walk ---
+            var hit: Bool = false
+            var side: Int = 0
+            var cur_map_x: Int = map_x
+            var cur_map_y: Int = map_y
+            var cell_val: Int = 0
+
+            while hit == false:
+                if side_dist_x < side_dist_y:
+                    side_dist_x = side_dist_x + delta_dist_x
+                    cur_map_x = cur_map_x + step_x
+                    side = 0
+                else:
+                    side_dist_y = side_dist_y + delta_dist_y
+                    cur_map_y = cur_map_y + step_y
+                    side = 1
+
+                if cur_map_x >= 0 and cur_map_x < MAP_W and cur_map_y >= 0 and cur_map_y < MAP_H:
+                    cell_val = maze[cur_map_y * MAP_W + cur_map_x]
+                    if cell_val > 0:
+                        hit = true
+                else:
+                    // Ray escaped the map — treat as miss
+                    break
+
+            if hit:
+                // --- Perpendicular distance (avoids fish-eye distortion) ---
+                var perp_dist: Float = 0.0
+                if side == 0:
+                    perp_dist = ((cur_map_x as Float) - pos_x + ((1 - step_x) as Float) / 2.0) / dir_x
+                else:
+                    perp_dist = ((cur_map_y as Float) - pos_y + ((1 - step_y) as Float) / 2.0) / dir_y
+
+                if perp_dist < 0.01:
+                    perp_dist = 0.01
+
+                // --- Wall height on screen ---
+                let wall_h: Float = win_hf / perp_dist
+                let wall_top: Float = screen_center_y - wall_h / 2.0
+
+                // Clip to screen
+                var draw_top: Float = if wall_top < 0.0: 0.0 else: wall_top
+                var draw_h: Float   = wall_h
+                if draw_top + draw_h > win_hf:
+                    draw_h = win_hf - draw_top
+                if draw_h < 1.0:
+                    draw_h = 1.0
+
+                // --- Wall color (by type: 1=red brick, 2=blue stone, 3=green moss) ---
+                let shade: Float = 1.0 / (1.0 + perp_dist * 0.10)
+                var base_r: Float = 0.65
+                var base_g: Float = 0.28
+                var base_b: Float = 0.10
+                if cell_val == 2:
+                    base_r = 0.20
+                    base_g = 0.40
+                    base_b = 0.70
+                elif cell_val == 3:
+                    base_r = 0.20
+                    base_g = 0.60
+                    base_b = 0.30
+
+                if side == 0:
+                    // X-facing (N/S) — brighter
+                    let r: Float = base_r * shade
+                    let g: Float = base_g * shade
+                    let b: Float = base_b * shade
+                    ui_style_color_rgba(session, wall_node, "wall.fill", r, g, b, 1.0)
+                else:
+                    // Y-facing (E/W) — darker
+                    let r: Float = base_r * shade * 0.7
+                    let g: Float = base_g * shade * 0.7
+                    let b: Float = base_b * shade * 0.7
+                    ui_style_color_rgba(session, wall_node, "wall.fill", r, g, b, 1.0)
+
+                // --- Draw wall strip ---
+                let strip_x: Float = (strip_i * STRIP_W) as Float
+                ui_render_box_at(session, wall_node, strip_x, draw_top, strip_wf, draw_h, "wall.fill")
+
+        // ================================================================
+        //  RENDER — Minimap (top-left corner)
+        // ================================================================
+        let mm_size: Float = 160.0
+        let mm_x: Float    = 10.0
+        let mm_y: Float    = 10.0
+
+        // Dark background
+        ui_style_color_rgba(session, mmap_node, "mmap.bg", 0.05, 0.05, 0.10, 0.85)
+        ui_render_box_at(session, mmap_node, mm_x - 2.0, mm_y - 2.0, mm_size + 4.0, mm_size + 4.0, "mmap.bg")
+
+        // Texture
+        ui_render_resource(session, mmap_node, mmap_tex, mm_x, mm_y, mm_size, mm_size, "mmap.tex")
+
+        // Border
+        ui_style_color_rgba(session, mmap_node, "mmap.border", 0.30, 0.30, 0.45, 1.0)
+        ui_render_box_at(session, mmap_node, mm_x - 1.0, mm_y - 1.0, mm_size + 2.0, 1.0, "mmap.border")  // top
+        ui_render_box_at(session, mmap_node, mm_x - 1.0, mm_y + mm_size, mm_size + 2.0, 1.0, "mmap.border")  // bottom
+        ui_render_box_at(session, mmap_node, mm_x - 1.0, mm_y - 1.0, 1.0, mm_size + 2.0, "mmap.border")  // left
+        ui_render_box_at(session, mmap_node, mm_x + mm_size, mm_y - 1.0, 1.0, mm_size + 2.0, "mmap.border")  // right
+
+        // Player dot
+        let px_scale: Float = mm_size / MAP_W as Float
+        let py_scale: Float = mm_size / MAP_H as Float
+        let dot_radius: Float = 4.0
+        let dot_cx: Float = mm_x + pos_x * px_scale
+        let dot_cy: Float = mm_y + pos_y * py_scale
+
+        ui_style_color_rgba(session, dot_node, "dot.fill", 1.0, 0.15, 0.10, 1.0)
+        ui_render_box_at(session, dot_node, dot_cx - dot_radius, dot_cy - dot_radius,
+                        dot_radius * 2.0, dot_radius * 2.0, "dot.fill")
+
+        // Direction indicator
+        let dir_len: Float = 12.0
+        let dir_ex: Float = dot_cx + fast_cos(dir_angle) * dir_len
+        let dir_ey: Float = dot_cy + fast_sin(dir_angle) * dir_len
+        ui_style_color_rgba(session, dot_node, "dot.dir", 1.0, 1.0, 0.20, 1.0)
+        ui_render_box_at(session, dot_node, dir_ex - 2.0, dir_ey - 2.0, 4.0, 4.0, "dot.dir")
+
+        // ================================================================
+        //  RENDER — Crosshair (center of screen)
+        // ================================================================
+        let ch_size: Float  = 14.0
+        let ch_thick: Float = 2.0
+        let ch_cx: Float    = win_wf / 2.0
+        let ch_cy: Float    = win_hf / 2.0
+
+        ui_style_color_rgba(session, cross_node, "cross", 1.0, 1.0, 1.0, 0.65)
+        // Horizontal bar
+        ui_render_box_at(session, cross_node, ch_cx - ch_size, ch_cy - ch_thick / 2.0,
+                        ch_size * 2.0, ch_thick, "cross")
+        // Vertical bar
+        ui_render_box_at(session, cross_node, ch_cx - ch_thick / 2.0, ch_cy - ch_size,
+                        ch_thick, ch_size * 2.0, "cross")
+
+        // ================================================================
+        //  HUD — FPS, position, controls help
+        // ================================================================
+        frame_count = frame_count + 1
+        if now_ms - fps_timer >= 1000:
+            fps_display = frame_count
+            frame_count = 0
+            fps_timer = now_ms
+
+        // Build HUD strings
+        let fps_str: String  = "FPS: " + fmt_int(fps_display)
+        let pos_str: String  = "X: " + fmt_float(pos_x) + "  Y: " + fmt_float(pos_y)
+        let help_str: String = "WASD: Move | Arrows: Turn | ESC: Exit"
+
+        let hud_y1: Float = win_hf - 65.0
+        let hud_y2: Float = win_hf - 40.0
+        let hud_y3: Float = win_hf - 22.0
+
+        ui_style_color_rgba(session, hud_node, "hud.fps", 0.0, 1.0, 0.20, 1.0)
+        ui_render_text_value(session, hud_node, title_font, fps_str, 10.0, hud_y1, "hud.fps")
+
+        ui_style_color_rgba(session, hud_node, "hud.pos", 0.80, 0.80, 0.80, 1.0)
+        ui_render_text_value(session, hud_node, mono_font, pos_str, 10.0, hud_y2, "hud.pos")
+
+        ui_style_color_rgba(session, hud_node, "hud.help", 0.45, 0.48, 0.55, 1.0)
+        ui_render_text_value(session, hud_node, mono_font, help_str, 10.0, hud_y3, "hud.help")
+
+        // ================================================================
+        //  PRESENT — commit frame to window
+        // ================================================================
+        ui_present_to_attached_host(session)
+
+    return 0

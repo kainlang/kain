@@ -1,0 +1,13 @@
+// Gap 6: PHI + break/continue in loops (dead PHI predecessor)
+fn main() -> Int:
+    var sum: Int = 0
+    var i: Int = 0
+    while i < 10:
+        match i:
+            5 => break
+            _ => sum = sum + i
+        i = i + 1
+
+    if sum == 10:
+        return 0
+    return 1

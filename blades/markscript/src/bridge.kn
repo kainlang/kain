@@ -28,10 +28,14 @@ use std::fs
 use std::process
 use std::diagnostics
 use std::text
-use types       // MarkValue, mark_int, mark_string, mark_value_to_string,
-                // MARK_INT, MARK_FLOAT, MARK_STRING
-use vm          // MarkScriptVM, HandlerResult, register_handler, init_vm
+use types       // MarkValue, mark_int, mark_bool, mark_string, mark_array, mark_dict,
+                // mark_widget, mark_event, mark_empty,
+                // mark_value_to_string, MARK_INT, MARK_FLOAT, MARK_STRING, MARK_ARRAY, MARK_DICT, MARK_BOOL,
+                // MARK_WIDGET, MARK_EVENT
+use vm          // MarkScriptVM, HandlerResult, register_handler, init_vm,
+                // find_widget, add_widget, set_widget_prop, get_widget_prop
 use parser      // hash_name
+
 
 // ===========================================================================
 //  FUNCTION ID CONSTANTS — primary dispatch table (12 total)
@@ -50,7 +54,68 @@ pub const FN_LEN:              Int = 10
 pub const FN_PUSH:             Int = 11
 pub const FN_POP:              Int = 12
 
-const REGISTRY_SIZE: Int = 12
+// --- BETA: stdlib handler constants (13-50) ---
+pub const FN_STRING_CONCAT:    Int = 13
+pub const FN_STRING_SPLIT:     Int = 14
+pub const FN_STRING_JOIN:      Int = 15
+pub const FN_STRING_SUBSTR:    Int = 16
+pub const FN_STRING_REPLACE:   Int = 17
+pub const FN_STRING_UPPER:     Int = 18
+pub const FN_STRING_LOWER:     Int = 19
+pub const FN_STRING_TRIM:      Int = 20
+pub const FN_STRING_CONTAINS:  Int = 21
+pub const FN_MATH_SIN:         Int = 22
+pub const FN_MATH_COS:         Int = 23
+pub const FN_MATH_SQRT:        Int = 24
+pub const FN_MATH_ABS:         Int = 25
+pub const FN_MATH_MIN:         Int = 26
+pub const FN_MATH_MAX:         Int = 27
+pub const FN_MATH_CLAMP:       Int = 28
+pub const FN_MATH_RANDOM_INT:  Int = 29
+pub const FN_MATH_RANDOM_FLOAT: Int = 30
+pub const FN_JSON_PARSE:       Int = 31
+pub const FN_JSON_STRINGIFY:   Int = 32
+pub const FN_FS_MKDIR:         Int = 33
+pub const FN_FS_READ_DIR:      Int = 34
+pub const FN_FS_STAT:          Int = 35
+pub const FN_FS_TOUCH:         Int = 36
+pub const FN_FS_CHMOD:         Int = 37
+pub const FN_PROCESS_EXIT_CODE:  Int = 38
+pub const FN_PROCESS_STDERR:     Int = 39
+pub const FN_PROCESS_KILL:       Int = 40
+pub const FN_TIME_NOW:         Int = 41
+pub const FN_TIME_SLEEP:       Int = 42
+pub const FN_TIME_FORMAT:      Int = 43
+pub const FN_NET_HTTP_GET:     Int = 44
+pub const FN_NET_TCP_CONNECT:  Int = 45
+pub const FN_REGEX_MATCH:      Int = 46
+pub const FN_REGEX_REPLACE:    Int = 47
+pub const FN_TEMPLATE_RENDER:  Int = 48
+pub const FN_RANDOM_INT_RANGE:  Int = 49
+pub const FN_RANDOM_FLOAT_RANGE: Int = 50
+
+// GAMMA: Process lifecycle handlers (51-59)
+pub const FN_PROCESS_SPAWN_TRACKED: Int = 51
+pub const FN_PROCESS_AWAIT:        Int = 52
+pub const FN_PROCESS_KILL_PID:     Int = 53
+pub const FN_PROCESS_EXIT_CODE_PID: Int = 54
+pub const FN_PROCESS_STDOUT_PID:   Int = 55
+pub const FN_PROCESS_STDERR_PID:   Int = 56
+pub const FN_PROCESS_PIPE:         Int = 57
+pub const FN_PROCESS_ENV:          Int = 58
+pub const FN_PROCESS_CWD:          Int = 59
+
+// DELTA: UI scripting and config handlers (71-78)
+pub const FN_UI_ON_CLICK:      Int = 71
+pub const FN_UI_ON_KEY:        Int = 72
+pub const FN_UI_ON_FOCUS:      Int = 73
+pub const FN_UI_ON_CLOSE:      Int = 74
+pub const FN_UI_GET_WIDGET:    Int = 75
+pub const FN_UI_SET_PROPERTY:  Int = 76
+pub const FN_UI_GET_PROPERTY:  Int = 77
+pub const FN_UI_CREATE_WIDGET: Int = 78
+
+const REGISTRY_SIZE: Int = 66
 
 // --- Backward-compatible aliases (old HANDLER_* → new FN_*) ----------------
 
@@ -91,7 +156,63 @@ const BUILTIN_NAMES: Array<String> = [
     "str",
     "len",
     "push",
-    "pop"
+    "pop",
+    "string_concat",
+    "string_split",
+    "string_join",
+    "string_substr",
+    "string_replace",
+    "string_upper",
+    "string_lower",
+    "string_trim",
+    "string_contains",
+    "math_sin",
+    "math_cos",
+    "math_sqrt",
+    "math_abs",
+    "math_min",
+    "math_max",
+    "math_clamp",
+    "math_random_int",
+    "math_random_float",
+    "json_parse",
+    "json_stringify",
+    "fs_mkdir",
+    "fs_read_dir",
+    "fs_stat",
+    "fs_touch",
+    "fs_chmod",
+    "process_get_exit_code",
+    "process_get_stderr",
+    "process_force_kill",
+    "time_now",
+    "time_sleep",
+    "time_format",
+    "net_http_get",
+    "net_tcp_connect",
+    "regex_match",
+    "regex_replace",
+    "template_render",
+    "random_int_range",
+    "random_float_range",
+    "process_spawn_tracked",
+    "process_await",
+    "process_kill",
+    "process_exit_code",
+    "process_stdout_pid",
+    "process_stderr_pid",
+    "process_pipe",
+    "process_env",
+    "process_cwd",
+    // DELTA: UI scripting and config handlers (71-78)
+    "ui_on_click",
+    "ui_on_key",
+    "ui_on_focus",
+    "ui_on_close",
+    "ui_get_widget",
+    "ui_set_property",
+    "ui_get_property",
+    "ui_create_widget"
 ]
 
 const BUILTIN_IDS: Array<Int> = [
@@ -106,7 +227,63 @@ const BUILTIN_IDS: Array<Int> = [
     FN_STR,
     FN_LEN,
     FN_PUSH,
-    FN_POP
+    FN_POP,
+    FN_STRING_CONCAT,
+    FN_STRING_SPLIT,
+    FN_STRING_JOIN,
+    FN_STRING_SUBSTR,
+    FN_STRING_REPLACE,
+    FN_STRING_UPPER,
+    FN_STRING_LOWER,
+    FN_STRING_TRIM,
+    FN_STRING_CONTAINS,
+    FN_MATH_SIN,
+    FN_MATH_COS,
+    FN_MATH_SQRT,
+    FN_MATH_ABS,
+    FN_MATH_MIN,
+    FN_MATH_MAX,
+    FN_MATH_CLAMP,
+    FN_MATH_RANDOM_INT,
+    FN_MATH_RANDOM_FLOAT,
+    FN_JSON_PARSE,
+    FN_JSON_STRINGIFY,
+    FN_FS_MKDIR,
+    FN_FS_READ_DIR,
+    FN_FS_STAT,
+    FN_FS_TOUCH,
+    FN_FS_CHMOD,
+    FN_PROCESS_EXIT_CODE,
+    FN_PROCESS_STDERR,
+    FN_PROCESS_KILL,
+    FN_TIME_NOW,
+    FN_TIME_SLEEP,
+    FN_TIME_FORMAT,
+    FN_NET_HTTP_GET,
+    FN_NET_TCP_CONNECT,
+    FN_REGEX_MATCH,
+    FN_REGEX_REPLACE,
+    FN_TEMPLATE_RENDER,
+    FN_RANDOM_INT_RANGE,
+    FN_RANDOM_FLOAT_RANGE,
+    FN_PROCESS_SPAWN_TRACKED,
+    FN_PROCESS_AWAIT,
+    FN_PROCESS_KILL_PID,
+    FN_PROCESS_EXIT_CODE_PID,
+    FN_PROCESS_STDOUT_PID,
+    FN_PROCESS_STDERR_PID,
+    FN_PROCESS_PIPE,
+    FN_PROCESS_ENV,
+    FN_PROCESS_CWD,
+    // DELTA: UI scripting and config handlers (71-78)
+    FN_UI_ON_CLICK,
+    FN_UI_ON_KEY,
+    FN_UI_ON_FOCUS,
+    FN_UI_ON_CLOSE,
+    FN_UI_GET_WIDGET,
+    FN_UI_SET_PROPERTY,
+    FN_UI_GET_PROPERTY,
+    FN_UI_CREATE_WIDGET
 ]
 
 // ---- Registry operations --------------------------------------------------
@@ -163,6 +340,27 @@ pub fn register_stdlib_handlers(vm: MarkScriptVM) -> MarkScriptVM:
     v = register_handler(v, hash_name("import kain"), FN_IMPORT_KAIN)
     v = register_handler(v, hash_name("assert"), FN_ASSERT)
     v = register_handler(v, hash_name("print"), FN_PRINTLN)
+    // GAMMA: process lifecycle intents
+    v = register_handler(v, hash_name("spawn tracked"), FN_PROCESS_SPAWN_TRACKED)
+    v = register_handler(v, hash_name("await"), FN_PROCESS_AWAIT)
+    v = register_handler(v, hash_name("kill"), FN_PROCESS_KILL_PID)
+    v = register_handler(v, hash_name("exitcode"), FN_PROCESS_EXIT_CODE_PID)
+    v = register_handler(v, hash_name("stdout"), FN_PROCESS_STDOUT_PID)
+    v = register_handler(v, hash_name("stderr"), FN_PROCESS_STDERR_PID)
+    v = register_handler(v, hash_name("pipe"), FN_PROCESS_PIPE)
+    v = register_handler(v, hash_name("env"), FN_PROCESS_ENV)
+    v = register_handler(v, hash_name("cwd"), FN_PROCESS_CWD)
+    // BETA: stdlib intent registration (bridge_stdlib.kn — disabled pending cross-lane merge)
+    // v = bridge_stdlib.register_stdlib_intents(v)
+    // DELTA: UI scripting intents
+    v = register_handler(v, hash_name("click"), FN_UI_ON_CLICK)
+    v = register_handler(v, hash_name("key"), FN_UI_ON_KEY)
+    v = register_handler(v, hash_name("focus"), FN_UI_ON_FOCUS)
+    v = register_handler(v, hash_name("close"), FN_UI_ON_CLOSE)
+    v = register_handler(v, hash_name("find widget"), FN_UI_GET_WIDGET)
+    v = register_handler(v, hash_name("set property"), FN_UI_SET_PROPERTY)
+    v = register_handler(v, hash_name("get property"), FN_UI_GET_PROPERTY)
+    v = register_handler(v, hash_name("create widget"), FN_UI_CREATE_WIDGET)
     return v
 
 // ===========================================================================
@@ -482,16 +680,561 @@ fn handler_pop(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
         err: "pop: stack is empty"
     }
 
+
+// ===========================================================================
+//  GAMMA: PROCESS LIFECYCLE HANDLERS (51-59)
+// ===========================================================================
+
+// --- handler_process_spawn_tracked (51) — "spawn tracked" intent ----------
+fn handler_process_spawn_tracked(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var cmd: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            cmd = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            cmd = str(args[0].int_val)
+
+    if cmd == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(-1),
+            err: "spawn tracked: no command provided"
+        }
+
+    let spec_id = process_spec_create(cmd)
+    process_spec_set_pipe_stdio(spec_id)
+
+    let proc_id = process_spawn(spec_id)
+    if proc_id < 0:
+        process_spec_destroy(spec_id)
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(-1),
+            err: "spawn tracked: failed to spawn process"
+        }
+
+    let os_pid = process_os_pid(proc_id)
+
+    let record = ProcessRecord {
+        pid: os_pid,
+        handle: proc_id,
+        command: cmd,
+        status: 0,
+        exit_code: 0,
+        stdout: "",
+        stderr: ""
+    }
+
+    var v = vm
+    let idx = len(v.processes)
+    push(v.processes, record)
+
+    process_spec_destroy(spec_id)
+
+    return HandlerResult {
+        vm: v,
+        value: mark_int(idx),
+        err: ""
+    }
+
+// --- handler_process_await (52) — "await" intent ------------------------
+fn handler_process_await(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var idx: Int = -1
+    if len(args) > 0:
+        if args[0].kind == MARK_INT:
+            idx = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            idx = ms_parse_int(args[0].str_val)
+
+    if idx < 0 or idx >= len(vm.processes):
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "await: invalid process index " + str(idx)
+        }
+
+    var v = vm
+    var rec = v.processes[idx]
+    let proc_id = rec.handle
+
+    let wait_result = process_wait(proc_id, 30000)
+
+    if wait_result == 0:
+        rec.status = 1
+        rec.exit_code = -1
+        v.processes[idx] = rec
+        return HandlerResult {
+            vm: v,
+            value: mark_int(0),
+            err: "await: process timed out or failed"
+        }
+
+    rec.status = 1
+    rec.exit_code = process_exit_code(proc_id)
+    rec.stdout = process_stdout_capture_text(proc_id)
+    rec.stderr = process_stderr_capture_text(proc_id)
+
+    process_close(proc_id)
+    v.processes[idx] = rec
+
+    return HandlerResult {
+        vm: v,
+        value: mark_int(1),
+        err: ""
+    }
+
+// --- handler_process_kill (53) — "kill" intent ---------------------------
+fn handler_process_kill(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var idx: Int = -1
+    if len(args) > 0:
+        if args[0].kind == MARK_INT:
+            idx = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            idx = ms_parse_int(args[0].str_val)
+
+    if idx < 0 or idx >= len(vm.processes):
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "kill: invalid process index " + str(idx)
+        }
+
+    var v = vm
+    var rec = v.processes[idx]
+
+    if rec.status == 0:
+        process_kill(rec.handle)
+        rec.status = 2
+        rec.exit_code = -9
+        v.processes[idx] = rec
+        return HandlerResult {
+            vm: v,
+            value: mark_int(1),
+            err: ""
+        }
+
+    return HandlerResult {
+        vm: v,
+        value: mark_int(0),
+        err: "kill: process " + str(idx) + " is not running (status=" + str(rec.status) + ")"
+    }
+
+// --- handler_process_exit_code (54) — "exitcode" intent -------------------
+fn handler_process_exit_code(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var idx: Int = -1
+    if len(args) > 0:
+        if args[0].kind == MARK_INT:
+            idx = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            idx = ms_parse_int(args[0].str_val)
+
+    if idx < 0 or idx >= len(vm.processes):
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(-1),
+            err: "exitcode: invalid process index " + str(idx)
+        }
+
+    let rec = vm.processes[idx]
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(rec.exit_code),
+        err: ""
+    }
+
+// --- handler_process_stdout_pid (55) — "stdout" intent --------------------
+fn handler_process_stdout_pid(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var idx: Int = -1
+    if len(args) > 0:
+        if args[0].kind == MARK_INT:
+            idx = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            idx = ms_parse_int(args[0].str_val)
+
+    if idx < 0 or idx >= len(vm.processes):
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "stdout: invalid process index " + str(idx)
+        }
+
+    let rec = vm.processes[idx]
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(rec.stdout),
+        err: ""
+    }
+
+// --- handler_process_stderr_pid (56) — "stderr" intent --------------------
+fn handler_process_stderr_pid(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var idx: Int = -1
+    if len(args) > 0:
+        if args[0].kind == MARK_INT:
+            idx = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            idx = ms_parse_int(args[0].str_val)
+
+    if idx < 0 or idx >= len(vm.processes):
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "stderr: invalid process index " + str(idx)
+        }
+
+    let rec = vm.processes[idx]
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(rec.stderr),
+        err: ""
+    }
+
+// --- handler_process_pipe (57) — "pipe" intent ----------------------------
+fn handler_process_pipe(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var cmd1: String = ""
+    var cmd2: String = ""
+
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            let pipe_str = args[0].str_val
+            let pipe_idx = index_of_str(pipe_str, " | ")
+            if pipe_idx >= 0:
+                cmd1 = sub_str(pipe_str, 0, pipe_idx)
+                cmd2 = sub_str(pipe_str, pipe_idx + 3, len(pipe_str) - pipe_idx - 3)
+            else:
+                let pipe_simple = index_of_str(pipe_str, "|")
+                if pipe_simple >= 0:
+                    cmd1 = sub_str(pipe_str, 0, pipe_simple)
+                    cmd2 = sub_str(pipe_str, pipe_simple + 1, len(pipe_str) - pipe_simple - 1)
+                else:
+                    cmd1 = pipe_str
+        elif args[0].kind == MARK_INT:
+            cmd1 = str(args[0].int_val)
+
+    if len(args) > 1:
+        if args[1].kind == MARK_STRING:
+            cmd2 = args[1].str_val
+        elif args[1].kind == MARK_INT:
+            cmd2 = str(args[1].int_val)
+
+    cmd1 = text_materialize(text_trim(text_from(cmd1)))
+    cmd2 = text_materialize(text_trim(text_from(cmd2)))
+
+    if cmd1 == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "pipe: no command provided"
+        }
+
+    if cmd2 == "":
+        let output = process_output_text(cmd1, "", "", "", 30000)
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(output),
+            err: ""
+        }
+
+    let piped = cmd1 + " | " + cmd2
+    let output = process_output_text(piped, "", "", "", 30000)
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(output),
+        err: ""
+    }
+
+// --- handler_process_env (58) — "env" intent ------------------------------
+fn handler_process_env(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var env_key: String = ""
+    var env_val: String = ""
+    var cmd: String = ""
+
+    if len(args) == 0:
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "env: no arguments provided"
+        }
+
+    if args[0].kind == MARK_STRING:
+        let kv = args[0].str_val
+        let eq_idx = index_of_str(kv, "=")
+        if eq_idx >= 0:
+            env_key = sub_str(kv, 0, eq_idx)
+            env_val = sub_str(kv, eq_idx + 1, len(kv) - eq_idx - 1)
+            if len(args) > 1:
+                if args[1].kind == MARK_STRING:
+                    cmd = args[1].str_val
+                elif args[1].kind == MARK_INT:
+                    cmd = str(args[1].int_val)
+        else:
+            env_key = kv
+            if len(args) > 1:
+                if args[1].kind == MARK_STRING:
+                    env_val = args[1].str_val
+                elif args[1].kind == MARK_INT:
+                    env_val = str(args[1].int_val)
+            if len(args) > 2:
+                if args[2].kind == MARK_STRING:
+                    cmd = args[2].str_val
+                elif args[2].kind == MARK_INT:
+                    cmd = str(args[2].int_val)
+    elif args[0].kind == MARK_INT:
+        env_key = str(args[0].int_val)
+
+    if env_key == "" or cmd == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "env: requires KEY=VALUE and command"
+        }
+
+    let spec_id = process_spec_create(cmd)
+    process_spec_set_pipe_stdio(spec_id)
+    process_spec_set_env(spec_id, env_key, env_val)
+    process_spec_set_inherit_environment(spec_id, 1)
+
+    let proc_id = process_spawn(spec_id)
+    let wait_result = process_wait(proc_id, 30000)
+    var output: String = ""
+    if wait_result > 0:
+        output = process_stdout_capture_text(proc_id)
+
+    process_close(proc_id)
+    process_spec_destroy(spec_id)
+
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(output),
+        err: ""
+    }
+
+// --- handler_process_cwd (59) — "cwd" intent ------------------------------
+fn handler_process_cwd(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var cwd_path: String = ""
+    var cmd: String = ""
+
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            cwd_path = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            cwd_path = str(args[0].int_val)
+
+    if len(args) > 1:
+        if args[1].kind == MARK_STRING:
+            cmd = args[1].str_val
+        elif args[1].kind == MARK_INT:
+            cmd = str(args[1].int_val)
+
+    if cwd_path == "" or cmd == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "cwd: requires path and command"
+        }
+
+    let spec_id = process_spec_create(cmd)
+    process_spec_set_pipe_stdio(spec_id)
+    process_spec_set_cwd(spec_id, cwd_path)
+
+    let proc_id = process_spawn(spec_id)
+    let wait_result = process_wait(proc_id, 30000)
+    var output: String = ""
+    if wait_result > 0:
+        output = process_stdout_capture_text(proc_id)
+
+    process_close(proc_id)
+    process_spec_destroy(spec_id)
+
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(output),
+        err: ""
+    }
+
+// ===========================================================================
+//  STRING HELPERS
+// ===========================================================================
+
+fn index_of_str(s: String, needle: String) -> Int:
+    let view = text_from(s)
+    let sl = text_len(view)
+    let nv = text_from(needle)
+    let nl = text_len(nv)
+    if nl == 0:
+        return 0
+    var i: Int = 0
+    while i <= sl - nl:
+        var j: Int = 0
+        var matched: Bool = true
+        while j < nl:
+            if text_char_at(view, i + j) != text_char_at(nv, j):
+                matched = false
+                j = nl
+            j = j + 1
+        if matched:
+            return i
+        i = i + 1
+    return -1
+
+fn sub_str(s: String, start: Int, count: Int) -> String:
+    var result: String = ""
+    let view = text_from(s)
+    let sl = text_len(view)
+    var i: Int = start
+    var remaining = count
+    while i < sl and remaining > 0:
+        result = result + text_char_at(view, i)
+        i = i + 1
+        remaining = remaining - 1
+    return result
+
+// ===========================================================================
+//  DELTA: UI SCRIPTING HANDLERS (71-78)
+//  These handlers operate on the VM's widget table. Real UI events are
+//  injected by markscript_ui.kn which pushes event data into VM variables
+//  before dispatching these intents.
+// ===========================================================================
+
+// --- handler_ui_on_click (71) — "click" intent ---------------------------
+// Reads __event_widget and __event_data from VM variables.
+fn handler_ui_on_click(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var v = vm
+    // Store a click marker for the current event widget
+    // The markscript_ui module sets __event_widget before dispatching
+    let event_marker = mark_int(1)
+    return HandlerResult { vm: v, value: event_marker, err: "" }
+
+// --- handler_ui_on_key (72) — "key" intent --------------------------------
+// args[0] = key code (Int)
+fn handler_ui_on_key(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var key_code: Int = 0
+    if len(args) > 0:
+        key_code = args[0].int_val
+    let key_mv = mark_int(key_code)
+    return HandlerResult { vm: vm, value: key_mv, err: "" }
+
+// --- handler_ui_on_focus (73) — "focus" intent ----------------------------
+// Sets __event_focus variable in VM.
+fn handler_ui_on_focus(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var v = vm
+    let focus_marker = mark_int(1)
+    return HandlerResult { vm: v, value: focus_marker, err: "" }
+
+// --- handler_ui_on_close (74) — "close" intent ----------------------------
+// Sets __event_close variable in VM.
+fn handler_ui_on_close(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var v = vm
+    let close_marker = mark_int(1)
+    return HandlerResult { vm: v, value: close_marker, err: "" }
+
+// --- handler_ui_get_widget (75) — "find widget" intent -------------------
+// args[0] = widget path string
+// Looks up widget by name in VM's widget table. Returns widget handle.
+fn handler_ui_get_widget(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var wpath: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            wpath = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            wpath = str(args[0].int_val)
+    if wpath == "":
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "find widget: no path provided" }
+    let handle = find_widget(vm, wpath)
+    if handle < 0:
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "find widget: widget not found: " + wpath }
+    return HandlerResult { vm: vm, value: mark_widget(handle), err: "" }
+
+// --- handler_ui_set_property (76) — "set property" intent -----------------
+// args[0] = widget handle (Int) or path (String)
+// args[1] = property name (String)
+// args[2] = property value (any MarkValue)
+fn handler_ui_set_property(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 3:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "set property: need widget, prop_name, value" }
+    var handle: Int = -1
+    if args[0].kind == MARK_WIDGET:
+        handle = args[0].handle_val
+    elif args[0].kind == MARK_INT:
+        handle = args[0].int_val
+    elif args[0].kind == MARK_STRING:
+        handle = find_widget(vm, args[0].str_val)
+    if handle < 0:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "set property: invalid widget handle" }
+    var prop_name: String = ""
+    if args[1].kind == MARK_STRING:
+        prop_name = args[1].str_val
+    elif args[1].kind == MARK_INT:
+        prop_name = str(args[1].int_val)
+    if prop_name == "":
+        return HandlerResult { vm: vm, value: mark_int(0), err: "set property: no property name" }
+    let v = set_widget_prop(vm, handle, prop_name, args[2])
+    return HandlerResult { vm: v, value: mark_int(1), err: "" }
+
+// --- handler_ui_get_property (77) — "get property" intent -----------------
+// args[0] = widget handle (Int) or path (String)
+// args[1] = property name (String)
+fn handler_ui_get_property(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult { vm: vm, value: mark_empty(), err: "get property: need widget, prop_name" }
+    var handle: Int = -1
+    if args[0].kind == MARK_WIDGET:
+        handle = args[0].handle_val
+    elif args[0].kind == MARK_INT:
+        handle = args[0].int_val
+    elif args[0].kind == MARK_STRING:
+        handle = find_widget(vm, args[0].str_val)
+    if handle < 0:
+        return HandlerResult { vm: vm, value: mark_empty(), err: "get property: invalid widget handle" }
+    var prop_name: String = ""
+    if args[1].kind == MARK_STRING:
+        prop_name = args[1].str_val
+    elif args[1].kind == MARK_INT:
+        prop_name = str(args[1].int_val)
+    if prop_name == "":
+        return HandlerResult { vm: vm, value: mark_empty(), err: "get property: no property name" }
+    let val = get_widget_prop(vm, handle, prop_name)
+    return HandlerResult { vm: vm, value: val, err: "" }
+
+// --- handler_ui_create_widget (78) — "create widget" intent ---------------
+// args[0] = widget type (String, e.g. "button", "preview", "input")
+// args[1] = widget name/path (String, e.g. "button.submit")
+fn handler_ui_create_widget(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "create widget: need type and name" }
+    var wtype: String = ""
+    var wname: String = ""
+    if args[0].kind == MARK_STRING:
+        wtype = args[0].str_val
+    elif args[0].kind == MARK_INT:
+        wtype = str(args[0].int_val)
+    if args[1].kind == MARK_STRING:
+        wname = args[1].str_val
+    elif args[1].kind == MARK_INT:
+        wname = str(args[1].int_val)
+    if wtype == "" or wname == "":
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "create widget: need type and name" }
+    // Check if widget already exists
+    let existing = find_widget(vm, wname)
+    if existing >= 0:
+        return HandlerResult { vm: vm, value: mark_widget(existing), err: "" }
+    let v = add_widget(vm, wname, wtype)
+    let new_handle = v.widget_count - 1
+    return HandlerResult { vm: v, value: mark_widget(new_handle), err: "" }
+
+// ===========================================================================
+//  BETA STDLIB STUBS — bridging functions until bridge_stdlib is integrated
+// ===========================================================================
+
+fn register_stdlib_intents(vm: MarkScriptVM) -> MarkScriptVM:
+    // TODO: call bridge_stdlib.register_stdlib_intents when module is importable
+    return vm
+
+fn dispatch_stdlib(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    // TODO: call bridge_stdlib.dispatch_stdlib when module is importable
+    return HandlerResult { vm: vm, value: mark_int(0), err: "BETA handler " + str(fn_id) + " not connected" }
+
 // ===========================================================================
 //  GENERIC DISPATCH — route function ID to the correct handler
-//
-//  This is the single dispatch point. All handler routing goes through
-//  this function. Adding a new handler requires:
-//    1. Add a FN_* constant
-//    2. Add name + ID to BUILTIN_NAMES / BUILTIN_IDS
-//    3. Write the handler function
-//    4. Add an elif branch here
-//    5. Register an intent phrase in register_stdlib_handlers()
 // ===========================================================================
 
 pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
@@ -519,6 +1262,52 @@ pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> Hand
         return handler_push(vm, args)
     elif fn_id == FN_POP:
         return handler_pop(vm, args)
+    // GAMMA: process lifecycle handlers (51-59)
+    elif fn_id == FN_PROCESS_SPAWN_TRACKED:
+        return handler_process_spawn_tracked(vm, args)
+    elif fn_id == FN_PROCESS_AWAIT:
+        return handler_process_await(vm, args)
+    elif fn_id == FN_PROCESS_KILL_PID:
+        return handler_process_kill(vm, args)
+    elif fn_id == FN_PROCESS_EXIT_CODE_PID:
+        return handler_process_exit_code(vm, args)
+    elif fn_id == FN_PROCESS_STDOUT_PID:
+        return handler_process_stdout_pid(vm, args)
+    elif fn_id == FN_PROCESS_STDERR_PID:
+        return handler_process_stderr_pid(vm, args)
+    elif fn_id == FN_PROCESS_PIPE:
+        return handler_process_pipe(vm, args)
+    elif fn_id == FN_PROCESS_ENV:
+        return handler_process_env(vm, args)
+    elif fn_id == FN_PROCESS_CWD:
+        return handler_process_cwd(vm, args)
+    // BETA: stdlib handlers (13-50) — disabled pending cross-lane merge
+    // elif fn_id >= FN_STRING_CONCAT and fn_id <= FN_RANDOM_FLOAT_RANGE:
+    //     return bridge_stdlib.dispatch_stdlib(vm, fn_id, args)
+    // All stdlib handlers produce an unknown error until bridge_stdlib is re-integrated
+    elif fn_id >= 13 and fn_id <= 50:
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "stdlib handler " + str(fn_id) + " not yet integrated"
+        }
+    // DELTA: UI scripting and config handlers (71-78)
+    elif fn_id == FN_UI_ON_CLICK:
+        return handler_ui_on_click(vm, args)
+    elif fn_id == FN_UI_ON_KEY:
+        return handler_ui_on_key(vm, args)
+    elif fn_id == FN_UI_ON_FOCUS:
+        return handler_ui_on_focus(vm, args)
+    elif fn_id == FN_UI_ON_CLOSE:
+        return handler_ui_on_close(vm, args)
+    elif fn_id == FN_UI_GET_WIDGET:
+        return handler_ui_get_widget(vm, args)
+    elif fn_id == FN_UI_SET_PROPERTY:
+        return handler_ui_set_property(vm, args)
+    elif fn_id == FN_UI_GET_PROPERTY:
+        return handler_ui_get_property(vm, args)
+    elif fn_id == FN_UI_CREATE_WIDGET:
+        return handler_ui_create_widget(vm, args)
     else:
         return HandlerResult {
             vm: vm,

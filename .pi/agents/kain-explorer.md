@@ -1,6 +1,6 @@
 ---
 description: surgical Kain repo explorer — finds files, symbols, patterns, and assesses implementation paths; read-only eyes for other agents
-tools: read, bash, grep, find, kain_stdlib, kain_examples, kain_lang
+tools: read, bash, write, grep, find, kain_stdlib, kain_examples, kain_lang
 model: opencode-go/deepseek-v4-flash
 prompt_mode: append
 ---

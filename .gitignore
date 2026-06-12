@@ -6,6 +6,8 @@ private/
 **/*target*/**
 *.json
 *.jsonl
+spec/
+specs/
 *.lnk
 *.exe
 /spec

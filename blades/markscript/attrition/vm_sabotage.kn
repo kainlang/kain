@@ -1,0 +1,326 @@
+// ============================================================================
+//  MARKSCRIPT VM SABOTAGE TEST — Attrition-driven robustness verification
+//
+//  Deliberately corrupts VM state, bytecode, and inputs to verify that
+//  the VM handles all forms of abuse without crashing. All errors reported
+//  via MarkError — the VM never panics or segfaults.
+//
+//  Categories:
+//    A. Bytecode Corruption (6 tests)
+//    B. Stack Overflow/Underflow (5 tests)
+//    C. Arithmetic Extremes (6 tests)
+//    D. Variable Abuse (5 tests)
+//    E. Jump Mischief (5 tests)
+//    F. Hybrid Sabotage (3 tests)
+// ============================================================================
+
+use std::text
+use vm         // init_vm, execute_bytecode, ExecResult, MarkScriptVM
+use types      // MarkValue, mark_int, MARK_INT
+use error      // MarkError, error_ok, make_error, format_error, error_kind_name, ERROR_OK, ERROR_NAME, ERROR_TYPE
+use parser     // OP_HALT through OP_JN, hash_name
+
+// ===========================================================================
+//  RESULT ACCUMULATOR
+// ============================================================================
+
+fn check(cond: Bool, msg: String) -> (Int, Int):
+    if cond:
+        println("  [PASS] " + msg)
+        return (1, 0)
+    else:
+        println("  [FAIL] " + msg)
+        return (0, 1)
+
+fn csum(a: (Int, Int), b: (Int, Int)) -> (Int, Int):
+    let (a_p, a_f) = a
+    let (b_p, b_f) = b
+    return (a_p + b_p, a_f + b_f)
+
+fn chk_survive(er: ExecResult, msg: String) -> (Int, Int):
+    return check(true, msg + " (VM survived, err=" + error_kind_name(er.error.kind) + ")")
+
+fn chk_val(er: ExecResult, expected_top: Int, msg: String) -> (Int, Int):
+    var ok = false
+    let stk = er.vm.stack
+    if len(stk) > 0:
+        ok = stk[len(stk) - 1].int_val == expected_top
+    return check(ok, msg + " (expected=" + str(expected_top) + ")")
+
+fn run_bc(bc: Array<Int>) -> ExecResult:
+    return execute_bytecode(init_vm(), bc)
+
+// ===========================================================================
+//  CATEGORY A: BYTECODE CORRUPTION
+// ===========================================================================
+
+fn test_a() -> (Int, Int):
+    println("\n--- CATEGORY A: Bytecode Corruption ---")
+    var r = (0, 0)
+
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 42, 255, OP_HALT]), "A1: invalid opcode 255"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 42, -1, OP_HALT]), "A2: invalid opcode -1"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK]), "A3: truncated bc (PUSH without operand)"))
+    r = csum(r, chk_survive(run_bc([OP_JMP, OP_HALT]), "A4: truncated JMP"))
+
+    var bc5: Array<Int> = []
+    var i: Int = 0
+    while i < 20:
+        push(bc5, 255)
+        i = i + 1
+    push(bc5, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc5), "A5: 20 invalid opcodes"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 10, 255, 99, -1, OP_HALT]), "A6: mixed valid/invalid"))
+
+    return r
+
+// ===========================================================================
+//  CATEGORY B: STACK OVERFLOW / UNDERFLOW
+// ===========================================================================
+
+fn test_b() -> (Int, Int):
+    println("\n--- CATEGORY B: Stack Overflow/Underflow ---")
+    var r = (0, 0)
+
+    var bc1: Array<Int> = []
+    var i: Int = 0
+    while i < 10000:
+        push(bc1, OP_PUSH_STACK)
+        push(bc1, i % 1000)
+        i = i + 1
+    push(bc1, OP_HALT)
+    let er1 = run_bc(bc1)
+    r = csum(r, chk_survive(er1, "B1: push 10000"))
+    r = csum(r, check(len(er1.vm.stack) == 10000, "B1: stack has 10000 values"))
+
+    var bc2: Array<Int> = [OP_PUSH_STACK, 42]
+    i = 0
+    while i < 10:
+        push(bc2, OP_POP_STACK)
+        i = i + 1
+    push(bc2, OP_HALT)
+    let er2 = run_bc(bc2)
+    r = csum(r, chk_survive(er2, "B2: pop more than pushed"))
+    r = csum(r, check(len(er2.vm.stack) == 0, "B2: stack empty after over-pop"))
+
+    r = csum(r, chk_survive(run_bc([OP_DUP, OP_PUSH_STACK, 5, OP_DUP, OP_HALT]), "B3: DUP on empty"))
+
+    var bc4: Array<Int> = []
+    i = 0
+    while i < 1000:
+        push(bc4, OP_PUSH_STACK)
+        push(bc4, i)
+        push(bc4, OP_POP_STACK)
+        i = i + 1
+    push(bc4, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc4), "B4: 1000 push/pop pairs"))
+
+    var bc5: Array<Int> = []
+    i = 0
+    while i < 500:
+        push(bc5, OP_PUSH_STACK)
+        push(bc5, i)
+        i = i + 1
+    var j: Int = 0
+    while j < 550:
+        push(bc5, OP_POP_STACK)
+        j = j + 1
+    push(bc5, OP_HALT)
+    let er5 = run_bc(bc5)
+    r = csum(r, chk_survive(er5, "B5: push 500 pop 550"))
+    r = csum(r, check(len(er5.vm.stack) == 0, "B5: stack empty after over-drain"))
+
+    return r
+
+// ===========================================================================
+//  CATEGORY C: ARITHMETIC EXTREMES
+// ===========================================================================
+
+fn test_c() -> (Int, Int):
+    println("\n--- CATEGORY C: Arithmetic Extremes ---")
+    var r = (0, 0)
+
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 2147483647, OP_PUSH_STACK, 1, OP_ADD, OP_HALT]), "C1: INT_MAX+1"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, -2147483647, OP_PUSH_STACK, 2147483647, OP_SUB, OP_HALT]), "C2: INT_MIN-1"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 1000000, OP_PUSH_STACK, 1000000, OP_MUL, OP_HALT]), "C3: MUL large"))
+
+    var bc4: Array<Int> = []
+    var i: Int = 0
+    while i < 50:
+        push(bc4, OP_PUSH_STACK)
+        push(bc4, i + 1)
+        push(bc4, OP_PUSH_STACK)
+        push(bc4, 0)
+        push(bc4, OP_DIV)
+        push(bc4, OP_POP_STACK)
+        i = i + 1
+    push(bc4, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc4), "C4: 50 div-by-zero"))
+
+    let er5 = run_bc([OP_PUSH_STACK, 10, OP_PUSH_STACK, 0, OP_DIV, OP_PUSH_STACK, 5, OP_ADD, OP_HALT])
+    r = csum(r, chk_survive(er5, "C5: ADD after div-by-zero"))
+    r = csum(r, chk_val(er5, 5, "C5: result is 5"))
+
+    r = csum(r, chk_survive(run_bc([
+        OP_PUSH_STACK, 2147483647, OP_PUSH_STACK, 1, OP_ADD, OP_POP_STACK,
+        OP_PUSH_STACK, -2147483647, OP_PUSH_STACK, 1, OP_SUB, OP_POP_STACK,
+        OP_PUSH_STACK, 46340, OP_PUSH_STACK, 46340, OP_MUL, OP_POP_STACK,
+        OP_HALT]), "C6: all arithmetic extremes"))
+
+    return r
+
+// ===========================================================================
+//  CATEGORY D: VARIABLE ABUSE
+// ===========================================================================
+
+fn test_d() -> (Int, Int):
+    println("\n--- CATEGORY D: Variable Abuse ---")
+    var r = (0, 0)
+
+    let big_hash = 9999999
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 42, OP_STORE_VAR, big_hash, OP_LOAD_VAR, big_hash, OP_HALT]), "D1: extreme hash"))
+
+    var bc2: Array<Int> = []
+    var i: Int = 0
+    while i < 100:
+        push(bc2, OP_LOAD_VAR)
+        push(bc2, 9999 + i)
+        i = i + 1
+    push(bc2, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc2), "D2: 100 undefined loads"))
+
+    let fh = hash_name("freq")
+    var bc3: Array<Int> = []
+    i = 0
+    while i < 1000:
+        push(bc3, OP_PUSH_STACK)
+        push(bc3, i)
+        push(bc3, OP_STORE_VAR)
+        push(bc3, fh)
+        i = i + 1
+    push(bc3, OP_LOAD_VAR)
+    push(bc3, fh)
+    push(bc3, OP_HALT)
+    let er3 = run_bc(bc3)
+    r = csum(r, chk_survive(er3, "D3: 1000 overwrites"))
+    r = csum(r, chk_val(er3, 999, "D3: final value 999"))
+
+    var bc4: Array<Int> = []
+    i = 0
+    while i < 1000:
+        push(bc4, OP_PUSH_STACK)
+        push(bc4, i)
+        push(bc4, OP_STORE_VAR)
+        push(bc4, i)
+        i = i + 1
+    push(bc4, OP_LOAD_VAR)
+    push(bc4, 999)
+    push(bc4, OP_HALT)
+    let er4 = run_bc(bc4)
+    r = csum(r, chk_survive(er4, "D4: 1000 unique vars"))
+    r = csum(r, chk_val(er4, 999, "D4: var 999 = 999"))
+
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 77, OP_STORE_VAR, -1, OP_LOAD_VAR, -1, OP_HALT]), "D5: negative hash"))
+
+    return r
+
+// ===========================================================================
+//  CATEGORY E: JUMP MISCHIEF
+// ===========================================================================
+
+fn test_e() -> (Int, Int):
+    println("\n--- CATEGORY E: Jump Mischief ---")
+    var r = (0, 0)
+
+    r = csum(r, chk_survive(execute_bytecode(init_vm(), [OP_JMP, 0, OP_HALT]), "E1: JMP to 0"))
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 10, OP_JMP, 999999, OP_PUSH_STACK, 20, OP_HALT]), "E2: JMP far past end"))
+    r = csum(r, chk_survive(run_bc([OP_JZ, 6, OP_PUSH_STACK, 99, OP_PUSH_STACK, 42, OP_HALT]), "E3: JZ on empty"))
+    r = csum(r, chk_survive(run_bc([OP_JN, 6, OP_PUSH_STACK, 42, OP_HALT]), "E4: JN on empty"))
+    r = csum(r, chk_survive(run_bc([OP_JMP, 2, OP_PUSH_STACK, 99, OP_JMP, 6, OP_PUSH_STACK, 88, OP_JMP, 10, OP_PUSH_STACK, 77, OP_JMP, 999, OP_HALT]), "E5: chain JMP with invalid target"))
+
+    return r
+
+// ===========================================================================
+//  CATEGORY F: HYBRID SABOTAGE
+// ===========================================================================
+
+fn test_f() -> (Int, Int):
+    println("\n--- CATEGORY F: Hybrid Sabotage ---")
+    var r = (0, 0)
+
+    var bc1: Array<Int> = []
+    var i: Int = 0
+    while i < 50:
+        push(bc1, OP_PUSH_STACK)
+        push(bc1, i)
+        push(bc1, 255)
+        push(bc1, OP_PUSH_STACK)
+        push(bc1, i + 1)
+        push(bc1, -1)
+        push(bc1, OP_ADD)
+        push(bc1, OP_POP_STACK)
+        i = i + 1
+    push(bc1, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc1), "F1: garbage + arithmetic"))
+
+    r = csum(r, chk_survive(run_bc([OP_PUSH_STACK, 10, OP_POP_STACK, OP_POP_STACK, OP_POP_STACK, OP_PUSH_STACK, 5, OP_PUSH_STACK, 3, OP_ADD, OP_HALT]), "F2: underflow + ADD"))
+    let er2 = run_bc([OP_PUSH_STACK, 10, OP_POP_STACK, OP_POP_STACK, OP_POP_STACK, OP_PUSH_STACK, 5, OP_PUSH_STACK, 3, OP_ADD, OP_HALT])
+    r = csum(r, chk_val(er2, 8, "F2: result is 8"))
+
+    var bc3: Array<Int> = [255, -1, 999]
+    i = 0
+    while i < 100:
+        push(bc3, OP_PUSH_STACK)
+        push(bc3, i)
+        i = i + 1
+    push(bc3, 255)
+    push(bc3, OP_PUSH_STACK)
+    push(bc3, 2147483647)
+    push(bc3, OP_PUSH_STACK)
+    push(bc3, 1)
+    push(bc3, OP_ADD)
+    push(bc3, OP_POP_STACK)
+    push(bc3, OP_JMP)
+    push(bc3, 999)
+    push(bc3, 255)
+    push(bc3, -1)
+    push(bc3, OP_HALT)
+    r = csum(r, chk_survive(run_bc(bc3), "F3: extreme hybrid"))
+
+    return r
+
+// ===========================================================================
+//  MAIN
+// ===========================================================================
+
+pub fn main():
+    println("========================================")
+    println("  MARKSCRIPT VM ATTRITION / SABOTAGE")
+    println("========================================")
+    println("  Testing VM robustness against deliberate corruption.")
+
+    let r_a = test_a()
+    let r_b = test_b()
+    let r_c = test_c()
+    let r_d = test_d()
+    let r_e = test_e()
+    let r_f = test_f()
+
+    let (a_p, a_f) = r_a
+    let (b_p, b_f) = r_b
+    let (c_p, c_f) = r_c
+    let (d_p, d_f) = r_d
+    let (e_p, e_f) = r_e
+    let (f_p, f_f) = r_f
+    let total_pass = a_p + b_p + c_p + d_p + e_p + f_p
+    let total_fail = a_f + b_f + c_f + d_f + e_f + f_f
+
+    println("")
+    println("========================================")
+    println("  ATTRITION RESULTS")
+    println("========================================")
+    println("  PASS: " + str(total_pass) + "  FAIL: " + str(total_fail))
+    if total_fail == 0:
+        println("  ALL " + str(total_pass + total_fail) + " TESTS PASSED")
+    else:
+        println("  " + str(total_pass + total_fail) + " tests: " + str(total_fail) + " FAILURES")

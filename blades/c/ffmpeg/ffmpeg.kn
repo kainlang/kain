@@ -1,0 +1,712 @@
+// -- KAIN CAPSULE v2 ----------------------------------------------------------
+// name:       src
+// kind:       directory
+// storage:    editable
+// contents:   source
+// digest:     sha256:206c217d421d47d8a7a76306c3cad0c8733b9543d0ca631cc7bc0be6c9aa1e02
+// capsule:    src
+// structure:  6 files | 6 modules
+// ---------------------------------------------------------------------------
+//
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+//
+// [constants]
+//   EDITOR_MODULUS, FFMPEG_ABI_MODULUS, FFMPEG_GAUNTLET_DEFAULT_FIXTURE
+//   FFMPEG_GAUNTLET_DEFAULT_SDK, FRAME_WORD_MODULUS, GAUNTLET_MODULUS
+//
+// [types]
+//   shatter struct ClipSpan
+//
+// [components]
+//   component FfmpegEditorPanel()
+//
+// [actors]
+//   actor DecodeRelay
+//
+// [worlds]
+//   world EditorAuthority, world PreviewMirror
+//
+// [functions]
+//   fn timeline_mix_spec(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int
+//   fn ffmpeg_generate_fixture(ffmpeg: String, path: String) -> Int
+//   fn report(status: Int, versions: FfmpegVersionReport, media_score: Int, frames_decoded: Int, copied_words: Int, native_checksum: Int, kain_checksum: Int, presenter_frames: Int, presenter_hash: Int, detail: String) -> EditorReport
+//   fn open_presenter_if_needed(show_gui: Bool, width: Int, height: Int) -> Int
+//   fn close_presenter_if_needed(handle: Int) -> Int, fn selected_path() -> String
+//   fn selected_frames() -> Int, fn selected_gui() -> Bool
+//   fn main() -> Int with Unsafe
+//
+// [patches]
+//   patch commit_editor_frame(authority: EditorAuthority, playhead_ms: Int, frame_index: Int, media_score: Int) -> Int
+//
+// [laws]
+//   law clip_range_valid(start_ms: Int, end_ms: Int) -> Bool
+//   law frame_capacity_valid(width: Int, height: Int, words: Int) -> Bool
+//
+// [converges]
+//   converge timeline_mix(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int
+//
+//!kain-capsule
+// schema = 2
+// kind = "directory"
+// storage = "editable"
+// contents = "source"
+// compression = "none"
+// digest = "sha256:206c217d421d47d8a7a76306c3cad0c8733b9543d0ca631cc7bc0be6c9aa1e02"
+// created_at = "2026-06-12T01:26:45.339931400+00:00"
+// file_count = 6
+// module_count = 6
+// preview_symbol_limit = 40
+// api_index = "auto"
+// module_index = "auto"
+// name = "src"
+// capsule_set = "src"
+// root_label = "src"
+//!end-kain-capsule
+//!kain-file
+// path = "editor_state.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 3183
+// sha256 = "sha256:64ded6371c5b3e4a9271c0c550962487a6585ddf91fa293e8f2847397ed52caa"
+// trailing_newline = true
+//!kain-file-content
+// const EDITOR_MODULUS: Int = 1000000007
+//
+// component FfmpegEditorPanel():
+//     render <panel title="Kain FFmpeg Editor Gauntlet" />
+//
+// world EditorAuthority:
+//     state playhead_ms: Int = 0
+//     state frame_index: Int = 0
+//     state clip_count: Int = 1
+//     state media_score: Int = 0
+//     surface native_ui => FfmpegEditorPanel
+//
+// world PreviewMirror:
+//     state playhead_copy_ms: Int = 0
+//     state frame_copy_index: Int = 0
+//     state clip_copy_count: Int = 1
+//     state media_score_copy: Int = 0
+//     surface web => FfmpegEditorPanel
+//
+// entangle EditorAuthority.playhead_ms <-> PreviewMirror.playhead_copy_ms with single_writer
+// entangle EditorAuthority.frame_index <-> PreviewMirror.frame_copy_index with single_writer
+// entangle EditorAuthority.clip_count <-> PreviewMirror.clip_copy_count with single_writer
+// entangle EditorAuthority.media_score <-> PreviewMirror.media_score_copy with single_writer
+//
+// law clip_range_valid(start_ms: Int, end_ms: Int) -> Bool:
+//     return start_ms >= 0 and end_ms >= start_ms
+//
+// law frame_capacity_valid(width: Int, height: Int, words: Int) -> Bool:
+//     return width > 0 and height > 0 and words >= width * height
+//
+// patch commit_editor_frame(authority: EditorAuthority, playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+//     authority.playhead_ms = playhead_ms
+//     authority.frame_index = frame_index
+//     authority.media_score = media_score
+//     return authority.media_score
+//
+// shatter struct ClipSpan:
+//     start_ms: Int
+//     end_ms: Int
+//     source_stream: Int
+//     hot: Bool
+//
+// actor DecodeRelay:
+//     state bias: Int = 29
+//
+//     on Fold(reply_to: P, request: Int):
+//         send reply_to.Reply(value = (request + self.bias) % EDITOR_MODULUS)
+//
+// pub struct MediaProbe:
+//     path: String
+//     stream_index: Int
+//     stream_count: Int
+//     duration_ms: Int
+//     width: Int
+//     height: Int
+//     fps_num: Int
+//     fps_den: Int
+//     codec: String
+//
+// pub struct EditorReport:
+//     status: Int
+//     version_score: Int
+//     media_score: Int
+//     frames_decoded: Int
+//     copied_words: Int
+//     native_checksum: Int
+//     kain_checksum: Int
+//     presenter_frames: Int
+//     presenter_hash: Int
+//     live_media: Int
+//     live_decoders: Int
+//     detail: String
+//
+// fn timeline_mix_spec(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+//     return (((playhead_ms + 17) * 31) + ((frame_index + 3) * 131) + media_score) % EDITOR_MODULUS
+//
+// converge timeline_mix(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+//     spec reference:
+//         return timeline_mix_spec(playhead_ms, frame_index, media_score)
+//     fast llvm_lane when target("llvm"):
+//         return (((playhead_ms + 17) * 31) + ((frame_index + 3) * 131) + media_score) % EDITOR_MODULUS
+//     verify random(8)
+//
+// pub fn media_probe_score(probe: MediaProbe) -> Int:
+//     let fps_den = if probe.fps_den <= 0:
+//         1
+//     else:
+//         probe.fps_den
+//     let pixel_score = (probe.width * probe.height) % EDITOR_MODULUS
+//     let fps_score = (probe.fps_num * 1000) / fps_den
+//     return (pixel_score + fps_score + probe.duration_ms + probe.stream_count + len(probe.codec)) % EDITOR_MODULUS
+//
+// pub fn timeline_frame_score(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+//     return timeline_mix(playhead_ms, frame_index, media_score)
+//!end-kain-file
+//!kain-file
+// path = "ffmpeg_abi.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 4572
+// sha256 = "sha256:2e1d88cae4411e07215f2d0b6c26cd45b9428cfe1407abc8d7245877126693c2"
+// trailing_newline = true
+//!kain-file-content
+// include "../native/ffmpeg_bridge.h" as ff
+// include "../native/editor_presenter.h" as ui
+// include <libavutil/avutil.h> as avu
+// include <libavcodec/avcodec.h> as avc
+// include <libavformat/avformat.h> as avf
+// include <libswscale/swscale.h> as sws
+//
+// const FFMPEG_ABI_MODULUS: Int = 1000000007
+//
+// pub struct FfmpegVersionReport:
+//     bridge_score: Int
+//     angle_score: Int
+//     avutil: Int
+//     avcodec: Int
+//     avformat: Int
+//     swscale: Int
+//
+// pub fn ffmpeg_bridge_version_report() -> FfmpegVersionReport:
+//     let util = ff_avutil_version()
+//     let codec = ff_avcodec_version()
+//     let format = ff_avformat_version()
+//     let scale = ff_swscale_version()
+//     return FfmpegVersionReport {
+//         bridge_score: (util + codec + format + scale) % FFMPEG_ABI_MODULUS,
+//         angle_score: (avu_version() + avc_version() + avf_version() + sws_version()) % FFMPEG_ABI_MODULUS,
+//         avutil: util,
+//         avcodec: codec,
+//         avformat: format,
+//         swscale: scale
+//     }
+//
+// pub fn ffmpeg_version_mismatch_score(report: FfmpegVersionReport) -> Int:
+//     if report.bridge_score != report.angle_score:
+//         return 1
+//     if report.avutil <= 0 or report.avcodec <= 0 or report.avformat <= 0 or report.swscale <= 0:
+//         return 2
+//     return 0
+//
+// pub fn ffmpeg_open_media(path: String) -> Int:
+//     return ff_open_media(path)
+//
+// pub fn ffmpeg_close_media(media: Int) -> Int:
+//     return ff_close_media(media)
+//
+// pub fn ffmpeg_best_video_stream(media: Int) -> Int:
+//     return ff_best_video_stream(media)
+//
+// pub fn ffmpeg_stream_count(media: Int) -> Int:
+//     return ff_stream_count(media)
+//
+// pub fn ffmpeg_duration_ms(media: Int) -> Int:
+//     return ff_duration_ms(media)
+//
+// pub fn ffmpeg_video_width(media: Int, stream: Int) -> Int:
+//     return ff_video_width(media, stream)
+//
+// pub fn ffmpeg_video_height(media: Int, stream: Int) -> Int:
+//     return ff_video_height(media, stream)
+//
+// pub fn ffmpeg_video_fps_num(media: Int, stream: Int) -> Int:
+//     return ff_video_fps_num(media, stream)
+//
+// pub fn ffmpeg_video_fps_den(media: Int, stream: Int) -> Int:
+//     return ff_video_fps_den(media, stream)
+//
+// pub fn ffmpeg_video_codec_name(media: Int, stream: Int) -> String:
+//     return ff_video_codec_name(media, stream)
+//
+// pub fn ffmpeg_decoder_create(media: Int, stream: Int) -> Int:
+//     return ff_decoder_create(media, stream)
+//
+// pub fn ffmpeg_decoder_destroy(decoder: Int) -> Int:
+//     return ff_decoder_destroy(decoder)
+//
+// pub fn ffmpeg_decoder_seek_ms(decoder: Int, timestamp_ms: Int) -> Int:
+//     return ff_decoder_seek_ms(decoder, timestamp_ms)
+//
+// pub fn ffmpeg_decode_next(decoder: Int) -> Int:
+//     return ff_decoder_decode_next(decoder)
+//
+// pub fn ffmpeg_decoder_width(decoder: Int) -> Int:
+//     return ff_decoder_width(decoder)
+//
+// pub fn ffmpeg_decoder_height(decoder: Int) -> Int:
+//     return ff_decoder_height(decoder)
+//
+// pub fn ffmpeg_decoder_frame_index(decoder: Int) -> Int:
+//     return ff_decoder_frame_index(decoder)
+//
+// pub fn ffmpeg_decoder_frame_pts_ms(decoder: Int) -> Int:
+//     return ff_decoder_frame_pts_ms(decoder)
+//
+// pub fn ffmpeg_decoder_frame_word_count(decoder: Int) -> Int:
+//     return ff_decoder_frame_word_count(decoder)
+//
+// pub fn ffmpeg_decoder_frame_checksum(decoder: Int) -> Int:
+//     return ff_decoder_frame_checksum(decoder)
+//
+// pub fn ffmpeg_copy_rgba_words(decoder: Int, words_address: Int, word_capacity: Int) -> Int:
+//     return ff_copy_rgba_words(decoder, words_address, word_capacity)
+//
+// pub fn ffmpeg_live_media_count() -> Int:
+//     return ff_live_media_count()
+//
+// pub fn ffmpeg_live_decoder_count() -> Int:
+//     return ff_live_decoder_count()
+//
+// pub fn ffmpeg_last_status() -> Int:
+//     return ff_last_status()
+//
+// pub fn ffmpeg_last_error() -> String:
+//     return ff_last_error()
+//
+// pub fn presenter_open(title: String, width: Int, height: Int) -> Int:
+//     return ui_open(title, width, height)
+//
+// pub fn presenter_pump(handle: Int) -> Int:
+//     return ui_pump(handle)
+//
+// pub fn presenter_should_close(handle: Int) -> Int:
+//     return ui_should_close(handle)
+//
+// pub fn presenter_present_rgba_words(handle: Int, words_address: Int, width: Int, height: Int, word_count: Int, playhead_ms: Int, frame_checksum: Int, clip_count: Int) -> Int:
+//     return ui_present_rgba_words(handle, words_address, width, height, word_count, playhead_ms, frame_checksum, clip_count)
+//
+// pub fn presenter_close(handle: Int) -> Int:
+//     return ui_close(handle)
+//
+// pub fn presenter_frame_count(handle: Int) -> Int:
+//     return ui_frame_count(handle)
+//
+// pub fn presenter_frame_hash(handle: Int) -> Int:
+//     return ui_frame_hash(handle)
+//
+// pub fn presenter_last_status() -> Int:
+//     return ui_last_status()
+//
+// pub fn presenter_last_error() -> String:
+//     return ui_last_error()
+//!end-kain-file
+//!kain-file
+// path = "ffmpeg_config.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 2356
+// sha256 = "sha256:290ff28a064e92e3397be83ea96ff233ded272d7c6a24b93aa7e87e4834912de"
+// trailing_newline = true
+//!kain-file-content
+// use std::os
+// use std::process
+//
+// const FFMPEG_GAUNTLET_DEFAULT_FIXTURE: String = "../.kain/fixtures/ffmpeg_gauntlet_testsrc.mp4"
+// const FFMPEG_GAUNTLET_DEFAULT_SDK: String = "F:/Scoop/apps/ffmpeg-shared/current"
+//
+// pub fn ffmpeg_sdk_root() -> String:
+//     let platform_sdk = os_getenv("KAIN_PLATFORM_FFMPEG_SDK")
+//     if len(platform_sdk) > 0:
+//         return platform_sdk
+//     let ffmpeg_dir = os_getenv("FFMPEG_DIR")
+//     if len(ffmpeg_dir) > 0:
+//         return ffmpeg_dir
+//     return FFMPEG_GAUNTLET_DEFAULT_SDK
+//
+// pub fn ffmpeg_cli_path() -> String:
+//     return ffmpeg_sdk_root() + "/bin/ffmpeg.exe"
+//
+// pub fn ffmpeg_fixture_path() -> String:
+//     return os_getenv_default("KAIN_FFMPEG_FIXTURE", FFMPEG_GAUNTLET_DEFAULT_FIXTURE)
+//
+// fn ffmpeg_generate_fixture(ffmpeg: String, path: String) -> Int:
+//     let spec = process_spec_create_piped(ffmpeg)
+//     if spec <= 0:
+//         return process_last_status()
+//     let _hide = process_spec_add_arg(spec, "-hide_banner")
+//     let _yes = process_spec_add_arg(spec, "-y")
+//     let _log = process_spec_add_arg(spec, "-loglevel")
+//     let _log_value = process_spec_add_arg(spec, "error")
+//     let _format = process_spec_add_arg(spec, "-f")
+//     let _format_value = process_spec_add_arg(spec, "lavfi")
+//     let _input = process_spec_add_arg(spec, "-i")
+//     let _input_value = process_spec_add_arg(spec, "testsrc2=size=320x180:rate=30")
+//     let _frames = process_spec_add_arg(spec, "-frames:v")
+//     let _frame_count = process_spec_add_arg(spec, "120")
+//     let _pix_fmt = process_spec_add_arg(spec, "-pix_fmt")
+//     let _pix_fmt_value = process_spec_add_arg(spec, "yuv420p")
+//     let _output = process_spec_add_arg(spec, path)
+//     let child = process_spawn(spec)
+//     let _destroy = process_spec_destroy(spec)
+//     if child <= 0:
+//         return process_last_status()
+//     let waited = process_wait(child, 60000)
+//     if waited != 1:
+//         let _close_wait = process_close(child)
+//         return process_last_status()
+//     let exit_code = process_exit_code(child)
+//     let _stdout = process_stdout_capture_text(child)
+//     let _stderr = process_stderr_capture_text(child)
+//     let _close = process_close(child)
+//     return exit_code
+//
+// pub fn ffmpeg_ensure_fixture(path: String) -> Int:
+//     if os_exists(path):
+//         return 0
+//     let _made = os_makedirs("../.kain/fixtures")
+//     let ffmpeg = ffmpeg_cli_path()
+//     return ffmpeg_generate_fixture(ffmpeg, path)
+//!end-kain-file
+//!kain-file
+// path = "frame_memory.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1686
+// sha256 = "sha256:24f47d3e7c07c213f9d25b888864c603da6bf64cedec76bcc750b0a756ec6c59"
+// trailing_newline = true
+//!kain-file-content
+// use ffmpeg_abi::ffmpeg_copy_rgba_words
+//
+// const FRAME_WORD_MODULUS: Int = 1000000007
+//
+// pub struct FrameWordBuffer:
+//     words: ptr<Int>
+//     word_capacity: Int
+//     width: Int
+//     height: Int
+//
+// pub fn frame_word_buffer_new(width: Int, height: Int) -> FrameWordBuffer with Unsafe:
+//     let safe_width = if width <= 0:
+//         1
+//     else:
+//         width
+//     let safe_height = if height <= 0:
+//         1
+//     else:
+//         height
+//     let capacity = safe_width * safe_height
+//     return FrameWordBuffer {
+//         words: alloc_zeroed(capacity, "Int"),
+//         word_capacity: capacity,
+//         width: safe_width,
+//         height: safe_height
+//     }
+//
+// pub fn frame_word_buffer_destroy(buffer: FrameWordBuffer) -> Int with Unsafe:
+//     decay buffer.words
+//     return 0
+//
+// pub fn frame_word_buffer_copy_from_decoder(buffer: FrameWordBuffer, decoder: Int) -> Int with Unsafe:
+//     let address = ptr_to_int(buffer.words)
+//     let copied: Int = collapse buffer.words:
+//         ffmpeg_copy_rgba_words(decoder, address, buffer.word_capacity)
+//     return copied
+//
+// pub fn frame_word_buffer_checksum(buffer: FrameWordBuffer, copied_words: Int) -> Int with Unsafe:
+//     let limit = if copied_words < buffer.word_capacity:
+//         copied_words
+//     else:
+//         buffer.word_capacity
+//     let checksum: Int = observe buffer.words:
+//         var index: Int = 0
+//         var acc: Int = 2166136261
+//         while index < limit:
+//             let value = mem_load(ptr_offset(buffer.words, index, "Int"), "Int")
+//             acc = ((acc ^ value) * 16777619) % FRAME_WORD_MODULUS
+//             index = index + 1
+//         acc
+//     return checksum
+//
+// pub fn frame_word_buffer_address(buffer: FrameWordBuffer) -> Int:
+//     return ptr_to_int(buffer.words)
+//!end-kain-file
+//!kain-file
+// path = "gauntlet.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 9651
+// sha256 = "sha256:85d4bf7d57a96c4452df336658ef94067ad1de77636cfc1c3ac2af20ae5fe0a8"
+// trailing_newline = true
+//!kain-file-content
+// use std::runtime
+// use ffmpeg_abi::FfmpegVersionReport
+// use ffmpeg_abi::ffmpeg_best_video_stream
+// use ffmpeg_abi::ffmpeg_bridge_version_report
+// use ffmpeg_abi::ffmpeg_close_media
+// use ffmpeg_abi::ffmpeg_decode_next
+// use ffmpeg_abi::ffmpeg_decoder_create
+// use ffmpeg_abi::ffmpeg_decoder_destroy
+// use ffmpeg_abi::ffmpeg_decoder_frame_checksum
+// use ffmpeg_abi::ffmpeg_decoder_frame_index
+// use ffmpeg_abi::ffmpeg_decoder_frame_pts_ms
+// use ffmpeg_abi::ffmpeg_decoder_height
+// use ffmpeg_abi::ffmpeg_decoder_seek_ms
+// use ffmpeg_abi::ffmpeg_decoder_width
+// use ffmpeg_abi::ffmpeg_duration_ms
+// use ffmpeg_abi::ffmpeg_last_error
+// use ffmpeg_abi::ffmpeg_live_decoder_count
+// use ffmpeg_abi::ffmpeg_live_media_count
+// use ffmpeg_abi::ffmpeg_open_media
+// use ffmpeg_abi::ffmpeg_stream_count
+// use ffmpeg_abi::ffmpeg_version_mismatch_score
+// use ffmpeg_abi::ffmpeg_video_codec_name
+// use ffmpeg_abi::ffmpeg_video_fps_den
+// use ffmpeg_abi::ffmpeg_video_fps_num
+// use ffmpeg_abi::ffmpeg_video_height
+// use ffmpeg_abi::ffmpeg_video_width
+// use ffmpeg_abi::presenter_close
+// use ffmpeg_abi::presenter_frame_count
+// use ffmpeg_abi::presenter_frame_hash
+// use ffmpeg_abi::presenter_open
+// use ffmpeg_abi::presenter_present_rgba_words
+// use ffmpeg_abi::presenter_pump
+// use ffmpeg_abi::presenter_should_close
+// use editor_state::EditorReport
+// use editor_state::MediaProbe
+// use editor_state::clip_range_valid
+// use editor_state::frame_capacity_valid
+// use editor_state::media_probe_score
+// use editor_state::timeline_frame_score
+// use frame_memory::FrameWordBuffer
+// use frame_memory::frame_word_buffer_address
+// use frame_memory::frame_word_buffer_checksum
+// use frame_memory::frame_word_buffer_copy_from_decoder
+// use frame_memory::frame_word_buffer_destroy
+// use frame_memory::frame_word_buffer_new
+//
+// const GAUNTLET_MODULUS: Int = 1000000007
+//
+// fn report(status: Int, versions: FfmpegVersionReport, media_score: Int, frames_decoded: Int, copied_words: Int, native_checksum: Int, kain_checksum: Int, presenter_frames: Int, presenter_hash: Int, detail: String) -> EditorReport:
+//     return EditorReport {
+//         status: status,
+//         version_score: versions.bridge_score,
+//         media_score: media_score,
+//         frames_decoded: frames_decoded,
+//         copied_words: copied_words,
+//         native_checksum: native_checksum,
+//         kain_checksum: kain_checksum,
+//         presenter_frames: presenter_frames,
+//         presenter_hash: presenter_hash,
+//         live_media: ffmpeg_live_media_count(),
+//         live_decoders: ffmpeg_live_decoder_count(),
+//         detail: detail
+//     }
+//
+// fn open_presenter_if_needed(show_gui: Bool, width: Int, height: Int) -> Int:
+//     if show_gui:
+//         return presenter_open("Kain FFmpeg Editor Gauntlet", width, height + 40)
+//     return 0
+//
+// fn close_presenter_if_needed(handle: Int) -> Int:
+//     if handle > 0:
+//         return presenter_close(handle)
+//     return 0
+//
+// pub fn run_ffmpeg_editor_gauntlet(path: String, requested_frames: Int, show_gui: Bool) -> EditorReport with Unsafe:
+//     let init_status = runtime_init()
+//     let versions = ffmpeg_bridge_version_report()
+//     if init_status != 0:
+//         return report(init_status, versions, 0, 0, 0, 0, 0, 0, 0, "runtime_init failed")
+//
+//     let version_status = ffmpeg_version_mismatch_score(versions)
+//     if version_status != 0:
+//         let _shutdown_a = runtime_shutdown()
+//         return report(10 + version_status, versions, 0, 0, 0, 0, 0, 0, 0, "FFmpeg bridge/system include version mismatch")
+//
+//     let media = ffmpeg_open_media(path)
+//     if media <= 0:
+//         let detail = "open failed: " + ffmpeg_last_error()
+//         let _shutdown_b = runtime_shutdown()
+//         return report(20, versions, 0, 0, 0, 0, 0, 0, 0, detail)
+//
+//     let stream = ffmpeg_best_video_stream(media)
+//     if stream < 0:
+//         let detail = "best stream failed: " + ffmpeg_last_error()
+//         let _close_a = ffmpeg_close_media(media)
+//         let _shutdown_c = runtime_shutdown()
+//         return report(21, versions, 0, 0, 0, 0, 0, 0, 0, detail)
+//
+//     let probe = MediaProbe {
+//         path: path,
+//         stream_index: stream,
+//         stream_count: ffmpeg_stream_count(media),
+//         duration_ms: ffmpeg_duration_ms(media),
+//         width: ffmpeg_video_width(media, stream),
+//         height: ffmpeg_video_height(media, stream),
+//         fps_num: ffmpeg_video_fps_num(media, stream),
+//         fps_den: ffmpeg_video_fps_den(media, stream),
+//         codec: ffmpeg_video_codec_name(media, stream)
+//     }
+//     let media_score = media_probe_score(probe)
+//     if media_score <= 0:
+//         let _close_b = ffmpeg_close_media(media)
+//         let _shutdown_d = runtime_shutdown()
+//         return report(22, versions, media_score, 0, 0, 0, 0, 0, 0, "media probe produced empty score")
+//
+//     let decoder = ffmpeg_decoder_create(media, stream)
+//     if decoder <= 0:
+//         let detail = "decoder create failed: " + ffmpeg_last_error()
+//         let _close_c = ffmpeg_close_media(media)
+//         let _shutdown_e = runtime_shutdown()
+//         return report(23, versions, media_score, 0, 0, 0, 0, 0, 0, detail)
+//
+//     let width = ffmpeg_decoder_width(decoder)
+//     let height = ffmpeg_decoder_height(decoder)
+//     if frame_capacity_valid(width, height, width * height) == false:
+//         let _destroy_a = ffmpeg_decoder_destroy(decoder)
+//         let _close_d = ffmpeg_close_media(media)
+//         let _shutdown_f = runtime_shutdown()
+//         return report(24, versions, media_score, 0, 0, 0, 0, 0, 0, "decoder dimensions are invalid")
+//
+//     let buffer: FrameWordBuffer = frame_word_buffer_new(width, height)
+//     let presenter = open_presenter_if_needed(show_gui, width, height)
+//     let frame_limit = if requested_frames <= 0:
+//         30
+//     else:
+//         requested_frames
+//     let _seek = ffmpeg_decoder_seek_ms(decoder, 0)
+//
+//     var frame: Int = 0
+//     var copied_total: Int = 0
+//     var native_checksum: Int = 0
+//     var kain_checksum: Int = 0
+//     var timeline_checksum: Int = 0
+//     var failure_status: Int = 0
+//     var failure_detail: String = "ok"
+//
+//     while frame < frame_limit and failure_status == 0:
+//         let decoded = ffmpeg_decode_next(decoder)
+//         if decoded <= 0:
+//             failure_status = 30
+//             failure_detail = "decode stopped: " + ffmpeg_last_error()
+//         else:
+//             let copied = frame_word_buffer_copy_from_decoder(buffer, decoder)
+//             if copied <= 0:
+//                 failure_status = 31
+//                 failure_detail = "copy failed: " + ffmpeg_last_error()
+//             else:
+//                 copied_total = copied_total + copied
+//                 native_checksum = (native_checksum + ffmpeg_decoder_frame_checksum(decoder)) % GAUNTLET_MODULUS
+//                 kain_checksum = (kain_checksum + frame_word_buffer_checksum(buffer, copied)) % GAUNTLET_MODULUS
+//                 let playhead_ms = ffmpeg_decoder_frame_pts_ms(decoder)
+//                 if clip_range_valid(0, playhead_ms) == false:
+//                     failure_status = 32
+//                     failure_detail = "clip law rejected playhead"
+//                 else:
+//                     timeline_checksum = (timeline_checksum + timeline_frame_score(playhead_ms, ffmpeg_decoder_frame_index(decoder), media_score)) % GAUNTLET_MODULUS
+//                     if presenter > 0:
+//                         let _pump = presenter_pump(presenter)
+//                         if presenter_should_close(presenter) != 0:
+//                             failure_status = 33
+//                             failure_detail = "presenter closed"
+//                         else:
+//                             let present_status = presenter_present_rgba_words(presenter, frame_word_buffer_address(buffer), width, height, copied, playhead_ms, native_checksum, 3)
+//                             if present_status != 0:
+//                                 failure_status = 34
+//                                 failure_detail = "present failed"
+//                 frame = frame + 1
+//
+//     let presenter_frames = if presenter > 0:
+//         presenter_frame_count(presenter)
+//     else:
+//         0
+//     let presenter_hash = if presenter > 0:
+//         presenter_frame_hash(presenter)
+//     else:
+//         timeline_checksum
+//     let _presenter_close = close_presenter_if_needed(presenter)
+//     let _buffer_destroy = frame_word_buffer_destroy(buffer)
+//     let _decoder_destroy = ffmpeg_decoder_destroy(decoder)
+//     let _media_close = ffmpeg_close_media(media)
+//     let heap_status = runtime_heap_validate()
+//     let shutdown_status = runtime_shutdown()
+//
+//     if failure_status != 0:
+//         return report(failure_status, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, failure_detail)
+//     if frame <= 0:
+//         return report(40, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "no frames decoded")
+//     if copied_total <= 0 or native_checksum <= 0 or kain_checksum <= 0:
+//         return report(41, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "checksum/copy lane did not move data")
+//     if heap_status < 0:
+//         return report(42, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "runtime heap validation failed")
+//     if shutdown_status != 0:
+//         return report(43, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "runtime shutdown failed")
+//     if ffmpeg_live_media_count() != 0 or ffmpeg_live_decoder_count() != 0:
+//         return report(44, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "FFmpeg handles leaked")
+//     return report(0, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "ok")
+//!end-kain-file
+//!kain-file
+// path = "main.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1507
+// sha256 = "sha256:510844504c823c846ad5f9f6fb53e30c44c816088f2787349c8008915b9c3ec6"
+// trailing_newline = true
+//!kain-file-content
+// use std::process
+// use ffmpeg_config::ffmpeg_ensure_fixture
+// use ffmpeg_config::ffmpeg_fixture_path
+// use gauntlet::run_ffmpeg_editor_gauntlet
+//
+// fn selected_path() -> String:
+//     if process_arg_count() > 1:
+//         return process_arg(1)
+//     return ffmpeg_fixture_path()
+//
+// fn selected_frames() -> Int:
+//     if process_arg_count() > 2:
+//         return to_int(process_arg(2))
+//     return 45
+//
+// fn selected_gui() -> Bool:
+//     if process_arg_count() > 3:
+//         let mode = process_arg(3)
+//         return mode == "--gui" or mode == "gui"
+//     return false
+//
+// fn main() -> Int with Unsafe:
+//     let path = selected_path()
+//     let fixture_status = ffmpeg_ensure_fixture(path)
+//     if fixture_status != 0:
+//         println("ffmpeg_fixture_failed status=" + str(fixture_status) + " path=" + path)
+//         return 90
+//
+//     let report = run_ffmpeg_editor_gauntlet(path, selected_frames(), selected_gui())
+//     println(
+//         "ffmpeg_gauntlet status=" + str(report.status) +
+//         " frames=" + str(report.frames_decoded) +
+//         " copied_words=" + str(report.copied_words) +
+//         " media_score=" + str(report.media_score) +
+//         " native_checksum=" + str(report.native_checksum) +
+//         " kain_checksum=" + str(report.kain_checksum) +
+//         " presenter_frames=" + str(report.presenter_frames) +
+//         " presenter_hash=" + str(report.presenter_hash) +
+//         " live_media=" + str(report.live_media) +
+//         " live_decoders=" + str(report.live_decoders) +
+//         " detail=" + report.detail
+//     )
+//     return report.status
+//!end-kain-file

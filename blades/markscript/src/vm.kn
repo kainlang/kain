@@ -16,7 +16,10 @@
 
 use types       // MarkValue, MatrixRecord, CodeBlockRecord, IVTEntry, VarEntry,
                 // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE,
-                // mark_int, mark_float, mark_string, mark_empty, mark_value_to_string
+                // MARK_ARRAY, MARK_DICT, MARK_BOOL, MARK_WIDGET, MARK_EVENT,
+                // mark_int, mark_float, mark_string, mark_empty, mark_array, mark_dict, mark_bool, mark_value_to_string,
+                // WidgetRecord, WidgetProperty, widget_record_new, widget_prop_get, widget_prop_set,
+                // DictEntry, FnRecord, ImportedModule, ProcessRecord
 use error       // MarkError, ERROR_OK, ERROR_NAME, error_ok, make_error, format_error
 use parser      // OP_HALT, OP_ENTER_DOMAIN, ... OP_JN (all 21 constants 0-20)
 
@@ -40,6 +43,16 @@ pub struct MarkScriptVM:
     error:          MarkError               // last error (kind=ERROR_OK if none)
     // Internal: accumulated phrase hash for intent dispatch
     pending_hash:   Int                     // hash built up by OP_PUSH_PARAM
+    // DELTA: UI widget references
+    widgets:        Array<WidgetRecord>     // widget registry
+    widget_count:   Int                     // next widget handle
+    // GAMMA: process lifecycle tracking (PID store for spawn/await/kill)
+    processes:      Array<ProcessRecord>    // tracked spawned processes
+    // BETA: array / dict / function / module storage
+    arrays:         Array<Array<MarkValue>> // array storage (handle → values)
+    dicts:          Array<Array<DictEntry>> // dict storage (handle → entries)
+    functions:      Array<FnRecord>         // user-defined function table
+    modules:        Array<ImportedModule>   // imported Kain modules
 
 // ===========================================================================
 //  HANDLER RESULT — returned by bridge handlers, consumed by resume_execution
@@ -83,7 +96,14 @@ pub fn init_vm() -> MarkScriptVM:
         variables: [],
         var_count: 0,
         error: error_ok(),
-        pending_hash: 0
+        pending_hash: 0,
+        widgets: [],
+        widget_count: 0,
+        processes: [],
+        arrays: [],
+        dicts: [],
+        functions: [],
+        modules: []
     }
 
 // ===========================================================================
@@ -111,7 +131,14 @@ pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> 
         variables: vm.variables,
         var_count: vm.var_count,
         error: vm.error,
-        pending_hash: vm.pending_hash
+        pending_hash: vm.pending_hash,
+        widgets: vm.widgets,
+        widget_count: vm.widget_count,
+        processes: vm.processes,
+        arrays: vm.arrays,
+        dicts: vm.dicts,
+        functions: vm.functions,
+        modules: vm.modules
     }
 
 pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
@@ -146,6 +173,55 @@ fn store_variable(vm: MarkScriptVM, name_hash: Int, value: MarkValue) -> MarkScr
         v.variables[v.var_count] = VarEntry { name_hash: name_hash, value: value }
         v.var_count = v.var_count + 1
     return v
+
+// ===========================================================================
+//  WIDGET OPERATIONS — DELTA: UI widget registry in VM state
+// ===========================================================================
+
+// Find widget by path name. Returns widget handle index or -1.
+pub fn find_widget(vm: MarkScriptVM, widget_name: String) -> Int:
+    var i: Int = 0
+    while i < vm.widget_count:
+        if i < len(vm.widgets) and vm.widgets[i].name == widget_name:
+            return vm.widgets[i].handle
+        i = i + 1
+    return -1
+
+// Find widget by handle. Returns index in widgets array or -1.
+fn find_widget_by_handle(vm: MarkScriptVM, handle: Int) -> Int:
+    var i: Int = 0
+    while i < vm.widget_count:
+        if i < len(vm.widgets) and vm.widgets[i].handle == handle:
+            return i
+        i = i + 1
+    return -1
+
+// Add a new widget to the registry. Returns updated VM.
+pub fn add_widget(vm: MarkScriptVM, name: String, kind: String) -> MarkScriptVM:
+    var v = vm
+    let new_handle = v.widget_count
+    let w = widget_record_new(new_handle, name, kind)
+    // Ensure array has space
+    while len(v.widgets) <= new_handle:
+        push(v.widgets, widget_record_new(0, "", ""))
+    v.widgets[new_handle] = w
+    v.widget_count = v.widget_count + 1
+    return v
+
+// Set a property on a widget by handle. Returns updated VM.
+pub fn set_widget_prop(vm: MarkScriptVM, handle: Int, prop_name: String, value: MarkValue) -> MarkScriptVM:
+    var v = vm
+    let idx = find_widget_by_handle(v, handle)
+    if idx >= 0:
+        v.widgets[idx] = widget_prop_set(v.widgets[idx], prop_name, value)
+    return v
+
+// Get a property from a widget by handle. Returns (value, found).
+pub fn get_widget_prop(vm: MarkScriptVM, handle: Int, prop_name: String) -> MarkValue:
+    let idx = find_widget_by_handle(vm, handle)
+    if idx >= 0:
+        return widget_prop_get(vm.widgets[idx], prop_name)
+    return mark_empty()
 
 // ===========================================================================
 //  ARITHMETIC HELPERS — MarkValue-based operations
@@ -268,6 +344,14 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     var varc = vm.var_count
     var pending_hash = vm.pending_hash
     var verr = vm.error
+    var procs = vm.processes
+    var wgts = vm.widgets
+    var wgtc = vm.widget_count
+    // BETA: array/dict/function/module storage
+    var arrays_arr = vm.arrays
+    var dicts_arr = vm.dicts
+    var fns = vm.functions
+    var mods = vm.modules
 
     while ip < bc_len:
         let opcode = bc[ip]
@@ -281,7 +365,11 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                     code_blocks: cb, call_stack: callstk,
                     ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                     variables: vars, var_count: varc,
-                    error: verr, pending_hash: pending_hash
+                    error: verr, pending_hash: pending_hash,
+                    widgets: wgts, widget_count: wgtc,
+                    processes: procs,
+                    arrays: arrays_arr, dicts: dicts_arr,
+                    functions: fns, modules: mods
                 },
                 accumulator: acc,
                 data_table: dt,
@@ -330,7 +418,11 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                         code_blocks: cb, call_stack: callstk,
                         ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                         variables: vars, var_count: varc,
-                        error: verr, pending_hash: pending_hash
+                        error: verr, pending_hash: pending_hash,
+                        widgets: wgts, widget_count: wgtc,
+                        processes: procs,
+                        arrays: arrays_arr, dicts: dicts_arr,
+                        functions: fns, modules: mods
                     },
                     accumulator: acc,
                     data_table: dt,
@@ -474,7 +566,11 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                         code_blocks: cb, call_stack: callstk,
                         ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                         variables: vars, var_count: varc,
-                        error: verr, pending_hash: pending_hash
+                        error: verr, pending_hash: pending_hash,
+                        widgets: wgts, widget_count: wgtc,
+                        processes: procs,
+                        arrays: arrays_arr, dicts: dicts_arr,
+                        functions: fns, modules: mods
                     },
                     accumulator: acc,
                     data_table: dt,
@@ -600,6 +696,66 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             if is_negative_value(val):
                 ip = target
 
+        // --- OP_ITER_GET (21) — pop index, pop array_handle, push array[index] -
+        elif opcode == OP_ITER_GET:
+            let stk_len = len(stk)
+            if stk_len >= 2:
+                let arr_handle_val = pop_stack(stk)
+                let idx_val = pop_stack(stk)
+                var arr_handle: Int = 0
+                var idx: Int = 0
+                if arr_handle_val.kind == MARK_INT:
+                    arr_handle = arr_handle_val.int_val
+                elif arr_handle_val.kind == MARK_ARRAY:
+                    arr_handle = arr_handle_val.int_val
+                if idx_val.kind == MARK_INT:
+                    idx = idx_val.int_val
+                // Look up array by handle and push element at index
+                if arr_handle >= 0 and arr_handle < len(arrays_arr):
+                    let arr = arrays_arr[arr_handle]
+                    if idx >= 0 and idx < len(arr):
+                        push(stk, arr[idx])
+                    else:
+                        push(stk, mark_int(0))
+                else:
+                    push(stk, mark_int(0))
+            ip = ip + 1
+
+        // --- OP_CALL_FN (22) — call user-defined fn by name hash ------------
+        elif opcode == OP_CALL_FN:
+            ip = ip + 1
+            if ip < bc_len:
+                let name_hash = bc[ip]
+                // Search functions table for matching name_hash
+                var found: Bool = false
+                var fi: Int = 0
+                while fi < len(fns):
+                    if fns[fi].name_hash == name_hash:
+                        // Push return address, jump to fn entry
+                        push(callstk, ip + 1)
+                        ip = fns[fi].entry_ip
+                        found = true
+                        break
+                    fi = fi + 1
+                if found == false:
+                    verr = make_error(ERROR_NAME,
+                        "function not found (hash=" + str(name_hash) + ")",
+                        0, "", "")
+            ip = ip + 1
+
+        // --- OP_RET_VAL (23) — return with value: pop value, push to caller stack, pop return addr
+        elif opcode == OP_RET_VAL:
+            let cstk_len = len(callstk)
+            if cstk_len > 0:
+                let ret_val = pop_stack(stk)
+                let ret_addr = callstk[cstk_len - 1]
+                pop(callstk)
+                ip = ret_addr
+                // Push return value onto caller's stack
+                push(stk, ret_val)
+            else:
+                ip = ip + 1
+
         // --- Unknown opcode — skip ---------------------------------------
         else:
             ip = ip + 1
@@ -612,7 +768,11 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             code_blocks: cb, call_stack: callstk,
             ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
             variables: vars, var_count: varc,
-            error: verr, pending_hash: pending_hash
+            error: verr, pending_hash: pending_hash,
+            widgets: wgts, widget_count: wgtc,
+            processes: procs,
+            arrays: arrays_arr, dicts: dicts_arr,
+            functions: fns, modules: mods
         },
         accumulator: acc,
         data_table: dt,

@@ -1,0 +1,10 @@
+// Gap 4: Function pointer via ptr_to_int (missing self.functions lookup)
+fn helper(v: Int) -> Int:
+    return v * 2
+
+fn main() -> Int:
+    let f = helper
+    let result = helper(21)
+    if result == 42:
+        return 0
+    return 1

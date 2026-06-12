@@ -47,6 +47,10 @@ pub const OP_DIV:            Int = 17
 pub const OP_LOAD_VAR:       Int = 18
 pub const OP_STORE_VAR:      Int = 19
 pub const OP_JN:             Int = 20
+// BETA: new opcodes (21-23)
+pub const OP_ITER_GET:       Int = 21
+pub const OP_CALL_FN:        Int = 22
+pub const OP_RET_VAL:        Int = 23
 
 // ===========================================================================
 //  STRING HASH — DJB2 variant (multiply by 31)

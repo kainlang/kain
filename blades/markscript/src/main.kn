@@ -24,6 +24,7 @@
 use std::text
 use std::fs
 use std::runtime
+use std::time
 use cli             // MksConfig, get_user_args, parse_args, usage, version, needs_filepath
 use types           // MarkValue, mark_int, mark_string, mark_value_to_string, MARK_*
 use lexer           // create_lexer
@@ -377,6 +378,26 @@ fn main(args: Array<String>) -> Int with IO, Unsafe:
     if cfg.subcommand == "jit-run":
         return cmd_jit_run(cfg)
 
+    // pipe mode: read stdin, execute, write accumulator
+    if cfg.subcommand == "pipe":
+        return cmd_pipe(cfg)
+
+    // watch mode: poll file for changes, re-execute
+    if cfg.subcommand == "watch":
+        return cmd_watch(cfg)
+
+    // build mode: auto-detect and build
+    if cfg.subcommand == "build":
+        return cmd_build(cfg)
+
+    // test mode: run tests
+    if cfg.subcommand == "test":
+        return cmd_test(cfg)
+
+    // clean mode: clean artifacts
+    if cfg.subcommand == "clean":
+        return cmd_clean(cfg)
+
     // Default: run mode — full compile + execute pipeline
     return cmd_run(cfg)
 
@@ -390,6 +411,21 @@ fn cmd_run(cfg: MksConfig) -> Int:
     println("")
 
     var filepath = cfg.filepath
+
+    // Mksfile auto-discovery: if no filepath, search for known targets
+    if filepath == "":
+        filepath = discover_mks_target()
+        if filepath != "":
+            println("[DISCOVER] Auto-detected target: " + filepath)
+        else:
+            // No file and nothing to discover — show usage
+            if cfg.json:
+                print("{\n  \"status\": \"error\",\n  \"error\": \"no file specified and no build target discovered\"\n}\n")
+                return 2
+            println("[CLI] No file specified. Use: mks run <file.md>")
+            println("[CLI] Or create a Mksfile.md / build.md in this directory.")
+            return 2
+
     if filepath == "" and len(cfg.eval_expr) > 0:
         filepath = cfg.eval_expr
 
@@ -474,6 +510,18 @@ fn cmd_run(cfg: MksConfig) -> Int:
         println("")
         println("[DISPATCH] No pending handlers")
 
+    // JSON output
+    if cfg.json:
+        let acc_str = mark_value_to_string(er.accumulator)
+        print("{\n")
+        print(json_pair("status", "ok", true))
+        print(json_pair("subcommand", "run", true))
+        print(json_pair("file", filepath, true))
+        print(json_pair_int("bytecode_ops", op_count, true))
+        print(json_pair_int("ivt_handlers", vm.ivt_count, true))
+        print(json_pair("result", json_escape_str(acc_str), false))
+        print("}\n")
+
     println("")
     println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
     return 0
@@ -534,8 +582,27 @@ fn cmd_check(cfg: MksConfig) -> Int:
 
     println("")
     if has_fatal:
+        if cfg.json:
+            print("{\n")
+            print(json_pair("status", "error", true))
+            print(json_pair("subcommand", "check", true))
+            print(json_pair("file", cfg.filepath, true))
+            print(json_pair_int("bytecode_ops", op_count, true))
+            print(json_pair_int("errors", len(import_errors), false))
+            print("}\n")
         println("[RESULT] CHECK FAILED — " + str(op_count) + " ops, " + str(len(import_errors)) + " error(s)")
         return 2
+
+    if cfg.json:
+        print("{\n")
+        print(json_pair("status", "ok", true))
+        print(json_pair("subcommand", "check", true))
+        print(json_pair("file", cfg.filepath, true))
+        print(json_pair_int("bytecode_ops", op_count, true))
+        print(json_pair_int("imports_resolved", len(extracted.imports), true))
+        print(json_pair_int("warnings", len(import_warnings), true))
+        print(json_pair_int("errors", 0, false))
+        print("}\n")
 
     println("[RESULT] CHECK PASSED — " + str(op_count) + " bytecode ops")
     println("  " + str(len(extracted.imports)) + " @import(s)")
@@ -784,3 +851,556 @@ fn cmd_jit_run(cfg: MksConfig) -> Int with Unsafe:
     println("=== JIT-RUN COMPLETE ===")
     return 0
 
+
+// ===========================================================================
+//  SUBCOMMAND: pipe  —  Unix filter: read stdin, execute, write stdout
+// ===========================================================================
+
+fn cmd_pipe(cfg: MksConfig) -> Int:
+    // Read stdin until EOF
+    var source: String = ""
+    // NOTE: stdin reading not yet available in Kain stdlib.
+    // For now, read from process args as fallback.
+    // When process_stdin_read_text is available, use it here.
+    if len(get_user_args()) > 0:
+        let argv = get_user_args()
+        var ai: Int = 0
+        while ai < len(argv):
+            source = source + argv[ai]
+            if ai < len(argv) - 1:
+                source = source + " "
+            ai = ai + 1
+
+    if source == "":
+        // Try reading from Mksfile.md or build.md as pipe source
+        let target = discover_mks_target()
+        if target != "":
+            source = read_source(target)
+
+    if source == "":
+        if cfg.json:
+            print("{\n  \"status\": \"error\",\n  \"error\": \"no input to pipe\"\n}\n")
+        else:
+            println("[PIPE] No input to pipe (stdin or args required)")
+        return 2
+
+    if cfg.json == false:
+        println("=== MARKSCRIPT PIPE 1.0 ===")
+        println("")
+
+    let start_ms = now_millis()
+
+    let lex = create_lexer(source)
+    let bytecode = compile_source(lex)
+    let op_count = len(bytecode)
+
+    if op_count <= 1:
+        if cfg.json:
+            print(json_ok_start("pipe", ""))
+            print(json_pair_int("bytecode_ops", 0, false))
+            print("}\n")
+        return 0
+
+    let vm = init_vm_with_builtins()
+    let er = execute_bytecode(vm, bytecode)
+
+    // Handle dispatch loop
+    var final_er = er
+    if er.handler_id > 0:
+        var current_vm = er.vm
+        var current_er = er
+        var iteration: Int = 0
+        let max_iter: Int = 100
+        while current_er.handler_id > 0 and iteration < max_iter:
+            let fn_id = current_er.handler_id
+            var args: Array<MarkValue> = []
+            let stk_len = len(current_vm.stack)
+            var ai: Int = 0
+            while ai < stk_len:
+                push(args, current_vm.stack[ai])
+                ai = ai + 1
+            while stk_len > 0:
+                pop(current_vm.stack)
+                stk_len = stk_len - 1
+            let hr = dispatch_fn(current_vm, fn_id, args)
+            if hr.err != "":
+                let next_er = resume_execution(current_vm, bytecode, hr)
+                current_vm = next_er.vm
+                current_er = next_er
+            else:
+                let next_er = resume_execution(current_vm, bytecode, hr)
+                current_vm = next_er.vm
+                current_er = next_er
+            iteration = iteration + 1
+        final_er = current_er
+
+    let elapsed_ms = now_millis() - start_ms
+    let acc_str = mark_value_to_string(final_er.accumulator)
+
+    if cfg.json:
+        print(json_ok_start("pipe", ""))
+        print(json_pair("result", json_escape_str(acc_str), true))
+        print(json_pair_int("bytecode_ops", op_count, true))
+        print(json_pair_int("execution_time_ms", elapsed_ms, false))
+        print("}\n")
+    else:
+        print(acc_str)
+        println("")
+        println("")
+        println("=== PIPE COMPLETE ===")
+
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: watch  —  poll file mtime, re-execute on change
+// ===========================================================================
+
+fn cmd_watch(cfg: MksConfig) -> Int:
+    if cfg.filepath == "":
+        println("[CLI] mks watch requires a file path")
+        println("Usage: mks watch <file.md>")
+        return 2
+
+    if cfg.json == false:
+        println("=== MARKSCRIPT WATCH 1.0 ===")
+        println("")
+        println("[WATCH] Watching: " + cfg.filepath)
+        println("[WATCH] Polling every 500ms. Ctrl+C to stop.")
+        println("")
+
+    var last_mtime: Int = 0
+
+    // Get initial mtime
+    if fs_exists(cfg.filepath):
+        let meta_text = fs_metadata_text(cfg.filepath)
+        let meta = fs_parse_metadata_text(meta_text)
+        last_mtime = meta.modified_millis
+
+    var iteration: Int = 0
+    while true:
+        sleep_millis(500)
+
+        if fs_exists(cfg.filepath) == false:
+            if cfg.json == false:
+                println("[WATCH] File removed, waiting...")
+            continue
+
+        let meta_text = fs_metadata_text(cfg.filepath)
+        let meta = fs_parse_metadata_text(meta_text)
+        let current_mtime = meta.modified_millis
+
+        if current_mtime != last_mtime:
+            last_mtime = current_mtime
+            iteration = iteration + 1
+
+            // Format timestamp
+            let ts_ms = now_millis()
+
+            if cfg.json == false:
+                println("[WATCH] Change detected (iteration " + str(iteration) + "), re-executing...")
+                println("")
+
+            // Execute the file
+            let source = read_source(cfg.filepath)
+            let lex = create_lexer(source)
+            let bytecode = compile_source(lex)
+
+            if len(bytecode) <= 1:
+                if cfg.json == false:
+                    println("[WATCH] Nothing to execute")
+                continue
+
+            let vm = init_vm_with_builtins()
+            let er = execute_bytecode(vm, bytecode)
+
+            // Handle dispatch loop
+            if er.handler_id > 0:
+                var current_vm = er.vm
+                var current_er = er
+                var it: Int = 0
+                let max_it: Int = 100
+                while current_er.handler_id > 0 and it < max_it:
+                    let fn_id = current_er.handler_id
+                    var args: Array<MarkValue> = []
+                    let stk_len = len(current_vm.stack)
+                    var ai: Int = 0
+                    while ai < stk_len:
+                        push(args, current_vm.stack[ai])
+                        ai = ai + 1
+                    while stk_len > 0:
+                        pop(current_vm.stack)
+                        stk_len = stk_len - 1
+                    let hr = dispatch_fn(current_vm, fn_id, args)
+                    if hr.err != "":
+                        let next_er = resume_execution(current_vm, bytecode, hr)
+                        current_vm = next_er.vm
+                        current_er = next_er
+                    else:
+                        let next_er = resume_execution(current_vm, bytecode, hr)
+                        current_vm = next_er.vm
+                        current_er = next_er
+                    it = it + 1
+
+                if cfg.json:
+                    let acc_str = mark_value_to_string(current_er.accumulator)
+                    print(json_ok_start("watch_iter", ""))
+                    print(json_pair_int("iteration", iteration, true))
+                    print(json_pair("file", json_escape_str(cfg.filepath), true))
+                    print(json_pair("result", json_escape_str(acc_str), false))
+                    print("}\n")
+                else:
+                    println("")
+                    println("[WATCH] Execution complete (iteration " + str(iteration) + ")")
+                    println("")
+            else:
+                if cfg.json:
+                    let acc_str = mark_value_to_string(er.accumulator)
+                    print(json_ok_start("watch_iter", ""))
+                    print(json_pair_int("iteration", iteration, true))
+                    print(json_pair("file", json_escape_str(cfg.filepath), true))
+                    print(json_pair("result", json_escape_str(acc_str), false))
+                    print("}\n")
+
+    // Never reached
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: build  —  auto-detect and build a project
+// ===========================================================================
+
+fn cmd_build(cfg: MksConfig) -> Int:
+    var target = cfg.filepath
+
+    // Auto-discovery if no target specified
+    if target == "":
+        target = discover_mks_target()
+        if target == "":
+            if cfg.json:
+                print("{\n  \"status\": \"error\",\n  \"error\": \"no build target found\"\n}\n")
+            else:
+                println("[BUILD] No build target found.")
+                println("[BUILD] Create a build.md or place recognized build file in this directory.")
+            return 2
+
+    if cfg.json == false:
+        println("=== MARKSCRIPT BUILD 1.0 ===")
+        println("")
+        println("[BUILD] Target: " + target)
+
+    let start_ms = now_millis()
+
+    // If target is a .md file, run it as a build script
+    if target == "Mksfile.md" or target == "build.md" or target == "README.md":
+        if cfg.json == false:
+            println("[BUILD] Running markscript build definition: " + target)
+            println("")
+        // Run the build definition through markscript
+        let source = read_source(target)
+        let lex = create_lexer(source)
+        let bytecode = compile_source(lex)
+        let op_count = len(bytecode)
+
+        if op_count <= 1:
+            if cfg.json:
+                print(json_ok_start("build", target))
+                print(json_pair_int("bytecode_ops", 0, true))
+                print(json_pair("build_command", json_escape_str("none"), false))
+                print("}\n")
+            return 0
+
+        let vm = init_vm_with_builtins()
+        let er = execute_bytecode(vm, bytecode)
+
+        // Handle dispatch loop
+        var final_er = er
+        if er.handler_id > 0:
+            var current_vm = er.vm
+            var current_er = er
+            var iteration: Int = 0
+            let max_iter: Int = 100
+            while current_er.handler_id > 0 and iteration < max_iter:
+                let fn_id = current_er.handler_id
+                var args: Array<MarkValue> = []
+                let stk_len = len(current_vm.stack)
+                var ai: Int = 0
+                while ai < stk_len:
+                    push(args, current_vm.stack[ai])
+                    ai = ai + 1
+                while stk_len > 0:
+                    pop(current_vm.stack)
+                    stk_len = stk_len - 1
+                let hr = dispatch_fn(current_vm, fn_id, args)
+                if hr.err != "":
+                    let next_er = resume_execution(current_vm, bytecode, hr)
+                    current_vm = next_er.vm
+                    current_er = next_er
+                else:
+                    let next_er = resume_execution(current_vm, bytecode, hr)
+                    current_vm = next_er.vm
+                    current_er = next_er
+                iteration = iteration + 1
+            final_er = current_er
+
+        let elapsed_ms = now_millis() - start_ms
+        if cfg.json:
+            print(json_ok_start("build", target))
+            print(json_pair_int("bytecode_ops", op_count, true))
+            print(json_pair_int("execution_time_ms", elapsed_ms, false))
+            print("}\n")
+        else:
+            println("")
+            println("=== BUILD COMPLETE ===")
+        return 0
+
+    // Otherwise, auto-detect build command
+    let build_cmd = detect_build_command(target)
+
+    if build_cmd == "":
+        if cfg.json:
+            print("{\n  \"status\": \"error\",\n  \"error\": \"unknown build target: " + json_escape_str(target) + "\"\n}\n")
+        else:
+            println("[BUILD] Unknown build target: " + target)
+            println("[BUILD] Supported: Cargo.toml, CMakeLists.txt, package.json, Makefile, go.mod, pyproject.toml, *.kn, *.md")
+        return 2
+
+    if cfg.json == false:
+        println("[BUILD] Detected build system: " + build_cmd)
+        println("[BUILD] Running...")
+        println("")
+
+    let output = process_output_text(build_cmd, "", "", "", 60000)
+    let elapsed_ms = now_millis() - start_ms
+
+    if cfg.json:
+        print(json_ok_start("build", target))
+        print(json_pair("build_command", json_escape_str(build_cmd), true))
+        print(json_pair_int("execution_time_ms", elapsed_ms, false))
+        print("}\n")
+    else:
+        println(output)
+        println("")
+        println("=== BUILD COMPLETE ===")
+
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: test  —  run tests for a project
+// ===========================================================================
+
+fn cmd_test(cfg: MksConfig) -> Int:
+    var target = cfg.filepath
+
+    if target == "":
+        target = discover_mks_target()
+        if target == "":
+            if cfg.json:
+                print("{\n  \"status\": \"error\",\n  \"error\": \"no test target found\"\n}\n")
+            else:
+                println("[TEST] No test target found.")
+            return 2
+
+    if cfg.json == false:
+        println("=== MARKSCRIPT TEST 1.0 ===")
+        println("")
+        println("[TEST] Target: " + target)
+
+    let start_ms = now_millis()
+
+    // If target is a .md file, run it as a build script (which may include tests)
+    if target == "Mksfile.md" or target == "build.md" or target == "README.md":
+        if cfg.json == false:
+            println("[TEST] Running markscript build definition: " + target)
+            println("")
+        let source = read_source(target)
+        let lex = create_lexer(source)
+        let bytecode = compile_source(lex)
+        let op_count = len(bytecode)
+        if op_count <= 1:
+            return 0
+        let vm = init_vm_with_builtins()
+        let er = execute_bytecode(vm, bytecode)
+        var final_er = er
+        if er.handler_id > 0:
+            var cv = er.vm
+            var ce = er
+            var it: Int = 0
+            let mx: Int = 100
+            while ce.handler_id > 0 and it < mx:
+                let fn_id = ce.handler_id
+                var ags: Array<MarkValue> = []
+                let sl = len(cv.stack)
+                var ai: Int = 0
+                while ai < sl:
+                    push(ags, cv.stack[ai])
+                    ai = ai + 1
+                while sl > 0:
+                    pop(cv.stack)
+                    sl = sl - 1
+                let hr = dispatch_fn(cv, fn_id, ags)
+                if hr.err != "":
+                    let ne = resume_execution(cv, bytecode, hr)
+                    cv = ne.vm
+                    ce = ne
+                else:
+                    let ne = resume_execution(cv, bytecode, hr)
+                    cv = ne.vm
+                    ce = ne
+                it = it + 1
+            final_er = ce
+        let elapsed_ms = now_millis() - start_ms
+        if cfg.json:
+            print(json_ok_start("test", target))
+            print(json_pair_int("execution_time_ms", elapsed_ms, false))
+            print("}\n")
+        else:
+            println("")
+            println("=== TEST COMPLETE ===")
+        return 0
+
+    // Auto-detect test command
+    let test_cmd = detect_test_command(target)
+
+    if test_cmd == "":
+        if cfg.json:
+            print("{\n  \"status\": \"error\",\n  \"error\": \"unknown test target\"\n}\n")
+        else:
+            println("[TEST] Unknown test target: " + target)
+        return 2
+
+    if cfg.json == false:
+        println("[TEST] Detected test runner: " + test_cmd)
+        println("[TEST] Running...")
+        println("")
+
+    let output = process_output_text(test_cmd, "", "", "", 120000)
+    let elapsed_ms = now_millis() - start_ms
+
+    if cfg.json:
+        print(json_ok_start("test", target))
+        print(json_pair("test_command", json_escape_str(test_cmd), true))
+        print(json_pair_int("execution_time_ms", elapsed_ms, false))
+        print("}\n")
+    else:
+        println(output)
+        println("")
+        println("=== TEST COMPLETE ===")
+
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: clean  —  clean build artifacts
+// ===========================================================================
+
+fn cmd_clean(cfg: MksConfig) -> Int:
+    var target = cfg.filepath
+
+    if target == "":
+        target = discover_mks_target()
+        if target == "":
+            if cfg.json:
+                print("{\n  \"status\": \"error\",\n  \"error\": \"no clean target found\"\n}\n")
+            else:
+                println("[CLEAN] No clean target found.")
+            return 2
+
+    if cfg.json == false:
+        println("=== MARKSCRIPT CLEAN 1.0 ===")
+        println("")
+        println("[CLEAN] Target: " + target)
+
+    let start_ms = now_millis()
+
+    // If target is a .md file, run the clean routine
+    if target == "Mksfile.md" or target == "build.md" or target == "README.md":
+        if cfg.json == false:
+            println("[CLEAN] Running markscript clean process...")
+            println("")
+        let source = read_source(target)
+        let lex = create_lexer(source)
+        let bytecode = compile_source(lex)
+        let op_count = len(bytecode)
+        if op_count <= 1:
+            return 0
+        let vm = init_vm_with_builtins()
+        let er = execute_bytecode(vm, bytecode)
+        if er.handler_id > 0:
+            var cv = er.vm
+            var ce = er
+            var it: Int = 0
+            let mx: Int = 100
+            while ce.handler_id > 0 and it < mx:
+                let fn_id = ce.handler_id
+                var ags: Array<MarkValue> = []
+                let sl = len(cv.stack)
+                var ai: Int = 0
+                while ai < sl:
+                    push(ags, cv.stack[ai])
+                    ai = ai + 1
+                while sl > 0:
+                    pop(cv.stack)
+                    sl = sl - 1
+                let hr = dispatch_fn(cv, fn_id, ags)
+                if hr.err != "":
+                    let ne = resume_execution(cv, bytecode, hr)
+                    cv = ne.vm
+                    ce = ne
+                else:
+                    let ne = resume_execution(cv, bytecode, hr)
+                    cv = ne.vm
+                    ce = ne
+                it = it + 1
+        let elapsed_ms = now_millis() - start_ms
+        if cfg.json:
+            print(json_ok_start("clean", target))
+            print(json_pair_int("execution_time_ms", elapsed_ms, false))
+            print("}\n")
+        else:
+            println("")
+            println("=== CLEAN COMPLETE ===")
+        return 0
+
+    // Auto-detect clean command
+    let clean_cmd = detect_clean_command(target)
+
+    if clean_cmd == "":
+        if cfg.json:
+            print("{\n  \"status\": \"error\",\n  \"error\": \"unknown clean target\"\n}\n")
+        else:
+            println("[CLEAN] Unknown clean target: " + target)
+        return 2
+
+    if cfg.json == false:
+        println("[CLEAN] Detected: " + clean_cmd)
+        println("")
+
+    let output = process_output_text(clean_cmd, "", "", "", 30000)
+    let elapsed_ms = now_millis() - start_ms
+
+    if cfg.json:
+        print(json_ok_start("clean", target))
+        print(json_pair("clean_command", json_escape_str(clean_cmd), true))
+        print(json_pair_int("execution_time_ms", elapsed_ms, false))
+        print("}\n")
+    else:
+        println(output)
+        println("")
+        println("=== CLEAN COMPLETE ===")
+
+    return 0
+
+
+// ===========================================================================
+//  JSON OUTPUT HELPERS
+// ===========================================================================
+
+fn json_ok_start(subcommand: String, file: String) -> String:
+    var result = "{\n"
+    result = result + json_pair("status", "ok", true)
+    result = result + json_pair("subcommand", subcommand, true)
+    if file != "":
+        result = result + json_pair("file", file, true)
+    return result

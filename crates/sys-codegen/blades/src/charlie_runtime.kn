@@ -600,20 +600,24 @@ fn catalog_debug() -> Array<CatalogEntry>:
 
 fn assemble_full_catalog() -> Array<CatalogEntry>:
     var cat: Array<CatalogEntry> = []
-    append_entries(cat, catalog_runtime_bridge())
-    append_entries(cat, catalog_machine_stones())
-    append_entries(cat, catalog_world_patch_law())
-    append_entries(cat, catalog_targets_abi())
-    append_entries(cat, catalog_strings())
-    append_entries(cat, catalog_map_hash())
-    append_entries(cat, catalog_python_bridge())
-    append_entries(cat, catalog_symbols())
-    append_entries(cat, catalog_debug())
+    cat = append_entries(cat, catalog_runtime_bridge())
+    cat = append_entries(cat, catalog_machine_stones())
+    cat = append_entries(cat, catalog_world_patch_law())
+    cat = append_entries(cat, catalog_targets_abi())
+    cat = append_entries(cat, catalog_strings())
+    cat = append_entries(cat, catalog_map_hash())
+    cat = append_entries(cat, catalog_python_bridge())
+    cat = append_entries(cat, catalog_symbols())
+    cat = append_entries(cat, catalog_debug())
     return cat
 
-fn append_entries(target: Array<CatalogEntry>, source: Array<CatalogEntry>):
-    for entry in source:
+fn append_entries(target: Array<CatalogEntry>, source: Array<CatalogEntry>) -> Array<CatalogEntry>:
+    var _i = 0
+    while _i < len(source):
+        let entry = source[_i]
         push(target, entry)
+        _i = _i + 1
+    return target
 
 // ============================================================================
 //  INVARIANT DEFINITIONS
@@ -962,20 +966,24 @@ fn define_symbol_debug_invariants() -> Array<Invariant>:
 
 fn assemble_all_invariants() -> Array<Invariant>:
     var all: Array<Invariant> = []
-    append_invariants(all, define_pulse_invariants())
-    append_invariants(all, define_axiom_invariants())
-    append_invariants(all, define_converge_invariants())
-    append_invariants(all, define_hash_invariants())
-    append_invariants(all, define_target_abi_invariants())
-    append_invariants(all, define_string_invariants())
-    append_invariants(all, define_runtime_symbol_invariants())
-    append_invariants(all, define_python_bridge_invariants())
-    append_invariants(all, define_symbol_debug_invariants())
+    all = append_invariants(all, define_pulse_invariants())
+    all = append_invariants(all, define_axiom_invariants())
+    all = append_invariants(all, define_converge_invariants())
+    all = append_invariants(all, define_hash_invariants())
+    all = append_invariants(all, define_target_abi_invariants())
+    all = append_invariants(all, define_string_invariants())
+    all = append_invariants(all, define_runtime_symbol_invariants())
+    all = append_invariants(all, define_python_bridge_invariants())
+    all = append_invariants(all, define_symbol_debug_invariants())
     return all
 
-fn append_invariants(target: Array<Invariant>, source: Array<Invariant>):
-    for inv in source:
+fn append_invariants(target: Array<Invariant>, source: Array<Invariant>) -> Array<Invariant>:
+    var _i = 0
+    while _i < len(source):
+        let inv = source[_i]
         push(target, inv)
+        _i = _i + 1
+    return target
 
 // ============================================================================
 //  Z3 PROOF PACK GENERATION
@@ -992,7 +1000,9 @@ fn generate_proof_packs(invariants: Array<Invariant>, source_functions: Array<St
         if i > 0: joined_sources = joined_sources + ", "
         joined_sources = joined_sources + source_functions[i]
         i = i + 1
-    for inv in invariants:
+    var _i = 0
+    while _i < len(invariants):
+        let inv = invariants[_i]
         var pack = ProofPackSkeleton {
             pack_id: build_pack_id("charlie", inv.name),
             kind: "check_smt2",
@@ -1005,6 +1015,7 @@ fn generate_proof_packs(invariants: Array<Invariant>, source_functions: Array<St
             needs_materialize: true,
         }
         push(packs, pack)
+        _i = _i + 1
     return packs
 
 // ============================================================================
@@ -1025,11 +1036,14 @@ fn verify_functions(functions: Array<FunctionMeta>, invariants: Array<Invariant>
 
     var proven = 0
     var failed = 0
-    for inv in invariants:
+    var _i = 0
+    while _i < len(invariants):
+        let inv = invariants[_i]
         if inv.is_proven:
             proven = proven + 1
         else:
             failed = failed + 1
+        _i = _i + 1
 
     report.invariants_proven = proven
     report.invariants_failed = failed
@@ -1060,9 +1074,12 @@ fn category_for_domain(domain: String) -> String:
 
 fn filter_invariants_by_category(invariants: Array<Invariant>, category: String) -> Array<Invariant>:
     var result: Array<Invariant> = []
-    for inv in invariants:
+    var _i = 0
+    while _i < len(invariants):
+        let inv = invariants[_i]
         if inv.category == category:
             push(result, inv)
+        _i = _i + 1
     return result
 
 // ============================================================================
@@ -1071,12 +1088,16 @@ fn filter_invariants_by_category(invariants: Array<Invariant>, category: String)
 
 fn build_categories(functions: Array<FunctionMeta>, invariants: Array<Invariant>) -> Array<Category>:
     var categories: Array<Category> = []
-    for func in functions:
+    var _fi = 0
+    while _fi < len(functions):
+        let func = functions[_fi]
         var cat_str = category_for_domain(func.domain)
         var domain_invs = filter_invariants_by_category(invariants, cat_str)
 
         var packs: Array<ProofPackSkeleton> = []
-        for inv in domain_invs:
+        var _ii = 0
+        while _ii < len(domain_invs):
+            let inv = domain_invs[_ii]
             var pack = ProofPackSkeleton {
                 pack_id: build_pack_id(func.domain, inv.name),
                 kind: "check_smt2",
@@ -1089,6 +1110,7 @@ fn build_categories(functions: Array<FunctionMeta>, invariants: Array<Invariant>
                 needs_materialize: true,
             }
             push(packs, pack)
+            _ii = _ii + 1
 
         var cat = Category {
             name: func.domain,
@@ -1099,6 +1121,7 @@ fn build_categories(functions: Array<FunctionMeta>, invariants: Array<Invariant>
             proof_packs: packs,
         }
         push(categories, cat)
+        _fi = _fi + 1
 
     return categories
 
@@ -1112,8 +1135,11 @@ fn materialize_proof_pack(pack: ProofPackSkeleton) -> String:
     yaml = yaml + "kind: " + pack.kind + "\n"
     yaml = yaml + "description: " + pack.description + "\n"
     yaml = yaml + "tags:\n"
-    for tag in pack.tags:
+    var _ti = 0
+    while _ti < len(pack.tags):
+        let tag = pack.tags[_ti]
         yaml = yaml + "  - " + tag + "\n"
+        _ti = _ti + 1
     yaml = yaml + "source:\n"
     yaml = yaml + "  path: " + pack.source_path + "\n"
     yaml = yaml + "  symbol: " + pack.source_symbol + "\n"
@@ -1140,16 +1166,22 @@ fn format_full_report(context: CharlieContext) -> String:
     s = s + "Categories: " + str(len(context.categories)) + "\n"
     s = s + "\n"
 
-    for cat in context.categories:
+    var _ci = 0
+    while _ci < len(context.categories):
+        let cat = context.categories[_ci]
         s = s + "  [" + cat.domain + "] " + cat.name + "\n"
         s = s + "    Functions: " + str(len(cat.functions)) + "\n"
         s = s + "    Invariants: " + str(len(cat.invariants)) + "\n"
         s = s + "    Proof packs: " + str(len(cat.proof_packs)) + "\n"
         var prov = 0
-        for inv in cat.invariants:
+        var _ji = 0
+        while _ji < len(cat.invariants):
+            let inv = cat.invariants[_ji]
             if inv.is_proven:
                 prov = prov + 1
+            _ji = _ji + 1
         s = s + "    Proven: " + str(prov) + "/" + str(len(cat.invariants)) + "\n"
+        _ci = _ci + 1
 
     s = s + "\n--- Invariant Summary ---\n"
     s = s + "Total invariants: " + str(context.total_invariants) + "\n"
@@ -1163,13 +1195,19 @@ fn format_full_report(context: CharlieContext) -> String:
 
     if len(context.report.errors) > 0:
         s = s + "\n--- ERRORS ---\n"
-        for err in context.report.errors:
+        var _ei = 0
+        while _ei < len(context.report.errors):
+            let err = context.report.errors[_ei]
             s = s + "  " + err + "\n"
+            _ei = _ei + 1
 
     if len(context.report.warnings) > 0:
         s = s + "\n--- WARNINGS ---\n"
-        for warn in context.report.warnings:
+        var _wi = 0
+        while _wi < len(context.report.warnings):
+            let warn = context.report.warnings[_wi]
             s = s + "  " + warn + "\n"
+            _wi = _wi + 1
 
     s = s + "\n=== END REPORT ===\n"
     return s
@@ -1180,7 +1218,9 @@ fn format_full_report(context: CharlieContext) -> String:
 
 fn catalog_to_function_meta(catalog: Array<CatalogEntry>) -> Array<FunctionMeta>:
     var functions: Array<FunctionMeta> = []
-    for entry in catalog:
+    var _i = 0
+    while _i < len(catalog):
+        let entry = catalog[_i]
         var meta = FunctionMeta {
             name: entry.name,
             line_start: entry.line_start,
@@ -1195,6 +1235,7 @@ fn catalog_to_function_meta(catalog: Array<CatalogEntry>) -> Array<FunctionMeta>
             domain: entry.domain,
         }
         push(functions, meta)
+        _i = _i + 1
     return functions
 
 // ============================================================================
@@ -1219,21 +1260,29 @@ pub fn run_charlie(target: ExtractionTarget) -> VerificationReport:
 
     // 5. Generate proof packs
     var all_proof_packs: Array<ProofPackSkeleton> = []
-    for cat in categories:
-        for pack in cat.proof_packs:
+    var _ci = 0
+    while _ci < len(categories):
+        let cat = categories[_ci]
+        var _pi = 0
+        while _pi < len(cat.proof_packs):
+            let pack = cat.proof_packs[_pi]
             push(all_proof_packs, pack)
+            _pi = _pi + 1
+        _ci = _ci + 1
 
-    // 6. Compute report stats
     var report = empty_report("charlie-runtime", "aggregate")
     report.invariants_found = len(invariants)
 
     var proven = 0
     var failed = 0
-    for inv in invariants:
+    var _ii = 0
+    while _ii < len(invariants):
+        let inv = invariants[_ii]
         if inv.is_proven:
             proven = proven + 1
         else:
             failed = failed + 1
+        _ii = _ii + 1
     report.invariants_proven = proven
     report.invariants_failed = failed
     report.proof_packs_generated = len(all_proof_packs)
@@ -1249,7 +1298,7 @@ pub fn run_charlie(target: ExtractionTarget) -> VerificationReport:
     }
 
     // 8. Print report
-    print(format_full_report(ctx))
+    println(format_full_report(ctx))
 
     return report
 
@@ -1267,9 +1316,12 @@ pub fn run_charlie_quiet(target: ExtractionTarget) -> VerificationReport:
     report.proof_packs_generated = len(invariants)
 
     var proven = 0
-    for inv in invariants:
+    var _ii2 = 0
+    while _ii2 < len(invariants):
+        let inv = invariants[_ii2]
         if inv.is_proven:
             proven = proven + 1
+        _ii2 = _ii2 + 1
     report.invariants_proven = proven
     report.invariants_failed = len(invariants) - proven
 
@@ -1283,13 +1335,19 @@ pub fn export_proof_packs(target: ExtractionTarget) -> Array<String>:
     let invariants = assemble_all_invariants()
     let catalog = assemble_full_catalog()
     var source_names: Array<String> = []
-    for entry in catalog:
+    var _ei = 0
+    while _ei < len(catalog):
+        let entry = catalog[_ei]
         push(source_names, entry.name)
+        _ei = _ei + 1
 
     let packs = generate_proof_packs(invariants, source_names)
     var yamls: Array<String> = []
-    for pack in packs:
+    var _pi2 = 0
+    while _pi2 < len(packs):
+        let pack = packs[_pi2]
         push(yamls, materialize_proof_pack(pack))
+        _pi2 = _pi2 + 1
     return yamls
 
 // ============================================================================
@@ -1310,25 +1368,4 @@ pub fn get_catalog_summary() -> String:
     s = s + "  Debug Metadata:    " + str(len(catalog_debug())) + "\n"
     return s
 
-// ============================================================================
-//  MAIN — standalone execution entry point for the Charlie lane
-// ============================================================================
 
-pub fn charlie_main() -> Int:
-    print("=== CHARLIE LANE: Runtime Bridge, Machine Stones & Specials ===\n")
-    print(get_catalog_summary())
-    print("")
-
-    var target = default_target()
-    var report = run_charlie(target)
-
-    print("")
-    print("[CHARLIE] Proof packs ready: " + str(report.proof_packs_generated))
-    print("[CHARLIE] Invariants proven:  " + str(report.invariants_proven))
-    print("[CHARLIE] Invariants unproven: " + str(report.invariants_failed))
-
-    if report.invariants_failed > 0:
-        print("[CHARLIE] NOTE: Invariants marked as unproven are waiting for Z3 solver validation.")
-        print("[CHARLIE] Run 'z3 prove' on generated proof packs in " + PROOF_DIR)
-
-    return 0

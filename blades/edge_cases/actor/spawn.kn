@@ -1,0 +1,286 @@
+// ============================================================================
+//  SPAWN.KN — DEBUG TEMPLATE CLONER
+//
+//  Copies the entire debug template to a new location with a custom name.
+//  Run this from within the template directory to clone it elsewhere.
+//
+//  USAGE:
+//    kain run spawn.kn                           # clone to .\my-debug-session\
+//    kain run spawn.kn -- --name ownership-bug   # clone to .\ownership-bug\
+//    kain run spawn.kn -- --output C:\work\      # clone to C:\work\debug-template\
+//    kain run spawn.kn -- --name my-bug --output D:\temp\  # D:\temp\my-bug\
+//    kain run spawn.kn -- --help                 # show help
+//
+//  FLAGS:
+//    --name <name>     Folder name for the clone (default: "debug-template")
+//    --output <path>   Parent directory for the clone (default: current dir)
+//    --source <path>   Template source directory (default: current dir)
+//    --help / -h       Show usage
+// ============================================================================
+
+use std::fs
+use std::path
+use std::process
+use std::runtime
+use std::text
+
+// ===========================================================================
+//  FILE LISTS — returned by functions for const-correctness
+// ===========================================================================
+
+fn template_root_files() -> Array<String>:
+    var files: Array<String> = []
+    push(files, "build.kn")
+    push(files, "readme.md")
+    push(files, "spawn.kn")
+    return files
+
+fn template_src_files() -> Array<String>:
+    var files: Array<String> = []
+    push(files, "main.kn")
+    push(files, "diagnostics.kn")
+    push(files, "cause.kn")
+    push(files, "effect.kn")
+    push(files, "spookymagic.kn")
+    push(files, "vm.kn")
+    return files
+
+// ===========================================================================
+//  HELP TEXT
+// ===========================================================================
+
+fn print_help():
+    println("SPAWN.KN — Debug Template Cloner")
+    println("")
+    println("Copies the entire debug template to a new location with a custom name.")
+    println("")
+    println("USAGE:")
+    println("  kain run spawn.kn                                Default: ./debug-template/")
+    println("  kain run spawn.kn -- --name ownership-bug        Clone to ./ownership-bug/")
+    println("  kain run spawn.kn -- --output C:\\work\\          Clone to C:\\work\\debug-template\\")
+    println("  kain run spawn.kn -- --name my-bug --output D:\\temp\\")
+    println("")
+    println("FLAGS:")
+    println("  --name <name>     Folder name (default: debug-template)")
+    println("  --output <path>   Parent directory (default: .)")
+    println("  --source <path>   Template source dir (default: current dir)")
+    println("  --help / -h       Show this help")
+    println("")
+    println("WHAT GETS COPIED:")
+    println("  build.kn           Build authority + project config")
+    println("  readme.md          Full documentation + smoketest reference")
+    println("  spawn.kn           This cloner script (self-replicating)")
+    println("  src/main.kn         CLI entry point")
+    println("  src/diagnostics.kn  Orchestrator — imports all modules")
+    println("  src/cause.kn        PRIMARY test file — write code here")
+    println("  src/effect.kn       Downstream effect modeling")
+    println("  src/spookymagic.kn  Black-box / spooky-magic behaviors")
+    println("  src/vm.kn           Isolated process VM wrapper")
+
+// ===========================================================================
+//  SANITIZE — replace backslashes with forward, strip \\?\ prefix
+// ===========================================================================
+
+fn sanitize_path(s: String) -> String:
+    var r = text_replace_string(s, "/", "\\")
+    if text_starts_with_string(r, "\\\\?\\"):
+        r = substring(r, 4, len(r))
+    while len(r) > 0 and text_ends_with_string(r, "\\"):
+        r = substring(r, 0, len(r) - 1)
+    return r
+
+// ===========================================================================
+//  PARSE CLI FLAGS
+// ===========================================================================
+
+struct SpawnFlags:
+    name:   String
+    output: String
+    source: String
+    help:   Bool
+
+fn parse_flags(args: Array<String>) -> SpawnFlags:
+    var flags = SpawnFlags {
+        name: "debug-template",
+        output: "",
+        source: "",
+        help: false
+    }
+
+    var i: Int = 0
+    while i < len(args):
+        let arg = args[i]
+
+        if arg == "--name":
+            i = i + 1
+            if i < len(args):
+                flags.name = args[i]
+        elif arg == "--output":
+            i = i + 1
+            if i < len(args):
+                flags.output = args[i]
+        elif arg == "--source":
+            i = i + 1
+            if i < len(args):
+                flags.source = args[i]
+        elif arg == "--help" or arg == "-h":
+            flags.help = true
+
+        i = i + 1
+
+    return flags
+
+// ===========================================================================
+//  RESOLVE PATH — normalize and default
+// ===========================================================================
+
+fn resolve_output_root(flags: SpawnFlags) -> String:
+    if flags.output == "":
+        return sanitize_path(process_current_working_directory())
+    return sanitize_path(flags.output)
+
+fn resolve_source_root(flags: SpawnFlags) -> String:
+    if flags.source == "":
+        return sanitize_path(process_current_working_directory())
+    return sanitize_path(flags.source)
+
+// ===========================================================================
+//  COPY A SINGLE FILE — read text, write to destination
+// ===========================================================================
+
+fn copy_text_file(src_dir: String, dest_dir: String, rel_path: String) -> Bool:
+    let src = fs_path_join(src_dir, rel_path)
+    let dest = fs_path_join(dest_dir, rel_path)
+
+    if fs_exists(src) == false:
+        println("  SKIP (not found): " + rel_path)
+        return false
+
+    let content = fs_read_text(src)
+    fs_write_text(dest, content)
+    return true
+
+// ===========================================================================
+//  ENSURE DIRECTORY EXISTS
+// ===========================================================================
+
+fn ensure_dir(path: String):
+    if fs_exists(path) == false:
+        fs_create_dir_all(path)
+
+// ===========================================================================
+//  MAIN OPERATION — clone the template
+// ===========================================================================
+
+fn clone_template(source_root: String, output_root: String, name: String) -> Int:
+    let dest_root = fs_path_join(output_root, name)
+
+    println("")
+    println("═══ SPAWN: DEBUG TEMPLATE CLONER ═══")
+    println("  Source:   " + source_root)
+    println("  Output:   " + output_root)
+    println("  Name:     " + name)
+    println("  Target:   " + dest_root)
+    println("")
+
+    // Check source exists
+    let src_build = fs_path_join(source_root, "build.kn")
+    if fs_exists(src_build) == false:
+        println("ERROR: Template source not found at " + source_root)
+        println("       Expected build.kn at " + src_build)
+        println("       Run from inside the debug template directory, or use --source <path>")
+        return 1
+
+    // Check destination doesn't already exist
+    if fs_exists(dest_root):
+        println("ERROR: Destination already exists: " + dest_root)
+        println("       Remove it first or choose a different --name")
+        return 1
+
+    // Create destination directories
+    let dest_src = fs_path_join(dest_root, "src")
+    ensure_dir(dest_src)
+
+    // --- Copy root-level files ---
+    println("─── Root files ───")
+    let root_files = template_root_files()
+    var fi: Int = 0
+    var copied: Int = 0
+    while fi < len(root_files):
+        let file = root_files[fi]
+        if copy_text_file(source_root, dest_root, file):
+            println("  COPY  " + file)
+            copied = copied + 1
+        fi = fi + 1
+
+    // --- Copy src/ files ---
+    println("─── Source files ───")
+    let src_files = template_src_files()
+    var si: Int = 0
+    while si < len(src_files):
+        let file = src_files[si]
+        let rel = "src\\" + file
+        if copy_text_file(source_root, dest_root, rel):
+            println("  COPY  src\\" + file)
+            copied = copied + 1
+        si = si + 1
+
+    // --- Summary ---
+    println("")
+    println("═══ SPAWN COMPLETE ═══")
+    println("  Files copied: " + str(copied))
+    println("  Target:       " + dest_root)
+    println("")
+    println("  Next steps:")
+    println("    cd " + name)
+    println("    kain check src\\")
+    println("    kain run")
+    println("")
+
+    return 0
+
+// ===========================================================================
+//  MAIN
+// ===========================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        println("ERROR: runtime_init failed with code " + str(init))
+        return 100 + init
+
+    // Use process_args() directly — process_user_args() has an interpret-mode
+    // bug in process_args_include_executable().  The raw argv is always:
+    //   [0]=kain.exe  [1]="run"  [2]=script  [3]="--"  [4...]=user args
+    let raw_args = process_args()
+    var user_args: Array<String> = []
+    var ai: Int = 0
+    var found_sep: Bool = false
+    while ai < len(raw_args):
+        let arg = raw_args[ai]
+        if arg == "--":
+            found_sep = true
+        elif found_sep:
+            push(user_args, arg)
+        ai = ai + 1
+
+    // No args → default clone to ./debug-template/
+    if len(user_args) == 0:
+        let cwd = sanitize_path(process_current_working_directory())
+        let exit_code = clone_template(cwd, cwd, "debug-template")
+        let _ = runtime_shutdown()
+        return exit_code
+
+    let flags = parse_flags(user_args)
+
+    if flags.help:
+        print_help()
+        return 0
+
+    let source_root = resolve_source_root(flags)
+    let output_root = resolve_output_root(flags)
+
+    let exit_code = clone_template(source_root, output_root, flags.name)
+
+    let _ = runtime_shutdown()
+    return exit_code

@@ -238,8 +238,11 @@ fn concat_all() -> Array<String>:
     return result
 
 fn extend(dest: Array<String>, src: Array<String>) -> Array<String>:
-    for item in src:
+    var _i = 0
+    while _i < len(src):
+        let item = src[_i]
         push(dest, item)
+        _i = _i + 1
     return dest
 
 // ============================================================================
@@ -281,8 +284,11 @@ fn parse_params(param_str: String) -> Array<ParamMeta>:
     if param_str == "": return result
     // Split on commas, but respect generics nesting with <>
     var parts = split_respecting_brackets(param_str, ",")
-    for part in parts:
+    var _pi = 0
+    while _pi < len(parts):
+        let part = parts[_pi]
         let trimmed = my_trim(part)
+        _pi = _pi + 1
         if trimmed == "": continue
         let is_self = trimmed == "&self" or trimmed == "&mut self" or trimmed == "self"
         let param_name = extract_param_name(trimmed)
@@ -395,8 +401,11 @@ fn category_for_fn(name: String) -> String:
     return "unknown"
 
 fn arr_contains(arr: Array<String>, target: String) -> Bool:
-    for item in arr:
+    var _i = 0
+    while _i < len(arr):
+        let item = arr[_i]
         if item == target: return true
+        _i = _i + 1
     return false
 
 // Parse a single Rust source file to extract function metadata
@@ -1191,16 +1200,21 @@ fn sanitize_id(name: String) -> String:
 fn check_coverage(found: Array<FunctionMeta>) -> (Int, Int, Array<String>):
     var matched = 0
     var missing: Array<String> = []
-    for expected in ALL_ALPHA_FUNCTIONS:
+    var _ei = 0
+    while _ei < len(ALL_ALPHA_FUNCTIONS):
+        let expected = ALL_ALPHA_FUNCTIONS[_ei]
         var found_it = false
-        for meta in found:
+        var _fi = 0
+        while _fi < len(found):
+            let meta = found[_fi]
             if meta.name == expected:
                 found_it = true
-                break
+            _fi = _fi + 1
         if found_it:
             matched = matched + 1
         else:
             push(missing, expected)
+        _ei = _ei + 1
     return (matched, len(ALL_ALPHA_FUNCTIONS), missing)
 
 
@@ -1240,11 +1254,12 @@ pub fn run_alpha(target: ExtractionTarget) -> VerificationReport:
     // ---- 3. Filter to domain-relevant functions ----------------------------
 
     var domain_fns: Array<FunctionMeta> = []
-    for fn_meta in all_fns:
+    var _ai = 0
+    while _ai < len(all_fns):
+        let fn_meta = all_fns[_ai]
         if arr_contains(ALL_ALPHA_FUNCTIONS, fn_meta.name):
             push(domain_fns, fn_meta)
-
-    // ---- 4. Build invariants for each function -----------------------------
+        _ai = _ai + 1
 
     var total_invariants = 0
     var total_proven = 0
@@ -1253,25 +1268,36 @@ pub fn run_alpha(target: ExtractionTarget) -> VerificationReport:
     var errors: Array<String> = []
     var warnings: Array<String> = []
 
-    for fn_meta in domain_fns:
+    var _di = 0
+    while _di < len(domain_fns):
+        let fn_meta = domain_fns[_di]
         let invariants = build_invariants_for_fn(fn_meta)
-        for inv in invariants:
+        var _ini = 0
+        while _ini < len(invariants):
+            let inv = invariants[_ini]
             total_invariants = total_invariants + 1
+            _ini = _ini + 1
+        _di = _di + 1
 
     // ---- 5. Check coverage against expected catalog ------------------------
 
     let (matched, expected_total, missing) = check_coverage(domain_fns)
     if matched < expected_total:
-        for m_fn in missing:
+        var _mi = 0
+        while _mi < len(missing):
+            let m_fn = missing[_mi]
             push(warnings, "Missing function: " + m_fn + " (not found in source)")
+            _mi = _mi + 1
         total_failed = total_failed + (expected_total - matched)
 
-    // ---- 6. Generate proof pack skeletons ----------------------------------
-
     var output_dir = "z3/proofs/generated/alpha/"
-    for fn_meta in domain_fns:
+    var _d2 = 0
+    while _d2 < len(domain_fns):
+        let fn_meta = domain_fns[_d2]
         let invariants = build_invariants_for_fn(fn_meta)
-        for inv in invariants:
+        var _i2 = 0
+        while _i2 < len(invariants):
+            let inv = invariants[_i2]
             let pack = make_proof_pack(
                 inv,
                 target.source_path,
@@ -1280,6 +1306,8 @@ pub fn run_alpha(target: ExtractionTarget) -> VerificationReport:
                 true,
             )
             total_packs = total_packs + 1
+            _i2 = _i2 + 1
+        _d2 = _d2 + 1
 
     // ---- 7. Build report ---------------------------------------------------
 
@@ -1325,14 +1353,20 @@ pub fn check_alpha(source_path: String) -> Int:
 
     if len(report.errors) > 0:
         println("  ERRORS:")
-        for err in report.errors:
+        var _ei = 0
+        while _ei < len(report.errors):
+            let err = report.errors[_ei]
             println("    - " + err)
+            _ei = _ei + 1
         println("")
 
     if len(report.warnings) > 0:
         println("  WARNINGS:")
-        for warn in report.warnings:
+        var _wi = 0
+        while _wi < len(report.warnings):
+            let warn = report.warnings[_wi]
             println("    - " + warn)
+            _wi = _wi + 1
         println("")
 
     println("  Report: " + format_report(report))

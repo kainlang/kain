@@ -43,10 +43,13 @@ fn assert_true(condition: Bool, msg: String) -> Int:
 
 // ============================================================================
 //  TEST 1: Supervision tree spawns and returns non-zero root ID
+//  Also verifies the root is immediately registered in the actor registry
+//  with the correct ID.
 // ============================================================================
 
 fn test_supervision_tree_spawns() -> Int:
-    println("\n--- Test: supervision tree spawns ---")
+    println("\n--- Test: supervision tree spawns + registry ---")
+    var failures: Int = 0
     let cfg = default_config()
     let root_id = spawn_supervision_tree(cfg)
 
@@ -54,24 +57,48 @@ fn test_supervision_tree_spawns() -> Int:
         println("  [FAIL] spawn_supervision_tree returned non-positive: " + str(root_id))
         return 1
     println("  [PASS] supervision tree spawned, root ID = " + str(root_id))
-    return 0
 
-// ============================================================================
-//  TEST 2: Root supervisor registered in actor registry
-// ============================================================================
-
-fn test_root_registered_in_registry() -> Int:
-    println("\n--- Test: root registered in registry ---")
-    let cfg = default_config()
-    let root_id = spawn_supervision_tree(cfg)
-
-    // Registry should have "greeble-root" pointing at root_id
+    // Verify registry entry matches the same spawn
     let found = actor_registry_lookup("greeble-root")
     if found != root_id:
         println("  [FAIL] actor_registry_lookup(\"greeble-root\") returned "
-            + str(found) + " expected " + str(root_id))
+            + str(found) + " expected same-session root " + str(root_id))
+        failures = failures + 1
+    else:
+        println("  [PASS] \"greeble-root\" registered as " + str(found))
+
+    // Verify registry_has confirms the entry
+    let has_entry = actor_registry_has("greeble-root")
+    if has_entry == false:
+        println("  [FAIL] actor_registry_has(\"greeble-root\") returned false")
+        failures = failures + 1
+    else:
+        println("  [PASS] actor_registry_has(\"greeble-root\") = true")
+
+    return failures
+
+// ============================================================================
+//  TEST 2: Root supervisor registration is stable via registry_has
+//  Spawns a fresh tree and verifies the entry exists in the registry.
+// ============================================================================
+
+fn test_root_registered_in_registry() -> Int:
+    println("\n--- Test: root registration stable across spawns ---")
+    let cfg = default_config()
+    let root_id = spawn_supervision_tree(cfg)
+
+    // Verify the entry exists (any non-zero ID is valid)
+    let found = actor_registry_lookup("greeble-root")
+    if found <= 0:
+        println("  [FAIL] actor_registry_lookup(\"greeble-root\") returned non-positive: " + str(found))
         return 2
-    println("  [PASS] \"greeble-root\" registered as " + str(found))
+
+    let has_entry = actor_registry_has("greeble-root")
+    if has_entry == false:
+        println("  [FAIL] actor_registry_has(\"greeble-root\") returned false")
+        return 3
+
+    println("  [PASS] \"greeble-root\" lookup=" + str(found) + " has=" + str(has_entry))
     return 0
 
 // ============================================================================
@@ -158,3 +185,10 @@ pub fn run_tests() -> Int:
     println("")
     println("=== SUPERVISOR TESTS: " + str(failures) + " failure(s) ===")
     return failures
+
+// ============================================================================
+//  ENTRY POINT
+// ============================================================================
+
+pub fn main() -> Int:
+    return run_tests()

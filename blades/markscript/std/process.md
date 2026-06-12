@@ -1,126 +1,216 @@
-# Process
+# Process Lifecycle
 
-Markscript process management — spawn commands, capture output, handle exit codes.
-Dispatches through the IVT to Kain's `std::process` bridge.
-
----
-
-## run
-
-Execute a command synchronously and capture its output.
-
-> run "echo hello world"
-
-```markscript
-# Run a command and capture stdout
-push("echo hello world")
-call("run")
-# Result is the command's stdout on the stack
-```
+Full process lifecycle management through MarkScript intents.
+Covers spawn, await, kill, exit codes, and captured I/O.
+Dispatcher through GAMMA-owned IVT handlers (51-59).
 
 ---
 
-## spawn
+## spawn tracked
 
-Launch a command asynchronously (non-blocking). Returns immediately.
+Launch a command and track it in the VM's process table.
+Returns a process index (0-based) for use with await, kill, exitcode, stdout, stderr.
 
-> spawn "long_running_server --port 8080"
+> spawn "cargo build --release"
 
 ```markscript
-# Start a background process
-push("long_running_server --port 8080")
-call("spawn")
-# Returns immediately with process handle info
+# Spawn a tracked build
+push("cargo build --release")
+call("spawn tracked")
+# Returns process index on stack (0, 1, 2, ...)
 ```
+
+**Handler:** FN_PROCESS_SPAWN_TRACKED (51)
 
 ---
 
-## exec
+## await
 
-Execute a command with arguments. Equivalent to run with arguments joined.
+Wait for a tracked process to complete.
+Captures exit code, stdout, and stderr into the ProcessRecord.
 
-> run "git status --short"
+> await 0
 
 ```markscript
-# Run a git command
-push("git status --short")
-call("run")
+# Wait for process 0
+push(0)
+call("await")
+# Returns 1 on success, 0 on timeout
 ```
+
+**Handler:** FN_PROCESS_AWAIT (52)
+**Timeout:** 30 seconds
+
+---
+
+## kill
+
+Terminate a running process.
+
+> kill 0
+
+```markscript
+# Kill process 0
+push(0)
+call("kill")
+# Returns 1 if killed, 0 if already exited
+```
+
+**Handler:** FN_PROCESS_KILL_PID (53)
+
+---
+
+## exitcode
+
+Query the exit code of a completed process.
+
+> exitcode 0
+
+```markscript
+# Get exit code of process 0
+push(0)
+call("exitcode")
+# Returns exit code integer
+```
+
+**Handler:** FN_PROCESS_EXIT_CODE_PID (54)
+
+---
+
+## stdout (by PID)
+
+Retrieve captured stdout from a tracked process.
+
+> stdout 0
+
+```markscript
+# Get stdout of process 0
+push(0)
+call("stdout")
+# Returns captured stdout as string
+```
+
+**Handler:** FN_PROCESS_STDOUT_PID (55)
+
+---
+
+## stderr (by PID)
+
+Retrieve captured stderr from a tracked process.
+
+> stderr 0
+
+```markscript
+# Get stderr of process 0
+push(0)
+call("stderr")
+# Returns captured stderr as string
+```
+
+**Handler:** FN_PROCESS_STDERR_PID (56)
 
 ---
 
 ## pipe
 
-Chain two commands together. The output of the first feeds the input of the second.
+Chain two commands — stdout of first feeds stdin of second.
 
-> run "cat data.txt | grep error | wc -l"
+> pipe "cargo check 2>&1" "|" "grep error"
 
 ```markscript
-# Pipe commands through the shell
-push("cat data.txt | grep error | wc -l")
-call("run")
+# Pipe cargo check output through grep
+push("cargo check 2>&1 | grep error")
+call("pipe")
+# Returns filtered output
 ```
+
+**Handler:** FN_PROCESS_PIPE (57)
 
 ---
 
 ## env
 
-Run a command with environment variables set.
+Run a command with environment variables.
 
-> run "set FOO=bar && my_command"
+> env RUST_BACKTRACE=1 run "cargo test"
 
 ```markscript
-# Set env var and run command (Windows syntax)
-push("set MARKS=1 && my_command.exe")
-call("run")
+# Run cargo test with backtrace enabled
+push("RUST_BACKTRACE=1")
+push("cargo test")
+call("env")
 ```
+
+**Handler:** FN_PROCESS_ENV (58)
 
 ---
 
-## timeout
+## cwd
 
-Run a command with a timeout. Kills the process if it exceeds the limit.
+Run a command from a specific working directory.
 
-> run "timeout 5 slow_command"
+> cwd "/path/to/project" run "cargo build"
 
 ```markscript
-# Run with a 5-second timeout (platform-dependent)
-push("timeout 5 slow_command.exe")
-call("run")
+# Build from a specific directory
+push("/path/to/project")
+push("cargo build")
+call("cwd")
 ```
+
+**Handler:** FN_PROCESS_CWD (59)
 
 ---
 
-## exit_code
+## Classic handlers (backward compatible)
 
-Run a command and check its exit code.
+### run
 
-> run "test_runner --suite integration"
-> assert exit_code 0
+Execute synchronously, capture stdout. Single fire-and-forget.
+
+> run "echo hello"
 
 ```markscript
-# Run a test suite and check it passed
-push("test_runner --suite integration")
+push("echo hello")
 call("run")
-# Exit code 0 means success
+# Returns captured stdout
 ```
+
+**Handler:** FN_PROCESS_OUTPUT (4)
+
+### spawn (basic)
+
+Launch asynchronously without PID tracking. Returns immediately.
+
+> spawn "server --port 8080"
+
+```markscript
+push("server --port 8080")
+call("spawn")
+```
+
+**Handler:** FN_PROCESS_SPAWN (5)
 
 ---
 
-## parallel
+## Example: Full Build with Lifecycle
 
-Run multiple commands in parallel using spawn for each.
+```markdown
+# CI Pipeline
 
-> spawn "server_a --port 8001"
-> spawn "server_b --port 8002"
-> spawn "worker --queue default"
+## Build Stage
+> spawn "cargo build --release"
+> await 0
+> exitcode 0
+> assert 0 0
 
-```markscript
-# Launch three services in parallel
-push("server_a --port 8001")
-call("spawn")
-push("server_b --port 8002")
-call("spawn")
-push("worker --queue default")
-call("spawn")
+## Test Stage
+> spawn "cargo test"
+> await 1
+> exitcode 1
+> assert 0 0
+
+## Deploy (only if all passed)
+> print "All stages passed — deploying..."
+> run "scp target/release/myapp server:/opt/"
 ```

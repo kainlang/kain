@@ -1,0 +1,409 @@
+// ============================================================================
+//  MARKSCRIPT LAYERED CONFIG (DELTA)
+//
+//  Supports environment-specific config overrides by merging multiple
+//  markscript files. Base config + overlay files for dev/prod/local.
+//
+//  Usage:
+//    mks run base.md prod.md    # prod overrides base
+//    mks run base.md dev.md     # dev overrides base
+//
+//  Merge rules:
+//    - Same-name tables: overlay rows APPEND to base (unless @replace)
+//    - Same-name routines: overlay REPLACES base
+//    - Same-name domains: MERGED (routines from both)
+//    - @replace annotation: overlay table REPLACES base table entirely
+//
+//  Ladder rung: Layer 0 (fn) — table merging is a pure data operation.
+// ============================================================================
+
+use std::text
+use std::fs
+
+use types       // MatrixRecord, MarkValue, MARK_INT, MARK_FLOAT, MARK_STRING
+use lexer       // create_lexer
+use parser      // compile_source, hash_name
+use vm          // MarkScriptVM, init_vm, execute_bytecode
+
+// ===========================================================================
+//  LAYERED CONFIG RESULT
+// ===========================================================================
+
+pub struct LayeredConfig:
+    source:   String      // merged source string
+    tables:   Array<MatrixRecord>
+    warnings: Array<String>
+
+// ===========================================================================
+//  LOAD LAYERED CONFIG
+// ===========================================================================
+
+/// Load a stack of config files. First file is the base; subsequent files
+/// are overlays that override/append.
+pub fn load_layered(paths: Array<String>) -> LayeredConfig:
+    if len(paths) == 0:
+        return LayeredConfig { source: "", tables: [], warnings: [] }
+
+    // Load and parse the base config
+    let base_source = read_file(paths[0])
+    if base_source == "":
+        return LayeredConfig { source: "", tables: [], warnings: ["Base file not found: " + paths[0]] }
+
+    var merged_source = base_source
+    var warnings: Array<String> = []
+
+    // Apply each overlay
+    var oi: Int = 1
+    while oi < len(paths):
+        let overlay_source = read_file(paths[oi])
+        if overlay_source == "":
+            push(warnings, "Overlay file not found: " + paths[oi])
+            oi = oi + 1
+            continue
+
+        merged_source = merge_sources(merged_source, overlay_source)
+        oi = oi + 1
+
+    // Parse the merged source
+    let lex = create_lexer(merged_source)
+    let bc = compile_source(lex)
+    let vm = init_vm()
+    let er = execute_bytecode(vm, bc)
+
+    return LayeredConfig {
+        source: merged_source,
+        tables: er.data_table,
+        warnings: warnings
+    }
+
+// ===========================================================================
+//  SOURCE MERGING — operate at the text level
+// ===========================================================================
+
+/// Merge two markscript source strings. Overlay rows append/replace base rows.
+fn merge_sources(base: String, overlay: String) -> String:
+    // Simple approach: parse both into sections, merge, reassemble
+    // A section is a block starting with # or ## header until the next header
+    let base_sections = split_sections(base)
+    let overlay_sections = split_sections(overlay)
+
+    var sections: Array<Section> = []
+
+    // Add all base sections first
+    var bi: Int = 0
+    while bi < len(base_sections):
+        push(sections, base_sections[bi])
+        bi = bi + 1
+
+    // For each overlay section:
+    //   If @replace is present, replace the matching base section
+    //   If section name matches a base section, merge
+    //   Otherwise, append as new section
+    var oi2: Int = 0
+    while oi2 < len(overlay_sections):
+        let os = overlay_sections[oi2]
+
+        if os.has_replace:
+            // Replace matching section
+            var si: Int = 0
+            while si < len(sections):
+                if sections[si].header == os.header:
+                    sections[si] = os
+                si = si + 1
+        else:
+            // Check if section exists in base
+            let base_idx = find_section(sections, os.header)
+            if base_idx >= 0:
+                // Merge tables: append overlay rows to base table
+                sections[base_idx] = merge_section_tables(sections[base_idx], os)
+            else:
+                push(sections, os)
+
+        oi2 = oi2 + 1
+
+    // Reassemble
+    var result: String = ""
+    var si: Int = 0
+    while si < len(sections):
+        result = result + sections[si].content
+        if si < len(sections) - 1:
+            result = result + "\n"
+        si = si + 1
+
+    return result
+
+// ===========================================================================
+//  SECTION STRUCT
+// ===========================================================================
+
+struct Section:
+    header:      String    // e.g. "# MyConfig" or "## Server"
+    header_level: Int      // 1 for #, 2 for ##, etc.
+    content:     String    // full text including header
+    has_replace: Bool      // @replace annotation present
+    tables:      Array<TableSection>  // parsed tables within this section
+
+struct TableSection:
+    header_row:  String    // column header line
+    sep_row:     String    // separator line (|---|---|)
+    data_rows:   Array<String>  // data row lines (including |...|)
+    raw_block:   String    // raw table text block
+
+// ===========================================================================
+//  SECTION PARSING
+// ===========================================================================
+
+fn split_sections(source: String) -> Array<Section>:
+    var sections: Array<Section> = []
+    let lines = split_lines(source)
+    var current: Section = empty_section()
+    var in_table: Bool = false
+    var current_table: TableSection = empty_table_section()
+
+    var li: Int = 0
+    while li < len(lines):
+        let raw_line = lines[li]
+        let ln = trim_right_line(raw_line)
+
+        // Detect header lines
+        if starts_with(ln, "# ") or starts_with(ln, "## ") or starts_with(ln, "### "):
+            // Finalize current section
+            if current.header != "" or current.content != "":
+                push(sections, current)
+            // Start new section
+            let level = count_prefix(ln, "#")
+            let header_text = trim_line(text_substring(ln, level + 1, len(ln) - level - 1))
+            current = Section {
+                header: header_text,
+                header_level: level,
+                content: raw_line + "\n",
+                has_replace: false,
+                tables: []
+            }
+            in_table = false
+            li = li + 1
+            continue
+
+        // @replace directive
+        if starts_with(ln, "@replace"):
+            current.has_replace = true
+            current.content = current.content + raw_line + "\n"
+            li = li + 1
+            continue
+
+        // Table detection: line starts with |
+        if starts_with(ln, "|"):
+            if in_table == false:
+                current_table = empty_table_section()
+                in_table = true
+
+            // Determine if header, separator, or data
+            if is_separator_row(ln):
+                current_table.sep_row = ln
+            elif current_table.header_row == "":
+                current_table.header_row = ln
+            else:
+                push(current_table.data_rows, ln)
+
+            current.content = current.content + raw_line + "\n"
+            li = li + 1
+            continue
+        else:
+            // End of table
+            if in_table:
+                push(current.tables, current_table)
+                current_table = empty_table_section()
+                in_table = false
+
+            current.content = current.content + raw_line + "\n"
+            li = li + 1
+
+    // Finalize last section
+    if current.header != "" or current.content != "":
+        if in_table:
+            push(current.tables, current_table)
+        push(sections, current)
+
+    return sections
+
+fn empty_section() -> Section:
+    return Section {
+        header: "", header_level: 0, content: "", has_replace: false, tables: []
+    }
+
+fn empty_table_section() -> TableSection:
+    return TableSection {
+        header_row: "", sep_row: "", data_rows: [], raw_block: ""
+    }
+
+fn find_section(sections: Array<Section>, header: String) -> Int:
+    var i: Int = 0
+    while i < len(sections):
+        if sections[i].header == header:
+            return i
+        i = i + 1
+    return -1
+
+// ===========================================================================
+//  TABLE MERGING
+// ===========================================================================
+
+fn merge_section_tables(base: Section, overlay: Section) -> Section:
+    var s = base
+
+    var oti: Int = 0
+    while oti < len(overlay.tables):
+        let ot = overlay.tables[oti]
+        let bti = find_matching_table(s.tables, ot)
+        if bti >= 0:
+            // Append overlay rows to base table
+            var bti2: Int = 0
+            while bti2 < len(ot.data_rows):
+                push(s.tables[bti].data_rows, ot.data_rows[bti2])
+                bti2 = bti2 + 1
+        else:
+            push(s.tables, ot)
+        oti = oti + 1
+
+    // Rebuild content
+    s.content = rebuild_section_content(s)
+    return s
+
+fn find_matching_table(tables: Array<TableSection>, target: TableSection) -> Int:
+    // Match by header row (column names)
+    var i: Int = 0
+    while i < len(tables):
+        if tables[i].header_row == target.header_row:
+            return i
+        i = i + 1
+    return -1
+
+fn rebuild_section_content(section: Section) -> String:
+    var content: String = ""
+    // Reconstruct from header + tables
+    if section.header_level == 1:
+        content = "# " + section.header + "\n"
+    elif section.header_level == 2:
+        content = "## " + section.header + "\n"
+    elif section.header_level >= 3:
+        content = text_substring("##########", 0, section.header_level) + " " + section.header + "\n"
+
+    if section.has_replace:
+        content = content + "@replace\n"
+
+    var ti: Int = 0
+    while ti < len(section.tables):
+        let t = section.tables[ti]
+        content = content + t.header_row + "\n"
+        content = content + t.sep_row + "\n"
+        var ri: Int = 0
+        while ri < len(t.data_rows):
+            content = content + t.data_rows[ri] + "\n"
+            ri = ri + 1
+        ti = ti + 1
+
+    return content
+
+// ===========================================================================
+//  STRING HELPERS
+// ===========================================================================
+
+fn read_file(path: String) -> String:
+    return fs_read_text(path)
+
+fn split_lines(text: String) -> Array<String>:
+    var lines: Array<String> = []
+    var start: Int = 0
+    var i: Int = 0
+    let tlen = len(text)
+    while i < tlen:
+        let ch = text_substring(text, i, 1)
+        if ch == "\n":
+            push(lines, text_substring(text, start, i - start))
+            start = i + 1
+        elif ch == "\r":
+            if i + 1 < tlen and text_substring(text, i + 1, 1) == "\n":
+                push(lines, text_substring(text, start, i - start))
+                start = i + 2
+                i = i + 1
+            else:
+                push(lines, text_substring(text, start, i - start))
+                start = i + 1
+        i = i + 1
+    if start <= tlen:
+        push(lines, text_substring(text, start, tlen - start))
+    return lines
+
+fn text_substring(s: String, start: Int, length: Int) -> String:
+    let view = text_from(s)
+    var result: String = ""
+    var i: Int = start
+    var remaining = length
+    while i < text_len(view) and remaining > 0:
+        result = result + text_char_at(view, i)
+        i = i + 1
+        remaining = remaining - 1
+    return result
+
+fn starts_with(s: String, prefix: String) -> Bool:
+    let sl = len(s)
+    let pl = len(prefix)
+    if pl > sl:
+        return false
+    var i: Int = 0
+    while i < pl:
+        if text_substring(s, i, 1) != text_substring(prefix, i, 1):
+            return false
+        i = i + 1
+    return true
+
+fn count_prefix(s: String, ch: String) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(s):
+        if text_substring(s, i, 1) == ch:
+            count = count + 1
+        else:
+            break
+        i = i + 1
+    return count
+
+fn trim_line(s: String) -> String:
+    var start: Int = 0
+    var end: Int = len(s) - 1
+    while start < len(s):
+        let ch = text_substring(s, start, 1)
+        if ch == " " or ch == "\t":
+            start = start + 1
+        else:
+            break
+    while end >= start:
+        let ch = text_substring(s, end, 1)
+        if ch == " " or ch == "\t" or ch == "\r":
+            end = end - 1
+        else:
+            break
+    if end < start:
+        return ""
+    return text_substring(s, start, end - start + 1)
+
+fn trim_right_line(s: String) -> String:
+    var end: Int = len(s) - 1
+    while end >= 0:
+        let ch = text_substring(s, end, 1)
+        if ch == "\n" or ch == "\r":
+            end = end - 1
+        else:
+            break
+    if end < 0:
+        return ""
+    return text_substring(s, 0, end + 1)
+
+fn is_separator_row(ln: String) -> Bool:
+    var i: Int = 0
+    while i < len(ln):
+        let ch = text_substring(ln, i, 1)
+        if ch != "|" and ch != "-" and ch != ":" and ch != " ":
+            return false
+        i = i + 1
+    return true

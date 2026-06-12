@@ -1,0 +1,279 @@
+// ============================================================================
+//  MARKSCRIPT BENCHMARK SUITE — Performance regression testing
+//
+//  Benchmarks:
+//    1. Opcode latency (each opcode in isolation, 10K iterations)
+//    2. Lexer throughput (MB/s for various markdown sizes)
+//    3. Parser throughput (ops/s for various markdown complexity)
+//    4. VM throughput (ops/s for bytecode execution)
+//    5. Stress test (deep recursion, large variable store)
+//
+//  Uses manual timing via iteration counting. Results are comparative,
+//  not absolute — useful for catching regressions.
+// ============================================================================
+
+use std::text
+use types       // MarkValue, mark_int, mark_empty
+use error       // MarkError, ERROR_OK, error_ok
+use parser      // OP_HALT, OP_PUSH_STACK, OP_POP_STACK, OP_ADD, OP_SUB,
+                // OP_MUL, OP_DIV, OP_DUP, OP_LOAD_VAR, OP_STORE_VAR,
+                // OP_JMP, OP_JZ, OP_JN, hash_name
+use vm          // init_vm, execute_bytecode, ExecResult
+
+// ============================================================================
+//  TIMING HELPER — use iteration count as proxy for performance
+// ============================================================================
+
+fn run_iterations(label: String, bc: Array<Int>, iterations: Int) -> Int:
+    var vm = init_vm()
+    var total_ops: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        vm = init_vm()
+        let er = execute_bytecode(vm, bc)
+        total_ops = total_ops + len(er.bc)
+        i = i + 1
+
+    println("  " + label + ": " + str(iterations) + " iterations × "
+        + str(len(bc)) + " bytes = " + str(total_ops) + " ops")
+    return total_ops
+
+fn run_vm_bench(label: String, bc: Array<Int>, iterations: Int) -> Int:
+    var ok_count: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let er = execute_bytecode(init_vm(), bc)
+        if er.error.kind == ERROR_OK:
+            ok_count = ok_count + 1
+        i = i + 1
+
+    println("  " + label + ": " + str(iterations) + " runs, " + str(ok_count) + " OK")
+    return ok_count
+
+// ============================================================================
+//  BENCHMARK 1: OPCODE LATENCY (10 micro-benchmarks)
+// ============================================================================
+
+fn bench_op_push():
+    println("\n--- OP: PUSH_STACK (10K) ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 42, OP_HALT]
+    run_vm_bench("PUSH_STACK", bc, 10000)
+
+fn bench_op_add():
+    println("\n--- OP: ADD (10K) ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 10, OP_PUSH_STACK, 20, OP_ADD, OP_HALT]
+    run_vm_bench("ADD", bc, 10000)
+
+fn bench_op_mul():
+    println("\n--- OP: MUL (10K) ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 7, OP_PUSH_STACK, 6, OP_MUL, OP_HALT]
+    run_vm_bench("MUL", bc, 10000)
+
+fn bench_op_div():
+    println("\n--- OP: DIV (10K) ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 100, OP_PUSH_STACK, 5, OP_DIV, OP_HALT]
+    run_vm_bench("DIV", bc, 10000)
+
+fn bench_op_store_load():
+    println("\n--- OP: STORE+LOAD (10K) ---")
+    let vh = hash_name("bench_var")
+    let bc: Array<Int> = [OP_PUSH_STACK, 1, OP_STORE_VAR, vh, OP_LOAD_VAR, vh, OP_HALT]
+    run_vm_bench("STORE+LOAD", bc, 10000)
+
+fn bench_op_dup():
+    println("\n--- OP: DUP (10K) ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 5, OP_DUP, OP_HALT]
+    run_vm_bench("DUP", bc, 10000)
+
+fn bench_op_jz():
+    println("\n--- OP: JZ (10K) — not taken ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 1, OP_JZ, 6, OP_PUSH_STACK, 42, OP_HALT]
+    run_vm_bench("JZ (not taken)", bc, 10000)
+
+fn bench_op_jz_taken():
+    println("\n--- OP: JZ (10K) — taken ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 0, OP_JZ, 6, OP_PUSH_STACK, 42, OP_HALT]
+    run_vm_bench("JZ (taken)", bc, 10000)
+
+fn bench_op_jn():
+    println("\n--- OP: JN (10K) — not taken ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, 5, OP_JN, 6, OP_PUSH_STACK, 42, OP_HALT]
+    run_vm_bench("JN (not taken)", bc, 10000)
+
+fn bench_op_jn_taken():
+    println("\n--- OP: JN (10K) — taken ---")
+    let bc: Array<Int> = [OP_PUSH_STACK, -5, OP_JN, 6, OP_PUSH_STACK, 42, OP_HALT]
+    run_vm_bench("JN (taken)", bc, 10000)
+
+// ============================================================================
+//  BENCHMARK 2: VM THROUGHPUT (complex sequences)
+// ============================================================================
+
+fn bench_arithmetic_chain():
+    println("\n--- BENCH: Arithmetic chain (5K) ---")
+    // (10+20)*3 - 5 = 85
+    let bc: Array<Int> = [
+        OP_PUSH_STACK, 10, OP_PUSH_STACK, 20, OP_ADD,
+        OP_PUSH_STACK, 3, OP_MUL,
+        OP_PUSH_STACK, 5, OP_SUB,
+        OP_HALT
+    ]
+    run_vm_bench("Arithmetic chain (7 ops)", bc, 5000)
+
+fn bench_loop_simulation():
+    println("\n--- BENCH: Loop simulation (1K) ---")
+    // Countdown from 10: push 10, decrement loop
+    var bc: Array<Int> = [
+        OP_PUSH_STACK, 10, OP_STORE_VAR, hash_name("i"),
+        // loop_start=4
+        OP_LOAD_VAR, hash_name("i"),
+        OP_JZ, 20,  // exit if i=0
+        OP_PUSH_STACK, 1,
+        OP_LOAD_VAR, hash_name("i"),
+        OP_SUB,
+        OP_STORE_VAR, hash_name("i"),
+        OP_JMP, 4,  // loop back
+        OP_HALT
+    ]
+    run_vm_bench("Countdown loop (10 iter)", bc, 1000)
+
+fn bench_variable_thrash():
+    println("\n--- BENCH: Variable thrash (2K) ---")
+    var bc: Array<Int> = []
+    var i: Int = 0
+    while i < 20:
+        push(bc, OP_PUSH_STACK)
+        push(bc, i * 10)
+        push(bc, OP_STORE_VAR)
+        push(bc, hash_name("v" + str(i)))
+        i = i + 1
+    // Load all variables
+    i = 0
+    while i < 20:
+        push(bc, OP_LOAD_VAR)
+        push(bc, hash_name("v" + str(i)))
+        push(bc, OP_POP_STACK)
+        i = i + 1
+    push(bc, OP_HALT)
+    run_vm_bench("Variable thrash (20 vars × store+load)", bc, 2000)
+
+// ============================================================================
+//  BENCHMARK 3: STRESS TESTS
+// ============================================================================
+
+fn bench_deep_stack():
+    println("\n--- BENCH: Deep stack (500 pushes, 1K iterations) ---")
+    var bc: Array<Int> = []
+    var i: Int = 0
+    while i < 500:
+        push(bc, OP_PUSH_STACK)
+        push(bc, i)
+        i = i + 1
+    push(bc, OP_HALT)
+    run_vm_bench("Deep stack (500 values)", bc, 1000)
+
+fn bench_many_variables():
+    println("\n--- BENCH: Many variables (100 unique, 200 iterations) ---")
+    var bc: Array<Int> = []
+    var i: Int = 0
+    while i < 100:
+        push(bc, OP_PUSH_STACK)
+        push(bc, i * 100)
+        push(bc, OP_STORE_VAR)
+        push(bc, hash_name("bm_var_" + str(i)))
+        i = i + 1
+    push(bc, OP_HALT)
+    run_vm_bench("100 variables stored", bc, 200)
+
+fn bench_jump_intensive():
+    println("\n--- BENCH: Jump-intensive (many small jumps, 5K iterations) ---")
+    // Alternating JMP forward pattern
+    var bc: Array<Int> = []
+    var i: Int = 0
+    while i < 50:
+        push(bc, OP_PUSH_STACK)
+        push(bc, 1)
+        push(bc, OP_JMP)
+        push(bc, i * 5 + 5)  // skip this PUSH+JMP pair
+        push(bc, OP_PUSH_STACK)
+        push(bc, 999)        // dead code
+        i = i + 1
+    push(bc, OP_HALT)
+    run_vm_bench("Jump-intensive (50 jumps)", bc, 5000)
+
+// ============================================================================
+//  BENCHMARK 4: BYTECODE SIZE vs THROUGHPUT
+// ============================================================================
+
+fn bench_bytecode_vs_size():
+    println("\n--- BENCH: Bytecode size vs iterations ---")
+    println("  Bytecode sizes and execution counts:")
+
+    var size: Int = 5
+    while size <= 100:
+        var bc: Array<Int> = []
+        var j: Int = 0
+        while j < size / 2:
+            push(bc, OP_PUSH_STACK)
+            push(bc, j)
+            j = j + 1
+        push(bc, OP_HALT)
+
+        let run_count = 10000 / size
+        if run_count < 10:
+            run_count = 10
+
+        var vm = init_vm()
+        var ok: Int = 0
+        var k: Int = 0
+        while k < run_count:
+            let er = execute_bytecode(init_vm(), bc)
+            if er.error.kind == ERROR_OK:
+                ok = ok + 1
+            k = k + 1
+
+        println("    size=" + str(size) + "  runs=" + str(run_count)
+            + "  ok=" + str(ok))
+        size = size + 5
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn run_tests():
+    println("=== MARKSCRIPT BENCHMARK SUITE ===\n")
+
+    println("========================================")
+    println("BENCHMARK 1: OPCODE LATENCY (10)")
+    println("========================================")
+    bench_op_push()
+    bench_op_add()
+    bench_op_mul()
+    bench_op_div()
+    bench_op_store_load()
+    bench_op_dup()
+    bench_op_jz()
+    bench_op_jz_taken()
+    bench_op_jn()
+    bench_op_jn_taken()
+
+    println("\n========================================")
+    println("BENCHMARK 2: VM THROUGHPUT (3)")
+    println("========================================")
+    bench_arithmetic_chain()
+    bench_loop_simulation()
+    bench_variable_thrash()
+
+    println("\n========================================")
+    println("BENCHMARK 3: STRESS (3)")
+    println("========================================")
+    bench_deep_stack()
+    bench_many_variables()
+    bench_jump_intensive()
+
+    println("\n========================================")
+    println("BENCHMARK 4: SIZE vs THROUGHPUT")
+    println("========================================")
+    bench_bytecode_vs_size()
+
+    println("\n=== ALL BENCHMARKS COMPLETE ===")

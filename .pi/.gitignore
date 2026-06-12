@@ -3,3 +3,4 @@
 messenger/
 *.jsonl
 agents/
+extensions/

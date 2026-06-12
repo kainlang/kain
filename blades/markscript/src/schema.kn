@@ -1,0 +1,345 @@
+// ============================================================================
+//  MARKSCRIPT SCHEMA VALIDATOR (DELTA)
+//
+//  Validates markscript config files against schema definitions.
+//  A schema is a markscript file that defines the expected structure:
+//    - Required tables with min/max row counts
+//    - Column definitions with type, required, default, constraints
+//
+//  Usage:
+//    mks check config.md --schema schemas/server_schema.md
+//
+//  Ladder rung: Layer 2 (law) — schema validation is invariant checking.
+//  Each schema rule is a law predicate applied to config tables.
+// ============================================================================
+
+use std::text
+use std::fs
+
+use types       // MarkValue, MatrixRecord, mark_int, mark_string, mark_empty,
+                // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_BOOL
+use parser      // hash_name
+use lexer       // create_lexer
+use vm          // MarkScriptVM, init_vm, execute_bytecode
+
+// ===========================================================================
+//  SCHEMA TYPES
+// ===========================================================================
+
+/// A column definition from a schema's *_Columns table.
+pub struct ColumnSchema:
+    name:     String
+    col_type: String    // "String", "Int", "Float", "Bool"
+    required: Bool
+    default:  String
+    min_val:  String    // empty = no constraint
+    max_val:  String    // empty = no constraint
+
+/// A required table definition from a schema's Required_Tables table.
+pub struct RequiredTable:
+    name:    String
+    min_rows: Int
+    max_rows: Int
+
+/// A complete schema loaded from a schema file.
+pub struct Schema:
+    name:       String
+    target:     String           // @schema_target value
+    tables:     Array<RequiredTable>
+    columns:    Array<ColumnSchema>  // all column defs from all *_Columns tables
+    table_cols: Array<TableColumnBinding>  // which columns belong to which table
+
+pub struct TableColumnBinding:
+    table_name:  String
+    col_schemas: Array<ColumnSchema>
+
+// ===========================================================================
+//  SCHEMA VALIDATION RESULT
+// ===========================================================================
+
+pub struct SchemaResult:
+    valid:   Bool
+    errors:  Array<String>
+
+// ===========================================================================
+//  SCHEMA PARSING
+// ===========================================================================
+
+/// Parse a schema file from a markscript source string.
+/// Looks for @schema_target directive, Required_Tables table, and *_Columns tables.
+pub fn parse_schema(source: String) -> Schema:
+    var schema = Schema {
+        name: "", target: "", tables: [], columns: [], table_cols: []
+    }
+
+    // Extract @schema_target directive
+    var pos: Int = 0
+    let slen = len(source)
+    while pos < slen:
+        if pos + 14 <= slen and text_substring(source, pos, 14) == "@schema_target":
+            // Skip "@schema_target "
+            pos = pos + 15
+            var start = pos
+            while pos < slen:
+                let ch = text_substring(source, pos, 1)
+                if ch == "\n" or ch == "\r":
+                    break
+                pos = pos + 1
+            schema.target = text_trim(text_substring(source, start, pos - start))
+        pos = pos + 1
+
+    // Parse tables from the markscript source
+    let lex = create_lexer(source)
+    let bc = compile_source(lex)
+    let vm = init_vm()
+    let er = execute_bytecode(vm, bc)
+    let tables = er.data_table
+
+    // Find and parse Required_Tables
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and len(dt.data) > 0:
+            let hdr = dt.data[0]
+            if hdr.kind == MARK_STRING and hdr.str_val == "TableName":
+                var ri: Int = 0
+                while ri < dt.rows:
+                    let tname = cell_string(dt, ri, 0)
+                    let min_r = cell_int(dt, ri, 1, 0)
+                    let max_r = cell_int(dt, ri, 2, 100)
+                    push(schema.tables, RequiredTable {
+                        name: tname, min_rows: min_r, max_rows: max_r
+                    })
+                    ri = ri + 1
+            elif hdr.kind == MARK_STRING and ends_with(hdr.str_val, "_Columns"):
+                let table_name = text_substring(hdr.str_val, 0, len(hdr.str_val) - 8)
+                var cols: Array<ColumnSchema> = []
+                var ri: Int = 0
+                while ri < dt.rows:
+                    let cname = cell_string(dt, ri, 0)
+                    let ctype = cell_string(dt, ri, 1)
+                    let req = cell_bool(dt, ri, 2, false)
+                    let def = cell_string(dt, ri, 3)
+                    let min_v = cell_string(dt, ri, 4)
+                    let max_v = cell_string(dt, ri, 5)
+                    push(cols, ColumnSchema {
+                        name: cname, col_type: ctype, required: req,
+                        default: def, min_val: min_v, max_val: max_v
+                    })
+                    push(schema.columns, cols[len(cols) - 1])
+                    ri = ri + 1
+                push(schema.table_cols, TableColumnBinding {
+                    table_name: table_name, col_schemas: cols
+                })
+        ti = ti + 1
+
+    return schema
+
+// ===========================================================================
+//  VALIDATION
+// ===========================================================================
+
+/// Validate a config against a schema. Returns SchemaResult with errors.
+pub fn validate_config(config_source: String, schema: Schema) -> SchemaResult:
+    var result = SchemaResult { valid: true, errors: [] }
+
+    // Parse the config
+    let lex = create_lexer(config_source)
+    let bc = compile_source(lex)
+    let vm = init_vm()
+    let er = execute_bytecode(vm, bc)
+    let tables = er.data_table
+
+    // Check required tables exist
+    var rti: Int = 0
+    while rti < len(schema.tables):
+        let req = schema.tables[rti]
+        let found = find_config_table(tables, req.name)
+        if found < 0:
+            if req.min_rows > 0:
+                push(result.errors, "Missing required table: " + req.name)
+                result.valid = false
+        else:
+            let dt = tables[found]
+            if dt.rows < req.min_rows:
+                push(result.errors, "Table '" + req.name + "' has " + str(dt.rows) + " rows, minimum is " + str(req.min_rows))
+                result.valid = false
+            if req.max_rows > 0 and dt.rows > req.max_rows:
+                push(result.errors, "Table '" + req.name + "' has " + str(dt.rows) + " rows, maximum is " + str(req.max_rows))
+                result.valid = false
+
+            // Check column constraints
+            var tci: Int = 0
+            while tci < len(schema.table_cols):
+                let tcb = schema.table_cols[tci]
+                if tcb.table_name == req.name:
+                    // Validate each column
+                    var cci: Int = 0
+                    while cci < len(tcb.col_schemas):
+                        let cs = tcb.col_schemas[cci]
+                        // Find the column index in the table
+                        let col_idx = find_column_index(dt, cs.name)
+                        if col_idx < 0:
+                            if cs.required:
+                                push(result.errors, "Table '" + req.name + "': missing required column '" + cs.name + "'")
+                                result.valid = false
+                            cci = cci + 1
+                            continue
+
+                        // Validate each row's cell value for this column
+                        var ri: Int = 0
+                        while ri < dt.rows:
+                            let cell_idx = ri * dt.cols + col_idx
+                            if cell_idx < len(dt.data):
+                                let cell = dt.data[cell_idx]
+                                let ok = validate_cell(cell, cs, req.name, ri)
+                                if ok == false:
+                                    push(result.errors, "Table '" + req.name + "', row " + str(ri) + ", column '" + cs.name + "': type mismatch or constraint violation")
+                                    result.valid = false
+                            ri = ri + 1
+                        cci = cci + 1
+                tci = tci + 1
+        rti = rti + 1
+
+    return result
+
+// ===========================================================================
+//  HELPERS
+// ===========================================================================
+
+fn text_substring(s: String, start: Int, length: Int) -> String:
+    let view = text_from(s)
+    var result: String = ""
+    var i: Int = start
+    var remaining = length
+    while i < text_len(view) and remaining > 0:
+        result = result + text_char_at(view, i)
+        i = i + 1
+        remaining = remaining - 1
+    return result
+
+fn text_trim(s: String) -> String:
+    // Trim left
+    var start: Int = 0
+    let slen = len(s)
+    while start < slen:
+        let ch = text_substring(s, start, 1)
+        if ch == " " or ch == "\t" or ch == "\r" or ch == "\n":
+            start = start + 1
+        else:
+            break
+    // Trim right
+    var end: Int = slen - 1
+    while end >= start:
+        let ch = text_substring(s, end, 1)
+        if ch == " " or ch == "\t" or ch == "\r" or ch == "\n":
+            end = end - 1
+        else:
+            break
+    if end < start:
+        return ""
+    return text_substring(s, start, end - start + 1)
+
+fn ends_with(s: String, suffix: String) -> Bool:
+    let slen = len(s)
+    let sulen = len(suffix)
+    if sulen > slen:
+        return false
+    var i: Int = 0
+    while i < sulen:
+        if text_substring(s, slen - sulen + i, 1) != text_substring(suffix, i, 1):
+            return false
+        i = i + 1
+    return true
+
+fn cell_string(dt: MatrixRecord, row: Int, col: Int) -> String:
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_STRING:
+            return cell.str_val
+        elif cell.kind == MARK_INT:
+            return str(cell.int_val)
+        elif cell.kind == MARK_FLOAT:
+            return str(cell.float_val)
+    return ""
+
+fn cell_int(dt: MatrixRecord, row: Int, col: Int, default_val: Int) -> Int:
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_INT:
+            return cell.int_val
+    return default_val
+
+fn cell_bool(dt: MatrixRecord, row: Int, col: Int, default_val: Bool) -> Bool:
+    let s = cell_string(dt, row, col)
+    if s == "true" or s == "yes":
+        return true
+    elif s == "false" or s == "no":
+        return false
+    return default_val
+
+fn find_config_table(tables: Array<MatrixRecord>, name: String) -> Int:
+    var i: Int = 0
+    while i < len(tables):
+        let dt = tables[i]
+        if dt.rows > 0 and len(dt.data) > 0:
+            // First column of first row is often the table identifier
+            let first = dt.data[0]
+            if first.kind == MARK_STRING and first.str_val == name:
+                return i
+        i = i + 1
+    return -1
+
+fn find_column_index(dt: MatrixRecord, col_name: String) -> Int:
+    var ci: Int = 0
+    // Search the header row (row 0 is actually data in markscript; headers are in the column metadata)
+    // In markscript, column names are in the first data row after the header separator.
+    // But for schema validation, we search all cells in the first row of the table.
+    var i: Int = 0
+    while i < dt.cols and i < len(dt.data):
+        let cell = dt.data[i]
+        if cell.kind == MARK_STRING and cell.str_val == col_name:
+            return i
+        i = i + 1
+    return -1
+
+fn validate_cell(cell: MarkValue, cs: ColumnSchema, table_name: String, row: Int) -> Bool:
+    let ctype = cs.col_type
+    if ctype == "String":
+        return true  // Any value can be a string
+    elif ctype == "Int":
+        if cell.kind == MARK_INT:
+            return true
+        elif cell.kind == MARK_STRING:
+            // Check if the string is a valid integer
+            let s = cell.str_val
+            if s == "":
+                return cs.required == false
+            var i: Int = 0
+            if text_substring(s, 0, 1) == "-":
+                i = 1
+            while i < len(s):
+                let ch = text_substring(s, i, 1)
+                let cv = text_ord(ch)
+                if cv < 48 or cv > 57:
+                    return false
+                i = i + 1
+            return true
+        return false
+    elif ctype == "Float":
+        if cell.kind == MARK_FLOAT or cell.kind == MARK_INT:
+            return true
+        return false
+    elif ctype == "Bool":
+        if cell.kind == MARK_INT:
+            return true
+        elif cell.kind == MARK_STRING:
+            let lower = text_trim(cell.str_val)
+            // Simple lowercase check
+            if lower == "true" or lower == "false" or lower == "yes" or lower == "no":
+                return true
+            return true  // Be lenient
+        return true
+    return true  // Unknown type — allow

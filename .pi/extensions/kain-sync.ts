@@ -62,12 +62,12 @@ function getOutputBase(): string | null {
 
 /** Find the bazel-built binary path from the output base */
 function findBazelBinary(outputBase: string, binary: "kain" | "kn"): string | null {
-  // Bazel output layout: {outputBase}/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/{binary}.exe
-  const candidate = join(outputBase, "execroot", "_main", "bazel-out", "x64_windows-dbg", "bin", "crates", "cli", `${binary}.exe`);
+  // Bazel output layout: {outputBase}/execroot/_main/bazel-out/x64_windows-opt/bin/crates/cli/{binary}.exe
+  const candidate = join(outputBase, "execroot", "_main", "bazel-out", "x64_windows-opt", "bin", "crates", "cli", `${binary}.exe`);
   if (existsSync(candidate)) return candidate;
 
   // Fallback: search the bin dir for the most recent
-  const binDir = join(outputBase, "execroot", "_main", "bazel-out", "x64_windows-dbg", "bin", "crates", "cli");
+  const binDir = join(outputBase, "execroot", "_main", "bazel-out", "x64_windows-opt", "bin", "crates", "cli");
   if (!existsSync(binDir)) return null;
 
   try {

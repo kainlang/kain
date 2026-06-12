@@ -1,0 +1,154 @@
+// ============================================================================
+//  CAMERA — Flyby camera with WASD movement + mouse look
+//  Layer 0: struct + fn — immutable update, stateless
+// ============================================================================
+//
+//  Movement: W/S forward/back, A/D strafe left/right, Q/E up/down
+//  Mouse: horizontal delta → yaw, vertical delta → pitch
+//  Angles in radians, distances in world units.
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+//  CAMERA STRUCT
+// ============================================================================
+
+/// Flyby camera state — position, orientation, and sensitivity parameters.
+pub struct FlybyCamera:
+    position: Vec3
+    yaw: Float          // horizontal rotation angle (radians)
+    pitch: Float        // vertical rotation angle (radians)
+    move_speed: Float   // units per second
+    look_sensitivity: Float  // radians per pixel of mouse movement
+    fov: Float          // vertical field of view (radians)
+    near_plane: Float
+    far_plane: Float
+
+pub impl FlybyCamera:
+    /// Create a new flyby camera at the given position, looking along -Z.
+    pub fn create(pos_x: Float, pos_y: Float, pos_z: Float) -> FlybyCamera:
+        return FlybyCamera {
+            position: vec3(pos_x, pos_y, pos_z),
+            yaw: 0.0,
+            pitch: 0.0,
+            move_speed: 5.0,
+            look_sensitivity: 0.002,
+            fov: degrees_to_radians(60.0),
+            near_plane: 0.1,
+            far_plane: 2000.0,
+        }
+
+// ============================================================================
+//  DIRECTION HELPERS (inlined to avoid local math module collision with std::math)
+// ============================================================================
+
+/// Compute forward direction from yaw and pitch angles.
+fn forward_dir(yaw: Float, pitch: Float) -> Vec3 with Pure:
+    let cp = cos(pitch)
+    return vec3(sin(yaw) * cp, sin(pitch), -cos(yaw) * cp)
+
+/// Compute right direction from yaw angle.
+fn right_dir(yaw: Float) -> Vec3 with Pure:
+    return vec3(cos(yaw), 0.0, sin(yaw))
+
+// ============================================================================
+//  CAMERA INPUT
+// ============================================================================
+
+/// Per-frame input values for camera motion (0.0 or 1.0 for keys, pixels for mouse).
+pub struct CameraInput:
+    move_forward: Float
+    move_backward: Float
+    move_left: Float
+    move_right: Float
+    move_up: Float
+    move_down: Float
+    mouse_dx: Float        // horizontal mouse delta in pixels
+    mouse_dy: Float        // vertical mouse delta in pixels
+    delta_seconds: Float   // frame time in seconds
+
+/// Create a zeroed camera input for a new frame.
+pub fn camera_input_zero(dt: Float) -> CameraInput:
+    return CameraInput {
+        move_forward: 0.0,
+        move_backward: 0.0,
+        move_left: 0.0,
+        move_right: 0.0,
+        move_up: 0.0,
+        move_down: 0.0,
+        mouse_dx: 0.0,
+        mouse_dy: 0.0,
+        delta_seconds: dt,
+    }
+
+// ============================================================================
+//  CAMERA UPDATE (immutable — returns new state)
+// ============================================================================
+
+/// Update the camera with a frame's input. Returns a new camera state.
+pub fn camera_update(cam: FlybyCamera, input: CameraInput) -> FlybyCamera with Pure:
+    let dt = input.delta_seconds
+
+    // --- Mouse look: update yaw and pitch ---
+    let mut new_yaw = cam.yaw - input.mouse_dx * cam.look_sensitivity
+    let mut new_pitch = cam.pitch - input.mouse_dy * cam.look_sensitivity
+
+    // Clamp pitch to avoid gimbal flip
+    let pitch_limit = degrees_to_radians(89.0)
+    if new_pitch > pitch_limit:
+        new_pitch = pitch_limit
+    if new_pitch < -pitch_limit:
+        new_pitch = -pitch_limit
+
+    // --- Movement directions ---
+    // Use flat forward (ignore pitch) for horizontal movement
+    let fwd_vec = forward_dir(new_yaw, 0.0)
+    let right_vec = right_dir(new_yaw)
+
+    // --- Compute movement delta ---
+    let forward_amt = input.move_forward - input.move_backward
+    let right_amt = input.move_right - input.move_left
+    let up_amt = input.move_up - input.move_down
+
+    let move_delta = vec3_add(
+        vec3_add(
+            vec3_mul_scalar(fwd_vec, forward_amt),
+            vec3_mul_scalar(right_vec, right_amt),
+        ),
+        vec3_mul_scalar(vec3(0.0, 1.0, 0.0), up_amt),
+    )
+
+    // Normalize to avoid faster diagonal movement
+    let move_mag = vec3_length(move_delta)
+    let move_dir = if move_mag > 0.001:
+        vec3_mul_scalar(move_delta, 1.0 / move_mag)
+    else:
+        vec3(0.0, 0.0, 0.0)
+
+    let speed = cam.move_speed * dt
+    let new_pos = vec3_add(cam.position, vec3_mul_scalar(move_dir, speed))
+
+    return FlybyCamera {
+        position: new_pos,
+        yaw: new_yaw,
+        pitch: new_pitch,
+        move_speed: cam.move_speed,
+        look_sensitivity: cam.look_sensitivity,
+        fov: cam.fov,
+        near_plane: cam.near_plane,
+        far_plane: cam.far_plane,
+    }
+
+// ============================================================================
+//  VIEW-PROJECTION MATRIX
+// ============================================================================
+
+/// Build the combined view-projection matrix from camera state.
+pub fn camera_view_projection(cam: FlybyCamera, aspect: Float) -> Mat4 with Pure:
+    let forward = forward_dir(cam.yaw, cam.pitch)
+    let target = vec3_add(cam.position, forward)
+    let up = vec3(0.0, 1.0, 0.0)
+    let view = mat4_look_at(cam.position, target, up)
+    let proj = mat4_perspective(cam.fov, aspect, cam.near_plane, cam.far_plane)
+    return mat4_mul(proj, view)

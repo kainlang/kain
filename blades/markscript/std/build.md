@@ -1,134 +1,116 @@
-# Build
+# ProjectBuild
 
-Markscript build orchestration — compile, check, run, and test Kain projects.
-Dispatches through the IVT to Kain's process and filesystem bridges.
+Canonical build definition format for MarkScript projects.
+Adopted by `mks build`, `mks test`, and `mks clean`.
+This markdown IS the build script — compiled and executed by the MarkScript VM.
 
 ---
 
-## check
+@schema "schemas/build_schema.md"
 
-Check (typecheck only) a Kain project or file.
+## Metadata
+| Property | Value |
+|----------|-------|
+| Name | my-project |
+| Language | rust |
+| BuildTool | cargo |
+| Version | 0.1.0 |
 
-> run "kain check path/to/project"
+## Stages
+| Stage | Command | DependsOn | TimeoutSec |
+|-------|---------|-----------|------------|
+| clean | cargo clean | — | 30 |
+| check | cargo check | — | 60 |
+| build | cargo build | check | 120 |
+| test | cargo test | build | 180 |
+| bench | cargo bench | build | 300 |
+| lint | cargo clippy | check | 60 |
+| fmt | cargo fmt --check | — | 30 |
+| doc | cargo doc | build | 60 |
+| package | cargo package | test | 120 |
 
-```markscript
-# Run kain check on a project
-push("kain check path/to/project")
-call("run")
-# Output is captured on the stack
+## Build
+
+> print "=== BUILD: "ProjectBuild" ==="
+
+> run "cargo build"
+
+> print "Build complete"
+
+## Test
+
+> print "=== TEST: "ProjectBuild" ==="
+
+> run "cargo test"
+
+> print "Tests complete"
+
+## Clean
+
+> print "=== CLEAN: "ProjectBuild" ==="
+
+> run "cargo clean"
+
+> print "Clean complete"
+
+## Check
+
+> print "=== CHECK: "ProjectBuild" ==="
+
+> run "cargo check"
+
+> print "Check complete"
+
+---
+
+## How to use
+
+```bash
+# Run the full build pipeline
+mks run build.md
+
+# Or use the dedicated subcommands (auto-discover build.md)
+mks build                    # → reads Stage: Build → runs cargo build
+mks test                     # → reads Stage: Test → runs cargo test
+mks clean                    # → reads Stage: Clean → runs cargo clean
 ```
 
----
+## Supported Languages
 
-## build
+| Language | Build File | Build Command | Test Command | Clean Command |
+|----------|-----------|---------------|--------------|---------------|
+| Rust | Cargo.toml | cargo build | cargo test | cargo clean |
+| C/C++ | CMakeLists.txt | cmake -B build && cmake --build build | ctest | rm -rf build |
+| Node | package.json | npm run build | npm test | npm run clean |
+| Python | pyproject.toml | pip install -e . | pytest | rm -rf dist |
+| Go | go.mod | go build | go test | go clean |
+| Kain | build.kn / *.kn | kain build | kain test | rm -rf .kain/out |
+| Make | Makefile | make | make test | make clean |
+| MarkScript | build.md | mks run build.md | mks test | mks clean |
 
-Build a Kain project to a native executable.
+## Process Lifecycle (GAMMA handlers 51-59)
 
-> run "kain build path/to/project --target llvm"
-
-```markscript
-# Compile the project through LLVM
-push("kain build path/to/project --target llvm")
-call("run")
-```
-
----
-
-## test
-
-Run the test suite for a Kain project.
-
-> run "kain test path/to/tests/"
+Track long-running builds with PID tracking:
 
 ```markscript
-# Execute the project's test suite
-push("kain test path/to/tests/")
-call("run")
-```
+# Spawn a tracked process
+> spawn "cargo build"
 
----
+# Wait for completion
+> await 0
 
-## bench
+# Check exit code
+> exitcode 0
 
-Run benchmarks and capture timing output.
+# Assert success
+> assert 0 0
 
-> run "kain bench path/to/benchmarks/"
+# Inspect output
+> stdout 0
 
-```markscript
-# Run benchmarks
-push("kain bench path/to/benchmarks/")
-call("run")
-```
+# Inspect errors
+> stderr 0
 
----
-
-## clean
-
-Clean build artifacts from the output directory.
-
-> run "rm -rf path/to/.kain/out"
-
-```markscript
-# Remove all build cache and artifacts
-push("rm -rf path/to/.kain/out")
-call("run")
-```
-
----
-
-## rebuild
-
-Full clean + build cycle.
-
-> run "kain build path/to/project --target llvm"
-
-```markscript
-# Clean first, then rebuild
-push("rm -rf path/to/.kain/out")
-call("run")
-push("kain build path/to/project --target llvm")
-call("run")
-```
-
----
-
-## watch
-
-Watch a project for changes and rebuild automatically.
-
-> print "Watching for changes..."
-> spawn "kain run dev path/to/project"
-
-```markscript
-# Start watch mode (uses spawn for long-running process)
-push("kain run dev path/to/project")
-call("spawn")
-```
-
----
-
-## fmt
-
-Format Kain source files.
-
-> run "kain fmt path/to/src/ --check"
-
-```markscript
-# Check formatting (--check = verify only, no write)
-push("kain fmt path/to/src/ --check")
-call("run")
-```
-
----
-
-## version
-
-Print the Kain toolchain version.
-
-> run "kain --version"
-
-```markscript
-# Show compiler version
-push("kain --version")
-call("run")
+# Kill a stuck build
+> kill 0
 ```

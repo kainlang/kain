@@ -17,14 +17,16 @@
 
 use std::process
 use std::fs
+use std::bytes
+use std::text
 use cli             // CliConfig, get_user_args, parse_args, usage, version,
                     // EXIT_OK, EXIT_HELP, EXIT_ERROR, EXIT_UNKNOWN,
                     // SUBCMD_ALPHA, SUBCMD_BRAVO, SUBCMD_CHARLIE, SUBCMD_ALL,
                     // SUBCMD_HELP, SUBCMD_VERSION, needs_source
 use data            // ExtractionTarget, default_target, VerificationReport,
                     // empty_report, format_report, LANE_ALPHA, LANE_BRAVO, LANE_CHARLIE
-use alpha_types     // run_alpha, alpha_catalog_summary
-use bravo_memory    // run_bravo, print_function_catalog, print_summary
+use alpha_types     // run_alpha
+use bravo_memory    // run_bravo, print_summary
 use charlie_runtime  // run_charlie, run_charlie_quiet, export_proof_packs, get_catalog_summary
 
 // ============================================================================
@@ -85,15 +87,19 @@ fn build_target(cfg: CliConfig) -> ExtractionTarget:
     var target = default_target()
     target.source_path = cfg.source_path
 
-    // Read source file bytes for parsing
-    let path = cfg.source_path
-    target.source_bytes = read_file_bytes(path)
-    target.num_lines = count_lines(target.source_bytes)
-
     if cfg.quiet == false:
-        println("[TARGET] Source: " + path)
-        println("[TARGET] Bytes:  " + str(len(target.source_bytes)))
-        println("[TARGET] Lines:  " + str(target.num_lines))
+        println("[TARGET] Source: " + cfg.source_path)
+
+    // Read source file — populate bytes for all lanes
+    if cfg.source_path != "":
+        if cfg.quiet == false:
+            println("[TARGET] Reading source file...")
+        target.source_bytes = fs_read_bytes(cfg.source_path)
+        let source_text = fs_read_text(cfg.source_path)
+        let lines = text_split_lines(source_text)
+        target.num_lines = len(lines)
+        if cfg.quiet == false:
+            println("[TARGET] Read " + str(len(target.source_bytes)) + " bytes, " + str(target.num_lines) + " lines")
 
     return target
 
@@ -105,9 +111,6 @@ fn build_target(cfg: CliConfig) -> ExtractionTarget:
 fn cmd_alpha(cfg: CliConfig, target: ExtractionTarget) -> Int:
     println("=== LLVM Codegen Verification — ALPHA ===")
     println("  Domain: Types, Layout & Casts")
-    println("")
-
-    print(alpha_catalog_summary())
     println("")
 
     let report = run_alpha(target)
@@ -129,12 +132,12 @@ fn cmd_bravo(cfg: CliConfig, target: ExtractionTarget) -> Int:
     println("  Domain: Memory, Ownership & Control Flow")
     println("")
 
-    let report = bravo_memory.run_bravo(target)
+    let report = run_bravo(target)
     println("")
     println(format_report(report))
     println("")
 
-    bravo_memory.print_summary(report)
+    print_summary(report)
     return EXIT_OK
 
 
@@ -148,11 +151,12 @@ fn cmd_charlie(cfg: CliConfig, target: ExtractionTarget) -> Int:
     println("")
 
     // Print catalog summary
-    print(get_catalog_summary())
-    println("")
+    let summary = get_catalog_summary()
+    println(summary)
 
     // Run full verification
     let report = run_charlie(target)
+    println("")
     println(format_report(report))
     println("")
 
@@ -211,15 +215,11 @@ fn cmd_all(cfg: CliConfig, target: ExtractionTarget) -> Int:
 //  FILE I/O HELPERS
 // ============================================================================
 
-fn read_file_bytes(path: String) -> Array<Int>:
-    // Placeholder — will use fs module for real file I/O
-    return []
-
-fn count_lines(bytes: Array<Int>) -> Int:
+fn count_newlines(text: String) -> Int:
     var count = 0
     var i = 0
-    while i < len(bytes):
-        if bytes[i] == 10:    // '\n'
+    while i < len(text):
+        if text_substring_string(text, i, 1) == "\n":
             count = count + 1
         i = i + 1
     return count

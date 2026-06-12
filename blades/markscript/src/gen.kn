@@ -1,0 +1,524 @@
+// ============================================================================
+//  MARKSCRIPT CODE GENERATOR (DELTA)
+//
+//  Generates code from markscript config tables.
+//  Supports targets: json, toml, env, kain, typescript
+//
+//  Usage:
+//    mks gen config.md --target json
+//    mks gen config.md --target kain --output config_types.kn
+//
+//  Ladder rung: Layer 0 (fn) — plain code generation module.
+// ============================================================================
+
+use std::text
+use std::fs
+
+use types       // MatrixRecord, MarkValue, MARK_INT, MARK_FLOAT, MARK_STRING
+use lexer       // create_lexer
+use vm          // init_vm, execute_bytecode
+use parser      // compile_source
+
+// ===========================================================================
+//  GENERATION TARGETS
+// ===========================================================================
+
+pub const TARGET_JSON:       Int = 0
+pub const TARGET_TOML:       Int = 1
+pub const TARGET_ENV:        Int = 2
+pub const TARGET_KAIN:       Int = 3
+pub const TARGET_TYPESCRIPT: Int = 4
+
+// ===========================================================================
+//  GENERATION RESULT
+// ===========================================================================
+
+pub struct GenResult:
+    output: String
+    errors: Array<String>
+
+// ===========================================================================
+//  MAIN GENERATION ENTRY POINT
+// ===========================================================================
+
+/// Generate code from a markscript config source.
+pub fn generate(source: String, target: Int) -> GenResult:
+    let lex = create_lexer(source)
+    let bc = compile_source(lex)
+    let vm = init_vm()
+    let er = execute_bytecode(vm, bc)
+    let tables = er.data_table
+
+    if len(tables) == 0:
+        return GenResult { output: "", errors: ["No tables found in source"] }
+
+    if target == TARGET_JSON:
+        return gen_json(tables)
+    elif target == TARGET_TOML:
+        return gen_toml(tables)
+    elif target == TARGET_ENV:
+        return gen_env(tables)
+    elif target == TARGET_KAIN:
+        return gen_kain(tables)
+    elif target == TARGET_TYPESCRIPT:
+        return gen_typescript(tables)
+    else:
+        return GenResult { output: "", errors: ["Unknown target: " + str(target)] }
+
+// ===========================================================================
+//  JSON GENERATION
+// ===========================================================================
+
+fn gen_json(tables: Array<MatrixRecord>) -> GenResult:
+    var output: String = "{"
+    var first_table: Bool = true
+
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and dt.cols > 0:
+            if first_table == false:
+                output = output + ","
+            first_table = false
+
+            let table_name = safe_table_name(dt, ti)
+            output = output + "\n  \"" + json_escape(table_name) + "\": ["
+
+            var ri: Int = 0
+            while ri < dt.rows:
+                if ri > 0:
+                    output = output + ","
+                output = output + "\n    {"
+
+                var ci: Int = 0
+                while ci < dt.cols:
+                    if ci > 0:
+                        output = output + ", "
+                    let col_name = col_header_name(dt, ci)
+                    let cell = cell_value(dt, ri, ci)
+                    output = output + "\"" + json_escape(col_name) + "\": " + json_value(cell)
+                    ci = ci + 1
+
+                output = output + "}"
+                ri = ri + 1
+
+            output = output + "\n  ]"
+        ti = ti + 1
+
+    output = output + "\n}\n"
+    return GenResult { output: output, errors: [] }
+
+// ===========================================================================
+//  TOML GENERATION
+// ===========================================================================
+
+fn gen_toml(tables: Array<MatrixRecord>) -> GenResult:
+    var output: String = ""
+
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and dt.cols > 0:
+            let table_name = safe_table_name(dt, ti)
+            output = output + "\n[" + table_name + "]\n"
+
+            var ri: Int = 0
+            while ri < dt.rows:
+                var ci: Int = 0
+                while ci < dt.cols:
+                    let key = col_header_name(dt, ci)
+                    let cell = cell_value(dt, ri, ci)
+                    output = output + toml_key(key) + " = " + toml_value(cell) + "\n"
+                    ci = ci + 1
+                ri = ri + 1
+        ti = ti + 1
+
+    return GenResult { output: output, errors: [] }
+
+// ===========================================================================
+//  .ENV GENERATION
+// ===========================================================================
+
+fn gen_env(tables: Array<MatrixRecord>) -> GenResult:
+    var output: String = ""
+
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and dt.cols > 0:
+            let table_name = safe_table_name(dt, ti)
+            let prefix = env_prefix(table_name)
+
+            var ri: Int = 0
+            while ri < dt.rows:
+                var ci: Int = 0
+                while ci < dt.cols:
+                    let key = col_header_name(dt, ci)
+                    let cell = cell_value(dt, ri, ci)
+                    let env_key = prefix + "_" + env_key_name(key)
+                    let env_val = env_string_value(cell)
+                    output = output + env_key + "=" + env_val + "\n"
+                    ci = ci + 1
+                ri = ri + 1
+        ti = ti + 1
+
+    return GenResult { output: output, errors: [] }
+
+// ===========================================================================
+//  KAIN STRUCT GENERATION
+// ===========================================================================
+
+fn gen_kain(tables: Array<MatrixRecord>) -> GenResult:
+    var output: String = "// Auto-generated from markscript config — do not edit\n"
+    output = output + "// Generated by mks gen --target kain\n\n"
+
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and dt.cols > 0:
+            let table_name = safe_table_name(dt, ti)
+            let struct_name = to_pascal_case(table_name) + "Config"
+
+            // Determine column types from first data row
+            output = output + "pub struct " + struct_name + ":\n"
+
+            var ci: Int = 0
+            while ci < dt.cols:
+                let col_name = col_header_name(dt, ci)
+                let field_name = to_snake_case(col_name)
+                let kain_type = infer_kain_type(dt, ci)
+                output = output + "    " + field_name + ": " + kain_type + "\n"
+                ci = ci + 1
+
+            output = output + "\n"
+
+            // Generate loader function
+            output = output + "pub fn load_" + to_snake_case(table_name) + "_config() -> " + struct_name + ":\n"
+
+            if dt.rows > 0:
+                output = output + "    // Loaded from markscript config table\n"
+                output = output + "    return " + struct_name + " {\n"
+                var ci2: Int = 0
+                while ci2 < dt.cols:
+                    let col_name = col_header_name(dt, ci2)
+                    let field_name = to_snake_case(col_name)
+                    let kain_type = infer_kain_type(dt, ci2)
+                    let cell = cell_value(dt, 0, ci2)
+                    let val = kain_literal(cell, kain_type)
+                    output = output + "        " + field_name + ": " + val + ",\n"
+                    ci2 = ci2 + 1
+                output = output + "    }\n"
+            else:
+                output = output + "    return " + struct_name + " {}\n"
+
+            output = output + "\n"
+        ti = ti + 1
+
+    return GenResult { output: output, errors: [] }
+
+// ===========================================================================
+//  TYPESCRIPT GENERATION
+// ===========================================================================
+
+fn gen_typescript(tables: Array<MatrixRecord>) -> GenResult:
+    var output: String = "// Auto-generated from markscript config — do not edit\n"
+    output = output + "// Generated by mks gen --target typescript\n\n"
+
+    var ti: Int = 0
+    while ti < len(tables):
+        let dt = tables[ti]
+        if dt.rows > 0 and dt.cols > 0:
+            let table_name = safe_table_name(dt, ti)
+            let interface_name = to_pascal_case(table_name) + "Config"
+
+            output = output + "export interface " + interface_name + " {\n"
+
+            var ci: Int = 0
+            while ci < dt.cols:
+                let col_name = col_header_name(dt, ci)
+                let field_name = to_camel_case(col_name)
+                let ts_type = infer_ts_type(dt, ci)
+                output = output + "  " + field_name + ": " + ts_type + ";\n"
+                ci = ci + 1
+
+            output = output + "}\n\n"
+
+            // Generate const
+            output = output + "export const " + to_camel_case(table_name) + "Config: " + interface_name + " = {\n"
+
+            var ci2: Int = 0
+            while ci2 < dt.cols:
+                let col_name = col_header_name(dt, ci2)
+                let field_name = to_camel_case(col_name)
+                let ts_type = infer_ts_type(dt, ci2)
+                let cell = cell_value(dt, 0, ci2)
+                let val = ts_literal(cell, ts_type)
+                output = output + "  " + field_name + ": " + val + ",\n"
+                ci2 = ci2 + 1
+
+            output = output + "};\n\n"
+        ti = ti + 1
+
+    return GenResult { output: output, errors: [] }
+
+// ===========================================================================
+//  CELL VALUE HELPERS
+// ===========================================================================
+
+fn cell_value(dt: MatrixRecord, row: Int, col: Int) -> MarkValue:
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        return dt.data[idx]
+    return MarkValue { kind: MARK_STRING, int_val: 0, float_val: 0.0, str_val: "", bool_val: false, handle_val: 0 }
+
+fn col_header_name(dt: MatrixRecord, col: Int) -> String:
+    // In markscript tables, column names are in the first data row (row 0)
+    let cell = cell_value(dt, 0, col)
+    if cell.kind == MARK_STRING:
+        return cell.str_val
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    return "col" + str(col)
+
+fn safe_table_name(dt: MatrixRecord, idx: Int) -> String:
+    // Try first cell of first row as table name
+    if len(dt.data) > 0:
+        let first = dt.data[0]
+        if first.kind == MARK_STRING:
+            return first.str_val
+    return "table_" + str(idx)
+
+// ===========================================================================
+//  NAME CONVERSION HELPERS
+// ===========================================================================
+
+fn to_pascal_case(s: String) -> String:
+    var result: String = ""
+    var capitalize: Bool = true
+    var i: Int = 0
+    while i < len(s):
+        let ch = text_substring(s, i, 1)
+        if ch == " " or ch == "_" or ch == "-":
+            capitalize = true
+        elif capitalize:
+            result = result + text_to_upper(ch)
+            capitalize = false
+        else:
+            result = result + text_to_lower(ch)
+        i = i + 1
+    return result
+
+fn to_camel_case(s: String) -> String:
+    let pascal = to_pascal_case(s)
+    if len(pascal) > 0:
+        return text_to_lower(text_substring(pascal, 0, 1)) + text_substring(pascal, 1, len(pascal) - 1)
+    return ""
+
+fn to_snake_case(s: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(s):
+        let ch = text_substring(s, i, 1)
+        if ch == " " or ch == "-":
+            result = result + "_"
+        elif is_upper_char(ch) and i > 0:
+            result = result + "_" + text_to_lower(ch)
+        else:
+            result = result + text_to_lower(ch)
+        i = i + 1
+    return result
+
+// ===========================================================================
+//  TYPE INFERENCE
+// ===========================================================================
+
+fn infer_kain_type(dt: MatrixRecord, col: Int) -> String:
+    // Sample first few rows
+    var has_float: Bool = false
+    var has_int: Bool = false
+    var has_string: Bool = false
+    var ri: Int = 0
+    while ri < dt.rows and ri < 3:
+        let cell = cell_value(dt, ri, col)
+        if cell.kind == MARK_FLOAT:
+            has_float = true
+        elif cell.kind == MARK_INT:
+            has_int = true
+        elif cell.kind == MARK_STRING:
+            has_string = true
+        ri = ri + 1
+    if has_string:
+        return "String"
+    elif has_float:
+        return "Float"
+    return "Int"
+
+fn infer_ts_type(dt: MatrixRecord, col: Int) -> String:
+    let kt = infer_kain_type(dt, col)
+    if kt == "String":
+        return "string"
+    elif kt == "Float":
+        return "number"
+    return "number"
+
+// ===========================================================================
+//  LITERAL GENERATION
+// ===========================================================================
+
+fn kain_literal(cell: MarkValue, kain_type: String) -> String:
+    if cell.kind == MARK_STRING:
+        return "\"" + cell.str_val + "\""
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    elif cell.kind == MARK_FLOAT:
+        return str(cell.float_val)
+    return "0"
+
+fn ts_literal(cell: MarkValue, ts_type: String) -> String:
+    if cell.kind == MARK_STRING:
+        return "\"" + cell.str_val + "\""
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    elif cell.kind == MARK_FLOAT:
+        return str(cell.float_val)
+    return "0"
+
+// ===========================================================================
+//  JSON HELPERS
+// ===========================================================================
+
+fn json_value(cell: MarkValue) -> String:
+    if cell.kind == MARK_STRING:
+        return "\"" + json_escape(cell.str_val) + "\""
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    elif cell.kind == MARK_FLOAT:
+        return str(cell.float_val)
+    return "null"
+
+fn json_escape(s: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(s):
+        let ch = text_substring(s, i, 1)
+        if ch == "\"":
+            result = result + "\\\""
+        elif ch == "\\":
+            result = result + "\\\\"
+        elif ch == "\n":
+            result = result + "\\n"
+        elif ch == "\t":
+            result = result + "\\t"
+        elif ch == "\r":
+            result = result + "\\r"
+        else:
+            result = result + ch
+        i = i + 1
+    return result
+
+// ===========================================================================
+//  TOML HELPERS
+// ===========================================================================
+
+fn toml_key(key: String) -> String:
+    // Replace spaces with underscores
+    var result: String = ""
+    var i: Int = 0
+    while i < len(key):
+        let ch = text_substring(key, i, 1)
+        if ch == " ":
+            result = result + "_"
+        else:
+            result = result + text_to_lower(ch)
+        i = i + 1
+    return result
+
+fn toml_value(cell: MarkValue) -> String:
+    if cell.kind == MARK_STRING:
+        return "\"" + cell.str_val + "\""
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    elif cell.kind == MARK_FLOAT:
+        return str(cell.float_val)
+    return "\"\""
+
+// ===========================================================================
+//  ENV HELPERS
+// ===========================================================================
+
+fn env_prefix(table_name: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(table_name):
+        let ch = text_substring(table_name, i, 1)
+        if ch == " " or ch == "-":
+            result = result + "_"
+        else:
+            result = result + text_to_upper(ch)
+        i = i + 1
+    return result
+
+fn env_key_name(key: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(key):
+        let ch = text_substring(key, i, 1)
+        if ch == " " or ch == "-":
+            result = result + "_"
+        else:
+            result = result + text_to_upper(ch)
+        i = i + 1
+    return result
+
+fn env_string_value(cell: MarkValue) -> String:
+    if cell.kind == MARK_STRING:
+        return cell.str_val
+    elif cell.kind == MARK_INT:
+        return str(cell.int_val)
+    elif cell.kind == MARK_FLOAT:
+        return str(cell.float_val)
+    return ""
+
+// ===========================================================================
+//  LOW-LEVEL STRING HELPERS
+// ===========================================================================
+
+fn text_substring(s: String, start: Int, length: Int) -> String:
+    let view = text_from(s)
+    var result: String = ""
+    var i: Int = start
+    var remaining = length
+    while i < text_len(view) and remaining > 0:
+        result = result + text_char_at(view, i)
+        i = i + 1
+        remaining = remaining - 1
+    return result
+
+fn text_to_upper(s: String) -> String:
+    if len(s) == 0:
+        return ""
+    let ch = text_char_at(text_from(s), 0)
+    let cv = text_ord(ch)
+    if cv >= 97 and cv <= 122:
+        let upper_cv = cv - 32
+        // Convert back to char
+        var result: String = ""
+        // Simplified: build uppercase by offset
+        return text_substring("ABCDEFGHIJKLMNOPQRSTUVWXYZ", cv - 97, 1)
+    return ch
+
+fn text_to_lower(s: String) -> String:
+    if len(s) == 0:
+        return ""
+    let ch = text_char_at(text_from(s), 0)
+    let cv = text_ord(ch)
+    if cv >= 65 and cv <= 90:
+        return text_substring("abcdefghijklmnopqrstuvwxyz", cv - 65, 1)
+    return ch
+
+fn is_upper_char(s: String) -> Bool:
+    if len(s) == 0:
+        return false
+    let ch = text_char_at(text_from(s), 0)
+    let cv = text_ord(ch)
+    return cv >= 65 and cv <= 90

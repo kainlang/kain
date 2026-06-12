@@ -1,0 +1,15 @@
+// Gap 2: py_getattr_raw fallback for Kain struct pointers
+struct Point:
+    x: Int
+    y: Int
+
+fn make_point(x: Int, y: Int) -> Point:
+    return Point { x: x, y: y }
+
+fn main() -> Int:
+    let p = make_point(42, 99)
+    let px = p.x
+    let py = p.y
+    if px == 42 and py == 99:
+        return 0
+    return 1

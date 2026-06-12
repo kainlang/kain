@@ -7713,7 +7713,7 @@ impl LlvmGenerator {
                     self.map_type_from_str(name)
                 }
             }
-            ResolvedType::Enum(name, _) => format!("%{}*", name),
+            ResolvedType::Enum(name, _) => format!("%{}*", Self::llvm_named_type_name(name)),
             ResolvedType::Array(_, _) => "i8*".into(), // Runtime arrays are handle pointers
             ResolvedType::Slice(_) => "i8*".into(),
             ResolvedType::Option(_) => "i8*".into(),
@@ -11004,12 +11004,20 @@ impl LlvmGenerator {
                     .get(&payload_struct_name)
                     .cloned()
                     .unwrap_or_default();
-                for (field_name, pattern) in named_patterns {
+                for (pos, (field_name, pattern)) in named_patterns.iter().enumerate() {
                     let (index, field_ty) = field_defs
                         .iter()
                         .enumerate()
                         .find(|(_, (name, _))| name == field_name)
-                        .map(|(index, (_, ty))| (index, ty.clone()))
+                        .map(|(idx, (_, ty))| (idx, ty.clone()))
+                        .or_else(|| {
+                            // Fallback: positional match for auto-generated _0, _1 field names
+                            if pos < field_defs.len() {
+                                Some((pos, field_defs[pos].1.clone()))
+                            } else {
+                                None
+                            }
+                        })
                         .ok_or_else(|| {
                             KainError::codegen(
                                 format!(
@@ -13232,8 +13240,15 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn register_type_definitions_recursive(&mut self, items: &[TypedItem]) -> KainResult<()> {
+    fn register_type_definitions_recursive(&mut self, items: &[TypedItem], module_prefix: &str) -> KainResult<()> {
         for item in items {
+            let full_name = |short: &str| -> String {
+                if module_prefix.is_empty() {
+                    short.to_string()
+                } else {
+                    format!("{}::{}", module_prefix, short)
+                }
+            };
             match item {
                 TypedItem::Struct(s) => {
                     let struct_is_value_aggregate = s
@@ -13327,12 +13342,13 @@ impl LlvmGenerator {
                             fields.push((state.name.clone(), "i64".into()));
                         }
                     }
-                    self.struct_defs.insert(a.ast.name.clone(), fields.clone());
+                    let actor_llvm_name = Self::llvm_named_type_name(&a.ast.name);
+                    self.register_struct_definition(&a.ast.name, fields.clone());
 
                     let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
                     self.emit(&format!(
                         "%{} = type {{ {} }}",
-                        a.ast.name,
+                        actor_llvm_name,
                         field_types.join(", ")
                     ));
 
@@ -13345,10 +13361,11 @@ impl LlvmGenerator {
                             field_defs.push((param.name.clone(), p_ty));
                         }
                         let msg_struct_name = format!("{}_{}", a.ast.name, handler.message_type);
-                        self.struct_defs.insert(msg_struct_name.clone(), field_defs);
+                        let msg_llvm_name = Self::llvm_named_type_name(&msg_struct_name);
+                        self.register_struct_definition(&msg_struct_name, field_defs);
                         self.emit(&format!(
                             "%{} = type {{ {} }}",
-                            msg_struct_name,
+                            msg_llvm_name,
                             payload_fields.join(", ")
                         ));
                     }
@@ -13363,15 +13380,17 @@ impl LlvmGenerator {
                     }
                 }
                 TypedItem::Enum(e) => {
-                    self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
+                    let enum_full_name = full_name(&e.ast.name);
+                    let enum_llvm_name = Self::llvm_named_type_name(&enum_full_name);
+                    self.emit(&format!("%{} = type {{ i64, i8* }}", enum_llvm_name));
                     if e.variant_payload_types
                         .values()
                         .all(|payload_types| payload_types.is_empty())
                     {
-                        self.unit_only_enums.insert(e.ast.name.clone());
+                        self.unit_only_enums.insert(enum_full_name.clone());
                     }
-                    self.struct_defs.insert(
-                        e.ast.name.clone(),
+                    self.register_struct_definition(
+                        &enum_full_name,
                         vec![
                             ("tag".to_string(), "i64".to_string()),
                             ("payload".to_string(), "i8*".to_string()),
@@ -13382,10 +13401,11 @@ impl LlvmGenerator {
                         if !payload_types.is_empty() {
                             let field_types: Vec<String> =
                                 payload_types.iter().map(|t| self.map_type(t)).collect();
-                            let struct_name = format!("{}_{}", e.ast.name, variant_name);
+                            let struct_name = format!("{}_{}", enum_full_name, variant_name);
+                            let struct_llvm_name = Self::llvm_named_type_name(&struct_name);
                             self.emit(&format!(
                                 "%{} = type {{ {} }}",
-                                struct_name,
+                                struct_llvm_name,
                                 field_types.join(", ")
                             ));
 
@@ -13393,12 +13413,17 @@ impl LlvmGenerator {
                             for (i, ty) in field_types.iter().enumerate() {
                                 fields.push((format!("_{}", i), ty.clone()));
                             }
-                            self.struct_defs.insert(struct_name, fields);
+                            self.register_struct_definition(&struct_name, fields);
                         }
                     }
                 }
                 TypedItem::Mod(module) => {
-                    self.register_type_definitions_recursive(&module.items)?;
+                    let child_prefix = if module_prefix.is_empty() {
+                        module.ast.name.clone()
+                    } else {
+                        format!("{}::{}", module_prefix, module.ast.name)
+                    };
+                    self.register_type_definitions_recursive(&module.items, &child_prefix)?;
                 }
                 _ => {}
             }
@@ -13512,19 +13537,19 @@ impl LlvmGenerator {
             fields.push((state.name.clone(), self.map_type_from_ast(&state.ty)));
         }
 
-        self.struct_defs
-            .insert(world.ast.name.clone(), fields.clone());
+        let world_llvm_name = Self::llvm_named_type_name(&world.ast.name);
+        self.register_struct_definition(&world.ast.name, fields.clone());
 
         let field_types: Vec<String> = fields.iter().map(|(_, ty)| ty.clone()).collect();
         self.emit(&format!(
             "%{} = type {{ {} }}",
-            world.ast.name,
+            world_llvm_name,
             field_types.join(", ")
         ));
 
-        let global_symbol = format!("@__kain_world_{}", world.ast.name);
-        let init_flag_symbol = format!("@__kain_world_init_flag_{}", world.ast.name);
-        let init_fn_name = format!("__kain_init_world_{}", world.ast.name);
+        let global_symbol = format!("@__kain_world_{}", world_llvm_name);
+        let init_flag_symbol = format!("@__kain_world_init_flag_{}", world_llvm_name);
+        let init_fn_name = format!("__kain_init_world_{}", world_llvm_name);
 
         self.world_globals.insert(
             world.ast.name.clone(),
@@ -13537,7 +13562,7 @@ impl LlvmGenerator {
 
         self.emit(&format!(
             "{} = internal global %{} zeroinitializer",
-            global_symbol, world.ast.name
+            global_symbol, world_llvm_name
         ));
         self.emit(&format!("{} = internal global i1 0", init_flag_symbol));
         self.emit("");
@@ -14031,7 +14056,7 @@ impl LlvmGenerator {
         );
 
         // 2a. Pre-scan Structs and other type definitions, including nested modules.
-        self.register_type_definitions_recursive(&program.items)?;
+        self.register_type_definitions_recursive(&program.items, "")?;
 
         self.register_python_import_globals(&program.items)?;
         self.register_const_globals(&program.items);
@@ -15192,7 +15217,7 @@ impl LlvmGenerator {
             ("main".to_string(), true)
         } else {
             (
-                Self::callable_link_name(attributes).unwrap_or_else(|| callable_name.to_string()),
+                Self::callable_link_name(attributes).unwrap_or_else(|| Self::sanitize_symbol_fragment(callable_name)),
                 false,
             )
         };
@@ -16056,13 +16081,14 @@ impl LlvmGenerator {
         ));
 
         self.emit_label(&init_block);
-        let world_ptr_type = format!("%{}*", world.ast.name);
+        let world_llvm_name = Self::llvm_named_type_name(&world.ast.name);
+        let world_ptr_type = format!("%{}*", world_llvm_name);
         for (index, state) in world.ast.states.iter().enumerate() {
             let field_ty = self.map_type_from_ast(&state.ty);
             let field_ptr = self.next_reg();
             self.emit(&format!(
                 "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                field_ptr, world.ast.name, world_ptr_type, world_info.global_symbol, index
+                field_ptr, world_llvm_name, world_ptr_type, world_info.global_symbol, index
             ));
             let (initial_value, initial_ty) =
                 self.compile_expr_for_target_type(&state.initial, &field_ty)?;
@@ -19822,11 +19848,21 @@ impl LlvmGenerator {
                     Ok((reg, ty))
                 } else if let Some(info) = self.const_globals.get(name).cloned() {
                     Ok(self.compile_const_load(&info))
+                } else if self.functions.contains_key(name) {
+                    // Function-as-value: ptrtoint for function pointer identity
+                    let llvm_symbol = self.callable_symbol_for_name(name);
+                    let fn_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = ptrtoint ptr @{} to i64",
+                        fn_ptr, llvm_symbol
+                    ));
+                    Ok((fn_ptr, "i64".to_string()))
                 } else if let Some(info) = self.python_import_globals.get(name).cloned() {
                     Ok(self.compile_python_import_load(&info))
                 } else if let Some(world_info) = self.world_globals.get(name).cloned() {
                     self.emit(&format!("  call void @{}()", world_info.init_fn_name));
-                    Ok((world_info.global_symbol.clone(), format!("%{}*", name)))
+                    let world_type_name = Self::llvm_named_type_name(name);
+                    Ok((world_info.global_symbol.clone(), format!("%{}*", world_type_name)))
                 } else {
                     Err(KainError::codegen(
                         format!("Undefined variable: {}", name),
@@ -20636,9 +20672,9 @@ impl LlvmGenerator {
                     }
 
                     let (res_val, res_ty) = self.compile_expr(&arm.body)?;
-                    let arm_end_block = self.current_block.clone();
 
                     self.emit_scope_exit();
+                    let arm_end_block = self.current_block.clone();
                     self.emit(&format!("  br label %{}", label_end));
                     incoming.push((res_val, res_ty, arm_end_block));
                 }
@@ -20687,6 +20723,92 @@ impl LlvmGenerator {
 
                     self.emit(&format!("  {} = phi {} {}", res_reg, res_ty, phi_args));
                     Ok((res_reg, res_ty))
+                }
+            }
+            // Return/break/continue as expressions inside match arms, if-then-else, etc.
+            Expr::Return(value, span) => {
+                let actor_return_label = self.actor_return_label.clone();
+                let actor_return_slot = self.actor_return_slot.clone();
+
+                if let Some(e) = value {
+                    let (val, ty) = if let Some(target_ty) = self.current_return_type.clone() {
+                        self.compile_expr_for_target_type(e, &target_ty)?
+                    } else {
+                        self.compile_expr(e)?
+                    };
+                    if ty == "i8*" && self.expr_needs_shared_value_retain(e, "i8*") {
+                        self.emit_rc_retain_if_heap_i8(&val);
+                    }
+                    self.emit_all_defer_cleanups()?;
+                    self.emit_all_scopes_cleanup();
+                    if let Some(patch_name) = self.current_patch_name.clone() {
+                        let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @abi_patch_commit(i8* {})",
+                            status, patch_name_ptr
+                        ));
+                    }
+                    if let Some(return_slot) = actor_return_slot {
+                        self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, return_slot));
+                        if let Some(return_label) = actor_return_label {
+                            self.emit(&format!("  br label %{}", return_label));
+                        } else {
+                            self.emit(&format!("  ret {} {}", ty, val));
+                        }
+                    } else {
+                        self.emit(&format!("  ret {} {}", ty, val));
+                    }
+                } else {
+                    self.emit_all_defer_cleanups()?;
+                    self.emit_all_scopes_cleanup();
+                    if let Some(patch_name) = self.current_patch_name.clone() {
+                        let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @abi_patch_commit(i8* {})",
+                            status, patch_name_ptr
+                        ));
+                    }
+                    if let Some(return_label) = actor_return_label {
+                        self.emit(&format!("  br label %{}", return_label));
+                    } else {
+                        self.emit("  ret void");
+                    }
+                }
+                // Terminate block, emit dead label for match/if merge code to target
+                let dead_label = self.next_label();
+                self.emit_label(&dead_label);
+                Ok(("0".to_string(), "i64".to_string()))
+            }
+            Expr::Break(value, span) => {
+                if let Some((_, break_label)) = self.loop_stack.last().cloned() {
+                    if let Some(expr) = value {
+                        let (val, ty) = self.compile_expr(expr)?;
+                        if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
+                            self.emit_release(&val, &ty);
+                        }
+                    }
+                    let depth = self.loop_defer_depth_stack.last().copied().unwrap_or(0);
+                    self.emit_defer_cleanups_from_depth(depth)?;
+                    self.emit(&format!("  br label %{}", break_label));
+                    let dead_label = self.next_label();
+                    self.emit_label(&dead_label);
+                    Ok(("0".to_string(), "i64".to_string()))
+                } else {
+                    Err(KainError::codegen("break outside loop", *span))
+                }
+            }
+            Expr::Continue(span) => {
+                if let Some((continue_label, _)) = self.loop_stack.last().cloned() {
+                    let depth = self.loop_defer_depth_stack.last().copied().unwrap_or(0);
+                    self.emit_defer_cleanups_from_depth(depth)?;
+                    self.emit(&format!("  br label %{}", continue_label));
+                    let dead_label = self.next_label();
+                    self.emit_label(&dead_label);
+                    Ok(("0".to_string(), "i64".to_string()))
+                } else {
+                    Err(KainError::codegen("continue outside loop", *span))
                 }
             }
             // Catch-all for unsupported expressions

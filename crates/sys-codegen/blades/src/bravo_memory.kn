@@ -19,6 +19,7 @@
 
 use data
 use std::text
+use std::fs
 
 // ============================================================================
 //  DOMAIN & LANE CONSTANTS
@@ -602,7 +603,7 @@ fn find_function_end_line(bytes: Array<Int>, fn_pos: Int) -> Int:
         idx = idx + 1
     return start_line + 5  // fallback
 
-fn extract_return_type(sig: String) -> String:
+fn bravo_extract_return_type(sig: String) -> String:
     let arrow = text_find(text_from(sig), "->")
     if arrow < 0:
         return "void"
@@ -670,42 +671,153 @@ fn extract_params(sig: String) -> Array<ParamMeta>:
     return params
 
 // ============================================================================
+//  TEXT-BASED PARSER HELPERS — read source as text (like alpha_types)
+// ============================================================================
+
+fn find_fn_keyword_offset(trimmed: String) -> Int:
+    // Find "fn " in the line and verify it's a keyword (preceded by non-ident
+    // char or at line start). Returns the offset of 'f' or -1.
+    var search_start: Int = 0
+    while search_start < len(trimmed):
+        let fn_pos = text_find_from(text_from(trimmed), "fn ", search_start)
+        if fn_pos < 0:
+            return -1
+        // Verify "fn" is a keyword
+        if fn_pos == 0:
+            return fn_pos
+        let prev = text_substring_string(trimmed, fn_pos - 1, 1)
+        let prev_byte = text_ord(prev)
+        if is_alpha_byte(prev_byte) == false:
+            return fn_pos
+        // False positive (part of a longer identifier); keep searching
+        search_start = fn_pos + 3
+    return -1
+
+fn extract_fn_name_from_line(trimmed: String, fn_offset: Int) -> String:
+    var name = ""
+    var i = fn_offset + 3  // skip "fn "
+    // Skip whitespace after "fn "
+    while i < len(trimmed):
+        let c = text_substring_string(trimmed, i, 1)
+        if c != " " and c != "\t":
+            break
+        i = i + 1
+    // Read identifier characters until delimiter
+    while i < len(trimmed):
+        let c = text_substring_string(trimmed, i, 1)
+        let cb = text_ord(c)
+        if is_ident_byte(cb) == false:
+            break
+        name = name + c
+        i = i + 1
+    return name
+
+fn extract_fn_signature_from_lines(lines: Array<String>, fn_line_idx: Int) -> String:
+    var sig = ""
+    var i = fn_line_idx
+    while i < len(lines):
+        let ln = text_trim_string(lines[i])
+        sig = sig + ln + " "
+        // Stop at opening brace or semicolon (extern decl)
+        if text_contains_string(ln, "{") or text_contains_string(ln, ";"):
+            break
+        i = i + 1
+    sig = text_trim_string(sig)
+    if len(sig) > 250:
+        sig = text_substring_string(sig, 0, 250) + "..."
+    return sig
+
+fn find_fn_end_line_from_lines(lines: Array<String>, fn_line_idx: Int) -> Int:
+    var depth: Int = 0
+    var found_open: Bool = false
+    var i = fn_line_idx
+    while i < len(lines):
+        let ln = lines[i]
+        var ci: Int = 0
+        while ci < len(ln):
+            let c = text_substring_string(ln, ci, 1)
+            if c == "{":
+                depth = depth + 1
+                found_open = true
+            elif c == "}":
+                depth = depth - 1
+                if found_open and depth == 0:
+                    return i + 1  // 1-based line number
+            ci = ci + 1
+        // Extern declaration with no body: "fn foo();"
+        if found_open == false and text_contains_string(ln, ";"):
+            return i + 1
+        i = i + 1
+    return fn_line_idx + 5  // fallback (shouldn't reach here for valid Rust)
+
+
+// ============================================================================
 //  EXTRACTION — parse the source and produce FunctionMeta array
+//
+//  Uses text-based line-by-line parsing (like alpha_types::parse_rust_source)
+//  instead of byte-level scanning, because target.source_bytes is never
+//  populated by the caller (main.kn sets source_path only).
 // ============================================================================
 
 pub fn extract_function_meta(target: ExtractionTarget) -> Array<FunctionMeta>:
     var results: Array<FunctionMeta> = []
-    let bytes = target.source_bytes
-    let positions = find_fn_declarations(bytes)
 
-    var i = 0
-    while i < len(positions):
-        let fn_pos = positions[i]
-        let name = extract_function_name(bytes, fn_pos)
-        if len(name) == 0:
+    // Read source file as text (same pattern as alpha_types::read_source_file)
+    let source = fs_read_text(target.source_path)
+    if source == "":
+        println("[BRAVO] WARNING: Could not read source file: " + target.source_path)
+        return results
+
+    var lines = text_split_lines(source)
+    var num_lines = len(lines)
+    var i: Int = 0
+
+    while i < num_lines:
+        let trimmed = text_trim_string(lines[i])
+        let line_num = i + 1  // 1-based
+
+        // Skip comment-only lines and doc comments
+        if text_starts_with_string(trimmed, "//"):
             i = i + 1
             continue
 
-        let sig = extract_function_signature(bytes, fn_pos)
-        let line_start = line_number_of(bytes, fn_pos)
-        let line_end = find_function_end_line(bytes, fn_pos)
-        let ret_ty = extract_return_type(sig)
-        let params = extract_params(sig)
-        let is_pub = text_contains_string(sig, "pub fn") or text_contains_string(sig, "pub(crate) fn")
+        // Skip attribute lines
+        if text_starts_with_string(trimmed, "#"):
+            i = i + 1
+            continue
 
-        push(results, FunctionMeta {
-            name: name,
-            line_start: line_start,
-            line_end: line_end,
-            signature: sig,
-            return_type: ret_ty,
-            params: params,
-            doc_comment: "",
-            is_pub: is_pub,
-            is_impl_method: true,
-            impl_target: "",
-            domain: "memory",
-        })
+        // Look for "fn " keyword in this line
+        let fn_offset = find_fn_keyword_offset(trimmed)
+        if fn_offset >= 0:
+            let name = extract_fn_name_from_line(trimmed, fn_offset)
+            if len(name) > 0:
+                // Extract signature (from fn line to opening { or ;)
+                let sig = extract_fn_signature_from_lines(lines, i)
+
+                // Find closing line via brace depth
+                let end_line = find_fn_end_line_from_lines(lines, i)
+
+                // Determine visibility
+                let fn_prefix = text_substring_string(trimmed, 0, fn_offset)
+                let is_pub = text_contains_string(fn_prefix, "pub")
+
+                // Extract return type and params from signature
+                let ret_ty = bravo_extract_return_type(sig)
+                let params = extract_params(sig)
+
+                push(results, FunctionMeta {
+                    name: name,
+                    line_start: line_num,
+                    line_end: end_line,
+                    signature: sig,
+                    return_type: ret_ty,
+                    params: params,
+                    doc_comment: "",
+                    is_pub: is_pub,
+                    is_impl_method: false,
+                    impl_target: "",
+                    domain: "memory",
+                })
 
         i = i + 1
 
@@ -738,6 +850,14 @@ pub fn matches_bravo_domain(meta: FunctionMeta) -> Bool:
 
 // ============================================================================
 //  HELPER — push all elements from one array into another
+// ============================================================================
+
+// ============================================================================
+//  HELPER — push all elements from one array into another
+//
+//  Note: Kain function params are value semantics; push mutates the local
+//  copy. For callers that need the original modified, use inline loops
+//  directly on the local var array instead.
 // ============================================================================
 
 fn bravo_push_all(dest: Array<Invariant>, src: Array<Invariant>):
@@ -1100,11 +1220,37 @@ pub fn run_bravo(target: ExtractionTarget) -> VerificationReport:
     // Step 2: Define all invariants
     var all_invariants: Array<Invariant> = []
 
-    bravo_push_all(all_invariants, define_ephemeral_invariants())
-    bravo_push_all(all_invariants, define_heap_rc_invariants())
-    bravo_push_all(all_invariants, define_scope_invariants())
-    bravo_push_all(all_invariants, define_control_invariants())
-    bravo_push_all(all_invariants, define_atomic_invariants())
+    // Inline push from each category (Kain fn params use value semantics;
+    // push mutates the local var directly instead of through a helper)
+    let eph_list = define_ephemeral_invariants()
+    var ei = 0
+    while ei < len(eph_list):
+        push(all_invariants, eph_list[ei])
+        ei = ei + 1
+
+    let rc_list = define_heap_rc_invariants()
+    var ri = 0
+    while ri < len(rc_list):
+        push(all_invariants, rc_list[ri])
+        ri = ri + 1
+
+    let scp_list = define_scope_invariants()
+    var si = 0
+    while si < len(scp_list):
+        push(all_invariants, scp_list[si])
+        si = si + 1
+
+    let ctl_list = define_control_invariants()
+    var ci = 0
+    while ci < len(ctl_list):
+        push(all_invariants, ctl_list[ci])
+        ci = ci + 1
+
+    let atm_list = define_atomic_invariants()
+    var ai = 0
+    while ai < len(atm_list):
+        push(all_invariants, atm_list[ai])
+        ai = ai + 1
 
     println("[BRAVO] Defined " + str(len(all_invariants)) + " invariants across 5 categories")
 

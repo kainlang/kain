@@ -198,4 +198,5 @@ pub fn run_tests() -> Int:
     println("--- types: " + str(_failures) + " failures ---")
     return _failures
 
-// No standalone main() — this module is imported by test_runner.kn
+fn main() -> Int:
+    return run_tests()

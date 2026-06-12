@@ -1,0 +1,54 @@
+// ============================================================================
+//  MINIMAL WINDOW TEST — std::ui software backend
+// ============================================================================
+
+use std::ui
+use std::process
+
+fn main() -> Int:
+    let _reset = native_ui_reset()
+
+    // Create session with window
+    let session = ui_host_session_create("win-test", "Kain GUI Test", 640, 480, "winit")
+    let _gen = native_ui_hot_reload_begin(session, "test-v1")
+
+    // Create a root node and set a background color
+    let root = ui_reconcile_node(session, 0, "test.root", "root", 0.0, 0.0, 640.0, 480.0)
+    let _bg_color = ui_style_color_rgba(session, root, "bg", 0.10, 0.12, 0.18, 1.0)
+    let _text_color = ui_style_color_rgba(session, root, "text", 0.90, 1.0, 0.90, 1.0)
+
+    // Create a small test font
+    let font = native_ui_font_create(session, "font.test", "Segoe UI", 16.0)
+
+    println("Window created. Session=" + str(session) + " Starting render loop...")
+
+    // Render loop — stay open for ~5 seconds or until closed
+    var frame: Int = 0
+    while frame < 300 and native_ui_host_should_close(session) == 0:
+        // Pump native events
+        let _pump = ui_host_pump(session)
+
+        // Drain any events (so the window doesn't close on us)
+        while ui_poll_event(session) == 1:
+            let _kind = ui_event_kind(session)
+            // Just drain — don't handle
+
+        // Render frame
+        let _begin = ui_frame_begin(session, 16.0)
+
+        // Background
+        let _bg = ui_render_box_at(session, root, 0.0, 0.0, 640.0, 480.0, "bg")
+
+        // Title text
+        let title = "Kain GUI — frame " + str(frame)
+        let _title = ui_render_text_value(session, root, font, title, 30.0, 60.0, "text")
+
+        let _submit = ui_frame_submit(session)
+        let _present = ui_present_to_attached_host(session)
+
+        frame = frame + 1
+
+    println("Loop ended. frame=" + str(frame) + " should_close=" + str(native_ui_host_should_close(session)))
+
+    let _ = native_ui_session_destroy(session)
+    return 0

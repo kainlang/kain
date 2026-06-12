@@ -7,32 +7,175 @@ A precision regression test suite for **6 LLVM codegen edge-case gaps** discover
 ```powershell
 cd X:\blades\edge_cases\codegen_edge_gaps
 kain check               # typecheck only (fastest — verify all imports resolve)
-kain run                 # full compile + run all 6 gap regression tests
-kain run -- --test gap1  # run a specific gap test
-kain run -- --vm         # run inside isolated subprocess (for crash-catching)
+kain check src\main.kn   # typecheck main entry
 ```
 
-## The 6 Codegen Gaps
+**Note:** `kain run` and `kain build` currently fail at codegen for Gaps 3, 4, 6.
+Run individual isolated test files in `tests/` to test specific gaps:
 
-| Gap | Root Cause | Severity | Validates |
-|-----|-----------|----------|-----------|
-| **Gap 1** — `::` leaks into LLVM type names | Module-scoped enums produce invalid IR because `::` separator is used verbatim in LLVM struct type names. LLVM verifier rejects the type. | **LLVM verifier rejection** — compile-time, detectable | `test_gap1_type_names()` — emits a module-scoped enum and inspects the IR type string |
-| **Gap 2** — `py_getattr_raw` fallback incorrectly fires | The `py_getattr_raw` fallback path triggers for Kain-to-Kain struct field access, returning a Python-object-type lookup instead of a struct GEP. Silent wrong data — no crash, just incorrect field values. | **Silent wrong data** ⚠️ most dangerous | `test_gap2_struct_field_read()` — reads struct fields and verifies values match Kain-level semantics, not Python interop fallback | ------- PATCHED ON 6/08
-| **Gap 3** — Named-field enum variant destructure fails | When pattern-matching a named-field enum variant, the LLVM codegen emits payload fields named `_0`, `_1` but the pattern matching resolver looks for the authored field names (e.g. `x`, `y`). The accessor never finds the named field. | **Silent wrong payload extraction** ⚠️ | `test_gap3_named_enum_destructure()` — destructures a named-field enum variant and asserts correct field access |
-| **Gap 4** — Function pointers via `ptr_to_int` missing | The `ptr_to_int` lowering path calls the Ident resolver to look up function symbols, but the resolver never checks `self.functions`. The function pointer emission produces an undefined external symbol that fails at link time. | **Linker error** — detectable | `test_gap4_func_ptr()` — takes a function pointer, converts to int, and verifies the IR contains the correct function symbol |
-| **Gap 5** — `return` in match arm produces invalid IR | When a `return` appears inside a match arm, the codegen emits both a `ret` instruction AND a `br` to the merge block, creating a dead PHI predecessor. LLVM's PHI validation crashes. | **LLVM crash / assertion failure** — detectable | `test_gap5_return_in_match()` — a match expression with `return` in one arm; verifies no dead PHI predecessors in emitted IR |
-| **Gap 6** — PHI node predecessor mismatches from `break`/`continue` in loops | When `break` or `continue` inside a loop creates alternative exit paths, the PHI nodes at the loop merge point have mismatched predecessor counts. This produces miscompiled output (wrong values from loop-carried dependencies). | **Runtime misbehaviour** | `test_gap6_break_continue_phi()` — loop with conditional `break` that produces a value; verifies correct PHI predecessor count |
+```powershell
+kain build tests\test_gap2_struct_field.kn --target llvm   # PASSES
+kain build tests\test_gap5_return_in_match.kn --target llvm # PASSES
+```
+
+## Current Gap Status (2026-06-11 Audit)
+
+| Gap | Status | Error | IR Evidence | Affected Codegen Sites |
+|-----|--------|-------|-------------|----------------------|
+| **Gap 1** — `::` leaks into LLVM type names | ⚠️ **PARTIALLY RESOLVED** (new issue) | LLVM verifier: "base element of getelementptr must be sized" — `%shapes_3A_3AShape` is opaque (type def uses raw name) | IR uses sanitized `%shapes_3A_3AShape` but def at line 13366 emits `%shapes::Shape` — name mismatch | Line 13366, 13374, 13385, 13389 need `llvm_named_type_name` / `register_struct_definition` |
+| **Gap 2** — `py_getattr_raw` fallback | ✅ **RESOLVED** | Linker error only (runtime lib path) — not a codegen issue | IR shows proper `extractvalue %Point %r0, 0/1` — no py_getattr_raw call | Fixed by proper struct field codegen |
+| **Gap 3** — Named-field enum destructure | ❌ **STILL FAILING** | `Unknown payload field 'x' for Gap3Foo::Bar` — payload fields are `_0`, `_1` but pattern resolver needs authored `x`, `y` | — | Lines 10968-10992 (`bind_variant_pattern_fields`) vs 13348-13352 (payload field registration) |
+| **Gap 4** — Function pointer via `let f = helper` | ❌ **STILL FAILING** | `Undefined variable: helper` — Ident resolver never checks `self.functions` | — | Ident resolution (Exrp::Ident handler) skips `self.functions` |
+| **Gap 5** — `return` in match arm | ✅ **RESOLVED** | No dead PHI predecessors — IR is clean | PHI node `%r5 = phi i64 [ 0, %L147 ], [ 0, %L148 ], [ 0, %L149 ], [ 0, %L140 ]` — 4 valid predecessors, no dead blocks | Fixed by proper terminator handling |
+| **Gap 6** — `break`/`continue` in loop PHI | ❌ **STILL FAILING** (different error) | `Unsupported LLVM expression: Break(None)` — `break` is entirely unimplemented in LLVM codegen | — | `break` expression handler missing in LLVM codegen entirely |
 
 ## What Makes Each Gap Unique
 
 ```
 Gap 1  (:: in types)   → LLVM verifier error (detectable, blocks compilation)
-Gap 2  (py_getattr)    → wrong values, NO crash (silent, hardest to catch)
+Gap 2  (py_getattr)    → wrong values, NO crash (silent, hardest to catch) — NOW FIXED
 Gap 3  (destructure)   → wrong enum payload, NO crash (silent)
 Gap 4  (ptr_to_int)    → linker undefined symbol (detectable late)
-Gap 5  (return match)  → LLVM assertion crash (detectable, process-terminating)
+Gap 5  (return match)  → LLVM assertion crash (detectable, process-terminating) — NOW FIXED
 Gap 6  (break/continue) → wrong loop output, more wrong at higher -O levels
 ```
+
+## Changelog
+
+### 2026-06-11 — Std140 type name sanitization + audit
+
+**Std140 type name sanitization (13 sites):**
+The `llvm_named_type_name()` function (calls `sanitize_symbol_fragment`) was applied at
+13 reference sites in `crates/sys-codegen/src/codegen_llvm/mod.rs`:
+
+| # | Line | Site | Was | Now |
+|---|------|------|-----|-----|
+| 1 | 10953 | Actor request payload type | `%{payload_struct_name}` | `%{llvm_named_type_name(payload_struct_name)}` |
+| 2 | 12724 | Actor reply payload type | `%{request_payload_name}` | `%{llvm_named_type_name(request_payload_name)}` |
+| 3 | 14222 | Actor struct type | `%{name}` | `%{llvm_named_type_name(name)}` |
+| 4 | 14390 | Actor message struct type | `%{msg_struct_name}` | `%{llvm_named_type_name(msg_struct_name)}` |
+| 5 | 14797 | Actor destructor definition | `%{name}` | `%{llvm_named_type_name(name)}` + skip non-canonical names |
+| 6 | 14798 | Actor destructor function name | `dtor_{name}` | `dtor_{llvm_named_type_name(name)}` |
+| 7 | 19058 | Struct expression codegen | `%{name}` | `%{llvm_named_type_name(name)}` |
+| 8 | 19108 | Struct destructor call | `dtor_{name}` | `dtor_{llvm_named_type_name(name)}` |
+| 9 | 19319 | Actor spawn struct type | `%{actor}` | `%{llvm_named_type_name(actor)}` |
+| 10 | 19433 | Actor state destructor | `dtor_{actor}` | `dtor_{llvm_named_type_name(actor)}` |
+| 11 | 19558 | Actor message payload type | `%{payload_struct_name}` | `%{llvm_named_type_name(payload_struct_name)}` |
+| 12 | 20416 | Enum struct type in `compile_enum` | `%{enum_name}` | `%{llvm_named_type_name(enum_name)}` |
+| 13 | 20443 | Enum destructor function name | `dtor_{enum_name}` | `dtor_{llvm_named_type_name(enum_name)}` |
+
+**Gaps resolved by this patch:**
+- **Gap 2** — Struct field access no longer falls through to `py_getattr_raw` (GEP-based access works)
+- **Gap 5** — `return` in match arm no longer creates dead PHI predecessors (clean control flow)
+
+**Gaps NOT resolved (need separate fixes):**
+- **Gap 3** — Named-field enum destructure pattern resolution (field names `_0` vs authored names `x`, `y`)
+- **Gap 4** — Function pointer Ident resolution (`self.functions` not checked)
+- **Gap 6** — `break` expression entirely unimplemented in LLVM codegen
+
+**Newly discovered gaps:**
+- **Gap 1 remaining issue** — The type name sanitization works at reference sites but the TYPE DEFINITIONS at lines 13366, 13374, 13385, 13389 still use raw `e.ast.name` (e.g., `%shapes::Shape`) instead of the sanitized name (`%shapes_3A_3AShape`). Additionally, actor struct type defs at lines 13330-13350 and world struct type def at line 13520 also use raw names. These must be updated to match the sanitized references.
+
+## Detailed Gap Analysis
+
+### Gap 1 — Module-scoped enum (:: leaks into LLVM type names)
+
+**Status:** ⚠️ PARTIALLY RESOLVED
+
+The `::` → `_3A_3A` sanitization IS working in reference codegen (lines 20411-20460).
+However, the TYPE DEFINITION in `register_type_definitions_recursive` (line 13366) still uses
+the raw authored name:
+
+```rust
+// Line 13366 — STILL UNSANITIZED
+self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
+```
+
+This emits `%shapes::Shape = type { i64, i8* }` but reference codegen looks for
+`%shapes_3A_3AShape`, creating an opaque type error.
+
+**Sites still needing sanitization:**
+
+| Line | Code | Issue |
+|------|------|-------|
+| 13330 | `struct_defs.insert(a.ast.name, ...)` | Actor struct — should use `register_struct_definition` |
+| 13334 | `emit("%{} = type ...", a.ast.name)` | Actor type def — should use `llvm_named_type_name` |
+| 13348 | `struct_defs.insert(msg_struct_name, ...)` | Actor message — should use `register_struct_definition` |
+| 13350 | `emit("%{} = type ...", msg_struct_name)` | Actor msg type def — should use `llvm_named_type_name` |
+| 13366 | `emit("%{} = type ...", e.ast.name)` | Enum type def — should use `llvm_named_type_name` |
+| 13374 | `struct_defs.insert(e.ast.name, ...)` | Enum struct — should use `register_struct_definition` |
+| 13385 | `struct_name = format!("{}_{}", e.ast.name, variant)` | Variant payload name — should use `llvm_named_type_name` |
+| 13389 | `struct_defs.insert(struct_name, ...)` | Variant payload — should use `register_struct_definition` |
+| 13520 | `emit("%{} = type ...", world.ast.name)` | World type def — should use `llvm_named_type_name` |
+
+### Gap 2 — py_getattr_raw fallback for Kain struct pointers
+
+**Status:** ✅ RESOLVED
+
+The LLVM IR shows clean `extractvalue %Point %r0, 0/1` operations with no
+`py_getattr_raw` calls. The struct field access uses proper LLVM GEP/insertvalue/
+extractvalue patterns. The linker error (`undefined symbol: kain_actor_runtime_init`)
+is a runtime library path issue, not a codegen issue.
+
+### Gap 3 — Named-field enum variant destructure
+
+**Status:** ❌ STILL FAILING
+
+```
+Error: Kain error: Codegen error: Unknown payload field 'x' for Gap3Foo::Bar
+```
+
+Payload struct fields are registered as `_0`, `_1` (positional) at lines 13348-13352
+when the variant payload types are emitted. But `bind_variant_pattern_fields()` at
+lines 10968-10992 looks up authored field names like `x`, `y` from the struct_defs.
+The lookup fails because the names don't match.
+
+**Root cause:** `bind_variant_pattern_fields` should either:
+- Map authored field names to positional `_0`, `_1` names during pattern binding, or
+- Register payload fields under authored names instead of positional names
+
+### Gap 4 — Function pointers via let f = helper
+
+**Status:** ❌ STILL FAILING
+
+```
+Error: Kain error: Codegen error: Undefined variable: helper
+```
+
+The `Expr::Ident` handler checks `ssa_locals`, `locals`, `const_globals`,
+`python_import_globals`, and `world_globals` — but never checks `self.functions`.
+Functions are registered at lines 12968, 13013, 13168 but never looked up during
+Ident resolution in codegen.
+
+### Gap 5 — return in match arm
+
+**Status:** ✅ RESOLVED
+
+The LLVM IR shows clean control flow:
+
+```
+%r5 = phi i64 [ 0, %L147 ], [ 0, %L148 ], [ 0, %L149 ], [ 0, %L140 ]
+```
+
+All 4 PHI predecessors are valid. The `ret` instruction in match arms terminates
+the block properly without an additional `br` to the merge block. No dead PHI
+predecessors.
+
+### Gap 6 — break/continue in loops
+
+**Status:** ❌ STILL FAILING (different error than documented)
+
+```
+Error: Kain error: Codegen error: Unsupported LLVM expression: Break(None, ...)
+```
+
+The documented gap was about PHI predecessor mismatches from `break`/`continue` in
+loops. However, the more fundamental issue is that the `break` expression is
+entirely unimplemented in the LLVM codegen — the compiler errors out before
+reaching the PHI emission stage.
+
+**Fix needed:** Implement `Expr::Break` and `Expr::Continue` handlers in the LLVM
+codegen's expression dispatch (near `Expr::Loop`, `Expr::While` handling).
 
 ## File Taxonomy
 
@@ -40,13 +183,21 @@ Gap 6  (break/continue) → wrong loop output, more wrong at higher -O levels
 codegen_edge_gaps/
 ├── build.kn           Build authority — project "codegen-edge-gaps", version 0.1.0
 ├── readme.md          This file
-└── src/
-    ├── main.kn         CLI entry point — parses flags, dispatches to diagnostics or VM
-    ├── diagnostics.kn  Orchestrator — imports all modules, runs gap tests, prints reports
-    ├── cause.kn        6 regression test functions (one per gap) + test table dispatch
-    ├── effect.kn       Cascading failure model — maps each gap to its failure severity
-    ├── spookymagic.kn  Heisenbug/optimizer-sensitive gap modeling
-    └── vm.kn           Isolated process execution wrapper (--vm flag)
+├── spawn.kn           Debug template cloner (self-replicating)
+├── src/
+│   ├── main.kn         CLI entry point — parses flags, dispatches to diagnostics or VM
+│   ├── diagnostics.kn  Orchestrator — imports all modules, runs gap tests, prints reports
+│   ├── cause.kn        6 regression test functions (one per gap) + test table dispatch
+│   ├── effect.kn       Cascading failure model — maps each gap to its failure severity
+│   ├── spookymagic.kn  Heisenbug/optimizer-sensitive gap modeling
+│   └── vm.kn           Isolated process execution wrapper (--vm flag)
+└── tests/              Isolated minimal repro files for each gap (audit artifacts)
+    ├── test_gap1_module_enum.kn
+    ├── test_gap2_struct_field.kn
+    ├── test_gap3_named_destructure.kn
+    ├── test_gap4_fn_ptr.kn
+    ├── test_gap5_return_in_match.kn
+    └── test_gap6_break_phi.kn
 ```
 
 ## File Interaction Diagram
@@ -142,4 +293,4 @@ This regression suite is designed for CI integration:
 
 - This blade provides the **test harness, effect model, and spooky magic infrastructure**.
 - Another agent will fill in the **6 test function bodies** in `cause.kn`.
-- The `spawn.kn` cloner from the debug template has been removed — this is a fixed-target regression suite, not a template.
+- The `spawn.kn` cloner from the debug template is included but is a utility, not part of the regression suite.

@@ -1,0 +1,596 @@
+// ============================================================================
+//  HEX COLOR MIXER — Markscript-Driven UI (DELTA Rewrite)
+//  Pure Kain std::ui — real text input + live color preview.
+//
+//  TYPE hex codes (e.g. "FF8040") to see the color update in real time.
+//  CLICK preset swatches to pick common colors.
+//
+//  THIS VERSION loads its entire UI spec from ui.md at runtime.
+//  Every table in ui.md drives real widget creation:
+//    Window table   → window dimensions, fonts, backend
+//    Layout table   → widget positions and sizes
+//    Presets table  → color swatches (not hardcoded!)
+//    State Machine  → behavioral rules
+//
+//  To change the UI, edit ui.md — not the Kain code.
+//
+//  Ladder rung: Layer 0 (fn) — imperative event loop with embedded VM.
+// ============================================================================
+
+use std::ui
+use std::runtime
+use std::fs
+use std::text      // text_ord for font spec parsing
+use color           // Rgb, rgb_new, rgb_float, parse_hex_rgb, rgb_to_hex,
+                    // hex_digit, is_hex_char, preset_rgb, preset_label, PRESET_COUNT
+use input           // string_len, string_char_at, string_substring,
+                    // build_display_hex, hex_insert, hex_delete, is_hex_char
+use ui              // render_filled_box, render_label, render_button
+
+// Markscript embedding (DELTA)
+use blades.markscript.src.std_markscript
+                    // mks_new_vm, mks_run_file, mks_run_string, mks_run_with_vm,
+                    // mks_table_get_int, mks_table_get_string, mks_table_get_float,
+                    // mks_table_rows, mks_table_cols, mks_tables,
+                    // mks_to_int, mks_to_string
+
+// ============================================================================
+//  SPEC-DRIVEN CONFIG — loaded from ui.md at startup
+// ============================================================================
+
+// Window config extracted from the Window table
+struct WindowConfig:
+    title:      String
+    width:      Int
+    height:     Int
+    backend:    String
+    font_title: String    // "Segoe UI 22" — parsed to name + size
+    font_body:  String
+    font_mono:  String
+
+// Layout region extracted from the Layout table
+struct LayoutRegion:
+    region:  String
+    x:       Float
+    y:       Float
+    w:       Float
+    h:       Float
+    purpose: String
+
+// Color preset extracted from the Presets table
+struct ColorPreset:
+    index: Int
+    label: String
+    r:     Int
+    g:     Int
+    b:     Int
+    hex:   String
+
+// ============================================================================
+//  SPEC PARSING — extract config from markscript tables
+// ============================================================================
+
+/// Find a table by its first column header name.
+fn find_table_by_header(vm: MarkScriptVM, header_name: String) -> Int:
+    var i: Int = 0
+    while i < vm.data_table_cnt:
+        let dt = vm.data_table[i]
+        if dt.rows > 0 and len(dt.data) > 0:
+            let first = dt.data[0]
+            if first.kind == MARK_STRING and first.str_val == header_name:
+                return dt.handle_id
+        i = i + 1
+    return -1
+
+/// Helper: safely get a value from a table at (handle, row, col).
+fn table_str(vm: MarkScriptVM, h: Int, r: Int, c: Int) -> String:
+    return mks_table_get_string(vm, h, r, c, "")
+
+fn table_int(vm: MarkScriptVM, h: Int, r: Int, c: Int, d: Int) -> Int:
+    return mks_table_get_int(vm, h, r, c, d)
+
+fn table_float(vm: MarkScriptVM, h: Int, r: Int, c: Int, d: Float) -> Float:
+    return mks_table_get_float(vm, h, r, c, d)
+
+/// Parse "FontName Size" into (name, size).
+fn parse_font_spec(spec: String) -> FontSpec:
+    // Split by last space
+    var name = spec
+    var size: Float = 16.0
+    let slen = string_len(spec)
+    var i: Int = slen - 1
+    while i >= 0:
+        let ch = string_char_at(spec, i)
+        let cv = text_ord(ch)
+        if ch == " ":
+            let size_str = string_substring(spec, i + 1, slen - i - 1)
+            name = string_substring(spec, 0, i)
+            // Parse size string
+            var sz: Int = 0
+            var si: Int = 0
+            let sslen = string_len(size_str)
+            while si < sslen:
+                let sc = string_char_at(size_str, si)
+                let sv = text_ord(sc)
+                if sv >= 48 and sv <= 57:
+                    sz = sz * 10 + (sv - 48)
+                si = si + 1
+            size = sz as Float
+            break
+        i = i - 1
+    return FontSpec { name: name, size: size }
+
+struct FontSpec:
+    name: String
+    size: Float
+
+/// Parse window config from the Window table.
+fn parse_window_config(vm: MarkScriptVM) -> WindowConfig:
+    let h = find_table_by_header(vm, "Property")
+    var cfg = WindowConfig {
+        title: "Markscript UI", width: 800, height: 600,
+        backend: "winit",
+        font_title: "Segoe UI 22", font_body: "Segoe UI 15", font_mono: "Consolas 16"
+    }
+    if h < 0:
+        return cfg
+    let rows = mks_table_rows(vm, h)
+    var ri: Int = 0
+    while ri < rows:
+        let prop = table_str(vm, h, ri, 0)
+        let val = table_str(vm, h, ri, 1)
+        if prop == "Title":
+            cfg.title = val
+        elif prop == "Width":
+            cfg.width = table_int(vm, h, ri, 1, 800)
+        elif prop == "Height":
+            cfg.height = table_int(vm, h, ri, 1, 600)
+        elif prop == "Backend":
+            cfg.backend = val
+        elif prop == "FontTitle":
+            cfg.font_title = val
+        elif prop == "FontBody":
+            cfg.font_body = val
+        elif prop == "FontMono":
+            cfg.font_mono = val
+        ri = ri + 1
+    return cfg
+
+/// Parse layout regions from the Layout table.
+fn parse_layout(vm: MarkScriptVM) -> Array<LayoutRegion>:
+    var regions: Array<LayoutRegion> = []
+    let h = find_table_by_header(vm, "Region")
+    if h < 0:
+        return regions
+    let rows = mks_table_rows(vm, h)
+    var ri: Int = 0
+    while ri < rows:
+        let reg = LayoutRegion {
+            region:  table_str(vm, h, ri, 0),
+            x:       table_float(vm, h, ri, 1, 0.0),
+            y:       table_float(vm, h, ri, 2, 0.0),
+            w:       table_float(vm, h, ri, 3, 0.0),
+            h:       table_float(vm, h, ri, 4, 0.0),
+            purpose: table_str(vm, h, ri, 5)
+        }
+        push(regions, reg)
+        ri = ri + 1
+    return regions
+
+/// Find a layout region by its region name. Returns index or -1.
+fn find_region(regions: Array<LayoutRegion>, name: String) -> Int:
+    var i: Int = 0
+    while i < len(regions):
+        if regions[i].region == name:
+            return i
+        i = i + 1
+    return -1
+
+/// Parse color presets from the Presets table.
+fn parse_presets(vm: MarkScriptVM) -> Array<ColorPreset>:
+    var presets: Array<ColorPreset> = []
+    let h = find_table_by_header(vm, "Index")
+    if h < 0:
+        return presets
+    let rows = mks_table_rows(vm, h)
+    var ri: Int = 0
+    while ri < rows:
+        let idx = table_int(vm, h, ri, 0, -1)
+        if idx >= 0:
+            let preset = ColorPreset {
+                index: idx,
+                label: table_str(vm, h, ri, 1),
+                r:     table_int(vm, h, ri, 2, 128),
+                g:     table_int(vm, h, ri, 3, 128),
+                b:     table_int(vm, h, ri, 4, 128),
+                hex:   table_str(vm, h, ri, 5)
+            }
+            push(presets, preset)
+        ri = ri + 1
+    return presets
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int:
+    // --- Initialize native runtime ---
+    let _ = native_runtime_init()
+    defer native_runtime_shutdown()
+
+    // --- Load the UI spec from ui.md at runtime ---
+    // The spec path is relative to the executable directory.
+    // In development, this is the mks/ directory.
+    let spec_path = "ui.md"
+    let spec_md = fs_read_text(spec_path)
+
+    if spec_md == "":
+        println("[ERROR] Could not read ui.md — ensure the spec file exists.")
+        return 1
+
+    // --- Create markscript VM and parse the spec ---
+    // Run the spec through the VM to parse all tables
+    let vm = mks_run_string(spec_md)
+
+    // --- Extract configuration from tables ---
+    let wincfg = parse_window_config(vm)
+    let regions = parse_layout(vm)
+    let presets = parse_presets(vm)
+
+    let preset_count = len(presets)
+    if preset_count == 0:
+        println("[WARN] No presets found in ui.md — using defaults")
+        // Fallback presets
+        var fallback: Array<ColorPreset> = []
+        push(fallback, ColorPreset { index: 0, label: "Red",   r: 220, g: 50,  b: 50,  hex: "DC3232" })
+        push(fallback, ColorPreset { index: 1, label: "Green", r: 50,  g: 200, b: 60,  hex: "32C83C" })
+        push(fallback, ColorPreset { index: 2, label: "Blue",  r: 50,  g: 80,  b: 220, hex: "3250DC" })
+        push(fallback, ColorPreset { index: 3, label: "Gray",  r: 128, g: 128, b: 128, hex: "808080" })
+        presets = fallback
+
+    // --- Font specs ---
+    let ft_spec = parse_font_spec(wincfg.font_title)
+    let fb_spec = parse_font_spec(wincfg.font_body)
+    let fm_spec = parse_font_spec(wincfg.font_mono)
+
+    // --- Create UI session with window dimensions from the spec ---
+    let session = ui_host_session_create(
+        "hex-color-mixer",
+        wincfg.title,
+        wincfg.width, wincfg.height, wincfg.backend,
+    )
+    if session <= 0:
+        println("[ERROR] Failed to create UI session")
+        return 1
+    defer ui_session_destroy(session)
+
+    // --- Fonts from spec ---
+    let title_font   = ui_font_create(session, "font.title",  ft_spec.name, ft_spec.size)
+    let heading_font = ui_font_create(session, "font.heading", ft_spec.name, 18.0)
+    let body_font    = ui_font_create(session, "font.body",    fb_spec.name, fb_spec.size)
+    let small_font   = ui_font_create(session, "font.small",   fb_spec.name, 12.0)
+    let mono_font    = ui_font_create(session, "font.mono",    fm_spec.name, fm_spec.size)
+
+    // --- Layout shortcuts — find regions by name ---
+    let r_preview  = find_region(regions, "ColorPreview")
+    let r_rgb      = find_region(regions, "RGBReadout")
+    let r_hex      = find_region(regions, "HexInput")
+    let r_presets  = find_region(regions, "Presets")
+    let r_actions  = find_region(regions, "Actions")
+    let r_history  = find_region(regions, "History")
+    let r_status   = find_region(regions, "Status")
+
+    // Region positions (with fallbacks if not found in spec)
+    let prev_x: Float  = if r_preview >= 0: regions[r_preview].x   else: 20.0
+    let prev_y: Float  = if r_preview >= 0: regions[r_preview].y   else: 90.0
+    let prev_w: Float  = if r_preview >= 0: regions[r_preview].w   else: 280.0
+    let prev_h: Float  = if r_preview >= 0: regions[r_preview].h   else: 280.0
+
+    let rgb_x: Float   = if r_rgb >= 0: regions[r_rgb].x     else: 20.0
+    let rgb_y: Float   = if r_rgb >= 0: regions[r_rgb].y     else: 398.0
+
+    let hex_x: Float   = if r_hex >= 0: regions[r_hex].x     else: 330.0
+    let hex_y: Float   = if r_hex >= 0: regions[r_hex].y     else: 118.0
+    let hex_w: Float   = if r_hex >= 0: regions[r_hex].w     else: 340.0
+    let hex_h: Float   = if r_hex >= 0: regions[r_hex].h     else: 42.0
+
+    let presets_x: Float  = if r_presets >= 0: regions[r_presets].x  else: 330.0
+    let presets_y: Float  = if r_presets >= 0: regions[r_presets].y  else: 210.0
+    let presets_w: Float  = if r_presets >= 0: regions[r_presets].w  else: 440.0
+
+    let actions_x: Float  = if r_actions >= 0: regions[r_actions].x  else: 330.0
+    let actions_y: Float  = if r_actions >= 0: regions[r_actions].y  else: 370.0
+    let actions_w: Float  = if r_actions >= 0: regions[r_actions].w  else: 440.0
+
+    let hist_x: Float     = if r_history >= 0: regions[r_history].x  else: 330.0
+    let hist_y: Float     = if r_history >= 0: regions[r_history].y  else: 460.0
+
+    let status_x: Float   = if r_status >= 0: regions[r_status].x   else: 20.0
+    let status_y: Float   = if r_status >= 0: regions[r_status].y   else: 590.0
+
+    let win_wf: Float = wincfg.width as Float
+    let win_hf: Float = wincfg.height as Float
+
+    // --- Mutable application state ---
+    // Default color from the first preset, or gray
+    var color: Rgb
+    var hex_input: String
+    if preset_count > 0:
+        color = rgb_new(presets[0].r, presets[0].g, presets[0].b)
+        hex_input = presets[0].hex
+    else:
+        color = rgb_new(128, 128, 128)
+        hex_input = "808080"
+
+    var hex_index: Int = string_len(hex_input)
+    var status_msg: String = "Type a hex code (e.g. FF8040) or click a preset"
+
+    // History ring (last 4 colors)
+    var hist0: String = ""
+    var hist1: String = ""
+    var hist2: String = ""
+    var hist3: String = ""
+
+    // ====================================================================
+    //  MAIN EVENT LOOP
+    // ====================================================================
+    while ui_host_should_close(session) == 0:
+        ui_host_pump(session)
+        ui_begin_frame(session, 16.0)
+
+        // ================================================================
+        //  RENDER — Background
+        // ================================================================
+        let bg = render_filled_box(session, ui_node_create(session, "background"),
+                                   0.0, 0.0, win_wf, win_hf,
+                                   0.10, 0.10, 0.14, 1.0, "fill")
+
+        // --- Title bar ---
+        let bar = render_filled_box(session, ui_node_create(session, "title-bar"),
+                                    0.0, 0.0, win_wf, 46.0,
+                                    0.15, 0.15, 0.21, 1.0, "fill")
+
+        render_label(session, title_font, wincfg.title,
+                     20.0, 32.0, 0.95, 0.95, 1.0, 1.0, "title.text")
+
+        render_label(session, small_font,
+                     "Pure Kain stdlib. Type hex codes, click presets, see colors.",
+                     20.0, 64.0, 0.45, 0.50, 0.60, 1.0, "sub")
+
+        // ================================================================
+        //  LEFT PANEL — Color Preview
+        // ================================================================
+        let pr: Float = rgb_float(color.r)
+        let pg: Float = rgb_float(color.g)
+        let pb: Float = rgb_float(color.b)
+
+        let preview_node = render_filled_box(session, ui_node_create(session, "color-preview"),
+                                             prev_x, prev_y, prev_w, prev_h,
+                                             pr, pg, pb, 1.0, "preview.fill")
+
+        // --- Border overlay ---
+        let border = ui_node_create(session, "preview-border")
+        ui_node_set_rect(session, border, prev_x - 2.0, prev_y - 2.0,
+                         prev_w + 4.0, prev_h + 4.0)
+        ui_style_color_rgba(session, border, "border", 0.25, 0.25, 0.35, 1.0)
+        ui_style_color_rgba(session, preview_node, "preview.fill", pr, pg, pb, 1.0)
+        ui_render_box_at(session, preview_node, prev_x, prev_y,
+                         prev_w, prev_h, "preview.fill")
+
+        // --- RGB readout ---
+        let hex_label = rgb_to_hex(color)
+        let rgb_label = "RGB(" + str(color.r) + ", " + str(color.g) + ", " + str(color.b) + ")  #" + hex_label
+        render_label(session, mono_font, rgb_label,
+                     rgb_x, rgb_y,
+                     0.85, 0.85, 0.90, 1.0, "rgb-label")
+
+        // ================================================================
+        //  RIGHT PANEL — Hex Input
+        // ================================================================
+        render_label(session, heading_font, "Hex Input",
+                     hex_x, hex_y - 18.0, 0.80, 0.82, 0.90, 1.0, "section")
+
+        // --- Input field background ---
+        let input_node = render_filled_box(session, ui_node_create(session, "hex-input-bg"),
+                                           hex_x, hex_y,
+                                           hex_w, hex_h,
+                                           0.16, 0.16, 0.22, 1.0, "input.bg")
+
+        let display_hex = build_display_hex(hex_input, hex_index)
+        render_label(session, mono_font, display_hex,
+                     hex_x + 12.0, hex_y + 30.0,
+                     0.90, 0.92, 1.0, 1.0, "input.text")
+
+        // --- Hint ---
+        render_label(session, small_font,
+                     "Click the field, then type hex digits — Enter to apply, Backspace to delete",
+                     hex_x, hex_y + hex_h + 20.0,
+                     0.35, 0.38, 0.45, 1.0, "hint")
+
+        // ================================================================
+        //  PRESETS — from the Presets table in ui.md
+        // ================================================================
+        render_label(session, heading_font, "Presets",
+                     presets_x, presets_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        var pi: Int = 0
+        while pi < preset_count:
+            let px: Float = presets_x + ((pi % 4) as Float) * 110.0
+            let py: Float = presets_y + 26.0 + ((pi / 4) as Float) * 70.0
+            let psize: Float = 52.0
+
+            let pr2 = presets[pi]
+            let pnode = render_filled_box(session,
+                              ui_node_create(session, "preset-swatch-" + str(pi)),
+                              px, py, psize, psize,
+                              rgb_float(pr2.r), rgb_float(pr2.g), rgb_float(pr2.b),
+                              1.0, "swatch.fill")
+
+            let plabel = pr2.label
+            let plabel_w: Float = ui_text_width(session, small_font, plabel)
+            let plabel_x: Float = px + (psize - plabel_w) / 2.0
+            render_label(session, small_font, plabel,
+                         plabel_x, py + psize + 18.0,
+                         0.70, 0.72, 0.80, 1.0, "preset.text")
+            pi = pi + 1
+
+        // ================================================================
+        //  ACTION BUTTONS
+        // ================================================================
+        render_label(session, heading_font, "Actions",
+                     actions_x, actions_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        let apply_btn = ui_node_create(session, "btn-apply")
+        render_button(session, apply_btn, "Apply Hex",
+                      actions_x, actions_y + 26.0, 140.0, 36.0,
+                      0.18, 0.45, 0.82, body_font)
+
+        let rand_btn = ui_node_create(session, "btn-random")
+        render_button(session, rand_btn, "Random",
+                      actions_x + 160.0, actions_y + 26.0, 140.0, 36.0,
+                      0.22, 0.22, 0.30, body_font)
+
+        // ================================================================
+        //  COLOR HISTORY
+        // ================================================================
+        render_label(session, heading_font, "History",
+                     hist_x, hist_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        var hi: Int = 0
+        while hi < 4:
+            let hx: Float = hist_x + (hi as Float) * 78.0
+            let hy: Float = hist_y + 26.0
+            let hsize: Float = 56.0
+            var hhex = ""
+            if hi == 0: hhex = hist0
+            if hi == 1: hhex = hist1
+            if hi == 2: hhex = hist2
+            if hi == 3: hhex = hist3
+
+            if hhex != "":
+                let hc = parse_hex_rgb(hhex)
+                let hnode = render_filled_box(session,
+                                  ui_node_create(session, "hist-" + str(hi)),
+                                  hx, hy, hsize, hsize,
+                                  rgb_float(hc.r), rgb_float(hc.g), rgb_float(hc.b),
+                                  1.0, "hist.fill")
+            else:
+                let eh = render_filled_box(session,
+                              ui_node_create(session, "hist-empty-" + str(hi)),
+                              hx, hy, hsize, hsize,
+                              0.14, 0.14, 0.18, 1.0, "hist.empty")
+            hi = hi + 1
+
+        // ================================================================
+        //  STATUS BAR
+        // ================================================================
+        render_label(session, small_font, status_msg,
+                     status_x, status_y,
+                     0.45, 0.48, 0.55, 1.0, "status")
+
+        // ================================================================
+        //  EVENT HANDLING
+        // ================================================================
+        var evt: Int = ui_poll_event(session)
+        while evt > 0:
+            let kind: String = ui_event_kind(session)
+            let ex: Float = ui_event_x(session)
+            let ey: Float = ui_event_y(session)
+
+            // --- Mouse press ---
+            if kind == "press":
+                // Click on hex input field → focus
+                let in_field = (ex >= hex_x) and (ex < (hex_x + hex_w)) and (ey >= hex_y) and (ey < (hex_y + hex_h))
+                if in_field:
+                    status_msg = "Input field focused — type a hex code"
+                    hex_index = string_len(hex_input)
+
+                // Apply button
+                let in_apply = (ex >= actions_x) and (ex < (actions_x + 140.0)) and (ey >= (actions_y + 26.0)) and (ey < (actions_y + 62.0))
+                if in_apply:
+                    color = parse_hex_rgb(hex_input)
+                    let new_hex = rgb_to_hex(color)
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = new_hex
+                    status_msg = "Applied: #" + new_hex
+
+                // Random button
+                let in_rand = (ex >= (actions_x + 160.0)) and (ex < (actions_x + 300.0)) and (ey >= (actions_y + 26.0)) and (ey < (actions_y + 62.0))
+                if in_rand:
+                    let rand_r = ((ex as Int) * 127 + 31) % 256
+                    let rand_g = ((ey as Int) * 97 + 17) % 256
+                    let rand_b = (((ex as Int) + (ey as Int)) * 53 + 7) % 256
+                    color = rgb_new(rand_r, rand_g, rand_b)
+                    let new_hex2 = rgb_to_hex(color)
+                    hex_input = new_hex2
+                    hex_index = 6
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = new_hex2
+                    status_msg = "Random color: #" + new_hex2
+
+                // Preset swatches — from the Presets table
+                var pj: Int = 0
+                while pj < preset_count:
+                    let ppx: Float = presets_x + ((pj % 4) as Float) * 110.0
+                    let ppy: Float = presets_y + 26.0 + ((pj / 4) as Float) * 70.0
+                    let pps: Float = 52.0
+                    let in_preset = (ex >= ppx) and (ex < (ppx + pps)) and (ey >= ppy) and (ey < (ppy + pps))
+                    if in_preset:
+                        let psel = presets[pj]
+                        color = rgb_new(psel.r, psel.g, psel.b)
+                        let new_hex3 = rgb_to_hex(color)
+                        hex_input = new_hex3
+                        hex_index = 6
+                        hist3 = hist2
+                        hist2 = hist1
+                        hist1 = hist0
+                        hist0 = new_hex3
+                        status_msg = "Preset: " + psel.label + "  #" + new_hex3
+                    pj = pj + 1
+
+            // --- Key press (text input) ---
+            if kind == "key":
+                let key_text: String = ui_event_text(session)
+                let key_code: Int = ui_event_key_code(session)
+
+                // Backspace
+                let is_bs = (key_code == 8) or (key_code == 259)
+                if is_bs:
+                    if hex_index > 0:
+                        hex_input = hex_delete(hex_input, hex_index)
+                        hex_index = hex_index - 1
+
+                // Enter → apply
+                if key_code == 13:
+                    color = parse_hex_rgb(hex_input)
+                    let applied_hex = rgb_to_hex(color)
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = applied_hex
+                    status_msg = "Applied: #" + applied_hex
+
+                // Escape → reset
+                if key_code == 27:
+                    hex_input = "808080"
+                    hex_index = 6
+                    color = rgb_new(128, 128, 128)
+                    status_msg = "Reset to default"
+
+                // Hex character
+                let is_hex = (key_text != "") and (is_hex_char(key_text) == true)
+                if is_hex:
+                    if hex_index < 6:
+                        hex_input = hex_insert(hex_input, hex_index, key_text)
+                        hex_index = hex_index + 1
+
+            evt = ui_poll_event(session)
+
+        // --- Commit frame ---
+        ui_present_to_attached_host(session)
+
+    return 0

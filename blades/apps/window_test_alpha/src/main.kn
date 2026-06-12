@@ -1,105 +1,118 @@
 // ============================================================================
-//  BASIC FILE EXPLORER — Pure Kain stdlib
+//  FILE EXPLORER — Pure Kain std::ui File Browser
+// ============================================================================
+//  Creates a native window via std::ui (software backend — GDI rendering).
+//  No @extern, no C bridge, no Python — pure Kain semantic surface.
 //
-//  A self-contained directory browser built entirely with Kain's standard
-//  library UI and filesystem modules. No C interop, no Python, no Kaintana.
+//  Features:
+//    - Directory browsing with sidebar + main panel
+//    - Keyboard navigation (arrows, enter, backspace, tab, escape)
+//    - Mouse click selection and navigation
+//    - File type icons via colored indicators
+//    - Status bar with path and item count
 //
-//  Ladder rung: Layer 0 (fn) — raw imperative event loop with local state.
-//  State is NOT in a world — the entire app is self-contained in main().
+//  Ladder: Layer UI (std::ui nodes + events) + Layer 0 (fn, struct)
 // ============================================================================
 
 use std::ui
 use std::fs
-use std::runtime
 use std::process
-use std::text
-use std::collections
 use explorer
-use ui_helpers
 
 // ============================================================================
-//  LAYOUT CONSTANTS
+//  CONSTANTS
 // ============================================================================
 
-const WIN_W: Int = 1200
-const WIN_H: Int = 800
-const TITLE_H: Float = 44.0
-const STATUS_H: Float = 28.0
-const SIDEBAR_W: Float = 280.0
-const DIVIDER_W: Float = 1.0
-const ITEM_H: Float = 28.0
-const ITEM_GAP: Float = 2.0
-const ICON_SIZE: Float = 16.0
-const SIDEBAR_ITEM_H: Float = 24.0
-const SIDEBAR_ITEM_GAP: Float = 1.0
-
-const MAIN_X: Float = SIDEBAR_W + DIVIDER_W
-const MAIN_W: Float = (WIN_W as Float) - MAIN_X
-const CONTENT_Y: Float = TITLE_H
-const CONTENT_H: Float = (WIN_H as Float) - TITLE_H - STATUS_H
-const WIN_WF: Float = WIN_W as Float
-const WIN_HF: Float = WIN_H as Float
-
-const SIDEBAR_VISIBLE: Int = 28
-const MAIN_VISIBLE: Int = 28
+const WIN_W: Int = 900
+const WIN_H: Int = 650
+const TITLE_H: Int = 36
+const STATUS_H: Int = 24
+const SIDEBAR_W: Int = 220
+const SIDEBAR_HEADER_H: Int = 24
+const MAIN_HEADER_H: Int = 24
+const ITEM_H: Int = 22
+const MAX_VISIBLE_ITEMS: Int = 26
 
 // ============================================================================
-//  KEY CODES
+//  LAYOUT HELPERS
 // ============================================================================
 
-const KEY_UP: Int = 38
-const KEY_DOWN: Int = 40
-const KEY_LEFT: Int = 37
-const KEY_RIGHT: Int = 39
-const KEY_ENTER: Int = 13
-const KEY_BACKSPACE: Int = 8
-const KEY_TAB: Int = 9
-const KEY_HOME: Int = 36
-const KEY_END: Int = 35
-const KEY_ESCAPE: Int = 27
+fn layout_item_y(index: Int, start_y: Float) -> Float:
+    return start_y + (index as Float) * (ITEM_H as Float)
+
+fn clamp_scroll(selected: Int, visible_count: Int, total_count: Int, scroll: Int) -> Int:
+    if total_count <= 0:
+        return 0
+    if selected < 0:
+        return scroll
+    if total_count <= visible_count:
+        return 0
+    var new_scroll = scroll
+    if selected < new_scroll:
+        new_scroll = selected
+    if selected >= (new_scroll + visible_count):
+        new_scroll = selected - visible_count + 1
+    let max_scroll = total_count - visible_count
+    if max_scroll < 0:
+        max_scroll = 0
+    if new_scroll > max_scroll:
+        new_scroll = max_scroll
+    if new_scroll < 0:
+        new_scroll = 0
+    return new_scroll
 
 // ============================================================================
-//  TRY LOAD DIRECTORY
+//  LOAD DIRECTORY
 // ============================================================================
 
-pub struct LoadResult:
-    entries: Array<FileEntry> = []
-    error: String = ""
-
-pub fn try_load_directory(path: String) -> LoadResult:
+fn load_directory(path: String) -> (Array<FileEntry>, Array<FileEntry>, String):
     if fs_exists(path) == false:
-        return LoadResult { entries: [], error: "Path does not exist: " + path }
+        return ([], [], "Path does not exist: " + path)
     if fs_is_dir(path) == false:
-        return LoadResult { entries: [], error: "Not a directory: " + path }
-    let result_entries = list_directory(path)
-    return LoadResult { entries: result_entries, error: "" }
+        return ([], [], "Not a directory: " + path)
+    let entries = list_directory(path)
+    let dirs = filter_dirs(entries)
+    let msg = path + "  |  " + str(len(entries)) + " items"
+    return (entries, dirs, msg)
 
 // ============================================================================
-//  MAIN ENTRY POINT
+//  MAIN — Pure Kain std::ui File Explorer Window
 // ============================================================================
 
 fn main() -> Int:
-    // --- Initialize native runtime ---
-    let _ = native_runtime_init()
-    defer native_runtime_shutdown()
+    let _reset = native_ui_reset()
 
-    // --- Create session with window ---
-    let session = ui_host_session_create(
-        "file-explorer",
-        "Kain File Explorer",
-        WIN_W, WIN_H, "winit",
-    )
-    if session <= 0:
-        return 1
-    defer ui_session_destroy(session)
+    // --- Create session + window ---
+    let session = ui_host_session_create("file-explorer", "Kain File Explorer", WIN_W, WIN_H, "software")
+    let _gen = native_ui_hot_reload_begin(session, "file-explorer-v2")
 
-    // --- Fonts ---
-    let title_font  = ui_font_create(session, "font.title",  "Segoe UI", 20.0)
-    let body_font   = ui_font_create(session, "font.body",   "Segoe UI", 14.0)
-    let small_font  = ui_font_create(session, "font.small",  "Segoe UI", 12.0)
-    let icon_font   = ui_font_create(session, "font.icon",   "Segoe UI", 14.0)
+    // --- Create fonts ---
+    let title_font = native_ui_font_create(session, "font.title", "Segoe UI", 18.0)
+    let body_font = native_ui_font_create(session, "font.body", "Segoe UI", 15.0)
+    let small_font = native_ui_font_create(session, "font.small", "Segoe UI", 13.0)
 
-    // --- Application state ---
+    // --- Create root node (style carrier) ---
+    let root = ui_reconcile_node(session, 0, "fe.root", "fe.root", 0.0, 0.0, WIN_W as Float, WIN_H as Float)
+
+    // --- Define color styles on root node ---
+    // Backgrounds
+    let _s_bg        = ui_style_color_rgba(session, root, "bg",        0.08, 0.08, 0.12, 1.0)
+    let _s_title_bg  = ui_style_color_rgba(session, root, "title.bg",  0.14, 0.14, 0.20, 1.0)
+    let _s_sidebar   = ui_style_color_rgba(session, root, "sidebar",   0.11, 0.11, 0.16, 1.0)
+    let _s_status_bg = ui_style_color_rgba(session, root, "status.bg", 0.14, 0.14, 0.20, 1.0)
+    let _s_header_bg = ui_style_color_rgba(session, root, "header.bg", 0.12, 0.13, 0.18, 1.0)
+    let _s_divider   = ui_style_color_rgba(session, root, "divider",   0.14, 0.14, 0.20, 1.0)
+    let _s_sel       = ui_style_color_rgba(session, root, "sel",       0.22, 0.42, 0.82, 0.7)
+    let _s_row_alt   = ui_style_color_rgba(session, root, "row.alt",   0.09, 0.09, 0.14, 1.0)
+
+    // Text colors
+    let _s_text_bright  = ui_style_color_rgba(session, root, "text.bright",  0.90, 0.92, 1.0,  1.0)
+    let _s_text_body    = ui_style_color_rgba(session, root, "text.body",    0.86, 0.88, 0.96, 1.0)
+    let _s_text_dim     = ui_style_color_rgba(session, root, "text.dim",     0.55, 0.58, 0.68, 1.0)
+    let _s_text_accent  = ui_style_color_rgba(session, root, "text.accent",  0.40, 0.80, 0.40, 1.0)
+    let _s_text_help    = ui_style_color_rgba(session, root, "text.help",    0.47, 0.50, 0.60, 1.0)
+
+    // --- App state ---
     var current_path: String = process_current_working_directory()
     var entries: Array<FileEntry> = []
     var sidebar_dirs: Array<FileEntry> = []
@@ -109,321 +122,130 @@ fn main() -> Int:
     var sidebar_scroll: Int = 0
     var main_scroll: Int = 0
     var status_msg: String = ""
+    var redraw_needed: Int = 1
 
-    // --- Load initial directory by inlining helper logic ---
-    let initial = try_load_directory(current_path)
-    if initial.error == "":
-        entries = initial.entries
-        sidebar_dirs = filter_dirs(entries)
-        status_msg = current_path + "  |  " + str(len(entries)) + " items"
-    else:
-        status_msg = initial.error
+    // Load initial directory
+    let (_entries, _dirs, _msg) = load_directory(current_path)
+    entries = _entries
+    sidebar_dirs = _dirs
+    status_msg = _msg
 
-    // ====================================================================
-    //  MAIN EVENT LOOP
-    // ====================================================================
-    while ui_host_should_close(session) == 0:
-        ui_host_pump(session)
-        ui_begin_frame(session, 16.0)
+    println("File Explorer launched. Session=" + str(session) + " Path=" + current_path)
 
-        // ================================================================
-        //  BACKGROUND
-        // ================================================================
-        render_filled_box(session, ui_node_create(session, "bg"),
-                          0.0, 0.0, WIN_WF, WIN_HF,
-                          0.08, 0.08, 0.12, 1.0, "bg.fill")
+    // ========================================================================
+    //  MAIN LOOP
+    // ========================================================================
+    var frame: Int = 0
+    while native_ui_host_should_close(session) == 0:
+        // --- Pump native message loop ---
+        let _pump = ui_host_pump(session)
 
-        // ================================================================
-        //  TITLE BAR
-        // ================================================================
-        render_filled_box(session, ui_node_create(session, "title-bar"),
-                          0.0, 0.0, WIN_WF, TITLE_H,
-                          0.14, 0.14, 0.20, 1.0, "title.bar")
+        // --- Process events ---
+        while ui_poll_event(session) == 1:
+            let kind = ui_event_kind(session)
+            let key_code = ui_event_key_code(session)
 
-        render_label(session, title_font, "Kain File Explorer",
-                     16.0, 30.0, 0.90, 0.92, 0.95, 1.0, "title.text")
-
-        render_label(session, small_font,
-                     "Tab:switch  Arrows:navigate  Enter:open  Bksp:up  Esc:quit",
-                     340.0, 30.0, 0.40, 0.45, 0.55, 1.0, "title.hint")
-
-        // ================================================================
-        //  SIDEBAR
-        // ================================================================
-        let sx: Float = 0.0
-        let sy: Float = CONTENT_Y
-        let sh: Float = CONTENT_H
-
-        render_filled_box(session, ui_node_create(session, "sidebar-bg"),
-                          sx, sy, SIDEBAR_W, sh,
-                          0.11, 0.11, 0.16, 1.0, "sidebar.bg")
-
-        // Sidebar header
-        render_filled_box(session, ui_node_create(session, "sidebar-header"),
-                          sx, sy, SIDEBAR_W, 26.0,
-                          0.16, 0.16, 0.22, 1.0, "sidebar.header")
-
-        let sidebar_header = "Directories (" + str(len(sidebar_dirs)) + ")"
-        render_label(session, small_font, sidebar_header,
-                     sx + 10.0, sy + 18.0,
-                     0.60, 0.65, 0.75, 1.0, "sidebar.header.text")
-
-        // Sidebar items
-        let s_start_y: Float = sy + 28.0
-        let s_count = len(sidebar_dirs)
-        var si: Int = 0
-        while si < SIDEBAR_VISIBLE:
-            let idx = si + sidebar_scroll
-            if idx >= s_count:
+            // --- Close request ---
+            if kind == "window.close":
                 break
 
-            let item = sidebar_dirs[idx]
-            let iy = s_start_y + (si as Float) * (SIDEBAR_ITEM_H + SIDEBAR_ITEM_GAP)
-            let is_selected = (idx == sidebar_selected) and (focus_panel == "sidebar")
+            // --- Keyboard input ---
+            if kind == "key.down":
+                // ESC → close
+                if key_code == 27:
+                    // Force close
+                    let _ = native_ui_session_destroy(session)
+                    return 0
 
-            if is_selected:
-                render_filled_box(session, ui_node_create(session, "sb-sel-" + str(si)),
-                                  sx + 2.0, iy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H,
-                                  0.22, 0.42, 0.82, 0.5, "sb.sel")
-            elif (si % 2) == 0:
-                render_filled_box(session, ui_node_create(session, "sb-row-" + str(si)),
-                                  sx + 2.0, iy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H,
-                                  0.13, 0.13, 0.18, 0.25, "sb.row")
-
-            // Folder icon
-            render_icon_box(session, ui_node_create(session, "sb-ic-" + str(si)),
-                            sx + 8.0, iy + 4.0, ICON_SIZE, ICON_SIZE,
-                            0.95, 0.80, 0.20)
-
-            let dname = entry_display_name(item, 24)
-            render_label(session, icon_font, dname,
-                         sx + 30.0, iy + SIDEBAR_ITEM_H - 5.0,
-                         0.75, 0.78, 0.85, 1.0, "sb.name")
-
-            si = si + 1
-
-        // ================================================================
-        //  DIVIDER
-        // ================================================================
-        render_filled_box(session, ui_node_create(session, "divider"),
-                          SIDEBAR_W, CONTENT_Y, DIVIDER_W, CONTENT_H,
-                          0.20, 0.20, 0.28, 1.0, "div.fill")
-
-        // ================================================================
-        //  MAIN PANEL
-        // ================================================================
-        let mx: Float = MAIN_X
-        let my: Float = CONTENT_Y
-        let mh: Float = CONTENT_H
-
-        render_filled_box(session, ui_node_create(session, "main-bg"),
-                          mx, my, MAIN_W, mh,
-                          0.09, 0.09, 0.13, 1.0, "main.bg")
-
-        // Column headers
-        render_filled_box(session, ui_node_create(session, "main-header"),
-                          mx, my, MAIN_W, 24.0,
-                          0.13, 0.13, 0.18, 1.0, "main.header")
-
-        render_label(session, small_font, "Name",
-                     mx + 40.0, my + 17.0,
-                     0.50, 0.55, 0.65, 1.0, "hdr.name")
-        render_label(session, small_font, "Type",
-                     mx + MAIN_W - 160.0, my + 17.0,
-                     0.50, 0.55, 0.65, 1.0, "hdr.type")
-        render_label(session, small_font, "Modified",
-                     mx + MAIN_W - 90.0, my + 17.0,
-                     0.50, 0.55, 0.65, 1.0, "hdr.modified")
-
-        // Main panel items
-        let m_start_y: Float = my + 26.0
-        let m_count = len(entries)
-        var mi: Int = 0
-        while mi < MAIN_VISIBLE:
-            let idx = mi + main_scroll
-            if idx >= m_count:
-                break
-
-            let item = entries[idx]
-            let iy = m_start_y + (mi as Float) * (ITEM_H + ITEM_GAP)
-            let is_selected = (idx == main_selected) and (focus_panel == "main")
-
-            // Row background
-            if is_selected:
-                render_filled_box(session, ui_node_create(session, "m-sel-" + str(mi)),
-                                  mx + 2.0, iy, MAIN_W - 4.0, ITEM_H,
-                                  0.22, 0.42, 0.82, 0.5, "m.sel")
-            elif (mi % 2) == 0:
-                render_filled_box(session, ui_node_create(session, "m-row-" + str(mi)),
-                                  mx + 2.0, iy, MAIN_W - 4.0, ITEM_H,
-                                  0.11, 0.11, 0.16, 0.25, "m.row")
-
-            // Icon
-            let (ic_r, ic_g, ic_b) = icon_color(item.icon_type)
-            render_icon_box(session, ui_node_create(session, "m-ic-" + str(mi)),
-                            mx + 8.0, iy + 6.0, ICON_SIZE, ICON_SIZE,
-                            ic_r, ic_g, ic_b)
-
-            // Name
-            var label = item.name
-            if item.is_dir:
-                label = item.name + "/"
-
-            render_label(session, body_font, label,
-                         mx + 30.0, iy + ITEM_H - 7.0,
-                         0.82, 0.85, 0.92, 1.0, "m.name")
-
-            // Type extension
-            if item.extension != "":
-                render_label(session, small_font, item.extension,
-                             mx + MAIN_W - 155.0, iy + ITEM_H - 7.0,
-                             0.40, 0.45, 0.55, 1.0, "m.ext")
-
-            mi = mi + 1
-
-        // ================================================================
-        //  STATUS BAR
-        // ================================================================
-        let status_y: Float = WIN_HF - STATUS_H
-        render_filled_box(session, ui_node_create(session, "status-bar"),
-                          0.0, status_y, WIN_WF, STATUS_H,
-                          0.14, 0.14, 0.20, 1.0, "status.bar")
-
-        render_label(session, small_font, status_msg,
-                     10.0, status_y + 18.0,
-                     0.60, 0.65, 0.75, 1.0, "status.text")
-
-        var focus_ind = "[Main]"
-        if focus_panel == "sidebar":
-            focus_ind = "[Sidebar]"
-        render_label(session, small_font, focus_ind,
-                     WIN_WF - 100.0, status_y + 18.0,
-                     0.30, 0.70, 0.40, 1.0, "status.focus")
-
-        // ================================================================
-        //  EVENTS
-        // ================================================================
-        var evt: Int = ui_poll_event(session)
-        while evt > 0:
-            let kind: String = ui_event_kind(session)
-            let ex: Float = ui_event_x(session)
-            let ey: Float = ui_event_y(session)
-            let key_code: Int = ui_event_key_code(session)
-
-            // --- Mouse press ---
-            if kind == "press":
-                // Sidebar click
-                var hit: Bool = false
-                var sci: Int = 0
-                while sci < SIDEBAR_VISIBLE:
-                    let sidx = sci + sidebar_scroll
-                    if sidx >= s_count:
-                        break
-                    let siy = s_start_y + (sci as Float) * (SIDEBAR_ITEM_H + SIDEBAR_ITEM_GAP)
-                    if point_in_rect(ex, ey, sx + 2.0, siy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H):
-                        sidebar_selected = sidx
-                        focus_panel = "sidebar"
-                        hit = true
-                        if sidx < len(sidebar_dirs):
-                            // Navigate to clicked directory
-                            let new_path = sidebar_dirs[sidx].full_path
-                            current_path = new_path
-                            sidebar_selected = 0
-                            main_selected = 0
-                            sidebar_scroll = 0
-                            main_scroll = 0
-                            let result = try_load_directory(current_path)
-                            if result.error == "":
-                                entries = result.entries
-                                sidebar_dirs = filter_dirs(entries)
-                                status_msg = current_path + "  |  " + str(len(entries)) + " items"
-                            else:
-                                status_msg = result.error
-                        break
-                    sci = sci + 1
-
-                // Main panel click
-                if hit == false:
-                    var mci: Int = 0
-                    while mci < MAIN_VISIBLE:
-                        let midx = mci + main_scroll
-                        if midx >= m_count:
-                            break
-                        let miy = m_start_y + (mci as Float) * (ITEM_H + ITEM_GAP)
-                        if point_in_rect(ex, ey, mx + 2.0, miy, MAIN_W - 4.0, ITEM_H):
-                            main_selected = midx
-                            focus_panel = "main"
-                            hit = true
-                            let target = entries[midx]
-                            if target.is_dir:
-                                let new_path = target.full_path
-                                current_path = new_path
-                                sidebar_selected = 0
-                                main_selected = 0
-                                sidebar_scroll = 0
-                                main_scroll = 0
-                                let result = try_load_directory(current_path)
-                                if result.error == "":
-                                    entries = result.entries
-                                    sidebar_dirs = filter_dirs(entries)
-                                    status_msg = current_path + "  |  " + str(len(entries)) + " items"
-                                else:
-                                    status_msg = result.error
-                            else:
-                                status_msg = "File: " + target.full_path
-                            break
-                        mci = mci + 1
-
-            // --- Keyboard ---
-            if kind == "key":
-                if key_code == KEY_TAB:
+                // TAB → switch focus panel
+                if key_code == 9:
                     if focus_panel == "sidebar":
                         focus_panel = "main"
                     else:
                         focus_panel = "sidebar"
+                    redraw_needed = 1
 
-                elif key_code == KEY_UP:
+                // UP arrow
+                if key_code == 38:
                     if focus_panel == "sidebar":
                         if sidebar_selected > 0:
                             sidebar_selected = sidebar_selected - 1
-                            if sidebar_selected < sidebar_scroll:
-                                sidebar_scroll = sidebar_selected
+                            sidebar_scroll = clamp_scroll(sidebar_selected, MAX_VISIBLE_ITEMS, len(sidebar_dirs), sidebar_scroll)
+                            redraw_needed = 1
                     else:
                         if main_selected > 0:
                             main_selected = main_selected - 1
-                            if main_selected < main_scroll:
-                                main_scroll = main_selected
+                            main_scroll = clamp_scroll(main_selected, MAX_VISIBLE_ITEMS, len(entries), main_scroll)
+                            redraw_needed = 1
 
-                elif key_code == KEY_DOWN:
+                // DOWN arrow
+                if key_code == 40:
                     if focus_panel == "sidebar":
+                        let s_count = len(sidebar_dirs)
                         if sidebar_selected < (s_count - 1):
                             sidebar_selected = sidebar_selected + 1
-                            if sidebar_selected >= (sidebar_scroll + SIDEBAR_VISIBLE):
-                                sidebar_scroll = sidebar_selected - SIDEBAR_VISIBLE + 1
+                            sidebar_scroll = clamp_scroll(sidebar_selected, MAX_VISIBLE_ITEMS, s_count, sidebar_scroll)
+                            redraw_needed = 1
                     else:
+                        let m_count = len(entries)
                         if main_selected < (m_count - 1):
                             main_selected = main_selected + 1
-                            if main_selected >= (main_scroll + MAIN_VISIBLE):
-                                main_scroll = main_selected - MAIN_VISIBLE + 1
+                            main_scroll = clamp_scroll(main_selected, MAX_VISIBLE_ITEMS, m_count, main_scroll)
+                            redraw_needed = 1
 
-                elif key_code == KEY_ENTER:
+                // LEFT → focus sidebar
+                if key_code == 37:
+                    focus_panel = "sidebar"
+                    redraw_needed = 1
+
+                // RIGHT → focus main
+                if key_code == 39:
+                    focus_panel = "main"
+                    redraw_needed = 1
+
+                // HOME → first item
+                if key_code == 36:
                     if focus_panel == "sidebar":
-                        if sidebar_selected < len(sidebar_dirs):
+                        sidebar_selected = 0
+                        sidebar_scroll = 0
+                    else:
+                        main_selected = 0
+                        main_scroll = 0
+                    redraw_needed = 1
+
+                // END → last item
+                if key_code == 35:
+                    if focus_panel == "sidebar":
+                        let s_count = len(sidebar_dirs)
+                        sidebar_selected = s_count - 1
+                        if sidebar_selected < 0:
+                            sidebar_selected = 0
+                        sidebar_scroll = clamp_scroll(sidebar_selected, MAX_VISIBLE_ITEMS, s_count, sidebar_scroll)
+                    else:
+                        let m_count = len(entries)
+                        main_selected = m_count - 1
+                        if main_selected < 0:
+                            main_selected = 0
+                        main_scroll = clamp_scroll(main_selected, MAX_VISIBLE_ITEMS, m_count, main_scroll)
+                    redraw_needed = 1
+
+                // ENTER → navigate into selection
+                if key_code == 13:
+                    if focus_panel == "sidebar":
+                        if sidebar_selected >= 0 and sidebar_selected < len(sidebar_dirs):
                             let new_path = sidebar_dirs[sidebar_selected].full_path
                             current_path = new_path
                             sidebar_selected = 0
                             main_selected = 0
                             sidebar_scroll = 0
                             main_scroll = 0
-                            let result = try_load_directory(current_path)
-                            if result.error == "":
-                                entries = result.entries
-                                sidebar_dirs = filter_dirs(entries)
-                                status_msg = current_path + "  |  " + str(len(entries)) + " items"
-                            else:
-                                status_msg = result.error
+                            let (_e2, _d2, _m2) = load_directory(current_path)
+                            entries = _e2
+                            sidebar_dirs = _d2
+                            status_msg = _m2
+                            redraw_needed = 1
                     else:
-                        if main_selected < len(entries):
+                        if main_selected >= 0 and main_selected < len(entries):
                             let target = entries[main_selected]
                             if target.is_dir:
                                 let new_path = target.full_path
@@ -432,17 +254,17 @@ fn main() -> Int:
                                 main_selected = 0
                                 sidebar_scroll = 0
                                 main_scroll = 0
-                                let result = try_load_directory(current_path)
-                                if result.error == "":
-                                    entries = result.entries
-                                    sidebar_dirs = filter_dirs(entries)
-                                    status_msg = current_path + "  |  " + str(len(entries)) + " items"
-                                else:
-                                    status_msg = result.error
+                                let (_e3, _d3, _m3) = load_directory(current_path)
+                                entries = _e3
+                                sidebar_dirs = _d3
+                                status_msg = _m3
+                                redraw_needed = 1
                             else:
                                 status_msg = "File: " + target.full_path
+                                redraw_needed = 1
 
-                elif key_code == KEY_BACKSPACE:
+                // BACKSPACE → go to parent directory
+                if key_code == 8:
                     let parent = parent_path(current_path)
                     if parent != current_path:
                         current_path = parent
@@ -450,46 +272,194 @@ fn main() -> Int:
                         main_selected = 0
                         sidebar_scroll = 0
                         main_scroll = 0
-                        let result = try_load_directory(current_path)
-                        if result.error == "":
-                            entries = result.entries
-                            sidebar_dirs = filter_dirs(entries)
-                            status_msg = current_path + "  |  " + str(len(entries)) + " items"
-                        else:
-                            status_msg = result.error
+                        let (_e4, _d4, _m4) = load_directory(current_path)
+                        entries = _e4
+                        sidebar_dirs = _d4
+                        status_msg = _m4
+                        redraw_needed = 1
 
-                elif key_code == KEY_HOME:
-                    if focus_panel == "sidebar":
-                        sidebar_selected = 0
-                        sidebar_scroll = 0
-                    else:
-                        main_selected = 0
-                        main_scroll = 0
+            // --- Mouse input ---
+            if kind == "pointer.down":
+                let mx = ui_event_x(session)
+                let my = ui_event_y(session)
+                let content_start_y: Float = (TITLE_H as Float)
 
-                elif key_code == KEY_END:
-                    if focus_panel == "sidebar":
-                        sidebar_selected = s_count - 1
-                        if sidebar_selected >= SIDEBAR_VISIBLE:
-                            sidebar_scroll = sidebar_selected - SIDEBAR_VISIBLE + 1
-                    else:
-                        main_selected = m_count - 1
-                        if main_selected >= MAIN_VISIBLE:
-                            main_scroll = main_selected - MAIN_VISIBLE + 1
+                // --- Sidebar click ---
+                if mx < (SIDEBAR_W as Float):
+                    let s_count = len(sidebar_dirs)
+                    let item_start_y: Float = content_start_y + (SIDEBAR_HEADER_H as Float) + 2.0
+                    var si: Int = 0
+                    while si < MAX_VISIBLE_ITEMS:
+                        let idx = si + sidebar_scroll
+                        if idx >= s_count:
+                            break
+                        let iy = item_start_y + layout_item_y(si, 0.0)
+                        if my >= iy and my < (iy + (ITEM_H as Float)):
+                            // Navigate into this directory
+                            let new_path = sidebar_dirs[idx].full_path
+                            current_path = new_path
+                            sidebar_selected = 0
+                            main_selected = 0
+                            sidebar_scroll = 0
+                            main_scroll = 0
+                            focus_panel = "sidebar"
+                            let (_es, _ds, _ms) = load_directory(current_path)
+                            entries = _es
+                            sidebar_dirs = _ds
+                            status_msg = _ms
+                            redraw_needed = 1
+                            break
+                        si = si + 1
 
-                elif key_code == KEY_ESCAPE:
-                    break
+                // --- Main panel click ---
+                if mx >= (SIDEBAR_W as Float):
+                    let m_count = len(entries)
+                    let item_start_y: Float = content_start_y + (MAIN_HEADER_H as Float) + 2.0
+                    var mi: Int = 0
+                    while mi < MAX_VISIBLE_ITEMS:
+                        let idx = mi + main_scroll
+                        if idx >= m_count:
+                            break
+                        let iy = item_start_y + layout_item_y(mi, 0.0)
+                        if my >= iy and my < (iy + (ITEM_H as Float)):
+                            main_selected = idx
+                            focus_panel = "main"
+                            let target = entries[idx]
+                            if target.is_dir:
+                                let new_path = target.full_path
+                                current_path = new_path
+                                sidebar_selected = 0
+                                main_selected = 0
+                                sidebar_scroll = 0
+                                main_scroll = 0
+                                let (_em, _dm, _mm) = load_directory(current_path)
+                                entries = _em
+                                sidebar_dirs = _dm
+                                status_msg = _mm
+                            else:
+                                status_msg = "File: " + target.full_path
+                            redraw_needed = 1
+                            break
+                        mi = mi + 1
 
-                elif key_code == KEY_LEFT:
-                    if focus_panel == "main":
-                        focus_panel = "sidebar"
+        // --- Check if window should close ---
+        if native_ui_host_should_close(session) != 0:
+            break
 
-                elif key_code == KEY_RIGHT:
-                    if focus_panel == "sidebar":
-                        focus_panel = "main"
+        // ====================================================================
+        //  RENDER FRAME
+        // ====================================================================
+        let fw: Float = WIN_W as Float
+        let fh: Float = WIN_H as Float
+        let content_top: Float = TITLE_H as Float
+        let content_bottom: Float = fh - (STATUS_H as Float)
+        let content_height: Float = content_bottom - content_top
 
-            evt = ui_poll_event(session)
+        let _begin = ui_frame_begin(session, 16.0)
 
-        // --- Present frame ---
-        ui_present_to_attached_host(session)
+        // --- Full background ---
+        let _draw_bg = ui_render_box_at(session, root, 0.0, 0.0, fw, fh, "bg")
 
+        // --- Title Bar ---
+        let _draw_title_bg = ui_render_box_at(session, root, 0.0, 0.0, fw, content_top, "title.bg")
+        let _draw_title = ui_render_text_value(session, root, title_font, "Kain File Explorer", 14.0, content_top - 8.0, "text.bright")
+        let help_text = "Tab:switch  Arrows:nav  Enter:open  Bksp:up  Esc:quit"
+        let _draw_help = ui_render_text_value(session, root, small_font, help_text, 280.0, content_top - 12.0, "text.help")
+
+        // --- Sidebar ---
+        let sidebar_x: Float = 0.0
+        let sidebar_w: Float = SIDEBAR_W as Float
+        let _draw_sidebar = ui_render_box_at(session, root, sidebar_x, content_top, sidebar_w, content_height, "sidebar")
+
+        // Sidebar header
+        let _draw_shdr = ui_render_box_at(session, root, sidebar_x, content_top, sidebar_w, SIDEBAR_HEADER_H as Float, "header.bg")
+        let sidebar_label = "Directories (" + str(len(sidebar_dirs)) + ")"
+        let _draw_slabel = ui_render_text_value(session, root, small_font, sidebar_label, sidebar_x + 8.0, content_top + (SIDEBAR_HEADER_H as Float) - 5.0, "text.dim")
+
+        // Sidebar items
+        let s_item_start_y: Float = content_top + (SIDEBAR_HEADER_H as Float) + 2.0
+        let s_count = len(sidebar_dirs)
+        var si: Int = 0
+        while si < MAX_VISIBLE_ITEMS:
+            let idx = si + sidebar_scroll
+            if idx >= s_count:
+                break
+            let iy = s_item_start_y + layout_item_y(si, 0.0)
+            let is_sel = (idx == sidebar_selected) and (focus_panel == "sidebar")
+
+            // Row background
+            if is_sel:
+                let _ = ui_render_box_at(session, root, sidebar_x + 2.0, iy, sidebar_w - 4.0, (ITEM_H - 1) as Float, "sel")
+            elif (si % 2) == 1:
+                let _ = ui_render_box_at(session, root, sidebar_x + 2.0, iy, sidebar_w - 4.0, (ITEM_H - 1) as Float, "row.alt")
+
+            let item = sidebar_dirs[idx]
+            let dname = entry_display_name(item, 22)
+            let icon_text = "> " + dname
+            let _draw_sitem = ui_render_text_value(session, root, small_font, icon_text, sidebar_x + 22.0, iy + (ITEM_H as Float) - 4.0, "text.body")
+            si = si + 1
+
+        // --- Divider ---
+        let _draw_div = ui_render_box_at(session, root, sidebar_w, content_top, 1.0, content_height, "divider")
+
+        // --- Main Panel ---
+        let main_x: Float = sidebar_w + 1.0
+        let main_w: Float = fw - main_x
+
+        // Main header
+        let _draw_mhdr = ui_render_box_at(session, root, main_x, content_top, main_w, MAIN_HEADER_H as Float, "header.bg")
+        let _draw_name_hdr  = ui_render_text_value(session, root, small_font, "Name", main_x + 34.0, content_top + (MAIN_HEADER_H as Float) - 5.0, "text.dim")
+        let _draw_type_hdr  = ui_render_text_value(session, root, small_font, "Type", main_x + main_w - 100.0, content_top + (MAIN_HEADER_H as Float) - 5.0, "text.dim")
+
+        // Main panel items
+        let m_item_start_y: Float = content_top + (MAIN_HEADER_H as Float) + 2.0
+        let m_count = len(entries)
+        var mi: Int = 0
+        while mi < MAX_VISIBLE_ITEMS:
+            let idx = mi + main_scroll
+            if idx >= m_count:
+                break
+            let iy = m_item_start_y + layout_item_y(mi, 0.0)
+            let item = entries[idx]
+            let is_sel = (idx == main_selected) and (focus_panel == "main")
+
+            // Row background
+            if is_sel:
+                let _ = ui_render_box_at(session, root, main_x + 2.0, iy, main_w - 4.0, (ITEM_H - 1) as Float, "sel")
+            elif (mi % 2) == 1:
+                let _ = ui_render_box_at(session, root, main_x + 2.0, iy, main_w - 4.0, (ITEM_H - 1) as Float, "row.alt")
+
+            // Entry label
+            var label = item.name
+            if item.is_dir:
+                label = "[DIR] " + item.name
+            let _draw_entry = ui_render_text_value(session, root, body_font, label, main_x + 30.0, iy + (ITEM_H as Float) - 4.0, "text.body")
+
+            // Extension badge
+            if item.extension != "":
+                let _draw_ext = ui_render_text_value(session, root, small_font, item.extension, main_x + main_w - 95.0, iy + (ITEM_H as Float) - 4.0, "text.dim")
+
+            mi = mi + 1
+
+        // --- Status Bar ---
+        let status_y: Float = content_bottom
+        let _draw_status = ui_render_box_at(session, root, 0.0, status_y, fw, STATUS_H as Float, "status.bg")
+        let _draw_status_text = ui_render_text_value(session, root, small_font, status_msg, 8.0, status_y + (STATUS_H as Float) - 5.0, "text.dim")
+
+        // Focus indicator
+        var focus_ind = "[Main]"
+        if focus_panel == "sidebar":
+            focus_ind = "[Sidebar]"
+        let _draw_focus = ui_render_text_value(session, root, small_font, focus_ind, fw - 95.0, status_y + (STATUS_H as Float) - 5.0, "text.accent")
+
+        // --- Submit frame ---
+        let _submit = ui_frame_submit(session)
+        let _present = ui_present_to_attached_host(session)
+
+        redraw_needed = 0
+        frame = frame + 1
+
+    // --- Cleanup ---
+    let _ = native_ui_session_destroy(session)
+    println("File explorer closed. Frames rendered: " + str(frame))
     return 0

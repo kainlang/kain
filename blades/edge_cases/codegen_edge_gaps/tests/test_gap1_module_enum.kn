@@ -1,0 +1,13 @@
+// Gap 1: Module-scoped enum (:: leaks into LLVM type names)
+pub mod shapes:
+    pub enum Shape:
+        Circle
+        Square
+        Triangle
+
+fn main() -> Int:
+    let s = shapes::Shape::Circle
+    match s:
+        shapes::Shape::Circle => 0
+        shapes::Shape::Square => 1
+        shapes::Shape::Triangle => 2

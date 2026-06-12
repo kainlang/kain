@@ -244,7 +244,7 @@ fn test_non_markscript_block():
 //  MAIN
 // ==========================================================================
 
-pub fn main():
+pub fn run_tests():
     println("=== MARKSCRIPT MINI-LANGUAGE PARSER TESTS ===\n")
     test_simple_let()
     test_arithmetic()

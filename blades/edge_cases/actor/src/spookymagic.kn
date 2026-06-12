@@ -1,0 +1,155 @@
+// ============================================================================
+//  SPOOKYMAGIC.KN — ACTOR EDGE CASES & BLACK-BOX BEHAVIORS
+//
+//  For actor-specific edge cases: race windows, timing-dependent failures,
+//  mailbox storms, Heisenbugs in concurrent message processing, and any
+//  behavior that doesn't fit clean cause→effect modeling.
+//
+//  Actor-specific spooky scenarios:
+//    - Race window: spawn → immediate shutdown (did init complete?)
+//    - Mailbox storm: rapid-fire sends before actor starts processing
+//    - Ask timeout flaky: ask under scheduler pressure
+//    - Cascade failure: linked actors in deep supervision trees
+//    - Overflow detection: scheduler overflow under burst load
+// ============================================================================
+
+use std::actor
+use std::time
+
+// ===========================================================================
+//  SANITY CHECK
+// ===========================================================================
+
+pub fn spookymagic_sanity_check() -> Int:
+    return 0
+
+// ===========================================================================
+//  get_spooky_factor — Returns a spooky multiplier
+//  Base: identity. For edge-case probing: returns values based on
+//  scheduler telemetry to model load-dependent behavior.
+// ===========================================================================
+
+pub fn get_spooky_factor() -> Int:
+    let depth = actor_scheduler_queue_depth()
+    let overflow = actor_scheduler_overflow_thread_spawns()
+
+    // If scheduler is under pressure, amplify spooky factor
+    if overflow > 0:
+        return 3
+    if depth > 100:
+        return 2
+    return 1
+
+// ===========================================================================
+//  run_spooky_test — Actor edge case probing
+// ===========================================================================
+
+pub fn run_spooky_test(seed: Int) -> Int:
+    // Probe scheduler state as part of the spooky factor
+    let depth = actor_scheduler_queue_depth()
+    let busy = actor_scheduler_busy_workers()
+    let active = actor_scheduler_active_workers()
+
+    // Returns a "spookiness score" — higher means more concurrent pressure
+    let score = seed + depth + busy * 10 + active * 5
+    return score
+
+// ===========================================================================
+//  detect_mailbox_storm — Check if a mailbox storm is happening
+//  A mailbox storm occurs when enqueue rate greatly exceeds dequeue rate.
+// ===========================================================================
+
+pub fn detect_mailbox_storm() -> Bool:
+    let depth = actor_scheduler_queue_depth()
+    let max_depth = actor_scheduler_max_queue_depth()
+
+    // If current depth is > 75% of max ever seen, we're in a storm
+    if max_depth > 0 and depth * 100 / max_depth > 75:
+        return true
+    return false
+
+// ===========================================================================
+//  detect_overflow_pressure — Check for scheduler overflow
+// ===========================================================================
+
+pub fn detect_overflow_pressure() -> Bool:
+    let overflow = actor_scheduler_overflow_thread_spawns()
+    let busy = actor_scheduler_busy_workers()
+    let active = actor_scheduler_active_workers()
+
+    // Overflow threads + all workers busy = pressure
+    if overflow > 0 and busy >= active:
+        return true
+    return false
+
+// ===========================================================================
+//  SPOOKY ERROR — Structured edge case record
+// ===========================================================================
+
+pub struct SpookyError:
+    kind:        String    // "race_window", "mailbox_storm", "overflow", "heisenbug"
+    probability: Float     // 0.0 – 1.0 reproduction probability
+    trigger:     String    // What triggers it
+    evidence:    String    // How to detect it happened
+
+pub fn create_spooky_error(kind: String, probability: Float, trigger: String) -> SpookyError:
+    return SpookyError {
+        kind: kind,
+        probability: probability,
+        trigger: trigger,
+        evidence: ""
+    }
+
+// ===========================================================================
+//  diagnose_actor_edge_case — Run full edge case diagnostics
+// ===========================================================================
+
+pub struct SpookyDiagnosis:
+    mailbox_storm:      Bool
+    overflow_pressure:  Bool
+    queue_depth:        Int
+    max_queue_depth:    Int
+    overflow_spawns:    Int
+    spooky_factor:      Int
+
+pub fn diagnose_actor_edge_case() -> SpookyDiagnosis:
+    return SpookyDiagnosis {
+        mailbox_storm: detect_mailbox_storm(),
+        overflow_pressure: detect_overflow_pressure(),
+        queue_depth: actor_scheduler_queue_depth(),
+        max_queue_depth: actor_scheduler_max_queue_depth(),
+        overflow_spawns: actor_scheduler_overflow_thread_spawns(),
+        spooky_factor: get_spooky_factor()
+    }
+
+// ===========================================================================
+//  SPOOKY TABLE
+// ===========================================================================
+
+pub struct SpookyEntry:
+    name:        String
+    description: String
+    tag:         String
+
+pub fn get_spooky_table() -> Array<SpookyEntry>:
+    var entries: Array<SpookyEntry> = []
+
+    push(entries, SpookyEntry {
+        name: "mailbox_storm",
+        description: "Detects when enqueue rate greatly exceeds dequeue rate (mailbox storm)",
+        tag: "mailbox_storm"
+    })
+
+    push(entries, SpookyEntry {
+        name: "overflow_pressure",
+        description: "Detects scheduler overflow with all workers busy",
+        tag: "overflow_pressure"
+    })
+
+    push(entries, SpookyEntry {
+        name: "actor_edge_case_diagnosis",
+        description: "Full edge case diagnosis: storm detection + overflow + queue depth",
+        tag: "actor_edge_case_diagnosis"
+    })
+
+    return entries

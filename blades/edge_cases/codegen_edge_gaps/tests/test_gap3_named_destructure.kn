@@ -1,0 +1,14 @@
+// Gap 3: Named-field enum variant destructure
+enum Foo:
+    Bar { x: Int, y: String }
+    Baz(Int)
+    Qux
+
+fn main() -> Int:
+    let v = Foo::Bar { x: 42, y: "hello" }
+    match v:
+        Foo::Bar { x: bx, y: by } =>
+            if bx == 42 and by == "hello":
+                return 0
+            return 1
+        _ => return 2
