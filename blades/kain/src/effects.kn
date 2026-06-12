@@ -1,0 +1,129 @@
+// effects.kn — Effect checking lattice
+// STREAM: FOXTROT
+// Consumed by: GOLF (codegen)
+//
+// Defines the 8-effect lattice: Pure (bottom) < IO|GPU|Async|Reactive|Alloc|Panic < Unsafe (top)
+// Implements can_call() with 4 rules for call-site effect validation.
+
+// ── Effect Constants (8 effects as bitmask values) ──
+pub const EFF_PURE:     Int = 0x00
+pub const EFF_IO:       Int = 0x01
+pub const EFF_GPU:      Int = 0x02
+pub const EFF_ASYNC:    Int = 0x04
+pub const EFF_REACTIVE: Int = 0x08
+pub const EFF_UNSAFE:   Int = 0x10
+pub const EFF_ALLOC:    Int = 0x20
+pub const EFF_PANIC:    Int = 0x40
+
+// All effects combined (used for pulse/resonate auto-emission)
+pub const EFF_ALL:      Int = 0x7F
+
+// ── EffectSet struct ──
+pub struct EffectSet:
+    mask: Int
+
+pub fn effect_set_new() -> EffectSet:
+    return EffectSet { mask: EFF_PURE }
+
+pub fn effect_set_from_mask(mask: Int) -> EffectSet:
+    return EffectSet { mask: mask }
+
+pub fn effect_set_add(eff: EffectSet, bit: Int) -> EffectSet:
+    let mut result: EffectSet = eff
+    result.mask = result.mask or bit
+    return result
+
+pub fn effect_set_has(eff: EffectSet, bit: Int) -> Bool:
+    return (eff.mask and bit) != 0
+
+pub fn effect_set_is_pure(eff: EffectSet) -> Bool:
+    return eff.mask == EFF_PURE
+
+pub fn effect_set_is_unsafe(eff: EffectSet) -> Bool:
+    return (eff.mask and EFF_UNSAFE) != 0
+
+// ── effect_set_from_string: parse a single effect name to its bit ──
+pub fn effect_from_str(name: String) -> Int:
+    if name == "Pure":     return EFF_PURE
+    if name == "IO":       return EFF_IO
+    if name == "GPU":      return EFF_GPU
+    if name == "Async":    return EFF_ASYNC
+    if name == "Reactive": return EFF_REACTIVE
+    if name == "Unsafe":   return EFF_UNSAFE
+    if name == "Alloc":    return EFF_ALLOC
+    if name == "Panic":    return EFF_PANIC
+    return EFF_PURE
+
+// ── parse_effects_from_names: build EffectSet from array of effect name strings ──
+pub fn parse_effects_from_names(names: Array<String>) -> EffectSet:
+    let mut eff: EffectSet = effect_set_new()
+    var i: Int = 0
+    while i < len(names):
+        let bit: Int = effect_from_str(names[i])
+        eff = effect_set_add(eff, bit)
+        i = i + 1
+    return eff
+
+// ── can_call(caller_effects, callee_effects) ──
+// Lattice: Pure (bottom) < IO|GPU|Async|Reactive|Alloc|Panic < Unsafe (top)
+//
+// Rule 1: Pure callee → anyone can call
+//   if callee_effects.is_pure() → return true
+//
+// Rule 2: Pure caller → can only call Pure
+//   if caller_effects.is_pure() → return false
+//
+// Rule 3: Unsafe caller → can call anything
+//   if caller_effects.has(Unsafe) → return true
+//
+// Rule 4: callee effects subset of caller effects
+//   (caller.mask & callee.mask) == callee.mask
+//
+pub fn can_call(caller_mask: Int, callee_mask: Int) -> Bool:
+    // Rule 1: Pure callee — always callable
+    if callee_mask == EFF_PURE:
+        return true
+
+    // Rule 3: Unsafe caller — can call anything
+    if (caller_mask and EFF_UNSAFE) != 0:
+        return true
+
+    // Rule 2: Pure caller — can only call Pure (already handled if callee was Pure)
+    if caller_mask == EFF_PURE:
+        return false
+
+    // Rule 4: callee ⊆ caller (every bit in callee must be in caller)
+    let intersection: Int = caller_mask and callee_mask
+    return intersection == callee_mask
+
+// ── effect_name: convert a single effect bit to its display name ──
+pub fn effect_name(bit: Int) -> String:
+    if bit == EFF_PURE:     return "Pure"
+    if bit == EFF_IO:       return "IO"
+    if bit == EFF_GPU:      return "GPU"
+    if bit == EFF_ASYNC:    return "Async"
+    if bit == EFF_REACTIVE: return "Reactive"
+    if bit == EFF_UNSAFE:   return "Unsafe"
+    if bit == EFF_ALLOC:    return "Alloc"
+    if bit == EFF_PANIC:    return "Panic"
+    return "Unknown"
+
+// ── effect_set_to_string: build a display string for a set of effects ──
+pub fn effect_set_to_string(mask: Int) -> String:
+    if mask == EFF_PURE:
+        return "Pure"
+
+    let mut s: String = ""
+    let bits: Array<Int> = [EFF_IO, EFF_GPU, EFF_ASYNC, EFF_REACTIVE, EFF_UNSAFE, EFF_ALLOC, EFF_PANIC]
+    var i: Int = 0
+    while i < len(bits):
+        if (mask and bits[i]) != 0:
+            if s != "":
+                s = s + ", "
+            s = s + effect_name(bits[i])
+        i = i + 1
+    return s
+
+// ── pulse body auto-emission: pulse/resonate bodies get ALL effects ──
+pub fn pulse_body_effects() -> Int:
+    return EFF_PURE or EFF_IO or EFF_GPU or EFF_ASYNC or EFF_REACTIVE or EFF_UNSAFE or EFF_ALLOC or EFF_PANIC

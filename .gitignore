@@ -6,18 +6,14 @@ private/
 **/*target*/**
 *.json
 *.jsonl
-spec/
-specs/
 *.lnk
 *.exe
-/spec
 .pi/
 *.ptx
 *.spv
 *.wgsl
 *.hlsl
 .ralph/
-spec/
 /packages/ephemaris
 blades/c/ephemaris/
 .omo/
@@ -209,3 +205,4 @@ smoketest/telemetry/attrition/tracks/attrition.iter.16.json
 /blades/ui/kaintana/kaintana.kn
 /blades/ui/kaintana/kaintana.artifacts.kn
 /blades/ui/kaintana/kaintana.evidence.kn
+/blades/network/greeble/spec
