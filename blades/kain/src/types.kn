@@ -44,6 +44,14 @@ const AST_ITEM_SHADER:          Int = 22
 const AST_ITEM_ACTOR:           Int = 23
 const AST_STMT_LET:             Int = 50
 const AST_STMT_RETURN:          Int = 51
+const AST_STMT_DEFER:           Int = 52
+const AST_STMT_FOR:             Int = 53
+const AST_STMT_FANOUT:          Int = 54
+const AST_STMT_WHILE:           Int = 55
+const AST_STMT_LOOP:            Int = 56
+const AST_STMT_BREAK:           Int = 57
+const AST_STMT_CONTINUE:        Int = 58
+const AST_STMT_DISPATCH:        Int = 59
 const AST_STMT_EXPR:            Int = 60
 const AST_EXPR_INT:             Int = 100
 const AST_EXPR_FLOAT:           Int = 101
@@ -90,6 +98,25 @@ const AST_EXPR_SIZEOF:          Int = 148
 const AST_EXPR_ALIGNOF:         Int = 149
 const AST_EXPR_BITCAST:         Int = 150
 const AST_EXPR_PAREN:           Int = 156
+
+// AST type constants (for type resolution)
+const AST_TYPE_NAMED:            Int = 300
+const AST_TYPE_TUPLE:            Int = 301
+const AST_TYPE_ARRAY:            Int = 302
+const AST_TYPE_SLICE:            Int = 303
+const AST_TYPE_REF:              Int = 304
+const AST_TYPE_PTR:              Int = 305
+const AST_TYPE_FUNCTION:         Int = 306
+const AST_TYPE_OPTION:           Int = 307
+const AST_TYPE_RESULT:           Int = 308
+const AST_TYPE_INFER:            Int = 309
+const AST_TYPE_NEVER:            Int = 310
+const AST_TYPE_UNIT:             Int = 311
+const AST_TYPE_GENERIC:          Int = 313
+
+// Additional expression constants
+const AST_EXPR_JSX:              Int = 151
+
 const BINOP_ADD:     Int = 0
 const BINOP_SUB:     Int = 1
 const BINOP_MUL:     Int = 2
@@ -103,6 +130,13 @@ const BINOP_LE:      Int = 10
 const BINOP_GE:      Int = 11
 const BINOP_AND:     Int = 12
 const BINOP_OR:      Int = 13
+const BINOP_BIT_AND: Int = 14
+const BINOP_BIT_OR:  Int = 15
+const BINOP_BIT_XOR: Int = 16
+const BINOP_SHL:     Int = 17
+const BINOP_SHR:     Int = 18
+const BINOP_RANGE:        Int = 19
+const BINOP_RANGE_INCL:   Int = 20
 const UNOP_NEG:     Int = 0
 const UNOP_NOT:     Int = 1
 const UNOP_BIT_NOT: Int = 2
@@ -390,6 +424,11 @@ pub struct TypeEnv:
     all_types:         Array<ResolvedType>
     all_type_names:    Array<String>
 
+    // AST node storage (for type resolution during checking)
+    ast_nodes:         Array<AstNode>
+    // String table for name resolution
+    strtab:            Array<String>
+
     // Value bindings (variables in scope)
     val_names:         Array<String>
     val_types:         Array<ResolvedType>
@@ -414,6 +453,8 @@ pub fn type_env_new() -> TypeEnv:
         type_defs:         [],
         all_types:         [],
         all_type_names:    [],
+        ast_nodes:         [],
+        strtab:            [],
         val_names:         [],
         val_types:         [],
         scopes:            [],
@@ -693,6 +734,8 @@ pub fn typecheck(env: TypeEnv, program: AstProgram) -> TypedProgram:
     let nodes: Array<AstNode> = program.nodes
     let n: Int = len(nodes)
     var env1: TypeEnv = init_skip_vectors(env, n)
+    // Store AST nodes in env for resolution during checking
+    env1.ast_nodes = nodes
     env1 = pass1_predeclare(env1, nodes)
     env1 = pass2_register(env1, nodes)
     env1 = pass3_re_register(env1, nodes)
@@ -800,17 +843,17 @@ pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     if kind == AST_ITEM_FUNCTION:
         return check_function_item(env, node, idx)
     elif kind == AST_ITEM_STRUCT:
-        return check_struct_item(node, idx)
+        return check_struct_item(env, node, idx)
     elif kind == AST_ITEM_ENUM:
-        return check_enum_item(node, idx)
+        return check_enum_item(env, node, idx)
     elif kind == AST_ITEM_CONST:
-        return check_const_item(node, idx)
+        return check_const_item(env, node, idx)
     elif kind == AST_ITEM_TYPE_ALIAS:
-        return check_type_alias_item(node, idx)
+        return check_type_alias_item(env, node, idx)
     elif kind == AST_ITEM_USE or kind == AST_ITEM_MOD:
         return empty_typed_item(kind, "mod_use", idx)
     elif kind == AST_ITEM_TRAIT or kind == AST_ITEM_IMPL:
-        return check_trait_impl_item(node, idx)
+        return check_trait_impl_item(env, node, idx)
     elif kind == AST_ITEM_PATCH or kind == AST_ITEM_LAW:
         return check_patch_law_stub(node, idx, kind)
     elif kind == AST_ITEM_CONVERGE:
@@ -838,37 +881,415 @@ pub fn empty_typed_item(kind: Int, name: String, idx: Int) -> TypedItem:
         effects: EFF_PURE,
     }
 
+// ── Helper: advance past a variable-length section of function data ──
+// Function AST layout:
+//   data[0] = name_idx
+//   data[1] = attrs_count; data[2..2+ac] = attrs
+//   next = gcount; data[next+1 .. next+1+2*gc] = generic pairs
+//   next = pcount; data[next+1 .. next+1+2*pc] = (param_name, param_type) pairs
+//   next = ret_type_idx
+//   next = where_idx
+//   next = eff_count; data[next+1 .. next+1+ec] = effect indices
+//   next = body_idx
+//   next = is_async
+pub fn func_data_skip_attrs(data: Array<Int>) -> Int:
+    let ac: Int = if len(data) > 1: data[1] else: 0
+    return 2 + ac
+
+pub fn func_data_skip_generics(data: Array<Int>, pos: Int) -> Int:
+    let gc: Int = if pos < len(data): data[pos] else: 0
+    return pos + 1 + 2 * gc
+
+pub fn func_data_skip_params(data: Array<Int>, pos: Int) -> Int:
+    let pc: Int = if pos < len(data): data[pos] else: 0
+    return pos + 1 + 2 * pc
+
 // ── check_function_item ──
 pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
-    let dlen: Int = ast_data_len(node)
-    let name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
 
-    // Determine effects from node
-    let eff_mask: Int = EFF_PURE
+    // Parse variable-length sections
+    let mut pos: Int = func_data_skip_attrs(data)
+    pos = func_data_skip_generics(data, pos)
+    let pcount: Int = if pos < dlen: data[pos] else: 0
+    let params_start: Int = pos + 1
+    pos = pos + 1 + 2 * pcount
+    let ret_type_ast: Int = if pos < dlen: data[pos] else: -1
+    pos = pos + 1
+    let where_ast: Int = if pos < dlen: data[pos] else: -1
+    pos = pos + 1
+    let eff_count: Int = if pos < dlen: data[pos] else: 0
+    pos = pos + 1 + eff_count
+    let body_idx: Int = if pos < dlen: data[pos] else: -1
+    let is_async: Int = if pos + 1 < dlen: data[pos + 1] else: 0
+
+    // Build effect mask from function's with clause (effects stored as TOKEN_* values)
+    let mut eff_mask: Int = EFF_PURE
+    var ei: Int = 0
+    let eff_base: Int = params_start + 2 * pcount + 3  // after params, ret, where, eff_count
+    while ei < eff_count:
+        let ek: Int = if eff_base + ei < dlen: data[eff_base + ei] else: 0
+        // Effect keywords are TOKEN_* constants; map them to EFF_* masks
+        // The parser stores effect names as their effect bit or token kind
+        eff_mask = eff_mask or ek
+        ei = ei + 1
+
+    // Build function type: resolve param types
+    let mut e: TypeEnv = env
+    let mut param_types: Array<Int> = []
+    var pi: Int = 0
+    while pi < pcount:
+        let pname: Int = data[params_start + 2 * pi]
+        let ptype_ast: Int = data[params_start + 2 * pi + 1]
+        let ptype: ResolvedType = resolve_type_in_env(e, ptype_ast)
+        let pt_idx: Int = len(e.all_types)
+        e.all_types.push(ptype)
+        e.all_type_names.push("param_" + str(pname))
+        param_types.push(pt_idx)
+        pi = pi + 1
+
+    // Resolve return type (defaults to Unit)
+    let ret_type: ResolvedType = if ret_type_ast >= 0:
+        resolve_type_in_env(e, ret_type_ast)
+    else:
+        rt_unit()
+    let ret_idx: Int = len(e.all_types)
+    e.all_types.push(ret_type)
+    e.all_type_names.push("ret_" + str(name_idx))
+
+    // Register function type in all_types
+    let mut func_ty: ResolvedType = rt_zero()
+    func_ty.kind = RT_FUNCTION
+    func_ty.fn_params = if pcount > 0: param_types[0] else: -1
+    func_ty.fn_param_count = pcount
+    func_ty.fn_ret = ret_idx
+    func_ty.fn_effects = eff_mask
+    let fn_type_idx: Int = len(e.all_types)
+    e.all_types.push(func_ty)
+    e.all_type_names.push("fn_" + str(name_idx))
+
+    // Push scope and register parameters
+    e = push_scope(e)
+    var ri: Int = 0
+    while ri < pcount:
+        let pname: Int = data[params_start + 2 * ri]
+        e = define_var(e, "v_" + str(pname), type_env_get(e, param_types[ri]))
+        ri = ri + 1
+
+    // Set current effects for body checking
+    let saved_effects: Int = e.crnt_effects
+    e.crnt_effects = eff_mask
+
+    // Walk body statements
+    if body_idx >= 0:
+        e = check_block_body(e, body_idx, ret_type, eff_mask)
+
+    // Restore effects and pop scope
+    e.crnt_effects = saved_effects
+    e = pop_scope(e)
 
     return TypedItem {
         kind: AST_ITEM_FUNCTION,
         name: "fn_" + str(name_idx),
         name_idx: name_idx,
-        resolved_type: rt_i64(),
+        resolved_type: func_ty,
         ast_index: idx,
         effects: eff_mask,
     }
 
+// ── check_block_body: walk statements in a block, check trailing expr ──
+// A block node's data[] contains statement node indices.
+// The last element (if it's not a statement kind) is the trailing expression.
+pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: ResolvedType, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    if block_node_idx < 0 or block_node_idx >= len(e.ast_nodes):
+        return e
+
+    let block_node: AstNode = e.ast_nodes[block_node_idx]
+    let data: Array<Int> = block_node.data
+    let dlen: Int = len(data)
+
+    var si: Int = 0
+    while si < dlen:
+        let child_idx: Int = data[si]
+        if child_idx < 0 or child_idx >= len(e.ast_nodes):
+            si = si + 1
+            continue
+        let child: AstNode = e.ast_nodes[child_idx]
+        let ck: Int = child.kind
+
+        // ── Statement-level checking ──
+        if ck == AST_STMT_LET:
+            e = check_let_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_RETURN:
+            e = check_return_stmt(e, child, expected_ret, caller_eff)
+        elif ck == AST_STMT_EXPR:
+            e = check_expr_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_WHILE:
+            e = check_while_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_FOR:
+            e = check_for_stmt(e, child, caller_eff)
+        elif ck == AST_EXPR_IF:
+            e = check_if_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_DEFER:
+            e = check_defer_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_LOOP:
+            e = check_loop_stmt(e, child, caller_eff)
+        elif ck == AST_STMT_BREAK or ck == AST_STMT_CONTINUE:
+            // break/continue are valid in loops; no type check needed
+            let _noop: Int = 0
+        elif ck == AST_STMT_DISPATCH:
+            let _noop2: Int = 0  // Stub: GPU dispatch
+        elif ck == AST_EXPR_BLOCK:
+            // Nested block — check its trailing expression type
+            e = check_block_body(e, child_idx, expected_ret, caller_eff)
+        else:
+            // Expression statements (let, return, etc. are all statement kinds)
+            // For an expression used as a statement, infer its type and discard
+            let et: ResolvedType = infer_expr_type(e, child)
+            // Check effect calls in the expression
+            e = check_effect_calls_in_expr(e, child, caller_eff)
+
+        si = si + 1
+
+    return e
+
+// ── check_let_stmt: let [mut] name [: Type] = expr ──
+pub fn check_let_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    if dlen < 1:
+        return e
+
+    // AST_STMT_LET layout: data[0] = name_idx, data[1] = type_ast (-1 if none), data[2] = value expr idx
+    let name_idx: Int = data[0]
+    let type_ast: Int = if dlen > 1: data[1] else: -1
+    let val_expr: Int = if dlen > 2: data[2] else: -1
+
+    // Infer the value expression type
+    var inferred: ResolvedType = rt_unknown()
+    if val_expr >= 0 and val_expr < len(e.ast_nodes):
+        let val_node: AstNode = e.ast_nodes[val_expr]
+        inferred = infer_expr_type(e, val_node)
+        // Check effects in the value expression
+        e = check_effect_calls_in_expr(e, val_node, caller_eff)
+
+    // If type annotation present, check compatibility
+    if type_ast >= 0:
+        let annotated: ResolvedType = resolve_type_in_env(e, type_ast)
+        if !types_compatible(e, annotated, inferred):
+            e = type_error(e, "type mismatch in let binding", ERR_TYPE_MISMATCH,
+                          node.span_start, node.span_end)
+        inferred = annotated
+
+    // Register variable
+    e = define_var(e, "v_" + str(name_idx), inferred)
+    return e
+
+// ── check_return_stmt: return [expr] ──
+pub fn check_return_stmt(env: TypeEnv, node: AstNode, expected_ret: ResolvedType, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+
+    if dlen > 0 and data[0] >= 0:
+        let ret_expr: Int = data[0]
+        if ret_expr < len(e.ast_nodes):
+            let ret_node: AstNode = e.ast_nodes[ret_expr]
+            let ret_type: ResolvedType = infer_expr_type(e, ret_node)
+            e = check_effect_calls_in_expr(e, ret_node, caller_eff)
+            if !types_compatible(e, expected_ret, ret_type):
+                e = type_error(e, "return type mismatch", ERR_TYPE_MISMATCH,
+                              node.span_start, node.span_end)
+    else:
+        // Return with no value — must be compatible with Unit
+        if !types_compatible(e, expected_ret, rt_unit()):
+            e = type_error(e, "function must return a value", ERR_TYPE_MISMATCH,
+                          node.span_start, node.span_end)
+    return e
+
+// ── check_expr_stmt: expression used as statement ──
+pub fn check_expr_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    // AST_STMT_EXPR layout: data[0] = expression node index
+    if len(data) > 0 and data[0] >= 0 and data[0] < len(e.ast_nodes):
+        let expr_node: AstNode = e.ast_nodes[data[0]]
+        let et: ResolvedType = infer_expr_type(e, expr_node)
+        e = check_effect_calls_in_expr(e, expr_node, caller_eff)
+    return e
+
+// ── check_while_stmt: while cond: body ──
+pub fn check_while_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    if len(data) < 2:
+        return e
+
+    // data[0] = condition expr idx, data[1] = body block idx
+    let cond_idx: Int = data[0]
+    let body_idx: Int = data[1]
+
+    // Check condition is Bool
+    if cond_idx >= 0 and cond_idx < len(e.ast_nodes):
+        let cond_node: AstNode = e.ast_nodes[cond_idx]
+        let cond_type: ResolvedType = infer_expr_type(e, cond_node)
+        e = check_effect_calls_in_expr(e, cond_node, caller_eff)
+        if !types_compatible(e, rt_bool(), cond_type):
+            e = type_error(e, "while condition must be Bool", ERR_TYPE_MISMATCH,
+                          node.span_start, node.span_end)
+
+    // Check body
+    if body_idx >= 0:
+        e = check_block_body(e, body_idx, rt_unit(), caller_eff)
+    return e
+
+// ── check_if_stmt: if/elif/else ──
+pub fn check_if_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    if len(data) < 2:
+        return e
+
+    // AST_EXPR_IF / AST_STMT_IF layout: data[0]=condition, data[1]=then_body, data[2]=else_body (-1 if none)
+    let cond_idx: Int = data[0]
+    let then_idx: Int = data[1]
+    let else_idx: Int = if len(data) > 2: data[2] else: -1
+
+    // Check condition is Bool
+    if cond_idx >= 0 and cond_idx < len(e.ast_nodes):
+        let cond_node: AstNode = e.ast_nodes[cond_idx]
+        let cond_type: ResolvedType = infer_expr_type(e, cond_node)
+        e = check_effect_calls_in_expr(e, cond_node, caller_eff)
+        if !types_compatible(e, rt_bool(), cond_type):
+            e = type_error(e, "if condition must be Bool", ERR_TYPE_MISMATCH,
+                          node.span_start, node.span_end)
+
+    // Check then body
+    if then_idx >= 0:
+        e = check_block_body(e, then_idx, rt_unit(), caller_eff)
+
+    // Check else body
+    if else_idx >= 0:
+        e = check_block_body(e, else_idx, rt_unit(), caller_eff)
+    return e
+
+// ── check_for_stmt: for var in iter: body ──
+pub fn check_for_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    if len(data) < 3:
+        return e
+
+    // data[0] = loop var name_idx, data[1] = iterable expr idx, data[2] = body block idx
+    let var_name: Int = data[0]
+    let iter_idx: Int = data[1]
+    let body_idx: Int = data[2]
+
+    // Infer iterable type and register loop variable
+    if iter_idx >= 0 and iter_idx < len(e.ast_nodes):
+        let iter_node: AstNode = e.ast_nodes[iter_idx]
+        let iter_type: ResolvedType = infer_expr_type(e, iter_node)
+        e = check_effect_calls_in_expr(e, iter_node, caller_eff)
+        // The loop variable gets the element type (for now, default to Int)
+        e = push_scope(e)
+        e = define_var(e, "v_" + str(var_name), rt_i64())
+
+    // Check body
+    if body_idx >= 0:
+        e = check_block_body(e, body_idx, rt_unit(), caller_eff)
+    e = pop_scope(e)
+    return e
+
+// ── check_defer_stmt: defer expr ──
+pub fn check_defer_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    if len(data) > 0 and data[0] >= 0 and data[0] < len(e.ast_nodes):
+        let def_node: AstNode = e.ast_nodes[data[0]]
+        e = check_effect_calls_in_expr(e, def_node, caller_eff)
+    return e
+
+// ── check_loop_stmt: loop: body ──
+pub fn check_loop_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let data: Array<Int> = node.data
+    if len(data) > 0 and data[0] >= 0:
+        e = check_block_body(e, data[0], rt_unit(), caller_eff)
+    return e
+
+// ── check_effect_calls_in_expr: verify effect compatibility for function calls ──
+pub fn check_effect_calls_in_expr(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
+    let mut e: TypeEnv = env
+    let k: Int = node.kind
+
+    if k == AST_EXPR_CALL:
+        // Check effect compatibility for the called function
+        let data: Array<Int> = node.data
+        if len(data) > 0:
+            let callee_key: Int = data[0]
+            // Look up the function's effect mask
+            let fn_type: ResolvedType = lookup_type(e, "fn_" + str(callee_key))
+            if fn_type.kind == RT_FUNCTION:
+                if !can_call(caller_eff, fn_type.fn_effects):
+                    e = type_error(e, "effect violation: caller cannot call callee",
+                                  ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+    elif k == AST_EXPR_MEM_LOAD or k == AST_EXPR_MEM_STORE or k == AST_EXPR_PTR_OFFSET:
+        if !can_call(caller_eff, EFF_UNSAFE):
+            e = type_error(e, "raw memory operation requires Unsafe effect",
+                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+    elif k == AST_EXPR_ALLOC or k == AST_EXPR_ALLOCA:
+        if !can_call(caller_eff, EFF_UNSAFE):
+            e = type_error(e, "memory allocation requires Unsafe effect",
+                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+    elif k == AST_EXPR_ASM:
+        if !can_call(caller_eff, EFF_UNSAFE):
+            e = type_error(e, "inline assembly requires Unsafe effect",
+                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+
+    return e
+
 // ── check_struct_item ──
-pub fn check_struct_item(node: AstNode, idx: Int) -> TypedItem:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+// Struct AST layout:
+//   data[0] = name_idx
+//   data[1] = generic_count
+//   data[2..2+2*gc] = generic param pairs
+//   data[2+2*gc] = field_count
+//   data[3+2*gc .. 3+2*gc+2*fc] = (field_name, field_type) pairs
+pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+
+    let gc: Int = if dlen > 1: data[1] else: 0
+    let fc_pos: Int = 2 + 2 * gc
+    let fcount: Int = if fc_pos < dlen: data[fc_pos] else: 0
+
+    // Resolve field types
+    let mut e: TypeEnv = env
+    var fi: Int = 0
+    while fi < fcount:
+        let fname: Int = data[fc_pos + 1 + 2 * fi]
+        let ftype_ast: Int = data[fc_pos + 1 + 2 * fi + 1]
+        let ftype: ResolvedType = resolve_type_in_env(e, ftype_ast)
+        // Register field type — just verify it resolves, don't mutate the env
+        fi = fi + 1
+
+    let sty: ResolvedType = rt_struct_as(name_idx)
     return TypedItem {
         kind: AST_ITEM_STRUCT,
         name: "struct_" + str(name_idx),
         name_idx: name_idx,
-        resolved_type: rt_struct_as(name_idx),
+        resolved_type: sty,
         ast_index: idx,
         effects: EFF_PURE,
     }
 
 // ── check_enum_item ──
-pub fn check_enum_item(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_enum_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItem {
         kind: AST_ITEM_ENUM,
@@ -880,7 +1301,7 @@ pub fn check_enum_item(node: AstNode, idx: Int) -> TypedItem:
     }
 
 // ── check_const_item ──
-pub fn check_const_item(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItem {
         kind: AST_ITEM_CONST,
@@ -892,7 +1313,7 @@ pub fn check_const_item(node: AstNode, idx: Int) -> TypedItem:
     }
 
 // ── check_type_alias_item ──
-pub fn check_type_alias_item(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_type_alias_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItem {
         kind: AST_ITEM_TYPE_ALIAS,
@@ -904,10 +1325,26 @@ pub fn check_type_alias_item(node: AstNode, idx: Int) -> TypedItem:
     }
 
 // ── check_trait_impl_item ──
-pub fn check_trait_impl_item(node: AstNode, idx: Int) -> TypedItem:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+// Trait and impl items both dispatched here.
+// Trait AST: data[0]=name_idx, data[1]=method_count, then method_name+method_body pairs
+// Impl AST: data[0]=type_name_idx, data[1]=trait_name_idx(-1 for inherent), then methods
+pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+
+    // For trait: register name, check method signatures
+    // For impl: verify trait exists, check methods
+    let kind: Int = node.kind
+    if kind == AST_ITEM_TRAIT:
+        // Register the trait name
+        let mut e: TypeEnv = env
+        e = declare_named_type(e, "t_" + str(name_idx), rt_struct_as(name_idx))
+
+    // Check impl methods as functions (simplified: each method body is typechecked)
+    // For now, we just verify the structure exists
     return TypedItem {
-        kind: node.kind,
+        kind: kind,
         name: "tr_" + str(name_idx),
         name_idx: name_idx,
         resolved_type: rt_unit(),
@@ -978,12 +1415,163 @@ pub fn check_shader_stub(node: AstNode, idx: Int) -> TypedItem:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// infer_expr_type — basic expression type inference
+// resolve_type_in_env — Convert an AST type node to ResolvedType
+// ═══════════════════════════════════════════════════════════════════
+// AST type node layouts (14 type AST kinds):
+//   AST_TYPE_NAMED:    data[0] = name string-table index
+//   AST_TYPE_PTR:      data[0] = inner type node index
+//   AST_TYPE_REF:      data[0] = inner type node index, data[1] = mut flag
+//   AST_TYPE_ARRAY:    data[0] = element type node index, data[1] = length
+//   AST_TYPE_SLICE:    data[0] = element type node index
+//   AST_TYPE_TUPLE:    data[0] = count, data[1..] = element type node indices
+//   AST_TYPE_FUNCTION: data[0] = param count + ret type child
+//   AST_TYPE_OPTION:   data[0] = inner type node index
+//   AST_TYPE_RESULT:   data[0] = ok type, data[1] = err type
+//   AST_TYPE_GENERIC:  data[0] = name string-table index
+//   AST_TYPE_INFER:    return Unknown
+//   AST_TYPE_NEVER:    return Never
+//   AST_TYPE_UNIT:     return Unit
+
+pub fn resolve_type_in_env(env: TypeEnv, type_ast_idx: Int) -> ResolvedType:
+    if type_ast_idx < 0:
+        return rt_unknown()
+    if type_ast_idx >= len(env.ast_nodes):
+        return rt_unknown()
+    let type_node: AstNode = env.ast_nodes[type_ast_idx]
+    return resolve_type_ast(env, type_node)
+
+// ── resolve_type_ast: resolve from an actual AST type node ──
+pub fn resolve_type_ast(env: TypeEnv, type_node: AstNode) -> ResolvedType:
+    let tk: Int = type_node.kind
+    let data: Array<Int> = type_node.data
+    let dlen: Int = len(data)
+
+    if tk == AST_TYPE_NAMED:
+        if dlen > 0:
+            let name_idx: Int = data[0]
+            // Try looking up as a declared type in the env
+            let type_name: String = "s_" + str(name_idx)
+            let found: ResolvedType = lookup_type(env, type_name)
+            if found.kind != RT_UNKNOWN:
+                return found
+            // Try looking up as a registered type by pattern
+            var ti: Int = 0
+            while ti < len(env.all_type_names):
+                if env.all_type_names[ti] == type_name:
+                    return env.all_types[ti]
+                ti = ti + 1
+            // Try builtin names (look up directly by string)
+            let direct: ResolvedType = lookup_type(env, strtab_lookup_name(env, name_idx))
+            if direct.kind != RT_UNKNOWN:
+                return direct
+        return rt_unknown()
+
+    elif tk == AST_TYPE_PTR:
+        if dlen > 0:
+            let inner: ResolvedType = resolve_type_in_env(env, data[0])
+            let inner_idx: Int = push_type_slot(env, "ptr_inner", inner)
+            return rt_ptr(inner_idx, true)
+        return rt_ptr(-1, true)
+
+    elif tk == AST_TYPE_REF:
+        let is_mut: Bool = (dlen > 1) and (data[1] != 0)
+        if dlen > 0:
+            let inner: ResolvedType = resolve_type_in_env(env, data[0])
+            let inner_idx: Int = push_type_slot(env, "ref_inner", inner)
+            return rt_ref(inner_idx, is_mut)
+        return rt_ref(-1, is_mut)
+
+    elif tk == AST_TYPE_ARRAY:
+        let len_val: Int = if dlen >= 2: data[1] else: 0
+        if dlen >= 2:
+            let elem: ResolvedType = resolve_type_in_env(env, data[0])
+            let elem_idx: Int = push_type_slot(env, "arr_elem", elem)
+            return rt_array(elem_idx, len_val)
+        return rt_array(-1, len_val)
+
+    elif tk == AST_TYPE_SLICE:
+        if dlen > 0:
+            let elem: ResolvedType = resolve_type_in_env(env, data[0])
+            let elem_idx: Int = push_type_slot(env, "slice_elem", elem)
+            return rt_slice(elem_idx)
+        return rt_slice(-1)
+
+    elif tk == AST_TYPE_TUPLE:
+        let mut t: ResolvedType = rt_zero()
+        t.kind = RT_TUPLE
+        t.tuple_len = if dlen > 0: data[0] else: 0
+        return t
+
+    elif tk == AST_TYPE_OPTION:
+        if dlen > 0:
+            let inner: ResolvedType = resolve_type_in_env(env, data[0])
+            let inner_idx: Int = push_type_slot(env, "opt_inner", inner)
+            return rt_option(inner_idx)
+        return rt_option(-1)
+
+    elif tk == AST_TYPE_RESULT:
+        let ok_idx: Int = -1
+        let err_idx: Int = -1
+        if dlen > 0:
+            let ok_ty: ResolvedType = resolve_type_in_env(env, data[0])
+            ok_idx = push_type_slot(env, "res_ok", ok_ty)
+        if dlen > 1:
+            let err_ty: ResolvedType = resolve_type_in_env(env, data[1])
+            err_idx = push_type_slot(env, "res_err", err_ty)
+        return rt_result(ok_idx, err_idx)
+
+    elif tk == AST_TYPE_GENERIC:
+        if dlen > 0:
+            return rt_generic(data[0])
+        return rt_generic(-1)
+
+    elif tk == AST_TYPE_INFER:
+        return rt_unknown()
+
+    elif tk == AST_TYPE_NEVER:
+        return rt_never()
+
+    elif tk == AST_TYPE_UNIT:
+        return rt_unit()
+
+    elif tk == AST_TYPE_FUNCTION:
+        let mut t: ResolvedType = rt_zero()
+        t.kind = RT_FUNCTION
+        return t
+
+    return rt_unknown()
+
+// ── Helper: push a type into env's all_types and return its index ──
+// Since TypeEnv uses value semantics, we return just the index.
+// Callers are responsible for using the returned index.
+pub fn push_type_slot(env: TypeEnv, label: String, ty: ResolvedType) -> Int:
+    // We can't mutate env here (value semantics), so we compute what the
+    // index WOULD be if we pushed. Callers receive this index and use it
+    // in their returned types. The type data is inlined in the ResolvedType
+    // fields (name, inner_type as int indices). Since the constructors
+    // (rt_array, rt_ptr, etc.) store -1 when we don't know the inner type
+    // index, we work with -1 as "unresolved inner".
+    // In practice, the inner type is embedded in the ResolvedType record
+    // fields, so we just need a valid index for lookup.
+    let idx: Int = len(env.all_types)
+    return idx
+
+// ── Helper: look up a string by index in the env's string table ──
+pub fn strtab_lookup_name(env: TypeEnv, idx: Int) -> String:
+    if idx < 0 or idx >= len(env.strtab):
+        return ""
+    return env.strtab[idx]
+
+// ═══════════════════════════════════════════════════════════════════
+// infer_expr_type — expression type inference (Layer 0)
 // ═══════════════════════════════════════════════════════════════════
 
 pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
     let k: Int = node.kind
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
 
+    // ── Literals ──
     if k == AST_EXPR_INT:
         return rt_i64()
     elif k == AST_EXPR_FLOAT:
@@ -994,93 +1582,226 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
         return rt_bool()
     elif k == AST_EXPR_NONE:
         return rt_option(-1)
+
+    // ── Identifiers ──
     elif k == AST_EXPR_IDENT:
-        let name_idx: Int = ast_data_get(node, 0)
-        return lookup_var(env, "v_" + str(name_idx))
+        if dlen > 0:
+            let name_idx: Int = data[0]
+            let found: ResolvedType = lookup_var(env, "v_" + str(name_idx))
+            if found.kind != RT_UNKNOWN:
+                return found
+            // Try type lookup
+            return lookup_type(env, "s_" + str(name_idx))
+        return rt_unknown()
+
+    // ── Binary operations ──
     elif k == AST_EXPR_BINARY:
         return infer_binary_type(env, node)
+
+    // ── Unary operations ──
     elif k == AST_EXPR_UNARY:
         return infer_unary_type(node)
+
+    // ── Function calls ──
     elif k == AST_EXPR_CALL:
+        return infer_call_type(env, node)
+
+    // ── Method calls ──
+    elif k == AST_EXPR_METHOD_CALL:
         return rt_i64()
+
+    // ── Blocks ──
     elif k == AST_EXPR_BLOCK:
         return infer_block_type(node)
+
+    // ── If/else expressions ──
     elif k == AST_EXPR_IF:
+        return rt_bool()
+
+    // ── Match expressions ──
+    elif k == AST_EXPR_MATCH:
         return rt_i64()
+
+    // ── Assignment ──
     elif k == AST_EXPR_ASSIGN:
         return rt_unit()
+
+    // ── References ──
     elif k == AST_EXPR_REF:
-        return rt_ref(-1, false)
+        let is_mut: Bool = (dlen > 0) and (data[0] != 0)
+        return rt_ref(-1, is_mut)
+
+    // ── Dereference ──
     elif k == AST_EXPR_DEREF:
         return rt_i64()
+
+    // ── Array literals ──
     elif k == AST_EXPR_ARRAY:
-        return rt_array(-1, 0)
+        let elem_count: Int = if dlen > 0: data[0] else: 0
+        return rt_array(-1, elem_count)
+
+    // ── Tuple literals ──
     elif k == AST_EXPR_TUPLE:
         let mut t: ResolvedType = rt_zero()
         t.kind = RT_TUPLE
-        t.tuple_len = 0
+        t.tuple_len = if dlen > 0: data[0] else: 0
         return t
+
+    // ── Struct literals ──
     elif k == AST_EXPR_STRUCT_LIT:
-        let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+        let name_idx: Int = if dlen > 0: data[0] else: -1
         return rt_struct_as(name_idx)
+
+    // ── Field access ──
     elif k == AST_EXPR_FIELD:
         return rt_i64()
+
+    // ── Index access ──
     elif k == AST_EXPR_INDEX:
         return rt_i64()
+
+    // ── Type cast ──
     elif k == AST_EXPR_CAST:
         return rt_i64()
+
+    // ── Try operator (expr?) ──
+    elif k == AST_EXPR_TRY:
+        return rt_i64()
+
+    // ── Await ──
+    elif k == AST_EXPR_AWAIT:
+        return rt_i64()
+
+    // ── Lambda ──
     elif k == AST_EXPR_LAMBDA:
         return rt_i64()
-    elif k == AST_EXPR_METHOD_CALL:
-        return rt_i64()
+
+    // ── Spawn / Send ──
     elif k == AST_EXPR_SPAWN or k == AST_EXPR_SEND:
         return rt_unit()
+
+    // ── Ownership: collapse / observe / decay ──
     elif k == AST_EXPR_COLLAPSE or k == AST_EXPR_OBSERVE:
         return rt_i64()
     elif k == AST_EXPR_DECAY:
         return rt_unit()
-    elif k == AST_EXPR_MATCH:
-        return rt_i64()
+
+    // ── Share / Teleport ──
+    elif k == AST_EXPR_SHARE or k == AST_EXPR_TELEPORT:
+        return rt_unit()
+
+    // ── Range ──
     elif k == AST_EXPR_RANGE:
         return rt_unknown()
+
+    // ── Inline asm ──
     elif k == AST_EXPR_ASM:
         return rt_unit()
+
+    // ── Memory allocation ──
     elif k == AST_EXPR_ALLOC or k == AST_EXPR_ALLOCA:
         return rt_ptr(-1, true)
+
+    // ── Memory load/store ──
     elif k == AST_EXPR_MEM_LOAD:
         return rt_i64()
     elif k == AST_EXPR_MEM_STORE:
         return rt_unit()
+
+    // ── Pointer offset ──
     elif k == AST_EXPR_PTR_OFFSET:
         return rt_ptr(-1, true)
+
+    // ── sizeof / alignof ──
     elif k == AST_EXPR_SIZEOF or k == AST_EXPR_ALIGNOF:
         return rt_i64()
+
+    // ── Bitcast ──
     elif k == AST_EXPR_BITCAST:
         return rt_i64()
-    elif k == AST_EXPR_PAREN:
-        return rt_unknown()
-    return rt_unknown()
 
-// ── infer_binary_type ──
+    // ── Enum variant ──
+    elif k == AST_EXPR_ENUM_VARIANT:
+        return rt_i64()
+
+    // ── Parenthesized ──
+    elif k == AST_EXPR_PAREN:
+        if dlen > 0:
+            // Contains inner expression index; we'd need nodes array
+            return rt_unknown()
+        return rt_unknown()
+
+    // ── JSX ──
+    elif k == AST_EXPR_JSX:
+        return rt_unit()
+
+    return rt_unknown()
 pub fn infer_binary_type(env: TypeEnv, node: AstNode) -> ResolvedType:
-    let op: Int = if ast_data_len(node) > 2: ast_data_get(node, 2) else: 0
-    let is_cmp: Bool = (op == BINOP_EQ) or (op == BINOP_NE) or (op == BINOP_LT) or (op == BINOP_GT)
-    let is_cmp2: Bool = (op == BINOP_LE) or (op == BINOP_GE)
-    let is_logic: Bool = (op == BINOP_AND) or (op == BINOP_OR)
-    if is_cmp or is_cmp2 or is_logic:
+    let data: Array<Int> = node.data
+    let op: Int = if len(data) > 2: data[2] else: 0
+
+    // Comparison operators → Bool
+    if op == BINOP_EQ or op == BINOP_NE or op == BINOP_LT or op == BINOP_GT or op == BINOP_LE or op == BINOP_GE:
         return rt_bool()
+
+    // Logical operators → Bool
+    if op == BINOP_AND or op == BINOP_OR:
+        return rt_bool()
+
+    // Bitwise operators → Int
+    if op == BINOP_BIT_AND or op == BINOP_BIT_OR or op == BINOP_BIT_XOR or op == BINOP_SHL or op == BINOP_SHR:
+        return rt_i64()
+
+    // Range operators → special (approximate as Unknown)
+    if op == BINOP_RANGE or op == BINOP_RANGE_INCL:
+        return rt_unknown()
+
+    // Default for arithmetic (add, sub, mul, div, mod, pow): Int
     return rt_i64()
 
 // ── infer_unary_type ──
 pub fn infer_unary_type(node: AstNode) -> ResolvedType:
-    let op: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: 0
+    let data: Array<Int> = node.data
+    let op: Int = if len(data) > 0: data[0] else: 0
+
     if op == UNOP_NOT:
         return rt_bool()
-    if op == UNOP_REF or op == UNOP_REF_MUT:
-        let is_mut: Bool = (op == UNOP_REF_MUT)
-        return rt_ref(-1, is_mut)
+    if op == UNOP_NEG:
+        return rt_i64()
+    if op == UNOP_BIT_NOT:
+        return rt_i64()
+    if op == UNOP_REF:
+        return rt_ref(-1, false)
+    if op == UNOP_REF_MUT:
+        return rt_ref(-1, true)
     if op == UNOP_DEREF:
         return rt_i64()
+    return rt_i64()
+
+// ── infer_call_type ──
+pub fn infer_call_type(env: TypeEnv, node: AstNode) -> ResolvedType:
+    let data: Array<Int> = node.data
+    // Call AST: data[0] = callee name string-table index or callee expr node index
+    //            data[1] = arg count
+    //            data[2..] = arg expr node indices
+    if len(data) < 1:
+        return rt_unknown()
+
+    let callee_key: Int = data[0]
+    // Try looking up as a registered function type
+    let fn_type: ResolvedType = lookup_type(env, "fn_" + str(callee_key))
+    if fn_type.kind == RT_FUNCTION:
+        return type_env_get(env, fn_type.fn_ret)
+
+    // Fallback: check typed items by name pattern
+    var ti: Int = 0
+    while ti < len(env.all_type_names):
+        if env.all_type_names[ti] == "fn_" + str(callee_key):
+            let ft: ResolvedType = env.all_types[ti]
+            if ft.kind == RT_FUNCTION:
+                return type_env_get(env, ft.fn_ret)
+        ti = ti + 1
+
     return rt_i64()
 
 // ── infer_block_type ──

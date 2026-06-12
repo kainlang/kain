@@ -224,7 +224,7 @@ pub fn compile_result_error(errors: KcDiagnosticBag) -> CompileResult:
         errors: errors,
     }
 
-pub struct CheckResult:
+pub struct KcCheckResult:
     success:      Bool
     diagnostics:  KcDiagnosticBag
 
@@ -287,7 +287,7 @@ pub fn driver_session_compile(session: DriverSession, source: String,
 // ═══════════════════════════════════════════════════════════════════
 
 pub fn driver_session_check(session: DriverSession, source: String,
-                              source_path: String) -> CheckResult with IO:
+                              source_path: String) -> KcCheckResult with IO:
     let mut r: DriverSession = session
     r.source = source
     r.file_path = source_path
@@ -295,19 +295,19 @@ pub fn driver_session_check(session: DriverSession, source: String,
     let lexer_state: LexerState = lexer_new(r.source, r.file_path)
     let toks_result: LexTokensResult = lexer_tokenize_all(lexer_state)
     if kc_diag_bag_has_errors(toks_result.errors):
-        return CheckResult { success: false, diagnostics: toks_result.errors }
+        return KcCheckResult { success: false, diagnostics: toks_result.errors }
 
     let parser_state: ParserState = parser_new(toks_result.tokens, r.file_path, r.source)
     let prog_result: ProgResult = parse(parser_state)
     if kc_diag_bag_has_errors(prog_result.state.errors):
-        return CheckResult { success: false, diagnostics: prog_result.state.errors }
+        return KcCheckResult { success: false, diagnostics: prog_result.state.errors }
 
     let env: TypeEnv = type_env_new()
     let typed: TypedProgram = typecheck(env, prog_result.program)
     if kc_diag_bag_has_errors(typed.errors):
-        return CheckResult { success: false, diagnostics: typed.errors }
+        return KcCheckResult { success: false, diagnostics: typed.errors }
 
-    return CheckResult { success: true, diagnostics: kc_diag_bag_new() }
+    return KcCheckResult { success: true, diagnostics: kc_diag_bag_new() }
 
 // ═══════════════════════════════════════════════════════════════════
 // emit_progress — report pipeline phase change
@@ -325,28 +325,6 @@ pub fn emit_progress(session: DriverSession, phase: Int) -> DriverSession:
 // ═══════════════════════════════════════════════════════════════════
 
 pub fn discover_workspace(start_path: String) -> String with IO:
-    var current: String = start_path
-    if fs_is_file(current):
-        current = fs_parent_dir(current)
-
-    var iterations: Int = 0
-    while iterations < 20:
-        if fs_exists(current + "/KAIN.toml"):
-            return current
-        if fs_exists(current + "/kain.toml"):
-            return current
-        if fs_exists(current + "/build.kn"):
-            return current
-
-        let parent: String = fs_parent_dir(current)
-        if parent == current or parent == "":
-            break
-        current = parent
-        iterations = iterations + 1
-
+    // Stub: workspace discovery not yet functional in bootstrap
+    // In production, this ascends directories looking for KAIN.toml/build.kn/.git
     return ""
-
-// ── FS stubs ──
-pub fn fs_is_file(path: String) -> Bool with IO: return false
-pub fn fs_parent_dir(path: String) -> String with IO: return ""
-pub fn fs_exists(path: String) -> Bool with IO: return false

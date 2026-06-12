@@ -1,10 +1,24 @@
+// ============================================================================
+// build.kn — Blade-level build authority for kainc (Self-Host Kain Compiler)
+//
+// This is the canonical build file. It declares the project, all source files,
+// and the build graph (check, test, native executable, certify).
+//
+// The companion KAIN.toml (blade level) and src/KAIN.toml (source level) carry
+// compatibility metadata for toolchain discovery and selfhost bootstrap.
+// All build logic lives HERE.
+//
+// Reference: docs/BUILD_PROJECTS.MD §1 — build.kn is the authority.
+// ============================================================================
+
 use std::build
 
 fn build(ctx: BuildContext) -> BuildGraph:
-    let app = project("starter")
+    // ── Project definition ──
+    let app = project("kainc")
         .kind("kain_executable")
         .version("0.1.0")
-        .description("Starter template for Kain projects")
+        .description("Kain Self-Host Compiler — lex, parse, typecheck, codegen, JIT, orchestrate")
         .entry("src/main.kn")
         .source_root("src")
         .module_root("src")
@@ -13,16 +27,63 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .cache_root(".kain/cache/build")
         .profile("debug")
 
+    // ── Source set (all 23 .kn files) ──
+    let sources = source_set("kainc-sources")
+        .root("src")
+        .file("src/token.kn")
+        .file("src/error.kn")
+        .file("src/span.kn")
+        .file("src/ast.kn")
+        .file("src/build.kn")
+        .file("src/lexer.kn")
+        .file("src/builtins.kn")
+        .file("src/runtime.kn")
+        .file("src/llvm_ffi.kn")
+        .file("src/jit_metal.kn")
+        .file("src/jit_x86.kn")
+        .file("src/jit_orc.kn")
+        .file("src/jit_cache.kn")
+        .file("src/jit.kn")
+        .file("src/parser.kn")
+        .file("src/types.kn")
+        .file("src/effects.kn")
+        .file("src/monomorphize.kn")
+        .file("src/codegen.kn")
+        .file("src/orchestrator.kn")
+        .file("src/compiler.kn")
+        .file("src/cli.kn")
+        .file("src/main.kn")
+        .file("KAIN.toml")
+        .file("build.kn")
+
+    // ── Typecheck task ──
     let check = check_task("check-llvm")
         .project(app)
         .target("llvm")
+        .inputs(sources)
+        .telemetry("kainc.check")
 
+    // ── Source test task ──
+    let tests = source_tests("kainc-source-tests")
+        .project(app)
+        .inputs(sources)
+        .requires("check-llvm")
+
+    // ── Native executable task ──
     let exe = native_executable("root-executable")
         .project(app)
-        .output("$blade/starter.exe")
+        .output("$blade/kainc.exe")
         .requires(check)
+        .requires(tests)
+        .inputs(sources)
 
-    return build_graph()
-        .project(app)
-        .task(check)
-        .task(exe)
+    // ── Certify (meta-task: all dependencies passed) ──
+    let cert = certify("kainc.local")
+        .requires(check)
+        .requires(tests)
+        .requires(exe)
+
+    // ── Assemble and return the build graph ──
+    return build_graph(app)
+        .sources(sources)
+        .tasks(check, tests, exe, cert)
