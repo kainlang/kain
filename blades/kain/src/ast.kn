@@ -248,18 +248,23 @@ pub fn strtab_new() -> StringTable:
         strings: [],
     }
 
+// StrTabResult for value-semantics string interning
+pub struct StrTabResult:
+    table: StringTable
+    index: Int
+
 // Intern a string: if already present, return its index; else push and return new index
-pub fn strtab_intern(table: StringTable, s: String) -> (StringTable, Int):
+pub fn strtab_intern(table: StringTable, s: String) -> StrTabResult:
     let mut new_table: StringTable = table
     // Linear search for existing string
     var i: Int = 0
     while i < len(new_table.strings):
         if new_table.strings[i] == s:
-            return (new_table, i)
+            return StrTabResult { table: new_table, index: i }
         i = i + 1
     // Not found — push new entry
-    push(new_table.strings, s)
-    return (new_table, len(new_table.strings) - 1)
+    new_table.strings.push(s)
+    return StrTabResult { table: new_table, index: len(new_table.strings) - 1 }
 
 // Retrieve a string by index
 pub fn strtab_get(table: StringTable, idx: Int) -> String:
