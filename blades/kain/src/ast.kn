@@ -171,3 +171,182 @@ pub const UNOP_DEREF:   Int = 5
 // ═══════════════════════════════════════════════════════════════════════
 // END STREAM ALPHA SECTION — DELTA appends AstNode struct below this line
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// SECTION: STREAM DELTA — AstNode struct + helpers (appended by DELTA)
+// ═══════════════════════════════════════════════════════════════════════
+// Consumed by: FOXTROT (typechecker), GOLF (codegen)
+//
+// Flat array AST representation: parent-child via integer indices.
+// Every AST node has kind, span_start, span_end, and data[].
+// The interpretation of data[] depends on kind.
+
+// ── Core AstNode struct ──
+pub struct AstNode:
+    kind:       Int
+    span_start: Int
+    span_end:   Int
+    data:       Array<Int>
+
+// ── Constructor ──
+pub fn ast_new_node(kind: Int, span_start: Int, span_end: Int, data: Array<Int>) -> AstNode:
+    return AstNode {
+        kind: kind,
+        span_start: span_start,
+        span_end: span_end,
+        data: data,
+    }
+
+// ── Simple node constructors for common patterns ──
+pub fn ast_new_leaf(kind: Int, span_start: Int, span_end: Int, value: Int) -> AstNode:
+    let mut data: Array<Int> = []
+    push(data, value)
+    return ast_new_node(kind, span_start, span_end, data)
+
+pub fn ast_new_empty(kind: Int, span_start: Int, span_end: Int) -> AstNode:
+    return ast_new_node(kind, span_start, span_end, [])
+
+pub fn ast_new_child(kind: Int, span_start: Int, span_end: Int, child: Int) -> AstNode:
+    let mut data: Array<Int> = []
+    push(data, child)
+    return ast_new_node(kind, span_start, span_end, data)
+
+pub fn ast_new_two(kind: Int, span_start: Int, span_end: Int, a: Int, b: Int) -> AstNode:
+    let mut data: Array<Int> = []
+    push(data, a)
+    push(data, b)
+    return ast_new_node(kind, span_start, span_end, data)
+
+pub fn ast_new_three(kind: Int, span_start: Int, span_end: Int, a: Int, b: Int, c: Int) -> AstNode:
+    let mut data: Array<Int> = []
+    push(data, a)
+    push(data, b)
+    push(data, c)
+    return ast_new_node(kind, span_start, span_end, data)
+
+// ── Child access ──
+pub fn ast_data_len(node: AstNode) -> Int:
+    return len(node.data)
+
+pub fn ast_data_get(node: AstNode, index: Int) -> Int:
+    if index < 0 or index >= len(node.data):
+        return -1
+    return node.data[index]
+
+// ── AstProgram wrapper: the root node index + all nodes ──
+pub struct AstProgram:
+    root:     Int
+    nodes:    Array<AstNode>
+
+// ── String table (for identifier interning) ──
+// Uses parallel arrays instead of HashMap for bootstrap compat
+pub struct StringTable:
+    strings:   Array<String>
+
+pub fn strtab_new() -> StringTable:
+    return StringTable {
+        strings: [],
+    }
+
+// Intern a string: if already present, return its index; else push and return new index
+pub fn strtab_intern(table: StringTable, s: String) -> (StringTable, Int):
+    let mut new_table: StringTable = table
+    // Linear search for existing string
+    var i: Int = 0
+    while i < len(new_table.strings):
+        if new_table.strings[i] == s:
+            return (new_table, i)
+        i = i + 1
+    // Not found — push new entry
+    push(new_table.strings, s)
+    return (new_table, len(new_table.strings) - 1)
+
+// Retrieve a string by index
+pub fn strtab_get(table: StringTable, idx: Int) -> String:
+    if idx < 0 or idx >= len(table.strings):
+        return ""
+    return table.strings[idx]
+
+// ── AST dump for debugging ──
+pub fn ast_kind_name(kind: Int) -> String:
+    // Items
+    if kind == AST_ITEM_FUNCTION:        return "Fn"
+    if kind == AST_ITEM_STRUCT:          return "Struct"
+    if kind == AST_ITEM_ENUM:            return "Enum"
+    if kind == AST_ITEM_TRAIT:           return "Trait"
+    if kind == AST_ITEM_IMPL:            return "Impl"
+    if kind == AST_ITEM_TYPE_ALIAS:      return "TypeAlias"
+    if kind == AST_ITEM_USE:             return "Use"
+    if kind == AST_ITEM_MOD:             return "Mod"
+    if kind == AST_ITEM_CONST:           return "Const"
+    if kind == AST_ITEM_COMPTIME:        return "Comptime"
+    if kind == AST_ITEM_MACRO:           return "Macro"
+    if kind == AST_ITEM_TEST:            return "Test"
+    if kind == AST_ITEM_PATCH:           return "Patch"
+    if kind == AST_ITEM_LAW:             return "Law"
+    if kind == AST_ITEM_AXIOM:           return "Axiom"
+    if kind == AST_ITEM_CONVERGE:        return "Converge"
+    if kind == AST_ITEM_WORLD:           return "World"
+    if kind == AST_ITEM_ENTANGLE:        return "Entangle"
+    if kind == AST_ITEM_ORCHESTRATE:     return "Orchestrate"
+    if kind == AST_ITEM_PULSE:           return "Pulse"
+    if kind == AST_ITEM_RESONATE:        return "Resonate"
+    if kind == AST_ITEM_COMPONENT:       return "Component"
+    if kind == AST_ITEM_SHADER:          return "Shader"
+    if kind == AST_ITEM_ACTOR:           return "Actor"
+    if kind == AST_ITEM_IMPORT:          return "Import"
+    if kind == AST_ITEM_PROGRAM:         return "Program"
+    // Expressions
+    if kind == AST_EXPR_INT:             return "Int"
+    if kind == AST_EXPR_FLOAT:           return "Float"
+    if kind == AST_EXPR_STRING:          return "String"
+    if kind == AST_EXPR_BOOL:            return "Bool"
+    if kind == AST_EXPR_NONE:            return "None"
+    if kind == AST_EXPR_IDENT:           return "Ident"
+    if kind == AST_EXPR_BINARY:          return "Binary"
+    if kind == AST_EXPR_UNARY:           return "Unary"
+    if kind == AST_EXPR_CALL:            return "Call"
+    if kind == AST_EXPR_METHOD_CALL:     return "MethodCall"
+    if kind == AST_EXPR_FIELD:           return "Field"
+    if kind == AST_EXPR_INDEX:           return "Index"
+    if kind == AST_EXPR_ASSIGN:          return "Assign"
+    if kind == AST_EXPR_IF:              return "If"
+    if kind == AST_EXPR_MATCH:           return "Match"
+    if kind == AST_EXPR_BLOCK:           return "Block"
+    if kind == AST_EXPR_RANGE:           return "Range"
+    if kind == AST_EXPR_STRUCT_LIT:      return "StructLit"
+    if kind == AST_EXPR_ARRAY:           return "Array"
+    if kind == AST_EXPR_TUPLE:           return "Tuple"
+    if kind == AST_EXPR_REF:             return "Ref"
+    if kind == AST_EXPR_DEREF:           return "Deref"
+    if kind == AST_EXPR_CAST:            return "Cast"
+    if kind == AST_EXPR_TRY:             return "Try"
+    if kind == AST_EXPR_AWAIT:           return "Await"
+    if kind == AST_EXPR_LAMBDA:          return "Lambda"
+    if kind == AST_EXPR_JSX:             return "JSX"
+    if kind == AST_EXPR_COLLAPSE:        return "Collapse"
+    if kind == AST_EXPR_OBSERVE:         return "Observe"
+    if kind == AST_EXPR_DECAY:           return "Decay"
+    if kind == AST_EXPR_SPAWN:           return "Spawn"
+    if kind == AST_EXPR_SEND:            return "Send"
+    if kind == AST_EXPR_TELEPORT:        return "Teleport"
+    if kind == AST_EXPR_MACRO_CALL:      return "MacroCall"
+    if kind == AST_EXPR_PAREN:           return "Paren"
+    // Statements
+    if kind == AST_STMT_LET:             return "Let"
+    if kind == AST_STMT_RETURN:          return "Return"
+    if kind == AST_STMT_DEFER:           return "Defer"
+    if kind == AST_STMT_FOR:             return "For"
+    if kind == AST_STMT_FANOUT:          return "Fanout"
+    if kind == AST_STMT_WHILE:           return "While"
+    if kind == AST_STMT_LOOP:            return "Loop"
+    if kind == AST_STMT_BREAK:           return "Break"
+    if kind == AST_STMT_CONTINUE:        return "Continue"
+    if kind == AST_STMT_DISPATCH:        return "Dispatch"
+    if kind == AST_STMT_EXPR:            return "ExprStmt"
+    if kind == AST_STMT_ITEM:            return "ItemStmt"
+    return "Unknown(" + str(kind) + ")"
+
+// ═══════════════════════════════════════════════════════════════════════
+// END STREAM DELTA SECTION — FOXTROT may append below
+// ═══════════════════════════════════════════════════════════════════════
