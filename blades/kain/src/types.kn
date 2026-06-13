@@ -932,6 +932,18 @@ pub fn func_data_skip_params(data: Array<Int>, pos: Int) -> Int:
     let pc: Int = if pos < len(data): data[pos] else: 0
     return pos + 1 + 2 * pc
 
+// ── Map effect index from parser to EFF_* bitmask ──
+// Parser stores sequential indices: 0=Pure, 1=IO, 2=Async, 3=GPU, 4=Reactive, 5=Unsafe
+// EFF_* constants are bitmask values: 0x00, 0x01, 0x04, 0x02, 0x08, 0x10
+pub fn eff_index_to_mask(idx: Int) -> Int:
+    if idx == 0: return EFF_PURE
+    if idx == 1: return EFF_IO
+    if idx == 2: return EFF_ASYNC
+    if idx == 3: return EFF_GPU
+    if idx == 4: return EFF_REACTIVE
+    if idx == 5: return EFF_UNSAFE
+    return EFF_PURE
+
 // ── check_function_item ──
 pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
@@ -959,8 +971,7 @@ pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAn
     let eff_base: Int = params_start + 2 * pcount + 3  // after params, ret, where, eff_count
     while ei < eff_count:
         let ek: Int = if eff_base + ei < dlen: data[eff_base + ei] else: 0
-        // Effect keywords are TOKEN_* constants; map them to EFF_* masks
-        eff_mask = eff_mask or ek
+        eff_mask = eff_mask or eff_index_to_mask(ek)
         ei = ei + 1
 
     // Build function type: resolve param types
@@ -1042,7 +1053,11 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
     let dlen: Int = len(data)
 
     var si: Int = 0
+    var last_expr_type: ResolvedType = rt_unit()
+    var has_last_expr: Bool = false
     while si < dlen:
+        // Reset trailing-expr tracking each iteration; only else branch sets it
+        has_last_expr = false
         let child_idx: Int = data[si]
         if child_idx < 0 or child_idx >= len(e.ast_nodes):
             si = si + 1
@@ -1086,10 +1101,19 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
             // Expression statements (let, return, etc. are all statement kinds)
             // For an expression used as a statement, infer its type and discard
             let et: ResolvedType = infer_expr_type(e, child)
+            // Track this as the potential trailing expression
+            last_expr_type = et
+            has_last_expr = true
             // Check effect calls in the expression
             e = check_effect_calls_in_expr(e, child, caller_eff)
 
         si = si + 1
+
+    // Validate trailing expression type against expected return type
+    if has_last_expr:
+        if !types_compatible(e, expected_ret, last_expr_type):
+            e = type_error(e, "block trailing expression type mismatch", ERR_TYPE_MISMATCH,
+                          block_node.span_start, block_node.span_end)
 
     return e
 
@@ -1849,7 +1873,7 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
     // ── Blocks ──
     elif k == AST_EXPR_BLOCK:
-        return infer_block_type(node)
+        return infer_block_type(env, node)
 
     // ── If/else expressions ──
     elif k == AST_EXPR_IF:
@@ -2177,12 +2201,17 @@ pub fn infer_call_type(env: TypeEnv, node: AstNode) -> ResolvedType:
     return rt_i64()
 
 // ── infer_block_type ──
-pub fn infer_block_type(node: AstNode) -> ResolvedType:
+pub fn infer_block_type(env: TypeEnv, node: AstNode) -> ResolvedType:
     let dlen: Int = ast_data_len(node)
     if dlen > 0:
         let last: Int = ast_data_get(node, dlen - 1)
-        if last >= 0:
-            return rt_i64()
+        if last >= 0 and last < len(env.ast_nodes):
+            let last_node: AstNode = env.ast_nodes[last]
+            // Only infer expression types, not statement types
+            let lk: Int = last_node.kind
+            if lk == AST_STMT_LET or lk == AST_STMT_RETURN or lk == AST_STMT_EXPR or lk == AST_STMT_DEFER or lk == AST_STMT_WHILE or lk == AST_STMT_FOR or lk == AST_STMT_LOOP or lk == AST_STMT_BREAK or lk == AST_STMT_CONTINUE:
+                return rt_unit()
+            return infer_expr_type(env, last_node)
     return rt_unit()
 
 // ── can_call: effect checking (local implementation) ──
