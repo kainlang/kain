@@ -32,8 +32,32 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .output("$blade/mks.exe")
         .requires("check-llvm")
 
+    // === Smoketest targets ===
+    // Reference the three-kn amalgamated capsule as an external dependency
+    let capsule_dep = capsule_reference("three-kn")
+        .path("X:/blades/three-kn/three.kn")
+
+    let smoketest_sources = source_set("smoketest-sources")
+        .glob("smoketest/**/*.kn")
+
+    let check_smoketest = check_task("check-smoketest")
+        .project(app)
+        .target("llvm")
+        .inputs(smoketest_sources)
+        .dependency(capsule_dep)
+
+    let smoketest_exe = native_executable("smoketest-runner")
+        .project(app)
+        .output("$blade/mks-smoketest.exe")
+        .entry("smoketest/run_smoketest.kn")
+        .requires("check-smoketest")
+        .dependency(capsule_dep)
+
     return build_graph()
         .project(app)
         .sources(sources)
         .task(check)
         .task(exe)
+        .sources(smoketest_sources)
+        .task(check_smoketest)
+        .task(smoketest_exe)
