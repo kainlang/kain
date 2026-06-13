@@ -321,6 +321,63 @@ pub fn emit_progress(session: DriverSession, phase: Int) -> DriverSession:
     return r
 
 // ═══════════════════════════════════════════════════════════════════
+// emit_diagnostics_to_stderr — pretty-print diagnostics
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn emit_diagnostics_to_stderr(bag: KcDiagnosticBag) with IO:
+    var i: Int = 0
+    while i < len(bag.messages):
+        let d: KcDiagnostic = bag.messages[i]
+        let sev: String = "error"
+        if d.severity == 1:
+            sev = "warning"
+        if d.severity == 2:
+            sev = "note"
+        let msg: String = d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": " + sev + "[" + d.error_kind + "]: " + d.message
+        println(msg)
+        i = i + 1
+
+// ═══════════════════════════════════════════════════════════════════
+// compile_file — read source file and run full pipeline
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn compile_file(file_path: String, target: String) -> CompileResult with IO:
+    println("[kainc] compile: " + file_path + " (target: " + target + ")")
+    let source: String = fs_read_text(file_path)
+    if source == "":
+        let mut bag: KcDiagnosticBag = kc_diag_bag_new()
+        let diag: KcDiagnostic = KcDiagnostic {
+            severity: 0, file_path: file_path, line_no: 0, column: 0,
+            message: "cannot read file: " + file_path, error_kind: "E0001",
+            span_start: 0, span_end: 0,
+        }
+        bag.messages.push(diag)
+        return compile_result_error(bag)
+    let session: DriverSession = driver_session_new()
+    session.file_path = file_path
+    return driver_session_compile(session, source, file_path, target)
+
+// ═══════════════════════════════════════════════════════════════════
+// check_file — read source file and run check-only pipeline
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn check_file(file_path: String) -> KcCheckResult with IO:
+    println("[kainc] check: " + file_path)
+    let source: String = fs_read_text(file_path)
+    if source == "":
+        let mut bag: KcDiagnosticBag = kc_diag_bag_new()
+        let diag: KcDiagnostic = KcDiagnostic {
+            severity: 0, file_path: file_path, line_no: 0, column: 0,
+            message: "cannot read file: " + file_path, error_kind: "E0001",
+            span_start: 0, span_end: 0,
+        }
+        bag.messages.push(diag)
+        return KcCheckResult { success: false, diagnostics: bag }
+    let session: DriverSession = driver_session_new()
+    session.file_path = file_path
+    return driver_session_check(session, source, file_path)
+
+// ═══════════════════════════════════════════════════════════════════
 // discover_workspace
 // ═══════════════════════════════════════════════════════════════════
 

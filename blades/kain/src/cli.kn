@@ -11,27 +11,37 @@
 
 use std::fs
 
-// ── Forward declarations for orchestrator functions (from orchestrator.kn) ──
-// These are resolved at link time when all files are combined.
+// ═══════════════════════════════════════════════════════════════════
+// Forward stubs for orchestrator.kn entry points
+//
+// These stubs exist so cli.kn can compile standalone (kain check cli.kn).
+// At ouroboros combine time, orchestrator.kn's real implementations of
+// orch_*_cli() shadow these stubs and the full pipeline activates.
+//
+// cli.kn (source_order position 69) appears AFTER orchestrator.kn (67)
+// and compiler.kn (68). In the combined source, the real orch_*_cli()
+// from orchestrator.kn are already defined and these stubs are skipped.
+// ═══════════════════════════════════════════════════════════════════
 
 pub fn orch_check_cli(input_path: String) -> Int with IO:
-    println("[ORCH STUB] orch_check_cli: " + input_path)
+    // Stub for standalone check; shadowed by orchestrator.kn at combine
+    println("[kainc] check: " + input_path + " (standalone — orchestrator not linked)")
     return 0
 
 pub fn orch_build_cli(input_path: String, target: String, profile: String, stage: String) -> Int with IO:
-    println("[ORCH STUB] orch_build_cli: " + input_path)
+    println("[kainc] build: " + input_path + " (standalone — orchestrator not linked)")
     return 0
 
 pub fn orch_run_cli(input_path: String) -> Int with IO:
-    println("[ORCH STUB] orch_run_cli: " + input_path)
+    println("[kainc] run: " + input_path + " (standalone — orchestrator not linked)")
     return 0
 
 pub fn orch_test_cli(input_path: String) -> Int with IO:
-    println("[ORCH STUB] orch_test_cli: " + input_path)
+    println("[kainc] test: " + input_path + " (standalone — orchestrator not linked)")
     return 0
 
 pub fn orch_selfhost_cli(verify: Bool) -> Int with IO:
-    println("[ORCH STUB] orch_selfhost_cli: verify=" + str(verify))
+    println("[kainc] selfhost: verify=" + str(verify) + " (standalone — orchestrator not linked)")
     return 0
 
 // ═══════════════════════════════════════════════════════════════════

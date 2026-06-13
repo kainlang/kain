@@ -99,43 +99,207 @@ pub const HANDLER_SELFHOST_PHASE1: Int = 207
 pub const HANDLER_SELFHOST_PHASE2: Int = 208
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Handler Functions — STUBS (wired by GOLF in Wave 4)
+// Forward stubs for compiler.kn types (shadowed at ouroboros combine time)
+//
+// orchestrator.kn (source_order position 67) appears BEFORE compiler.kn (68)
+// in the combined source. These forward stubs allow handlers to reference
+// compiler.kn's DriverSession pipeline. At combine time, compiler.kn's real
+// implementations take precedence and these stubs are shadowed.
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub struct KcDiagnostic:
+    severity:    Int
+    file_path:   String
+    line_no:     Int
+    column:      Int
+    message:     String
+    error_kind:  String
+    span_start:  Int
+    span_end:    Int
+
+pub struct KcDiagnosticBag:
+    messages: Array<KcDiagnostic>
+
+pub fn kc_diag_bag_new() -> KcDiagnosticBag:
+    return KcDiagnosticBag { messages: [] }
+
+pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
+    return len(bag.messages) > 0
+
+pub fn kc_diagnostic_new(severity: Int, message: String, kind: String, span_start: Int, span_end: Int) -> KcDiagnostic:
+    return KcDiagnostic {
+        severity: severity, file_path: "", line_no: 0, column: 0,
+        message: message, error_kind: kind, span_start: span_start, span_end: span_end,
+    }
+
+pub struct DriverSession:
+    source:          String
+    file_path:       String
+    diagnostics:     KcDiagnosticBag
+    config:          BuildConfig
+    progress_phase:  Int
+    frontend_cache:  Int
+    checked_cache:   Int
+    debug_info:      Bool
+
+pub struct CompileResult:
+    success:    Bool
+    output:     String
+    exit_code:  Int
+    errors:     KcDiagnosticBag
+
+pub struct KcCheckResult:
+    success:      Bool
+    diagnostics:  KcDiagnosticBag
+
+// ── Forward stubs for compiler.kn functions (shadowed at combine time) ──
+
+pub fn driver_session_new() -> DriverSession:
+    return DriverSession {
+        source: "", file_path: "", diagnostics: kc_diag_bag_new(),
+        config: build_config_default(), progress_phase: 0,
+        frontend_cache: 0, checked_cache: 0, debug_info: false,
+    }
+
+pub fn driver_session_check(session: DriverSession, source: String, source_path: String) -> KcCheckResult with IO:
+    // Forward stub — real implementation in compiler.kn shadows this at combine time
+    println("[kainc] driver_session_check: forwarding to compiler.kn (stub — combine required)")
+    return KcCheckResult { success: false, diagnostics: kc_diag_bag_new() }
+
+pub fn driver_session_compile(session: DriverSession, source: String, source_path: String, target: String) -> CompileResult with IO:
+    // Forward stub — real implementation in compiler.kn shadows this at combine time
+    println("[kainc] driver_session_compile: forwarding to compiler.kn (stub — combine required)")
+    return CompileResult { success: false, output: "", exit_code: 1, errors: kc_diag_bag_new() }
+
+pub fn emit_diagnostics_to_stderr(bag: KcDiagnosticBag) with IO:
+    var i: Int = 0
+    while i < len(bag.messages):
+        let d: KcDiagnostic = bag.messages[i]
+        let sev: String = "error"
+        if d.severity == 1: sev = "warning"
+        if d.severity == 2: sev = "note"
+        println(d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": " + sev + ": " + d.message)
+        i = i + 1
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Handler Functions — WIRED to compiler.kn DriverSession (Phase 3+)
+//
+// These handlers bridge the markscript VM's IVT dispatch to the compiler
+// pipeline. Each handler reads source, creates a DriverSession, and calls
+// the appropriate compilation phase function.
+//
+// In standalone mode (before combine), the forward stubs above return
+// empty results. At ouroboros combine time, compiler.kn's real
+// implementations take precedence and the pipeline works end-to-end.
 // ═════════════════════════════════════════════════════════════════════════════
 
 pub fn handler_compile_check(file_path: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: compile check  (file: " + file_path + ")")
-    return 0
+    println("[kainc] compile check: " + file_path)
+    let source: String = fs_read_text(file_path)
+    if source == "":
+        println("[kainc] ERROR: cannot read file: " + file_path)
+        return 1
+    let session: DriverSession = driver_session_new()
+    let result: KcCheckResult = driver_session_check(session, source, file_path)
+    if result.success:
+        println("[kainc] check PASSED: " + file_path)
+        return 0
+    else:
+        emit_diagnostics_to_stderr(result.diagnostics)
+        return 1
 
 pub fn handler_compile_codegen(file_path: String, target: String, profile: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: compile codegen (file: " + file_path + ", target: " + target + ", profile: " + profile + ")")
-    return 0
+    println("[kainc] compile codegen: " + file_path + " (target: " + target + ", profile: " + profile + ")")
+    let source: String = fs_read_text(file_path)
+    if source == "":
+        println("[kainc] ERROR: cannot read file: " + file_path)
+        return 1
+    let session: DriverSession = driver_session_new()
+    let result: CompileResult = driver_session_compile(session, source, file_path, target)
+    if result.success:
+        // Write LLVM IR output to file
+        let out_path: String = file_path + ".ll"
+        fs_write_text(out_path, result.output)
+        println("[kainc] LLVM IR written to: " + out_path)
+        return 0
+    else:
+        emit_diagnostics_to_stderr(result.errors)
+        return 1
 
 pub fn handler_compile_jit(file_path: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: compile jit  (file: " + file_path + ")")
-    return 0
+    println("[kainc] compile jit: " + file_path)
+    let source: String = fs_read_text(file_path)
+    if source == "":
+        println("[kainc] ERROR: cannot read file: " + file_path)
+        return 1
+    let session: DriverSession = driver_session_new()
+    let result: CompileResult = driver_session_compile(session, source, file_path, "jit")
+    if result.success:
+        println("[kainc] JIT compilation succeeded (output: " + str(len(result.output)) + " bytes)")
+        // JIT execution deferred to jit.kn integration (Phase 4+)
+        return 0
+    else:
+        emit_diagnostics_to_stderr(result.errors)
+        return 1
 
 pub fn handler_test_run(spec_path: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: test run  (spec: " + spec_path + ")")
-    return 0
+    println("[kainc] test run: " + spec_path)
+    // Phase 3: read spec files and compile+run test cases
+    // For now, attempt to check the spec path as a source file
+    if spec_path == "" or spec_path == ".":
+        println("[kainc] test: discovering test cases in spec/...")
+        // Placeholder — full test discovery in Phase 4+
+        return 0
+    let source: String = fs_read_text(spec_path)
+    if source == "":
+        println("[kainc] WARNING: no test source found at: " + spec_path)
+        return 0
+    let session: DriverSession = driver_session_new()
+    let result: KcCheckResult = driver_session_check(session, source, spec_path)
+    if result.success:
+        println("[kainc] test PASSED: " + spec_path)
+        return 0
+    else:
+        emit_diagnostics_to_stderr(result.diagnostics)
+        println("[kainc] test FAILED: " + spec_path)
+        return 1
 
 pub fn handler_test_report(format: String) -> String with IO:
-    println("[HANDLER] Not yet implemented: test report  (format: " + format + ")")
-    return ""
+    println("[kainc] test report (format: " + format + ")")
+    // Phase 4+: aggregate test results into JSON/Markdown report
+    if format == "json":
+        return "{\"tests\": [], \"passed\": 0, \"failed\": 0, \"phase\": \"stub\"}"
+    return "Test report: no results (wire to test runner in Phase 4+)"
 
 pub fn handler_build_link(target: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: build link  (target: " + target + ")")
-    return 0
+    println("[kainc] build link (target: " + target + ")")
+    // Phase 4+: invoke clang/lld to link .ll → .exe
+    // For Phase 0-3, the bootstrap compiler handles linking via kain build
+    if target == "llvm":
+        println("[kainc] link: .ll → .exe (STUB — use 'kain build . --target llvm' for linking)")
+        return 0
+    println("[kainc] link: target '" + target + "' not yet supported")
+    return 1
 
 pub fn handler_build_package(package_name: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: build package  (package: " + package_name + ")")
+    println("[kainc] build package: " + package_name)
+    // Phase 4+: create distributable package (amalgamate + bundle)
+    // For Phase 0-3, use 'kain amalgamate src/'
+    println("[kainc] package: STUB — use 'kain amalgamate' for distribution")
     return 0
 
 pub fn handler_selfhost_phase1(crate_name: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: selfhost phase1  (crate: " + crate_name + ")")
+    println("[kainc] selfhost phase1: " + crate_name)
+    // Phase 1: combine all source files in source_order
+    println("[kainc] phase1: source combination from KAIN.toml source_order")
+    println("[kainc] phase1: STUB — awaiting ouroboros combine pipeline")
     return 0
 
 pub fn handler_selfhost_phase2(crate_name: String) -> Int with IO:
-    println("[HANDLER] Not yet implemented: selfhost phase2  (crate: " + crate_name + ")")
+    println("[kainc] selfhost phase2: " + crate_name)
+    // Phase 2: compile combined source → compare LLVM IR
+    println("[kainc] phase2: compile combined source → verify byte-identical IR")
+    println("[kainc] phase2: STUB — awaiting full typechecker + codegen implementations")
     return 0
 
 // ═════════════════════════════════════════════════════════════════════════════
