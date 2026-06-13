@@ -17,110 +17,23 @@ use L7_systems
 use L5_temporal
 use L6_stones
 use GpuBackend
+use ast
 
 // ═══════════════════════════════════════════════════════════════════
-// Effect Constants (duplicated from effects.kn for standalone check)
+// Effect Constants (kainc-local to avoid stdlib collision)
 // ═══════════════════════════════════════════════════════════════════
-const EFF_PURE:     Int = 0x00
-const EFF_IO:       Int = 0x01
-const EFF_GPU:      Int = 0x02
-const EFF_ASYNC:    Int = 0x04
-const EFF_REACTIVE: Int = 0x08
-const EFF_UNSAFE:   Int = 0x10
-const EFF_ALLOC:    Int = 0x20
-const EFF_PANIC:    Int = 0x40
+pub const KC_EFF_PURE:     Int = 0x00
+pub const KC_EFF_IO:       Int = 0x01
+pub const KC_EFF_GPU:      Int = 0x02
+pub const KC_EFF_ASYNC:    Int = 0x04
+pub const KC_EFF_REACTIVE: Int = 0x08
+pub const KC_EFF_UNSAFE:   Int = 0x10
+pub const KC_EFF_ALLOC:    Int = 0x20
+pub const KC_EFF_PANIC:    Int = 0x40
 
 // ═══════════════════════════════════════════════════════════════════
-// AST Tag Constants (duplicated from ast.kn for standalone check)
+// AST Type + Misc Constants (NOT in ast.kn — local to types.kn)
 // ═══════════════════════════════════════════════════════════════════
-const AST_ITEM_FUNCTION:        Int = 0
-const AST_ITEM_STRUCT:          Int = 1
-const AST_ITEM_ENUM:            Int = 2
-const AST_ITEM_TRAIT:           Int = 3
-const AST_ITEM_IMPL:            Int = 4
-const AST_ITEM_TYPE_ALIAS:      Int = 5
-const AST_ITEM_USE:             Int = 6
-const AST_ITEM_MOD:             Int = 7
-const AST_ITEM_CONST:           Int = 8
-const AST_ITEM_PATCH:           Int = 12
-const AST_ITEM_LAW:             Int = 13
-const AST_ITEM_AXIOM:           Int = 14
-const AST_ITEM_CONVERGE:        Int = 15
-const AST_ITEM_WORLD:           Int = 16
-const AST_ITEM_ENTANGLE:        Int = 17
-const AST_ITEM_ORCHESTRATE:     Int = 18
-const AST_ITEM_PULSE:           Int = 19
-const AST_ITEM_RESONATE:        Int = 20
-const AST_ITEM_COMPONENT:       Int = 21
-const AST_ITEM_SHADER:          Int = 22
-const AST_ITEM_ACTOR:           Int = 23
-const AST_STMT_LET:             Int = 50
-const AST_STMT_RETURN:          Int = 51
-const AST_STMT_DEFER:           Int = 52
-const AST_STMT_FOR:             Int = 53
-const AST_STMT_FANOUT:          Int = 54
-const AST_STMT_WHILE:           Int = 55
-const AST_STMT_LOOP:            Int = 56
-const AST_STMT_BREAK:           Int = 57
-const AST_STMT_CONTINUE:        Int = 58
-const AST_STMT_DISPATCH:        Int = 59
-const AST_STMT_EXPR:            Int = 60
-const AST_EXPR_INT:             Int = 100
-const AST_EXPR_FLOAT:           Int = 101
-const AST_EXPR_STRING:          Int = 102
-const AST_EXPR_FSTRING:         Int = 103
-const AST_EXPR_BOOL:            Int = 104
-const AST_EXPR_NONE:            Int = 105
-const AST_EXPR_IDENT:           Int = 106
-const AST_EXPR_BINARY:          Int = 107
-const AST_EXPR_UNARY:           Int = 108
-const AST_EXPR_CALL:            Int = 109
-const AST_EXPR_METHOD_CALL:     Int = 110
-const AST_EXPR_FIELD:           Int = 111
-const AST_EXPR_INDEX:           Int = 112
-const AST_EXPR_ASSIGN:          Int = 113
-const AST_EXPR_IF:              Int = 114
-const AST_EXPR_MATCH:           Int = 115
-const AST_EXPR_BLOCK:           Int = 116
-const AST_EXPR_RANGE:           Int = 117
-const AST_EXPR_STRUCT_LIT:      Int = 118
-const AST_EXPR_ENUM_VARIANT:    Int = 119
-const AST_EXPR_ARRAY:           Int = 120
-const AST_EXPR_TUPLE:           Int = 121
-const AST_EXPR_REF:             Int = 122
-const AST_EXPR_DEREF:           Int = 123
-const AST_EXPR_CAST:            Int = 124
-const AST_EXPR_TRY:             Int = 125
-const AST_EXPR_AWAIT:           Int = 126
-const AST_EXPR_SPAWN:           Int = 127
-const AST_EXPR_SEND:            Int = 128
-const AST_EXPR_EMIT:            Int = 129
-const AST_EXPR_COLLAPSE:        Int = 130
-const AST_EXPR_OBSERVE:         Int = 131
-const AST_EXPR_DECAY:           Int = 132
-const AST_EXPR_SHARE:           Int = 133
-const AST_EXPR_TELEPORT:        Int = 134
-const AST_EXPR_LAMBDA:          Int = 135
-const AST_EXPR_ASM:             Int = 136
-const AST_EXPR_ALLOC:           Int = 137
-const AST_EXPR_ALLOCA:          Int = 155
-const AST_EXPR_PTR_OFFSET:      Int = 138
-const AST_EXPR_MEM_LOAD:        Int = 139
-const AST_EXPR_MEM_STORE:       Int = 140
-const AST_EXPR_SIZEOF:          Int = 148
-const AST_EXPR_ALIGNOF:         Int = 149
-const AST_EXPR_BITCAST:         Int = 150
-const AST_EXPR_PAREN:           Int = 156
-const AST_EXPR_ATOMIC_LOAD:     Int = 141
-const AST_EXPR_ATOMIC_STORE:    Int = 142
-const AST_EXPR_ATOMIC_ADD:      Int = 143
-const AST_EXPR_ATOMIC_CMPXCHG:  Int = 144
-const AST_EXPR_ATOMIC_FENCE:    Int = 145
-const AST_EXPR_CPU_FENCE:       Int = 146
-const AST_EXPR_CPU_CACHE_FLUSH: Int = 147
-const AST_EXPR_MACRO_CALL:      Int = 152
-const AST_EXPR_COMPTIME:        Int = 153
-const AST_EXPR_UNINIT:          Int = 154
 
 // AST type constants (for type resolution)
 const AST_TYPE_NAMED:            Int = 300
@@ -137,9 +50,10 @@ const AST_TYPE_NEVER:            Int = 310
 const AST_TYPE_UNIT:             Int = 311
 const AST_TYPE_GENERIC:          Int = 313
 
-// Additional expression constants
+// Additional expression constants (not in ast.kn)
 const AST_EXPR_JSX:              Int = 151
 
+// Binary op constants
 const BINOP_ADD:     Int = 0
 const BINOP_SUB:     Int = 1
 const BINOP_MUL:     Int = 2
@@ -160,20 +74,26 @@ const BINOP_SHL:     Int = 17
 const BINOP_SHR:     Int = 18
 const BINOP_RANGE:        Int = 19
 const BINOP_RANGE_INCL:   Int = 20
+
+// Unary op constants
 const UNOP_NEG:     Int = 0
 const UNOP_NOT:     Int = 1
 const UNOP_BIT_NOT: Int = 2
 const UNOP_REF:     Int = 3
 const UNOP_REF_MUT: Int = 4
 const UNOP_DEREF:   Int = 5
+
+// String table sentinel
 const STRTAB_NOT_FOUND: Int = -1
+
+// Error codes
 const ERR_TYPE_MISMATCH:  String = "E0200"
 const ERR_TYPE_DUPLICATE:  String = "E0201"
 const ERR_TYPE_NOT_FOUND:  String = "E0202"
 const ERR_TYPE_EFFECT_VIOLATION: String = "E0203"
 
 // ═══════════════════════════════════════════════════════════════════
-// Local AstNode (mirrors ast.kn's AstNode for standalone check)
+// Local KcDiagnostic + KcDiagnosticBag (mirrors error.kn)
 // ═══════════════════════════════════════════════════════════════════
 pub struct AstNode:
     kind:       Int
@@ -484,7 +404,7 @@ pub fn type_env_new() -> TypeEnv:
         val_names:         [],
         val_types:         [],
         scopes:            [],
-        crnt_effects:      EFF_PURE,
+        crnt_effects:      KC_EFF_PURE,
         skip2:             [],
         skip3:             [],
         errs:              kc_diag_bag_new(),
@@ -921,7 +841,7 @@ pub fn empty_typed_item_and_env(env: TypeEnv, kind: Int, name: String, idx: Int)
     let item: TypedItem = TypedItem {
         kind: kind, name: name, name_idx: -1,
         resolved_type: rt_unit(), ast_index: idx,
-        effects: EFF_PURE,
+        effects: KC_EFF_PURE,
     }
     return TypedItemAndEnv { env: env, item: item }
 
@@ -952,13 +872,13 @@ pub fn func_data_skip_params(data: Array<Int>, pos: Int) -> Int:
 // Parser stores sequential indices: 0=Pure, 1=IO, 2=Async, 3=GPU, 4=Reactive, 5=Unsafe
 // EFF_* constants are bitmask values: 0x00, 0x01, 0x04, 0x02, 0x08, 0x10
 pub fn eff_index_to_mask(idx: Int) -> Int:
-    if idx == 0: return EFF_PURE
-    if idx == 1: return EFF_IO
-    if idx == 2: return EFF_ASYNC
-    if idx == 3: return EFF_GPU
-    if idx == 4: return EFF_REACTIVE
-    if idx == 5: return EFF_UNSAFE
-    return EFF_PURE
+    if idx == 0: return KC_EFF_PURE
+    if idx == 1: return KC_EFF_IO
+    if idx == 2: return KC_EFF_ASYNC
+    if idx == 3: return KC_EFF_GPU
+    if idx == 4: return KC_EFF_REACTIVE
+    if idx == 5: return KC_EFF_UNSAFE
+    return KC_EFF_PURE
 
 // ── check_function_item ──
 pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
@@ -982,7 +902,7 @@ pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAn
     let is_async: Int = if pos + 1 < dlen: data[pos + 1] else: 0
 
     // Build effect mask from function's with clause (effects stored as TOKEN_* values)
-    let mut eff_mask: Int = EFF_PURE
+    let mut eff_mask: Int = KC_EFF_PURE
     var ei: Int = 0
     let eff_base: Int = params_start + 2 * pcount + 3  // after params, ret, where, eff_count
     while ei < eff_count:
@@ -1319,15 +1239,15 @@ pub fn check_effect_calls_in_expr(env: TypeEnv, node: AstNode, caller_eff: Int) 
                     e = type_error(e, "effect violation: caller cannot call callee",
                                   ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_MEM_LOAD or k == AST_EXPR_MEM_STORE or k == AST_EXPR_PTR_OFFSET:
-        if !can_call(caller_eff, EFF_UNSAFE):
+        if !can_call(caller_eff, KC_EFF_UNSAFE):
             e = type_error(e, "raw memory operation requires Unsafe effect",
                           ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_ALLOC or k == AST_EXPR_ALLOCA:
-        if !can_call(caller_eff, EFF_UNSAFE):
+        if !can_call(caller_eff, KC_EFF_UNSAFE):
             e = type_error(e, "memory allocation requires Unsafe effect",
                           ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_ASM:
-        if !can_call(caller_eff, EFF_UNSAFE):
+        if !can_call(caller_eff, KC_EFF_UNSAFE):
             e = type_error(e, "inline assembly requires Unsafe effect",
                           ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
 
@@ -1405,7 +1325,7 @@ pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
             name_idx: name_idx,
             resolved_type: sty,
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: KC_EFF_PURE,
         }
     }
 
@@ -1454,7 +1374,7 @@ pub fn check_enum_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv
             name_idx: name_idx,
             resolved_type: ety,
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: KC_EFF_PURE,
         }
     }
 
@@ -1500,7 +1420,7 @@ pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEn
             name_idx: name_idx,
             resolved_type: declared_type,
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: KC_EFF_PURE,
         }
     }
 
@@ -1531,7 +1451,7 @@ pub fn check_type_alias_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
             name_idx: name_idx,
             resolved_type: resolved,
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: KC_EFF_PURE,
         }
     }
 
@@ -1573,7 +1493,7 @@ pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
                 name_idx: name_idx,
                 resolved_type: rt_struct_as(name_idx),
                 ast_index: idx,
-                effects: EFF_PURE,
+                effects: KC_EFF_PURE,
             }
         }
 
@@ -1602,7 +1522,7 @@ pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
             name_idx: name_idx,
             resolved_type: rt_struct_as(type_name_idx),
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: KC_EFF_PURE,
         }
     }
 
@@ -1619,7 +1539,7 @@ pub fn check_shader_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
         env: env,
         item: TypedItem {
             kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_unit(), ast_index: idx, effects: EFF_GPU,
+            resolved_type: rt_unit(), ast_index: idx, effects: KC_EFF_GPU,
         }
     }
 
@@ -2164,11 +2084,11 @@ pub fn infer_block_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
 // ── can_call: effect checking (local implementation) ──
 pub fn can_call(caller_mask: Int, callee_mask: Int) -> Bool:
-    if callee_mask == EFF_PURE:
+    if callee_mask == KC_EFF_PURE:
         return true
-    if (caller_mask and EFF_UNSAFE) != 0:
+    if (caller_mask and KC_EFF_UNSAFE) != 0:
         return true
-    if caller_mask == EFF_PURE:
+    if caller_mask == KC_EFF_PURE:
         return false
     let intersection: Int = caller_mask and callee_mask
     return intersection == callee_mask

@@ -8,25 +8,8 @@
 use types
 
 // ═══════════════════════════════════════════════════════════════════
-// Duplicated AST Constants (from ast.kn for standalone check)
+// Predicate kind encoding: 0=target, 1=arch, 2=capability
 // ═══════════════════════════════════════════════════════════════════
-const AST_ITEM_AXIOM:       Int = 14
-const AST_ITEM_STRUCT:      Int = 1
-const AST_EXPR_TELEPORT:    Int = 134
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated Effect Constants (from effects.kn for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-const EFF_PURE:     Int = 0x00
-const EFF_IO:       Int = 0x01
-const EFF_GPU:      Int = 0x02
-const EFF_ASYNC:    Int = 0x04
-const EFF_REACTIVE: Int = 0x08
-const EFF_UNSAFE:   Int = 0x10
-const EFF_ALLOC:    Int = 0x20
-const EFF_PANIC:    Int = 0x40
-
-// ── Predicate kind encoding: 0=target, 1=arch, 2=capability ──
 const PRED_TARGET:     Int = 0
 const PRED_ARCH:       Int = 1
 const PRED_CAPABILITY: Int = 2
@@ -95,12 +78,12 @@ pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     return TypedItemAndEnv {
         env: e,
         item: TypedItem {
-            kind: AST_ITEM_AXIOM,
+            kind: ast.AST_ITEM_AXIOM,
             name: "ax_" + str(name_idx),
             name_idx: name_idx,
             resolved_type: types.rt_unit(),
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: types.KC_EFF_PURE,
         }
     }
 
@@ -128,12 +111,12 @@ pub fn check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     return TypedItemAndEnv {
         env: e,
         item: TypedItem {
-            kind: AST_ITEM_STRUCT,
+            kind: ast.AST_ITEM_STRUCT,
             name: "shatter_" + str(name_idx),
             name_idx: name_idx,
             resolved_type: types.rt_unit(),
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: types.KC_EFF_PURE,
         }
     }
 
@@ -205,12 +188,12 @@ pub fn check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     return TypedItemAndEnv {
         env: e,
         item: TypedItem {
-            kind: AST_EXPR_TELEPORT,
+            kind: ast.AST_EXPR_TELEPORT,
             name: "tel_" + src_name + "_to_" + tgt_name,
             name_idx: -1,
             resolved_type: value_type,
             ast_index: idx,
-            effects: EFF_PURE,
+            effects: types.KC_EFF_PURE,
         }
     }
 
@@ -222,17 +205,17 @@ pub fn check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // placeholder (Int) until the module system supports importing both
 // types.kn and codegen.kn's LlvmGenerator without struct-name collision.
 
-pub type Generator = Int  // Placeholder — will be LlvmGenerator
+pub type L6_Generator = Int  // Placeholder — will be LlvmGenerator
 
 // compile_axiom — STUB: emit axiom accept function + static strings
-pub fn compile_axiom(gen: Generator, item: TypedItem) -> Generator:
+pub fn compile_axiom(gen: L6_Generator, item: TypedItem) -> L6_Generator:
     // C-AXM-01: define i64 @__kain_axiom_accept_{name}(), calls @kain_machine_axiom_accept
     // C-AXM-02: capability_bit mapping for capability predicate strings
     // C-AXM-03: Static string constants for target, arch, and capability values
     return gen
 
 // compile_shatter — STUB: emit SoA lane bases for shattered struct arrays
-pub fn compile_shatter(gen: Generator, item: TypedItem) -> Generator:
+pub fn compile_shatter(gen: L6_Generator, item: TypedItem) -> L6_Generator:
     // C-SHT-01: Track shattered struct names for codegen decisions
     // C-SHT-02: Shattered array literal -> @kain_machine_shatter_alloc + lane base calls
     // C-SHT-03: Shattered field access -> GEP on lane_base or @kain_machine_shatter_lane_ptr
@@ -240,7 +223,7 @@ pub fn compile_shatter(gen: Generator, item: TypedItem) -> Generator:
     return gen
 
 // compile_teleport — STUB: emit teleport expression lowering
-pub fn compile_teleport(gen: Generator, item: TypedItem) -> Generator:
+pub fn compile_teleport(gen: L6_Generator, item: TypedItem) -> L6_Generator:
     // C-TEL-01: Pointer-type -> bitcast to i8*, @kain_machine_teleport_ptr, bitcast back
     // C-TEL-02: Scalar-type -> @kain_machine_teleport_note for bookkeeping
     // C-TEL-03: Static string constants for source/target world names and channel names

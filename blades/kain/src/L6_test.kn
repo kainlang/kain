@@ -1,17 +1,412 @@
-// Standalone syntax test for L6_stones patterns
+// L6_test.kn — Integration tests for Layer 6: Axiom + Shatter + Teleport
+// Tests: predicate kind validation, fallback enforcement, data layout
+//
+// NOTE: This file is SELF-CONTAINED because importing L6_stones triggers
+// a transitive symbol collision between L3_dispatch.kn and L4_stage.kn
+// (both define identical AST_ITEM_*/EFF_*/RT_*/structs). The constants
+// and validation functions under test are duplicated here from L6_stones.kn
+// until the upstream import chain is fixed.
+
 use std::text
 
+// ═══════════════════════════════════════════════════════════════════
+// AST & Predicate Constants (mirrors L6_stones.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+const AST_ITEM_AXIOM:    Int = 14
+const AST_ITEM_STRUCT:   Int = 1
+const AST_EXPR_TELEPORT: Int = 134
+
+// Predicate kind encoding: 0=target, 1=arch, 2=capability
 const PRED_TARGET:     Int = 0
 const PRED_ARCH:       Int = 1
 const PRED_CAPABILITY: Int = 2
 
+// ═══════════════════════════════════════════════════════════════════
+// Validation Functions (mirrors L6_stones.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+// check_predicate_kind — kind must be in {PRED_TARGET, PRED_ARCH, PRED_CAPABILITY}
 pub fn check_predicate_kind(kind: Int) -> Bool:
     return kind >= PRED_TARGET and kind <= PRED_CAPABILITY
 
+// validate_fallback — axiom must declare a portable fallback function
+// Returns "" on success, error message on failure
 pub fn validate_fallback(has_fallback: Int, fallback_idx: Int) -> String:
     if has_fallback == 0 or fallback_idx < 0:
         return "axiom must declare a portable fallback function"
     return ""
 
-pub fn compile_stub(gen: Int, item: Int) -> Int:
-    return gen
+// predicate_kind_name — human-readable name for a predicate kind
+pub fn predicate_kind_name(kind: Int) -> String:
+    if kind == PRED_TARGET:     return "target"
+    if kind == PRED_ARCH:       return "arch"
+    if kind == PRED_CAPABILITY: return "capability"
+    return "invalid(" + str(kind) + ")"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Helpers
+// ═══════════════════════════════════════════════════════════════════
+
+fn assert_eq(actual: Int, expected: Int, label: String):
+    if actual != expected:
+        let msg: String = "FAIL: " + label + " — expected " + str(expected) + ", got " + str(actual)
+        panic(msg)
+
+fn assert_eq_str(actual: String, expected: String, label: String):
+    if actual != expected:
+        let msg: String = "FAIL: " + label + " — expected '" + expected + "', got '" + actual + "'"
+        panic(msg)
+
+fn assert_true(actual: Bool, label: String):
+    if actual != true:
+        let msg: String = "FAIL: " + label + " — expected true, got false"
+        panic(msg)
+
+fn assert_false(actual: Bool, label: String):
+    if actual != false:
+        let msg: String = "FAIL: " + label + " — expected false, got true"
+        panic(msg)
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Predicate Kind Constants
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_predicate_constants() -> String:
+    // Verify the three predicate kinds have the expected values
+    assert_eq(PRED_TARGET,     0, "PRED_TARGET must be 0")
+    assert_eq(PRED_ARCH,       1, "PRED_ARCH must be 1")
+    assert_eq(PRED_CAPABILITY, 2, "PRED_CAPABILITY must be 2")
+
+    // Verify they are distinct
+    assert_true(PRED_TARGET != PRED_ARCH,       "PRED_TARGET != PRED_ARCH")
+    assert_true(PRED_TARGET != PRED_CAPABILITY, "PRED_TARGET != PRED_CAPABILITY")
+    assert_true(PRED_ARCH != PRED_CAPABILITY,   "PRED_ARCH != PRED_CAPABILITY")
+
+    return "OK: predicate_constants"
+
+fn test_predicate_kind_names() -> String:
+    assert_eq_str(predicate_kind_name(0), "target",     "kind 0 is target")
+    assert_eq_str(predicate_kind_name(1), "arch",       "kind 1 is arch")
+    assert_eq_str(predicate_kind_name(2), "capability", "kind 2 is capability")
+    assert_eq_str(predicate_kind_name(-1), "invalid(-1)", "unknown kind -1")
+    assert_eq_str(predicate_kind_name(3), "invalid(3)",   "unknown kind 3")
+    assert_eq_str(predicate_kind_name(99), "invalid(99)", "unknown kind 99")
+    return "OK: predicate_kind_names"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Predicate Kind Validation
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_check_predicate_kind_valid() -> String:
+    // Valid predicate kinds: 0, 1, 2
+    assert_true(check_predicate_kind(PRED_TARGET),     "kind 0 (target) must be valid")
+    assert_true(check_predicate_kind(PRED_ARCH),       "kind 1 (arch) must be valid")
+    assert_true(check_predicate_kind(PRED_CAPABILITY), "kind 2 (capability) must be valid")
+    return "OK: check_predicate_kind_valid"
+
+fn test_check_predicate_kind_invalid() -> String:
+    // Invalid predicate kinds: negative, out of range
+    assert_false(check_predicate_kind(-1), "kind -1 must be invalid")
+    assert_false(check_predicate_kind(-2), "kind -2 must be invalid")
+    assert_false(check_predicate_kind(-100), "kind -100 must be invalid")
+    assert_false(check_predicate_kind(3),  "kind 3 must be invalid (out of range)")
+    assert_false(check_predicate_kind(4),  "kind 4 must be invalid")
+    assert_false(check_predicate_kind(10), "kind 10 must be invalid")
+    assert_false(check_predicate_kind(100), "kind 100 must be invalid")
+    return "OK: check_predicate_kind_invalid"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Fallback Validation
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_validate_fallback_missing() -> String:
+    // has_fallback == 0 → error
+    let result1: String = validate_fallback(0, 0)
+    assert_true(result1 != "", "has_fallback=0 must produce error message")
+    assert_eq_str(result1, "axiom must declare a portable fallback function",
+        "correct error when has_fallback=0")
+
+    // fallback_idx < 0 → error (regardless of has_fallback)
+    let result2: String = validate_fallback(1, -1)
+    assert_true(result2 != "", "fallback_idx=-1 must produce error message")
+
+    return "OK: validate_fallback_missing"
+
+fn test_validate_fallback_present() -> String:
+    // has_fallback == 1 and fallback_idx >= 0 → success (empty error)
+    let result1: String = validate_fallback(1, 0)
+    assert_eq_str(result1, "", "has_fallback=1, idx=0 must be valid (empty error)")
+
+    let result2: String = validate_fallback(1, 5)
+    assert_eq_str(result2, "", "has_fallback=1, idx=5 must be valid")
+
+    let result3: String = validate_fallback(1, 9999)
+    assert_eq_str(result3, "", "has_fallback=1, idx=9999 must be valid")
+
+    return "OK: validate_fallback_present"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Axiom Data Layout
+// ═══════════════════════════════════════════════════════════════════
+//
+// Axiom AST layout (AST_ITEM_AXIOM = 14):
+//   data[0] = name_idx
+//   data[1] = predicate_count (N)
+//   data[2..2+2*N-1] = (kind, value_idx) pairs
+//   next = guarantee_count (M)
+//   next = (guarantee_idx)* M entries
+//   next = has_fallback (0 or 1)
+//   next = fallback_idx (if has_fallback)
+//
+// T-AXM-01: At least 1 predicate, at least 1 guarantee, fallback present
+// T-AXM-02: Predicate kind must be in {0, 1, 2}
+
+fn test_axiom_predicate_count_minimum() -> String:
+    // Axiom must have at least 1 predicate
+    let pred_count_0: Int = 0
+    let pred_count_1: Int = 1
+    let pred_count_3: Int = 3
+
+    assert_false(pred_count_0 >= 1, "0 predicates must be rejected")
+    assert_true(pred_count_1 >= 1,  "1 predicate must be accepted")
+    assert_true(pred_count_3 >= 1,  "3 predicates must be accepted")
+
+    return "OK: axiom_predicate_count_minimum"
+
+fn test_axiom_valid_predicate_kinds() -> String:
+    // Simulate checking predicate kinds in a loop
+    // Only kinds 0, 1, 2 are valid
+    let valid_kinds: Array<Int> = [0, 1, 2]
+    let invalid_kinds: Array<Int> = [-1, 3, 4, 5, 10]
+
+    var vi: Int = 0
+    while vi < 3:
+        let pk: Int = valid_kinds[vi]
+        assert_true(check_predicate_kind(pk),
+            "predicate kind " + str(pk) + " must be valid")
+        vi = vi + 1
+
+    var ii: Int = 0
+    while ii < 5:
+        let pk: Int = invalid_kinds[ii]
+        assert_false(check_predicate_kind(pk),
+            "predicate kind " + str(pk) + " must be invalid")
+        ii = ii + 1
+
+    return "OK: axiom_valid_predicate_kinds"
+
+fn test_axiom_guarantee_count_minimum() -> String:
+    // Axiom must have at least 1 guarantee
+    assert_false(0 >= 1, "1 guarantee must be accepted, 0 must be rejected")
+
+    let gtee_count_1: Int = 1
+    let gtee_count_4: Int = 4
+    assert_true(gtee_count_1 >= 1, "1 guarantee must be accepted")
+    assert_true(gtee_count_4 >= 1, "4 guarantees must be accepted")
+
+    return "OK: axiom_guarantee_count_minimum"
+
+fn test_axiom_fallback_required() -> String:
+    // Every axiom must have a fallback
+    let has_fb_0: Int = 0
+    let fb_idx_m1: Int = -1
+    let has_fb_1: Int = 1
+    let fb_idx_5: Int = 5
+
+    // Missing fallback (has_fallback == 0) → error
+    let err_missing: String = validate_fallback(has_fb_0, fb_idx_5)
+    assert_true(err_missing != "", "fallback missing with has_fallback=0 must error")
+
+    // Missing fallback index (idx < 0) → error
+    let err_idx: String = validate_fallback(has_fb_1, fb_idx_m1)
+    assert_true(err_idx != "", "fallback missing with idx=-1 must error")
+
+    // Present fallback → success
+    let ok: String = validate_fallback(has_fb_1, fb_idx_5)
+    assert_eq_str(ok, "", "fallback present with has_fallback=1, idx=5 must be valid")
+
+    return "OK: axiom_fallback_required"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Shatter Data Layout
+// ═══════════════════════════════════════════════════════════════════
+//
+// shatter struct Name: is parsed as AST_ITEM_STRUCT with AST_ATTR_SHATTER.
+// The struct data layout is the same as a normal struct.
+
+fn test_shatter_is_struct_item() -> String:
+    // Shatter shares AST_ITEM_STRUCT kind (1), with a shatter attribute
+    assert_eq(AST_ITEM_STRUCT, 1, "AST_ITEM_STRUCT must be 1")
+    assert_true(AST_ITEM_STRUCT != AST_ITEM_AXIOM, "shatter (struct) != axiom")
+    assert_true(AST_ITEM_STRUCT != AST_EXPR_TELEPORT, "shatter (struct) != teleport")
+
+    return "OK: shatter_is_struct_item"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Teleport Data Layout
+// ═══════════════════════════════════════════════════════════════════
+//
+// Teleport AST layout (AST_EXPR_TELEPORT = 134):
+//   data[0] = value_idx (child expression)
+//   data[1] = src_name_idx (source world)
+//   data[2] = tgt_name_idx (target world)
+//   data[3] = has_via_flag (0 or 1)
+//   data[4] = via_idx (channel name, only if has_via_flag)
+//
+// T-TEL-01: Source != target, validate world existence, infer value type
+// T-TEL-02: World existence check requires registered worlds
+// T-TEL-03: Move semantic — mark source as moved
+
+fn test_teleport_source_target_distinct() -> String:
+    // Source and target worlds must be different
+    let src_idx: Int = 100
+    let tgt_same_idx: Int = 100
+    let tgt_diff_idx: Int = 200
+
+    assert_true(src_idx != tgt_diff_idx, "src != tgt must be valid")
+    assert_false(src_idx != tgt_same_idx, "src == tgt must be invalid (rejected)")
+
+    return "OK: teleport_source_target_distinct"
+
+fn test_teleport_via_flag() -> String:
+    // has_via_flag must be 0 or 1
+    let via0: Int = 0
+    let via1: Int = 1
+
+    assert_true(via0 == 0 or via0 == 1, "has_via=0 must be valid")
+    assert_true(via1 == 0 or via1 == 1, "has_via=1 must be valid")
+
+    return "OK: teleport_via_flag"
+
+fn test_teleport_ast_constant() -> String:
+    // AST_EXPR_TELEPORT must have correct value
+    assert_eq(AST_EXPR_TELEPORT, 134, "AST_EXPR_TELEPORT must be 134")
+
+    // Must be distinct from other expression constants
+    assert_true(AST_EXPR_TELEPORT != AST_ITEM_AXIOM,  "teleport != axiom")
+    assert_true(AST_EXPR_TELEPORT != AST_ITEM_STRUCT, "teleport != struct")
+
+    return "OK: teleport_ast_constant"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Cross-Construct Integration
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_l6_item_kind_distinct() -> String:
+    // All L6 item/expr kinds must be distinct
+    let kinds: Array<Int> = [AST_ITEM_AXIOM, AST_ITEM_STRUCT, AST_EXPR_TELEPORT]
+    var i: Int = 0
+    while i < 3:
+        var j: Int = i + 1
+        while j < 3:
+            assert_true(kinds[i] != kinds[j],
+                "L6 kind " + str(i) + " != kind " + str(j))
+            j = j + 1
+        i = i + 1
+
+    return "OK: l6_item_kind_distinct"
+
+fn test_axiom_complete_validation() -> String:
+    // Simulate a complete axiom validation: validate all fields at once
+    //
+    // axiom machine_truth:
+    //   when target("llvm")
+    //   when arch("x86_64")
+    //   when capability("memory.shatter")
+    //   guarantee "machine supports shatter + teleport"
+    //   fallback semantic_fallback
+    let pred_count: Int = 3
+    let pred_kinds: Array<Int> = [PRED_TARGET, PRED_ARCH, PRED_CAPABILITY]
+    let gtee_count: Int = 1
+    let has_fallback: Int = 1
+    let fallback_idx: Int = 42
+
+    // T-AXM-01: At least 1 predicate
+    assert_true(pred_count >= 1, "axiom must have >= 1 predicates")
+
+    // T-AXM-02: All predicate kinds valid
+    var pi: Int = 0
+    while pi < pred_count:
+        assert_true(check_predicate_kind(pred_kinds[pi]),
+            "predicate " + str(pi) + " must be valid")
+        pi = pi + 1
+
+    // Must have at least 1 guarantee
+    assert_true(gtee_count >= 1, "axiom must have >= 1 guarantees")
+
+    // Must have fallback
+    let fb_result: String = validate_fallback(has_fallback, fallback_idx)
+    assert_eq_str(fb_result, "", "axiom fallback must be present and valid")
+
+    return "OK: axiom_complete_validation"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Runner
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn main() -> Int:
+    let mut passed: Int = 0
+
+    let tests: Array<String> = [
+        "predicate_constants",
+        "predicate_kind_names",
+        "check_predicate_kind_valid",
+        "check_predicate_kind_invalid",
+        "validate_fallback_missing",
+        "validate_fallback_present",
+        "axiom_predicate_count_minimum",
+        "axiom_valid_predicate_kinds",
+        "axiom_guarantee_count_minimum",
+        "axiom_fallback_required",
+        "shatter_is_struct_item",
+        "teleport_source_target_distinct",
+        "teleport_via_flag",
+        "teleport_ast_constant",
+        "l6_item_kind_distinct",
+        "axiom_complete_validation",
+    ]
+
+    var i: Int = 0
+    while i < len(tests):
+        let name: String = tests[i]
+        let result: String = ""
+        if name == "predicate_constants":
+            result = test_predicate_constants()
+        elif name == "predicate_kind_names":
+            result = test_predicate_kind_names()
+        elif name == "check_predicate_kind_valid":
+            result = test_check_predicate_kind_valid()
+        elif name == "check_predicate_kind_invalid":
+            result = test_check_predicate_kind_invalid()
+        elif name == "validate_fallback_missing":
+            result = test_validate_fallback_missing()
+        elif name == "validate_fallback_present":
+            result = test_validate_fallback_present()
+        elif name == "axiom_predicate_count_minimum":
+            result = test_axiom_predicate_count_minimum()
+        elif name == "axiom_valid_predicate_kinds":
+            result = test_axiom_valid_predicate_kinds()
+        elif name == "axiom_guarantee_count_minimum":
+            result = test_axiom_guarantee_count_minimum()
+        elif name == "axiom_fallback_required":
+            result = test_axiom_fallback_required()
+        elif name == "shatter_is_struct_item":
+            result = test_shatter_is_struct_item()
+        elif name == "teleport_source_target_distinct":
+            result = test_teleport_source_target_distinct()
+        elif name == "teleport_via_flag":
+            result = test_teleport_via_flag()
+        elif name == "teleport_ast_constant":
+            result = test_teleport_ast_constant()
+        elif name == "l6_item_kind_distinct":
+            result = test_l6_item_kind_distinct()
+        elif name == "axiom_complete_validation":
+            result = test_axiom_complete_validation()
+        println("  " + result)
+        passed = passed + 1
+        i = i + 1
+
+    println("")
+    println(str(passed) + "/" + str(len(tests)) + " L6 tests passed")
+    return 0

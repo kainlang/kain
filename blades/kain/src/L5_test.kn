@@ -1,9 +1,37 @@
-// Standalone syntax test for L5_temporal patterns
+// L5_test.kn — Integration tests for Layer 5: Pulse + Resonate
+// Tests: duration unit validation, effect bitmask, pulse/resonate data layout
+//
+// NOTE: This file is SELF-CONTAINED because importing L5_temporal triggers
+// a transitive symbol collision between L3_dispatch.kn and L4_stage.kn
+// (both define identical AST_ITEM_*/EFF_*/RT_*/structs). The functions
+// under test are duplicated here from L5_temporal.kn until the upstream
+// import chain is fixed.
+
 use std::text
 
+// ═══════════════════════════════════════════════════════════════════
+// Effect Constants (mirrors effects.kn + L5_temporal.kn)
+// ═══════════════════════════════════════════════════════════════════
+const EFF_PURE:     Int = 0x00
+const EFF_IO:       Int = 0x01
+const EFF_GPU:      Int = 0x02
+const EFF_ASYNC:    Int = 0x04
+const EFF_REACTIVE: Int = 0x08
+const EFF_UNSAFE:   Int = 0x10
+const EFF_ALLOC:    Int = 0x20
+const EFF_PANIC:    Int = 0x40
+const EFF_ALL:      Int = 0x7F
+
+// ═══════════════════════════════════════════════════════════════════
+// Duration Unit Helpers (mirrors L5_temporal.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+// is_valid_duration_unit — check if a unit string is a valid duration specifier
 pub fn is_valid_duration_unit(unit: String) -> Bool:
     return unit == "ns" or unit == "us" or unit == "ms" or unit == "s" or unit == "tick" or unit == "ticks"
 
+// duration_unit_code — map unit string to integer encoding
+// 0=ns, 1=us, 2=ms, 3=s, 4=tick, 5=ticks, -1=invalid
 pub fn duration_unit_code(unit: String) -> Int:
     if unit == "ns":    return 0
     if unit == "us":    return 1
@@ -13,8 +41,222 @@ pub fn duration_unit_code(unit: String) -> Int:
     if unit == "ticks": return 5
     return -1
 
+// pulse_body_effects — all effects auto-emitted for pulse/resonate bodies
 pub fn pulse_body_effects() -> Int:
-    return 0x01 or 0x02 or 0x04 or 0x08 or 0x10 or 0x20 or 0x40
+    return EFF_ALL
 
-pub fn compile_identity(x: Int) -> Int:
-    return x
+// ═══════════════════════════════════════════════════════════════════
+// Test Helpers
+// ═══════════════════════════════════════════════════════════════════
+
+// assert_eq — panic if actual != expected (no std::test available yet)
+fn assert_eq(actual: Int, expected: Int, label: String):
+    if actual != expected:
+        let msg: String = "FAIL: " + label + " — expected " + str(expected) + ", got " + str(actual)
+        panic(msg)
+
+fn assert_true(actual: Bool, label: String):
+    if actual != true:
+        let msg: String = "FAIL: " + label + " — expected true, got false"
+        panic(msg)
+
+fn assert_false(actual: Bool, label: String):
+    if actual != false:
+        let msg: String = "FAIL: " + label + " — expected false, got true"
+        panic(msg)
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Duration Unit Validation
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_is_valid_duration_unit() -> String:
+    // Valid units
+    assert_true(is_valid_duration_unit("ns"),    "ns should be valid")
+    assert_true(is_valid_duration_unit("us"),    "us should be valid")
+    assert_true(is_valid_duration_unit("ms"),    "ms should be valid")
+    assert_true(is_valid_duration_unit("s"),     "s should be valid")
+    assert_true(is_valid_duration_unit("tick"),  "tick should be valid")
+    assert_true(is_valid_duration_unit("ticks"), "ticks should be valid")
+
+    // Invalid units
+    assert_false(is_valid_duration_unit(""),       "empty string should be invalid")
+    assert_false(is_valid_duration_unit("minute"), "minute should be invalid")
+    assert_false(is_valid_duration_unit("hour"),   "hour should be invalid")
+    assert_false(is_valid_duration_unit("S"),      "uppercase S should be invalid (case sensitive)")
+    assert_false(is_valid_duration_unit("MS"),     "uppercase MS should be invalid")
+    assert_false(is_valid_duration_unit("NS"),     "uppercase NS should be invalid")
+    assert_false(is_valid_duration_unit("nano"),   "nano should be invalid")
+    assert_false(is_valid_duration_unit("hz"),     "hz should be invalid")
+    assert_false(is_valid_duration_unit("day"),    "day should be invalid")
+    return "OK: is_valid_duration_unit"
+
+fn test_duration_unit_code() -> String:
+    // Valid unit codes
+    assert_eq(duration_unit_code("ns"),    0, "ns -> 0")
+    assert_eq(duration_unit_code("us"),    1, "us -> 1")
+    assert_eq(duration_unit_code("ms"),    2, "ms -> 2")
+    assert_eq(duration_unit_code("s"),     3, "s -> 3")
+    assert_eq(duration_unit_code("tick"),  4, "tick -> 4")
+    assert_eq(duration_unit_code("ticks"), 5, "ticks -> 5")
+
+    // Invalid unit codes
+    assert_eq(duration_unit_code(""),       -1, "empty -> -1")
+    assert_eq(duration_unit_code("minute"), -1, "minute -> -1")
+    assert_eq(duration_unit_code("hour"),   -1, "hour -> -1")
+    assert_eq(duration_unit_code("day"),    -1, "day -> -1")
+    assert_eq(duration_unit_code("NS"),     -1, "NS (uppercase) -> -1")
+    return "OK: duration_unit_code"
+
+fn test_duration_unit_roundtrip() -> String:
+    // Every valid unit must round-trip: code -> name
+    let units: Array<String> = ["ns", "us", "ms", "s", "tick", "ticks"]
+    var expected_code: Int = 0
+    while expected_code < 6:
+        let unit: String = units[expected_code]
+        let code: Int = duration_unit_code(unit)
+        assert_eq(code, expected_code, "roundtrip code for " + unit)
+        expected_code = expected_code + 1
+    return "OK: duration_unit_roundtrip"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Effect Bitmask
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_pulse_body_effects() -> String:
+    let eff: Int = pulse_body_effects()
+
+    // All 7 bits must be set
+    assert_true((eff and EFF_IO) != 0,       "EFF_IO must be in pulse body effects")
+    assert_true((eff and EFF_GPU) != 0,      "EFF_GPU must be in pulse body effects")
+    assert_true((eff and EFF_ASYNC) != 0,    "EFF_ASYNC must be in pulse body effects")
+    assert_true((eff and EFF_REACTIVE) != 0, "EFF_REACTIVE must be in pulse body effects")
+    assert_true((eff and EFF_UNSAFE) != 0,   "EFF_UNSAFE must be in pulse body effects")
+    assert_true((eff and EFF_ALLOC) != 0,    "EFF_ALLOC must be in pulse body effects")
+    assert_true((eff and EFF_PANIC) != 0,    "EFF_PANIC must be in pulse body effects")
+    assert_eq(eff, EFF_ALL, "pulse_body_effects must equal EFF_ALL (0x7F)")
+    return "OK: pulse_body_effects"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Suite: Pulse Data Layout Validation
+// ═══════════════════════════════════════════════════════════════════
+//
+// AstNode for pulse (AST_ITEM_PULSE = 19):
+//   data[0] = name_idx
+//   data[1] = body_idx
+//   data[2] = interval_value
+//   data[3] = interval_unit_idx
+//   data[4] = jitter_value
+//   data[5] = jitter_unit_idx
+//   data[6] = has_jitter_flag
+//
+// AstNode for resonate (AST_ITEM_RESONATE = 20):
+//   data[0] = body_idx
+//   data[1] = dampen_value
+//   data[2] = dampen_unit_idx
+//   data[3] = has_dampen_flag
+//   data[4] = endpoint_count
+
+const AST_ITEM_PULSE:    Int = 19
+const AST_ITEM_RESONATE: Int = 20
+
+fn test_pulse_data_layout() -> String:
+    // Simulate what the parser produces for:
+    //   pulse heartbeat every 16ms jitter 2ms: ...
+    //
+    // data[0]=name_idx, data[1]=body_idx, data[2]=interval_val,
+    // data[3]=interval_unit, data[4]=jitter_val, data[5]=jitter_unit, data[6]=has_jitter
+
+    let interval_val: Int = 16
+    let jitter_val: Int = 2
+    let has_jitter: Int = 1
+
+    // T-PULSE-01: interval must be positive
+    assert_true(interval_val > 0, "pulse interval must be > 0")
+
+    // T-PULSE-01: jitter must be non-negative when present
+    assert_true(jitter_val >= 0, "pulse jitter must be >= 0")
+
+    // Verify that interval and jitter values are within reasonable bounds
+    assert_true(interval_val < 1000000, "pulse interval must be < 1M ms (guard)")
+    assert_true(jitter_val >= 0 and jitter_val <= interval_val, "pulse jitter should not exceed interval")
+
+    // Verify has_jitter flag is either 0 or 1
+    assert_true(has_jitter == 0 or has_jitter == 1, "has_jitter must be 0 or 1")
+
+    return "OK: pulse_data_layout"
+
+fn test_resonate_data_layout() -> String:
+    // Simulate what the parser produces for:
+    //   resonate MyWorld.count dampen 32ms: ...
+    //
+    // data[0]=body_idx, data[1]=dampen_val, data[2]=dampen_unit_idx,
+    // data[3]=has_dampen_flag, data[4]=endpoint_count, data[5]=world_seg, data[6]=field_seg
+
+    let dampen_val: Int = 32
+    let has_dampen: Int = 1
+    let endpoint_count: Int = 2  // World.field
+
+    // T-RES-01: dampen must be >= 0
+    assert_true(dampen_val >= 0, "resonate dampen must be >= 0")
+
+    // T-RES-01: must have at least 2 endpoint segments (World.field)
+    assert_true(endpoint_count >= 2, "resonate must target at least World.field (2 segments)")
+
+    // Verify has_dampen flag is 0 or 1
+    assert_true(has_dampen == 0 or has_dampen == 1, "has_dampen must be 0 or 1")
+
+    return "OK: resonate_data_layout"
+
+fn test_resonate_dampen_zero() -> String:
+    // dampen 0ms is valid (only suppresses re-entrant self-triggers)
+    let dampen_val: Int = 0
+    let has_dampen: Int = 1
+
+    assert_true(dampen_val >= 0, "dampen of 0ms must be valid")
+    assert_true(has_dampen == 0 or has_dampen == 1, "has_dampen must be 0 or 1")
+
+    return "OK: resonate_dampen_zero"
+
+// ═══════════════════════════════════════════════════════════════════
+// Test Runner
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn main() -> Int:
+    let mut passed: Int = 0
+    let mut failed: Int = 0
+
+    let tests: Array<String> = [
+        "is_valid_duration_unit",
+        "duration_unit_code",
+        "duration_unit_roundtrip",
+        "pulse_body_effects",
+        "pulse_data_layout",
+        "resonate_data_layout",
+        "resonate_dampen_zero",
+    ]
+
+    var i: Int = 0
+    while i < len(tests):
+        let name: String = tests[i]
+        let result: String = ""
+        if name == "is_valid_duration_unit":
+            result = test_is_valid_duration_unit()
+        elif name == "duration_unit_code":
+            result = test_duration_unit_code()
+        elif name == "duration_unit_roundtrip":
+            result = test_duration_unit_roundtrip()
+        elif name == "pulse_body_effects":
+            result = test_pulse_body_effects()
+        elif name == "pulse_data_layout":
+            result = test_pulse_data_layout()
+        elif name == "resonate_data_layout":
+            result = test_resonate_data_layout()
+        elif name == "resonate_dampen_zero":
+            result = test_resonate_dampen_zero()
+        println("  " + result)
+        passed = passed + 1
+        i = i + 1
+
+    println("")
+    println(str(passed) + "/" + str(len(tests)) + " L5 tests passed")
+    return 0

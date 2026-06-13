@@ -6,9 +6,8 @@
 //   collapse/observe/decay — explicit raw pointer lifecycle (ownership state machine)
 //   share/fanout — safe parallel write lanes
 //
-// SELF-CONTAINED for standalone check (duplicates types.kn constants).
-// When compiled in the workspace, types from types.kn, ast.kn, effects.kn
-// are resolved from earlier source_order modules.
+// Imports from types.kn, ast.kn for shared constants/structs.
+// No local duplicates — all types resolved from the self-host workspace.
 //
 // Construction flow:
 //   1. OwnershipState enum + transition table validate state-machine moves
@@ -17,136 +16,8 @@
 //   4. check_actor()/check_collapse()/check_observe()/check_decay()
 //   5. Codegen stubs — real emission in BLUE stream
 
-// ═══════════════════════════════════════════════════════════════════
-// Effect Constants (local duplicates for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-const EFF_PURE:     Int = 0x00
-const EFF_IO:       Int = 0x01
-const EFF_GPU:      Int = 0x02
-const EFF_ASYNC:    Int = 0x04
-const EFF_REACTIVE: Int = 0x08
-const EFF_UNSAFE:   Int = 0x10
-const EFF_ALLOC:    Int = 0x20
-const EFF_PANIC:    Int = 0x40
-
-// ═══════════════════════════════════════════════════════════════════
-// AST Tag Constants (local duplicates for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-const AST_ITEM_ACTOR:           Int = 23
-const AST_ITEM_WORLD:           Int = 16
-const AST_ITEM_COMPONENT:       Int = 21
-const AST_EXPR_COLLAPSE:        Int = 130
-const AST_EXPR_OBSERVE:         Int = 131
-const AST_EXPR_DECAY:           Int = 132
-const AST_EXPR_SHARE:           Int = 133
-const AST_EXPR_SPAWN:           Int = 127
-const AST_EXPR_SEND:            Int = 128
-
-// ═══════════════════════════════════════════════════════════════════
-// Local Types (mini-mirrors of types.kn for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-
-const RT_UNIT:     Int = 0
-const RT_BOOL:     Int = 1
-const RT_INT:      Int = 2
-const RT_FLOAT:    Int = 3
-const RT_STRING:   Int = 4
-const RT_CHAR:     Int = 5
-const RT_ARRAY:    Int = 6
-const RT_SLICE:    Int = 7
-const RT_TUPLE:    Int = 8
-const RT_REF:      Int = 9
-const RT_PTR:      Int = 10
-const RT_OPTION:   Int = 11
-const RT_RESULT:   Int = 12
-const RT_FUTURE:   Int = 13
-const RT_STRUCT:   Int = 14
-const RT_ENUM:     Int = 15
-const RT_FUNCTION: Int = 16
-const RT_GENERIC:  Int = 17
-const RT_NEVER:    Int = 18
-const RT_UNKNOWN:  Int = 19
-
-pub struct ResolvedType:
-    kind:          Int
-    int_size:      Int
-    float_size:    Int
-    name:          Int
-    inner_type:    Int
-    array_len:     Int
-    tuple_types:   Int
-    tuple_len:     Int
-    result_ok:     Int
-    result_err:    Int
-    fn_params:     Int
-    fn_param_count: Int
-    fn_ret:        Int
-    fn_effects:    Int
-    ref_mut:       Bool
-
-pub fn rt_zero() -> ResolvedType:
-    return ResolvedType {
-        kind: RT_UNKNOWN, int_size: 0, float_size: 0, name: -1,
-        inner_type: -1, array_len: 0, tuple_types: -1, tuple_len: 0,
-        result_ok: -1, result_err: -1,
-        fn_params: -1, fn_param_count: 0, fn_ret: -1, fn_effects: 0,
-        ref_mut: false,
-    }
-
-pub fn rt_unit() -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_UNIT
-    return t
-
-pub fn rt_i64() -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_INT
-    t.int_size = 8
-    return t
-
-pub fn rt_struct_as(name: Int) -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_STRUCT
-    t.name = name
-    return t
-
-pub fn rt_unknown() -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_UNKNOWN
-    return t
-
-// Local AstNode (mirrors types.kn's for standalone check)
-pub struct AstNode:
-    kind:       Int
-    span_start: Int
-    span_end:   Int
-    data:       Array<Int>
-
-pub fn ast_data_len(node: AstNode) -> Int:
-    return len(node.data)
-
-pub fn ast_data_get(node: AstNode, index: Int) -> Int:
-    if index < 0 or index >= len(node.data):
-        return -1
-    return node.data[index]
-
-// TypeEnv stub (only fields needed by L7_systems.kn)
-pub struct TypeEnv:
-    ast_nodes:    Array<AstNode>
-    crnt_effects: Int
-
-// TypedItem
-pub struct TypedItem:
-    kind:          Int
-    name:          String
-    name_idx:      Int
-    resolved_type: ResolvedType
-    ast_index:     Int
-    effects:       Int
-
-pub struct TypedItemAndEnv:
-    env:  TypeEnv
-    item: TypedItem
+use types
+use ast
 
 // ═══════════════════════════════════════════════════════════════════
 // OWNERSHIP STATE MACHINE (5 states, 8 transitions)
@@ -311,38 +182,38 @@ pub fn check_actor(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_ITEM_ACTOR, name: "actor_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_struct_as(name_idx), ast_index: idx,
-            effects: EFF_PURE,
+            resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
+            effects: types.KC_EFF_PURE,
         }
     }
 
 // ── check_collapse — validate collapse ptr: body ──
 pub fn check_collapse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let body_idx: Int = if ast_data_len(node) > 1: ast_data_get(node, 1) else: -1
-    let body_ty: ResolvedType = rt_unit()
+    let body_ty: ResolvedType = types.rt_unit()
     if body_idx >= 0 and body_idx < len(env.ast_nodes):
-        body_ty = infer_expr_type(env, env.ast_nodes[body_idx])
+        body_ty = types.infer_expr_type(env, env.ast_nodes[body_idx])
     return TypedItemAndEnv {
         env: env,
         item: TypedItem {
             kind: AST_EXPR_COLLAPSE, name: "collapse_" + str(idx), name_idx: -1,
             resolved_type: body_ty, ast_index: idx,
-            effects: EFF_UNSAFE,
+            effects: types.KC_EFF_UNSAFE,
         }
     }
 
 // ── check_observe — validate observe ptr: body ──
 pub fn check_observe(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let body_idx: Int = if ast_data_len(node) > 1: ast_data_get(node, 1) else: -1
-    let body_ty: ResolvedType = rt_unit()
+    let body_ty: ResolvedType = types.rt_unit()
     if body_idx >= 0 and body_idx < len(env.ast_nodes):
-        body_ty = infer_expr_type(env, env.ast_nodes[body_idx])
+        body_ty = types.infer_expr_type(env, env.ast_nodes[body_idx])
     return TypedItemAndEnv {
         env: env,
         item: TypedItem {
             kind: AST_EXPR_OBSERVE, name: "observe_" + str(idx), name_idx: -1,
             resolved_type: body_ty, ast_index: idx,
-            effects: EFF_UNSAFE,
+            effects: types.KC_EFF_UNSAFE,
         }
     }
 
@@ -352,8 +223,8 @@ pub fn check_decay(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_EXPR_DECAY, name: "decay_" + str(idx), name_idx: -1,
-            resolved_type: rt_unit(), ast_index: idx,
-            effects: EFF_UNSAFE,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: types.KC_EFF_UNSAFE,
         }
     }
 
@@ -363,8 +234,8 @@ pub fn check_share(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_EXPR_SHARE, name: "share_" + str(idx), name_idx: -1,
-            resolved_type: rt_unit(), ast_index: idx,
-            effects: EFF_UNSAFE,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: types.KC_EFF_UNSAFE,
         }
     }
 
@@ -375,8 +246,8 @@ pub fn check_spawn(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_EXPR_SPAWN, name: "spawn_" + str(idx), name_idx: -1,
-            resolved_type: rt_struct_as(name_idx), ast_index: idx,
-            effects: EFF_PURE,
+            resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
+            effects: types.KC_EFF_PURE,
         }
     }
 
@@ -386,15 +257,10 @@ pub fn check_send(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_EXPR_SEND, name: "send_" + str(idx), name_idx: -1,
-            resolved_type: rt_unit(), ast_index: idx,
-            effects: EFF_PURE,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: types.KC_EFF_PURE,
         }
     }
-
-// ── infer_expr_type stub (mirrors types.kn's for standalone check) ──
-// In workspace mode, this is shadowed by types.infer_expr_type.
-pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
-    return rt_i64()
 
 // ═══════════════════════════════════════════════════════════════════
 // CODEGEN STUBS (BLUE stream — real emission deferred)

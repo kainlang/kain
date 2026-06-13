@@ -7,141 +7,14 @@
 // Codegen: compile_orchestrate() emits ABI calls for each stage,
 //          mapping stage metadata strings to LLVM IR.
 //
-// SELF-CONTAINED: duplicates needed types from types.kn/ast.kn for
-// independent file checking. At combine time, these are shadowed by
-// the canonical definitions in earlier source_order files.
+// Imports from types.kn, ast.kn for shared constants/structs.
+// No local duplicates — all types resolved from the self-host workspace.
 //
 // Spec layers reference: X:/blades/kain/spec-layers/L4_stage.md
 // Language reference: X:/docs/ORCHESTRATE.MD
-//
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated AST Item Kind Constants (from ast.kn)
-// ═══════════════════════════════════════════════════════════════════
 
-const AST_ITEM_CONVERGE:    Int = 15
-const AST_ITEM_ORCHESTRATE: Int = 18
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated Effect Constants (from effects.kn)
-// ═══════════════════════════════════════════════════════════════════
-
-const EFF_PURE:     Int = 0x00
-const EFF_IO:       Int = 0x01
-const EFF_GPU:      Int = 0x02
-const EFF_ASYNC:    Int = 0x04
-const EFF_REACTIVE: Int = 0x08
-const EFF_UNSAFE:   Int = 0x10
-const EFF_ALLOC:    Int = 0x20
-const EFF_PANIC:    Int = 0x40
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated ResolvedType constants + struct (from types.kn)
-// ═══════════════════════════════════════════════════════════════════
-
-const RT_UNIT:     Int = 0
-const RT_BOOL:     Int = 1
-const RT_INT:      Int = 2
-const RT_FLOAT:    Int = 3
-const RT_STRING:   Int = 4
-const RT_CHAR:     Int = 5
-const RT_ARRAY:    Int = 6
-const RT_SLICE:    Int = 7
-const RT_TUPLE:    Int = 8
-const RT_REF:      Int = 9
-const RT_PTR:      Int = 10
-const RT_OPTION:   Int = 11
-const RT_RESULT:   Int = 12
-const RT_FUTURE:   Int = 13
-const RT_STRUCT:   Int = 14
-const RT_ENUM:     Int = 15
-const RT_FUNCTION: Int = 16
-const RT_GENERIC:  Int = 17
-const RT_NEVER:    Int = 18
-const RT_UNKNOWN:  Int = 19
-
-pub struct ResolvedType:
-    kind:          Int
-    int_size:      Int
-    float_size:    Int
-    name:          Int
-    inner_type:    Int
-    array_len:     Int
-    tuple_types:   Int
-    tuple_len:     Int
-    result_ok:     Int
-    result_err:    Int
-    fn_params:     Int
-    fn_param_count: Int
-    fn_ret:        Int
-    fn_effects:    Int
-    ref_mut:       Bool
-
-pub fn rt_zero() -> ResolvedType:
-    return ResolvedType {
-        kind: RT_UNKNOWN, int_size: 0, float_size: 0, name: -1,
-        inner_type: -1, array_len: 0, tuple_types: -1, tuple_len: 0,
-        result_ok: -1, result_err: -1,
-        fn_params: -1, fn_param_count: 0, fn_ret: -1, fn_effects: 0,
-        ref_mut: false,
-    }
-
-pub fn rt_unit() -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_UNIT
-    return t
-
-pub fn rt_i64() -> ResolvedType:
-    let mut t: ResolvedType = rt_zero()
-    t.kind = RT_INT
-    t.int_size = 8
-    return t
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated AstNode struct + helpers (from ast.kn)
-// ═══════════════════════════════════════════════════════════════════
-
-pub struct AstNode:
-    kind:       Int
-    span_start: Int
-    span_end:   Int
-    data:       Array<Int>
-
-pub fn ast_data_len(node: AstNode) -> Int:
-    return len(node.data)
-
-pub fn ast_data_get(node: AstNode, index: Int) -> Int:
-    if index < 0 or index >= len(node.data):
-        return -1
-    return node.data[index]
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated TypeEnv struct stub (from types.kn — minimal fields)
-// ═══════════════════════════════════════════════════════════════════
-
-pub struct TypeEnv:
-    errs:      KcDiagnosticBag
-
-pub struct KcDiagnostic:
-    message:   String
-
-pub struct KcDiagnosticBag:
-    messages:  Array<KcDiagnostic>
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated TypedItem + TypedItemAndEnv (from types.kn)
-// ═══════════════════════════════════════════════════════════════════
-
-pub struct TypedItem:
-    kind:          Int
-    name:          String
-    name_idx:      Int
-    resolved_type: ResolvedType
-    ast_index:     Int
-    effects:       Int
-
-pub struct TypedItemAndEnv:
-    env:  TypeEnv
-    item: TypedItem
+use types
+use ast
 
 // ═══════════════════════════════════════════════════════════════════
 // check_orchestrate — Typecheck an orchestrate declaration
@@ -178,7 +51,7 @@ pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
         env: env,
         item: TypedItem {
             kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+            resolved_type: types.rt_i64(), ast_index: idx, effects: types.KC_EFF_PURE,
         }
     }
 
@@ -203,13 +76,3 @@ pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
 
 pub fn compile_orchestrate(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated LlvmGenerator (from codegen.kn — minimal for stub)
-// ═══════════════════════════════════════════════════════════════════
-
-pub struct LlvmGenerator:
-    output: String
-
-pub fn llvm_gen_new() -> LlvmGenerator:
-    return LlvmGenerator { output: "" }

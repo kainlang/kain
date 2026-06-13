@@ -9,24 +9,6 @@ use types
 use ast
 
 // ═══════════════════════════════════════════════════════════════════
-// Duplicated AST Constants (from ast.kn for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-const AST_ITEM_PULSE:           Int = 19
-const AST_ITEM_RESONATE:        Int = 20
-
-// ═══════════════════════════════════════════════════════════════════
-// Duplicated Effect Constants (from effects.kn for standalone check)
-// ═══════════════════════════════════════════════════════════════════
-const EFF_PURE:     Int = 0x00
-const EFF_IO:       Int = 0x01
-const EFF_GPU:      Int = 0x02
-const EFF_ASYNC:    Int = 0x04
-const EFF_REACTIVE: Int = 0x08
-const EFF_UNSAFE:   Int = 0x10
-const EFF_ALLOC:    Int = 0x20
-const EFF_PANIC:    Int = 0x40
-
-// ═══════════════════════════════════════════════════════════════════
 // Duration Unit Helpers
 // ═══════════════════════════════════════════════════════════════════
 
@@ -47,7 +29,7 @@ pub fn duration_unit_code(unit: String) -> Int:
 
 // pulse_body_effects — all effects auto-emitted for pulse/resonate bodies
 pub fn pulse_body_effects() -> Int:
-    return EFF_IO or EFF_GPU or EFF_ASYNC or EFF_REACTIVE or EFF_UNSAFE or EFF_ALLOC or EFF_PANIC
+    return types.KC_EFF_IO or types.KC_EFF_GPU or types.KC_EFF_ASYNC or types.KC_EFF_REACTIVE or types.KC_EFF_UNSAFE or types.KC_EFF_ALLOC or types.KC_EFF_PANIC
 
 // ═══════════════════════════════════════════════════════════════════
 // check_pulse — typecheck a pulse declaration
@@ -122,7 +104,7 @@ pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     return TypedItemAndEnv {
         env: e,
         item: TypedItem {
-            kind: AST_ITEM_PULSE,
+            kind: ast.AST_ITEM_PULSE,
             name: "pulse_" + str(name_idx),
             name_idx: name_idx,
             resolved_type: types.rt_unit(),
@@ -213,7 +195,7 @@ pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     return TypedItemAndEnv {
         env: e,
         item: TypedItem {
-            kind: AST_ITEM_RESONATE,
+            kind: ast.AST_ITEM_RESONATE,
             name: synth_name,
             name_idx: -1,
             resolved_type: types.rt_unit(),
@@ -231,17 +213,17 @@ pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // from types.kn, causing struct-name collision on import. Full LLVM IR
 // emission for pulse and resonate lives in codegen.kn.
 
-pub type Generator = Int  // Placeholder — will be LlvmGenerator
+pub type L5_Generator = Int  // Placeholder — will be LlvmGenerator
 
 // compile_pulse — STUB: emit pulse body function + fire wrapper + registration
-pub fn compile_pulse(gen: Generator, item: TypedItem) -> Generator:
+pub fn compile_pulse(gen: L5_Generator, item: TypedItem) -> L5_Generator:
     // C-PULSE-02: void @__kain_pulse_body_{name}(i64 tick, i64 dt, i64 missed)
     // C-PULSE-03: void @__kain_pulse_fire_{name}() snapshot->body call chain
     // C-PULSE-04: @kain_machine_pulse_start(token, ns, jitter, fire_wrapper)
     return gen
 
 // compile_resonate — STUB: emit resonate handler + binding table + store guard
-pub fn compile_resonate(gen: Generator, item: TypedItem) -> Generator:
+pub fn compile_resonate(gen: L5_Generator, item: TypedItem) -> L5_Generator:
     // C-RES-01: void @__kain_resonate_{name}(i64 old, i64 new, i1 fired)
     // C-RES-02: (world, field) -> handler binding table
     // C-RES-03: post-store guard: abi_resonate_should_fire_i64 + handler call
