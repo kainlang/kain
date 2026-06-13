@@ -36,6 +36,16 @@ This guide covers everything: what three-kn is, how to use it as a capsule in yo
 7. [Core Patterns & Workflows](#7-core-patterns--workflows)
 8. [Where to Start](#8-where-to-start)
 9. [Status & Roadmap](#9-status--roadmap)
+10. [Markscript-Driven Three-kn](#10-markscript-driven-three-kn)
+    - [10.1 Why Markscript?](#101-why-markscript)
+    - [10.2 Intent Vocabulary](#102-intent-vocabulary)
+    - [10.3 Scene Files](#103-scene-files--scene_setupmd)
+    - [10.4 Animation Scripts](#104-animation-scripts--animation_testmd)
+    - [10.5 Compute Pipeline](#105-compute-pipeline--compute_testmd)
+    - [10.6 Full Pipeline](#106-full-pipeline--full_pipelinemd)
+    - [10.7 Running the Smoketest](#107-running-the-smoketest)
+    - [10.8 Extending the Intent Table](#108-extending-the-intent-table)
+    - [10.9 Decision Ladder Coverage](#109-decision-ladder-coverage)
 
 ---
 
@@ -1260,6 +1270,439 @@ Three-kn is a masterclass in the decision ladder. Read the files in dependency o
 - ⬜ Post-processing chain (bloom, SSAO, DOF, motion blur)
 - ⬜ Shadow map implementation
 - ⬜ UI event loop (input → controls)
+
+---
+
+## 10. Markscript-Driven Three-kn
+
+**three-kn** is the first production-grade test subject for **MarkScript** — Kain's markdown-native bytecode VM (23 opcodes, 78 IVT handlers, `std::markscript` embedding API). The markscript-driven three-kn smoketest at `X:/blades/markscript/smoketest/` demonstrates how markdown `` `.md` `` files can drive a full 3D engine: define scenes, animate objects, dispatch GPU compute shaders, and orchestrate the render pipeline — all without recompiling a single line of Kain.
+
+This section documents every intent, table, and markscript routine used in the four smoketest scripts, along with the bridge handlers that wire them to three-kn's semantic constructs.
+
+---
+
+### 10.1 Why Markscript?
+
+Traditional 3D engine workflows involve editing C++/JS/Kain source, rebuilding, and rerunning. MarkScript inverts this:
+
+- **Prose intents** map directly to engine operations. Change `> set camera perspective 75` instead of editing a Kain `patch` call.
+- **Markdown tables** hold scene data — camera params, geometry positions, light colors, keyframe times. Editing a table cell is editing the scene.
+- **Fenced code blocks** (`` ``kain `` ``) embed shader source or orchestrate DAGs right in the script, visible alongside the parameters they consume.
+- **Zero recompilation** to change any scene property, animation curve, or pipeline parameter. Only new `shader` definitions or new `world`/`orchestrate` constructs require `kain build`.
+
+```
+┌─────────────────────────────────────────────┐
+│  scene_setup.md                             │
+│  ├── > set camera perspective 75 0.1 1000  │
+│  ├── > add box geometry [-1,-1,-1] [2,2,2] │
+│  └── > add directional light [5,10,5]       │
+│        ↑ change these lines = change scene  │
+│        no rebuild required                  │
+└─────────────────────────────────────────────┘
+```
+
+The runner (`run_smoketest.kn`) loads each `.md` file through `std::markscript`, registers a custom set of three-kn bridge handlers in the IVT, executes the intents as VM opcodes, parses tables as data, and validates results via `law` predicates and converge verification.
+
+---
+
+### 10.2 Intent Vocabulary
+
+The markscript-driven smoketest defines **28 three-kn bridge handlers** registered in the IVT at `HANDLER_ID_BASE = 256` (above the 78 built-in handlers). Each handler maps a prose intent to a Kain API call, exercising specific semantic constructs.
+
+| Intent Phrase | Handler ID | three-kn API Call | Kain Constructs Exercised |
+|---|---|---|---|
+| `set camera perspective` | 256 | `set_perspective(fov, near, far)` | `world CameraState`, `patch set_perspective`, `law camera_fov_valid` |
+| `set camera orthographic` | 257 | `set_orthographic(l, r, t, b, n, f)` | `world CameraState`, `patch set_orthographic`, `converge projection_point_hash` |
+| `set camera position` | 258 | `update_view(pos, target, up)` | `patch update_view`, `entangle CameraState ↔ CameraStateMirror` |
+| `add box geometry` | 259 | `create_box_geometry(w, h, d)` | `fn create_box_geometry`, `shatter struct GeometryBuffer` |
+| `add sphere geometry` | 260 | `create_sphere_geometry(radius, seg_w, seg_h)` | `fn create_sphere_geometry`, `BufferAttribute` |
+| `add mesh` | 261 | `add_node_to_scene(geo, mat_id)` | `world SceneGraphWorld`, `patch bump_epoch`, `resonate SceneGraphWorld.epoch` |
+| `set material` | 262 | `mark_materials_dirty(mat_id)` | `world MaterialState`, `patch mark_materials_dirty`, `converge shade_material` |
+| `add directional light` | 263 | `create_directional_light(pos, color, inten)` | `struct LightDef`, `shatter struct LightData` |
+| `add point light` | 264 | `create_point_light(pos, color, inten, decay)` | `struct LightDef`, `law light_intensity_valid` |
+| `add ambient light` | 265 | `create_ambient_light(color, inten)` | `struct LightDef`, `pack_light_data` |
+| `add spot light` | 266 | `create_spot_light(pos, dir, angle, decay)` | `struct LightDef`, `orchestrate shadow_render_pipeline` |
+| `bind texture` | 267 | `create_data_texture(data, w, h, fmt)` | `world TextureRegistry`, `law texture_dimensions_valid`, `shatter struct GpuTextureDescriptor` |
+| `play clip` | 268 | `play_action(clip_name)` | `actor AnimationMixer`, `patch play_action`, `converge interpolate_value` |
+| `crossfade` | 269 | `crossfade_action(target_name, duration)` | `actor AnimationMixer`, `patch crossfade_action` |
+| `stop all clips` | 270 | `stop_action()` | `actor AnimationMixer`, `patch stop_action` |
+| `set keyframe` | 271 | `add_keyframe_track(node_id, path, times, values)` | `shatter struct KeyframeData`, `struct KeyframeTrack` |
+| `set weight` | 272 | `AnimationActionState.weight = w` | `world AnimationActionState`, `law animation_weight_valid` |
+| `upload compute buffer` | 273 | `alloc_zeroed → collapse → mem_store → decay` | `collapse`, `observe`, `decay`, `ptr<T>` |
+| `dispatch compute` | 274 | `dispatch "shader::Kernel::compute" [x, y, z]` | `shader compute`, `dispatch`, `GPU`, `Unsafe` |
+| `read compute buffer` | 275 | `observe buf → mem_load → decay` | `observe`, `mem_load`, `decay` |
+| `begin frame` | 276 | `begin_frame()` | `patch begin_frame`, `law no_double_begin_frame` |
+| `submit render pass` | 277 | `render_opaque_pass()` | `orchestrate render_frame`, `converge cull_instances` |
+| `submit transparent pass` | 278 | `render_transparent_pass()` | `orchestrate render_frame`, `converge sort_draws` |
+| `apply postprocess` | 279 | `apply_postprocess()` | `orchestrate render_frame`, `axiom has_compute_shaders` |
+| `present frame` | 280 | `present_frame()` | `patch present_frame`, `resonate GPURenderState.frame_count` |
+| `set fog` | 281 | `set_fog(fog_type, near, far)` | `world SceneGraphWorld`, `patch set_fog`, `law fog_range_valid` |
+| `select backend` | 282 | `select_backend(name)` | `axiom vulkan / dx12 / metal / webgpu`, `converge select_backend` |
+| `render shadow pass` | 283 | `compute_shadow_maps()` | `orchestrate shadow_render_pipeline`, `axiom axiom_shadows_supported` |
+
+---
+
+### 10.3 Scene Files — `scene_setup.md`
+
+The `scene_setup.md` script demonstrates how prose intents and markdown tables define a complete 3D scene: camera, geometry, materials, lights, textures, and fog.
+
+```markdown
+# SceneSetup
+
+SceneSetup domain — defines the initial 3D scene state via blockquote intents and parameter tables.
+
+## Camera
+
+> set camera perspective 75 0.1 1000
+> set camera position [0, 3, 8] [0, 0, 0] [0, 1, 0]
+
+| FOV | Near | Far | Aspect |
+|-----|------|-----|--------|
+| 75  | 0.1  | 1000| 1.778  |
+
+## Geometry
+
+> add box geometry [-1,-1,-1] [2,2,2]
+> add sphere geometry 1.5 32 24
+> add mesh 0 0
+> add mesh 1 1
+
+| Index | Type | Params | Material | Position |
+|-------|------|--------|----------|----------|
+| 0     | box  | [2,2,2]| 0        | [0,0,0]  |
+| 1     | sphere| [1.5] | 1        | [3,0,0]  |
+
+## Lighting
+
+> add directional light [5,10,5] [1,0.95,0.9] 1.5
+> add ambient light [0.2,0.2,0.3] 0.3
+> add point light [-3,2,4] [1,0.3,0.2] 0.8 2.0
+
+| Kind | Position | Color | Intensity | Shadow |
+|------|----------|-------|-----------|--------|
+| directional | [5,10,5] | [1,0.95,0.9] | 1.5 | true |
+| ambient | — | [0.2,0.2,0.3] | 0.3 | false |
+| point | [-3,2,4] | [1,0.3,0.2] | 0.8 | false |
+
+## Fog
+
+> set fog 0 10 50
+
+| Fog Type | Near | Far | Color |
+|----------|------|-----|-------|
+| 0        | 10   | 50  | [0.5,0.5,0.5] |
+
+## Texture
+
+> bind texture [0,0,0,255,255,255,255,255] 2 2 rgba8
+```
+
+When this file is loaded by `run_smoketest.kn`, each `>` intent dispatches through the three-kn IVT bridge. The VM executes `OP_PUSH_PARAM` for each intent phrase, `OP_EXECUTE_CALL` dispatches to the registered handler, and `OP_PUSH_MATRIX` loads each table as a contiguously-typed data array. The test runner validates that all 7 intents succeeded, the camera law `camera_fov_valid` holds (75° is in [1, 179]), the fog law `fog_range_valid` holds (10 < 50), and the texture dimensions law `texture_dimensions_valid` holds (2 ≤ 16384).
+
+---
+
+### 10.4 Animation Scripts — `animation_test.md`
+
+The `animation_test.md` script demonstrates the actor-based `AnimationMixer` system: spawning the mixer actor, adding keyframe tracks, crossfading between clips, and verifying interpolation via `converge interpolate_value`.
+
+```markdown
+# AnimationTest
+
+AnimationTest domain — drives the AnimationMixer actor through markscript intents and keyframe tables.
+
+## ClipSetup
+
+> play clip "cube_spin"
+> set keyframe 0 position [0,0,0] [0,0,0] [1,0,0]
+> set keyframe 0 position [0,0,0] [0,0,0] [2,1,0]
+> set keyframe 0 rotation [0,0,0,1] [0,0,0,1] [0,0.707,0,0.707]
+> set keyframe 0 scale [1,1,1] [1,1,1] [0.5,0.5,0.5]
+
+| Track | Node | Path | Times | Values | Interpolation |
+|-------|------|------|-------|--------|---------------|
+| 0     | 0    | position | [0, 2] | [0,0,0, 1,0,0] | linear |
+| 1     | 0    | rotation | [0, 2] | [0,0,0,1, 0,0.707,0,0.707] | slerp |
+| 2     | 0    | scale | [0, 2] | [1,1,1, 0.5,0.5,0.5] | linear |
+
+## Crossfade
+
+> crossfade "bounce" 0.5
+> set weight 0.3
+
+## Verify
+
+| Property | Expected |
+|----------|----------|
+| action_count | 2 |
+| active_tracks | 3 |
+| interpolation_mode | linear |
+```
+
+The runner sends `PlayClip`, `Crossfade`, `StopAll`, and `GetStats` messages to the `AnimationMixer` actor via `actor_send()`. The `converge interpolate_value` with 3 lanes (reference/linear, step, cubic) is verified by comparing the reference lane output against the step and cubic lanes for each track at time = 1.0 (midpoint). The `law animation_weight_valid` checks that weight 0.3 is in [0,1].
+
+---
+
+### 10.5 Compute Pipeline — `compute_test.md`
+
+The `compute_test.md` script demonstrates GPU compute kernel dispatch via markscript: allocating GPU buffers, uploading data, dispatching the `audio_fft` compute shader, and reading results back — all driven by intents and fenced `` ```kain `` shader code blocks.
+
+```markdown
+# ComputeTest
+
+ComputeTest domain — exercises GPU compute dispatch, buffer ownership lifecycle, and shader artifact emission.
+
+## BufferSetup
+
+> upload compute buffer [0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1]
+
+| Buffer | Size | Format | Usage |
+|--------|------|--------|-------|
+| input  | 12   | f32    | storage |
+| output | 256  | f32    | storage |
+
+```kain
+shader compute audio_fft(id: UVec3) -> Void workgroup(256, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform sample_count: Int @2
+    uniform bin_count: Int @3
+    let i: Int = id.x
+    if i >= bin_count: return
+    var real: Float = 0.0
+    var imag: Float = 0.0
+    for j in 0..sample_count:
+        let window: Float = 0.5 * (1.0 - cos(2.0 * 3.14159 * Float(j) / Float(sample_count - 1)))
+        let angle: Float = -2.0 * 3.14159 * Float(i) * Float(j) / Float(sample_count)
+        real = real + src[j] * window * cos(angle)
+        imag = imag + src[j] * window * sin(angle)
+    dst[i] = sqrt(real * real + imag * imag) / Float(sample_count)
+```
+
+## Dispatch
+
+> dispatch compute [1, 1, 1]
+
+## Readback
+
+> read compute buffer output
+
+| Bin | Expected | Tolerance |
+|-----|----------|-----------|
+| 0   | 0.0      | 0.001     |
+| 64  | 0.25     | 0.01      |
+| 128 | 0.0      | 0.001     |
+```
+
+The runner executes the `` ```kain `` fenced block as a compile-time shader check before dispatching. At runtime, `BufferSetup` intents trigger the `collapse` → `mem_store` → `decay` ownership chain for GPU buffer allocation. The `shader compute` definition in the fenced block uses `StorageBuffer<Float>` uniform bindings at @0 and @1 with a `workgroup(256, 1, 1)` launch configuration. The `dispatch compute` intent calls `dispatch "shader::audio_fft::compute" [1, 1, 1]` which requires `with GPU, Unsafe` effects.
+
+---
+
+### 10.6 Full Pipeline — `full_pipeline.md`
+
+The `full_pipeline.md` script demonstrates the complete `orchestrate render_frame` DAG (9 stages) driven entirely through markscript intents. This is the capstone test that exercises every three-kn subsystem in sequence.
+
+```markdown
+# FullPipeline
+
+FullPipeline domain — orchestrates the complete 9-stage render DAG, exercising every three-kn subsystem.
+
+## FrameInit
+
+> begin frame
+
+## Setup
+
+> set camera perspective 75 0.1 1000
+> set camera position [0, 3, 8] [0, 0, 0] [0, 1, 0]
+> add box geometry [-1,-1,-1] [2,2,2]
+> add sphere geometry 1.5 32 24
+> add directional light [5,10,5] [1,0.95,0.9] 1.5
+> bind texture [128,128,128,255] 1 1 rgba8
+> set fog 0 10 50
+
+## CullAndSort
+
+> submit render pass
+> submit transparent pass
+
+## Shading
+
+| Material | Roughness | Metalness | Color |
+|----------|-----------|-----------|-------|
+| 0        | 0.3       | 0.8       | [0.9,0.2,0.1] |
+| 1        | 0.1       | 0.0       | [0.1,0.8,0.3] |
+
+## Shadow
+
+> render shadow pass
+
+## PostProcess
+
+> apply postprocess
+
+## Present
+
+> present frame
+
+## Verify
+
+| Check | Expected |
+|-------|----------|
+| frame_count | 1 |
+| session_valid | true |
+| gbuffer_size_matches | true |
+| converge_mismatch_count | 0 |
+| patch_journal_count | ≥ 5 |
+```
+
+This test maps directly to the `orchestrate render_frame` DAG:
+
+```
+orchestrate render_frame(value: Int) -> Int:
+    stage 1: patch begin_frame           ← "begin frame"           [Handler 276]
+    stage 2: converge cull_instances     ← "submit render pass"    [Handler 277]
+    stage 3: converge sort_draws         ← "submit render pass"    [Handler 277]
+    stage 4: compute_shadow_maps         ← "render shadow pass"   [Handler 283]
+    stage 5: render_opaque_pass          ← "submit render pass"    [Handler 277]
+    stage 6: converge sort_draws         ← "submit transparent"   [Handler 278]
+    stage 7: render_transparent_pass     ← "submit transparent"   [Handler 278]
+    stage 8: apply_postprocess           ← "apply postprocess"    [Handler 279]
+    stage 9: patch present_frame         ← "present frame"        [Handler 280]
+```
+
+The verify block checks that `patch_journal_count() ≥ 5` (5+ patches across begin_frame, scene mutations, and present_frame), `converge_mismatch_count() == 0` (all fast lanes match the spec lane), and session/g-buffer laws hold.
+
+---
+
+### 10.7 Running the Smoketest
+
+The markscript-driven smoketest is a standalone Kain workspace at `X:/blades/markscript/smoketest/`. The test runner `run_smoketest.kn` is the executable entry point.
+
+```bash
+# Typecheck the runner and its bridge handlers
+kain check X:/blades/markscript/smoketest/run_smoketest.kn
+
+# Compile to LLVM IR then native executable
+kain build X:/blades/markscript/smoketest/run_smoketest.kn --target llvm
+
+# Run all four smoketest scripts and report results
+kain run X:/blades/markscript/smoketest/run_smoketest.kn
+```
+
+**What `kain check` validates:**
+- Every `world`/`entangle`/`patch`/`law`/`converge`/`orchestrate`/`pulse`/`resonate`/`actor`/`shatter` construct in the bridge handlers
+- Every `shader compute` / `shader vertex` / `shader fragment` in fenced code blocks
+- The `with GPU, Unsafe` effect annotations on dispatch functions
+- The `where` clause generic constraints on trait-based bridges
+- The `use std::markscript` module resolves correctly
+
+**What `kain run` reports:**
+- Per-script result: PASS / FAIL with counts of intents executed, table cells parsed, law checks performed
+- `patch_journal_count()` — total journaled mutations across all worlds
+- `entangle_propagation_count()` — state sync events triggered
+- `converge_mismatch_count()` — cross-lane verification failures
+- `runtime_machine_teleport_count()` — cross-world data transfers (if teleport is used)
+- `runtime_machine_pulse_total_fire_count()` — pulse beats fired during animation ticks
+
+### Test Scripts Reference
+
+| File | Lines | Purpose | Intents | Tables | Laws |
+|------|-------|---------|---------|--------|------|
+| `scene_setup.md` | ~45 | Camera + geometry + light + texture + fog | 7 | 5 | `camera_fov_valid`, `fog_range_valid`, `texture_dimensions_valid` |
+| `animation_test.md` | ~50 | AnimationMixer actor, keyframes, crossfade | 6 | 3 | `animation_weight_valid`, `animation_time_valid` |
+| `compute_test.md` | ~60 | GPU buffer lifecycle, compute shader dispatch | 5 | 3 | Buffer ownership state machine |
+| `full_pipeline.md` | ~70 | Complete 9-stage render DAG | 12 | 3 | `session_valid`, `gbuffer_size_matches`, no_double_begin_frame |
+
+---
+
+### 10.8 Extending the Intent Table
+
+Adding a new markscript intent that drives a three-kn construct requires four steps:
+
+**Step 1 — Write the Kain bridge function** in a new or existing module inside `X:/blades/three-kn/src/`. Every bridge function follows the same signature convention for `std::markscript` compatibility:
+
+```kn
+pub fn handle_my_intent(args: [MarkValue], vm: MarkVM) -> MarkValue with IO:
+    // args[0], args[1], ... are the parsed intent parameters
+    // Return MarkValue::Int(0) for success, MarkValue::Int(-1) for failure
+    let param0: Int = args[0].to_int_or(0)
+    let result: Int = three_kn_api_call(param0)
+    return MarkValue::Int(result)
+```
+
+**Step 2 — Register the handler ID** in the IVT at a unique slot. The three-kn bridge uses IDs 256–283 (28 handlers). Add your ID next:
+
+```kn
+pub const HANDLER_MY_INTENT: Int = 284
+```
+
+**Step 3 — Map the intent phrase** to the handler ID in the registration table inside `run_smoketest.kn`:
+
+```kn
+fn register_bridge(vm: MarkVM, registry: MarkHandlerRegistry) -> Int:
+    // ... existing handlers ...
+    registry.register_phrase("my new intent", 284)
+    registry.register_handler(284, handle_my_intent)
+    return 0
+```
+
+**Step 4 — Use it in any markscript `.md` file:**
+
+```markdown
+> my new intent 42 3.14
+
+| Param1 | Param2 |
+|--------|--------|
+| 42     | 3.14   |
+```
+
+The same four-step process works for any new three-kn construct: a new `shader` variant, a new `orchestrate` stage, a new `actor` message, a new `shatter struct` type, or a new `axiom` + `converge` lane set.
+
+**Handler ID allocation (three-kn bridge):**
+
+| Range | Count | Owner |
+|-------|-------|-------|
+| 1–78 | 78 | Built-in MarkScript stdlib |
+| 256–283 | 28 | three-kn bridge (allocated) |
+| 284–319 | 36 | Available for extensions |
+| 320–512 | 192 | Reserved for future semantic layers |
+
+---
+
+### 10.9 Decision Ladder Coverage
+
+Each markscript smoketest script exercises a specific subset of Kain's 23 semantic constructs. The following table shows coverage across all four scripts:
+
+| Construct | `scene_setup.md` | `animation_test.md` | `compute_test.md` | `full_pipeline.md` |
+|-----------|:---:|:---:|:---:|:---:|
+| `world` | ✅ | ✅ | — | ✅ |
+| `entangle` | ✅ | — | — | ✅ |
+| `state` (world field) | ✅ | ✅ | ✅ | ✅ |
+| `patch` | ✅ | ✅ | — | ✅ |
+| `law` | ✅ | ✅ | — | ✅ |
+| `converge` | — | ✅ | — | ✅ |
+| `orchestrate` | — | — | — | ✅ |
+| `pulse` | — | ✅ | — | ✅ |
+| `resonate` | ✅ | — | — | ✅ |
+| `axiom` | — | — | ✅ | ✅ |
+| `shatter struct` | ✅ | ✅ | ✅ | ✅ |
+| `teleport` | — | — | — | — |
+| `actor` | — | ✅ | — | ✅ |
+| `spawn` | — | ✅ | — | ✅ |
+| `send` / `on` | — | ✅ | — | — |
+| `collapse` / `observe` / `decay` | — | — | ✅ | — |
+| `shader compute` | — | — | ✅ | — |
+| `shader vertex` | — | — | — | ✅ |
+| `shader fragment` | — | — | — | ✅ |
+| `dispatch` | — | — | ✅ | — |
+| `uniform` | — | — | ✅ | ✅ |
+| `component` (UI) | — | — | — | — |
+| `fn` / `struct` / `enum` / `trait` / `impl` | ✅ | ✅ | ✅ | ✅ |
+
+**Notes on coverage gaps:**
+- `teleport` (L6): Not yet exercised by any smoketest script — reserved for a future cross-world scene transfer test.
+- `component` (UI): Not exercised in pure markscript test scripts (UI event loops require interactive input). A future `interactive_test.md` could drive `OrbitControls` via markscript UI intents.
+- `pulse` (L5): Exercised indirectly — the `AnimationMixer` actors run under `pulse animation_tick` even though markscript doesn't directly declare `pulse` blocks.
 
 ---
 
