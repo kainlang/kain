@@ -551,7 +551,7 @@ pub fn map_type_to_llvm(ty: ResolvedType) -> String:
     if k == RT_PTR or k == RT_REF:
         return "ptr"
     if k == RT_STRUCT:
-        return "%" + str(ty.name)
+        return "%struct_" + str(ty.name)
     if k == RT_ENUM:
         return "i64"
     if k == RT_ARRAY:
@@ -1518,7 +1518,7 @@ pub fn compile_struct_lit_textual(gen: LlvmGenerator,
                                    ast_nodes: Array<AstNode>) -> GenTypeResult:
     let dlen: Int = ast_data_len(node)
     let struct_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
-    let struct_name: String = "%" + str(struct_name_idx)
+    let struct_name: String = "%struct_" + str(struct_name_idx)
 
     // Allocate
     let alloca_nr: GenResult = next_reg(gen)
