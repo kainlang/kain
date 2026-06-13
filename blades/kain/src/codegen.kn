@@ -634,11 +634,6 @@ pub fn codegen_textual(program: MonomorphizedProgram,
     gen = emit_const_globals(gen, program)
     gen = emit_blank(gen)
 
-    // ── Global String Constants ──
-    gen = emit_raw(gen, "; ── Global String Constants ──\n")
-    gen = emit_global_strings(gen, program)
-    gen = emit_blank(gen)
-
     // ── Function Definitions ──
     gen = emit_blank(gen)
     gen = emit_raw(gen, "; ── Function Definitions ──\n")
