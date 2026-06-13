@@ -102,9 +102,9 @@ files = [
     "monomorphize.kn",    # Generic instantiation, unify(), substitute_type(), mangle_name
     "codegen.kn",         # Path A (textual LLVM IR) + Path B stubs, LlvmGenerator
 
-    # ── Orchestration + Compiler driver (depends on: build.kn, codegen, markscript) ──
-    "orchestrator.kn",    # Markscript VM embedding, 9 IVT handlers, CLI entry points
+    # ── Compiler driver + Orchestration (depends on: build.kn, codegen, markscript) ──
     "compiler.kn",        # DriverSession pipeline: Resolve→Lex→Parse→Typecheck→Mono→Codegen
+    "orchestrator.kn",    # Markscript VM embedding, 9 IVT handlers, CLI entry points
 
     # ── CLI + Entry point ──
     "cli.kn",             # CLI argument parsing (12 subcommands), subcommand dispatch

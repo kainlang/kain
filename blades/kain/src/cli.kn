@@ -322,9 +322,9 @@ pub fn run_test(config: CliConfig) -> Int with IO:
 
 pub fn run_selfhost(config: CliConfig) -> Int with IO:
     let verify: Bool = config.verify_ouroboros
-    let project_root: String = "."
+    let project_root: String = if config.input_path != "": config.input_path else: "."
     println("[kainc] ═══════════════════════════════════════")
-    println("[kainc] SELFHOST: verify_ouroboros=" + str(verify))
+    println("[kainc] SELFHOST: project=" + project_root + " verify_ouroboros=" + str(verify))
     println("[kainc] ═══════════════════════════════════════")
 
     println("[kainc] Phase 1/2: Source combination (" + str(len(orchestrator.SOURCE_ORDER)) + " files)...")

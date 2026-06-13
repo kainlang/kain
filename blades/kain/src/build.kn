@@ -97,22 +97,22 @@ pub fn metadata_defaults() -> Array<String>:
 // ═════════════════════════════════════════════════════════════════════════════
 
 pub fn get_config_string(vm: MarkScriptVM, handle: Int, key: String, default_val: String) -> String:
-    let rows: Int = markscript.mks_table_rows(vm, handle)
+    let rows: Int = mks_table_rows(vm, handle)
     var row: Int = 0
     while row < rows:
-        let row_key: String = markscript.mks_table_get_string(vm, handle, row, 0, "")
+        let row_key: String = mks_table_get_string(vm, handle, row, 0, "")
         if row_key == key:
-            return markscript.mks_table_get_string(vm, handle, row, 1, default_val)
+            return mks_table_get_string(vm, handle, row, 1, default_val)
         row = row + 1
     return default_val
 
 pub fn get_config_bool(vm: MarkScriptVM, handle: Int, key: String, default_val: Bool) -> Bool:
-    let rows: Int = markscript.mks_table_rows(vm, handle)
+    let rows: Int = mks_table_rows(vm, handle)
     var row: Int = 0
     while row < rows:
-        let row_key: String = markscript.mks_table_get_string(vm, handle, row, 0, "")
+        let row_key: String = mks_table_get_string(vm, handle, row, 0, "")
         if row_key == key:
-            let val: String = markscript.mks_table_get_string(vm, handle, row, 1, "")
+            let val: String = mks_table_get_string(vm, handle, row, 1, "")
             return val == "true" or val == "1"
         row = row + 1
     return default_val

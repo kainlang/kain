@@ -45,6 +45,10 @@ pub struct RuntimeFunction:
 pub struct RuntimeTable:
     functions: Array<RuntimeFunction>
 
+// NOTE: runtime_table_init() is defined in runtime.kn (real 132-entry table).
+// This local stub provides a fallback for standalone check.
+// At combine time, runtime.kn's version (defined first) takes precedence.
+
 pub fn runtime_table_init() -> RuntimeTable:
     return RuntimeTable { functions: [] }
 
@@ -758,7 +762,6 @@ pub fn emit_global_strings(gen: LlvmGenerator,
         let node: AstNode = program.ast_nodes[ai]
         if node.kind == AST_EXPR_STRING:
             // Extract string content from AST node data
-            // data[0] = string length, data[1+] = byte values OR string index
             let sd: Array<Int> = node.data
             let sdlen: Int = len(sd)
             var str_content: String = ""
@@ -768,7 +771,6 @@ pub fn emit_global_strings(gen: LlvmGenerator,
                 while ci < str_len and (ci + 1) < sdlen:
                     let byte_val: Int = sd[ci + 1]
                     if byte_val > 0 and byte_val < 128:
-                        // Printable ASCII
                         str_content = str_content + byte_val_to_escaped_char(byte_val)
                     ci = ci + 1
 
@@ -786,6 +788,17 @@ pub fn emit_global_strings(gen: LlvmGenerator,
                 string_pool.push(str_content)
                 string_global_names.push(s_gn)
         ai = ai + 1
+
+    // Store string pool entries in the generator for expression compilation
+    var ssi: Int = 0
+    while ssi < len(string_pool):
+        let entry: StringConstEntry = StringConstEntry {
+            global_name: string_global_names[ssi],
+            content:     string_pool[ssi],
+            length:      len(string_pool[ssi]),
+        }
+        r.string_consts.push(entry)
+        ssi = ssi + 1
 
     // Emit string globals
     if len(string_pool) > 0:
@@ -1127,7 +1140,29 @@ pub fn compile_expr_textual(gen: LlvmGenerator,
     if k == AST_EXPR_STRING:
         let nr: GenResult = next_reg(gen)
         let r: LlvmGenerator = nr.gen
-        r = emit_raw(r, "  " + nr.reg + " = getelementptr [1 x i8], ptr @.str.empty, i64 0, i64 0\n")
+        // Extract string content and look up in generator's string pool
+        let sd: Array<Int> = node.data
+        let sdlen: Int = len(sd)
+        var str_content: String = ""
+        if sdlen > 0:
+            let str_len: Int = sd[0]
+            var ci: Int = 0
+            while ci < str_len and (ci + 1) < sdlen:
+                let byte_val: Int = sd[ci + 1]
+                if byte_val > 0 and byte_val < 128:
+                    str_content = str_content + byte_val_to_escaped_char(byte_val)
+                ci = ci + 1
+        // Find matching global name in string_consts
+        var global_name: String = "@.str.empty"
+        var byte_len: Int = 1
+        var sci: Int = 0
+        while sci < len(gen.string_consts):
+            if gen.string_consts[sci].content == str_content:
+                global_name = gen.string_consts[sci].global_name
+                byte_len = gen.string_consts[sci].length + 1
+                sci = len(gen.string_consts)
+            sci = sci + 1
+        r = emit_raw(r, "  " + nr.reg + " = getelementptr [" + str(byte_len) + " x i8], ptr " + global_name + ", i64 0, i64 0\n")
         return GenTypeResult { gen: r, reg: nr.reg, llvm_type: "ptr" }
 
     // ── Variable reference ──
@@ -1492,7 +1527,7 @@ pub fn compile_block_textual(gen: LlvmGenerator,
             let stmt_kind: Int = stmt_node.kind
 
             // If this is a statement kind, compile as statement
-            if stmt_kind == AST_STMT_LET or stmt_kind == AST_STMT_RETURN or stmt_kind == AST_STMT_EXPR or stmt_kind == AST_STMT_WHILE:
+            if stmt_kind == AST_STMT_LET or stmt_kind == AST_STMT_RETURN or stmt_kind == AST_STMT_EXPR or stmt_kind == AST_STMT_WHILE or stmt_kind == AST_STMT_FOR or stmt_kind == AST_STMT_LOOP or stmt_kind == AST_STMT_BREAK or stmt_kind == AST_STMT_CONTINUE:
                 g = compile_stmt_textual(g, stmt_idx, ast_nodes, "void")
             else:
                 // Expression — compile and capture result
