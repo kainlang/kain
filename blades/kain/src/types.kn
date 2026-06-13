@@ -726,6 +726,15 @@ pub struct TypedItem:
     ast_index:     Int
     effects:       Int
 
+// ── Stream RED: TypedItemAndEnv for state-threaded checking ──
+pub struct TypedItemAndEnv:
+    env:  TypeEnv
+    item: TypedItem
+
+pub struct Pass4Result:
+    env:   TypeEnv
+    items: Array<TypedItem>
+
 // ═══════════════════════════════════════════════════════════════════
 // 4-PASS TYPECHECK PIPELINE
 // ═══════════════════════════════════════════════════════════════════
@@ -739,10 +748,10 @@ pub fn typecheck(env: TypeEnv, program: AstProgram) -> TypedProgram:
     env1 = pass1_predeclare(env1, nodes)
     env1 = pass2_register(env1, nodes)
     env1 = pass3_re_register(env1, nodes)
-    let items: Array<TypedItem> = pass4_check(env1, nodes)
+    let result: Pass4Result = pass4_check(env1, nodes)
     return TypedProgram {
-        items: items,
-        errors: env1.errs,
+        items: result.items,
+        errors: result.env.errs,
     }
 
 pub fn init_skip_vectors(env: TypeEnv, count: Int) -> TypeEnv:
@@ -822,24 +831,27 @@ pub fn pass3_re_register(env: TypeEnv, nodes: Array<AstNode>) -> TypeEnv:
     return e
 
 // ── PASS 4: Full expression typecheck ──
-pub fn pass4_check(env: TypeEnv, nodes: Array<AstNode>) -> Array<TypedItem>:
+pub fn pass4_check(env: TypeEnv, nodes: Array<AstNode>) -> Pass4Result:
+    let mut e: TypeEnv = env
     let mut items: Array<TypedItem> = []
     var i: Int = 0
     while i < len(nodes):
-        if env.skip2[i] and env.skip3[i]:
+        if e.skip2[i] and e.skip3[i]:
             let node: AstNode = nodes[i]
-            let typed: TypedItem = check_item(env, node, i)
-            items.push(typed)
+            let result: TypedItemAndEnv = check_item(e, node, i)
+            e = result.env
+            items.push(result.item)
         i = i + 1
-    return items
+    return Pass4Result { env: e, items: items }
 
 // ═══════════════════════════════════════════════════════════════════
 // check_item() — dispatch on item kind
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let kind: Int = node.kind
 
+    // ── Stream RED: check_item returns TypedItemAndEnv for state threading ──
     if kind == AST_ITEM_FUNCTION:
         return check_function_item(env, node, idx)
     elif kind == AST_ITEM_STRUCT:
@@ -851,35 +863,36 @@ pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     elif kind == AST_ITEM_TYPE_ALIAS:
         return check_type_alias_item(env, node, idx)
     elif kind == AST_ITEM_USE or kind == AST_ITEM_MOD:
-        return empty_typed_item(kind, "mod_use", idx)
+        return empty_typed_item_and_env(env, kind, "mod_use", idx)
     elif kind == AST_ITEM_TRAIT or kind == AST_ITEM_IMPL:
         return check_trait_impl_item(env, node, idx)
     elif kind == AST_ITEM_PATCH or kind == AST_ITEM_LAW:
-        return check_patch_law_stub(node, idx, kind)
+        return check_patch_law_stub(env, node, idx, kind)
     elif kind == AST_ITEM_CONVERGE:
-        return check_converge_stub(node, idx)
+        return check_converge_stub(env, node, idx)
     elif kind == AST_ITEM_ORCHESTRATE:
-        return check_orchestrate_stub(node, idx)
+        return check_orchestrate_stub(env, node, idx)
     elif kind == AST_ITEM_PULSE or kind == AST_ITEM_RESONATE:
-        return check_pulse_resonate_stub(node, idx)
+        return check_pulse_resonate_stub(env, node, idx)
     elif kind == AST_ITEM_AXIOM:
-        return check_axiom_stub(node, idx)
+        return check_axiom_stub(env, node, idx)
     elif kind == AST_ITEM_WORLD or kind == AST_ITEM_ACTOR or kind == AST_ITEM_COMPONENT:
-        return check_world_stub(node, idx)
+        return check_world_stub(env, node, idx)
     elif kind == AST_ITEM_ENTANGLE:
-        return check_entangle_stub(node, idx)
+        return check_entangle_stub(env, node, idx)
     elif kind == AST_ITEM_SHADER:
-        return check_shader_stub(node, idx)
+        return check_shader_stub(env, node, idx)
     else:
-        return empty_typed_item(kind, "unknown", idx)
+        return empty_typed_item_and_env(env, kind, "unknown", idx)
 
-// ── Empty typed item ──
-pub fn empty_typed_item(kind: Int, name: String, idx: Int) -> TypedItem:
-    return TypedItem {
+// ── Empty typed item (Stream RED: returns TypedItemAndEnv) ──
+pub fn empty_typed_item_and_env(env: TypeEnv, kind: Int, name: String, idx: Int) -> TypedItemAndEnv:
+    let item: TypedItem = TypedItem {
         kind: kind, name: name, name_idx: -1,
         resolved_type: rt_unit(), ast_index: idx,
         effects: EFF_PURE,
     }
+    return TypedItemAndEnv { env: env, item: item }
 
 // ── Helper: advance past a variable-length section of function data ──
 // Function AST layout:
@@ -905,7 +918,7 @@ pub fn func_data_skip_params(data: Array<Int>, pos: Int) -> Int:
     return pos + 1 + 2 * pc
 
 // ── check_function_item ──
-pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
@@ -932,7 +945,6 @@ pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     while ei < eff_count:
         let ek: Int = if eff_base + ei < dlen: data[eff_base + ei] else: 0
         // Effect keywords are TOKEN_* constants; map them to EFF_* masks
-        // The parser stores effect names as their effect bit or token kind
         eff_mask = eff_mask or ek
         ei = ei + 1
 
@@ -990,13 +1002,16 @@ pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     e.crnt_effects = saved_effects
     e = pop_scope(e)
 
-    return TypedItem {
-        kind: AST_ITEM_FUNCTION,
-        name: "fn_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: func_ty,
-        ast_index: idx,
-        effects: eff_mask,
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: AST_ITEM_FUNCTION,
+            name: "fn_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: func_ty,
+            ast_index: idx,
+            effects: eff_mask,
+        }
     }
 
 // ── check_block_body: walk statements in a block, check trailing expr ──
@@ -1259,7 +1274,8 @@ pub fn check_effect_calls_in_expr(env: TypeEnv, node: AstNode, caller_eff: Int) 
 //   data[2..2+2*gc] = generic param pairs
 //   data[2+2*gc] = field_count
 //   data[3+2*gc .. 3+2*gc+2*fc] = (field_name, field_type) pairs
-pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+// ── Stream RED: Real check_struct_item with field resolution, dup detection, env registration ──
+pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
@@ -1268,150 +1284,346 @@ pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
     let fc_pos: Int = 2 + 2 * gc
     let fcount: Int = if fc_pos < dlen: data[fc_pos] else: 0
 
-    // Resolve field types
+    // Resolve field types and check for duplicates
     let mut e: TypeEnv = env
+    let mut seen_fields: Array<Int> = []
+    let mut field_info: Array<Int> = []  // [fname1, ftype_idx1, fname2, ftype_idx2, ...]
     var fi: Int = 0
     while fi < fcount:
         let fname: Int = data[fc_pos + 1 + 2 * fi]
         let ftype_ast: Int = data[fc_pos + 1 + 2 * fi + 1]
         let ftype: ResolvedType = resolve_type_in_env(e, ftype_ast)
-        // Register field type — just verify it resolves, don't mutate the env
+
+        // Duplicate detection
+        var dup: Bool = false
+        var si: Int = 0
+        while si < len(seen_fields):
+            if seen_fields[si] == fname:
+                dup = true
+                si = len(seen_fields)
+            si = si + 1
+        if dup:
+            e = type_error(e, "duplicate field '" + str(fname) + "' in struct '" + str(name_idx) + "'",
+                          ERR_TYPE_DUPLICATE, node.span_start, node.span_end)
+        else:
+            seen_fields.push(fname)
+
+        // Register field type in env
+        let ftype_idx: Int = len(e.all_types)
+        e.all_types.push(ftype)
+        e.all_type_names.push("sf_" + str(name_idx) + "_" + str(fname))
+        field_info.push(fname)
+        field_info.push(ftype_idx)
         fi = fi + 1
 
-    let sty: ResolvedType = rt_struct_as(name_idx)
-    return TypedItem {
-        kind: AST_ITEM_STRUCT,
-        name: "struct_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: sty,
-        ast_index: idx,
-        effects: EFF_PURE,
+    // Register struct type with field count
+    let mut sty: ResolvedType = rt_struct_as(name_idx)
+    // Encode field count and first field index for codegen
+    // (We store field_info start position since the struct type fields are limited)
+    sty.array_len = fcount  // reuse array_len for field count
+    let fmap_start: Int = len(e.all_types)
+    e.all_types.push(sty)
+    e.all_type_names.push("s_" + str(name_idx))
+
+    // Also register under the struct name for lookup
+    let struct_name: String = "s_" + str(name_idx)
+    // type_env_new already registered this via pass1, but re-register with field info
+    // Register with the actual struct name pattern
+    e = register_type(e, struct_name, sty)
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: AST_ITEM_STRUCT,
+            name: "struct_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: sty,
+            ast_index: idx,
+            effects: EFF_PURE,
+        }
     }
 
 // ── check_enum_item ──
-pub fn check_enum_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_ENUM,
-        name: "enum_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: rt_enum_as(name_idx),
-        ast_index: idx,
-        effects: EFF_PURE,
+// ── Stream RED: Real check_enum_item with variant resolution and env registration ──
+pub fn check_enum_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+
+    // Enum AST layout:
+    //   data[0] = name_idx
+    //   data[1] = generic_count; data[2..2+2*gc] = (gname, gbound) pairs
+    //   vc_pos = 2 + 2*gc
+    //   data[vc_pos] = variant_count
+    //   For each variant: name_idx, has_payload (0/1), (if has_payload) payload_type_ast
+    let gc: Int = if dlen > 1: data[1] else: 0
+    let vc_pos: Int = 2 + 2 * gc
+    let vcount: Int = if vc_pos < dlen: data[vc_pos] else: 0
+
+    let mut e: TypeEnv = env
+    var vi: Int = 0
+    while vi < vcount:
+        let v_base: Int = vc_pos + 1 + 3 * vi  // name, has_payload, (opt) payload_type
+        let v_name: Int = if v_base < dlen: data[v_base] else: -1
+        let has_payload: Int = if v_base + 1 < dlen: data[v_base + 1] else: 0
+        let payload_type: ResolvedType = rt_unit()
+        if has_payload != 0 and v_base + 2 < dlen:
+            let pt_ast: Int = data[v_base + 2]
+            let resolved_pt: ResolvedType = resolve_type_in_env(e, pt_ast)
+            // Register the payload type in env
+            let pt_idx: Int = len(e.all_types)
+            e.all_types.push(resolved_pt)
+            e.all_type_names.push("ev_" + str(name_idx) + "_" + str(v_name) + "_payload")
+        vi = vi + 1
+
+    // Register enum type
+    let ety: ResolvedType = rt_enum_as(name_idx)
+    e = register_type(e, "e_" + str(name_idx), ety)
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: AST_ITEM_ENUM,
+            name: "enum_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: ety,
+            ast_index: idx,
+            effects: EFF_PURE,
+        }
     }
 
 // ── check_const_item ──
-pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_CONST,
-        name: "const_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: rt_i64(),
-        ast_index: idx,
-        effects: EFF_PURE,
+// Const AST layout (from parser.kn parse_const):
+//   data[0] = name_idx (string table index)
+//   data[1] = type_ast_idx (AST type node — may be -1 for inferred)
+//   data[2] = value_expr_idx (expression node index)
+pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+    let type_ast_idx: Int = if dlen > 1: data[1] else: -1
+    let value_expr_idx: Int = if dlen > 2: data[2] else: -1
+
+    // Resolve the declared type annotation (if present)
+    let mut declared_type: ResolvedType = rt_unknown()
+    if type_ast_idx >= 0:
+        declared_type = resolve_type_in_env(env, type_ast_idx)
+
+    // Infer the value expression type
+    let mut value_type: ResolvedType = rt_unknown()
+    if value_expr_idx >= 0 and value_expr_idx < len(env.ast_nodes):
+        let val_node: AstNode = env.ast_nodes[value_expr_idx]
+        value_type = infer_expr_type(env, val_node)
+
+    // If no declared type, use the inferred type
+    if declared_type.kind == RT_UNKNOWN and value_type.kind != RT_UNKNOWN:
+        declared_type = value_type
+
+    // Check compatibility if both are known
+    let mut e: TypeEnv = env
+    if declared_type.kind != RT_UNKNOWN and value_type.kind != RT_UNKNOWN:
+        if !types_compatible(e, declared_type, value_type):
+            e = type_error(e, "const value type does not match declared type for '" + str(name_idx) + "'",
+                          ERR_TYPE_MISMATCH, node.span_start, node.span_end)
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: AST_ITEM_CONST,
+            name: "const_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: declared_type,
+            ast_index: idx,
+            effects: EFF_PURE,
+        }
     }
 
 // ── check_type_alias_item ──
-pub fn check_type_alias_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_TYPE_ALIAS,
-        name: "type_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: rt_i64(),
-        ast_index: idx,
-        effects: EFF_PURE,
+// Type alias AST layout (from parser.kn parse_type_alias):
+//   data[0] = name_idx (string table index)
+//   data[1] = aliased_ast_idx (AST type node for underlying type)
+pub fn check_type_alias_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+    let aliased_ast_idx: Int = if dlen > 1: data[1] else: -1
+
+    // Resolve the underlying type and register it
+    let resolved: ResolvedType = if aliased_ast_idx >= 0:
+        resolve_type_in_env(env, aliased_ast_idx)
+    else:
+        rt_unknown()
+
+    let mut e: TypeEnv = env
+    e = declare_named_type(e, strtab_lookup_name(e, name_idx), resolved)
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: AST_ITEM_TYPE_ALIAS,
+            name: "type_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: resolved,
+            ast_index: idx,
+            effects: EFF_PURE,
+        }
     }
 
 // ── check_trait_impl_item ──
 // Trait and impl items both dispatched here.
 // Trait AST: data[0]=name_idx, data[1]=method_count, then method_name+method_body pairs
 // Impl AST: data[0]=type_name_idx, data[1]=trait_name_idx(-1 for inherent), then methods
-pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem:
+// ── Stream RED: Real check_trait_impl_item ──
+pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
-
-    // For trait: register name, check method signatures
-    // For impl: verify trait exists, check methods
     let kind: Int = node.kind
-    if kind == AST_ITEM_TRAIT:
-        // Register the trait name
-        let mut e: TypeEnv = env
-        e = declare_named_type(e, "t_" + str(name_idx), rt_struct_as(name_idx))
+    let mut e: TypeEnv = env
 
-    // Check impl methods as functions (simplified: each method body is typechecked)
-    // For now, we just verify the structure exists
-    return TypedItem {
-        kind: kind,
-        name: "tr_" + str(name_idx),
-        name_idx: name_idx,
-        resolved_type: rt_unit(),
-        ast_index: idx,
-        effects: EFF_PURE,
+    if kind == AST_ITEM_TRAIT:
+        // Trait AST: data[0]=name_idx, data[1]=method_count, then method_name+method_body pairs
+        let method_count: Int = if dlen > 1: data[1] else: 0
+        e = declare_named_type(e, "t_" + str(name_idx), rt_struct_as(name_idx))
+        // Register each method signature in env
+        var ti: Int = 0
+        while ti < method_count:
+            let m_base: Int = 2 + 2 * ti
+            let m_name: Int = if m_base < dlen: data[m_base] else: -1
+            let m_body: Int = if m_base + 1 < dlen: data[m_base + 1] else: -1
+            if m_body >= 0 and m_body < len(e.ast_nodes):
+                let m_node: AstNode = e.ast_nodes[m_body]
+                let m_result: TypedItemAndEnv = check_function_item(e, m_node, m_body)
+                e = m_result.env
+                // Register method with trait prefix
+                e = declare_named_type(e, "tm_" + str(name_idx) + "_" + str(m_name), m_result.item.resolved_type)
+            ti = ti + 1
+
+        return TypedItemAndEnv {
+            env: e,
+            item: TypedItem {
+                kind: kind,
+                name: "tr_" + str(name_idx),
+                name_idx: name_idx,
+                resolved_type: rt_struct_as(name_idx),
+                ast_index: idx,
+                effects: EFF_PURE,
+            }
+        }
+
+    // Impl AST: data[0]=type_name_idx, data[1]=trait_name_idx(-1 for inherent), data[2]=method_count, then method pairs
+    let type_name_idx: Int = data[0]
+    let trait_name_idx: Int = if dlen > 1: data[1] else: -1
+    let method_count: Int = if dlen > 2: data[2] else: 0
+
+    // Check each method as a function
+    var mi: Int = 0
+    while mi < method_count:
+        let m_base: Int = 3 + 2 * mi
+        let m_name: Int = if m_base < dlen: data[m_base] else: -1
+        let m_body: Int = if m_base + 1 < dlen: data[m_base + 1] else: -1
+        if m_body >= 0 and m_body < len(e.ast_nodes):
+            let m_node: AstNode = e.ast_nodes[m_body]
+            let m_result: TypedItemAndEnv = check_function_item(e, m_node, m_body)
+            e = m_result.env
+        mi = mi + 1
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: kind,
+            name: "impl_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: rt_struct_as(type_name_idx),
+            ast_index: idx,
+            effects: EFF_PURE,
+        }
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// STUB CHECKERS for Layers 1-7
+// STUB CHECKERS for Layers 1-7 (Stream RED: updated to return TypedItemAndEnv)
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_patch_law_stub(node: AstNode, idx: Int, kind: Int) -> TypedItem:
+pub fn check_patch_law_stub(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     let ret: ResolvedType = if kind == AST_ITEM_LAW: rt_bool() else: rt_i64()
-    return TypedItem {
-        kind: kind, name: "pl_" + str(name_idx), name_idx: name_idx,
-        resolved_type: ret, ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: kind, name: "pl_" + str(name_idx), name_idx: name_idx,
+            resolved_type: ret, ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_converge_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_converge_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_orchestrate_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_orchestrate_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_pulse_resonate_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_pulse_resonate_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_PULSE, name: "pr_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_unit(), ast_index: idx,
-        effects: EFF_PURE or EFF_IO or EFF_GPU or EFF_ASYNC or EFF_REACTIVE or EFF_UNSAFE or EFF_ALLOC or EFF_PANIC,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_PULSE, name: "pr_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_unit(), ast_index: idx,
+            effects: EFF_PURE or EFF_IO or EFF_GPU or EFF_ASYNC or EFF_REACTIVE or EFF_UNSAFE or EFF_ALLOC or EFF_PANIC,
+        }
     }
 
-pub fn check_axiom_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_axiom_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_AXIOM, name: "ax_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_AXIOM, name: "ax_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_world_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_world_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_WORLD, name: "w_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_struct_as(name_idx), ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_WORLD, name: "w_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_struct_as(name_idx), ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_entangle_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_entangle_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_ENTANGLE, name: "ent_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_ENTANGLE, name: "ent_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+        }
     }
 
-pub fn check_shader_stub(node: AstNode, idx: Int) -> TypedItem:
+pub fn check_shader_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItem {
-        kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
-        resolved_type: rt_unit(), ast_index: idx, effects: EFF_GPU,
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_GPU,
+        }
     }
 
 // ═══════════════════════════════════════════════════════════════════

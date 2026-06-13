@@ -11,26 +11,19 @@
 // This file defines the TYPE DEFINITIONS SECTION only. GOLF appends the
 // LLVM builder wrapper functions below the "END STREAM ECHO SECTION" marker.
 
-// ── LLVM-C API Header Imports ──
+// ── Stream GREEN: LLVM-C headers made conditional (stubs when unavailable) ──
+// When HAS_LLVM_HEADERS=1 (machine has LLVM dev SDK), uncomment the real
+// include directives below and comment out the stub feature flag.
+//
+// Real include directives (uncomment when LLVM dev headers are installed):
+//   include <llvm-c/Core.h> as llvm
+//   include <llvm-c/Target.h> as llvm_target
+//   include <llvm-c/Orc.h> as llvm_orc
+//   include <llvm-c/Analysis.h> as llvm_analysis
+//   include <llvm-c/BitWriter.h> as llvm_bitwriter
 
-// Core API: LLVMContextRef, LLVMModuleRef, LLVMBuilderRef, LLVMTypeRef,
-// LLVMValueRef, LLVMBasicBlockRef, LLVMMemoryBufferRef, LLVMUseRef,
-// LLVMAttributeRef, LLVMPassManagerRef.
-include <llvm-c/Core.h> as llvm
-
-// Target initialization: LLVMTargetMachineRef, LLVMTargetDataRef,
-// LLVMInitializeNativeTarget, LLVMGetTargetFromTriple.
-include <llvm-c/Target.h> as llvm_target
-
-// OrcJIT: LLVMOrcLLJITRef, LLVMOrcThreadSafeContextRef,
-// LLVMOrcCreateLLJIT, LLVMOrcLLJITAddLLVMIRModule.
-include <llvm-c/Orc.h> as llvm_orc
-
-// Analysis / Verification: LLVMVerifyModule, LLVMVerifyFunction.
-include <llvm-c/Analysis.h> as llvm_analysis
-
-// BitWriter (bitcode serialization): LLVMWriteBitcodeToFile.
-include <llvm-c/BitWriter.h> as llvm_bitwriter
+// Feature flag: 0 = stubs (default), 1 = real LLVM-C headers
+pub const HAS_LLVM_HEADERS: Int = 0
 
 // ── Opaque Type Aliases ──
 // All LLVM-C types are opaque pointers. Kain represents them as ptr<Byte>.
@@ -227,449 +220,431 @@ pub const LLVM_MODULE_FLAG_BEHAVIOR_APPEND_UNIQUE: Int = 6
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
-// SECTION: STREAM GOLF — LLVM builder wrapper functions
+// SECTION: STREAM GOLF — LLVM builder wrapper functions (Stub mode)
 // ═══════════════════════════════════════════════════════════════════════
+// ── Stream GREEN: All functions stubbed for HAS_LLVM_HEADERS=0 ──
 // All functions annotated with Unsafe effect.
 // Opaque LLVM types as ptr<Byte> (see ECHO section above for type aliases).
+//
+// When HAS_LLVM_HEADERS=1, replace each "return int_to_ptr(0, "ptr<Byte>")" below with
+// the corresponding real `llvm.LLVM*()` call from the original file.
+//
+// Path A (textual .ll IR) codegen does NOT use these functions. They are
+// only needed for Path B (LLVM-C API / OrcJIT), which is disabled.
 
 // ── Context Management ──
 
 pub fn llvm_context_create() -> LLVMContextRef with Unsafe:
-    return llvm.LLVMContextCreate()
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_context_dispose(ctx: LLVMContextRef) with Unsafe:
-    llvm.LLVMContextDispose(ctx)
+    let _stub: Int = 0
 
 // ── Module Management ──
 
 pub fn llvm_module_create_with_name(name: String, ctx: LLVMContextRef) -> LLVMModuleRef with Unsafe:
-    return llvm.LLVMModuleCreateWithNameInContext(name, ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_module_dispose(mod_ref: LLVMModuleRef) with Unsafe:
-    llvm.LLVMDisposeModule(mod_ref)
+    let _stub: Int = 0
 
 pub fn llvm_set_target(mod_ref: LLVMModuleRef, triple: String) with Unsafe:
-    llvm.LLVMSetTarget(mod_ref, triple)
+    let _stub: Int = 0
 
 pub fn llvm_set_data_layout(mod_ref: LLVMModuleRef, layout: String) with Unsafe:
-    llvm.LLVMSetDataLayout(mod_ref, layout)
+    let _stub: Int = 0
 
 // ── Builder ──
 
 pub fn llvm_builder_create(ctx: LLVMContextRef) -> LLVMBuilderRef with Unsafe:
-    return llvm.LLVMCreateBuilderInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_builder_dispose(builder: LLVMBuilderRef) with Unsafe:
-    llvm.LLVMDisposeBuilder(builder)
+    let _stub: Int = 0
 
 pub fn llvm_position_at_end(builder: LLVMBuilderRef, bb: LLVMBasicBlockRef) with Unsafe:
-    llvm.LLVMPositionBuilderAtEnd(builder, bb)
+    let _stub: Int = 0
 
 // ── Types ──
 
 pub fn llvm_int1_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt1TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_int8_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt8TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_int16_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt16TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_int32_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt32TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_int64_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt64TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_int128_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMInt128TypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_float_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMFloatTypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_double_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMDoubleTypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_void_type(ctx: LLVMContextRef) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMVoidTypeInContext(ctx)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_pointer_type(ctx: LLVMContextRef, addr_space: Int) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMPointerTypeInContext(ctx, addr_space)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_struct_type(ctx: LLVMContextRef, is_packed: Bool) -> LLVMTypeRef with Unsafe:
-    // Create an opaque struct type; elements are set later via LLVMStructSetBody
-    return llvm.LLVMStructCreateNamed(ctx, "")
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_struct_set_body(struct_type: LLVMTypeRef,
                               element_types: Array<LLVMTypeRef>,
                               is_packed: Bool) with Unsafe:
-    let count: Int = len(element_types)
-    // Simplified: LLVMStructSetBody is called through FFI
-    // In the bootstrap, we handle this at the textual .ll level
-    let dummy: Int = len(element_types)  // reference to avoid unused var warning
-    let dummy2: Bool = is_packed
+    let _stub: Int = len(element_types)
 
 pub fn llvm_array_type(element_type: LLVMTypeRef, count: Int) -> LLVMTypeRef with Unsafe:
-    return llvm.LLVMArrayType2(element_type, count)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_function_type(ret_type: LLVMTypeRef,
                             param_types: Array<LLVMTypeRef>,
                             is_vararg: Bool) -> LLVMTypeRef with Unsafe:
-    let count: Int = len(param_types)
-    // FFI call: LLVMFunctionType(ret_type, param_types_array, count, is_vararg?1:0)
-    // For bootstrap, simplified — the textual .ll path handles this
-    let vararg_int: Int = if is_vararg: 1 else: 0
-    return llvm.LLVMFunctionType(ret_type, ptr<LLVMTypeRef>(0), count, vararg_int)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Constants ──
 
 pub fn llvm_const_int(int_type: LLVMTypeRef, value: Int,
                         sign_extend: Bool) -> LLVMValueRef with Unsafe:
-    let sext: Int = if sign_extend: 1 else: 0
-    return llvm.LLVMConstInt(int_type, value, sext)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_const_int_unsigned(int_type: LLVMTypeRef, value: Int) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMConstInt(int_type, value, 0)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_const_real(real_type: LLVMTypeRef, value: Float) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMConstReal(real_type, value)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_const_string_in_context(ctx: LLVMContextRef, str_val: String,
                                       length: Int, null_terminate: Bool) -> LLVMValueRef with Unsafe:
-    let nt: Int = if null_terminate: 1 else: 0
-    return llvm.LLVMConstStringInContext(ctx, str_val, length, nt)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_const_null(ty: LLVMTypeRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMConstNull(ty)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_const_pointer_null(ty: LLVMTypeRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMConstPointerNull(ty)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Functions ──
 
 pub fn llvm_add_function(mod_ref: LLVMModuleRef, name: String,
                            fn_type: LLVMTypeRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMAddFunction(mod_ref, name, fn_type)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_get_named_function(mod_ref: LLVMModuleRef,
                                  name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMGetNamedFunction(mod_ref, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_append_basic_block_in_context(ctx: LLVMContextRef,
                                             fn_val: LLVMValueRef,
                                             name: String) -> LLVMBasicBlockRef with Unsafe:
-    return llvm.LLVMAppendBasicBlockInContext(ctx, fn_val, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_delete_function(fn_val: LLVMValueRef) with Unsafe:
-    llvm.LLVMDeleteFunction(fn_val)
+    let _stub: Int = 0
 
 // ── Builder: Arithmetic ──
 
 pub fn llvm_build_add(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildAdd(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_sub(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSub(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_mul(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildMul(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_sdiv(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSDiv(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_udiv(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildUDiv(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_srem(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSRem(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_urem(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildURem(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_and(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildAnd(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_or(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                        rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildOr(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_xor(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildXor(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_shl(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                         rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildShl(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_ashr(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildAShr(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_lshr(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildLShr(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Float Arithmetic ──
 
 pub fn llvm_build_fadd(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFAdd(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fsub(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFSub(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fmul(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFMul(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fdiv(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFDiv(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_frem(builder: LLVMBuilderRef, lhs: LLVMValueRef,
                          rhs: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFRem(builder, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Control Flow ──
 
 pub fn llvm_build_ret(builder: LLVMBuilderRef, val: LLVMValueRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildRet(builder, val)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_ret_void(builder: LLVMBuilderRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildRetVoid(builder)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_br(builder: LLVMBuilderRef, dest: LLVMBasicBlockRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildBr(builder, dest)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_cond_br(builder: LLVMBuilderRef, cond: LLVMValueRef,
                             then_bb: LLVMBasicBlockRef,
                             else_bb: LLVMBasicBlockRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildCondBr(builder, cond, then_bb, else_bb)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_switch(builder: LLVMBuilderRef, val: LLVMValueRef,
                            default_bb: LLVMBasicBlockRef,
                            num_cases: Int) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSwitch(builder, val, default_bb, num_cases)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_unreachable(builder: LLVMBuilderRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildUnreachable(builder)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Memory ──
 
 pub fn llvm_build_alloca(builder: LLVMBuilderRef, ty: LLVMTypeRef,
                            name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildAlloca(builder, ty, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_store(builder: LLVMBuilderRef, val: LLVMValueRef,
                           ptr: LLVMValueRef) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildStore(builder, val, ptr)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_load2(builder: LLVMBuilderRef, ty: LLVMTypeRef,
                           ptr: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildLoad2(builder, ty, ptr, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_gep2(builder: LLVMBuilderRef, base_type: LLVMTypeRef,
                          ptr: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    // GEP with implicit zero index (just ptr cast)
-    return llvm.LLVMBuildGEP2(builder, base_type, ptr, ptr, 0, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_struct_gep2(builder: LLVMBuilderRef, base_type: LLVMTypeRef,
                                 ptr: LLVMValueRef, index: Int,
                                 name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildStructGEP2(builder, base_type, ptr, index, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Comparisons ──
 
 pub fn llvm_build_icmp(builder: LLVMBuilderRef, pred: Int,
                          lhs: LLVMValueRef, rhs: LLVMValueRef,
                          name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildICmp(builder, pred, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fcmp(builder: LLVMBuilderRef, pred: Int,
                          lhs: LLVMValueRef, rhs: LLVMValueRef,
                          name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFCmp(builder, pred, lhs, rhs, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Calls ──
 
 pub fn llvm_build_call2(builder: LLVMBuilderRef, fn_type: LLVMTypeRef,
                           fn_val: LLVMValueRef, name: String) -> LLVMValueRef with Unsafe:
-    // Simplified call with zero args — real calls handle args separately
-    return llvm.LLVMBuildCall2(builder, fn_type, fn_val, fn_val, 0, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_named_call(builder: LLVMBuilderRef, fn_val: LLVMValueRef,
                                args: Array<LLVMValueRef>,
                                name: String) -> LLVMValueRef with Unsafe:
-    // Full call emission handled at the textual .ll level (Path A)
-    let count: Int = len(args)
-    let dummy: Int = len(name)
-    let d2: Int = count
-    return fn_val
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Phi & Select ──
 
 pub fn llvm_build_phi(builder: LLVMBuilderRef, ty: LLVMTypeRef,
                         name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildPhi(builder, ty, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_add_incoming(phi: LLVMValueRef,
                            incoming_values: Array<LLVMValueRef>,
                            incoming_blocks: Array<LLVMBasicBlockRef>,
                            count: Int) with Unsafe:
-    // Phi incoming additions handled at textual .ll level
-    let d1: Int = len(incoming_values)
-    let d2: Int = len(incoming_blocks)
-    let d3: Int = count
+    let _stub: Int = len(incoming_values)
 
 pub fn llvm_build_select(builder: LLVMBuilderRef, cond: LLVMValueRef,
                            then_val: LLVMValueRef, else_val: LLVMValueRef,
                            name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSelect(builder, cond, then_val, else_val, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Conversions ──
 
 pub fn llvm_build_trunc(builder: LLVMBuilderRef, val: LLVMValueRef,
                           dest_type: LLVMTypeRef,
                           name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildTrunc(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_zext(builder: LLVMBuilderRef, val: LLVMValueRef,
                          dest_type: LLVMTypeRef,
                          name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildZExt(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_sext(builder: LLVMBuilderRef, val: LLVMValueRef,
                          dest_type: LLVMTypeRef,
                          name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSExt(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fptrunc(builder: LLVMBuilderRef, val: LLVMValueRef,
                             dest_type: LLVMTypeRef,
                             name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFPTrunc(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fpext(builder: LLVMBuilderRef, val: LLVMValueRef,
                           dest_type: LLVMTypeRef,
                           name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFPExt(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_sitofp(builder: LLVMBuilderRef, val: LLVMValueRef,
                            dest_type: LLVMTypeRef,
                            name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildSIToFP(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_fptosi(builder: LLVMBuilderRef, val: LLVMValueRef,
                            dest_type: LLVMTypeRef,
                            name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildFPToSI(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_bitcast(builder: LLVMBuilderRef, val: LLVMValueRef,
                             dest_type: LLVMTypeRef,
                             name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildBitCast(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_int_to_ptr(builder: LLVMBuilderRef, val: LLVMValueRef,
                                dest_type: LLVMTypeRef,
                                name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildIntToPtr(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_ptr_to_int(builder: LLVMBuilderRef, val: LLVMValueRef,
                                dest_type: LLVMTypeRef,
                                name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildPtrToInt(builder, val, dest_type, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Builder: Aggregate ──
 
 pub fn llvm_build_extract_value(builder: LLVMBuilderRef, agg: LLVMValueRef,
                                   index: Int,
                                   name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildExtractValue(builder, agg, index, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_build_insert_value(builder: LLVMBuilderRef, agg: LLVMValueRef,
                                  val: LLVMValueRef, index: Int,
                                  name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMBuildInsertValue(builder, agg, val, index, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 // ── Global Variables ──
 
 pub fn llvm_add_global(mod_ref: LLVMModuleRef, ty: LLVMTypeRef,
                          name: String) -> LLVMValueRef with Unsafe:
-    return llvm.LLVMAddGlobal(mod_ref, ty, name)
+    return int_to_ptr(0, "ptr<Byte>")
 
 pub fn llvm_set_initializer(global: LLVMValueRef,
                               const_val: LLVMValueRef) with Unsafe:
-    llvm.LLVMSetInitializer(global, const_val)
+    let _stub: Int = 0
 
 pub fn llvm_set_linkage(global: LLVMValueRef, linkage: Int) with Unsafe:
-    llvm.LLVMSetLinkage(global, linkage)
+    let _stub: Int = 0
 
 pub fn llvm_set_global_constant(global: LLVMValueRef, is_const: Bool) with Unsafe:
-    let c: Int = if is_const: 1 else: 0
-    llvm.LLVMSetGlobalConstant(global, c)
+    let _stub: Int = 0
 
 // ── Function Attributes ──
 
 pub fn llvm_add_function_attr(fn_val: LLVMValueRef, attr: Int) with Unsafe:
-    let attr_ref: LLVMAttributeRef = llvm.LLVMCreateEnumAttribute(
-        llvm.LLVMGetGlobalContext(), attr, 0)
-    llvm.LLVMAddAttributeAtIndex(fn_val,
-        llvm_const("LLVM_ATTR_INDEX_FUNCTION"), attr_ref)
+    let _stub: Int = 0
 
 // ── Verification ──
 
 pub fn llvm_verify_module(mod_ref: LLVMModuleRef,
                             action: Int) -> Bool with Unsafe:
-    let status: Int = llvm.LLVMVerifyModule(mod_ref, action, ptr<Byte>(0))
-    return status == 0
+    return false
 
 pub fn llvm_verify_function(fn_val: LLVMValueRef,
                               action: Int) -> Bool with Unsafe:
-    return llvm.LLVMVerifyFunction(fn_val, action) == 1
+    return false
 
 pub fn llvm_print_module_to_string(mod_ref: LLVMModuleRef) -> String with Unsafe:
-    return llvm.LLVMPrintModuleToString(mod_ref)
+    return ""
 
 // ── BitWriter ──
 
 pub fn llvm_write_bitcode_to_file(mod_ref: LLVMModuleRef,
                                     path: String) with Unsafe:
-    llvm_bitwriter.LLVMWriteBitcodeToFile(mod_ref, path)
+    let _stub: Int = 0
 
 // ── Target Initialization ──
 
 pub fn llvm_initialize_native_target() with Unsafe:
-    llvm_target.LLVMInitializeNativeTarget()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_native_asm_printer() with Unsafe:
-    llvm_target.LLVMInitializeNativeAsmPrinter()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_native_disassembler() with Unsafe:
-    llvm_target.LLVMInitializeNativeDisassembler()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_all_target_infos() with Unsafe:
-    llvm_target.LLVMInitializeAllTargetInfos()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_all_targets() with Unsafe:
-    llvm_target.LLVMInitializeAllTargets()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_all_target_mcs() with Unsafe:
-    llvm_target.LLVMInitializeAllTargetMCs()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_all_asm_printers() with Unsafe:
-    llvm_target.LLVMInitializeAllAsmPrinters()
+    let _stub: Int = 0
 
 pub fn llvm_initialize_all_disassemblers() with Unsafe:
-    llvm_target.LLVMInitializeAllDisassemblers()
+    let _stub: Int = 0
 
 // ── Helper: resolve LLVM constant enum values at runtime ──
 // These are stubs for the textual .ll bootstrap path
@@ -684,12 +659,12 @@ pub fn llvm_const(name: String) -> Int:
 // ── Module dump (for debugging) ──
 
 pub fn llvm_dump_module(mod_ref: LLVMModuleRef) with Unsafe:
-    llvm.LLVMDumpModule(mod_ref)
+    let _stub: Int = 0
 
 // ── Set function calling convention ──
 
 pub fn llvm_set_function_call_conv(fn_val: LLVMValueRef, cc: Int) with Unsafe:
-    llvm.LLVMSetFunctionCallConv(fn_val, cc)
+    let _stub: Int = 0
 
 // ═══════════════════════════════════════════════════════════════════════
 // END STREAM GOLF SECTION — LLVM wrapper functions complete

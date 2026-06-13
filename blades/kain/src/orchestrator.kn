@@ -22,6 +22,8 @@
 
 use std::markscript
 use std::fs
+use std::os
+use std::text
 
 // ═════════════════════════════════════════════════════════════════════════════
 // BuildConfig — populated from markscript tables in build.md
@@ -97,6 +99,36 @@ pub const HANDLER_BUILD_LINK:      Int = 205
 pub const HANDLER_BUILD_PACKAGE:   Int = 206
 pub const HANDLER_SELFHOST_PHASE1: Int = 207
 pub const HANDLER_SELFHOST_PHASE2: Int = 208
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SOURCE_ORDER — canonical concatenation order (from KAIN.toml [source_order])
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub const SOURCE_ORDER: Array<String> = [
+    "token.kn",
+    "error.kn",
+    "span.kn",
+    "ast.kn",
+    "build.kn",
+    "lexer.kn",
+    "builtins.kn",
+    "runtime.kn",
+    "llvm_ffi.kn",
+    "jit_metal.kn",
+    "jit_x86.kn",
+    "jit_orc.kn",
+    "jit_cache.kn",
+    "jit.kn",
+    "parser.kn",
+    "types.kn",
+    "effects.kn",
+    "monomorphize.kn",
+    "codegen.kn",
+    "orchestrator.kn",
+    "compiler.kn",
+    "cli.kn",
+    "main.kn",
+]
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Forward stubs for compiler.kn types (shadowed at ouroboros combine time)
@@ -264,42 +296,363 @@ pub fn handler_test_run(spec_path: String) -> Int with IO:
         println("[kainc] test FAILED: " + spec_path)
         return 1
 
-pub fn handler_test_report(format: String) -> String with IO:
-    println("[kainc] test report (format: " + format + ")")
-    // Phase 4+: aggregate test results into JSON/Markdown report
-    if format == "json":
-        return "{\"tests\": [], \"passed\": 0, \"failed\": 0, \"phase\": \"stub\"}"
-    return "Test report: no results (wire to test runner in Phase 4+)"
+pub fn handler_test_report(spec_root: String, output_path: String) -> String with IO:
+    println("[kainc] test report: scanning " + spec_root)
 
-pub fn handler_build_link(target: String) -> Int with IO:
-    println("[kainc] build link (target: " + target + ")")
-    // Phase 4+: invoke clang/lld to link .ll → .exe
-    // For Phase 0-3, the bootstrap compiler handles linking via kain build
-    if target == "llvm":
-        println("[kainc] link: .ll → .exe (STUB — use 'kain build . --target llvm' for linking)")
+    // Collect test results by scanning for .kn files and running test_run on each
+    var results: Array<TestResult> = []
+    var passed: Int = 0
+    var failed: Int = 0
+
+    // Scan spec_root directory for .kn files
+    let dir_listing: String = abi_fs_read_dir_paths_text(spec_root)
+    if dir_listing == "":
+        println("[kainc] test report: no test files found in " + spec_root)
+        let empty_json: String = "{\"passed\": 0, \"failed\": 0, \"total\": 0, \"results\": []}"
+        if output_path != "":
+            fs_write_text(output_path, empty_json)
+            return output_path
+        let default_path: String = "spec/test_report.json"
+        fs_write_text(default_path, empty_json)
+        return default_path
+
+    // Parse directory listing — each line is a path
+    var line_start: Int = 0
+    var char_idx: Int = 0
+    var test_files: Array<String> = []
+    while char_idx < len(dir_listing):
+        let ch: String = dir_listing[char_idx]
+        if ch == "\n":
+            let file_path: String = ""
+            var ci: Int = line_start
+            while ci < char_idx:
+                file_path = file_path + dir_listing[ci]
+                ci = ci + 1
+            // Only keep .kn files
+            if len(file_path) > 3:
+                let ext_start: Int = len(file_path) - 3
+                if file_path[ext_start] == "." and file_path[ext_start + 1] == "k" and file_path[ext_start + 2] == "n":
+                    test_files.push(file_path)
+            line_start = char_idx + 1
+        char_idx = char_idx + 1
+
+    // Run each test file
+    var fi: Int = 0
+    while fi < len(test_files):
+        let tf: String = test_files[fi]
+        let test_src: String = fs_read_text(tf)
+        if test_src != "":
+            let exit_code: Int = handler_test_run(tf)
+            let tr: TestResult = TestResult {
+                name: tf,
+                passed: exit_code == 0,
+                error: if exit_code == 0: "" else: "check failed with exit " + str(exit_code),
+            }
+            results.push(tr)
+            if exit_code == 0:
+                passed = passed + 1
+            else:
+                failed = failed + 1
+        fi = fi + 1
+
+    let total: Int = passed + failed
+
+    // Format JSON report
+    var json: String = "{\n  \"passed\": " + str(passed) + ",\n"
+    json = json + "  \"failed\": " + str(failed) + ",\n"
+    json = json + "  \"total\": " + str(total) + ",\n"
+    json = json + "  \"results\": [\n"
+    var ri: Int = 0
+    while ri < len(results):
+        let r: TestResult = results[ri]
+        json = json + "    {\"name\": \"" + r.name + "\", \"passed\": " + str(r.passed) + ", \"error\": \"" + r.error + "\"}"
+        if ri < len(results) - 1:
+            json = json + ","
+        json = json + "\n"
+        ri = ri + 1
+    json = json + "  ]\n}\n"
+
+    // Write report
+    let report_path: String = output_path
+    if report_path == "":
+        report_path = "spec/test_report.json"
+    fs_write_text(report_path, json)
+    println("[kainc] test report written: " + report_path + " (passed=" + str(passed) + ", failed=" + str(failed) + ", total=" + str(total) + ")")
+    return report_path
+
+pub fn handler_build_link(out_dir: String, target: String) -> Int with IO:
+    println("[kainc] build link: out_dir=" + out_dir + " target=" + target)
+
+    // Collect all .ll files from out_dir
+    let dir_listing: String = abi_fs_read_dir_paths_text(out_dir)
+    if dir_listing == "":
+        println("[kainc] link: no .ll files found in " + out_dir)
+        return 1
+
+    var ll_files: Array<String> = []
+    var line_start: Int = 0
+    var char_idx: Int = 0
+    while char_idx < len(dir_listing):
+        let ch: String = dir_listing[char_idx]
+        if ch == "\n":
+            var file_path: String = ""
+            var ci: Int = line_start
+            while ci < char_idx:
+                file_path = file_path + dir_listing[ci]
+                ci = ci + 1
+            if len(file_path) > 3:
+                let ext_start: Int = len(file_path) - 3
+                if file_path[ext_start] == "." and file_path[ext_start + 1] == "l" and file_path[ext_start + 2] == "l":
+                    ll_files.push(file_path)
+            line_start = char_idx + 1
+        char_idx = char_idx + 1
+
+    let ll_count: Int = len(ll_files)
+    if ll_count == 0:
+        println("[kainc] link: no .ll files found in " + out_dir)
+        return 1
+
+    println("[kainc] link: found " + str(ll_count) + " .ll file(s)")
+
+    // Build clang link command
+    var cmd: String = "clang -O2"
+    var fi: Int = 0
+    while fi < ll_count:
+        cmd = cmd + " " + ll_files[fi]
+        fi = fi + 1
+    cmd = cmd + " -lkain_runtime -o kainc.exe"
+
+    println("[kainc] link command: " + cmd)
+
+    // Try to invoke linker via os_system
+    // os_system returns 0 on success, non-zero on failure
+    let result: Int = os_system(cmd)
+    if result != 0:
+        println("[kainc] link: clang returned exit code " + str(result))
+        println("[kainc] link: (ensure clang is on PATH and kain_runtime.lib is available)")
+        return result
+
+    println("[kainc] link: SUCCESS → kainc.exe")
+    return 0
+
+pub fn handler_build_package(project_root: String) -> Int with IO:
+    println("[kainc] build package: " + project_root)
+    println("[kainc] ========================================")
+
+    // Phase 1: Check all source files
+    println("[kainc] [1/3] Checking sources...")
+    let src_root: String = project_root + "/src"
+    let check_result: Int = handler_compile_check(src_root + "/main.kn")
+    if check_result != 0:
+        println("[kainc] build package: CHECK FAILED (exit=" + str(check_result) + ")")
+        return check_result
+    println("[kainc] [1/3] Check PASSED")
+
+    // Phase 2: Codegen
+    println("[kainc] [2/3] Compiling codegen...")
+    let codegen_result: Int = handler_compile_codegen(src_root + "/main.kn", "llvm", "debug")
+    if codegen_result != 0:
+        println("[kainc] build package: CODEGEN FAILED (exit=" + str(codegen_result) + ")")
+        return codegen_result
+    println("[kainc] [2/3] Codegen PASSED")
+
+    // Phase 3: Link
+    println("[kainc] [3/3] Linking...")
+    let out_dir: String = project_root + "/out"
+    let link_result: Int = handler_build_link(out_dir, "llvm")
+    if link_result != 0:
+        println("[kainc] build package: LINK FAILED (exit=" + str(link_result) + ")")
+        return link_result
+    println("[kainc] [3/3] Link PASSED")
+
+    println("[kainc] ========================================")
+    println("[kainc] BUILD PACKAGE: SUCCESS")
+    return 0
+
+pub fn handler_selfhost_phase1(project_root: String) -> Int with IO:
+    println("[kainc] selfhost phase1: combining sources from " + project_root)
+
+    // Combine all source files in SOURCE_ORDER into one monolithic source
+    let src_root: String = project_root + "/src"
+    var combined: String = ""
+
+    // Header
+    combined = combined + "// ═══════════════════════════════════════════════════════════════════\n"
+    combined = combined + "//  kainc_bootstrap.kn — Ouroboros Combined Source\n"
+    combined = combined + "//  Generated by: kainc selfhost phase1\n"
+    combined = combined + "//  Source files: " + str(len(SOURCE_ORDER)) + "\n"
+    combined = combined + "// ═══════════════════════════════════════════════════════════════════\n\n"
+
+    var fi: Int = 0
+    var files_read: Int = 0
+    while fi < len(SOURCE_ORDER):
+        let file_name: String = SOURCE_ORDER[fi]
+        let file_path: String = src_root + "/" + file_name
+
+        combined = combined + "\n"
+        combined = combined + "// ── BEGIN: " + file_name + " ──\n\n"
+
+        let source: String = fs_read_text(file_path)
+        if source == "":
+            println("[kainc] phase1: WARNING — cannot read " + file_path)
+            combined = combined + "// WARNING: " + file_name + " could not be read\n"
+        else:
+            combined = combined + source
+            combined = combined + "\n"
+            files_read = files_read + 1
+
+        combined = combined + "\n// ── END: " + file_name + " ──\n"
+        fi = fi + 1
+
+    println("[kainc] phase1: read " + str(files_read) + " / " + str(len(SOURCE_ORDER)) + " source files")
+
+    // Write combined source
+    let out_dir: String = project_root + "/src/.selfhost/bootstrap/combined"
+    // Ensure directory exists
+    let mkdir_result: Int = abi_fs_create_dir_all(out_dir)
+    let _ = mkdir_result
+
+    let out_path: String = out_dir + "/kainc_bootstrap.kn"
+    fs_write_text(out_path, combined)
+    println("[kainc] phase1: combined source written to " + out_path)
+    println("[kainc] phase1: combined size = " + str(len(combined)) + " bytes")
+
+    // Run compile_check on the combined source
+    println("[kainc] phase1: running compile check on combined source...")
+    let check_result: Int = handler_compile_check(out_path)
+    if check_result != 0:
+        println("[kainc] phase1: compile check FAILED on combined source")
+        return check_result
+
+    println("[kainc] phase1: compile check PASSED on combined source")
+    return 0
+
+pub fn handler_selfhost_phase2(project_root: String, verify: Bool) -> Int with IO:
+    println("[kainc] selfhost phase2: ouroboros verification")
+
+    // Step 1: Run phase1 to get combined source
+    let phase1_result: Int = handler_selfhost_phase1(project_root)
+    if phase1_result != 0:
+        println("[kainc] phase2: phase1 FAILED — cannot proceed")
+        return phase1_result
+
+    let bootstrap_path: String = project_root + "/src/.selfhost/bootstrap/combined/kainc_bootstrap.kn"
+
+    // Step 2: Compile the combined source with the bootstrap compiler (stage 1)
+    println("[kainc] phase2: stage 1 — compiling combined source via bootstrap...")
+    let stage1_result: Int = handler_compile_codegen(bootstrap_path, "llvm", "debug")
+    if stage1_result != 0:
+        println("[kainc] phase2: stage 1 codegen FAILED")
+        println("[kainc] phase2: OUROBOROS NOT READY: typechecker/codegen not yet complete")
+        return 2
+
+    // Read stage 1 LLVM IR output
+    let stage1_ll_path: String = bootstrap_path + ".ll"
+    let stage1_ll: String = fs_read_text(stage1_ll_path)
+    if stage1_ll == "":
+        println("[kainc] phase2: stage 1 LLVM IR is empty")
+        println("[kainc] phase2: OUROBOROS NOT READY: typechecker/codegen not yet complete")
+        return 2
+
+    let stage1_size: Int = len(stage1_ll)
+    println("[kainc] phase2: stage 1 LLVM IR size = " + str(stage1_size) + " bytes")
+
+    // Detect stub output: if only contains "ret i64 0" stubs, it's not real
+    // Simple heuristic: check for actual LLVM instructions beyond basic stub pattern
+    var meaningful_lines: Int = 0
+    var line_idx: Int = 0
+    var line_start2: Int = 0
+    var char_idx2: Int = 0
+    while char_idx2 < stage1_size:
+        if stage1_ll[char_idx2] == "\n" or char_idx2 == stage1_size - 1:
+            var ll_line: String = ""
+            var ci: Int = line_start2
+            while ci < char_idx2 and ci < stage1_size:
+                ll_line = ll_line + stage1_ll[ci]
+                ci = ci + 1
+            // Count lines with real LLVM instructions (not comments, not stubs)
+            let is_empty: Bool = (ll_line == "")
+            let is_define: Bool = text_contains_string(ll_line, "define ")
+            let is_stub_ret: Bool = text_contains_string(ll_line, "ret i64 0")
+            let is_stub: Bool = text_contains_string(ll_line, "stub")
+            let is_comment: Bool = text_contains_string(ll_line, "; ")
+            let is_zero: Bool = text_contains_string(ll_line, "add i64 0")
+            if is_empty == false and is_define == false and is_stub_ret == false and is_stub == false and is_comment == false and is_zero == false:
+                meaningful_lines = meaningful_lines + 1
+            line_start2 = char_idx2 + 1
+            line_idx = line_idx + 1
+        char_idx2 = char_idx2 + 1
+
+    if meaningful_lines < 10:
+        println("[kainc] phase2: stage 1 LLVM IR appears to be stub output (meaningful_lines=" + str(meaningful_lines) + ")")
+        println("[kainc] phase2: OUROBOROS NOT READY: typechecker/codegen not yet complete")
+        return 2
+
+    if verify == false:
+        println("[kainc] phase2: stage 1 compilation succeeded (no ouroboros verification requested)")
         return 0
-    println("[kainc] link: target '" + target + "' not yet supported")
-    return 1
 
-pub fn handler_build_package(package_name: String) -> Int with IO:
-    println("[kainc] build package: " + package_name)
-    // Phase 4+: create distributable package (amalgamate + bundle)
-    // For Phase 0-3, use 'kain amalgamate src/'
-    println("[kainc] package: STUB — use 'kain amalgamate' for distribution")
-    return 0
+    // Step 3: Link stage 1 → stage1.exe
+    println("[kainc] phase2: linking stage 1 executable...")
+    let out_dir: String = project_root + "/out"
+    let link_result: Int = handler_build_link(out_dir, "llvm")
+    if link_result != 0:
+        println("[kainc] phase2: link FAILED — cannot produce stage1.exe")
+        println("[kainc] phase2: OUROBOROS NOT READY: linker unavailable")
+        return 2
 
-pub fn handler_selfhost_phase1(crate_name: String) -> Int with IO:
-    println("[kainc] selfhost phase1: " + crate_name)
-    // Phase 1: combine all source files in source_order
-    println("[kainc] phase1: source combination from KAIN.toml source_order")
-    println("[kainc] phase1: STUB — awaiting ouroboros combine pipeline")
-    return 0
+    // Step 4: Run stage1.exe to compile the combined source → stage2.ll
+    println("[kainc] phase2: stage 2 — running stage1.exe to compile itself...")
+    let stage1_exe: String = project_root + "/kainc.exe"
+    let stage2_cmd: String = stage1_exe + " build " + bootstrap_path + " --target llvm"
+    let stage2_exit: Int = os_system(stage2_cmd)
+    if stage2_exit != 0:
+        println("[kainc] phase2: stage 2 compilation FAILED (exit=" + str(stage2_exit) + ")")
+        println("[kainc] phase2: OUROBOROS NOT READY: kainc.exe cannot compile itself yet")
+        return 2
 
-pub fn handler_selfhost_phase2(crate_name: String) -> Int with IO:
-    println("[kainc] selfhost phase2: " + crate_name)
-    // Phase 2: compile combined source → compare LLVM IR
-    println("[kainc] phase2: compile combined source → verify byte-identical IR")
-    println("[kainc] phase2: STUB — awaiting full typechecker + codegen implementations")
+    // Step 5: Read stage2.ll and compare
+    let stage2_ll_path: String = bootstrap_path + ".ll"
+    let stage2_ll: String = fs_read_text(stage2_ll_path)
+    if stage2_ll == "":
+        println("[kainc] phase2: stage 2 LLVM IR is empty")
+        return 1
+
+    let stage2_size: Int = len(stage2_ll)
+    println("[kainc] phase2: stage 1 IR = " + str(stage1_size) + " bytes")
+    println("[kainc] phase2: stage 2 IR = " + str(stage2_size) + " bytes")
+
+    // Byte-by-byte comparison
+    if stage1_size != stage2_size:
+        println("[kainc] phase2: SIZE MISMATCH: stage1=" + str(stage1_size) + " vs stage2=" + str(stage2_size))
+        // Find first byte that differs (within shorter length)
+        let check_len: Int = if stage1_size < stage2_size: stage1_size else: stage2_size
+        var mismatch_byte: Int = -1
+        var bi: Int = 0
+        while bi < check_len:
+            if stage1_ll[bi] != stage2_ll[bi]:
+                mismatch_byte = bi
+                bi = check_len  // break
+            bi = bi + 1
+        if mismatch_byte >= 0:
+            println("[kainc] phase2: MISMATCH at byte " + str(mismatch_byte))
+        else:
+            println("[kainc] phase2: MISMATCH at byte " + str(check_len) + " (size differs)")
+        return 1
+
+    // Sizes match — compare content
+    var bi: Int = 0
+    while bi < stage1_size:
+        if stage1_ll[bi] != stage2_ll[bi]:
+            println("[kainc] phase2: MISMATCH at byte " + str(bi))
+            return 1
+        bi = bi + 1
+
+    println("[kainc] phase2: byte-identical match confirmed")
+    println("[kainc] phase2: ╔══════════════════════════════════════╗")
+    println("[kainc] phase2: ║   OUROBOROS VERIFIED              ║")
+    println("[kainc] phase2: ║   Stage 1 IR ≡ Stage 2 IR         ║")
+    println("[kainc] phase2: ╚══════════════════════════════════════╝")
     return 0
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -461,15 +814,13 @@ pub fn orchestrator_test(orch: OrchState, spec_path: String) -> Int with IO:
 // orchestrator_selfhost — self-host verification pipeline
 // ═════════════════════════════════════════════════════════════════════════════
 
-pub fn orchestrator_selfhost(orch: OrchState, verify: Bool) -> Int with IO:
-    println("[ORCH] SelfHost: verify=" + str(verify))
-    let _phase1: Int = handler_selfhost_phase1("kainc")
-    let phase2: Int = handler_selfhost_phase2("kainc")
-    if phase2 != 0:
-        return phase2
-    if verify:
-        println("[ORCH] Ouroboros verification: STUB — awaiting GOLF wiring")
-    return 0
+pub fn orchestrator_selfhost(orch: OrchState, project_root: String, verify: Bool) -> Int with IO:
+    println("[ORCH] SelfHost: project=" + project_root + " verify=" + str(verify))
+    let phase1_result: Int = handler_selfhost_phase1(project_root)
+    if phase1_result != 0:
+        return phase1_result
+    let phase2_result: Int = handler_selfhost_phase2(project_root, verify)
+    return phase2_result
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CLI entry points — called by GOLF's cli.kn / main.kn
@@ -493,9 +844,9 @@ pub fn orch_test_cli(input_path: String) -> Int with IO:
     let orch: OrchState = init_orchestrator("build.md")
     return orchestrator_test(orch, input_path)
 
-pub fn orch_selfhost_cli(verify: Bool) -> Int with IO:
+pub fn orch_selfhost_cli(project_root: String, verify: Bool) -> Int with IO:
     let orch: OrchState = init_orchestrator("build.md")
-    return orchestrator_selfhost(orch, verify)
+    return orchestrator_selfhost(orch, project_root, verify)
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Utility: print build config summary (for diagnostics)

@@ -542,8 +542,13 @@ pub fn codegen_textual(program: MonomorphizedProgram,
     gen = emit_struct_defs_from_program(gen, program)
     gen = emit_blank(gen)
 
-    // ── Global String Constants ──
+    // ── Global Constants (const items) ──
     gen = emit_blank(gen)
+    gen = emit_raw(gen, "; ── Global Constants ──\n")
+    gen = emit_const_globals(gen, program)
+    gen = emit_blank(gen)
+
+    // ── Global String Constants ──
     gen = emit_raw(gen, "; ── Global String Constants ──\n")
     gen = emit_global_strings(gen, program)
     gen = emit_blank(gen)
@@ -605,6 +610,27 @@ pub fn emit_struct_defs_from_program(gen: LlvmGenerator,
     return r
 
 // ═══════════════════════════════════════════════════════════════════
+// emit_const_globals — emit AST_ITEM_CONST as LLVM global constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn emit_const_globals(gen: LlvmGenerator,
+                           program: MonomorphizedProgram) -> LlvmGenerator:
+    let mut r: LlvmGenerator = gen
+
+    var i: Int = 0
+    while i < len(program.items):
+        let item: TypedItem = program.items[i]
+        if item.kind == AST_ITEM_CONST:
+            let ty: ResolvedType = item.resolved_type
+            let llvm_ty: String = map_type_to_llvm(ty)
+            let const_name: String = "@const_" + str(item.name_idx)
+            let zero_val: String = map_llvm_zero(llvm_ty)
+            r = emit_raw(r, const_name + " = constant " + llvm_ty + " " + zero_val + "\n")
+        i = i + 1
+
+    return r
+
+// ═══════════════════════════════════════════════════════════════════
 // emit_global_strings — emit global string constants
 // ═══════════════════════════════════════════════════════════════════
 
@@ -615,6 +641,32 @@ pub fn emit_global_strings(gen: LlvmGenerator,
     return r
 
 // ═══════════════════════════════════════════════════════════════════
+// Function AST data layout helpers (mirrors types.kn)
+// ═══════════════════════════════════════════════════════════════════
+// data[0] = name_idx
+// data[1] = attrs_count
+// data[2..2+ac] = attrs
+// next = gcount = data[pos]; data[pos+1..pos+1+2*gc] = generic pairs
+// next = pcount = data[pos]; data[pos+1..pos+1+2*pc] = (pname, ptype) pairs
+// next = ret_type_idx
+// next = where_idx
+// next = eff_count; data[pos+1..pos+1+ec] = effect indices
+// next = body_idx (block node index, -1 if none)
+// next = is_async
+
+pub fn cg_func_skip_attrs(data: Array<Int>) -> Int:
+    let ac: Int = if len(data) > 1: data[1] else: 0
+    return 2 + ac
+
+pub fn cg_func_skip_generics(data: Array<Int>, pos: Int) -> Int:
+    let gc: Int = if pos < len(data): data[pos] else: 0
+    return pos + 1 + 2 * gc
+
+pub fn cg_func_skip_params(data: Array<Int>, pos: Int) -> Int:
+    let pc: Int = if pos < len(data): data[pos] else: 0
+    return pos + 1 + 2 * pc
+
+// ═══════════════════════════════════════════════════════════════════
 // compile_function_textual — REAL function emission
 // ═══════════════════════════════════════════════════════════════════
 //
@@ -622,7 +674,7 @@ pub fn emit_global_strings(gen: LlvmGenerator,
 //   define <ret_ty> @<fn_name>(<params>) {
 //   entry:
 //     ; alloca for each parameter + locals
-//     ; compile body statements
+//     ; compile body statements via compile_block_textual
 //     ; ret instruction
 //   }
 
@@ -630,8 +682,7 @@ pub fn compile_function_textual(gen: LlvmGenerator,
                                  item: TypedItem,
                                  ast_nodes: Array<AstNode>) -> LlvmGenerator:
     let mut r: LlvmGenerator = gen
-    let ty: ResolvedType = item.resolved_type
-    let ret_llvm: String = map_type_to_llvm(ty)
+    let ret_llvm: String = map_type_to_llvm(item.resolved_type)
     let fn_name: String = item.name
 
     // ── Emit function signature ──
@@ -639,7 +690,7 @@ pub fn compile_function_textual(gen: LlvmGenerator,
     r = emit_raw(r, "define " + ret_llvm + " @" + fn_name + "(")
 
     // Emit parameters
-    let param_count: Int = ty.fn_param_count
+    let param_count: Int = item.resolved_type.fn_param_count
     var pi: Int = 0
     while pi < param_count:
         if pi > 0:
@@ -669,6 +720,24 @@ pub fn compile_function_textual(gen: LlvmGenerator,
     else:
         AstNode { kind: AST_ITEM_FUNCTION, span_start: 0, span_end: 0, data: [] }
 
+    let dlen: Int = ast_data_len(fn_node)
+
+    // ── Parse function data layout to find body_idx ──
+    var body_idx: Int = -1
+    if dlen > 0:
+        var pos: Int = cg_func_skip_attrs(fn_node.data)
+        pos = cg_func_skip_generics(fn_node.data, pos)
+        pos = cg_func_skip_params(fn_node.data, pos)
+        // pos now at ret_type_idx
+        if pos < dlen: pos = pos + 1  // skip ret_type_idx
+        if pos < dlen: pos = pos + 1  // skip where_idx
+        // pos now at eff_count
+        let ec: Int = if pos < dlen: fn_node.data[pos] else: 0
+        pos = pos + 1 + ec  // skip effects
+        // pos now at body_idx
+        if pos < dlen:
+            body_idx = fn_node.data[pos]
+
     // ── Entry block ──
     let entry_result: GenResult = next_label(r)
     r = entry_result.gen
@@ -689,28 +758,12 @@ pub fn compile_function_textual(gen: LlvmGenerator,
         r = locals_add(r, param_name, alloca_reg, "i64")
         pi2 = pi2 + 1
 
-    // ── Compile function body ──
-    // The function AST node's data encodes the body
-    // data[0] = name_idx
-    // data[1] = param count
-    // data[2..2+param_count] = param info
-    // remaining data = body statement/block indices
-    let dlen: Int = ast_data_len(fn_node)
-    if dlen > 0:
-        // Walk body statements
-        // Starting from offset after name + params
-        var body_start: Int = 1 + param_count  // simplified: name_idx + params
-        if body_start >= dlen:
-            body_start = dlen - 1
-        if body_start < 0:
-            body_start = 0
-
-        var stmt_i: Int = body_start
-        while stmt_i < dlen:
-            let stmt_idx: Int = ast_data_get(fn_node, stmt_i)
-            if stmt_idx >= 0 and stmt_idx < len(ast_nodes):
-                r = compile_stmt_textual(r, stmt_idx, ast_nodes, ret_llvm)
-            stmt_i = stmt_i + 1
+    // ── Compile function body via block ──
+    if body_idx >= 0 and body_idx < len(ast_nodes):
+        let body_node: AstNode = ast_nodes[body_idx]
+        // Use compile_block_textual which walks the block's data as child indices
+        let body_result: GenTypeResult = compile_block_textual(r, body_node, ast_nodes)
+        r = body_result.gen
 
     // ── Default return (in case no explicit return) ──
     if ret_llvm != "void":
