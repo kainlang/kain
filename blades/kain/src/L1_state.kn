@@ -2,11 +2,11 @@
 // STREAM: FOXTROT + GOLF — Construct Implementation
 //
 // Implements the L1 state authority layer (world + entangle) for the
-// self-host compiler. Typecheck: check_world() validates world state
-// slots, surface declarations, and field types. check_entangle()
+// self-host compiler. Typecheck: knc_check_world() validates world state
+// slots, surface declarations, and field types. knc_check_entangle()
 // validates endpoint paths, type-matches fields, and deduplicates.
-// Codegen: compile_world_item() emits LLVM globals and init functions
-// for world instances. compile_entangle_item() emits ABI registration
+// Codegen: knc_compile_world_item() emits LLVM globals and init functions
+// for world instances. knc_compile_entangle_item() emits ABI registration
 // calls for entangled field pairs.
 //
 // Spec layers reference: X:/blades/kain/spec-layers/L1_state.md
@@ -22,7 +22,7 @@ use ast
 use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// check_world — Typecheck a world declaration
+// knc_check_world — Typecheck a world declaration
 //
 // A world is a compiler-owned state container:
 //
@@ -34,7 +34,7 @@ use effects
 //   - State slots (name + type + initializer)
 //   - At least one surface binding (native_ui, web, viewport3d, ue5)
 //   - A struct-like type for dotted access (WorldName.field)
-//   - Entangle coupling support (via check_entangle)
+//   - Entangle coupling support (via knc_check_entangle)
 //
 // Phase 1 will add:
 //   (A) State slot resolution: for each `state <name>: <Type> = <init>`:
@@ -54,7 +54,7 @@ use effects
 // with no field resolution or surface validation.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItemAndEnv {
         env: env,
@@ -65,7 +65,7 @@ pub fn check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// check_entangle — Typecheck an entangle declaration
+// knc_check_entangle — Typecheck an entangle declaration
 //
 // An entangle couples two world fields across world boundaries:
 //
@@ -92,7 +92,7 @@ pub fn check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // no endpoint validation or type-matching.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItemAndEnv {
         env: env,
@@ -103,7 +103,7 @@ pub fn check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_world_item — Codegen a world declaration (STUB)
+// knc_compile_world_item — Codegen a world declaration (STUB)
 //
 // Phase 1 will emit:
 //   (A) LLVM struct type: %world_Name = type { i64, i64, ... }
@@ -122,11 +122,11 @@ pub fn check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // Current status: STUB — passes generator through unchanged.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_world_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_world_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_entangle_item — Codegen an entangle declaration (STUB)
+// knc_compile_entangle_item — Codegen an entangle declaration (STUB)
 //
 // Phase 1 will emit:
 //   (A) Global string constants for endpoint paths:
@@ -145,5 +145,5 @@ pub fn compile_world_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
 // Current status: STUB — passes generator through unchanged.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_entangle_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_entangle_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen

@@ -10,10 +10,10 @@
 //
 // Construction flow:
 //   1. GPU_SHADER_STAGE_* constants identify the three shader variants
-//   2. check_shader() validates shader item AST and returns TypedItem with EFF_GPU
-//   3. check_dispatch_stmt() validates dispatch key format + GPU/Unsafe effect requirements
-//   4. Codegen stubs (compile_shader_artifact, compile_dispatch_stmt)
-//   5. GPU compatibility helpers (is_gpu_compatible_type)
+//   2. knc_check_shader() validates shader item AST and returns TypedItem with EFF_GPU
+//   3. knc_check_dispatch_stmt() validates dispatch key format + GPU/Unsafe effect requirements
+//   4. Codegen stubs (knc_compile_shader_artifact, knc_compile_dispatch_stmt)
+//   5. GPU compatibility helpers (knc_is_gpu_compatible_type)
 
 use types
 use effects
@@ -24,45 +24,45 @@ use effects
 // GPU SHADER STAGE CONSTANTS
 // ═══════════════════════════════════════════════════════════════════
 
-pub const GPU_SHADER_STAGE_COMPUTE:  Int = 0
-pub const GPU_SHADER_VERTEX:         Int = 1
-pub const GPU_SHADER_FRAGMENT:       Int = 2
+pub const KNC_GPU_SHADER_STAGE_COMPUTE:  Int = 0
+pub const KNC_GPU_SHADER_VERTEX:         Int = 1
+pub const KNC_GPU_SHADER_FRAGMENT:       Int = 2
 
 // ═══════════════════════════════════════════════════════════════════
 // GPU TYPE COMPATIBILITY HELPERS
 // ═══════════════════════════════════════════════════════════════════
 
-pub const GPU_TYPE_VEC2:  String = "Vec2"
-pub const GPU_TYPE_VEC3:  String = "Vec3"
-pub const GPU_TYPE_VEC4:  String = "Vec4"
-pub const GPU_TYPE_IVEC2: String = "IVec2"
-pub const GPU_TYPE_UVEC2: String = "UVec2"
-pub const GPU_TYPE_UVEC3: String = "UVec3"
-pub const GPU_TYPE_MAT4:  String = "Mat4"
-pub const GPU_TYPE_STORAGE_BUFFER: String = "StorageBuffer"
-pub const GPU_TYPE_SAMPLER2D:      String = "Sampler2D"
+pub const KNC_GPU_TYPE_VEC2:  String = "Vec2"
+pub const KNC_GPU_TYPE_VEC3:  String = "Vec3"
+pub const KNC_GPU_TYPE_VEC4:  String = "Vec4"
+pub const KNC_GPU_TYPE_IVEC2: String = "IVec2"
+pub const KNC_GPU_TYPE_UVEC2: String = "UVec2"
+pub const KNC_GPU_TYPE_UVEC3: String = "UVec3"
+pub const KNC_GPU_TYPE_MAT4:  String = "Mat4"
+pub const KNC_GPU_TYPE_STORAGE_BUFFER: String = "StorageBuffer"
+pub const KNC_GPU_TYPE_SAMPLER2D:      String = "Sampler2D"
 
-// ── is_gpu_compatible_type ──
-pub fn is_gpu_compatible_type(env: TypeEnv, ty: ResolvedType) -> Bool:
+// ── knc_is_gpu_compatible_type ──
+pub fn knc_is_gpu_compatible_type(env: TypeEnv, ty: ResolvedType) -> Bool:
     if ty.kind == types.RT_FLOAT or ty.kind == types.RT_INT:
         return true
     if ty.kind == types.RT_STRUCT:
         let name: String = types.strtab_lookup_name(env, ty.name)
-        if name == GPU_TYPE_VEC2 or name == GPU_TYPE_VEC3 or name == GPU_TYPE_VEC4:
+        if name == KNC_GPU_TYPE_VEC2 or name == KNC_GPU_TYPE_VEC3 or name == KNC_GPU_TYPE_VEC4:
             return true
-        if name == GPU_TYPE_IVEC2 or name == GPU_TYPE_UVEC2 or name == GPU_TYPE_UVEC3:
+        if name == KNC_GPU_TYPE_IVEC2 or name == KNC_GPU_TYPE_UVEC2 or name == KNC_GPU_TYPE_UVEC3:
             return true
-        if name == GPU_TYPE_MAT4:
+        if name == KNC_GPU_TYPE_MAT4:
             return true
     return false
 
-// ── is_gpu_uniform_type ──
-pub fn is_gpu_uniform_type(env: TypeEnv, ty: ResolvedType) -> Bool:
-    if is_gpu_compatible_type(env, ty):
+// ── knc_is_gpu_uniform_type ──
+pub fn knc_is_gpu_uniform_type(env: TypeEnv, ty: ResolvedType) -> Bool:
+    if knc_is_gpu_compatible_type(env, ty):
         return true
     if ty.kind == types.RT_GENERIC:
         let name: String = types.strtab_lookup_name(env, ty.name)
-        if name == GPU_TYPE_STORAGE_BUFFER or name == GPU_TYPE_SAMPLER2D:
+        if name == KNC_GPU_TYPE_STORAGE_BUFFER or name == KNC_GPU_TYPE_SAMPLER2D:
             return true
     return false
 
@@ -70,8 +70,8 @@ pub fn is_gpu_uniform_type(env: TypeEnv, ty: ResolvedType) -> Bool:
 // TYPECHECKER: GPU constructs
 // ═══════════════════════════════════════════════════════════════════
 
-// ── check_shader — validate shader item declaration ──
-pub fn check_shader(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+// ── knc_check_shader — validate shader item declaration ──
+pub fn knc_check_shader(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItemAndEnv {
         env: env,
@@ -82,8 +82,8 @@ pub fn check_shader(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         }
     }
 
-// ── check_dispatch_stmt — validate dispatch statement ──
-pub fn check_dispatch_stmt(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+// ── knc_check_dispatch_stmt — validate dispatch statement ──
+pub fn knc_check_dispatch_stmt(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let has_gpu: Bool = (env.crnt_effects and EFF_GPU) != 0
     let has_unsafe: Bool = (env.crnt_effects and EFF_UNSAFE) != 0
     let mut e: TypeEnv = env
@@ -106,8 +106,8 @@ pub fn check_dispatch_stmt(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAn
 // CODEGEN STUBS (BLUE stream — real emission deferred)
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_shader_artifact() -> String:
+pub fn knc_compile_shader_artifact() -> String:
     return ""
 
-pub fn compile_dispatch_stmt() -> Int:
+pub fn knc_compile_dispatch_stmt() -> Int:
     return 0

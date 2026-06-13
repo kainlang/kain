@@ -2,11 +2,11 @@
 // STREAM: FOXTROT + GOLF — Construct Implementation
 //
 // Implements the L2 state integrity layer (patch + law) for the
-// self-host compiler. Typecheck: check_patch_law() reuses the function
+// self-host compiler. Typecheck: knc_check_patch_law() reuses the function
 // typecheck path, validates return types, and collects mutation paths
-// for patches. Codegen: compile_patch_fn() emits journaled mutation
+// for patches. Codegen: knc_compile_patch_fn() emits journaled mutation
 // calls (abi_patch_begin/record/commit) around a normal function body.
-// compile_law_fn() emits a plain i1-returning function with #0 attribute.
+// knc_compile_law_fn() emits a plain i1-returning function with #0 attribute.
 //
 // Spec layers reference: X:/blades/kain/spec-layers/L2_integrity.md
 // Language reference: X:/docs/PATCH.MD, X:/docs/LAW.MD
@@ -21,7 +21,7 @@ use ast
 use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// check_patch_law — Typecheck a patch or law declaration
+// knc_check_patch_law — Typecheck a patch or law declaration
 //
 // Patch and law are structurally identical to 'fn' (parameters, return
 // type, body block) with additional semantic constraints:
@@ -57,7 +57,7 @@ use effects
 // mutation path collection.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_patch_law(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> TypedItemAndEnv:
+pub fn knc_check_patch_law(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     let ret: ResolvedType = if kind == AST_ITEM_LAW: rt_bool() else: rt_i64()
     return TypedItemAndEnv {
@@ -69,7 +69,7 @@ pub fn check_patch_law(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> Type
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_patch_fn — Codegen a patch declaration (STUB)
+// knc_compile_patch_fn — Codegen a patch declaration (STUB)
 //
 // Phase 1 will emit:
 //   (A) Function signature: define i64 @patch_<name>(i64 %params) #1
@@ -87,11 +87,11 @@ pub fn check_patch_law(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> Type
 // Current status: STUB — passes generator through unchanged.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_patch_fn(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_patch_fn(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_law_fn — Codegen a law declaration (STUB)
+// knc_compile_law_fn — Codegen a law declaration (STUB)
 //
 // Phase 1 will emit:
 //   (A) Function signature: define i1 @law_<name>(i64 %params) #0
@@ -105,5 +105,5 @@ pub fn compile_patch_fn(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
 // Current status: STUB — passes generator through unchanged.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_law_fn(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_law_fn(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen

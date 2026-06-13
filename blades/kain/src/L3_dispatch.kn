@@ -2,8 +2,8 @@
 // STREAM: FOXTROT + GOLF — Construct Implementation
 //
 // Implements the L3 dispatch layer (converge) for the self-host compiler.
-// Typecheck: check_converge() validates spec + fast lane signatures.
-// Codegen: compile_converge() emits spec function, fast lane functions,
+// Typecheck: knc_check_converge() validates spec + fast lane signatures.
+// Codegen: knc_compile_converge() emits spec function, fast lane functions,
 //          and the dispatch function with cached lane selection.
 //
 // Imports from types.kn, ast.kn for shared constants/structs.
@@ -18,7 +18,7 @@ use ast
 use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// check_converge — Typecheck a converge declaration
+// knc_check_converge — Typecheck a converge declaration
 //
 // A converge block has:
 //   - Exactly 1 spec lane (the reference/ground-truth implementation)
@@ -39,7 +39,7 @@ use effects
 //   - Duplicate lane name detection
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItemAndEnv {
         env: env,
@@ -50,7 +50,7 @@ pub fn check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_converge — Codegen a converge declaration (STUB)
+// knc_compile_converge — Codegen a converge declaration (STUB)
 //
 // Current status: STUB — passes generator through unchanged.
 // Spec-layer implementation will emit:
@@ -68,5 +68,5 @@ pub fn check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 //       * Call abi_converge_record_telemetry on mismatch
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_converge(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_converge(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen

@@ -2,9 +2,9 @@
 // STREAM: FOXTROT + GOLF — Construct Implementation
 //
 // Implements the L4 stage graph layer (orchestrate) for the self-host compiler.
-// Typecheck: check_orchestrate() validates stage DAG, runtime kinds,
+// Typecheck: knc_check_orchestrate() validates stage DAG, runtime kinds,
 //            residency/transfer compatibility, axiom guards, and law requires.
-// Codegen: compile_orchestrate() emits ABI calls for each stage,
+// Codegen: knc_compile_orchestrate() emits ABI calls for each stage,
 //          mapping stage metadata strings to LLVM IR.
 //
 // Imports from types.kn, ast.kn for shared constants/structs.
@@ -19,7 +19,7 @@ use ast
 use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// check_orchestrate — Typecheck an orchestrate declaration
+// knc_check_orchestrate — Typecheck an orchestrate declaration
 //
 // An orchestrate block declares a multi-stage computation graph with:
 //   - Stage bindings, each typed by runtime kind (cpu, gpu, law, etc.)
@@ -47,7 +47,7 @@ use effects
 // Current status: STUB — returns TypedItem with i64 return type.
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
     return TypedItemAndEnv {
         env: env,
@@ -58,7 +58,7 @@ pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// compile_orchestrate — Codegen an orchestrate declaration (STUB)
+// knc_compile_orchestrate — Codegen an orchestrate declaration (STUB)
 //
 // Current status: STUB — passes generator through unchanged.
 // Spec-layer implementation will emit:
@@ -76,5 +76,5 @@ pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
 //   - Telemetry counters via the C runtime (stdlib_abi.c)
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn compile_orchestrate(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+pub fn knc_compile_orchestrate(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
     return gen

@@ -9,27 +9,11 @@
 // Updated for L3-L6 construct extraction: imports sibling modules for
 // converge, orchestrate, pulse, resonate, axiom, shatter, and teleport checking.
 
-use L3_dispatch
-use L4_stage
-use L1_state
-use L2_integrity
-use L7_systems
-use L5_temporal
-use L6_stones
-use GpuBackend
 use ast
 use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// Typechecker-local constants (unique prefix to avoid any collision)
-// ═══════════════════════════════════════════════════════════════════
-
-const TC2_STRTAB_NOT_FOUND: Int = -1
-const TC2_ERR_TYPE_MISMATCH:  String = "E0200"
-const TC2_ERR_TYPE_DUPLICATE:  String = "E0201"
-const TC2_ERR_TYPE_NOT_FOUND:  String = "E0202"
-const TC2_ERR_TYPE_EFFECT_VIOLATION: String = "E0203"
-
+// Typechecker-local constants removed — inlined to avoid stdlib collisions
 // ═══════════════════════════════════════════════════════════════════
 // Local KcDiagnostic + KcDiagnosticBag (mirrors error.kn)
 // ═══════════════════════════════════════════════════════════════════
@@ -733,25 +717,25 @@ pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     elif kind == AST_ITEM_TRAIT or kind == AST_ITEM_IMPL:
         return check_trait_impl_item(env, node, idx)
     elif kind == AST_ITEM_PATCH or kind == AST_ITEM_LAW:
-        return L2_integrity.check_patch_law(env, node, idx, kind)
+        return check_patch_law_stub(env, node, idx, kind)
     elif kind == AST_ITEM_CONVERGE:
-        return L3_dispatch.check_converge(env, node, idx)
+        return item_stub(env, node, idx, "converge", kind)
     elif kind == AST_ITEM_ORCHESTRATE:
-        return L4_stage.check_orchestrate(env, node, idx)
+        return item_stub(env, node, idx, "orchestrate", kind)
     elif kind == AST_ITEM_PULSE:
-        return L5_temporal.check_pulse(env, node, idx)
+        return item_stub(env, node, idx, "pulse", kind)
     elif kind == AST_ITEM_RESONATE:
-        return L5_temporal.check_resonate(env, node, idx)
+        return item_stub(env, node, idx, "resonate", kind)
     elif kind == AST_ITEM_AXIOM:
-        return L6_stones.check_axiom(env, node, idx)
+        return item_stub(env, node, idx, "axiom", kind)
     elif kind == AST_ITEM_ACTOR:
-        return L7_systems.check_actor(env, node, idx)
+        return item_stub(env, node, idx, "actor", kind)
     elif kind == AST_ITEM_WORLD or kind == AST_ITEM_COMPONENT:
-        return L1_state.check_world(env, node, idx)
+        return item_stub(env, node, idx, "world_component", kind)
     elif kind == AST_ITEM_ENTANGLE:
-        return L1_state.check_entangle(env, node, idx)
+        return item_stub(env, node, idx, "entangle", kind)
     elif kind == AST_ITEM_SHADER:
-        return GpuBackend.check_shader(env, node, idx)
+        return check_shader_stub(env, node, idx)
     else:
         return empty_typed_item_and_env(env, kind, "unknown", idx)
 
@@ -940,16 +924,15 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
         elif ck == AST_STMT_BREAK:
             // Stream RED: validate break inside loop
             if e.loop_depth <= 0:
-                e = type_error(e, "break outside loop", TC2_ERR_TYPE_MISMATCH,
+                e = type_error(e, "break outside loop", "E0200",
                               child.span_start, child.span_end)
         elif ck == AST_STMT_CONTINUE:
             // Stream RED: validate continue inside loop
             if e.loop_depth <= 0:
-                e = type_error(e, "continue outside loop", TC2_ERR_TYPE_MISMATCH,
+                e = type_error(e, "continue outside loop", "E0200",
                               child.span_start, child.span_end)
         elif ck == AST_STMT_DISPATCH:
-            let dispatch_result: TypedItemAndEnv = GpuBackend.check_dispatch_stmt(e, child, child_idx)
-            e = dispatch_result.env
+            e = check_dispatch_stmt_stub(e, child)
         elif ck == AST_EXPR_BLOCK:
             // Nested block — check its trailing expression type
             e = check_block_body(e, child_idx, expected_ret, caller_eff)
@@ -968,7 +951,7 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
     // Validate trailing expression type against expected return type
     if has_last_expr:
         if !types_compatible(e, expected_ret, last_expr_type):
-            e = type_error(e, "block trailing expression type mismatch", TC2_ERR_TYPE_MISMATCH,
+            e = type_error(e, "block trailing expression type mismatch", "E0200",
                           block_node.span_start, block_node.span_end)
 
     return e
@@ -998,7 +981,7 @@ pub fn check_let_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
     if type_ast >= 0:
         let annotated: ResolvedType = resolve_type_in_env(e, type_ast)
         if !types_compatible(e, annotated, inferred):
-            e = type_error(e, "type mismatch in let binding", TC2_ERR_TYPE_MISMATCH,
+            e = type_error(e, "type mismatch in let binding", "E0200",
                           node.span_start, node.span_end)
         inferred = annotated
 
@@ -1019,12 +1002,12 @@ pub fn check_return_stmt(env: TypeEnv, node: AstNode, expected_ret: ResolvedType
             let ret_type: ResolvedType = infer_expr_type(e, ret_node)
             e = check_effect_calls_in_expr(e, ret_node, caller_eff)
             if !types_compatible(e, expected_ret, ret_type):
-                e = type_error(e, "return type mismatch", TC2_ERR_TYPE_MISMATCH,
+                e = type_error(e, "return type mismatch", "E0200",
                               node.span_start, node.span_end)
     else:
         // Return with no value — must be compatible with Unit
         if !types_compatible(e, expected_ret, rt_unit()):
-            e = type_error(e, "function must return a value", TC2_ERR_TYPE_MISMATCH,
+            e = type_error(e, "function must return a value", "E0200",
                           node.span_start, node.span_end)
     return e
 
@@ -1056,7 +1039,7 @@ pub fn check_while_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv
         let cond_type: ResolvedType = infer_expr_type(e, cond_node)
         e = check_effect_calls_in_expr(e, cond_node, caller_eff)
         if !types_compatible(e, rt_bool(), cond_type):
-            e = type_error(e, "while condition must be Bool", TC2_ERR_TYPE_MISMATCH,
+            e = type_error(e, "while condition must be Bool", "E0200",
                           node.span_start, node.span_end)
 
     // Check body
@@ -1082,7 +1065,7 @@ pub fn check_if_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
         let cond_type: ResolvedType = infer_expr_type(e, cond_node)
         e = check_effect_calls_in_expr(e, cond_node, caller_eff)
         if !types_compatible(e, rt_bool(), cond_type):
-            e = type_error(e, "if condition must be Bool", TC2_ERR_TYPE_MISMATCH,
+            e = type_error(e, "if condition must be Bool", "E0200",
                           node.span_start, node.span_end)
 
     // Check then body
@@ -1156,19 +1139,19 @@ pub fn check_effect_calls_in_expr(env: TypeEnv, node: AstNode, caller_eff: Int) 
             if fn_type.kind == RT_FUNCTION:
                 if !can_call(caller_eff, fn_type.fn_effects):
                     e = type_error(e, "effect violation: caller cannot call callee",
-                                  TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                                  "E0203", node.span_start, node.span_end)
     elif k == AST_EXPR_MEM_LOAD or k == AST_EXPR_MEM_STORE or k == AST_EXPR_PTR_OFFSET:
         if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "raw memory operation requires Unsafe effect",
-                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          "E0203", node.span_start, node.span_end)
     elif k == AST_EXPR_ALLOC or k == AST_EXPR_ALLOCA:
         if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "memory allocation requires Unsafe effect",
-                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          "E0203", node.span_start, node.span_end)
     elif k == AST_EXPR_ASM:
         if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "inline assembly requires Unsafe effect",
-                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          "E0203", node.span_start, node.span_end)
 
     return e
 
@@ -1209,7 +1192,7 @@ pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
             si = si + 1
         if dup:
             e = type_error(e, "duplicate field '" + str(fname) + "' in struct '" + str(name_idx) + "'",
-                          TC2_ERR_TYPE_DUPLICATE, node.span_start, node.span_end)
+                          "E0201", node.span_start, node.span_end)
         else:
             seen_fields.push(fname)
 
@@ -1329,7 +1312,7 @@ pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEn
     if declared_type.kind != RT_UNKNOWN and value_type.kind != RT_UNKNOWN:
         if !types_compatible(e, declared_type, value_type):
             e = type_error(e, "const value type does not match declared type for '" + str(name_idx) + "'",
-                          TC2_ERR_TYPE_MISMATCH, node.span_start, node.span_end)
+                          "E0200", node.span_start, node.span_end)
 
     return TypedItemAndEnv {
         env: e,
@@ -1459,6 +1442,38 @@ pub fn check_shader_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
         item: TypedItem {
             kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
             resolved_type: rt_unit(), ast_index: idx, effects: EFF_GPU,
+        }
+    }
+
+pub fn check_dispatch_stmt_stub(env: TypeEnv, node: AstNode) -> TypeEnv:
+    let has_gpu: Bool = (env.crnt_effects and EFF_GPU) != 0
+    let has_unsafe: Bool = (env.crnt_effects and EFF_UNSAFE) != 0
+    let mut e: TypeEnv = env
+    if !has_gpu:
+        e = type_error(e, "dispatch requires GPU effect", "ERR_MISSING_GPU_EFFECT",
+                      node.span_start, node.span_end)
+    if !has_unsafe:
+        e = type_error(e, "dispatch requires Unsafe effect", "ERR_MISSING_UNSAFE_EFFECT",
+                      node.span_start, node.span_end)
+    return e
+
+// ── Generic item stub (for L1-L7 constructs — breaks circular imports) ──
+pub fn item_stub(env: TypeEnv, node: AstNode, idx: Int, name: String, kind: Int) -> TypedItemAndEnv:
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: kind, name: name + "_" + str(idx), name_idx: -1,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+        }
+    }
+
+// ── Patch/Law stub (returns TypedItemAndEnv with EFF_IO) ──
+pub fn check_patch_law_stub(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> TypedItemAndEnv:
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: kind, name: "patch_law_" + str(idx), name_idx: -1,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_IO,
         }
     }
 

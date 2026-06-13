@@ -11,12 +11,12 @@ use effects
 // ═══════════════════════════════════════════════════════════════════
 // Predicate kind encoding: 0=target, 1=arch, 2=capability
 // ═══════════════════════════════════════════════════════════════════
-const PRED_TARGET:     Int = 0
-const PRED_ARCH:       Int = 1
-const PRED_CAPABILITY: Int = 2
+const KNC_PRED_TARGET:     Int = 0
+const KNC_PRED_ARCH:       Int = 1
+const KNC_PRED_CAPABILITY: Int = 2
 
 // ═══════════════════════════════════════════════════════════════════
-// check_axiom — typecheck an axiom declaration (T-AXM-01)
+// knc_check_axiom — typecheck an axiom declaration (T-AXM-01)
 // ═══════════════════════════════════════════════════════════════════
 //
 // Axiom AST layout (from parser.kn parse_axiom_item):
@@ -31,7 +31,7 @@ const PRED_CAPABILITY: Int = 2
 // T-AXM-01: At least 1 predicate, at least 1 guarantee, fallback present
 // T-AXM-02: Predicate kind must be in {0, 1, 2}
 //
-pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
@@ -52,7 +52,7 @@ pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         let pos: Int = pred_base + 2 * pi
         if pos + 1 < dlen:
             let pk: Int = data[pos]
-            if pk < PRED_TARGET or pk > PRED_CAPABILITY:
+            if pk < KNC_PRED_TARGET or pk > KNC_PRED_CAPABILITY:
                 e = types.type_error(e, "axiom predicate kind " + str(pk) + " is invalid (must be 0=target, 1=arch, 2=capability)",
                     err_kind, node.span_start, node.span_end)
         pi = pi + 1
@@ -89,7 +89,7 @@ pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// check_shatter — predeclare shatter struct metadata (T-SHT-01)
+// knc_check_shatter — predeclare shatter struct metadata (T-SHT-01)
 // ═══════════════════════════════════════════════════════════════════
 //
 // Shatter is NOT a separate AST item kind — it's a struct modifier.
@@ -103,7 +103,7 @@ pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // For now, this returns a UNIT-typed item with a "shatter_" prefix
 // so codegen can detect shattered structs by name.
 //
-pub fn check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
@@ -122,7 +122,7 @@ pub fn check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// check_teleport — typecheck a teleport expression (T-TEL-01)
+// knc_check_teleport — typecheck a teleport expression (T-TEL-01)
 // ═══════════════════════════════════════════════════════════════════
 //
 // Teleport AST layout (AST_EXPR_TELEPORT):
@@ -136,7 +136,7 @@ pub fn check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // T-TEL-02: World existence check (env must have registered worlds)
 // T-TEL-03: Move semantic — mark source identifier as moved (STUB)
 //
-pub fn check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let value_idx: Int = if dlen > 0: data[0] else: -1
@@ -199,32 +199,32 @@ pub fn check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// Codegen Stubs (compile_axiom, compile_shatter, compile_teleport)
+// Codegen Stubs (knc_compile_axiom, knc_compile_shatter, knc_compile_teleport)
 // ═══════════════════════════════════════════════════════════════════
 //
 // Full LLVM IR emission lives in codegen.kn. These stubs use a Generator
 // placeholder (Int) until the module system supports importing both
 // types.kn and codegen.kn's LlvmGenerator without struct-name collision.
 
-pub type L6_Generator = Int  // Placeholder — will be LlvmGenerator
+pub type knc_L6_Generator = Int  // Placeholder — will be LlvmGenerator
 
-// compile_axiom — STUB: emit axiom accept function + static strings
-pub fn compile_axiom(gen: L6_Generator, item: TypedItem) -> L6_Generator:
+// knc_compile_axiom — STUB: emit axiom accept function + static strings
+pub fn knc_compile_axiom(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
     // C-AXM-01: define i64 @__kain_axiom_accept_{name}(), calls @kain_machine_axiom_accept
     // C-AXM-02: capability_bit mapping for capability predicate strings
     // C-AXM-03: Static string constants for target, arch, and capability values
     return gen
 
-// compile_shatter — STUB: emit SoA lane bases for shattered struct arrays
-pub fn compile_shatter(gen: L6_Generator, item: TypedItem) -> L6_Generator:
+// knc_compile_shatter — STUB: emit SoA lane bases for shattered struct arrays
+pub fn knc_compile_shatter(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
     // C-SHT-01: Track shattered struct names for codegen decisions
     // C-SHT-02: Shattered array literal -> @kain_machine_shatter_alloc + lane base calls
     // C-SHT-03: Shattered field access -> GEP on lane_base or @kain_machine_shatter_lane_ptr
     // C-SHT-04: Shattered scope cleanup -> @kain_machine_shatter_free on scope exit
     return gen
 
-// compile_teleport — STUB: emit teleport expression lowering
-pub fn compile_teleport(gen: L6_Generator, item: TypedItem) -> L6_Generator:
+// knc_compile_teleport — STUB: emit teleport expression lowering
+pub fn knc_compile_teleport(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
     // C-TEL-01: Pointer-type -> bitcast to i8*, @kain_machine_teleport_ptr, bitcast back
     // C-TEL-02: Scalar-type -> @kain_machine_teleport_note for bookkeeping
     // C-TEL-03: Static string constants for source/target world names and channel names

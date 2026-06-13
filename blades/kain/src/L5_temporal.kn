@@ -14,13 +14,13 @@ use effects
 // Duration Unit Helpers
 // ═══════════════════════════════════════════════════════════════════
 
-// is_valid_duration_unit — check if a unit string is a valid duration specifier
-pub fn is_valid_duration_unit(unit: String) -> Bool:
+// knc_is_valid_duration_unit — check if a unit string is a valid duration specifier
+pub fn knc_is_valid_duration_unit(unit: String) -> Bool:
     return unit == "ns" or unit == "us" or unit == "ms" or unit == "s" or unit == "tick" or unit == "ticks"
 
-// duration_unit_code — map unit string to integer encoding
+// knc_duration_unit_code — map unit string to integer encoding
 // 0=ns, 1=us, 2=ms, 3=s, 4=tick, 5=ticks, -1=invalid
-pub fn duration_unit_code(unit: String) -> Int:
+pub fn knc_duration_unit_code(unit: String) -> Int:
     if unit == "ns":    return 0
     if unit == "us":    return 1
     if unit == "ms":    return 2
@@ -32,7 +32,7 @@ pub fn duration_unit_code(unit: String) -> Int:
 // pulse_body_effects — from effects.kn (via `use effects`)
 
 // ═══════════════════════════════════════════════════════════════════
-// check_pulse — typecheck a pulse declaration
+// knc_check_pulse — typecheck a pulse declaration
 // ═══════════════════════════════════════════════════════════════════
 //
 // Pulse AST layout (from parser.kn parse_pulse_item):
@@ -48,7 +48,7 @@ pub fn duration_unit_code(unit: String) -> Int:
 // T-PULSE-02: Inject pulse_tick, pulse_dt_ms, pulse_missed locals
 // T-PULSE-03: Auto-emit all effects
 //
-pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let name_idx: Int = if dlen > 0: data[0] else: -1
@@ -69,7 +69,7 @@ pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 
     // Validate interval unit
     let interval_unit: String = types.strtab_lookup_name(e, interval_unit_idx)
-    if interval_unit != "" and !is_valid_duration_unit(interval_unit):
+    if interval_unit != "" and !knc_is_valid_duration_unit(interval_unit):
         e = types.type_error(e, "pulse interval has invalid unit '" + interval_unit + "'",
             err_kind, node.span_start, node.span_end)
 
@@ -80,7 +80,7 @@ pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
                 err_kind, node.span_start, node.span_end)
 
         let jitter_unit: String = types.strtab_lookup_name(e, jitter_unit_idx)
-        if jitter_unit != "" and !is_valid_duration_unit(jitter_unit):
+        if jitter_unit != "" and !knc_is_valid_duration_unit(jitter_unit):
             e = types.type_error(e, "pulse jitter has invalid unit '" + jitter_unit + "'",
                 err_kind, node.span_start, node.span_end)
 
@@ -114,7 +114,7 @@ pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// check_resonate — typecheck a resonate declaration
+// knc_check_resonate — typecheck a resonate declaration
 // ═══════════════════════════════════════════════════════════════════
 //
 // Resonate AST layout (from parser.kn parse_resonate_item):
@@ -131,7 +131,7 @@ pub fn check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // T-RES-03: Self-feedback detection (not yet wired — requires mutation scan)
 // T-RES-04: Auto-emit all effects
 //
-pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+pub fn knc_check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let data: Array<Int> = node.data
     let dlen: Int = len(data)
     let body_idx: Int = if dlen > 0: data[0] else: -1
@@ -150,7 +150,7 @@ pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
                 err_kind, node.span_start, node.span_end)
 
         let dampen_unit: String = types.strtab_lookup_name(e, dampen_unit_idx)
-        if dampen_unit != "" and !is_valid_duration_unit(dampen_unit):
+        if dampen_unit != "" and !knc_is_valid_duration_unit(dampen_unit):
             e = types.type_error(e, "resonate dampen has invalid unit '" + dampen_unit + "'",
                 err_kind, node.span_start, node.span_end)
 
@@ -205,7 +205,7 @@ pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     }
 
 // ═══════════════════════════════════════════════════════════════════
-// Codegen Stubs (compile_pulse, compile_resonate)
+// Codegen Stubs (knc_compile_pulse, knc_compile_resonate)
 // ═══════════════════════════════════════════════════════════════════
 //
 // NOTE: These stubs use a Generator placeholder (Int) instead of the
@@ -213,17 +213,17 @@ pub fn check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
 // from types.kn, causing struct-name collision on import. Full LLVM IR
 // emission for pulse and resonate lives in codegen.kn.
 
-pub type L5_Generator = Int  // Placeholder — will be LlvmGenerator
+pub type knc_L5_Generator = Int  // Placeholder — will be LlvmGenerator
 
-// compile_pulse — STUB: emit pulse body function + fire wrapper + registration
-pub fn compile_pulse(gen: L5_Generator, item: TypedItem) -> L5_Generator:
+// knc_compile_pulse — STUB: emit pulse body function + fire wrapper + registration
+pub fn knc_compile_pulse(gen: knc_L5_Generator, item: TypedItem) -> knc_L5_Generator:
     // C-PULSE-02: void @__kain_pulse_body_{name}(i64 tick, i64 dt, i64 missed)
     // C-PULSE-03: void @__kain_pulse_fire_{name}() snapshot->body call chain
     // C-PULSE-04: @kain_machine_pulse_start(token, ns, jitter, fire_wrapper)
     return gen
 
-// compile_resonate — STUB: emit resonate handler + binding table + store guard
-pub fn compile_resonate(gen: L5_Generator, item: TypedItem) -> L5_Generator:
+// knc_compile_resonate — STUB: emit resonate handler + binding table + store guard
+pub fn knc_compile_resonate(gen: knc_L5_Generator, item: TypedItem) -> knc_L5_Generator:
     // C-RES-01: void @__kain_resonate_{name}(i64 old, i64 new, i1 fired)
     // C-RES-02: (world, field) -> handler binding table
     // C-RES-03: post-store guard: abi_resonate_should_fire_i64 + handler call

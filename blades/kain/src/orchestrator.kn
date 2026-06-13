@@ -300,7 +300,6 @@ pub fn handler_test_report(spec_root: String, output_path: String) -> String wit
     println("[kainc] test report: scanning " + spec_root)
 
     // Collect test results by scanning for .kn files and running test_run on each
-    var results: Array<TestResult> = []
     var passed: Int = 0
     var failed: Int = 0
 
@@ -317,60 +316,60 @@ pub fn handler_test_report(spec_root: String, output_path: String) -> String wit
         return default_path
 
     // Parse directory listing — each line is a path
+    // First pass: count .kn files
+    var kn_count: Int = 0
     var line_start: Int = 0
     var char_idx: Int = 0
-    var test_files: Array<String> = []
     while char_idx < len(dir_listing):
-        let ch: String = dir_listing[char_idx]
-        if ch == "\n":
-            let file_path: String = ""
+        if dir_listing[char_idx] == "\n":
             var ci: Int = line_start
+            var file_path: String = ""
             while ci < char_idx:
                 file_path = file_path + dir_listing[ci]
                 ci = ci + 1
-            // Only keep .kn files
             if len(file_path) > 3:
                 let ext_start: Int = len(file_path) - 3
                 if file_path[ext_start] == "." and file_path[ext_start + 1] == "k" and file_path[ext_start + 2] == "n":
-                    test_files.push(file_path)
+                    kn_count = kn_count + 1
             line_start = char_idx + 1
         char_idx = char_idx + 1
 
-    // Run each test file
+    // Allocate file_paths as flat string, parse per-file results directly
+    // (avoid arrays entirely — codegen limitation with method calls)
     var fi: Int = 0
-    while fi < len(test_files):
-        let tf: String = test_files[fi]
-        let test_src: String = fs_read_text(tf)
-        if test_src != "":
-            let exit_code: Int = handler_test_run(tf)
-            let tr: TestResult = TestResult {
-                name: tf,
-                passed: exit_code == 0,
-                error: if exit_code == 0: "" else: "check failed with exit " + str(exit_code),
-            }
-            results.push(tr)
-            if exit_code == 0:
-                passed = passed + 1
-            else:
-                failed = failed + 1
-        fi = fi + 1
+    var json: String = "{\n  \"passed\": 0,\n  \"failed\": 0,\n  \"total\": 0,\n  \"results\": ["
+
+    // Re-scan and process each .kn file as we find it
+    line_start = 0
+    char_idx = 0
+    while char_idx < len(dir_listing):
+        if dir_listing[char_idx] == "\n":
+            var ci: Int = line_start
+            var file_path: String = ""
+            while ci < char_idx:
+                file_path = file_path + dir_listing[ci]
+                ci = ci + 1
+            if len(file_path) > 3:
+                let ext_start: Int = len(file_path) - 3
+                if file_path[ext_start] == "." and file_path[ext_start + 1] == "k" and file_path[ext_start + 2] == "n":
+                    // Found a .kn file — run it immediately
+                    let test_src: String = fs_read_text(file_path)
+                    var exit_code: Int = 0
+                    if test_src != "":
+                        exit_code = handler_test_run(file_path)
+                    if exit_code == 0:
+                        passed = passed + 1
+                    else:
+                        failed = failed + 1
+                    if fi > 0:
+                        json = json + ","
+                    json = json + "{\"name\":\"" + file_path + "\",\"passed\":" + str(exit_code == 0) + "}"
+                    fi = fi + 1
+            line_start = char_idx + 1
+        char_idx = char_idx + 1
 
     let total: Int = passed + failed
-
-    // Format JSON report
-    var json: String = "{\n  \"passed\": " + str(passed) + ",\n"
-    json = json + "  \"failed\": " + str(failed) + ",\n"
-    json = json + "  \"total\": " + str(total) + ",\n"
-    json = json + "  \"results\": [\n"
-    var ri: Int = 0
-    while ri < len(results):
-        let r: TestResult = results[ri]
-        json = json + "    {\"name\": \"" + r.name + "\", \"passed\": " + str(r.passed) + ", \"error\": \"" + r.error + "\"}"
-        if ri < len(results) - 1:
-            json = json + ","
-        json = json + "\n"
-        ri = ri + 1
-    json = json + "  ]\n}\n"
+    json = json + "]\n}\n"
 
     // Write report
     let report_path: String = output_path
