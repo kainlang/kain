@@ -17,7 +17,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // check_world — Typecheck a world declaration

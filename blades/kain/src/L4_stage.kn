@@ -14,7 +14,9 @@
 // Language reference: X:/docs/ORCHESTRATE.MD
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // check_orchestrate — Typecheck an orchestrate declaration
@@ -51,7 +53,7 @@ pub fn check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
         env: env,
         item: TypedItem {
             kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
-            resolved_type: types.rt_i64(), ast_index: idx, effects: types.KC_EFF_PURE,
+            resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
         }
     }
 

@@ -18,104 +18,23 @@ use L5_temporal
 use L6_stones
 use GpuBackend
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
-// Effect Constants (kainc-local to avoid stdlib collision)
-// ═══════════════════════════════════════════════════════════════════
-pub const KC_EFF_PURE:     Int = 0x00
-pub const KC_EFF_IO:       Int = 0x01
-pub const KC_EFF_GPU:      Int = 0x02
-pub const KC_EFF_ASYNC:    Int = 0x04
-pub const KC_EFF_REACTIVE: Int = 0x08
-pub const KC_EFF_UNSAFE:   Int = 0x10
-pub const KC_EFF_ALLOC:    Int = 0x20
-pub const KC_EFF_PANIC:    Int = 0x40
-
-// ═══════════════════════════════════════════════════════════════════
-// AST Type + Misc Constants (NOT in ast.kn — local to types.kn)
+// Typechecker-local constants (unique prefix to avoid any collision)
 // ═══════════════════════════════════════════════════════════════════
 
-// AST type constants (for type resolution)
-const AST_TYPE_NAMED:            Int = 300
-const AST_TYPE_TUPLE:            Int = 301
-const AST_TYPE_ARRAY:            Int = 302
-const AST_TYPE_SLICE:            Int = 303
-const AST_TYPE_REF:              Int = 304
-const AST_TYPE_PTR:              Int = 305
-const AST_TYPE_FUNCTION:         Int = 306
-const AST_TYPE_OPTION:           Int = 307
-const AST_TYPE_RESULT:           Int = 308
-const AST_TYPE_INFER:            Int = 309
-const AST_TYPE_NEVER:            Int = 310
-const AST_TYPE_UNIT:             Int = 311
-const AST_TYPE_GENERIC:          Int = 313
-
-// Additional expression constants (not in ast.kn)
-const AST_EXPR_JSX:              Int = 151
-
-// Binary op constants
-const BINOP_ADD:     Int = 0
-const BINOP_SUB:     Int = 1
-const BINOP_MUL:     Int = 2
-const BINOP_DIV:     Int = 3
-const BINOP_MOD:     Int = 4
-const BINOP_EQ:      Int = 6
-const BINOP_NE:      Int = 7
-const BINOP_LT:      Int = 8
-const BINOP_GT:      Int = 9
-const BINOP_LE:      Int = 10
-const BINOP_GE:      Int = 11
-const BINOP_AND:     Int = 12
-const BINOP_OR:      Int = 13
-const BINOP_BIT_AND: Int = 14
-const BINOP_BIT_OR:  Int = 15
-const BINOP_BIT_XOR: Int = 16
-const BINOP_SHL:     Int = 17
-const BINOP_SHR:     Int = 18
-const BINOP_RANGE:        Int = 19
-const BINOP_RANGE_INCL:   Int = 20
-
-// Unary op constants
-const UNOP_NEG:     Int = 0
-const UNOP_NOT:     Int = 1
-const UNOP_BIT_NOT: Int = 2
-const UNOP_REF:     Int = 3
-const UNOP_REF_MUT: Int = 4
-const UNOP_DEREF:   Int = 5
-
-// String table sentinel
-const STRTAB_NOT_FOUND: Int = -1
-
-// Error codes
-const ERR_TYPE_MISMATCH:  String = "E0200"
-const ERR_TYPE_DUPLICATE:  String = "E0201"
-const ERR_TYPE_NOT_FOUND:  String = "E0202"
-const ERR_TYPE_EFFECT_VIOLATION: String = "E0203"
+const TC2_STRTAB_NOT_FOUND: Int = -1
+const TC2_ERR_TYPE_MISMATCH:  String = "E0200"
+const TC2_ERR_TYPE_DUPLICATE:  String = "E0201"
+const TC2_ERR_TYPE_NOT_FOUND:  String = "E0202"
+const TC2_ERR_TYPE_EFFECT_VIOLATION: String = "E0203"
 
 // ═══════════════════════════════════════════════════════════════════
 // Local KcDiagnostic + KcDiagnosticBag (mirrors error.kn)
 // ═══════════════════════════════════════════════════════════════════
-pub struct AstNode:
-    kind:       Int
-    span_start: Int
-    span_end:   Int
-    data:       Array<Int>
-
-pub struct AstProgram:
-    root:     Int
-    nodes:    Array<AstNode>
-
-// ── Local AstNode helpers ──
-pub fn ast_data_len(node: AstNode) -> Int:
-    return len(node.data)
-
-pub fn ast_data_get(node: AstNode, index: Int) -> Int:
-    if index < 0 or index >= len(node.data):
-        return -1
-    return node.data[index]
-
-// ═══════════════════════════════════════════════════════════════════
 // Local KcDiagnostic + KcDiagnosticBag (mirrors error.kn)
+// (AstNode, AstProgram, ast_data_* come from `use ast`)
 // ═══════════════════════════════════════════════════════════════════
 pub struct KcDiagnostic:
     severity:    Int
@@ -404,7 +323,7 @@ pub fn type_env_new() -> TypeEnv:
         val_names:         [],
         val_types:         [],
         scopes:            [],
-        crnt_effects:      KC_EFF_PURE,
+        crnt_effects:      EFF_PURE,
         skip2:             [],
         skip3:             [],
         errs:              kc_diag_bag_new(),
@@ -841,7 +760,7 @@ pub fn empty_typed_item_and_env(env: TypeEnv, kind: Int, name: String, idx: Int)
     let item: TypedItem = TypedItem {
         kind: kind, name: name, name_idx: -1,
         resolved_type: rt_unit(), ast_index: idx,
-        effects: KC_EFF_PURE,
+        effects: EFF_PURE,
     }
     return TypedItemAndEnv { env: env, item: item }
 
@@ -872,13 +791,13 @@ pub fn func_data_skip_params(data: Array<Int>, pos: Int) -> Int:
 // Parser stores sequential indices: 0=Pure, 1=IO, 2=Async, 3=GPU, 4=Reactive, 5=Unsafe
 // EFF_* constants are bitmask values: 0x00, 0x01, 0x04, 0x02, 0x08, 0x10
 pub fn eff_index_to_mask(idx: Int) -> Int:
-    if idx == 0: return KC_EFF_PURE
-    if idx == 1: return KC_EFF_IO
-    if idx == 2: return KC_EFF_ASYNC
-    if idx == 3: return KC_EFF_GPU
-    if idx == 4: return KC_EFF_REACTIVE
-    if idx == 5: return KC_EFF_UNSAFE
-    return KC_EFF_PURE
+    if idx == 0: return EFF_PURE
+    if idx == 1: return EFF_IO
+    if idx == 2: return EFF_ASYNC
+    if idx == 3: return EFF_GPU
+    if idx == 4: return EFF_REACTIVE
+    if idx == 5: return EFF_UNSAFE
+    return EFF_PURE
 
 // ── check_function_item ──
 pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
@@ -902,7 +821,7 @@ pub fn check_function_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAn
     let is_async: Int = if pos + 1 < dlen: data[pos + 1] else: 0
 
     // Build effect mask from function's with clause (effects stored as TOKEN_* values)
-    let mut eff_mask: Int = KC_EFF_PURE
+    let mut eff_mask: Int = EFF_PURE
     var ei: Int = 0
     let eff_base: Int = params_start + 2 * pcount + 3  // after params, ret, where, eff_count
     while ei < eff_count:
@@ -1021,12 +940,12 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
         elif ck == AST_STMT_BREAK:
             // Stream RED: validate break inside loop
             if e.loop_depth <= 0:
-                e = type_error(e, "break outside loop", ERR_TYPE_MISMATCH,
+                e = type_error(e, "break outside loop", TC2_ERR_TYPE_MISMATCH,
                               child.span_start, child.span_end)
         elif ck == AST_STMT_CONTINUE:
             // Stream RED: validate continue inside loop
             if e.loop_depth <= 0:
-                e = type_error(e, "continue outside loop", ERR_TYPE_MISMATCH,
+                e = type_error(e, "continue outside loop", TC2_ERR_TYPE_MISMATCH,
                               child.span_start, child.span_end)
         elif ck == AST_STMT_DISPATCH:
             let dispatch_result: TypedItemAndEnv = GpuBackend.check_dispatch_stmt(e, child, child_idx)
@@ -1049,7 +968,7 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
     // Validate trailing expression type against expected return type
     if has_last_expr:
         if !types_compatible(e, expected_ret, last_expr_type):
-            e = type_error(e, "block trailing expression type mismatch", ERR_TYPE_MISMATCH,
+            e = type_error(e, "block trailing expression type mismatch", TC2_ERR_TYPE_MISMATCH,
                           block_node.span_start, block_node.span_end)
 
     return e
@@ -1079,7 +998,7 @@ pub fn check_let_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
     if type_ast >= 0:
         let annotated: ResolvedType = resolve_type_in_env(e, type_ast)
         if !types_compatible(e, annotated, inferred):
-            e = type_error(e, "type mismatch in let binding", ERR_TYPE_MISMATCH,
+            e = type_error(e, "type mismatch in let binding", TC2_ERR_TYPE_MISMATCH,
                           node.span_start, node.span_end)
         inferred = annotated
 
@@ -1100,12 +1019,12 @@ pub fn check_return_stmt(env: TypeEnv, node: AstNode, expected_ret: ResolvedType
             let ret_type: ResolvedType = infer_expr_type(e, ret_node)
             e = check_effect_calls_in_expr(e, ret_node, caller_eff)
             if !types_compatible(e, expected_ret, ret_type):
-                e = type_error(e, "return type mismatch", ERR_TYPE_MISMATCH,
+                e = type_error(e, "return type mismatch", TC2_ERR_TYPE_MISMATCH,
                               node.span_start, node.span_end)
     else:
         // Return with no value — must be compatible with Unit
         if !types_compatible(e, expected_ret, rt_unit()):
-            e = type_error(e, "function must return a value", ERR_TYPE_MISMATCH,
+            e = type_error(e, "function must return a value", TC2_ERR_TYPE_MISMATCH,
                           node.span_start, node.span_end)
     return e
 
@@ -1137,7 +1056,7 @@ pub fn check_while_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv
         let cond_type: ResolvedType = infer_expr_type(e, cond_node)
         e = check_effect_calls_in_expr(e, cond_node, caller_eff)
         if !types_compatible(e, rt_bool(), cond_type):
-            e = type_error(e, "while condition must be Bool", ERR_TYPE_MISMATCH,
+            e = type_error(e, "while condition must be Bool", TC2_ERR_TYPE_MISMATCH,
                           node.span_start, node.span_end)
 
     // Check body
@@ -1163,7 +1082,7 @@ pub fn check_if_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
         let cond_type: ResolvedType = infer_expr_type(e, cond_node)
         e = check_effect_calls_in_expr(e, cond_node, caller_eff)
         if !types_compatible(e, rt_bool(), cond_type):
-            e = type_error(e, "if condition must be Bool", ERR_TYPE_MISMATCH,
+            e = type_error(e, "if condition must be Bool", TC2_ERR_TYPE_MISMATCH,
                           node.span_start, node.span_end)
 
     // Check then body
@@ -1237,19 +1156,19 @@ pub fn check_effect_calls_in_expr(env: TypeEnv, node: AstNode, caller_eff: Int) 
             if fn_type.kind == RT_FUNCTION:
                 if !can_call(caller_eff, fn_type.fn_effects):
                     e = type_error(e, "effect violation: caller cannot call callee",
-                                  ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                                  TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_MEM_LOAD or k == AST_EXPR_MEM_STORE or k == AST_EXPR_PTR_OFFSET:
-        if !can_call(caller_eff, KC_EFF_UNSAFE):
+        if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "raw memory operation requires Unsafe effect",
-                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_ALLOC or k == AST_EXPR_ALLOCA:
-        if !can_call(caller_eff, KC_EFF_UNSAFE):
+        if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "memory allocation requires Unsafe effect",
-                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
     elif k == AST_EXPR_ASM:
-        if !can_call(caller_eff, KC_EFF_UNSAFE):
+        if !can_call(caller_eff, EFF_UNSAFE):
             e = type_error(e, "inline assembly requires Unsafe effect",
-                          ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
+                          TC2_ERR_TYPE_EFFECT_VIOLATION, node.span_start, node.span_end)
 
     return e
 
@@ -1290,7 +1209,7 @@ pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
             si = si + 1
         if dup:
             e = type_error(e, "duplicate field '" + str(fname) + "' in struct '" + str(name_idx) + "'",
-                          ERR_TYPE_DUPLICATE, node.span_start, node.span_end)
+                          TC2_ERR_TYPE_DUPLICATE, node.span_start, node.span_end)
         else:
             seen_fields.push(fname)
 
@@ -1325,7 +1244,7 @@ pub fn check_struct_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
             name_idx: name_idx,
             resolved_type: sty,
             ast_index: idx,
-            effects: KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -1374,7 +1293,7 @@ pub fn check_enum_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv
             name_idx: name_idx,
             resolved_type: ety,
             ast_index: idx,
-            effects: KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -1410,7 +1329,7 @@ pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEn
     if declared_type.kind != RT_UNKNOWN and value_type.kind != RT_UNKNOWN:
         if !types_compatible(e, declared_type, value_type):
             e = type_error(e, "const value type does not match declared type for '" + str(name_idx) + "'",
-                          ERR_TYPE_MISMATCH, node.span_start, node.span_end)
+                          TC2_ERR_TYPE_MISMATCH, node.span_start, node.span_end)
 
     return TypedItemAndEnv {
         env: e,
@@ -1420,7 +1339,7 @@ pub fn check_const_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEn
             name_idx: name_idx,
             resolved_type: declared_type,
             ast_index: idx,
-            effects: KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -1451,7 +1370,7 @@ pub fn check_type_alias_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
             name_idx: name_idx,
             resolved_type: resolved,
             ast_index: idx,
-            effects: KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -1493,7 +1412,7 @@ pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
                 name_idx: name_idx,
                 resolved_type: rt_struct_as(name_idx),
                 ast_index: idx,
-                effects: KC_EFF_PURE,
+                effects: EFF_PURE,
             }
         }
 
@@ -1522,7 +1441,7 @@ pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
             name_idx: name_idx,
             resolved_type: rt_struct_as(type_name_idx),
             ast_index: idx,
-            effects: KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -1539,7 +1458,7 @@ pub fn check_shader_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
         env: env,
         item: TypedItem {
             kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_unit(), ast_index: idx, effects: KC_EFF_GPU,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_GPU,
         }
     }
 
@@ -2082,16 +2001,7 @@ pub fn infer_block_type(env: TypeEnv, node: AstNode) -> ResolvedType:
             return infer_expr_type(env, last_node)
     return rt_unit()
 
-// ── can_call: effect checking (local implementation) ──
-pub fn can_call(caller_mask: Int, callee_mask: Int) -> Bool:
-    if callee_mask == KC_EFF_PURE:
-        return true
-    if (caller_mask and KC_EFF_UNSAFE) != 0:
-        return true
-    if caller_mask == KC_EFF_PURE:
-        return false
-    let intersection: Int = caller_mask and callee_mask
-    return intersection == callee_mask
+// ── can_call from `use effects` (effects.kn)
 
 // ═══════════════════════════════════════════════════════════════════
 // END STREAM FOXTROT — types.kn

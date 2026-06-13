@@ -16,7 +16,9 @@
 //   5. GPU compatibility helpers (is_gpu_compatible_type)
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // GPU SHADER STAGE CONSTANTS
@@ -76,14 +78,14 @@ pub fn check_shader(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_ITEM_SHADER, name: "shd_" + str(name_idx), name_idx: name_idx,
             resolved_type: types.rt_unit(), ast_index: idx,
-            effects: types.KC_EFF_GPU,
+            effects: EFF_GPU,
         }
     }
 
 // ── check_dispatch_stmt — validate dispatch statement ──
 pub fn check_dispatch_stmt(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let has_gpu: Bool = (env.crnt_effects and types.KC_EFF_GPU) != 0
-    let has_unsafe: Bool = (env.crnt_effects and types.KC_EFF_UNSAFE) != 0
+    let has_gpu: Bool = (env.crnt_effects and EFF_GPU) != 0
+    let has_unsafe: Bool = (env.crnt_effects and EFF_UNSAFE) != 0
     let mut e: TypeEnv = env
     if !has_gpu:
         e = types.type_error(e, "dispatch requires GPU effect", "ERR_MISSING_GPU_EFFECT",
@@ -96,7 +98,7 @@ pub fn check_dispatch_stmt(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAn
         item: TypedItem {
             kind: AST_STMT_DISPATCH, name: "dispatch_" + str(idx), name_idx: -1,
             resolved_type: types.rt_unit(), ast_index: idx,
-            effects: types.KC_EFF_GPU or types.KC_EFF_UNSAFE,
+            effects: EFF_GPU or EFF_UNSAFE,
         }
     }
 

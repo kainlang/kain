@@ -2,6 +2,7 @@
 /target/
 **/*target*/
 /private
+.pi2/
 private/
 **/*target*/**
 *.json

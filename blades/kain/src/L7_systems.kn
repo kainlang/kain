@@ -17,7 +17,9 @@
 //   5. Codegen stubs — real emission in BLUE stream
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // OWNERSHIP STATE MACHINE (5 states, 8 transitions)
@@ -183,7 +185,7 @@ pub fn check_actor(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_ITEM_ACTOR, name: "actor_" + str(name_idx), name_idx: name_idx,
             resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -198,7 +200,7 @@ pub fn check_collapse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_COLLAPSE, name: "collapse_" + str(idx), name_idx: -1,
             resolved_type: body_ty, ast_index: idx,
-            effects: types.KC_EFF_UNSAFE,
+            effects: EFF_UNSAFE,
         }
     }
 
@@ -213,7 +215,7 @@ pub fn check_observe(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_OBSERVE, name: "observe_" + str(idx), name_idx: -1,
             resolved_type: body_ty, ast_index: idx,
-            effects: types.KC_EFF_UNSAFE,
+            effects: EFF_UNSAFE,
         }
     }
 
@@ -224,7 +226,7 @@ pub fn check_decay(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_DECAY, name: "decay_" + str(idx), name_idx: -1,
             resolved_type: types.rt_unit(), ast_index: idx,
-            effects: types.KC_EFF_UNSAFE,
+            effects: EFF_UNSAFE,
         }
     }
 
@@ -235,7 +237,7 @@ pub fn check_share(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_SHARE, name: "share_" + str(idx), name_idx: -1,
             resolved_type: types.rt_unit(), ast_index: idx,
-            effects: types.KC_EFF_UNSAFE,
+            effects: EFF_UNSAFE,
         }
     }
 
@@ -247,7 +249,7 @@ pub fn check_spawn(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_SPAWN, name: "spawn_" + str(idx), name_idx: -1,
             resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -258,7 +260,7 @@ pub fn check_send(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         item: TypedItem {
             kind: AST_EXPR_SEND, name: "send_" + str(idx), name_idx: -1,
             resolved_type: types.rt_unit(), ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 

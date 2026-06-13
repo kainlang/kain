@@ -49,7 +49,7 @@ link_libs = ["kain_runtime"]
 # appear AFTER its dependencies. The first definition of any symbol
 # "wins" — later duplicates are shadowed at combine time.
 #
-# 23 source files total. Order verified against cross-file imports.
+# 25 source files total (23 original + L1_state + L2_integrity). Order verified against cross-file imports.
 # ────────────────────────────────────────────────────────────────────
 
 [source_order]
@@ -62,6 +62,10 @@ files = [
 
     # ── Build config helpers (no cross-file deps, consumed by orchestrator) ──
     "build.kn",           # Column name constants, config helpers, markscript table schema
+
+    # ── L1 + L2 semantic constructs (state authority + integrity) ──
+    "L1_state.kn",         # World + Entangle check + codegen stubs
+    "L2_integrity.kn",     # Patch + Law check + codegen stubs
 
     # ── Lexer (depends on: token, error, span) ──
     "lexer.kn",           # DFA lexer, indent processor, tokenize_all
@@ -84,6 +88,14 @@ files = [
     # ── Typechecker + Effects (depends on: ast, token, error) ──
     "types.kn",           # ResolvedType (20 variants), 4-pass pipeline, types_compatible
     "effects.kn",         # 8-effect lattice, can_call(), effect_set_* helpers
+
+    # ── Construct implementations (depends on: types, ast, effects) ──
+    "L3_dispatch.kn",     # Converge: typecheck + codegen stubs (L3)
+    "L4_stage.kn",        # Orchestrate: typecheck + codegen stubs (L4)
+    "L5_temporal.kn",     # Pulse + Resonate: typecheck + codegen stubs (L5)
+    "L6_stones.kn",       # Axiom + Shatter + Teleport: typecheck + codegen stubs (L6)
+    "L7_systems.kn",      # Actor + Ownership: typecheck + codegen stubs (L7)
+    "GpuBackend.kn",      # Shader + Dispatch: typecheck + codegen stubs (GPU)
 
     # ── Monomorphization + Codegen (depends on: types, llvm_ffi, runtime) ──
     "monomorphize.kn",    # Generic instantiation, unify(), substitute_type(), mangle_name

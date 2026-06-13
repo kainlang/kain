@@ -120,6 +120,7 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
 | **`MEMORY.md`** | Complex work, weird traps, unresolved risks. Distilled lessons only. |
 | **`FEEDBACK.md`** | Fundamental language/runtime/toolchain pain. |
 | **`BUGS.md`** | Confirmed defects, sharp edges, solver-backed failures. |
+| **`blades/kain/KN.MD`** | **MANDATORY after ANY work on the kainc self-host compiler.** Update the state dashboard (§1), file manifest (§9), stream status (§4), blockers (§5), and decision ladder status (§3). This is the single source of truth — stale KN.MD causes agents to operate on wrong assumptions. |
 
 ## Kain bin
 
@@ -128,6 +129,23 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
   "X:.kain\\stdlib"
   "X:.kain\\toolchain"
   "X:.kain\\bin"
+
+## 🏗️ KAINC — The Self-Host Compiler (`blades/kain/`)
+
+**`blades/kain/KN.MD` is the canonical state document.** It maps every compiler subsystem against the Rust bootstrap (`crates/`), tracks stream completion (RED/GREEN/BLUE/GOLD), and lists known blockers. **Update it after every kainc work session.** The document is scannable in 2 minutes but carries everything needed for deep work:
+
+- **§1:** State dashboard — 25 subsystems with lines, real%, Rust equivalent, verdict
+- **§2:** Rust frontend map — which crates are eliminated, which remain
+- **§3:** Decision ladder L0→L7 — typecheck AND codegen status per construct
+- **§4:** Stream status — RED/GREEN/BLUE/GOLD with PASS/PARTIAL/FAIL per task
+- **§5:** Known blockers — top 10 ranked by severity
+- **§6:** JIT subsystem — Path A (x86 proven) + Path B (Orc stub)
+- **§7:** Ouroboros pipeline — Phase 1 (combine) + Phase 2 (self-compile verify)
+- **§8:** Port queue — amalgamate + error port status
+- **§9:** File manifest — all 23 `.kn` files with ownership and status
+- **§10:** Quick reference — commands, handler IDs, stream ownership, source order
+
+**When working on kainc:** always read `blades/kain/KN.MD` first to know the current state. Update it last before declaring done. The research docs in `blades/kain/research/` and task specs in `blades/kain/spec/` provide deeper detail.
 
 ## ⚡ PI TOOL ARSENAL
 

@@ -13,7 +13,9 @@
 // Language reference: X:/docs/CONVERGE.MD
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // check_converge — Typecheck a converge declaration
@@ -43,7 +45,7 @@ pub fn check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
         env: env,
         item: TypedItem {
             kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
-            resolved_type: types.rt_i64(), ast_index: idx, effects: types.KC_EFF_PURE,
+            resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
         }
     }
 

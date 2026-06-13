@@ -16,7 +16,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // check_patch_law — Typecheck a patch or law declaration

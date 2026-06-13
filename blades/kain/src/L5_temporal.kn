@@ -6,7 +6,9 @@
 // When compiled in the workspace, types from types.kn, ast.kn take precedence.
 
 use types
+use effects
 use ast
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // Duration Unit Helpers
@@ -27,9 +29,7 @@ pub fn duration_unit_code(unit: String) -> Int:
     if unit == "ticks": return 5
     return -1
 
-// pulse_body_effects — all effects auto-emitted for pulse/resonate bodies
-pub fn pulse_body_effects() -> Int:
-    return types.KC_EFF_IO or types.KC_EFF_GPU or types.KC_EFF_ASYNC or types.KC_EFF_REACTIVE or types.KC_EFF_UNSAFE or types.KC_EFF_ALLOC or types.KC_EFF_PANIC
+// pulse_body_effects — from effects.kn (via `use effects`)
 
 // ═══════════════════════════════════════════════════════════════════
 // check_pulse — typecheck a pulse declaration

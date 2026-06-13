@@ -6,6 +6,7 @@
 // When compiled in the workspace, types from types.kn, ast.kn take precedence.
 
 use types
+use effects
 
 // ═══════════════════════════════════════════════════════════════════
 // Predicate kind encoding: 0=target, 1=arch, 2=capability
@@ -83,7 +84,7 @@ pub fn check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
             name_idx: name_idx,
             resolved_type: types.rt_unit(),
             ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -116,7 +117,7 @@ pub fn check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
             name_idx: name_idx,
             resolved_type: types.rt_unit(),
             ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
@@ -193,7 +194,7 @@ pub fn check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
             name_idx: -1,
             resolved_type: value_type,
             ast_index: idx,
-            effects: types.KC_EFF_PURE,
+            effects: EFF_PURE,
         }
     }
 
