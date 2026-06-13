@@ -13,6 +13,13 @@
 
 use std::fmt
 
+// ── L7 + GPU codegen stubs (BLUE stream — real emission deferred) ──
+// compile_spawn_textual stays in this file at ~2412.
+// The compile_actor_spawn / compile_ownership_op stubs in L7_systems.kn
+// and compile_shader_artifact / compile_dispatch_stmt stubs in GPU.kn
+// will be wired into compile_expr_textual / compile_stmt_textual during
+// the BLUE stream.
+
 // ═══════════════════════════════════════════════════════════════════
 // Local LLVM-C type aliases (Path B stubs — real in llvm_ffi.kn)
 // ═══════════════════════════════════════════════════════════════════

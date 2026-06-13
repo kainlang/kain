@@ -1,0 +1,17 @@
+// Standalone syntax test for L6_stones patterns
+use std::text
+
+const PRED_TARGET:     Int = 0
+const PRED_ARCH:       Int = 1
+const PRED_CAPABILITY: Int = 2
+
+pub fn check_predicate_kind(kind: Int) -> Bool:
+    return kind >= PRED_TARGET and kind <= PRED_CAPABILITY
+
+pub fn validate_fallback(has_fallback: Int, fallback_idx: Int) -> String:
+    if has_fallback == 0 or fallback_idx < 0:
+        return "axiom must declare a portable fallback function"
+    return ""
+
+pub fn compile_stub(gen: Int, item: Int) -> Int:
+    return gen

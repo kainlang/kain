@@ -1,0 +1,207 @@
+// L3_dispatch.kn — Converge construct: typecheck + codegen stubs
+// STREAM: FOXTROT + GOLF — Construct Implementation
+//
+// Implements the L3 dispatch layer (converge) for the self-host compiler.
+// Typecheck: check_converge() validates spec + fast lane signatures.
+// Codegen: compile_converge() emits spec function, fast lane functions,
+//          and the dispatch function with cached lane selection.
+//
+// SELF-CONTAINED: duplicates needed types from types.kn/ast.kn for
+// independent file checking. At combine time, these are shadowed by
+// the canonical definitions in earlier source_order files.
+//
+// Spec layers reference: X:/blades/kain/spec-layers/L3_dispatch.md
+// Language reference: X:/docs/CONVERGE.MD
+//
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated AST Item Kind Constants (from ast.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+const AST_ITEM_CONVERGE:    Int = 15
+const AST_ITEM_ORCHESTRATE: Int = 18
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated Effect Constants (from effects.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+const EFF_PURE:     Int = 0x00
+const EFF_IO:       Int = 0x01
+const EFF_GPU:      Int = 0x02
+const EFF_ASYNC:    Int = 0x04
+const EFF_REACTIVE: Int = 0x08
+const EFF_UNSAFE:   Int = 0x10
+const EFF_ALLOC:    Int = 0x20
+const EFF_PANIC:    Int = 0x40
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated ResolvedType constants + struct (from types.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+const RT_UNIT:     Int = 0
+const RT_BOOL:     Int = 1
+const RT_INT:      Int = 2
+const RT_FLOAT:    Int = 3
+const RT_STRING:   Int = 4
+const RT_CHAR:     Int = 5
+const RT_ARRAY:    Int = 6
+const RT_SLICE:    Int = 7
+const RT_TUPLE:    Int = 8
+const RT_REF:      Int = 9
+const RT_PTR:      Int = 10
+const RT_OPTION:   Int = 11
+const RT_RESULT:   Int = 12
+const RT_FUTURE:   Int = 13
+const RT_STRUCT:   Int = 14
+const RT_ENUM:     Int = 15
+const RT_FUNCTION: Int = 16
+const RT_GENERIC:  Int = 17
+const RT_NEVER:    Int = 18
+const RT_UNKNOWN:  Int = 19
+
+pub struct ResolvedType:
+    kind:          Int
+    int_size:      Int
+    float_size:    Int
+    name:          Int
+    inner_type:    Int
+    array_len:     Int
+    tuple_types:   Int
+    tuple_len:     Int
+    result_ok:     Int
+    result_err:    Int
+    fn_params:     Int
+    fn_param_count: Int
+    fn_ret:        Int
+    fn_effects:    Int
+    ref_mut:       Bool
+
+pub fn rt_zero() -> ResolvedType:
+    return ResolvedType {
+        kind: RT_UNKNOWN, int_size: 0, float_size: 0, name: -1,
+        inner_type: -1, array_len: 0, tuple_types: -1, tuple_len: 0,
+        result_ok: -1, result_err: -1,
+        fn_params: -1, fn_param_count: 0, fn_ret: -1, fn_effects: 0,
+        ref_mut: false,
+    }
+
+pub fn rt_unit() -> ResolvedType:
+    let mut t: ResolvedType = rt_zero()
+    t.kind = RT_UNIT
+    return t
+
+pub fn rt_i64() -> ResolvedType:
+    let mut t: ResolvedType = rt_zero()
+    t.kind = RT_INT
+    t.int_size = 8
+    return t
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated AstNode struct + helpers (from ast.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct AstNode:
+    kind:       Int
+    span_start: Int
+    span_end:   Int
+    data:       Array<Int>
+
+pub fn ast_data_len(node: AstNode) -> Int:
+    return len(node.data)
+
+pub fn ast_data_get(node: AstNode, index: Int) -> Int:
+    if index < 0 or index >= len(node.data):
+        return -1
+    return node.data[index]
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated TypeEnv struct stub (from types.kn — minimal fields)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct TypeEnv:
+    errs:      KcDiagnosticBag
+
+pub struct KcDiagnostic:
+    message:   String
+
+pub struct KcDiagnosticBag:
+    messages:  Array<KcDiagnostic>
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated TypedItem + TypedItemAndEnv (from types.kn)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct TypedItem:
+    kind:          Int
+    name:          String
+    name_idx:      Int
+    resolved_type: ResolvedType
+    ast_index:     Int
+    effects:       Int
+
+pub struct TypedItemAndEnv:
+    env:  TypeEnv
+    item: TypedItem
+
+// ═══════════════════════════════════════════════════════════════════
+// check_converge — Typecheck a converge declaration
+//
+// A converge block has:
+//   - Exactly 1 spec lane (the reference/ground-truth implementation)
+//   - At least 1 fast lane, each with an optional selector
+//   - Optional verify random(N) clause for spec-vs-fast fuzzing
+//
+// All lanes must share the same function signature (params + return type).
+// The spec lane is the fallback if no fast lane's selector matches.
+// Selectors: target("llvm"), capability("cpu.x86.avx2"), etc.
+//
+// Current status: STUB — returns TypedItem with i64 return type.
+// Spec-layer implementation will add:
+//   - Signature derivation from converge name + params + return type
+//   - Spec lane body typecheck against dispatcher signature
+//   - Fast lane body typecheck against dispatcher signature
+//   - Selector validation (target/capability strings non-empty)
+//   - Verify random count validation (N >= 0, warn if N > 10000)
+//   - Duplicate lane name detection
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// compile_converge — Codegen a converge declaration (STUB)
+//
+// Current status: STUB — passes generator through unchanged.
+// Spec-layer implementation will emit:
+//   - @{name}__spec — spec lane function body
+//   - @{name}__fast_{lane} — each fast lane as a separate callable
+//   - @{name} — dispatch function with:
+//       * Static global cache: @__kain_converge_cached_{name}
+//       * Target("...") resolved statically at compile time
+//       * Capability("...") probes via abi_cpu_capability_mask_for_key
+//       * Fallback to spec if no fast lane matches
+//       * Cached lane selection (once per process)
+//   - Optional verify random(N) startup code:
+//       * Generate N random arg sets
+//       * Call spec and selected fast lane
+//       * Call abi_converge_record_telemetry on mismatch
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn compile_converge(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+    return gen
+
+// ═══════════════════════════════════════════════════════════════════
+// Duplicated LlvmGenerator (from codegen.kn — minimal for stub)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct LlvmGenerator:
+    output: String
+
+pub fn llvm_gen_new() -> LlvmGenerator:
+    return LlvmGenerator { output: "" }

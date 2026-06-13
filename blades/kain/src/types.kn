@@ -5,6 +5,18 @@
 // SELF-CONTAINED: All constants, types, and helpers are defined locally
 // (no cross-file imports) because the bootstrap compiler checks each file
 // independently before the module system is bootstrapped.
+//
+// Updated for L3-L6 construct extraction: imports sibling modules for
+// converge, orchestrate, pulse, resonate, axiom, shatter, and teleport checking.
+
+use L3_dispatch
+use L4_stage
+use L1_state
+use L2_integrity
+use L7_systems
+use L5_temporal
+use L6_stones
+use GpuBackend
 
 // ═══════════════════════════════════════════════════════════════════
 // Effect Constants (duplicated from effects.kn for standalone check)
@@ -882,21 +894,25 @@ pub fn check_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     elif kind == AST_ITEM_TRAIT or kind == AST_ITEM_IMPL:
         return check_trait_impl_item(env, node, idx)
     elif kind == AST_ITEM_PATCH or kind == AST_ITEM_LAW:
-        return check_patch_law_stub(env, node, idx, kind)
+        return L2_integrity.check_patch_law(env, node, idx, kind)
     elif kind == AST_ITEM_CONVERGE:
-        return check_converge_stub(env, node, idx)
+        return L3_dispatch.check_converge(env, node, idx)
     elif kind == AST_ITEM_ORCHESTRATE:
-        return check_orchestrate_stub(env, node, idx)
-    elif kind == AST_ITEM_PULSE or kind == AST_ITEM_RESONATE:
-        return check_pulse_resonate_stub(env, node, idx)
+        return L4_stage.check_orchestrate(env, node, idx)
+    elif kind == AST_ITEM_PULSE:
+        return L5_temporal.check_pulse(env, node, idx)
+    elif kind == AST_ITEM_RESONATE:
+        return L5_temporal.check_resonate(env, node, idx)
     elif kind == AST_ITEM_AXIOM:
-        return check_axiom_stub(env, node, idx)
-    elif kind == AST_ITEM_WORLD or kind == AST_ITEM_ACTOR or kind == AST_ITEM_COMPONENT:
-        return check_world_stub(env, node, idx)
+        return L6_stones.check_axiom(env, node, idx)
+    elif kind == AST_ITEM_ACTOR:
+        return L7_systems.check_actor(env, node, idx)
+    elif kind == AST_ITEM_WORLD or kind == AST_ITEM_COMPONENT:
+        return L1_state.check_world(env, node, idx)
     elif kind == AST_ITEM_ENTANGLE:
-        return check_entangle_stub(env, node, idx)
+        return L1_state.check_entangle(env, node, idx)
     elif kind == AST_ITEM_SHADER:
-        return check_shader_stub(env, node, idx)
+        return GpuBackend.check_shader(env, node, idx)
     else:
         return empty_typed_item_and_env(env, kind, "unknown", idx)
 
@@ -1093,7 +1109,8 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
                 e = type_error(e, "continue outside loop", ERR_TYPE_MISMATCH,
                               child.span_start, child.span_end)
         elif ck == AST_STMT_DISPATCH:
-            let _noop2: Int = 0  // Stub: GPU dispatch
+            let dispatch_result: TypedItemAndEnv = GpuBackend.check_dispatch_stmt(e, child, child_idx)
+            e = dispatch_result.env
         elif ck == AST_EXPR_BLOCK:
             // Nested block — check its trailing expression type
             e = check_block_body(e, child_idx, expected_ret, caller_eff)
@@ -1593,77 +1610,8 @@ pub fn check_trait_impl_item(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
 // STUB CHECKERS for Layers 1-7 (Stream RED: updated to return TypedItemAndEnv)
 // ═══════════════════════════════════════════════════════════════════
 
-pub fn check_patch_law_stub(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    let ret: ResolvedType = if kind == AST_ITEM_LAW: rt_bool() else: rt_i64()
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: kind, name: "pl_" + str(name_idx), name_idx: name_idx,
-            resolved_type: ret, ast_index: idx, effects: EFF_PURE,
-        }
-    }
-
-pub fn check_converge_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
-        }
-    }
-
-pub fn check_orchestrate_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_i64(), ast_index: idx, effects: EFF_PURE,
-        }
-    }
-
-pub fn check_pulse_resonate_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_PULSE, name: "pr_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_unit(), ast_index: idx,
-            effects: EFF_PURE or EFF_IO or EFF_GPU or EFF_ASYNC or EFF_REACTIVE or EFF_UNSAFE or EFF_ALLOC or EFF_PANIC,
-        }
-    }
-
-pub fn check_axiom_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_AXIOM, name: "ax_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
-        }
-    }
-
-pub fn check_world_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_WORLD, name: "w_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_struct_as(name_idx), ast_index: idx, effects: EFF_PURE,
-        }
-    }
-
-pub fn check_entangle_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
-    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
-    return TypedItemAndEnv {
-        env: env,
-        item: TypedItem {
-            kind: AST_ITEM_ENTANGLE, name: "ent_" + str(name_idx), name_idx: name_idx,
-            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
-        }
-    }
+// ── Pulse + Resonate moved to L5_temporal.kn (check_pulse / check_resonate) ──
+// ── Axiom moved to L6_stones.kn (check_axiom) ──
 
 pub fn check_shader_stub(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
     let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1

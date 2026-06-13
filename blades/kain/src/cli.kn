@@ -5,69 +5,10 @@
 // appropriate subcommand. All compilation work is delegated to CHARLIE's
 // orchestrator entry points (orch_*_cli).
 //
-// SELF-CONTAINED: local stubs for orchestrator functions when imported
-// standalone. When combined with orchestrator.kn, the real implementations
-// are available.
-
 use std::fs
 use std::os
 use std::text
-
-// ═══════════════════════════════════════════════════════════════════
-// Forward stubs for orchestrator.kn entry points
-//
-// These stubs exist so cli.kn can compile standalone (kain check cli.kn).
-// At ouroboros combine time, orchestrator.kn's real implementations of
-// orch_*_cli() shadow these stubs and the full pipeline activates.
-//
-// cli.kn (source_order position 69) appears AFTER orchestrator.kn (67)
-// and compiler.kn (68). In the combined source, the real orch_*_cli()
-// from orchestrator.kn are already defined and these stubs are skipped.
-// ═══════════════════════════════════════════════════════════════════
-
-pub fn orch_check_cli(input_path: String) -> Int with IO:
-    // Stub for standalone check; shadowed by orchestrator.kn at combine
-    println("[kainc] check: " + input_path + " (standalone — orchestrator not linked)")
-    return 0
-
-pub fn orch_build_cli(input_path: String, target: String, profile: String, stage: String) -> Int with IO:
-    println("[kainc] build: " + input_path + " (standalone — orchestrator not linked)")
-    return 0
-
-pub fn orch_run_cli(input_path: String) -> Int with IO:
-    println("[kainc] run: " + input_path + " (standalone — orchestrator not linked)")
-    return 0
-
-pub fn orch_test_cli(input_path: String) -> Int with IO:
-    println("[kainc] test: " + input_path + " (standalone — orchestrator not linked)")
-    return 0
-
-// SOURCE_ORDER stub — real definition in orchestrator.kn, shadowed at combine time
-pub const SOURCE_ORDER_ITEMS: Array<String> = [
-    "token.kn", "error.kn", "span.kn", "ast.kn", "build.kn",
-    "lexer.kn", "builtins.kn", "runtime.kn",
-    "llvm_ffi.kn", "jit_metal.kn", "jit_x86.kn",
-    "jit_orc.kn", "jit_cache.kn", "jit.kn",
-    "parser.kn", "types.kn", "effects.kn",
-    "monomorphize.kn", "codegen.kn",
-    "orchestrator.kn", "compiler.kn",
-    "cli.kn", "main.kn",
-]
-
-pub const SOURCE_ORDER: Array<String> = [
-    "token.kn", "error.kn", "span.kn", "ast.kn", "build.kn",
-    "lexer.kn", "builtins.kn", "runtime.kn",
-    "llvm_ffi.kn", "jit_metal.kn", "jit_x86.kn",
-    "jit_orc.kn", "jit_cache.kn", "jit.kn",
-    "parser.kn", "types.kn", "effects.kn",
-    "monomorphize.kn", "codegen.kn",
-    "orchestrator.kn", "compiler.kn",
-    "cli.kn", "main.kn",
-]
-
-pub fn orch_selfhost_cli(project_root: String, verify: Bool) -> Int with IO:
-    println("[kainc] selfhost: project=" + project_root + " verify=" + str(verify) + " (standalone — orchestrator not linked)")
-    return 0
+use orchestrator
 
 // ═══════════════════════════════════════════════════════════════════
 // Subcommand Constants
@@ -296,7 +237,7 @@ pub fn run_check(config: CliConfig) -> Int with IO:
             var fi: Int = 0
             while fi < len(files):
                 let f: String = files[fi]
-                let exit_code: Int = orch_check_cli(f)
+                let exit_code: Int = orchestrator.orch_check_cli(f)
                 file_count = file_count + 1
                 if exit_code == 0:
                     println("[kainc]   PASS: " + f)
@@ -309,7 +250,7 @@ pub fn run_check(config: CliConfig) -> Int with IO:
             println("[kainc] check: no files found in " + input_path)
     else:
         // Single file
-        let exit_code: Int = orch_check_cli(input_path)
+        let exit_code: Int = orchestrator.orch_check_cli(input_path)
         file_count = 1
         if exit_code == 0:
             println("[kainc]   PASS: " + input_path)
@@ -339,7 +280,7 @@ pub fn run_build(config: CliConfig) -> Int with IO:
     println("[kainc] Phase 4/5: Typecheck...")
     println("[kainc] Phase 5/5: Codegen...")
 
-    let exit_code: Int = orch_build_cli(input_path, target, profile, config.stage)
+    let exit_code: Int = orchestrator.orch_build_cli(input_path, target, profile, config.stage)
 
     if exit_code == 0:
         println("[kainc] ─────────────────────────────────────")
@@ -356,7 +297,7 @@ pub fn run_build(config: CliConfig) -> Int with IO:
 
 pub fn run_run(config: CliConfig) -> Int with IO:
     println("[kainc] run: " + config.input_path)
-    return orch_run_cli(config.input_path)
+    return orchestrator.orch_run_cli(config.input_path)
 
 pub fn run_test(config: CliConfig) -> Int with IO:
     let input_path: String = config.input_path
@@ -364,7 +305,7 @@ pub fn run_test(config: CliConfig) -> Int with IO:
     println("[kainc] TEST: " + input_path)
     println("[kainc] ═══════════════════════════════════════")
 
-    let exit_code: Int = orch_test_cli(input_path)
+    let exit_code: Int = orchestrator.orch_test_cli(input_path)
 
     if exit_code == 0:
         println("[kainc] ─────────────────────────────────────")
@@ -386,10 +327,10 @@ pub fn run_selfhost(config: CliConfig) -> Int with IO:
     println("[kainc] SELFHOST: verify_ouroboros=" + str(verify))
     println("[kainc] ═══════════════════════════════════════")
 
-    println("[kainc] Phase 1/2: Source combination (" + str(len(SOURCE_ORDER)) + " files)...")
+    println("[kainc] Phase 1/2: Source combination (" + str(len(orchestrator.SOURCE_ORDER)) + " files)...")
     println("[kainc] Phase 2/2: Ouroboros verification...")
 
-    let exit_code: Int = orch_selfhost_cli(project_root, verify)
+    let exit_code: Int = orchestrator.orch_selfhost_cli(project_root, verify)
 
     if exit_code == 0:
         println("[kainc] ─────────────────────────────────────")

@@ -1,0 +1,20 @@
+// Standalone syntax test for L5_temporal patterns
+use std::text
+
+pub fn is_valid_duration_unit(unit: String) -> Bool:
+    return unit == "ns" or unit == "us" or unit == "ms" or unit == "s" or unit == "tick" or unit == "ticks"
+
+pub fn duration_unit_code(unit: String) -> Int:
+    if unit == "ns":    return 0
+    if unit == "us":    return 1
+    if unit == "ms":    return 2
+    if unit == "s":     return 3
+    if unit == "tick":  return 4
+    if unit == "ticks": return 5
+    return -1
+
+pub fn pulse_body_effects() -> Int:
+    return 0x01 or 0x02 or 0x04 or 0x08 or 0x10 or 0x20 or 0x40
+
+pub fn compile_identity(x: Int) -> Int:
+    return x

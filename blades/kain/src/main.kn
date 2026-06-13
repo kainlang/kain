@@ -1,59 +1,233 @@
 // main.kn — Entry point for the Kain Self-Host Compiler (kainc)
 // STREAM: GOLF
 //
-// Wires the CLI argument parser to the subcommand dispatcher.
-// All heavy lifting is delegated to subcommand handlers in cli.kn,
-// which route through CHARLIE's orchestrator entry points.
+// Self-contained entry point with inline CLI parsing and subcommand dispatch.
 
 use std::process
+use std::fs
+use std::text
+use orchestrator
 
-// ── Forward type declarations (resolved at ouroboros combine time) ──
+// ═══════════════════════════════════════════════════════════════════
+// Version
+// ═══════════════════════════════════════════════════════════════════
+
+pub const VERSION: String = "0.1.0-alpha"
+pub const BUILD_DATE: String = "2026-06-12"
+
+// ═══════════════════════════════════════════════════════════════════
+// Subcommand constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub const SUBCMD_HELP:       Int = 10
+pub const SUBCMD_VERSION:    Int = 11
+pub const SUBCMD_CHECK:      Int = 0
+pub const SUBCMD_BUILD:      Int = 1
+pub const SUBCMD_RUN:        Int = 2
+pub const SUBCMD_TEST:       Int = 3
+pub const SUBCMD_SELFHOST:   Int = 4
+pub const SUBCMD_FMT:        Int = 5
+pub const SUBCMD_DOCTOR:     Int = 7
+pub const SUBCMD_CLEAN:      Int = 9
+
+// ═══════════════════════════════════════════════════════════════════
+// CliConfig
+// ═══════════════════════════════════════════════════════════════════
+
 pub struct CliConfig:
     subcommand:       Int
     input_path:       String
     target:           String
     profile:          String
     json_output:      Bool
-    json_out_path:    String
     verbose:          Bool
-    debug_info:       Bool
     verify_ouroboros: Bool
-    stage:            String
-    extra_args:       Array<String>
+    stage_name:       String
 
-// ── Stub functions (real implementations in cli.kn) ──
+// ═══════════════════════════════════════════════════════════════════
+// parse_args
+// ═══════════════════════════════════════════════════════════════════
+
 pub fn parse_args(args: Array<String>) -> CliConfig:
+    let mut subcmd: Int = SUBCMD_HELP
+    let mut input_path: String = "."
+    let mut target: String = "llvm"
+    let mut profile: String = "debug"
+    let mut json_output: Bool = false
+    let mut verbose: Bool = false
+    let mut verify_ouroboros: Bool = false
+    let mut build_stage: String = ""
+
+    if len(args) < 2:
+        return CliConfig {
+            subcommand: SUBCMD_HELP, input_path: ".", target: "llvm",
+            profile: "debug", json_output: false, verbose: false,
+            verify_ouroboros: false, stage_name: "",
+        }
+
+    let cmd: String = args[1]
+
+    if cmd == "check":
+        subcmd = SUBCMD_CHECK
+    elif cmd == "build":
+        subcmd = SUBCMD_BUILD
+    elif cmd == "run":
+        subcmd = SUBCMD_RUN
+    elif cmd == "test":
+        subcmd = SUBCMD_TEST
+    elif cmd == "selfhost":
+        subcmd = SUBCMD_SELFHOST
+    elif cmd == "fmt" or cmd == "format":
+        subcmd = SUBCMD_FMT
+    elif cmd == "doctor":
+        subcmd = SUBCMD_DOCTOR
+    elif cmd == "clean":
+        subcmd = SUBCMD_CLEAN
+    elif cmd == "help" or cmd == "--help" or cmd == "-h":
+        subcmd = SUBCMD_HELP
+    elif cmd == "version" or cmd == "--version":
+        subcmd = SUBCMD_VERSION
+
+    // Parse positional: input path (skip if it's a flag)
+    if len(args) > 2:
+        let pos: String = args[2]
+        if pos != "--target" and pos != "--profile" and pos != "--json" and pos != "--verbose" and pos != "--stage" and pos != "--verify-ouroboros":
+            if subcmd != SUBCMD_HELP and subcmd != SUBCMD_VERSION:
+                input_path = pos
+
+    // Parse flags
+    var i: Int = 2
+    while i < len(args):
+        let flag: String = args[i]
+        if flag == "--target":
+            if i + 1 < len(args):
+                target = args[i + 1]
+                i = i + 1
+        elif flag == "--profile":
+            if i + 1 < len(args):
+                profile = args[i + 1]
+                i = i + 1
+        elif flag == "--json":
+            json_output = true
+        elif flag == "--verbose" or flag == "-v":
+            verbose = true
+        elif flag == "--stage":
+            if i + 1 < len(args):
+                build_stage = args[i + 1]
+                i = i + 1
+        elif flag == "--verify-ouroboros":
+            verify_ouroboros = true
+        i = i + 1
+
     return CliConfig {
-        subcommand: 10, input_path: ".", target: "llvm", profile: "debug",
-        json_output: false, json_out_path: "", verbose: false,
-        debug_info: false, verify_ouroboros: false, stage: "",
-        extra_args: [],
+        subcommand:       subcmd,
+        input_path:       input_path,
+        target:           target,
+        profile:          profile,
+        json_output:      json_output,
+        verbose:          verbose,
+        verify_ouroboros: verify_ouroboros,
+        stage_name:       build_stage,
     }
 
-pub fn run_subcommand(config: CliConfig) -> Int with IO:
-    println("kainc 0.1.0-alpha")
-    return 0
+// ═══════════════════════════════════════════════════════════════════
+// Help
+// ═══════════════════════════════════════════════════════════════════
 
-// ── Version constant ──
-pub const VERSION: String = "0.1.0-alpha"
-pub const BUILD_DATE: String = "2026-06-12"
+pub fn print_help() with IO:
+    println("kainc " + VERSION + " — Kain Self-Host Compiler")
+    println("")
+    println("USAGE: kainc <command> [options] [path]")
+    println("")
+    println("COMMANDS:")
+    println("  check    <path>      Typecheck Kain source files")
+    println("  build    <path>      Compile to native executable")
+    println("  run      <path>      Compile and execute (JIT)")
+    println("  test     <path>      Run test suite")
+    println("  selfhost <path>      Self-host bootstrap pipeline")
+    println("  fmt      <path>      Format Kain source files")
+    println("  doctor               Show environment diagnostics")
+    println("  clean                Remove build artifacts")
+    println("  help                 Show this help")
+    println("  version              Show version info")
+    println("")
+    println("OPTIONS:")
+    println("  --target   <target>  Compilation target (llvm, c)")
+    println("  --profile  <profile> Build profile (debug, release)")
+    println("  --json               Structured JSON diagnostics")
+    println("  --verbose, -v        Verbose output")
+    println("  --verify-ouroboros   Verify self-compilation")
 
-// ── Entry Point ──
+pub fn print_version() with IO:
+    println("kainc " + VERSION)
+    println("Build: " + BUILD_DATE)
+    println("Target: x86_64-pc-windows-msvc")
+
+// ═══════════════════════════════════════════════════════════════════
+// Subcommand dispatch
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn run_subcommand(cfg: CliConfig) -> Int with IO:
+    if cfg.subcommand == SUBCMD_HELP:
+        print_help()
+        return 0
+
+    if cfg.subcommand == SUBCMD_VERSION:
+        print_version()
+        return 0
+
+    if cfg.subcommand == SUBCMD_CHECK:
+        println("══ kainc check ══")
+        println("Path:   " + cfg.input_path)
+        return orch_check_cli(cfg.input_path)
+
+    if cfg.subcommand == SUBCMD_BUILD:
+        println("══ kainc build ══")
+        println("Path:    " + cfg.input_path)
+        println("Target:  " + cfg.target)
+        println("Profile: " + cfg.profile)
+        return orch_build_cli(cfg.input_path, cfg.target, cfg.profile, cfg.stage_name)
+
+    if cfg.subcommand == SUBCMD_RUN:
+        println("══ kainc run ══")
+        println("Path: " + cfg.input_path)
+        return orch_run_cli(cfg.input_path)
+
+    if cfg.subcommand == SUBCMD_TEST:
+        println("══ kainc test ══")
+        println("Path: " + cfg.input_path)
+        return orch_test_cli(cfg.input_path)
+
+    if cfg.subcommand == SUBCMD_SELFHOST:
+        println("══ kainc selfhost ══")
+        println("Project: " + cfg.input_path)
+        return orch_selfhost_cli(cfg.input_path, cfg.verify_ouroboros)
+
+    if cfg.subcommand == SUBCMD_FMT:
+        println("══ kainc fmt ══")
+        println("Not yet implemented")
+        return 0
+
+    if cfg.subcommand == SUBCMD_CLEAN:
+        println("══ kainc clean ══")
+        return 0
+
+    if cfg.subcommand == SUBCMD_DOCTOR:
+        println("══ kainc doctor ══")
+        println("Version:  " + VERSION)
+        println("Build:    " + BUILD_DATE)
+        println("Target:   x86_64-pc-windows-msvc")
+        return 0
+
+    println("kainc: unknown command — try 'kainc help'")
+    return 1
+
+// ═══════════════════════════════════════════════════════════════════
+// Entry Point — delegates to orchestrator.kn's orch_*_cli()
+// ═══════════════════════════════════════════════════════════════════
 
 pub fn main() -> Int with IO:
-    // Parse command-line arguments
-    let args: Array<String> = process_args()
-    let config: CliConfig = parse_args(args)
-
-    // Dispatch to the appropriate subcommand handler
-    return run_subcommand(config)
-
-// ── Public utilities accessible from the CLI ──
-
-pub fn version_string() -> String:
-    return "kainc " + VERSION + " (" + BUILD_DATE + ")"
-
-pub fn print_banner() with IO:
-    println(version_string())
-    println("Self-Host Kain Compiler — LLVM native codegen")
-    println("Target: x86_64-pc-windows-msvc")
+    let raw_args: Array<String> = process_args()
+    let cli_config: CliConfig = parse_args(raw_args)
+    return run_subcommand(cli_config)
+ 
