@@ -1,5 +1,5 @@
 // codegen.kn — Two-path LLVM codegen: textual .ll + LLVM-C API
-// STREAM: GOLF — CODEGEN DEEPENING
+// STREAM: BLUE + GOLF — CODEGEN COMPLETION
 //
 // Path A (textual .ll): string-based emission — always works, zero LLVM dep.
 // Path B (LLVM-C API): in-memory IR construction for JIT.
@@ -44,8 +44,70 @@ pub fn runtime_table_init() -> RuntimeTable:
 pub fn emit_runtime_declares(table: RuntimeTable) -> String:
     var output: String = ""
     output = output + "; ── Runtime Function Declarations ──\n"
-    output = output + "; " + str(len(table.functions)) + " runtime functions (from runtime.kn at combine)\n\n"
+    output = output + "; " + str(len(table.functions)) + " runtime functions\n\n"
+    if len(table.functions) > 0:
+        var i: Int = 0
+        while i < len(table.functions):
+            let fn_entry: RuntimeFunction = table.functions[i]
+            output = output + runtime_fn_to_declare(fn_entry)
+            i = i + 1
+    else:
+        // Fallback: emit minimum core declares when RuntimeTable is empty
+        output = output + "; Core runtime declares (fallback)\n"
+        output = output + core_runtime_declares_fallback()
+    output = output + "\n"
     return output
+
+// ── Fallback: minimum core runtime declares when RuntimeTable is empty ──
+
+pub fn core_runtime_declares_fallback() -> String:
+    var decls: String = ""
+    decls = decls + "declare void @print_i64(i64)\n"
+    decls = decls + "declare void @print_f64(double)\n"
+    decls = decls + "declare void @print_bool(i1)\n"
+    decls = decls + "declare void @print_str(i8*, i64)\n"
+    decls = decls + "declare void @print_ptr(i8*)\n"
+    decls = decls + "declare i8* @KAIN_alloc(i64)\n"
+    decls = decls + "declare void @KAIN_free(i8*)\n"
+    decls = decls + "declare i8* @KAIN_realloc(i8*, i64)\n"
+    decls = decls + "declare i64 @strlen(i8*)\n"
+    decls = decls + "declare i32 @strcmp(i8*, i8*)\n"
+    decls = decls + "declare i8* @str_concat(i8*, i8*)\n"
+    decls = decls + "declare i8* @string_new(i8*)\n"
+    decls = decls + "declare i8* @to_string(i64)\n"
+    decls = decls + "declare i8* @to_string_f64(double)\n"
+    decls = decls + "declare void @abi_panic(i8*, i64)\n"
+    decls = decls + "declare void @abi_debug_break()\n"
+    decls = decls + "declare i64 @abi_runtime_init()\n"
+    decls = decls + "declare i64 @abi_runtime_shutdown()\n"
+    return decls
+
+// ── runtime_fn_to_declare — format a single RuntimeFunction as LLVM declare ──
+
+pub fn runtime_fn_to_declare(fn_entry: RuntimeFunction) -> String:
+    var decl: String = "declare "
+    if fn_entry.calling_conv == "win64cc":
+        decl = decl + "win64cc "
+    if fn_entry.calling_conv == "fastcc":
+        decl = decl + "fastcc "
+    decl = decl + fn_entry.return_type + " @" + fn_entry.name + "("
+    var j: Int = 0
+    while j < len(fn_entry.param_types):
+        if j > 0:
+            decl = decl + ", "
+        decl = decl + fn_entry.param_types[j]
+        j = j + 1
+    if fn_entry.is_vararg:
+        if len(fn_entry.param_types) > 0:
+            decl = decl + ", "
+        decl = decl + "..."
+    decl = decl + ")"
+    var k: Int = 0
+    while k < len(fn_entry.attributes):
+        decl = decl + " " + fn_entry.attributes[k]
+        k = k + 1
+    decl = decl + "\n"
+    return decl
 
 pub fn target_triple_for_platform() -> String:
     return "x86_64-pc-windows-msvc"
@@ -127,16 +189,28 @@ const AST_EXPR_ASSIGN:       Int = 113
 const AST_EXPR_IF:           Int = 114
 const AST_EXPR_BLOCK:        Int = 116
 const AST_EXPR_STRUCT_LIT:   Int = 118
+const AST_EXPR_METHOD_CALL:  Int = 110
+const AST_EXPR_INDEX:        Int = 112
+const AST_EXPR_MATCH:        Int = 115
+const AST_EXPR_ENUM_VARIANT: Int = 119
 const AST_EXPR_ARRAY:        Int = 120
+const AST_EXPR_TUPLE:        Int = 121
 const AST_EXPR_REF:          Int = 122
 const AST_EXPR_DEREF:        Int = 123
 const AST_EXPR_CAST:         Int = 124
+const AST_EXPR_SPAWN:        Int = 127
+const AST_EXPR_LAMBDA:       Int = 135
 const AST_EXPR_PAREN:        Int = 156
 
 const AST_STMT_LET:          Int = 50
 const AST_STMT_RETURN:       Int = 51
-const AST_STMT_EXPR:         Int = 60
+const AST_STMT_DEFER:        Int = 52
+const AST_STMT_FOR:          Int = 53
 const AST_STMT_WHILE:        Int = 55
+const AST_STMT_LOOP:         Int = 56
+const AST_STMT_BREAK:        Int = 57
+const AST_STMT_CONTINUE:     Int = 58
+const AST_STMT_EXPR:         Int = 60
 
 // Binary op constants
 const BINOP_ADD:     Int = 0
@@ -258,6 +332,11 @@ pub struct StructEntry:
     name:   String
     fields: String
 
+pub struct StringConstEntry:
+    global_name: String
+    content:     String
+    length:      Int
+
 pub struct LlvmGenerator:
     output:             String
     reg_count:          Int
@@ -266,6 +345,7 @@ pub struct LlvmGenerator:
     locals:             Array<LocalEntry>
     struct_defs:        Array<StructEntry>
     loop_stack:         Array<LoopLabel>
+    string_consts:      Array<StringConstEntry>
     indent_level:       Int
 
 pub fn llvm_gen_new() -> LlvmGenerator:
@@ -277,6 +357,7 @@ pub fn llvm_gen_new() -> LlvmGenerator:
         locals:             [],
         struct_defs:        [],
         loop_stack:         [],
+        string_consts:      [],
         indent_level:       0,
     }
 
@@ -532,6 +613,11 @@ pub fn codegen_textual(program: MonomorphizedProgram,
     // ── Attribute Groups ──
     gen = emit_attribute_groups(gen)
 
+    // ── Global String Constants ──
+    gen = emit_raw(gen, "; ── Global String Constants ──\n")
+    gen = emit_global_strings(gen, program)
+    gen = emit_blank(gen)
+
     // ── Runtime Function Declarations ──
     let table: RuntimeTable = runtime_table_init()
     gen = emit_raw(gen, emit_runtime_declares(table))
@@ -591,20 +677,43 @@ pub fn emit_struct_defs_from_program(gen: LlvmGenerator,
     while i < len(program.items):
         let item: TypedItem = program.items[i]
         if item.kind == AST_ITEM_STRUCT:
-            let ty: ResolvedType = item.resolved_type
-            let type_name: String = "%" + str(ty.name)
-            let fields: String = struct_defs_find(r, type_name)
+            let name_idx: Int = item.name_idx
+            let type_name: String = "%struct_" + str(name_idx)
 
-            // Emit type definition
-            if fields != "":
-                r = emit_raw(r, type_name + " = type { " + fields + " }\n")
+            // Walk AST to extract field types from the struct's AST node
+            let ast_idx: Int = item.ast_index
+            var field_types_str: String = ""
+            if ast_idx >= 0 and ast_idx < len(program.ast_nodes):
+                let struct_node: AstNode = program.ast_nodes[ast_idx]
+                let sd: Array<Int> = struct_node.data
+                let sdlen: Int = len(sd)
+                let gc: Int = if sdlen > 1: sd[1] else: 0
+                let fc_pos: Int = 2 + 2 * gc
+                let fcount: Int = if fc_pos < sdlen: sd[fc_pos] else: 0
+                var fi: Int = 0
+                while fi < fcount:
+                    if fi > 0:
+                        field_types_str = field_types_str + ", "
+                    // All fields default to i64 for now (typechecker defaults to Int)
+                    field_types_str = field_types_str + "i64"
+                    fi = fi + 1
             else:
-                r = emit_raw(r, type_name + " = type { i64 }\n")
+                field_types_str = "i64"
+
+            if field_types_str == "":
+                field_types_str = "i64"
+
+            // Register struct definition for field access lookups
+            r = struct_defs_register(r, type_name, field_types_str)
+            r = emit_raw(r, type_name + " = type { " + field_types_str + " }\n")
+
         elif item.kind == AST_ITEM_ENUM:
-            let ty: ResolvedType = item.resolved_type
-            let type_name: String = "%" + str(ty.name)
-            // Tagged union: { i64 tag, [max_payload x i8] }
-            r = emit_raw(r, type_name + " = type { i64, [8 x i8] }\n")
+            let name_idx: Int = item.name_idx
+            let type_name: String = "%enum_" + str(name_idx)
+            // Tagged union: { i64 tag, [8 x i8] payload }
+            let enum_fields: String = "i64, [8 x i8]"
+            r = struct_defs_register(r, type_name, enum_fields)
+            r = emit_raw(r, type_name + " = type { " + enum_fields + " }\n")
         i = i + 1
 
     return r
@@ -637,8 +746,113 @@ pub fn emit_const_globals(gen: LlvmGenerator,
 pub fn emit_global_strings(gen: LlvmGenerator,
                             program: MonomorphizedProgram) -> LlvmGenerator:
     let mut r: LlvmGenerator = gen
+
+    // Walk AST to collect all string literal expressions
+    var string_pool: Array<String> = []        // unique string values
+    var string_global_names: Array<String> = [] // corresponding global names
+
+    var ai: Int = 0
+    while ai < len(program.ast_nodes):
+        let node: AstNode = program.ast_nodes[ai]
+        if node.kind == AST_EXPR_STRING:
+            // Extract string content from AST node data
+            // data[0] = string length, data[1+] = byte values OR string index
+            let sd: Array<Int> = node.data
+            let sdlen: Int = len(sd)
+            var str_content: String = ""
+            if sdlen > 0:
+                let str_len: Int = sd[0]
+                var ci: Int = 0
+                while ci < str_len and (ci + 1) < sdlen:
+                    let byte_val: Int = sd[ci + 1]
+                    if byte_val > 0 and byte_val < 128:
+                        // Printable ASCII
+                        str_content = str_content + byte_val_to_escaped_char(byte_val)
+                    ci = ci + 1
+
+            // Check if already in pool
+            var found: Bool = false
+            var si: Int = 0
+            while si < len(string_pool):
+                if string_pool[si] == str_content:
+                    found = true
+                    si = len(string_pool)
+                si = si + 1
+
+            if found == false and str_content != "":
+                let s_gn: String = "@.str." + str(len(string_pool))
+                string_pool.push(str_content)
+                string_global_names.push(s_gn)
+        ai = ai + 1
+
+    // Emit string globals
+    if len(string_pool) > 0:
+        var si2: Int = 0
+        while si2 < len(string_pool):
+            let content: String = string_pool[si2]
+            let gn: String = string_global_names[si2]
+            let byte_len: Int = len(content) + 1  // +1 for null terminator
+            r = emit_raw(r, gn + " = private unnamed_addr constant [" + str(byte_len) + " x i8] c\"" + content + "\\00\", align 1\n")
+            si2 = si2 + 1
+
+    // Always emit the empty string constant
     r = emit_raw(r, "@.str.empty = private unnamed_addr constant [1 x i8] zeroinitializer, align 1\n")
     return r
+
+// ── byte_val_to_escaped_char — convert byte value to LLVM escape sequence ──
+
+pub fn byte_val_to_escaped_char(byte_val: Int) -> String:
+    if byte_val == 10:   return "\\0A"     // \\n
+    if byte_val == 13:   return "\\0D"     // \\r
+    if byte_val == 9:    return "\\09"     // \\t
+    if byte_val == 34:   return "\\22"     // \"
+    if byte_val == 92:   return "\\5C"     // \\
+    if byte_val == 0:    return "\\00"
+    // Printable ASCII
+    if byte_val >= 32 and byte_val < 127:
+        var c: String = ""
+        // Simple char conversion — use hex escape for reliability
+        return hex_escape(byte_val)
+    return hex_escape(byte_val)
+
+pub fn hex_escape(b: Int) -> String:
+    let hi: Int = (b / 16) % 16
+    let lo: Int = b % 16
+    var hi_c: String = ""
+    var lo_c: String = ""
+    if hi == 0: hi_c = "0"
+    elif hi == 1: hi_c = "1"
+    elif hi == 2: hi_c = "2"
+    elif hi == 3: hi_c = "3"
+    elif hi == 4: hi_c = "4"
+    elif hi == 5: hi_c = "5"
+    elif hi == 6: hi_c = "6"
+    elif hi == 7: hi_c = "7"
+    elif hi == 8: hi_c = "8"
+    elif hi == 9: hi_c = "9"
+    elif hi == 10: hi_c = "A"
+    elif hi == 11: hi_c = "B"
+    elif hi == 12: hi_c = "C"
+    elif hi == 13: hi_c = "D"
+    elif hi == 14: hi_c = "E"
+    elif hi == 15: hi_c = "F"
+    if lo == 0: lo_c = "0"
+    elif lo == 1: lo_c = "1"
+    elif lo == 2: lo_c = "2"
+    elif lo == 3: lo_c = "3"
+    elif lo == 4: lo_c = "4"
+    elif lo == 5: lo_c = "5"
+    elif lo == 6: lo_c = "6"
+    elif lo == 7: lo_c = "7"
+    elif lo == 8: lo_c = "8"
+    elif lo == 9: lo_c = "9"
+    elif lo == 10: lo_c = "A"
+    elif lo == 11: lo_c = "B"
+    elif lo == 12: lo_c = "C"
+    elif lo == 13: lo_c = "D"
+    elif lo == 14: lo_c = "E"
+    elif lo == 15: lo_c = "F"
+    return "\\" + hi_c + lo_c
 
 // ═══════════════════════════════════════════════════════════════════
 // Function AST data layout helpers (mirrors types.kn)
@@ -836,10 +1050,22 @@ pub fn compile_stmt_textual(gen: LlvmGenerator,
             g = expr_result.gen
 
     elif k == AST_STMT_WHILE:
-        let cond_idx: Int = ast_data_get(node, 0)
-        let body_idx: Int = ast_data_get(node, 1)
         let while_result: GenTypeResult = compile_while_textual(g, node, ast_nodes)
         g = while_result.gen
+
+    elif k == AST_STMT_FOR:
+        let for_result: GenTypeResult = compile_for_textual(g, node, ast_nodes)
+        g = for_result.gen
+
+    elif k == AST_STMT_LOOP:
+        let loop_result: GenTypeResult = compile_loop_textual(g, node, ast_nodes)
+        g = loop_result.gen
+
+    elif k == AST_STMT_BREAK:
+        g = compile_break_textual(g, node, ast_nodes)
+
+    elif k == AST_STMT_CONTINUE:
+        g = compile_continue_textual(g, node, ast_nodes)
 
     else:
         // Unknown statement — emit a comment
@@ -959,6 +1185,32 @@ pub fn compile_expr_textual(gen: LlvmGenerator,
         if inner_idx >= 0 and inner_idx < len(ast_nodes):
             return compile_expr_textual(gen, inner_idx, ast_nodes)
 
+    // ── TIER 2: New expression compilers (Stream BLUE) ──
+
+    if k == AST_EXPR_MATCH:
+        return compile_match_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_ARRAY:
+        return compile_array_lit_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_INDEX:
+        return compile_index_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_METHOD_CALL:
+        return compile_method_call_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_ENUM_VARIANT:
+        return compile_enum_variant_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_LAMBDA:
+        return compile_lambda_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_SPAWN:
+        return compile_spawn_textual(gen, node, ast_nodes)
+
+    if k == AST_EXPR_TUPLE:
+        return compile_tuple_textual(gen, node, ast_nodes)
+
     // ── Fallback for unknown ──
     let nr: GenResult = next_reg(gen)
     let r: LlvmGenerator = nr.gen
@@ -987,6 +1239,12 @@ pub fn compile_binary_textual(gen: LlvmGenerator,
     let rhs_result: GenTypeResult = compile_expr_textual(g, rhs_idx, ast_nodes)
     g = rhs_result.gen
     let rhs_reg: String = rhs_result.reg
+
+    // Short-circuit and/or
+    if op == BINOP_AND:
+        return compile_and_textual(g, lhs_reg, lhs_ty, rhs_idx, ast_nodes)
+    if op == BINOP_OR:
+        return compile_or_textual(g, lhs_reg, lhs_ty, rhs_idx, ast_nodes)
 
     // Emit operation
     let nr: GenResult = next_reg(g)
@@ -1189,6 +1447,9 @@ pub fn compile_call_textual(gen: LlvmGenerator,
     let fn_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
     let fn_name: String = "fn_" + str(fn_name_idx)
 
+    // Determine return type — default to i64
+    let ret_ty: String = "i64"
+
     // Compile arguments
     let mut g: LlvmGenerator = gen
     var args_str: String = ""
@@ -1205,9 +1466,9 @@ pub fn compile_call_textual(gen: LlvmGenerator,
 
     let nr: GenResult = next_reg(g)
     g = nr.gen
-    g = emit_raw(g, "  " + nr.reg + " = call i64 @" + fn_name + "(" + args_str + ")\n")
+    g = emit_raw(g, "  " + nr.reg + " = call " + ret_ty + " @" + fn_name + "(" + args_str + ")\n")
 
-    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: ret_ty }
 
 // ═══════════════════════════════════════════════════════════════════
 // compile_block_textual — block expression (multiple statements)
@@ -1302,16 +1563,49 @@ pub fn compile_field_access_textual(gen: LlvmGenerator,
     let obj_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
     let field_name_idx: Int = if dlen > 1: ast_data_get(node, 1) else: -1
 
-    // Compile object expression (must evaluate to a struct pointer or value)
+    // Compile object expression
     let obj_result: GenTypeResult = compile_expr_textual(gen, obj_idx, ast_nodes)
     let mut g: LlvmGenerator = obj_result.gen
     let obj_reg: String = obj_result.reg
     let obj_ty: String = obj_result.llvm_type
 
-    // GEP to field 0 (simplified — real impl uses field name to index)
+    // Determine field index by walking the struct's AST for field name
+    var field_index: Int = 0
+    if obj_ty != "ptr" and obj_ty != "i64":
+        // obj_ty is like %struct_N — extract the struct name_idx
+        // The struct type is %struct_<name_idx>
+        // We need to find the struct AST node and locate the field name
+        // Walk all AST nodes looking for the struct definition
+        var si: Int = 0
+        var found_struct: Bool = false
+        while si < len(ast_nodes):
+            let s_node: AstNode = ast_nodes[si]
+            if s_node.kind == AST_ITEM_STRUCT:
+                let sd: Array<Int> = s_node.data
+                let sdlen: Int = len(sd)
+                let s_name_idx: Int = if sdlen > 0: sd[0] else: -1
+
+                // Match against the type name pattern %struct_<name_idx>
+                let expected_name: String = "%struct_" + str(s_name_idx)
+                if expected_name == obj_ty:
+                    found_struct = true
+                    let gc: Int = if sdlen > 1: sd[1] else: 0
+                    let fc_pos: Int = 2 + 2 * gc
+                    let fcount: Int = if fc_pos < sdlen: sd[fc_pos] else: 0
+                    var fi: Int = 0
+                    while fi < fcount:
+                        let fname: Int = sd[fc_pos + 1 + 2 * fi]
+                        if fname == field_name_idx:
+                            field_index = fi
+                            fi = fcount
+                        fi = fi + 1
+                    si = len(ast_nodes)  // exit outer loop
+            si = si + 1
+
+    // GEP to field at resolved index
     let gep_nr: GenResult = next_reg(g)
     g = gep_nr.gen
-    g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds " + obj_ty + ", ptr " + obj_reg + ", i32 0, i32 0\n")
+    g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds " + obj_ty + ", ptr " + obj_reg + ", i32 0, i32 " + str(field_index) + "\n")
 
     // Load field value
     let load_nr: GenResult = next_reg(g)
@@ -1498,6 +1792,670 @@ pub fn compile_return_textual(gen: LlvmGenerator,
     g2 = emit_raw(g2, "  ret " + val_result.llvm_type + " " + val_result.reg + "\n")
 
     return GenTypeResult { gen: g2, reg: val_result.reg, llvm_type: val_result.llvm_type }
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Stream BLUE: New Expression Compilers ──
+// ═══════════════════════════════════════════════════════════════════
+
+// ── compile_match_textual — tag dispatch + switch/br + phi merge ──
+// AST_EXPR_MATCH layout: data[0]=matched_expr_idx, data[1]=arm_count,
+// then for each arm: pattern_node_idx, body_node_idx
+
+pub fn compile_match_textual(gen: LlvmGenerator,
+                              node: AstNode,
+                              ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let matched_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let arm_count: Int = if dlen > 1: ast_data_get(node, 1) else: 0
+
+    // Compile matched expression
+    let match_val_result: GenTypeResult = compile_expr_textual(gen, matched_idx, ast_nodes)
+    let mut g: LlvmGenerator = match_val_result.gen
+    let match_reg: String = match_val_result.reg
+    let match_ty: String = match_val_result.llvm_type
+
+    if arm_count == 0:
+        let nr: GenResult = next_reg(g)
+        g = nr.gen
+        g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0  ; empty match\n")
+        return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+
+    // Create arm body labels and merge label
+    let saved_indent: Int = g.indent_level
+    let merge_lbl_res: GenResult = next_label(g)
+    g = merge_lbl_res.gen
+    let merge_lbl: String = merge_lbl_res.reg
+
+    // For each arm, create body block and condition block
+    var arm_labels: Array<String> = []
+    var arm_nexts: Array<String> = []
+    var arm_results: Array<String> = []
+    var arm_block_labels: Array<String> = []
+    var result_ty: String = "i64"
+
+    var ai: Int = 0
+    while ai < arm_count:
+        let pat_idx: Int = ast_data_get(node, 2 + 2 * ai)
+        let body_idx: Int = ast_data_get(node, 2 + 2 * ai + 1)
+
+        let body_lbl_res: GenResult = next_label(g)
+        g = body_lbl_res.gen
+        let body_lbl: String = body_lbl_res.reg
+        arm_block_labels.push(body_lbl)
+
+        let next_lbl_res: GenResult = next_label(g)
+        g = next_lbl_res.gen
+        let next_lbl: String = next_lbl_res.reg
+        arm_nexts.push(next_lbl)
+
+        ai = ai + 1
+
+    // Emit dispatch chain: compare match value, branch to matching arm
+    var cur_label: String = ""
+    ai = 0
+    while ai < arm_count:
+        let body_lbl: String = arm_block_labels[ai]
+        let next_lbl: String = arm_nexts[ai]
+        let pat_idx: Int = ast_data_get(node, 2 + 2 * ai)
+
+        if ai == 0:
+            g.indent_level = saved_indent
+
+        // Branch: try to match this pattern
+        if ai < arm_count - 1:
+            // Not the last arm — emit compare-and-branch
+            // For now, simple integer comparison
+            let pat_val: Int = ai  // tag value = arm index
+            let cmp_nr: GenResult = next_reg(g)
+            g = cmp_nr.gen
+            g = emit_raw(g, "  " + cmp_nr.reg + " = icmp eq " + match_ty + " " + match_reg + ", " + str(pat_val) + "\n")
+            g = emit_raw(g, "  br i1 " + cmp_nr.reg + ", label %" + body_lbl + ", label %" + next_lbl + "\n")
+        else:
+            // Last arm — always branch to it
+            // But if there's a condition needed, emit compare-and-branch
+            g = emit_raw(g, "  br label %" + body_lbl + "\n")
+
+        ai = ai + 1
+
+    // Compile each arm body
+    ai = 0
+    while ai < arm_count:
+        let body_idx: Int = ast_data_get(node, 2 + 2 * ai + 1)
+        let body_lbl: String = arm_block_labels[ai]
+        let next_lbl: String = arm_nexts[ai]
+
+        g.indent_level = saved_indent
+        g = emit_raw(g, body_lbl + ":\n")
+        g.indent_level = saved_indent + 1
+
+        // Compile arm body expression
+        if body_idx >= 0 and body_idx < len(ast_nodes):
+            let arm_result: GenTypeResult = compile_expr_textual(g, body_idx, ast_nodes)
+            g = arm_result.gen
+            result_ty = arm_result.llvm_type
+            arm_results.push(arm_result.reg)
+        else:
+            let nr: GenResult = next_reg(g)
+            g = nr.gen
+            g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0\n")
+            arm_results.push(nr.reg)
+
+        g.indent_level = saved_indent + 1
+        g = emit_raw(g, "br label %" + merge_lbl + "\n")
+
+        ai = ai + 1
+
+    // Merge block with phi
+    g.indent_level = saved_indent
+    g = emit_raw(g, merge_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let phi_nr: GenResult = next_reg(g)
+    g = phi_nr.gen
+    var phi_args: String = ""
+    ai = 0
+    while ai < arm_count:
+        if ai > 0:
+            phi_args = phi_args + ", "
+        phi_args = phi_args + "[ " + arm_results[ai] + ", %" + arm_block_labels[ai] + " ]"
+        ai = ai + 1
+    g = emit_raw(g, "  " + phi_nr.reg + " = phi " + result_ty + " " + phi_args + "\n")
+
+    g.indent_level = saved_indent
+    return GenTypeResult { gen: g, reg: phi_nr.reg, llvm_type: result_ty }
+
+// ── compile_for_textual — desugar for-range to while loop ──
+// AST_STMT_FOR layout: data[0]=loop_var_name_idx, data[1]=iterable_expr_idx, data[2]=body_expr_idx
+
+pub fn compile_for_textual(gen: LlvmGenerator,
+                            node: AstNode,
+                            ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let var_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let iterable_idx: Int = if dlen > 1: ast_data_get(node, 1) else: -1
+    let body_idx: Int = if dlen > 2: ast_data_get(node, 2) else: -1
+
+    let var_name: String = "v_" + str(var_name_idx)
+    let mut g: LlvmGenerator = gen
+
+    // Desugar: for x in iterable →
+    //   let __i = 0
+    //   while __i < len(iterable):
+    //       let x = iterable[__i]
+    //       body
+    //       __i = __i + 1
+
+    // Allocate index variable
+    let idx_alloca_res: GenResult = next_reg(g)
+    g = idx_alloca_res.gen
+    let idx_alloca: String = idx_alloca_res.reg
+    g = emit_raw(g, "  " + idx_alloca + " = alloca i64, align 8\n")
+    g = emit_raw(g, "  store i64 0, ptr " + idx_alloca + ", align 8\n")
+    g = locals_add(g, "_for_idx_" + str(var_name_idx), idx_alloca, "i64")
+
+    // Compute upper bound (len of iterable or range end)
+    let bound_nr: GenResult = next_reg(g)
+    g = bound_nr.gen
+    let bound_reg: String = bound_nr.reg
+    g = emit_raw(g, "  " + bound_reg + " = add i64 0, 10  ; for bound stub (upper limit)\n")
+    let bound_alloca_res: GenResult = next_reg(g)
+    g = bound_alloca_res.gen
+    let bound_alloca: String = bound_alloca_res.reg
+    g = emit_raw(g, "  " + bound_alloca + " = alloca i64, align 8\n")
+    g = emit_raw(g, "  store i64 " + bound_reg + ", ptr " + bound_alloca + ", align 8\n")
+    g = locals_add(g, "_for_bound_" + str(var_name_idx), bound_alloca, "i64")
+
+    // Allocate loop variable
+    let var_alloca_res: GenResult = next_reg(g)
+    g = var_alloca_res.gen
+    let var_alloca: String = var_alloca_res.reg
+    g = emit_raw(g, "  " + var_alloca + " = alloca i64, align 8\n")
+    g = emit_raw(g, "  store i64 0, ptr " + var_alloca + ", align 8\n")
+    g = locals_add(g, var_name, var_alloca, "i64")
+
+    // While loop structure
+    let header_lbl_res: GenResult = next_label(g)
+    g = header_lbl_res.gen
+    let header_lbl: String = header_lbl_res.reg
+
+    let body_lbl_res: GenResult = next_label(g)
+    g = body_lbl_res.gen
+    let body_lbl: String = body_lbl_res.reg
+
+    let exit_lbl_res: GenResult = next_label(g)
+    g = exit_lbl_res.gen
+    let exit_lbl: String = exit_lbl_res.reg
+
+    let saved_indent: Int = g.indent_level
+    g = loop_push(g, header_lbl, exit_lbl)
+
+    // Branch to header
+    g = emit_raw(g, "  br label %" + header_lbl + "\n")
+
+    // Header: check idx < bound
+    g.indent_level = saved_indent
+    g = emit_raw(g, header_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let idx_load_nr: GenResult = next_reg(g)
+    g = idx_load_nr.gen
+    g = emit_raw(g, "  " + idx_load_nr.reg + " = load i64, ptr " + idx_alloca + ", align 8\n")
+    let bnd_load_nr: GenResult = next_reg(g)
+    g = bnd_load_nr.gen
+    g = emit_raw(g, "  " + bnd_load_nr.reg + " = load i64, ptr " + bound_alloca + ", align 8\n")
+    let cmp_nr: GenResult = next_reg(g)
+    g = cmp_nr.gen
+    g = emit_raw(g, "  " + cmp_nr.reg + " = icmp slt i64 " + idx_load_nr.reg + ", " + bnd_load_nr.reg + "\n")
+    g = emit_raw(g, "  br i1 " + cmp_nr.reg + ", label %" + body_lbl + ", label %" + exit_lbl + "\n")
+
+    // Body: assign loop var, compile body, increment
+    g.indent_level = saved_indent
+    g = emit_raw(g, body_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    // Assign loop variable = current index
+    g = emit_raw(g, "  store i64 " + idx_load_nr.reg + ", ptr " + var_alloca + ", align 8\n")
+    // Compile body
+    if body_idx >= 0 and body_idx < len(ast_nodes):
+        let body_result: GenTypeResult = compile_expr_textual(g, body_idx, ast_nodes)
+        g = body_result.gen
+    // Increment index
+    let inc_nr: GenResult = next_reg(g)
+    g = inc_nr.gen
+    g = emit_raw(g, "  " + inc_nr.reg + " = add i64 " + idx_load_nr.reg + ", 1\n")
+    g = emit_raw(g, "  store i64 " + inc_nr.reg + ", ptr " + idx_alloca + ", align 8\n")
+    g = emit_raw(g, "  br label %" + header_lbl + "\n")
+
+    // Exit
+    g.indent_level = saved_indent
+    g = emit_raw(g, exit_lbl + ":\n")
+    g = loop_pop(g)
+    g.indent_level = saved_indent + 1
+    let nr: GenResult = next_reg(g)
+    g = nr.gen
+    g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0\n")
+    g.indent_level = saved_indent
+
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+
+// ── compile_loop_textual — infinite loop with break value ──
+// AST_STMT_LOOP layout: data[0]=body_expr_idx
+
+pub fn compile_loop_textual(gen: LlvmGenerator,
+                             node: AstNode,
+                             ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let body_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+
+    let mut g: LlvmGenerator = gen
+    let saved_indent: Int = g.indent_level
+
+    let header_lbl_res: GenResult = next_label(g)
+    g = header_lbl_res.gen
+    let header_lbl: String = header_lbl_res.reg
+
+    let body_lbl_res: GenResult = next_label(g)
+    g = body_lbl_res.gen
+    let body_lbl: String = body_lbl_res.reg
+
+    let exit_lbl_res: GenResult = next_label(g)
+    g = exit_lbl_res.gen
+    let exit_lbl: String = exit_lbl_res.reg
+
+    g = loop_push(g, header_lbl, exit_lbl)
+
+    g = emit_raw(g, "  br label %" + header_lbl + "\n")
+
+    g.indent_level = saved_indent
+    g = emit_raw(g, header_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    g = emit_raw(g, "  br label %" + body_lbl + "\n")
+
+    g.indent_level = saved_indent
+    g = emit_raw(g, body_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+
+    if body_idx >= 0 and body_idx < len(ast_nodes):
+        let body_result: GenTypeResult = compile_expr_textual(g, body_idx, ast_nodes)
+        g = body_result.gen
+
+    g = emit_raw(g, "  br label %" + header_lbl + "\n")
+
+    // Exit block
+    g.indent_level = saved_indent
+    g = emit_raw(g, exit_lbl + ":\n")
+    g = loop_pop(g)
+    g.indent_level = saved_indent + 1
+    let nr: GenResult = next_reg(g)
+    g = nr.gen
+    g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0\n")
+    g.indent_level = saved_indent
+
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+
+// ── compile_break_textual — branch to loop exit ──
+// AST_STMT_BREAK layout: data[0]=value_expr_idx (-1 if none)
+
+pub fn compile_break_textual(gen: LlvmGenerator,
+                              node: AstNode,
+                              ast_nodes: Array<AstNode>) -> LlvmGenerator:
+    let break_lbl: String = loop_break_label(gen)
+    if break_lbl != "":
+        let mut g: LlvmGenerator = gen
+        g = emit_raw(g, "  br label %" + break_lbl + "\n")
+        return g
+    // No enclosing loop — emit comment
+    let mut g: LlvmGenerator = gen
+    g = emit_raw(g, "  ; break outside loop\n")
+    return g
+
+// ── compile_continue_textual — branch to loop header ──
+
+pub fn compile_continue_textual(gen: LlvmGenerator,
+                                 node: AstNode,
+                                 ast_nodes: Array<AstNode>) -> LlvmGenerator:
+    let continue_lbl: String = loop_continue_label(gen)
+    if continue_lbl != "":
+        let mut g: LlvmGenerator = gen
+        g = emit_raw(g, "  br label %" + continue_lbl + "\n")
+        return g
+    let mut g: LlvmGenerator = gen
+    g = emit_raw(g, "  ; continue outside loop\n")
+    return g
+
+// ── compile_array_lit_textual — [a, b, c] → alloca + gep + store chain ──
+// AST_EXPR_ARRAY layout: data[0]=element_count, data[1..N]=element expr indices
+
+pub fn compile_array_lit_textual(gen: LlvmGenerator,
+                                  node: AstNode,
+                                  ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let elem_count: Int = if dlen > 0: ast_data_get(node, 0) else: 0
+
+    let mut g: LlvmGenerator = gen
+
+    // Allocate array
+    let alloca_nr: GenResult = next_reg(g)
+    g = alloca_nr.gen
+    let alloca_reg: String = alloca_nr.reg
+    g = emit_raw(g, "  " + alloca_reg + " = alloca [" + str(elem_count) + " x i64], align 8\n")
+
+    // Store each element
+    var ei: Int = 0
+    while ei < elem_count:
+        let elem_idx: Int = ast_data_get(node, 1 + ei)
+        if elem_idx >= 0 and elem_idx < len(ast_nodes):
+            let elem_result: GenTypeResult = compile_expr_textual(g, elem_idx, ast_nodes)
+            g = elem_result.gen
+            let gep_nr: GenResult = next_reg(g)
+            g = gep_nr.gen
+            g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds [" + str(elem_count) + " x i64], ptr " + alloca_reg + ", i32 0, i32 " + str(ei) + "\n")
+            g = emit_raw(g, "  store " + elem_result.llvm_type + " " + elem_result.reg + ", ptr " + gep_nr.reg + ", align 8\n")
+        ei = ei + 1
+
+    return GenTypeResult { gen: g, reg: alloca_reg, llvm_type: "ptr" }
+
+// ── compile_index_textual — arr[i] → GEP + load ──
+// AST_EXPR_INDEX layout: data[0]=base_expr_idx, data[1]=index_expr_idx
+
+pub fn compile_index_textual(gen: LlvmGenerator,
+                              node: AstNode,
+                              ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let base_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let index_idx: Int = if dlen > 1: ast_data_get(node, 1) else: -1
+
+    // Compile base (array/pointer)
+    let base_result: GenTypeResult = compile_expr_textual(gen, base_idx, ast_nodes)
+    let mut g: LlvmGenerator = base_result.gen
+    let base_reg: String = base_result.reg
+    let base_ty: String = base_result.llvm_type
+
+    // Compile index
+    let index_result: GenTypeResult = compile_expr_textual(g, index_idx, ast_nodes)
+    g = index_result.gen
+    let index_reg: String = index_result.reg
+
+    // GEP
+    let gep_nr: GenResult = next_reg(g)
+    g = gep_nr.gen
+    g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds i64, ptr " + base_reg + ", i64 " + index_reg + "\n")
+
+    // Load
+    let load_nr: GenResult = next_reg(g)
+    g = load_nr.gen
+    g = emit_raw(g, "  " + load_nr.reg + " = load i64, ptr " + gep_nr.reg + ", align 8\n")
+
+    return GenTypeResult { gen: g, reg: load_nr.reg, llvm_type: "i64" }
+
+// ── compile_and_textual — short-circuit and: a and b ──
+
+pub fn compile_and_textual(gen: LlvmGenerator,
+                            lhs_reg: String,
+                            lhs_ty: String,
+                            rhs_idx: Int,
+                            ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let mut g: LlvmGenerator = gen
+    let saved_indent: Int = g.indent_level
+
+    // Convert lhs to i1 if needed
+    var cond_reg: String = lhs_reg
+    if lhs_ty != "i1":
+        let cmp_nr: GenResult = next_reg(g)
+        g = cmp_nr.gen
+        g = emit_raw(g, "  " + cmp_nr.reg + " = icmp ne " + lhs_ty + " " + lhs_reg + ", 0\n")
+        cond_reg = cmp_nr.reg
+
+    let rhs_lbl_res: GenResult = next_label(g)
+    g = rhs_lbl_res.gen
+    let rhs_lbl: String = rhs_lbl_res.reg
+
+    let skip_lbl_res: GenResult = next_label(g)
+    g = skip_lbl_res.gen
+    let skip_lbl: String = skip_lbl_res.reg
+
+    let merge_lbl_res: GenResult = next_label(g)
+    g = merge_lbl_res.gen
+    let merge_lbl: String = merge_lbl_res.reg
+
+    g = emit_raw(g, "  br i1 " + cond_reg + ", label %" + rhs_lbl + ", label %" + skip_lbl + "\n")
+
+    // Evaluate rhs
+    g.indent_level = saved_indent
+    g = emit_raw(g, rhs_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let rhs_result: GenTypeResult = compile_expr_textual(g, rhs_idx, ast_nodes)
+    g = rhs_result.gen
+    let rhs_val: String = rhs_result.reg
+    let rhs_ty: String = rhs_result.llvm_type
+    // Convert rhs to i1
+    var rhs_cond: String = rhs_val
+    if rhs_ty != "i1":
+        let c2_nr: GenResult = next_reg(g)
+        g = c2_nr.gen
+        g = emit_raw(g, "  " + c2_nr.reg + " = icmp ne " + rhs_ty + " " + rhs_val + ", 0\n")
+        rhs_cond = c2_nr.reg
+    g.indent_level = saved_indent + 1
+    g = emit_raw(g, "br label %" + merge_lbl + "\n")
+
+    // Skip (lhs was false)
+    g.indent_level = saved_indent
+    g = emit_raw(g, skip_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    g = emit_raw(g, "br label %" + merge_lbl + "\n")
+
+    // Merge with phi
+    g.indent_level = saved_indent
+    g = emit_raw(g, merge_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let phi_nr: GenResult = next_reg(g)
+    g = phi_nr.gen
+    g = emit_raw(g, "  " + phi_nr.reg + " = phi i1 [ " + rhs_cond + ", %" + rhs_lbl + " ], [ false, %" + skip_lbl + " ]\n")
+
+    g.indent_level = saved_indent
+    return GenTypeResult { gen: g, reg: phi_nr.reg, llvm_type: "i1" }
+
+// ── compile_or_textual — short-circuit or: a or b ──
+
+pub fn compile_or_textual(gen: LlvmGenerator,
+                           lhs_reg: String,
+                           lhs_ty: String,
+                           rhs_idx: Int,
+                           ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let mut g: LlvmGenerator = gen
+    let saved_indent: Int = g.indent_level
+
+    var cond_reg: String = lhs_reg
+    if lhs_ty != "i1":
+        let cmp_nr: GenResult = next_reg(g)
+        g = cmp_nr.gen
+        g = emit_raw(g, "  " + cmp_nr.reg + " = icmp ne " + lhs_ty + " " + lhs_reg + ", 0\n")
+        cond_reg = cmp_nr.reg
+
+    let skip_lbl_res: GenResult = next_label(g)
+    g = skip_lbl_res.gen
+    let skip_lbl: String = skip_lbl_res.reg
+
+    let rhs_lbl_res: GenResult = next_label(g)
+    g = rhs_lbl_res.gen
+    let rhs_lbl: String = rhs_lbl_res.reg
+
+    let merge_lbl_res: GenResult = next_label(g)
+    g = merge_lbl_res.gen
+    let merge_lbl: String = merge_lbl_res.reg
+
+    // If lhs is true → skip to merge with true, else evaluate rhs
+    g = emit_raw(g, "  br i1 " + cond_reg + ", label %" + skip_lbl + ", label %" + rhs_lbl + "\n")
+
+    // Skip (lhs was true)
+    g.indent_level = saved_indent
+    g = emit_raw(g, skip_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    g = emit_raw(g, "br label %" + merge_lbl + "\n")
+
+    // Evaluate rhs
+    g.indent_level = saved_indent
+    g = emit_raw(g, rhs_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let rhs_result: GenTypeResult = compile_expr_textual(g, rhs_idx, ast_nodes)
+    g = rhs_result.gen
+    let rhs_val: String = rhs_result.reg
+    let rhs_ty: String = rhs_result.llvm_type
+    var rhs_cond: String = rhs_val
+    if rhs_ty != "i1":
+        let c2_nr: GenResult = next_reg(g)
+        g = c2_nr.gen
+        g = emit_raw(g, "  " + c2_nr.reg + " = icmp ne " + rhs_ty + " " + rhs_val + ", 0\n")
+        rhs_cond = c2_nr.reg
+    g.indent_level = saved_indent + 1
+    g = emit_raw(g, "br label %" + merge_lbl + "\n")
+
+    // Merge
+    g.indent_level = saved_indent
+    g = emit_raw(g, merge_lbl + ":\n")
+    g.indent_level = saved_indent + 1
+    let phi_nr: GenResult = next_reg(g)
+    g = phi_nr.gen
+    g = emit_raw(g, "  " + phi_nr.reg + " = phi i1 [ true, %" + skip_lbl + " ], [ " + rhs_cond + ", %" + rhs_lbl + " ]\n")
+
+    g.indent_level = saved_indent
+    return GenTypeResult { gen: g, reg: phi_nr.reg, llvm_type: "i1" }
+
+// ── compile_method_call_textual — obj.method(args) → direct call to struct_N_method ──
+// AST_EXPR_METHOD_CALL layout: data[0]=method_name_idx, data[1]=object_expr_idx, data[2..N]=arg expr indices
+
+pub fn compile_method_call_textual(gen: LlvmGenerator,
+                                    node: AstNode,
+                                    ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let method_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let obj_idx: Int = if dlen > 1: ast_data_get(node, 1) else: -1
+
+    let mut g: LlvmGenerator = gen
+
+    // Compile object (self)
+    var self_reg: String = "null"
+    var self_ty: String = "ptr"
+    if obj_idx >= 0 and obj_idx < len(ast_nodes):
+        let obj_result: GenTypeResult = compile_expr_textual(g, obj_idx, ast_nodes)
+        g = obj_result.gen
+        self_reg = obj_result.reg
+        self_ty = obj_result.llvm_type
+
+    // Build method name
+    let fn_name: String = "method_" + str(method_name_idx) + "_" + str(obj_idx)
+
+    // Compile arguments (starting from data[2])
+    var args_str: String = self_ty + " " + self_reg
+    var ai: Int = 2
+    while ai < dlen:
+        let arg_idx: Int = ast_data_get(node, ai)
+        if arg_idx >= 0 and arg_idx < len(ast_nodes):
+            let arg_result: GenTypeResult = compile_expr_textual(g, arg_idx, ast_nodes)
+            g = arg_result.gen
+            args_str = args_str + ", " + arg_result.llvm_type + " " + arg_result.reg
+        ai = ai + 1
+
+    let nr: GenResult = next_reg(g)
+    g = nr.gen
+    g = emit_raw(g, "  " + nr.reg + " = call i64 @" + fn_name + "(" + args_str + ")\n")
+
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+
+// ── compile_enum_variant_textual — Enum::Variant(payload) → alloca + tag store ──
+
+pub fn compile_enum_variant_textual(gen: LlvmGenerator,
+                                     node: AstNode,
+                                     ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let enum_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
+    let variant_idx: Int = if dlen > 1: ast_data_get(node, 1) else: 0
+    let payload_idx: Int = if dlen > 2: ast_data_get(node, 2) else: -1
+
+    let enum_ty: String = "%enum_" + str(enum_name_idx)
+    let mut g: LlvmGenerator = gen
+
+    // Allocate enum
+    let alloca_nr: GenResult = next_reg(g)
+    g = alloca_nr.gen
+    let alloca_reg: String = alloca_nr.reg
+    g = emit_raw(g, "  " + alloca_reg + " = alloca " + enum_ty + ", align 8\n")
+
+    // Store tag (field 0)
+    let gep_tag_nr: GenResult = next_reg(g)
+    g = gep_tag_nr.gen
+    g = emit_raw(g, "  " + gep_tag_nr.reg + " = getelementptr inbounds " + enum_ty + ", ptr " + alloca_reg + ", i32 0, i32 0\n")
+    g = emit_raw(g, "  store i64 " + str(variant_idx) + ", ptr " + gep_tag_nr.reg + ", align 8\n")
+
+    // Store payload if present
+    if payload_idx >= 0 and payload_idx < len(ast_nodes):
+        let payload_result: GenTypeResult = compile_expr_textual(g, payload_idx, ast_nodes)
+        g = payload_result.gen
+        let gep_pay_nr: GenResult = next_reg(g)
+        g = gep_pay_nr.gen
+        g = emit_raw(g, "  " + gep_pay_nr.reg + " = getelementptr inbounds " + enum_ty + ", ptr " + alloca_reg + ", i32 0, i32 1\n")
+        g = emit_raw(g, "  store " + payload_result.llvm_type + " " + payload_result.reg + ", ptr " + gep_pay_nr.reg + ", align 8\n")
+
+    // Load enum value
+    let load_nr: GenResult = next_reg(g)
+    g = load_nr.gen
+    g = emit_raw(g, "  " + load_nr.reg + " = load " + enum_ty + ", ptr " + alloca_reg + ", align 8\n")
+
+    return GenTypeResult { gen: g, reg: load_nr.reg, llvm_type: enum_ty }
+
+// ── compile_lambda_textual — stub: function pointer placeholder ──
+
+pub fn compile_lambda_textual(gen: LlvmGenerator,
+                               node: AstNode,
+                               ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let mut g: LlvmGenerator = gen
+    let nr: GenResult = next_reg(g)
+    g = nr.gen
+    // Stub: return null function pointer
+    g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0  ; lambda stub\n")
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "ptr" }
+
+// ── compile_spawn_textual — actor spawn stub ──
+
+pub fn compile_spawn_textual(gen: LlvmGenerator,
+                              node: AstNode,
+                              ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let mut g: LlvmGenerator = gen
+    let nr: GenResult = next_reg(g)
+    g = nr.gen
+    // Stub: return actor ID 0
+    g = emit_raw(g, "  " + nr.reg + " = add i64 0, 0  ; spawn stub\n")
+    return GenTypeResult { gen: g, reg: nr.reg, llvm_type: "i64" }
+
+// ── compile_tuple_textual — tuple literal → alloca struct ──
+
+pub fn compile_tuple_textual(gen: LlvmGenerator,
+                              node: AstNode,
+                              ast_nodes: Array<AstNode>) -> GenTypeResult:
+    let dlen: Int = ast_data_len(node)
+    let elem_count: Int = if dlen > 0: ast_data_get(node, 0) else: 0
+
+    let mut g: LlvmGenerator = gen
+    let alloca_nr: GenResult = next_reg(g)
+    g = alloca_nr.gen
+    let alloca_reg: String = alloca_nr.reg
+
+    if elem_count == 0:
+        g = emit_raw(g, "  " + alloca_reg + " = alloca {}, align 8\n")
+        return GenTypeResult { gen: g, reg: alloca_reg, llvm_type: "{}" }
+
+    g = emit_raw(g, "  " + alloca_reg + " = alloca [" + str(elem_count) + " x i64], align 8\n")
+
+    var ei: Int = 0
+    while ei < elem_count:
+        let elem_idx: Int = ast_data_get(node, 1 + ei)
+        if elem_idx >= 0 and elem_idx < len(ast_nodes):
+            let elem_result: GenTypeResult = compile_expr_textual(g, elem_idx, ast_nodes)
+            g = elem_result.gen
+            let gep_nr: GenResult = next_reg(g)
+            g = gep_nr.gen
+            g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds [" + str(elem_count) + " x i64], ptr " + alloca_reg + ", i32 0, i32 " + str(ei) + "\n")
+            g = emit_raw(g, "  store " + elem_result.llvm_type + " " + elem_result.reg + ", ptr " + gep_nr.reg + ", align 8\n")
+        ei = ei + 1
+
+    return GenTypeResult { gen: g, reg: alloca_reg, llvm_type: "ptr" }
 
 // ═══════════════════════════════════════════════════════════════════
 // PATH B: LLVM-C API Codegen (in-memory IR construction)
