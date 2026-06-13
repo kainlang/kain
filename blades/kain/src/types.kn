@@ -82,6 +82,7 @@ const AST_EXPR_TRY:             Int = 125
 const AST_EXPR_AWAIT:           Int = 126
 const AST_EXPR_SPAWN:           Int = 127
 const AST_EXPR_SEND:            Int = 128
+const AST_EXPR_EMIT:            Int = 129
 const AST_EXPR_COLLAPSE:        Int = 130
 const AST_EXPR_OBSERVE:         Int = 131
 const AST_EXPR_DECAY:           Int = 132
@@ -98,6 +99,16 @@ const AST_EXPR_SIZEOF:          Int = 148
 const AST_EXPR_ALIGNOF:         Int = 149
 const AST_EXPR_BITCAST:         Int = 150
 const AST_EXPR_PAREN:           Int = 156
+const AST_EXPR_ATOMIC_LOAD:     Int = 141
+const AST_EXPR_ATOMIC_STORE:    Int = 142
+const AST_EXPR_ATOMIC_ADD:      Int = 143
+const AST_EXPR_ATOMIC_CMPXCHG:  Int = 144
+const AST_EXPR_ATOMIC_FENCE:    Int = 145
+const AST_EXPR_CPU_FENCE:       Int = 146
+const AST_EXPR_CPU_CACHE_FLUSH: Int = 147
+const AST_EXPR_MACRO_CALL:      Int = 152
+const AST_EXPR_COMPTIME:        Int = 153
+const AST_EXPR_UNINIT:          Int = 154
 
 // AST type constants (for type resolution)
 const AST_TYPE_NAMED:            Int = 300
@@ -446,6 +457,9 @@ pub struct TypeEnv:
     // Error accumulation
     errs:              KcDiagnosticBag
 
+    // Stream RED: Loop nesting depth (for break/continue validation)
+    loop_depth:        Int
+
 // ── Create a fresh TypeEnv ──
 pub fn type_env_new() -> TypeEnv:
     let env: TypeEnv = TypeEnv {
@@ -462,6 +476,7 @@ pub fn type_env_new() -> TypeEnv:
         skip2:             [],
         skip3:             [],
         errs:              kc_diag_bag_new(),
+    loop_depth:        0,
     }
     // Push global scope and register primitives
     let mut env1: TypeEnv = env
@@ -1052,9 +1067,16 @@ pub fn check_block_body(env: TypeEnv, block_node_idx: Int, expected_ret: Resolve
             e = check_defer_stmt(e, child, caller_eff)
         elif ck == AST_STMT_LOOP:
             e = check_loop_stmt(e, child, caller_eff)
-        elif ck == AST_STMT_BREAK or ck == AST_STMT_CONTINUE:
-            // break/continue are valid in loops; no type check needed
-            let _noop: Int = 0
+        elif ck == AST_STMT_BREAK:
+            // Stream RED: validate break inside loop
+            if e.loop_depth <= 0:
+                e = type_error(e, "break outside loop", ERR_TYPE_MISMATCH,
+                              child.span_start, child.span_end)
+        elif ck == AST_STMT_CONTINUE:
+            // Stream RED: validate continue inside loop
+            if e.loop_depth <= 0:
+                e = type_error(e, "continue outside loop", ERR_TYPE_MISMATCH,
+                              child.span_start, child.span_end)
         elif ck == AST_STMT_DISPATCH:
             let _noop2: Int = 0  // Stub: GPU dispatch
         elif ck == AST_EXPR_BLOCK:
@@ -1228,12 +1250,15 @@ pub fn check_defer_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv
         e = check_effect_calls_in_expr(e, def_node, caller_eff)
     return e
 
-// ── check_loop_stmt: loop: body ──
+// ── check_loop_stmt: loop: body (Stream RED: loop depth tracking) ──
 pub fn check_loop_stmt(env: TypeEnv, node: AstNode, caller_eff: Int) -> TypeEnv:
     let mut e: TypeEnv = env
     let data: Array<Int> = node.data
     if len(data) > 0 and data[0] >= 0:
+        // Push loop context for break/continue validation
+        e.loop_depth = e.loop_depth + 1
         e = check_block_body(e, data[0], rt_unit(), caller_eff)
+        e.loop_depth = e.loop_depth - 1
     return e
 
 // ── check_effect_calls_in_expr: verify effect compatibility for function calls ──
@@ -1820,7 +1845,7 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
     // ── Method calls ──
     elif k == AST_EXPR_METHOD_CALL:
-        return rt_i64()
+        return infer_method_call_type(env, node)
 
     // ── Blocks ──
     elif k == AST_EXPR_BLOCK:
@@ -1828,11 +1853,11 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
     // ── If/else expressions ──
     elif k == AST_EXPR_IF:
-        return rt_bool()
+        return infer_if_type(env, node)
 
-    // ── Match expressions ──
+    // ── Match expressions (Stream RED: infer from first arm body) ──
     elif k == AST_EXPR_MATCH:
-        return rt_i64()
+        return infer_match_type(env, node)
 
     // ── Assignment ──
     elif k == AST_EXPR_ASSIGN:
@@ -1864,24 +1889,45 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
         let name_idx: Int = if dlen > 0: data[0] else: -1
         return rt_struct_as(name_idx)
 
-    // ── Field access ──
+    // ── Field access (Stream RED: look up struct field type) ──
     elif k == AST_EXPR_FIELD:
+        let base_idx: Int = if dlen > 0: data[0] else: -1
+        let field_name: Int = if dlen > 1: data[1] else: -1
+        if base_idx >= 0 and base_idx < len(env.ast_nodes) and field_name >= 0:
+            let base_type: ResolvedType = infer_expr_type(env, env.ast_nodes[base_idx])
+            if base_type.kind == RT_STRUCT:
+                // Look up field type by struct name + field name
+                return lookup_struct_field_type(env, base_type.name, field_name)
         return rt_i64()
 
-    // ── Index access ──
+    // ── Index access (Stream RED: resolve Array<T> element type) ──
     elif k == AST_EXPR_INDEX:
-        return rt_i64()
+        return infer_index_type(env, node)
 
     // ── Type cast ──
     elif k == AST_EXPR_CAST:
+        // Return the target type if we can resolve it
+        if dlen > 1 and data[1] >= 0 and data[1] < len(env.ast_nodes):
+            let target_type_node: AstNode = env.ast_nodes[data[1]]
+            return resolve_type_ast(env, target_type_node)
         return rt_i64()
 
     // ── Try operator (expr?) ──
     elif k == AST_EXPR_TRY:
+        if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+            let inner: ResolvedType = infer_expr_type(env, env.ast_nodes[data[0]])
+            if inner.kind == RT_OPTION and inner.inner_type >= 0:
+                return type_env_get(env, inner.inner_type)
+            if inner.kind == RT_RESULT and inner.result_ok >= 0:
+                return type_env_get(env, inner.result_ok)
         return rt_i64()
 
     // ── Await ──
     elif k == AST_EXPR_AWAIT:
+        if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+            let inner: ResolvedType = infer_expr_type(env, env.ast_nodes[data[0]])
+            if inner.kind == RT_FUTURE and inner.inner_type >= 0:
+                return type_env_get(env, inner.inner_type)
         return rt_i64()
 
     // ── Lambda ──
@@ -1894,6 +1940,9 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
     // ── Ownership: collapse / observe / decay ──
     elif k == AST_EXPR_COLLAPSE or k == AST_EXPR_OBSERVE:
+        if dlen > 1 and data[1] >= 0 and data[1] < len(env.ast_nodes):
+            let body_node: AstNode = env.ast_nodes[data[1]]
+            return infer_expr_type(env, body_node)
         return rt_i64()
     elif k == AST_EXPR_DECAY:
         return rt_unit()
@@ -1916,6 +1965,10 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
 
     // ── Memory load/store ──
     elif k == AST_EXPR_MEM_LOAD:
+        if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+            let ptr_type: ResolvedType = infer_expr_type(env, env.ast_nodes[data[0]])
+            if ptr_type.kind == RT_PTR and ptr_type.inner_type >= 0:
+                return type_env_get(env, ptr_type.inner_type)
         return rt_i64()
     elif k == AST_EXPR_MEM_STORE:
         return rt_unit()
@@ -1932,22 +1985,129 @@ pub fn infer_expr_type(env: TypeEnv, node: AstNode) -> ResolvedType:
     elif k == AST_EXPR_BITCAST:
         return rt_i64()
 
-    // ── Enum variant ──
+    // ── Enum variant (Stream RED: return enum type) ──
     elif k == AST_EXPR_ENUM_VARIANT:
-        return rt_i64()
+        let enum_name_idx: Int = if dlen > 0: data[0] else: -1
+        return rt_enum_as(enum_name_idx)
 
-    // ── Parenthesized ──
+    // ── Parenthesized (Stream RED: return inner expression type) ──
     elif k == AST_EXPR_PAREN:
-        if dlen > 0:
-            // Contains inner expression index; we'd need nodes array
-            return rt_unknown()
+        if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+            let inner_node: AstNode = env.ast_nodes[data[0]]
+            return infer_expr_type(env, inner_node)
         return rt_unknown()
 
     // ── JSX ──
     elif k == AST_EXPR_JSX:
         return rt_unit()
 
+    // ── Additional expression kinds (Stream RED: add missing handlers) ──
+    elif k == AST_EXPR_EMIT:
+        return rt_unit()
+    elif k == AST_EXPR_ATOMIC_LOAD or k == AST_EXPR_ATOMIC_ADD or k == AST_EXPR_ATOMIC_CMPXCHG:
+        if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+            let ptr_type: ResolvedType = infer_expr_type(env, env.ast_nodes[data[0]])
+            if ptr_type.kind == RT_PTR and ptr_type.inner_type >= 0:
+                return type_env_get(env, ptr_type.inner_type)
+        return rt_i64()
+    elif k == AST_EXPR_ATOMIC_STORE:
+        return rt_unit()
+    elif k == AST_EXPR_ATOMIC_FENCE or k == AST_EXPR_CPU_FENCE or k == AST_EXPR_CPU_CACHE_FLUSH:
+        return rt_unit()
+    elif k == AST_EXPR_MACRO_CALL or k == AST_EXPR_COMPTIME or k == AST_EXPR_UNINIT:
+        return rt_unknown()
+
     return rt_unknown()
+
+// ── Stream RED: Infer match type from first arm body ──
+pub fn infer_match_type(env: TypeEnv, node: AstNode) -> ResolvedType:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let arm_count: Int = if dlen > 1: data[1] else: 0
+    // Use the first arm's body to determine the match result type
+    if arm_count > 0 and dlen > 2:
+        let first_arm_idx: Int = data[2]
+        if first_arm_idx >= 0 and first_arm_idx < len(env.ast_nodes):
+            let arm_node: AstNode = env.ast_nodes[first_arm_idx]
+            if len(arm_node.data) > 1:
+                let body_idx: Int = arm_node.data[1]
+                if body_idx >= 0 and body_idx < len(env.ast_nodes):
+                    return infer_expr_type(env, env.ast_nodes[body_idx])
+    return rt_i64()
+
+// ── Stream RED: Infer if/else type ──
+pub fn infer_if_type(env: TypeEnv, node: AstNode) -> ResolvedType:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    // data[0]=condition, data[1]=then_block, data[2]=else_block (-1 if none)
+    let then_idx: Int = if dlen > 1: data[1] else: -1
+    let else_idx: Int = if dlen > 2: data[2] else: -1
+
+    // Infer then block type
+    let then_type: ResolvedType = if then_idx >= 0 and then_idx < len(env.ast_nodes):
+        infer_expr_type(env, env.ast_nodes[then_idx])
+    else:
+        rt_unit()
+
+    // Infer else block type
+    let else_type: ResolvedType = if else_idx >= 0 and else_idx < len(env.ast_nodes):
+        infer_expr_type(env, env.ast_nodes[else_idx])
+    else:
+        rt_unit()
+
+    // Return then_type if they're compatible, else fallback
+    if types_compatible(env, then_type, else_type):
+        return then_type
+    return then_type
+
+// ── Stream RED: Infer method call return type ──
+pub fn infer_method_call_type(env: TypeEnv, node: AstNode) -> ResolvedType:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    // data[0] = base_expr_idx, data[1] = method_name_idx, data[2] = arg_count
+    // data[3..] = arg_expr_idxs
+    if dlen > 1:
+        let method_name: Int = data[1]
+        // Look up the method in registered function types
+        let fn_type: ResolvedType = lookup_type(env, "fn_" + str(method_name))
+        if fn_type.kind == RT_FUNCTION and fn_type.fn_ret >= 0:
+            return type_env_get(env, fn_type.fn_ret)
+        // Try trait method lookup
+        let trait_fn: ResolvedType = lookup_type(env, "tm_" + str(method_name))
+        if trait_fn.kind == RT_FUNCTION and trait_fn.fn_ret >= 0:
+            return type_env_get(env, trait_fn.fn_ret)
+    return rt_i64()
+
+// ── Stream RED: Infer index type (resolve Array<T> element) ──
+pub fn infer_index_type(env: TypeEnv, node: AstNode) -> ResolvedType:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    // data[0] = base_expr_idx, data[1] = index_expr_idx
+    if dlen > 0 and data[0] >= 0 and data[0] < len(env.ast_nodes):
+        let base_type: ResolvedType = infer_expr_type(env, env.ast_nodes[data[0]])
+        if base_type.kind == RT_ARRAY or base_type.kind == RT_SLICE:
+            if base_type.inner_type >= 0 and base_type.inner_type < len(env.all_types):
+                return type_env_get(env, base_type.inner_type)
+        if base_type.kind == RT_PTR and base_type.inner_type >= 0:
+            if base_type.inner_type < len(env.all_types):
+                return type_env_get(env, base_type.inner_type)
+        if base_type.kind == RT_STRING:
+            return rt_char()
+        // Fallback for Array with no inner type resolved
+        if base_type.kind == RT_ARRAY or base_type.kind == RT_SLICE:
+            return rt_i64()
+    return rt_i64()
+
+// ── Stream RED: Look up struct field type by struct name and field name ──
+pub fn lookup_struct_field_type(env: TypeEnv, struct_name_idx: Int, field_name_idx: Int) -> ResolvedType:
+    // Fields are registered as "sf_<struct_name>_<field_name>" in all_type_names
+    let prefix: String = "sf_" + str(struct_name_idx) + "_" + str(field_name_idx)
+    var i: Int = 0
+    while i < len(env.all_type_names):
+        if env.all_type_names[i] == prefix:
+            return env.all_types[i]
+        i = i + 1
+    return rt_i64()
 pub fn infer_binary_type(env: TypeEnv, node: AstNode) -> ResolvedType:
     let data: Array<Int> = node.data
     let op: Int = if len(data) > 2: data[2] else: 0

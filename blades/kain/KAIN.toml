@@ -21,6 +21,7 @@ files = [
     "error.kn",
     "span.kn",
     "ast.kn",
+    "build.kn",
     "lexer.kn",
     "builtins.kn",
     "runtime.kn",

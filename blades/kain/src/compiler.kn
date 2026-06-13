@@ -382,6 +382,160 @@ pub fn check_file(file_path: String) -> KcCheckResult with IO:
 // ═══════════════════════════════════════════════════════════════════
 
 pub fn discover_workspace(start_path: String) -> String with IO:
-    // Stub: workspace discovery not yet functional in bootstrap
-    // In production, this ascends directories looking for KAIN.toml/build.kn/.git
+    println("[kainc] discover workspace: " + start_path)
+    let mut dir: String = start_path
+
+    // If start_path is a file, start from its parent directory
+    if fs_is_file(dir):
+        dir = fs_path_parent(dir)
+
+    // Ascend directories looking for KAIN.toml, build.kn, or .git
+    while dir != "" and dir != "/" and dir != "\\":
+        let kain_toml: String = fs_path_join(dir, "KAIN.toml")
+        let build_kn: String = fs_path_join(dir, "build.kn")
+        let git_dir: String = fs_path_join(dir, ".git")
+
+        if fs_exists(kain_toml):
+            println("[kainc]   found workspace root (KAIN.toml): " + dir)
+            return dir
+
+        if fs_exists(build_kn):
+            println("[kainc]   found workspace root (build.kn): " + dir)
+            return dir
+
+        if fs_is_dir(git_dir):
+            println("[kainc]   found workspace root (.git): " + dir)
+            return dir
+
+        let parent: String = fs_path_parent(dir)
+        if parent == dir or parent == "":
+            break  // reached filesystem root
+        dir = parent
+
+    println("[kainc]   no workspace found (no KAIN.toml, build.kn, or .git)")
     return ""
+
+// ── Stream GREEN: compile_workspace — multi-file compilation ──
+
+pub fn compile_workspace(ws_root: String, target: String) -> CompileResult with IO:
+    println("[kainc] compile_workspace: " + ws_root + " (target: " + target + ")")
+
+    // Check for KAIN.toml or build.kn
+    let kain_toml: String = fs_path_join(ws_root, "KAIN.toml")
+    let build_kn: String = fs_path_join(ws_root, "build.kn")
+
+    var source_files: Array<String> = []
+
+    // First check if we have a KAIN.toml with source_order
+    if fs_exists(kain_toml):
+        let toml_text: String = fs_read_text(kain_toml)
+        // Scan for [source_order] section and read line-by-line file list
+        var in_source_order: Bool = false
+        var line_start: Int = 0
+        var char_idx: Int = 0
+        while char_idx < len(toml_text):
+            if toml_text[char_idx] == "\n":
+                var line_text: String = ""
+                var ci: Int = line_start
+                while ci < char_idx:
+                    line_text = line_text + toml_text[ci]
+                    ci = ci + 1
+
+                let trimmed: String = trim_string(line_text)
+                if trimmed == "[source_order]":
+                    in_source_order = true
+                elif in_source_order:
+                    // Check for "files = [" or end of section
+                    if trimmed == "" or trimmed[0] == "[" or trimmed == "":
+                        in_source_order = false
+                    elif len(trimmed) > 0 and trimmed[0] != "#":
+                        // Extract quoted filename
+                        let q_start: Int = find_char(trimmed, "\"")
+                        if q_start >= 0:
+                            let fname: String = ""
+                            var fi: Int = q_start + 1
+                            while fi < len(trimmed) and trimmed[fi] != "\"":
+                                fname = fname + trimmed[fi]
+                                fi = fi + 1
+                            if len(fname) > 0:
+                                source_files.push(fname)
+
+                line_start = char_idx + 1
+            char_idx = char_idx + 1
+
+        if len(source_files) > 0:
+            println("[kainc]   found " + str(len(source_files)) + " source files in KAIN.toml source_order")
+
+    // Fallback: scan directory for .kn files
+    if len(source_files) == 0:
+        let dir_listing: String = abi_fs_read_dir_paths_text(ws_root)
+        if dir_listing != "":
+            var line_start2: Int = 0
+            var char_idx2: Int = 0
+            while char_idx2 < len(dir_listing):
+                if dir_listing[char_idx2] == "\n":
+                    var fpath: String = ""
+                    var ci: Int = line_start2
+                    while ci < char_idx2:
+                        fpath = fpath + dir_listing[ci]
+                        ci = ci + 1
+                    if len(fpath) > 3:
+                        let ext_start: Int = len(fpath) - 3
+                        if fpath[ext_start] == "." and fpath[ext_start + 1] == "k" and fpath[ext_start + 2] == "n":
+                            source_files.push(fpath)
+                    line_start2 = char_idx2 + 1
+                char_idx2 = char_idx2 + 1
+
+    if len(source_files) == 0:
+        println("[kainc]   no .kn files found in workspace")
+        return compile_result_error(kc_diag_bag_new())
+
+    // Compile each source file
+    var all_errors: KcDiagnosticBag = kc_diag_bag_new()
+    var fi: Int = 0
+    while fi < len(source_files):
+        let f: String = fs_path_join(ws_root, source_files[fi])
+        let result: CompileResult = compile_file(f, target)
+        if result.success == false:
+            var ei: Int = 0
+            while ei < len(result.errors.messages):
+                all_errors.messages.push(result.errors.messages[ei])
+                ei = ei + 1
+        fi = fi + 1
+
+    if kc_diag_bag_has_errors(all_errors):
+        return compile_result_error(all_errors)
+
+    println("[kainc] compile_workspace: all " + str(len(source_files)) + " files compiled successfully")
+    return compile_result_ok("")
+
+pub fn check_workspace(ws_root: String) -> KcCheckResult with IO:
+    println("[kainc] check_workspace: " + ws_root)
+    let result: CompileResult = compile_workspace(ws_root, "llvm")
+    if result.success:
+        return KcCheckResult { success: true, diagnostics: kc_diag_bag_new() }
+    return KcCheckResult { success: false, diagnostics: result.errors }
+
+// ── Stream GREEN: string utility helpers ──
+
+pub fn trim_string(s: String) -> String:
+    var start: Int = 0
+    var end: Int = len(s) - 1
+    while start < len(s) and (s[start] == " " or s[start] == "\t" or s[start] == "\r"):
+        start = start + 1
+    while end >= start and (s[end] == " " or s[end] == "\t" or s[end] == "\r" or s[end] == "\n"):
+        end = end - 1
+    var result: String = ""
+    var i: Int = start
+    while i <= end:
+        result = result + s[i]
+        i = i + 1
+    return result
+
+pub fn find_char(s: String, ch: String) -> Int:
+    var i: Int = 0
+    while i < len(s):
+        if s[i] == ch:
+            return i
+        i = i + 1
+    return -1
