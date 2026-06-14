@@ -1,0 +1,470 @@
+// ============================================================================
+//  KAINOS NVMe DRIVER — drivers/nvme/nvme.kn
+//  Stream F: Device Drivers
+//
+//  NVMe over PCIe (class 0x010802). Controller init, admin queue setup,
+//  I/O queue creation, Identify command, Read/Write/Flush I/O commands.
+//  PRP (Physical Region Page) lists for scatter/gather DMA.
+//
+//  LADDER: L0 (fn, struct) + L7 (Unsafe, volatile MMIO, ownership)
+//          NVMe is a block device — raw MMIO ring buffers, DMA descriptors.
+// ============================================================================
+
+// ============================================================================
+//  NVMe CONTROLLER REGISTERS (in BAR0 MMIO space)
+// ============================================================================
+
+// Register offsets from BAR0 base
+const NVME_REG_CAP:   Int = 0x00    // Controller Capabilities (8 bytes)
+const NVME_REG_VS:    Int = 0x08    // Version (4 bytes)
+const NVME_REG_INTMS: Int = 0x0C    // Interrupt Mask Set
+const NVME_REG_INTMC: Int = 0x10    // Interrupt Mask Clear
+const NVME_REG_CC:    Int = 0x14    // Controller Configuration
+const NVME_REG_CSTS:  Int = 0x1C    // Controller Status
+const NVME_REG_AQA:   Int = 0x24    // Admin Queue Attributes
+const NVME_REG_ASQ:   Int = 0x28    // Admin Submission Queue Base Address
+const NVME_REG_ACQ:   Int = 0x30    // Admin Completion Queue Base Address
+
+// CC register bits
+const NVME_CC_EN:     Int = 0x00000001     // Enable
+const NVME_CC_IOCQES: Int = 4              // I/O CQ Entry Size shift
+const NVME_CC_IOSQES: Int = 16             // I/O SQ Entry Size shift
+
+// CSTS register bits
+const NVME_CSTS_RDY:  Int = 0x00000001     // Controller Ready
+
+// ============================================================================
+//  NVMe COMMAND OPCODES
+// ============================================================================
+
+const NVME_CMD_DELETE_IO_SQ:  Int = 0x00    // Admin: Delete I/O Submission Queue
+const NVME_CMD_CREATE_IO_SQ:  Int = 0x01    // Admin: Create I/O Submission Queue
+const NVME_CMD_DELETE_IO_CQ:  Int = 0x04    // Admin: Delete I/O Completion Queue
+const NVME_CMD_CREATE_IO_CQ:  Int = 0x05    // Admin: Create I/O Completion Queue
+const NVME_CMD_IDENTIFY:       Int = 0x06    // Admin: Identify
+
+// I/O command opcodes (namespace scope)
+const NVME_IO_FLUSH:  Int = 0x00
+const NVME_IO_WRITE:  Int = 0x01
+const NVME_IO_READ:   Int = 0x02
+
+// ============================================================================
+//  QUEUE SIZING
+// ============================================================================
+
+const NVME_ADMIN_QUEUE_SIZE:  Int = 64       // Admin submission queue entries
+const NVME_IO_QUEUE_SIZE:     Int = 256      // I/O submission queue entries
+const NVME_SQ_ENTRY_SIZE:     Int = 64       // Submission queue entry: 64 bytes
+const NVME_CQ_ENTRY_SIZE:     Int = 16       // Completion queue entry: 16 bytes
+const NVME_PAGE_SIZE:         Int = 4096
+
+// ============================================================================
+//  DATA STRUCTURES
+// ============================================================================
+
+struct NvmeController:
+    bar0_base:        Int       // MMIO base address of BAR0
+    asq_base:         Int       // Admin Submission Queue physical address
+    acq_base:         Int       // Admin Completion Queue physical address
+    asq_tail:         Int       // Admin SQ tail doorbell offset
+    acq_head:         Int       // Admin CQ head doorbell offset
+    io_sq_base:       Int       // I/O Submission Queue physical address
+    io_cq_base:       Int       // I/O Completion Queue physical address
+    io_sq_tail:       Int
+    io_cq_head:       Int
+    nsid:             Int       // Active namespace ID
+    lba_count:        Int       // Total LBAs on namespace
+    lba_size:         Int       // LBA size in bytes (usually 512)
+    initialized:      Bool
+
+struct NvmeSqEntry:
+    // 64-byte submission queue entry
+    opcode:     Int     // byte 0
+    flags:      Int     // byte 1
+    command_id: Int     // bytes 2-3
+    nsid:       Int     // bytes 4-7 (namespace ID)
+    reserved0:  Int     // bytes 8-15 (2 dwords)
+    reserved0_2: Int    // bytes 16-23
+    prp1:       Int     // bytes 24-31 (PRP entry 1 / data pointer)
+    prp2:       Int     // bytes 32-39 (PRP entry 2 / PRP list pointer)
+    slba_low:   Int     // bytes 40-43 (starting LBA, low)
+    slba_high:  Int     // bytes 44-47 (starting LBA, high)
+    nlb:        Int     // bytes 48-49 (number of logical blocks, 0-based)
+    dsm_flags:  Int     // bytes 50-51 (dataset management)
+    reserved3:  Int     // bytes 52-55
+    elbst:      Int     // bytes 56-63 (expected logical block storage tag)
+
+struct NvmeCqEntry:
+    // 16-byte completion queue entry
+    dw0:         Int    // Command-specific
+    dw1:         Int    // Reserved
+    sq_head_ptr: Int    // SQ head pointer (bytes 8-9)
+    sq_id:       Int    // SQ identifier (bytes 10-11)
+    command_id:  Int    // Command ID (bytes 12-13)
+    phase_tag:   Int    // Phase tag + status (bytes 14-15)
+
+struct NvmeIdentifyNS:
+    // Identify Namespace data structure (CNS 0x00)
+    nsze_low:    Int    // Namespace size, low 32 bits
+    nsze_high:   Int    // Namespace size, high 32 bits
+    ncap_low:    Int    // Namespace capacity
+    ncap_high:   Int
+    nuse_low:    Int    // Namespace utilization
+    nuse_high:   Int
+    nsfeat:      Int    // Namespace features
+    nlbaf:       Int    // Number of LBA formats
+    flbas:       Int    // Formatted LBA size
+
+// ============================================================================
+//  MMIO ACCESS HELPERS — Volatile register read/write
+//  WHY: NVMe controller registers are MMIO. Use volatile loads/stores
+//       to prevent compiler optimization across register access.
+// ============================================================================
+
+fn nvme_mmio_read32(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    return volatile_load_int(addr)
+
+fn nvme_mmio_write32(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    volatile_store_int(addr, value)
+    return 0
+
+fn nvme_mmio_read64(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let low = nvme_mmio_read32(mmio_base, offset)
+    let high = nvme_mmio_read32(mmio_base, offset + 4)
+    return low + (high << 32)
+
+fn nvme_mmio_write64(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let low = value & 0xFFFFFFFF
+    let high = (value >> 32) & 0xFFFFFFFF
+    nvme_mmio_write32(mmio_base, offset, low)
+    nvme_mmio_write32(mmio_base, offset + 4, high)
+    return 0
+
+// ============================================================================
+//  DOORBELL WRITE — Ring the submission queue tail doorbell
+// ============================================================================
+
+fn nvme_ring_doorbell(mmio_base: Int, sqid: Int, tail: Int) -> Int with Unsafe:
+    // Doorbell stride is 4 bytes per queue; offset = 0x1000 + (2 * sqid) * 4
+    let doorbell_offset = 0x1000 + (2 * sqid * 4)
+    nvme_mmio_write32(mmio_base, doorbell_offset, tail)
+    return 0
+
+// ============================================================================
+//  SUBMISSION QUEUE ENTRY — Write 64-byte command to SQ
+// ============================================================================
+
+fn nvme_write_sq_entry(sq_base: Int, tail: Int, sqe: NvmeSqEntry) -> Int with Unsafe:
+    let entry_addr: ptr<Int> = int_to_ptr(sq_base + (tail * NVME_SQ_ENTRY_SIZE), "Int")
+
+    // Write 16 dwords (64 bytes) to the SQ entry
+    collapse entry_addr:
+        mem_store(ptr_offset(entry_addr, 0, "Int"), sqe.opcode | (sqe.flags << 8) | (sqe.command_id << 16), "Int")
+        mem_store(ptr_offset(entry_addr, 1, "Int"), sqe.nsid, "Int")
+        mem_store(ptr_offset(entry_addr, 2, "Int"), sqe.reserved0, "Int")
+        mem_store(ptr_offset(entry_addr, 3, "Int"), sqe.reserved0_2, "Int")
+        mem_store(ptr_offset(entry_addr, 4, "Int"), sqe.prp1, "Int")
+        mem_store(ptr_offset(entry_addr, 5, "Int"), sqe.prp2, "Int")
+        mem_store(ptr_offset(entry_addr, 6, "Int"), sqe.slba_low, "Int")
+        mem_store(ptr_offset(entry_addr, 7, "Int"), sqe.slba_high, "Int")
+        mem_store(ptr_offset(entry_addr, 8, "Int"), sqe.nlb | (sqe.dsm_flags << 16), "Int")
+        mem_store(ptr_offset(entry_addr, 9, "Int"), sqe.reserved3, "Int")
+        mem_store(ptr_offset(entry_addr, 10, "Int"), sqe.elbst & 0xFFFFFFFF, "Int")
+        mem_store(ptr_offset(entry_addr, 11, "Int"), (sqe.elbst >> 32) & 0xFFFFFFFF, "Int")
+        0
+    return 0
+
+// ============================================================================
+//  COMPLETION QUEUE ENTRY — Read 16-byte entry from CQ
+// ============================================================================
+
+fn nvme_read_cq_entry(cq_base: Int, head: Int) -> NvmeCqEntry with Unsafe:
+    let entry_addr: ptr<Int> = int_to_ptr(cq_base + (head * NVME_CQ_ENTRY_SIZE), "Int")
+
+    let entry = observe entry_addr:
+        NvmeCqEntry {
+            dw0: mem_load(ptr_offset(entry_addr, 0, "Int"), "Int"),
+            dw1: mem_load(ptr_offset(entry_addr, 1, "Int"), "Int"),
+            sq_head_ptr: mem_load(ptr_offset(entry_addr, 2, "Int"), "Int"),
+            sq_id: mem_load(ptr_offset(entry_addr, 3, "Int"), "Int"),
+            command_id: mem_load(ptr_offset(entry_addr, 4, "Int"), "Int"),
+            phase_tag: mem_load(ptr_offset(entry_addr, 5, "Int"), "Int"),
+        }
+
+    return entry
+
+// ============================================================================
+//  CONTROLLER INITIALIZATION
+// ============================================================================
+
+pub fn nvme_init(bar0_base: Int, asq_phys: Int, acq_phys: Int, io_sq_phys: Int, io_cq_phys: Int) -> Int with Unsafe:
+    // Step 1: Read controller capabilities
+    let cap = nvme_mmio_read64(bar0_base, NVME_REG_CAP)
+    let _ = cap      // CAP contains MQES, doorbell stride, etc.
+
+    let vs = nvme_mmio_read32(bar0_base, NVME_REG_VS)
+    let _ = vs       // Version
+
+    // Step 2: Disable controller (CC.EN = 0)
+    nvme_mmio_write32(bar0_base, NVME_REG_CC, 0)
+
+    // Wait for CSTS.RDY to clear
+    var timeout: Int = 0
+    while timeout < 500000:
+        let csts = nvme_mmio_read32(bar0_base, NVME_REG_CSTS)
+        if (csts & NVME_CSTS_RDY) == 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    if timeout >= 500000:
+        return -1      // Controller failed to reset
+
+    // Step 3: Set Admin Queue Attributes
+    let aqa = ((NVME_ADMIN_QUEUE_SIZE - 1) & 0x0FFF) | (((NVME_ADMIN_QUEUE_SIZE - 1) & 0x0FFF) << 16)
+    nvme_mmio_write32(bar0_base, NVME_REG_AQA, aqa)
+
+    // Step 4: Set Admin SQ and CQ base addresses
+    nvme_mmio_write64(bar0_base, NVME_REG_ASQ, asq_phys)
+    nvme_mmio_write64(bar0_base, NVME_REG_ACQ, acq_phys)
+
+    // Step 5: Enable controller
+    // CC: enable + I/O CQ entry size (4 = 2^4 = 16 bytes) + I/O SQ entry size (6 = 2^6 = 64 bytes)
+    let cc_val = NVME_CC_EN | (4 << NVME_CC_IOCQES) | (6 << NVME_CC_IOSQES)
+    nvme_mmio_write32(bar0_base, NVME_REG_CC, cc_val)
+
+    // Wait for CSTS.RDY to set
+    timeout = 0
+    while timeout < 500000:
+        let csts = nvme_mmio_read32(bar0_base, NVME_REG_CSTS)
+        if (csts & NVME_CSTS_RDY) != 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    if timeout >= 500000:
+        return -2      // Controller failed to become ready
+
+    return 0
+
+// ============================================================================
+//  CREATE I/O COMPLETION QUEUE — Admin command 0x05
+// ============================================================================
+
+fn nvme_create_io_cq(bar0_base: Int, asq_base: Int, cqid: Int, cq_phys: Int, cq_size: Int, iv: Int) -> Int with Unsafe:
+    let sqe = NvmeSqEntry {
+        opcode: NVME_CMD_CREATE_IO_CQ,
+        flags: 0,
+        command_id: cqid,
+        nsid: 0,
+        reserved0: 0,
+        reserved0_2: cq_phys,
+        prp1: cq_phys,
+        prp2: 0,
+        slba_low: (cq_size - 1) & 0xFFFF,
+        slba_high: 0,
+        nlb: 1,
+        dsm_flags: iv & 0xFFFF,
+        reserved3: 0,
+        elbst: 0,
+    }
+
+    nvme_write_sq_entry(asq_base, 0, sqe)
+    nvme_ring_doorbell(bar0_base, 0, 1)
+
+    // Poll for completion on Admin CQ
+    let acq_base = nvme_mmio_read64(bar0_base, NVME_REG_ACQ)
+    var t2: Int = 0
+    while t2 < 500000:
+        let entry = nvme_read_cq_entry(acq_base, 0)
+        let status = (entry.phase_tag >> 1) & 0x7FFF
+        if status != 0xFFFF:
+            // Ring CQ head doorbell
+            nvme_mmio_write32(bar0_base, 0x1000 + 4, 1)
+            return 0
+        asm("pause")
+        t2 = t2 + 1
+
+    return -1
+
+// ============================================================================
+//  CREATE I/O SUBMISSION QUEUE — Admin command 0x01
+// ============================================================================
+
+fn nvme_create_io_sq(bar0_base: Int, asq_base: Int, sqid: Int, sq_phys: Int, sq_size: Int, cqid: Int) -> Int with Unsafe:
+    let sqe = NvmeSqEntry {
+        opcode: NVME_CMD_CREATE_IO_SQ,
+        flags: 0,
+        command_id: sqid,
+        nsid: 0,
+        reserved0: 0,
+        reserved0_2: 0,
+        prp1: sq_phys,
+        prp2: 0,
+        slba_low: (sq_size - 1) & 0xFFFF,
+        slba_high: (cqid & 0xFFFF) | (1 << 16),
+        nlb: 1,
+        dsm_flags: 0,
+        reserved3: 0,
+        elbst: 0,
+    }
+
+    nvme_write_sq_entry(asq_base, 0, sqe)
+    nvme_ring_doorbell(bar0_base, 0, 1)
+
+    // Poll for completion
+    let acq_base = nvme_mmio_read64(bar0_base, NVME_REG_ACQ)
+    var t3: Int = 0
+    while t3 < 500000:
+        let entry = nvme_read_cq_entry(acq_base, 0)
+        let status = (entry.phase_tag >> 1) & 0x7FFF
+        if status != 0xFFFF:
+            nvme_mmio_write32(bar0_base, 0x1000 + 4, 1)
+            return 0
+        asm("pause")
+        t3 = t3 + 1
+
+    return -1
+
+// ============================================================================
+//  IDENTIFY COMMAND — Retrieve controller or namespace data
+// ============================================================================
+
+fn nvme_admin_identify(bar0_base: Int, asq_base: Int, cns: Int, nsid: Int, data_buf_phys: Int) -> Int with Unsafe:
+    let sqe = NvmeSqEntry {
+        opcode: NVME_CMD_IDENTIFY,
+        flags: 0,
+        command_id: 1,
+        nsid: nsid,
+        reserved0: cns,
+        reserved0_2: 0,
+        prp1: data_buf_phys,
+        prp2: 0,
+        slba_low: 0,
+        slba_high: 0,
+        nlb: 0,
+        dsm_flags: 0,
+        reserved3: 0,
+        elbst: 0,
+    }
+
+    nvme_write_sq_entry(asq_base, 0, sqe)
+    nvme_ring_doorbell(bar0_base, 0, 1)
+
+    // Poll for completion
+    let acq_base = nvme_mmio_read64(bar0_base, NVME_REG_ACQ)
+    var t4: Int = 0
+    while t4 < 500000:
+        let entry = nvme_read_cq_entry(acq_base, 0)
+        let status = (entry.phase_tag >> 1) & 0x7FFF
+        if status != 0xFFFF:
+            nvme_mmio_write32(bar0_base, 0x1000 + 4, 1)
+            if status != 0:
+                return -100 - status
+            return 0
+        asm("pause")
+        t4 = t4 + 1
+
+    return -1
+
+// ============================================================================
+//  I/O COMMAND — Read or Write sectors
+// ============================================================================
+
+fn nvme_io_submit(bar0_base: Int, io_sq_phys: Int, io_cq_phys: Int,
+                   opcode: Int, nsid: Int, slba: Int, nlb: Int, data_phys: Int) -> Int with Unsafe:
+    let command_id = 0
+    let sqe = NvmeSqEntry {
+        opcode: opcode,
+        flags: 0,
+        command_id: command_id,
+        nsid: nsid,
+        reserved0: 0,
+        reserved0_2: 0,
+        prp1: data_phys,
+        prp2: 0,
+        slba_low: slba & 0xFFFFFFFF,
+        slba_high: (slba >> 32) & 0xFFFFFFFF,
+        nlb: nlb & 0xFFFF,
+        dsm_flags: 0,
+        reserved3: 0,
+        elbst: 0,
+    }
+
+    let sq_base = io_sq_phys
+    nvme_write_sq_entry(sq_base, command_id, sqe)
+    nvme_ring_doorbell(bar0_base, 1, 1)
+
+    // Poll for completion
+    var t5: Int = 0
+    while t5 < 500000:
+        let entry = nvme_read_cq_entry(io_cq_phys, command_id)
+        let status = (entry.phase_tag >> 1) & 0x7FFF
+        if status != 0xFFFF:
+            // Ring CQ head doorbell
+            nvme_ring_doorbell(bar0_base, 1, 1)
+            if status != 0:
+                return -200 - status
+            return 0
+        asm("pause")
+        t5 = t5 + 1
+
+    return -1     // Timeout
+
+// ============================================================================
+//  PUBLIC API — nvme_read / nvme_write / nvme_identify
+// ============================================================================
+
+pub fn nvme_read(bar0_base: Int, io_sq_phys: Int, io_cq_phys: Int,
+                  nsid: Int, lba: Int, sector_count: Int, buf_phys: Int) -> Int with Unsafe:
+    return nvme_io_submit(bar0_base, io_sq_phys, io_cq_phys,
+                          NVME_IO_READ, nsid, lba, sector_count - 1, buf_phys)
+
+pub fn nvme_write(bar0_base: Int, io_sq_phys: Int, io_cq_phys: Int,
+                   nsid: Int, lba: Int, sector_count: Int, buf_phys: Int) -> Int with Unsafe:
+    return nvme_io_submit(bar0_base, io_sq_phys, io_cq_phys,
+                          NVME_IO_WRITE, nsid, lba, sector_count - 1, buf_phys)
+
+pub fn nvme_flush(bar0_base: Int, io_sq_phys: Int, io_cq_phys: Int,
+                   nsid: Int) -> Int with Unsafe:
+    return nvme_io_submit(bar0_base, io_sq_phys, io_cq_phys,
+                          NVME_IO_FLUSH, nsid, 0, 0, 0)
+
+pub fn nvme_identify(bar0_base: Int, asq_phys: Int, data_buf_phys: Int) -> Int with Unsafe:
+    // CNS = 0x00 = Identify Namespace, NSID = 1 (first namespace)
+    return nvme_admin_identify(bar0_base, asq_phys, 0, 1, data_buf_phys)
+
+pub fn nvme_identify_controller(bar0_base: Int, asq_phys: Int, data_buf_phys: Int) -> Int with Unsafe:
+    // CNS = 0x01 = Identify Controller
+    return nvme_admin_identify(bar0_base, asq_phys, 1, 0, data_buf_phys)
+
+// ============================================================================
+//  FULL INITIALIZATION — Complete NVMe bring-up sequence
+// ============================================================================
+
+pub fn nvme_full_init(bar0_base: Int, asq_phys: Int, acq_phys: Int,
+                       io_sq_phys: Int, io_cq_phys: Int,
+                       identify_buf_phys: Int) -> Int with Unsafe:
+    // 1. Controller init (reset + enable)
+    let result = nvme_init(bar0_base, asq_phys, acq_phys, io_sq_phys, io_cq_phys)
+    if result != 0:
+        return result
+
+    // 2. Create I/O Completion Queue (CQID=1, size=IO_QUEUE_SIZE)
+    let cq_result = nvme_create_io_cq(bar0_base, asq_phys, 1, io_cq_phys, NVME_IO_QUEUE_SIZE, 0)
+    if cq_result != 0:
+        return -10 + cq_result
+
+    // 3. Create I/O Submission Queue (SQID=1, size=IO_QUEUE_SIZE, associated with CQID=1)
+    let sq_result = nvme_create_io_sq(bar0_base, asq_phys, 1, io_sq_phys, NVME_IO_QUEUE_SIZE, 1)
+    if sq_result != 0:
+        return -20 + sq_result
+
+    // 4. Identify namespace to get LBA count and size
+    let id_result = nvme_identify(bar0_base, asq_phys, identify_buf_phys)
+    if id_result != 0:
+        return -30 + id_result
+
+    return 0

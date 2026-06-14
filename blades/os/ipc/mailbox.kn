@@ -1,0 +1,243 @@
+// ============================================================================
+//  KAINOS IPC Mailbox — mailbox.kn
+// ============================================================================
+//  Actor mailbox management. Bounded ring buffer per actor.
+//  Priority lanes for system messages. Backpressure when full.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for mailbox state
+//    LAYER 7 — actor integration
+//
+//  Exports:
+//    mailbox_init, mailbox_enqueue, mailbox_dequeue, mailbox_peek,
+//    mailbox_full, mailbox_empty, mailbox_depth
+// ============================================================================
+
+use std::runtime
+
+pub mod mailbox:
+
+    const MAILBOX_CAPACITY: Int = 256
+    const PRIORITY_QUEUE_CAPACITY: Int = 32
+
+    // ── Mailbox Struct ──────────────────────────────────────────────────
+
+    /// Per-actor mailbox. Ring buffer with priority lane.
+    struct Mailbox:
+        buffer: ptr<ptr<Byte>>          // Ring buffer of message pointers
+        head: Int                       // Dequeue position
+        tail: Int                       // Enqueue position
+        count: Int                      // Messages in normal queue
+        priority_buffer: ptr<ptr<Byte>> // Priority lane
+        priority_head: Int
+        priority_tail: Int
+        priority_count: Int
+        capacity: Int
+        priority_capacity: Int
+        blocked_senders: Int
+        total_enqueued: Int
+        total_dequeued: Int
+        total_dropped: Int
+
+    // ── World for mailbox registry ──────────────────────────────────────
+
+    /// Registry of all actor mailboxes, indexed by actor ID.
+    world MailboxWorld:
+        state mailboxes: Array<ptr<Mailbox>> = []
+        state next_id: Int = 0
+
+    // ── Initialization ──────────────────────────────────────────────────
+
+    pub fn mailbox_init(capacity: Int) -> ptr<Mailbox> with Unsafe:
+        let cap: Int = if capacity > 0: capacity else: MAILBOX_CAPACITY
+
+        let mb: ptr<Mailbox> = alloc_zeroed(1, "Mailbox")
+
+        collapse mb:
+            let buf: ptr<ptr<Byte>> = alloc_zeroed(cap, "ptr<Byte>")
+            let prio_buf: ptr<ptr<Byte>> = alloc_zeroed(PRIORITY_QUEUE_CAPACITY, "ptr<Byte>")
+
+            // Store fields via struct field writes
+            mem_store(mb, buf, "ptr<ptr<Byte>>")             // buffer
+
+            let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+            // head (offset 8), tail (offset 16), count (offset 24) on 64-bit
+            let head_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 8, "Byte"), "ptr<Int>")
+            mem_store(head_ptr, 0, "Int")
+
+            let tail_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 16, "Byte"), "ptr<Int>")
+            mem_store(tail_ptr, 0, "Int")
+
+            let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+            mem_store(count_ptr, 0, "Int")
+
+            // priority_buffer at offset 32
+            let prio_buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 32, "Byte"), "ptr<ptr<ptr<Byte>>>")
+            mem_store(prio_buf_ptr, prio_buf, "ptr<ptr<Byte>>")
+
+            // priority_head at offset 40
+            let ph_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 40, "Byte"), "ptr<Int>")
+            mem_store(ph_ptr, 0, "Int")
+
+            // priority_tail at offset 48
+            let pt_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 48, "Byte"), "ptr<Int>")
+            mem_store(pt_ptr, 0, "Int")
+
+            // priority_count at offset 56
+            let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+            mem_store(pc_ptr, 0, "Int")
+
+            // capacity at offset 64
+            let cap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 64, "Byte"), "ptr<Int>")
+            mem_store(cap_ptr, cap, "Int")
+
+            // priority_capacity at offset 72
+            let pcap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 72, "Byte"), "ptr<Int>")
+            mem_store(pcap_ptr, PRIORITY_QUEUE_CAPACITY, "Int")
+            0
+
+        return mb
+
+    // ── Enqueue ─────────────────────────────────────────────────────────
+
+    pub fn mailbox_enqueue(mb: ptr<Mailbox>, msg: ptr<Byte>, priority: Bool) -> Int with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+
+        if priority:
+            // Use priority lane
+            let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+            let pc: Int = mem_load(pc_ptr, "Int")
+            let pcap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 72, "Byte"), "ptr<Int>")
+            let pcap: Int = mem_load(pcap_ptr, "Int")
+
+            if pc >= pcap:
+                return -1  // Priority queue full
+
+            let prio_buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 32, "Byte"), "ptr<ptr<ptr<Byte>>>")
+            let prio_buf: ptr<ptr<Byte>> = mem_load(prio_buf_ptr, "ptr<ptr<Byte>>")
+            let pt_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 48, "Byte"), "ptr<Int>")
+            let pt: Int = mem_load(pt_ptr, "Int")
+
+            mem_store(ptr_offset(prio_buf, pt, "ptr<Byte>"), msg, "ptr<Byte>")
+            let new_tail: Int = (pt + 1) % pcap
+            mem_store(pt_ptr, new_tail, "Int")
+            mem_store(pc_ptr, pc + 1, "Int")
+        else:
+            // Normal queue
+            let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+            let cnt: Int = mem_load(count_ptr, "Int")
+            let cap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 64, "Byte"), "ptr<Int>")
+            let cap: Int = mem_load(cap_ptr, "Int")
+
+            if cnt >= cap:
+                let drop_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 88, "Byte"), "ptr<Int>")
+                let d: Int = mem_load(drop_ptr, "Int")
+                mem_store(drop_ptr, d + 1, "Int")
+                return -1
+
+            let buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 0, "Byte"), "ptr<ptr<ptr<Byte>>>")
+            let buf: ptr<ptr<Byte>> = mem_load(buf_ptr, "ptr<ptr<Byte>>")
+            let tail_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 16, "Byte"), "ptr<Int>")
+            let tail: Int = mem_load(tail_ptr, "Int")
+
+            mem_store(ptr_offset(buf, tail, "ptr<Byte>"), msg, "ptr<Byte>")
+            let new_tail: Int = (tail + 1) % cap
+            mem_store(tail_ptr, new_tail, "Int")
+            mem_store(count_ptr, cnt + 1, "Int")
+
+        // Increment total enqueued
+        let total_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 80, "Byte"), "ptr<Int>")
+        let total: Int = mem_load(total_ptr, "Int")
+        mem_store(total_ptr, total + 1, "Int")
+        return 0
+
+    // ── Dequeue ─────────────────────────────────────────────────────────
+
+    pub fn mailbox_dequeue(mb: ptr<Mailbox>) -> ptr<Byte> with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+
+        let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+        let pc: Int = mem_load(pc_ptr, "Int")
+
+        if pc > 0:
+            let prio_buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 32, "Byte"), "ptr<ptr<ptr<Byte>>>")
+            let prio_buf: ptr<ptr<Byte>> = mem_load(prio_buf_ptr, "ptr<ptr<Byte>>")
+            let ph_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 40, "Byte"), "ptr<Int>")
+            let ph: Int = mem_load(ph_ptr, "Int")
+            let pcap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 72, "Byte"), "ptr<Int>")
+            let pcap: Int = mem_load(pcap_ptr, "Int")
+
+            let msg: ptr<Byte> = mem_load(ptr_offset(prio_buf, ph, "ptr<Byte>"), "ptr<Byte>")
+            let new_head: Int = (ph + 1) % pcap
+            mem_store(ph_ptr, new_head, "Int")
+            mem_store(pc_ptr, pc - 1, "Int")
+            return msg
+
+        let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+        let cnt: Int = mem_load(count_ptr, "Int")
+
+        if cnt <= 0:
+            return bitcast(0, "ptr<Byte>")
+
+        let buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 0, "Byte"), "ptr<ptr<ptr<Byte>>>")
+        let buf: ptr<ptr<Byte>> = mem_load(buf_ptr, "ptr<ptr<Byte>>")
+        let head_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 8, "Byte"), "ptr<Int>")
+        let head: Int = mem_load(head_ptr, "Int")
+        let cap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 64, "Byte"), "ptr<Int>")
+        let cap: Int = mem_load(cap_ptr, "Int")
+
+        let msg: ptr<Byte> = mem_load(ptr_offset(buf, head, "ptr<Byte>"), "ptr<Byte>")
+        let new_head: Int = (head + 1) % cap
+        mem_store(head_ptr, new_head, "Int")
+        mem_store(count_ptr, cnt - 1, "Int")
+        return msg
+
+    // ── Query ───────────────────────────────────────────────────────────
+
+    pub fn mailbox_peek(mb: ptr<Mailbox>) -> ptr<Byte> with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+
+        let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+        let pc: Int = mem_load(pc_ptr, "Int")
+
+        if pc > 0:
+            let prio_buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 32, "Byte"), "ptr<ptr<ptr<Byte>>>")
+            let prio_buf: ptr<ptr<Byte>> = mem_load(prio_buf_ptr, "ptr<ptr<Byte>>")
+            let ph_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 40, "Byte"), "ptr<Int>")
+            let ph: Int = mem_load(ph_ptr, "Int")
+            return mem_load(ptr_offset(prio_buf, ph, "ptr<Byte>"), "ptr<Byte>")
+
+        let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+        let cnt: Int = mem_load(count_ptr, "Int")
+        if cnt <= 0:
+            return bitcast(0, "ptr<Byte>")
+
+        let buf_ptr: ptr<ptr<ptr<Byte>>> = bitcast(ptr_offset(mb_byte, 0, "Byte"), "ptr<ptr<ptr<Byte>>>")
+        let buf: ptr<ptr<Byte>> = mem_load(buf_ptr, "ptr<ptr<Byte>>")
+        let head_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 8, "Byte"), "ptr<Int>")
+        let head: Int = mem_load(head_ptr, "Int")
+        return mem_load(ptr_offset(buf, head, "ptr<Byte>"), "ptr<Byte>")
+
+    pub fn mailbox_full(mb: ptr<Mailbox>) -> Bool with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+        let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+        let cnt: Int = mem_load(count_ptr, "Int")
+        let cap_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 64, "Byte"), "ptr<Int>")
+        let cap: Int = mem_load(cap_ptr, "Int")
+        return cnt >= cap
+
+    pub fn mailbox_empty(mb: ptr<Mailbox>) -> Bool with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+        let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+        let cnt: Int = mem_load(count_ptr, "Int")
+        let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+        let pc: Int = mem_load(pc_ptr, "Int")
+        return cnt == 0 and pc == 0
+
+    pub fn mailbox_depth(mb: ptr<Mailbox>) -> Int with Unsafe:
+        let mb_byte: ptr<Byte> = bitcast(mb, "ptr<Byte>")
+        let count_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 24, "Byte"), "ptr<Int>")
+        let cnt: Int = mem_load(count_ptr, "Int")
+        let pc_ptr: ptr<Int> = bitcast(ptr_offset(mb_byte, 56, "Byte"), "ptr<Int>")
+        let pc: Int = mem_load(pc_ptr, "Int")
+        return cnt + pc

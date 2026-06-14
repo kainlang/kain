@@ -1,0 +1,450 @@
+// ============================================================================
+//  KAINOS COMPAT — Syscall → Call Rewriter (Binary Translator)
+//
+//  For each x86-64 `syscall` instruction (0F 05, 2 bytes), replace with
+//  `call rel32` (E8 + disp32, 5 bytes). Each syscall requires +3 bytes.
+//  After expansion, fix up all relative jumps and RIP-relative addresses.
+//
+//  Two-pass architecture (identical to markscript jit.kn):
+//    Pass 1: Scan syscalls, compute size deltas, record fixups
+//    Pass 2: Emit translated block with fixups applied
+//
+//  Based directly on jit.kn FixupEntry + apply_fixups patterns.
+//
+//  References: compat/ spec, markscript-jit-hsc-bridge.md, jit.kn
+// ============================================================================
+
+use std::machine
+use std::collections
+use decoder
+
+// ============================================================================
+//  FIXUP ENTRY — records where to patch after translation
+// ============================================================================
+
+struct FixupEntry:
+    patch_at:     Int    // offset in output buffer for the 4-byte displacement
+    original_off: Int    // original offset in input (for diagnostics)
+    kind:         Int    // 0 = near jump (E9), 1 = conditional jump (0F 8x),
+                         // 2 = RIP-relative (modrm), 3 = call (E8)
+    target:       Int    // resolved target offset in output
+
+// ============================================================================
+//  TRANSLATION CONTEXT — tracks offset mapping
+// ============================================================================
+
+struct TranslationContext:
+    input_size:     Int
+    output_size:    Int
+    offset_map:     Array<Int>   // original_offset → output_offset mapping
+    syscall_deltas: Array<Int>   // per-syscall: original_offset → +3 bytes
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const SYSCALL_SIZE:    Int = 2   // 0F 05
+const CALL_REL32_SIZE: Int = 5   // E8 + disp32
+const EXPANSION:       Int = 3   // 5 - 2 = +3 bytes per syscall
+
+// ============================================================================
+//  PASS 1 — Scan syscalls, compute output size
+// ============================================================================
+
+// Compute the translated output size after expanding syscalls
+pub fn compute_translated_size(instructions: Array<DecodedInstruction>, input_size: Int) -> Int:
+    var output_size: Int = 0
+    var i: Int = 0
+    while i < len(instructions):
+        let inst = instructions[i]
+        if inst.is_syscall:
+            output_size = output_size + CALL_REL32_SIZE
+        else:
+            output_size = output_size + inst.length
+        i = i + 1
+    return output_size
+
+// Build the offset map: original offset → new offset after expansion
+pub fn build_offset_map(instructions: Array<DecodedInstruction>, input_size: Int) -> Array<Int>:
+    var map: Array<Int> = []
+    // Initialize all entries to -1
+    var j: Int = 0
+    while j < input_size:
+        push(map, -1)
+        j = j + 1
+
+    var out_pos: Int = 0
+    var i: Int = 0
+    while i < len(instructions):
+        let inst = instructions[i]
+        map[inst.offset] = out_pos
+        if inst.is_syscall:
+            out_pos = out_pos + CALL_REL32_SIZE
+        else:
+            out_pos = out_pos + inst.length
+        i = i + 1
+
+    return map
+
+// ============================================================================
+//  PASS 2 — Emit translated code
+// ============================================================================
+
+// Emit a single byte to the output buffer at the given position
+fn emit_at(buf: ptr<Byte>, pos: Int, byte: Int) -> Unit:
+    let bp: ptr<Byte> = ptr_offset(buf, pos, "Byte")
+    mem_store(bp, byte & 0xFF, "Byte")
+
+// Emit a 32-bit little-endian value at position
+fn emit_u32_at(buf: ptr<Byte>, pos: Int, val: Int) -> Unit:
+    emit_at(buf, pos, val & 0xFF)
+    emit_at(buf, pos + 1, (val >> 8) & 0xFF)
+    emit_at(buf, pos + 2, (val >> 16) & 0xFF)
+    emit_at(buf, pos + 3, (val >> 24) & 0xFF)
+
+// Emit a 64-bit little-endian value at position
+fn emit_u64_at(buf: ptr<Byte>, pos: Int, val: Int) -> Unit:
+    emit_u32_at(buf, pos, val & 0xFFFFFFFF)
+    emit_u32_at(buf, pos + 4, (val >> 32) & 0xFFFFFFFF)
+
+// Copy raw bytes from input to output
+fn copy_bytes(src: ptr<Byte>, src_off: Int, dst: ptr<Byte>, dst_off: Int, count: Int) -> Unit:
+    var i: Int = 0
+    while i < count:
+        let sp: ptr<Byte> = ptr_offset(src, src_off + i, "Byte")
+        let dp: ptr<Byte> = ptr_offset(dst, dst_off + i, "Byte")
+        let b: Byte = mem_load(sp, "Byte")
+        mem_store(dp, b, "Byte")
+        i = i + 1
+
+// ============================================================================
+//  MAIN TRANSLATOR — translate a block of x86-64 code
+// ============================================================================
+
+pub fn translate_block(orig_code: ptr<Byte>, orig_size: Int) -> ptr<Byte> with Unsafe:
+    // STEP 1: Decode all instructions
+    let instructions = decode_block(orig_code, 0, orig_size)
+
+    // STEP 2: Check if there are any syscalls
+    let syscall_count = count_syscalls(instructions)
+    if syscall_count < 1:
+        // No syscalls — return copy of original (no translation needed)
+        return copy_block_no_translate(orig_code, orig_size)
+
+    // STEP 3: Compute output size and offset map
+    let output_size = compute_translated_size(instructions, orig_size)
+    let offset_map = build_offset_map(instructions, orig_size)
+
+    // STEP 4: Allocate output buffer (RWX)
+    let page_size = 4096  // use known page size
+    var alloc_size = output_size
+    if alloc_size % page_size > 0:
+        alloc_size = (alloc_size / page_size + 1) * page_size
+
+    let buf = vm_map(alloc_size)
+    if ptr_to_int(buf) == 0:
+        return buf  // null — allocation failed
+
+    let prot_ok = vm_protect_execute_read_write(buf, alloc_size)
+    if prot_ok != 0:
+        let _ = vm_release(buf, alloc_size)
+        let null_ptr: ptr<Byte> = int_to_ptr(0, "ptr<Byte>")
+        return null_ptr
+
+    // STEP 5: Collect fixups (jumps and RIP-relative that need correction)
+    var fixups: Array<FixupEntry> = []
+    fixups = collect_fixups(instructions, offset_map, fixups)
+
+    // STEP 6: Emit translated code
+    var out_pos: Int = 0
+    var i: Int = 0
+    while i < len(instructions):
+        let inst = instructions[i]
+        if inst.is_syscall:
+            // Replace 0F 05 with E8 [disp32] → call converge lane
+            out_pos = emit_syscall_call(buf, out_pos, inst, offset_map, orig_size)
+        else if inst.is_jump and inst.opcode_class == decoder::OpcodeClass::NearJump:
+            // Adjust JMP rel32 target
+            out_pos = emit_adjusted_jump(buf, out_pos, inst, offset_map, orig_code)
+        else if inst.is_jump and inst.opcode_class == decoder::OpcodeClass::ShortJump:
+            // JMP rel8 — can stay as-is if target is nearby
+            out_pos = emit_short_jump(buf, out_pos, inst, offset_map, orig_code, instructions)
+        else if inst.opcode_class == decoder::OpcodeClass::ConditionalJump:
+            // Jcc rel32 — adjust target
+            out_pos = emit_adjusted_jcc(buf, out_pos, inst, offset_map, orig_code)
+        else if inst.is_rip_relative:
+            // Adjust RIP-relative displacement
+            out_pos = emit_rip_relative(buf, out_pos, inst, offset_map, orig_code, instructions)
+        else:
+            // Copy instruction as-is
+            copy_bytes(orig_code, inst.offset, buf, out_pos, inst.length)
+            out_pos = out_pos + inst.length
+        i = i + 1
+
+    // STEP 7: Apply fixups (patch unresolved forward references)
+    fixups = apply_syscall_fixups(buf, fixups, offset_map)
+
+    // STEP 8: Flush instruction cache
+    var ci: Int = 0
+    let cls = 64  // cache line size
+    while ci < output_size:
+        let fp: ptr<Byte> = ptr_offset(buf, ci, "Byte")
+        let fp_int: ptr<Int> = int_to_ptr(ptr_to_int(fp), "ptr<Int>")
+        cache_flush(fp_int)
+        ci = ci + cls
+    full_fence()
+
+    return buf
+
+// ============================================================================
+//  EMIT HELPERS
+// ============================================================================
+
+// Emit a call to the converge lane replacing the syscall
+fn emit_syscall_call(buf: ptr<Byte>, out_pos: Int, inst: DecodedInstruction, offset_map: Array<Int>, orig_size: Int) -> Int:
+    // Emit CALL rel32: E8 + disp32
+    emit_at(buf, out_pos, 0xE8)
+
+    // Compute displacement to converge lane table.
+    // In real KAINOS, each syscall number dispatches to a specific converge lane.
+    // The binary translator would patch these to call the PosixActor converge dispatch.
+    // For now: use a placeholder displacement (resolved at runtime).
+    // The caller (loader) patches these with actual converge lane addresses.
+
+    // Placeholder: call to a known trampoline address
+    // The trampoline reads RAX (syscall number) and dispatches
+    let trampoline_offset: Int = 0x200000  // placeholder — set by loader
+    let rip_after_call = out_pos + 5
+    let disp = trampoline_offset - rip_after_call
+    emit_u32_at(buf, out_pos + 1, disp)
+
+    return out_pos + CALL_REL32_SIZE
+
+// Emit adjusted JMP rel32 — fixup target for size expansion
+fn emit_adjusted_jump(buf: ptr<Byte>, out_pos: Int, inst: DecodedInstruction, offset_map: Array<Int>, orig_code: ptr<Byte>) -> Int:
+    // Preserve the JMP opcode
+    emit_at(buf, out_pos, 0xE9)
+
+    // Compute new target based on offset map
+    let orig_target = inst.jump_target
+    if orig_target >= 0 and orig_target < len(offset_map):
+        let new_target = offset_map[orig_target]
+        if new_target >= 0:
+            let rip_after = out_pos + 5
+            let disp = new_target - rip_after
+            emit_u32_at(buf, out_pos + 1, disp)
+        else:
+            // Target hasn't been translated yet — use placeholder, fix up later
+            emit_u32_at(buf, out_pos + 1, 0)
+    else:
+        // Target out of current block — preserve original relative offset
+        // Read original displacement
+        copy_bytes(orig_code, inst.offset + 1, buf, out_pos + 1, 4)
+
+    return out_pos + 5
+
+// Emit short jump (JMP rel8) — leave as-is, target is within block
+fn emit_short_jump(buf: ptr<Byte>, out_pos: Int, inst: DecodedInstruction, offset_map: Array<Int>, orig_code: ptr<Byte>, instructions: Array<DecodedInstruction>) -> Int:
+    emit_at(buf, out_pos, 0xEB)
+
+    let orig_target = inst.jump_target
+    if orig_target >= 0 and orig_target < len(offset_map):
+        let new_target = offset_map[orig_target]
+        if new_target >= 0:
+            let rip_after = out_pos + 2
+            let disp8 = new_target - rip_after
+            emit_at(buf, out_pos + 1, disp8 & 0xFF)
+        else:
+            copy_bytes(orig_code, inst.offset + 1, buf, out_pos + 1, 1)
+    else:
+        copy_bytes(orig_code, inst.offset + 1, buf, out_pos + 1, 1)
+
+    return out_pos + 2
+
+// Emit adjusted conditional jump (Jcc rel32)
+fn emit_adjusted_jcc(buf: ptr<Byte>, out_pos: Int, inst: DecodedInstruction, offset_map: Array<Int>, orig_code: ptr<Byte>) -> Int:
+    // Copy the 0F xx prefix
+    emit_at(buf, out_pos, 0x0F)
+    // Read the condition code from original
+    let bp: ptr<Byte> = ptr_offset(orig_code, inst.offset + 1, "Byte")
+    let cc: Byte = mem_load(bp, "Byte")
+    emit_at(buf, out_pos + 1, ptr_to_int(bp) & 0xFF)
+    let cc_int = cc as Int
+    emit_at(buf, out_pos + 1, cc_int)
+
+    let orig_target = inst.jump_target
+    if orig_target >= 0 and orig_target < len(offset_map):
+        let new_target = offset_map[orig_target]
+        if new_target >= 0:
+            let rip_after = out_pos + 6
+            let disp = new_target - rip_after
+            emit_u32_at(buf, out_pos + 2, disp)
+        else:
+            emit_u32_at(buf, out_pos + 2, 0)
+    else:
+        copy_bytes(orig_code, inst.offset + 2, buf, out_pos + 2, 4)
+
+    return out_pos + 6
+
+// Emit RIP-relative instruction with adjusted displacement
+fn emit_rip_relative(buf: ptr<Byte>, out_pos: Int, inst: DecodedInstruction, offset_map: Array<Int>, orig_code: ptr<Byte>, instructions: Array<DecodedInstruction>) -> Int:
+    // Copy the instruction prefix and ModR/M byte
+    var copy_len = inst.length - 4  // everything except the disp32
+    copy_bytes(orig_code, inst.offset, buf, out_pos, copy_len)
+
+    // The RIP-relative target is: next_rip + original_disp
+    // The original RIP is the offset after this instruction.
+    // We need to adjust the displacement so that after translation,
+    // it still points to the same absolute address.
+    let orig_rip = inst.offset + inst.length
+    let orig_target = orig_rip + inst.rip_disp
+
+    // New RIP after this instruction in the output
+    let new_rip = out_pos + inst.length
+
+    // Compute new displacement
+    var new_disp = orig_target - new_rip
+
+    // If the target is an instruction that got shifted, adjust
+    if orig_target >= 0 and orig_target < len(offset_map):
+        let mapped = offset_map[orig_target]
+        if mapped >= 0:
+            new_disp = mapped - new_rip
+        else:
+            // Fall back to original displacement
+            new_disp = inst.rip_disp
+
+    emit_u32_at(buf, out_pos + copy_len, new_disp)
+
+    return out_pos + inst.length
+
+// ============================================================================
+//  FIXUP COLLECTION & APPLICATION
+// ============================================================================
+
+fn collect_fixups(instructions: Array<DecodedInstruction>, offset_map: Array<Int>, fixups: Array<FixupEntry>) -> Array<FixupEntry>:
+    var result = fixups
+    var i: Int = 0
+    while i < len(instructions):
+        let inst = instructions[i]
+        if inst.is_jump and inst.jump_target >= 0 and inst.jump_target < len(offset_map):
+            let mapped = offset_map[inst.jump_target]
+            if mapped < 0:
+                // Forward reference — needs fixup
+                push(result, FixupEntry {
+                    patch_at: offset_map[inst.offset] + 1,
+                    original_off: inst.offset,
+                    kind: 0,
+                    target: inst.jump_target,
+                })
+        i = i + 1
+    return result
+
+fn apply_syscall_fixups(buf: ptr<Byte>, fixups: Array<FixupEntry>, offset_map: Array<Int>) -> Array<FixupEntry>:
+    var i: Int = 0
+    while i < len(fixups):
+        let f = fixups[i]
+        let target_off = offset_map[f.target]
+        if target_off >= 0:
+            let rip_after = f.patch_at + 4
+            let rel = target_off - rip_after
+            emit_u32_at(buf, f.patch_at, rel)
+        i = i + 1
+    return fixups
+
+// ============================================================================
+//  UTILITY — copy block unchanged
+// ============================================================================
+
+fn copy_block_no_translate(orig_code: ptr<Byte>, orig_size: Int) -> ptr<Byte> with Unsafe:
+    let page_size = 4096
+    var alloc_size = orig_size
+    if alloc_size % page_size > 0:
+        alloc_size = (alloc_size / page_size + 1) * page_size
+
+    let buf = vm_map(alloc_size)
+    if ptr_to_int(buf) == 0:
+        return buf
+
+    let prot_ok = vm_protect_execute_read_write(buf, alloc_size)
+    if prot_ok != 0:
+        let _ = vm_release(buf, alloc_size)
+        let null_ptr: ptr<Byte> = int_to_ptr(0, "ptr<Byte>")
+        return null_ptr
+
+    copy_bytes(orig_code, 0, buf, 0, orig_size)
+    return buf
+
+// ============================================================================
+//  SELFTEST
+// ============================================================================
+
+pub fn translator_selftest() -> Int with Unsafe:
+    // Create a small test block with a syscall
+    // mov rax, 1; mov rdi, 1; syscall; ret
+    // 48 C7 C0 01 00 00 00    mov rax, 1
+    // 48 C7 C7 01 00 00 00    mov rdi, 1
+    // 0F 05                   syscall
+    // C3                      ret
+
+    var test_code: Array<Byte> = []
+    test_code = emit_test_mov_rax(test_code)   // 7 bytes
+    test_code = emit_test_mov_rdi(test_code)   // 7 bytes
+    push(test_code, 0x0F)                      // syscall
+    push(test_code, 0x05)
+    push(test_code, 0xC3)                      // ret
+
+    let code_size = len(test_code)
+    let page_size = 4096
+    let alloc_size = ((code_size + page_size - 1) / page_size) * page_size
+    let test_buf: ptr<Byte> = vm_map(alloc_size)
+    if ptr_to_int(test_buf) == 0:
+        return -1
+
+    let _ = vm_protect_execute_read_write(test_buf, alloc_size)
+
+    // Copy test bytes
+    var k: Int = 0
+    while k < code_size:
+        let bp: ptr<Byte> = ptr_offset(test_buf, k, "Byte")
+        let b: Byte = test_code[k]
+        mem_store(bp, b, "Byte")
+        k = k + 1
+
+    // Decode
+    let instructions = decode_block(test_buf, 0, code_size)
+    let syscount = count_syscalls(instructions)
+    if syscount != 1:
+        return -2
+
+    // Translate
+    let translated = translate_block(test_buf, code_size)
+    if ptr_to_int(translated) == 0:
+        return -3
+
+    let new_size = compute_translated_size(instructions, code_size)
+    let _ = new_size
+
+    let _ = vm_release(test_buf, alloc_size)
+    return 0
+
+// Helpers to build test code
+fn emit_test_mov_rax(arr: Array<Byte>) -> Array<Byte>:
+    push(arr, 0x48)  // REX.W
+    push(arr, 0xC7)  // MOV r/m64, imm32
+    push(arr, 0xC0)  // ModRM: mod=11, reg=0(RAX), rm=0
+    push(arr, 0x01)
+    push(arr, 0x00)
+    push(arr, 0x00)
+    push(arr, 0x00)
+    return arr
+
+fn emit_test_mov_rdi(arr: Array<Byte>) -> Array<Byte>:
+    push(arr, 0x48)  // REX.W
+    push(arr, 0xC7)  // MOV r/m64, imm32
+    push(arr, 0xC7)  // ModRM: mod=11, reg=0, rm=7(RDI)
+    push(arr, 0x01)
+    push(arr, 0x00)
+    push(arr, 0x00)
+    push(arr, 0x00)
+    return arr

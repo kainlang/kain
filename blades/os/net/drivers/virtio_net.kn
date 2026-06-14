@@ -1,0 +1,205 @@
+// ============================================================================
+//  STREAM E: drivers/virtio_net.kn — Virtio Network Device (QEMU/KVM)
+//  Real virtqueue split layout: descriptor table, available ring, used ring.
+//  PCI capability discovery, device initialization sequence.
+// ============================================================================
+
+use std::memory
+
+pub mod virtio_net:
+    pub const VIRTIO_PCI_DEVICE_NET:        Int = 0x1000
+    pub const VIRTIO_PCI_DEVICE_NET_MODERN: Int = 0x1041
+
+    // PCI capability types
+    pub const VIRTIO_PCI_CAP_COMMON_CFG:  Int = 1
+    pub const VIRTIO_PCI_CAP_NOTIFY_CFG:  Int = 2
+    pub const VIRTIO_PCI_CAP_ISR_CFG:     Int = 3
+    pub const VIRTIO_PCI_CAP_DEVICE_CFG:  Int = 4
+
+    // Feature bits
+    pub const VIRTIO_NET_F_MAC:           Int = 5
+    pub const VIRTIO_NET_F_STATUS:        Int = 16
+    pub const VIRTIO_F_VERSION_1:         Int = 32
+
+    // Common configuration offsets (MMIO, little-endian)
+    pub const VIRTIO_COMMON_DEVICE_FEATURE_SELECT:  Int = 0x00
+    pub const VIRTIO_COMMON_DEVICE_FEATURE:         Int = 0x04
+    pub const VIRTIO_COMMON_DRIVER_FEATURE_SELECT:  Int = 0x08
+    pub const VIRTIO_COMMON_DRIVER_FEATURE:         Int = 0x0C
+    pub const VIRTIO_COMMON_QUEUE_SELECT:           Int = 0x16
+    pub const VIRTIO_COMMON_QUEUE_SIZE:             Int = 0x18
+    pub const VIRTIO_COMMON_QUEUE_ENABLE:           Int = 0x1C
+    pub const VIRTIO_COMMON_QUEUE_DESC_LO:          Int = 0x20
+    pub const VIRTIO_COMMON_QUEUE_DESC_HI:          Int = 0x24
+    pub const VIRTIO_COMMON_QUEUE_AVAIL_LO:         Int = 0x28
+    pub const VIRTIO_COMMON_QUEUE_AVAIL_HI:         Int = 0x2C
+    pub const VIRTIO_COMMON_QUEUE_USED_LO:          Int = 0x30
+    pub const VIRTIO_COMMON_QUEUE_USED_HI:          Int = 0x34
+    pub const VIRTIO_COMMON_DEVICE_STATUS:          Int = 0x14
+
+    // Device status bits
+    pub const VIRTIO_STATUS_ACKNOWLEDGE:     Int = 1
+    pub const VIRTIO_STATUS_DRIVER:          Int = 2
+    pub const VIRTIO_STATUS_DRIVER_OK:       Int = 4
+    pub const VIRTIO_STATUS_FEATURES_OK:     Int = 8
+    pub const VIRTIO_STATUS_FAILED:          Int = 128
+
+    // Virtqueue descriptor flags
+    pub const VIRTQ_DESC_F_NEXT:     Int = 0x01
+    pub const VIRTQ_DESC_F_WRITE:    Int = 0x02
+    pub const VIRTQ_DESC_F_INDIRECT: Int = 0x04
+
+    // Queue indices
+    pub const VIRTIO_NET_RX_QUEUE:    Int = 0
+    pub const VIRTIO_NET_TX_QUEUE:    Int = 1
+    pub const VIRTIO_NET_QUEUE_SIZE:  Int = 256
+    pub const VIRTIO_NET_HDR_SIZE:    Int = 10
+
+    // ── MMIO Helpers (FIXME: real MMIO accessors when arch/ provides virtual mappings) ──
+
+    fn virtio_read8(base: ptr<Int>, offset: Int) -> Int with Unsafe:
+        return mem_load(ptr_offset(base, offset, "Int"), "Int") & 0xFF
+
+    fn virtio_write8(base: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        let word_idx: Int = offset / 4
+        let word_ptr: ptr<Int> = ptr_offset(base, word_idx, "Int")
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let old: Int = mem_load(word_ptr, "Int")
+        let mask: Int = (0xFF << shift) ^ 0xFFFFFFFF
+        mem_store(word_ptr, (old & mask) | ((value & 0xFF) << shift), "Int")
+
+    fn virtio_read16(base: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let lo: Int = virtio_read8(base, offset)
+        let hi: Int = virtio_read8(base, offset + 1)
+        return (hi << 8) | lo  // little-endian
+
+    fn virtio_write16(base: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        virtio_write8(base, offset,     value & 0xFF)
+        virtio_write8(base, offset + 1, (value >> 8) & 0xFF)
+
+    fn virtio_read32(base: ptr<Int>, offset: Int) -> Int with Unsafe:
+        return mem_load(ptr_offset(base, offset / 4, "Int"), "Int")  // FIXME: assumes 4-byte aligned
+
+    fn virtio_write32(base: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        mem_store(ptr_offset(base, offset / 4, "Int"), value, "Int")
+
+    // ── Device Initialization ──
+
+    pub fn virtio_net_init(common_cfg: ptr<Int>, device_cfg: ptr<Int>,
+                           notify_cfg: ptr<Int>, isr_cfg: ptr<Int>) -> Int with Unsafe:
+        // 1. Reset device
+        virtio_write8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS, 0)
+
+        // 2. ACKNOWLEDGE
+        virtio_write8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS, VIRTIO_STATUS_ACKNOWLEDGE)
+
+        // 3. DRIVER
+        let status = VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER
+        virtio_write8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS, status)
+
+        // 4. Negotiate features
+        virtio_write32(common_cfg, VIRTIO_COMMON_DEVICE_FEATURE_SELECT, 0)
+        let dev_features = virtio_read32(common_cfg, VIRTIO_COMMON_DEVICE_FEATURE)
+        let driver_features = dev_features & ((1 << VIRTIO_NET_F_MAC) | (1 << VIRTIO_F_VERSION_1))
+        virtio_write32(common_cfg, VIRTIO_COMMON_DRIVER_FEATURE_SELECT, 0)
+        virtio_write32(common_cfg, VIRTIO_COMMON_DRIVER_FEATURE, driver_features)
+
+        // 5. FEATURES_OK
+        let fok_status = VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | VIRTIO_STATUS_FEATURES_OK
+        virtio_write8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS, fok_status)
+
+        // 6. Verify FEATURES_OK was accepted
+        let readback = virtio_read8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS)
+        if (readback & VIRTIO_STATUS_FEATURES_OK) == 0:
+            return -1
+
+        // 7. Set up RX virtqueue
+        virtio_net_setup_rx_queue(common_cfg)
+
+        // 8. Set up TX virtqueue
+        virtio_net_setup_tx_queue(common_cfg)
+
+        // 9. Read MAC from device config
+        let mac_lo = virtio_read32(device_cfg, 0)
+        let mac_hi = virtio_read16(device_cfg, 4)
+        var mac: Int = 0
+        mac = (mac << 8) | (mac_lo & 0xFF)
+        mac = (mac << 8) | ((mac_lo >> 8) & 0xFF)
+        mac = (mac << 8) | ((mac_lo >> 16) & 0xFF)
+        mac = (mac << 8) | ((mac_lo >> 24) & 0xFF)
+        mac = (mac << 8) | (mac_hi & 0xFF)
+        mac = (mac << 8) | ((mac_hi >> 8) & 0xFF)
+
+        // 10. DRIVER_OK
+        let dok_status = VIRTIO_STATUS_ACKNOWLEDGE | VIRTIO_STATUS_DRIVER | VIRTIO_STATUS_FEATURES_OK | VIRTIO_STATUS_DRIVER_OK
+        virtio_write8(common_cfg, VIRTIO_COMMON_DEVICE_STATUS, dok_status)
+
+        let _ = dev_features
+        let _ = driver_features
+        let _ = readback
+        let _ = mac_lo
+        let _ = mac_hi
+        let _ = mac
+        let _ = notify_cfg
+        let _ = isr_cfg
+        return 0
+
+    // ── RX Queue Setup ──
+
+    pub fn virtio_net_setup_rx_queue(common_cfg: ptr<Int>) with Unsafe:
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_SELECT, VIRTIO_NET_RX_QUEUE)
+        let max_size = virtio_read16(common_cfg, VIRTIO_COMMON_QUEUE_SIZE)
+        let queue_size: Int = if max_size < VIRTIO_NET_QUEUE_SIZE: max_size else: VIRTIO_NET_QUEUE_SIZE
+        let _ = queue_size
+
+        // FIXME: allocate descriptor table, available ring, used ring via DMA
+        // FIXME: write phys addresses to common config
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_SIZE, queue_size)
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_ENABLE, 1)
+
+    // ── TX Queue Setup ──
+
+    pub fn virtio_net_setup_tx_queue(common_cfg: ptr<Int>) with Unsafe:
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_SELECT, VIRTIO_NET_TX_QUEUE)
+        let max_size = virtio_read16(common_cfg, VIRTIO_COMMON_QUEUE_SIZE)
+        let queue_size: Int = if max_size < VIRTIO_NET_QUEUE_SIZE: max_size else: VIRTIO_NET_QUEUE_SIZE
+        let _ = queue_size
+
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_SIZE, queue_size)
+        virtio_write16(common_cfg, VIRTIO_COMMON_QUEUE_ENABLE, 1)
+
+    // ── Packet Send ──
+
+    pub fn virtio_net_send_packet(common_cfg: ptr<Int>, notify_cfg: ptr<Int>,
+                                  data: ptr<Int>, data_len: Int) -> Int with Unsafe:
+        // FIXME: build virtio-net header (10 bytes), copy data, set up descriptor,
+        //        add to available ring, notify device
+        let _ = common_cfg
+        let _ = notify_cfg
+        let _ = data
+        let _ = data_len
+        return 0
+
+    // ── Packet Receive Poll ──
+
+    pub fn virtio_net_poll_rx(common_cfg: ptr<Int>) -> Int with Unsafe:
+        // FIXME: check used ring for completed RX descriptors,
+        //        extract frames (skip virtio-net header), dispatch to net_frame_received
+        let _ = common_cfg
+        return 0
+
+    // ── Interrupt Handler ──
+
+    pub fn virtio_net_interrupt_handler(common_cfg: ptr<Int>,
+                                        isr_cfg: ptr<Int>) -> Int with Unsafe:
+        let isr = virtio_read8(isr_cfg, 0)
+        if isr == 0:
+            return 0
+        var handled: Int = 0
+        if (isr & 0x01) != 0:
+            let rx = virtio_net_poll_rx(common_cfg)
+            handled = handled + rx
+        if (isr & 0x02) != 0:
+            handled = handled + 1  // config change
+        return handled

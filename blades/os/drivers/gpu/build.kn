@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("gpu_subsystem")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS GPU subsystem — DRM/KMS framebuffer shim + Vulkan ICD loader")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-gpu")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("gpu-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

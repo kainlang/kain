@@ -1,0 +1,299 @@
+// ============================================================================
+//  KAINOS COMPAT — Syscall Table: number → converge lane mapping
+//
+//  Hot syscalls: direct converge dispatch (no actor message overhead).
+//  Warm syscalls: forwarded to PosixActor for complex handling.
+//  Cold syscalls: forwarded to LKDP Linux VM.
+//
+//  50 hot syscalls cover 95%+ of application execution time.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+use std::collections
+
+// ============================================================================
+//  SYSCALL NUMBERS — x86-64 Linux ABI
+// ============================================================================
+
+// Process
+const SYS_read:        Int = 0
+const SYS_write:       Int = 1
+const SYS_open:        Int = 2
+const SYS_close:       Int = 3
+const SYS_stat:        Int = 4
+const SYS_fstat:       Int = 5
+const SYS_lstat:       Int = 6
+const SYS_poll:        Int = 7
+const SYS_lseek:       Int = 8
+const SYS_mmap:        Int = 9
+const SYS_mprotect:    Int = 10
+const SYS_munmap:      Int = 11
+const SYS_brk:         Int = 12
+const SYS_rt_sigaction: Int = 13
+const SYS_rt_sigprocmask: Int = 14
+const SYS_rt_sigreturn: Int = 15
+const SYS_ioctl:       Int = 16
+const SYS_pread64:     Int = 17
+const SYS_pwrite64:    Int = 18
+const SYS_readv:       Int = 19
+const SYS_writev:      Int = 20
+const SYS_access:      Int = 21
+const SYS_pipe:        Int = 22
+const SYS_select:      Int = 23
+const SYS_sched_yield: Int = 24
+const SYS_mremap:      Int = 25
+const SYS_msync:       Int = 26
+const SYS_mincore:     Int = 27
+const SYS_madvise:     Int = 28
+const SYS_shmget:      Int = 29
+const SYS_shmat:       Int = 30
+const SYS_shmctl:      Int = 31
+const SYS_dup:         Int = 32
+const SYS_dup2:        Int = 33
+const SYS_pause:       Int = 34
+const SYS_nanosleep:   Int = 35
+const SYS_getitimer:   Int = 36
+const SYS_alarm:       Int = 37
+const SYS_setitimer:   Int = 38
+const SYS_getpid:      Int = 39
+const SYS_sendfile:    Int = 40
+const SYS_socket:      Int = 41
+const SYS_connect:     Int = 42
+const SYS_accept:      Int = 43
+const SYS_sendto:      Int = 44
+const SYS_recvfrom:    Int = 45
+const SYS_sendmsg:     Int = 46
+const SYS_recvmsg:     Int = 47
+const SYS_shutdown:    Int = 48
+const SYS_bind:        Int = 49
+const SYS_listen:      Int = 50
+const SYS_getsockname: Int = 51
+const SYS_getpeername: Int = 52
+const SYS_socketpair:  Int = 53
+const SYS_setsockopt:  Int = 54
+const SYS_getsockopt:  Int = 55
+const SYS_clone:       Int = 56
+const SYS_fork:        Int = 57
+const SYS_vfork:       Int = 58
+const SYS_execve:      Int = 59
+const SYS_exit:        Int = 60
+const SYS_wait4:       Int = 61
+const SYS_kill:        Int = 62
+const SYS_uname:       Int = 63
+
+// Extended range
+const SYS_getdents:       Int = 78
+const SYS_getcwd:         Int = 79
+const SYS_gettimeofday:   Int = 96
+const SYS_getrlimit:      Int = 97
+const SYS_getrusage:      Int = 98
+const SYS_sysinfo:        Int = 99
+const SYS_getuid:         Int = 102
+const SYS_getgid:         Int = 104
+const SYS_getppid:        Int = 110
+const SYS_gettid:         Int = 186
+const SYS_futex:          Int = 202   // CRITICAL for pthreads
+const SYS_getrandom:      Int = 318
+const SYS_epoll_create:   Int = 213
+const SYS_epoll_ctl:      Int = 233
+const SYS_epoll_wait:     Int = 232
+const SYS_tgkill:         Int = 234
+const SYS_clock_gettime:  Int = 228
+const SYS_io_uring_setup: Int = 425
+const SYS_io_uring_enter: Int = 426
+const SYS_io_uring_register: Int = 427
+
+// ============================================================================
+//  SYSCALL CATEGORY — hot/warm/cold classification
+// ============================================================================
+
+enum SyscallCategory:
+    Hot    // direct converge dispatch — single-digit ns
+    Warm   // forwarded to PosixActor — sub-µs
+    Cold   // forwarded to LKDP Linux VM — µs range
+
+// ============================================================================
+//  SYSCALL ENTRY — table entry mapping number→handler
+// ============================================================================
+
+struct SyscallEntry:
+    number:   Int
+    name:     String
+    category: SyscallCategory
+
+// ============================================================================
+//  SYSCALL TABLE
+// ============================================================================
+
+// Build the static syscall table
+pub fn syscall_table_build() -> Array<SyscallEntry>:
+    var table: Array<SyscallEntry> = []
+
+    // ── HOT SYSCALLS (50) — direct converge dispatch ──
+    add_hot(table, SYS_read, "read")
+    add_hot(table, SYS_write, "write")
+    add_hot(table, SYS_open, "open")
+    add_hot(table, SYS_close, "close")
+    add_hot(table, SYS_lseek, "lseek")
+    add_hot(table, SYS_mmap, "mmap")
+    add_hot(table, SYS_munmap, "munmap")
+    add_hot(table, SYS_mprotect, "mprotect")
+    add_hot(table, SYS_brk, "brk")
+    add_hot(table, SYS_socket, "socket")
+    add_hot(table, SYS_bind, "bind")
+    add_hot(table, SYS_listen, "listen")
+    add_hot(table, SYS_accept, "accept")
+    add_hot(table, SYS_connect, "connect")
+    add_hot(table, SYS_sendto, "sendto")
+    add_hot(table, SYS_recvfrom, "recvfrom")
+    add_hot(table, SYS_poll, "poll")
+    add_hot(table, SYS_nanosleep, "nanosleep")
+    add_hot(table, SYS_clock_gettime, "clock_gettime")
+    add_hot(table, SYS_gettimeofday, "gettimeofday")
+    add_hot(table, SYS_futex, "futex")
+    add_hot(table, SYS_epoll_create, "epoll_create")
+    add_hot(table, SYS_epoll_ctl, "epoll_ctl")
+    add_hot(table, SYS_epoll_wait, "epoll_wait")
+    add_hot(table, SYS_clone, "clone")
+    add_hot(table, SYS_exit, "exit")
+    add_hot(table, SYS_wait4, "wait4")
+    add_hot(table, SYS_getpid, "getpid")
+    add_hot(table, SYS_getppid, "getppid")
+    add_hot(table, SYS_kill, "kill")
+    add_hot(table, SYS_tgkill, "tgkill")
+    add_hot(table, SYS_rt_sigaction, "rt_sigaction")
+    add_hot(table, SYS_rt_sigreturn, "rt_sigreturn")
+    add_hot(table, SYS_rt_sigprocmask, "rt_sigprocmask")
+    add_hot(table, SYS_stat, "stat")
+    add_hot(table, SYS_fstat, "fstat")
+    add_hot(table, SYS_lstat, "lstat")
+    add_hot(table, SYS_getdents, "getdents")
+    add_hot(table, SYS_io_uring_setup, "io_uring_setup")
+    add_hot(table, SYS_io_uring_enter, "io_uring_enter")
+
+    // ── WARM SYSCALLS — forwarded to PosixActor ──
+    add_warm(table, SYS_dup, "dup")
+    add_warm(table, SYS_dup2, "dup2")
+    add_warm(table, SYS_ioctl, "ioctl")
+    add_warm(table, SYS_fork, "fork")
+    add_warm(table, SYS_execve, "execve")
+    add_warm(table, SYS_getcwd, "getcwd")
+    add_warm(table, SYS_pipe, "pipe")
+    add_warm(table, SYS_access, "access")
+    add_warm(table, SYS_sched_yield, "sched_yield")
+    add_warm(table, SYS_readv, "readv")
+    add_warm(table, SYS_writev, "writev")
+    add_warm(table, SYS_msync, "msync")
+    add_warm(table, SYS_madvise, "madvise")
+    add_warm(table, SYS_select, "select")
+    add_warm(table, SYS_getuid, "getuid")
+    add_warm(table, SYS_getgid, "getgid")
+    add_warm(table, SYS_setsockopt, "setsockopt")
+    add_warm(table, SYS_getsockopt, "getsockopt")
+    add_warm(table, SYS_shutdown, "shutdown")
+    add_warm(table, SYS_getrlimit, "getrlimit")
+    add_warm(table, SYS_uname, "uname")
+    add_warm(table, SYS_sysinfo, "sysinfo")
+    add_warm(table, SYS_getrandom, "getrandom")
+    add_warm(table, SYS_pread64, "pread64")
+    add_warm(table, SYS_pwrite64, "pwrite64")
+
+    // ── COLD SYSCALLS — forwarded to LKDP VM ──
+    add_cold(table, SYS_sendfile, "sendfile")
+    add_cold(table, SYS_shmget, "shmget")
+    add_cold(table, SYS_shmat, "shmat")
+    add_cold(table, SYS_shmctl, "shmctl")
+    add_cold(table, SYS_mremap, "mremap")
+    add_cold(table, SYS_mincore, "mincore")
+    add_cold(table, SYS_socketpair, "socketpair")
+    add_cold(table, SYS_getsockname, "getsockname")
+    add_cold(table, SYS_getpeername, "getpeername")
+    add_cold(table, SYS_sendmsg, "sendmsg")
+    add_cold(table, SYS_recvmsg, "recvmsg")
+    add_cold(table, SYS_gettid, "gettid")
+    add_cold(table, SYS_vfork, "vfork")
+    add_cold(table, SYS_pause, "pause")
+    add_cold(table, SYS_alarm, "alarm")
+    add_cold(table, SYS_getitimer, "getitimer")
+    add_cold(table, SYS_setitimer, "setitimer")
+    add_cold(table, SYS_getrusage, "getrusage")
+
+    return table
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn add_hot(table: Array<SyscallEntry>, num: Int, name: String) -> Unit:
+    push(table, SyscallEntry { number: num, name: name, category: SyscallCategory::Hot })
+
+fn add_warm(table: Array<SyscallEntry>, num: Int, name: String) -> Unit:
+    push(table, SyscallEntry { number: num, name: name, category: SyscallCategory::Warm })
+
+fn add_cold(table: Array<SyscallEntry>, num: Int, name: String) -> Unit:
+    push(table, SyscallEntry { number: num, name: name, category: SyscallCategory::Cold })
+
+// ============================================================================
+//  LOOKUP
+// ============================================================================
+
+// Find a syscall by number — returns (name, category) or ("", Cold)
+pub fn syscall_lookup(table: Array<SyscallEntry>, num: Int) -> SyscallEntry:
+    var i: Int = 0
+    while i < len(table):
+        if table[i].number == num:
+            return table[i]
+        i = i + 1
+    return SyscallEntry { number: num, name: "unknown", category: SyscallCategory::Cold }
+
+// Check if a syscall is hot
+pub fn syscall_is_hot(table: Array<SyscallEntry>, num: Int) -> Bool:
+    let entry = syscall_lookup(table, num)
+    if entry.category == SyscallCategory::Hot:
+        return true
+    return false
+
+// Check if a syscall should go to LKDP VM
+pub fn syscall_is_cold(table: Array<SyscallEntry>, num: Int) -> Bool:
+    let entry = syscall_lookup(table, num)
+    if entry.category == SyscallCategory::Cold:
+        return true
+    return false
+
+// ============================================================================
+//  DISPATCH — route syscall to correct handler
+// ============================================================================
+
+// The dispatch function. In the real PosixActor, this routes to actors.
+// Here we return the routing decision.
+pub fn syscall_dispatch(table: Array<SyscallEntry>, num: Int) -> Int:
+    let entry = syscall_lookup(table, num)
+    if entry.category == SyscallCategory::Hot:
+        return 0   // direct converge dispatch
+    else if entry.category == SyscallCategory::Warm:
+        return 1   // forward to PosixActor
+    else:
+        return 2   // forward to LKDP VM
+
+// Get the lookup name for error messages
+pub fn syscall_name(table: Array<SyscallEntry>, num: Int) -> String:
+    let entry = syscall_lookup(table, num)
+    return entry.name
+
+// Count how many syscalls in each category
+pub fn syscall_count_categories(table: Array<SyscallEntry>) -> Array<Int>:
+    var hot_count: Int = 0
+    var warm_count: Int = 0
+    var cold_count: Int = 0
+    var i: Int = 0
+    while i < len(table):
+        let entry = table[i]
+        if entry.category == SyscallCategory::Hot:
+            hot_count = hot_count + 1
+        else if entry.category == SyscallCategory::Warm:
+            warm_count = warm_count + 1
+        else:
+            cold_count = cold_count + 1
+        i = i + 1
+    return [hot_count, warm_count, cold_count]

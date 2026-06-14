@@ -1,0 +1,16 @@
+// ============================================================================
+//  compat/wine/build.kn — WINE/Proton Bridge
+// ============================================================================
+
+build ({
+    name: "kainos-compat-wine",
+    version: "0.1.0",
+    description: "KAINOS WINE/Proton bridge — Windows PE loader, ntdll bridge, DXVK passthrough",
+    type: "lib",
+
+    sources: [
+        "wine_bridge.kn",
+    ],
+
+    target: "llvm",
+})

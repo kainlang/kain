@@ -1,0 +1,156 @@
+// ============================================================================
+//  KAINOS xHCI USB DRIVER — drivers/usb/xhci.kn
+//  Stream F: Device Drivers
+//  State passed explicitly — no global mutable state.
+// ============================================================================
+
+const XHCI_CAPLENGTH:  Int = 0x00
+const XHCI_HCSPARAMS1: Int = 0x04
+const XHCI_RTSOFF:     Int = 0x18
+const XHCI_DOORBELL_OFFSET: Int = 0x14
+const XHCI_OP_USBCMD:  Int = 0x00
+const XHCI_OP_USBSTS:  Int = 0x04
+const XHCI_OP_CONFIG:  Int = 0x38
+const XHCI_OP_DCBAAP_LOW:  Int = 0x30
+const XHCI_OP_DCBAAP_HIGH: Int = 0x34
+const XHCI_OP_CRCR_LOW:  Int = 0x18
+const XHCI_OP_CRCR_HIGH: Int = 0x1C
+const XHCI_PORT_SC:   Int = 0x00
+const XHCI_CMD_RS:    Int = 0x0001
+const XHCI_CMD_HCRST: Int = 0x0002
+const XHCI_CMD_INTE:  Int = 0x0004
+const XHCI_STS_HCH:   Int = 0x0001
+const XHCI_STS_CNR:   Int = 0x0800
+const XHCI_PORT_CCS:  Int = 0x00000001
+const XHCI_PORT_PR:   Int = 0x00000010
+const XHCI_PORT_CSC:  Int = 0x00200000
+const XHCI_PORT_PRC:  Int = 0x01000000
+const XHCI_PORT_SPEED: Int = 0x00001C00
+
+struct XhciController:
+    mmio_base:     Int
+    op_base:       Int
+    rt_base:       Int
+    db_base:       Int
+    max_slots:     Int
+    max_ports:     Int
+    cmd_ring:      Int
+    event_ring:    Int
+    dcbaa:         Int
+    initialized:   Bool
+
+fn xhci_read32(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    return volatile_load_int(addr)
+
+fn xhci_write32(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    volatile_store_int(addr, value)
+    return 0
+
+pub fn xhci_init(mmio_base: Int, cmd_ring_phys: Int, event_ring_phys: Int, dcbaa_phys: Int) -> XhciController with Unsafe:
+    let caplength = xhci_read32(mmio_base, XHCI_CAPLENGTH) & 0xFF
+    let op_base = mmio_base + caplength
+    let hcsparams1 = xhci_read32(mmio_base, XHCI_HCSPARAMS1)
+    let max_slots = hcsparams1 & 0xFF
+    let max_ports = (hcsparams1 >> 24) & 0xFF
+    let rtsoff = xhci_read32(mmio_base, XHCI_RTSOFF) & 0x1F
+    let rt_base = mmio_base + rtsoff
+    let dboff = xhci_read32(mmio_base, XHCI_DOORBELL_OFFSET) & 0xFFFF
+    let db_base = mmio_base + dboff
+
+    // Halt controller
+    let usbcmd = xhci_read32(op_base, XHCI_OP_USBCMD)
+    xhci_write32(op_base, XHCI_OP_USBCMD, usbcmd & ~XHCI_CMD_RS)
+    var timeout: Int = 0
+    while timeout < 500000:
+        let sts = xhci_read32(op_base, XHCI_OP_USBSTS)
+        if (sts & XHCI_STS_HCH) != 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    // Reset controller
+    xhci_write32(op_base, XHCI_OP_USBCMD, XHCI_CMD_HCRST)
+    timeout = 0
+    while timeout < 500000:
+        let cmd = xhci_read32(op_base, XHCI_OP_USBCMD)
+        let sts = xhci_read32(op_base, XHCI_OP_USBSTS)
+        if (cmd & XHCI_CMD_HCRST) == 0 and (sts & XHCI_STS_CNR) == 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    // Configure
+    xhci_write32(op_base, XHCI_OP_CONFIG, max_slots)
+    xhci_write32(op_base, XHCI_OP_DCBAAP_LOW, dcbaa_phys & 0xFFFFFFFF)
+    xhci_write32(op_base, XHCI_OP_DCBAAP_HIGH, (dcbaa_phys >> 32) & 0xFFFFFFFF)
+    xhci_write32(op_base, XHCI_OP_CRCR_LOW, (cmd_ring_phys & 0xFFFFFFFF) | 1)
+    xhci_write32(op_base, XHCI_OP_CRCR_HIGH, (cmd_ring_phys >> 32) & 0xFFFFFFFF)
+
+    // Start
+    xhci_write32(op_base, XHCI_OP_USBCMD, XHCI_CMD_RS | XHCI_CMD_INTE)
+    timeout = 0
+    while timeout < 500000:
+        let sts = xhci_read32(op_base, XHCI_OP_USBSTS)
+        if (sts & XHCI_STS_HCH) == 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    return XhciController {
+        mmio_base: mmio_base,
+        op_base: op_base,
+        rt_base: rt_base,
+        db_base: db_base,
+        max_slots: max_slots,
+        max_ports: max_ports,
+        cmd_ring: cmd_ring_phys,
+        event_ring: event_ring_phys,
+        dcbaa: dcbaa_phys,
+        initialized: true,
+    }
+
+pub fn xhci_port_reset(xhci: XhciController, port: Int) -> Int with Unsafe:
+    if !xhci.initialized:
+        return -1
+
+    let port_offset = 0x400 + (port * 0x10)
+    let portsc_addr = xhci.op_base + port_offset + XHCI_PORT_SC
+    let port_addr: ptr<Int> = int_to_ptr(portsc_addr, "Int")
+    let portsc = volatile_load_int(port_addr)
+
+    if (portsc & XHCI_PORT_CCS) == 0:
+        return -2
+
+    volatile_store_int(port_addr, portsc | XHCI_PORT_PR)
+
+    var timeout: Int = 0
+    while timeout < 200000:
+        let sc = volatile_load_int(port_addr)
+        if (sc & XHCI_PORT_PRC) != 0:
+            volatile_store_int(port_addr, sc | XHCI_PORT_PRC)
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    return 0
+
+pub fn xhci_poll(xhci: XhciController) -> Int with Unsafe:
+    if !xhci.initialized:
+        return -1
+
+    var active: Int = 0
+    var port: Int = 0
+    while port < xhci.max_ports:
+        let port_offset = 0x400 + (port * 0x10)
+        let portsc_addr = xhci.op_base + port_offset + XHCI_PORT_SC
+        let port_addr: ptr<Int> = int_to_ptr(portsc_addr, "Int")
+        let portsc = volatile_load_int(port_addr)
+        if (portsc & XHCI_PORT_CSC) != 0:
+            volatile_store_int(port_addr, portsc | XHCI_PORT_CSC)
+            if (portsc & XHCI_PORT_CCS) != 0:
+                active = active + 1
+        port = port + 1
+
+    return active

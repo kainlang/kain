@@ -1,0 +1,181 @@
+// ============================================================================
+//  KAINOS COMPAT — WINE/Proton Bridge
+//
+//  WINE runs on top of PosixActor. This module provides:
+//  - Windows PE loader stubs (map .text/.data/.rdata/.bss sections)
+//  - ntdll → PosixActor syscall interface
+//  - GPU passthrough: WINE→DXVK→Vulkan→Kain native GPU
+//  - Window management: WINE windows → KAINOS compositor
+//
+//  Phase 4 component — stubbed for now. The architecture is documented
+//  per kainos-compatibility-bridge.md: WINE builds on PosixActor, GPU
+//  is fully native (no VM), windows integrate with the Kain compositor.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+use std::collections
+
+// ============================================================================
+//  PE SECTION — metadata for a loaded PE section
+// ============================================================================
+
+struct PeSection:
+    name:      String
+    vaddr:     Int       // virtual address
+    vsize:     Int       // virtual size
+    raw_ptr:   Int       // raw data pointer
+    raw_size:  Int       // raw data size
+    flags:     Int       // characteristics (code/data/bss)
+    loaded_at: Int       // where it was loaded in memory
+
+// ============================================================================
+//  PE IMPORT — one entry in the import table
+// ============================================================================
+
+struct PeImport:
+    dll_name:  String
+    func_name: String
+    func_addr: Int       // resolved address (points to PosixActor handler)
+
+// ============================================================================
+//  WINE STATE
+// ============================================================================
+
+struct WineContext:
+    initialized: Bool
+    pe_loaded:    Bool
+    sections:     Array<PeSection>
+    imports:      Array<PeImport>
+    entry_point:  Int
+    dxvk_active:  Bool
+
+// ============================================================================
+//  WORLD — tracks WINE compatibility state
+// ============================================================================
+
+world CompatWineWorld:
+    state wine_active:    Int = 0
+    state wine_pe_count:  Int = 0
+    state dxvk_initialized: Int = 0
+    state window_count:   Int = 0
+    state epoch: Int = 0
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Initialize the WINE bridge.
+// In a real implementation, this loads wine64, sets up the prefix,
+// and initializes the ntdll→PosixActor dispatch table.
+pub fn wine_init() -> Int:
+    CompatWineWorld.wine_active = 1
+    CompatWineWorld.epoch = CompatWineWorld.epoch + 1
+    return 0
+
+// Load a Windows PE executable via WINE.
+// Maps PE sections, resolves the import table, and prepares execution.
+pub fn wine_load_pe(path: String) -> Int:
+    CompatWineWorld.wine_pe_count = CompatWineWorld.wine_pe_count + 1
+    CompatWineWorld.epoch = CompatWineWorld.epoch + 1
+
+    // In a real implementation:
+    // 1. Parse PE header (MZ + PE\0\0 signature)
+    // 2. Map .text, .data, .rdata, .bss sections into memory
+    // 3. Resolve import table entries:
+    //    - kernel32.dll → PosixActor syscall interface
+    //    - user32.dll → Kain UI compatibility actor
+    //    - ntdll.dll → PosixActor native syscall bridge
+    //    - d3d11.dll → DXVK → Vulkan native
+    // 4. Set up the WINE process context
+    // 5. Call the entry point
+
+    let _ = path
+    return CompatWineWorld.wine_pe_count
+
+// Initialize DXVK/VKD3D bridge — DirectX → Vulkan translation.
+// DXVK and VKD3D are userspace libraries. They call Vulkan, which
+// KAINOS provides natively via `include <vulkan/vulkan.h> as vk`.
+// No translation, no VM — direct GPU access.
+pub fn wine_init_dxvk() -> Int:
+    CompatWineWorld.dxvk_initialized = 1
+    return 0
+
+// Register a WINE-created window with the KAINOS compositor.
+// Windows apps appear alongside native Kain windows.
+pub fn wine_register_window(window_id: Int) -> Int:
+    CompatWineWorld.window_count = CompatWineWorld.window_count + 1
+    let _ = window_id
+    return 0
+
+// Get WINE bridge status for telemetry
+pub fn wine_status() -> Array<Int>:
+    return [
+        CompatWineWorld.wine_active,
+        CompatWineWorld.wine_pe_count,
+        CompatWineWorld.dxvk_initialized,
+        CompatWineWorld.window_count,
+    ]
+
+// ============================================================================
+//  PE SECTION HELPER — parse PE section header (stub)
+// ============================================================================
+
+// PE section characteristics flags
+const IMAGE_SCN_CNT_CODE:  Int = 0x00000020
+const IMAGE_SCN_CNT_INITIALIZED_DATA: Int = 0x00000040
+const IMAGE_SCN_CNT_UNINITIALIZED_DATA: Int = 0x00000080
+const IMAGE_SCN_MEM_EXECUTE: Int = 0x20000000
+const IMAGE_SCN_MEM_READ:   Int = 0x40000000
+const IMAGE_SCN_MEM_WRITE:  Int = 0x80000000
+
+pub fn pe_section_flags_to_prot(flags: Int) -> Int:
+    var prot: Int = 0
+    if (flags & IMAGE_SCN_MEM_READ) != 0:
+        prot = prot | 1  // PROT_READ
+    if (flags & IMAGE_SCN_MEM_WRITE) != 0:
+        prot = prot | 2  // PROT_WRITE
+    if (flags & IMAGE_SCN_MEM_EXECUTE) != 0:
+        prot = prot | 4  // PROT_EXEC
+    return prot
+
+// ============================================================================
+//  IMPORT TABLE RESOLVER — maps Windows DLL calls to PosixActor
+// ============================================================================
+
+// Map a kernel32.dll function to its PosixActor equivalent
+pub fn wine_resolve_kernel32(func_name: String) -> Int:
+    // ntdll.dll → PosixActor syscall dispatch
+    // kernel32!CreateFileW → PosixActor.open(...)
+    // kernel32!ReadFile → PosixActor.read(...)
+    // kernel32!WriteFile → PosixActor.write(...)
+    // etc.
+    let _ = func_name
+    return 0  // placeholder function address
+
+// ============================================================================
+//  SELFTEST
+// ============================================================================
+
+pub fn wine_selftest() -> Int:
+    let init_ok = wine_init()
+    if init_ok != 0:
+        return -1
+
+    let pe_ok = wine_load_pe("test.exe")
+    if pe_ok < 1:
+        return -2
+
+    let dxvk_ok = wine_init_dxvk()
+    if dxvk_ok != 1:
+        return -3
+
+    let win_ok = wine_register_window(1)
+    if win_ok < 1:
+        return -4
+
+    let status = wine_status()
+    if len(status) < 4:
+        return -5
+
+    return 0

@@ -1,0 +1,105 @@
+// KAINOS x86-64 — IDT (256 entries) | Stream: A | File: idt.kn
+pub mod idt:
+    const IDT_IDT_STORAGE: Int = 0x4000
+    const IDT_IDT_N:       Int = 256
+
+    fn idt_write_entry(vec: Int, lo: Int, hi: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(IDT_IDT_STORAGE + (vec * 16), "ptr<Int>"), lo, "Int")
+        mem_store(int_to_ptr(IDT_IDT_STORAGE + (vec * 16) + 8, "ptr<Int>"), hi, "Int")
+        return 0
+
+    fn idt_build_gate(h: Int, sel: Int, gt: Int, ist: Int) -> [Int]:
+        let lo: Int = (h & 0xFFFF) | (sel << 16) | ((ist & 0x7) << 32) | (gt << 40) | (((h >> 16) & 0xFFFF) << 48)
+        let hi: Int = (h >> 32) & 0xFFFFFFFF
+        return [lo, hi]
+
+    // Exception stubs — regular functions that just return (minimal kernel)
+    // The compiler will add prologue/epilogue. For a proper kernel, these
+    // would be replaced with naked asm stubs that save/restore context.
+    fn idt_ex0()  with Unsafe:
+        return
+    fn idt_ex1()  with Unsafe:
+        return
+    fn idt_ex2()  with Unsafe:
+        return
+    fn idt_ex3()  with Unsafe:
+        return
+    fn idt_ex4()  with Unsafe:
+        return
+    fn idt_ex5()  with Unsafe:
+        return
+    fn idt_ex6()  with Unsafe:
+        return
+    fn idt_ex7()  with Unsafe:
+        return
+    fn idt_ex8()  with Unsafe:
+        return
+    fn idt_ex10() with Unsafe:
+        return
+    fn idt_ex11() with Unsafe:
+        return
+    fn idt_ex12() with Unsafe:
+        return
+    fn idt_ex13() with Unsafe:
+        return
+    fn idt_ex14() with Unsafe:
+        return
+    fn idt_ex16() with Unsafe:
+        return
+    fn idt_ex17() with Unsafe:
+        return
+    fn idt_ex18() with Unsafe:
+        return
+    fn idt_ex19() with Unsafe:
+        return
+    fn idt_irqs() with Unsafe:
+        return
+
+    fn idt_handler_addr(vec: Int) -> Int with Unsafe:
+        if vec == 0:  return ptr_to_int(addr_of(idt_ex0))
+        if vec == 1:  return ptr_to_int(addr_of(idt_ex1))
+        if vec == 2:  return ptr_to_int(addr_of(idt_ex2))
+        if vec == 3:  return ptr_to_int(addr_of(idt_ex3))
+        if vec == 4:  return ptr_to_int(addr_of(idt_ex4))
+        if vec == 5:  return ptr_to_int(addr_of(idt_ex5))
+        if vec == 6:  return ptr_to_int(addr_of(idt_ex6))
+        if vec == 7:  return ptr_to_int(addr_of(idt_ex7))
+        if vec == 8:  return ptr_to_int(addr_of(idt_ex8))
+        if vec == 10: return ptr_to_int(addr_of(idt_ex10))
+        if vec == 11: return ptr_to_int(addr_of(idt_ex11))
+        if vec == 12: return ptr_to_int(addr_of(idt_ex12))
+        if vec == 13: return ptr_to_int(addr_of(idt_ex13))
+        if vec == 14: return ptr_to_int(addr_of(idt_ex14))
+        if vec == 16: return ptr_to_int(addr_of(idt_ex16))
+        if vec == 17: return ptr_to_int(addr_of(idt_ex17))
+        if vec == 18: return ptr_to_int(addr_of(idt_ex18))
+        if vec == 19: return ptr_to_int(addr_of(idt_ex19))
+        return ptr_to_int(addr_of(idt_irqs))
+
+    fn idt_ist_for(vec: Int) -> Int:
+        if vec == 8:  return 1
+        if vec == 2:  return 2
+        if vec == 18: return 3
+        return 0
+
+    pub fn idt_init() -> Int with Unsafe:
+        var vec: Int = 0
+        while vec < 32:
+            let h: Int = idt_handler_addr(vec)
+            let g: [Int] = idt_build_gate(h, 0x08, 0x8E, idt_ist_for(vec))
+            idt_write_entry(vec, g[0], g[1])
+            vec = vec + 1
+        let dh: Int = ptr_to_int(addr_of(idt_irqs))
+        while vec < IDT_IDT_N:
+            let g2: [Int] = idt_build_gate(dh, 0x08, 0x8E, 0)
+            idt_write_entry(vec, g2[0], g2[1])
+            vec = vec + 1
+        return 0
+
+    pub fn idt_load() -> Int with Unsafe:
+        asm("subq $16, %rsp")
+        asm("movw $4095, (%rsp)")
+        asm("movq $0x4000, 2(%rsp)")
+        asm("lidt (%rsp)")
+        asm("addq $16, %rsp")
+        return 0

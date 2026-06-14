@@ -1,0 +1,56 @@
+// KAINOS x86-64 — Boot | Stream: A | File: boot.kn
+// Forward-declare all public entry points from sibling arch modules
+@extern fn cpu_init() -> Int with Unsafe
+@extern fn gdt_init() -> Int with Unsafe
+@extern fn gdt_load() -> Int with Unsafe
+@extern fn idt_init() -> Int with Unsafe
+@extern fn idt_load() -> Int with Unsafe
+@extern fn paging_enable_nx() -> Int with Unsafe
+@extern fn paging_init(mbi: Int) -> Int with Unsafe
+@extern fn apic_init() -> Int with Unsafe
+@extern fn hpet_init() -> Int with Unsafe
+@extern fn kainos_init() -> Int with Unsafe
+
+pub mod arch_boot:
+    const MB2_MAGIC: Int = 0x36D76289
+
+    pub fn kainos_arch_boot_parse_memory_map(mbi: Int) -> Int with Unsafe:
+        let total: Int = mem_load(int_to_ptr(mbi, "ptr<Int>"))
+        var off: Int = 8
+        var usable: Int = 0
+        while off < total:
+            let ta: Int = mbi + off
+            let tt: Int = mem_load(int_to_ptr(ta, "ptr<Int>"))
+            if tt == 0:
+                off = total
+                break()
+            let ts: Int = mem_load(int_to_ptr(ta + 4, "ptr<Int>"))
+            if tt == 6 and ts > 16:
+                let es: Int = mem_load(int_to_ptr(ta + 8, "ptr<Int>"))
+                var eo: Int = 0
+                let entries: Int = ta + 16
+                let end: Int = ta + ts
+                while entries + eo < end:
+                    let et: Int = mem_load(int_to_ptr(entries + eo + 16, "ptr<Int>"))
+                    if et == 1:
+                        usable = usable + 1
+                    eo = eo + es
+            off = off + ((ts + 7) / 8) * 8
+        return usable
+
+    pub fn kainos_arch_init(magic: Int, mbi: Int) -> Int with Unsafe:
+        if magic != MB2_MAGIC:
+            return -1
+        cpu_init()
+        gdt_init()
+        gdt_load()
+        idt_init()
+        idt_load()
+        paging_enable_nx()
+        paging_init(mbi)
+        apic_init()
+        hpet_init()
+        let usable: Int = kainos_arch_boot_parse_memory_map(mbi)
+        let _ = usable
+        asm("sti")
+        return kainos_init()

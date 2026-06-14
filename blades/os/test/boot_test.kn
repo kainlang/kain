@@ -1,0 +1,9 @@
+// Stream: H | File: boot_test.kn | TODO: Boot sequence integration tests
+
+pub fn stub_test_multiboot_magic() -> Int:
+    // TODO: verify multiboot magic is recognized
+    return 0
+
+pub fn stub_test_gdt_loaded() -> Int:
+    // TODO: verify GDT is loaded with correct segments
+    return 0

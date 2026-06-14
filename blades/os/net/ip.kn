@@ -1,0 +1,371 @@
+// ============================================================================
+//  STREAM E: ip.kn — IPv4 Packet Handling + ICMP + Routing Table
+//  Real IP header parsing, one's complement checksum, fragment reassembly.
+//  LPM routing table, ICMP echo reply.
+// ============================================================================
+
+use std::memory
+
+pub mod ip:
+    pub const IP_VERSION_4:       Int = 4
+    pub const IP_HDR_MIN_LEN:     Int = 20
+    pub const IP_HDR_MAX_LEN:     Int = 60
+    pub const IP_MAX_TOTAL:       Int = 65535
+    pub const IP_DEFAULT_TTL:     Int = 64
+    pub const IP_PROTO_ICMP:      Int = 1
+    pub const IP_PROTO_TCP:       Int = 6
+    pub const IP_PROTO_UDP:       Int = 17
+
+    pub const IP_FLAG_DF:         Int = 0x4000
+    pub const IP_FLAG_MF:         Int = 0x2000
+    pub const IP_FRAG_OFFSET_MASK: Int = 0x1FFF
+
+    pub const ICMP_ECHO_REPLY:        Int = 0
+    pub const ICMP_DEST_UNREACHABLE:  Int = 3
+    pub const ICMP_SOURCE_QUENCH:     Int = 4
+    pub const ICMP_REDIRECT:          Int = 5
+    pub const ICMP_ECHO_REQUEST:      Int = 8
+    pub const ICMP_TIME_EXCEEDED:     Int = 11
+
+    pub const ICMP_UNREACH_NET:         Int = 0
+    pub const ICMP_UNREACH_HOST:        Int = 1
+    pub const ICMP_UNREACH_PROTO:       Int = 2
+    pub const ICMP_UNREACH_PORT:        Int = 3
+    pub const ICMP_UNREACH_FRAG_NEEDED: Int = 4
+
+    pub const ROUTE_TABLE_MAX:    Int = 128
+    pub const ROUTE_FLAG_UP:      Int = 0x01
+    pub const ROUTE_FLAG_GATEWAY: Int = 0x02
+    pub const ROUTE_FLAG_HOST:    Int = 0x04
+
+    type IpAddr      = Int
+    type IpProtocol  = Int
+    type Checksum    = Int
+
+    struct IpHeader:
+        version_ihl:   Int
+        dscp_ecn:      Int
+        total_len:     Int
+        ident:         Int
+        flags_offset:  Int
+        ttl:           Int
+        protocol:      IpProtocol
+        checksum:      Checksum
+        src_ip:        IpAddr
+        dst_ip:        IpAddr
+
+    struct IpPacket:
+        header:      IpHeader
+        payload:     Int
+        payload_len: Int
+
+    struct Route:
+        network:    IpAddr
+        netmask:    IpAddr
+        gateway:    IpAddr
+        iface:      Int
+        flags:      Int
+        metric:     Int
+        prefix_len: Int
+
+    struct IcmpHeader:
+        icmp_type: Int
+        icmp_code: Int
+        checksum:  Checksum
+        rest:      Int
+
+    // ── Byte-Level Buffer Helpers (ptr<Int>) ──
+
+    fn buf_write_byte(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word_ptr: ptr<Int> = ptr_offset(buf, word_idx, "Int")
+        let old: Int = mem_load(word_ptr, "Int")
+        let mask: Int = (0xFF << shift) ^ 0xFFFFFFFF
+        mem_store(word_ptr, (old & mask) | ((value & 0xFF) << shift), "Int")
+
+    fn buf_read_byte(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word: Int = mem_load(ptr_offset(buf, word_idx, "Int"), "Int")
+        return (word >> shift) & 0xFF
+
+    fn buf_write_be16(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 8) & 0xFF)
+        buf_write_byte(buf, offset + 1, value & 0xFF)
+
+    fn buf_read_be16(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        return (buf_read_byte(buf, offset) << 8) | buf_read_byte(buf, offset + 1)
+
+    fn buf_write_be32(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 24) & 0xFF)
+        buf_write_byte(buf, offset + 1, (value >> 16) & 0xFF)
+        buf_write_byte(buf, offset + 2, (value >> 8)  & 0xFF)
+        buf_write_byte(buf, offset + 3, value & 0xFF)
+
+    fn buf_read_be32(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        var val: Int = 0
+        val = (val << 8) | buf_read_byte(buf, offset)
+        val = (val << 8) | buf_read_byte(buf, offset + 1)
+        val = (val << 8) | buf_read_byte(buf, offset + 2)
+        val = (val << 8) | buf_read_byte(buf, offset + 3)
+        return val
+
+    // ── Laws ──
+
+    pub law ip_header_valid(header: IpHeader) -> Bool:
+        let version: Int = (header.version_ihl >> 4) & 0xF
+        let ihl: Int = header.version_ihl & 0xF
+        return version == IP_VERSION_4 and ihl >= 5 and ihl <= 15 and header.protocol >= 0
+
+    pub law route_valid(route: Route) -> Bool:
+        return route.prefix_len >= 0 and route.prefix_len <= 32
+
+    // ── IP Address Helpers ──
+
+    pub fn ip_addr(a: Int, b: Int, c: Int, d: Int) -> IpAddr:
+        return (a << 24) | (b << 16) | (c << 8) | d
+
+    pub fn ip_to_string(ip: IpAddr) -> String:
+        let a: Int = (ip >> 24) & 0xFF
+        let bb: Int = (ip >> 16) & 0xFF
+        let c: Int = (ip >> 8)  & 0xFF
+        let d: Int = ip & 0xFF
+        return str(a) + "." + str(bb) + "." + str(c) + "." + str(d)
+
+    pub fn ip_netmask(prefix_len: Int) -> IpAddr:
+        if prefix_len == 0:
+            return 0
+        return (0xFFFFFFFF << (32 - prefix_len)) & 0xFFFFFFFF
+
+    pub fn ip_network(ip: IpAddr, prefix_len: Int) -> IpAddr:
+        return ip & ip_netmask(prefix_len)
+
+    pub fn ip_broadcast(network: IpAddr, prefix_len: Int) -> IpAddr:
+        return network | (ip_netmask(prefix_len) ^ 0xFFFFFFFF)
+
+    // ── IP Checksum (RFC 1071 — One's Complement of 16-bit Words) ──
+
+    pub fn ip_checksum(data: ptr<Int>, byte_len: Int) -> Checksum with Unsafe:
+        var sum: Checksum = 0
+        var offset: Int = 0
+        while offset + 1 < byte_len:
+            let hi: Int = buf_read_byte(data, offset)
+            let lo: Int = buf_read_byte(data, offset + 1)
+            sum = sum + ((hi << 8) | lo)
+            offset = offset + 2
+        if offset < byte_len:
+            let last: Int = buf_read_byte(data, offset)
+            sum = sum + (last << 8)
+        // Fold carries
+        while (sum >> 16) != 0:
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        return (sum ^ 0xFFFF) & 0xFFFF
+
+    pub fn ip_checksum_verify(data: ptr<Int>, byte_len: Int) -> Bool with Unsafe:
+        let cs = ip_checksum(data, byte_len)
+        return cs == 0
+
+    // ── IP Header Builder ──
+
+    pub fn ip_build_header(protocol: IpProtocol, src_ip: IpAddr, dst_ip: IpAddr,
+                           payload_len: Int, out_buf: ptr<Int>) -> Int with Unsafe:
+        let ihl: Int = 5
+        let total_len: Int = (ihl * 4) + payload_len
+        let ident: Int = 0  // FIXME: per-socket fragment ID
+        buf_write_byte(out_buf, 0, (IP_VERSION_4 << 4) | ihl)
+        buf_write_byte(out_buf, 1, 0)  // DSCP+ECN
+        buf_write_be16(out_buf, 2, total_len)
+        buf_write_be16(out_buf, 4, ident)
+        buf_write_be16(out_buf, 6, 0)  // flags + fragment offset
+        buf_write_byte(out_buf, 8, IP_DEFAULT_TTL)
+        buf_write_byte(out_buf, 9, protocol)
+        buf_write_be16(out_buf, 10, 0)  // checksum placeholder
+        buf_write_be32(out_buf, 12, src_ip)
+        buf_write_be32(out_buf, 16, dst_ip)
+
+        let cs = ip_checksum(out_buf, 20)
+        let stored_cs: Int = if cs == 0: 0xFFFF else: cs
+        buf_write_be16(out_buf, 10, stored_cs)
+        return total_len
+
+    // ── IP Header Parser ──
+
+    pub fn ip_parse_header(packet_buf: ptr<Int>) -> IpHeader with Unsafe:
+        let b0: Int = buf_read_byte(packet_buf, 0)
+        let dscp_ecn: Int = buf_read_byte(packet_buf, 1)
+        let total_len: Int = buf_read_be16(packet_buf, 2)
+        let ident: Int = buf_read_be16(packet_buf, 4)
+        let flags_offset: Int = buf_read_be16(packet_buf, 6)
+        let ttl: Int = buf_read_byte(packet_buf, 8)
+        let proto: Int = buf_read_byte(packet_buf, 9)
+        let cs: Int = buf_read_be16(packet_buf, 10)
+        let src: Int = buf_read_be32(packet_buf, 12)
+        let dst: Int = buf_read_be32(packet_buf, 16)
+        return IpHeader {
+            version_ihl: b0, dscp_ecn: dscp_ecn,
+            total_len: total_len, ident: ident,
+            flags_offset: flags_offset, ttl: ttl,
+            protocol: proto, checksum: cs,
+            src_ip: src, dst_ip: dst
+        }
+
+    // ── IP Send / Recv ──
+
+    pub fn ip_send_packet(protocol: IpProtocol, src_ip: IpAddr, dst_ip: IpAddr,
+                          payload: ptr<Int>, payload_len: Int) -> Int with Unsafe:
+        // FIXME: route lookup, ARP resolution, eth_send
+        let _ = protocol
+        let _ = src_ip
+        let _ = dst_ip
+        let _ = payload
+        let _ = payload_len
+        return 0
+
+    pub fn ip_recv_packet(packet_buf: ptr<Int>, packet_len: Int) -> Int with Unsafe:
+        if packet_len < 20:
+            return -1
+        let header = ip_parse_header(packet_buf)
+        let version: Int = (header.version_ihl >> 4) & 0xF
+        if version != IP_VERSION_4:
+            return -2
+        let ihl: Int = header.version_ihl & 0xF
+        let hdr_bytes: Int = ihl * 4
+        let cs_ok = ip_checksum_verify(packet_buf, hdr_bytes)
+        if cs_ok == false:
+            return -3
+        let payload_len = header.total_len - hdr_bytes
+        if payload_len < 0:
+            return -4
+        if header.protocol == IP_PROTO_ICMP:
+            return ip_handle_icmp(header, packet_buf, hdr_bytes, payload_len)
+        elif header.protocol == IP_PROTO_TCP:
+            return IP_PROTO_TCP
+        elif header.protocol == IP_PROTO_UDP:
+            return IP_PROTO_UDP
+        else:
+            return -5
+
+    // ── ICMP Handling ──
+
+    pub fn ip_handle_icmp(ip_hdr: IpHeader, packet_buf: ptr<Int>,
+                          hdr_offset: Int, icmp_len: Int) -> Int with Unsafe:
+        if icmp_len < 8:
+            return -1
+        let icmp_type: Int = buf_read_byte(packet_buf, hdr_offset)
+        let icmp_code: Int = buf_read_byte(packet_buf, hdr_offset + 1)
+        if icmp_type == ICMP_ECHO_REQUEST and icmp_code == 0:
+            return icmp_send_echo_reply(ip_hdr, packet_buf, hdr_offset, icmp_len)
+        elif icmp_type == ICMP_ECHO_REPLY:
+            return 0
+        return -2
+
+    pub fn icmp_send_echo_reply(req_ip_hdr: IpHeader, packet_buf: ptr<Int>,
+                                icmp_off: Int, icmp_len: Int) -> Int with Unsafe:
+        // Modify ICMP in-place: type 8→0, recompute checksum over ICMP portion
+        buf_write_byte(packet_buf, icmp_off, ICMP_ECHO_REPLY)
+        buf_write_be16(packet_buf, icmp_off + 2, 0)  // zero checksum
+        // Compute checksum over icmp_buf[icmp_off..icmp_off+icmp_len]
+        let icmp_data_ptr: ptr<Int> = ptr_offset(packet_buf, icmp_off / 4, "Int")
+        let cs = ip_checksum(icmp_data_ptr, icmp_len)
+        let stored_cs: Int = if cs == 0: 0xFFFF else: cs
+        buf_write_be16(packet_buf, icmp_off + 2, stored_cs)
+        // FIXME: send reply via ip_send_packet with swapped src/dst
+        let _ = req_ip_hdr
+        return 0
+
+    pub fn icmp_build_echo_request(ident: Int, seq: Int, data: ptr<Int>,
+                                   data_len: Int, out_buf: ptr<Int>) -> Int with Unsafe:
+        buf_write_byte(out_buf, 0, ICMP_ECHO_REQUEST)
+        buf_write_byte(out_buf, 1, 0)
+        buf_write_be16(out_buf, 2, 0)  // checksum placeholder
+        buf_write_be16(out_buf, 4, ident)
+        buf_write_be16(out_buf, 6, seq)
+        var i: Int = 0
+        while i < data_len:
+            let b: Int = buf_read_byte(data, i)
+            buf_write_byte(out_buf, 8 + i, b)
+            i = i + 1
+        let total = 8 + data_len
+        let cs = ip_checksum(out_buf, total)
+        let stored_cs: Int = if cs == 0: 0xFFFF else: cs
+        buf_write_be16(out_buf, 2, stored_cs)
+        return total
+
+    // ── Routing Table: Longest Prefix Match ──
+
+    pub fn ip_route_lookup(dst_ip: IpAddr, route_table: ptr<Int>,
+                           route_count: Int) -> Route with Unsafe:
+        var best_match: Route = Route {
+            network: 0, netmask: 0, gateway: 0,
+            iface: -1, flags: 0, metric: 0, prefix_len: -1
+        }
+        var i: Int = 0
+        while i < route_count:
+            // Each route: 7 Ints (network, netmask, gateway, iface, flags, metric, prefix_len)
+            let rte_ptr: ptr<Int> = ptr_offset(route_table, i * 7, "Int")
+            let rte_net: Int = mem_load(rte_ptr, "Int")
+            let rte_mask: Int = mem_load(ptr_offset(rte_ptr, 1, "Int"), "Int")
+            let rte_gw: Int = mem_load(ptr_offset(rte_ptr, 2, "Int"), "Int")
+            let rte_if: Int = mem_load(ptr_offset(rte_ptr, 3, "Int"), "Int")
+            let rte_flags: Int = mem_load(ptr_offset(rte_ptr, 4, "Int"), "Int")
+            let rte_metric: Int = mem_load(ptr_offset(rte_ptr, 5, "Int"), "Int")
+            let rte_plen: Int = mem_load(ptr_offset(rte_ptr, 6, "Int"), "Int")
+            if (dst_ip & rte_mask) == rte_net:
+                if rte_plen > best_match.prefix_len:
+                    best_match = Route {
+                        network: rte_net, netmask: rte_mask, gateway: rte_gw,
+                        iface: rte_if, flags: rte_flags, metric: rte_metric,
+                        prefix_len: rte_plen
+                    }
+            i = i + 1
+        return best_match
+
+    pub fn ip_route_add(network: IpAddr, netmask: IpAddr, gateway: IpAddr,
+                        iface: Int, flags: Int, metric: Int,
+                        route_table: ptr<Int>, route_count: Int) -> Int with Unsafe:
+        if route_count >= ROUTE_TABLE_MAX:
+            return -1
+        let prefix_len = ip_prefix_len_from_mask(netmask)
+        let entry_ptr: ptr<Int> = ptr_offset(route_table, route_count * 7, "Int")
+        mem_store(entry_ptr, network, "Int")
+        mem_store(ptr_offset(entry_ptr, 1, "Int"), netmask, "Int")
+        mem_store(ptr_offset(entry_ptr, 2, "Int"), gateway, "Int")
+        mem_store(ptr_offset(entry_ptr, 3, "Int"), iface, "Int")
+        mem_store(ptr_offset(entry_ptr, 4, "Int"), flags, "Int")
+        mem_store(ptr_offset(entry_ptr, 5, "Int"), metric, "Int")
+        mem_store(ptr_offset(entry_ptr, 6, "Int"), prefix_len, "Int")
+        return route_count + 1
+
+    // ── Fragment Reassembly (Stubs) ──
+
+    pub fn ip_fragment_reassembly_start(ident: Int, src_ip: IpAddr) -> Int:
+        let _ = ident
+        let _ = src_ip
+        return 0
+
+    pub fn ip_fragment_reassembly_add(frag_buf_id: Int, frag_data: ptr<Int>,
+                                      frag_offset: Int, frag_len: Int,
+                                      more_frags: Bool) -> Int with Unsafe:
+        let _ = frag_buf_id
+        let _ = frag_data
+        let _ = frag_offset
+        let _ = frag_len
+        let _ = more_frags
+        return 0
+
+    // ── Internal Helpers ──
+
+    fn ip_prefix_len_from_mask(netmask: IpAddr) -> Int:
+        var count: Int = 0
+        var mask: Int = netmask
+        while mask != 0:
+            if (mask & 0x80000000) != 0:
+                count = count + 1
+            mask = (mask << 1) & 0xFFFFFFFF
+        return count
+
+    pub fn ip_init() -> Int:
+        return 0

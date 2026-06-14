@@ -1,0 +1,79 @@
+// ============================================================================
+//  KAINOS Kernel List Library — list.kn
+// ============================================================================
+//  Intrusive doubly-linked list. Nodes are embedded in containing structs.
+//  Uses ptr<Byte> arithmetic for field access in freestanding mode.
+//
+//  Ladder construct: LAYER 0 — fn with Unsafe
+//
+//  Exports:
+//    ListNode struct, list_init, list_add, list_add_tail,
+//    list_del, list_empty, list_next, list_prev, list_entry
+// ============================================================================
+
+pub mod list:
+
+    struct ListNode:
+        prev: ptr<ListNode>
+        next: ptr<ListNode>
+
+    /// Initialize a list head to point to itself.
+    pub fn list_init(head: ptr<ListNode>) -> Void with Unsafe:
+        mem_store(head, head, "ptr<ListNode>")       // prev = head
+        let hb: ptr<Byte> = bitcast(head, "ptr<Byte>")
+        let next_field: ptr<ptr<ListNode>> = bitcast(ptr_offset(hb, 8, "Byte"), "ptr<ptr<ListNode>>")
+        mem_store(next_field, head, "ptr<ListNode>")  // next = head
+
+    fn __list_add(new_node: ptr<ListNode>, prev_node: ptr<ListNode>, next_node: ptr<ListNode>) -> Void with Unsafe:
+        let nn_byte: ptr<Byte> = bitcast(new_node, "ptr<Byte>")
+        let nn_next: ptr<ptr<ListNode>> = bitcast(ptr_offset(nn_byte, 8, "Byte"), "ptr<ptr<ListNode>>")
+        mem_store(nn_next, next_node, "ptr<ListNode>")         // new->next = next
+        mem_store(new_node, prev_node, "ptr<ListNode>")        // new->prev = prev
+        mem_store(next_node, new_node, "ptr<ListNode>")        // next->prev = new
+        let pv_byte: ptr<Byte> = bitcast(prev_node, "ptr<Byte>")
+        let pv_next: ptr<ptr<ListNode>> = bitcast(ptr_offset(pv_byte, 8, "Byte"), "ptr<ptr<ListNode>>")
+        mem_store(pv_next, new_node, "ptr<ListNode>")          // prev->next = new
+
+    pub fn list_add(head: ptr<ListNode>, new_node: ptr<ListNode>) -> Void with Unsafe:
+        let hb: ptr<Byte> = bitcast(head, "ptr<Byte>")
+        let hn: ptr<ptr<ListNode>> = bitcast(ptr_offset(hb, 8, "Byte"), "ptr<ptr<ListNode>>")
+        let head_next: ptr<ListNode> = mem_load(hn, "ptr<ListNode>")
+        __list_add(new_node, head, head_next)
+
+    pub fn list_add_tail(head: ptr<ListNode>, new_node: ptr<ListNode>) -> Void with Unsafe:
+        let head_prev: ptr<ListNode> = mem_load(head, "ptr<ListNode>")
+        __list_add(new_node, head_prev, head)
+
+    fn __list_del(prev_node: ptr<ListNode>, next_node: ptr<ListNode>) -> Void with Unsafe:
+        mem_store(next_node, prev_node, "ptr<ListNode>")
+        let pv_byte: ptr<Byte> = bitcast(prev_node, "ptr<Byte>")
+        let pv_next: ptr<ptr<ListNode>> = bitcast(ptr_offset(pv_byte, 8, "Byte"), "ptr<ptr<ListNode>>")
+        mem_store(pv_next, next_node, "ptr<ListNode>")
+
+    pub fn list_del(entry: ptr<ListNode>) -> Void with Unsafe:
+        let prev: ptr<ListNode> = mem_load(entry, "ptr<ListNode>")
+        let en_byte: ptr<Byte> = bitcast(entry, "ptr<Byte>")
+        let en_next_field: ptr<ptr<ListNode>> = bitcast(ptr_offset(en_byte, 8, "Byte"), "ptr<ptr<ListNode>>")
+        let next: ptr<ListNode> = mem_load(en_next_field, "ptr<ListNode>")
+        __list_del(prev, next)
+        mem_store(entry, entry, "ptr<ListNode>")
+        mem_store(en_next_field, entry, "ptr<ListNode>")
+
+    pub fn list_empty(head: ptr<ListNode>) -> Bool with Unsafe:
+        let hb: ptr<Byte> = bitcast(head, "ptr<Byte>")
+        let hn: ptr<ptr<ListNode>> = bitcast(ptr_offset(hb, 8, "Byte"), "ptr<ptr<ListNode>>")
+        let head_next: ptr<ListNode> = mem_load(hn, "ptr<ListNode>")
+        return head_next == head
+
+    pub fn list_next(node: ptr<ListNode>) -> ptr<ListNode> with Unsafe:
+        let nb: ptr<Byte> = bitcast(node, "ptr<Byte>")
+        let nn: ptr<ptr<ListNode>> = bitcast(ptr_offset(nb, 8, "Byte"), "ptr<ptr<ListNode>>")
+        return mem_load(nn, "ptr<ListNode>")
+
+    pub fn list_prev(node: ptr<ListNode>) -> ptr<ListNode> with Unsafe:
+        return mem_load(node, "ptr<ListNode>")
+
+    /// Compute container pointer from embedded list node and byte offset.
+    pub fn list_entry(node: ptr<ListNode>, member_offset: Int) -> ptr<Byte> with Unsafe:
+        let node_addr: Int = bitcast(node, "Int")
+        return bitcast(node_addr - member_offset, "ptr<Byte>")

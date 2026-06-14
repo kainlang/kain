@@ -1,0 +1,22 @@
+// ============================================================================
+//  compat/posix/build.kn — POSIX Compatibility Layer
+// ============================================================================
+
+build ({
+    name: "kainos-compat-posix",
+    version: "0.1.0",
+    description: "KAINOS POSIX compatibility layer — PosixActor, syscall table, FD table, process model, signals, mmap, sockets",
+    type: "lib",
+
+    sources: [
+        "fd_table.kn",
+        "signal.kn",
+        "mmap.kn",
+        "socket.kn",
+        "syscall_table.kn",
+        "process.kn",
+        "posix_actor.kn",
+    ],
+
+    target: "llvm",
+})

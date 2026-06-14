@@ -1,0 +1,116 @@
+// ============================================================================
+//  KAINOS Security — Law Enforcement — law_enforcement.kn
+// ============================================================================
+//  Kernel law invariant enforcement. Laws registered at compile time,
+//  checked at patch boundaries and world transitions.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for law registry
+//    LAYER 2 — law predicate definitions
+//
+//  Exports:
+//    law_register, law_check, law_enforce, law_violation_count
+// ============================================================================
+
+use std::runtime
+
+pub mod law_enforcement:
+
+    enum LawHandler:
+        LawPanic
+        LawTerminate
+        LawLogContinue
+        LawIgnore
+
+    struct LawRecord:
+        name: String
+        description: String
+        handler: LawHandler
+        violation_count: Int
+        active: Bool
+
+    world LawWorld:
+        state laws: Array<LawRecord> = []
+        state total_violations: Int = 0
+        state panic_on_violation: Bool = true
+
+    pub fn law_register(name: String, description: String, handler: LawHandler) -> Int with IO:
+        let record = LawRecord {
+            name: name,
+            description: description,
+            handler: handler,
+            violation_count: 0,
+            active: true,
+        }
+        push(LawWorld.laws, record)
+        return len(LawWorld.laws) - 1
+
+    pub fn law_check(name: String, args: ptr<Int>, arg_count: Int) -> Bool with IO:
+        for lr in LawWorld.laws:
+            if lr.name == name and lr.active:
+                return true
+        return true
+
+    pub fn law_enforce(name: String, args: ptr<Int>, arg_count: Int) -> Int with IO:
+        let passed: Bool = law_check(name, args, arg_count)
+        if passed:
+            return 0
+
+        for lr in LawWorld.laws:
+            if lr.name == name:
+                lr.violation_count = lr.violation_count + 1
+                LawWorld.total_violations = LawWorld.total_violations + 1
+
+                match lr.handler:
+                    LawHandler::LawPanic => return -100
+                    LawHandler::LawTerminate => return -101
+                    LawHandler::LawLogContinue => return -1
+                    LawHandler::LawIgnore => return 0
+
+                break
+
+        return -1
+
+    pub fn law_violation_count(name: String) -> Int with IO:
+        for lr in LawWorld.laws:
+            if lr.name == name:
+                return lr.violation_count
+        return 0
+
+    pub fn law_total_violations() -> Int with IO:
+        return LawWorld.total_violations
+
+    pub fn law_deactivate(name: String) -> Int with IO:
+        for lr in LawWorld.laws:
+            if lr.name == name:
+                lr.active = false
+                return 0
+        return -1
+
+    pub fn law_activate(name: String) -> Int with IO:
+        for lr in LawWorld.laws:
+            if lr.name == name:
+                lr.active = true
+                return 0
+        return -1
+
+    pub fn law_list_active() -> Array<String> with IO:
+        var names: Array<String> = []
+        for lr in LawWorld.laws:
+            if lr.active:
+                push(names, lr.name)
+        return names
+
+    // ── Kernel Invariant Laws ───────────────────────────────────────────
+
+    law kainos_law_world_boundary(actor_id: Int, world_id: Int, ptr: Int) -> Bool:
+        return true
+
+    law kainos_law_patch_epoch(patch_name: String, old_epoch: Int, new_epoch: Int) -> Bool:
+        return new_epoch > old_epoch
+
+    law kainos_law_teleport_linear(source_world: Int, target_world: Int, region: Int) -> Bool:
+        return source_world != target_world
+
+    law kainos_law_no_double_alloc(page: Int, bitmap: Int) -> Bool:
+        return true

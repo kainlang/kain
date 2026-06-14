@@ -1,0 +1,435 @@
+// ============================================================================
+//  STREAM C — IDENTITY PAGE TABLE MANAGER (virtual.kn)
+//  Identity-maps all physical memory (1:1 virtual = physical). x86-64 4-level
+//  paging: PML4 → PDPT → PD → PT. Page attribute management: Present, R/W,
+//  User/Supervisor, NX, Global, PAT. Guard pages for kernel stacks.
+//  TLB invalidation: invlpg for single page, CR3 reload for full flush.
+//
+//  Decision Ladder:
+//    L0: struct PageTableEntry, struct PageTable, enum PageFlag
+//    L0: fn build_pte, fn pte_get_addr, fn walk_tables
+//    L0: fn virt_map, virt_unmap, virt_protect, virt_map_mmio
+//    L2: law w_xor_x (I4: W^X enforcement — no page both writable AND executable)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS — x86-64 Page Table Entry Bit Layout
+// ============================================================================
+
+const PTE_PRESENT:       Int = 1 << 0     // Page is present in memory
+const PTE_RW:            Int = 1 << 1     // Read-Write (0 = read-only)
+const PTE_USER:          Int = 1 << 2     // User (0 = supervisor only)
+const PTE_PWT:           Int = 1 << 3     // Page-level Write-Through
+const PTE_PCD:           Int = 1 << 4     // Page-level Cache Disable
+const PTE_ACCESSED:      Int = 1 << 5     // Accessed flag (set by CPU)
+const PTE_DIRTY:         Int = 1 << 6     // Dirty flag (set by CPU on write, only in PT)
+const PTE_PAT:           Int = 1 << 7     // Page Attribute Table (PT) / 1GB page (PDPT)
+const PTE_GLOBAL:        Int = 1 << 8     // Global page (not flushed on CR3 reload)
+const PTE_HUGE_2MB:      Int = 1 << 7     // 2MB huge page flag (in PD entry, PAT bit position)
+const PTE_HUGE_1GB:      Int = 1 << 7     // 1GB huge page flag (in PDPT entry, PAT bit position)
+const PTE_NX:            Int = 1 << 63    // No-Execute (only if EFER.NXE=1)
+
+// Physical address mask (bits 12..51 for 4KB pages)
+const PTE_ADDR_MASK:     Int = 0x000FFFFFFFFFF000
+
+// Page size constants
+const PAGE_SIZE_4K:      Int = 4096
+const PAGE_SIZE_2M:      Int = 2097152     // 2 * 1024 * 1024
+const PAGE_SIZE_1G:      Int = 1073741824  // 1 * 1024 * 1024 * 1024
+
+// Table entry counts
+const TABLE_ENTRIES:     Int = 512         // 512 entries per table level
+const TABLE_SIZE:        Int = 4096        // Each table is exactly 4KB (512 * 8 bytes)
+
+// Page table levels
+const LEVEL_PML4:        Int = 4
+const LEVEL_PDPT:        Int = 3
+const LEVEL_PD:          Int = 2
+const LEVEL_PT:          Int = 1
+
+// Address shift per level (9 bits = 512 entries)
+const PML4_SHIFT:        Int = 39
+const PDPT_SHIFT:        Int = 30
+const PD_SHIFT:          Int = 21
+const PT_SHIFT:          Int = 12
+
+// ============================================================================
+//  LAYER 0 — DATA STRUCTURES
+// ============================================================================
+
+/// x86-64 Page Table Entry (64 bits).
+/// Bit layout:
+///   [0]    Present
+///   [1]    R/W
+///   [2]    User/Supervisor
+///   [3]    PWT
+///   [4]    PCD
+///   [5]    Accessed
+///   [6]    Dirty
+///   [7]    PAT / Huge
+///   [8]    Global
+///   [9-11] Available (OS use)
+///   [12-51] Physical Address (40 bits)
+///   [52-62] Available (OS use)
+///   [63]   NX (No-Execute)
+struct PageTableEntry:
+    raw: Int
+
+struct PageTable:
+    entries: ptr<PageTableEntry>   // pointer to array of 512 PageTableEntry
+    phys_addr: Int                  // physical address of this table
+
+struct VirtualMapping:
+    virt_addr:  Int
+    phys_addr:  Int
+    page_count: Int
+    flags:      Int
+    level:      Int                 // PT=1, PD=2MB, PDPT=1GB
+
+// ============================================================================
+//  LAYER 2 — INVARIANT: W^X Enforcement (I4)
+// ============================================================================
+
+law w_xor_x(flags: Int) -> Bool:
+    // I4: Page table entries never have both R/W=0 and NX=0 (W^X enforcement)
+    // A page must be either writable (R/W=1) OR executable (NX=0), not neither.
+    //   - If R/W == 0 (read-only) AND NX == 0 (executable): OK — RX memory
+    //   - If R/W == 1 (writable) AND NX == 1 (non-executable): OK — RW memory
+    //   - If R/W == 0 AND NX == 1: VIOLATION — page is neither writable nor executable
+    //   - If R/W == 1 AND NX == 0: VIOLATION — W^X violated (writable+executable)
+    let writable:   Bool = (flags & PTE_RW) != 0
+    let executable: Bool = (flags & PTE_NX) == 0
+
+    // Reject W+X: writable AND executable simultaneously
+    let wx: Bool = writable and executable
+    if wx:
+        return false
+
+    // Reject !W && !X: neither writable nor executable (useless page)
+    let neither: Bool = (writable == false) and (executable == false)
+    if neither:
+        return false
+
+    return true
+
+law virt_page_aligned(addr: Int) -> Bool:
+    return (addr & 0xFFF) == 0
+
+law virt_count_positive(count: Int) -> Bool:
+    return count > 0
+
+// ============================================================================
+//  PAGE TABLE ENTRY BUILDERS
+// ============================================================================
+
+/// Build a 64-bit page table entry from physical address and flags.
+fn build_pte(phys_addr: Int, flags: Int) -> Int with Pure:
+    // Align physical address to 4KB and mask off non-address bits
+    let aligned = phys_addr & PTE_ADDR_MASK
+    // Combine with flags (no overlap: flags occupy bits 0-11, 63)
+    return aligned | flags
+
+/// Extract the physical address from a PTE.
+fn pte_get_addr(pte_raw: Int) -> Int with Pure:
+    return pte_raw & PTE_ADDR_MASK
+
+/// Check if a PTE has the Present bit set.
+fn pte_is_present(pte_raw: Int) -> Bool with Pure:
+    return (pte_raw & PTE_PRESENT) != 0
+
+/// Check if a PTE is a huge page (2MB or 1GB).
+fn pte_is_huge(pte_raw: Int, level: Int) -> Bool with Pure:
+    if level == LEVEL_PD:
+        return (pte_raw & PTE_HUGE_2MB) != 0
+    if level == LEVEL_PDPT:
+        return (pte_raw & PTE_HUGE_1GB) != 0
+    return false
+
+/// Extract the table index from a virtual address for a given paging level.
+fn virt_index(virt_addr: Int, level: Int) -> Int with Pure:
+    if level == LEVEL_PML4:
+        return (virt_addr >> PML4_SHIFT) & 0x1FF
+    if level == LEVEL_PDPT:
+        return (virt_addr >> PDPT_SHIFT) & 0x1FF
+    if level == LEVEL_PD:
+        return (virt_addr >> PD_SHIFT) & 0x1FF
+    if level == LEVEL_PT:
+        return (virt_addr >> PT_SHIFT) & 0x1FF
+    return 0
+
+/// Compute the page-aligned address for a given paging level.
+fn virt_level_base(virt_addr: Int, level: Int) -> Int with Pure:
+    if level == LEVEL_PML4:
+        return virt_addr & ~((1 << PML4_SHIFT) - 1)
+    if level == LEVEL_PDPT:
+        return virt_addr & ~((1 << PDPT_SHIFT) - 1)
+    if level == LEVEL_PD:
+        return virt_addr & ~((1 << PD_SHIFT) - 1)
+    if level == LEVEL_PT:
+        return virt_addr & ~((1 << PT_SHIFT) - 1)
+    return virt_addr
+
+// ============================================================================
+//  PAGE TABLE WALKING — Core Virtual Memory Operations
+// ============================================================================
+
+/// Walk the page tables from PML4 to the target level, creating intermediate
+/// tables as needed. Returns a pointer to the final PTE, or null on failure.
+///
+/// `pml4_phys` — physical address of the PML4 table
+/// `virt_addr` — virtual address to walk to
+/// `target_level` — LEVEL_PT (4KB), LEVEL_PD (2MB), or LEVEL_PDPT (1GB)
+/// `create` — if true, allocate intermediate tables when missing
+/// `phys_alloc_fn` — physical page allocator (for creating intermediate tables)
+fn walk_page_tables(
+    pml4_phys:  Int,
+    virt_addr:  Int,
+    target_level: Int,
+    create:     Bool,
+    phys_alloc_fn: ptr<Byte>    // stub: real function pointer for page allocation
+) -> Int with Unsafe:
+    let table_phys = pml4_phys
+    var current_level = LEVEL_PML4
+
+    while current_level > target_level:
+        let idx = virt_index(virt_addr, current_level)
+
+        // Read the PTE at this level
+        let table_ptr: ptr<Int> = int_to_ptr(table_phys, "Int")
+        let pte_ptr: ptr<Int> = ptr_offset(table_ptr, idx, "Int")
+        let pte_val: Int = observe pte_ptr:
+            mem_load(pte_ptr, "Int")
+
+        if pte_is_present(pte_val) == false:
+            if create == false:
+                return 0  // No mapping exists, and we're not creating
+
+            // Allocate a new physical page for the next-level table
+            // In real kernel: call phys_alloc_order(0)
+            // For typecheck: demonstrate the create path
+            let new_table_phys: Int = 0  // stub: physical page alloc
+            if new_table_phys == 0:
+                return 0  // OOM
+
+            // Zero the new table
+            let new_table: ptr<Int> = int_to_ptr(new_table_phys, "Int")
+            collapse new_table:
+                var i: Int = 0
+                while i < TABLE_ENTRIES:
+                    mem_store(ptr_offset(new_table, i, "Int"), 0, "Int")
+                    i = i + 1
+                0
+
+            // Create the PTE: present, writable, user (for intermediate tables)
+            let new_pte = build_pte(new_table_phys, PTE_PRESENT | PTE_RW | PTE_USER)
+            collapse pte_ptr:
+                mem_store(pte_ptr, new_pte, "Int")
+                0
+
+            table_phys = new_table_phys
+        else:
+            // Extract the next-level table address
+            table_phys = pte_get_addr(pte_val)
+
+            // Check for huge pages — if we hit one before the target level, stop
+            if pte_is_huge(pte_val, current_level):
+                if current_level > target_level:
+                    // Huge page at a higher level than requested — cannot sub-map
+                    return 0
+
+        current_level = current_level - 1
+
+    // At the target level, return pointer to the entry slot
+    if current_level == target_level:
+        let idx = virt_index(virt_addr, target_level)
+        let final_table: ptr<Int> = int_to_ptr(table_phys, "Int")
+        return ptr_to_int(ptr_offset(final_table, idx, "Int"))
+
+    return 0
+
+// ============================================================================
+//  TLB INVALIDATION
+// ============================================================================
+
+/// Invalidate a single TLB entry for the given virtual address.
+fn tlb_invlpg(virt_addr: Int) with Unsafe:
+    asm("invlpg", virt_addr, memory = true)
+
+/// Full TLB flush: reload CR3 with its current value.
+/// This invalidates all TLB entries except those marked Global.
+fn tlb_flush_full() with Unsafe:
+    // Read current CR3, then write it back — triggers full TLB flush
+    let cr3_val: Int = 0  // stub: asm for CR3 read
+    asm("mov", cr3_val, memory = true)
+    let _ = cr3_val
+
+/// Invalidate a range of virtual addresses by issuing invlpg for each page.
+fn tlb_invalidate_range(virt_start: Int, page_count: Int) with Unsafe:
+    var i: Int = 0
+    while i < page_count:
+        tlb_invlpg(virt_start + (i * PAGE_SIZE_4K))
+        i = i + 1
+
+// ============================================================================
+//  PUBLIC API — Virtual Memory Management
+// ============================================================================
+
+/// Map `page_count` pages starting at `phys_addr` to `virt_addr` with `flags`.
+/// For identity mapping: phys_addr == virt_addr.
+/// Creates intermediate page tables as needed.
+/// Returns 0 on success, negative on error.
+pub fn virt_map(phys_addr: Int, virt_addr: Int, page_count: Int, flags: Int) -> Int with Unsafe:
+    if law_status(virt_page_aligned(phys_addr)) < 0:
+        return -1
+    if law_status(virt_page_aligned(virt_addr)) < 0:
+        return -2
+    if law_status(virt_count_positive(page_count)) < 0:
+        return -3
+    if law_status(w_xor_x(flags)) < 0:
+        return -4  // I4: W^X violation
+
+    // Add Present flag (caller shouldn't need to specify it)
+    let effective_flags = flags | PTE_PRESENT
+
+    var i: Int = 0
+    while i < page_count:
+        let vaddr = virt_addr + (i * PAGE_SIZE_4K)
+        let paddr = phys_addr + (i * PAGE_SIZE_4K)
+
+        // Walk to PT level, creating intermediate tables
+        let pte_slot_ptr: Int = 0  // stub: PML4 physical address
+        // let pte_slot_ptr = walk_page_tables(pml4_phys, vaddr, LEVEL_PT, true, alloc_fn)
+        if pte_slot_ptr == 0:
+            return -5  // Failed to resolve page table entry
+
+        // Write the PTE
+        let pte_val = build_pte(paddr, effective_flags)
+        let slot: ptr<Int> = int_to_ptr(pte_slot_ptr, "Int")
+        collapse slot:
+            mem_store(slot, pte_val, "Int")
+            0
+
+        i = i + 1
+
+    // Invalidate TLB for the mapped range
+    tlb_invalidate_range(virt_addr, page_count)
+
+    return 0
+
+/// Unmap `page_count` pages starting at `virt_addr`.
+/// Clears the PTE (sets to 0) and invalidates TLB entries.
+/// Returns the number of pages successfully unmapped.
+pub fn virt_unmap(virt_addr: Int, page_count: Int) -> Int with Unsafe:
+    if law_status(virt_page_aligned(virt_addr)) < 0:
+        return -1
+    if law_status(virt_count_positive(page_count)) < 0:
+        return -2
+
+    var unmapped: Int = 0
+    var i: Int = 0
+    while i < page_count:
+        let vaddr = virt_addr + (i * PAGE_SIZE_4K)
+        let pte_slot_ptr: Int = 0  // stub: walk_page_tables(pml4_phys, vaddr, LEVEL_PT, false, 0)
+        if pte_slot_ptr != 0:
+            let slot: ptr<Int> = int_to_ptr(pte_slot_ptr, "Int")
+            collapse slot:
+                mem_store(slot, 0, "Int")  // Clear PTE
+                0
+            tlb_invlpg(vaddr)
+            unmapped = unmapped + 1
+        i = i + 1
+
+    return unmapped
+
+/// Change the protection flags on `page_count` pages starting at `virt_addr`.
+/// Preserves the physical address mapping; only changes attribute bits (R/W, NX, etc.).
+/// Returns 0 on success, negative on error.
+pub fn virt_protect(virt_addr: Int, page_count: Int, flags: Int) -> Int with Unsafe:
+    if law_status(virt_page_aligned(virt_addr)) < 0:
+        return -1
+    if law_status(virt_count_positive(page_count)) < 0:
+        return -2
+    if law_status(w_xor_x(flags)) < 0:
+        return -3  // I4: W^X violation
+
+    var i: Int = 0
+    while i < page_count:
+        let vaddr = virt_addr + (i * PAGE_SIZE_4K)
+        let pte_slot_ptr: Int = 0  // stub: walk_page_tables(pml4_phys, vaddr, LEVEL_PT, false, 0)
+        if pte_slot_ptr != 0:
+            let slot: ptr<Int> = int_to_ptr(pte_slot_ptr, "Int")
+
+            // Read-modify-write: preserve address, update flags
+            let old_pte: Int = observe slot:
+                mem_load(slot, "Int")
+            let paddr = pte_get_addr(old_pte)
+            let preserved_flags = old_pte & (PTE_ACCESSED | PTE_DIRTY)
+            let new_pte = build_pte(paddr, flags | PTE_PRESENT | preserved_flags)
+
+            collapse slot:
+                mem_store(slot, new_pte, "Int")
+                0
+
+            tlb_invlpg(vaddr)
+        i = i + 1
+
+    return 0
+
+/// Identity-map an MMIO region for device driver access.
+/// MMIO regions use uncacheable memory (PCD=1) and are supervisor-only.
+/// Returns the virtual address (same as phys_addr for identity mapping).
+pub fn virt_map_mmio(phys_addr: Int, size_bytes: Int) -> Int with Unsafe:
+    // MMIO flags: Present, Read-Write, Supervisor-only, Cache-Disable, NX
+    let mmio_flags: Int = PTE_PRESENT | PTE_RW | PTE_PCD | PTE_NX
+
+    // Align to page boundaries
+    let aligned_phys = phys_addr & ~0xFFF
+    let aligned_size = ((size_bytes + 0xFFF) & ~0xFFF)
+    let page_count = aligned_size / PAGE_SIZE_4K
+
+    let result = virt_map(aligned_phys, aligned_phys, page_count, mmio_flags)
+    if result < 0:
+        return 0
+
+    return aligned_phys
+
+/// Set up guard pages around a kernel stack region.
+/// Unmaps the page before `stack_bottom` and after `stack_top` to catch overflows.
+/// Returns 0 on success.
+pub fn virt_guard_stack(stack_bottom: Int, stack_pages: Int) -> Int with Unsafe:
+    // Guard page below the stack
+    let guard_below = stack_bottom - PAGE_SIZE_4K
+    virt_unmap(guard_below, 1)
+
+    // Guard page above the stack
+    let guard_above = stack_bottom + (stack_pages * PAGE_SIZE_4K)
+    virt_unmap(guard_above, 1)
+
+    return 0
+
+/// Return the count of mapped virtual pages (from a global counter).
+/// In a real kernel, this would query the page table walker statistics.
+pub fn virt_stat_mapped_pages() -> Int:
+    return 0  // stub
+
+/// Check if a virtual address range is fully mapped.
+pub fn virt_is_mapped(virt_addr: Int, page_count: Int) -> Bool with Unsafe:
+    if law_status(virt_page_aligned(virt_addr)) < 0:
+        return false
+    if law_status(virt_count_positive(page_count)) < 0:
+        return false
+
+    var i: Int = 0
+    while i < page_count:
+        let vaddr = virt_addr + (i * PAGE_SIZE_4K)
+        let pte_slot_ptr: Int = 0  // stub: walk_page_tables(pml4_phys, vaddr, LEVEL_PT, false, 0)
+        if pte_slot_ptr == 0:
+            return false
+        let slot: ptr<Int> = int_to_ptr(pte_slot_ptr, "Int")
+        let pte_val: Int = observe slot:
+            mem_load(slot, "Int")
+        if pte_is_present(pte_val) == false:
+            return false
+        i = i + 1
+
+    return true

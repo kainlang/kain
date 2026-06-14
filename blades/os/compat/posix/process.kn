@@ -1,0 +1,233 @@
+// ============================================================================
+//  KAINOS COMPAT — Process Model on Actors
+//
+//  Each Linux process = a ProcessCompatActor.
+//  Each Linux thread = a ThreadActor sharing worlds via entanglement.
+//  clone flags: CLONE_VM, CLONE_FS, CLONE_FILES, CLONE_SIGHAND, CLONE_THREAD.
+//
+//  Uses sentinel-based process table (active[i] = true/false).
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+use fd_table
+use signal
+use mmap
+use socket
+use std::collections
+
+// ============================================================================
+//  CLONE FLAGS — matching Linux
+// ============================================================================
+
+const CLONE_VM:      Int = 0x00000100
+const CLONE_FS:      Int = 0x00000200
+const CLONE_FILES:   Int = 0x00000400
+const CLONE_SIGHAND: Int = 0x00000800
+const CLONE_THREAD:  Int = 0x00010000
+const CLONE_VFORK:   Int = 0x00004000
+const CLONE_PARENT:  Int = 0x00008000
+const CLONE_CHILD_CLEARTID: Int = 0x00200000
+const CLONE_CHILD_SETTID:   Int = 0x01000000
+const CLONE_SETTLS:         Int = 0x00080000
+
+// ============================================================================
+//  PROCESS STATE
+// ============================================================================
+
+enum ProcessState:
+    Running
+    Sleeping
+    Zombie
+    Dead
+    Free       // slot is unused
+
+// ============================================================================
+//  PROCESS INFO — metadata for each process
+// ============================================================================
+
+struct ProcessInfo:
+    pid:       Int
+    ppid:      Int
+    state:     ProcessState
+    exit_code: Int
+    fd_table:  FdTable
+    signals:   SignalTable
+    mmaps:     MmapTable
+    sockets:   SocketTable
+    brk:       Int
+    stack:     Int
+    entry:     Int
+
+// ============================================================================
+//  PROCESS TABLE — kernel-owned
+// ============================================================================
+
+struct ProcessTable:
+    processes: Array<ProcessInfo>
+    active:    Array<Bool>   // true = slot is occupied
+    next_pid:  Int
+
+fn proc_empty() -> ProcessInfo:
+    return ProcessInfo {
+        pid: -1, ppid: -1, state: ProcessState::Free, exit_code: 0,
+        fd_table: fd_table_create(), signals: signal_table_create(),
+        mmaps: mmap_table_create(), sockets: sock_table_create(),
+        brk: 0, stack: 0, entry: 0,
+    }
+
+fn proc_grow(pt: ProcessTable, up_to: Int) -> ProcessTable:
+    var t = pt
+    while len(t.processes) <= up_to:
+        push(t.processes, proc_empty())
+        push(t.active, false)
+    return t
+
+pub fn process_table_create() -> ProcessTable:
+    var pt = ProcessTable { processes: [], active: [], next_pid: 1000 }
+    pt = proc_grow(pt, 1023)
+    return pt
+
+fn proc_is_valid(pt: ProcessTable, pid: Int) -> Bool:
+    if pid < 0: return false
+    if pid >= len(pt.processes): return false
+    if pid >= len(pt.active): return false
+    return pt.active[pid]
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Create a new process from an ELF binary
+pub fn process_create(pt: ProcessTable, elf_path: String, args: Array<String>, envp: Array<String>) -> ProcessTable:
+    var t = pt
+    let pid = t.next_pid
+    t.next_pid = t.next_pid + 1
+    t = proc_grow(t, pid)
+
+    t.processes[pid] = ProcessInfo {
+        pid: pid, ppid: 0, state: ProcessState::Running, exit_code: 0,
+        fd_table: fd_table_create(), signals: signal_table_create(),
+        mmaps: mmap_table_create(), sockets: sock_table_create(),
+        brk: 0x400000, stack: 0, entry: 0,
+    }
+    t.active[pid] = true
+
+    let _ = elf_path
+    let _ = args
+    let _ = envp
+    return t
+
+// Clone a process (fork/clone)
+pub fn process_clone(pt: ProcessTable, parent_pid: Int, flags: Int) -> ProcessTable:
+    var t = pt
+    let child_pid = t.next_pid
+    t.next_pid = t.next_pid + 1
+    t = proc_grow(t, child_pid)
+
+    var child = proc_empty()
+    child.pid = child_pid
+    child.ppid = parent_pid
+    child.state = ProcessState::Running
+
+    if proc_is_valid(pt, parent_pid):
+        let parent = t.processes[parent_pid]
+        child.brk = parent.brk
+        child.stack = parent.stack
+        child.entry = parent.entry
+
+        if (flags & CLONE_FILES) != 0:
+            child.fd_table = parent.fd_table
+        else:
+            child.fd_table = fd_table_clone(parent.fd_table)
+
+        if (flags & CLONE_SIGHAND) != 0:
+            child.signals = parent.signals
+
+        if (flags & CLONE_VM) != 0:
+            child.mmaps = parent.mmaps
+
+    t.processes[child_pid] = child
+    t.active[child_pid] = true
+    return t
+
+// Get process by PID — returns process with state=Free if invalid
+pub fn process_get(pt: ProcessTable, pid: Int) -> ProcessInfo:
+    if proc_is_valid(pt, pid) == false:
+        return proc_empty()
+    return pt.processes[pid]
+
+// Exit a process
+pub fn process_exit(pt: ProcessTable, pid: Int, status: Int) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        t.processes[pid].state = ProcessState::Zombie
+        t.processes[pid].exit_code = status
+    return t
+
+// Kill a process (send signal)
+pub fn process_kill(pt: ProcessTable, pid: Int, sig: Int) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        if sig == SIGKILL:
+            t.processes[pid].state = ProcessState::Dead
+            t.processes[pid].exit_code = -sig
+            t.active[pid] = false
+        else:
+            t.processes[pid].signals = signal_mark_pending(t.processes[pid].signals, sig)
+    return t
+
+// Wait for child (wait4/waitpid)
+pub fn process_wait(pt: ProcessTable, parent_pid: Int) -> Int:
+    var i: Int = 0
+    while i < len(pt.processes):
+        if proc_is_valid(pt, i) and pt.processes[i].ppid == parent_pid and pt.processes[i].state == ProcessState::Zombie:
+            let code = pt.processes[i].exit_code
+            pt.active[i] = false
+            return code
+        i = i + 1
+    return -1  // no child to reap
+
+// Get process FD table (borrow)
+pub fn process_get_fd_table(pt: ProcessTable, pid: Int) -> FdTable:
+    if proc_is_valid(pt, pid) == false:
+        return fd_table_create()
+    return pt.processes[pid].fd_table
+
+// Update process FD table
+pub fn process_set_fd_table(pt: ProcessTable, pid: Int, fds: FdTable) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        t.processes[pid].fd_table = fds
+    return t
+
+// Update process mmap table
+pub fn process_set_mmaps(pt: ProcessTable, pid: Int, m: MmapTable) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        t.processes[pid].mmaps = m
+    return t
+
+// Update process signal table
+pub fn process_set_signals(pt: ProcessTable, pid: Int, s: SignalTable) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        t.processes[pid].signals = s
+    return t
+
+// Update process socket table
+pub fn process_set_sockets(pt: ProcessTable, pid: Int, st: SocketTable) -> ProcessTable:
+    var t = pt
+    if proc_is_valid(t, pid):
+        t.processes[pid].sockets = st
+    return t
+
+// Count active processes
+pub fn process_count(pt: ProcessTable) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(pt.processes):
+        if proc_is_valid(pt, i):
+            count = count + 1
+        i = i + 1
+    return count

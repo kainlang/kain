@@ -1,0 +1,243 @@
+// ============================================================================
+//  KAINOS COMPAT — Unix Signal Delivery
+//
+//  Standard signals delivered as actor messages to ProcessCompatActor.
+//  Per-process signal mask (blocked set). Signal handler invocation.
+//  SIGCHLD → supervisor notification (native Kain). SIGKILL → terminate.
+//
+//  Uses sentinel-based handler table: handler_fn=-1 means no handler,
+//  avoiding Array<Option<T>> type issues.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+// ============================================================================
+//  SIGNAL CONSTANTS — matching Linux x86-64 signal numbers
+// ============================================================================
+
+const SIGKILL:  Int = 9    // kill (cannot be caught or ignored)
+const SIGTERM:  Int = 15   // termination signal
+const SIGINT:   Int = 2    // interrupt from keyboard
+const SIGSEGV:  Int = 11   // segmentation violation
+const SIGPIPE:  Int = 13   // broken pipe
+const SIGCHLD:  Int = 17   // child status has changed
+const SIGALRM:  Int = 14   // alarm clock
+const SIGSTOP:  Int = 19   // stop process (cannot be caught or ignored)
+const SIGCONT:  Int = 18   // continue if stopped
+const SIGHUP:   Int = 1    // hangup
+const SIGQUIT:  Int = 3    // quit from keyboard
+const SIGILL:   Int = 4    // illegal instruction
+const SIGTRAP:  Int = 5    // trace/breakpoint trap
+const SIGABRT:  Int = 6    // abort signal
+const SIGBUS:   Int = 7    // bus error
+const SIGFPE:   Int = 8    // floating point exception
+const SIGUSR1:  Int = 10   // user-defined signal 1
+const SIGUSR2:  Int = 12   // user-defined signal 2
+const SIGURG:   Int = 23   // urgent condition on socket
+const SIGXCPU:  Int = 24   // CPU time limit exceeded
+const SIGXFSZ:  Int = 25   // file size limit exceeded
+const SIGVTALRM: Int = 26  // virtual alarm clock
+const SIGPROF:  Int = 27   // profiling timer expired
+const SIGWINCH: Int = 28   // window size change
+const SIGIO:    Int = 29   // I/O now possible
+const SIGPWR:   Int = 30   // power failure restart
+const SIGSYS:   Int = 31   // bad system call
+
+// Signal action flags
+const SA_NOCLDSTOP: Int = 1
+const SA_NOCLDWAIT: Int = 2
+const SA_SIGINFO:   Int = 4
+const SA_RESTART:   Int = 0x10000000
+const SA_ONSTACK:   Int = 0x08000000
+
+// Signal handler dispositions
+const SIG_DFL: Int = 0    // default action
+const SIG_IGN: Int = 1    // ignore signal
+
+// sigset ops
+const SIG_BLOCK:   Int = 0
+const SIG_UNBLOCK: Int = 1
+const SIG_SETMASK: Int = 2
+
+// ============================================================================
+//  SIGNAL HANDLER — registered per-process, per-signal
+// ============================================================================
+
+struct SignalHandler:
+    sig:         Int     // signal number
+    handler_fn:  Int     // function pointer (or SIG_DFL/SIG_IGN)
+    flags:       Int     // SA_* flags
+    mask:        Int     // signal mask to install during handler
+    restorer_fn: Int     // sigreturn trampoline address
+
+// ============================================================================
+//  SIGNAL CONTEXT — saved state for handler invocation
+// ============================================================================
+
+struct SignalContext:
+    rax: Int
+    rbx: Int
+    rcx: Int
+    rdx: Int
+    rsi: Int
+    rdi: Int
+    rbp: Int
+    rsp: Int
+    r8:  Int
+    r9:  Int
+    r10: Int
+    r11: Int
+    r12: Int
+    r13: Int
+    r14: Int
+    r15: Int
+    rip: Int
+    rflags: Int
+    cs:  Int
+    ss:  Int
+    sig: Int        // which signal caused this context save
+
+// ============================================================================
+//  SIGNAL TABLE — per-process table
+// ============================================================================
+
+struct SignalTable:
+    handlers:      SignalHandler   // single default handler (index-agnostic)
+    handler_sigs:  Array<Int>      // signal numbers that have custom handlers
+    handler_fns:   Array<Int>      // corresponding handler function ptrs
+    blocked_mask:  Int             // bitmask of blocked signals
+    pending_mask:  Int             // bitmask of pending signals
+    saved_context: SignalContext
+
+// Create a fresh signal table
+pub fn signal_table_create() -> SignalTable:
+    return SignalTable {
+        handlers: SignalHandler { sig: 0, handler_fn: SIG_DFL, flags: 0, mask: 0, restorer_fn: 0 },
+        handler_sigs: [], handler_fns: [],
+        blocked_mask: 0, pending_mask: 0,
+        saved_context: signal_context_zero(),
+    }
+
+fn signal_context_zero() -> SignalContext:
+    return SignalContext {
+        rax: 0, rbx: 0, rcx: 0, rdx: 0,
+        rsi: 0, rdi: 0, rbp: 0, rsp: 0,
+        r8: 0, r9: 0, r10: 0, r11: 0,
+        r12: 0, r13: 0, r14: 0, r15: 0,
+        rip: 0, rflags: 0, cs: 0, ss: 0,
+        sig: 0,
+    }
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Register a signal handler
+pub fn signal_register_handler(table: SignalTable, sig: Int, handler_fn: Int, flags: Int) -> SignalTable:
+    var t = table
+    var found: Bool = false
+    var i: Int = 0
+    while i < len(t.handler_sigs):
+        if t.handler_sigs[i] == sig:
+            t.handler_fns[i] = handler_fn
+            found = true
+            break
+        i = i + 1
+    if found == false:
+        push(t.handler_sigs, sig)
+        push(t.handler_fns, handler_fn)
+    return t
+
+// Get the handler for a signal
+pub fn signal_get_handler(table: SignalTable, sig: Int) -> Int:
+    var i: Int = 0
+    while i < len(table.handler_sigs):
+        if table.handler_sigs[i] == sig:
+            return table.handler_fns[i]
+        i = i + 1
+    return SIG_DFL
+
+// Set signal mask
+pub fn signal_set_mask(table: SignalTable, mask: Int) -> SignalTable:
+    var t = table
+    t.blocked_mask = mask
+    return t
+
+// Add signals to blocked mask
+pub fn signal_block(table: SignalTable, sigs: Int) -> SignalTable:
+    var t = table
+    t.blocked_mask = t.blocked_mask | sigs
+    return t
+
+// Remove signals from blocked mask
+pub fn signal_unblock(table: SignalTable, sigs: Int) -> SignalTable:
+    var t = table
+    t.blocked_mask = t.blocked_mask & (~sigs)
+    return t
+
+// Set a signal as pending
+pub fn signal_mark_pending(table: SignalTable, sig: Int) -> SignalTable:
+    var t = table
+    let bit: Int = 1 << (sig - 1)
+    t.pending_mask = t.pending_mask | bit
+    return t
+
+// Clear a pending signal
+pub fn signal_clear_pending(table: SignalTable, sig: Int) -> SignalTable:
+    var t = table
+    let bit: Int = 1 << (sig - 1)
+    t.pending_mask = t.pending_mask & (~bit)
+    return t
+
+// Check if a signal is blocked
+pub fn signal_is_blocked(table: SignalTable, sig: Int) -> Bool:
+    let bit: Int = 1 << (sig - 1)
+    return (table.blocked_mask & bit) != 0
+
+// Check if a signal is pending
+pub fn signal_is_pending(table: SignalTable, sig: Int) -> Bool:
+    let bit: Int = 1 << (sig - 1)
+    return (table.pending_mask & bit) != 0
+
+// Get the sigmask as a single Int bitmask
+pub fn signal_mask_all() -> Int:
+    var m: Int = 0
+    var i: Int = 1
+    while i <= 64:
+        m = m | (1 << (i - 1))
+        i = i + 1
+    return m
+
+// Mask for specific signal
+pub fn signal_mask_for(sig: Int) -> Int:
+    return 1 << (sig - 1)
+
+// Determine if a signal is fatal (will terminate by default)
+pub fn signal_is_fatal(sig: Int) -> Bool:
+    if sig == SIGKILL:  return true
+    if sig == SIGTERM:  return true
+    if sig == SIGINT:   return true
+    if sig == SIGSEGV:  return true
+    if sig == SIGBUS:   return true
+    if sig == SIGILL:   return true
+    if sig == SIGFPE:   return true
+    if sig == SIGABRT:  return true
+    if sig == SIGSYS:   return true
+    if sig == SIGQUIT:  return true
+    return false
+
+// Determine if a signal can be caught by a handler
+pub fn signal_is_catchable(sig: Int) -> Bool:
+    if sig == SIGKILL: return false
+    if sig == SIGSTOP: return false
+    return true
+
+// Save context for sigreturn
+pub fn signal_save_context(table: SignalTable, ctx: SignalContext) -> SignalTable:
+    var t = table
+    t.saved_context = ctx
+    return t
+
+// Load saved context (for sigreturn)
+pub fn signal_load_context(table: SignalTable) -> SignalContext:
+    return table.saved_context

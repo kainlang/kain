@@ -1,0 +1,93 @@
+// ============================================================================
+//  KAINOS IPC Supervision — supervision.kn
+// ============================================================================
+//  Actor supervision tree. Parent-child links for fault tolerance.
+//  Erlang-style "let it crash" with restart policies.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for supervision state
+//    LAYER 7 — actor supervision tree
+//
+//  Exports:
+//    supervision_link, supervision_unlink, supervision_notify_exit,
+//    supervision_get_policy, supervision_set_policy
+// ============================================================================
+
+use std::runtime
+
+pub mod supervision:
+
+    const MAX_RESTARTS: Int = 5
+
+    enum SupervisionPolicy:
+        Restart
+        Escalate
+        Ignore
+        StopAll
+
+    struct SupervisionLink:
+        parent_id: Int
+        child_id: Int
+        policy: SupervisionPolicy
+        max_restarts: Int
+        restart_count: Int
+
+    world SupervisionWorld:
+        state links: Array<SupervisionLink> = []
+        state next_id: Int = 0
+
+    pub fn supervision_link(parent_id: Int, child_id: Int, policy: SupervisionPolicy) -> Int with IO:
+        let link = SupervisionLink {
+            parent_id: parent_id,
+            child_id: child_id,
+            policy: policy,
+            max_restarts: MAX_RESTARTS,
+            restart_count: 0,
+        }
+        push(SupervisionWorld.links, link)
+        SupervisionWorld.next_id = SupervisionWorld.next_id + 1
+        return SupervisionWorld.next_id - 1
+
+    pub fn supervision_unlink(link_id: Int) -> Int with IO:
+        return 0
+
+    pub fn supervision_notify_exit(child_id: Int, exit_code: Int) -> SupervisionPolicy with IO:
+        for link in SupervisionWorld.links:
+            if link.child_id == child_id:
+                match link.policy:
+                    SupervisionPolicy::Ignore => return SupervisionPolicy::Ignore
+                    SupervisionPolicy::Restart =>
+                        link.restart_count = link.restart_count + 1
+                        if link.restart_count > link.max_restarts:
+                            return SupervisionPolicy::Escalate
+                        return SupervisionPolicy::Restart
+                    SupervisionPolicy::Escalate => return SupervisionPolicy::Escalate
+                    SupervisionPolicy::StopAll => return SupervisionPolicy::StopAll
+                break
+        return SupervisionPolicy::Escalate
+
+    pub fn supervision_get_policy(child_id: Int) -> SupervisionPolicy with IO:
+        for link in SupervisionWorld.links:
+            if link.child_id == child_id:
+                return link.policy
+        return SupervisionPolicy::Escalate
+
+    pub fn supervision_set_policy(child_id: Int, policy: SupervisionPolicy) -> Int with IO:
+        for link in SupervisionWorld.links:
+            if link.child_id == child_id:
+                link.policy = policy
+                return 0
+        return -1
+
+    pub fn supervision_get_children(parent_id: Int) -> Array<Int> with IO:
+        var children: Array<Int> = []
+        for link in SupervisionWorld.links:
+            if link.parent_id == parent_id:
+                push(children, link.child_id)
+        return children
+
+    pub fn supervision_get_parent(child_id: Int) -> Int with IO:
+        for link in SupervisionWorld.links:
+            if link.child_id == child_id:
+                return link.parent_id
+        return -1

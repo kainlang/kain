@@ -1,0 +1,4 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    return build_graph()

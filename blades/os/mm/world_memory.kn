@@ -1,0 +1,417 @@
+// ============================================================================
+//  STREAM C — WORLD-BASED MEMORY ISOLATION (world_memory.kn)
+//  Each world owns a set of memory regions (physically allocated, identity-mapped).
+//  Region tagging: which world owns which physical pages. Cross-world access
+//  controlled by compiler (ownership state machine) + runtime checks.
+//  World creation with region pool. World destruction reclaiming all regions.
+//
+//  Decision Ladder:
+//    L0: struct MemoryRegion, enum RegionState
+//    L1: world MemoryIsolationWorld — central isolation authority
+//    L1: world DriverWorld, world ProcessWorld — example isolation domains
+//    L2: law cross_world_access_legal (I1, I3)
+//    L7: collapse/observe/decay on MemoryRegions
+//
+//  Memory Region Ownership Lattice:
+//    IDLE → COLLAPSED (exclusive write) → OBSERVED (shared read) →
+//    SHARED (parallel write) → DECAYED (freed)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const REGION_STATE_IDLE:      Int = 0
+const REGION_STATE_COLLAPSED: Int = 1
+const REGION_STATE_OBSERVED:  Int = 2
+const REGION_STATE_SHARED:    Int = 3
+const REGION_STATE_DECAYED:   Int = 4
+
+const MAX_REGIONS:            Int = 256
+const MAX_WORLDS:             Int = 64
+const REGION_FLAG_READ:       Int = 1 << 0
+const REGION_FLAG_WRITE:      Int = 1 << 1
+const REGION_FLAG_EXEC:       Int = 1 << 2
+const REGION_FLAG_DMA:        Int = 1 << 3
+const REGION_FLAG_GUARD:      Int = 1 << 4
+
+// ============================================================================
+//  LAYER 0 — DATA STRUCTURES
+// ============================================================================
+
+struct MemoryRegion:
+    phys_start:   Int       // Physical base address
+    virt_start:   Int       // Virtual base address (identity-mapped)
+    page_count:   Int       // Number of 4KB pages
+    world_id:     Int       // Owning world identifier
+    state:        Int       // Ownership lattice state (IDLE → DECAYED)
+    flags:        Int       // REGION_FLAG_READ | WRITE | EXEC | DMA | GUARD
+    region_id:    Int       // Unique region identifier
+    ref_count:    Int       // Observer count for OBSERVED state
+    epoch:        Int       // Mutation epoch counter
+    tag:          Int       // Application-defined tag (for region lookup)
+
+struct WorldDescriptor:
+    world_id:     Int
+    world_name:   String
+    region_count: Int
+    region_indices: ptr<Int>  // Array of region indices in the global region table
+    is_authority: Bool         // True if this world is the authority (can write)
+
+// ============================================================================
+//  COMPONENT — Minimal surfaces
+// ============================================================================
+
+component MMIsolationPanel():
+    render <panel title="MM World Isolation" />
+
+component MMDomainPanel():
+    render <panel title="MM Isolation Domain" />
+
+// ============================================================================
+//  LAYER 1 — STATE AUTHORITY WORLDS
+// ============================================================================
+
+/// Central isolation authority — tracks all regions and their world ownership.
+world MemoryIsolationWorld:
+    state total_regions:    Int = 0
+    state active_regions:   Int = 0
+    state decayed_regions:  Int = 0
+    state isolation_epoch:  Int = 0
+    state violation_count:  Int = 0
+    state last_violation_world: Int = 0
+    state last_violation_addr:  Int = 0
+    surface native_ui => MMIsolationPanel
+
+/// Example driver world — owns DMA buffers and MMIO regions.
+world DriverWorld:
+    state region_base:      Int = 0
+    state region_count:     Int = 0
+    state dma_active:       Int = 0
+    surface native_ui => MMDomainPanel
+
+/// Example process world — owns code, heap, stack regions.
+world ProcessWorld:
+    state code_region:      Int = 0
+    state heap_region:      Int = 0
+    state stack_region:     Int = 0
+    state region_count:     Int = 0
+    surface native_ui => MMDomainPanel
+
+/// Mirror world for isolation telemetry (read-only introspection).
+world IsolationMirror:
+    state active_regions_copy:  Int = 0
+    state violation_count_copy: Int = 0
+    surface native_ui => MMIsolationPanel
+
+// ============================================================================
+//  LAYER 1 — ENTANGLEMENT: Authority → Mirror propagation
+// ============================================================================
+
+entangle MemoryIsolationWorld.active_regions  <-> IsolationMirror.active_regions_copy  with single_writer
+entangle MemoryIsolationWorld.violation_count <-> IsolationMirror.violation_count_copy with single_writer
+
+// ============================================================================
+//  LAYER 2 — INVARIANTS: law
+// ============================================================================
+
+law region_state_valid(state: Int) -> Bool:
+    return state >= REGION_STATE_IDLE and state <= REGION_STATE_DECAYED
+
+law region_not_decayed(state: Int) -> Bool:
+    return state != REGION_STATE_DECAYED
+
+law cross_world_read_legal(
+    accessor_world: Int,
+    owner_world:    Int,
+    region_state:   Int,
+    is_entangled:   Bool
+) -> Bool:
+    // I1: No actor can access memory outside its world boundary without entanglement.
+    //   - Same-world access: requires COLLAPSED, OBSERVED, or SHARED state
+    //   - Cross-world read: requires entanglement AND OBSERVED/COLLAPSED/SHARED state
+    //   - Cross-world write: NEVER legal (entanglement is read-only mirror)
+    //
+    // This law encodes the Z3-proven Claim 1 (11/11 test cases).
+    let same_world: Bool = accessor_world == owner_world
+    let state_accessible: Bool = (
+        region_state == REGION_STATE_OBSERVED or
+        region_state == REGION_STATE_COLLAPSED or
+        region_state == REGION_STATE_SHARED
+    )
+
+    if same_world:
+        return state_accessible
+
+    // Cross-world: requires entanglement for read access
+    if is_entangled and state_accessible:
+        return true
+
+    return false
+
+law cross_world_write_legal(
+    accessor_world: Int,
+    owner_world:    Int,
+    region_state:   Int,
+    is_authority:   Bool
+) -> Bool:
+    // Cross-world writes are NEVER legal (Theorem T10 from Z3 proof)
+    // Same-world writes require COLLAPSED or SHARED state
+    let same_world: Bool = accessor_world == owner_world
+    let writable_state: Bool = (
+        region_state == REGION_STATE_COLLAPSED or
+        region_state == REGION_STATE_SHARED
+    )
+
+    if same_world == false:
+        return false  // I3: Cross-world write always raises LAW violation
+
+    if is_authority == false:
+        return false  // Mirror worlds cannot write
+
+    return writable_state
+
+law region_in_bounds(region_idx: Int, total_regions: Int) -> Bool:
+    return region_idx >= 0 and region_idx < total_regions
+
+// ============================================================================
+//  LAYER 2 — JOURNALED MUTATION: patch
+// ============================================================================
+
+patch isolation_record_violation(
+    iso_world: MemoryIsolationWorld,
+    accessor_world: Int,
+    fault_addr: Int
+) -> Int:
+    iso_world.violation_count = iso_world.violation_count + 1
+    iso_world.last_violation_world = accessor_world
+    iso_world.last_violation_addr = fault_addr
+    iso_world.isolation_epoch = iso_world.isolation_epoch + 1
+    return iso_world.violation_count
+
+patch isolation_register_region(
+    iso_world: MemoryIsolationWorld,
+    region_count: Int
+) -> Int:
+    iso_world.active_regions = iso_world.active_regions + region_count
+    iso_world.total_regions = iso_world.total_regions + region_count
+    iso_world.isolation_epoch = iso_world.isolation_epoch + 1
+    return iso_world.active_regions
+
+patch isolation_release_region(
+    iso_world: MemoryIsolationWorld,
+    region_count: Int
+) -> Int:
+    iso_world.active_regions = iso_world.active_regions - region_count
+    iso_world.decayed_regions = iso_world.decayed_regions + region_count
+    iso_world.isolation_epoch = iso_world.isolation_epoch + 1
+    return iso_world.active_regions
+
+// ============================================================================
+//  REGION MANAGEMENT — Core Operations
+// ============================================================================
+
+/// Allocate a new memory region for the given world.
+/// Allocates `page_count` physical pages and assigns them to `world_id`.
+/// Returns the region ID on success, or -1 on failure.
+pub fn world_memory_alloc(world_id: Int, page_count: Int) -> Int with Unsafe:
+    if page_count <= 0:
+        return -1
+    if world_id < 0:
+        return -2
+
+    // In a real kernel:
+    // 1. Call phys_alloc_order(log2(page_count)) to get physical pages
+    // 2. Identity-map the pages via virt_map
+    // 3. Create a MemoryRegion descriptor
+    // 4. Register the region in the global region table
+    // 5. Assign to the world's region list
+
+    let phys_addr: Int = 0  // stub: call phys_alloc(appropriate_order)
+    if phys_addr == 0:
+        return -3  // Physical allocation failed
+
+    let result = isolation_register_region(MemoryIsolationWorld, 1)
+    if result < 0:
+        return -4
+
+    // Return a synthetic region ID
+    return MemoryIsolationWorld.active_regions
+
+/// Release a memory region back to the physical allocator.
+/// The region's state transitions to DECAYED.
+/// Returns 0 on success, -1 on error.
+pub fn world_memory_free(world_id: Int, ptr: Int, page_count: Int) -> Int with Unsafe:
+    if page_count <= 0:
+        return -1
+
+    // In a real kernel:
+    // 1. Look up the region by ptr in the global region table
+    // 2. Verify the region is owned by world_id
+    // 3. Transition region state: COLLAPSED/OBSERVED → DECAYED
+    // 4. Unmap virtual pages via virt_unmap
+    // 5. Free physical pages via phys_free
+    // 6. Remove from world's region list
+
+    let result = isolation_release_region(MemoryIsolationWorld, 1)
+    if result < 0:
+        return -2
+
+    let _ptr_val = ptr
+    let _pages = page_count
+    let _world = world_id
+
+    return 0
+
+/// Check whether an actor in `accessor_world` can access memory at `ptr`.
+/// `write` = true for write access, false for read access.
+/// `is_entangled` = true if the two worlds are entangled.
+/// Returns true if access is legal, false if it violates isolation.
+pub fn world_memory_check_access(
+    accessor_world: Int,
+    owner_world:    Int,
+    ptr:            Int,
+    write:          Bool,
+    is_entangled:   Bool
+) -> Bool:
+    if ptr == 0:
+        return false
+
+    // Stub: in a real kernel, look up the region in the global table
+    // and check the region's current lattice state
+    let region_state = REGION_STATE_COLLAPSED  // stub
+
+    if write:
+        let is_auth = accessor_world == 0  // World 0 = kernel, always authority
+        let ok = law_status(cross_world_write_legal(
+            accessor_world, owner_world, region_state, is_auth
+        ))
+        return ok >= 0
+    else:
+        let ok = law_status(cross_world_read_legal(
+            accessor_world, owner_world, region_state, is_entangled
+        ))
+        return ok >= 0
+
+/// Create a new world descriptor and allocate its initial region pool.
+/// Returns the new world's ID, or -1 on failure.
+pub fn world_memory_create_world(world_name: String, initial_pages: Int) -> Int with Unsafe:
+    if initial_pages < 1:
+        return -1
+
+    // Allocate a world ID
+    let world_id = MemoryIsolationWorld.total_regions + 100  // stub
+
+    // Allocate initial region pool for the new world
+    let region_id = world_memory_alloc(world_id, initial_pages)
+    if region_id < 0:
+        return -2
+
+    return world_id
+
+/// Destroy a world and reclaim all its memory regions.
+/// All regions owned by the world are freed and their state transitions to DECAYED.
+/// Returns the number of regions reclaimed.
+pub fn world_memory_destroy_world(world_id: Int) -> Int with Unsafe:
+    if world_id < 0:
+        return -1
+
+    // In a real kernel:
+    // 1. Iterate the world's region list
+    // 2. For each region: collapse (exclusive access lock)
+    // 3. Unmap all pages, free physical pages
+    // 4. Transition region to DECAYED
+    // 5. Remove world descriptor
+
+    let reclaimed = 0  // stub: count of freed regions
+    return reclaimed
+
+/// Query the number of regions owned by a world.
+pub fn world_memory_region_count(world_id: Int) -> Int:
+    let _world = world_id
+    return 0  // stub
+
+/// Query the total pages owned by a world.
+pub fn world_memory_total_pages(world_id: Int) -> Int:
+    let _world = world_id
+    return 0  // stub
+
+/// Get the isolation violation count.
+pub fn world_memory_violation_count() -> Int:
+    return MemoryIsolationWorld.violation_count
+
+/// Reset violation counters (for testing).
+pub fn world_memory_reset_violations() -> Int:
+    MemoryIsolationWorld.violation_count = 0
+    MemoryIsolationWorld.last_violation_world = 0
+    MemoryIsolationWorld.last_violation_addr = 0
+    return 0
+
+// ============================================================================
+//  OWNERSHIP LATTICE OPERATIONS — collapse/observe/decay on Regions
+// ============================================================================
+
+/// Enter exclusive write scope on a region owned by the current world.
+/// Transitions the region: IDLE → COLLAPSED (or OBSERVED → COLLAPSED).
+/// Returns 0 on success, negative on violation.
+pub fn world_memory_collapse_region(
+    world_id: Int,
+    region_ptr: ptr<Byte>,
+    region_size: Int
+) -> Int with Unsafe:
+    // In a real kernel:
+    // 1. Look up the region in the global table
+    // 2. Verify world_id is the owner
+    // 3. Transition state: IDLE → COLLAPSED
+    // 4. If already OBSERVED, wait for observers to drain
+
+    collapse region_ptr:
+        // Exclusive write access to this region
+        // Verify the header magic/state
+        let _size = region_size
+        0  // collapse body result
+
+    return 0
+
+/// Enter read-only borrow scope on a region.
+/// Transitions: IDLE → OBSERVED(N). Supports nested observers.
+pub fn world_memory_observe_region(
+    world_id: Int,
+    region_ptr: ptr<Byte>,
+    region_size: Int
+) -> Int with Unsafe:
+    let result: Int = observe region_ptr:
+        // Read-only access to this region
+        let _size = region_size
+        0
+    return result
+
+/// Release ownership of a region (terminal transition to DECAYED).
+/// After decay, any access to the region raises a LAW violation.
+pub fn world_memory_decay_region(
+    world_id: Int,
+    region_ptr: ptr<Byte>
+) -> Int with Unsafe:
+    // In a real kernel:
+    // 1. Verify world_id owns the region
+    // 2. Transition state: IDLE → DECAYED
+    // 3. Free underlying physical pages
+
+    decay region_ptr
+    return 0
+
+// ============================================================================
+//  INITIALISATION
+// ============================================================================
+
+/// Initialize the world memory isolation subsystem.
+pub fn world_memory_init() -> Int with Unsafe:
+    MemoryIsolationWorld.total_regions = 0
+    MemoryIsolationWorld.active_regions = 0
+    MemoryIsolationWorld.decayed_regions = 0
+    MemoryIsolationWorld.isolation_epoch = 0
+    MemoryIsolationWorld.violation_count = 0
+    MemoryIsolationWorld.last_violation_world = 0
+    MemoryIsolationWorld.last_violation_addr = 0
+
+    return 0

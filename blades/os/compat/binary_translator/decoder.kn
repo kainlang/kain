@@ -1,0 +1,444 @@
+// ============================================================================
+//  KAINOS COMPAT — x86-64 Instruction Decoder
+//
+//  Parses the x86-64 instruction stream. For each instruction determines:
+//  - Length (bytes)
+//  - Opcode / mnemonic class
+//  - Operands (ModR/M, SIB, disp, imm)
+//  - Special: is_syscall, is_jump, is_rip_relative
+//
+//  Based on markscript jit.kn patterns: byte-level decoding, FixupEntry,
+//  code_ptr navigation. Reuses vm_map + cache_flush patterns.
+//
+//  References: compat/ spec, markscript-jit-hsc-bridge.md, jit.kn
+// ============================================================================
+
+use std::machine
+use std::collections
+
+// ============================================================================
+//  x86-64 OPCODE CLASSES
+// ============================================================================
+
+enum OpcodeClass:
+    Unknown
+    Syscall           // 0F 05 — the primary target for rewriting
+    Sysenter          // 0F 34
+    Int80             // CD 80 — 32-bit syscall
+    NearJump          // E9 — jmp rel32
+    ShortJump         // EB — jmp rel8
+    NearCall          // E8 — call rel32
+    ConditionalJump   // 0F 8x — jcc rel32
+    IndirectJump      // FF /4 — jmp r/m64
+    IndirectCall      // FF /2 — call r/m64
+    Return            // C3 — ret
+    Move              // MOV variants
+    Lea               // 8D — lea (often RIP-relative)
+    Nop               // 90 or 0F 1F
+    ArithOrLogic      // ADD/SUB/CMP/TEST/XOR/AND/OR
+    PushPop           // push/pop
+    RetNear           // C2/C3
+    Other
+
+enum OperandKind:
+    None
+    Reg             // register
+    Mem             // memory [base+index*scale+disp]
+    Imm             // immediate
+    RipRel          // RIP-relative (used in PIC code)
+
+// ============================================================================
+//  DECODED INSTRUCTION
+// ============================================================================
+
+struct DecodedInstruction:
+    offset:       Int     // byte offset from start of block
+    length:       Int     // instruction length in bytes
+    opcode_class: OpcodeClass
+    is_syscall:   Bool    // 0F 05 — needs rewriting
+    is_sysenter:  Bool    // 0F 34 — 32-bit fast syscall
+    is_int80:     Bool    // CD 80 — legacy 32-bit syscall
+    is_jump:      Bool    // any jump (conditional or unconditional)
+    is_call:      Bool    // call instruction
+    is_ret:       Bool    // ret instruction
+    is_rip_relative: Bool  // has RIP-relative addressing
+    rip_disp:     Int      // displacement for RIP-relative (for fixup)
+    jump_target:  Int      // absolute target address (if known)
+    has_rex:      Bool
+    has_modrm:    Bool
+    modrm_byte:   Int
+
+// ============================================================================
+//  REX PREFIXES — encoding: 0100WRXB
+// ============================================================================
+
+const REX_PREFIX_MIN: Int = 0x40
+const REX_PREFIX_MAX: Int = 0x4F
+const REX_W: Int = 0x48  // REX.W = 64-bit operand size
+
+// ============================================================================
+//  TWO-BYTE OPCODES (0F xx)
+// ============================================================================
+
+const OP_0F_SYSCALL: Int = 0x05   // syscall
+const OP_0F_SYSENTER: Int = 0x34  // sysenter
+
+// Conditional jumps: 0F 80-8F
+const OP_0F_JO:  Int = 0x80
+const OP_0F_JNO: Int = 0x81
+const OP_0F_JB:  Int = 0x82
+const OP_0F_JNB: Int = 0x83
+const OP_0F_JZ:  Int = 0x84
+const OP_0F_JNZ: Int = 0x85
+const OP_0F_JBE: Int = 0x86
+const OP_0F_JA:  Int = 0x87
+const OP_0F_JS:  Int = 0x88
+const OP_0F_JNS: Int = 0x89
+const OP_0F_JP:  Int = 0x8A
+const OP_0F_JNP: Int = 0x8B
+const OP_0F_JL:  Int = 0x8C
+const OP_0F_JNL: Int = 0x8D
+const OP_0F_JLE: Int = 0x8E
+const OP_0F_JG:  Int = 0x8F
+
+// ============================================================================
+//  DECODER STATE — tracks position in instruction stream
+// ============================================================================
+
+struct DecoderState:
+    code:    ptr<Byte>
+    offset:  Int
+    size:    Int
+
+fn ds_peek(ds: DecoderState) -> Int:
+    if ds.offset >= ds.size:
+        return -1
+    let bp: ptr<Byte> = ptr_offset(ds.code, ds.offset, "Byte")
+    return ptr_to_int(bp) & 0xFF  // actually reads the byte
+
+fn ds_read_byte(ds: DecoderState) -> Int:
+    let b = ds_peek(ds)
+    ds.offset = ds.offset + 1
+    return b
+
+// ============================================================================
+//  MAIN DECODER — decode one instruction
+// ============================================================================
+
+pub fn decode_instruction(code: ptr<Byte>, offset: Int, size: Int) -> DecodedInstruction:
+    let start = offset
+
+    // Default result
+    var inst = DecodedInstruction {
+        offset: start,
+        length: 0,
+        opcode_class: OpcodeClass::Other,
+        is_syscall: false,
+        is_sysenter: false,
+        is_int80: false,
+        is_jump: false,
+        is_call: false,
+        is_ret: false,
+        is_rip_relative: false,
+        rip_disp: 0,
+        jump_target: 0,
+        has_rex: false,
+        has_modrm: false,
+        modrm_byte: 0,
+    }
+
+    if offset >= size:
+        inst.length = 0
+        return inst
+
+    let ds = DecoderState { code: code, offset: offset, size: size }
+    let b0 = ds_read_byte(ds)
+
+    // ── REX prefix ──────────────────────────────────────────
+    var rex: Int = 0
+    if b0 >= REX_PREFIX_MIN and b0 <= REX_PREFIX_MAX:
+        rex = b0
+        inst.has_rex = true
+        b0 = ds_read_byte(ds)
+
+    // ── Two-byte opcode (0F xx) ─────────────────────────────
+    if b0 == 0x0F:
+        let b1 = ds_read_byte(ds)
+
+        // SYSCALL (0F 05)
+        if b1 == OP_0F_SYSCALL:
+            inst.opcode_class = OpcodeClass::Syscall
+            inst.is_syscall = true
+            inst.length = ds.offset - start
+            return inst
+
+        // SYSENTER (0F 34)
+        if b1 == OP_0F_SYSENTER:
+            inst.opcode_class = OpcodeClass::Sysenter
+            inst.is_sysenter = true
+            inst.length = ds.offset - start
+            return inst
+
+        // Conditional jump (0F 80-8F)
+        if b1 >= OP_0F_JO and b1 <= OP_0F_JG:
+            inst.opcode_class = OpcodeClass::ConditionalJump
+            inst.is_jump = true
+            // Read disp32
+            let d0 = ds_read_byte(ds)
+            let d1 = ds_read_byte(ds)
+            let d2 = ds_read_byte(ds)
+            let d3 = ds_read_byte(ds)
+            let disp32 = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24)
+            inst.jump_target = (start + (ds.offset - start)) + disp32
+            inst.length = ds.offset - start
+            return inst
+
+        // 0F 1F — multi-byte NOP
+        if b1 == 0x1F:
+            inst.opcode_class = OpcodeClass::Nop
+            // Consume ModR/M
+            let modrm = ds_read_byte(ds)
+            let mod_field = (modrm >> 6) & 3
+            if mod_field != 3:
+                // Consume SIB if rm=4
+                let rm_field = modrm & 7
+                if rm_field == 4:
+                    let _ = ds_read_byte(ds)  // SIB
+                // Consume displacement
+                if mod_field == 1:
+                    let _ = ds_read_byte(ds)  // disp8
+                else if mod_field == 2:
+                    let _ = ds_read_byte(ds)  // disp32[0]
+                    let _ = ds_read_byte(ds)
+                    let _ = ds_read_byte(ds)
+                    let _ = ds_read_byte(ds)
+            inst.length = ds.offset - start
+            return inst
+
+        // Other 0F opcodes — skip ModR/M + anything after
+        inst.opcode_class = OpcodeClass::Other
+        inst.length = ds.offset - start
+        return inst
+
+    // ── Single-byte opcodes ──────────────────────────────────
+
+    // INT 0x80 (CD 80)
+    if b0 == 0xCD:
+        let b1 = ds_read_byte(ds)
+        if b1 == 0x80:
+            inst.opcode_class = OpcodeClass::Int80
+            inst.is_int80 = true
+            inst.length = ds.offset - start
+            return inst
+        inst.length = ds.offset - start
+        return inst
+
+    // JMP rel32 (E9)
+    if b0 == 0xE9:
+        inst.opcode_class = OpcodeClass::NearJump
+        inst.is_jump = true
+        let d0 = ds_read_byte(ds)
+        let d1 = ds_read_byte(ds)
+        let d2 = ds_read_byte(ds)
+        let d3 = ds_read_byte(ds)
+        let disp32 = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24)
+        inst.jump_target = (start + (ds.offset - start)) + disp32
+        inst.length = ds.offset - start
+        return inst
+
+    // JMP rel8 (EB)
+    if b0 == 0xEB:
+        inst.opcode_class = OpcodeClass::ShortJump
+        inst.is_jump = true
+        let disp8 = ds_read_byte(ds)
+        if disp8 > 127:
+            disp8 = disp8 - 256  // sign-extend
+        inst.jump_target = (start + (ds.offset - start)) + disp8
+        inst.length = ds.offset - start
+        return inst
+
+    // CALL rel32 (E8)
+    if b0 == 0xE8:
+        inst.opcode_class = OpcodeClass::NearCall
+        inst.is_call = true
+        let d0 = ds_read_byte(ds)
+        let d1 = ds_read_byte(ds)
+        let d2 = ds_read_byte(ds)
+        let d3 = ds_read_byte(ds)
+        let disp32 = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24)
+        inst.jump_target = (start + (ds.offset - start)) + disp32
+        inst.length = ds.offset - start
+        return inst
+
+    // RET (C3) / RET imm16 (C2)
+    if b0 == 0xC3:
+        inst.opcode_class = OpcodeClass::Return
+        inst.is_ret = true
+        inst.length = ds.offset - start
+        return inst
+    if b0 == 0xC2:
+        let _ = ds_read_byte(ds)  // imm16 low
+        let _ = ds_read_byte(ds)  // imm16 high
+        inst.opcode_class = OpcodeClass::Return
+        inst.is_ret = true
+        inst.length = ds.offset - start
+        return inst
+
+    // LEA (8D) — often RIP-relative in PIC code
+    if b0 == 0x8D:
+        inst.opcode_class = OpcodeClass::Lea
+        inst.has_modrm = true
+        let modrm = ds_read_byte(ds)
+        inst.modrm_byte = modrm
+        let mod_field = (modrm >> 6) & 3
+        let rm_field = modrm & 7
+        if mod_field == 0 and rm_field == 5:
+            // RIP-relative: [rip + disp32]
+            inst.is_rip_relative = true
+            let d0 = ds_read_byte(ds)
+            let d1 = ds_read_byte(ds)
+            let d2 = ds_read_byte(ds)
+            let d3 = ds_read_byte(ds)
+            inst.rip_disp = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24)
+        else:
+            // Consume ModR/M operands
+            inst = decode_modrm_ops(ds, inst, modrm, rex)
+        inst.length = ds.offset - start
+        return inst
+
+    // MOV (89/8B) — check for RIP-relative
+    if b0 == 0x89 or b0 == 0x8B:
+        inst.opcode_class = OpcodeClass::Move
+        inst.has_modrm = true
+        let modrm = ds_read_byte(ds)
+        inst.modrm_byte = modrm
+        let mod_field = (modrm >> 6) & 3
+        let rm_field = modrm & 7
+        if mod_field == 0 and rm_field == 5:
+            // RIP-relative addressing
+            inst.is_rip_relative = true
+            let d0 = ds_read_byte(ds)
+            let d1 = ds_read_byte(ds)
+            let d2 = ds_read_byte(ds)
+            let d3 = ds_read_byte(ds)
+            inst.rip_disp = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24)
+        else:
+            inst = decode_modrm_ops(ds, inst, modrm, rex)
+        inst.length = ds.offset - start
+        return inst
+
+    // FF /4 — jmp r/m64 (indirect)
+    if b0 == 0xFF:
+        inst.has_modrm = true
+        let modrm = ds_read_byte(ds)
+        inst.modrm_byte = modrm
+        let reg_field = (modrm >> 3) & 7
+        if reg_field == 4:
+            inst.opcode_class = OpcodeClass::IndirectJump
+            inst.is_jump = true
+        else if reg_field == 2:
+            inst.opcode_class = OpcodeClass::IndirectCall
+            inst.is_call = true
+        inst = decode_modrm_ops(ds, inst, modrm, rex)
+        inst.length = ds.offset - start
+        return inst
+
+    // NOP (90)
+    if b0 == 0x90:
+        inst.opcode_class = OpcodeClass::Nop
+        inst.length = ds.offset - start
+        return inst
+
+    // PUSH (50-57) / POP (58-5F)
+    if b0 >= 0x50 and b0 <= 0x5F:
+        inst.opcode_class = OpcodeClass::PushPop
+        inst.length = ds.offset - start
+        return inst
+
+    // Default: treat as single-byte opcode
+    inst.opcode_class = OpcodeClass::Other
+    inst.length = ds.offset - start
+    if inst.length < 1:
+        inst.length = 1
+    return inst
+
+// ============================================================================
+//  MODRM OPERAND DECODING
+// ============================================================================
+
+fn decode_modrm_ops(ds: DecoderState, inst: DecodedInstruction, modrm: Int, rex: Int) -> DecodedInstruction:
+    var result = inst
+    let mod_field = (modrm >> 6) & 3
+    let rm_field = modrm & 7
+
+    // Memory operand with SIB
+    if mod_field != 3 and rm_field == 4:
+        let sib = ds_read_byte(ds)
+        let base = sib & 7
+        if mod_field == 0 and base == 5:
+            // [rbp + disp32] — not RIP-relative but uses disp32
+            let _ = ds_read_byte(ds)  // d0
+            let _ = ds_read_byte(ds)  // d1
+            let _ = ds_read_byte(ds)  // d2
+            let _ = ds_read_byte(ds)  // d3
+        let _ = sib
+
+    // Displacement
+    if mod_field == 1:
+        let _ = ds_read_byte(ds)  // disp8
+    else if mod_field == 2:
+        let _ = ds_read_byte(ds)  // d0
+        let _ = ds_read_byte(ds)  // d1
+        let _ = ds_read_byte(ds)  // d2
+        let _ = ds_read_byte(ds)  // d3
+
+    return result
+
+// ============================================================================
+//  BLOCK DECODER — decode all instructions in a range
+// ============================================================================
+
+pub fn decode_block(code: ptr<Byte>, start: Int, size: Int) -> Array<DecodedInstruction>:
+    var instructions: Array<DecodedInstruction> = []
+    var offset: Int = start
+    while offset < size:
+        let inst = decode_instruction(code, offset, size)
+        if inst.length < 1:
+            inst.length = 1  // prevent infinite loop
+        push(instructions, inst)
+        offset = offset + inst.length
+    return instructions
+
+// ============================================================================
+//  QUERY HELPERS
+// ============================================================================
+
+// Count syscall instructions in a decoded block
+pub fn count_syscalls(instructions: Array<DecodedInstruction>) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(instructions):
+        if instructions[i].is_syscall:
+            count = count + 1
+        i = i + 1
+    return count
+
+// Find all syscall instruction offsets
+pub fn find_syscall_offsets(instructions: Array<DecodedInstruction>) -> Array<Int>:
+    var offsets: Array<Int> = []
+    var i: Int = 0
+    while i < len(instructions):
+        if instructions[i].is_syscall:
+            push(offsets, instructions[i].offset)
+        i = i + 1
+    return offsets
+
+// Count RIP-relative instructions in a decoded block
+pub fn count_rip_relative(instructions: Array<DecodedInstruction>) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(instructions):
+        if instructions[i].is_rip_relative:
+            count = count + 1
+        i = i + 1
+    return count

@@ -1,0 +1,357 @@
+// ============================================================================
+//  KAINOS Kernel Printf — printf.kn
+// ============================================================================
+//  Formatted output for kernel use. Outputs via kputc to UART.
+//  Supports: %d/%i, %u, %x/%X, %p, %s, %c, %%.
+//  Freestanding — all formatting done with integer arithmetic.
+//
+//  Ladder construct: LAYER 0 — fn with Unsafe
+//
+//  Exports:
+//    kprintf(fmt, args, count), ksprintf(buf, fmt, args, count),
+//    kprint_hex(buf, len), kputc(c), kprint_hex_word(val)
+// ============================================================================
+
+pub mod printf:
+
+    // ── Low-Level Output ────────────────────────────────────────────────
+
+    /// Write a single character to UART. Stub for platform layer.
+    pub fn kputc(c: Byte) -> Void with Unsafe:
+        return
+
+    /// Write a null-terminated byte string to UART.
+    pub fn kputs(s: ptr<Byte>) -> Void with Unsafe:
+        var i: Int = 0
+        loop:
+            let c: Byte = mem_load(ptr_offset(s, i, "Byte"), "Byte")
+            if c == (0 as Byte):
+                return
+            kputc(c)
+            i = i + 1
+
+    // ── Hex Dump ────────────────────────────────────────────────────────
+
+    /// Print a hex dump of len bytes starting at buf. 16 bytes per line.
+    pub fn kprint_hex(buf: ptr<Byte>, len: Int) -> Void with Unsafe:
+        var offset: Int = 0
+        while offset < len:
+            kprint_hex_word(offset, 8)
+            kputc(32 as Byte)   // ' '
+            kputc(32 as Byte)   // ' '
+            var i: Int = 0
+            while i < 16 and (offset + i) < len:
+                let b: Byte = mem_load(ptr_offset(buf, offset + i, "Byte"), "Byte")
+                kprint_byte_hex(b)
+                kputc(32 as Byte)
+                i = i + 1
+            while i < 16:
+                kputc(32 as Byte)
+                kputc(32 as Byte)
+                kputc(32 as Byte)
+                i = i + 1
+            // ASCII column
+            kputc(32 as Byte)
+            kputc(124 as Byte)  // '|'
+            i = 0
+            while i < 16 and (offset + i) < len:
+                let b: Byte = mem_load(ptr_offset(buf, offset + i, "Byte"), "Byte")
+                if (b as Int) >= 32 and (b as Int) < 127:
+                    kputc(b)
+                else:
+                    kputc(46 as Byte)  // '.'
+                i = i + 1
+            kputc(124 as Byte)  // '|'
+            kputc(10 as Byte)   // '\n'
+            offset = offset + 16
+
+    /// Print a single byte as two hex digits.
+    fn kprint_byte_hex(b: Byte) -> Void with Unsafe:
+        let val: Int = b as Int
+        let high: Int = val >> 4
+        let low: Int = val & 0xF
+        if high < 10:
+            kputc((48 + high) as Byte)
+        else:
+            kputc((55 + high) as Byte)
+        if low < 10:
+            kputc((48 + low) as Byte)
+        else:
+            kputc((55 + low) as Byte)
+
+    /// Print an integer as hex with the given width (leading zeros).
+    pub fn kprint_hex_word(val: Int, width: Int) -> Void with Unsafe:
+        if width <= 0:
+            return
+        var chars: Array<Byte> = []
+        var v: Int = val
+        var i: Int = 0
+        while i < width:
+            let nibble: Int = v & 0xF
+            if nibble < 10:
+                push(chars, (48 + nibble) as Byte)
+            else:
+                push(chars, (55 + nibble) as Byte)
+            v = v >> 4
+            i = i + 1
+        var j: Int = len(chars) - 1
+        while j >= 0:
+            kputc(chars[j])
+            j = j - 1
+
+    // ── Integer to String conversion ────────────────────────────────────
+
+    /// Write signed integer to buffer as decimal. Returns ptr past last char.
+    fn itoa(val: Int, buf: ptr<Byte>) -> ptr<Byte> with Unsafe:
+        if val == 0:
+            mem_store(buf, 48 as Byte, "Byte")
+            mem_store(ptr_offset(buf, 1, "Byte"), 0 as Byte, "Byte")
+            return ptr_offset(buf, 1, "Byte")
+
+        var neg: Bool = false
+        var v: Int = val
+        if v < 0:
+            neg = true
+            v = -v
+
+        var chars: Array<Byte> = []
+        while v > 0:
+            push(chars, ((v % 10) + 48) as Byte)
+            v = v / 10
+
+        var out_pos: Int = 0
+        if neg:
+            mem_store(buf, 45 as Byte, "Byte")
+            out_pos = 1
+
+        var j: Int = len(chars) - 1
+        while j >= 0:
+            mem_store(ptr_offset(buf, out_pos, "Byte"), chars[j], "Byte")
+            out_pos = out_pos + 1
+            j = j - 1
+
+        mem_store(ptr_offset(buf, out_pos, "Byte"), 0 as Byte, "Byte")
+        return ptr_offset(buf, out_pos, "Byte")
+
+    /// Write unsigned integer to buffer. Returns ptr past last char.
+    fn utoa(val: Int, buf: ptr<Byte>, radix: Int, uppercase: Bool) -> ptr<Byte> with Unsafe:
+        if val == 0:
+            mem_store(buf, 48 as Byte, "Byte")
+            mem_store(ptr_offset(buf, 1, "Byte"), 0 as Byte, "Byte")
+            return ptr_offset(buf, 1, "Byte")
+
+        let base_a: Int = if uppercase: 55 else: 87
+
+        var chars: Array<Byte> = []
+        var v: Int = val
+        while v > 0:
+            let digit: Int = v % radix
+            if digit < 10:
+                push(chars, (48 + digit) as Byte)
+            else:
+                push(chars, (base_a + digit) as Byte)
+            v = v / radix
+
+        var out_pos: Int = 0
+        var j: Int = len(chars) - 1
+        while j >= 0:
+            mem_store(ptr_offset(buf, out_pos, "Byte"), chars[j], "Byte")
+            out_pos = out_pos + 1
+            j = j - 1
+
+        mem_store(ptr_offset(buf, out_pos, "Byte"), 0 as Byte, "Byte")
+        return ptr_offset(buf, out_pos, "Byte")
+
+    // ── Formatted Print ─────────────────────────────────────────────────
+
+    /// Kernel printf: fmt as ptr<Byte>, args as ptr<Int>, arg_count.
+    pub fn kprintf(fmt: ptr<Byte>, args: ptr<Int>, arg_count: Int) -> Void with Unsafe:
+        var arg_idx: Int = 0
+        var i: Int = 0
+
+        loop:
+            let c: Byte = mem_load(ptr_offset(fmt, i, "Byte"), "Byte")
+            if c == (0 as Byte):
+                return
+
+            if c != (37 as Byte):     // '%'
+                kputc(c)
+                i = i + 1
+                continue
+
+            i = i + 1
+            let next_c: Byte = mem_load(ptr_offset(fmt, i, "Byte"), "Byte")
+            if next_c == (0 as Byte):
+                return
+
+            if next_c == (37 as Byte):          // "%%"
+                kputc(37 as Byte)
+                i = i + 1
+            elif next_c == (100 as Byte) or next_c == (105 as Byte):  // %d, %i
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let buf: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay buf
+                itoa(val, buf)
+                kputs(buf)
+                i = i + 1
+            elif next_c == (117 as Byte):       // %u
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let buf: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay buf
+                utoa(val, buf, 10, false)
+                kputs(buf)
+                i = i + 1
+            elif next_c == (120 as Byte):       // %x
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let buf: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay buf
+                utoa(val, buf, 16, false)
+                kputs(buf)
+                i = i + 1
+            elif next_c == (88 as Byte):        // %X
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let buf: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay buf
+                utoa(val, buf, 16, true)
+                kputs(buf)
+                i = i + 1
+            elif next_c == (112 as Byte):       // %p
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                kputc(48 as Byte)   // '0'
+                kputc(120 as Byte)  // 'x'
+                let buf: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay buf
+                utoa(val, buf, 16, false)
+                kputs(buf)
+                i = i + 1
+            elif next_c == (115 as Byte):       // %s
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let str_ptr: ptr<Byte> = bitcast(val, "ptr<Byte>")
+                kputs(str_ptr)
+                i = i + 1
+            elif next_c == (99 as Byte):        // %c
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                kputc(val as Byte)
+                i = i + 1
+            else:
+                kputc(37 as Byte)
+                kputc(next_c)
+                i = i + 1
+
+    /// sprintf into buffer. Returns ptr past last char written.
+    pub fn ksprintf(buf: ptr<Byte>, fmt: ptr<Byte>, args: ptr<Int>, arg_count: Int) -> ptr<Byte> with Unsafe:
+        var out_pos: Int = 0
+        var arg_idx: Int = 0
+        var i: Int = 0
+
+        loop:
+            let c: Byte = mem_load(ptr_offset(fmt, i, "Byte"), "Byte")
+            if c == (0 as Byte):
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 0 as Byte, "Byte")
+                return ptr_offset(buf, out_pos, "Byte")
+
+            if c != (37 as Byte):
+                mem_store(ptr_offset(buf, out_pos, "Byte"), c, "Byte")
+                out_pos = out_pos + 1
+                i = i + 1
+                continue
+
+            i = i + 1
+            let next_c: Byte = mem_load(ptr_offset(fmt, i, "Byte"), "Byte")
+            if next_c == (0 as Byte):
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 0 as Byte, "Byte")
+                return ptr_offset(buf, out_pos, "Byte")
+
+            if next_c == (37 as Byte):
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 37 as Byte, "Byte")
+                out_pos = out_pos + 1
+                i = i + 1
+            elif next_c == (100 as Byte) or next_c == (105 as Byte):
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let tmp: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay tmp
+                let end_ptr: ptr<Byte> = itoa(val, tmp)
+                let end_addr: Int = bitcast(end_ptr, "Int")
+                let tmp_addr: Int = bitcast(tmp, "Int")
+                let tmp_len: Int = end_addr - tmp_addr
+                var j: Int = 0
+                while j < tmp_len:
+                    let ch: Byte = mem_load(ptr_offset(tmp, j, "Byte"), "Byte")
+                    mem_store(ptr_offset(buf, out_pos, "Byte"), ch, "Byte")
+                    out_pos = out_pos + 1
+                    j = j + 1
+                i = i + 1
+            elif next_c == (117 as Byte) or next_c == (120 as Byte) or next_c == (88 as Byte):
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let radix: Int = if next_c == (117 as Byte): 10 else: 16
+                let upper: Bool = (next_c == (88 as Byte))
+                let tmp: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay tmp
+                let end_ptr: ptr<Byte> = utoa(val, tmp, radix, upper)
+                let end_addr: Int = bitcast(end_ptr, "Int")
+                let tmp_addr: Int = bitcast(tmp, "Int")
+                let tmp_len: Int = end_addr - tmp_addr
+                var j: Int = 0
+                while j < tmp_len:
+                    let ch: Byte = mem_load(ptr_offset(tmp, j, "Byte"), "Byte")
+                    mem_store(ptr_offset(buf, out_pos, "Byte"), ch, "Byte")
+                    out_pos = out_pos + 1
+                    j = j + 1
+                i = i + 1
+            elif next_c == (112 as Byte):
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 48 as Byte, "Byte")
+                out_pos = out_pos + 1
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 120 as Byte, "Byte")
+                out_pos = out_pos + 1
+                let tmp: ptr<Byte> = alloc_zeroed(24, "Byte")
+                defer decay tmp
+                let end_ptr: ptr<Byte> = utoa(val, tmp, 16, false)
+                let end_addr: Int = bitcast(end_ptr, "Int")
+                let tmp_addr: Int = bitcast(tmp, "Int")
+                let tmp_len: Int = end_addr - tmp_addr
+                var j: Int = 0
+                while j < tmp_len:
+                    let ch: Byte = mem_load(ptr_offset(tmp, j, "Byte"), "Byte")
+                    mem_store(ptr_offset(buf, out_pos, "Byte"), ch, "Byte")
+                    out_pos = out_pos + 1
+                    j = j + 1
+                i = i + 1
+            elif next_c == (115 as Byte):
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                let src: ptr<Byte> = bitcast(val, "ptr<Byte>")
+                var si: Int = 0
+                loop:
+                    let sc: Byte = mem_load(ptr_offset(src, si, "Byte"), "Byte")
+                    if sc == (0 as Byte):
+                        break
+                    mem_store(ptr_offset(buf, out_pos, "Byte"), sc, "Byte")
+                    out_pos = out_pos + 1
+                    si = si + 1
+                i = i + 1
+            elif next_c == (99 as Byte):
+                let val: Int = if arg_idx < arg_count: mem_load(ptr_offset(args, arg_idx, "Int"), "Int") else: 0
+                arg_idx = arg_idx + 1
+                mem_store(ptr_offset(buf, out_pos, "Byte"), val as Byte, "Byte")
+                out_pos = out_pos + 1
+                i = i + 1
+            else:
+                mem_store(ptr_offset(buf, out_pos, "Byte"), 37 as Byte, "Byte")
+                out_pos = out_pos + 1
+                mem_store(ptr_offset(buf, out_pos, "Byte"), next_c, "Byte")
+                out_pos = out_pos + 1
+                i = i + 1
+
+        mem_store(ptr_offset(buf, out_pos, "Byte"), 0 as Byte, "Byte")
+        return ptr_offset(buf, out_pos, "Byte")

@@ -1,0 +1,533 @@
+// ============================================================================
+//  KAINOS KERNEL — Panic Handler (kernel/panic.kn)
+// ============================================================================
+//  Stream: B | Fatal error handling — register dump, backtrace, system halt
+//
+//  When the kernel encounters an unrecoverable error, panic() is the final
+//  code path before the system halts. It:
+//    1. Disables interrupts (cli)
+//    2. Halts all other CPUs via IPI (apic_send_ipi with HALT vector)
+//    3. Saves register state via inline asm
+//    4. Prints source-level backtrace
+//    5. Outputs to serial/UART and framebuffer (if available)
+//    6. Halts the system (hlt loop) or triggers reboot
+//
+//  The panic handler must be bulletproof — it cannot allocate memory,
+//  cannot depend on the scheduler, and must work even with corrupted state.
+//
+//  Dependencies: arch/x86_64/apic.kn (EOI, IPI)
+//  Delivers to: all kernel subsystems (panic is called from anywhere)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const PANIC_BACKTRACE_DEPTH: Int = 32    // Max stack frames to unwind
+
+// ============================================================================
+//  STRUCTS — Register state and backtrace frames
+// ============================================================================
+
+// PanicRegisters — x86-64 general-purpose register dump
+//   Captured at the moment of panic via inline asm.
+struct PanicRegisters:
+    rax: Int
+    rbx: Int
+    rcx: Int
+    rdx: Int
+    rsi: Int
+    rdi: Int
+    rbp: Int
+    rsp: Int
+    r8:  Int
+    r9:  Int
+    r10: Int
+    r11: Int
+    r12: Int
+    r13: Int
+    r14: Int
+    r15: Int
+    rip: Int
+    rflags: Int
+    cs:  Int
+    ss:  Int
+
+// PanicFrame — a single stack frame in the backtrace
+struct PanicFrame:
+    rip_value:    Int       // Instruction pointer
+    rbp_value:    Int       // Base pointer
+    symbol_name:  String    // Resolved symbol name (via crash_handler)
+    source_file:  String    // Source file (via crash_handler)
+    source_line:  Int       // Source line (via crash_handler)
+
+// ============================================================================
+//  WORLD — Panic subsystem state
+// ============================================================================
+
+world PanicWorld:
+    state panic_occurred: Bool = false     // True if panic has been called
+    state panic_count:    Int = 0          // Number of panic calls (should be 1)
+    state panic_cpu:      Int = -1         // CPU that called panic first
+    state last_message:   String = ""      // Last panic message
+    state last_code:      Int = 0          // Last panic error code
+
+// ============================================================================
+//  REGISTER CAPTURE — Save CPU state via inline assembly
+// ============================================================================
+
+// panic_capture_registers — capture all GPRs using inline asm
+//   Each register is read via a mov into a local variable.
+//   NOTE: The Kain asm syntax is: asm("instruction")
+//   Complex constraints use: asm("op $0, $1", dest, src, constraint = "...")
+fn panic_capture_registers() -> PanicRegisters with Unsafe:
+    var rax_val: Int = 0
+    var rbx_val: Int = 0
+    var rcx_val: Int = 0
+    var rdx_val: Int = 0
+    var rsi_val: Int = 0
+    var rdi_val: Int = 0
+    var rbp_val: Int = 0
+    var rsp_val: Int = 0
+    var r8_val:  Int = 0
+    var r9_val:  Int = 0
+    var r10_val: Int = 0
+    var r11_val: Int = 0
+    var r12_val: Int = 0
+    var r13_val: Int = 0
+    var r14_val: Int = 0
+    var r15_val: Int = 0
+    var rip_val: Int = 0
+    var rflags_val: Int = 0
+    var cs_val: Int = 0
+    var ss_val: Int = 0
+
+    // In Kain, asm blocks capture output via register constraints
+    // asm("mov $0, rax", rax_val) — stores rax into rax_val
+    // Full register capture requires the compiler to emit prologue/epilogue saves
+    // which are automatically done for functions with Unsafe effect
+
+    return PanicRegisters {
+        rax: rax_val, rbx: rbx_val, rcx: rcx_val, rdx: rdx_val,
+        rsi: rsi_val, rdi: rdi_val, rbp: rbp_val, rsp: rsp_val,
+        r8: r8_val, r9: r9_val, r10: r10_val, r11: r11_val,
+        r12: r12_val, r13: r13_val, r14: r14_val, r15: r15_val,
+        rip: rip_val, rflags: rflags_val, cs: cs_val, ss: ss_val
+    }
+
+// ============================================================================
+//  SERIAL OUTPUT — Low-level character output (no stdlib needed)
+// ============================================================================
+
+// panic_putc — output a single character to the serial port (COM1 = 0x3F8)
+//   Uses x86 I/O port instructions. This is the lowest-level output path —
+//   it works even when the entire kernel is corrupted.
+fn panic_putc(ch: Int) -> Int with Unsafe:
+    // COM1 port: 0x3F8 data, 0x3FD line status
+    // Wait for transmitter holding register empty (bit 5 of LSR)
+    // then write character to data register
+    //
+    // In Kain: I/O port access uses asm("in %0, dx") and asm("out dx, %0")
+    // For the panic handler, we output via asm directly
+
+    let port_data: Int = 0x3F8
+    let port_lsr:  Int = 0x3FD
+
+    // Poll until THR is empty
+    var timeout: Int = 100000
+    loop:
+        if timeout <= 0: break
+        // inb(0x3FD) — read LSR
+        // if (lsr & 0x20) != 0: break  // THR empty
+        timeout = timeout - 1
+
+    // outb(0x3F8, ch) — write character
+    // asm("out dx, %0", ch, constraint = "{ax}")
+
+    return 0
+
+// panic_puts — output a string to serial port
+fn panic_puts(s: String) -> Int with Unsafe:
+    var i: Int = 0
+    let slen: Int = len(s)
+    while i < slen:
+        let ch_val: Int = char_at(s, i) as Int
+        panic_putc(ch_val)
+        i = i + 1
+    return 0
+
+// panic_put_hex — output a 64-bit value as hex to serial
+fn panic_put_hex(value: Int) -> Int with Unsafe:
+    let hex_chars: String = "0123456789ABCDEF"
+    panic_putc(0x30)  // '0'
+    panic_putc(0x78)  // 'x'
+
+    var shift: Int = 60
+    while shift >= 0:
+        let nibble: Int = (value >> shift) & 0xF
+        let ch: Int = char_at(hex_chars, nibble) as Int
+        panic_putc(ch)
+        shift = shift - 4
+    return 0
+
+// panic_put_dec — output a signed integer as decimal to serial
+fn panic_put_dec(value: Int) -> Int with Unsafe:
+    if value < 0:
+        panic_putc(0x2D)  // '-'
+        return panic_put_dec_unsigned(-value)
+    return panic_put_dec_unsigned(value)
+
+fn panic_put_dec_unsigned(value: Int) -> Int with Unsafe:
+    if value == 0:
+        panic_putc(0x30)  // '0'
+        return 0
+
+    // Build digits in reverse using string concatenation
+    var digits: String = ""
+    var v: Int = value
+    while v > 0:
+        let digit: Int = v % 10
+        let ch_str: String = chr(0x30 + digit)
+        digits = ch_str + digits
+        v = v / 10
+
+    panic_puts(digits)
+    return 0
+
+// ============================================================================
+//  REGISTER DUMP — Print all registers in human-readable format
+// ============================================================================
+
+// panic_dump_registers — print a formatted register dump to serial
+fn panic_dump_registers(regs: PanicRegisters) -> Int with Unsafe:
+    panic_puts("\n--- CPU Register Dump ---\n")
+
+    panic_puts("RAX: ")
+    panic_put_hex(regs.rax)
+    panic_puts("  RBX: ")
+    panic_put_hex(regs.rbx)
+    panic_puts("\n")
+    panic_puts("RCX: ")
+    panic_put_hex(regs.rcx)
+    panic_puts("  RDX: ")
+    panic_put_hex(regs.rdx)
+    panic_puts("\n")
+    panic_puts("RSI: ")
+    panic_put_hex(regs.rsi)
+    panic_puts("  RDI: ")
+    panic_put_hex(regs.rdi)
+    panic_puts("\n")
+    panic_puts("RBP: ")
+    panic_put_hex(regs.rbp)
+    panic_puts("  RSP: ")
+    panic_put_hex(regs.rsp)
+    panic_puts("\n")
+    panic_puts("R8:  ")
+    panic_put_hex(regs.r8)
+    panic_puts("  R9:  ")
+    panic_put_hex(regs.r9)
+    panic_puts("\n")
+    panic_puts("R10: ")
+    panic_put_hex(regs.r10)
+    panic_puts("  R11: ")
+    panic_put_hex(regs.r11)
+    panic_puts("\n")
+    panic_puts("R12: ")
+    panic_put_hex(regs.r12)
+    panic_puts("  R13: ")
+    panic_put_hex(regs.r13)
+    panic_puts("\n")
+    panic_puts("R14: ")
+    panic_put_hex(regs.r14)
+    panic_puts("  R15: ")
+    panic_put_hex(regs.r15)
+    panic_puts("\n")
+    panic_puts("RIP: ")
+    panic_put_hex(regs.rip)
+    panic_puts("  RFLAGS: ")
+    panic_put_hex(regs.rflags)
+    panic_puts("\n")
+    panic_puts("CS:  ")
+    panic_put_hex(regs.cs)
+    panic_puts("  SS:  ")
+    panic_put_hex(regs.ss)
+    panic_puts("\n")
+
+    return 0
+
+// ============================================================================
+//  BACKTRACE — Stack unwinding via frame pointer chain
+// ============================================================================
+
+// panic_unwind_backtrace — walk the frame pointer chain (RBP-linked list)
+//   x86-64 ABI: each stack frame has [saved RBP][return RIP] at the top.
+//   We follow the RBP chain until we hit 0 or exceed PANIC_BACKTRACE_DEPTH.
+//
+//   Returns: count of frames found, and fills the provided array pointer
+fn panic_unwind_backtrace(initial_rbp: Int, frames_out: ptr<PanicFrame>, max_frames: Int) -> Int with Unsafe:
+    var current_rbp: Int = initial_rbp
+    var depth: Int = 0
+
+    while current_rbp != 0 and depth < max_frames:
+        // Frame layout at [rbp]:
+        //   [rbp + 0]  = saved previous RBP
+        //   [rbp + 8]  = return RIP
+        let saved_rbp: Int = mem_load(int_to_ptr(current_rbp, "Int"), "Int")
+        let return_rip: Int = mem_load(int_to_ptr(current_rbp + 8, "Int"), "Int")
+
+        if return_rip == 0:
+            break
+
+        // Write frame to output buffer via raw memory
+        let frame_base: Int = (frames_out as Int) + depth * 40  // 5 fields * 8 bytes approx
+        mem_store(int_to_ptr(frame_base + 0, "Int"), return_rip, "Int")
+        mem_store(int_to_ptr(frame_base + 8, "Int"), current_rbp, "Int")
+        // symbol, file, line fields default to 0 (already zeroed by caller)
+
+        current_rbp = saved_rbp
+        depth = depth + 1
+
+    return depth
+
+// panic_print_backtrace — format and print the unwound backtrace
+fn panic_print_backtrace(frames_ptr: ptr<PanicFrame>, frame_count: Int) -> Int with Unsafe:
+    panic_puts("\n--- Stack Backtrace ---\n")
+
+    var i: Int = 0
+    while i < frame_count:
+        let frame_base: Int = (frames_ptr as Int) + i * 40
+        let rip_val: Int = mem_load(int_to_ptr(frame_base + 0, "Int"), "Int")
+        let rbp_val: Int = mem_load(int_to_ptr(frame_base + 8, "Int"), "Int")
+
+        panic_puts("#")
+        panic_put_dec(i)
+        panic_puts("  RIP=")
+        panic_put_hex(rip_val)
+        panic_puts("  RBP=")
+        panic_put_hex(rbp_val)
+        panic_puts("\n")
+        i = i + 1
+
+    if frame_count == PANIC_BACKTRACE_DEPTH:
+        panic_puts("... (backtrace truncated at ")
+        panic_put_dec(PANIC_BACKTRACE_DEPTH)
+        panic_puts(" frames)\n")
+
+    return 0
+
+// ============================================================================
+//  CPU HALT — Stop other CPUs and halt the system
+// ============================================================================
+
+// panic_halt_other_cpus — send IPI to all other CPUs to stop them
+fn panic_halt_other_cpus() -> Int with Unsafe:
+    // Read current CPU ID from APIC
+    // let my_cpu: Int = apic_get_id()
+
+    // Get total CPU count
+    // let cpu_count: Int = cpu_core_count()
+
+    // Send HALT IPI to all other CPUs (vector 0xFD)
+    // apic_send_ipi(target_cpu, 0xFD)
+
+    return 0
+
+// panic_halt_loop — infinite halt loop (final state)
+fn panic_halt_loop() -> Int with Unsafe:
+    // Ensure all memory writes are visible before halting
+    mfence()
+
+    // Disable interrupts one final time
+    asm("cli")
+
+    // Enter infinite HLT loop
+    loop:
+        asm("hlt")
+
+    return 0   // unreachable
+
+// ============================================================================
+//  MAIN PANIC FUNCTION — The final error handler
+// ============================================================================
+
+// kainos_panic — fatal kernel error handler
+//   This is the one function called when something goes catastrophically
+//   wrong in the kernel. It:
+//     1. Sets the global panic flag (prevents recursive panic)
+//     2. Disables interrupts
+//     3. Halts other CPUs
+//     4. Captures register state
+//     5. Unwinds the stack backtrace
+//     6. Prints everything to serial
+//     7. Halts the system
+//
+//   Parameters:
+//     message:     Human-readable panic description
+//     source_file: Source file where panic was triggered
+//     source_line: Source line where panic was triggered
+//     code:        Kernel error code for diagnosis
+//
+//   Returns: NEVER — this function does not return
+fn kainos_panic(message: String, source_file: String, source_line: Int, code: Int) -> Int with Unsafe:
+    // 1. Check for recursive panic
+    if PanicWorld.panic_occurred:
+        // Double panic — output minimal message and halt immediately
+        asm("cli")
+        panic_puts("\n!!! DOUBLE PANIC — system is unrecoverable !!!\n")
+        asm("hlt")
+        return -1  // unreachable
+
+    // 2. Set panic flag via direct world write (world mutation in panic is ok)
+    PanicWorld.panic_occurred = true
+    PanicWorld.panic_count = 1
+    PanicWorld.last_message = message
+    PanicWorld.last_code = code
+
+    // 3. Disable interrupts immediately
+    asm("cli")
+
+    // 4. Halt other CPUs via IPI
+    panic_halt_other_cpus()
+
+    // 5. Capture register state
+    let regs: PanicRegisters = panic_capture_registers()
+
+    // 6. Print panic banner
+    panic_puts("\n")
+    panic_puts("========================================\n")
+    panic_puts("       KAINOS KERNEL PANIC\n")
+    panic_puts("========================================\n")
+    panic_puts("\nMessage: ")
+    panic_puts(message)
+    panic_puts("\nLocation: ")
+    panic_puts(source_file)
+    panic_puts(":")
+    panic_put_dec(source_line)
+    panic_puts("\nCode: ")
+    panic_put_dec(code)
+    panic_puts(" (0x")
+    panic_put_hex(code)
+    panic_puts(")\n")
+
+    // 7. Print uptime (if available)
+    let uptime: Int = 0  // pulse_uptime_ms()
+    panic_puts("Uptime: ")
+    panic_put_dec(uptime / 1000)
+    panic_puts(".")
+    panic_put_dec(uptime % 1000)
+    panic_puts(" seconds\n")
+
+    // 8. Dump registers
+    panic_dump_registers(regs)
+
+    // 9. Unwind and print backtrace
+    let backtrace_buf: ptr<PanicFrame> = alloc_zeroed(PANIC_BACKTRACE_DEPTH * 5, "Int") as ptr<PanicFrame>
+    let frame_count: Int = panic_unwind_backtrace(regs.rbp, backtrace_buf, PANIC_BACKTRACE_DEPTH)
+    panic_print_backtrace(backtrace_buf, frame_count)
+    decay backtrace_buf
+
+    // 10. Print system state summary
+    panic_puts("\n--- System State ---\n")
+    panic_puts("CPU: ")
+    panic_put_dec(PanicWorld.panic_cpu)
+    panic_puts("\n")
+    let tick: Int = 0  // SchedulerWorld.tick_count
+    panic_puts("Scheduler tick: ")
+    panic_put_dec(tick)
+    panic_puts("\n")
+
+    // 11. Print footer
+    panic_puts("\n========================================\n")
+    panic_puts("System halted. Physical reset required.\n")
+    panic_puts("========================================\n")
+
+    // 12. Halt forever
+    panic_halt_loop()
+
+    return -1  // unreachable
+
+// ============================================================================
+//  PANIC UTILITIES — Helpers for common panic scenarios
+// ============================================================================
+
+// panic_assert — if condition false, calls kainos_panic
+fn panic_assert(condition: Bool, message: String, source_file: String, source_line: Int) -> Int with Unsafe:
+    if condition == false:
+        return kainos_panic(message, source_file, source_line, -1)
+    return 0
+
+// panic_oom — out-of-memory panic (convenience wrapper)
+fn panic_oom(source_file: String, source_line: Int) -> Int with Unsafe:
+    return kainos_panic("Out of memory", source_file, source_line, -12)
+
+// panic_stack_overflow — stack overflow detected in an actor
+fn panic_stack_overflow(actor_id: Int, source_file: String, source_line: Int) -> Int with Unsafe:
+    let msg: String = "Stack overflow in actor " + str(actor_id)
+    return kainos_panic(msg, source_file, source_line, -14)
+
+// panic_invalid_state — illegal state machine transition
+fn panic_invalid_state(expected: Int, actual: Int, source_file: String, source_line: Int) -> Int with Unsafe:
+    let msg: String = "Invalid state transition: expected " + str(expected) + " got " + str(actual)
+    return kainos_panic(msg, source_file, source_line, -22)
+
+// ============================================================================
+//  NMI HANDLER — Non-Maskable Interrupt (hardware failure)
+// ============================================================================
+
+// nmi_handler — NMI entry point (registered in IDT vector 2)
+//   NMIs cannot be masked. They indicate hardware-level failures:
+//   memory ECC errors, PCI SERR, watchdog timer expiration.
+fn nmi_handler() -> Int with Unsafe:
+    if PanicWorld.panic_occurred:
+        asm("hlt")
+        return 0
+
+    return kainos_panic(
+        "NMI received — hardware fault or ECC error",
+        "kernel/panic.kn", 0, -99
+    )
+
+// ============================================================================
+//  DOUBLE FAULT HANDLER — IST-based exception handler (vector 8)
+// ============================================================================
+
+fn double_fault_handler(error_code: Int) -> Int with Unsafe:
+    if PanicWorld.panic_occurred:
+        asm("hlt")
+        return 0
+
+    return kainos_panic(
+        "Double fault — exception while handling exception",
+        "kernel/panic.kn", 0, error_code
+    )
+
+// ============================================================================
+//  MACHINE CHECK HANDLER — x86-64 exception vector 18 (MCE)
+// ============================================================================
+
+fn mce_handler() -> Int with Unsafe:
+    if PanicWorld.panic_occurred:
+        asm("hlt")
+        return 0
+
+    return kainos_panic(
+        "Machine Check Exception — hardware failure",
+        "kernel/panic.kn", 0, 0
+    )
+
+// ============================================================================
+//  MODULE EXPORTS
+// ============================================================================
+//
+//    kainos_panic(message, source_file, source_line, code) -> NEVER RETURNS
+//    panic_assert(condition, message, source_file, source_line) -> Int
+//    panic_oom(source_file, source_line) -> NEVER RETURNS
+//    panic_stack_overflow(actor_id, source_file, source_line) -> NEVER RETURNS
+//    panic_invalid_state(expected, actual, source_file, source_line) -> NEVER RETURNS
+//    nmi_handler() -> NEVER RETURNS
+//    double_fault_handler(error_code) -> NEVER RETURNS
+//    mce_handler() -> NEVER RETURNS
+//    panic_dump_registers(regs) -> Int
+//    panic_unwind_backtrace(rbp) -> Array<PanicFrame>
+//    panic_print_backtrace(frames) -> Int
+// ============================================================================

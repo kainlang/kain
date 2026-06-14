@@ -1,0 +1,82 @@
+// KAINOS x86-64 — APIC | Stream: A | File: apic.kn
+pub mod apic:
+    const APIC_APIC_ST:  Int = 0x5000
+    const APIC_ASM_ARG0: Int = 0x6C00
+    const APIC_ASM_ARG1: Int = 0x6C08
+
+    fn apic_feat_get(idx: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(APIC_APIC_ST + (idx * 8), "ptr<Int>"))
+    fn apic_feat_set(idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(APIC_APIC_ST + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+    fn apic_mmio_read(off: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(apic_feat_get(2) + off, "ptr<Int>"))
+    fn apic_mmio_write(off: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(apic_feat_get(2) + off, "ptr<Int>"), v, "Int")
+        return 0
+
+    fn apic_asm_set0(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(APIC_ASM_ARG0, "ptr<Int>"), v, "Int")
+        return 0
+    fn apic_asm_get0() -> Int with Unsafe:
+        return mem_load(int_to_ptr(APIC_ASM_ARG0, "ptr<Int>"))
+
+    fn apic_rdmsr_local(msr: Int) -> Int with Unsafe:
+        apic_asm_set0(msr)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("rdmsr")
+        asm("shlq $32, %rdx")
+        asm("orq %rdx, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return apic_asm_get0()
+
+    fn apic_wrmsr_local(msr: Int, value: Int) -> Int with Unsafe:
+        apic_asm_set0(msr)
+        apic_feat_set(0, 0)  // dummy to avoid unused — we need ASM_ARG1
+        mem_store(int_to_ptr(APIC_ASM_ARG1, "ptr<Int>"), value, "Int")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("movabsq $0x6C08, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %rdx")
+        asm("shrq $32, %rdx")
+        asm("wrmsr")
+        return 0
+
+    pub fn apic_get_id() -> Int with Unsafe:
+        return (apic_mmio_read(0x020) >> 24) & 0xFF
+
+    pub fn apic_eoi() -> Int with Unsafe:
+        return apic_mmio_write(0x0B0, 0)
+
+    pub fn apic_init() -> Int with Unsafe:
+        if apic_feat_get(0) != 0:
+            return 0
+        apic_feat_set(0, 1)
+        apic_feat_set(1, 0)
+        let msr: Int = apic_rdmsr_local(0x1B)
+        apic_feat_set(2, msr & 0xFFFFF000)
+        apic_feat_set(3, 0xFF)
+        apic_wrmsr_local(0x1B, msr | (1 << 11))
+        apic_mmio_write(0x0F0, (1 << 8) | (1 << 9) | 0xFF)
+        apic_mmio_write(0x080, 0)
+        apic_mmio_write(0x0D0, 0)
+        apic_mmio_write(0x0E0, 0xFFFFFFFF)
+        let m: Int = 1 << 16
+        apic_mmio_write(0x320, m)
+        apic_mmio_write(0x330, m)
+        apic_mmio_write(0x340, m)
+        apic_mmio_write(0x350, m)
+        apic_mmio_write(0x360, m)
+        apic_mmio_write(0x3E0, 0x0B)
+        return 0
+
+    pub fn apic_send_ipi(cpu_id: Int, vector: Int) -> Int with Unsafe:
+        apic_mmio_write(0x310, cpu_id << 24)
+        return apic_mmio_write(0x300, (vector & 0xFF) | (1 << 14))
+
+    pub fn apic_send_ipi_all(vector: Int) -> Int with Unsafe:
+        apic_mmio_write(0x310, 0)
+        return apic_mmio_write(0x300, (vector & 0xFF) | (2 << 18) | (1 << 14))

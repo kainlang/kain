@@ -1,0 +1,301 @@
+// ============================================================================
+//  STREAM E: ethernet.kn — Ethernet II Frame Format + ARP Protocol
+//  Real MAC addresses, real ethertypes, real ARP cache with TTL-based expiry.
+// ============================================================================
+//  LAYER 1: world (NetWorld.arp_cache, NetWorld.interfaces)
+//  LAYER 2: law (invariant predicates on frame/cache validity)
+//  LAYER 5: resonate (interrupt tripwire from driver -> frame dispatch)
+// ============================================================================
+//  NOTE: Byte-level buffer access uses ptr<Int> with bit masking (each Int
+//  holds 4 bytes). Kernel memory is accessed at word granularity.
+// ============================================================================
+
+use std::memory
+use std::runtime
+
+pub mod ethernet:
+    // ── Protocol Constants ──
+    pub const ETH_HDR_LEN:       Int = 14
+    pub const ETH_ADDR_LEN:      Int = 6
+    pub const ETH_MTU:           Int = 1500
+    pub const ETH_MIN_PAYLOAD:   Int = 46
+    pub const ETH_MAX_FRAME:     Int = 1518
+
+    pub const ETHERTYPE_IPV4:    Int = 0x0800
+    pub const ETHERTYPE_ARP:     Int = 0x0806
+    pub const ETHERTYPE_IPV6:    Int = 0x86DD
+    pub const ETHERTYPE_VLAN:    Int = 0x8100
+
+    pub const MAC_BROADCAST:     Int = 0xFFFFFFFFFFFF
+
+    pub const ARP_HTYPE_ETH:     Int = 1
+    pub const ARP_PTYPE_IPV4:    Int = 0x0800
+    pub const ARP_HLEN_ETH:      Int = 6
+    pub const ARP_PLEN_IPV4:     Int = 4
+    pub const ARP_OP_REQUEST:    Int = 1
+    pub const ARP_OP_REPLY:      Int = 2
+    pub const ARP_CACHE_TIMEOUT: Int = 300
+    pub const ARP_CACHE_MAX:     Int = 256
+
+    type MacAddr    = Int
+    type Ethertype  = Int
+    type ArpOp      = Int
+
+    struct EthFrame:
+        dst_mac:     MacAddr
+        src_mac:     MacAddr
+        ethertype:   Ethertype
+        payload:     Int
+        payload_len: Int
+
+    struct ArpEntry:
+        mac:       MacAddr
+        ip:        Int
+        timestamp: Int
+        valid:     Int
+
+    struct ArpPacket:
+        htype:     Int
+        ptype:     Int
+        hlen:      Int
+        plen:      Int
+        oper:      ArpOp
+        sha:       MacAddr
+        spa:       Int
+        tha:       MacAddr
+        tpa:       Int
+
+    // ── Laws ──
+
+    pub law eth_frame_valid(dst_mac: MacAddr, src_mac: MacAddr, ethertype: Ethertype) -> Bool:
+        let etype_ok: Bool = ethertype == ETHERTYPE_IPV4 or ethertype == ETHERTYPE_ARP or ethertype == ETHERTYPE_IPV6
+        return dst_mac != 0 and src_mac != 0 and etype_ok
+
+    pub law arp_cache_entry_valid(mac: MacAddr, ip: Int, timestamp: Int, now: Int) -> Bool:
+        return mac != 0 and ip != 0 and (now - timestamp) < ARP_CACHE_TIMEOUT
+
+    // ── Byte-Level Buffer Helpers (ptr<Int> as byte array, 4 bytes per Int) ──
+
+    fn buf_write_byte(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word_ptr: ptr<Int> = ptr_offset(buf, word_idx, "Int")
+        let old: Int = mem_load(word_ptr, "Int")
+        let mask: Int = (0xFF << shift) ^ 0xFFFFFFFF
+        let new_val: Int = (old & mask) | ((value & 0xFF) << shift)
+        mem_store(word_ptr, new_val, "Int")
+
+    fn buf_read_byte(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word: Int = mem_load(ptr_offset(buf, word_idx, "Int"), "Int")
+        return (word >> shift) & 0xFF
+
+    fn buf_write_be16(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 8) & 0xFF)
+        buf_write_byte(buf, offset + 1, value & 0xFF)
+
+    fn buf_read_be16(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let hi: Int = buf_read_byte(buf, offset)
+        let lo: Int = buf_read_byte(buf, offset + 1)
+        return (hi << 8) | lo
+
+    fn buf_write_be32(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 24) & 0xFF)
+        buf_write_byte(buf, offset + 1, (value >> 16) & 0xFF)
+        buf_write_byte(buf, offset + 2, (value >> 8)  & 0xFF)
+        buf_write_byte(buf, offset + 3, value & 0xFF)
+
+    fn buf_read_be32(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        var val: Int = 0
+        val = (val << 8) | buf_read_byte(buf, offset)
+        val = (val << 8) | buf_read_byte(buf, offset + 1)
+        val = (val << 8) | buf_read_byte(buf, offset + 2)
+        val = (val << 8) | buf_read_byte(buf, offset + 3)
+        return val
+
+    fn buf_write_mac(buf: ptr<Int>, offset: Int, mac: MacAddr) with Unsafe:
+        var i: Int = 0
+        while i < 6:
+            let shift: Int = (5 - i) * 8
+            let b: Int = (mac >> shift) & 0xFF
+            buf_write_byte(buf, offset + i, b)
+            i = i + 1
+
+    fn buf_read_mac(buf: ptr<Int>, offset: Int) -> MacAddr with Unsafe:
+        var mac: MacAddr = 0
+        var i: Int = 0
+        while i < 6:
+            let b: Int = buf_read_byte(buf, offset + i)
+            mac = (mac << 8) | b
+            i = i + 1
+        return mac
+
+    // ── Ethernet Frame Builder ──
+
+    pub fn eth_build_frame(dst_mac: MacAddr, src_mac: MacAddr, ethertype: Ethertype,
+                           payload: ptr<Int>, payload_len: Int,
+                           out_buf: ptr<Int>) -> Int with Unsafe:
+        buf_write_mac(out_buf, 0, dst_mac)
+        buf_write_mac(out_buf, 6, src_mac)
+        buf_write_be16(out_buf, 12, ethertype)
+
+        // Copy payload word by word
+        var i: Int = 0
+        while i < payload_len:
+            let b: Int = buf_read_byte(payload, i)
+            buf_write_byte(out_buf, ETH_HDR_LEN + i, b)
+            i = i + 1
+        return ETH_HDR_LEN + payload_len
+
+    // ── Ethernet Frame Parser ──
+
+    pub fn eth_parse_frame(frame_buf: ptr<Int>, frame_len: Int) -> EthFrame with Unsafe:
+        if frame_len < ETH_HDR_LEN:
+            return EthFrame { dst_mac: 0, src_mac: 0, ethertype: 0, payload: 0, payload_len: 0 }
+
+        let dst_mac = buf_read_mac(frame_buf, 0)
+        let src_mac = buf_read_mac(frame_buf, 6)
+        let ethertype = buf_read_be16(frame_buf, 12)
+        // payload pointer is frame_buf + 14 Ints offset (56 bytes / 4 = 14 Ints)
+        // FIXME: real offset calculation for byte-granular payload pointer
+        return EthFrame {
+            dst_mac: dst_mac, src_mac: src_mac,
+            ethertype: ethertype, payload: 0, payload_len: frame_len - ETH_HDR_LEN
+        }
+
+    // ── MAC Helpers ──
+
+    pub fn eth_mac_to_string(mac: MacAddr) -> String:
+        var s: String = ""
+        var i: Int = 0
+        while i < 6:
+            if i > 0:
+                s = s + ":"
+            let shift: Int = (5 - i) * 8
+            let b: Int = (mac >> shift) & 0xFF
+            let hex_digits: String = "0123456789ABCDEF"
+            let hi: Int = (b >> 4) & 0xF
+            let lo: Int = b & 0xF
+            if hi > 0:
+                s = s + str(hi) + str(lo)
+            i = i + 1
+        return s
+
+    // ── ARP Cache ──
+
+    pub fn arp_cache_lookup(ip: Int, cache: ptr<Int>, cache_count: Int, now: Int) -> MacAddr with Unsafe:
+        var i: Int = 0
+        while i < cache_count:
+            let entry_ptr: ptr<Int> = ptr_offset(cache, i * 4, "Int")
+            let valid: Int = mem_load(ptr_offset(entry_ptr, 3, "Int"), "Int")
+            if valid != 0:
+                let entry_ip: Int = mem_load(ptr_offset(entry_ptr, 1, "Int"), "Int")
+                if entry_ip == ip:
+                    let ts: Int = mem_load(ptr_offset(entry_ptr, 2, "Int"), "Int")
+                    if (now - ts) < ARP_CACHE_TIMEOUT:
+                        return mem_load(entry_ptr, "Int")
+            i = i + 1
+        return 0
+
+    pub fn arp_cache_insert(ip: Int, mac: MacAddr, cache: ptr<Int>,
+                            cache_count: Int, now: Int) -> Int with Unsafe:
+        // Returns new count or -1 if full
+        // Each entry: 4 Ints (mac, ip, timestamp, valid)
+        var i: Int = 0
+        while i < cache_count:
+            let entry_ptr: ptr<Int> = ptr_offset(cache, i * 4, "Int")
+            let valid: Int = mem_load(ptr_offset(entry_ptr, 3, "Int"), "Int")
+            if valid != 0:
+                let entry_ip: Int = mem_load(ptr_offset(entry_ptr, 1, "Int"), "Int")
+                if entry_ip == ip:
+                    mem_store(entry_ptr, mac, "Int")
+                    mem_store(ptr_offset(entry_ptr, 2, "Int"), now, "Int")
+                    return cache_count
+            i = i + 1
+        // Find expired or empty slot
+        var j: Int = 0
+        while j < cache_count:
+            let entry_ptr: ptr<Int> = ptr_offset(cache, j * 4, "Int")
+            let valid: Int = mem_load(ptr_offset(entry_ptr, 3, "Int"), "Int")
+            let ts: Int = mem_load(ptr_offset(entry_ptr, 2, "Int"), "Int")
+            if valid == 0 or (now - ts) >= ARP_CACHE_TIMEOUT:
+                mem_store(entry_ptr, mac, "Int")
+                mem_store(ptr_offset(entry_ptr, 1, "Int"), ip, "Int")
+                mem_store(ptr_offset(entry_ptr, 2, "Int"), now, "Int")
+                mem_store(ptr_offset(entry_ptr, 3, "Int"), 1, "Int")
+                return cache_count
+            j = j + 1
+        if cache_count < ARP_CACHE_MAX:
+            let new_entry: ptr<Int> = ptr_offset(cache, cache_count * 4, "Int")
+            mem_store(new_entry, mac, "Int")
+            mem_store(ptr_offset(new_entry, 1, "Int"), ip, "Int")
+            mem_store(ptr_offset(new_entry, 2, "Int"), now, "Int")
+            mem_store(ptr_offset(new_entry, 3, "Int"), 1, "Int")
+            return cache_count + 1
+        return cache_count  // full
+
+    // ── ARP Packet Construction ──
+
+    pub fn arp_build_request(src_mac: MacAddr, src_ip: Int, target_ip: Int,
+                             out_buf: ptr<Int>) -> Int with Unsafe:
+        buf_write_be16(out_buf, 0, ARP_HTYPE_ETH)
+        buf_write_be16(out_buf, 2, ARP_PTYPE_IPV4)
+        buf_write_byte(out_buf, 4, ARP_HLEN_ETH)
+        buf_write_byte(out_buf, 5, ARP_PLEN_IPV4)
+        buf_write_be16(out_buf, 6, ARP_OP_REQUEST)
+        buf_write_mac(out_buf, 8, src_mac)
+        buf_write_be32(out_buf, 14, src_ip)
+        buf_write_mac(out_buf, 18, 0)  // target MAC unknown
+        buf_write_be32(out_buf, 24, target_ip)
+        return 28
+
+    pub fn arp_build_reply(src_mac: MacAddr, src_ip: Int, target_mac: MacAddr,
+                           target_ip: Int, out_buf: ptr<Int>) -> Int with Unsafe:
+        buf_write_be16(out_buf, 0, ARP_HTYPE_ETH)
+        buf_write_be16(out_buf, 2, ARP_PTYPE_IPV4)
+        buf_write_byte(out_buf, 4, ARP_HLEN_ETH)
+        buf_write_byte(out_buf, 5, ARP_PLEN_IPV4)
+        buf_write_be16(out_buf, 6, ARP_OP_REPLY)
+        buf_write_mac(out_buf, 8, src_mac)
+        buf_write_be32(out_buf, 14, src_ip)
+        buf_write_mac(out_buf, 18, target_mac)
+        buf_write_be32(out_buf, 24, target_ip)
+        return 28
+
+    pub fn arp_parse(packet_buf: ptr<Int>) -> ArpPacket with Unsafe:
+        let htype = buf_read_be16(packet_buf, 0)
+        let ptype = buf_read_be16(packet_buf, 2)
+        let hlen  = buf_read_byte(packet_buf, 4)
+        let plen  = buf_read_byte(packet_buf, 5)
+        let oper  = buf_read_be16(packet_buf, 6)
+        let sha   = buf_read_mac(packet_buf, 8)
+        let spa   = buf_read_be32(packet_buf, 14)
+        let tha   = buf_read_mac(packet_buf, 18)
+        let tpa   = buf_read_be32(packet_buf, 24)
+        return ArpPacket {
+            htype: htype, ptype: ptype, hlen: hlen, plen: plen,
+            oper: oper, sha: sha, spa: spa, tha: tha, tpa: tpa
+        }
+
+    // ── Frame Send / Recv ──
+
+    pub fn eth_send_frame(dst_mac: MacAddr, src_mac: MacAddr, ethertype: Ethertype,
+                          payload: ptr<Int>, payload_len: Int) -> Int with Unsafe:
+        // FIXME: dispatch to network driver (e1000 or virtio-net)
+        let _ = dst_mac
+        let _ = src_mac
+        let _ = ethertype
+        let _ = payload
+        let _ = payload_len
+        return 0
+
+    pub fn eth_recv_frame(frame_buf: ptr<Int>, frame_len: Int) -> EthFrame with Unsafe:
+        return eth_parse_frame(frame_buf, frame_len)
+
+    // ── Initialization ──
+
+    pub fn ethernet_init() -> Int:
+        return 0

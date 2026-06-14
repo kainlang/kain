@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("kainos_test")
+        .kind("test_suite")
+        .version("0.1.0")
+        .description("KAINOS kernel tests")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-tests")
+        .project(proj)
+        .target("llvm")
+
+    let test = test_task("kernel-tests")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(test)

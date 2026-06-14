@@ -1,0 +1,260 @@
+// ============================================================================
+//  KAINOS Compositor — compositor.kn
+// ============================================================================
+//  Framebuffer compositor: double buffering, alpha blending, Z-ordering,
+//  damage tracking, and input routing. Software rendering path.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for compositor state
+//    LAYER UI — component/render
+//
+//  Exports:
+//    compositor_init, compositor_create_surface, compositor_destroy_surface,
+//    compositor_damage, compositor_present, compositor_draw_rect
+// ============================================================================
+
+use std::runtime
+
+pub mod compositor:
+
+    const DEFAULT_WIDTH:  Int = 1920
+    const DEFAULT_HEIGHT: Int = 1080
+    const BYTES_PER_PIXEL: Int = 4
+    const MAX_SURFACES:    Int = 256
+
+    enum SurfaceFormat:
+        Rgba32
+        Bgra32
+        Rgb24
+
+    struct Surface:
+        id: Int
+        width: Int
+        height: Int
+        stride: Int
+        format: SurfaceFormat
+        buffer: ptr<Byte>
+        x: Int
+        y: Int
+        z_order: Int
+        visible: Bool
+        title: String
+
+    world CompositorWorld:
+        state framebuffer_addr: Int = 0
+        state front_buffer_addr: Int = 0
+        state width: Int = DEFAULT_WIDTH
+        state height: Int = DEFAULT_HEIGHT
+        state pitch: Int = 7680
+        state bpp: Int = BYTES_PER_PIXEL
+        state surfaces: Array<Surface> = []
+        state focused_surface: Int = -1
+        state next_surface_id: Int = 1
+        state mouse_x: Int = 0
+        state mouse_y: Int = 0
+        state mouse_buttons: Int = 0
+        state needs_redraw: Bool = false
+        state frame_count: Int = 0
+
+    pub fn compositor_init(width: Int, height: Int, fb_base: ptr<Byte>) -> Int with Unsafe:
+        CompositorWorld.width = width
+        CompositorWorld.height = height
+        CompositorWorld.pitch = width * BYTES_PER_PIXEL
+        CompositorWorld.framebuffer_addr = bitcast(fb_base, "Int")
+        let buf_size: Int = width * height * BYTES_PER_PIXEL
+        let back_buf: ptr<Byte> = alloc_zeroed(buf_size, "Byte")
+        CompositorWorld.framebuffer_addr = bitcast(back_buf, "Int")
+        CompositorWorld.surfaces = []
+        CompositorWorld.focused_surface = -1
+        CompositorWorld.next_surface_id = 1
+        CompositorWorld.needs_redraw = true
+        return 0
+
+    pub fn compositor_create_surface(width: Int, height: Int, format: SurfaceFormat) -> Int with Unsafe:
+        if len(CompositorWorld.surfaces) >= MAX_SURFACES:
+            return -1
+
+        let stride: Int = width * BYTES_PER_PIXEL
+        let buf_size: Int = stride * height
+        let pixels: ptr<Byte> = alloc_zeroed(buf_size, "Byte")
+
+        let surface = Surface {
+            id: CompositorWorld.next_surface_id,
+            width: width,
+            height: height,
+            stride: stride,
+            format: format,
+            buffer: pixels,
+            x: 0,
+            y: 0,
+            z_order: CompositorWorld.next_surface_id,
+            visible: true,
+            title: "",
+        }
+
+        CompositorWorld.next_surface_id = CompositorWorld.next_surface_id + 1
+        let surface_id: Int = surface.id
+        push(CompositorWorld.surfaces, surface)
+
+        if CompositorWorld.focused_surface < 0:
+            CompositorWorld.focused_surface = surface_id
+
+        CompositorWorld.needs_redraw = true
+        return surface_id
+
+    pub fn compositor_destroy_surface(surface_id: Int) -> Int with IO:
+        var new_surfaces: Array<Surface> = []
+        for s in CompositorWorld.surfaces:
+            if s.id != surface_id:
+                push(new_surfaces, s)
+        CompositorWorld.surfaces = new_surfaces
+        if CompositorWorld.focused_surface == surface_id:
+            CompositorWorld.focused_surface = -1
+        CompositorWorld.needs_redraw = true
+        return 0
+
+    pub fn compositor_damage(surface_id: Int, x: Int, y: Int, w: Int, h: Int) -> Int with IO:
+        CompositorWorld.needs_redraw = true
+        return 0
+
+    pub fn compositor_draw_rect(surface_id: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+        var surface_ptr: ptr<Byte> = bitcast(0, "ptr<Byte>")
+        var stride: Int = 0
+        for s in CompositorWorld.surfaces:
+            if s.id == surface_id:
+                surface_ptr = s.buffer
+                stride = s.stride
+                break
+
+        if surface_ptr == bitcast(0, "ptr<Byte>"):
+            return -1
+
+        let r: Byte = (color & 0xFF) as Byte
+        let g: Byte = ((color >> 8) & 0xFF) as Byte
+        let b: Byte = ((color >> 16) & 0xFF) as Byte
+        let a: Byte = ((color >> 24) & 0xFF) as Byte
+
+        var row: Int = y
+        while row < y + h:
+            var col: Int = x
+            while col < x + w:
+                let offset: Int = row * stride + col * BYTES_PER_PIXEL
+                mem_store(ptr_offset(surface_ptr, offset, "Byte"), r, "Byte")
+                mem_store(ptr_offset(surface_ptr, offset + 1, "Byte"), g, "Byte")
+                mem_store(ptr_offset(surface_ptr, offset + 2, "Byte"), b, "Byte")
+                mem_store(ptr_offset(surface_ptr, offset + 3, "Byte"), a, "Byte")
+                col = col + 1
+            row = row + 1
+
+        CompositorWorld.needs_redraw = true
+        return 0
+
+    fn blend_pixel(dst: ptr<Byte>, src: ptr<Byte>) -> Void with Unsafe:
+        let src_r: Int = mem_load(ptr_offset(src, 0, "Byte"), "Byte") as Int
+        let src_g: Int = mem_load(ptr_offset(src, 1, "Byte"), "Byte") as Int
+        let src_b: Int = mem_load(ptr_offset(src, 2, "Byte"), "Byte") as Int
+        let src_a: Int = mem_load(ptr_offset(src, 3, "Byte"), "Byte") as Int
+
+        if src_a == 0:
+            return
+        if src_a == 255:
+            mem_store(ptr_offset(dst, 0, "Byte"), src_r as Byte, "Byte")
+            mem_store(ptr_offset(dst, 1, "Byte"), src_g as Byte, "Byte")
+            mem_store(ptr_offset(dst, 2, "Byte"), src_b as Byte, "Byte")
+            mem_store(ptr_offset(dst, 3, "Byte"), 255 as Byte, "Byte")
+            return
+
+        let dst_r: Int = mem_load(ptr_offset(dst, 0, "Byte"), "Byte") as Int
+        let dst_g: Int = mem_load(ptr_offset(dst, 1, "Byte"), "Byte") as Int
+        let dst_b: Int = mem_load(ptr_offset(dst, 2, "Byte"), "Byte") as Int
+        let dst_a: Int = mem_load(ptr_offset(dst, 3, "Byte"), "Byte") as Int
+
+        let inv_a: Int = 255 - src_a
+        let out_r: Int = (src_r * src_a + dst_r * inv_a) / 255
+        let out_g: Int = (src_g * src_a + dst_g * inv_a) / 255
+        let out_b: Int = (src_b * src_a + dst_b * inv_a) / 255
+        let out_a: Int = src_a + (dst_a * inv_a) / 255
+
+        mem_store(ptr_offset(dst, 0, "Byte"), out_r as Byte, "Byte")
+        mem_store(ptr_offset(dst, 1, "Byte"), out_g as Byte, "Byte")
+        mem_store(ptr_offset(dst, 2, "Byte"), out_b as Byte, "Byte")
+        mem_store(ptr_offset(dst, 3, "Byte"), out_a as Byte, "Byte")
+
+    pub fn compositor_present() -> Int with Unsafe:
+        if CompositorWorld.needs_redraw == false:
+            return -1
+
+        let fb: ptr<Byte> = bitcast(CompositorWorld.framebuffer_addr, "ptr<Byte>")
+        let width: Int = CompositorWorld.width
+        let height: Int = CompositorWorld.height
+        let pitch: Int = CompositorWorld.pitch
+
+        var row: Int = 0
+        while row < height:
+            var col: Int = 0
+            while col < width:
+                let offset: Int = row * pitch + col * BYTES_PER_PIXEL
+                mem_store(ptr_offset(fb, offset, "Byte"), 0 as Byte, "Byte")
+                mem_store(ptr_offset(fb, offset + 1, "Byte"), 0 as Byte, "Byte")
+                mem_store(ptr_offset(fb, offset + 2, "Byte"), 0 as Byte, "Byte")
+                mem_store(ptr_offset(fb, offset + 3, "Byte"), 255 as Byte, "Byte")
+                col = col + 1
+            row = row + 1
+
+        for surface in CompositorWorld.surfaces:
+            if surface.visible == false:
+                continue
+            if surface.buffer == bitcast(0, "ptr<Byte>"):
+                continue
+            let src: ptr<Byte> = surface.buffer
+            let src_stride: Int = surface.stride
+            var sy: Int = 0
+            while sy < surface.height and (surface.y + sy) < height:
+                var sx: Int = 0
+                while sx < surface.width and (surface.x + sx) < width:
+                    let src_off: Int = sy * src_stride + sx * BYTES_PER_PIXEL
+                    let dst_off: Int = (surface.y + sy) * pitch + (surface.x + sx) * BYTES_PER_PIXEL
+                    blend_pixel(ptr_offset(fb, dst_off, "Byte"), ptr_offset(src, src_off, "Byte"))
+                    sx = sx + 1
+                sy = sy + 1
+
+        CompositorWorld.needs_redraw = false
+        CompositorWorld.frame_count = CompositorWorld.frame_count + 1
+        return 0
+
+    pub fn compositor_set_focus(surface_id: Int) -> Int with IO:
+        CompositorWorld.focused_surface = surface_id
+        return 0
+
+    pub fn compositor_get_focused_surface() -> Int with IO:
+        return CompositorWorld.focused_surface
+
+    pub fn compositor_mouse_event(x: Int, y: Int, buttons: Int) -> Int with IO:
+        CompositorWorld.mouse_x = x
+        CompositorWorld.mouse_y = y
+        CompositorWorld.mouse_buttons = buttons
+        return 0
+
+    pub fn compositor_set_z_order(surface_id: Int, z: Int) -> Int with IO:
+        for surface in CompositorWorld.surfaces:
+            if surface.id == surface_id:
+                surface.z_order = z
+                CompositorWorld.needs_redraw = true
+                return 0
+        return -1
+
+    pub fn compositor_raise_surface(surface_id: Int) -> Int with IO:
+        var max_z: Int = 0
+        for surface in CompositorWorld.surfaces:
+            if surface.z_order > max_z:
+                max_z = surface.z_order
+        return compositor_set_z_order(surface_id, max_z + 1)
+
+    pub fn compositor_get_surface_count() -> Int with IO:
+        return len(CompositorWorld.surfaces)
+
+    pub fn compositor_get_frame_count() -> Int with IO:
+        return CompositorWorld.frame_count
+
+    component CompositorPanel():
+        render <panel title="KAINOS Compositor" />

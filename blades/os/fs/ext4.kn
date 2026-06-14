@@ -1,0 +1,514 @@
+// ============================================================================
+//  KAINOS — ext4 Read-Only Filesystem Driver (Stream D)
+//  ext4.kn — Superblock parsing, inodes, extent tree walking, directory reading
+// ============================================================================
+
+pub mod ext4:
+    pub const FS_FILE_REGULAR: Int  = 0
+    pub const FS_FILE_DIR: Int      = 1
+    pub const FS_FILE_SYMLINK: Int  = 2
+    pub const FS_FILE_DEVICE: Int   = 3
+    pub const FS_FAT32: Int     = 1
+    pub const FS_EXT4: Int      = 2
+    pub const FS_DEVFS: Int     = 3
+
+    pub struct KOsDirEntry:
+        name: String
+        inode_id: Int
+        file_type: Int
+
+    pub struct KOsStat:
+        inode_id: Int
+        size: Int
+        file_type: Int
+        fs_type: Int
+        device_id: Int
+        block_count: Int
+
+    fn block_read(device_id: Int, lba: Int, count: Int, buf: Int) -> Int with Unsafe:
+        return 0
+
+    fn block_write(device_id: Int, lba: Int, count: Int, buf: Int) -> Int with Unsafe:
+        return 0
+
+    pub const EXT4_SUPERBLOCK_OFFSET: Int    = 1024
+    pub const EXT4_MAGIC: Int                = 0xEF53
+    pub const EXT4_ROOT_INODE: Int           = 2
+    pub const EXT4_EXTENT_MAGIC: Int         = 0xF30A
+    pub const EXT4_INODE_MODE_DIR: Int       = 0x4000
+    pub const EXT4_INODE_MODE_REG: Int       = 0x8000
+    pub const EXT4_INODE_MODE_SYMLINK: Int   = 0xA000
+    pub const EXT4_FEATURE_INCOMPAT_EXTENTS: Int  = 0x0040
+    pub const EXT4_FEATURE_INCOMPAT_64BIT: Int    = 0x0080
+    pub const EXT4_FT_UNKNOWN: Int = 0
+    pub const EXT4_FT_REG_FILE: Int = 1
+    pub const EXT4_FT_DIR: Int = 2
+    pub const EXT4_FT_SYMLINK: Int = 7
+
+    pub struct Ext4Superblock:
+        inodes_count: Int
+        blocks_count: Int
+        r_blocks_count: Int
+        free_blocks_count: Int
+        free_inodes_count: Int
+        first_data_block: Int
+        log_block_size: Int
+        log_cluster_size: Int
+        blocks_per_group: Int
+        clusters_per_group: Int
+        inodes_per_group: Int
+        mtime: Int
+        wtime: Int
+        mnt_count: Int
+        max_mnt_count: Int
+        magic: Int
+        state: Int
+        errors: Int
+        minor_rev_level: Int
+        lastcheck: Int
+        checkinterval: Int
+        creator_os: Int
+        rev_level: Int
+        def_resuid: Int
+        def_resgid: Int
+        first_ino: Int
+        inode_size: Int
+        block_group_nr: Int
+        feature_compat: Int
+        feature_incompat: Int
+        feature_ro_compat: Int
+        uuid: String
+        volume_name: String
+        block_size: Int
+        device_id: Int
+        group_count: Int
+        group_desc_table_block: Int
+
+    pub struct Ext4BlockGroupDesc:
+        block_bitmap: Int
+        inode_bitmap: Int
+        inode_table: Int
+        free_blocks_count: Int
+        free_inodes_count: Int
+        used_dirs_count: Int
+
+    pub struct Ext4Inode:
+        inode_num: Int
+        mode: Int
+        uid: Int
+        size_low: Int
+        atime: Int
+        ctime: Int
+        mtime: Int
+        dtime: Int
+        gid: Int
+        links_count: Int
+        block_count: Int
+        flags: Int
+        osd1: Int
+        extents: [Ext4Extent]
+        size_high: Int
+        file_size: Int
+
+    pub struct Ext4Extent:
+        block: Int
+        len: Int
+        start_lo: Int
+        start_hi: Int
+
+    pub struct Ext4DirEnt:
+        inode: Int
+        rec_len: Int
+        name_len: Int
+        file_type: Int
+        name: String
+
+    world Ext4World:
+        state mounts: Array<Ext4Superblock> = []
+
+    fn ext4_read_u32(buf: Int, offset: Int) -> Int with Unsafe:
+        let p: ptr<Int> = int_to_ptr(buf + offset, "Int")
+        return mem_load(p, "Int")
+
+    fn ext4_read_u16(buf: Int, offset: Int) -> Int with Unsafe:
+        let p: ptr<Int> = int_to_ptr(buf + offset, "Int")
+        return mem_load(p, "Int") & 0xFFFF
+
+    fn ext4_read_u8(buf: Int, offset: Int) -> Int with Unsafe:
+        let p: ptr<Int> = int_to_ptr(buf + offset, "Int")
+        return mem_load(p, "Int") & 0xFF
+
+    fn ext4_read_block(device_id: Int, block_num: Int, buf: Int, block_size: Int) -> Int with Unsafe:
+        let spb = block_size / 512
+        let lba = block_num * spb
+        let br = block_read(device_id, lba, spb, buf)
+        if br < block_size:
+            return -1
+        return 0
+
+    pub fn ext4_parse_superblock(device_id: Int) -> Ext4Superblock with Unsafe:
+        let buf: ptr<Int> = alloc_zeroed(256, "Int")
+        let ba = ptr_to_int(buf)
+        defer decay buf
+        let br = block_read(device_id, 2, 2, ba)
+        if br < 1024:
+            return Ext4Superblock {
+                inodes_count: 0, blocks_count: 0, r_blocks_count: 0,
+                free_blocks_count: 0, free_inodes_count: 0,
+                first_data_block: 0, log_block_size: 0, log_cluster_size: 0,
+                blocks_per_group: 0, clusters_per_group: 0, inodes_per_group: 0,
+                mtime: 0, wtime: 0, mnt_count: 0, max_mnt_count: 0,
+                magic: 0, state: 0, errors: 0, minor_rev_level: 0,
+                lastcheck: 0, checkinterval: 0, creator_os: 0, rev_level: 0,
+                def_resuid: 0, def_resgid: 0, first_ino: 0, inode_size: 0,
+                block_group_nr: 0, feature_compat: 0, feature_incompat: 0,
+                feature_ro_compat: 0, uuid: "", volume_name: "",
+                block_size: 0, device_id: -1, group_count: 0, group_desc_table_block: 0,
+            }
+        let magic = ext4_read_u16(ba, 0x38)
+        if magic != EXT4_MAGIC:
+            return Ext4Superblock {
+                inodes_count: 0, blocks_count: 0, r_blocks_count: 0,
+                free_blocks_count: 0, free_inodes_count: 0,
+                first_data_block: 0, log_block_size: 0, log_cluster_size: 0,
+                blocks_per_group: 0, clusters_per_group: 0, inodes_per_group: 0,
+                mtime: 0, wtime: 0, mnt_count: 0, max_mnt_count: 0,
+                magic: magic, state: 0, errors: 0, minor_rev_level: 0,
+                lastcheck: 0, checkinterval: 0, creator_os: 0, rev_level: 0,
+                def_resuid: 0, def_resgid: 0, first_ino: 0, inode_size: 0,
+                block_group_nr: 0, feature_compat: 0, feature_incompat: 0,
+                feature_ro_compat: 0, uuid: "", volume_name: "",
+                block_size: 0, device_id: device_id, group_count: 0, group_desc_table_block: 0,
+            }
+        let log_bs = ext4_read_u32(ba, 0x18)
+        let bs = 1024 << log_bs
+        return Ext4Superblock {
+            inodes_count: ext4_read_u32(ba, 0x00), blocks_count: ext4_read_u32(ba, 0x04),
+            r_blocks_count: ext4_read_u32(ba, 0x08), free_blocks_count: ext4_read_u32(ba, 0x0C),
+            free_inodes_count: ext4_read_u32(ba, 0x10), first_data_block: ext4_read_u32(ba, 0x14),
+            log_block_size: log_bs, log_cluster_size: ext4_read_u32(ba, 0x1C),
+            blocks_per_group: ext4_read_u32(ba, 0x20), clusters_per_group: ext4_read_u32(ba, 0x24),
+            inodes_per_group: ext4_read_u32(ba, 0x28), mtime: ext4_read_u32(ba, 0x2C),
+            wtime: ext4_read_u32(ba, 0x30), mnt_count: ext4_read_u16(ba, 0x34),
+            max_mnt_count: ext4_read_u16(ba, 0x36), magic: magic,
+            state: ext4_read_u16(ba, 0x3A), errors: ext4_read_u16(ba, 0x3C),
+            minor_rev_level: ext4_read_u16(ba, 0x3E), lastcheck: ext4_read_u32(ba, 0x40),
+            checkinterval: ext4_read_u32(ba, 0x44), creator_os: ext4_read_u32(ba, 0x48),
+            rev_level: ext4_read_u32(ba, 0x4C), def_resuid: ext4_read_u16(ba, 0x50),
+            def_resgid: ext4_read_u16(ba, 0x52), first_ino: ext4_read_u32(ba, 0x54),
+            inode_size: ext4_read_u16(ba, 0x58), block_group_nr: ext4_read_u16(ba, 0x5A),
+            feature_compat: ext4_read_u32(ba, 0x5C), feature_incompat: ext4_read_u32(ba, 0x60),
+            feature_ro_compat: ext4_read_u32(ba, 0x64), uuid: "", volume_name: "",
+            block_size: bs, device_id: device_id, group_count: 0, group_desc_table_block: 0,
+        }
+
+    pub fn ext4_read_group_desc(device_id: Int, sb: Ext4Superblock, group: Int) -> Ext4BlockGroupDesc with Unsafe:
+        let bs = sb.block_size
+        let gdt = sb.group_desc_table_block
+        let ds = 32
+        let dpb = bs / ds
+        let tb = gdt + (group / dpb)
+        let ob = (group % dpb) * ds
+        let buf: ptr<Int> = alloc_zeroed(bs / 4 + 1, "Int")
+        let ba = ptr_to_int(buf)
+        defer decay buf
+        let ret = ext4_read_block(device_id, tb, ba, bs)
+        if ret < 0:
+            return Ext4BlockGroupDesc {
+                block_bitmap: 0, inode_bitmap: 0, inode_table: 0,
+                free_blocks_count: 0, free_inodes_count: 0, used_dirs_count: 0,
+            }
+        return Ext4BlockGroupDesc {
+            block_bitmap: ext4_read_u32(ba, ob + 0),
+            inode_bitmap: ext4_read_u32(ba, ob + 4),
+            inode_table: ext4_read_u32(ba, ob + 8),
+            free_blocks_count: ext4_read_u16(ba, ob + 12),
+            free_inodes_count: ext4_read_u16(ba, ob + 14),
+            used_dirs_count: ext4_read_u16(ba, ob + 16),
+        }
+
+    pub fn ext4_read_inode(device_id: Int, sb: Ext4Superblock, inode_num: Int) -> Ext4Inode with Unsafe:
+        let bs = sb.block_size
+        var isize = sb.inode_size
+        if isize == 0:
+            isize = 256
+        let group = (inode_num - 1) / sb.inodes_per_group
+        let gd = ext4_read_group_desc(device_id, sb, group)
+        if gd.inode_table == 0:
+            return Ext4Inode {
+                inode_num: -1, mode: 0, uid: 0, size_low: 0,
+                atime: 0, ctime: 0, mtime: 0, dtime: 0,
+                gid: 0, links_count: 0, block_count: 0, flags: 0, osd1: 0,
+                extents: [], size_high: 0, file_size: 0,
+            }
+        let li = (inode_num - 1) % sb.inodes_per_group
+        let ito = li * isize
+        let tb = gd.inode_table + (ito / bs)
+        let ob = ito % bs
+        let buf: ptr<Int> = alloc_zeroed(bs / 4 + 1, "Int")
+        let ba = ptr_to_int(buf)
+        defer decay buf
+        let ret = ext4_read_block(device_id, tb, ba, bs)
+        if ret < 0:
+            return Ext4Inode {
+                inode_num: -1, mode: 0, uid: 0, size_low: 0,
+                atime: 0, ctime: 0, mtime: 0, dtime: 0,
+                gid: 0, links_count: 0, block_count: 0, flags: 0, osd1: 0,
+                extents: [], size_high: 0, file_size: 0,
+            }
+        let o = ob
+        let mode = ext4_read_u16(ba, o + 0)
+        let uid = ext4_read_u16(ba, o + 2)
+        let sl = ext4_read_u32(ba, o + 4)
+        var extents: [Ext4Extent] = []
+        let em = ext4_read_u16(ba, o + 40)
+        if em == EXT4_EXTENT_MAGIC:
+            let ee = ext4_read_u16(ba, o + 42)
+            var ei: Int = 0
+            while ei < ee and ei < 4:
+                let eo = o + 48 + (ei * 12)
+                push(extents, Ext4Extent {
+                    block: ext4_read_u32(ba, eo + 0),
+                    len: ext4_read_u16(ba, eo + 4),
+                    start_lo: ext4_read_u32(ba, eo + 8),
+                    start_hi: ext4_read_u16(ba, eo + 6),
+                })
+                ei = ei + 1
+        return Ext4Inode {
+            inode_num: inode_num, mode: mode, uid: uid, size_low: sl,
+            atime: ext4_read_u32(ba, o + 8), ctime: ext4_read_u32(ba, o + 12),
+            mtime: ext4_read_u32(ba, o + 16), dtime: ext4_read_u32(ba, o + 20),
+            gid: ext4_read_u16(ba, o + 24), links_count: ext4_read_u16(ba, o + 26),
+            block_count: ext4_read_u32(ba, o + 28), flags: ext4_read_u32(ba, o + 32),
+            osd1: 0, extents: extents, size_high: 0, file_size: sl,
+        }
+
+    pub fn ext4_extent_lookup(inode: Ext4Inode, logical_block: Int) -> Int:
+        var i: Int = 0
+        while i < len(inode.extents):
+            let ext = inode.extents[i]
+            if logical_block >= ext.block and logical_block < ext.block + ext.len:
+                let offset = logical_block - ext.block
+                return ext.start_lo + offset
+            i = i + 1
+        return -1
+
+    pub fn ext4_read_directory(device_id: Int, sb: Ext4Superblock, dir_inode: Ext4Inode) -> [Ext4DirEnt] with Unsafe:
+        var entries: [Ext4DirEnt] = []
+        let bs = sb.block_size
+        let buf: ptr<Int> = alloc_zeroed(bs / 4 + 1, "Int")
+        let ba = ptr_to_int(buf)
+        defer decay buf
+        var lb: Int = 0
+        let tb = (dir_inode.file_size + bs - 1) / bs
+        while lb < tb:
+            let pb = ext4_extent_lookup(dir_inode, lb)
+            if pb < 0:
+                lb = lb + 1
+            else:
+                let ret = ext4_read_block(device_id, pb, ba, bs)
+                if ret >= 0:
+                    var offset: Int = 0
+                    while offset < bs:
+                        let di = ext4_read_u32(ba, offset + 0)
+                        let dr = ext4_read_u16(ba, offset + 4)
+                        let dn = ext4_read_u8(ba, offset + 6)
+                        let df = ext4_read_u8(ba, offset + 7)
+                        if dr == 0 or offset + dr > bs:
+                            offset = bs
+                        else:
+                            if di != 0 and dn > 0:
+                                var ns = ""
+                                var ni: Int = 0
+                                while ni < dn:
+                                    let c = ext4_read_u8(ba, offset + 8 + ni)
+                                    if c >= 0x20 and c < 0x80:
+                                        ns = ns + chr(c)
+                                    ni = ni + 1
+                                push(entries, Ext4DirEnt {
+                                    inode: di, rec_len: dr, name_len: dn, file_type: df, name: ns,
+                                })
+                            offset = offset + dr
+                lb = lb + 1
+        return entries
+
+    fn ext4_find_in_dir(device_id: Int, sb: Ext4Superblock, dir_inode: Ext4Inode, name: String) -> Int with Unsafe:
+        let entries = ext4_read_directory(device_id, sb, dir_inode)
+        var i: Int = 0
+        while i < len(entries):
+            if entries[i].name == name:
+                return entries[i].inode
+            i = i + 1
+        return -1
+
+    pub fn ext4_resolve_path(device_id: Int, sb: Ext4Superblock, path: String) -> Int with Unsafe:
+        var comps: [String] = []
+        let pl = len(path)
+        var start: Int = 0
+        if pl > 0 and char_at(path, 0) == "/":
+            start = 1
+        var end: Int = start
+        while end <= pl:
+            if end == pl or char_at(path, end) == "/":
+                if end > start:
+                    push(comps, substring(path, start, end - start))
+                start = end + 1
+            end = end + 1
+        if len(comps) == 0:
+            return 2
+        var ci: Int = 0
+        var cc: Int = 2
+        while ci < len(comps):
+            let dir = ext4_read_inode(device_id, sb, cc)
+            if dir.inode_num < 0:
+                return -1
+            let child = ext4_find_in_dir(device_id, sb, dir, comps[ci])
+            if child < 0:
+                return -1
+            cc = child
+            ci = ci + 1
+        return cc
+
+    pub fn ext4_mount(device_id: Int) -> Int with Unsafe:
+        let sb = ext4_parse_superblock(device_id)
+        if sb.magic != EXT4_MAGIC:
+            return -1
+        if sb.block_size == 0:
+            return -2
+        if (sb.feature_incompat & EXT4_FEATURE_INCOMPAT_EXTENTS) == 0:
+            return -3
+        push(Ext4World.mounts, sb)
+        return len(Ext4World.mounts) - 1
+
+    pub fn ext4_open(device_id: Int, path: String, flags: Int) -> Int with Unsafe:
+        var mount_idx: Int = -1
+        var mi: Int = 0
+        while mi < len(Ext4World.mounts):
+            if Ext4World.mounts[mi].device_id == device_id:
+                mount_idx = mi
+                break
+            mi = mi + 1
+        if mount_idx < 0:
+            return -1
+        let sb = Ext4World.mounts[mount_idx]
+        return ext4_resolve_path(device_id, sb, path)
+
+    pub fn ext4_read(device_id: Int, inode_num: Int, offset: Int, count: Int, buf: Int) -> Int with Unsafe:
+        var mount_idx: Int = -1
+        var mi: Int = 0
+        while mi < len(Ext4World.mounts):
+            if Ext4World.mounts[mi].device_id == device_id:
+                mount_idx = mi
+                break
+            mi = mi + 1
+        if mount_idx < 0:
+            return -1
+        let sb = Ext4World.mounts[mount_idx]
+        let bs = sb.block_size
+        let inode = ext4_read_inode(device_id, sb, inode_num)
+        if inode.inode_num < 0:
+            return -2
+        if offset >= inode.file_size:
+            return 0
+        var actual = count
+        if offset + count > inode.file_size:
+            actual = inode.file_size - offset
+        if actual <= 0:
+            return 0
+        var br: Int = 0
+        var rem: Int = actual
+        var fo: Int = offset
+        let bb: ptr<Int> = alloc_zeroed(bs / 4 + 1, "Int")
+        let bba = ptr_to_int(bb)
+        defer decay bb
+        while rem > 0:
+            let lb = fo / bs
+            let bo = fo % bs
+            let pb = ext4_extent_lookup(inode, lb)
+            if pb < 0:
+                return br
+            let ret = ext4_read_block(device_id, pb, bba, bs)
+            if ret < 0:
+                return br
+            var cc = bs - bo
+            if cc > rem:
+                cc = rem
+            var byi: Int = 0
+            while byi < cc:
+                let val = ext4_read_u8(bba, bo + byi)
+                let dst: ptr<Int> = int_to_ptr(buf + br + byi, "Int")
+                mem_store(dst, val, "Int")
+                byi = byi + 1
+            br = br + cc
+            rem = rem - cc
+            fo = fo + cc
+        return br
+
+    pub fn ext4_stat(device_id: Int, path: String) -> KOsStat with Unsafe:
+        var mount_idx: Int = -1
+        var mi: Int = 0
+        while mi < len(Ext4World.mounts):
+            if Ext4World.mounts[mi].device_id == device_id:
+                mount_idx = mi
+                break
+            mi = mi + 1
+        if mount_idx < 0:
+            return KOsStat { inode_id: -1, size: 0, file_type: 0, fs_type: 0, device_id: -1, block_count: 0 }
+        let sb = Ext4World.mounts[mount_idx]
+        let inode_num = ext4_resolve_path(device_id, sb, path)
+        if inode_num < 0:
+            return KOsStat { inode_id: -1, size: 0, file_type: 0, fs_type: 0, device_id: -1, block_count: 0 }
+        return ext4_stat_inode(device_id, inode_num)
+
+    pub fn ext4_stat_inode(device_id: Int, inode_num: Int) -> KOsStat with Unsafe:
+        var mount_idx: Int = -1
+        var mi: Int = 0
+        while mi < len(Ext4World.mounts):
+            if Ext4World.mounts[mi].device_id == device_id:
+                mount_idx = mi
+                break
+            mi = mi + 1
+        if mount_idx < 0:
+            return KOsStat { inode_id: -1, size: 0, file_type: 0, fs_type: 0, device_id: -1, block_count: 0 }
+        let sb = Ext4World.mounts[mount_idx]
+        let inode = ext4_read_inode(device_id, sb, inode_num)
+        if inode.inode_num < 0:
+            return KOsStat { inode_id: -1, size: 0, file_type: 0, fs_type: 0, device_id: -1, block_count: 0 }
+        var ft = FS_FILE_REGULAR
+        let mb = inode.mode & 0xF000
+        if mb == EXT4_INODE_MODE_DIR:
+            ft = FS_FILE_DIR
+        else if mb == EXT4_INODE_MODE_SYMLINK:
+            ft = FS_FILE_SYMLINK
+        return KOsStat {
+            inode_id: inode_num, size: inode.file_size, file_type: ft,
+            fs_type: FS_EXT4, device_id: device_id, block_count: inode.block_count,
+        }
+
+    pub fn ext4_readdir(device_id: Int, dir_inode_num: Int) -> [KOsDirEntry] with Unsafe:
+        var result: [KOsDirEntry] = []
+        var mount_idx: Int = -1
+        var mi: Int = 0
+        while mi < len(Ext4World.mounts):
+            if Ext4World.mounts[mi].device_id == device_id:
+                mount_idx = mi
+                break
+            mi = mi + 1
+        if mount_idx < 0:
+            return result
+        let sb = Ext4World.mounts[mount_idx]
+        let inode = ext4_read_inode(device_id, sb, dir_inode_num)
+        if inode.inode_num < 0:
+            return result
+        let entries = ext4_read_directory(device_id, sb, inode)
+        var i: Int = 0
+        while i < len(entries):
+            let e = entries[i]
+            var ft: Int = FS_FILE_REGULAR
+            if e.file_type == EXT4_FT_DIR:
+                ft = FS_FILE_DIR
+            else if e.file_type == EXT4_FT_SYMLINK:
+                ft = FS_FILE_SYMLINK
+            push(result, KOsDirEntry { name: e.name, inode_id: e.inode, file_type: ft })
+            i = i + 1
+        return result

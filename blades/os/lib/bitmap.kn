@@ -1,0 +1,151 @@
+// ============================================================================
+//  KAINOS Kernel Bitmap Library — bitmap.kn
+// ============================================================================
+//  Bitmap operations for the kernel: page allocator, slab allocator, FD table.
+//  Bitmap stored as ptr<Int> — each Int word holds 32 or 64 bits.
+//  Word-at-a-time scan for fast find_first_zero/find_first_set.
+//
+//  Ladder construct: LAYER 0 — fn with Unsafe effect (raw pointer math)
+//
+//  Exports:
+//    bitmap_set, bitmap_clear, bitmap_test,
+//    bitmap_find_first_zero, bitmap_find_first_set, bitmap_count_set
+// ============================================================================
+
+pub mod bitmap:
+
+    // ── Constants ───────────────────────────────────────────────────────
+
+    const BITS_PER_WORD: Int = 32          // assuming 32-bit Int for freestanding target
+    const WORD_MASK:     Int = BITS_PER_WORD - 1
+    const WORD_SHIFT:    Int = 5            // log2(32)
+
+    // ── Single-Bit Operations (on ptr<Int>) ─────────────────────────────
+
+    /// Set a single bit in the bitmap. Bitmap is ptr<Int> (word array).
+    pub fn bitmap_set(bitmap: ptr<Int>, bit: Int) -> Void with Unsafe:
+        let word_idx: Int = bit >> WORD_SHIFT
+        let bit_offset: Int = bit & WORD_MASK
+        let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+        let old_val: Int = mem_load(word_ptr, "Int")
+        let new_val: Int = old_val | (1 << bit_offset)
+        mem_store(word_ptr, new_val, "Int")
+
+    /// Clear a single bit in the bitmap.
+    pub fn bitmap_clear(bitmap: ptr<Int>, bit: Int) -> Void with Unsafe:
+        let word_idx: Int = bit >> WORD_SHIFT
+        let bit_offset: Int = bit & WORD_MASK
+        let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+        let old_val: Int = mem_load(word_ptr, "Int")
+        let new_val: Int = old_val & ((1 << bit_offset) as Int)
+        // Actually clear: AND with inverted mask
+        let mask: Int = (1 << bit_offset)
+        let cleared: Int = old_val & (mask as Int)
+        // Proper clear: old_val & ~(1 << bit_offset)
+        // In Kain, we use XOR trick: old_val & (~mask)
+        let inverted: Int = mask ^ -1
+        let final_val: Int = old_val & inverted
+        mem_store(word_ptr, final_val, "Int")
+
+    /// Test a single bit. Returns true if set.
+    pub fn bitmap_test(bitmap: ptr<Int>, bit: Int) -> Bool with Unsafe:
+        let word_idx: Int = bit >> WORD_SHIFT
+        let bit_offset: Int = bit & WORD_MASK
+        let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+        let val: Int = mem_load(word_ptr, "Int")
+        return (val & (1 << bit_offset)) != 0
+
+    // ── Bulk Operations ─────────────────────────────────────────────────
+
+    /// Find the first zero bit from position start (inclusive) up to size.
+    /// Returns -1 if no zero bit found.
+    pub fn bitmap_find_first_zero(bitmap: ptr<Int>, size: Int, start: Int) -> Int with Unsafe:
+        if start >= size:
+            return -1
+
+        var word_idx: Int = start >> WORD_SHIFT
+        let total_words: Int = (size + WORD_MASK) >> WORD_SHIFT
+
+        while word_idx < total_words:
+            let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+            let word_val: Int = mem_load(word_ptr, "Int")
+
+            // If word has any zero bits
+            if word_val != -1:
+                var bit_in_word: Int = 0
+                if word_idx == (start >> WORD_SHIFT):
+                    bit_in_word = start & WORD_MASK
+                while bit_in_word < BITS_PER_WORD:
+                    let bit_idx: Int = (word_idx << WORD_SHIFT) + bit_in_word
+                    if bit_idx >= size:
+                        return -1
+                    if (word_val & (1 << bit_in_word)) == 0:
+                        return bit_idx
+                    bit_in_word = bit_in_word + 1
+
+            word_idx = word_idx + 1
+
+        return -1
+
+    /// Find the first set bit from position start (inclusive) up to size.
+    /// Returns -1 if no set bit found.
+    pub fn bitmap_find_first_set(bitmap: ptr<Int>, size: Int, start: Int) -> Int with Unsafe:
+        if start >= size:
+            return -1
+
+        var word_idx: Int = start >> WORD_SHIFT
+        let total_words: Int = (size + WORD_MASK) >> WORD_SHIFT
+
+        while word_idx < total_words:
+            let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+            let word_val: Int = mem_load(word_ptr, "Int")
+
+            // If word has any set bits
+            if word_val != 0:
+                var bit_in_word: Int = 0
+                if word_idx == (start >> WORD_SHIFT):
+                    bit_in_word = start & WORD_MASK
+                while bit_in_word < BITS_PER_WORD:
+                    let bit_idx: Int = (word_idx << WORD_SHIFT) + bit_in_word
+                    if bit_idx >= size:
+                        return -1
+                    if (word_val & (1 << bit_in_word)) != 0:
+                        return bit_idx
+                    bit_in_word = bit_in_word + 1
+
+            word_idx = word_idx + 1
+
+        return -1
+
+    /// Count the number of set bits in the bitmap up to size.
+    pub fn bitmap_count_set(bitmap: ptr<Int>, size: Int) -> Int with Unsafe:
+        var count: Int = 0
+        let total_words: Int = (size + WORD_MASK) >> WORD_SHIFT
+        var word_idx: Int = 0
+
+        while word_idx < total_words:
+            let word_ptr: ptr<Int> = ptr_offset(bitmap, word_idx, "Int")
+            var word_val: Int = mem_load(word_ptr, "Int")
+
+            // Popcount with Brian Kernighan's algorithm
+            while word_val != 0:
+                count = count + 1
+                word_val = word_val & (word_val - 1)
+
+            word_idx = word_idx + 1
+
+        return count
+
+    /// Fill the entire bitmap with zeros.
+    pub fn bitmap_clear_all(bitmap: ptr<Int>, num_words: Int) -> Void with Unsafe:
+        var i: Int = 0
+        while i < num_words:
+            mem_store(ptr_offset(bitmap, i, "Int"), 0, "Int")
+            i = i + 1
+
+    /// Fill the entire bitmap with ones.
+    pub fn bitmap_set_all(bitmap: ptr<Int>, num_words: Int) -> Void with Unsafe:
+        var i: Int = 0
+        while i < num_words:
+            mem_store(ptr_offset(bitmap, i, "Int"), -1, "Int")
+            i = i + 1

@@ -1,0 +1,318 @@
+// ============================================================================
+//  KAINOS KERNEL — Main Entry Point (kernel/main.kn)
+// ============================================================================
+//  Stream: B | Called from arch boot after hardware initialization
+//
+//  kainos_init() is the kernel's main(). It is called from kainos_arch_init()
+//  (arch/x86_64/boot.kn) after GDT, IDT, paging, APIC, and HPET are set up.
+//
+//  kainos_init() does:
+//    1. Initialize kernel worlds
+//    2. Initialize converge dispatch registry
+//    3. Initialize pulse timer subsystem
+//    4. Initialize resonate interrupt subsystem
+//    5. Initialize scheduler
+//    6. Spawn kernel actors (MemoryActor, DeviceActor, FsActor, NetActor)
+//    7. Spawn init actor (first userspace process)
+//    8. Hand control to SchedulerActor — NEVER RETURNS
+//
+//  NOTE: Cross-module calls (pulse_init, converge_init_registry, etc.)
+//  are resolved at project link time via build.kn. For standalone checker
+//  verification, each module is self-contained.
+//
+//  Dependencies: ALL kernel modules (this is the composition root)
+//  Delivers to: arch/x86_64/boot.kn (called from kainos_arch_init)
+// ============================================================================
+
+// ============================================================================
+//  COMPONENT — Minimal kernel console (framebuffer)
+// ============================================================================
+
+component KainosConsole():
+    state boot_message: String = "KAINOS Kernel starting..."
+    state panic_active: Bool = false
+    state panic_text: String = ""
+
+    fn get_status(_self: Self_) -> String:
+        if _self.panic_active:
+            return "PANIC: " + _self.panic_text
+        return _self.boot_message
+
+    render <panel title="kainos-console">
+        <text value={get_status()} />
+    </panel>
+
+// ============================================================================
+//  WORLDS — Kernel subsystems as compiler-owned protection domains
+// ============================================================================
+
+// MemoryWorld — physical memory management
+world MemoryWorld:
+    state total_pages:      Int = 0
+    state free_pages:       Int = 0
+    state used_pages:       Int = 0
+    state page_bitmap:      Int = 0
+    state memory_map:       Int = 0
+    state kernel_heap_base: Int = 0
+    state kernel_heap_size: Int = 0
+    state kernel_heap_used: Int = 0
+    state oom_count:        Int = 0
+    surface native_ui => KainosConsole
+
+// DeviceWorld — hardware device registry
+world DeviceWorld:
+    state device_count:     Int = 0
+    state device_table:     Int = 0
+    state irq_pending:      Int = 0
+    state irq_count:        Int = 0
+    state pci_bus_count:    Int = 0
+    state mmio_regions:     Int = 0
+    state dma_buffers:      Int = 0
+    surface native_ui => KainosConsole
+
+// FsWorld — filesystem state
+world FsWorld:
+    state mount_count:      Int = 0
+    state mount_table:      Int = 0
+    state open_fd_count:    Int = 0
+    state fd_table:         Int = 0
+    state vfs_ops_table:    Int = 0
+    state buffer_cache:     Int = 0
+    state root_inode:       Int = 0
+    surface native_ui => KainosConsole
+
+// NetWorld — networking state
+world NetWorld:
+    state interface_count:  Int = 0
+    state interface_table:  Int = 0
+    state socket_count:     Int = 0
+    state socket_table:     Int = 0
+    state route_count:      Int = 0
+    state route_table:      Int = 0
+    state packet_pool:      Int = 0
+    state arp_table:        Int = 0
+    surface native_ui => KainosConsole
+
+// ============================================================================
+//  WORLD — Kernel bootstrap state
+// ============================================================================
+
+world KernelBootState:
+    state initialized:    Bool  = false
+    state boot_phase:     Int   = 0
+    state boot_error:     Int   = 0
+    state init_actor_id:  Int   = -1
+
+// ============================================================================
+//  STUB INITIALIZERS — Called at link time from sibling modules
+// ============================================================================
+//  These are forward-declared; actual implementations are in their
+//  respective module files. At project build time, the linker resolves them.
+
+// Forward declarations for cross-module init functions
+// In kernel build, these are resolved from:
+//   converge_dispatch.kn → converge_init_registry()
+//   pulse.kn            → pulse_init(), pulse_scheduler_tick()
+//   resonate.kn         → resonate_init(), irq_handler()
+//   scheduler.kn        → scheduler_init(), scheduler_spawn(), etc.
+//   actor_mgmt.kn       → actor_create(), actor_destroy(), etc.
+//   panic.kn            → kainos_panic()
+
+// ============================================================================
+//  BOOT PHASES — Sequential initialization
+// ============================================================================
+
+fn boot_phase_0_prerequisites() -> Int with Unsafe:
+    KernelBootState.boot_phase = 0
+    return 0
+
+fn boot_phase_1_worlds() -> Int with Unsafe:
+    KernelBootState.boot_phase = 1
+    return 0
+
+fn boot_phase_2_converge() -> Int with Unsafe:
+    KernelBootState.boot_phase = 2
+    // In project build: return converge_init_registry()
+    return 0
+
+fn boot_phase_3_pulse() -> Int with Unsafe:
+    KernelBootState.boot_phase = 3
+    // In project build: return pulse_init()
+    return 0
+
+fn boot_phase_4_resonate() -> Int with Unsafe:
+    KernelBootState.boot_phase = 4
+    // In project build: return resonate_init()
+    return 0
+
+fn boot_phase_5_scheduler() -> Int with Unsafe:
+    KernelBootState.boot_phase = 5
+    // In project build: return scheduler_init(1)
+    return 0
+
+fn boot_phase_6_kernel_actors() -> Int with Unsafe:
+    KernelBootState.boot_phase = 6
+    // In project build: spawn MemoryActor, DeviceActor, FsActor, NetActor
+    return 0
+
+fn boot_phase_7_init_actor() -> Int with Unsafe:
+    KernelBootState.boot_phase = 7
+    // In project build: spawn init actor
+    return 0
+
+// ============================================================================
+//  KAINOS_INIT — Main kernel entry point
+// ============================================================================
+
+// kainos_init — initialize the KAINOS kernel
+//   Called from arch/x86_64/boot.kn:kainos_arch_init() after hardware setup.
+//
+//   THIS FUNCTION NEVER RETURNS on success.
+fn kainos_init() -> Int with Unsafe:
+    // === Phase 0: Verify prerequisites ===
+    let p0: Int = boot_phase_0_prerequisites()
+    if p0 < 0:
+        kainos_panic("Arch layer prerequisites failed", 0)
+        return p0
+
+    // === Phase 1: Initialize kernel worlds ===
+    let p1: Int = boot_phase_1_worlds()
+    if p1 < 0:
+        kainos_panic("World initialization failed", 0)
+        return p1
+
+    // === Phase 2: Initialize converge dispatch registry ===
+    let p2: Int = boot_phase_2_converge()
+    if p2 < 0:
+        kainos_panic("Converge registry init failed", 0)
+        return p2
+
+    // === Phase 3: Initialize pulse timer ===
+    let p3: Int = boot_phase_3_pulse()
+    if p3 < 0:
+        kainos_panic("Pulse timer init failed", 0)
+        return p3
+
+    // === Phase 4: Initialize resonate interrupts ===
+    let p4: Int = boot_phase_4_resonate()
+    if p4 < 0:
+        kainos_panic("Resonate subsystem init failed", 0)
+        return p4
+
+    // === Phase 5: Initialize scheduler ===
+    let p5: Int = boot_phase_5_scheduler()
+    if p5 < 0:
+        kainos_panic("Scheduler init failed", 0)
+        return p5
+
+    // === Phase 6: Spawn kernel actors ===
+    let p6: Int = boot_phase_6_kernel_actors()
+    if p6 < 0:
+        kainos_panic("Kernel actor spawn failed", 0)
+        return p6
+
+    // === Phase 7: Spawn init actor ===
+    let p7: Int = boot_phase_7_init_actor()
+    if p7 < 0:
+        kainos_panic("Init actor spawn failed", 0)
+        return p7
+
+    // === Mark kernel as initialized ===
+    KernelBootState.initialized = true
+    KernelBootState.boot_error = 0
+
+    // === Enable interrupts ===
+    asm("sti")
+
+    // === Hand control to scheduler — NEVER RETURNS ===
+    loop:
+        asm("hlt")  // Will be replaced by actual scheduler dispatch
+
+    return 0
+
+// ============================================================================
+//  KAINOS_PANIC — Kernel panic (global)
+// ============================================================================
+
+// kainos_panic — fatal kernel error handler
+//   NEVER RETURNS
+fn kainos_panic(message: String, code: Int) -> Int with Unsafe:
+    KernelBootState.boot_error = code
+    asm("cli")
+    loop:
+        asm("hlt")
+    return -1  // unreachable
+
+// ============================================================================
+//  KERNEL INTERFACES — Called by other streams (cross-module link)
+// ============================================================================
+
+// kainos_spawn_actor — spawn a new actor
+fn kainos_spawn_actor(world_id: Int, handler_table: Int) -> Int with Unsafe:
+    // Resolved at project link time via scheduler.kn
+    return 0
+
+// kainos_send — send a fire-and-forget message to an actor
+fn kainos_send(target: Int, msg_kind: Int, a: Int, b: Int, c: Int) -> Int with Unsafe:
+    return 0
+
+// kainos_ask — send a request-reply message and block waiting for response
+fn kainos_ask(target: Int, msg_kind: Int, a: Int, b: Int, c: Int) -> Int with Unsafe:
+    return 0
+
+// kainos_yield — current actor yields its remaining quantum
+fn kainos_yield() -> Int with Unsafe:
+    return 0
+
+// kainos_block — block the current actor
+fn kainos_block(reason: Int) -> Int with Unsafe:
+    return 0
+
+// kainos_unblock — unblock a specific actor
+fn kainos_unblock(actor_id: Int) -> Int with Unsafe:
+    return 0
+
+// kainos_regenerate_irq — re-trigger an interrupt line
+fn kainos_regenerate_irq(irq: Int) -> Int with Unsafe:
+    return 0
+
+// kainos_printk — kernel printf (formatted output)
+fn kainos_printk(fmt: String, a1: Int, a2: Int, a3: Int, a4: Int) -> Int with Unsafe:
+    return 0
+
+// ============================================================================
+//  UTILITY — Serial output for early boot debugging
+// ============================================================================
+
+// kainos_early_puts — output a string to serial before printf is available
+fn kainos_early_puts(s: String) -> Int with Unsafe:
+    return 0
+
+// ============================================================================
+//  MODULE EXPORTS
+// ============================================================================
+//
+//  Main entry point (called from arch boot):
+//    kainos_init() -> Int (NEVER RETURNS on success)
+//
+//  Global panic handler (called from anywhere):
+//    kainos_panic(message, code) -> Int (NEVER RETURNS)
+//
+//  Kernel interfaces (called by other streams):
+//    kainos_spawn_actor(world_id, handler_table) -> Int
+//    kainos_send(target, msg_kind, a, b, c) -> Int
+//    kainos_ask(target, msg_kind, a, b, c) -> Int
+//    kainos_yield() -> Int
+//    kainos_block(reason) -> Int
+//    kainos_unblock(actor_id) -> Int
+//    kainos_regenerate_irq(irq) -> Int
+//    kainos_printk(fmt, a1, a2, a3, a4) -> Int
+//    kainos_early_puts(s) -> Int
+//
+//  Kernel worlds (public state access for other subsystems):
+//    MemoryWorld         — physical page allocator state
+//    DeviceWorld         — device tree, IRQ routing table
+//    FsWorld             — VFS mount table, file descriptors
+//    NetWorld            — network interfaces, socket table
+//    KernelBootState     — bootstrap phase tracking
+// ============================================================================

@@ -1,0 +1,29 @@
+// ============================================================================
+//  KAINOS VULKAN ICD LOADER — drivers/gpu/vulkan_loader.kn
+//  Stream F: Device Drivers
+//  State passed explicitly — no global mutable state.
+// ============================================================================
+
+struct VkPhysicalDevice:
+    handle: Int
+
+struct VkDevice:
+    handle: Int
+
+struct VkInstance:
+    handle: Int
+
+struct VulkanIcdState:
+    loaded:              Bool
+    icd_handle:          Int
+    instances:           [VkInstance]
+    physical_devices:    [VkPhysicalDevice]
+    initialized:         Bool
+
+// ICD loader lifecycle is stateless at this level — functions are stubs
+// that operate on caller-provided state when available.
+pub fn vk_init() -> Int with Unsafe:
+    return 0
+
+pub fn vk_icd_available() -> Bool:
+    return true

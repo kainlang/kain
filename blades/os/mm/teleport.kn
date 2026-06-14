@@ -1,0 +1,309 @@
+// ============================================================================
+//  STREAM C — TELEPORT (teleport.kn)
+//  Zero-copy cross-world ownership transfer. Teleport bus: typed handoff point
+//  between specific world pairs. After teleport: source world loses access
+//  (compiler enforced via mark_moved + runtime assertion).
+//  Teleport stats: count, bytes transferred, latency histogram.
+//
+//  Decision Ladder:
+//    L0: struct TeleportBus, struct TeleportRecord
+//    L1: world TeleportWorld — central teleport bus registry + stats
+//    L2: law teleport_linearity (I5: source world loses access after handoff)
+//    L6: teleport expression for zero-copy cross-world transfer
+//
+//  Invariant I5: Teleport is linear — source world loses access after handoff.
+//  Post-transfer access from the source world triggers a LAW violation.
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const TELEPORT_MAX_BUSES:     Int = 64
+const TELEPORT_BUS_STATE_IDLE:  Int = 0
+const TELEPORT_BUS_STATE_ACTIVE: Int = 1
+const TELEPORT_BUS_STATE_DRAINED: Int = 2
+
+// ============================================================================
+//  LAYER 0 — DATA STRUCTURES
+// ============================================================================
+
+struct TeleportBus:
+    bus_id:        Int
+    bus_name:      String
+    source_world:  Int       // Source world identifier
+    dest_world:    Int       // Destination world identifier
+    state:         Int       // IDLE | ACTIVE | DRAINED
+    transfer_count: Int      // Total transfers through this bus
+    total_bytes:   Int       // Total bytes transferred
+    last_token:    Int       // Last provenance token
+    epoch:         Int       // Bus epoch counter
+
+struct TeleportRecord:
+    bus_id:        Int
+    source_world:  Int
+    dest_world:    Int
+    ptr_value:     Int       // Address of transferred data
+    size_bytes:    Int
+    token:         Int       // Provenance token (hash of ptr + source + dest)
+    timestamp:     Int       // Monotonic timestamp of transfer
+
+struct TeleportStats:
+    total_transfers:  Int
+    total_bytes:      Int
+    active_buses:     Int
+    violation_count:  Int
+    min_latency:      Int
+    max_latency:      Int
+    avg_latency:      Int
+
+// ============================================================================
+//  COMPONENT — Minimal surface
+// ============================================================================
+
+component MMTeleportPanel():
+    render <panel title="MM Teleport" />
+
+// ============================================================================
+//  LAYER 1 — STATE AUTHORITY WORLDS
+// ============================================================================
+
+/// Central teleport registry — tracks buses, stats, and violations.
+world TeleportWorld:
+    state bus_count:        Int = 0
+    state total_transfers:  Int = 0
+    state total_bytes:      Int = 0
+    state violation_count:  Int = 0
+    state last_bus_used:    Int = 0
+    state last_token:       Int = 0
+    state teleport_epoch:   Int = 0
+    surface native_ui => MMTeleportPanel
+
+/// Source world example — owns memory before teleport.
+world TeleportSource:
+    state owned_pages:  Int = 0
+    state transferred:  Int = 0
+    surface native_ui => MMTeleportPanel
+
+/// Destination world example — receives memory after teleport.
+world TeleportDest:
+    state received_pages: Int = 0
+    state received_bytes: Int = 0
+    surface native_ui => MMTeleportPanel
+
+/// Mirror world for telemetry introspection.
+world TeleportMirror:
+    state transfer_count_copy:  Int = 0
+    state violation_count_copy: Int = 0
+    surface native_ui => MMTeleportPanel
+
+// ============================================================================
+//  LAYER 1 — ENTANGLEMENT: Authority → Mirror
+// ============================================================================
+
+entangle TeleportWorld.total_transfers  <-> TeleportMirror.transfer_count_copy  with single_writer
+entangle TeleportWorld.violation_count  <-> TeleportMirror.violation_count_copy with single_writer
+
+// ============================================================================
+//  LAYER 2 — INVARIANTS: law
+// ============================================================================
+
+law teleport_linearity_post_access(
+    source_world: Int,
+    dest_world:   Int,
+    transfer_done: Bool,
+    accessor_world: Int,
+    is_source:    Bool
+) -> Bool:
+    // I5: Teleport is linear — source world loses access after handoff.
+    // After a teleport from source_world to dest_world, the source world
+    // must NOT access the transferred memory. Any post-transfer access
+    // from the source raises a LAW violation.
+    //
+    // This law encodes the Z3-proven Claim 3 (teleport linearity):
+    //   (teleport_occurred and region_owned_by_w1) → UNSAT
+    if transfer_done and is_source:
+        return false  // I3: Source access after teleport = VIOLATION
+    return true
+
+law teleport_bus_valid(bus_id: Int, max_buses: Int) -> Bool:
+    return bus_id >= 0 and bus_id < max_buses
+
+law teleport_worlds_distinct(source: Int, dest: Int) -> Bool:
+    // Teleport must move data between different worlds
+    return source != dest
+
+law teleport_ptr_valid(ptr: Int) -> Bool:
+    // Teleported pointer must be non-null
+    return ptr != 0
+
+// ============================================================================
+//  LAYER 2 — JOURNALED MUTATION: patch
+// ============================================================================
+
+patch teleport_record_transfer(
+    tw:       TeleportWorld,
+    bus_id:   Int,
+    ptr_val:  Int,
+    bytes:    Int,
+    token:    Int
+) -> Int:
+    tw.total_transfers = tw.total_transfers + 1
+    tw.total_bytes = tw.total_bytes + bytes
+    tw.last_bus_used = bus_id
+    tw.last_token = token
+    tw.teleport_epoch = tw.teleport_epoch + 1
+    return tw.total_transfers
+
+patch teleport_record_violation(
+    tw: TeleportWorld,
+    source_world: Int,
+    ptr_val: Int
+) -> Int:
+    tw.violation_count = tw.violation_count + 1
+    tw.teleport_epoch = tw.teleport_epoch + 1
+    return tw.violation_count
+
+// ============================================================================
+//  BUS MANAGEMENT
+// ============================================================================
+
+/// Register a teleport bus between two worlds.
+/// A bus is a typed handoff point — it names the data flow and channels telemetry.
+/// Returns the bus ID on success, or -1 on failure.
+pub fn teleport_register_bus(source_world: Int, dest_world: Int, bus_name: String) -> Int with Unsafe:
+    if law_status(teleport_worlds_distinct(source_world, dest_world)) < 0:
+        return -1  // Source and dest must be different worlds
+
+    let bus_id = TeleportWorld.bus_count
+    if bus_id >= TELEPORT_MAX_BUSES:
+        return -2  // Bus table full
+
+    // In a real kernel:
+    // 1. Allocate a TeleportBus descriptor
+    // 2. Initialize with source/dest worlds and bus name
+    // 3. Register in the global bus table
+    // 4. Set up law enforcement: post-transfer source access → violation
+
+    TeleportWorld.bus_count = TeleportWorld.bus_count + 1
+    TeleportWorld.teleport_epoch = TeleportWorld.teleport_epoch + 1
+
+    return bus_id
+
+/// Perform a zero-copy teleport transfer of memory from source to destination world.
+/// `ptr` is the physical/virtual address of the memory to transfer.
+/// `bus_id` identifies the registered teleport bus.
+/// `size_bytes` is the size of the transferred region.
+/// Returns the provenance token on success, or -1 on failure.
+///
+/// After this call:
+///   - The source world's access to this memory is REVOKED
+///   - The destination world gains exclusive ownership
+///   - Any subsequent access from the source triggers a LAW violation
+pub fn teleport_transfer(ptr: Int, bus_id: Int, size_bytes: Int) -> Int with Unsafe:
+    if law_status(teleport_ptr_valid(ptr)) < 0:
+        return -1
+
+    if law_status(teleport_bus_valid(bus_id, TELEPORT_MAX_BUSES)) < 0:
+        return -2
+
+    // I5: Verify teleport linearity — source must not already have lost access
+    // (This check is enforced by the compiler via mark_moved on the source binding)
+
+    // Compute provenance token
+    // token = hash(ptr, source_world, dest_world, bus_name)
+    let token = ptr ^ (bus_id << 32) ^ TeleportWorld.teleport_epoch
+
+    // Record the transfer in the journal
+    let transfer_num = teleport_record_transfer(
+        TeleportWorld,
+        bus_id,
+        ptr,
+        size_bytes,
+        token
+    )
+
+    // In a real kernel, this calls kain_machine_teleport_ptr(ptr, source, dest, bus)
+    // which:
+    //   1. Computes the provenance token
+    //   2. Performs fixup relocation for tracked allocations
+    //   3. Atomically increments teleport_count
+    //   4. Returns the pointer (unchanged — the handoff is conceptual)
+
+    // LAW enforcement: if the source world subsequently accesses this memory,
+    // teleport_linearity_post_access() returns false and the violation is recorded.
+
+    let _transfer = transfer_num
+    return token
+
+/// Check if a post-teleport access from the source world is a violation.
+/// Called by the memory access path whenever a world tries to read/write memory
+/// that may have been teleported away.
+pub fn teleport_check_post_access(
+    ptr:           Int,
+    accessor_world: Int,
+    is_source_world: Bool,
+    transfer_done:  Bool
+) -> Int:
+    if transfer_done == false:
+        return 0  // No transfer has occurred — access is permitted
+
+    let legal = law_status(teleport_linearity_post_access(
+        0, 0,            // source/dest are looked up from the pointer's provenance
+        transfer_done,
+        accessor_world,
+        is_source_world
+    ))
+
+    if legal < 0:
+        // Record the violation
+        teleport_record_violation(TeleportWorld, accessor_world, ptr)
+        return -1  // I3: LAW violation
+
+    return 0
+
+// ============================================================================
+//  TELEMETRY API
+// ============================================================================
+
+/// Return the total number of teleport operations since boot.
+pub fn teleport_stat_count() -> Int:
+    return TeleportWorld.total_transfers
+
+/// Return the total bytes transferred via teleport.
+pub fn teleport_stat_bytes() -> Int:
+    return TeleportWorld.total_bytes
+
+/// Return the number of registered teleport buses.
+pub fn teleport_stat_bus_count() -> Int:
+    return TeleportWorld.bus_count
+
+/// Return the last provenance token.
+pub fn teleport_stat_last_token() -> Int:
+    return TeleportWorld.last_token
+
+/// Return the number of teleport-related access violations.
+pub fn teleport_stat_violations() -> Int:
+    return TeleportWorld.violation_count
+
+/// Return average bytes per transfer, or 0 if no transfers.
+pub fn teleport_stat_avg_bytes() -> Int:
+    if TeleportWorld.total_transfers == 0:
+        return 0
+    return TeleportWorld.total_bytes / TeleportWorld.total_transfers
+
+// ============================================================================
+//  INITIALIZATION
+// ============================================================================
+
+/// Initialize the teleport subsystem.
+pub fn teleport_init() -> Int with Unsafe:
+    TeleportWorld.bus_count = 0
+    TeleportWorld.total_transfers = 0
+    TeleportWorld.total_bytes = 0
+    TeleportWorld.violation_count = 0
+    TeleportWorld.last_bus_used = 0
+    TeleportWorld.last_token = 0
+    TeleportWorld.teleport_epoch = 0
+
+    return 0

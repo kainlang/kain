@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("arch_arm64")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS ARM64 architecture — deferred to Phase 5")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("aarch64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-arm64")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("arch-arm64-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

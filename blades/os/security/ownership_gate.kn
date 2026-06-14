@@ -1,0 +1,165 @@
+// ============================================================================
+//  KAINOS Security — Ownership Gate — ownership_gate.kn
+// ============================================================================
+//  Ownership enforcement for kernel memory. Compile-time collapse/observe/decay
+//  state checks plus runtime cross-world access validation.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for ownership tracking
+//    LAYER 2 — law for ownership invariants
+//    LAYER 7 — collapse/observe/decay enforcement
+//
+//  Exports:
+//    ownership_check_read, ownership_check_write, ownership_collapse,
+//    ownership_observe, ownership_decay, ownership_get_world,
+//    ownership_transition, ownership_violation_count
+// ============================================================================
+
+use std::runtime
+
+pub mod ownership_gate:
+
+    enum OwnershipState:
+        Idle
+        Collapsed
+        Observed
+        Shared
+        Decayed
+
+    struct OwnershipRecord:
+        ptr_base: Int
+        size: Int
+        state: OwnershipState
+        world_id: Int
+        observer_count: Int
+        share_lane_count: Int
+
+    world OwnershipWorld:
+        state records: Array<OwnershipRecord> = []
+        state audit_log: Array<String> = []
+        state total_violations: Int = 0
+
+    // ── Runtime Checks ──────────────────────────────────────────────────
+
+    pub fn ownership_check_read(ptr: Int, world_id: Int) -> Bool with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                match record.state:
+                    OwnershipState::Collapsed => return record.world_id == world_id
+                    OwnershipState::Observed => return record.world_id == world_id
+                    OwnershipState::Shared => return record.world_id == world_id
+                    _ => return false
+        return false
+
+    pub fn ownership_check_write(ptr: Int, world_id: Int) -> Bool with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                match record.state:
+                    OwnershipState::Collapsed => return record.world_id == world_id
+                    OwnershipState::Shared => return record.world_id == world_id
+                    _ => return false
+        return false
+
+    // ── State Transitions ───────────────────────────────────────────────
+
+    fn ownership_log_violation(reason: String) -> Void with IO:
+        OwnershipWorld.total_violations = OwnershipWorld.total_violations + 1
+        push(OwnershipWorld.audit_log, reason)
+
+    pub fn ownership_collapse(ptr: Int, world_id: Int) -> Int with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                if record.world_id != world_id:
+                    ownership_log_violation("cross-world collapse attempt")
+                    return -1
+                if record.state == OwnershipState::Decayed:
+                    ownership_log_violation("collapse of decayed memory")
+                    return -2
+                if record.state == OwnershipState::Shared:
+                    ownership_log_violation("collapse of shared memory")
+                    return -3
+                record.state = OwnershipState::Collapsed
+                record.observer_count = 0
+                return 0
+        return -99
+
+    pub fn ownership_observe(ptr: Int, world_id: Int) -> Int with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                if record.world_id != world_id:
+                    ownership_log_violation("cross-world observe attempt")
+                    return -1
+                if record.state != OwnershipState::Collapsed and record.state != OwnershipState::Observed:
+                    ownership_log_violation("observe from illegal state")
+                    return -2
+                record.state = OwnershipState::Observed
+                record.observer_count = record.observer_count + 1
+                return 0
+        return -99
+
+    pub fn ownership_decay(ptr: Int, world_id: Int) -> Int with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                if record.world_id != world_id:
+                    ownership_log_violation("cross-world decay attempt")
+                    return -1
+                if record.state == OwnershipState::Shared:
+                    ownership_log_violation("decay of shared memory")
+                    return -2
+                if record.state == OwnershipState::Decayed:
+                    ownership_log_violation("double decay")
+                    return -3
+                record.state = OwnershipState::Decayed
+                record.observer_count = 0
+                return 0
+        return -99
+
+    pub fn ownership_transition(ptr: Int, from_state: OwnershipState, to_state: OwnershipState, world_id: Int) -> Int with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                if record.world_id != world_id:
+                    return -1
+                if record.state != from_state:
+                    ownership_log_violation("invalid state transition")
+                    return -2
+                record.state = to_state
+                return 0
+        return -99
+
+    pub fn ownership_get_world(ptr: Int) -> Int with IO:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                return record.world_id
+        return -1
+
+    pub fn ownership_register(ptr_base: Int, size: Int, world_id: Int) -> Int with IO:
+        let record = OwnershipRecord {
+            ptr_base: ptr_base,
+            size: size,
+            state: OwnershipState::Idle,
+            world_id: world_id,
+            observer_count: 0,
+            share_lane_count: 0,
+        }
+        push(OwnershipWorld.records, record)
+        return 0
+
+    pub fn ownership_violation_count() -> Int with IO:
+        return OwnershipWorld.total_violations
+
+    pub fn ownership_audit_dump() -> Array<String> with IO:
+        return OwnershipWorld.audit_log
+
+    // ── Ownership Laws ──────────────────────────────────────────────────
+
+    law ownership_no_double_decay(ptr: Int) -> Bool:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                return record.state != OwnershipState::Decayed
+        return false
+
+    law ownership_no_idle_access(ptr: Int) -> Bool:
+        for record in OwnershipWorld.records:
+            if ptr >= record.ptr_base and ptr < record.ptr_base + record.size:
+                return record.state != OwnershipState::Idle
+        return false

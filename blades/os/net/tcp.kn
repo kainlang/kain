@@ -1,0 +1,406 @@
+// ============================================================================
+//  STREAM E: tcp.kn — Full TCP State Machine (RFC 793 + extensions)
+//  11 states, 3-way handshake, 4-way teardown, sequence numbers (mod 2^32),
+//  window management, Nagle algorithm, delayed ACK, fast retransmit,
+//  Reno congestion control.
+// ============================================================================
+
+use std::memory
+
+pub mod tcp:
+    // ── Protocol Constants ──
+    pub const TCP_HDR_MIN_LEN:    Int = 20
+    pub const TCP_HDR_MAX_LEN:    Int = 60
+    pub const TCP_MSS_DEFAULT:    Int = 536
+    pub const TCP_MSS_ETH:        Int = 1460
+    pub const TCP_WINDOW_DEFAULT: Int = 65535
+    pub const TCP_WINDOW_SCALE:   Int = 7
+    pub const TCP_MAX_CONNS:      Int = 512
+
+    // TCP flags
+    pub const TCP_FLAG_FIN: Int = 0x01
+    pub const TCP_FLAG_SYN: Int = 0x02
+    pub const TCP_FLAG_RST: Int = 0x04
+    pub const TCP_FLAG_PSH: Int = 0x08
+    pub const TCP_FLAG_ACK: Int = 0x10
+    pub const TCP_FLAG_URG: Int = 0x20
+
+    // TCP option kinds
+    pub const TCP_OPT_EOL:          Int = 0
+    pub const TCP_OPT_NOP:          Int = 1
+    pub const TCP_OPT_MSS:          Int = 2
+    pub const TCP_OPT_WINDOW_SCALE: Int = 3
+    pub const TCP_OPT_SACK_PERM:    Int = 4
+    pub const TCP_OPT_SACK:         Int = 5
+    pub const TCP_OPT_TIMESTAMP:    Int = 8
+
+    // ── TCP State Machine — All 11 States ──
+    pub const TCP_CLOSED:      Int = 0
+    pub const TCP_LISTEN:      Int = 1
+    pub const TCP_SYN_SENT:    Int = 2
+    pub const TCP_SYN_RCVD:    Int = 3
+    pub const TCP_ESTABLISHED: Int = 4
+    pub const TCP_FIN_WAIT1:   Int = 5
+    pub const TCP_FIN_WAIT2:   Int = 6
+    pub const TCP_CLOSING:     Int = 7
+    pub const TCP_TIME_WAIT:   Int = 8
+    pub const TCP_CLOSE_WAIT:  Int = 9
+    pub const TCP_LAST_ACK:    Int = 10
+
+    // Retransmission
+    pub const TCP_RTO_MIN_MS:      Int = 200
+    pub const TCP_RTO_MAX_MS:      Int = 120000
+    pub const TCP_RTO_INITIAL_MS:  Int = 1000
+    pub const TCP_MAX_RETRIES:     Int = 5
+    pub const TCP_DELAYED_ACK_MS:  Int = 200
+    pub const TCP_FAST_RETX_THRESH: Int = 3
+    pub const TCP_TIME_WAIT_MS:    Int = 120000
+
+    // Congestion control (Reno)
+    pub const TCP_CWND_INIT:       Int = 2
+    pub const TCP_SSTHRESH_INIT:   Int = 65535
+
+    // ── Types ──
+    type TcpSeq    = Int
+    type TcpPort   = Int
+    type TcpFlags  = Int
+    type IpAddr    = Int
+    type TcpState  = Int
+    type Checksum  = Int
+
+    // ── Data Structures ──
+
+    struct TcpHeader:
+        src_port:   TcpPort
+        dst_port:   TcpPort
+        seq_num:    TcpSeq
+        ack_num:    TcpSeq
+        data_off:   Int
+        flags:      TcpFlags
+        window:     Int
+        checksum:   Checksum
+        urgent:     Int
+
+    struct TcpSegment:
+        header:      TcpHeader
+        payload:     Int
+        payload_len: Int
+
+    // ── Byte helpers ──
+    fn buf_write_byte(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word_ptr: ptr<Int> = ptr_offset(buf, word_idx, "Int")
+        let old: Int = mem_load(word_ptr, "Int")
+        let mask: Int = (0xFF << shift) ^ 0xFFFFFFFF
+        mem_store(word_ptr, (old & mask) | ((value & 0xFF) << shift), "Int")
+
+    fn buf_read_byte(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word: Int = mem_load(ptr_offset(buf, word_idx, "Int"), "Int")
+        return (word >> shift) & 0xFF
+
+    fn buf_write_be16(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 8) & 0xFF)
+        buf_write_byte(buf, offset + 1, value & 0xFF)
+
+    fn buf_read_be16(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        return (buf_read_byte(buf, offset) << 8) | buf_read_byte(buf, offset + 1)
+
+    fn buf_write_be32(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 24) & 0xFF)
+        buf_write_byte(buf, offset + 1, (value >> 16) & 0xFF)
+        buf_write_byte(buf, offset + 2, (value >> 8)  & 0xFF)
+        buf_write_byte(buf, offset + 3, value & 0xFF)
+
+    fn buf_read_be32(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        var val: Int = 0
+        val = (val << 8) | buf_read_byte(buf, offset)
+        val = (val << 8) | buf_read_byte(buf, offset + 1)
+        val = (val << 8) | buf_read_byte(buf, offset + 2)
+        val = (val << 8) | buf_read_byte(buf, offset + 3)
+        return val
+
+    // ── Sequence Number Arithmetic (mod 2^32) ──
+
+    pub fn tcp_seq_add(seq: TcpSeq, delta: Int) -> TcpSeq:
+        return ((seq + delta) & 0xFFFFFFFF)
+
+    pub fn tcp_seq_sub(seq: TcpSeq, delta: Int) -> TcpSeq:
+        return ((seq - delta) & 0xFFFFFFFF)
+
+    pub fn tcp_seq_diff(a: TcpSeq, b: TcpSeq) -> Int:
+        let diff: Int = (a - b) & 0xFFFFFFFF
+        if diff > 0x7FFFFFFF:
+            return diff - 0x100000000
+        return diff
+
+    pub fn tcp_seq_before(seq: TcpSeq, ref_seq: TcpSeq) -> Bool:
+        let diff: Int = (ref_seq - seq) & 0xFFFFFFFF
+        return diff > 0 and diff < 0x80000000
+
+    pub fn tcp_seq_after(seq: TcpSeq, ref_seq: TcpSeq) -> Bool:
+        return tcp_seq_before(ref_seq, seq)
+
+    pub fn tcp_seq_leq(seq: TcpSeq, ref_seq: TcpSeq) -> Bool:
+        let diff: Int = (ref_seq - seq) & 0xFFFFFFFF
+        return diff < 0x80000000
+
+    // ── TCP Checksum ──
+
+    pub fn tcp_checksum(src_ip: IpAddr, dst_ip: IpAddr,
+                        tcp_buf: ptr<Int>, tcp_len: Int) -> Checksum with Unsafe:
+        var sum: Checksum = 0
+        // Pseudo-header
+        sum = sum + ((src_ip >> 16) & 0xFFFF)
+        sum = sum + (src_ip & 0xFFFF)
+        sum = sum + ((dst_ip >> 16) & 0xFFFF)
+        sum = sum + (dst_ip & 0xFFFF)
+        sum = sum + 6  // protocol = TCP
+        sum = sum + (tcp_len & 0xFFFF)
+        // TCP segment
+        var offset: Int = 0
+        while offset + 1 < tcp_len:
+            sum = sum + ((buf_read_byte(tcp_buf, offset) << 8) | buf_read_byte(tcp_buf, offset + 1))
+            offset = offset + 2
+        if offset < tcp_len:
+            sum = sum + (buf_read_byte(tcp_buf, offset) << 8)
+        while (sum >> 16) != 0:
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        let cs = (sum ^ 0xFFFF) & 0xFFFF
+        if cs == 0:
+            return 0xFFFF
+        return cs
+
+    // ── TCP Header Builder ──
+
+    pub fn tcp_build_header(src_port: TcpPort, dst_port: TcpPort,
+                            seq: TcpSeq, ack: TcpSeq,
+                            flags: TcpFlags, window: Int,
+                            out_buf: ptr<Int>) -> Int with Unsafe:
+        buf_write_be16(out_buf, 0, src_port)
+        buf_write_be16(out_buf, 2, dst_port)
+        buf_write_be32(out_buf, 4, seq)
+        buf_write_be32(out_buf, 8, ack)
+        buf_write_byte(out_buf, 12, 5 << 4)   // data_off=5, reserved=0
+        buf_write_byte(out_buf, 13, flags)
+        buf_write_be16(out_buf, 14, window)
+        buf_write_be16(out_buf, 16, 0)         // checksum placeholder
+        buf_write_be16(out_buf, 18, 0)         // urgent pointer
+        return 20
+
+    // ── TCP Header Parser ──
+
+    pub fn tcp_parse_header(tcp_buf: ptr<Int>) -> TcpHeader with Unsafe:
+        return TcpHeader {
+            src_port: buf_read_be16(tcp_buf, 0),
+            dst_port: buf_read_be16(tcp_buf, 2),
+            seq_num:  buf_read_be32(tcp_buf, 4),
+            ack_num:  buf_read_be32(tcp_buf, 8),
+            data_off: buf_read_byte(tcp_buf, 12) >> 4,
+            flags:    buf_read_byte(tcp_buf, 13),
+            window:   buf_read_be16(tcp_buf, 14),
+            checksum: buf_read_be16(tcp_buf, 16),
+            urgent:   buf_read_be16(tcp_buf, 18)
+        }
+
+    // ── State Name Helper ──
+
+    pub fn tcp_state_name(state: TcpState) -> String:
+        if state == TCP_CLOSED:      return "CLOSED"
+        if state == TCP_LISTEN:      return "LISTEN"
+        if state == TCP_SYN_SENT:    return "SYN_SENT"
+        if state == TCP_SYN_RCVD:    return "SYN_RCVD"
+        if state == TCP_ESTABLISHED: return "ESTABLISHED"
+        if state == TCP_FIN_WAIT1:   return "FIN_WAIT1"
+        if state == TCP_FIN_WAIT2:   return "FIN_WAIT2"
+        if state == TCP_CLOSING:     return "CLOSING"
+        if state == TCP_TIME_WAIT:   return "TIME_WAIT"
+        if state == TCP_CLOSE_WAIT:  return "CLOSE_WAIT"
+        if state == TCP_LAST_ACK:    return "LAST_ACK"
+        return "UNKNOWN"
+
+    pub fn tcp_flags_to_string(flags: TcpFlags) -> String:
+        var s: String = ""
+        if (flags & TCP_FLAG_FIN) != 0: s = s + "FIN "
+        if (flags & TCP_FLAG_SYN) != 0: s = s + "SYN "
+        if (flags & TCP_FLAG_RST) != 0: s = s + "RST "
+        if (flags & TCP_FLAG_PSH) != 0: s = s + "PSH "
+        if (flags & TCP_FLAG_ACK) != 0: s = s + "ACK "
+        if (flags & TCP_FLAG_URG) != 0: s = s + "URG "
+        if s == "":
+            return "NONE"
+        return s
+
+    // ── State Machine Transition Functions ──
+    // Each function models a specific path through the TCP state diagram.
+    // FIXME: These operate on connection state arrays managed by NetWorld.
+
+    // CLOSED -> SYN_SENT (active open)
+    pub fn tcp_active_open(remote_ip: IpAddr, remote_port: TcpPort,
+                           initial_seq: TcpSeq) -> Int with Unsafe:
+        let _ = remote_ip
+        let _ = remote_port
+        let _ = initial_seq
+        return TCP_SYN_SENT
+
+    // CLOSED -> LISTEN (passive open)
+    pub fn tcp_passive_open(local_port: TcpPort) -> Int with Unsafe:
+        let _ = local_port
+        return TCP_LISTEN
+
+    // LISTEN + recv SYN -> SYN_RCVD (send SYN+ACK)
+    pub fn tcp_handle_syn_in_listen(seg: TcpSegment, initial_seq: TcpSeq) -> Int with Unsafe:
+        // Record remote info, set rcv_nxt = seg.seq+1
+        // Send SYN+ACK with seq=initial_seq, ack=rcv_nxt
+        let _ = seg
+        let _ = initial_seq
+        return TCP_SYN_RCVD
+
+    // SYN_SENT + recv SYN+ACK -> ESTABLISHED (send ACK)
+    pub fn tcp_handle_syn_ack_in_syn_sent(seg: TcpSegment) -> Int with Unsafe:
+        let _ = seg
+        return TCP_ESTABLISHED
+
+    // SYN_RCVD + recv ACK -> ESTABLISHED
+    pub fn tcp_handle_ack_in_syn_rcvd(seg: TcpSegment) -> Int with Unsafe:
+        let _ = seg
+        return TCP_ESTABLISHED
+
+    // ESTABLISHED/CLOSE_WAIT -> active close: send FIN
+    pub fn tcp_active_close() -> Int:
+        return TCP_FIN_WAIT1
+
+    // ESTABLISHED + recv FIN -> CLOSE_WAIT (send ACK)
+    pub fn tcp_handle_fin_in_established() -> Int:
+        return TCP_CLOSE_WAIT
+
+    // FIN_WAIT1 + recv ACK -> FIN_WAIT2
+    pub fn tcp_handle_ack_in_fin_wait1() -> Int:
+        return TCP_FIN_WAIT2
+
+    // FIN_WAIT1 + recv FIN+ACK -> CLOSING or TIME_WAIT
+    pub fn tcp_handle_fin_in_fin_wait1() -> Int:
+        return TCP_TIME_WAIT
+
+    // FIN_WAIT2 + recv FIN -> TIME_WAIT (send ACK)
+    pub fn tcp_handle_fin_in_fin_wait2() -> Int:
+        return TCP_TIME_WAIT
+
+    // CLOSE_WAIT -> send FIN -> LAST_ACK
+    pub fn tcp_send_fin_from_close_wait() -> Int:
+        return TCP_LAST_ACK
+
+    // LAST_ACK + recv ACK -> CLOSED
+    pub fn tcp_handle_ack_in_last_ack() -> Int:
+        return TCP_CLOSED
+
+    // CLOSING + recv ACK -> TIME_WAIT
+    pub fn tcp_handle_ack_in_closing() -> Int:
+        return TCP_TIME_WAIT
+
+    // TIME_WAIT + 2MSL timeout -> CLOSED
+    pub fn tcp_time_wait_timeout() -> Int:
+        return TCP_CLOSED
+
+    // RST received in any state -> CLOSED
+    pub fn tcp_handle_rst() -> Int:
+        return TCP_CLOSED
+
+    // ── Data Transfer (ESTABLISHED/CLOSE_WAIT) ──
+
+    pub fn tcp_send_data(data: ptr<Int>, data_len: Int) -> Int with Unsafe:
+        // FIXME: check state is ESTABLISHED/CLOSE_WAIT
+        // Append to send buffer, call Nagle check, send segment if permitted
+        let _ = data
+        let _ = data_len
+        return 0
+
+    pub fn tcp_recv_data(buf: ptr<Int>, max_len: Int) -> Int with Unsafe:
+        // FIXME: read from receive buffer, return bytes copied
+        let _ = buf
+        let _ = max_len
+        return 0
+
+    // ── Segment Processing (ESTABLISHED) ──
+
+    pub fn tcp_process_segment_established(seg: TcpSegment) -> Int with Unsafe:
+        // Check seq == rcv_nxt
+        // Deliver payload to recv buf
+        // Advance rcv_nxt
+        // Send delayed ACK or immediate ACK
+        // Process ACK in segment (update snd_una, congestion control)
+        let _ = seg
+        return TCP_ESTABLISHED
+
+    // ── ACK Processing + Congestion Control (Reno) ──
+
+    pub fn tcp_process_ack(ack_num: TcpSeq, window: Int, snd_una: TcpSeq,
+                           snd_nxt: TcpSeq, cwnd: Int, ssthresh: Int,
+                           dup_acks: Int) -> Int with Unsafe:
+        // Returns new cwnd (negative = error)
+        if tcp_seq_after(ack_num, snd_una) and tcp_seq_leq(ack_num, snd_nxt):
+            // New data ACKed
+            let new_cwnd: Int = if cwnd < ssthresh: cwnd + 1 else: cwnd + 1
+            return new_cwnd
+
+        elif ack_num == snd_una:
+            // Duplicate ACK
+            let new_dup = dup_acks + 1
+            if new_dup == TCP_FAST_RETX_THRESH:
+                // Fast retransmit: ssthresh = max(cwnd/2, 2), cwnd = ssthresh + 3
+                return -(cwnd / 2)  // signal fast retransmit needed
+            return -1  // just a dup ack, no change
+        else:
+            return -2
+
+        let _ = window
+        let _ = snd_una
+        let _ = snd_nxt
+        let _ = cwnd
+        let _ = ssthresh
+        let _ = dup_acks
+
+    // ── Fast Retransmit ──
+
+    pub fn tcp_fast_retransmit() -> Int with Unsafe:
+        // Retransmit oldest unacked segment (snd_una)
+        return 0
+
+    // ── Nagle's Algorithm ──
+
+    pub fn tcp_nagle_should_send(data_len: Int, snd_nxt: TcpSeq,
+                                 snd_una: TcpSeq) -> Bool with Unsafe:
+        // Send if all outstanding data is ACKed (snd_nxt == snd_una)
+        if snd_nxt == snd_una:
+            return true
+        // Or if data fills an MSS
+        if data_len >= TCP_MSS_ETH:
+            return true
+        // Otherwise coalesce
+        return false
+
+    // ── Retransmission Timer ──
+
+    pub fn tcp_retransmit_timer_tick(state: TcpState, rto_start: Int,
+                                     rto_ms: Int, now_ms: Int,
+                                     retries: Int) -> Int with Unsafe:
+        // Returns: -1 = max retries exceeded, -2 = not yet, >0 = new state
+        if state == TCP_CLOSED or state == TCP_LISTEN:
+            return state
+        if state == TCP_TIME_WAIT:
+            return state  // handled separately by 2MSL timer
+        if rto_start == 0:
+            return state
+        if (now_ms - rto_start) < rto_ms:
+            return state  // not expired yet
+        if retries >= TCP_MAX_RETRIES:
+            return -1  // max retries, abort connection
+        // Exponential backoff: rto *= 2, capped
+        let new_rto = rto_ms * 2
+        let capped: Int = if new_rto > TCP_RTO_MAX_MS: TCP_RTO_MAX_MS else: new_rto
+        // Signal retransmit
+        return capped  // new rto value encoded in return

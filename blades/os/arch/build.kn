@@ -1,0 +1,35 @@
+use std::build
+
+// ============================================================================
+//  KAINOS arch/ — Architecture-Specific Build
+// ============================================================================
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let arch = project("kainos_arch")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS architecture-specific boot and hardware init")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let x86_64 = subproject("arch_x86_64")
+        .source("x86_64")
+        .kind("static_library")
+
+    let check = check_task("check-arch")
+        .project(arch)
+        .target("llvm")
+
+    let lib = native_library("arch-lib")
+        .project(arch)
+        .depends_on([x86_64])
+        .requires(check)
+
+    return build_graph()
+        .project(arch)
+        .task(check)
+        .task(lib)

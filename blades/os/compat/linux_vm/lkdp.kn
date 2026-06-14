@@ -1,0 +1,165 @@
+// ============================================================================
+//  KAINOS COMPAT — LKDP: Linux Kernel Driver Provider
+//
+//  Thin Linux kernel running in paravirtualized VM. Provides drivers
+//  for hardware KAINOS has no native driver for (exotic USB, ancient SCSI).
+//  Communication via shared memory (teleport) across VM boundary.
+//
+//  The LKDP is the Tier 3 fallback — used only when no native driver exists.
+//  Over time, native KAINOS drivers replace LKDP-hosted drivers.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+use std::collections
+
+// ============================================================================
+//  VM HANDLE — opaque reference to the LKDP VM
+// ============================================================================
+
+struct VmHandle:
+    vm_id:    Int
+    active:   Bool
+    shared_mem: Int  // address of shared memory region
+
+// ============================================================================
+//  LKDP DRIVER REQUEST — sent to the Linux VM
+// ============================================================================
+
+enum DriverType:
+    USB      // USB host controller driver
+    Audio    // HDAudio / AC97
+    WiFi     // wireless network
+    Bluetooth
+    Printer
+    Scanner
+    Storage  // exotic SCSI/RAID
+    Other
+
+struct DriverRequest:
+    driver_type: DriverType
+    device_args: String
+    ioctl_code:  Int
+    ioctl_arg:   Int
+
+// ============================================================================
+//  WORLD — tracks LKDP state
+// ============================================================================
+
+world CompatLkdpWorld:
+    state lkdp_active:     Int = 0
+    state lkdp_vm_id:      Int = 0
+    state lkdp_driver_count: Int = 0
+    state lkdp_ioctl_count:  Int = 0
+    state lkdp_epoch:      Int = 0
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Initialize the LKDP VM.
+// Boots a minimal Linux kernel in a paravirtualized VM.
+// The kernel provides drivers for hardware not covered by native KAINOS drivers.
+pub fn lkdp_init() -> Int:
+    CompatLkdpWorld.lkdp_active = 1
+    CompatLkdpWorld.lkdp_vm_id = 1
+    CompatLkdpWorld.lkdp_epoch = CompatLkdpWorld.lkdp_epoch + 1
+
+    // In a real implementation:
+    // 1. Allocate shared memory region via MemoryActor
+    // 2. Load Linux kernel image (vmlinuz)
+    // 3. Set up paravirtualized device model
+    // 4. Start VM
+    // 5. Wait for VM readiness signal
+    // 6. Enumerate available drivers
+
+    return CompatLkdpWorld.lkdp_vm_id
+
+// Request a driver from the Linux VM.
+// type_: driver category (USB, Audio, WiFi, etc.)
+// args: device-specific arguments (PCI ID, USB VID/PID, etc.)
+pub fn lkdp_request_driver(type_: DriverType, args: String) -> Int:
+    CompatLkdpWorld.lkdp_driver_count = CompatLkdpWorld.lkdp_driver_count + 1
+    CompatLkdpWorld.lkdp_epoch = CompatLkdpWorld.lkdp_epoch + 1
+
+    let _ = type_
+    let _ = args
+    return CompatLkdpWorld.lkdp_driver_count
+
+// Forward an ioctl from a compat process to a Linux VM-hosted driver.
+// This is the cold path — exotic ioctls that KAINOS can't handle natively.
+pub fn lkdp_forward_ioctl(fd: Int, request: Int, arg: Int) -> Int:
+    CompatLkdpWorld.lkdp_ioctl_count = CompatLkdpWorld.lkdp_ioctl_count + 1
+
+    // In a real implementation:
+    // 1. Package fd + request + arg into a shared memory message
+    // 2. Signal the Linux VM
+    // 3. Wait for response
+    // 4. Return result (or -errno)
+
+    let _ = fd
+    let _ = request
+    let _ = arg
+    return -38  // ENOSYS for now (LKDP not fully implemented)
+
+// Shut down the LKDP VM.
+pub fn lkdp_shutdown() -> Int:
+    CompatLkdpWorld.lkdp_active = 0
+    CompatLkdpWorld.lkdp_epoch = CompatLkdpWorld.lkdp_epoch + 1
+    return 0
+
+// Get LKDP status for telemetry
+pub fn lkdp_status() -> Array<Int>:
+    return [
+        CompatLkdpWorld.lkdp_active,
+        CompatLkdpWorld.lkdp_vm_id,
+        CompatLkdpWorld.lkdp_driver_count,
+        CompatLkdpWorld.lkdp_ioctl_count,
+    ]
+
+// ============================================================================
+//  TELEPORT-SHARED BUFFER — zero-copy communication with the VM
+// ============================================================================
+
+// The shared memory region between KAINOS and the LKDP VM.
+// Layout:
+//   [0..255]:    command ring buffer
+//   [256..511]:  response ring buffer
+//   [512..4095]: data payload area
+const LKDP_SHARED_MEM_SIZE: Int = 4096
+
+struct LkdpCommand:
+    cmd_id:     Int
+    driver_type: Int
+    fd:         Int
+    request:    Int
+    arg:        Int
+    result:     Int
+
+// ============================================================================
+//  SELFTEST
+// ============================================================================
+
+pub fn lkdp_selftest() -> Int:
+    let vm_id = lkdp_init()
+    if vm_id < 1:
+        return -1
+
+    let drv_id = lkdp_request_driver(DriverType::USB, "vid:0x1234 pid:0x5678")
+    if drv_id < 1:
+        return -2
+
+    let ioctl_result = lkdp_forward_ioctl(3, 0x5401, 0x1000)
+    let _ = ioctl_result  // expected to fail (not implemented)
+
+    let status = lkdp_status()
+    if len(status) < 4:
+        return -3
+    if status[0] != 1:
+        return -4
+
+    let shutdown_ok = lkdp_shutdown()
+    if shutdown_ok != 0:
+        return -5
+
+    return 0

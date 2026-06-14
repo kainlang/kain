@@ -1,0 +1,41 @@
+use std::build
+
+// ============================================================================
+//  KAINOS KERNEL — Build Configuration (kernel/build.kn)
+// ============================================================================
+//  Stream: B | Static library target for the kernel core
+//
+//  The kernel core is compiled as a static library (kernel_core.a) that is
+//  linked into the final KAINOS kernel ELF binary by the top-level build.kn.
+//
+//  Target: x86_64-unknown-none (bare metal, no OS)
+//  Profile: debug (development) / release (production)
+//  Dependencies: arch/x86_64/, lib/
+// ============================================================================
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("kernel_core")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS kernel core: scheduler, actors, converge, pulse, resonate, panic")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+        .feature("kernel")
+        .feature("bare_metal")
+
+    let check = check_task("check-kernel")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("kernel-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

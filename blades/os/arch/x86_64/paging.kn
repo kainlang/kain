@@ -1,0 +1,119 @@
+// KAINOS x86-64 — Identity Paging | Stream: A | File: paging.kn
+pub mod paging:
+    const PG_SZ_2M:  Int = 0x200000
+    const PG_SZ_1G:  Int = 0x40000000
+    const PG_SZ_4K:  Int = 4096
+    const PG_PTE_P:  Int = 1
+    const PG_PTE_RW: Int = 2
+    const PG_PTE_PS: Int = 0x80
+    const PG_PTE_NX: Int = (1 << 63)
+    const PG_PTE_CD: Int = 0x10
+    const PG_N:       Int = 512
+    const PG_PML4:    Int = 0x7000
+    const PG_PDPT:    Int = 0x8000
+    const PG_PD_BASE: Int = 0x9000
+    const PG_STATE:   Int = 0x6E00
+    const PG_ASM_ARG0: Int = 0x6C00
+    const PG_ASM_ARG1: Int = 0x6C08
+
+    fn pg_state_get(idx: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(PG_STATE + (idx * 8), "ptr<Int>"))
+    fn pg_state_set(idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(PG_STATE + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+    fn pg_we(ba: Int, idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(ba + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+
+    fn pg_asm_set0(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(PG_ASM_ARG0, "ptr<Int>"), v, "Int")
+        return 0
+    fn pg_asm_set1(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(PG_ASM_ARG1, "ptr<Int>"), v, "Int")
+        return 0
+    fn pg_asm_get0() -> Int with Unsafe:
+        return mem_load(int_to_ptr(PG_ASM_ARG0, "ptr<Int>"))
+
+    fn pg_rdmsr_local(msr: Int) -> Int with Unsafe:
+        pg_asm_set0(msr)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("rdmsr")
+        asm("shlq $32, %rdx")
+        asm("orq %rdx, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return pg_asm_get0()
+
+    fn pg_wrmsr_local(msr: Int, value: Int) -> Int with Unsafe:
+        pg_asm_set0(msr)
+        pg_asm_set1(value)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("movabsq $0x6C08, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %rdx")
+        asm("shrq $32, %rdx")
+        asm("wrmsr")
+        return 0
+
+    fn pg_write_cr3_local(v: Int) -> Int with Unsafe:
+        pg_asm_set0(v)
+        asm("movabsq $0x6C00, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %cr3")
+        return 0
+
+    pub fn paging_invlpg(vaddr: Int) -> Int with Unsafe:
+        asm("invlpg ($0)", vaddr, memory = true)
+        return 0
+
+    pub fn paging_enable_nx() -> Int with Unsafe:
+        if pg_state_get(1) != 0: return 0
+        pg_state_set(1, 1)
+        let ef: Int = pg_rdmsr_local(0xC0000080)
+        pg_wrmsr_local(0xC0000080, ef | (1 << 11))
+        return 0
+
+    pub fn paging_init(mbi: Int) -> Int with Unsafe:
+        if pg_state_get(0) != 0: return 0
+        pg_state_set(0, 1)
+        let _ = mbi
+        var i: Int = 0
+        while i < PG_N:
+            pg_we(PG_PML4, i, 0)
+            pg_we(PG_PDPT, i, 0)
+            i = i + 1
+        var pd: Int = 0
+        while pd < 4:
+            var pe: Int = 0
+            while pe < PG_N:
+                pg_we(PG_PD_BASE + (pd * PG_SZ_4K), pe, 0)
+                pe = pe + 1
+            pd = pd + 1
+        let f: Int = PG_PTE_P | PG_PTE_RW
+        pg_we(PG_PML4, 0, (PG_PDPT & ~0xFFF) | f)
+        pd = 0
+        while pd < 4:
+            let pda: Int = PG_PD_BASE + (pd * PG_SZ_4K)
+            pg_we(PG_PDPT, pd, (pda & ~0xFFF) | f)
+            let bp: Int = pd * PG_SZ_1G
+            var pde: Int = 0
+            while pde < PG_N:
+                pg_we(pda, pde, (bp + (pde * PG_SZ_2M)) | f | PG_PTE_PS)
+                pde = pde + 1
+            pd = pd + 1
+        pg_write_cr3_local(PG_PML4)
+        return 0
+
+    pub fn paging_mmio_map(phys: Int, bytes: Int) -> Int with Unsafe:
+        let f: Int = PG_PTE_P | PG_PTE_RW | PG_PTE_CD
+        var cur: Int = phys & ~(PG_SZ_2M - 1)
+        let end: Int = phys + bytes
+        while cur < end:
+            let pdi: Int = cur / PG_SZ_1G
+            let pda: Int = PG_PD_BASE + (pdi * PG_SZ_4K)
+            let pei: Int = (cur % PG_SZ_1G) / PG_SZ_2M
+            pg_we(pda, pei, cur | f | PG_PTE_PS)
+            cur = cur + PG_SZ_2M
+        return 0

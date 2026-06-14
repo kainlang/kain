@@ -1,0 +1,63 @@
+use std::build
+
+// ============================================================================
+//  KAINOS DRIVERS ROOT BUILD FILE
+//  Ties together all 7 driver subsystems into a single library.
+//  Sub-libraries: pci, nvme, usb, gpu, input, serial, audio
+//  Target: x86_64-unknown-none (freestanding, bare metal)
+// ============================================================================
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("kainos_drivers")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS device drivers: PCI, NVMe, USB/xHCI, GPU/DRM, HID, UART, HDAudio")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    // Sub-libraries — each directory builds independently
+    let pci_lib = subproject("pci")
+        .source("pci")
+        .kind("static_library")
+
+    let nvme_lib = subproject("nvme")
+        .source("nvme")
+        .kind("static_library")
+
+    let usb_lib = subproject("usb")
+        .source("usb")
+        .kind("static_library")
+
+    let gpu_lib = subproject("gpu")
+        .source("gpu")
+        .kind("static_library")
+
+    let input_lib = subproject("input")
+        .source("input")
+        .kind("static_library")
+
+    let serial_lib = subproject("serial")
+        .source("serial")
+        .kind("static_library")
+
+    let audio_lib = subproject("audio")
+        .source("audio")
+        .kind("static_library")
+
+    let check = check_task("check-drivers")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("drivers-lib")
+        .project(proj)
+        .depends_on([pci_lib, nvme_lib, usb_lib, gpu_lib, input_lib, serial_lib, audio_lib])
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

@@ -1,0 +1,93 @@
+// ============================================================================
+//  KAINOS IPC Message Types — message.kn
+// ============================================================================
+//  Actor message types for kernel IPC. Typed payloads between kernel actors.
+//
+//  Ladder constructs:
+//    LAYER 0 — struct, enum for message types
+//    LAYER 7 — actor message contracts
+//
+//  Exports:
+//    Message struct, MessageKind enum, message_create, message_free
+// ============================================================================
+
+use std::runtime
+
+pub mod message:
+
+    enum MessageKind:
+        Signal
+        Interrupt
+        PageFault
+        DeviceEvent
+        SyscallRequest
+        SyscallReply
+        TimerExpired
+        ActorSpawn
+        ActorExit
+        MemoryAlloc
+        MemoryFree
+        IpcCustom
+
+    const MSG_FLAG_NONE:   Int = 0
+    const MSG_FLAG_URGENT: Int = 1
+    const MSG_FLAG_SYSTEM: Int = 4
+
+    struct Message:
+        kind: MessageKind
+        sender_id: Int
+        target_id: Int
+        payload: Int
+        payload2: Int
+        reply_port: Int
+        timestamp_ns: Int
+        flags: Int
+
+    pub fn message_create(kind: MessageKind, sender: Int, target: Int, payload: Int) -> ptr<Message> with Unsafe:
+        let msg: ptr<Message> = alloc_zeroed(1, "Message")
+        collapse msg:
+            let raw: ptr<Byte> = bitcast(msg, "ptr<Byte>")
+            mem_store(msg, 0, "Int")   // kind as Int
+            let sender_field: ptr<Int> = bitcast(ptr_offset(raw, 8, "Byte"), "ptr<Int>")
+            mem_store(sender_field, sender, "Int")
+            let target_field: ptr<Int> = bitcast(ptr_offset(raw, 16, "Byte"), "ptr<Int>")
+            mem_store(target_field, target, "Int")
+            let payload_field: ptr<Int> = bitcast(ptr_offset(raw, 24, "Byte"), "ptr<Int>")
+            mem_store(payload_field, payload, "Int")
+            let payload2_field: ptr<Int> = bitcast(ptr_offset(raw, 32, "Byte"), "ptr<Int>")
+            mem_store(payload2_field, 0, "Int")
+            let reply_field: ptr<Int> = bitcast(ptr_offset(raw, 40, "Byte"), "ptr<Int>")
+            mem_store(reply_field, 0, "Int")
+            let ts_field: ptr<Int> = bitcast(ptr_offset(raw, 48, "Byte"), "ptr<Int>")
+            mem_store(ts_field, 0, "Int")
+            let flags_field: ptr<Int> = bitcast(ptr_offset(raw, 56, "Byte"), "ptr<Int>")
+            mem_store(flags_field, MSG_FLAG_NONE, "Int")
+            0
+        return msg
+
+    pub fn message_free(msg: ptr<Message>) -> Void with Unsafe:
+        decay msg
+
+    pub fn message_serialize(msg: ptr<Message>, buf: ptr<Byte>, max_len: Int) -> Int with Unsafe:
+        let msg_size: Int = 64
+        if max_len < msg_size:
+            return 0
+        var i: Int = 0
+        let src: ptr<Byte> = bitcast(msg, "ptr<Byte>")
+        while i < msg_size:
+            let b: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+            mem_store(ptr_offset(buf, i, "Byte"), b, "Byte")
+            i = i + 1
+        return msg_size
+
+    pub fn message_deserialize(buf: ptr<Byte>, len: Int) -> ptr<Message> with Unsafe:
+        let msg: ptr<Message> = alloc_zeroed(1, "Message")
+        collapse msg:
+            var i: Int = 0
+            let dst: ptr<Byte> = bitcast(msg, "ptr<Byte>")
+            while i < len and i < 64:
+                let b: Byte = mem_load(ptr_offset(buf, i, "Byte"), "Byte")
+                mem_store(ptr_offset(dst, i, "Byte"), b, "Byte")
+                i = i + 1
+            0
+        return msg

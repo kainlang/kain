@@ -1,0 +1,35 @@
+// ============================================================================
+//  compat/build.kn — Master KAINOS Compatibility Layer
+//
+//  Ties together all four compatibility libraries:
+//    - posix/       PosixActor + 50 hot syscalls + FD table + signals
+//    - binary_translator/  x86-64 decoder + syscall rewriter + ELF loader
+//    - wine/        WINE/Proton bridge for Windows apps
+//    - linux_vm/    LKDP driver VM for exotic hardware
+//
+//  This is the bridge between 50 years of UNIX software and KAINOS.
+// ============================================================================
+
+build ({
+    name: "kainos-compat",
+    version: "0.1.0",
+    description: "KAINOS Compatibility Layer — POSIX actor, binary translator, WINE bridge, LKDP",
+    type: "lib",
+
+    sources: [
+        "posix/fd_table.kn",
+        "posix/signal.kn",
+        "posix/mmap.kn",
+        "posix/socket.kn",
+        "posix/syscall_table.kn",
+        "posix/process.kn",
+        "posix/posix_actor.kn",
+        "binary_translator/decoder.kn",
+        "binary_translator/translator.kn",
+        "binary_translator/loader.kn",
+        "wine/wine_bridge.kn",
+        "linux_vm/lkdp.kn",
+    ],
+
+    target: "llvm",
+})

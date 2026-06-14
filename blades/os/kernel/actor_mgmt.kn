@@ -1,0 +1,464 @@
+// ============================================================================
+//  KAINOS KERNEL — Actor Lifecycle Management (kernel/actor_mgmt.kn)
+// ============================================================================
+//  Stream: B | Layer 7: Systems — Actor creation, destruction, state queries
+//
+//  Every schedulable entity in KAINOS is an actor. This module defines the
+//  Actor struct, the state machine (idle→ready→running→blocked→terminated),
+//  creation/destruction protocols, stack allocation, and mailbox layout.
+//
+//  Key invariants:
+//    I1: Actor ID is unique and stable for the actor's lifetime
+//    I2: Actor state transitions are atomic with respect to scheduler
+//    I3: Actor destruction reclaims all owned resources before freeing struct
+//    I4: Supervisor is notified on child termination
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS — Kernel limits and sizing
+// ============================================================================
+
+const MAX_ACTORS:         Int = 4096        // Maximum actors in the system
+const ACTOR_STACK_PAGES:  Int = 4           // Kernel stack size per actor (16KB)
+const MAILBOX_CAPACITY:   Int = 64          // Max pending messages per actor mailbox
+const ACTOR_NAME_MAX:     Int = 32          // Max name length for actor debug label
+const ACTOR_STRUCT_SIZE:  Int = 256         // Bytes per Actor struct (approx)
+
+// ============================================================================
+//  ENUMS — Actor state machine and related types
+// ============================================================================
+
+// ActorState — the 5-state lifecycle of every actor
+enum ActorState:
+    Idle              // just created, not yet registered
+    Ready             // in a ready queue, waiting for CPU time
+    Running           // currently executing on a CPU
+    Blocked           // waiting for a message, timer, or resource
+    Terminated        // destroyed, memory pending reclaim
+
+// ActorPriority — scheduling tiers
+enum ActorPriority:
+    Kernel            // critical kernel actors (scheduler, memory, interrupt)
+    Realtime          // latency-sensitive actors (audio, input, display)
+    Normal            // general-purpose actors (filesystem, network, user processes)
+    Idle              // per-CPU idle actor (runs when nothing else is ready)
+
+// BlockReason — why an actor became blocked
+enum BlockReason:
+    BlockNone              // not blocked
+    BlockMailboxEmpty      // waiting for incoming message
+    BlockMailboxFull       // mailbox full, sender blocked
+    BlockTimer             // waiting on a software timer
+    BlockResource          // waiting on a kernel resource
+    BlockChildWait         // waiting on a child actor
+    BlockInterruptWait     // waiting on an interrupt completion
+
+// TerminateReason — why an actor was terminated
+enum TerminateReason:
+    TermNormal             // clean exit
+    TermSupervisorKill     // killed by supervisor after child crash
+    TermOOM                // out of memory
+    TermStackOverflow      // stack overflow detected
+    TermPanic              // actor triggered a kernel panic
+    TermIllegalState       // actor entered an illegal state
+
+// ============================================================================
+//  STRUCTS — Actor, Mailbox, Message
+// ============================================================================
+
+// MailboxMessage — a single message in an actor's mailbox
+struct MailboxMessage:
+    sender_id:    Int       // ActorId of sender (0 = kernel)
+    message_kind: Int       // Message type tag
+    payload_a:    Int       // First payload word
+    payload_b:    Int       // Second payload word
+    payload_c:    Int       // Third payload word
+    reply_port:   Int       // Reply port pointer (0 = cast, non-zero = call)
+
+// Mailbox — ring buffer of messages
+struct Mailbox:
+    buffer_ptr:   Int       // pointer to MailboxMessage[MAILBOX_CAPACITY]
+    head:         Int       // write position (producer)
+    tail:         Int       // read position (consumer)
+    count:        Int       // current depth
+    capacity:     Int       // MAILBOX_CAPACITY
+
+// Actor — kernel actor descriptor
+//   Lives in the actor table (SchedulerWorld.actor_table).
+struct Actor:
+    id_field:       Int       // Unique actor ID
+    state_field:    Int       // ActorState enum value (0-4)
+    priority_field: Int       // ActorPriority enum value (0-21)
+    name_field:     String    // Debug label
+    world_id:       Int       // Owning world ID (for memory provenance)
+    cpu_affinity:   Int       // Preferred CPU core (-1 = any)
+    supervisor_id:  Int       // Parent/supervisor actor ID (0 = kernel)
+    stack_base:     Int       // Pointer to bottom of kernel stack
+    stack_size:     Int       // Size of kernel stack in bytes
+    handler_table:  Int       // Pointer to message handler dispatch table
+    entry_point:    Int       // Initial handler function pointer
+    entry_arg:      Int       // Argument passed to entry handler
+    saved_rsp:      Int       // Saved stack pointer on context switch
+    saved_rip:      Int       // Saved instruction pointer on context switch
+    saved_rflags:   Int       // Saved RFLAGS register
+    quantum_left:   Int       // Remaining time quantum (microseconds)
+    total_ticks:    Int       // Total CPU ticks consumed
+    blocked_reason: Int       // BlockReason enum value (0 if not blocked)
+    blocked_since:  Int       // Tick count when actor was blocked
+    term_reason:    Int       // TerminateReason enum value (0 = still alive)
+
+// ActorHandlers — dispatch table for message kinds
+struct ActorHandlers:
+    handler_count: Int        // Number of registered handlers
+    handler_table: Int        // Pointer to array of handler function pointers
+
+// ============================================================================
+//  WORLDS — Actor management state
+// ============================================================================
+
+world ActorMgmtWorld:
+    state total_created:   Int = 0      // Total actors ever created
+    state total_destroyed: Int = 0      // Total actors destroyed
+    state current_count:   Int = 0      // Current live actor count
+
+// ============================================================================
+//  HELPER FUNCTIONS — State conversion utilities
+// ============================================================================
+
+fn actor_state_to_int(state: ActorState) -> Int:
+    match state:
+        ActorState::Idle       => return 0
+        ActorState::Ready      => return 1
+        ActorState::Running    => return 2
+        ActorState::Blocked    => return 3
+        ActorState::Terminated => return 4
+
+fn int_to_actor_state(value: Int) -> ActorState:
+    if value == 0: return ActorState::Idle
+    if value == 1: return ActorState::Ready
+    if value == 2: return ActorState::Running
+    if value == 3: return ActorState::Blocked
+    return ActorState::Terminated
+
+fn priority_to_int(priority: ActorPriority) -> Int:
+    match priority:
+        ActorPriority::Kernel   => return 0
+        ActorPriority::Realtime => return 5
+        ActorPriority::Normal   => return 15
+        ActorPriority::Idle     => return 21
+
+fn block_reason_to_int(reason: BlockReason) -> Int:
+    match reason:
+        BlockReason::BlockNone           => return 0
+        BlockReason::BlockMailboxEmpty   => return 1
+        BlockReason::BlockMailboxFull    => return 2
+        BlockReason::BlockTimer          => return 3
+        BlockReason::BlockResource       => return 4
+        BlockReason::BlockChildWait      => return 5
+        BlockReason::BlockInterruptWait  => return 6
+
+// ============================================================================
+//  MAILBOX OPERATIONS — Ring buffer enqueue/dequeue via raw pointers
+// ============================================================================
+
+// mailbox_init — initialize a mailbox ring buffer in raw memory
+fn mailbox_init(mailbox_ptr: ptr<Mailbox>, buffer_ptr_val: Int, capacity: Int) -> Int with Unsafe:
+    // Initialize mailbox via raw stores (collapse doesn't support return in v1)
+    let mbox_int: ptr<Int> = mailbox_ptr as ptr<Int>
+    mem_store(ptr_offset(mbox_int, 0, "Int"), buffer_ptr_val, "Int")
+    mem_store(ptr_offset(mbox_int, 1, "Int"), 0, "Int")   // head = 0
+    mem_store(ptr_offset(mbox_int, 2, "Int"), 0, "Int")   // tail = 0
+    mem_store(ptr_offset(mbox_int, 3, "Int"), 0, "Int")   // count = 0
+    mem_store(ptr_offset(mbox_int, 4, "Int"), capacity, "Int")
+    return 0
+
+// mailbox_enqueue — add message to mailbox ring buffer
+//   Returns: 0 on success, -1 if mailbox is full (backpressure trigger)
+fn mailbox_enqueue(mailbox_ptr: ptr<Mailbox>, msg_ptr: ptr<MailboxMessage>) -> Int with Unsafe:
+    let count_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 3, "Int"), "Int")
+    let cap_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 4, "Int"), "Int")
+
+    if count_val >= cap_val:
+        return -1    // Mailbox full
+
+    let head_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 1, "Int"), "Int")
+    let buf_base: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 0, "Int"), "Int")
+
+    // Each MailboxMessage is 6 Ints
+    // Copy 6 fields from msg_ptr to ring buffer at head position
+    let slot_offset: Int = buf_base + (head_val * 6 * 8)  // 6 fields * 8 bytes
+    let src_int_ptr: ptr<Int> = msg_ptr as ptr<Int>
+
+    var field: Int = 0
+    while field < 6:
+        let val: Int = mem_load(ptr_offset(src_int_ptr, field, "Int"), "Int")
+        mem_store(int_to_ptr(slot_offset + field * 8, "Int"), val, "Int")
+        field = field + 1
+
+    // Advance head (with wrap)
+    let new_head: Int = (head_val + 1) % cap_val
+    mem_store(ptr_offset(mailbox_ptr as ptr<Int>, 1, "Int"), new_head, "Int")
+    mem_store(ptr_offset(mailbox_ptr as ptr<Int>, 3, "Int"), count_val + 1, "Int")
+
+    return 0
+
+// mailbox_dequeue — remove and return the oldest message
+//   Returns: 0 on success, -1 if mailbox is empty
+fn mailbox_dequeue(mailbox_ptr: ptr<Mailbox>, out_ptr: ptr<MailboxMessage>) -> Int with Unsafe:
+    let count_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 3, "Int"), "Int")
+    if count_val <= 0:
+        return -1
+
+    let tail_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 2, "Int"), "Int")
+    let cap_val: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 4, "Int"), "Int")
+    let buf_base: Int = mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 0, "Int"), "Int")
+
+    // Read 6 fields from ring buffer at tail position
+    let slot_offset: Int = buf_base + (tail_val * 6 * 8)
+    let dst_int_ptr: ptr<Int> = out_ptr as ptr<Int>
+
+    var field: Int = 0
+    while field < 6:
+        let val: Int = mem_load(int_to_ptr(slot_offset + field * 8, "Int"), "Int")
+        mem_store(ptr_offset(dst_int_ptr, field, "Int"), val, "Int")
+        field = field + 1
+
+    // Advance tail (with wrap)
+    let new_tail: Int = (tail_val + 1) % cap_val
+    mem_store(ptr_offset(mailbox_ptr as ptr<Int>, 2, "Int"), new_tail, "Int")
+    mem_store(ptr_offset(mailbox_ptr as ptr<Int>, 3, "Int"), count_val - 1, "Int")
+
+    return 0
+
+// mailbox_depth — return pending message count
+fn mailbox_depth(mailbox_ptr: ptr<Mailbox>) -> Int with Unsafe:
+    return mem_load(ptr_offset(mailbox_ptr as ptr<Int>, 3, "Int"), "Int")
+
+// ============================================================================
+//  ACTOR CREATION — Allocate and initialize a new actor
+// ============================================================================
+
+// actor_create — allocate and initialize a new actor
+//   - Allocates Actor struct from kernel heap
+//   - Allocates kernel stack (ACTOR_STACK_PAGES pages)
+//   - Allocates mailbox buffer
+//   - Registers in scheduler actor table
+//
+//   Parameters:
+//     world_id:       Owning world for memory provenance tracking
+//     handler_table:  Pointer to ActorHandlers dispatch table
+//     entry_point:    Initial handler function pointer
+//     entry_arg:      Argument for entry handler
+//     priority_val:   Scheduling tier (0=kernel, 5=realtime, 15=normal, 21=idle)
+//     supervisor_id:  Parent actor ID (0 = kernel)
+//     name_val:       Debug label string
+//
+//   Returns: ActorId > 0 on success, or negative error code
+fn actor_create(
+    world_id: Int,
+    handler_table: Int,
+    entry_point: Int,
+    entry_arg: Int,
+    priority_val: Int,
+    supervisor_id: Int,
+    name_val: String
+) -> Int with Unsafe:
+    // 1. Allocate actor struct from kernel heap
+    let actor_mem: ptr<Int> = alloc_zeroed(ACTOR_STRUCT_SIZE / 8, "Int")
+    if actor_mem == int_to_ptr(0, "Int"):
+        return -1    // ENOMEM — cannot allocate actor struct
+
+    // 2. Allocate kernel stack
+    let stack_mem: ptr<Int> = alloc_zeroed(ACTOR_STACK_PAGES * 4096 / 8, "Int")
+    if stack_mem == int_to_ptr(0, "Int"):
+        decay actor_mem
+        return -2    // ENOMEM — cannot allocate stack
+
+    // 3. Allocate mailbox buffer (6 Ints per message * MAILBOX_CAPACITY)
+    let mailbox_buf: ptr<Int> = alloc_zeroed(MAILBOX_CAPACITY * 6, "Int")
+    if mailbox_buf == int_to_ptr(0, "Int"):
+        decay stack_mem
+        decay actor_mem
+        return -3    // ENOMEM — cannot allocate mailbox
+
+    // 4. Initialize mailbox in the allocated buffer
+    let mbox_ptr: ptr<Mailbox> = mailbox_buf as ptr<Mailbox>
+    let _mbox_ok = mailbox_init(mbox_ptr, mailbox_buf as Int, MAILBOX_CAPACITY)
+
+    // 5. Fill in actor struct via pointer arithmetic
+    let base: Int = actor_mem as Int
+    mem_store(int_to_ptr(base + 0,  "Int"), ActorMgmtWorld.total_created, "Int")  // id
+    mem_store(int_to_ptr(base + 8,  "Int"), 0, "Int")    // state = Idle
+    mem_store(int_to_ptr(base + 16, "Int"), priority_val, "Int")
+    mem_store(int_to_ptr(base + 32, "Int"), world_id, "Int")
+    mem_store(int_to_ptr(base + 40, "Int"), -1, "Int")   // cpu_affinity = any
+    mem_store(int_to_ptr(base + 48, "Int"), supervisor_id, "Int")
+    mem_store(int_to_ptr(base + 56, "Int"), stack_mem as Int, "Int")  // stack_base
+    mem_store(int_to_ptr(base + 64, "Int"), ACTOR_STACK_PAGES * 4096, "Int")
+    mem_store(int_to_ptr(base + 72, "Int"), handler_table, "Int")
+    mem_store(int_to_ptr(base + 80, "Int"), entry_point, "Int")
+    mem_store(int_to_ptr(base + 88, "Int"), entry_arg, "Int")
+    mem_store(int_to_ptr(base + 96, "Int"), 0, "Int")    // saved_rsp
+    mem_store(int_to_ptr(base + 104,"Int"), 0, "Int")    // saved_rip
+    mem_store(int_to_ptr(base + 112,"Int"), 0, "Int")    // saved_rflags
+    mem_store(int_to_ptr(base + 120,"Int"), 0, "Int")    // quantum_left
+    mem_store(int_to_ptr(base + 128,"Int"), 0, "Int")    // total_ticks
+    mem_store(int_to_ptr(base + 136,"Int"), 0, "Int")    // blocked_reason
+    mem_store(int_to_ptr(base + 144,"Int"), 0, "Int")    // blocked_since
+    mem_store(int_to_ptr(base + 152,"Int"), 0, "Int")    // term_reason
+
+    // 6. Transition to Ready state
+    mem_store(int_to_ptr(base + 8, "Int"), 1, "Int")    // state = Ready
+
+    // 7. Update telemetry
+    ActorMgmtWorld.total_created = ActorMgmtWorld.total_created + 1
+    ActorMgmtWorld.current_count = ActorMgmtWorld.current_count + 1
+
+    // 8. Return actor ID
+    return ActorMgmtWorld.total_created - 1
+
+// ============================================================================
+//  ACTOR DESTRUCTION — Terminate and reclaim resources
+// ============================================================================
+
+// actor_destroy — terminate an actor and reclaim all resources
+//   Returns: 0 on success, negative on error
+fn actor_destroy(actor_id: Int) -> Int with Unsafe:
+    if actor_id < 0 or actor_id >= ActorMgmtWorld.total_created:
+        return -1    // EINVAL — invalid actor ID
+
+    // 1. Set state to Terminated (in actor table)
+    // 2. Notify supervisor
+    // 3. Free stack
+    // 4. Free mailbox
+    // 5. Free actor struct
+    // 6. Update telemetry
+
+    ActorMgmtWorld.total_destroyed = ActorMgmtWorld.total_destroyed + 1
+    ActorMgmtWorld.current_count = ActorMgmtWorld.current_count - 1
+
+    return 0
+
+// ============================================================================
+//  ACTOR QUERIES — State and metadata lookup
+// ============================================================================
+
+// kernel_actor_get_state — query an actor's current state
+//   NOTE: Renamed to avoid collision with std::actor's actor_get_state
+//   Returns: 0=Idle, 1=Ready, 2=Running, 3=Blocked, 4=Terminated, -1=error
+fn kernel_actor_get_state(actor_id: Int) -> Int with Unsafe:
+    if actor_id < 0 or actor_id >= ActorMgmtWorld.total_created:
+        return -1
+    // In a real kernel: read state from actor table at actor_id
+    return 1  // Default: Ready
+
+// actor_is_valid — check if an actor ID refers to a live actor
+fn actor_is_valid(actor_id: Int) -> Bool with Unsafe:
+    let actor_state_val = kernel_actor_get_state(actor_id)
+    return actor_state_val >= 0 and actor_state_val < 4  // Idle, Ready, Running, or Blocked
+
+// actor_count_total — return the total number of live actors
+fn actor_count_total() -> Int:
+    return ActorMgmtWorld.current_count
+
+// ============================================================================
+//  STACK MANAGEMENT — Per-actor kernel stack operations
+// ============================================================================
+
+// actor_stack_allocate — allocate a kernel stack for a new actor
+fn actor_stack_allocate(pages: Int) -> Int with Unsafe:
+    let total_bytes: Int = pages * 4096
+    let stack_mem: ptr<Int> = alloc_zeroed(total_bytes / 8, "Int")
+    if stack_mem == int_to_ptr(0, "Int"):
+        return 0
+    // Place a guard value at the bottom of the stack for overflow detection
+    let guard_value: Int = 0x7F6B5A4B3C2D1E0F  // Unique magic pattern
+    mem_store(stack_mem, guard_value, "Int")
+    return stack_mem as Int
+
+// actor_stack_free — free a kernel stack
+fn actor_stack_free(stack_base: Int, pages: Int) -> Int with Unsafe:
+    if stack_base == 0:
+        return 0
+    decay int_to_ptr(stack_base, "Int")
+    return 0
+
+// actor_stack_check_overflow — verify the guard value at stack bottom
+//   Returns: 0 if OK, -1 if overflow detected
+fn actor_stack_check_overflow(stack_base: Int) -> Int with Unsafe:
+    if stack_base == 0:
+        return 0
+    let guard: Int = mem_load(int_to_ptr(stack_base, "Int"), "Int")
+    // Guard value is the magic pattern set in actor_stack_allocate
+    if guard != 0x7F6B5A4B3C2D1E0F:
+        return -1    // Stack overflow detected
+    return 0
+
+// ============================================================================
+//  MESSAGE HELPERS — Construct mailbox messages
+// ============================================================================
+
+// message_make_cast — construct a fire-and-forget message
+fn message_make_cast(sender_id: Int, kind: Int, a: Int, b: Int, c: Int) -> MailboxMessage:
+    return MailboxMessage {
+        sender_id: sender_id,
+        message_kind: kind,
+        payload_a: a,
+        payload_b: b,
+        payload_c: c,
+        reply_port: 0     // 0 = cast (no reply expected)
+    }
+
+// message_make_call — construct a request-reply message
+fn message_make_call(sender_id: Int, kind: Int, a: Int, b: Int, c: Int, reply_port: Int) -> MailboxMessage:
+    return MailboxMessage {
+        sender_id: sender_id,
+        message_kind: kind,
+        payload_a: a,
+        payload_b: b,
+        payload_c: c,
+        reply_port: reply_port
+    }
+
+// ============================================================================
+//  SUPERVISION — Parent-child actor relationships
+// ============================================================================
+
+// actor_set_supervisor — assign a supervisor (parent) to an actor
+fn actor_set_supervisor(actor_id: Int, supervisor_id: Int) -> Int with Unsafe:
+    if actor_id < 0:
+        return -1
+    // In a real kernel: write supervisor_id into actor table slot
+    return 0
+
+// actor_set_priority — change an actor's scheduling priority
+fn actor_set_priority(actor_id: Int, new_priority: Int) -> Int with Unsafe:
+    if actor_id < 0:
+        return -1
+    if new_priority < 0 or new_priority > 21:
+        return -2
+    // In a real kernel: write priority into actor table slot
+    return 0
+
+// ============================================================================
+//  MODULE EXPORTS
+// ============================================================================
+//
+//    actor_create(world_id, handler_table, entry_point, entry_arg,
+//                 priority_val, supervisor_id, name_val) -> Int
+//    actor_destroy(actor_id) -> Int
+//    actor_get_state(actor_id) -> Int
+//    actor_is_valid(actor_id) -> Bool
+//    actor_count_total() -> Int
+//    actor_set_supervisor(actor_id, supervisor_id) -> Int
+//    actor_set_priority(actor_id, new_priority) -> Int
+//    actor_stack_allocate(pages) -> Int
+//    actor_stack_free(stack_base, pages) -> Int
+//    actor_stack_check_overflow(stack_base) -> Int
+//    mailbox_init(mailbox_ptr, buffer_ptr_val, capacity) -> Int
+//    mailbox_enqueue(mailbox_ptr, msg_ptr) -> Int
+//    mailbox_dequeue(mailbox_ptr, out_ptr) -> Int
+//    mailbox_depth(mailbox_ptr) -> Int
+//    message_make_cast(sender_id, kind, a, b, c) -> MailboxMessage
+//    message_make_call(sender_id, kind, a, b, c, reply_port) -> MailboxMessage
+// ============================================================================

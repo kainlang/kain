@@ -1,0 +1,202 @@
+// ============================================================================
+//  KAINOS Desktop Shell — desktop.kn
+// ============================================================================
+//  Desktop environment for KAINOS. Window decorations, taskbar, system tray,
+//  virtual desktops, and application launcher.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for desktop state
+//    LAYER UI — component/render for window decorations and shell
+//
+//  Exports:
+//    desktop_init, desktop_launch_app, desktop_register_window,
+//    desktop_minimize_window, desktop_maximize_window, desktop_close_window,
+//    desktop_switch_workspace
+// ============================================================================
+
+use std::runtime
+
+pub mod desktop:
+
+    const TITLE_BAR_HEIGHT: Int = 24
+    const TASKBAR_HEIGHT:    Int = 40
+    const BUTTON_SIZE:       Int = 16
+    const MAX_WORKSPACES:    Int = 9
+
+    enum WindowState:
+        Normal
+        Minimized
+        Maximized
+        Fullscreen
+        Hidden
+
+    struct DesktopWindow:
+        surface_id: Int
+        title: String
+        x: Int
+        y: Int
+        width: Int
+        height: Int
+        min_width: Int
+        min_height: Int
+        state: WindowState
+        workspace: Int
+        focused: Bool
+        decorated: Bool
+        has_close_button: Bool
+        has_minimize_button: Bool
+        has_maximize_button: Bool
+        resizable: Bool
+        application_name: String
+
+    struct TaskbarEntry:
+        window_id: Int
+        title: String
+        icon: String
+        workspace: Int
+        urgent: Bool
+
+    world DesktopWorld:
+        state wallpaper: String = "/usr/share/wallpapers/default.png"
+        state windows: Array<DesktopWindow> = []
+        state taskbar_entries: Array<TaskbarEntry> = []
+        state active_workspace: Int = 0
+        state workspace_count: Int = 4
+        state taskbar_visible: Bool = true
+        state system_tray_visible: Bool = true
+        state launcher_open: Bool = false
+        state next_window_id: Int = 1000
+        state screen_width: Int = 1920
+        state screen_height: Int = 1080
+
+    pub fn desktop_init(screen_width: Int, screen_height: Int) -> Int with IO:
+        DesktopWorld.screen_width = screen_width
+        DesktopWorld.screen_height = screen_height
+        DesktopWorld.windows = []
+        DesktopWorld.taskbar_entries = []
+        DesktopWorld.active_workspace = 0
+        DesktopWorld.taskbar_visible = true
+        DesktopWorld.launcher_open = false
+        return 0
+
+    pub fn desktop_launch_app(elf_path: String) -> Int with IO:
+        let surface_id: Int = 0  // placeholder
+        let window_id: Int = desktop_register_window(surface_id, elf_path, 100, 100, 800, 600)
+        return window_id
+
+    pub fn desktop_register_window(surface_id: Int, title: String, x: Int, y: Int, width: Int, height: Int) -> Int with IO:
+        let window = DesktopWindow {
+            surface_id: surface_id,
+            title: title,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            min_width: 100,
+            min_height: 50,
+            state: WindowState::Normal,
+            workspace: DesktopWorld.active_workspace,
+            focused: false,
+            decorated: true,
+            has_close_button: true,
+            has_minimize_button: true,
+            has_maximize_button: true,
+            resizable: true,
+            application_name: title,
+        }
+
+        let window_id: Int = DesktopWorld.next_window_id
+        DesktopWorld.next_window_id = DesktopWorld.next_window_id + 1
+        push(DesktopWorld.windows, window)
+
+        let entry = TaskbarEntry {
+            window_id: window_id,
+            title: title,
+            icon: "",
+            workspace: DesktopWorld.active_workspace,
+            urgent: false,
+        }
+        push(DesktopWorld.taskbar_entries, entry)
+
+        desktop_focus_window(window_id)
+        return window_id
+
+    pub fn desktop_move_window(window_id: Int, new_x: Int, new_y: Int) -> Int with IO:
+        for window in DesktopWorld.windows:
+            if window.surface_id == window_id:
+                window.x = new_x
+                window.y = new_y
+                return 0
+        return -1
+
+    pub fn desktop_resize_window(window_id: Int, new_width: Int, new_height: Int) -> Int with IO:
+        for window in DesktopWorld.windows:
+            if window.surface_id == window_id:
+                window.width = new_width
+                window.height = new_height
+                return 0
+        return -1
+
+    pub fn desktop_focus_window(window_id: Int) -> Int with IO:
+        for window in DesktopWorld.windows:
+            window.focused = (window.surface_id == window_id)
+        return 0
+
+    pub fn desktop_minimize_window(window_id: Int) -> Int with IO:
+        for window in DesktopWorld.windows:
+            if window.surface_id == window_id:
+                window.state = WindowState::Minimized
+                return 0
+        return -1
+
+    pub fn desktop_maximize_window(window_id: Int) -> Int with IO:
+        for window in DesktopWorld.windows:
+            if window.surface_id == window_id:
+                if window.state == WindowState::Maximized:
+                    window.state = WindowState::Normal
+                else:
+                    window.state = WindowState::Maximized
+                return 0
+        return -1
+
+    pub fn desktop_close_window(window_id: Int) -> Int with IO:
+        var new_windows: Array<DesktopWindow> = []
+        for w in DesktopWorld.windows:
+            if w.surface_id != window_id:
+                push(new_windows, w)
+        DesktopWorld.windows = new_windows
+
+        var new_entries: Array<TaskbarEntry> = []
+        for entry in DesktopWorld.taskbar_entries:
+            if entry.window_id != window_id:
+                push(new_entries, entry)
+        DesktopWorld.taskbar_entries = new_entries
+        return 0
+
+    pub fn desktop_switch_workspace(workspace: Int) -> Int with IO:
+        if workspace < 0 or workspace >= DesktopWorld.workspace_count:
+            return -1
+        DesktopWorld.active_workspace = workspace
+        return 0
+
+    pub fn desktop_move_to_workspace(window_id: Int, workspace: Int) -> Int with IO:
+        if workspace < 0 or workspace >= DesktopWorld.workspace_count:
+            return -1
+        for window in DesktopWorld.windows:
+            if window.surface_id == window_id:
+                window.workspace = workspace
+                return 0
+        return -1
+
+    /// Desktop shell component.
+    component DesktopPanel():
+        state clock_text: String = "00:00"
+
+        render <panel title="KAINOS Desktop">
+            <StatusBar>
+                <Clock text="00:00" />
+            </StatusBar>
+        </panel>
+
+        fn update_clock(_self: Self_) -> Void:
+            return

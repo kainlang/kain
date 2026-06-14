@@ -1,0 +1,303 @@
+// ============================================================================
+//  KAINOS HID INPUT DRIVER — drivers/input/hid.kn
+//  Stream F: Device Drivers — State passed explicitly
+// ============================================================================
+
+enum InputEventKind:
+    KeyDown
+    KeyUp
+    KeyRepeat
+    ButtonDown
+    ButtonUp
+    Motion
+    Absolute
+    Wheel
+
+struct InputEvent:
+    kind:      InputEventKind
+    code:      Int
+    value:     Int
+    timestamp: Int
+
+struct InputState:
+    events:    [InputEvent]
+    device_count: Int
+
+// USB HID keycodes
+const KEY_A: Int = 4
+const KEY_B: Int = 5
+const KEY_C: Int = 6
+const KEY_D: Int = 7
+const KEY_E: Int = 8
+const KEY_F: Int = 9
+const KEY_G: Int = 10
+const KEY_H: Int = 11
+const KEY_I: Int = 12
+const KEY_J: Int = 13
+const KEY_K: Int = 14
+const KEY_L: Int = 15
+const KEY_M: Int = 16
+const KEY_N: Int = 17
+const KEY_O: Int = 18
+const KEY_P: Int = 19
+const KEY_Q: Int = 20
+const KEY_R: Int = 21
+const KEY_S: Int = 22
+const KEY_T: Int = 23
+const KEY_U: Int = 24
+const KEY_V: Int = 25
+const KEY_W: Int = 26
+const KEY_X: Int = 27
+const KEY_Y: Int = 28
+const KEY_Z: Int = 29
+const KEY_1: Int = 30
+const KEY_2: Int = 31
+const KEY_3: Int = 32
+const KEY_4: Int = 33
+const KEY_5: Int = 34
+const KEY_6: Int = 35
+const KEY_7: Int = 36
+const KEY_8: Int = 37
+const KEY_9: Int = 38
+const KEY_0: Int = 39
+const KEY_ENTER: Int = 40
+const KEY_ESCAPE: Int = 41
+const KEY_BACKSPACE: Int = 42
+const KEY_TAB: Int = 43
+const KEY_SPACE: Int = 44
+const KEY_MINUS: Int = 45
+const KEY_EQUALS: Int = 46
+const KEY_LBRACKET: Int = 47
+const KEY_RBRACKET: Int = 48
+const KEY_BACKSLASH: Int = 49
+const KEY_SEMICOLON: Int = 51
+const KEY_APOSTROPHE: Int = 52
+const KEY_GRAVE: Int = 53
+const KEY_COMMA: Int = 54
+const KEY_PERIOD: Int = 55
+const KEY_SLASH: Int = 56
+const KEY_CAPSLOCK: Int = 57
+const KEY_F1: Int = 58
+const KEY_F2: Int = 59
+const KEY_F3: Int = 60
+const KEY_F4: Int = 61
+const KEY_F5: Int = 62
+const KEY_F6: Int = 63
+const KEY_F7: Int = 64
+const KEY_F8: Int = 65
+const KEY_F9: Int = 66
+const KEY_F10: Int = 67
+const KEY_F11: Int = 68
+const KEY_F12: Int = 69
+const KEY_PRINT: Int = 70
+const KEY_SCROLLLOCK: Int = 71
+const KEY_PAUSE: Int = 72
+const KEY_INSERT: Int = 73
+const KEY_HOME: Int = 74
+const KEY_PAGEUP: Int = 75
+const KEY_DELETE: Int = 76
+const KEY_END: Int = 77
+const KEY_PAGEDOWN: Int = 78
+const KEY_RIGHT: Int = 79
+const KEY_LEFT: Int = 80
+const KEY_DOWN: Int = 81
+const KEY_UP: Int = 82
+const KEY_LCTRL: Int = 224
+const KEY_LSHIFT: Int = 225
+const KEY_LALT: Int = 226
+const KEY_LGUI: Int = 227
+const KEY_RCTRL: Int = 228
+const KEY_RSHIFT: Int = 229
+const KEY_RALT: Int = 230
+const KEY_RGUI: Int = 231
+const MOD_LCTRL: Int = 0x01
+const MOD_LSHIFT: Int = 0x02
+const MOD_LALT: Int = 0x04
+const MOD_LGUI: Int = 0x08
+const MOD_RCTRL: Int = 0x10
+const MOD_RSHIFT: Int = 0x20
+const MOD_RALT: Int = 0x40
+const MOD_RGUI: Int = 0x80
+const MOUSE_BTN_LEFT: Int = 0x01
+const MOUSE_BTN_RIGHT: Int = 0x02
+const MOUSE_BTN_MIDDLE: Int = 0x04
+
+pub fn input_init() -> InputState with Unsafe:
+    return InputState {
+        events: [],
+        device_count: 0,
+    }
+
+pub fn input_register(state: InputState, name: String, dev_type: Int) -> InputState with Unsafe:
+    return InputState {
+        events: state.events,
+        device_count: state.device_count + 1,
+    }
+
+pub fn input_parse_keyboard_report(state: InputState, report_ptr: Int) -> InputState with Unsafe:
+    let r: ptr<Int> = int_to_ptr(report_ptr, "Int")
+    let modifier = mem_load(ptr_offset(r, 0, "Int"), "Int") & 0xFF
+    let kc0 = mem_load(ptr_offset(r, 2, "Int"), "Int") & 0xFF
+    let kc1 = mem_load(ptr_offset(r, 3, "Int"), "Int") & 0xFF
+    let kc2 = mem_load(ptr_offset(r, 4, "Int"), "Int") & 0xFF
+    let kc3 = mem_load(ptr_offset(r, 5, "Int"), "Int") & 0xFF
+    let kc4 = mem_load(ptr_offset(r, 6, "Int"), "Int") & 0xFF
+    let kc5 = mem_load(ptr_offset(r, 7, "Int"), "Int") & 0xFF
+
+    var events = state.events
+    if kc0 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc0, value: 1, timestamp: 0 })
+    if kc1 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc1, value: 1, timestamp: 0 })
+    if kc2 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc2, value: 1, timestamp: 0 })
+    if kc3 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc3, value: 1, timestamp: 0 })
+    if kc4 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc4, value: 1, timestamp: 0 })
+    if kc5 != 0: push(events, InputEvent { kind: InputEventKind::KeyDown, code: kc5, value: 1, timestamp: 0 })
+
+    return InputState {
+        events: events,
+        device_count: state.device_count,
+    }
+
+pub fn input_parse_mouse_report(state: InputState, report_ptr: Int) -> InputState with Unsafe:
+    let r: ptr<Int> = int_to_ptr(report_ptr, "Int")
+    let buttons = mem_load(ptr_offset(r, 0, "Int"), "Int") & 0xFF
+    let x_delta = mem_load(ptr_offset(r, 1, "Int"), "Int") & 0xFF
+    let y_delta = mem_load(ptr_offset(r, 2, "Int"), "Int") & 0xFF
+    let wheel = mem_load(ptr_offset(r, 3, "Int"), "Int") & 0xFF
+
+    var events = state.events
+
+    if x_delta != 0 or y_delta != 0:
+        push(events, InputEvent {
+            kind: InputEventKind::Motion,
+            code: 0,
+            value: (y_delta << 16) | (x_delta & 0xFFFF),
+            timestamp: 0,
+        })
+
+    if wheel != 0:
+        push(events, InputEvent {
+            kind: InputEventKind::Wheel,
+            code: 0,
+            value: wheel,
+            timestamp: 0,
+        })
+
+    if (buttons & MOUSE_BTN_LEFT) != 0:
+        push(events, InputEvent { kind: InputEventKind::ButtonDown, code: 0, value: 1, timestamp: 0 })
+
+    return InputState {
+        events: events,
+        device_count: state.device_count,
+    }
+
+pub fn input_poll(state: InputState) -> Int:
+    return len(state.events)
+
+pub fn input_next_event(state: InputState) -> InputEvent:
+    if len(state.events) == 0:
+        return InputEvent { kind: InputEventKind::KeyUp, code: 0, value: -1, timestamp: 0 }
+
+    return state.events[0]
+
+pub fn input_keycode_to_ascii(keycode: Int, shift: Bool) -> Int:
+    if !shift:
+        if keycode == KEY_A: return 97
+        if keycode == KEY_B: return 98
+        if keycode == KEY_C: return 99
+        if keycode == KEY_D: return 100
+        if keycode == KEY_E: return 101
+        if keycode == KEY_F: return 102
+        if keycode == KEY_G: return 103
+        if keycode == KEY_H: return 104
+        if keycode == KEY_I: return 105
+        if keycode == KEY_J: return 106
+        if keycode == KEY_K: return 107
+        if keycode == KEY_L: return 108
+        if keycode == KEY_M: return 109
+        if keycode == KEY_N: return 110
+        if keycode == KEY_O: return 111
+        if keycode == KEY_P: return 112
+        if keycode == KEY_Q: return 113
+        if keycode == KEY_R: return 114
+        if keycode == KEY_S: return 115
+        if keycode == KEY_T: return 116
+        if keycode == KEY_U: return 117
+        if keycode == KEY_V: return 118
+        if keycode == KEY_W: return 119
+        if keycode == KEY_X: return 120
+        if keycode == KEY_Y: return 121
+        if keycode == KEY_Z: return 122
+        if keycode == KEY_1: return 49
+        if keycode == KEY_2: return 50
+        if keycode == KEY_3: return 51
+        if keycode == KEY_4: return 52
+        if keycode == KEY_5: return 53
+        if keycode == KEY_6: return 54
+        if keycode == KEY_7: return 55
+        if keycode == KEY_8: return 56
+        if keycode == KEY_9: return 57
+        if keycode == KEY_0: return 48
+        if keycode == KEY_SPACE: return 32
+        if keycode == KEY_ENTER: return 10
+        if keycode == KEY_TAB: return 9
+        if keycode == KEY_MINUS: return 45
+        if keycode == KEY_EQUALS: return 61
+        if keycode == KEY_LBRACKET: return 91
+        if keycode == KEY_RBRACKET: return 93
+        if keycode == KEY_BACKSLASH: return 92
+        if keycode == KEY_SEMICOLON: return 59
+        if keycode == KEY_APOSTROPHE: return 39
+        if keycode == KEY_COMMA: return 44
+        if keycode == KEY_PERIOD: return 46
+        if keycode == KEY_SLASH: return 47
+        if keycode == KEY_GRAVE: return 96
+        return 0
+    else:
+        if keycode == KEY_A: return 65
+        if keycode == KEY_B: return 66
+        if keycode == KEY_C: return 67
+        if keycode == KEY_D: return 68
+        if keycode == KEY_E: return 69
+        if keycode == KEY_F: return 70
+        if keycode == KEY_G: return 71
+        if keycode == KEY_H: return 72
+        if keycode == KEY_I: return 73
+        if keycode == KEY_J: return 74
+        if keycode == KEY_K: return 75
+        if keycode == KEY_L: return 76
+        if keycode == KEY_M: return 77
+        if keycode == KEY_N: return 78
+        if keycode == KEY_O: return 79
+        if keycode == KEY_P: return 80
+        if keycode == KEY_Q: return 81
+        if keycode == KEY_R: return 82
+        if keycode == KEY_S: return 83
+        if keycode == KEY_T: return 84
+        if keycode == KEY_U: return 85
+        if keycode == KEY_V: return 86
+        if keycode == KEY_W: return 87
+        if keycode == KEY_X: return 88
+        if keycode == KEY_Y: return 89
+        if keycode == KEY_Z: return 90
+        if keycode == KEY_1: return 33
+        if keycode == KEY_2: return 64
+        if keycode == KEY_3: return 35
+        if keycode == KEY_4: return 36
+        if keycode == KEY_5: return 37
+        if keycode == KEY_6: return 94
+        if keycode == KEY_7: return 38
+        if keycode == KEY_8: return 42
+        if keycode == KEY_9: return 40
+        if keycode == KEY_0: return 41
+        if keycode == KEY_MINUS: return 95
+        if keycode == KEY_EQUALS: return 43
+        if keycode == KEY_LBRACKET: return 123
+        if keycode == KEY_RBRACKET: return 125
+        if keycode == KEY_BACKSLASH: return 124
+        if keycode == KEY_SEMICOLON: return 58
+        if keycode == KEY_APOSTROPHE: return 34
+        if keycode == KEY_COMMA: return 60
+        if keycode == KEY_PERIOD: return 62
+        if keycode == KEY_SLASH: return 63
+        if keycode == KEY_GRAVE: return 126
+        return 0

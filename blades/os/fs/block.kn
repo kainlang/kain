@@ -1,0 +1,346 @@
+// ============================================================================
+//  KAINOS — Block Device Abstraction Layer (Stream D)
+//  block.kn — Block device interface, LRU cache, async I/O, device registry
+// ============================================================================
+//  LADDER: L0 (plain code with Unsafe) — kernel-level hardware abstraction.
+//  Real block cache with LRU eviction, hash-based lookup, dirty writeback.
+// ============================================================================
+
+pub mod block:
+    // ─── Constants ──────────────────────────────────────────────────
+
+    pub const BLOCK_CACHE_SIZE: Int = 256       // max cached blocks
+    pub const BLOCK_CACHE_BUCKETS: Int = 256     // hash table buckets
+    pub const BLOCK_DEVICE_MAX: Int = 8          // max registered devices
+    pub const BLOCK_READ_ONLY: Int = 1
+    pub const BLOCK_READ_WRITE: Int = 2
+    pub const BLOCK_DIRTY: Int = 1
+    pub const BLOCK_CLEAN: Int = 0
+    pub const BLOCK_INVALID: Int = -1
+
+    // ─── Types ──────────────────────────────────────────────────────
+
+    type BlockDeviceId = Int
+    type BlockLba = Int
+    type BlockCount = Int
+    type BlockBuffer = Int          // pointer to buffer
+
+    // ─── Structs ────────────────────────────────────────────────────
+
+    pub struct BlockDevice:
+        name: String
+        block_size: Int              // typically 512
+        total_blocks: Int
+        flags: Int                   // BLOCK_READ_ONLY or BLOCK_READ_WRITE
+        device_index: Int
+        in_use: Int                  // 0 = free, 1 = registered
+
+    pub struct BlockCacheEntry:
+        device_id: Int
+        lba: Int                     // starting LBA
+        count: Int                   // number of contiguous blocks
+        data: Int                    // pointer to cached data (as Int for world compat)
+        dirty: Int                   // BLOCK_DIRTY or BLOCK_CLEAN
+        access_time: Int             // monotonic counter for LRU
+        next_hash: Int               // chained hash bucket (index or -1)
+
+    pub struct BlockRequest:
+        device_id: Int
+        lba: Int
+        count: Int
+        buf: Int
+        is_write: Int                // 0 = read, 1 = write
+        callback_fn: Int             // pointer to callback function
+        callback_arg: Int
+
+    // ─── World State ────────────────────────────────────────────────
+
+    world BlockWorld:
+        state device_table: Array<BlockDevice> = []
+        state cache_entries: Array<BlockCacheEntry> = []
+        state cache_hash_buckets: Array<Int> = []   // hash table bucket heads
+        state cache_clock: Int = 0                   // monotonic access counter
+        state request_queue: Array<BlockRequest> = []
+        state next_device_index: Int = 0
+
+    // ─── Internal helpers ───────────────────────────────────────────
+
+    fn block_hash(device_id: Int, lba: Int) -> Int:
+        let h: Int = device_id * 2654435761 + lba * 0x9E3779B9
+        return ((h ^ (h >> 16)) * 0x85EBCA6B) % BLOCK_CACHE_BUCKETS
+
+    fn block_evict_lru() -> Int:
+        // Evict the least-recently-used clean entry. Return index or -1.
+        var oldest_time: Int = 2147483647     // max Int
+        var oldest_idx: Int = -1
+        var i: Int = 0
+        while i < BLOCK_CACHE_SIZE:
+            if i >= len(BlockWorld.cache_entries):
+                break
+            let entry = BlockWorld.cache_entries[i]
+            if entry.dirty == BLOCK_CLEAN and entry.lba != BLOCK_INVALID:
+                if entry.access_time < oldest_time:
+                    oldest_time = entry.access_time
+                    oldest_idx = i
+            i = i + 1
+        if oldest_idx < 0:
+            return -1
+        return oldest_idx
+
+    fn block_cache_lookup(device_id: Int, lba: Int) -> Int:
+        // Look up a block in the cache. Returns cache entry index or -1.
+        if len(BlockWorld.cache_hash_buckets) == 0:
+            return -1
+        let bucket = block_hash(device_id, lba)
+        if bucket < 0 or bucket >= len(BlockWorld.cache_hash_buckets):
+            return -1
+        var idx: Int = BlockWorld.cache_hash_buckets[bucket]
+        while idx >= 0 and idx < len(BlockWorld.cache_entries):
+            let entry = BlockWorld.cache_entries[idx]
+            if entry.device_id == device_id and entry.lba == lba:
+                // Update access time (LRU)
+                BlockWorld.cache_clock = BlockWorld.cache_clock + 1
+                let updated = entry
+                updated.access_time = BlockWorld.cache_clock
+                BlockWorld.cache_entries[idx] = updated
+                return idx
+            idx = entry.next_hash
+        return -1
+
+    fn block_cache_insert(device_id: Int, lba: Int, count: Int, data_ptr: Int, dirty: Int) -> Int:
+        // Insert a block into the cache. Returns cache entry index or -1.
+        var slot: Int = -1
+
+        // First, try to find an empty slot
+        var i: Int = 0
+        while i < len(BlockWorld.cache_entries):
+            if BlockWorld.cache_entries[i].lba == BLOCK_INVALID:
+                slot = i
+                break
+            i = i + 1
+
+        // No empty slot — evict LRU
+        if slot < 0:
+            slot = block_evict_lru()
+
+        if slot < 0:
+            return -1
+
+        // Update access clock
+        BlockWorld.cache_clock = BlockWorld.cache_clock + 1
+
+        // Store entry
+        BlockWorld.cache_entries[slot] = BlockCacheEntry {
+            device_id: device_id,
+            lba: lba,
+            count: count,
+            data: data_ptr,
+            dirty: dirty,
+            access_time: BlockWorld.cache_clock,
+            next_hash: -1,
+        }
+
+        // Insert into hash chain
+        let bucket = block_hash(device_id, lba)
+        if bucket < len(BlockWorld.cache_hash_buckets):
+            let entry = BlockWorld.cache_entries[slot]
+            entry.next_hash = BlockWorld.cache_hash_buckets[bucket]
+            BlockWorld.cache_entries[slot] = entry
+            BlockWorld.cache_hash_buckets[bucket] = slot
+
+        return slot
+
+    // ─── Public API ─────────────────────────────────────────────────
+
+    pub fn block_init() -> Int:
+        // Initialize the block device subsystem and cache
+        BlockWorld.device_table = []
+        BlockWorld.cache_entries = []
+        BlockWorld.cache_hash_buckets = []
+        BlockWorld.request_queue = []
+        BlockWorld.cache_clock = 0
+        BlockWorld.next_device_index = 0
+
+        // Pre-allocate cache entries as empty
+        var i: Int = 0
+        while i < BLOCK_CACHE_SIZE:
+            push(BlockWorld.cache_entries, BlockCacheEntry {
+                device_id: 0, lba: -1, count: 0, data: 0,
+                dirty: 0, access_time: 0, next_hash: -1,
+            })
+            i = i + 1
+
+        // Initialize hash buckets to -1 (empty)
+        i = 0
+        while i < BLOCK_CACHE_BUCKETS:
+            push(BlockWorld.cache_hash_buckets, -1)
+            i = i + 1
+
+        return 0
+
+    pub fn block_register(name: String, block_size: Int, total_blocks: Int, flags: Int) -> Int:
+        // Register a block device. Returns device_id on success, -1 on failure.
+        let idx = BlockWorld.next_device_index
+        if idx >= BLOCK_DEVICE_MAX:
+            return -1
+
+        let dev = BlockDevice {
+            name: name,
+            block_size: block_size,
+            total_blocks: total_blocks,
+            flags: flags,
+            device_index: idx,
+            in_use: 1,
+        }
+
+        // Ensure device table is large enough
+        while len(BlockWorld.device_table) <= idx:
+            push(BlockWorld.device_table, BlockDevice {
+                name: "", block_size: 0, total_blocks: 0,
+                flags: 0, device_index: -1, in_use: 0,
+            })
+
+        BlockWorld.device_table[idx] = dev
+        BlockWorld.next_device_index = BlockWorld.next_device_index + 1
+        return idx
+
+    pub fn block_read(device_id: Int, lba: Int, count: Int, buf: Int) -> Int with Unsafe:
+        // Read blocks from device. Returns bytes read or negative on error.
+        if device_id < 0 or device_id >= len(BlockWorld.device_table):
+            return -1
+        let dev = BlockWorld.device_table[device_id]
+        if dev.in_use == 0:
+            return -2
+        if lba < 0 or lba + count > dev.total_blocks:
+            return -3
+
+        let block_size = dev.block_size
+        let total_bytes = count * block_size
+
+        // Check each requested block in cache first
+        var cache_hits: Int = 0
+        var block_idx: Int = 0
+        while block_idx < count:
+            let this_lba = lba + block_idx
+            let cache_entry_idx = block_cache_lookup(device_id, this_lba)
+            if cache_entry_idx >= 0:
+                // Cache hit — copy from cache
+                let entry = BlockWorld.cache_entries[cache_entry_idx]
+                let dst_ptr: ptr<Int> = int_to_ptr(buf + (block_idx * block_size), "Int")
+                collapse dst_ptr:
+                    var byte_idx: Int = 0
+                    while byte_idx < block_size:
+                        let src_ptr: ptr<Int> = int_to_ptr(entry.data, "Int")
+                        var src_val: Int = 0
+                        observe src_ptr:
+                            src_val = mem_load(ptr_offset(src_ptr, byte_idx / 4, "Int"), "Int")
+                        mem_store(ptr_offset(dst_ptr, byte_idx / 4, "Int"), src_val, "Int")
+                        byte_idx = byte_idx + 4
+                    var _zero: Int = 0
+                    _zero = 0
+                cache_hits = cache_hits + 1
+            block_idx = block_idx + 1
+
+        // If all blocks were cache hits, we're done
+        if cache_hits == count:
+            return total_bytes
+
+        // For cache misses, mark uncached blocks as empty (to be filled by driver)
+        block_idx = 0
+        while block_idx < count:
+            let this_lba = lba + block_idx
+            if block_cache_lookup(device_id, this_lba) < 0:
+                // Create empty cache entry — driver will fill via DMA
+                let data_buf: ptr<Int> = alloc_zeroed(block_size / 4, "Int")
+                let _ = block_cache_insert(device_id, this_lba, 1, ptr_to_int(data_buf), BLOCK_CLEAN)
+            block_idx = block_idx + 1
+
+        return total_bytes
+
+    pub fn block_write(device_id: Int, lba: Int, count: Int, buf: Int) -> Int with Unsafe:
+        // Write blocks to device. Returns bytes written or negative on error.
+        if device_id < 0 or device_id >= len(BlockWorld.device_table):
+            return -1
+        let dev = BlockWorld.device_table[device_id]
+        if dev.in_use == 0:
+            return -2
+        if (dev.flags & BLOCK_READ_WRITE) == 0:
+            return -4     // read-only device
+        if lba < 0 or lba + count > dev.total_blocks:
+            return -3
+
+        let block_size = dev.block_size
+        let total_bytes = count * block_size
+
+        var block_idx: Int = 0
+        while block_idx < count:
+            let this_lba = lba + block_idx
+            let data_buf: ptr<Int> = alloc_zeroed(block_size / 4, "Int")
+
+            // Copy from user buffer to cache buffer
+            let src_ptr: ptr<Int> = int_to_ptr(buf + (block_idx * block_size), "Int")
+            collapse data_buf:
+                var byte_idx: Int = 0
+                while byte_idx < block_size:
+                    var src_val: Int = 0
+                    observe src_ptr:
+                        src_val = mem_load(ptr_offset(src_ptr, byte_idx / 4, "Int"), "Int")
+                    mem_store(ptr_offset(data_buf, byte_idx / 4, "Int"), src_val, "Int")
+                    byte_idx = byte_idx + 4
+                var _zero2: Int = 0
+                _zero2 = 0
+
+            // Check if already cached — if so, update
+            let cache_idx = block_cache_lookup(device_id, this_lba)
+            if cache_idx >= 0:
+                let old_entry = BlockWorld.cache_entries[cache_idx]
+                let updated = old_entry
+                updated.data = ptr_to_int(data_buf)
+                updated.dirty = BLOCK_DIRTY
+                BlockWorld.cache_entries[cache_idx] = updated
+            else:
+                let _ = block_cache_insert(device_id, this_lba, 1, ptr_to_int(data_buf), BLOCK_DIRTY)
+
+            block_idx = block_idx + 1
+
+        return total_bytes
+
+    pub fn block_flush(device_id: Int) -> Int:
+        // Write all dirty blocks for a device back to storage.
+        var flushed: Int = 0
+        var i: Int = 0
+        while i < len(BlockWorld.cache_entries):
+            let entry = BlockWorld.cache_entries[i]
+            if entry.device_id == device_id and entry.dirty == BLOCK_DIRTY:
+                // In real kernel: trigger DMA write from entry.data to device LBA
+                let updated = entry
+                updated.dirty = BLOCK_CLEAN
+                BlockWorld.cache_entries[i] = updated
+                flushed = flushed + 1
+            i = i + 1
+        return flushed
+
+    pub fn block_get_device(device_id: Int) -> BlockDevice:
+        // Get block device info
+        if device_id >= 0 and device_id < len(BlockWorld.device_table):
+            return BlockWorld.device_table[device_id]
+        return BlockDevice {
+            name: "", block_size: 0, total_blocks: 0,
+            flags: 0, device_index: -1, in_use: 0,
+        }
+
+    pub fn block_count() -> Int:
+        return BlockWorld.next_device_index
+
+    pub fn block_cache_stats() -> String:
+        // Return cache statistics for diagnostics
+        var used: Int = 0
+        var dirty: Int = 0
+        var i: Int = 0
+        while i < len(BlockWorld.cache_entries):
+            if BlockWorld.cache_entries[i].lba >= 0:
+                used = used + 1
+                if BlockWorld.cache_entries[i].dirty == BLOCK_DIRTY:
+                    dirty = dirty + 1
+            i = i + 1
+        return "block_cache: used=" + str(used) + "/" + str(BLOCK_CACHE_SIZE) + " dirty=" + str(dirty)

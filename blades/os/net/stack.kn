@@ -1,0 +1,297 @@
+// ============================================================================
+//  STREAM E: stack.kn — NetActor / Network Stack Entry Point
+//  Socket API, interface management, DHCP client, frame dispatch.
+// ============================================================================
+
+use std::memory
+
+pub mod net_stack:
+    pub const NET_SOCK_STREAM:     Int = 1
+    pub const NET_SOCK_DGRAM:      Int = 2
+    pub const NET_SOCK_RAW:        Int = 3
+    pub const NET_AF_INET:         Int = 2
+    pub const NET_MAX_SOCKETS:     Int = 256
+    pub const NET_MAX_INTERFACES:  Int = 8
+    pub const NET_DHCP_CLIENT_PORT: Int = 68
+    pub const NET_DHCP_SERVER_PORT: Int = 67
+
+    type IpAddr    = Int
+    type MacAddr   = Int
+    type TcpPort   = Int
+    type Checksum  = Int
+
+    struct NetInterface:
+        name:       Int
+        index:      Int
+        mac:        MacAddr
+        ip:         IpAddr
+        netmask:    IpAddr
+        gateway:    IpAddr
+        dns_server: IpAddr
+        mtu:        Int
+        flags:      Int
+        driver_ctx: Int
+
+    struct Socket:
+        id:          Int
+        domain:      Int
+        sock_type:   Int
+        protocol:    Int
+        state:       Int
+        local_ip:    IpAddr
+        local_port:  TcpPort
+        remote_ip:   IpAddr
+        remote_port: TcpPort
+        conn_id:     Int
+        recv_buf:    Int
+        recv_len:    Int
+        recv_cap:    Int
+        non_blocking: Int
+        bound:       Int
+        listening:   Int
+
+    struct NetSockAddr:
+        family: Int
+        port:   TcpPort
+        ip:     IpAddr
+
+    // ── Byte helpers ──
+
+    fn buf_write_byte(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word_ptr: ptr<Int> = ptr_offset(buf, word_idx, "Int")
+        let old: Int = mem_load(word_ptr, "Int")
+        let mask: Int = (0xFF << shift) ^ 0xFFFFFFFF
+        mem_store(word_ptr, (old & mask) | ((value & 0xFF) << shift), "Int")
+
+    fn buf_write_be16(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 8) & 0xFF)
+        buf_write_byte(buf, offset + 1, value & 0xFF)
+
+    fn buf_write_be32(buf: ptr<Int>, offset: Int, value: Int) with Unsafe:
+        buf_write_byte(buf, offset,     (value >> 24) & 0xFF)
+        buf_write_byte(buf, offset + 1, (value >> 16) & 0xFF)
+        buf_write_byte(buf, offset + 2, (value >> 8)  & 0xFF)
+        buf_write_byte(buf, offset + 3, value & 0xFF)
+
+    fn buf_read_be32(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        var val: Int = 0
+        val = (val << 8) | buf_read_byte(buf, offset)
+        val = (val << 8) | buf_read_byte(buf, offset + 1)
+        val = (val << 8) | buf_read_byte(buf, offset + 2)
+        val = (val << 8) | buf_read_byte(buf, offset + 3)
+        return val
+
+    fn buf_read_byte(buf: ptr<Int>, offset: Int) -> Int with Unsafe:
+        let word_idx: Int = offset / 4
+        let byte_off: Int = offset % 4
+        let shift: Int = byte_off * 8
+        let word: Int = mem_load(ptr_offset(buf, word_idx, "Int"), "Int")
+        return (word >> shift) & 0xFF
+
+    // ── Socket API ──
+
+    pub fn net_init() -> Int:
+        return 0
+
+    pub fn net_socket_create(domain: Int, sock_type: Int, protocol: Int) -> Int:
+        let _ = domain
+        let _ = sock_type
+        let _ = protocol
+        return 1  // FIXME: allocate from NetWorld sockets array
+
+    pub fn net_socket_bind(sock_id: Int, port: TcpPort, ip: IpAddr) -> Int:
+        let _ = sock_id
+        let _ = port
+        let _ = ip
+        return 0
+
+    pub fn net_socket_listen(sock_id: Int, backlog: Int) -> Int:
+        let _ = sock_id
+        let _ = backlog
+        return 0
+
+    pub fn net_socket_accept(sock_id: Int) -> Int:
+        let _ = sock_id
+        return -1  // EAGAIN
+
+    pub fn net_socket_connect(sock_id: Int, ip: IpAddr, port: TcpPort) -> Int:
+        let _ = sock_id
+        let _ = ip
+        let _ = port
+        return 0
+
+    pub fn net_socket_send(sock_id: Int, data: ptr<Int>, data_len: Int) -> Int with Unsafe:
+        let _ = sock_id
+        let _ = data
+        let _ = data_len
+        return 0
+
+    pub fn net_socket_recv(sock_id: Int, buf: ptr<Int>, max_len: Int) -> Int with Unsafe:
+        let _ = sock_id
+        let _ = buf
+        let _ = max_len
+        return -1  // EAGAIN
+
+    pub fn net_socket_close(sock_id: Int) -> Int:
+        let _ = sock_id
+        return 0
+
+    // ── Interface Management ──
+
+    pub fn net_interface_add(mac: MacAddr, ip: IpAddr, netmask: IpAddr,
+                             gateway: IpAddr, mtu: Int, driver_ctx: Int) -> Int:
+        let _ = mac
+        let _ = ip
+        let _ = netmask
+        let _ = gateway
+        let _ = mtu
+        let _ = driver_ctx
+        return 0
+
+    pub fn net_interface_up(if_index: Int) -> Int:
+        let _ = if_index
+        return 0
+
+    pub fn net_interface_down(if_index: Int) -> Int:
+        let _ = if_index
+        return 0
+
+    // ── Frame Receive Dispatch ──
+
+    pub fn net_frame_received(if_index: Int, frame_buf: ptr<Int>,
+                              frame_len: Int) -> Int with Unsafe:
+        // FIXME: parse eth frame, dispatch by ethertype to IP/ARP
+        let _ = if_index
+        let _ = frame_buf
+        let _ = frame_len
+        return 0
+
+    // ── DHCP Client (DISCOVER -> OFFER -> REQUEST -> ACK) ──
+
+    pub fn dhcp_build_discover(out_buf: ptr<Int>, xid: Int) -> Int with Unsafe:
+        // DHCP message format (RFC 2131)
+        buf_write_byte(out_buf, 0, 1)    // op = BOOTREQUEST
+        buf_write_byte(out_buf, 1, 1)    // htype = Ethernet
+        buf_write_byte(out_buf, 2, 6)    // hlen
+        buf_write_byte(out_buf, 3, 0)    // hops
+        buf_write_be32(out_buf, 4, xid)
+        buf_write_be16(out_buf, 8, 0)    // secs
+        buf_write_be16(out_buf, 10, 0x8000) // flags: BROADCAST
+        // ciaddr(4), yiaddr(4), siaddr(4), giaddr(4) = 0
+        var z: Int = 0
+        while z < 16:
+            buf_write_byte(out_buf, 12 + z, 0)
+            z = z + 1
+        // chaddr (16 bytes): MAC placeholder
+        var c: Int = 0
+        while c < 16:
+            buf_write_byte(out_buf, 28 + c, 0)
+            c = c + 1
+        // sname (64) + file (128) = 0
+        var s: Int = 0
+        while s < 192:
+            buf_write_byte(out_buf, 44 + s, 0)
+            s = s + 1
+        // Magic cookie at offset 236
+        let opt_off = 236
+        buf_write_byte(out_buf, opt_off, 99)
+        buf_write_byte(out_buf, opt_off + 1, 130)
+        buf_write_byte(out_buf, opt_off + 2, 83)
+        buf_write_byte(out_buf, opt_off + 3, 99)
+        // Option 53: DHCP Message Type = DISCOVER (1)
+        buf_write_byte(out_buf, opt_off + 4, 53)
+        buf_write_byte(out_buf, opt_off + 5, 1)
+        buf_write_byte(out_buf, opt_off + 6, 1)
+        // Option 55: Parameter Request List
+        buf_write_byte(out_buf, opt_off + 7, 55)
+        buf_write_byte(out_buf, opt_off + 8, 4)
+        buf_write_byte(out_buf, opt_off + 9, 1)   // subnet mask
+        buf_write_byte(out_buf, opt_off + 10, 3)  // router
+        buf_write_byte(out_buf, opt_off + 11, 6)  // DNS
+        buf_write_byte(out_buf, opt_off + 12, 15) // domain name
+        // Option 255: End
+        buf_write_byte(out_buf, opt_off + 13, 255)
+        return opt_off + 14
+
+    pub fn dhcp_build_request(out_buf: ptr<Int>, xid: Int, server_ip: Int,
+                              offered_ip: Int) -> Int with Unsafe:
+        buf_write_byte(out_buf, 0, 1)
+        buf_write_byte(out_buf, 1, 1)
+        buf_write_byte(out_buf, 2, 6)
+        buf_write_byte(out_buf, 3, 0)
+        buf_write_be32(out_buf, 4, xid)
+        buf_write_be16(out_buf, 8, 0)
+        buf_write_be16(out_buf, 10, 0x8000)
+        var z: Int = 0
+        while z < 16:
+            buf_write_byte(out_buf, 12 + z, 0)
+            z = z + 1
+        var c: Int = 0
+        while c < 16:
+            buf_write_byte(out_buf, 28 + c, 0)
+            c = c + 1
+        var s: Int = 0
+        while s < 192:
+            buf_write_byte(out_buf, 44 + s, 0)
+            s = s + 1
+        let opt_off = 236
+        buf_write_byte(out_buf, opt_off, 99)
+        buf_write_byte(out_buf, opt_off + 1, 130)
+        buf_write_byte(out_buf, opt_off + 2, 83)
+        buf_write_byte(out_buf, opt_off + 3, 99)
+        // Option 53: REQUEST (3)
+        buf_write_byte(out_buf, opt_off + 4, 53)
+        buf_write_byte(out_buf, opt_off + 5, 1)
+        buf_write_byte(out_buf, opt_off + 6, 3)
+        // Option 50: Requested IP Address
+        buf_write_byte(out_buf, opt_off + 7, 50)
+        buf_write_byte(out_buf, opt_off + 8, 4)
+        buf_write_be32(out_buf, opt_off + 9, offered_ip)
+        // Option 54: DHCP Server Identifier
+        buf_write_byte(out_buf, opt_off + 13, 54)
+        buf_write_byte(out_buf, opt_off + 14, 4)
+        buf_write_be32(out_buf, opt_off + 15, server_ip)
+        // Option 255: End
+        buf_write_byte(out_buf, opt_off + 19, 255)
+        return opt_off + 20
+
+    pub fn dhcp_handle_offer(dhcp_buf: ptr<Int>) -> Int with Unsafe:
+        let yiaddr = buf_read_be32(dhcp_buf, 16)
+        let siaddr = buf_read_be32(dhcp_buf, 20)
+        let _ = yiaddr
+        let _ = siaddr
+        return 0  // FIXME: transition to REQUEST phase
+
+    pub fn dhcp_handle_ack(dhcp_buf: ptr<Int>) -> Int with Unsafe:
+        let yiaddr = buf_read_be32(dhcp_buf, 16)
+        let _ = yiaddr
+        return 0  // FIXME: transition to BOUND, configure interface
+
+    // ── ARP Cache Maintenance ──
+
+    pub fn net_arp_cache_sweep(now_sec: Int) -> Int:
+        let _ = now_sec
+        return 0
+
+    // ── TCP Retransmission Pulse ──
+
+    pub fn net_tcp_retransmit_pulse(now_ms: Int) -> Int:
+        let _ = now_ms
+        return 0
+
+    // ── Resolve: ARP IP->MAC ──
+
+    pub fn net_resolve_mac(dst_ip: IpAddr) -> MacAddr:
+        let _ = dst_ip
+        return 0
+
+    pub fn net_get_local_ip(if_index: Int) -> IpAddr:
+        let _ = if_index
+        return 0
+
+    pub fn net_get_local_mac(if_index: Int) -> MacAddr:
+        let _ = if_index
+        return 0

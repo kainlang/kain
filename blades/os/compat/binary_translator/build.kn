@@ -1,0 +1,18 @@
+// ============================================================================
+//  compat/binary_translator/build.kn — Binary Translator (ELF + x86-64)
+// ============================================================================
+
+build ({
+    name: "kainos-compat-bt",
+    version: "0.1.0",
+    description: "KAINOS binary translator — x86-64 decoder, syscall rewriter, ELF64 loader",
+    type: "lib",
+
+    sources: [
+        "decoder.kn",
+        "translator.kn",
+        "loader.kn",
+    ],
+
+    target: "llvm",
+})

@@ -1,0 +1,120 @@
+use std::build
+
+// ============================================================================
+//  KAINOS — Root Build File
+//  Target: x86_64-unknown-none (bare metal, no libc)
+//  Output: kainos.elf (multiboot2-bootable kernel image)
+// ============================================================================
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let kernel = project("kainos")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("KAINOS — Single-address-space actor kernel")
+        .entry("kernel/main.kn")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .no_default_features(true)
+        .linker_script("arch/x86_64/linker.ld")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .feature("kernel")
+        .feature("no_std")
+        .feature("bare_metal")
+
+    // Assembly bootstrap
+    let asm_boot = asm_object("boot-asm")
+        .source("arch/x86_64/boot.asm")
+        .format("elf64")
+
+    // Subprojects — each directory contributes to the kernel
+    let arch_x86 = subproject("arch_x86_64")
+        .source("../arch/x86_64")
+        .kind("static_library")
+
+    let kernel_core = subproject("kernel_core")
+        .source("kernel")
+        .kind("static_library")
+
+    let mm_subsystem = subproject("memory_management")
+        .source("mm")
+        .kind("static_library")
+
+    let fs_subsystem = subproject("filesystem")
+        .source("fs")
+        .kind("static_library")
+
+    let net_subsystem = subproject("networking")
+        .source("net")
+        .kind("static_library")
+
+    let drivers = subproject("device_drivers")
+        .source("drivers")
+        .kind("static_library")
+
+    let ipc_layer = subproject("ipc")
+        .source("ipc")
+        .kind("static_library")
+
+    let security_layer = subproject("security")
+        .source("security")
+        .kind("static_library")
+
+    let compat_layer = subproject("compatibility")
+        .source("compat")
+        .kind("static_library")
+
+    let ui_layer = subproject("ui")
+        .source("ui")
+        .kind("static_library")
+
+    let init_layer = subproject("init")
+        .source("init")
+        .kind("static_library")
+
+    let kernel_lib = subproject("kernel_library")
+        .source("lib")
+        .kind("static_library")
+
+    let runtime_native = subproject("native_runtime")
+        .source("runtime")
+        .kind("static_library")
+
+    let test_suite = subproject("kernel_tests")
+        .source("test")
+        .kind("test_suite")
+
+    let check = check_task("check-llvm")
+        .project(kernel)
+        .target("llvm")
+
+    let exe = native_executable("kainos-elf")
+        .project(kernel)
+        .output("$blade/kainos.elf")
+        .link_objects([asm_boot])
+        .depends_on([
+            arch_x86,
+            kernel_core,
+            mm_subsystem,
+            fs_subsystem,
+            net_subsystem,
+            drivers,
+            ipc_layer,
+            security_layer,
+            compat_layer,
+            ui_layer,
+            init_layer,
+            kernel_lib,
+            runtime_native,
+        ])
+        .requires(check)
+
+    return build_graph()
+        .project(kernel)
+        .task(check)
+        .task(exe)
+        .task(test_suite)

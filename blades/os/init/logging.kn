@@ -1,0 +1,147 @@
+// ============================================================================
+//  KAINOS System Logging — logging.kn
+// ============================================================================
+//  Kernel ring buffer logger. Structured log entries with multiple backends.
+//  Log levels: EMERG(0) through DEBUG(7). Outputs to serial, framebuffer, file.
+//
+//  Ladder constructs:
+//    LAYER 1 — world for log buffer state
+//    LAYER 2 — patch for journaled log writes
+//
+//  Exports:
+//    klog_init, klog_write, klog_set_level, klog_dump, klog_get_entries
+// ============================================================================
+
+use std::runtime
+
+pub mod logging:
+
+    enum KlogLevel:
+        Emerg
+        Alert
+        Crit
+        Err
+        Warning
+        Notice
+        Info
+        Debug
+
+    struct KlogEntry:
+        timestamp_ns: Int
+        level: KlogLevel
+        source: String
+        message: String
+        actor_id: Int
+
+    const KLOG_BUFFER_SIZE: Int = 65536
+    const MAX_ENTRY_SIZE:   Int = 256
+
+    world KlogWorld:
+        state buffer: Array<KlogEntry> = []
+        state head: Int = 0
+        state tail: Int = 0
+        state count: Int = 0
+        state max_entries: Int = 256
+        state min_level: KlogLevel = KlogLevel::Info
+        state serial_enabled: Bool = true
+        state framebuffer_enabled: Bool = false
+        state file_enabled: Bool = false
+        state total_logged: Int = 0
+        state total_dropped: Int = 0
+
+    pub fn klog_init() -> Int with IO:
+        KlogWorld.head = 0
+        KlogWorld.tail = 0
+        KlogWorld.count = 0
+        KlogWorld.min_level = KlogLevel::Info
+        KlogWorld.total_logged = 0
+        KlogWorld.total_dropped = 0
+        return 0
+
+    pub fn klog_write(level: KlogLevel, source: String, message: String) -> Int with IO:
+        if (level as Int) > (KlogWorld.min_level as Int):
+            return 0
+
+        let entry = KlogEntry {
+            timestamp_ns: 0,
+            level: level,
+            source: source,
+            message: message,
+            actor_id: 0,
+        }
+
+        if KlogWorld.count >= KlogWorld.max_entries:
+            KlogWorld.total_dropped = KlogWorld.total_dropped + 1
+            KlogWorld.tail = (KlogWorld.tail + 1) % KlogWorld.max_entries
+            KlogWorld.count = KlogWorld.count - 1
+
+        if KlogWorld.head < len(KlogWorld.buffer):
+            KlogWorld.buffer[KlogWorld.head] = entry
+        else:
+            push(KlogWorld.buffer, entry)
+
+        KlogWorld.head = (KlogWorld.head + 1) % KlogWorld.max_entries
+        KlogWorld.count = KlogWorld.count + 1
+        KlogWorld.total_logged = KlogWorld.total_logged + 1
+
+        return 0
+
+    pub fn klog_set_level(min_level: KlogLevel) -> Int with IO:
+        KlogWorld.min_level = min_level
+        return 0
+
+    pub fn klog_get_level() -> KlogLevel with IO:
+        return KlogWorld.min_level
+
+    pub fn klog_enable_backend(backend: String, enabled: Bool) -> Int with IO:
+        if backend == "serial":
+            KlogWorld.serial_enabled = enabled
+        elif backend == "framebuffer":
+            KlogWorld.framebuffer_enabled = enabled
+        elif backend == "file":
+            KlogWorld.file_enabled = enabled
+        else:
+            return -1
+        return 0
+
+    pub fn klog_dump() -> Array<KlogEntry> with IO:
+        var result: Array<KlogEntry> = []
+        var idx: Int = KlogWorld.tail
+        var remaining: Int = KlogWorld.count
+        while remaining > 0 and idx < len(KlogWorld.buffer):
+            push(result, KlogWorld.buffer[idx])
+            idx = (idx + 1) % KlogWorld.max_entries
+            remaining = remaining - 1
+        return result
+
+    pub fn klog_get_recent(count: Int) -> Array<KlogEntry> with IO:
+        var result: Array<KlogEntry> = []
+        var actual: Int = if count < KlogWorld.count: count else: KlogWorld.count
+        var start: Int = KlogWorld.head - actual
+        if start < 0:
+            start = start + KlogWorld.max_entries
+        var idx: Int = start
+        var remaining: Int = actual
+        while remaining > 0 and idx < len(KlogWorld.buffer):
+            push(result, KlogWorld.buffer[idx])
+            idx = (idx + 1) % KlogWorld.max_entries
+            remaining = remaining - 1
+        return result
+
+    pub fn klog_stats() -> Int with IO:
+        return KlogWorld.total_logged
+
+    pub fn klog_emerg(source: String, msg: String) -> Void with IO:
+        klog_write(KlogLevel::Emerg, source, msg)
+
+    pub fn klog_err(source: String, msg: String) -> Void with IO:
+        klog_write(KlogLevel::Err, source, msg)
+
+    pub fn klog_warn(source: String, msg: String) -> Void with IO:
+        klog_write(KlogLevel::Warning, source, msg)
+
+    pub fn klog_info(source: String, msg: String) -> Void with IO:
+        klog_write(KlogLevel::Info, source, msg)
+
+    pub fn klog_debug(source: String, msg: String) -> Void with IO:
+        klog_write(KlogLevel::Debug, source, msg)

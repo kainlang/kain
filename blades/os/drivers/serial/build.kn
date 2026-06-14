@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("serial_subsystem")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS 16550 UART driver — COM1-4, polled TX/RX, interrupt-driven RX ring buffer, early boot debug")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-uart")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("uart-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

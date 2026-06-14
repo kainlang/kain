@@ -1,0 +1,150 @@
+// ============================================================================
+//  KAINOS Kernel String Library — string.kn
+// ============================================================================
+//  String and memory operations for kernel use. Operates on ptr<Byte>.
+//  Freestanding — no libc dependency. Uses bitcast for type conversions.
+//
+//  Ladder construct: LAYER 0 — fn with Unsafe
+//
+//  Exports:
+//    kstrlen, kstrcpy, kstrncpy, kstrcmp, kstrncmp,
+//    kstrchr, kstrrchr, kmemset, kmemcpy, kmemmove, kmemcmp
+// ============================================================================
+
+pub mod string:
+
+    /// Returns the length of the null-terminated byte string at s.
+    pub fn kstrlen(s: ptr<Byte>) -> Int with Unsafe:
+        var len: Int = 0
+        loop:
+            let c: Byte = mem_load(ptr_offset(s, len, "Byte"), "Byte")
+            if c == (0 as Byte):
+                break
+            len = len + 1
+        return len
+
+    /// Copy null-terminated string from src to dst. Undefined if overlapping.
+    pub fn kstrcpy(dst: ptr<Byte>, src: ptr<Byte>) -> ptr<Byte> with Unsafe:
+        var i: Int = 0
+        loop:
+            let c: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+            mem_store(ptr_offset(dst, i, "Byte"), c, "Byte")
+            if c == (0 as Byte):
+                break
+            i = i + 1
+        return dst
+
+    /// Copy at most n bytes, always NUL-terminates.
+    pub fn kstrncpy(dst: ptr<Byte>, src: ptr<Byte>, n: Int) -> ptr<Byte> with Unsafe:
+        var i: Int = 0
+        while i < n:
+            let c: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+            mem_store(ptr_offset(dst, i, "Byte"), c, "Byte")
+            if c == (0 as Byte):
+                var j: Int = i + 1
+                while j < n:
+                    mem_store(ptr_offset(dst, j, "Byte"), 0 as Byte, "Byte")
+                    j = j + 1
+                return dst
+            i = i + 1
+        return dst
+
+    /// Compare two null-terminated strings. Returns 0 if equal.
+    pub fn kstrcmp(a: ptr<Byte>, b: ptr<Byte>) -> Int with Unsafe:
+        var i: Int = 0
+        loop:
+            let ca: Byte = mem_load(ptr_offset(a, i, "Byte"), "Byte")
+            let cb: Byte = mem_load(ptr_offset(b, i, "Byte"), "Byte")
+            if ca != cb:
+                return (ca as Int) - (cb as Int)
+            if ca == (0 as Byte):
+                return 0
+            i = i + 1
+        return 0
+
+    /// Compare at most n bytes.
+    pub fn kstrncmp(a: ptr<Byte>, b: ptr<Byte>, n: Int) -> Int with Unsafe:
+        if n == 0:
+            return 0
+        var i: Int = 0
+        while i < n:
+            let ca: Byte = mem_load(ptr_offset(a, i, "Byte"), "Byte")
+            let cb: Byte = mem_load(ptr_offset(b, i, "Byte"), "Byte")
+            if ca != cb:
+                return (ca as Int) - (cb as Int)
+            if ca == (0 as Byte):
+                return 0
+            i = i + 1
+        return 0
+
+    /// Find first occurrence of c in string s. Returns ptr or null (0 ptr).
+    pub fn kstrchr(s: ptr<Byte>, c: Byte) -> ptr<Byte> with Unsafe:
+        var i: Int = 0
+        loop:
+            let cur: Byte = mem_load(ptr_offset(s, i, "Byte"), "Byte")
+            if cur == c:
+                return ptr_offset(s, i, "Byte")
+            if cur == (0 as Byte):
+                if c == (0 as Byte):
+                    return ptr_offset(s, i, "Byte")
+                return bitcast(0, "ptr<Byte>")
+            i = i + 1
+        return bitcast(0, "ptr<Byte>")
+
+    /// Find last occurrence of c in string s.
+    pub fn kstrrchr(s: ptr<Byte>, c: Byte) -> ptr<Byte> with Unsafe:
+        let len: Int = kstrlen(s)
+        var i: Int = len
+        while i >= 0:
+            let cur: Byte = mem_load(ptr_offset(s, i, "Byte"), "Byte")
+            if cur == c:
+                return ptr_offset(s, i, "Byte")
+            i = i - 1
+        return bitcast(0, "ptr<Byte>")
+
+    /// Set n bytes starting at ptr to value. Returns ptr.
+    pub fn kmemset(ptr: ptr<Byte>, value: Byte, n: Int) -> ptr<Byte> with Unsafe:
+        var i: Int = 0
+        while i < n:
+            mem_store(ptr_offset(ptr, i, "Byte"), value, "Byte")
+            i = i + 1
+        return ptr
+
+    /// Copy n bytes from src to dst. Undefined if overlapping.
+    pub fn kmemcpy(dst: ptr<Byte>, src: ptr<Byte>, n: Int) -> ptr<Byte> with Unsafe:
+        var i: Int = 0
+        while i < n:
+            let val: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+            mem_store(ptr_offset(dst, i, "Byte"), val, "Byte")
+            i = i + 1
+        return dst
+
+    /// Copy n bytes, handling overlap correctly.
+    pub fn kmemmove(dst: ptr<Byte>, src: ptr<Byte>, n: Int) -> ptr<Byte> with Unsafe:
+        let dst_addr: Int = bitcast(dst, "Int")
+        let src_addr: Int = bitcast(src, "Int")
+
+        if dst_addr < src_addr:
+            var i: Int = 0
+            while i < n:
+                let val: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+                mem_store(ptr_offset(dst, i, "Byte"), val, "Byte")
+                i = i + 1
+        elif dst_addr > src_addr:
+            var i: Int = n - 1
+            while i >= 0:
+                let val: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+                mem_store(ptr_offset(dst, i, "Byte"), val, "Byte")
+                i = i - 1
+        return dst
+
+    /// Compare n bytes of two memory regions.
+    pub fn kmemcmp(a: ptr<Byte>, b: ptr<Byte>, n: Int) -> Int with Unsafe:
+        var i: Int = 0
+        while i < n:
+            let ba: Byte = mem_load(ptr_offset(a, i, "Byte"), "Byte")
+            let bb: Byte = mem_load(ptr_offset(b, i, "Byte"), "Byte")
+            if ba != bb:
+                return (ba as Int) - (bb as Int)
+            i = i + 1
+        return 0

@@ -1,0 +1,280 @@
+// ============================================================================
+//  KAINOS — Device Filesystem (Stream D)
+//  devfs.kn — Virtual filesystem exposing device nodes at /dev
+// ============================================================================
+
+pub mod devfs:
+    // ─── Shared type definitions (used across FS modules at link time) ─
+
+    pub const FS_FILE_REGULAR: Int  = 0
+    pub const FS_FILE_DIR: Int      = 1
+    pub const FS_FILE_SYMLINK: Int  = 2
+    pub const FS_FILE_DEVICE: Int   = 3
+    pub const FS_FAT32: Int     = 1
+    pub const FS_EXT4: Int      = 2
+    pub const FS_DEVFS: Int     = 3
+
+    pub struct KOsDirEntry:
+        name: String
+        inode_id: Int
+        file_type: Int
+
+    pub struct KOsStat:
+        inode_id: Int
+        size: Int
+        file_type: Int
+        fs_type: Int
+        device_id: Int
+        block_count: Int
+
+    // ─── Constants ──────────────────────────────────────────────────
+
+    pub const DEVFS_INODE_ROOT: Int          = 0
+    pub const DEVFS_INODE_NVME0: Int         = 1
+    pub const DEVFS_INODE_SERIAL0: Int       = 2
+    pub const DEVFS_INODE_FB0: Int           = 3
+    pub const DEVFS_INODE_INPUT: Int         = 4
+    pub const DEVFS_INODE_KBD0: Int          = 5
+    pub const DEVFS_INODE_MOUSE0: Int        = 6
+    pub const DEVFS_INODE_NVME1: Int         = 7
+    pub const DEVFS_INODE_DISK0: Int         = 8
+    pub const DEVFS_INODE_NULL: Int          = 9
+    pub const DEVFS_INODE_ZERO: Int          = 10
+    pub const DEVFS_INODE_RANDOM: Int        = 11
+    pub const DEVFS_INODE_CONSOLE: Int       = 12
+    pub const DEVFS_INODE_TTY0: Int          = 13
+    pub const DEVFS_INODE_MAX: Int           = 64
+
+    pub const DEVFS_TYPE_BLOCK: Int     = 0
+    pub const DEVFS_TYPE_CHAR: Int      = 1
+    pub const DEVFS_TYPE_FB: Int        = 2
+
+    type DeviceInode = Int
+    type DeviceMajor = Int
+    type DeviceMinor = Int
+
+    pub struct DevNode:
+        name: String
+        inode: Int
+        parent_inode: Int
+        dev_type: Int
+        major: Int
+        minor: Int
+        registered: Int
+        read_fn: Int
+        write_fn: Int
+        device_data: Int
+
+    pub struct DevFsStat:
+        inode: Int
+        name: String
+        dev_type: Int
+        major: Int
+        minor: Int
+        registered: Int
+
+    world DevFsWorld:
+        state nodes: Array<DevNode> = []
+        state initialized: Int = 0
+
+    fn devfs_register_internal(name: String, inode: Int, parent_inode: Int, dev_type: Int, major: Int, minor: Int, read_fn: Int, write_fn: Int, device_data: Int) -> Int:
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            if DevFsWorld.nodes[i].inode == inode:
+                DevFsWorld.nodes[i] = DevNode {
+                    name: name, inode: inode, parent_inode: parent_inode,
+                    dev_type: dev_type, major: major, minor: minor,
+                    registered: 1, read_fn: read_fn, write_fn: write_fn,
+                    device_data: device_data,
+                }
+                return inode
+            i = i + 1
+
+        push(DevFsWorld.nodes, DevNode {
+            name: name, inode: inode, parent_inode: parent_inode,
+            dev_type: dev_type, major: major, minor: minor,
+            registered: 1, read_fn: read_fn, write_fn: write_fn,
+            device_data: device_data,
+        })
+        return inode
+
+    pub fn devfs_init() -> Int:
+        if DevFsWorld.initialized == 1:
+            return 0
+
+        DevFsWorld.nodes = []
+        DevFsWorld.initialized = 1
+
+        let _ = devfs_register_internal("/", DEVFS_INODE_ROOT, -1, DEVFS_TYPE_CHAR, 0, 0, 0, 0, 0)
+        let _ = devfs_register_internal("nvme0", DEVFS_INODE_NVME0, DEVFS_INODE_ROOT, DEVFS_TYPE_BLOCK, 0, 0, 0, 0, 0)
+        let _ = devfs_register_internal("nvme1", DEVFS_INODE_NVME1, DEVFS_INODE_ROOT, DEVFS_TYPE_BLOCK, 1, 0, 0, 0, 0)
+        let _ = devfs_register_internal("serial0", DEVFS_INODE_SERIAL0, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 4, 0, 0, 0, 0)
+        let _ = devfs_register_internal("fb0", DEVFS_INODE_FB0, DEVFS_INODE_ROOT, DEVFS_TYPE_FB, 29, 0, 0, 0, 0)
+        let _ = devfs_register_internal("disk0", DEVFS_INODE_DISK0, DEVFS_INODE_ROOT, DEVFS_TYPE_BLOCK, 0, 0, 0, 0, 0)
+        let _ = devfs_register_internal("null", DEVFS_INODE_NULL, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 1, 3, 0, 0, 0)
+        let _ = devfs_register_internal("zero", DEVFS_INODE_ZERO, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 1, 5, 0, 0, 0)
+        let _ = devfs_register_internal("random", DEVFS_INODE_RANDOM, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 1, 8, 0, 0, 0)
+        let _ = devfs_register_internal("console", DEVFS_INODE_CONSOLE, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 5, 1, 0, 0, 0)
+        let _ = devfs_register_internal("tty0", DEVFS_INODE_TTY0, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 4, 0, 0, 0, 0)
+        let _ = devfs_register_internal("input", DEVFS_INODE_INPUT, DEVFS_INODE_ROOT, DEVFS_TYPE_CHAR, 0, 0, 0, 0, 0)
+        let _ = devfs_register_internal("kbd0", DEVFS_INODE_KBD0, DEVFS_INODE_INPUT, DEVFS_TYPE_CHAR, 13, 0, 0, 0, 0)
+        let _ = devfs_register_internal("mouse0", DEVFS_INODE_MOUSE0, DEVFS_INODE_INPUT, DEVFS_TYPE_CHAR, 13, 1, 0, 0, 0)
+
+        return 0
+
+    pub fn devfs_register(name: String, dev_type: Int, major: Int, minor: Int) -> Int:
+        if DevFsWorld.initialized == 0:
+            devfs_init()
+
+        if len(DevFsWorld.nodes) >= DEVFS_INODE_MAX:
+            return -1
+
+        var unique: Int = DEVFS_INODE_MAX - len(DevFsWorld.nodes) + 10
+        var is_dup: Int = 1
+        while is_dup == 1:
+            is_dup = 0
+            var i: Int = 0
+            while i < len(DevFsWorld.nodes):
+                if DevFsWorld.nodes[i].inode == unique:
+                    is_dup = 1
+                    unique = unique + 1
+                i = i + 1
+
+        return devfs_register_internal(name, unique, DEVFS_INODE_ROOT, dev_type, major, minor, 0, 0, 0)
+
+    fn devfs_lookup(parent_inode: Int, name: String) -> Int:
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            let node = DevFsWorld.nodes[i]
+            if node.parent_inode == parent_inode and node.name == name:
+                return node.inode
+            i = i + 1
+        i = 0
+        while i < len(DevFsWorld.nodes):
+            if DevFsWorld.nodes[i].name == name:
+                return DevFsWorld.nodes[i].inode
+            i = i + 1
+        return -1
+
+    fn devfs_get_node(inode: Int) -> DevNode:
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            if DevFsWorld.nodes[i].inode == inode:
+                return DevFsWorld.nodes[i]
+            i = i + 1
+        return DevNode {
+            name: "", inode: -1, parent_inode: -1, dev_type: 0,
+            major: 0, minor: 0, registered: 0,
+            read_fn: 0, write_fn: 0, device_data: 0,
+        }
+
+    fn devfs_get_children(parent_inode: Int) -> [DevNode]:
+        var children: [DevNode] = []
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            if DevFsWorld.nodes[i].parent_inode == parent_inode:
+                push(children, DevFsWorld.nodes[i])
+            i = i + 1
+        return children
+
+    fn devfs_resolve_path(path: String) -> Int:
+        if path == "/" or path == "":
+            return DEVFS_INODE_ROOT
+
+        var start: Int = 0
+        if len(path) > 0:
+            if char_at(path, 0) == "/":
+                start = 1
+
+        var components: [String] = []
+        let p_len = len(path)
+        var end: Int = start
+        while end <= p_len:
+            if end == p_len or char_at(path, end) == "/":
+                if end > start:
+                    push(components, substring(path, start, end - start))
+                start = end + 1
+            end = end + 1
+
+        if len(components) == 0:
+            return DEVFS_INODE_ROOT
+
+        var current_inode = DEVFS_INODE_ROOT
+        var ci: Int = 0
+        while ci < len(components):
+            let found = devfs_lookup(current_inode, components[ci])
+            if found < 0:
+                return -1
+            current_inode = found
+            ci = ci + 1
+
+        return current_inode
+
+    pub fn devfs_read(inode: Int, offset: Int, count: Int, buf: Int) -> Int:
+        let node = devfs_get_node(inode)
+        if node.inode < 0:
+            return -1
+        if node.registered == 0:
+            return -2
+        if node.read_fn == 0:
+            return -3
+        return 0
+
+    pub fn devfs_write(inode: Int, offset: Int, count: Int, buf: Int) -> Int:
+        let node = devfs_get_node(inode)
+        if node.inode < 0:
+            return -1
+        if node.registered == 0:
+            return -2
+        if node.write_fn == 0:
+            return -3
+        return 0
+
+    pub fn devfs_readdir(parent_inode: Int) -> [KOsDirEntry]:
+        var result: [KOsDirEntry] = []
+        let children = devfs_get_children(parent_inode)
+
+        push(result, KOsDirEntry { name: ".", inode_id: parent_inode, file_type: FS_FILE_DIR })
+        push(result, KOsDirEntry { name: "..", inode_id: DEVFS_INODE_ROOT, file_type: FS_FILE_DIR })
+
+        var i: Int = 0
+        while i < len(children):
+            let child = children[i]
+            var ft: Int = FS_FILE_DEVICE
+            if len(devfs_get_children(child.inode)) > 0:
+                ft = FS_FILE_DIR
+            push(result, KOsDirEntry { name: child.name, inode_id: child.inode, file_type: ft })
+            i = i + 1
+
+        return result
+
+    pub fn devfs_mkdir(parent_inode: Int, name: String) -> Int:
+        if DevFsWorld.initialized == 0:
+            devfs_init()
+        return devfs_register_internal(name, DEVFS_INODE_MAX - len(DevFsWorld.nodes) + 10, parent_inode, DEVFS_TYPE_CHAR, 0, 0, 0, 0, 0)
+
+    pub fn devfs_unlink(parent_inode: Int, name: String) -> Int:
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            let node = DevFsWorld.nodes[i]
+            if node.name == name and node.parent_inode == parent_inode:
+                DevFsWorld.nodes[i] = DevNode {
+                    name: "", inode: node.inode, parent_inode: parent_inode,
+                    dev_type: node.dev_type, major: node.major, minor: node.minor,
+                    registered: 0, read_fn: 0, write_fn: 0, device_data: 0,
+                }
+                return 0
+            i = i + 1
+        return -1
+
+    pub fn devfs_list() -> [DevFsStat]:
+        var result: [DevFsStat] = []
+        var i: Int = 0
+        while i < len(DevFsWorld.nodes):
+            let node = DevFsWorld.nodes[i]
+            push(result, DevFsStat {
+                inode: node.inode, name: node.name, dev_type: node.dev_type,
+                major: node.major, minor: node.minor, registered: node.registered,
+            })
+            i = i + 1
+        return result

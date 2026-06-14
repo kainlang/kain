@@ -1,0 +1,8 @@
+use std::build
+
+// KAINOS arch/x86_64/ — x86-64 Architecture Build | Stream: A | File: build.kn
+fn build(ctx: BuildContext) -> BuildGraph:
+    let arch_x86 = project("arch_x86_64").kind("static_library").version("0.1.0").description("KAINOS x86-64: GDT, IDT, paging, APIC, HPET, CPU, syscall, boot").source_root(".").module_root(".").target("llvm").triple("x86_64-unknown-none").freestanding(true).no_default_features(true).feature("no_std").feature("bare_metal").asm_sources(["boot.asm"]).linker_script("linker.ld").profile("debug")
+    let check = check_task("check-x86_64").project(arch_x86).target("llvm").flags(["-ffreestanding", "-nostdlib", "-mno-red-zone", "-mcmodel=kernel"])
+    let lib = native_library("arch-x86_64-lib").project(arch_x86).requires(check)
+    return build_graph().project(arch_x86).task(check).task(lib)

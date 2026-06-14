@@ -1,0 +1,235 @@
+// ============================================================================
+//  KAINOS COMPAT — Socket Syscall Translation
+//
+//  Translates Linux socket syscalls to NetActor calls.
+//  Domain: AF_INET, AF_INET6, AF_UNIX. Type: SOCK_STREAM, SOCK_DGRAM.
+//  sockaddr conversion (Linux → Kain format). Socket option translation.
+//
+//  Uses sentinel-based table: sock_id < 0 means free slot.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+// ============================================================================
+//  SOCKET CONSTANTS — matching Linux
+// ============================================================================
+
+// Address families
+const AF_UNIX:     Int = 1
+const AF_INET:     Int = 2
+const AF_INET6:    Int = 10
+const AF_NETLINK:  Int = 16
+const AF_PACKET:   Int = 17
+
+// Socket types
+const SOCK_STREAM:    Int = 1
+const SOCK_DGRAM:     Int = 2
+const SOCK_RAW:       Int = 3
+const SOCK_RDM:       Int = 4
+const SOCK_SEQPACKET: Int = 5
+const SOCK_NONBLOCK:  Int = 0x800
+const SOCK_CLOEXEC:   Int = 0x80000
+
+// Socket options levels
+const SOL_SOCKET:   Int = 1
+const IPPROTO_TCP:  Int = 6
+const IPPROTO_UDP:  Int = 17
+const IPPROTO_IP:   Int = 0
+const IPPROTO_IPV6: Int = 41
+
+// Socket options (SOL_SOCKET)
+const SO_REUSEADDR: Int = 2
+const SO_KEEPALIVE: Int = 9
+const SO_BROADCAST: Int = 6
+const SO_RCVBUF:    Int = 8
+const SO_SNDBUF:    Int = 7
+const SO_RCVTIMEO:  Int = 20
+const SO_SNDTIMEO:  Int = 21
+const SO_ERROR:     Int = 4
+const SO_TYPE:      Int = 3
+const SO_LINGER:    Int = 13
+
+// TCP options
+const TCP_NODELAY:  Int = 1
+const TCP_KEEPIDLE: Int = 4
+const TCP_KEEPINTVL: Int = 5
+const TCP_KEEPCNT:  Int = 6
+
+// Shutdown how
+const SHUT_RD:   Int = 0
+const SHUT_WR:   Int = 1
+const SHUT_RDWR: Int = 2
+
+// Message flags
+const MSG_OOB:       Int = 0x01
+const MSG_PEEK:      Int = 0x02
+const MSG_DONTROUTE: Int = 0x04
+const MSG_DONTWAIT:  Int = 0x40
+const MSG_NOSIGNAL:  Int = 0x4000
+const MSG_WAITALL:   Int = 0x100
+
+// ============================================================================
+//  SOCKADDR — translated address structures
+// ============================================================================
+
+struct SockAddrIn:
+    family: Int   // AF_INET
+    port:   Int   // network byte order
+    addr:   Int   // network byte order (32-bit IPv4)
+
+struct SockAddrIn6:
+    family:   Int   // AF_INET6
+    port:     Int   // network byte order
+    flowinfo: Int
+    addr0:    Int
+    addr1:    Int
+    addr2:    Int
+    addr3:    Int
+    scope_id: Int
+
+struct SockAddrUn:
+    family: Int     // AF_UNIX
+    path:   String
+
+// ============================================================================
+//  SOCKET STATE — per-socket metadata
+// ============================================================================
+
+struct SocketState:
+    sock_id:    Int     // NetActor socket handle
+    domain:     Int     // AF_INET/AF_INET6/AF_UNIX
+    type_:      Int     // SOCK_STREAM/SOCK_DGRAM
+    protocol:   Int     // IPPROTO_TCP/IPPROTO_UDP
+    bound_addr: Int     // bound address (if any)
+    bound_port: Int     // bound port (if any)
+    listening:  Bool    // is this a listening socket?
+    connected:  Bool    // is this socket connected?
+
+// ============================================================================
+//  SOCKET TABLE — per-process socket registry
+// ============================================================================
+
+struct SocketTable:
+    sockets: Array<SocketState>
+    free_slots: Array<Bool>
+    next_id: Int
+
+pub fn sock_table_create() -> SocketTable:
+    var arr: Array<SocketState> = []
+    var free: Array<Bool> = []
+    var i: Int = 0
+    while i < 256:
+        var dummy: SocketState = SocketState { sock_id: -1, domain: 0, type_: 0, protocol: 0, bound_addr: 0, bound_port: 0, listening: false, connected: false }
+        push(arr, dummy)
+        push(free, false)
+        i = i + 1
+    return SocketTable { sockets: arr, free_slots: free, next_id: 3 }
+
+fn sock_is_valid(st: SocketTable, sock: Int) -> Bool:
+    if sock < 0: return false
+    if sock >= len(st.sockets): return false
+    if sock >= len(st.free_slots): return false
+    return st.free_slots[sock]
+
+fn sock_empty() -> SocketState:
+    return SocketState { sock_id: -1, domain: 0, type_: 0, protocol: 0, bound_addr: 0, bound_port: 0, listening: false, connected: false }
+
+fn sock_grow(st: SocketTable, up_to: Int) -> SocketTable:
+    var t = st
+    while len(t.sockets) <= up_to:
+        push(t.sockets, sock_empty())
+        push(t.free_slots, false)
+    return t
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Create a socket — returns socket fd for FD table
+pub fn sock_impl(st: SocketTable, domain: Int, type_: Int, protocol: Int) -> SocketTable:
+    var t = st
+    let sock_id = t.next_id
+    t.next_id = t.next_id + 1
+    t = sock_grow(t, sock_id)
+
+    let base_type = type_ & 0xFF
+    let sock_st = SocketState {
+        sock_id: sock_id, domain: domain, type_: base_type, protocol: protocol,
+        bound_addr: 0, bound_port: 0, listening: false, connected: false,
+    }
+    t.sockets[sock_id] = sock_st
+    t.free_slots[sock_id] = true
+    return t
+
+// Bind a socket to an address
+pub fn sock_bind(st: SocketTable, sock: Int, family: Int, addr: Int, port: Int) -> Int:
+    var i: Int = sock
+    if sock_is_valid(st, i) == false:
+        return -1
+    var sock_st = st.sockets[i]
+    sock_st.bound_addr = addr
+    sock_st.bound_port = port
+    st.sockets[i] = sock_st
+    return 0
+
+// Listen on a socket
+pub fn sock_listen(st: SocketTable, sock: Int, backlog: Int) -> Int:
+    var i: Int = sock
+    if sock_is_valid(st, i) == false:
+        return -1
+    var sock_st = st.sockets[i]
+    sock_st.listening = true
+    st.sockets[i] = sock_st
+    let _ = backlog
+    return 0
+
+// Connect a socket
+pub fn sock_connect_impl(st: SocketTable, sock: Int) -> Int:
+    var i: Int = sock
+    if sock_is_valid(st, i) == false:
+        return -1
+    var sock_st = st.sockets[i]
+    sock_st.connected = true
+    st.sockets[i] = sock_st
+    return 0
+
+// Accept a connection — returns new socket id
+pub fn sock_accept(st: SocketTable, sock: Int) -> Int:
+    let new_id = st.next_id
+    var t = st
+    t.next_id = t.next_id + 1
+    t = sock_grow(t, new_id)
+
+    var new_sock: SocketState = SocketState {
+        sock_id: new_id, domain: 2, type_: 1, protocol: 0,
+        bound_addr: 0, bound_port: 0, listening: false, connected: true,
+    }
+
+    var i: Int = sock
+    if sock_is_valid(st, i):
+        new_sock.domain = st.sockets[i].domain
+        new_sock.type_ = st.sockets[i].type_
+
+    t.sockets[new_id] = new_sock
+    t.free_slots[new_id] = true
+    return new_id
+
+// Get socket state — returns state with sock_id=-1 if invalid
+pub fn sock_get_state(st: SocketTable, sock: Int) -> SocketState:
+    if sock_is_valid(st, sock) == false:
+        return sock_empty()
+    return st.sockets[sock]
+
+// Close a socket
+pub fn sock_close(st: SocketTable, sock: Int) -> SocketTable:
+    var t = st
+    if sock >= 0 and sock < len(t.sockets) and sock < len(t.free_slots):
+        t.free_slots[sock] = false
+    return t
+
+// Shutdown a socket
+pub fn sock_shutdown(st: SocketTable, sock: Int, how: Int) -> Int:
+    if sock_is_valid(st, sock) == false:
+        return -1
+    let _ = how
+    return 0

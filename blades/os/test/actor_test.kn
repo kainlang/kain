@@ -1,0 +1,15 @@
+// Stream: B | File: actor_test.kn | TODO: Actor system unit tests
+// NOTE: Tests will use `test fn` syntax when build.kn project context is wired.
+// For now, stub functions serve as implementation guides.
+
+pub fn stub_test_actor_creation() -> Int:
+    // TODO: create actor, verify ID assigned, state = idle
+    return 0
+
+pub fn stub_test_actor_send_message() -> Int:
+    // TODO: send message between two actors, verify receipt
+    return 0
+
+pub fn stub_test_actor_supervision() -> Int:
+    // TODO: crash child actor, verify parent notified
+    return 0

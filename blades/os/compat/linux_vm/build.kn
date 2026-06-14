@@ -1,0 +1,16 @@
+// ============================================================================
+//  compat/linux_vm/build.kn — LKDP (Linux Kernel Driver Provider)
+// ============================================================================
+
+build ({
+    name: "kainos-compat-lkdp",
+    version: "0.1.0",
+    description: "KAINOS LKDP — Linux Kernel Driver Provider VM bridge for exotic hardware",
+    type: "lib",
+
+    sources: [
+        "lkdp.kn",
+    ],
+
+    target: "llvm",
+})

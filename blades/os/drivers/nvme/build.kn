@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("nvme_subsystem")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS NVMe driver — PCI class 0x010802, admin/I/O queues, PRP lists, Identify, Read/Write/Flush")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-nvme")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("nvme-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

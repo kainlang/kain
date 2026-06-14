@@ -1,0 +1,59 @@
+// KAINOS x86-64 — SYSCALL | Stream: A | File: syscall.kn
+pub mod syscall:
+    const SC_STATE:    Int = 0x6F00
+    const SC_ASM_ARG0: Int = 0x6C00
+    const SC_ASM_ARG1: Int = 0x6C08
+
+    fn sc_state_get(idx: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(SC_STATE + (idx * 8), "ptr<Int>"))
+    fn sc_state_set(idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(SC_STATE + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+
+    fn sc_asm_set0(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(SC_ASM_ARG0, "ptr<Int>"), v, "Int")
+        return 0
+    fn sc_asm_set1(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(SC_ASM_ARG1, "ptr<Int>"), v, "Int")
+        return 0
+    fn sc_asm_get0() -> Int with Unsafe:
+        return mem_load(int_to_ptr(SC_ASM_ARG0, "ptr<Int>"))
+
+    fn sc_rdmsr_local(msr: Int) -> Int with Unsafe:
+        sc_asm_set0(msr)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("rdmsr")
+        asm("shlq $32, %rdx")
+        asm("orq %rdx, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return sc_asm_get0()
+
+    fn sc_wrmsr_local(msr: Int, value: Int) -> Int with Unsafe:
+        sc_asm_set0(msr)
+        sc_asm_set1(value)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("movabsq $0x6C08, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %rdx")
+        asm("shrq $32, %rdx")
+        asm("wrmsr")
+        return 0
+
+    fn sc_syscall_stub() with Unsafe:
+        return
+
+    pub fn syscall_init() -> Int with Unsafe:
+        if sc_state_get(0) != 0:
+            return 0
+        sc_state_set(0, 1)
+        let ef: Int = sc_rdmsr_local(0xC0000080)
+        if (ef & 1) == 0:
+            sc_wrmsr_local(0xC0000080, ef | 1)
+        sc_wrmsr_local(0xC0000081, (0x1B << 48) | (0x08 << 32))
+        sc_wrmsr_local(0xC0000082, ptr_to_int(addr_of(sc_syscall_stub)))
+        sc_wrmsr_local(0xC0000083, ptr_to_int(addr_of(sc_syscall_stub)))
+        sc_wrmsr_local(0xC0000084, (1 << 9) | (1 << 10) | (1 << 8) | (1 << 14) | (1 << 18))
+        return 0

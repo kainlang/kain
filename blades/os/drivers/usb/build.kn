@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("usb_subsystem")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS xHCI USB driver — PCI class 0x0C0330, command/event/transfer rings, port enumeration, HID class")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-xhci")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("xhci-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

@@ -1,0 +1,431 @@
+// ============================================================================
+//  KAINOS PCI BUS ENUMERATION — drivers/pci/pci.kn
+//  Stream F: Device Drivers
+//
+//  Full PCI configuration space access via I/O ports 0xCF8/0xCFC.
+//  Bus/device/function scan across 256 buses x 32 devices x 8 functions.
+//  BAR discovery with size probing, capability pointer walking, MSI/MSI-X.
+//
+//  LADDER: L0 (fn, struct, enum) + L7 (Unsafe) for port I/O.
+//          PCI is the hardware discovery layer — raw I/O, no scheduler needed.
+// ============================================================================
+
+// ============================================================================
+//  HARDWARE CONSTANTS — PCI Configuration Space
+// ============================================================================
+
+const PCI_CONFIG_ADDRESS: Int = 0xCF8
+const PCI_CONFIG_DATA:    Int = 0xCFC
+
+// Standard config space offsets
+const PCI_VENDOR_ID:          Int = 0x00
+const PCI_DEVICE_ID:          Int = 0x02
+const PCI_COMMAND:            Int = 0x04
+const PCI_STATUS:             Int = 0x06
+const PCI_REVISION_ID:        Int = 0x08
+const PCI_CLASS_PROG:         Int = 0x09
+const PCI_CLASS_SUBCLASS:     Int = 0x0A
+const PCI_CLASS_CODE:         Int = 0x0B
+const PCI_CACHE_LINE_SIZE:    Int = 0x0C
+const PCI_LATENCY_TIMER:      Int = 0x0D
+const PCI_HEADER_TYPE:        Int = 0x0E
+const PCI_BIST:               Int = 0x0F
+const PCI_BAR0:               Int = 0x10
+const PCI_BAR1:               Int = 0x14
+const PCI_BAR2:               Int = 0x18
+const PCI_BAR3:               Int = 0x1C
+const PCI_BAR4:               Int = 0x20
+const PCI_BAR5:               Int = 0x24
+const PCI_CARDBUS_CIS:        Int = 0x28
+const PCI_SUBSYSTEM_VENDOR:   Int = 0x2C
+const PCI_SUBSYSTEM_ID:       Int = 0x2E
+const PCI_EXPANSION_ROM:      Int = 0x30
+const PCI_CAPABILITY_PTR:     Int = 0x34
+const PCI_INTERRUPT_LINE:     Int = 0x3C
+const PCI_INTERRUPT_PIN:      Int = 0x3D
+
+// BAR type flags (low bits)
+const PCI_BAR_IO:       Int = 0x1
+const PCI_BAR_MEM_32:   Int = 0x0
+const PCI_BAR_MEM_64:   Int = 0x4
+const PCI_BAR_PREFETCH: Int = 0x8
+
+// PCI class codes
+const PCI_CLASS_STORAGE:    Int = 0x01
+const PCI_CLASS_NETWORK:    Int = 0x02
+const PCI_CLASS_DISPLAY:    Int = 0x03
+const PCI_CLASS_MULTIMEDIA: Int = 0x04
+const PCI_CLASS_BRIDGE:     Int = 0x06
+const PCI_CLASS_SERIAL:     Int = 0x0C
+const PCI_CLASS_SUB_NVME:   Int = 0x08
+const PCI_CLASS_SUB_XHCI:   Int = 0x30
+
+// Capability IDs
+const PCI_CAP_MSI:         Int = 0x05
+const PCI_CAP_MSIX:        Int = 0x11
+const PCI_CAP_PCIE:        Int = 0x10
+const PCI_CAP_VENDOR:      Int = 0x09
+
+// Max scan limits
+const PCI_MAX_BUS:      Int = 256
+const PCI_MAX_DEVICE:   Int = 32
+const PCI_MAX_FUNCTION: Int = 8
+
+// ============================================================================
+//  DATA STRUCTURES — PCI Device Tree
+// ============================================================================
+
+struct PciBar:
+    base:      Int       // Base address (physical)
+    size:      Int       // Size in bytes
+    is_io:     Bool      // true = I/O port, false = MMIO
+    is_64bit:  Bool      // true = 64-bit BAR
+    prefetch:  Bool      // true = prefetchable
+
+struct PciDevice:
+    bus_num:        Int
+    device:        Int
+    function:      Int
+    vendor_id:     Int
+    device_id:     Int
+    class_code:    Int
+    subclass:      Int
+    prog_if:       Int
+    revision:      Int
+    header_type:   Int
+    interrupt_line: Int
+    interrupt_pin:  Int
+    bars:          [PciBar]      // 6 BARs
+    msi_enabled:   Bool
+    msi_vectors:   Int
+
+struct PciDriverMatch:
+    class_code:    Int
+    subclass:      Int
+    prog_if:       Int
+    driver_name:   String
+    init_fn:       Int            // Function pointer index for driver init
+
+// ============================================================================
+//  PORT I/O PRIMITIVES — L0 Plain Code + Unsafe
+//  WHY: PCI config space requires I/O port access (x86-specific).
+//       Use inline asm with in/out instructions.
+// ============================================================================
+
+fn io_out32(port: Int, value: Int) -> Int with Unsafe:
+    asm("out %eax, %dx", port, value, constraints="{dx},{ax}", clobbers="")
+    return 0
+
+fn io_in32(port: Int) -> Int with Unsafe:
+    let result: Int = 0
+    asm("in %dx, %eax", port, result, constraints="{dx},{ax}", clobbers="")
+    return result
+
+// ============================================================================
+//  PCI CONFIG SPACE ACCESS
+// ============================================================================
+
+fn pci_make_address(bus_num: Int, device: Int, function: Int, offset: Int) -> Int with Unsafe:
+    // Bit 31 = enable, bus[23:16], device[15:11], function[10:8], offset[7:2] aligned
+    return (1 << 31) | ((bus_num & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (offset & 0xFC)
+
+pub fn pci_read_config32(bus_num: Int, device: Int, function: Int, offset: Int) -> Int with Unsafe:
+    let addr = pci_make_address(bus_num, device, function, offset)
+    io_out32(PCI_CONFIG_ADDRESS, addr)
+    return io_in32(PCI_CONFIG_DATA)
+
+pub fn pci_read_config16(bus_num: Int, device: Int, function: Int, offset: Int) -> Int with Unsafe:
+    let val = pci_read_config32(bus_num, device, function, offset & 0xFC)
+    return (val >> ((offset & 2) * 8)) & 0xFFFF
+
+pub fn pci_read_config8(bus_num: Int, device: Int, function: Int, offset: Int) -> Int with Unsafe:
+    let val = pci_read_config32(bus_num, device, function, offset & 0xFC)
+    return (val >> ((offset & 3) * 8)) & 0xFF
+
+pub fn pci_write_config32(bus_num: Int, device: Int, function: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr = pci_make_address(bus_num, device, function, offset)
+    io_out32(PCI_CONFIG_ADDRESS, addr)
+    io_out32(PCI_CONFIG_DATA, value)
+    return 0
+
+pub fn pci_write_config16(bus_num: Int, device: Int, function: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let old = pci_read_config32(bus_num, device, function, offset & 0xFC)
+    let shift = (offset & 2) * 8
+    let mask = 0xFFFF << shift
+    let new_val = (old & ~mask) | ((value & 0xFFFF) << shift)
+    return pci_write_config32(bus_num, device, function, offset & 0xFC, new_val)
+
+pub fn pci_write_config8(bus_num: Int, device: Int, function: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let old = pci_read_config32(bus_num, device, function, offset & 0xFC)
+    let shift = (offset & 3) * 8
+    let mask = 0xFF << shift
+    let new_val = (old & ~mask) | ((value & 0xFF) << shift)
+    return pci_write_config32(bus_num, device, function, offset & 0xFC, new_val)
+
+pub fn pci_read_config(bus_num: Int, device: Int, function: Int, offset: Int) -> Int with Unsafe:
+    return pci_read_config32(bus_num, device, function, offset)
+
+pub fn pci_write_config(bus_num: Int, device: Int, function: Int, offset: Int, value: Int) -> Int with Unsafe:
+    return pci_write_config32(bus_num, device, function, offset, value)
+
+// ============================================================================
+//  DEVICE EXISTENCE CHECK
+// ============================================================================
+
+fn pci_device_exists(bus_num: Int, device: Int, function: Int) -> Bool with Unsafe:
+    let vendor = pci_read_config16(bus_num, device, function, PCI_VENDOR_ID)
+    return vendor != 0xFFFF
+
+// ============================================================================
+//  BAR DISCOVERY — Write-all-ones / read-back for size detection
+//  WHY: BAR size is determined by writing all-ones to the BAR, reading back
+//       the bits that stick, and computing size = ~(mask & ~0xF) + 1.
+// ============================================================================
+
+fn pci_probe_bar(bus_num: Int, device: Int, function: Int, bar_offset: Int) -> PciBar with Unsafe:
+    let original = pci_read_config32(bus_num, device, function, bar_offset)
+    let is_io = (original & PCI_BAR_IO) != 0
+    let is_64bit = false
+    let prefetch = (original & PCI_BAR_PREFETCH) != 0 and !is_io
+
+    // Write all-ones to probe size
+    pci_write_config32(bus_num, device, function, bar_offset, 0xFFFFFFFF)
+    let mask = pci_read_config32(bus_num, device, function, bar_offset)
+
+    // Restore original value
+    pci_write_config32(bus_num, device, function, bar_offset, original)
+
+    if is_io:
+        let io_mask = mask & 0xFFFFFFFC
+        let size = (~io_mask + 1) & 0xFFFFFFFF
+        return PciBar {
+            base: original & 0xFFFFFFFC,
+            size: size,
+            is_io: true,
+            is_64bit: false,
+            prefetch: false,
+        }
+
+    // Memory BAR
+    let mem_mask = mask & 0xFFFFFFF0
+    let size = (~mem_mask + 1) & 0xFFFFFFFF
+
+    // Check for 64-bit BAR (bits 2:1 == 0x2)
+    let bar_type = (original >> 1) & 0x3
+    if bar_type == 0x2:
+        return PciBar {
+            base: original & 0xFFFFFFF0,
+            size: size,
+            is_io: false,
+            is_64bit: true,
+            prefetch: prefetch,
+        }
+
+    return PciBar {
+        base: original & 0xFFFFFFF0,
+        size: size,
+        is_io: false,
+        is_64bit: false,
+        prefetch: prefetch,
+    }
+
+pub fn pci_get_bar(bus_num: Int, device: Int, function: Int, bar_index: Int) -> Int with Unsafe:
+    let bar_offset = PCI_BAR0 + (bar_index * 4)
+    let bar = pci_probe_bar(bus_num, device, function, bar_offset)
+    return bar.base
+
+pub fn pci_get_bar_size(bus_num: Int, device: Int, function: Int, bar_index: Int) -> Int with Unsafe:
+    let bar_offset = PCI_BAR0 + (bar_index * 4)
+    let bar = pci_probe_bar(bus_num, device, function, bar_offset)
+    return bar.size
+
+// ============================================================================
+//  CAPABILITY POINTER WALKING
+// ============================================================================
+
+fn pci_find_capability(bus_num: Int, device: Int, function: Int, cap_id: Int) -> Int with Unsafe:
+    let status = pci_read_config16(bus_num, device, function, PCI_STATUS)
+    if (status & (1 << 4)) == 0:       // Capability list bit not set
+        return 0
+
+    let header = pci_read_config8(bus_num, device, function, PCI_HEADER_TYPE)
+    var cap_ptr: Int = pci_read_config8(bus_num, device, function, PCI_CAPABILITY_PTR)
+
+    while cap_ptr != 0:
+        let this_id = pci_read_config8(bus_num, device, function, cap_ptr)
+        if this_id == cap_id:
+            return cap_ptr
+        cap_ptr = pci_read_config8(bus_num, device, function, cap_ptr + 1)
+
+    return 0
+
+// ============================================================================
+//  MSI/MSI-X CONFIGURATION
+// ============================================================================
+
+pub fn pci_enable_msi(bus_num: Int, device: Int, function: Int, vector_count: Int) -> Int with Unsafe:
+    let msi_cap = pci_find_capability(bus_num, device, function, PCI_CAP_MSI)
+    if msi_cap == 0:
+        return -1      // MSI not supported
+
+    // Read message control register (offset +2 from capability base)
+    let msg_ctrl = pci_read_config16(bus_num, device, function, msi_cap + 2)
+    let msi_64bit = (msg_ctrl >> 7) & 0x1
+
+    // Enable MSI with requested vectors
+    let enabled = msg_ctrl | 0x0001
+    pci_write_config16(bus_num, device, function, msi_cap + 2, enabled)
+
+    // Write message address — default: 0xFEE00000 (xAPIC default)
+    pci_write_config32(bus_num, device, function, msi_cap + 4, 0xFEE00000)
+
+    if msi_64bit != 0:
+        pci_write_config32(bus_num, device, function, msi_cap + 8, 0x00000000)
+        // Message data at offset +12 for 64-bit
+        pci_write_config16(bus_num, device, function, msi_cap + 12, 0x0000)
+    else:
+        // Message data at offset +8 for 32-bit
+        pci_write_config16(bus_num, device, function, msi_cap + 8, 0x0000)
+
+    return 0
+
+pub fn pci_enable_msix(bus_num: Int, device: Int, function: Int, bar_index: Int) -> Int with Unsafe:
+    let msix_cap = pci_find_capability(bus_num, device, function, PCI_CAP_MSIX)
+    if msix_cap == 0:
+        return -1
+
+    // Enable MSI-X
+    let msg_ctrl = pci_read_config16(bus_num, device, function, msix_cap + 2)
+    let table_size = (msg_ctrl & 0x07FF) + 1
+    pci_write_config16(bus_num, device, function, msix_cap + 2, msg_ctrl | 0x8000)
+
+    return table_size
+
+// ============================================================================
+//  DEVICE ENUMERATION — Single Device Discovery
+// ============================================================================
+
+fn pci_enumerate_device(bus_num: Int, device: Int, function: Int, devices: [PciDevice]) -> Int with Unsafe:
+    let vendor = pci_read_config16(bus_num, device, function, PCI_VENDOR_ID)
+    let dev_id = pci_read_config16(bus_num, device, function, PCI_DEVICE_ID)
+    let class_code = pci_read_config8(bus_num, device, function, PCI_CLASS_CODE)
+    let subclass = pci_read_config8(bus_num, device, function, PCI_CLASS_SUBCLASS)
+    let prog_if = pci_read_config8(bus_num, device, function, PCI_CLASS_PROG)
+    let revision = pci_read_config8(bus_num, device, function, PCI_REVISION_ID)
+    let header = pci_read_config8(bus_num, device, function, PCI_HEADER_TYPE)
+    let int_line = pci_read_config8(bus_num, device, function, PCI_INTERRUPT_LINE)
+    let int_pin = pci_read_config8(bus_num, device, function, PCI_INTERRUPT_PIN)
+
+    // Read BARs
+    var bars: [PciBar] = []
+    var bar_idx: Int = 0
+    while bar_idx < 6:
+        let bar = pci_probe_bar(bus_num, device, function, PCI_BAR0 + (bar_idx * 4))
+        push(bars, bar)
+        if bar.is_64bit:
+            bar_idx = bar_idx + 2        // Skip the next BAR (upper 32 bits)
+        else:
+            bar_idx = bar_idx + 1
+
+    let dev = PciDevice {
+        bus_num: bus_num,
+        device: device,
+        function: function,
+        vendor_id: vendor,
+        device_id: dev_id,
+        class_code: class_code,
+        subclass: subclass,
+        prog_if: prog_if,
+        revision: revision,
+        header_type: header,
+        interrupt_line: int_line,
+        interrupt_pin: int_pin,
+        bars: bars,
+        msi_enabled: false,
+        msi_vectors: 0,
+    }
+    push(devices, dev)
+    return 0
+
+// ============================================================================
+//  FULL BUS SCAN — pci_scan()
+//  WHY: Enumerate all PCI buses, devices, and functions.
+//       Multi-function devices are detected via header type bit 7.
+// ============================================================================
+
+pub fn pci_scan() -> [PciDevice] with Unsafe:
+    var devices: [PciDevice] = []
+
+    var bus_num: Int = 0
+    while bus_num < PCI_MAX_BUS:
+        var device: Int = 0
+        while device < PCI_MAX_DEVICE:
+            if !pci_device_exists(bus_num, device, 0):
+                device = device + 1
+                continue
+
+            // Found a device — enumerate function 0
+            let _ = pci_enumerate_device(bus_num, device, 0, devices)
+
+            // Check if multi-function device (header type bit 7)
+            let header = pci_read_config8(bus_num, device, 0, PCI_HEADER_TYPE)
+            if (header & 0x80) != 0:
+                var func: Int = 1
+                while func < PCI_MAX_FUNCTION:
+                    if pci_device_exists(bus_num, device, func):
+                        let _ = pci_enumerate_device(bus_num, device, func, devices)
+                    func = func + 1
+
+            device = device + 1
+        bus_num = bus_num + 1
+
+    return devices
+
+// ============================================================================
+//  DEVICE MATCHING — Match PCI device to driver by class/subclass/prog_if
+// ============================================================================
+
+pub fn pci_find_by_class(class_code: Int, subclass: Int) -> [PciDevice] with Unsafe:
+    var matches: [PciDevice] = []
+    let all = pci_scan()
+
+    var i: Int = 0
+    while i < len(all):
+        let dev = all[i]
+        if dev.class_code == class_code and dev.subclass == subclass:
+            push(matches, dev)
+        i = i + 1
+
+    return matches
+
+pub fn pci_device_to_string(dev: PciDevice) -> String:
+    let s = "[PCI " + str(dev.bus_num) + ":" + str(dev.device) + "." + str(dev.function) + "] "
+    s = s + "vendor=0x" + str(dev.vendor_id) + " "
+    s = s + "device=0x" + str(dev.device_id) + " "
+    s = s + "class=0x" + str(dev.class_code) + str(dev.subclass) + str(dev.prog_if)
+    return s
+
+// ============================================================================
+//  DRIVER MATCHING TABLE — Class-code to driver mapping
+// ============================================================================
+
+pub fn pci_match_driver(dev: PciDevice) -> String with Unsafe:
+    // NVMe: class 0x01 (storage), subclass 0x08 (NVMe)
+    if dev.class_code == PCI_CLASS_STORAGE and dev.subclass == PCI_CLASS_SUB_NVME:
+        return "nvme"
+    // AHCI/SATA: class 0x01, subclass 0x06
+    if dev.class_code == PCI_CLASS_STORAGE and dev.subclass == 0x06:
+        return "ahci"
+    // GPU/Display: class 0x03
+    if dev.class_code == PCI_CLASS_DISPLAY:
+        return "gpu"
+    // xHCI: class 0x0C (serial), subclass 0x03, prog_if 0x30
+    if dev.class_code == PCI_CLASS_SERIAL and dev.subclass == 0x03 and dev.prog_if == PCI_CLASS_SUB_XHCI:
+        return "xhci"
+    // HDAudio: class 0x04 (multimedia), subclass 0x03
+    if dev.class_code == PCI_CLASS_MULTIMEDIA and dev.subclass == 0x03:
+        return "hdaudio"
+    // Network: class 0x02
+    if dev.class_code == PCI_CLASS_NETWORK:
+        return "network"
+    return "unknown"

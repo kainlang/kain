@@ -1,0 +1,418 @@
+// ============================================================================
+//  STREAM C — KERNEL HEAP (heap.kn)
+//  Wraps arena.c concepts for kernel allocations. kmalloc/kfree with size
+//  classes (powers of 2, common slab sizes). Four arena types: frame
+//  (checkpoint/rollback), ring (circular), stack (LIFO), slab (fixed-size).
+//  Heap grows by allocating physical pages on demand.
+//
+//  Decision Ladder:
+//    L0: struct HeapBlock, struct HeapArena, enum ArenaType, enum SizeClass
+//    L0: fn kmalloc, kfree, kcalloc, krealloc, heap_init
+//    L2: law heap_alignment_invariant, law heap_guard_page (I2: no crossing guard page)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const HEAP_PAGE_SIZE:    Int = 4096
+const HEAP_MIN_ALLOC:    Int = 16           // Minimum allocation: 16 bytes
+const HEAP_MAX_ALLOC:    Int = 1048576      // Maximum allocation: 1MB
+const HEAP_ALIGN:        Int = 16           // Alignment boundary for all allocations
+
+const HEAP_MAGIC_FREE:   Int = 0xDEADBEEF  // Magic for free blocks
+const HEAP_MAGIC_USED:   Int = 0xCAFEBABE  // Magic for allocated blocks
+const HEAP_MAGIC_GUARD:  Int = 0xBAADF00D  // Magic for guard regions
+
+// Arena type constants
+const ARENA_FRAME:       Int = 0
+const ARENA_RING:        Int = 1
+const ARENA_STACK:       Int = 2
+const ARENA_SLAB:        Int = 3
+
+// Size classes (powers of 2 from 16B to 1MB)
+const NUM_SIZE_CLASSES:  Int = 17  // 16, 32, 64, 128, 256, 512, 1K, 2K, 4K, 8K, 16K, 32K, 64K, 128K, 256K, 512K, 1M
+const SIZE_CLASS_MIN:    Int = 4    // 2^4 = 16
+const SIZE_CLASS_MAX:    Int = 20   // 2^20 = 1MB
+
+// ============================================================================
+//  LAYER 0 — DATA STRUCTURES
+// ============================================================================
+
+enum ArenaKind:
+    Frame
+    Ring
+    Stack
+    Slab
+
+struct HeapBlock:
+    magic:       Int       // HEAP_MAGIC_FREE or HEAP_MAGIC_USED
+    size:        Int       // Total block size (including header)
+    user_size:   Int       // Requested allocation size
+    next:        Int       // Next block pointer (offset within arena)
+    prev:        Int       // Previous block pointer (offset within arena)
+    arena_kind:  Int       // ARENA_FRAME | RING | STACK | SLAB
+    canary:      Int       // Stack canary value for overflow detection
+
+struct HeapArena:
+    base_ptr:    ptr<Byte>     // Start of arena memory
+    total_size:  Int           // Total arena size in bytes
+    used_size:   Int           // Currently allocated bytes
+    free_list:   Int           // Head of free block linked list (offset from base)
+    arena_kind:  Int           // Arena type
+    page_count:  Int           // Number of physical pages backing this arena
+    watermark:   Int           // High-water mark (for frame arena rollback)
+    epoch:       Int           // Arena epoch counter
+
+struct SlabCache:
+    object_size: Int           // Size of each slab object
+    slab_pages:  Int           // Pages per slab (1 = 4KB)
+    free_list:   Int           // Head of free object list
+    partial:     Int           // Partially-full slab list
+    full:        Int           // Full slab list
+    total_alloc: Int           // Total allocations from this cache
+    total_free:  Int           // Total frees to this cache
+
+// ============================================================================
+//  SIZE CLASS HELPERS
+// ============================================================================
+
+/// Round up `size` to the next power of 2, minimum 16 bytes.
+fn size_class_round_up(size: Int) -> Int with Pure:
+    if size <= HEAP_MIN_ALLOC:
+        return HEAP_MIN_ALLOC
+
+    // Find the smallest power of 2 >= size
+    var result: Int = HEAP_MIN_ALLOC
+    while result < size and result <= HEAP_MAX_ALLOC:
+        result = result * 2
+
+    if result > HEAP_MAX_ALLOC:
+        return HEAP_MAX_ALLOC
+
+    return result
+
+/// Get the size class index for a given size (0 = 16B, 16 = 1MB).
+fn size_class_index(size: Int) -> Int with Pure:
+    if size <= HEAP_MIN_ALLOC:
+        return 0
+
+    var cls: Int = 0
+    var s: Int = HEAP_MIN_ALLOC
+    while s < size and cls < NUM_SIZE_CLASSES - 1:
+        cls = cls + 1
+        s = s * 2
+
+    return cls
+
+/// Get the byte size for a given size class index.
+fn size_class_bytes(index: Int) -> Int with Pure:
+    if index < 0 or index >= NUM_SIZE_CLASSES:
+        return HEAP_MAX_ALLOC
+    return HEAP_MIN_ALLOC << index
+
+// ============================================================================
+//  LAYER 2 — INVARIANTS
+// ============================================================================
+
+law heap_size_valid(size: Int) -> Bool:
+    return size >= 0 and size <= HEAP_MAX_ALLOC
+
+law heap_alignment_ok(ptr_int: Int) -> Bool:
+    // All heap allocations must be HEAP_ALIGN-aligned
+    return (ptr_int % HEAP_ALIGN) == 0
+
+law heap_no_guard_crossing(ptr_int: Int, size: Int, guard_page: Int) -> Bool:
+    // I2: Kernel heap never crosses guard page boundary.
+    // An allocation at ptr_int of size bytes must not overlap the guard page
+    // at address guard_page.
+    if guard_page == 0:
+        return true
+    let alloc_end = ptr_int + size
+    let guard_end = guard_page + HEAP_PAGE_SIZE
+    // Allocation and guard page must not overlap
+    return (alloc_end <= guard_page) or (ptr_int >= guard_end)
+
+// ============================================================================
+//  ARENA OPERATIONS
+// ============================================================================
+
+/// Initialize a new arena backed by physical pages.
+fn arena_init(
+    base_ptr: ptr<Byte>,
+    total_size: Int,
+    kind: Int
+) -> HeapArena with Unsafe:
+    let arena = HeapArena {
+        base_ptr: base_ptr,
+        total_size: total_size,
+        used_size: 0,
+        free_list: 0,
+        arena_kind: kind,
+        page_count: (total_size + HEAP_PAGE_SIZE - 1) / HEAP_PAGE_SIZE,
+        watermark: 0,
+        epoch: 0,
+    }
+    return arena
+
+/// Allocate `size` bytes from a frame arena. Frame arena supports
+/// checkpoint (save watermark) and rollback (free all allocations since checkpoint).
+fn frame_arena_alloc(arena: ptr<HeapArena>, size: Int) -> Int with Unsafe:
+    let rounded = size_class_round_up(size + 8)  // +8 for header
+
+    let used: Int = observe arena:
+        mem_load(ptr_offset(arena, 2, "Int"), "Int")
+    let total: Int = observe arena:
+        mem_load(ptr_offset(arena, 1, "Int"), "Int")
+
+    if (used + rounded) > total:
+        return 0  // Arena exhausted
+
+    let offset = used
+    let base: Int = observe arena:
+        ptr_to_int(mem_load(ptr_offset(arena, 0, "Int"), "Int"))
+
+    // Update used size and watermark
+    collapse arena:
+        mem_store(ptr_offset(arena, 2, "Int"), used + rounded, "Int")
+        let old_epoch: Int = mem_load(ptr_offset(arena, 6, "Int"), "Int")
+        mem_store(ptr_offset(arena, 6, "Int"), old_epoch + 1, "Int")
+        0
+
+    return base + offset + 8  // Return pointer past header
+
+/// Free from a frame arena. Frame arena frees are no-ops unless rollback is used.
+fn frame_arena_free(arena: ptr<HeapArena>, ptr_int: Int) -> Int with Unsafe:
+    // Frame arena: no per-block free; memory is reclaimed via rollback
+    // For now, just validate the pointer is within arena bounds
+    let base: Int = observe arena:
+        ptr_to_int(mem_load(ptr_offset(arena, 0, "Int"), "Int"))
+    let total: Int = observe arena:
+        mem_load(ptr_offset(arena, 1, "Int"), "Int")
+
+    if ptr_int < base or ptr_int >= (base + total):
+        return -1
+
+    return 0
+
+/// Allocate from a slab arena.
+fn slab_arena_alloc(slab: ptr<SlabCache>) -> Int with Unsafe:
+    let free_head: Int = observe slab:
+        mem_load(ptr_offset(slab, 2, "Int"), "Int")
+
+    if free_head != 0:
+        // Pop from free list
+        let obj_ptr: ptr<Int> = int_to_ptr(free_head, "Int")
+        let next_free: Int = observe obj_ptr:
+            mem_load(obj_ptr, "Int")
+
+        collapse slab:
+            mem_store(ptr_offset(slab, 2, "Int"), next_free, "Int")
+            let old_alloc: Int = mem_load(ptr_offset(slab, 5, "Int"), "Int")
+            mem_store(ptr_offset(slab, 5, "Int"), old_alloc + 1, "Int")
+            0
+
+        return free_head
+
+    // No free objects — need to grow the slab
+    return 0  // stub: grow slab by allocating new physical pages
+
+/// Free an object back to a slab arena.
+fn slab_arena_free(slab: ptr<SlabCache>, ptr_int: Int) -> Int with Unsafe:
+    let obj_size: Int = observe slab:
+        mem_load(ptr_offset(slab, 0, "Int"), "Int")
+
+    // Push onto free list
+    let old_head: Int = observe slab:
+        mem_load(ptr_offset(slab, 2, "Int"), "Int")
+
+    let obj_ptr: ptr<Int> = int_to_ptr(ptr_int, "Int")
+    collapse obj_ptr:
+        mem_store(obj_ptr, old_head, "Int")
+        0
+
+    collapse slab:
+        mem_store(ptr_offset(slab, 2, "Int"), ptr_int, "Int")
+        let old_free: Int = mem_load(ptr_offset(slab, 6, "Int"), "Int")
+        mem_store(ptr_offset(slab, 6, "Int"), old_free + 1, "Int")
+        0
+
+    return 0
+
+/// Rollback a frame arena to a checkpoint (watermark).
+fn frame_arena_checkpoint(arena: ptr<HeapArena>) -> Int with Unsafe:
+    let used: Int = observe arena:
+        mem_load(ptr_offset(arena, 2, "Int"), "Int")
+    collapse arena:
+        mem_store(ptr_offset(arena, 4, "Int"), used, "Int")  // Save watermark
+        0
+    return used
+
+fn frame_arena_rollback(arena: ptr<HeapArena>) -> Int with Unsafe:
+    let watermark: Int = observe arena:
+        mem_load(ptr_offset(arena, 4, "Int"), "Int")
+    collapse arena:
+        mem_store(ptr_offset(arena, 2, "Int"), watermark, "Int")  // Restore used to watermark
+        0
+    return watermark
+
+// ============================================================================
+//  PUBLIC API — kmalloc / kfree / kcalloc / krealloc
+// ============================================================================
+
+/// Allocate `size` bytes of kernel heap memory.
+/// Uses size classes: 16B, 32B, 64B, ..., 1MB.
+/// Returns a raw pointer to the allocated memory, or 0 on failure.
+pub fn kmalloc(size: Int) -> Int with Unsafe:
+    if law_status(heap_size_valid(size)) < 0:
+        return 0
+    if size == 0:
+        return 0
+
+    let rounded = size_class_round_up(size)
+    let class_idx = size_class_index(size)
+
+    // I2: No guard page crossing (stub check — real kernel validates against
+    // the kernel heap's guard page address)
+    if law_status(heap_no_guard_crossing(0, size, 0)) < 0:
+        return 0
+
+    // In a real kernel:
+    // 1. Check slab cache for this size class
+    // 2. If slab cache has free objects, return one
+    // 3. If slab cache is empty, check frame arena
+    // 4. If frame arena exhausted, grow heap by allocating physical pages
+    // 5. Return pointer to allocated memory
+
+    // For typecheck: demonstrate the full allocation path
+    let rounded_size = rounded
+    let _class = class_idx
+
+    // Stub: return a dummy pointer based on size class
+    return rounded
+
+/// Free a previously kmalloc'd pointer.
+/// Returns 0 on success, -1 if ptr is invalid.
+pub fn kfree(ptr: Int) -> Int with Unsafe:
+    if ptr == 0:
+        return 0  // Freeing null is a no-op
+
+    // In a real kernel:
+    // 1. Look up the block header (pointer - 8 bytes)
+    // 2. Verify magic number
+    // 3. Return to appropriate slab cache or arena free list
+    // 4. Merge adjacent free blocks if frame arena
+
+    // Stub
+    return 0
+
+/// Allocate zero-initialized kernel memory for `count` objects of `size` bytes each.
+/// Returns a pointer to the allocated memory, or 0 on failure.
+pub fn kcalloc(count: Int, size: Int) -> Int with Unsafe:
+    if count <= 0 or size <= 0:
+        return 0
+
+    // Check for overflow
+    let total = count * size
+    if total / count != size:
+        return 0  // Overflow detected
+
+    let ptr_int = kmalloc(total)
+    if ptr_int == 0:
+        return 0
+
+    // Zero the allocated memory
+    let ptr: ptr<Int> = int_to_ptr(ptr_int, "Int")
+    collapse ptr:
+        var i: Int = 0
+        while i < (total / 8):
+            mem_store(ptr_offset(ptr, i, "Int"), 0, "Int")
+            i = i + 1
+        0
+
+    return ptr_int
+
+/// Resize a previously allocated kernel memory block.
+/// If `ptr` is 0, behaves like kmalloc.
+/// If `new_size` is 0, behaves like kfree and returns 0.
+/// Returns a pointer to the resized memory, or 0 on failure.
+pub fn krealloc(ptr: Int, new_size: Int) -> Int with Unsafe:
+    if ptr == 0:
+        return kmalloc(new_size)
+    if new_size == 0:
+        kfree(ptr)
+        return 0
+
+    if law_status(heap_size_valid(new_size)) < 0:
+        return 0
+
+    // In a real kernel:
+    // 1. Look up the existing block header
+    // 2. If the existing block is large enough, return it as-is (shrink)
+    // 3. If the next block is free and merging gives enough space, merge and return
+    // 4. Otherwise, allocate new block, copy data, free old block
+
+    // For now, allocate-then-copy
+    let new_ptr = kmalloc(new_size)
+    if new_ptr == 0:
+        return 0
+
+    // Copy old data to new location
+    let old_size: Int = 0  // stub: read from block header
+    let copy_size = new_size
+    if old_size < new_size:
+        copy_size = old_size
+
+    let src: ptr<Byte> = int_to_ptr(ptr, "Byte")
+    let dst: ptr<Byte> = int_to_ptr(new_ptr, "Byte")
+
+    observe src:
+        collapse dst:
+            var i: Int = 0
+            while i < copy_size:
+                let b: Byte = mem_load(ptr_offset(src, i, "Byte"), "Byte")
+                mem_store(ptr_offset(dst, i, "Byte"), b, "Byte")
+                i = i + 1
+            0
+
+    kfree(ptr)
+    return new_ptr
+
+/// Initialize the kernel heap subsystem.
+/// Maps physical pages for the initial heap and sets up size-class slab caches.
+pub fn heap_init(heap_phys_base: Int, initial_pages: Int) -> Int with Unsafe:
+    if initial_pages < 1:
+        return -1
+
+    let heap_size = initial_pages * HEAP_PAGE_SIZE
+    let _heap_base = heap_phys_base  // stub: in real kernel, this is identity-mapped
+
+    // In a real kernel:
+    // 1. Identity-map the heap pages (call virt_map)
+    // 2. Initialize frame arena for general allocations
+    // 3. Initialize slab caches for each size class
+    // 4. Set up guard page at the end of the heap region
+    // 5. Initialize heap global state
+
+    return 0
+
+/// Return the total bytes allocated from the kernel heap.
+pub fn heap_stat_allocated() -> Int:
+    return 0  // stub
+
+/// Return the total bytes free in the kernel heap.
+pub fn heap_stat_free() -> Int:
+    return 0  // stub
+
+/// Return the total heap size in bytes.
+pub fn heap_stat_total() -> Int:
+    return 0  // stub
+
+/// Verify heap integrity by walking all blocks and checking magic numbers.
+/// Returns 0 if heap is intact, or a negative error code.
+pub fn heap_validate() -> Int with Unsafe:
+    // Walk all blocks, check magic numbers, detect corruption
+    // For typecheck: demonstrate the validation pattern
+    var errors: Int = 0
+    // In real kernel: walk every block in every arena, verify magic + canary
+    return errors

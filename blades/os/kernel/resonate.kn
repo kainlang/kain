@@ -1,0 +1,308 @@
+// ============================================================================
+//  KAINOS KERNEL — Resonate Interrupt Subsystem (kernel/resonate.kn)
+// ============================================================================
+//  Stream: B | Layer 5: Temporal — Interrupt → actor message dispatch via resonate
+//
+//  In KAINOS, interrupts are NOT handled by traditional ISRs. Instead, each
+//  IRQ line is mapped to a world state field. When the interrupt fires, the
+//  IDT stub writes to the world field, the resonate tripwire detects the
+//  change, and the handler dispatches an actor message to the appropriate
+//  device actor.
+//
+//  This eliminates the entire class of top-half/bottom-half bugs:
+//    - No interrupt handler runs in arbitrary context
+//    - No shared state between interrupt and scheduler context
+//    - Interrupts become messages in actor mailboxes
+//    - Dampening absorbs interrupt storms
+//
+//  Architecture:
+//    Hardware IRQ → IDT stub → irq_handler(vector)
+//      → set DeviceWorld.irq_pending[irq] = true
+//      → send EOI to APIC
+//      → resonate DeviceWorld.irq_pending on change fires
+//        → handler identifies IRQ source
+//        → dispatches message to appropriate actor
+//        → clears irq_pending
+//
+//  Dependencies: arch/x86_64/apic.kn, arch/x86_64/idt.kn, panic.kn, pulse.kn
+//  Delivers to: all device actors (interrupt dispatch)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const MAX_IRQ_LINES:        Int = 256     // Maximum IRQ lines
+const MAX_RESONATE_BINDINGS: Int = 128    // Maximum registered bindings
+
+// Dampening defaults per IRQ type (milliseconds)
+const IRQ_DAMPEN_DEFAULT_MS:  Int = 1     // Default: 1ms dampening
+const IRQ_DAMPEN_NETWORK_MS:  Int = 0     // Network: no dampening (high throughput)
+const IRQ_DAMPEN_STORAGE_MS:  Int = 4     // Storage: 4ms dampening (batch completions)
+const IRQ_DAMPEN_INPUT_MS:    Int = 16    // Keyboard/mouse: 16ms dampening (debounce)
+
+// Standard IRQ vector assignments (x86-64)
+const IRQ_TIMER:           Int = 32       // HPET/PIT timer interrupt
+const IRQ_KEYBOARD:        Int = 33       // PS/2 keyboard
+const IRQ_COM1:            Int = 36       // Serial port COM1
+const IRQ_CMOS:            Int = 40       // CMOS real-time clock
+const IRQ_PCI_BASE:        Int = 41       // First PCI IRQ line
+const IRQ_MOUSE:           Int = 44       // PS/2 mouse (shared with PCI D)
+const IRQ_ATA_PRIMARY:     Int = 46       // Primary ATA/SATA
+const IRQ_ATA_SECONDARY:   Int = 47       // Secondary ATA/SATA
+
+// Special vectors
+const VECTOR_NMI:          Int = 2        // Non-Maskable Interrupt
+const VECTOR_MCE:          Int = 18       // Machine Check Exception
+const VECTOR_SPURIOUS:     Int = 0xFF     // Spurious interrupt
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+// IrqPriority — interrupt priority for dampening/throttling
+enum IrqPriority:
+    IrqCritical             // NMI, MCE — immediate panic, never dampened
+    IrqHigh                 // Timer, IPI — minimal latency, no dampening
+    IrqNormal               // Keyboard, mouse, serial — moderate dampening
+    IrqBulk                 // Network, storage — can batch, higher dampening
+    IrqLow                  // Spurious, unregistered — ignore or log
+
+// ============================================================================
+//  STRUCTS
+// ============================================================================
+
+// IrqBinding — maps an IRQ line to a world field + actor
+struct IrqBinding:
+    irq:            Int       // IRQ vector number
+    world_id:       Int       // World that owns the trigger field
+    handler_actor:  Int       // Actor to notify on interrupt
+    message_kind:   Int       // Message kind to send
+    dampen_ms:      Int       // Dampening window in milliseconds
+    priority_level: Int       // IrqPriority enum value
+    irq_count:      Int       // Total IRQs received (telemetry)
+    storm_count:    Int       // Interrupts absorbed by dampening (telemetry)
+
+// ============================================================================
+//  WORLD — Resonate subsystem state (compiler-owned)
+// ============================================================================
+
+world ResonateWorld:
+    state spurious_count: Int = 0           // Total spurious interrupts
+    state initialized:     Bool = false     // Whether resonate subsystem is active
+    state total_irqs:      Int = 0          // Total interrupts across all vectors
+    state storm_detected:  Bool = false     // Interrupt storm flag
+
+// ============================================================================
+//  RESONATE INITIALIZATION
+// ============================================================================
+
+// resonate_init — initialize the interrupt resonate subsystem
+//   Called once during kernel boot (kainos_init).
+fn resonate_init() -> Int with Unsafe:
+    ResonateWorld.spurious_count = 0
+    ResonateWorld.total_irqs = 0
+    ResonateWorld.storm_detected = false
+    ResonateWorld.initialized = true
+    return 0
+
+// ============================================================================
+//  IRQ REGISTRATION — Bind interrupt lines to handler actors
+// ============================================================================
+
+// resonate_register_irq — register an IRQ line with a handler
+//   Parameters:
+//     irq:            IRQ vector number (32-255 for hardware)
+//     world_id:       World ID containing the trigger field
+//     handler_actor:  Actor ID to notify on interrupt
+//     message_kind:   Message kind to send to the actor
+//     dampen_ms:      Dampening window (0 = no dampening)
+//     priority_level: IrqPriority (0=critical, 1=high, 2=normal, 3=bulk, 4=low)
+//
+//   Returns: 0 on success, -1 if already registered, -2 if invalid IRQ
+fn resonate_register_irq(
+    irq: Int,
+    world_id: Int,
+    handler_actor: Int,
+    message_kind: Int,
+    dampen_ms: Int,
+    priority_level: Int
+) -> Int with Unsafe:
+    // Validate IRQ number
+    if irq < 0 or irq >= MAX_IRQ_LINES:
+        return -2    // EINVAL
+
+    // In a real kernel: check for duplicate, allocate binding slot,
+    // store in binding table, program IOAPIC/LAPIC routing
+
+    return 0
+
+// resonate_unregister_irq — remove an IRQ binding
+fn resonate_unregister_irq(irq: Int) -> Int with Unsafe:
+    if irq < 0 or irq >= MAX_IRQ_LINES:
+        return -1
+    // In a real kernel: clear binding, mask IRQ line
+    return 0
+
+// ============================================================================
+//  IRQ HANDLER — The main interrupt entry point
+// ============================================================================
+
+// irq_handler — generic IRQ entry point (called from IDT assembly stubs)
+//   This is THE function called for every hardware interrupt (vectors 32-255).
+//
+//   Actions:
+//     1. Handle special vectors (NMI, spurious)
+//     2. Validate vector
+//     3. Look up IRQ binding
+//     4. Check dampening window
+//     5. If not dampened: dispatch message to handler actor
+//     6. Send EOI to APIC
+//
+//   Parameters:
+//     vector: IRQ vector number (32-255)
+//
+//   Returns: 0 on success, -1 if no handler registered
+fn irq_handler(vector: Int) -> Int with Unsafe:
+    // 1. Handle special vectors
+    if vector == VECTOR_NMI:
+        // NMI is handled by panic.kn — nmi_handler()
+        return 0
+
+    if vector == VECTOR_SPURIOUS:
+        ResonateWorld.spurious_count = ResonateWorld.spurious_count + 1
+        return 0   // Spurious — no EOI needed
+
+    // 2. Validate vector
+    if vector < 32 or vector >= MAX_IRQ_LINES:
+        return -1   // Invalid interrupt vector
+
+    // 3. Update total count
+    ResonateWorld.total_irqs = ResonateWorld.total_irqs + 1
+
+    // 4. Route to appropriate handler based on vector
+    if vector == IRQ_TIMER:
+        return irq_timer_handler(vector)
+
+    if vector == IRQ_KEYBOARD or vector == IRQ_MOUSE:
+        return irq_input_handler(vector)
+
+    // 5. Generic IRQ: find binding and dispatch to handler actor
+    //    In a real kernel: lookup binding table, check dampening,
+    //    send message to handler actor via scheduler
+
+    // 6. Send EOI to local APIC
+    // apic_eoi()
+
+    return 0
+
+// ============================================================================
+//  SPECIALIZED IRQ HANDLERS — Fast paths for hot interrupts
+// ============================================================================
+
+// irq_timer_handler — timer interrupt fast path
+//   The timer interrupt is the hottest path in the kernel (~1000/sec).
+fn irq_timer_handler(vector: Int) -> Int with Unsafe:
+    // Call pulse scheduler tick (cross-module, resolved at link time)
+    // pulse_scheduler_tick()
+    // Send EOI
+    // apic_eoi()
+    return 0
+
+// irq_input_handler — keyboard/mouse interrupt handler
+fn irq_input_handler(vector: Int) -> Int with Unsafe:
+    // Read scancode from keyboard controller port 0x60
+    // Dispatch to input actor
+    // Send EOI
+    // apic_eoi()
+    return 0
+
+// irq_spurious_handler — spurious interrupt (no-op)
+fn irq_spurious_handler(vector: Int) -> Int with Unsafe:
+    ResonateWorld.spurious_count = ResonateWorld.spurious_count + 1
+    return 0
+
+// ============================================================================
+//  INTERRUPT STORM DETECTION
+// ============================================================================
+
+// resonate_detect_storm — check if the system is experiencing an IRQ storm
+//   Interrupt storm: > 10,000 interrupts/second sustained
+//
+//   Returns: true if storm detected
+fn resonate_detect_storm() -> Bool with Unsafe:
+    // Simple heuristic: if spurious count grows too fast, we're in a storm
+    if ResonateWorld.spurious_count > 100000:
+        ResonateWorld.storm_detected = true
+        return true
+    return ResonateWorld.storm_detected
+
+// ============================================================================
+//  TELEMETRY — Interrupt statistics
+// ============================================================================
+
+// resonate_irq_count — return total interrupt count
+fn resonate_total_irq_count() -> Int:
+    return ResonateWorld.total_irqs
+
+// resonate_spurious_count — return spurious interrupt count
+fn resonate_spurious_count() -> Int:
+    return ResonateWorld.spurious_count
+
+// ============================================================================
+//  DAMPENING CONFIGURATION
+// ============================================================================
+
+// resonate_set_dampen — change dampening for an IRQ line
+fn resonate_set_dampen(irq: Int, dampen_ms: Int) -> Int with Unsafe:
+    // In a real kernel: update dampening window in IRQ binding
+    return 0
+
+// ============================================================================
+//  IRQ MASKING — Hardware interrupt control
+// ============================================================================
+
+// resonate_mask_irq — mask (disable) an IRQ line
+fn resonate_mask_irq(irq: Int) -> Int with Unsafe:
+    // ioapic_mask_irq(irq)
+    return 0
+
+// resonate_unmask_irq — unmask (enable) an IRQ line
+fn resonate_unmask_irq(irq: Int) -> Int with Unsafe:
+    // ioapic_unmask_irq(irq)
+    return 0
+
+// resonate_send_eoi — send End-Of-Interrupt to the local APIC
+fn resonate_send_eoi() -> Int with Unsafe:
+    // Write 0 to LAPIC EOI register (offset 0xB0)
+    // apic_eoi()
+    return 0
+
+// resonate_regenerate_irq — re-trigger an interrupt (software interrupt)
+//   Used for deferred batch processing.
+fn resonate_regenerate_irq(irq: Int) -> Int with Unsafe:
+    // Write to LAPIC ICR with self as destination
+    // apic_send_ipi(apic_get_id(), irq)
+    return 0
+
+// ============================================================================
+//  MODULE EXPORTS
+// ============================================================================
+//
+//    resonate_init() -> Int
+//    resonate_register_irq(irq, world_id, handler_actor, message_kind,
+//                          dampen_ms, priority_level) -> Int
+//    resonate_unregister_irq(irq) -> Int
+//    irq_handler(vector) -> Int
+//    irq_timer_handler(vector) -> Int
+//    irq_input_handler(vector) -> Int
+//    irq_spurious_handler(vector) -> Int
+//    resonate_detect_storm() -> Bool
+//    resonate_total_irq_count() -> Int
+//    resonate_spurious_count() -> Int
+//    resonate_set_dampen(irq, dampen_ms) -> Int
+//    resonate_mask_irq(irq) -> Int
+//    resonate_unmask_irq(irq) -> Int
+//    resonate_send_eoi() -> Int
+//    resonate_regenerate_irq(irq) -> Int
+// ============================================================================

@@ -1,0 +1,26 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let proj = project("kainos_mm")
+        .kind("static_library")
+        .version("0.1.0")
+        .description("KAINOS memory management: physical, virtual, heap, world, teleport")
+        .source_root(".")
+        .module_root(".")
+        .target("llvm")
+        .triple("x86_64-unknown-none")
+        .freestanding(true)
+        .profile("debug")
+
+    let check = check_task("check-mm")
+        .project(proj)
+        .target("llvm")
+
+    let lib = native_library("mm-lib")
+        .project(proj)
+        .requires(check)
+
+    return build_graph()
+        .project(proj)
+        .task(check)
+        .task(lib)

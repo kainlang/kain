@@ -1,0 +1,196 @@
+// KAINOS x86-64 — CPU features | Stream: A | File: cpu.kn
+pub mod cpu:
+    const CPU_FEAT_ADDR: Int = 0x1000
+    const ASM_ARG0:      Int = 0x6C00
+    const ASM_ARG1:      Int = 0x6C08
+
+    fn feat_get(idx: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(CPU_FEAT_ADDR + (idx * 8), "ptr<Int>"))
+    fn feat_set(idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(CPU_FEAT_ADDR + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+    fn asm_set0(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(ASM_ARG0, "ptr<Int>"), v, "Int")
+        return 0
+    fn asm_set1(v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(ASM_ARG1, "ptr<Int>"), v, "Int")
+        return 0
+    fn asm_get0() -> Int with Unsafe:
+        return mem_load(int_to_ptr(ASM_ARG0, "ptr<Int>"))
+
+    pub fn cpu_rdmsr(msr: Int) -> Int with Unsafe:
+        asm_set0(msr)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("rdmsr")
+        asm("shlq $32, %rdx")
+        asm("orq %rdx, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+
+    pub fn cpu_wrmsr(msr: Int, value: Int) -> Int with Unsafe:
+        asm_set0(msr)
+        asm_set1(value)
+        asm("movabsq $0x6C00, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("movabsq $0x6C08, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %rdx")
+        asm("shrq $32, %rdx")
+        asm("wrmsr")
+        return 0
+
+    pub fn cpu_read_cr0() -> Int with Unsafe:
+        asm("movq %cr0, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+    pub fn cpu_read_cr2() -> Int with Unsafe:
+        asm("movq %cr2, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+    pub fn cpu_read_cr3() -> Int with Unsafe:
+        asm("movq %cr3, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+    pub fn cpu_read_cr4() -> Int with Unsafe:
+        asm("movq %cr4, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+
+    pub fn cpu_write_cr0(v: Int) -> Int with Unsafe:
+        asm_set0(v)
+        asm("movabsq $0x6C00, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %cr0")
+        return 0
+    pub fn cpu_write_cr3(v: Int) -> Int with Unsafe:
+        asm_set0(v)
+        asm("movabsq $0x6C00, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %cr3")
+        return 0
+    pub fn cpu_write_cr4(v: Int) -> Int with Unsafe:
+        asm_set0(v)
+        asm("movabsq $0x6C00, %rax")
+        asm("movq (%rax), %rax")
+        asm("movq %rax, %cr4")
+        return 0
+
+    fn cpuid_eax_arch(l: Int, s: Int) -> Int with Unsafe:
+        asm_set0(l)
+        asm_set1(s)
+        asm("movabsq $0x6C00, %rax")
+        asm("movl (%rax), %eax")
+        asm("movabsq $0x6C08, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("cpuid")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+    fn cpuid_ebx_arch(l: Int, s: Int) -> Int with Unsafe:
+        asm_set0(l)
+        asm_set1(s)
+        asm("movabsq $0x6C00, %rax")
+        asm("movl (%rax), %eax")
+        asm("movabsq $0x6C08, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("cpuid")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rbx, (%rcx)")
+        return asm_get0()
+    fn cpuid_ecx_arch(l: Int, s: Int) -> Int with Unsafe:
+        asm_set0(l)
+        asm_set1(s)
+        asm("movabsq $0x6C00, %rax")
+        asm("movl (%rax), %eax")
+        asm("movabsq $0x6C08, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("cpuid")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rcx, (%rcx)")
+        return asm_get0()
+    fn cpuid_edx_arch(l: Int, s: Int) -> Int with Unsafe:
+        asm_set0(l)
+        asm_set1(s)
+        asm("movabsq $0x6C00, %rax")
+        asm("movl (%rax), %eax")
+        asm("movabsq $0x6C08, %rcx")
+        asm("movl (%rcx), %ecx")
+        asm("cpuid")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rdx, (%rcx)")
+        return asm_get0()
+
+    pub fn cpu_rdtsc() -> Int with Unsafe:
+        asm("rdtsc")
+        asm("shlq $32, %rdx")
+        asm("orq %rdx, %rax")
+        asm("movabsq $0x6C00, %rcx")
+        asm("movq %rax, (%rcx)")
+        return asm_get0()
+
+    pub fn cpu_sti() -> Int with Unsafe:
+        asm("sti")
+        return 0
+
+    pub fn cpu_cli() -> Int with Unsafe:
+        asm("cli")
+        return 0
+
+    pub fn cpu_invlpg(vaddr: Int) -> Int with Unsafe:
+        asm("invlpg ($0)", vaddr, memory = true)
+        return 0
+
+    pub fn cpu_has_nx() -> Bool with Unsafe:
+        return (feat_get(4) & (1 << 20)) != 0
+
+    pub fn cpu_has_1gb_pages() -> Bool with Unsafe:
+        return (feat_get(4) & (1 << 26)) != 0
+
+    pub fn cpu_has_x2apic() -> Bool with Unsafe:
+        return (feat_get(1) & (1 << 21)) != 0
+
+    pub fn cpu_has_smep() -> Bool with Unsafe:
+        return (feat_get(3) & (1 << 7)) != 0
+
+    pub fn cpu_has_smap() -> Bool with Unsafe:
+        return (feat_get(3) & (1 << 20)) != 0
+
+    pub fn cpu_has_pcid() -> Bool with Unsafe:
+        return (feat_get(1) & (1 << 17)) != 0
+
+    pub fn cpu_core_count() -> Int with Unsafe:
+        return feat_get(5)
+
+    pub fn cpu_current_core() -> Int with Unsafe:
+        return (cpu_rdmsr(0x1B) >> 24) & 0xFF
+
+    pub fn cpu_enable_nx() -> Int with Unsafe:
+        let efer: Int = cpu_rdmsr(0xC0000080)
+        cpu_wrmsr(0xC0000080, efer | (1 << 11))
+        return 0
+
+    pub fn cpu_init() -> Int with Unsafe:
+        if feat_get(0) != 0:
+            return 0
+        feat_set(0, 1)
+        let mb: Int = cpuid_eax_arch(0, 0)
+        if mb >= 1:
+            feat_set(1, cpuid_ecx_arch(1, 0))
+            feat_set(2, cpuid_edx_arch(1, 0))
+            let ebx: Int = cpuid_ebx_arch(1, 0)
+            let cores: Int = (ebx >> 16) & 0xFF
+            feat_set(5, if cores == 0: 1 else: cores)
+        if mb >= 7:
+            feat_set(3, cpuid_ebx_arch(7, 0))
+        let me: Int = cpuid_eax_arch(0x80000000, 0)
+        if me >= 0x80000001:
+            feat_set(4, cpuid_edx_arch(0x80000001, 0))
+        if cpu_has_nx():
+            let _ = cpu_enable_nx()
+        return 0

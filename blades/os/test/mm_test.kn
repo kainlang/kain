@@ -1,0 +1,13 @@
+// Stream: C | File: mm_test.kn | TODO: Memory manager unit tests
+
+pub fn stub_test_phys_alloc_free() -> Int:
+    // TODO: allocate, write pattern, free, verify not in free list
+    return 0
+
+pub fn stub_test_kmalloc_kfree() -> Int:
+    // TODO: allocate various sizes, verify alignment, free, check no leak
+    return 0
+
+pub fn stub_test_double_alloc_prevented() -> Int:
+    // TODO: allocate page, try to allocate same page again, expect failure
+    return 0

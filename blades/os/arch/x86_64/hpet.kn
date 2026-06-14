@@ -1,0 +1,52 @@
+// KAINOS x86-64 — HPET | Stream: A | File: hpet.kn
+pub mod hpet:
+    const HPET_HPET_ST: Int = 0x6000
+
+    fn hpet_feat_get(idx: Int) -> Int with Unsafe:
+        return mem_load(int_to_ptr(HPET_HPET_ST + (idx * 8), "ptr<Int>"))
+    fn hpet_feat_set(idx: Int, v: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(HPET_HPET_ST + (idx * 8), "ptr<Int>"), v, "Int")
+        return 0
+    fn hpet_mmio_read64(off: Int) -> Int with Unsafe:
+        let b: Int = hpet_feat_get(0)
+        let lo: Int = mem_load(int_to_ptr(b + off, "ptr<Int>"))
+        let hi: Int = mem_load(int_to_ptr(b + off + 4, "ptr<Int>"))
+        return (hi << 32) | (lo & 0xFFFFFFFF)
+    fn hpet_mmio_write64(off: Int, v: Int) -> Int with Unsafe:
+        let b: Int = hpet_feat_get(0)
+        mem_store(int_to_ptr(b + off, "ptr<Int>"), v & 0xFFFFFFFF, "Int")
+        mem_store(int_to_ptr(b + off + 4, "ptr<Int>"), (v >> 32) & 0xFFFFFFFF, "Int")
+        return 0
+
+    pub fn hpet_read_counter() -> Int with Unsafe:
+        return hpet_mmio_read64(0x0F0)
+
+    pub fn hpet_init() -> Int with Unsafe:
+        if hpet_feat_get(4) != 0:
+            return 0
+        hpet_feat_set(4, 1)
+        hpet_feat_set(0, 0xFED00000)
+        let caps: Int = hpet_mmio_read64(0x000)
+        hpet_feat_set(1, ((caps >> 8) & 0x1F) + 1)
+        hpet_feat_set(2, (caps >> 13) & 1)
+        hpet_feat_set(3, (caps >> 32) & 0xFFFFFFFF)
+        hpet_mmio_write64(0x010, 0)
+        hpet_mmio_write64(0x0F0, 0)
+        var t: Int = 0
+        while t < hpet_feat_get(1):
+            hpet_mmio_write64(0x020, 1 << t)
+            t = t + 1
+        hpet_mmio_write64(0x010, 1)
+        return 0
+
+    pub fn hpet_set_timer(ns: Int) -> Int with Unsafe:
+        let period: Int = hpet_feat_get(3)
+        if period == 0:
+            return -1
+        let ticks: Int = (ns * 1000000) / period
+        if ticks <= 0:
+            ticks = 1
+        let irt: Int = (2 & 0x1F) << 9
+        hpet_mmio_write64(0x100, (1 << 2) | irt | (1 << 3))
+        hpet_mmio_write64(0x108, ticks)
+        return 2

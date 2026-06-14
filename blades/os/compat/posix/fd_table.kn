@@ -1,0 +1,227 @@
+// ============================================================================
+//  KAINOS COMPAT — File Descriptor Table (per-ProcessCompatActor)
+//
+//  Each Linux process has an FD table mapping integer FDs to kernel objects.
+//  FDs can be: file, socket, pipe, epoll, eventfd, timerfd, signalfd.
+//  FD flags: O_CLOEXEC (close-on-exec), O_NONBLOCK.
+//  Cloning for fork/clone with CLONE_FILES flag.
+//
+//  Uses a sentinel-based approach: free_slots[i] tracks whether entries[i]
+//  is occupied, avoiding the need for Array<Option<T>> (which Kain typechecks
+//  differently from Rust).
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+use std::collections
+
+// ============================================================================
+//  FD TYPES — what each file descriptor points to
+// ============================================================================
+
+enum FdKind:
+    File     // regular file, directory
+    Socket   // network socket
+    Pipe     // anonymous pipe
+    Epoll    // epoll instance
+    EventFd  // eventfd
+    TimerFd  // timerfd
+    SignalFd // signalfd
+
+// ============================================================================
+//  FILE DESCRIPTOR — one entry in the FD table
+// ============================================================================
+
+struct FileDescriptor:
+    kind:      FdKind
+    fd:        Int         // the integer FD (its own slot index)
+    inode:     Int         // inode / underlying object id
+    offset:    Int         // current seek position (for files)
+    flags:     Int         // O_CLOEXEC=1, O_NONBLOCK=2
+    socket_id: Int         // net actor socket handle (for sockets)
+    pipe_id:   Int         // pipe actor handle
+    epoll_id:  Int         // epoll instance handle
+    extra:     Int         // generic extra data
+
+// ============================================================================
+//  FD FLAGS (matching Linux)
+// ============================================================================
+
+const FD_CLOEXEC:   Int = 1     // O_CLOEXEC  — close on exec
+const FD_NONBLOCK:  Int = 2     // O_NONBLOCK — non-blocking I/O
+
+// ============================================================================
+//  FD TABLE — per-process array of file descriptors
+// ============================================================================
+
+struct FdTable:
+    entries:    Array<FileDescriptor>
+    free_slots: Array<Bool>      // true = slot is occupied
+    next_fd:    Int              // hint for next available FD
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+pub fn fd_table_create() -> FdTable:
+    return FdTable { entries: [], free_slots: [], next_fd: 0 }
+
+// Create a placeholder entry for array growth
+fn fd_empty_entry() -> FileDescriptor:
+    return FileDescriptor {
+        kind: FdKind::File, fd: -1, inode: -1, offset: 0,
+        flags: 0, socket_id: -1, pipe_id: -1, epoll_id: -1, extra: 0,
+    }
+
+fn fd_grow_table(table: FdTable, up_to: Int) -> FdTable:
+    var t = table
+    while len(t.entries) <= up_to:
+        push(t.entries, fd_empty_entry())
+        push(t.free_slots, false)
+    return t
+
+fn fd_is_valid(table: FdTable, fd: Int) -> Bool:
+    if fd < 0: return false
+    if fd >= len(table.entries): return false
+    if fd >= len(table.free_slots): return false
+    return table.free_slots[fd]
+
+// ============================================================================
+
+// Allocate a new file descriptor in the table
+pub fn fd_alloc(table: FdTable, kind: FdKind, data: Int) -> FdTable:
+    var t = table
+    let fd = t.next_fd
+    t = fd_grow_table(t, fd)
+
+    let entry = FileDescriptor {
+        kind: kind, fd: fd, inode: data, offset: 0, flags: 0,
+        socket_id: -1, pipe_id: -1, epoll_id: -1, extra: 0,
+    }
+    t.entries[fd] = entry
+    t.free_slots[fd] = true
+    t.next_fd = fd + 1
+    return t
+
+// Look up an FD — returns entry with fd=-1 if invalid or absent
+pub fn fd_get(table: FdTable, fd: Int) -> FileDescriptor:
+    if fd_is_valid(table, fd) == false:
+        return fd_empty_entry()
+    return table.entries[fd]
+
+// Close a file descriptor
+pub fn fd_close(table: FdTable, fd: Int) -> FdTable:
+    var t = table
+    if fd >= 0 and fd < len(t.entries) and fd < len(t.free_slots):
+        t.free_slots[fd] = false
+    return t
+
+// Duplicate an FD (dup/fcntl F_DUPFD)
+pub fn fd_dup(table: FdTable, old: Int, new_: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, old) == false:
+        return t
+
+    var new_fd: Int = new_
+    // If new < 0, find next free slot (dup semantics)
+    if new_fd < 0:
+        var scan: Int = 0
+        var found: Bool = false
+        while scan < len(t.entries) + 64:
+            if scan >= len(t.entries) or t.free_slots[scan] == false:
+                new_fd = scan
+                found = true
+                break
+            scan = scan + 1
+        if found == false:
+            return t
+
+    // Grow table if needed
+    t = fd_grow_table(t, new_fd)
+
+    // Copy the entry with the new FD number
+    t.entries[new_fd] = t.entries[old]
+    t.free_slots[new_fd] = true
+    t.next_fd = new_fd + 1
+    if t.next_fd <= old:
+        t.next_fd = old + 1
+    return t
+
+// Set close-on-exec flag
+pub fn fd_set_cloexec(table: FdTable, fd: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, fd):
+        var entry = t.entries[fd]
+        entry.flags = entry.flags | FD_CLOEXEC
+        t.entries[fd] = entry
+    return t
+
+// Set non-blocking flag
+pub fn fd_set_nonblock(table: FdTable, fd: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, fd):
+        var entry = t.entries[fd]
+        entry.flags = entry.flags | FD_NONBLOCK
+        t.entries[fd] = entry
+    return t
+
+// Clear non-blocking flag
+pub fn fd_clear_nonblock(table: FdTable, fd: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, fd):
+        var entry = t.entries[fd]
+        entry.flags = entry.flags & (~FD_NONBLOCK)
+        t.entries[fd] = entry
+    return t
+
+// Check if FD has CLOEXEC
+pub fn fd_is_cloexec(table: FdTable, fd: Int) -> Bool:
+    if fd_is_valid(table, fd) == false:
+        return false
+    return (table.entries[fd].flags & FD_CLOEXEC) != 0
+
+// Update file offset (for lseek)
+pub fn fd_seek(table: FdTable, fd: Int, offset: Int, whence: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, fd):
+        var entry = t.entries[fd]
+        if whence == 0:      // SEEK_SET
+            entry.offset = offset
+        else if whence == 1: // SEEK_CUR
+            entry.offset = entry.offset + offset
+        else if whence == 2: // SEEK_END
+            entry.offset = entry.extra + offset   // extra = file size
+        t.entries[fd] = entry
+    return t
+
+// Store extra data on an FD (file size, socket address, etc.)
+pub fn fd_set_extra(table: FdTable, fd: Int, data: Int) -> FdTable:
+    var t = table
+    if fd_is_valid(t, fd):
+        var entry = t.entries[fd]
+        entry.extra = data
+        t.entries[fd] = entry
+    return t
+
+// Clone an entire FD table (for fork if CLONE_FILES NOT set)
+pub fn fd_table_clone(table: FdTable) -> FdTable:
+    var cloned: FdTable = fd_table_create()
+    cloned = fd_grow_table(cloned, len(table.entries) - 1)
+    var i: Int = 0
+    while i < len(table.entries):
+        if fd_is_valid(table, i):
+            cloned.entries[i] = table.entries[i]
+            cloned.free_slots[i] = true
+        i = i + 1
+    cloned.next_fd = table.next_fd
+    return cloned
+
+// Close all CLOEXEC FDs (on exec)
+pub fn fd_close_cloexec(table: FdTable) -> FdTable:
+    var t = table
+    var i: Int = 0
+    while i < len(t.entries):
+        if fd_is_valid(t, i) and (t.entries[i].flags & FD_CLOEXEC) != 0:
+            t.free_slots[i] = false
+        i = i + 1
+    return t

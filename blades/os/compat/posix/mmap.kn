@@ -1,0 +1,184 @@
+// ============================================================================
+//  KAINOS COMPAT — mmap/munmap Compatibility Layer
+//
+//  Translates Linux mmap semantics to Kain MemoryActor calls.
+//  Anonymous mmap: allocate pages via memory actor.
+//  File-backed mmap: map file content to pages.
+//  Shared mmap: pages shared between processes via world entanglement.
+//
+//  References: compat/ spec, kainos-compatibility-bridge.md
+// ============================================================================
+
+// ============================================================================
+//  MMAP CONSTANTS — matching Linux
+// ============================================================================
+
+// Protection flags
+const PROT_NONE:  Int = 0x0
+const PROT_READ:  Int = 0x1
+const PROT_WRITE: Int = 0x2
+const PROT_EXEC:  Int = 0x4
+
+// Mapping flags
+const MAP_SHARED:    Int = 0x01
+const MAP_PRIVATE:   Int = 0x02
+const MAP_FIXED:     Int = 0x10
+const MAP_ANONYMOUS: Int = 0x20
+const MAP_GROWSDOWN: Int = 0x0100
+const MAP_DENYWRITE: Int = 0x0800
+const MAP_EXECUTABLE: Int = 0x1000
+const MAP_LOCKED:    Int = 0x2000
+const MAP_NORESERVE: Int = 0x4000
+const MAP_POPULATE:  Int = 0x8000
+
+// mremap flags
+const MREMAP_MAYMOVE: Int = 1
+const MREMAP_FIXED:   Int = 2
+
+// ============================================================================
+//  MMAP REGION — tracked per-process
+// ============================================================================
+
+struct MmapRegion:
+    start:  Int       // start virtual address
+    length: Int       // length in bytes
+    prot:   Int       // PROT_* flags
+    flags:  Int       // MAP_* flags
+    fd:     Int       // backing file descriptor (-1 for anonymous)
+    offset: Int       // file offset for file-backed maps
+    pages:  Int       // physical page handle (from MemoryActor)
+
+// ============================================================================
+//  MMAP TABLE — per-process list of mapped regions
+// ============================================================================
+
+struct MmapTable:
+    regions: Array<MmapRegion>
+
+pub fn mmap_table_create() -> MmapTable:
+    return MmapTable { regions: [] }
+
+// ============================================================================
+//  PUBLIC API
+// ============================================================================
+
+// Implement mmap — allocate or map a region
+pub fn mmap_impl(table: MmapTable, addr: Int, length: Int, prot: Int, flags: Int, fd: Int, offset: Int) -> MmapTable:
+    var t = table
+
+    // Round up to page boundary
+    let page_size: Int = 4096
+    let aligned_len: Int = ((length + page_size - 1) / page_size) * page_size
+
+    // Allocate pages — in real KAINOS this would call MemoryActor
+    // For compat layer, we use a counter-based "address allocation"
+    var alloc_addr: Int = addr
+    let is_fixed: Bool = (flags & MAP_FIXED) != 0
+
+    if is_fixed == false or alloc_addr == 0:
+        // Find a free region — simple bump allocator
+        alloc_addr = mmap_find_free(t, aligned_len)
+
+    let region = MmapRegion {
+        start: alloc_addr,
+        length: aligned_len,
+        prot: prot,
+        flags: flags,
+        fd: fd,
+        offset: offset,
+        pages: alloc_addr,  // placeholder — real impl uses MemoryActor handle
+    }
+
+    push(t.regions, region)
+    return t
+
+// Implement munmap — unmap a region
+pub fn munmap_impl(table: MmapTable, addr: Int, length: Int) -> MmapTable:
+    var t = table
+    var i: Int = 0
+    while i < len(t.regions):
+        if t.regions[i].start == addr:
+            // Remove this region
+            // In real impl: call MemoryActor to free pages
+            var j: Int = i
+            while j < len(t.regions) - 1:
+                t.regions[j] = t.regions[j + 1]
+                j = j + 1
+            let _ = pop(t.regions)
+            break
+        i = i + 1
+    return t
+
+// Implement mprotect — change protection on a region
+pub fn mprotect_impl(table: MmapTable, addr: Int, length: Int, prot: Int) -> Int:
+    var i: Int = 0
+    while i < len(table.regions):
+        if table.regions[i].start == addr:
+            table.regions[i].prot = prot
+            return 0
+        i = i + 1
+    return -1  // ENOMEM
+
+// Find a region at an address. Returns region with start=-1 if not found.
+pub fn mmap_find_region(table: MmapTable, addr: Int) -> MmapRegion:
+    var i: Int = 0
+    while i < len(table.regions):
+        if table.regions[i].start <= addr and addr < (table.regions[i].start + table.regions[i].length):
+            return table.regions[i]
+        i = i + 1
+    return MmapRegion { start: -1, length: 0, prot: 0, flags: 0, fd: -1, offset: 0, pages: 0 }
+
+// Find a free address range for allocation
+pub fn mmap_find_free(table: MmapTable, length: Int) -> Int:
+    // Simple strategy: start high and bump up
+    var candidate: Int = 0x7F0000000000  // typical mmap base on x86-64
+    var found: Bool = false
+    var attempts: Int = 0
+    while found == false and attempts < 100:
+        var overlap: Bool = false
+        var i: Int = 0
+        while i < len(table.regions):
+            let r = table.regions[i]
+            let r_end = r.start + r.length
+            let c_end = candidate + length
+            if candidate < r_end and c_end > r.start:
+                overlap = true
+                candidate = r_end  // bump past this region
+                break
+            i = i + 1
+        if overlap == false:
+            found = true
+        else:
+            attempts = attempts + 1
+    return candidate
+
+// Get total mapped memory
+pub fn mmap_total(table: MmapTable) -> Int:
+    var total: Int = 0
+    var i: Int = 0
+    while i < len(table.regions):
+        total = total + table.regions[i].length
+        i = i + 1
+    return total
+
+// Count regions
+pub fn mmap_region_count(table: MmapTable) -> Int:
+    return len(table.regions)
+
+// Implement brk — change program break (data segment end)
+pub fn brk_impl(current_brk: Int, new_brk: Int) -> Int:
+    // In compat mode, we just bump the break
+    // Real implementation would call MemoryActor to expand/shrink
+    if new_brk == 0:
+        return current_brk
+    return new_brk
+
+// Page-align an address up
+pub fn page_align_up(addr: Int, page_size: Int) -> Int:
+    if addr % page_size == 0:
+        return addr
+    return ((addr / page_size) + 1) * page_size
+
+// Page-align an address down
+pub fn page_align_down(addr: Int, page_size: Int) -> Int:
+    return (addr / page_size) * page_size

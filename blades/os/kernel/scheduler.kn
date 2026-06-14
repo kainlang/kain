@@ -1,0 +1,382 @@
+// ============================================================================
+//  KAINOS KERNEL — SchedulerActor (kernel/scheduler.kn)
+// ============================================================================
+//  Stream: B | Layer 7: Systems — Preemptive round-robin actor scheduler
+//
+//  The SchedulerActor is the heart of KAINOS. It decides which actor runs
+//  on which CPU at every moment. Every other subsystem depends on it.
+//
+//  Design:
+//    - Per-CPU priority queues (22 tiers, 0=kernel → 21=idle)
+//    - Round-robin within each priority tier
+//    - Time quantum: kernel=100µs, realtime=500µs, normal=10ms, idle=∞
+//    - Preemption via timer pulse (HPET 1ms tick)
+//    - Work stealing for load balancing across CPUs
+//    - Mailbox backpressure: block sender when mailbox full
+//    - Supervision tree: parent notified on child termination
+//
+//  Actor State Machine:
+//    idle ──spawn──► ready ──dispatch──► running
+//                      ▲                    │
+//                      │    ┌───────────────┤ yield/timeout
+//                      │    ▼               ▼
+//                      ├─ unblock ◄── blocked (mailbox empty, timer, resource)
+//                      │
+//                      └── terminated (destroy)
+//
+//  Dependencies: actor_mgmt.kn, pulse.kn, arch/x86_64/cpu.kn
+//  Delivers to: EVERYTHING (the scheduler runs all actors)
+// ============================================================================
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const MAX_CPUS:               Int = 64      // Maximum supported CPU cores
+const PRIORITY_LEVELS:        Int = 22      // 0-21 inclusive
+const SCHED_QUANTUM_KERNEL_US:  Int = 100   // 100µs for kernel actors
+const SCHED_QUANTUM_REALTIME_US: Int = 500  // 500µs for realtime actors
+const SCHED_QUANTUM_NORMAL_US:   Int = 10000 // 10ms for normal actors
+const SCHED_QUANTUM_IDLE_US:     Int = 0    // Unlimited for idle actor
+
+// Work stealing constants
+const WORK_STEAL_INTERVAL_TICKS: Int = 10   // Steal work every 10ms
+const WORK_STEAL_MAX_BATCH:      Int = 4    // Max actors to steal at once
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+// SchedulePolicy — how the scheduler selects the next actor
+enum SchedulePolicy:
+    RoundRobin              // Equal time slices within priority tier
+    StrictPriority          // Higher priority always runs first
+    FairShare               // Proportional share based on weight
+
+// PreemptReason — why the current actor was preempted
+enum PreemptReason:
+    PreemptNone             // Not preempted (voluntary yield)
+    PreemptTimer            // Time quantum expired
+    PreemptHigherPriority   // Higher priority actor became ready
+    PreemptIpi              // Cross-CPU reschedule request
+
+// ============================================================================
+//  WORLDS — Scheduler state (compiler-owned)
+// ============================================================================
+
+component SchedulerPanel():
+    render <panel title="kainos-scheduler" />
+
+world SchedulerWorld:
+    state current_actor:    Array<Int>   = []     // Per-CPU current actor ID
+    state total_switches:   Int          = 0      // Global context switch count
+    state cpu_count:        Int          = 1      // Number of active CPUs
+    state scheduler_policy: Int          = 0      // SchedulePolicy enum value
+    state preempt_pending:  Bool         = false  // Global preemption flag
+    state tick_count:       Int          = 0      // Monotonic tick counter
+    state uptime_ns:        Int          = 0      // Uptime in nanoseconds
+    surface native_ui => SchedulerPanel
+
+// ============================================================================
+//  SCHEDULER CONFIGURATION
+// ============================================================================
+
+struct SchedulerConfig:
+    quantum_kernel_us:   Int    // Time quantum for kernel actors (µs)
+    quantum_realtime_us: Int    // Time quantum for realtime actors (µs)
+    quantum_normal_us:   Int    // Time quantum for normal actors (µs)
+    quantum_idle_us:     Int    // Time quantum for idle actor (0 = unlimited)
+    max_priority:        Int    // Highest priority number (21)
+    work_stealing:       Bool   // Enable cross-CPU work stealing
+    preemption:          Bool   // Enable timer-based preemption
+    policy:              Int    // SchedulePolicy enum value
+
+// ============================================================================
+//  SCHEDULER INITIALIZATION
+// ============================================================================
+
+// scheduler_init — initialize the scheduler subsystem
+//   Called once during kainos_init().
+//   Sets up per-CPU state and spawns idle actors.
+fn scheduler_init(cpu_count: Int) -> Int with Unsafe:
+    // World state initialized at declaration time
+    // SchedulerWorld.cpu_count is already set via world declaration
+    // Per-CPU initialization happens here
+    var cpu: Int = 0
+    while cpu < cpu_count:
+        // Initialize per-CPU current actor to -1 (none)
+        cpu = cpu + 1
+
+    return 0
+
+// ============================================================================
+//  SCHEDULER DISPATCH — Pick and run the next actor
+// ============================================================================
+
+// scheduler_pick_next — select the highest-priority ready actor
+//   Scans priority levels from highest (0) to lowest (21),
+//   returns the first ready actor found.
+//
+//   In a real kernel, this reads from per-CPU ready queues.
+//   For now, uses a simple priority-scan.
+//
+//   Returns: actor_id on success, -1 if no actor ready
+fn scheduler_pick_next(cpu_id: Int) -> Int with Unsafe:
+    // Scan priorities from highest (kernel=0) to lowest (idle=21)
+    var prio: Int = 0
+    while prio < PRIORITY_LEVELS:
+        // Check if this priority level has ready actors
+        // let next: Int = ready_queue_dequeue(cpu_id, prio)
+        // if next >= 0: return next
+        prio = prio + 1
+
+    // Fallback: return idle actor for this CPU
+    return cpu_id  // Placeholder — idle actor has ID == CPU ID
+
+// scheduler_dispatch — perform a context switch to a new actor
+//   Saves current actor's context, selects next, restores next's context.
+//
+//   Returns: actor_id of the newly dispatched actor
+fn scheduler_dispatch(cpu_id: Int) -> Int with Unsafe:
+    // 1. Pick next actor
+    let next_actor: Int = scheduler_pick_next(cpu_id)
+    if next_actor < 0:
+        return -1    // No actor to run
+
+    // 2. Save current actor's context (if any)
+    let current: Int = 0  // SchedulerWorld.current_actor[cpu_id]
+    if current >= 0 and current != next_actor:
+        // Save rsp, rip, rflags into actor struct
+        // Re-enqueue current actor if it's still ready
+        0
+
+    // 3. Update CPU state (via patch — world writes require patch or resonate context)
+    // SchedulerWorld.current_actor[cpu_id] = next_actor
+    // total_switches increment handled by scheduler tick
+
+    // 4. Context switch to next actor
+    // (In a real kernel: assembly trampoline switches stacks)
+
+    return next_actor
+
+// ============================================================================
+//  SCHEDULER TICK — Called every 1ms by HPET interrupt
+// ============================================================================
+
+// scheduler_tick — process one scheduler tick
+//   Called from pulse_scheduler_tick() every 1ms.
+//
+//   Returns: 0 if no preemption needed, 1 if preemption is pending
+fn scheduler_tick(cpu_id: Int) -> Int with Unsafe:
+    // 1. Tick counter increment handled by pulse_scheduler_tick()
+    //    (SchedulerWorld.tick_count updated via PulseWorld)
+
+    // 2. Decrement current actor's quantum
+    //    If quantum expired: set preempt_pending
+    let current: Int = 0  // SchedulerWorld.current_actor[cpu_id]
+    if current >= 0:
+        // let quantum_left: Int = actor_decrement_quantum(current)
+        // if quantum_left <= 0:
+        //     SchedulerWorld.preempt_pending = true
+        //     return 1
+        0
+
+    // 3. Periodic work stealing (uses local tick tracking)
+    // When project-linked: uses pulse_tick_count() from pulse.kn
+        // Periodically check for work stealing opportunities
+        0
+
+    return 0
+
+// ============================================================================
+//  ACTOR YIELD / BLOCK / UNBLOCK — State transitions
+// ============================================================================
+
+// scheduler_yield_current — current actor voluntarily gives up CPU
+fn scheduler_yield_current(cpu_id: Int) -> Int with Unsafe:
+    // Re-enqueue current actor at end of its priority queue
+    // Dispatch next actor
+    return scheduler_dispatch(cpu_id)
+
+// scheduler_block_current — block the current actor
+//   Called when an actor must wait (empty mailbox, timer, resource).
+fn scheduler_block_current(cpu_id: Int, reason: Int) -> Int with Unsafe:
+    // Set actor state to Blocked
+    // Set blocked_reason and blocked_since
+    // Dispatch next actor immediately
+    return scheduler_dispatch(cpu_id)
+
+// scheduler_unblock — move an actor from blocked to ready
+fn scheduler_unblock(actor_id: Int) -> Int with Unsafe:
+    // In project build: verify actor is blocked via kernel_actor_get_state()
+    // from actor_mgmt.kn, then enqueue in ready queue
+    return 0
+
+// ============================================================================
+//  ACTOR SPAWN — Create and schedule a new actor
+// ============================================================================
+
+// scheduler_spawn — spawn a new actor into the scheduler
+//   Creates the actor via actor_create(), then enqueues it.
+//
+//   Parameters:
+//     world_id:       Owning world ID
+//     handler_table:  Pointer to handler dispatch table
+//     entry_point:    Initial handler function pointer
+//     entry_arg:      Argument for entry handler
+//     priority_val:   Scheduling tier (0=kernel, 5=realtime, 15=normal, 21=idle)
+//     supervisor_id:  Parent actor ID (0 = kernel)
+//     cpu_affinity:   Preferred CPU core (-1 = any)
+//     name_val:       Debug label
+//
+//   Returns: actor_id on success, negative error code on failure
+fn scheduler_spawn(
+    world_id: Int,
+    handler_table: Int,
+    entry_point: Int,
+    entry_arg: Int,
+    priority_val: Int,
+    supervisor_id: Int,
+    cpu_affinity: Int,
+    name_val: String
+) -> Int with Unsafe:
+    // In project build: calls actor_create() from actor_mgmt.kn,
+    // then enqueues the actor in the ready queue
+    return 0
+
+// ============================================================================
+//  LOAD BALANCING — Work stealing across CPUs
+// ============================================================================
+
+// scheduler_least_loaded_cpu — find the CPU with the fewest ready actors
+fn scheduler_least_loaded_cpu() -> Int with Unsafe:
+    // Scan all CPUs, find the one with the smallest ready queue
+    return 0   // Default to CPU 0
+
+// scheduler_steal_work — steal ready actors from a busy CPU
+//   Called periodically on idle or lightly-loaded CPUs.
+fn scheduler_steal_work(cpu_id: Int) -> Int with Unsafe:
+    // Find busiest CPU (excluding ourselves)
+    // Steal up to WORK_STEAL_MAX_BATCH actors from lower priority levels
+    return 0
+
+// ============================================================================
+//  PREEMPTION — Timer-driven preemption
+// ============================================================================
+
+// scheduler_preempt_check — check if current actor should be preempted
+//   Returns: true if preemption is needed
+fn scheduler_preempt_check(cpu_id: Int) -> Bool:
+    return SchedulerWorld.preempt_pending
+
+// scheduler_force_preempt — force immediate preemption
+//   Used for urgent events: panic, NMI handler completion, etc.
+fn scheduler_force_preempt(cpu_id: Int) -> Int with Unsafe:
+    // Preemption flag set via patch on SchedulerWorld
+    // SchedulerWorld.preempt_pending = true
+    // Send IPI to this CPU to force reschedule
+    return 0
+
+// ============================================================================
+//  QUANTUM MANAGEMENT — Time slice accounting
+// ============================================================================
+
+// scheduler_get_quantum — return time quantum in microseconds for a priority
+fn scheduler_get_quantum(priority_val: Int) -> Int:
+    if priority_val == 0:
+        return SCHED_QUANTUM_KERNEL_US
+    if priority_val <= 10:
+        return SCHED_QUANTUM_REALTIME_US
+    if priority_val <= 20:
+        return SCHED_QUANTUM_NORMAL_US
+    return SCHED_QUANTUM_IDLE_US   // Unlimited (0)
+
+// ============================================================================
+//  MAILBOX BACKPRESSURE — Block sender when mailbox full
+// ============================================================================
+
+// scheduler_check_mailbox_backpressure — check if a send should block
+//   Returns: true if sender should block, false if send can proceed
+fn scheduler_check_mailbox_backpressure(target_actor: Int) -> Bool with Unsafe:
+    // In a real kernel: read mailbox depth from actor struct
+    // let depth: Int = actor_mailbox_depth(target_actor)
+    // return depth >= MAILBOX_CAPACITY
+    return false
+
+// ============================================================================
+//  SUPERVISION TREE — Parent-child failure handling
+// ============================================================================
+
+// scheduler_notify_supervisor — notify parent that a child terminated
+fn scheduler_notify_supervisor(child_id: Int, supervisor_id: Int, reason: Int) -> Int with Unsafe:
+    if supervisor_id <= 0:
+        return 0
+    // In project build: check supervisor state via kernel_actor_get_state()
+    // and unblock if blocked
+    return 0
+
+// ============================================================================
+//  IDLE ACTOR — What runs when nothing else is ready
+// ============================================================================
+
+// scheduler_idle_loop — the per-CPU idle loop
+//   Executes HLT to save power, wakes on interrupt.
+fn scheduler_idle_loop(cpu_id: Int) -> Int with Unsafe:
+    loop:
+        // Enable interrupts and halt until next interrupt
+        asm("sti")
+        asm("hlt")
+        // CPU wakes here after any interrupt
+
+        // Check if any actor became ready
+        // If so, dispatch it
+        let next: Int = scheduler_pick_next(cpu_id)
+        if next >= 0:
+            return scheduler_dispatch(cpu_id)
+
+        // Try to steal work from another CPU
+        // scheduler_steal_work(cpu_id)
+
+    return 0   // unreachable
+
+// ============================================================================
+//  TELEMETRY — Scheduler introspection
+// ============================================================================
+
+// scheduler_total_switches — return total context switches
+fn scheduler_total_switches() -> Int:
+    return SchedulerWorld.total_switches
+
+// scheduler_tick_count — return monotonic tick counter
+fn scheduler_tick_count() -> Int:
+    return SchedulerWorld.tick_count
+
+// scheduler_is_preempt_pending — check preemption flag
+fn scheduler_is_preempt_pending() -> Bool:
+    return SchedulerWorld.preempt_pending
+
+// ============================================================================
+//  MODULE EXPORTS
+// ============================================================================
+//
+//    scheduler_init(cpu_count) -> Int
+//    scheduler_dispatch(cpu_id) -> Int
+//    scheduler_tick(cpu_id) -> Int
+//    scheduler_pick_next(cpu_id) -> Int
+//    scheduler_yield_current(cpu_id) -> Int
+//    scheduler_block_current(cpu_id, reason) -> Int
+//    scheduler_unblock(actor_id) -> Int
+//    scheduler_spawn(world_id, handler_table, entry_point, entry_arg,
+//                    priority_val, supervisor_id, cpu_affinity, name_val) -> Int
+//    scheduler_least_loaded_cpu() -> Int
+//    scheduler_steal_work(cpu_id) -> Int
+//    scheduler_preempt_check(cpu_id) -> Bool
+//    scheduler_force_preempt(cpu_id) -> Int
+//    scheduler_get_quantum(priority_val) -> Int
+//    scheduler_notify_supervisor(child_id, supervisor_id, reason) -> Int
+//    scheduler_idle_loop(cpu_id) -> Int
+//    scheduler_total_switches() -> Int
+//    scheduler_tick_count() -> Int
+//    scheduler_is_preempt_pending() -> Bool
+//    scheduler_check_mailbox_backpressure(target_actor) -> Bool
+// ============================================================================

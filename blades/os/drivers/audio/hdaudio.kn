@@ -1,0 +1,266 @@
+// ============================================================================
+//  KAINOS HD AUDIO DRIVER — drivers/audio/hdaudio.kn
+//  Stream F: Device Drivers
+//
+//  Intel High Definition Audio (PCI class 0x0403).
+//  CORB/RIRB ring buffers. Codec discovery via CORB commands.
+//  Widget graph traversal for DAC->output path. PCM 16-bit stereo 48kHz.
+//  State passed explicitly — no global mutable state.
+//
+//  LADDER: L0 (fn, struct) + L7 (Unsafe, volatile MMIO, DMA buffers).
+// ============================================================================
+
+const HDA_GCTL:    Int = 0x08
+const HDA_GCTL_CRST: Int = 0x00000001
+const HDA_STATESTS: Int = 0x0E
+const HDA_CORBLBASE: Int = 0x40
+const HDA_CORBUBASE: Int = 0x44
+const HDA_CORBWP:  Int = 0x48
+const HDA_CORBRP:  Int = 0x4A
+const HDA_CORBCTL: Int = 0x4C
+const HDA_CORBSIZE: Int = 0x4E
+const HDA_RIRBLBASE: Int = 0x50
+const HDA_RIRBUBASE: Int = 0x54
+const HDA_RIRBWP:  Int = 0x58
+const HDA_RINTCNT: Int = 0x5A
+const HDA_RIRBCTL: Int = 0x5C
+const HDA_RIRBSIZE: Int = 0x5E
+const HDA_DPIBLBASE: Int = 0x70
+const HDA_DPIBUBASE: Int = 0x74
+
+const HDA_CORBCTL_RUN:   Int = 0x02
+const HDA_RIRBCTL_RINTCTL: Int = 0x01
+const HDA_RIRBCTL_RUN:     Int = 0x02
+
+const HDA_VERB_GET_PARAMETER:   Int = 0xF00
+const HDA_VERB_SET_AMP_GAIN:    Int = 0x3
+const HDA_PARAM_SUB_NODE_COUNT:   Int = 0x04
+const HDA_PARAM_AUDIO_WIDGET_CAP: Int = 0x09
+
+const HDA_WIDGET_AUDIO_OUTPUT:  Int = 0x0
+
+const HDA_SD_CTL0:  Int = 0x80
+const HDA_SD_STS:   Int = 0x83
+const HDA_SD_CBL:   Int = 0x88
+const HDA_SD_LVI:   Int = 0x8C
+const HDA_SD_FIFOS: Int = 0x90
+const HDA_SD_FORMAT: Int = 0x92
+const HDA_SD_BDPL:  Int = 0x98
+const HDA_SD_BDPU:  Int = 0x9C
+const HDA_STREAM_SIZE: Int = 0x20
+
+const HDA_CAD: Int = 0
+
+struct HdaController:
+    mmio_base:    Int
+    corb_base:    Int
+    rirb_base:    Int
+    corb_entries: Int
+    rirb_entries: Int
+    num_codecs:   Int
+    output_nid:   Int
+    stream_running: Bool
+    initialized:  Bool
+
+fn hda_read32(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    return volatile_load_int(addr)
+
+fn hda_write32(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    volatile_store_int(addr, value)
+    return 0
+
+fn hda_read16(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    let lo = mem_load(addr, "Int") & 0xFF
+    let hi = (mem_load(ptr_offset(addr, 1, "Int"), "Int") & 0xFF)
+    return lo | (hi << 8)
+
+fn hda_write16(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    let current = mem_load(addr, "Int")
+    let new_val = (current & 0xFFFF0000) | (value & 0xFFFF)
+    collapse addr:
+        mem_store(addr, new_val, "Int")
+        0
+    return 0
+
+fn hda_read8(mmio_base: Int, offset: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    return mem_load(addr, "Int") & 0xFF
+
+fn hda_write8(mmio_base: Int, offset: Int, value: Int) -> Int with Unsafe:
+    let addr: ptr<Int> = int_to_ptr(mmio_base + offset, "Int")
+    let current = mem_load(addr, "Int")
+    let new_val = (current & 0xFFFFFF00) | (value & 0xFF)
+    collapse addr:
+        mem_store(addr, new_val, "Int")
+        0
+    return 0
+
+pub fn hdaudio_init(mmio_base: Int, corb_phys: Int, rirb_phys: Int) -> HdaController with Unsafe:
+    // Reset controller
+    let gctl = hda_read32(mmio_base, HDA_GCTL)
+    hda_write32(mmio_base, HDA_GCTL, gctl & ~HDA_GCTL_CRST)
+
+    var timeout: Int = 0
+    while timeout < 500000:
+        let gctl2 = hda_read32(mmio_base, HDA_GCTL)
+        if (gctl2 & HDA_GCTL_CRST) == 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    hda_write32(mmio_base, HDA_GCTL, HDA_GCTL_CRST)
+
+    timeout = 0
+    while timeout < 500000:
+        let gctl2 = hda_read32(mmio_base, HDA_GCTL)
+        if (gctl2 & HDA_GCTL_CRST) != 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+
+    // Setup CORB
+    hda_write16(mmio_base, HDA_CORBSIZE, 2)
+    hda_write32(mmio_base, HDA_CORBLBASE, corb_phys & 0xFFFFFFFF)
+    hda_write32(mmio_base, HDA_CORBUBASE, (corb_phys >> 32) & 0xFFFFFFFF)
+    hda_write16(mmio_base, HDA_CORBWP, 0)
+    hda_write16(mmio_base, HDA_CORBRP, 0)
+    hda_write8(mmio_base, HDA_CORBCTL, HDA_CORBCTL_RUN)
+
+    // Setup RIRB
+    hda_write8(mmio_base, HDA_RIRBSIZE, 2)
+    hda_write32(mmio_base, HDA_RIRBLBASE, rirb_phys & 0xFFFFFFFF)
+    hda_write32(mmio_base, HDA_RIRBUBASE, (rirb_phys >> 32) & 0xFFFFFFFF)
+    hda_write16(mmio_base, HDA_RIRBWP, 0)
+    hda_write16(mmio_base, HDA_RINTCNT, 1)
+    hda_write8(mmio_base, HDA_RIRBCTL, HDA_RIRBCTL_RINTCTL | HDA_RIRBCTL_RUN)
+
+    return HdaController {
+        mmio_base: mmio_base,
+        corb_base: corb_phys,
+        rirb_base: rirb_phys,
+        corb_entries: 256,
+        rirb_entries: 256,
+        num_codecs: 0,
+        output_nid: 0,
+        stream_running: false,
+        initialized: true,
+    }
+
+fn hdaudio_corb_send(hda: HdaController, codec_addr: Int, node_id: Int, verb: Int, param: Int) -> Int with Unsafe:
+    if !hda.initialized:
+        return -1
+
+    let wp = hda_read16(hda.mmio_base, HDA_CORBWP) & 0xFF
+    let cmd_high = (verb << 8) | (param & 0xFF)
+    let cmd_low = (codec_addr << 28) | (node_id << 20)
+
+    let entry_offset = HDA_CORBLBASE + (wp * 8)
+    let corb_entry_addr: ptr<Int> = int_to_ptr(hda.mmio_base + entry_offset, "Int")
+    collapse corb_entry_addr:
+        mem_store(ptr_offset(corb_entry_addr, 0, "Int"), cmd_low, "Int")
+        mem_store(ptr_offset(corb_entry_addr, 1, "Int"), cmd_high, "Int")
+        0
+
+    hda_write16(hda.mmio_base, HDA_CORBWP, (wp + 1) % hda.corb_entries)
+
+    var timeout: Int = 0
+    while timeout < 100000:
+        let rp = hda_read16(hda.mmio_base, HDA_CORBRP) & 0xFF
+        if rp != ((wp + 1) % hda.corb_entries):
+            let rirb_wp = hda_read16(hda.mmio_base, HDA_RIRBWP) & 0xFF
+            let resp_offset = HDA_RIRBLBASE + (rirb_wp * 8)
+            let rirb_addr: ptr<Int> = int_to_ptr(hda.mmio_base + resp_offset, "Int")
+            let response = observe rirb_addr:
+                mem_load(ptr_offset(rirb_addr, 0, "Int"), "Int")
+            return response
+        asm("pause")
+        timeout = timeout + 1
+
+    return -1
+
+fn hdaudio_get_parameter(hda: HdaController, codec_addr: Int, node_id: Int, param_id: Int) -> Int with Unsafe:
+    return hdaudio_corb_send(hda, codec_addr, node_id, HDA_VERB_GET_PARAMETER, param_id)
+
+pub fn hdaudio_discover_codec(hda: HdaController, codec_addr: Int) -> Int with Unsafe:
+    if !hda.initialized:
+        return -1
+
+    let sub_nodes = hdaudio_get_parameter(hda, codec_addr, 0, HDA_PARAM_SUB_NODE_COUNT)
+    let start_node = (sub_nodes >> 16) & 0xFF
+    let node_count = sub_nodes & 0xFF
+
+    var nid: Int = start_node
+    var output: Int = 0
+    while nid < start_node + node_count:
+        let widget_cap = hdaudio_get_parameter(hda, codec_addr, nid, HDA_PARAM_AUDIO_WIDGET_CAP)
+        if widget_cap >= 0:
+            let widget_type = (widget_cap >> 20) & 0xF
+            if widget_type == HDA_WIDGET_AUDIO_OUTPUT:
+                output = nid
+                break
+        nid = nid + 1
+
+    return output
+
+pub fn hdaudio_configure_stream(hda: HdaController) -> Int with Unsafe:
+    if !hda.initialized:
+        return -1
+
+    let stream = 1
+    let stream_base = HDA_SD_CTL0 + (stream * HDA_STREAM_SIZE)
+
+    let format: Int = 0 | (0 << 4) | (1 << 7) | (1 << 11)
+    hda_write16(hda.mmio_base, stream_base + HDA_SD_FORMAT, format)
+
+    let buffer_bytes: Int = 16384
+    hda_write32(hda.mmio_base, stream_base + HDA_SD_CBL, buffer_bytes)
+    hda_write16(hda.mmio_base, stream_base + HDA_SD_LVI, 0)
+    hda_write16(hda.mmio_base, stream_base + HDA_SD_FIFOS, 255)
+
+    // Reset and start stream
+    let ctl_val = hda_read32(hda.mmio_base, stream_base)
+    hda_write8(hda.mmio_base, stream_base, ctl_val | 0x01)    // Set SRST
+    var timeout: Int = 0
+    while timeout < 10000:
+        let sts = hda_read8(hda.mmio_base, stream_base)
+        if (sts & 0x01) != 0:
+            break
+        asm("pause")
+        timeout = timeout + 1
+    hda_write8(hda.mmio_base, stream_base, ctl_val & ~0x01)    // Clear SRST
+    hda_write8(hda.mmio_base, stream_base, ctl_val | 0x02)     // Set RUN
+
+    return 0
+
+pub fn hdaudio_play(hda: HdaController, buf_phys: Int, sample_count: Int) -> Int with Unsafe:
+    if !hda.initialized:
+        return -1
+
+    let stream = 1
+    let stream_base = HDA_SD_CTL0 + (stream * HDA_STREAM_SIZE)
+    hda_write32(hda.mmio_base, stream_base + HDA_SD_BDPL, buf_phys & 0xFFFFFFFF)
+    hda_write32(hda.mmio_base, stream_base + HDA_SD_BDPU, (buf_phys >> 32) & 0xFFFFFFFF)
+    let byte_count = sample_count * 4
+    hda_write32(hda.mmio_base, stream_base + HDA_SD_CBL, byte_count)
+    return 0
+
+pub fn hdaudio_set_volume(hda: HdaController, output_nid: Int, volume_pct: Int) -> Int with Unsafe:
+    if !hda.initialized:
+        return -1
+
+    var gain = (volume_pct * 64) / 100
+    if gain < 0: gain = 0
+    if gain > 64: gain = 64
+
+    let payload = (1 << 15) | (1 << 13) | (1 << 12) | (gain & 0x7F)
+    return hdaudio_corb_send(hda, HDA_CAD, output_nid, HDA_VERB_SET_AMP_GAIN, payload)
+
+pub fn hdaudio_stop(hda: HdaController) -> Int with Unsafe:
+    let ctl_lo = HDA_SD_CTL0 + (1 * HDA_STREAM_SIZE)
+    let ctl = hda_read8(hda.mmio_base, ctl_lo)
+    hda_write8(hda.mmio_base, ctl_lo, ctl & ~0x02)
+    return 0

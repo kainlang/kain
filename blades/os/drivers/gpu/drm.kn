@@ -1,0 +1,411 @@
+// ============================================================================
+//  KAINOS DRM/KMS FRAMEBUFFER SHIM — drivers/gpu/drm.kn
+//  Stream F: Device Drivers
+//
+//  Framebuffer discovery from PCI BAR (class 0x0300) or Multiboot2 tag.
+//  Mode setting: resolution, bpp (32-bit), pitch.
+//  Double/triple buffering with page flip.
+//  Linear framebuffer access: pixel = base + y * pitch + x * 4.
+//  State is passed explicitly — no global mutable state.
+//
+//  LADDER: L0 (fn, struct) + L7 (Unsafe, volatile MMIO).
+//          Framebuffer is a simple linear memory region.
+// ============================================================================
+
+// ============================================================================
+//  FRAMEBUFFER STRUCTURE
+// ============================================================================
+
+struct FramebufferInfo:
+    base:         Int           // Physical base address
+    width:        Int           // Horizontal resolution in pixels
+    height:       Int           // Vertical resolution in pixels
+    pitch:        Int           // Bytes per scanline
+    bpp:          Int           // Bits per pixel (default 32)
+    size:         Int           // Total framebuffer size (height * pitch)
+    initialized:  Bool
+    double_buf:   Bool          // Double-buffered
+    back_buffer:  Int           // Back buffer physical address
+
+// ============================================================================
+//  FRAMEBUFFER INITIALIZATION
+// ============================================================================
+
+pub fn drm_init_from_mb2(fb_addr: Int, width: Int, height: Int, pitch: Int, bpp: Int) -> FramebufferInfo with Unsafe:
+    return FramebufferInfo {
+        base: fb_addr,
+        width: width,
+        height: height,
+        pitch: pitch,
+        bpp: bpp,
+        size: height * pitch,
+        initialized: true,
+        double_buf: false,
+        back_buffer: 0,
+    }
+
+pub fn drm_init(width: Int, height: Int, bpp: Int) -> FramebufferInfo with Unsafe:
+    // Default: linear framebuffer at 0xFD000000 (typical QEMU VGA)
+    // Real hardware would use PCI BAR from class 0x0300 device
+    let base_addr = 0xFD000000
+    let pitch = width * (bpp / 8)
+
+    return FramebufferInfo {
+        base: base_addr,
+        width: width,
+        height: height,
+        pitch: pitch,
+        bpp: bpp,
+        size: height * pitch,
+        initialized: true,
+        double_buf: false,
+        back_buffer: 0,
+    }
+
+// ============================================================================
+//  GET FRAMEBUFFER INFO
+// ============================================================================
+
+pub fn drm_get_framebuffer(fb: FramebufferInfo) -> Int with Unsafe:
+    return fb.base
+
+pub fn drm_get_width(fb: FramebufferInfo) -> Int:
+    return fb.width
+
+pub fn drm_get_height(fb: FramebufferInfo) -> Int:
+    return fb.height
+
+pub fn drm_get_pitch(fb: FramebufferInfo) -> Int:
+    return fb.pitch
+
+pub fn drm_get_bpp(fb: FramebufferInfo) -> Int:
+    return fb.bpp
+
+// ============================================================================
+//  MODE SETTING — Change resolution / bpp
+// ============================================================================
+
+pub fn drm_set_mode(fb: FramebufferInfo, width: Int, height: Int, bpp: Int) -> FramebufferInfo with Unsafe:
+    let pitch = width * (bpp / 8)
+    let size = height * pitch
+
+    // Check if new mode fits in current framebuffer
+    if size > fb.size:
+        // Would need to reallocate — not supported yet
+        return fb
+
+    return FramebufferInfo {
+        base: fb.base,
+        width: width,
+        height: height,
+        bpp: bpp,
+        pitch: pitch,
+        size: size,
+        initialized: fb.initialized,
+        double_buf: fb.double_buf,
+        back_buffer: fb.back_buffer,
+    }
+
+// ============================================================================
+//  PAGE FLIP — Swap front/back buffers (for double-buffered config)
+// ============================================================================
+
+pub fn drm_page_flip(fb: FramebufferInfo) -> FramebufferInfo with Unsafe:
+    if !fb.double_buf:
+        return fb
+
+    return FramebufferInfo {
+        base: fb.back_buffer,
+        width: fb.width,
+        height: fb.height,
+        pitch: fb.pitch,
+        bpp: fb.bpp,
+        size: fb.size,
+        initialized: fb.initialized,
+        double_buf: true,
+        back_buffer: fb.base,
+    }
+
+pub fn drm_enable_double_buf(fb: FramebufferInfo, back_buf_addr: Int) -> FramebufferInfo with Unsafe:
+    return FramebufferInfo {
+        base: fb.base,
+        width: fb.width,
+        height: fb.height,
+        pitch: fb.pitch,
+        bpp: fb.bpp,
+        size: fb.size,
+        initialized: fb.initialized,
+        double_buf: true,
+        back_buffer: back_buf_addr,
+    }
+
+// ============================================================================
+//  PIXEL OPERATIONS
+// ============================================================================
+
+pub fn drm_write_pixel(fb: FramebufferInfo, x: Int, y: Int, color: Int) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+    if x < 0 or x >= fb.width:
+        return -2
+    if y < 0 or y >= fb.height:
+        return -3
+
+    let offset: Int = y * fb.pitch + x * 4
+    let pixel_addr: ptr<Int> = int_to_ptr(fb.base + offset, "Int")
+    volatile_store_int(pixel_addr, color)
+
+    return 0
+
+pub fn drm_read_pixel(fb: FramebufferInfo, x: Int, y: Int) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+    if x < 0 or x >= fb.width:
+        return 0
+    if y < 0 or y >= fb.height:
+        return 0
+
+    let offset: Int = y * fb.pitch + x * 4
+    let pixel_addr: ptr<Int> = int_to_ptr(fb.base + offset, "Int")
+    return volatile_load_int(pixel_addr)
+
+// ============================================================================
+//  CLAMP HELPER
+// ============================================================================
+
+fn clamp_val(v: Int, lo: Int, hi: Int) -> Int:
+    if v < lo: return lo
+    if v > hi: return hi
+    return v
+
+// ============================================================================
+//  RECTANGLE FILL — Fill a rectangular region
+// ============================================================================
+
+pub fn drm_fill_rect(fb: FramebufferInfo, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+
+    let cl = clamp_val(x, 0, fb.width)
+    let ct = clamp_val(y, 0, fb.height)
+    let cr = clamp_val(x + w, 0, fb.width)
+    let cb = clamp_val(y + h, 0, fb.height)
+
+    var row: Int = ct
+    while row < cb:
+        var col: Int = cl
+        while col < cr:
+            let offset: Int = row * fb.pitch + col * 4
+            let pixel_addr: ptr<Int> = int_to_ptr(fb.base + offset, "Int")
+            volatile_store_int(pixel_addr, color)
+            col = col + 1
+        row = row + 1
+
+    return 0
+
+// ============================================================================
+//  SCREEN CLEAR
+// ============================================================================
+
+pub fn drm_clear(fb: FramebufferInfo, color: Int) -> Int with Unsafe:
+    return drm_fill_rect(fb, 0, 0, fb.width, fb.height, color)
+
+// ============================================================================
+//  LINE DRAW — Bresenham line algorithm
+// ============================================================================
+
+pub fn drm_draw_line(fb: FramebufferInfo, x0: Int, y0: Int, x1: Int, y1: Int, color: Int) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+
+    var dx: Int = x1 - x0
+    var dy: Int = y1 - y0
+
+    var sx: Int = 1
+    if dx < 0:
+        sx = -1
+        dx = -dx
+
+    var sy: Int = 1
+    if dy < 0:
+        sy = -1
+        dy = -dy
+
+    var err: Int = dx - dy
+    var x: Int = x0
+    var y: Int = y0
+
+    while true:
+        let _ = drm_write_pixel(fb, x, y, color)
+        if x == x1 and y == y1:
+            break
+
+        let e2: Int = 2 * err
+        if e2 > -dy:
+            err = err - dy
+            x = x + sx
+        if e2 < dx:
+            err = err + dx
+            y = y + sy
+
+    return 0
+
+// ============================================================================
+//  RECT OUTLINE — Draw rectangle border
+// ============================================================================
+
+pub fn drm_draw_rect(fb: FramebufferInfo, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+    // Top edge
+    drm_draw_line(fb, x, y, x + w - 1, y, color)
+    // Bottom edge
+    drm_draw_line(fb, x, y + h - 1, x + w - 1, y + h - 1, color)
+    // Left edge
+    drm_draw_line(fb, x, y, x, y + h - 1, color)
+    // Right edge
+    drm_draw_line(fb, x + w - 1, y, x + w - 1, y + h - 1, color)
+    return 0
+
+// ============================================================================
+//  COLOR HELPERS — ARGB32 color packing
+// ============================================================================
+
+pub fn drm_color_rgb(r: Int, g: Int, b: Int) -> Int:
+    return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
+
+pub fn drm_color_argb(a: Int, r: Int, g: Int, b: Int) -> Int:
+    return ((a & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
+
+// ============================================================================
+//  TEXT RENDERING — 8x16 font (simplified bitmap font)
+// ============================================================================
+
+const FONT_WIDTH:  Int = 8
+const FONT_HEIGHT: Int = 16
+
+fn font_glyph(ch: Int) -> Int with Unsafe:
+    if ch >= 48 and ch <= 57:       // '0'-'9'
+        return (ch - 48) * 16
+    if ch >= 65 and ch <= 70:       // 'A'-'F'
+        return (10 + ch - 65) * 16
+    if ch >= 97 and ch <= 102:      // 'a'-'f'
+        return (10 + ch - 97) * 16
+    if ch == 32:                    // ' '
+        return 16 * 16
+    return -1
+
+fn font_get_row(glyph_offset: Int, row: Int) -> Int with Unsafe:
+    if glyph_offset == 16 * 16:
+        return 0
+
+    if glyph_offset == 0 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0xC3, 0xDB, 0xDB, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 1 * 16:
+        let rows = [0x18, 0x38, 0x78, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 2 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0x03, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xC0, 0xC0, 0xFE, 0xFF, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 3 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0x03, 0x06, 0x3C, 0x06, 0x03, 0x03, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 4 * 16:
+        let rows = [0x06, 0x0E, 0x1E, 0x36, 0x66, 0xC6, 0xC6, 0xFE, 0xFF, 0x06, 0x06, 0x06, 0x06, 0x06, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 5 * 16:
+        let rows = [0xFE, 0xFF, 0xC0, 0xC0, 0xFC, 0xFE, 0x06, 0x03, 0x03, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 6 * 16:
+        let rows = [0x3C, 0x66, 0xC0, 0xC0, 0xFC, 0xFE, 0xC6, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 7 * 16:
+        let rows = [0xFE, 0xFF, 0x03, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x30, 0x60, 0x60, 0xC0, 0xC0, 0xC0, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 8 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0xC3, 0x66, 0x3C, 0x66, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 9 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0xC3, 0xC3, 0xC3, 0x63, 0x7F, 0x3F, 0x03, 0x03, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    // A-F
+    if glyph_offset == 10 * 16:
+        let rows = [0x18, 0x3C, 0x66, 0xC3, 0xC3, 0xC3, 0xFF, 0xFF, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 11 * 16:
+        let rows = [0xFC, 0xFE, 0xC6, 0xC3, 0xC6, 0xFC, 0xC6, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC6, 0xFC, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 12 * 16:
+        let rows = [0x3C, 0x66, 0xC3, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC3, 0xC3, 0x66, 0x3C, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 13 * 16:
+        let rows = [0xF8, 0xFC, 0xC6, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC6, 0xFC, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 14 * 16:
+        let rows = [0xFE, 0xFF, 0xC0, 0xC0, 0xC0, 0xFC, 0xFE, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xFE, 0xFF, 0x00, 0x00]
+        return rows[row]
+    if glyph_offset == 15 * 16:
+        let rows = [0xFE, 0xFF, 0xC0, 0xC0, 0xC0, 0xFC, 0xFE, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0x00, 0x00]
+        return rows[row]
+
+    return 0
+
+pub fn drm_draw_char(fb: FramebufferInfo, x: Int, y: Int, ch: Int, color: Int) -> Int with Unsafe:
+    let glyph_offset = font_glyph(ch)
+    if glyph_offset < 0:
+        return -1
+
+    var row: Int = 0
+    while row < FONT_HEIGHT:
+        let bitmap = font_get_row(glyph_offset, row)
+        var col: Int = 0
+        while col < FONT_WIDTH:
+            if (bitmap & (0x80 >> col)) != 0:
+                let _ = drm_write_pixel(fb, x + col, y + row, color)
+            col = col + 1
+        row = row + 1
+
+    return 0
+
+// ============================================================================
+//  STRING OUTPUT ON FRAMEBUFFER
+// ============================================================================
+
+pub fn drm_draw_string(fb: FramebufferInfo, x: Int, y: Int, str_ptr: Int, slen: Int, color: Int) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+
+    var cx: Int = x
+    var i: Int = 0
+    var ptr: ptr<Int> = int_to_ptr(str_ptr, "Int")
+    while i < slen:
+        let ch_val = mem_load(ptr_offset(ptr, i, "Int"), "Int")
+        let ch_byte = ch_val & 0xFF
+        if ch_byte == 10:    // '\n'
+            cx = x
+        else:
+            drm_draw_char(fb, cx, y, ch_byte, color)
+            cx = cx + FONT_WIDTH
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  TEST PATTERN — Color bars to verify framebuffer works
+// ============================================================================
+
+pub fn drm_test_pattern(fb: FramebufferInfo) -> Int with Unsafe:
+    if !fb.initialized:
+        return -1
+
+    let bar_w = fb.width / 8
+
+    drm_fill_rect(fb, 0,          0, bar_w, fb.height, drm_color_rgb(255, 0, 0))
+    drm_fill_rect(fb, bar_w,      0, bar_w, fb.height, drm_color_rgb(0, 255, 0))
+    drm_fill_rect(fb, bar_w * 2,  0, bar_w, fb.height, drm_color_rgb(0, 0, 255))
+    drm_fill_rect(fb, bar_w * 3,  0, bar_w, fb.height, drm_color_rgb(255, 255, 0))
+    drm_fill_rect(fb, bar_w * 4,  0, bar_w, fb.height, drm_color_rgb(0, 255, 255))
+    drm_fill_rect(fb, bar_w * 5,  0, bar_w, fb.height, drm_color_rgb(255, 0, 255))
+    drm_fill_rect(fb, bar_w * 6,  0, bar_w, fb.height, drm_color_rgb(255, 255, 255))
+    drm_fill_rect(fb, bar_w * 7,  0, bar_w, fb.height, drm_color_rgb(0, 0, 0))
+
+    return 0

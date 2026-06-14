@@ -1,0 +1,39 @@
+// KAINOS x86-64 — GDT | Stream: A | File: gdt.kn
+pub mod gdt:
+    const GDT_GDT_STORAGE: Int = 0x2000
+    const GDT_GDT_N:       Int = 8
+
+    fn gdt_write_entry(idx: Int, raw: Int) -> Int with Unsafe:
+        mem_store(int_to_ptr(GDT_GDT_STORAGE + (idx * 8), "ptr<Int>"), raw, "Int")
+        return 0
+
+    fn gdt_build(base: Int, limit: Int, access: Int, gran: Int) -> Int:
+        let lo: Int = (limit & 0xFFFF) | ((base & 0xFFFF) << 16)
+        let mid: Int = (((base >> 16) & 0xFF) << 32) | (access << 40)
+        let hi: Int = (((limit >> 16) & 0x0F) << 48) | (gran << 52) | (((base >> 24) & 0xFF) << 56)
+        return lo | mid | hi
+
+    pub fn gdt_init() -> Int with Unsafe:
+        gdt_write_entry(0, 0)
+        gdt_write_entry(1, gdt_build(0, 0, 0x9A, 0x20))
+        gdt_write_entry(2, gdt_build(0, 0, 0x92, 0x00))
+        gdt_write_entry(3, gdt_build(0, 0xFFFFF, 0x9A, 0xC0))
+        gdt_write_entry(4, 0)
+        gdt_write_entry(5, 0)
+        gdt_write_entry(6, 0)
+        gdt_write_entry(7, 0)
+        return 0
+
+    pub fn gdt_load() -> Int with Unsafe:
+        asm("subq $16, %rsp")
+        asm("movw $63, (%rsp)")
+        asm("movq $0x2000, 2(%rsp)")
+        asm("lgdt (%rsp)")
+        asm("movw $0x10, %ax")
+        asm("movw %ax, %ds")
+        asm("movw %ax, %es")
+        asm("movw %ax, %fs")
+        asm("movw %ax, %gs")
+        asm("movw %ax, %ss")
+        asm("addq $16, %rsp")
+        return 0

@@ -1,0 +1,9 @@
+// Stream: B | File: scheduler_test.kn | TODO: Scheduler unit tests
+
+pub fn stub_test_scheduler_init() -> Int:
+    // TODO: verify scheduler starts with idle actor
+    return 0
+
+pub fn stub_test_actor_spawn() -> Int:
+    // TODO: spawn actor, verify it's in ready queue
+    return 0
