@@ -24,6 +24,14 @@ use error       // MarkError, ERROR_OK, ERROR_NAME, error_ok, make_error, format
 use parser      // OP_HALT, OP_ENTER_DOMAIN, ... OP_JN (all 21 constants 0-20)
 
 // ===========================================================================
+//  EXTENDED OPCODES — VM-emitted beyond parser's 0-23 range
+// ===========================================================================
+
+// OP_PUSH_STRING_REF: Int = 24 is now defined in parser.kn (canonical source)
+pub const OP_ERROR_BOUNDARY:  Int = 25   // domain error boundary marker (reserved)
+pub const MAX_ERRORS:         Int = 10   // error threshold before graceful halt
+
+// ===========================================================================
 //  VM STATE — matches the spec exactly
 // ===========================================================================
 
@@ -53,6 +61,11 @@ pub struct MarkScriptVM:
     dicts:          Array<Array<DictEntry>> // dict storage (handle → entries)
     functions:      Array<FnRecord>         // user-defined function table
     modules:        Array<ImportedModule>   // imported Kain modules
+    // V2: string constants + error recovery + handler result binding
+    string_constants:    Array<String>      // constant strings from parser
+    last_handler_result: MarkValue          // result of last dispatched handler
+    error_count:         Int                // cumulative error counter
+    halt:                Bool               // graceful halt flag
 
 // ===========================================================================
 //  HANDLER RESULT — returned by bridge handlers, consumed by resume_execution
@@ -76,6 +89,8 @@ pub struct ExecResult:
     handler_id:  Int           // 0 = no handler pending, >0 = dispatch to this handler
     bc:          Array<Int>    // bytecode (passed through for resume_execution)
     ip:          Int           // current instruction pointer (for resume)
+    string_constants: Array<String>  // constant strings (for resume passes)
+    last_handler_result: MarkValue   // last handler result (for resume passes)
 
 // ===========================================================================
 //  CONSTRUCTOR
@@ -103,7 +118,11 @@ pub fn init_vm() -> MarkScriptVM:
         arrays: [],
         dicts: [],
         functions: [],
-        modules: []
+        modules: [],
+        string_constants: [],
+        last_handler_result: mark_empty(),
+        error_count: 0,
+        halt: false
     }
 
 // ===========================================================================
@@ -138,7 +157,11 @@ pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> 
         arrays: vm.arrays,
         dicts: vm.dicts,
         functions: vm.functions,
-        modules: vm.modules
+        modules: vm.modules,
+        string_constants: vm.string_constants,
+        last_handler_result: vm.last_handler_result,
+        error_count: vm.error_count,
+        halt: vm.halt
     }
 
 pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
@@ -153,7 +176,7 @@ pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
 //  VARIABLE OPERATIONS
 // ===========================================================================
 
-fn find_variable(vm: MarkScriptVM, name_hash: Int) -> Int:
+pub fn find_variable(vm: MarkScriptVM, name_hash: Int) -> Int:
     var i: Int = 0
     while i < vm.var_count:
         if vm.variables[i].name_hash == name_hash:
@@ -173,6 +196,28 @@ fn store_variable(vm: MarkScriptVM, name_hash: Int, value: MarkValue) -> MarkScr
         v.variables[v.var_count] = VarEntry { name_hash: name_hash, value: value }
         v.var_count = v.var_count + 1
     return v
+
+// ===========================================================================
+//  STRING CONSTANT TABLE — load & query
+// ===========================================================================
+
+pub fn load_string_constants(vm: MarkScriptVM, strings: Array<String>) -> MarkScriptVM:
+    var v = vm
+    v.string_constants = strings
+    return v
+
+// ===========================================================================
+//  PUBLIC VARIABLE ACCESS — for bridge / main.kn use
+// ===========================================================================
+
+pub fn set_variable(vm: MarkScriptVM, name_hash: Int, value: MarkValue) -> MarkScriptVM:
+    return store_variable(vm, name_hash, value)
+
+pub fn get_variable(vm: MarkScriptVM, name_hash: Int) -> MarkValue:
+    let idx = find_variable(vm, name_hash)
+    if idx >= 0:
+        return vm.variables[idx].value
+    return mark_empty()
 
 // ===========================================================================
 //  WIDGET OPERATIONS — DELTA: UI widget registry in VM state
@@ -352,8 +397,15 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     var dicts_arr = vm.dicts
     var fns = vm.functions
     var mods = vm.modules
+    // V2: string constants + error recovery + handler result binding
+    var str_consts = vm.string_constants
+    var last_hr = vm.last_handler_result
+    var err_count = vm.error_count
+    var halted = vm.halt
 
     while ip < bc_len:
+        if halted:
+            break
         let opcode = bc[ip]
 
         // --- OP_HALT (0) — terminate -------------------------------------
@@ -369,7 +421,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                     widgets: wgts, widget_count: wgtc,
                     processes: procs,
                     arrays: arrays_arr, dicts: dicts_arr,
-                    functions: fns, modules: mods
+                    functions: fns, modules: mods,
+                    string_constants: str_consts, last_handler_result: last_hr,
+                    error_count: err_count, halt: halted
                 },
                 accumulator: acc,
                 data_table: dt,
@@ -377,7 +431,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                 error: verr,
                 handler_id: 0,
                 bc: bc,
-                ip: ip
+                ip: ip,
+                string_constants: str_consts,
+                last_handler_result: last_hr
             }
 
         // --- OP_ENTER_DOMAIN (1) — domain hash ---------------------------
@@ -437,6 +493,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                 verr = make_error(ERROR_NAME,
                     "unknown intent phrase (hash=" + str(pending_hash) + ")",
                     0, "", "")
+                err_count = err_count + 1
+                if err_count >= MAX_ERRORS:
+                    halted = true
                 ip = ip + 1
             pending_hash = 0
 
@@ -584,6 +643,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                 verr = make_error(ERROR_NAME,
                     "unknown intent (hash=" + str(target_hash) + ")",
                     0, "", "")
+                err_count = err_count + 1
+                if err_count >= MAX_ERRORS:
+                    halted = true
             ip = ip + 1
 
         // --- OP_RET (11) — pop return address, resume --------------------
@@ -756,6 +818,24 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             else:
                 ip = ip + 1
 
+        // --- OP_PUSH_STRING_REF (24) — push string from constant table by index
+        elif opcode == OP_PUSH_STRING_REF:
+            ip = ip + 1
+            if ip < bc_len:
+                let str_idx = bc[ip]
+                if str_idx >= 0 and str_idx < len(str_consts):
+                    push(stk, mark_string(str_consts[str_idx]))
+                else:
+                    push(stk, mark_string("<invalid str_ref:" + str(str_idx) + ">"))
+            ip = ip + 1
+
+        // --- OP_ERROR_BOUNDARY (25) — reset error state at domain boundary
+        elif opcode == OP_ERROR_BOUNDARY:
+            // Reset error count and halt flag at domain/section boundary
+            err_count = 0
+            halted = false
+            ip = ip + 1
+
         // --- Unknown opcode — skip ---------------------------------------
         else:
             ip = ip + 1
@@ -772,7 +852,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             widgets: wgts, widget_count: wgtc,
             processes: procs,
             arrays: arrays_arr, dicts: dicts_arr,
-            functions: fns, modules: mods
+            functions: fns, modules: mods,
+            string_constants: str_consts, last_handler_result: last_hr,
+            error_count: err_count, halt: halted
         },
         accumulator: acc,
         data_table: dt,
@@ -780,7 +862,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
         error: verr,
         handler_id: 0,
         bc: bc,
-        ip: ip
+        ip: ip,
+        string_constants: str_consts,
+        last_handler_result: last_hr
     }
 
 // ===========================================================================
@@ -791,6 +875,9 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
 
 pub fn resume_execution(vm: MarkScriptVM, bc: Array<Int>, handler_result: HandlerResult) -> ExecResult:
     var v = handler_result.vm
+
+    // Store handler result in the well-known _last variable
+    v.last_handler_result = handler_result.value
 
     // Push handler result value to the stack
     push(v.stack, handler_result.value)

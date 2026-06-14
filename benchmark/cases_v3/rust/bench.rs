@@ -565,8 +565,8 @@ fn count_substring(text: &str, pat: &str) -> usize {
         .count()
 }
 
-/// Simplified character class: count occurrences of "[tT]h[AaNn][tT]" pattern
-/// (character t/T, then h, then a/A/n/N, then t/T)
+/// IUPAC character class: match "tHa[Nt]" against uppercase A/C/G/T alphabet.
+/// t = T, H = not G (A/C/T), a = A, [Nt] = any or T (always matches in our 4-letter alphabet)
 fn count_char_class(text: &str) -> usize {
     let b = text.as_bytes();
     let mut count = 0usize;
@@ -575,12 +575,14 @@ fn count_char_class(text: &str) -> usize {
         let c0 = b[i];
         let c1 = b[i + 1];
         let c2 = b[i + 2];
-        let c3 = b[i + 3];
-        if (c0 == b't' || c0 == b'T')
-            && c1 == b'h'
-            && (c2 == b'A' || c2 == b'a' || c2 == b'N' || c2 == b'n')
-            && (c3 == b't' || c3 == b'T')
+        // t (position 0): must be T
+        if c0 == b'T'
+            // H (position 1): not G, so A, C, or T
+            && (c1 == b'A' || c1 == b'C' || c1 == b'T')
+            // a (position 2): must be A
+            && c2 == b'A'
         {
+            // [Nt] (position 3): any nucleotide (always true for A/C/G/T)
             count += 1;
         }
         i += 1;
@@ -593,28 +595,56 @@ fn compute_regex_redux() -> u64 {
     let mut state = RANDOM_SEED;
     let nucleotides = [b'A', b'C', b'G', b'T'];
 
-    // Generate random DNA sequence of length N
+    // Generate a DNA sequence with deterministically injected patterns
     let mut dna = Vec::with_capacity(N);
-    for _ in 0..N {
+    
+    // Inject known pattern instances so matches are guaranteed
+    // We embed "AGGGTAAA" at positions 10 and 3000, "TTTACCCT" at position 1000
+    let patterns: &[(usize, &[u8])] = &[
+        (10, b"AGGGTAAA"),
+        (3000, b"AGGGTAAA"),
+        (1000, b"TTTACCCT"),
+    ];
+    
+    let mut pi = 0; // pattern index
+    for pos in 0..N {
+        if pi < patterns.len() && pos == patterns[pi].0 {
+            // Inject pattern
+            let pat = patterns[pi].1;
+            for &b in pat {
+                if dna.len() < N {
+                    dna.push(b);
+                }
+            }
+            pi += 1;
+        }
+        if dna.len() >= N {
+            break;
+        }
+        // Fill remaining positions with deterministic randomness
         let idx = rand_next_seeded(&mut state) as usize % 4;
         dna.push(nucleotides[idx]);
     }
+    dna.truncate(N);
+
     let dna_str = unsafe { String::from_utf8_unchecked(dna) };
 
-    // Count occurrences of pattern
-    let pattern_count = count_substring(&dna_str, "agggtaaa")
-        + count_substring(&dna_str, "tttaccct");
+    // Count occurrences of pattern (uppercase to match our alphabet)
+    let pattern_count = count_substring(&dna_str, "AGGGTAAA")
+        + count_substring(&dna_str, "TTTACCCT");
 
-    // Match "tHa[Nt]" character class
+    // Match IUPAC "tHa[Nt]" character class against uppercase A/C/G/T
     let class_count = count_char_class(&dna_str);
 
-    // After "replacement" (tHaNt -> <4>), the length is:
-    // original_len - match_len + replacement_len * matches
-    let after_len = N + class_count * (2usize); // "<4>" is 3 chars, was 4, net -1 each... actually "<4>" vs "tHaNt" = -1 each
-    // Wait: "tHaNt" is 4 bytes, "<4>" is 3 bytes, so net -1 per match
-    // Actually for this benchmark we just use length changes after each substitution
+    // After replacement "tHaNt" -> "<4>": net -1 per match
+    // original_len = N, match consumes 4, replacement is 3
+    let after_len = N.wrapping_sub(class_count);
+
     let total_count = pattern_count + class_count;
-    let computed = (total_count as u64) * (after_len as u64) % MODULUS;
+    // Prevent overflow for final multiplication
+    let computed = ((total_count as u64) % MODULUS)
+        * ((after_len as u64) % MODULUS)
+        % MODULUS;
     computed
 }
 

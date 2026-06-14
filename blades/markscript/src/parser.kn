@@ -51,6 +51,8 @@ pub const OP_JN:             Int = 20
 pub const OP_ITER_GET:       Int = 21
 pub const OP_CALL_FN:        Int = 22
 pub const OP_RET_VAL:        Int = 23
+// GAMMA: string constant table opcode — pushes a string from the parser table by index
+pub const OP_PUSH_STRING_REF: Int = 24
 
 // ===========================================================================
 //  STRING HASH — DJB2 variant (multiply by 31)
@@ -85,6 +87,87 @@ pub fn hash_name(s: String) -> Int:
         h = h * 31 + cv
         i = i + 1
     return h
+
+// ===========================================================================
+//  STRING CONSTANT TABLE — survives compilation (Fix #1)
+//
+//  Strings in ```markscript blocks are stored here at parse time so the
+//  original text survives. Instead of hashing "hello" → 84721023 (lost
+//  forever), we push the index into this table and emit OP_PUSH_STRING_REF.
+//  The VM runner calls parser_strings_table() after compilation to load
+//  strings into the VM for runtime lookup.
+// ===========================================================================
+
+world ParserStrings:
+    state table: Array<String> = []
+    state count: Int = 0
+
+pub fn parser_strings_reset():
+    ParserStrings.table = []
+    ParserStrings.count = 0
+
+pub fn parser_strings_push(s: String) -> Int:
+    let idx = ParserStrings.count
+    ParserStrings.table[idx] = s
+    ParserStrings.count = idx + 1
+    return idx
+
+pub fn parser_strings_get(idx: Int) -> String:
+    return ParserStrings.table[idx]
+
+pub fn parser_strings_table() -> Array<String>:
+    return ParserStrings.table
+
+// ===========================================================================
+//  INTENT REGISTRY — records intent phrases during parsing (Fix #4)
+//
+//  Each blockquote intent (e.g. "> run") is recorded here alongside its
+//  hash. The check command calls parser_intents_phrases() and
+//  parser_intents_hashes() to validate against the IVT at compile time,
+//  catching typos before runtime.
+// ===========================================================================
+
+world ParserIntents:
+    state phrases: Array<String> = []
+    state hashes:   Array<Int> = []
+    state count:    Int = 0
+
+pub fn parser_intents_record(phrase: String, hash: Int):
+    let idx = ParserIntents.count
+    ParserIntents.phrases[idx] = phrase
+    ParserIntents.hashes[idx] = hash
+    ParserIntents.count = idx + 1
+
+pub fn parser_intents_phrases() -> Array<String>:
+    return ParserIntents.phrases
+
+pub fn parser_intents_hashes() -> Array<Int>:
+    return ParserIntents.hashes
+
+// ===========================================================================
+//  PROSE DETECTION — disambiguates markdown blockquotes from MKS intents (Fix #2)
+//
+//  Standard markdown blockquotes like "> This is documentation" should NOT
+//  be treated as MKS intents. We check if the first word is a common prose
+//  starter (articles, prepositions, pronouns, conjunctions). If so, the
+//  line is treated as prose — no bytecode is emitted.
+// ===========================================================================
+
+fn is_prose_starter(word: String) -> Bool:
+    if word == "The" or word == "This" or word == "A" or word == "An": return true
+    if word == "In" or word == "It" or word == "We" or word == "You": return true
+    if word == "For" or word == "But" or word == "And" or word == "Or": return true
+    if word == "If" or word == "To" or word == "With" or word == "All": return true
+    if word == "Some" or word == "Each" or word == "Every": return true
+    if word == "These" or word == "Those" or word == "As" or word == "At": return true
+    if word == "From" or word == "By" or word == "On" or word == "Not": return true
+    if word == "So" or word == "That" or word == "There" or word == "Their": return true
+    if word == "When" or word == "Where" or word == "Which" or word == "Who": return true
+    if word == "How" or word == "What" or word == "Why" or word == "Just": return true
+    if word == "One" or word == "Any" or word == "No" or word == "Other": return true
+    if word == "Also" or word == "Because" or word == "However": return true
+    if word == "Then" or word == "Now" or word == "Here" or word == "Still": return true
+    return false
 
 // ===========================================================================
 //  MARKSCRIPT MINI-LANGUAGE PARSER
@@ -330,9 +413,13 @@ fn ms_parse_factor(tokens: Array<MSToken>, pos: Int, bc: Array<Int>) -> Int:
         push(bc, ival)
         return pos + 1
     elif tok.kind == MS_TOK_STRING:
-        let shash = hash_name(tok.text)
-        push(bc, OP_PUSH_STACK)
-        push(bc, shash)
+        // Store original string in constant table (Fix #1)
+        // Instead of hashing "hello" → lost forever, push index into
+        // ParserStrings.table and emit OP_PUSH_STRING_REF so the VM
+        // can recover the original text at runtime.
+        let idx = parser_strings_push(tok.text)
+        push(bc, OP_PUSH_STRING_REF)
+        push(bc, idx)
         return pos + 1
     elif tok.kind == MS_TOK_IDENT:
         if pos + 1 < len(tokens) and tokens[pos + 1].kind == MS_TOK_LPAREN:
@@ -924,8 +1011,59 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
             let phrase_tok = phrase_nr.token
             s = phrase_nr.state
             let phrase = token_text(phrase_tok)
+            // Use first word as intent, rest as args (count+bytes pushed to VM stack)
+            var intent_word: String = phrase
+            var rest_text: String = ""
+            var si: Int = 0
+            while si < len(phrase):
+                let ch = text_substring_string(phrase, si, 1)
+                if ch == " " or ch == "\t":
+                    intent_word = text_substring_string(phrase, 0, si)
+                    rest_text = text_substring_string(phrase, si + 1, len(phrase) - si - 1)
+                    break
+                si = si + 1
+
+            // Fix #2: Prose vs Intent Disambiguation
+            // Check if the first word is a common prose starter (article,
+            // preposition, pronoun, conjunction). If so, treat the blockquote
+            // as markdown documentation — emit no bytecode.
+            // This prevents "> This is documentation" from producing
+            // "unknown intent phrase" errors.
+            if is_prose_starter(intent_word):
+                continue
+
+            // Fix #8 TODO: Variable Interpolation
+            // Before splitting the blockquote phrase, scan for ${var_name}
+            // patterns. If found, look up var_name in VM variables and
+            // substitute the value. This requires VM integration — the
+            // parser doesn't have access to VM variable state during
+            // compilation. Deferring to VM-level interpolation pass.
+
+            // Fix #4: Record intent for compile-time validation
+            // Store the original intent phrase alongside its hash so the
+            // check command can validate against the IVT.
+            let intent_hash = hash_name(intent_word)
+            parser_intents_record(intent_word, intent_hash)
+
+            // Push argument bytes to VM stack (count-prefixed for handler reconstruction)
+            if rest_text != "":
+                // Strip surrounding quotes if present
+                if len(rest_text) >= 2:
+                    let fc = text_substring_string(rest_text, 0, 1)
+                    let lc = text_substring_string(rest_text, len(rest_text) - 1, 1)
+                    if (fc == "\"" and lc == "\"") or (fc == "'" and lc == "'"):
+                        rest_text = text_substring_string(rest_text, 1, len(rest_text) - 2)
+                let byte_count = len(rest_text)
+                push(bc, OP_PUSH_STACK)
+                push(bc, byte_count)
+                var bi: Int = 0
+                while bi < byte_count:
+                    let ch_str = text_substring_string(rest_text, bi, 1)
+                    push(bc, OP_PUSH_STACK)
+                    push(bc, text_byte_at(text_as_bytes(text_from(ch_str)), 0))
+                    bi = bi + 1
             push(bc, OP_PUSH_PARAM)
-            push(bc, hash_name(phrase))
+            push(bc, intent_hash)
             push(bc, OP_EXECUTE_CALL)
 
         elif kind == TOK_TABLEPIPE:
@@ -1088,6 +1226,9 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
 // ===========================================================================
 
 pub fn compile_source(state: LexerState) -> Array<Int>:
+    // Fix #1: Reset string constant table before each compilation
+    // so strings from previous compilations don't leak into this one.
+    parser_strings_reset()
     return parse_source(state)
 
 pub fn compile_source_with_imports(state: LexerState, base_dir: String) -> Array<Int>:

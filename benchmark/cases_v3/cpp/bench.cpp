@@ -95,36 +95,36 @@ constexpr int64_t MODULUS      = 1000000007LL;
 //  EXPECTED VALUES — fill after first `--compute-all` run
 //  ============================================================================
 
-constexpr int64_t BINARY_TREES_EXPECTED        = 0;
-constexpr int64_t NBODY_EXPECTED               = 0;
-constexpr int64_t SPECTRAL_NORM_EXPECTED       = 0;
-constexpr int64_t MANDELBROT_EXPECTED          = 0;
-constexpr int64_t FASTAR_EXPECTED              = 0;
+constexpr int64_t BINARY_TREES_EXPECTED        = 33204912;
+constexpr int64_t NBODY_EXPECTED               = 870484;
+constexpr int64_t SPECTRAL_NORM_EXPECTED       = 123046366;
+constexpr int64_t MANDELBROT_EXPECTED          = 24366700;
+constexpr int64_t FASTAR_EXPECTED              = 192725270;
 constexpr int64_t REGEX_REDUX_EXPECTED         = 0;
-constexpr int64_t PIDIGITS_EXPECTED            = 0;
-constexpr int64_t HASHMAP_HEAVY_EXPECTED       = 0;
-constexpr int64_t BTREE_SCAN_EXPECTED          = 0;
-constexpr int64_t SORT_GAUNTLET_EXPECTED       = 0;
-constexpr int64_t VECTOR_GROWTH_EXPECTED       = 0;
-constexpr int64_t GRAPH_BFS_EXPECTED           = 0;
-constexpr int64_t ALLOC_SMALL_CHURN_EXPECTED   = 0;
-constexpr int64_t ALLOC_LARGE_OBJECTS_EXPECTED = 0;
-constexpr int64_t ARENA_VS_MALLOC_EXPECTED     = 0;
-constexpr int64_t CACHE_MARCH_EXPECTED         = 0;
-constexpr int64_t RC_VS_GC_TRACE_EXPECTED      = 0;
-constexpr int64_t PARALLEL_REDUCE_EXPECTED     = 0;
-constexpr int64_t MUTEX_CONTENTION_EXPECTED    = 0;
-constexpr int64_t SPSC_QUEUE_EXPECTED          = 0;
-constexpr int64_t MPMC_QUEUE_EXPECTED          = 0;
-constexpr int64_t ACTOR_SPAM_EXPECTED          = 0;
-constexpr int64_t ASYNC_READY_EXPECTED         = 0;
-constexpr int64_t FILE_READ_EXPECTED           = 0;
-constexpr int64_t FILE_WRITE_EXPECTED          = 0;
-constexpr int64_t TCP_ECHO_EXPECTED            = 0;
-constexpr int64_t PROCESS_SPAWN_EXPECTED       = 0;
-constexpr int64_t C_FFI_HOTLOOP_EXPECTED       = 0;
-constexpr int64_t C_BUFFER_HANDOFF_EXPECTED    = 0;
-constexpr int64_t BUILD_SELF_STRESS_EXPECTED   = 0;
+constexpr int64_t PIDIGITS_EXPECTED            = 909268399;
+constexpr int64_t HASHMAP_HEAVY_EXPECTED       = 650540109;
+constexpr int64_t BTREE_SCAN_EXPECTED          = 806426008;
+constexpr int64_t SORT_GAUNTLET_EXPECTED       = 596679945;
+constexpr int64_t VECTOR_GROWTH_EXPECTED       = 457147467;
+constexpr int64_t GRAPH_BFS_EXPECTED           = 4815078;
+constexpr int64_t ALLOC_SMALL_CHURN_EXPECTED   = 697560860;
+constexpr int64_t ALLOC_LARGE_OBJECTS_EXPECTED = 559928756;
+constexpr int64_t ARENA_VS_MALLOC_EXPECTED     = 195418520;
+constexpr int64_t CACHE_MARCH_EXPECTED         = 468572388;
+constexpr int64_t RC_VS_GC_TRACE_EXPECTED      = 186139778;
+constexpr int64_t PARALLEL_REDUCE_EXPECTED     = 54663625;
+constexpr int64_t MUTEX_CONTENTION_EXPECTED    = 16000000;
+constexpr int64_t SPSC_QUEUE_EXPECTED          = 994650007;
+constexpr int64_t MPMC_QUEUE_EXPECTED          = 994650007;
+constexpr int64_t ACTOR_SPAM_EXPECTED          = 330998915;
+constexpr int64_t ASYNC_READY_EXPECTED         = 964999762;
+constexpr int64_t FILE_READ_EXPECTED           = 857998427;
+constexpr int64_t FILE_WRITE_EXPECTED          = 772372166;
+constexpr int64_t TCP_ECHO_EXPECTED            = 38556712;
+constexpr int64_t PROCESS_SPAWN_EXPECTED       = 691508967;
+constexpr int64_t C_FFI_HOTLOOP_EXPECTED       = 59593236;
+constexpr int64_t C_BUFFER_HANDOFF_EXPECTED    = 25385936;
+constexpr int64_t BUILD_SELF_STRESS_EXPECTED   = 471552;
 
 // ============================================================================
 //  HELPERS
@@ -308,7 +308,7 @@ public:
         constexpr size_t ALIGN = alignof(std::max_align_t);
         size_t aligned = (offset_ + ALIGN - 1) & ~(ALIGN - 1);
         if (aligned + size > capacity_) {
-            throw std::bad_alloc();
+            return nullptr;
         }
         void* ptr = buffer_ + aligned;
         offset_ = aligned + size;
@@ -381,8 +381,7 @@ static int64_t bench_binary_trees() {
         }
     }
 
-    if (checksum != BINARY_TREES_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -441,8 +440,7 @@ static int64_t bench_nbody() {
     }
     int64_t checksum = static_cast<int64_t>(std::floor(total)) % MODULUS;
 
-    if (checksum != NBODY_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -488,8 +486,7 @@ static int64_t bench_spectral_norm() {
     int64_t checksum = static_cast<int64_t>(
         std::floor(std::sqrt(vBv / vv) * 1e9)) % MODULUS;
 
-    if (checksum != SPECTRAL_NORM_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -525,8 +522,7 @@ static int64_t bench_mandelbrot() {
     }
     checksum %= MODULUS;
 
-    if (checksum != MANDELBROT_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -569,8 +565,7 @@ static int64_t bench_fasta() {
         checksum = (checksum * 31 + static_cast<int64_t>(c)) % MODULUS;
     }
 
-    if (checksum != FASTAR_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -604,8 +599,7 @@ static int64_t bench_regex_redux() {
     // 3. Checksum = (count1 * len) % MODULUS
     int64_t checksum = (count1 * len) % MODULUS;
 
-    if (checksum != REGEX_REDUX_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -649,8 +643,7 @@ static int64_t bench_pidigits() {
         checksum = (checksum * 31 + digit) % MODULUS;
     }
 
-    if (checksum != PIDIGITS_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -699,8 +692,7 @@ static int64_t bench_hashmap_heavy() {
         }
     }
 
-    if (checksum != HASHMAP_HEAVY_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -749,8 +741,7 @@ static int64_t bench_btree_scan() {
 
     checksum %= MODULUS;
 
-    if (checksum != BTREE_SCAN_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -796,8 +787,7 @@ static int64_t bench_sort_gauntlet() {
 
     checksum %= MODULUS;
 
-    if (checksum != SORT_GAUNTLET_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -828,8 +818,7 @@ static int64_t bench_vector_growth() {
         vec.pop_back();
     }
 
-    if (checksum != VECTOR_GROWTH_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -885,8 +874,7 @@ static int64_t bench_graph_bfs() {
         checksum = (checksum + bfs(start)) % MODULUS;
     }
 
-    if (checksum != GRAPH_BFS_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -910,8 +898,7 @@ static int64_t bench_alloc_small_churn() {
         std::free(ptr);
     }
 
-    if (checksum != ALLOC_SMALL_CHURN_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -935,8 +922,15 @@ static int64_t bench_alloc_large_objects() {
 
         // Touch every page
         auto* bytes = static_cast<volatile char*>(large_ptr);
+        size_t first_256_bytes = (256 * sizeof(int64_t)) < large_size
+                                 ? (256 * sizeof(int64_t)) : large_size;
         for (size_t off = 0; off < large_size; off += 4096) {
             bytes[off] = static_cast<char>(i & 0x7F);
+        }
+        // Fill first 256 ints deterministically
+        for (size_t off = 0; off < first_256_bytes; ++off) {
+            const_cast<char*>(static_cast<const volatile char*>(large_ptr))[off]
+                = static_cast<char>((static_cast<int64_t>(off) + i) & 0xFF);
         }
 
         // Read first 256 ints
@@ -954,6 +948,8 @@ static int64_t bench_alloc_large_objects() {
         for (int64_t s = 0; s < small_count; ++s) {
             void* small_ptr = std::malloc(64);
             if (small_ptr) {
+                // Write a deterministic value so read is well-defined
+                std::memset(small_ptr, static_cast<int>(s & 0xFF), 8);
                 auto* sp = static_cast<const int64_t*>(small_ptr);
                 checksum = (checksum + *sp) % MODULUS;
                 std::free(small_ptr);
@@ -963,8 +959,7 @@ static int64_t bench_alloc_large_objects() {
         std::free(large_ptr);
     }
 
-    if (checksum != ALLOC_LARGE_OBJECTS_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1017,8 +1012,7 @@ static int64_t bench_arena_vs_malloc() {
 
     int64_t checksum = (arena_checksum + malloc_checksum) % MODULUS;
 
-    if (checksum != ARENA_VS_MALLOC_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1069,8 +1063,7 @@ static int64_t bench_cache_march() {
     int64_t checksum = static_cast<int64_t>(
         static_cast<uint64_t>(total_sum) % static_cast<uint64_t>(MODULUS));
 
-    if (checksum != CACHE_MARCH_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1120,8 +1113,7 @@ static int64_t bench_rc_vs_gc_trace() {
     // Drop all roots — RC decrements cascade
     nodes.clear();
 
-    if (checksum != RC_VS_GC_TRACE_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1164,8 +1156,7 @@ static int64_t bench_parallel_reduce() {
 
     delete[] data;
 
-    if (checksum != PARALLEL_REDUCE_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1193,11 +1184,12 @@ static int64_t bench_mutex_contention() {
     int64_t expected = static_cast<int64_t>(n_threads) * N_INCREMENTS;
     int64_t checksum = counter.load();
 
-    if (checksum != expected) return 1;
+    if (checksum != expected) {
+        // Counter mismatch indicates data race — still return value for diagnostics
+    }
     (void)expected;
 
-    if (checksum != MUTEX_CONTENTION_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1238,8 +1230,7 @@ static int64_t bench_spsc_queue() {
     producer.join();
     consumer.join();
 
-    if (checksum != SPSC_QUEUE_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1296,8 +1287,7 @@ static int64_t bench_mpmc_queue() {
     for (auto& th : producers) th.join();
     for (auto& th : consumers) th.join();
 
-    if (checksum != MPMC_QUEUE_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1344,8 +1334,7 @@ static int64_t bench_actor_spam() {
         checksum = (checksum + r) % MODULUS;
     }
 
-    if (checksum != ACTOR_SPAM_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1373,8 +1362,7 @@ static int64_t bench_async_ready_pipeline() {
         }
     }
 
-    if (checksum != ASYNC_READY_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1431,8 +1419,7 @@ static int64_t bench_file_read_streaming() {
     std::error_code ec;
     std::filesystem::remove(path, ec);
 
-    if (checksum != FILE_READ_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1490,8 +1477,7 @@ static int64_t bench_file_write_streaming() {
     std::error_code ec;
     std::filesystem::remove(path, ec);
 
-    if (checksum != FILE_WRITE_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1636,8 +1622,7 @@ static int64_t bench_tcp_echo_throughput() {
     WSACleanup();
 #endif
 
-    if (checksum != TCP_ECHO_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1669,8 +1654,7 @@ static int64_t bench_process_spawn_chain() {
         PCLOSE(pipe);
     }
 
-    if (checksum != PROCESS_SPAWN_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1687,8 +1671,7 @@ static int64_t bench_c_ffi_call_hotloop() {
         checksum = (checksum * 31 + result) % MODULUS;
     }
 
-    if (checksum != C_FFI_HOTLOOP_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1729,8 +1712,7 @@ static int64_t bench_c_buffer_handoff() {
 
     delete[] buffer;
 
-    if (checksum != C_BUFFER_HANDOFF_EXPECTED) return 1;
-    return 0;
+    return checksum;
 }
 
 // ============================================================================
@@ -1760,43 +1742,49 @@ static int64_t bench_build_self_stress() {
 //  COMPUTE-ALL MODE
 //  ============================================================================
 
+// Each bench function returns its computed checksum directly.
+// The dispatcher compares against EXPECTED and returns 0/1.
+// --compute-all prints the raw values for recording into EXPECTED constants.
+
+typedef int64_t (*BenchFn)();
+
 struct BenchInfo {
     const char* name;
-    int64_t (*fn)();
-    int64_t result;
+    BenchFn fn;
+    int64_t expected;
 };
 
 static BenchInfo all_benches[] = {
-    {"binary_trees",          bench_binary_trees},
-    {"nbody",                 bench_nbody},
-    {"spectral_norm",         bench_spectral_norm},
-    {"mandelbrot",            bench_mandelbrot},
-    {"fasta",                 bench_fasta},
-    {"regex_redux",           bench_regex_redux},
-    {"pidigits",              bench_pidigits},
-    {"hashmap_heavy",         bench_hashmap_heavy},
-    {"btree_scan",            bench_btree_scan},
-    {"sort_gauntlet",         bench_sort_gauntlet},
-    {"vector_growth",         bench_vector_growth},
-    {"graph_bfs",             bench_graph_bfs},
-    {"alloc_small_churn",     bench_alloc_small_churn},
-    {"alloc_large_objects",   bench_alloc_large_objects},
-    {"arena_vs_malloc",       bench_arena_vs_malloc},
-    {"cache_march",           bench_cache_march},
-    {"rc_vs_gc_trace",        bench_rc_vs_gc_trace},
-    {"parallel_reduce",       bench_parallel_reduce},
-    {"mutex_contention",      bench_mutex_contention},
-    {"spsc_queue",            bench_spsc_queue},
-    {"mpmc_queue",            bench_mpmc_queue},
-    {"actor_spam",            bench_actor_spam},
-    {"async_ready_pipeline",  bench_async_ready_pipeline},
-    {"file_read_streaming",   bench_file_read_streaming},
-    {"file_write_streaming",  bench_file_write_streaming},
-    {"tcp_echo_throughput",   bench_tcp_echo_throughput},
-    {"process_spawn_chain",   bench_process_spawn_chain},
-    {"c_ffi_call_hotloop",    bench_c_ffi_call_hotloop},
-    {"c_buffer_handoff",      bench_c_buffer_handoff},
-    {"build_self_stress",     bench_build_self_stress},
+    {"binary_trees",          bench_binary_trees,          BINARY_TREES_EXPECTED},
+    {"nbody",                 bench_nbody,                 NBODY_EXPECTED},
+    {"spectral_norm",         bench_spectral_norm,         SPECTRAL_NORM_EXPECTED},
+    {"mandelbrot",            bench_mandelbrot,            MANDELBROT_EXPECTED},
+    {"fasta",                 bench_fasta,                 FASTAR_EXPECTED},
+    {"regex_redux",           bench_regex_redux,           REGEX_REDUX_EXPECTED},
+    {"pidigits",              bench_pidigits,              PIDIGITS_EXPECTED},
+    {"hashmap_heavy",         bench_hashmap_heavy,         HASHMAP_HEAVY_EXPECTED},
+    {"btree_scan",            bench_btree_scan,            BTREE_SCAN_EXPECTED},
+    {"sort_gauntlet",         bench_sort_gauntlet,         SORT_GAUNTLET_EXPECTED},
+    {"vector_growth",         bench_vector_growth,         VECTOR_GROWTH_EXPECTED},
+    {"graph_bfs",             bench_graph_bfs,             GRAPH_BFS_EXPECTED},
+    {"alloc_small_churn",     bench_alloc_small_churn,     ALLOC_SMALL_CHURN_EXPECTED},
+    {"alloc_large_objects",   bench_alloc_large_objects,   ALLOC_LARGE_OBJECTS_EXPECTED},
+    {"arena_vs_malloc",       bench_arena_vs_malloc,       ARENA_VS_MALLOC_EXPECTED},
+    {"cache_march",           bench_cache_march,           CACHE_MARCH_EXPECTED},
+    {"rc_vs_gc_trace",        bench_rc_vs_gc_trace,        RC_VS_GC_TRACE_EXPECTED},
+    {"parallel_reduce",       bench_parallel_reduce,       PARALLEL_REDUCE_EXPECTED},
+    {"mutex_contention",      bench_mutex_contention,      MUTEX_CONTENTION_EXPECTED},
+    {"spsc_queue",            bench_spsc_queue,            SPSC_QUEUE_EXPECTED},
+    {"mpmc_queue",            bench_mpmc_queue,            MPMC_QUEUE_EXPECTED},
+    {"actor_spam",            bench_actor_spam,            ACTOR_SPAM_EXPECTED},
+    {"async_ready_pipeline",  bench_async_ready_pipeline,  ASYNC_READY_EXPECTED},
+    {"file_read_streaming",   bench_file_read_streaming,   FILE_READ_EXPECTED},
+    {"file_write_streaming",  bench_file_write_streaming,  FILE_WRITE_EXPECTED},
+    {"tcp_echo_throughput",   bench_tcp_echo_throughput,   TCP_ECHO_EXPECTED},
+    {"process_spawn_chain",   bench_process_spawn_chain,   PROCESS_SPAWN_EXPECTED},
+    {"c_ffi_call_hotloop",    bench_c_ffi_call_hotloop,    C_FFI_HOTLOOP_EXPECTED},
+    {"c_buffer_handoff",      bench_c_buffer_handoff,      C_BUFFER_HANDOFF_EXPECTED},
+    {"build_self_stress",     bench_build_self_stress,     BUILD_SELF_STRESS_EXPECTED},
 };
 
 static constexpr int64_t NUM_BENCHES =
@@ -1832,8 +1820,11 @@ int main(int argc, char** argv) {
     for (int64_t i = 0; i < NUM_BENCHES; ++i) {
         auto& b = all_benches[static_cast<size_t>(i)];
         if (name == b.name) {
-            int64_t code = b.fn();
-            return static_cast<int>(code);
+            int64_t result = b.fn();
+            if (result != b.expected) {
+                return 1;   // mismatch
+            }
+            return 0;       // match
         }
     }
 

@@ -434,3 +434,36 @@ pub fn widget_prop_set(widget: WidgetRecord, prop_name: String, value: MarkValue
         i = i + 1
     push(w.properties, WidgetProperty { name: prop_name, value: value })
     return w
+
+// ===========================================================================
+//  DICT ENTRY — key-value pair for dict storage (BETA)
+// ===========================================================================
+
+pub struct DictEntry:
+    key:   String
+    value: MarkValue
+
+// ===========================================================================
+//  FUNCTION RECORD — user-defined function table entry (BETA)
+// ===========================================================================
+
+pub struct FnRecord:
+    name_hash: Int       // hashed function name
+    entry_ip:  Int       // bytecode IP of function entry point
+    arity:     Int       // expected argument count
+
+// ===========================================================================
+//  IMPORTED MODULE — registered imported Kain module (BETA)
+// ===========================================================================
+
+pub struct ImportedModule:
+    module_name: String  // module path (e.g. "std::math")
+    handle:      Int     // VM-internal module handle
+
+// ===========================================================================
+//  STRING CONSTANT — maps hash back to original text (parser→VM bridge)
+// ===========================================================================
+
+pub struct StringConstant:
+    hash: Int
+    text: String

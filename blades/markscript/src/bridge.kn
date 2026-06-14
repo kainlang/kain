@@ -28,6 +28,10 @@ use std::fs
 use std::process
 use std::diagnostics
 use std::text
+use std::math       // fast_sin, fast_cos for BETA math handlers
+use std::json       // json_parse_text, json_stringify for BETA JSON handlers
+use std::time       // now_millis, sleep_millis for BETA time handlers
+use std::random     // random_ambient_* for BETA random handlers
 use types       // MarkValue, mark_int, mark_bool, mark_string, mark_array, mark_dict,
                 // mark_widget, mark_event, mark_empty,
                 // mark_value_to_string, MARK_INT, MARK_FLOAT, MARK_STRING, MARK_ARRAY, MARK_DICT, MARK_BOOL,
@@ -332,6 +336,7 @@ pub fn register_builtin(vm: MarkScriptVM, phrase: String, handler_id: Int) -> Ma
 // Register all standard intent phrases in the VM's IVT
 pub fn register_stdlib_handlers(vm: MarkScriptVM) -> MarkScriptVM:
     var v = vm
+    // --- ALPHA: Primary intents (original 8) ---
     v = register_handler(v, hash_name("read file"), FN_FS_READ_TEXT)
     v = register_handler(v, hash_name("write file"), FN_FS_WRITE_TEXT)
     v = register_handler(v, hash_name("file exists"), FN_FS_EXISTS)
@@ -340,19 +345,92 @@ pub fn register_stdlib_handlers(vm: MarkScriptVM) -> MarkScriptVM:
     v = register_handler(v, hash_name("import kain"), FN_IMPORT_KAIN)
     v = register_handler(v, hash_name("assert"), FN_ASSERT)
     v = register_handler(v, hash_name("print"), FN_PRINTLN)
-    // GAMMA: process lifecycle intents
+
+    // --- Fix 1: Single-word aliases for all multi-word intents ---
+    // These enable blockquote argument passing: > write "path" "content"
+    v = register_handler(v, hash_name("write"), FN_FS_WRITE_TEXT)
+    v = register_handler(v, hash_name("read"), FN_FS_READ_TEXT)
+    v = register_handler(v, hash_name("exists"), FN_FS_EXISTS)
+    v = register_handler(v, hash_name("import"), FN_IMPORT_KAIN)
+    v = register_handler(v, hash_name("find"), FN_UI_GET_WIDGET)
+    v = register_handler(v, hash_name("set"), FN_UI_SET_PROPERTY)
+    v = register_handler(v, hash_name("get"), FN_UI_GET_PROPERTY)
+    v = register_handler(v, hash_name("create"), FN_UI_CREATE_WIDGET)
+
+    // --- BETA: String handlers (13-21) ---
+    v = register_handler(v, hash_name("concat"), FN_STRING_CONCAT)
+    v = register_handler(v, hash_name("split"), FN_STRING_SPLIT)
+    v = register_handler(v, hash_name("join"), FN_STRING_JOIN)
+    v = register_handler(v, hash_name("substr"), FN_STRING_SUBSTR)
+    v = register_handler(v, hash_name("replace"), FN_STRING_REPLACE)
+    v = register_handler(v, hash_name("upper"), FN_STRING_UPPER)
+    v = register_handler(v, hash_name("lower"), FN_STRING_LOWER)
+    v = register_handler(v, hash_name("trim"), FN_STRING_TRIM)
+    v = register_handler(v, hash_name("contains"), FN_STRING_CONTAINS)
+
+    // --- BETA: Math handlers (22-30) ---
+    v = register_handler(v, hash_name("sin"), FN_MATH_SIN)
+    v = register_handler(v, hash_name("cos"), FN_MATH_COS)
+    v = register_handler(v, hash_name("sqrt"), FN_MATH_SQRT)
+    v = register_handler(v, hash_name("abs"), FN_MATH_ABS)
+    v = register_handler(v, hash_name("min"), FN_MATH_MIN)
+    v = register_handler(v, hash_name("max"), FN_MATH_MAX)
+    v = register_handler(v, hash_name("clamp"), FN_MATH_CLAMP)
+    v = register_handler(v, hash_name("rand int"), FN_MATH_RANDOM_INT)
+    v = register_handler(v, hash_name("rand float"), FN_MATH_RANDOM_FLOAT)
+    v = register_handler(v, hash_name("random"), FN_RANDOM_INT_RANGE)    // alias: > random 0 100
+
+    // --- BETA: JSON handlers (31-32) ---
+    v = register_handler(v, hash_name("parse json"), FN_JSON_PARSE)
+    v = register_handler(v, hash_name("parse"), FN_JSON_PARSE)           // alias
+    v = register_handler(v, hash_name("stringify"), FN_JSON_STRINGIFY)
+
+    // --- BETA: Filesystem handlers (33-37) ---
+    v = register_handler(v, hash_name("mkdir"), FN_FS_MKDIR)
+    v = register_handler(v, hash_name("readdir"), FN_FS_READ_DIR)
+    v = register_handler(v, hash_name("stat"), FN_FS_STAT)
+    v = register_handler(v, hash_name("touch"), FN_FS_TOUCH)
+    v = register_handler(v, hash_name("chmod"), FN_FS_CHMOD)
+
+    // --- BETA: Process handlers (38-40) ---
+    v = register_handler(v, hash_name("exit code"), FN_PROCESS_EXIT_CODE)
+    v = register_handler(v, hash_name("get stderr"), FN_PROCESS_STDERR)
+    v = register_handler(v, hash_name("kill process"), FN_PROCESS_KILL)
+
+    // --- BETA: Time handlers (41-43) ---
+    v = register_handler(v, hash_name("time now"), FN_TIME_NOW)
+    v = register_handler(v, hash_name("time"), FN_TIME_NOW)              // alias
+    v = register_handler(v, hash_name("sleep"), FN_TIME_SLEEP)
+    v = register_handler(v, hash_name("format time"), FN_TIME_FORMAT)
+
+    // --- BETA: Network handlers (44-45) ---
+    v = register_handler(v, hash_name("http get"), FN_NET_HTTP_GET)
+    v = register_handler(v, hash_name("tcp connect"), FN_NET_TCP_CONNECT)
+
+    // --- BETA: Regex handlers (46-47) ---
+    v = register_handler(v, hash_name("regex match"), FN_REGEX_MATCH)
+    v = register_handler(v, hash_name("regex replace"), FN_REGEX_REPLACE)
+
+    // --- BETA: Template handler (48) ---
+    v = register_handler(v, hash_name("template"), FN_TEMPLATE_RENDER)
+
+    // --- BETA: Random range handlers (49-50) ---
+    v = register_handler(v, hash_name("rand range"), FN_RANDOM_INT_RANGE)
+    v = register_handler(v, hash_name("rand float range"), FN_RANDOM_FLOAT_RANGE)
+
+    // --- GAMMA: Process lifecycle intents (51-59) ---
     v = register_handler(v, hash_name("spawn tracked"), FN_PROCESS_SPAWN_TRACKED)
     v = register_handler(v, hash_name("await"), FN_PROCESS_AWAIT)
-    v = register_handler(v, hash_name("kill"), FN_PROCESS_KILL_PID)
+    v = register_handler(v, hash_name("kill pid"), FN_PROCESS_KILL_PID)
+    v = register_handler(v, hash_name("kill"), FN_PROCESS_KILL_PID)      // alias (single-word)
     v = register_handler(v, hash_name("exitcode"), FN_PROCESS_EXIT_CODE_PID)
     v = register_handler(v, hash_name("stdout"), FN_PROCESS_STDOUT_PID)
     v = register_handler(v, hash_name("stderr"), FN_PROCESS_STDERR_PID)
     v = register_handler(v, hash_name("pipe"), FN_PROCESS_PIPE)
     v = register_handler(v, hash_name("env"), FN_PROCESS_ENV)
     v = register_handler(v, hash_name("cwd"), FN_PROCESS_CWD)
-    // BETA: stdlib intent registration (bridge_stdlib.kn — disabled pending cross-lane merge)
-    // v = bridge_stdlib.register_stdlib_intents(v)
-    // DELTA: UI scripting intents
+
+    // --- DELTA: UI scripting intents (71-78) ---
     v = register_handler(v, hash_name("click"), FN_UI_ON_CLICK)
     v = register_handler(v, hash_name("key"), FN_UI_ON_KEY)
     v = register_handler(v, hash_name("focus"), FN_UI_ON_FOCUS)
@@ -447,15 +525,28 @@ fn handler_fs_exists(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
         return HandlerResult { vm: vm, value: mark_int(0), err: "" }
 
 // --- handler_process_output — "run" intent --------------------------------
-// args[0] = command string
+// args: either a single command string/int, or count+bytes from blockquote split
 // Uses process_output_text for synchronous capture with timeout
 fn handler_process_output(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var cmd: String = ""
     if len(args) > 0:
-        if args[0].kind == MARK_STRING:
-            cmd = args[0].str_val
-        elif args[0].kind == MARK_INT:
-            cmd = str(args[0].int_val)
+        // Check for count+bytes format (new blockquote argument passing)
+        if args[0].kind == MARK_INT and len(args) > 1:
+            let maybe_count = args[0].int_val
+            if maybe_count > 0 and maybe_count == len(args) - 1:
+                // Reconstruct string from byte values
+                var bytes_arr: Array<Int> = []
+                var bi: Int = 1
+                while bi < len(args):
+                    push(bytes_arr, args[bi].int_val)
+                    bi = bi + 1
+                cmd = text_from_byte_array(bytes_arr)
+        if cmd == "":
+            // Fall back to old format: single MARK_STRING or MARK_INT
+            if args[0].kind == MARK_STRING:
+                cmd = args[0].str_val
+            elif args[0].kind == MARK_INT:
+                cmd = str(args[0].int_val)
 
     if cmd == "":
         return HandlerResult {
@@ -464,10 +555,23 @@ fn handler_process_output(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerRe
             err: "run: no command provided"
         }
 
+    // Use the command string directly as the executable.
+    // For commands with arguments, the benchmark binaries should read the
+    // case name from the KAIN_BENCH_V3_CASE environment variable.
     let output = process_output_text(cmd, "", "", "", 5000)
+
+    // Fix 4: Fallback via cmd.exe /c when direct stdout capture fails on Windows.
+    // Regular executables may return empty stdout from process_output_text
+    // due to CreateProcess pipe configuration. Shell-launched commands bypass this.
+    var final_output = output
+    if final_output == "" and cmd != "":
+        let shell_output = process_output_text("cmd.exe", "/c", cmd, "", 5000)
+        if shell_output != "":
+            final_output = shell_output
+
     return HandlerResult {
         vm: vm,
-        value: mark_string(output),
+        value: mark_string(final_output),
         err: ""
     }
 
@@ -682,6 +786,582 @@ fn handler_pop(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
 
 
 // ===========================================================================
+//  BETA: STRING HANDLERS (13-21) — string operations via std::text
+// ===========================================================================
+
+// --- handler_string_concat (13) — "concat" intent -------------------------
+// args[0..N] = strings to concatenate
+fn handler_string_concat(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(args):
+        result = result + mark_value_to_string(args[i])
+        i = i + 1
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_split (14) — "split" intent ---------------------------
+// args[0] = string, args[1] = delimiter
+fn handler_string_split(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    var delim: String = " "
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    if len(args) > 1:
+        delim = mark_value_to_string(args[1])
+    if input == "":
+        return HandlerResult { vm: vm, value: mark_string(""), err: "split: no input provided" }
+    let parts = text_split_string(input, delim)
+    let result = text_join_strings(parts, "\n")
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_join (15) — "join" intent -----------------------------
+// args[0] = delimiter, args[1..N] = strings to join
+fn handler_string_join(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var delim: String = ""
+    var start: Int = 0
+    if len(args) > 0:
+        delim = mark_value_to_string(args[0])
+        start = 1
+    var parts: Array<String> = []
+    var i: Int = start
+    while i < len(args):
+        push(parts, mark_value_to_string(args[i]))
+        i = i + 1
+    let result = text_join_strings(parts, delim)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_substr (16) — "substr" intent -------------------------
+// args[0] = string, args[1] = start, args[2] = length
+fn handler_string_substr(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    var start: Int = 0
+    var count: Int = -1  // -1 means to end
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    if len(args) > 1 and args[1].kind == MARK_INT:
+        start = args[1].int_val
+    if len(args) > 2 and args[2].kind == MARK_INT:
+        count = args[2].int_val
+    if start < 0:
+        start = 0
+    if count < 0:
+        count = len(input) - start
+    if start >= len(input):
+        return HandlerResult { vm: vm, value: mark_string(""), err: "" }
+    let result = text_substring_string(input, start, count)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_replace (17) — "replace" intent -----------------------
+// args[0] = string, args[1] = old, args[2] = new
+fn handler_string_replace(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    var old: String = ""
+    var new_str: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    if len(args) > 1:
+        old = mark_value_to_string(args[1])
+    if len(args) > 2:
+        new_str = mark_value_to_string(args[2])
+    if old == "":
+        return HandlerResult { vm: vm, value: mark_string(input), err: "" }
+    let result = text_replace_string(input, old, new_str)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_upper (18) — "upper" intent ---------------------------
+// args[0] = string
+fn handler_string_upper(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    let result = text_upper(input)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_lower (19) — "lower" intent ---------------------------
+// args[0] = string
+fn handler_string_lower(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    let result = text_lower(input)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_trim (20) — "trim" intent -----------------------------
+// args[0] = string
+fn handler_string_trim(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    let result = text_trim_string(input)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_string_contains (21) — "contains" intent ---------------------
+// args[0] = haystack, args[1] = needle
+fn handler_string_contains(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var haystack: String = ""
+    var needle: String = ""
+    if len(args) > 0:
+        haystack = mark_value_to_string(args[0])
+    if len(args) > 1:
+        needle = mark_value_to_string(args[1])
+    let found = text_contains_string(haystack, needle)
+    if found:
+        return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "" }
+
+// ===========================================================================
+//  BETA: MATH HANDLERS (22-30) — scalar math operations
+// ===========================================================================
+
+// --- handler_math_sin (22) — "sin" intent ---------------------------------
+// args[0] = angle in radians (float or int)
+fn handler_math_sin(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var val: Float = 0.0
+    if len(args) > 0:
+        if args[0].kind == MARK_FLOAT:
+            val = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            val = args[0].int_val
+    let result = fast_sin(val)
+    return HandlerResult { vm: vm, value: mark_float(result), err: "" }
+
+// --- handler_math_cos (23) — "cos" intent ---------------------------------
+// args[0] = angle in radians (float or int)
+fn handler_math_cos(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var val: Float = 0.0
+    if len(args) > 0:
+        if args[0].kind == MARK_FLOAT:
+            val = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            val = args[0].int_val
+    let result = fast_cos(val)
+    return HandlerResult { vm: vm, value: mark_float(result), err: "" }
+
+// --- handler_math_sqrt (24) — "sqrt" intent -------------------------------
+// args[0] = value (Newton's method for square root)
+fn handler_math_sqrt(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var val: Float = 0.0
+    if len(args) > 0:
+        if args[0].kind == MARK_FLOAT:
+            val = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            val = args[0].int_val
+    if val < 0.0:
+        return HandlerResult { vm: vm, value: mark_float(0.0), err: "sqrt: negative input" }
+    if val == 0.0:
+        return HandlerResult { vm: vm, value: mark_float(0.0), err: "" }
+    // Newton's method: x_{n+1} = (x_n + val/x_n) / 2
+    var guess: Float = val / 2.0
+    var iter: Int = 0
+    while iter < 20:
+        let new_guess = (guess + val / guess) / 2.0
+        if new_guess == guess:
+            break
+        guess = new_guess
+        iter = iter + 1
+    return HandlerResult { vm: vm, value: mark_float(guess), err: "" }
+
+// --- handler_math_abs (25) — "abs" intent ---------------------------------
+// args[0] = value
+fn handler_math_abs(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        if args[0].kind == MARK_FLOAT:
+            let v = args[0].float_val
+            if v < 0.0:
+                return HandlerResult { vm: vm, value: mark_float(-v), err: "" }
+            return HandlerResult { vm: vm, value: mark_float(v), err: "" }
+        elif args[0].kind == MARK_INT:
+            let v = args[0].int_val
+            if v < 0:
+                return HandlerResult { vm: vm, value: mark_int(-v), err: "" }
+            return HandlerResult { vm: vm, value: mark_int(v), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "abs: no argument" }
+
+// --- handler_math_min (26) — "min" intent ---------------------------------
+// args[0], args[1] = values to compare
+fn handler_math_min(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "min: need two arguments" }
+    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT:
+        var a: Float = 0.0
+        var b: Float = 0.0
+        if args[0].kind == MARK_FLOAT:
+            a = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            a = args[0].int_val
+        if args[1].kind == MARK_FLOAT:
+            b = args[1].float_val
+        elif args[1].kind == MARK_INT:
+            b = args[1].int_val
+        if a < b:
+            return HandlerResult { vm: vm, value: mark_float(a), err: "" }
+        return HandlerResult { vm: vm, value: mark_float(b), err: "" }
+    let a = args[0].int_val
+    let b = args[1].int_val
+    if a < b:
+        return HandlerResult { vm: vm, value: mark_int(a), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(b), err: "" }
+
+// --- handler_math_max (27) — "max" intent ---------------------------------
+// args[0], args[1] = values to compare
+fn handler_math_max(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "max: need two arguments" }
+    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT:
+        var a: Float = 0.0
+        var b: Float = 0.0
+        if args[0].kind == MARK_FLOAT:
+            a = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            a = args[0].int_val
+        if args[1].kind == MARK_FLOAT:
+            b = args[1].float_val
+        elif args[1].kind == MARK_INT:
+            b = args[1].int_val
+        if a > b:
+            return HandlerResult { vm: vm, value: mark_float(a), err: "" }
+        return HandlerResult { vm: vm, value: mark_float(b), err: "" }
+    let a = args[0].int_val
+    let b = args[1].int_val
+    if a > b:
+        return HandlerResult { vm: vm, value: mark_int(a), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(b), err: "" }
+
+// --- handler_math_clamp (28) — "clamp" intent -----------------------------
+// args[0] = value, args[1] = lo, args[2] = hi
+fn handler_math_clamp(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 3:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "clamp: need value, lo, hi" }
+    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT or args[2].kind == MARK_FLOAT:
+        var v: Float = 0.0
+        var lo: Float = 0.0
+        var hi: Float = 0.0
+        if args[0].kind == MARK_FLOAT: v = args[0].float_val
+        elif args[0].kind == MARK_INT: v = args[0].int_val
+        if args[1].kind == MARK_FLOAT: lo = args[1].float_val
+        elif args[1].kind == MARK_INT: lo = args[1].int_val
+        if args[2].kind == MARK_FLOAT: hi = args[2].float_val
+        elif args[2].kind == MARK_INT: hi = args[2].int_val
+        if v < lo: v = lo
+        if v > hi: v = hi
+        return HandlerResult { vm: vm, value: mark_float(v), err: "" }
+    var v = args[0].int_val
+    let lo = args[1].int_val
+    let hi = args[2].int_val
+    if v < lo: v = lo
+    if v > hi: v = hi
+    return HandlerResult { vm: vm, value: mark_int(v), err: "" }
+
+// --- handler_math_random_int (29) — "rand int" intent ---------------------
+// Returns random integer via ambient RNG
+fn handler_math_random_int(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    let val = random_ambient_next()
+    if val < 0:
+        val = -val
+    return HandlerResult { vm: vm, value: mark_int(val), err: "" }
+
+// --- handler_math_random_float (30) — "rand float" intent -----------------
+// Returns random float [0,1) via ambient RNG
+fn handler_math_random_float(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    let val = random_ambient_float()
+    return HandlerResult { vm: vm, value: mark_float(val), err: "" }
+
+// ===========================================================================
+//  BETA: JSON HANDLERS (31-32)
+// ===========================================================================
+
+// --- handler_json_parse (31) — "parse json" / "parse" intent --------------
+// args[0] = JSON string
+fn handler_json_parse(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    if input == "":
+        return HandlerResult { vm: vm, value: mark_string(""), err: "parse json: no input" }
+    // Parse JSON and return stringified result (round-trip validation)
+    let parsed = json_parse_text(input)
+    let result = json_stringify(parsed)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// --- handler_json_stringify (32) — "stringify" intent ---------------------
+// args[0] = value to stringify (passes through as string for now)
+fn handler_json_stringify(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var input: String = ""
+    if len(args) > 0:
+        input = mark_value_to_string(args[0])
+    if input == "":
+        return HandlerResult { vm: vm, value: mark_string("{}"), err: "" }
+    // Try to parse first, then re-stringify to validate
+    let parsed = json_parse_text(input)
+    let result = json_stringify(parsed)
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// ===========================================================================
+//  BETA: FILESYSTEM HANDLERS (33-37)
+// ===========================================================================
+
+// --- handler_fs_mkdir (33) — "mkdir" intent -------------------------------
+// args[0] = directory path
+fn handler_fs_mkdir(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        path = mark_value_to_string(args[0])
+    if path == "":
+        return HandlerResult { vm: vm, value: mark_int(0), err: "mkdir: no path provided" }
+    fs_create_dir_all(path)
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+// --- handler_fs_read_dir (34) — "readdir" intent --------------------------
+// args[0] = directory path
+fn handler_fs_read_dir(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        path = mark_value_to_string(args[0])
+    if path == "":
+        return HandlerResult { vm: vm, value: mark_string(""), err: "readdir: no path provided" }
+    let listing = fs_read_dir_paths_text(path)
+    return HandlerResult { vm: vm, value: mark_string(listing), err: "" }
+
+// --- handler_fs_stat (35) — "stat" intent ---------------------------------
+// args[0] = file path
+fn handler_fs_stat(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        path = mark_value_to_string(args[0])
+    if path == "":
+        return HandlerResult { vm: vm, value: mark_string(""), err: "stat: no path provided" }
+    let meta = fs_metadata_text(path)
+    return HandlerResult { vm: vm, value: mark_string(meta), err: "" }
+
+// --- handler_fs_touch (36) — "touch" intent -------------------------------
+// args[0] = file path
+fn handler_fs_touch(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        path = mark_value_to_string(args[0])
+    if path == "":
+        return HandlerResult { vm: vm, value: mark_int(0), err: "touch: no path provided" }
+    // Touch by appending empty string (creates file if missing)
+    if fs_exists(path) == false:
+        fs_write_text(path, "")
+    else:
+        // Re-write existing content to update mtime
+        let content = fs_read_text(path)
+        fs_write_text(path, content)
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+// --- handler_fs_chmod (37) — "chmod" intent -------------------------------
+// args[0] = file path (chmod not available on all platforms, stub)
+fn handler_fs_chmod(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        path = mark_value_to_string(args[0])
+    if path == "":
+        return HandlerResult { vm: vm, value: mark_int(0), err: "chmod: no path provided" }
+    // chmod not supported on this platform; acknowledge silently
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+// ===========================================================================
+//  BETA: PROCESS HANDLERS (38-40) — simple process queries
+// ===========================================================================
+
+// --- handler_process_exit_code (38) — "exit code" intent ------------------
+// args[0] = process handle (int)
+fn handler_process_exit_code(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var pid: Int = -1
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        pid = args[0].int_val
+    if pid < 0:
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "exit code: invalid PID" }
+    let code = process_exit_code(pid)
+    return HandlerResult { vm: vm, value: mark_int(code), err: "" }
+
+// --- handler_process_stderr (39) — "get stderr" intent --------------------
+// args[0] = process handle (int)
+fn handler_process_stderr(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var pid: Int = -1
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        pid = args[0].int_val
+    if pid < 0:
+        return HandlerResult { vm: vm, value: mark_string(""), err: "get stderr: invalid PID" }
+    let err_text = process_stderr_capture_text(pid)
+    return HandlerResult { vm: vm, value: mark_string(err_text), err: "" }
+
+// --- handler_process_kill (40) — "kill process" intent --------------------
+// args[0] = process handle (int)
+fn handler_process_kill_fn(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var pid: Int = -1
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        pid = args[0].int_val
+    if pid < 0:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "kill process: invalid PID" }
+    process_kill(pid)
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+// ===========================================================================
+//  BETA: TIME HANDLERS (41-43)
+// ===========================================================================
+
+// --- handler_time_now (41) — "time" / "time now" intent -------------------
+// Returns current time in milliseconds since epoch
+fn handler_time_now(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    let ms = now_millis()
+    return HandlerResult { vm: vm, value: mark_int(ms), err: "" }
+
+// --- handler_time_sleep (42) — "sleep" intent -----------------------------
+// args[0] = milliseconds to sleep
+fn handler_time_sleep(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var ms: Int = 0
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        ms = args[0].int_val
+    if ms <= 0:
+        ms = 100  // default 100ms
+    sleep_millis(ms)
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+// --- handler_time_format (43) — "format time" intent ----------------------
+// args[0] = epoch milliseconds (int)
+fn handler_time_format(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var epoch_ms: Int = 0
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        epoch_ms = args[0].int_val
+    if epoch_ms <= 0:
+        epoch_ms = now_millis()
+    // Basic formatting: seconds since epoch as string
+    let secs = epoch_ms / 1000
+    let mins = secs / 60
+    let hours = mins / 60
+    let days = hours / 24
+    let result = str(days) + "d " + str(hours % 24) + "h " + str(mins % 60) + "m " + str(secs % 60) + "s"
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// ===========================================================================
+//  BETA: NETWORK HANDLERS (44-45) — stubs for future integration
+// ===========================================================================
+
+// --- handler_net_http_get (44) — "http get" intent ------------------------
+// args[0] = URL (stub — returns acknowledgment)
+fn handler_net_http_get(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var url: String = ""
+    if len(args) > 0:
+        url = mark_value_to_string(args[0])
+    if url == "":
+        return HandlerResult { vm: vm, value: mark_string(""), err: "http get: no URL provided" }
+    return HandlerResult { vm: vm, value: mark_string("GET " + url + " (network I/O pending)"), err: "" }
+
+// --- handler_net_tcp_connect (45) — "tcp connect" intent ------------------
+// args[0] = host:port (stub)
+fn handler_net_tcp_connect(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var addr: String = ""
+    if len(args) > 0:
+        addr = mark_value_to_string(args[0])
+    if addr == "":
+        return HandlerResult { vm: vm, value: mark_int(-1), err: "tcp connect: no address provided" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "tcp connect: not yet integrated" }
+
+// ===========================================================================
+//  BETA: REGEX HANDLERS (46-47) — stubs for future integration
+// ===========================================================================
+
+// --- handler_regex_match (46) — "regex match" intent ----------------------
+// args[0] = pattern, args[1] = text (stub)
+fn handler_regex_match(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var pattern: String = ""
+    var text: String = ""
+    if len(args) > 0:
+        pattern = mark_value_to_string(args[0])
+    if len(args) > 1:
+        text = mark_value_to_string(args[1])
+    if pattern == "" or text == "":
+        return HandlerResult { vm: vm, value: mark_int(0), err: "regex match: need pattern and text" }
+    // Simple substring match fallback
+    let found = index_of_str(text, pattern) >= 0
+    if found:
+        return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "" }
+
+// --- handler_regex_replace (47) — "regex replace" intent ------------------
+// args[0] = pattern, args[1] = replacement, args[2] = text (stub)
+fn handler_regex_replace(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var pattern: String = ""
+    var replacement: String = ""
+    var text: String = ""
+    if len(args) > 0:
+        pattern = mark_value_to_string(args[0])
+    if len(args) > 1:
+        replacement = mark_value_to_string(args[1])
+    if len(args) > 2:
+        text = mark_value_to_string(args[2])
+    if pattern == "" or text == "":
+        return HandlerResult { vm: vm, value: mark_string(text), err: "regex replace: need pattern and text" }
+    // Simple literal replace fallback (same as handler_string_replace)
+    var result: String = ""
+    var pos: Int = 0
+    let pl = len(pattern)
+    while pos < len(text):
+        var matched: Bool = true
+        var mi: Int = 0
+        while mi < pl and (pos + mi) < len(text):
+            if text_char_at(text_from(text), pos + mi) != text_char_at(text_from(pattern), mi):
+                matched = false
+                mi = pl
+            mi = mi + 1
+        if matched:
+            result = result + replacement
+            pos = pos + pl
+        else:
+            result = result + text_char_at(text_from(text), pos)
+            pos = pos + 1
+    return HandlerResult { vm: vm, value: mark_string(result), err: "" }
+
+// ===========================================================================
+//  BETA: TEMPLATE HANDLER (48) — stub for future integration
+// ===========================================================================
+
+// --- handler_template_render (48) — "template" intent ---------------------
+// args[0] = template string (returns as-is for now)
+fn handler_template_render(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var tmpl: String = ""
+    if len(args) > 0:
+        tmpl = mark_value_to_string(args[0])
+    return HandlerResult { vm: vm, value: mark_string(tmpl), err: "" }
+
+// ===========================================================================
+//  BETA: RANDOM RANGE HANDLERS (49-50)
+// ===========================================================================
+
+// --- handler_random_int_range (49) — "random" / "rand range" intent ------
+// args[0] = min, args[1] = max
+fn handler_random_int_range(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var min_val: Int = 0
+    var max_val: Int = 100
+    if len(args) > 0 and args[0].kind == MARK_INT:
+        min_val = args[0].int_val
+    if len(args) > 1 and args[1].kind == MARK_INT:
+        max_val = args[1].int_val
+    let val = random_ambient_int_in_range(min_val, max_val)
+    return HandlerResult { vm: vm, value: mark_int(val), err: "" }
+
+// --- handler_random_float_range (50) — "rand float range" intent ----------
+// args[0] = min, args[1] = max
+fn handler_random_float_range(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var min_val: Float = 0.0
+    var max_val: Float = 1.0
+    if len(args) > 0:
+        if args[0].kind == MARK_FLOAT:
+            min_val = args[0].float_val
+        elif args[0].kind == MARK_INT:
+            min_val = args[0].int_val
+    if len(args) > 1:
+        if args[1].kind == MARK_FLOAT:
+            max_val = args[1].float_val
+        elif args[1].kind == MARK_INT:
+            max_val = args[1].int_val
+    let t = random_ambient_float()
+    let val = min_val + t * (max_val - min_val)
+    return HandlerResult { vm: vm, value: mark_float(val), err: "" }
+
+// ===========================================================================
 //  GAMMA: PROCESS LIFECYCLE HANDLERS (51-59)
 // ===========================================================================
 
@@ -819,8 +1499,8 @@ fn handler_process_kill(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResu
         err: "kill: process " + str(idx) + " is not running (status=" + str(rec.status) + ")"
     }
 
-// --- handler_process_exit_code (54) — "exitcode" intent -------------------
-fn handler_process_exit_code(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+// --- handler_process_exit_code_pid (54) — "exitcode" intent ---------------
+fn handler_process_exit_code_pid(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var idx: Int = -1
     if len(args) > 0:
         if args[0].kind == MARK_INT:
@@ -1238,82 +1918,189 @@ fn dispatch_stdlib(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> Hand
 // ===========================================================================
 
 pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    var hr: HandlerResult = HandlerResult { vm: vm, value: mark_int(0), err: "unreachable" }
+
+    // --- ALPHA: Primary handlers (1-12) ---
     if fn_id == FN_FS_READ_TEXT:
-        return handler_fs_read_text(vm, args)
+        hr = handler_fs_read_text(vm, args)
     elif fn_id == FN_FS_WRITE_TEXT:
-        return handler_fs_write_text(vm, args)
+        hr = handler_fs_write_text(vm, args)
     elif fn_id == FN_FS_EXISTS:
-        return handler_fs_exists(vm, args)
+        hr = handler_fs_exists(vm, args)
     elif fn_id == FN_PROCESS_OUTPUT:
-        return handler_process_output(vm, args)
+        hr = handler_process_output(vm, args)
     elif fn_id == FN_PROCESS_SPAWN:
-        return handler_process_spawn(vm, args)
+        hr = handler_process_spawn(vm, args)
     elif fn_id == FN_IMPORT_KAIN:
-        return handler_import_kain(vm, args)
+        hr = handler_import_kain(vm, args)
     elif fn_id == FN_ASSERT:
-        return handler_assert(vm, args)
+        hr = handler_assert(vm, args)
     elif fn_id == FN_PRINTLN:
-        return handler_println(vm, args)
+        hr = handler_println(vm, args)
     elif fn_id == FN_STR:
-        return handler_str(vm, args)
+        hr = handler_str(vm, args)
     elif fn_id == FN_LEN:
-        return handler_len(vm, args)
+        hr = handler_len(vm, args)
     elif fn_id == FN_PUSH:
-        return handler_push(vm, args)
+        hr = handler_push(vm, args)
     elif fn_id == FN_POP:
-        return handler_pop(vm, args)
-    // GAMMA: process lifecycle handlers (51-59)
+        hr = handler_pop(vm, args)
+
+    // --- BETA: String handlers (13-21) ---
+    elif fn_id == FN_STRING_CONCAT:
+        hr = handler_string_concat(vm, args)
+    elif fn_id == FN_STRING_SPLIT:
+        hr = handler_string_split(vm, args)
+    elif fn_id == FN_STRING_JOIN:
+        hr = handler_string_join(vm, args)
+    elif fn_id == FN_STRING_SUBSTR:
+        hr = handler_string_substr(vm, args)
+    elif fn_id == FN_STRING_REPLACE:
+        hr = handler_string_replace(vm, args)
+    elif fn_id == FN_STRING_UPPER:
+        hr = handler_string_upper(vm, args)
+    elif fn_id == FN_STRING_LOWER:
+        hr = handler_string_lower(vm, args)
+    elif fn_id == FN_STRING_TRIM:
+        hr = handler_string_trim(vm, args)
+    elif fn_id == FN_STRING_CONTAINS:
+        hr = handler_string_contains(vm, args)
+
+    // --- BETA: Math handlers (22-30) ---
+    elif fn_id == FN_MATH_SIN:
+        hr = handler_math_sin(vm, args)
+    elif fn_id == FN_MATH_COS:
+        hr = handler_math_cos(vm, args)
+    elif fn_id == FN_MATH_SQRT:
+        hr = handler_math_sqrt(vm, args)
+    elif fn_id == FN_MATH_ABS:
+        hr = handler_math_abs(vm, args)
+    elif fn_id == FN_MATH_MIN:
+        hr = handler_math_min(vm, args)
+    elif fn_id == FN_MATH_MAX:
+        hr = handler_math_max(vm, args)
+    elif fn_id == FN_MATH_CLAMP:
+        hr = handler_math_clamp(vm, args)
+    elif fn_id == FN_MATH_RANDOM_INT:
+        hr = handler_math_random_int(vm, args)
+    elif fn_id == FN_MATH_RANDOM_FLOAT:
+        hr = handler_math_random_float(vm, args)
+
+    // --- BETA: JSON handlers (31-32) ---
+    elif fn_id == FN_JSON_PARSE:
+        hr = handler_json_parse(vm, args)
+    elif fn_id == FN_JSON_STRINGIFY:
+        hr = handler_json_stringify(vm, args)
+
+    // --- BETA: Filesystem handlers (33-37) ---
+    elif fn_id == FN_FS_MKDIR:
+        hr = handler_fs_mkdir(vm, args)
+    elif fn_id == FN_FS_READ_DIR:
+        hr = handler_fs_read_dir(vm, args)
+    elif fn_id == FN_FS_STAT:
+        hr = handler_fs_stat(vm, args)
+    elif fn_id == FN_FS_TOUCH:
+        hr = handler_fs_touch(vm, args)
+    elif fn_id == FN_FS_CHMOD:
+        hr = handler_fs_chmod(vm, args)
+
+    // --- BETA: Process handlers (38-40) ---
+    elif fn_id == FN_PROCESS_EXIT_CODE:
+        hr = handler_process_exit_code(vm, args)
+    elif fn_id == FN_PROCESS_STDERR:
+        hr = handler_process_stderr(vm, args)
+    elif fn_id == FN_PROCESS_KILL:
+        hr = handler_process_kill_fn(vm, args)
+
+    // --- BETA: Time handlers (41-43) ---
+    elif fn_id == FN_TIME_NOW:
+        hr = handler_time_now(vm, args)
+    elif fn_id == FN_TIME_SLEEP:
+        hr = handler_time_sleep(vm, args)
+    elif fn_id == FN_TIME_FORMAT:
+        hr = handler_time_format(vm, args)
+
+    // --- BETA: Network handlers (44-45) ---
+    elif fn_id == FN_NET_HTTP_GET:
+        hr = handler_net_http_get(vm, args)
+    elif fn_id == FN_NET_TCP_CONNECT:
+        hr = handler_net_tcp_connect(vm, args)
+
+    // --- BETA: Regex handlers (46-47) ---
+    elif fn_id == FN_REGEX_MATCH:
+        hr = handler_regex_match(vm, args)
+    elif fn_id == FN_REGEX_REPLACE:
+        hr = handler_regex_replace(vm, args)
+
+    // --- BETA: Template handler (48) ---
+    elif fn_id == FN_TEMPLATE_RENDER:
+        hr = handler_template_render(vm, args)
+
+    // --- BETA: Random range handlers (49-50) ---
+    elif fn_id == FN_RANDOM_INT_RANGE:
+        hr = handler_random_int_range(vm, args)
+    elif fn_id == FN_RANDOM_FLOAT_RANGE:
+        hr = handler_random_float_range(vm, args)
+
+    // --- GAMMA: Process lifecycle handlers (51-59) ---
     elif fn_id == FN_PROCESS_SPAWN_TRACKED:
-        return handler_process_spawn_tracked(vm, args)
+        hr = handler_process_spawn_tracked(vm, args)
     elif fn_id == FN_PROCESS_AWAIT:
-        return handler_process_await(vm, args)
+        hr = handler_process_await(vm, args)
     elif fn_id == FN_PROCESS_KILL_PID:
-        return handler_process_kill(vm, args)
+        hr = handler_process_kill(vm, args)
     elif fn_id == FN_PROCESS_EXIT_CODE_PID:
-        return handler_process_exit_code(vm, args)
+        hr = handler_process_exit_code_pid(vm, args)
     elif fn_id == FN_PROCESS_STDOUT_PID:
-        return handler_process_stdout_pid(vm, args)
+        hr = handler_process_stdout_pid(vm, args)
     elif fn_id == FN_PROCESS_STDERR_PID:
-        return handler_process_stderr_pid(vm, args)
+        hr = handler_process_stderr_pid(vm, args)
     elif fn_id == FN_PROCESS_PIPE:
-        return handler_process_pipe(vm, args)
+        hr = handler_process_pipe(vm, args)
     elif fn_id == FN_PROCESS_ENV:
-        return handler_process_env(vm, args)
+        hr = handler_process_env(vm, args)
     elif fn_id == FN_PROCESS_CWD:
-        return handler_process_cwd(vm, args)
-    // BETA: stdlib handlers (13-50) — disabled pending cross-lane merge
-    // elif fn_id >= FN_STRING_CONCAT and fn_id <= FN_RANDOM_FLOAT_RANGE:
-    //     return bridge_stdlib.dispatch_stdlib(vm, fn_id, args)
-    // All stdlib handlers produce an unknown error until bridge_stdlib is re-integrated
-    elif fn_id >= 13 and fn_id <= 50:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "stdlib handler " + str(fn_id) + " not yet integrated"
-        }
-    // DELTA: UI scripting and config handlers (71-78)
+        hr = handler_process_cwd(vm, args)
+
+    // --- DELTA: UI scripting handlers (71-78) ---
     elif fn_id == FN_UI_ON_CLICK:
-        return handler_ui_on_click(vm, args)
+        hr = handler_ui_on_click(vm, args)
     elif fn_id == FN_UI_ON_KEY:
-        return handler_ui_on_key(vm, args)
+        hr = handler_ui_on_key(vm, args)
     elif fn_id == FN_UI_ON_FOCUS:
-        return handler_ui_on_focus(vm, args)
+        hr = handler_ui_on_focus(vm, args)
     elif fn_id == FN_UI_ON_CLOSE:
-        return handler_ui_on_close(vm, args)
+        hr = handler_ui_on_close(vm, args)
     elif fn_id == FN_UI_GET_WIDGET:
-        return handler_ui_get_widget(vm, args)
+        hr = handler_ui_get_widget(vm, args)
     elif fn_id == FN_UI_SET_PROPERTY:
-        return handler_ui_set_property(vm, args)
+        hr = handler_ui_set_property(vm, args)
     elif fn_id == FN_UI_GET_PROPERTY:
-        return handler_ui_get_property(vm, args)
+        hr = handler_ui_get_property(vm, args)
     elif fn_id == FN_UI_CREATE_WIDGET:
-        return handler_ui_create_widget(vm, args)
+        hr = handler_ui_create_widget(vm, args)
+
     else:
-        return HandlerResult {
+        hr = HandlerResult {
             vm: vm,
             value: mark_int(0),
             err: "unknown function id: " + str(fn_id)
         }
+
+    // Fix 3: Store handler result in VM variable "_last" for markscript blocks to read.
+    // This enables pipeline chaining: > run "cmd" followed by markscript: print(_last)
+    var v = hr.vm
+    let last_name_hash = hash_name("_last")
+    let idx = find_variable(v, last_name_hash)
+    if idx >= 0:
+        v.variables[idx].value = hr.value
+    else:
+        while len(v.variables) <= v.var_count:
+            push(v.variables, VarEntry { name_hash: 0, value: mark_empty() })
+        v.variables[v.var_count] = VarEntry { name_hash: last_name_hash, value: hr.value }
+        v.var_count = v.var_count + 1
+
+    return HandlerResult { vm: v, value: hr.value, err: hr.err }
 
 // ===========================================================================
 //  BACKWARD-COMPATIBLE WRAPPERS
