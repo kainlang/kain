@@ -1,0 +1,175 @@
+use std::text
+use std::process
+
+struct ParsedArgs:
+    help: Bool
+    model: String
+    provider: String
+    thinking: Bool
+    cont: Bool
+    print_val: String
+    p_val: String
+    no_tools: Bool
+    ext_name: String
+    ext_val: String
+    positional: [String]
+    rest: [String]
+
+fn parse_args(args: [String]) -> ParsedArgs:
+    var result = ParsedArgs {
+        help: false, model: "", provider: "", thinking: false,
+        cont: false, print_val: "", p_val: "", no_tools: false,
+        ext_name: "", ext_val: "", positional: [], rest: []
+    }
+    var i: Int = 0
+    var after_dashdash: Bool = false
+    while i < len(args):
+        let arg = args[i]
+        if after_dashdash:
+            result.rest = result.rest + [arg]
+        elif arg == "--":
+            after_dashdash = true
+        elif arg == "--help":
+            result.help = true
+        elif text_starts_with_string(arg, "--model="):
+            result.model = text_substring_string(arg, 8, len(arg) - 8)
+        elif arg == "--model":
+            i = i + 1
+            if i < len(args):
+                result.model = args[i]
+        elif text_starts_with_string(arg, "--provider="):
+            result.provider = text_substring_string(arg, 11, len(arg) - 11)
+        elif arg == "--provider":
+            i = i + 1
+            if i < len(args):
+                result.provider = args[i]
+        elif arg == "--thinking":
+            result.thinking = true
+        elif arg == "--continue":
+            result.cont = true
+        elif text_starts_with_string(arg, "--print="):
+            result.print_val = text_substring_string(arg, 8, len(arg) - 8)
+        elif arg == "--print":
+            i = i + 1
+            if i < len(args):
+                result.print_val = args[i]
+        elif text_starts_with_string(arg, "-p"):
+            result.p_val = text_substring_string(arg, 2, len(arg) - 2)
+        elif arg == "--no-tools":
+            result.no_tools = true
+        elif text_starts_with_string(arg, "--extension-"):
+            let eq_pos = text_find(text_from(arg), "=", 0)
+            if eq_pos > 0:
+                let name_part = text_substring_string(arg, 12, eq_pos - 12)
+                let val_part = text_substring_string(arg, eq_pos + 1, len(arg) - eq_pos - 1)
+                result.ext_name = name_part
+                result.ext_val = val_part
+        else:
+            if arg[0] != "-" as String or (len(arg) > 1 and arg[1] != "-" as String):
+                result.positional = result.positional + [arg]
+        i = i + 1
+    return result
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test --help flag
+    let a1 = parse_args(["--help"])
+    if a1.help == false:
+        println("[FAIL] cli_parser: --help flag not detected")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --help flag detected")
+
+    // Test --model with space separator
+    let a2 = parse_args(["--model", "gpt-4"])
+    if a2.model != "gpt-4":
+        println("[FAIL] cli_parser: --model value not parsed (got '" + a2.model + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --model gpt-4 parsed")
+
+    // Test --model=value syntax
+    let a3 = parse_args(["--model=gpt-4-turbo"])
+    if a3.model != "gpt-4-turbo":
+        println("[FAIL] cli_parser: --model=value not parsed (got '" + a3.model + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --model=gpt-4-turbo parsed")
+
+    // Test --provider
+    let a4 = parse_args(["--provider", "openai"])
+    if a4.provider != "openai":
+        println("[FAIL] cli_parser: --provider not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --provider parsed")
+
+    // Test --thinking
+    let a5 = parse_args(["--thinking"])
+    if a5.thinking == false:
+        println("[FAIL] cli_parser: --thinking not detected")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --thinking detected")
+
+    // Test --continue
+    let a6 = parse_args(["--continue"])
+    if a6.cont == false:
+        println("[FAIL] cli_parser: --continue not detected")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --continue detected")
+
+    // Test --print
+    let a7 = parse_args(["--print", "vars"])
+    if a7.print_val != "vars":
+        println("[FAIL] cli_parser: --print value not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --print vars parsed")
+
+    // Test -p shorthand
+    let a8 = parse_args(["-pjson"])
+    if a8.p_val != "json":
+        println("[FAIL] cli_parser: -p shorthand not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: -p shorthand parsed")
+
+    // Test --no-tools
+    let a9 = parse_args(["--no-tools"])
+    if a9.no_tools == false:
+        println("[FAIL] cli_parser: --no-tools not detected")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --no-tools detected")
+
+    // Test --extension-foo=bar
+    let a10 = parse_args(["--extension-theme=dark"])
+    if a10.ext_name != "theme" or a10.ext_val != "dark":
+        println("[FAIL] cli_parser: --extension flag not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: --extension-theme=dark parsed")
+
+    // Test -- separator
+    let a11 = parse_args(["--model", "gpt-4", "--", "extra", "args"])
+    if a11.model != "gpt-4" or len(a11.rest) != 2:
+        println("[FAIL] cli_parser: -- separator not handled")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: -- separator handled")
+
+    // Test positional args
+    let a12 = parse_args(["file.kn", "other.kn"])
+    if len(a12.positional) != 2:
+        println("[FAIL] cli_parser: positional args not collected")
+        failures = failures + 1
+    else:
+        println("[PASS] cli_parser: positional args collected")
+
+    println("=== CLI PARSER ===")
+    if failures == 0:
+        println("[PASS] All CLI parser tests passed")
+    return failures

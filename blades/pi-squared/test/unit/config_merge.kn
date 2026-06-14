@@ -1,0 +1,121 @@
+use std::text
+use std::json
+
+struct AppConfig:
+    model: String
+    provider: String
+    temperature: Float
+    max_tokens: Int
+    system_prompt: String
+    timeout: Int
+    verbose: Bool
+
+fn default_config() -> AppConfig:
+    return AppConfig {
+        model: "gpt-3.5-turbo",
+        provider: "openai",
+        temperature: 0.7,
+        max_tokens: 2048,
+        system_prompt: "",
+        timeout: 30000,
+        verbose: false
+    }
+
+fn merge_configs(global: AppConfig, project: AppConfig, cli: AppConfig) -> AppConfig:
+    // CLI wins over all, then project, then global (defaults)
+    var result = global
+
+    // Project overrides global
+    if len(project.model) > 0:
+        result.model = project.model
+    if len(project.provider) > 0:
+        result.provider = project.provider
+    if project.temperature >= 0.0:
+        result.temperature = project.temperature
+    if project.max_tokens > 0:
+        result.max_tokens = project.max_tokens
+    if len(project.system_prompt) > 0:
+        result.system_prompt = project.system_prompt
+    if project.timeout > 0:
+        result.timeout = project.timeout
+    if project.verbose != false:
+        result.verbose = project.verbose
+
+    // CLI overrides project
+    if len(cli.model) > 0:
+        result.model = cli.model
+    if len(cli.provider) > 0:
+        result.provider = cli.provider
+    if cli.temperature >= 0.0:
+        result.temperature = cli.temperature
+    if cli.max_tokens > 0:
+        result.max_tokens = cli.max_tokens
+    if len(cli.system_prompt) > 0:
+        result.system_prompt = cli.system_prompt
+    if cli.timeout > 0:
+        result.timeout = cli.timeout
+    if cli.verbose != false:
+        result.verbose = cli.verbose
+
+    return result
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test defaults only
+    let global = default_config()
+    let empty_project = AppConfig {
+        model: "", provider: "", temperature: -1.0, max_tokens: 0,
+        system_prompt: "", timeout: 0, verbose: false
+    }
+    let empty_cli = AppConfig {
+        model: "", provider: "", temperature: -1.0, max_tokens: 0,
+        system_prompt: "", timeout: 0, verbose: false
+    }
+    let merged1 = merge_configs(global, empty_project, empty_cli)
+    if merged1.model != "gpt-3.5-turbo" or merged1.max_tokens != 2048:
+        println("[FAIL] config_merge: defaults not preserved")
+        failures = failures + 1
+    else:
+        println("[PASS] config_merge: defaults preserved with no overrides")
+
+    // Test project overrides global
+    let project_cfg = AppConfig {
+        model: "gpt-4", provider: "", temperature: -1.0, max_tokens: 4096,
+        system_prompt: "", timeout: 0, verbose: false
+    }
+    let merged2 = merge_configs(global, project_cfg, empty_cli)
+    if merged2.model != "gpt-4" or merged2.max_tokens != 4096:
+        println("[FAIL] config_merge: project overrides not applied")
+        failures = failures + 1
+    else:
+        println("[PASS] config_merge: project overrides global")
+
+    // Test CLI overrides everything
+    let cli_cfg = AppConfig {
+        model: "claude-3-opus", provider: "anthropic", temperature: -1.0,
+        max_tokens: 0, system_prompt: "", timeout: 60000, verbose: false
+    }
+    let merged3 = merge_configs(global, project_cfg, cli_cfg)
+    if merged3.model != "claude-3-opus" or merged3.provider != "anthropic" or merged3.timeout != 60000:
+        println("[FAIL] config_merge: CLI should override all")
+        failures = failures + 1
+    else:
+        println("[PASS] config_merge: CLI overrides project and global")
+
+    // Test partial CLI overrides (only model, rest from project)
+    let partial_cli = AppConfig {
+        model: "claude-3-haiku", provider: "", temperature: -1.0,
+        max_tokens: 0, system_prompt: "", timeout: 0, verbose: false
+    }
+    let merged4 = merge_configs(global, project_cfg, partial_cli)
+    if merged4.model != "claude-3-haiku" or merged4.max_tokens != 4096:
+        println("[FAIL] config_merge: partial CLI override failed")
+        failures = failures + 1
+    else:
+        println("[PASS] config_merge: partial CLI override leaves rest from project")
+
+    println("=== CONFIG MERGE ===")
+    if failures == 0:
+        println("[PASS] All config merge tests passed")
+    return failures

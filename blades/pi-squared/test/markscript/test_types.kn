@@ -1,0 +1,27 @@
+// test/markscript/test_types.kn — Test markscript table parsing from Kain
+// Uses std::mks to load config.md and verify table contents
+
+use std::mks
+use std::fs
+
+pub fn main() -> Int:
+    println("=== Markscript Table Test ===")
+    if fs_exists("config.md") == false:
+        println("[SKIP] config.md not found")
+        return 0
+    let vm = run_file("config.md")
+    if ok(vm) == false:
+        println("[FAIL] Could not parse config.md")
+        return 1
+    let tables = table_count(vm)
+    println("[PASS] Parsed " + str(tables) + " tables from config.md")
+    var ti: Int = 0
+    while ti < tables:
+        let rows = table_rows(vm, ti)
+        let cols = table_cols(vm, ti)
+        if rows > 0:
+            let first_cell = get_string(vm, ti, 0, 0)
+            println("  Table " + str(ti) + ": " + str(rows) + "x" + str(cols) + " first: " + first_cell)
+        ti = ti + 1
+    println("[PASS] Markscript table test complete")
+    return 0

@@ -1,0 +1,135 @@
+use std::text
+
+fn estimate_tokens(text: String) -> Int:
+    let raw = len(text) / 4
+    if len(text) % 4 != 0:
+        return raw + 1
+    return raw
+
+fn should_compact(session_tokens: Int, max_tokens: Int, watermark_pct: Int) -> Bool:
+    if max_tokens <= 0:
+        return false
+    let ratio = (session_tokens * 100) / max_tokens
+    return ratio >= watermark_pct
+
+fn compact_messages(messages: [String], target_tokens: Int, keep_system: Bool) -> [String]:
+    if len(messages) <= 1:
+        return messages
+    var result: [String] = []
+    var total: Int = 0
+    var i: Int = 0
+    while i < len(messages):
+        total = total + estimate_tokens(messages[i])
+        i = i + 1
+    // Work from front, removing oldest messages until under target
+    // Keep at least the last message
+    var start_idx: Int = 0
+    if keep_system and len(messages) > 1:
+        start_idx = 1  // Keep index 0 (system)
+    while total > target_tokens and start_idx < len(messages) - 1:
+        let removed_tokens = estimate_tokens(messages[start_idx])
+        total = total - removed_tokens
+        start_idx = start_idx + 1
+    // Build result from start_idx
+    var j: Int = start_idx
+    while j < len(messages):
+        result = result + [messages[j]]
+        j = j + 1
+    // Add summary note
+    if start_idx > 0:
+        let summary = "[Compacted " + str(start_idx) + " messages, " + str(total) + " tokens]"
+        result = [summary] + result
+    return result
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test should_compact below watermark
+    let sc1 = should_compact(100, 1000, 80)
+    if sc1 != false:
+        println("[FAIL] compaction: 100/1000 should NOT trigger compaction")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: 100/1000 below 80% watermark")
+
+    // Test should_compact at watermark
+    let sc2 = should_compact(800, 1000, 80)
+    if sc2 == false:
+        println("[FAIL] compaction: 800/1000 should trigger compaction")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: 800/1000 at 80% watermark triggers")
+
+    // Test should_compact above watermark
+    let sc3 = should_compact(950, 1000, 80)
+    if sc3 == false:
+        println("[FAIL] compaction: 950/1000 should trigger compaction")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: 950/1000 above 80% watermark triggers")
+
+    // Test should_compact with max_tokens = 0 (disabled)
+    let sc4 = should_compact(800, 0, 80)
+    if sc4 != false:
+        println("[FAIL] compaction: max_tokens=0 should disable")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: max_tokens=0 disables compaction")
+
+    // Test should_compact with exact boundary
+    let sc5 = should_compact(80, 100, 80)
+    if sc5 == false:
+        println("[FAIL] compaction: 80/100 at exact 80% should trigger")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: exact boundary triggers")
+
+    // Test estimate_tokens consistency
+    let msg1 = "Hello, how are you?"
+    let msg2 = "I am fine, thank you for asking. The weather is nice today."
+    let tokens1 = estimate_tokens(msg1)
+    let tokens2 = estimate_tokens(msg2)
+    if tokens2 <= tokens1:
+        println("[FAIL] compaction: longer message should have more tokens")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: token estimation proportional")
+
+    // Test compact_messages removes oldest
+    let messages = ["system: you are a bot", "user: hello", "assistant: hi", "user: what is kain", "assistant: kain is a language"]
+    let compacted = compact_messages(messages, 3, true)
+    if len(compacted) >= len(messages):
+        println("[FAIL] compaction: compacted should have fewer messages")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: compacted " + str(len(messages)) + " to " + str(len(compacted)) + " messages")
+
+    // Test compact_messages preserves last message
+    if len(compacted) > 0:
+        let last = compacted[len(compacted) - 1]
+        if text_contains_string(last, "kain is a language") == false:
+            println("[FAIL] compaction: last message should be preserved")
+            failures = failures + 1
+        else:
+            println("[PASS] compaction: last message preserved")
+
+    // Test compact_messages with single message (no compaction needed)
+    let single = compact_messages(["only message"], 100, false)
+    if len(single) != 1:
+        println("[FAIL] compaction: single message should not be compacted")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: single message unchanged")
+
+    // Test compact_messages with empty list
+    let empty = compact_messages([], 100, false)
+    if len(empty) != 0:
+        println("[FAIL] compaction: empty list should remain empty")
+        failures = failures + 1
+    else:
+        println("[PASS] compaction: empty list remains empty")
+
+    println("=== COMPACTION ===")
+    if failures == 0:
+        println("[PASS] All compaction tests passed")
+    return failures

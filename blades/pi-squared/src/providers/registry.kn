@@ -1,0 +1,80 @@
+// ============================================================================
+//  providers/registry.kn — LlmProviderRegistry world
+//  Ladder: Layer 1 (world) + Layer 0 (fn)
+//
+//  The registry world owns the set of registered LLM providers and
+//  dispatches streaming/completion calls to the appropriate provider
+//  based on the model's API type.
+// ============================================================================
+
+use types    // Model, LlmContext, LlmEvent, StreamOptions, AgentMessage, Api
+use providers::trait    // LlmProvider, LlmProviderHandle, make_error_event, accumulate_from_events
+use providers::anthropic    // anthropic_stream, anthropic_complete
+use providers::faux    // faux_stream, faux_complete
+use providers::opencode    // opencode_stream, opencode_complete
+
+// Stub component for world surface requirement
+component PiProviderStub():
+    render <text value="pi-providers" />
+
+// ---- Registry world ----
+// Owns the set of registered LLM providers as a JSON map.
+// Surface is required for world declarations — PiProviderStub is a no-op.
+
+world LlmProviderRegistry:
+    surface web => PiProviderStub
+    state providers: String = "{}"    // JSON object: provider_name -> handle
+
+// ---- Register a provider in the registry ----
+// Stores provider metadata (API type, stream/completion function names)
+// as a JSON entry in the providers map.
+// v0.1: stub — real registration updates the JSON state.
+
+patch register_provider(name: String, api: String, stream_fn: String, complete_fn: String) -> Int:
+    return 0
+
+// ---- Look up a provider by name ----
+// Returns none if the provider is not registered.
+
+pub fn get_provider(name: String) -> Option<LlmProviderHandle> with Pure:
+    return none
+
+// ---- Check if a provider is available ----
+
+pub fn provider_available(name: String) -> Bool with Pure:
+    return false
+
+// ---- Stream from a model by dispatching to the correct provider ----
+// Checks the model's API type and routes to the matching provider's
+// stream implementation.
+
+pub fn stream_from_model(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+    match model.api:
+        Api::AnthropicMessages => return anthropic_stream(model, context, options)
+        Api::OpenAiCompletions => return opencode_stream(model, context, options)
+        Api::OpenAiResponses => return opencode_stream(model, context, options)
+        Api::Faux => return faux_stream(model, context, options)
+        _ => return [make_error_event("Provider not yet implemented: " + api_to_string_stub(model.api))]
+
+// ---- Complete (non-streaming) convenience ----
+
+pub fn complete_from_model(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+    match model.api:
+        Api::AnthropicMessages => return anthropic_complete(model, context, options)
+        Api::OpenAiCompletions => return opencode_complete(model, context, options)
+        Api::OpenAiResponses => return opencode_complete(model, context, options)
+        Api::Faux => return faux_complete(model, context, options)
+        _ => return default_agent_message_stub()
+
+fn api_to_string_stub(api: Api) -> String with Pure:
+    match api:
+        Api::AnthropicMessages => return "anthropic-messages"
+        Api::OpenAiCompletions => return "openai-completions"
+        Api::OpenAiResponses => return "openai-responses"
+        Api::GoogleGenerativeAi => return "google-generative-ai"
+        Api::MistralConversations => return "mistral-conversations"
+        Api::BedrockConverseStream => return "bedrock-converse-stream"
+        Api::Faux => return "faux"
+
+fn default_agent_message_stub() -> AgentMessage:
+    return default_agent_message()

@@ -1,0 +1,97 @@
+// ============================================================================
+//  queues.kn — Steering and follow-up queue management (ALPHA-10)
+//
+//  Provides pure functions for managing the agent's message queues:
+//  draining based on mode (all vs one-at-a-time), enqueuing new messages,
+//  and clearing for abort scenarios.
+//
+//  Ladder: Layer 0 — plain fn with Pure effect. No actor, no world.
+//  These are pure data transformations on [AgentMessage] lists.
+//
+//  Usage:
+//    let (drained, remaining) = drain_queue(queue, QueueMode::All)
+//    let queue2 = enqueue(queue1, my_message)
+//    let empty = clear_queue(queue)
+// ============================================================================
+
+use types
+
+// ============================================================================
+//  QUEUE MODE  —  determines drain behaviour
+// ============================================================================
+
+pub enum QueueMode:
+    All
+    OneAtATime
+
+// ============================================================================
+//  DRAIN QUEUE  —  extract messages from a queue based on mode
+//
+//  Returns (drained, remaining).
+//  All mode: drained = whole queue, remaining = [].
+//  OneAtATime: drained = [queue[0]], remaining = queue[1..].
+//  Empty queue: both drained and remaining are [].
+// ============================================================================
+
+pub fn drain_queue(
+    queue: [AgentMessage],
+    mode: QueueMode
+) -> ([AgentMessage], [AgentMessage]) with Pure:
+    if mode == QueueMode::All:
+        return (queue, [])
+    elif len(queue) > 0:
+        let head: [AgentMessage] = [queue[0]]
+        var tail: [AgentMessage] = []
+        var i: Int = 1
+        while i < len(queue):
+            push(tail, queue[i])
+            i = i + 1
+        return (head, tail)
+    else:
+        return ([], [])
+
+// ============================================================================
+//  ENQUEUE  —  append a message to the queue
+// ============================================================================
+
+pub fn enqueue(
+    queue: [AgentMessage],
+    message: AgentMessage
+) -> [AgentMessage] with Pure:
+    var result = queue
+    push(result, message)
+    return result
+
+// ============================================================================
+//  CLEAR QUEUE  —  return an empty queue (discard all messages)
+// ============================================================================
+
+pub fn clear_queue(queue: [AgentMessage]) -> [AgentMessage] with Pure:
+    return []
+
+// ============================================================================
+//  IS EMPTY  —  check if a queue has no messages
+// ============================================================================
+
+pub fn is_queue_empty(queue: [AgentMessage]) -> Bool with Pure:
+    return len(queue) == 0
+
+// ============================================================================
+//  DRAIN STEERING  —  explicit drain for steering queue
+// ============================================================================
+
+pub fn drain_steering_queue(
+    queue: [AgentMessage],
+    mode: QueueMode
+) -> ([AgentMessage], [AgentMessage]) with Pure:
+    return drain_queue(queue, mode)
+
+// ============================================================================
+//  DRAIN FOLLOW-UP  —  explicit drain for follow-up queue
+// ============================================================================
+
+pub fn drain_follow_up_queue(
+    queue: [AgentMessage],
+    mode: QueueMode
+) -> ([AgentMessage], [AgentMessage]) with Pure:
+    return drain_queue(queue, mode)

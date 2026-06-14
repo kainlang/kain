@@ -1,0 +1,26 @@
+use std::runtime
+
+fn helper_a() -> Int with Pure:
+    return 42
+
+fn helper_b() -> Int with Pure:
+    return helper_a()
+
+fn helper_c() -> Int with IO:
+    println("hello")
+    return helper_b()
+
+fn helper_d() -> Int with IO, Unsafe:
+    return helper_b()
+
+fn main() -> Int:
+    let status = runtime_init()
+    if status != 0:
+        return status
+    let a = helper_a()
+    let b = helper_b()
+    let c = helper_c()
+    let d = helper_d()
+    println(str(a + b + c + d))
+    let _ = runtime_shutdown()
+    return 0

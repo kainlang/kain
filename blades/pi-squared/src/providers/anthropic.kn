@@ -1,0 +1,315 @@
+// providers/anthropic.kn — Real Anthropic Messages API provider
+// Ladder: Layer 0 — fn with IO, Unsafe for HTTP calls
+//
+// Uses std::http for real HTTP POST to api.anthropic.com/v1/messages
+// SSE parser converts streaming events to LlmEvent stream.
+// Key resolution via resolve_api_key_static (env > explicit).
+//
+// v0.1: Synchronous HTTP (client_send), SSE parsing from full response body.
+// v0.2: True streaming via buffered reader / WebSocket.
+
+use std::http
+use std::json
+use std::text
+use types    // Model, LlmContext, LlmEvent, LlmEventKind, StreamOptions,
+             // AgentMessage, ContentBlock, Api, Provider
+use providers::trait    // LlmProvider, LlmProviderHandle, make_error_event, accumulate_from_events
+use providers::sse      // parse_sse_stream, sse_to_llm_events
+use providers::key_vault    // resolve_api_key_static, provider_to_env_var
+
+pub const ANTHROPIC_API_VERSION: String = "2023-06-01"
+pub const ANTHROPIC_DEFAULT_TIMEOUT_MS: Int = 120000    // 2 minute timeout
+
+// ===========================================================================
+//  anthropic_stream — Stream completion via SSE
+//  Builds HTTP request, sends to Anthropic Messages API, parses SSE events
+// ===========================================================================
+
+pub fn anthropic_stream(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+    // Step 1: Resolve API key
+    let api_key = resolve_api_key_static("anthropic", options.api_key)
+    if api_key == "":
+        return [make_error_event("Anthropic: no API key found. Set ANTHROPIC_API_KEY env var or pass --api-key")]
+
+    // Step 2: Build JSON body
+    let json_body = build_anthropic_body(model, context)
+    if json_body == "":
+        return [make_error_event("Anthropic: failed to build request body")]
+
+    // Step 3: Create HTTP request
+    let req = request_create("POST", model.base_url)
+    if req == 0:
+        return [make_error_event("Anthropic: failed to create HTTP request")]
+
+    // Step 4: Set headers
+    let _ = request_set_header(req, "x-api-key", api_key)
+    let _ = request_set_header(req, "anthropic-version", ANTHROPIC_API_VERSION)
+    let _ = request_set_header(req, "content-type", "application/json")
+    let _ = request_set_header(req, "accept", "text/event-stream")
+    let _ = request_set_timeout(req, ANTHROPIC_DEFAULT_TIMEOUT_MS)
+
+    // Add extra headers from model config
+    for h in model.headers:
+        let _ = request_set_header(req, h.key, h.value)
+
+    // Step 5: Set body
+    let _ = request_set_body_text(req, json_body)
+
+    // Step 6: Send synchronously for v0.1
+    let response = client_send(req)
+    if response < 0:
+        let _ = request_destroy(req)
+        return [make_error_event("Anthropic: HTTP request failed with code " + str(response))]
+
+    // Step 7: Check response status
+    let status = response_status(response)
+    let body_text = response_body_text(response)
+
+    // Destroy request handle
+    let _ = request_destroy(req)
+
+    if status != 200:
+        let err_msg = parse_anthropic_error(body_text)
+        let _ = response_destroy(response)
+        return [make_error_event("Anthropic: HTTP " + str(status) + " - " + err_msg)]
+
+    // Step 8: Parse response
+    let events = parse_anthropic_response(body_text)
+
+    // Destroy response handle
+    let _ = response_destroy(response)
+
+    return events
+
+// ===========================================================================
+//  anthropic_complete — Non-streaming convenience (calls stream, accumulates)
+// ===========================================================================
+
+pub fn anthropic_complete(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+    let events = anthropic_stream(model, context, options)
+    return accumulate_from_events(events)
+
+// ===========================================================================
+//  build_anthropic_body — Build JSON request body
+//  {
+//    "model": "...",
+//    "messages": [{role, content: [{type, text}]}],
+//    "system": "...",
+//    "max_tokens": N,
+//    "stream": true,
+//    "temperature": 0.7
+//  }
+// ===========================================================================
+
+fn build_anthropic_body(model: Model, context: LlmContext) -> String with Pure:
+    let body = json_object()
+    let _ = json_object_set_string(body, "model", model.id)
+    let _ = json_object_set_int(body, "max_tokens", context.options.max_tokens)
+    let _ = json_object_set_bool(body, "stream", false)
+    let _ = json_object_set_float(body, "temperature", context.options.temperature)
+
+    // Add thinking level if set
+    if context.options.thinking_level != "":
+        let thinking_obj = json_object()
+        let _ = json_object_set_string(thinking_obj, "type", "enabled")
+        let _ = json_object_set_int(thinking_obj, "budget_tokens",
+            thinking_budget(context.options.thinking_level, model))
+        let _ = json_object_set_object(body, "thinking", thinking_obj)
+
+    // Build messages array: Anthropic format
+    let messages = json_array()
+    for msg in context.messages:
+        let msg_obj = json_object()
+        let _ = json_object_set_string(msg_obj, "role", msg.role)
+
+        // Build content array for this message
+        let content = json_array()
+        for block in msg.content:
+            match block:
+                ContentBlock::TextBlock(t) =>
+                    let tb = json_object()
+                    let _ = json_object_set_string(tb, "type", "text")
+                    let _ = json_object_set_string(tb, "text", t)
+                    json_array_push_object(content, tb)
+                ContentBlock::ToolCallBlock(name, id, args) =>
+                    let tc = json_object()
+                    let _ = json_object_set_string(tc, "type", "tool_use")
+                    let _ = json_object_set_string(tc, "id", id)
+                    let _ = json_object_set_string(tc, "name", name)
+                    let _ = json_object_set_string(tc, "input", args)
+                    json_array_push_object(content, tc)
+                ContentBlock::ThinkingBlock(text, _) =>
+                    let th = json_object()
+                    let _ = json_object_set_string(th, "type", "thinking")
+                    let _ = json_object_set_string(th, "thinking", text)
+                    json_array_push_object(content, th)
+                ContentBlock::ImageBlock(media_type, data) =>
+                    let img = json_object()
+                    let _ = json_object_set_string(img, "type", "image")
+                    let source = json_object()
+                    let _ = json_object_set_string(source, "type", "base64")
+                    let _ = json_object_set_string(source, "media_type", media_type)
+                    let _ = json_object_set_string(source, "data", data)
+                    let _ = json_object_set_object(img, "source", source)
+                    json_array_push_object(content, img)
+                _ => 0
+
+        let _ = json_object_set_array(msg_obj, "content", content)
+        let _ = json_array_push_object(messages, msg_obj)
+
+    let _ = json_object_set_array(body, "messages", messages)
+
+    // Add system prompt as a separate system parameter if present
+    if context.system_prompt != "":
+        let sys_msg = json_object()
+        let _ = json_object_set_string(sys_msg, "type", "text")
+        let _ = json_object_set_string(sys_msg, "text", context.system_prompt)
+        let sys_arr = json_array()
+        let _ = json_array_push_object(sys_arr, sys_msg)
+        let _ = json_object_set_array(body, "system", sys_arr)
+
+    // Add tools schema if present
+    if context.tools_schema != "":
+        let tools_parsed = json_parse_text(context.tools_schema)
+        if json_is_array(tools_parsed):
+            let _ = json_object_set_array(body, "tools", tools_parsed)
+        else:
+            // Single tool object, wrap in array
+            let tools_arr = json_array()
+            let _ = json_array_push_value(tools_arr, tools_parsed)
+            let _ = json_object_set_array(body, "tools", tools_arr)
+
+    return json_stringify(body)
+
+// ===========================================================================
+//  parse_anthropic_response — Parse Anthropic API response body
+//  Handles both SSE streaming format and non-streaming JSON
+// ===========================================================================
+
+fn parse_anthropic_response(body: String) -> [LlmEvent] with Pure:
+    // Check if response is SSE format (contains "event:" lines)
+    if text_contains_string(body, "event:"):
+        // SSE streaming response — parse via sse.kn
+        let parse_result = parse_sse_stream(body)
+        return sse_to_llm_events(parse_result.events)
+    else:
+        // Non-streaming JSON response — parse directly
+        return parse_anthropic_json_response(body)
+
+// ===========================================================================
+//  parse_anthropic_json_response — Parse non-streaming JSON response
+//  Anthropic returns: {id, type, role, content: [{type, text}], stop_reason, usage}
+// ===========================================================================
+
+fn parse_anthropic_json_response(body: String) -> [LlmEvent] with Pure:
+    var events: [LlmEvent] = []
+
+    let parsed = json_parse_text(body)
+    if json_is_object(parsed) == false:
+        push(events, make_error_event("Anthropic: unexpected non-object response"))
+        return events
+
+    // Emit start event
+    push(events, LlmEvent {
+        kind: LlmEventKind::Start,
+        data: body,
+        tool_call_id: "",
+        tool_name: "",
+    })
+
+    // Extract content blocks
+    let content_val = json_get_value(parsed, "content")
+    if json_is_array(content_val):
+        var i: Int = 0
+        while i < json_array_length(content_val):
+            let block_val = json_array_value_at(content_val, i)
+            if json_is_object(block_val):
+                let block_type = json_string_required(block_val, "type")
+                if block_type == "text":
+                    let text_val = json_string_required(block_val, "text")
+                    push(events, LlmEvent {
+                        kind: LlmEventKind::TextDelta,
+                        data: text_val,
+                        tool_call_id: "",
+                        tool_name: "",
+                    })
+                elif block_type == "tool_use":
+                    let tool_id = json_string_required(block_val, "id")
+                    let tool_name = json_string_required(block_val, "name")
+                    let tool_input = json_string_required(block_val, "input")
+                    push(events, LlmEvent {
+                        kind: LlmEventKind::ToolCallDelta,
+                        data: tool_input,
+                        tool_call_id: tool_id,
+                        tool_name: tool_name,
+                    })
+                elif block_type == "thinking":
+                    let thinking_text = json_string_required(block_val, "thinking")
+                    push(events, LlmEvent {
+                        kind: LlmEventKind::ThinkingDelta,
+                        data: thinking_text,
+                        tool_call_id: "",
+                        tool_name: "",
+                    })
+            i = i + 1
+
+    // Emit done event
+    push(events, LlmEvent {
+        kind: LlmEventKind::Done,
+        data: body,
+        tool_call_id: "",
+        tool_name: "",
+    })
+
+    return events
+
+// ===========================================================================
+//  parse_anthropic_error — Extract error message from error response JSON
+// ===========================================================================
+
+fn parse_anthropic_error(body: String) -> String with Pure:
+    if body == "":
+        return "empty response"
+    let parsed = json_parse_text(body)
+    if json_is_object(parsed) == false:
+        let trunc_len = if len(body) < 200: len(body) else: 200
+        return text_substring_string(body, 0, trunc_len)
+
+    // Anthropic error format: {error: {type, message}}
+    let error_val = json_get_value(parsed, "error")
+    if json_is_object(error_val):
+        let err_type = json_string_or(error_val, "type", "unknown")
+        let err_msg = json_string_or(error_val, "message", "no message")
+        return "[" + err_type + "] " + err_msg
+
+    // Fallback: try direct message field
+    let msg = json_string_or(parsed, "message", "")
+    if msg != "":
+        return msg
+
+    return "unknown error"
+
+// ===========================================================================
+//  thinking_budget — Map thinking level to budget tokens
+// ===========================================================================
+
+fn thinking_budget(level: String, model: Model) -> Int with Pure:
+    if level == "minimal":
+        return 256
+    elif level == "low":
+        return 1024
+    elif level == "medium":
+        return 4096
+    elif level == "high":
+        return 8192
+    elif level == "xhigh":
+        return 16384
+    else:
+        // Default: use model's thinking_level_map if available
+        let map = model.thinking_level_map
+        if level == map.minimal: return 256
+        elif level == map.low: return 1024
+        elif level == map.medium: return 4096
+        elif level == map.high: return 8192
+        elif level == map.xhigh: return 16384
+        return 4096

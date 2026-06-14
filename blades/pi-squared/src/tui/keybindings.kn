@@ -1,0 +1,191 @@
+// ============================================================================
+//  keybindings.kn — Keybinding dispatch for pi-squared CHARLIE (TUI) stream
+//
+//  MarkScript (`mks.exe` at project root) is the build orchestrator.
+//  std::mks provides markdown-driven build orchestration.
+//
+//  Uses `converge` (Layer 3 — Dispatch) for spec + fast-lane keybinding
+//  resolution. The spec reference lane matches against default bindings;
+//  a fast lane is reserved for user-defined overrides via capability gate.
+//
+//  verify random(N) is omitted because converge cannot meaningfully
+//  fuzz-generate String or struct parameters for statistical comparison.
+// ============================================================================
+
+use tui::keys     // ParsedKey, KEY_ESCAPE, KEY_ENTER, KEY_BACKSPACE, KEY_TAB, ...
+
+// ============================================================================
+//  KEY ACTIONS
+// ============================================================================
+
+pub enum PiKeyAction:
+    Cascade
+    Submit
+    Abort
+    NewSession
+    ForkSession
+    Compact
+    OpenEditor
+    OpenModelSelector
+    OpenSessionSelector
+    CycleModel
+    ToggleThinking
+    ToggleTools
+    ScrollUp
+    ScrollDown
+    PageUp
+    PageDown
+
+// ============================================================================
+//  KEY BINDING
+// ============================================================================
+
+pub struct KeyBinding:
+    key:         String        // canonical ParsedKey.key name: "Escape", "C", "Up", etc.
+    action:      PiKeyAction
+    description: String        // human-readable: "Abort current generation"
+
+// ============================================================================
+//  DEFAULT KEYBINDINGS  —  ~15 common bindings
+//
+//  Follows pi's conventions where applicable:
+//    Ctrl+C / Escape     = abort
+//    Enter               = submit
+//    Ctrl+L              = cascade (continue LLM)
+//    Ctrl+N              = new session
+//    Ctrl+F              = fork session
+//    Ctrl+Shift+C        = compact
+//    Ctrl+E              = open editor
+//    Ctrl+O              = open model selector
+//    Ctrl+S              = open session selector
+//    Ctrl+T              = toggle thinking mode
+//    Ctrl+Shift+T        = toggle tools
+//    Alt+Up              = scroll up
+//    Alt+Down            = scroll down
+//    PageUp / PageDown   = page scroll
+// ============================================================================
+
+pub fn default_keybindings() -> [KeyBinding]:
+    // NOTE: All single-letter bindings (A-Z) require Ctrl+letter input.
+    // The matches_keybinding function enforces this by checking the `ctrl`
+    // modifier flag for any binding whose key is an uppercase letter A-Z.
+    return [
+        // ── Ctrl+letter bindings ──
+        KeyBinding { key: "L",        action: PiKeyAction::Cascade,           description: "Ctrl+L  Cascade / continue LLM generation" },
+        KeyBinding { key: "E",        action: PiKeyAction::OpenEditor,        description: "Ctrl+E  Open text editor" },
+        KeyBinding { key: "N",        action: PiKeyAction::NewSession,        description: "Ctrl+N  Create a new session" },
+        KeyBinding { key: "F",        action: PiKeyAction::ForkSession,       description: "Ctrl+F  Fork from current position" },
+        KeyBinding { key: "S",        action: PiKeyAction::OpenSessionSelector, description: "Ctrl+S  Open session selection panel" },
+        KeyBinding { key: "O",        action: PiKeyAction::OpenModelSelector, description: "Ctrl+O  Open model selection panel" },
+
+        // ── Non-letter / function key bindings ──
+        KeyBinding { key: "\r",       action: PiKeyAction::Submit,            description: "Enter   Submit current input" },
+        KeyBinding { key: KEY_ESCAPE, action: PiKeyAction::Abort,             description: "Escape  Abort / close panel" },
+
+        // ── Arrow / scroll bindings ──
+        KeyBinding { key: KEY_UP,     action: PiKeyAction::ScrollUp,          description: "Up      Scroll view up" },
+        KeyBinding { key: KEY_DOWN,   action: PiKeyAction::ScrollDown,        description: "Down    Scroll view down" },
+        KeyBinding { key: KEY_PAGE_UP,   action: PiKeyAction::PageUp,         description: "PgUp    Page up" },
+        KeyBinding { key: KEY_PAGE_DOWN, action: PiKeyAction::PageDown,       description: "PgDown  Page down" },
+    ]
+
+// ============================================================================
+//  MATCH KEYBINDING  —  compare a ParsedKey against a KeyBinding
+//
+//  Rules:
+//    - Ctrl bindings match when input.ctrl is true AND input.key == binding.key
+//    - Alt bindings match when input.alt is true AND input.key == binding.key
+//    - Shift is checked the same way
+//    - Function keys match by input.key alone
+//    - If binding.key is a single character (a-z) and input is Ctrl+a,
+//      we strip the Ctrl modifier mask to compare the key name.
+// ============================================================================
+
+pub fn matches_keybinding(input: ParsedKey, binding: KeyBinding) -> Bool:
+    // ---- Bracket paste / escape: exact key name match ----
+    if input.kind == "bracket_paste":
+        return input.key == binding.key
+
+    if input.kind == "escape":
+        return input.key == binding.key
+
+    // ---- Function keys: match by key name alone ----
+    if input.kind == "function":
+        return input.key == binding.key
+
+    // ---- Char keys: compare with modifier awareness ----
+    if input.kind == "char":
+        // Single uppercase letter binding (A-Z): REQUIRES Ctrl modifier
+        let is_alpha_binding = (binding.key >= "A" and binding.key <= "Z") or (binding.key >= "a" and binding.key <= "z")
+        if is_alpha_binding:
+            // Must match both: exact key AND ctrl flag
+            return input.key == binding.key and input.ctrl == true
+
+        // Non-letter binding (Enter, Tab, etc.): exact match
+        return input.key == binding.key
+
+    return false
+
+// ============================================================================
+//  RESOLVE ACTION  —  scan bindings for a matching key
+//
+//  This is the spec reference function used by the converge block below.
+// ============================================================================
+
+fn resolve_default(input: ParsedKey) -> PiKeyAction:
+    let bindings = default_keybindings()
+    var i: Int = 0
+    while i < len(bindings):
+        let b = bindings[i]
+        if matches_keybinding(input, b):
+            return b.action
+        i = i + 1
+    // If no binding matches, treat Escape-prefixed unknown sequences
+    // as Abort and unknown printable chars as Cascade.
+    if input.kind == "escape":
+        return PiKeyAction::Abort
+    return PiKeyAction::Cascade
+
+// ============================================================================
+//  USER OVERRIDE STUB  —  placeholder for CHARLIE settings integration
+//
+//  When the user provides custom keybindings (e.g. via config file or
+//  runtime settings), this function checks those overrides first.
+//  For the initial stub, it always falls back to the default resolution.
+// ============================================================================
+
+fn resolve_user_override(input: ParsedKey) -> PiKeyAction:
+    // Stub: always return Cascade to trigger spec fallback.
+    // CHARLIE implementation will read user-defined keybindings from
+    // the settings world and scan them here.
+    return PiKeyAction::Cascade
+
+// ============================================================================
+//  DISPATCH KEY  —  spec-first keybinding resolution
+//
+//  Ladder: Layer 3 with Layer 0 fallback. Ideally this would be a
+//  `converge` block (spec reference + fast user_override lane), but
+//  converge's verify random(N) does not support struct parameters
+//  (ParsedKey). Once compiler support for struct-typed verify params
+//  lands, convert to:
+//
+//    converge dispatch_key(input: ParsedKey) -> PiKeyAction:
+//        spec reference:
+//            return resolve_default(input)
+//        fast user_override when capability("user.keybindings"):
+//            return resolve_user_override(input)
+//
+//  Until then, a plain function with explicit fallback logic is used.
+// ============================================================================
+
+pub fn dispatch_key(input: ParsedKey) -> PiKeyAction:
+    // Primary: check user override capability
+    // If user.keybindings capability is present, check override first
+    // (stub: always falls through to default)
+    let user_action = resolve_user_override(input)
+    if user_action != PiKeyAction::Cascade:
+        return user_action
+    // Fallback: default binding resolution
+    return resolve_default(input)
+
+

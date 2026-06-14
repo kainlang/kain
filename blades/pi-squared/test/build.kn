@@ -1,0 +1,6 @@
+use std::build
+
+pub fn build(ctx: BuildContext) -> BuildGraph:
+    let runner = project("pi-squared-tests")
+    let gra = build_graph()
+    return gra

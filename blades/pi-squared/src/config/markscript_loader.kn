@@ -1,0 +1,280 @@
+// ============================================================================
+//  markscript_loader.kn — Config loading from markscript tables + JSON files
+//
+//  Ladder: Layer 0 — plain fn with IO effect.
+//
+//  Loads layered configuration from:
+//    1. config.md — markscript Metadata table (Property | Value)
+//    2. Global settings JSON (~/.pi-squared/settings.json)
+//    3. Project settings JSON (.pi/settings.json)
+//
+//  Each layer overrides the previous (config.md < global < project).
+//  CLI overrides are applied separately in the startup pipeline.
+//
+//  Does NOT depend on std::mks — parses config.md tables manually
+//  using std::fs and std::text.
+// ============================================================================
+
+use std::fs
+use std::text
+use std::json
+use types    // Settings, default_settings
+
+// ============================================================================
+//  load_settings — layered load from markscript + JSON files
+// ============================================================================
+
+pub fn load_settings(
+    global_path: String,
+    project_path: String,
+    config_md_path: String,
+) -> Settings with IO:
+    var s = default_settings()
+
+    // Layer 1: Load from config.md (markscript Metadata table)
+    s = load_from_markscript(s, config_md_path)
+
+    // Layer 2: Load global settings (overrides config.md)
+    let global = load_json_settings(global_path)
+    s = override_settings(s, global)
+
+    // Layer 3: Load project settings (overrides global)
+    let project = load_json_settings(project_path)
+    s = override_settings(s, project)
+
+    return s
+
+// ============================================================================
+//  load_from_markscript — parse config.md Metadata table
+// ============================================================================
+
+fn load_from_markscript(s: Settings, path: String) -> Settings with IO:
+    if fs_exists(path) == false:
+        return s
+    let raw = fs_read_text(path)
+    if len(raw) == 0:
+        return s
+    let lines = text_split_lines(raw)
+    var result = s
+    var li: Int = 0
+    var in_metadata: Bool = false
+    var in_build: Bool = false
+    while li < len(lines):
+        let lv = text_trim_string(lines[li])
+
+        // Detect table sections by their header row
+        if lv == "| Property | Value |":
+            in_metadata = true
+            in_build = false
+            // Skip separator line
+            if li + 1 < len(lines):
+                let sep = text_trim_string(lines[li + 1])
+                if text_starts_with_string(sep, "|") and text_contains_string(sep, "---"):
+                    li = li + 1
+            li = li + 1
+            continue
+
+        if lv == "| ArtifactRoot | CacheRoot | SourceRoot | ModuleRoot |":
+            in_build = true
+            in_metadata = false
+            // Skip separator line
+            if li + 1 < len(lines):
+                let sep = text_trim_string(lines[li + 1])
+                if text_starts_with_string(sep, "|") and text_contains_string(sep, "---"):
+                    li = li + 1
+            li = li + 1
+            continue
+
+        // Parse metadata rows
+        if in_metadata:
+            if text_starts_with_string(lv, "|") == false:
+                in_metadata = false
+                li = li + 1
+                continue
+            let cells = split_pipe_row(lv)
+            if len(cells) >= 2:
+                let key = cells[0]
+                let val = cells[1]
+                result = apply_metadata_key(result, key, val)
+
+        // Parse build config rows (first data row after header)
+        if in_build:
+            if text_starts_with_string(lv, "|") == false:
+                in_build = false
+                li = li + 1
+                continue
+            // Build config: extract first cell as artifact root for settings
+            // (We don't need build config in settings currently)
+            in_build = false
+
+        li = li + 1
+    return result
+
+// ============================================================================
+//  apply_metadata_key — map a Metadata key-value pair to Settings field
+// ============================================================================
+
+fn apply_metadata_key(s: Settings, key: String, val: String) -> Settings:
+    var result = s
+    if key == "default_provider" or key == "Default Provider":
+        result.default_provider = val
+    elif key == "default_model" or key == "Default Model":
+        result.default_model = val
+    elif key == "default_thinking_level" or key == "Default Thinking Level":
+        result.default_thinking_level = val
+    elif key == "theme" or key == "Theme":
+        result.theme = val
+    elif key == "steering_mode" or key == "Steering Mode":
+        result.steering_mode = val
+    elif key == "follow_up_mode" or key == "Follow Up Mode":
+        result.follow_up_mode = val
+    elif key == "session_dir" or key == "Session Dir":
+        result.session_dir = val
+    return result
+
+// ============================================================================
+//  split_pipe_row — split a | delimited markdown table row into cells
+// ============================================================================
+
+fn split_pipe_row(row: String) -> [String]:
+    var cells: [String] = []
+    var inner = row
+    // Strip leading | if present
+    if text_starts_with_string(inner, "|"):
+        inner = text_substring_string(inner, 1, len(inner) - 1)
+    // Strip trailing | if present
+    if text_ends_with_string(inner, "|"):
+        inner = text_substring_string(inner, 0, len(inner) - 1)
+    // Split by |
+    let parts = text_split_string(inner, "|")
+    var pi: Int = 0
+    while pi < len(parts):
+        push(cells, text_trim_string(parts[pi]))
+        pi = pi + 1
+    return cells
+
+// ============================================================================
+//  merge_settings — merge overlay Settings into base (non-empty overrides)
+// ============================================================================
+
+fn override_settings(base: Settings, overlay: Settings) -> Settings:
+    var result = base
+    if overlay.default_provider != "":
+        result.default_provider = overlay.default_provider
+    if overlay.default_model != "":
+        result.default_model = overlay.default_model
+    if overlay.default_thinking_level != "":
+        result.default_thinking_level = overlay.default_thinking_level
+    if overlay.transport != "":
+        result.transport = overlay.transport
+    if overlay.shell_path != "":
+        result.shell_path = overlay.shell_path
+    if overlay.shell_command_prefix != "":
+        result.shell_command_prefix = overlay.shell_command_prefix
+    if overlay.npm_command != "":
+        result.npm_command = overlay.npm_command
+    if overlay.session_dir != "":
+        result.session_dir = overlay.session_dir
+    if overlay.theme != "":
+        result.theme = overlay.theme
+    if overlay.steering_mode != "":
+        result.steering_mode = overlay.steering_mode
+    if overlay.follow_up_mode != "":
+        result.follow_up_mode = overlay.follow_up_mode
+    if overlay.double_escape_action != "":
+        result.double_escape_action = overlay.double_escape_action
+    if overlay.default_project_trust != "":
+        result.default_project_trust = overlay.default_project_trust
+    if len(overlay.enabled_models) > 0:
+        result.enabled_models = overlay.enabled_models
+    if len(overlay.extensions) > 0:
+        result.extensions = overlay.extensions
+    if len(overlay.packages) > 0:
+        result.packages = overlay.packages
+    if len(overlay.skills) > 0:
+        result.skills = overlay.skills
+    if len(overlay.prompts) > 0:
+        result.prompts = overlay.prompts
+    if overlay.max_retries != 0:
+        result.max_retries = overlay.max_retries
+    if overlay.max_retry_delay_ms != 0:
+        result.max_retry_delay_ms = overlay.max_retry_delay_ms
+    if overlay.terminal_rows != 0:
+        result.terminal_rows = overlay.terminal_rows
+    if overlay.terminal_cols != 0:
+        result.terminal_cols = overlay.terminal_cols
+    // Booleans: only override when the overlay value differs from default
+    if overlay.compaction_enabled != result.compaction_enabled:
+        result.compaction_enabled = overlay.compaction_enabled
+    if overlay.branch_summary_enabled != result.branch_summary_enabled:
+        result.branch_summary_enabled = overlay.branch_summary_enabled
+    if overlay.quiet_startup:
+        result.quiet_startup = true
+    return result
+
+// ============================================================================
+//  load_json_settings — deserialize Settings from a JSON file
+// ============================================================================
+
+pub fn load_json_settings(path: String) -> Settings with IO:
+    if fs_exists(path) == false:
+        return default_settings()
+    let raw = fs_read_text(path)
+    if len(raw) == 0:
+        return default_settings()
+    let obj = json_parse_text(raw)
+    if json_is_object(obj) == false:
+        return default_settings()
+    var s = default_settings()
+    s.default_provider = json_string_or(obj, "default_provider", "")
+    s.default_model = json_string_or(obj, "default_model", "")
+    s.default_thinking_level = json_string_or(obj, "default_thinking_level", "")
+    s.transport = json_string_or(obj, "transport", "")
+    s.enabled_models = json_string_array_field(obj, "enabled_models")
+    s.shell_path = json_string_or(obj, "shell_path", "")
+    s.shell_command_prefix = json_string_or(obj, "shell_command_prefix", "")
+    s.npm_command = json_string_or(obj, "npm_command", "")
+    s.compaction_enabled = json_bool_or(obj, "compaction_enabled", true)
+    s.compaction_reserve_tokens = json_int_or(obj, "compaction_reserve_tokens", 0)
+    s.compaction_keep_recent_tokens = json_int_or(obj, "compaction_keep_recent_tokens", 0)
+    s.branch_summary_enabled = json_bool_or(obj, "branch_summary_enabled", true)
+    s.max_retries = json_int_or(obj, "max_retries", 0)
+    s.max_retry_delay_ms = json_int_or(obj, "max_retry_delay_ms", 0)
+    s.session_dir = json_string_or(obj, "session_dir", "")
+    s.theme = json_string_or(obj, "theme", "")
+    s.terminal_rows = json_int_or(obj, "terminal_rows", 0)
+    s.terminal_cols = json_int_or(obj, "terminal_cols", 0)
+    s.quiet_startup = json_bool_or(obj, "quiet_startup", false)
+    s.packages = json_string_array_field(obj, "packages")
+    s.extensions = json_string_array_field(obj, "extensions")
+    s.skills = json_string_array_field(obj, "skills")
+    s.prompts = json_string_array_field(obj, "prompts")
+    s.steering_mode = json_string_or(obj, "steering_mode", "")
+    s.follow_up_mode = json_string_or(obj, "follow_up_mode", "")
+    s.double_escape_action = json_string_or(obj, "double_escape_action", "")
+    s.default_project_trust = json_string_or(obj, "default_project_trust", "")
+    return s
+
+// ============================================================================
+//  save_json_settings — serialize Settings to JSON and write to file
+// ============================================================================
+
+pub fn save_json_settings(path: String, s: Settings) with IO:
+    let obj = json_object()
+    let o1 = json_object_set_string(obj, "default_provider", s.default_provider)
+    let o2 = json_object_set_string(o1, "default_model", s.default_model)
+    let o3 = json_object_set_string(o2, "default_thinking_level", s.default_thinking_level)
+    let o4 = json_object_set_string(o3, "transport", s.transport)
+    let o5 = json_object_set_string_array(o4, "enabled_models", s.enabled_models)
+    let o6 = json_object_set_string(o5, "shell_path", s.shell_path)
+    let o7 = json_object_set_string(o6, "shell_command_prefix", s.shell_command_prefix)
+    let o8 = json_object_set_string(o7, "npm_command", s.npm_command)
+    let o9 = json_object_set_bool(o8, "compaction_enabled", s.compaction_enabled)
+    let o10 = json_object_set_string(o9, "session_dir", s.session_dir)
+    let o11 = json_object_set_string(o10, "theme", s.theme)
+    let o12 = json_object_set_string(o11, "steering_mode", s.steering_mode)
+    let o13 = json_object_set_string(o12, "follow_up_mode", s.follow_up_mode)
+    let o14 = json_object_set_string(o13, "double_escape_action", s.double_escape_action)
+    let o15 = json_object_set_string(o14, "default_project_trust", s.default_project_trust)
+    let serialized = json_stringify(o15)
+    fs_write_text(path, serialized)

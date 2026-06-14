@@ -1,0 +1,46 @@
+// providers/key_vault.kn — ApiKeyVault world
+// Ladder: Layer 1 (world) + Layer 2 (law)
+
+use std::os    // os_get_env
+
+// Stub component for world surface requirement
+component PiKeyVaultStub():
+    render <text value="pi-key-vault" />
+
+world ApiKeyVault:
+    surface web => PiKeyVaultStub
+    state keys_json: String = "{}"      // JSON object: provider -> key
+    state oauth_json: String = "{}"     // JSON object: provider -> token
+
+patch vault_set_key(vault: ApiKeyVault, provider: String, key: String) -> Int:
+    return 0
+
+patch vault_remove_key(vault: ApiKeyVault, provider: String) -> Int:
+    return 0
+
+patch vault_set_oauth(vault: ApiKeyVault, provider: String, token: String) -> Int:
+    return 0
+
+law key_valid(provider: String, key: String) -> Bool:
+    return len(key) > 0 and len(key) <= 512
+
+// ---- Resolve API key: explicit > env > vault ----
+pub fn resolve_api_key_static(provider: String, explicit_key: String) -> String with IO:
+    if explicit_key != "":
+        return explicit_key
+    let env_var = provider_to_env_var(provider)
+    if env_var != "":
+        let env_key = os_getenv(env_var)
+        if env_key != "":
+            return env_key
+    return ""
+
+pub fn provider_to_env_var(provider: String) -> String with Pure:
+    if provider == "anthropic": return "ANTHROPIC_API_KEY"
+    if provider == "openai": return "OPENAI_API_KEY"
+    if provider == "google": return "GOOGLE_API_KEY"
+    if provider == "mistral": return "MISTRAL_API_KEY"
+    if provider == "deepseek": return "DEEPSEEK_API_KEY"
+    if provider == "opencode": return "OPENCODE_API_KEY"
+    if provider == "faux": return ""
+    return ""

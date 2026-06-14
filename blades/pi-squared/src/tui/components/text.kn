@@ -1,0 +1,130 @@
+// ============================================================================
+//  text.kn — Word-wrapping text display component
+//  Ladder: Layer UI — stateless component with methods and JSX render
+//  Markscript: mks.exe wraps text at column boundaries for display in the
+//  TUI panel; this component mirrors that behavior for plain text rendering.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  TEXT COMPONENT — Renders a block of text word-wrapped to a given width.
+//  Uses display_text() which returns the full wrapped text as a single
+//  newline-separated string. The JSX render embeds it in one <text>.
+//
+//  Word wrapping breaks at spaces. Single words exceeding width are
+//  hard-broken at the character level to maintain the width constraint.
+// ============================================================================
+
+component Text(content: String, width: Int) with Pure:
+    state content: String = ""
+    state width: Int = 0
+
+    // ====================================================================
+    //  WORD WRAP — Splits content into lines no wider than width
+    // ====================================================================
+
+    fn word_wrap(_self: Self_) -> [String]:
+        let w = _self.width
+        if w < 1:
+            return [""]
+        let words_arr = _self._split_words(_self.content)
+        var lines_arr: [String] = []
+        var current: String = ""
+
+        var i: Int = 0
+        while i < len(words_arr):
+            let word_str = words_arr[i]
+            let word_len = len(word_str)
+
+            // Hard-break words wider than the column width
+            if word_len >= w:
+                if len(current) > 0:
+                    push(lines_arr, current)
+                    current = ""
+                var offset: Int = 0
+                while offset < word_len:
+                    let chunk_len = w
+                    if offset + chunk_len > word_len:
+                        chunk_len = word_len - offset
+                    push(lines_arr, _self._substr(word_str, offset, chunk_len))
+                    offset = offset + chunk_len
+                i = i + 1
+                continue
+
+            let gap = if len(current) == 0: 0 else: 1
+            if len(current) + gap + word_len <= w:
+                if len(current) > 0:
+                    current = current + " " + word_str
+                else:
+                    current = word_str
+            else:
+                push(lines_arr, current)
+                current = word_str
+            i = i + 1
+
+        if len(current) > 0:
+            push(lines_arr, current)
+        if len(lines_arr) == 0:
+            push(lines_arr, "")
+
+        return lines_arr
+
+    // ====================================================================
+    //  SPLIT WORDS — Tokenize into whitespace-delimited tokens
+    // ====================================================================
+
+    fn _split_words(_self: Self_, source: String) -> [String]:
+        var words_arr: [String] = []
+        var current: String = ""
+        var i: Int = 0
+        while i < len(source):
+            let ch = _self._char_at(source, i)
+            if ch == " " or ch == text_chr(9) or ch == text_chr(10) or ch == "\r":
+                if len(current) > 0:
+                    push(words_arr, current)
+                    current = ""
+            else:
+                current = current + ch
+            i = i + 1
+        if len(current) > 0:
+            push(words_arr, current)
+        return words_arr
+
+    fn _char_at(_self: Self_, s: String, idx: Int) -> String:
+        if idx >= len(s):
+            return ""
+        let slice = text_slice(s, idx, 1)
+        return text_char_at(slice, 0)
+
+    fn _substr(_self: Self_, s: String, start: Int, length: Int) -> String:
+        if length < 1 or start >= len(s):
+            return ""
+        var result: String = ""
+        var ci: Int = start
+        while ci < start + length and ci < len(s):
+            result = result + _self._char_at(s, ci)
+            ci = ci + 1
+        return result
+
+    // ====================================================================
+    //  DISPLAY TEXT — Word-wrapped lines padded and joined by newlines
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let w = _self.width
+        if w < 1:
+            return ""
+        let wrapped = _self.word_wrap()
+        var result: String = ""
+        var i: Int = 0
+        while i < len(wrapped):
+            if i > 0:
+                let NL = text_chr(10)
+                result = result + NL
+            result = result + fmt_pad_right(wrapped[i], w, " ")
+            i = i + 1
+        return result
+
+    render <text value={display_text()} />

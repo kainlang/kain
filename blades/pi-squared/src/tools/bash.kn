@@ -1,0 +1,38 @@
+// ============================================================================
+//  bash.kn — Shell command execution tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn for subprocess execution.
+//
+//  Executes a shell command and captures stdout.
+//  Supports optional timeout and output size capping.
+// ============================================================================
+
+use std::process
+use std::text
+
+// ---- Execute a shell command and return output ----
+pub fn pi_bash(command: String, timeout: Int) -> String:
+    let timeout_ms = if timeout > 0: timeout else: 30000
+    let output = process_output_text("cmd.exe", "/c", command, "", timeout_ms)
+    let status = process_last_status()
+    var result = ""
+    if status != 0:
+        let NL = text_chr(10)
+        result = "Exit code: " + str(status) + NL
+    result = result + output
+    if len(result) > 102400:
+        let NL = text_chr(10)
+        return bash_str_limit(result, 102400) + NL + "... [output truncated at 100KB]"
+    return result
+
+// ---- Limit string to N characters ----
+fn bash_str_limit(text: String, n: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var bi: Int = 0
+    while bi < len(text):
+        let ch = text_substring_string(text, bi, 1)
+        if i >= n:
+            break
+        result = result + ch
+        i = i + 1
+    return result

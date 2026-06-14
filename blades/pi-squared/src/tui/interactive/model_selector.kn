@@ -1,0 +1,139 @@
+// ============================================================================
+//  tui/interactive/model_selector.kn — Model selection list (CHARLIE-3)
+//  Ladder: Layer 0 — plain struct with fn methods. Terminal text rendering.
+//
+//  Displays a scrollable, groupable list of available models grouped by
+//  provider. Supports up/down navigation and confirmation.
+//
+//  Each model entry is a (provider, model_id, display_name) tuple.
+//  The selector tracks the selected index and scroll offset for viewport
+//  management.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+// ============================================================================
+//  ModelEntry struct — a single model in the picker list
+// ============================================================================
+
+pub struct ModelEntry:
+    provider: String
+    model_id: String
+    display_name: String
+
+// ============================================================================
+//  ModelSelector struct
+//    models:    available models (provider, model_id, display_name)
+//    selected:  currently highlighted index
+//    scroll:    scroll offset (topmost visible index)
+// ============================================================================
+
+pub struct ModelSelector:
+    models: [ModelEntry]
+    selected: Int
+    scroll: Int
+
+// ============================================================================
+//  Factory fn
+// ============================================================================
+
+pub fn new_model_selector(models: [ModelEntry], selected: Int) -> ModelSelector with Pure:
+    return ModelSelector {
+        models: models,
+        selected: selected,
+        scroll: 0,
+    }
+
+// ============================================================================
+//  ModelSelector methods
+// ============================================================================
+
+impl ModelSelector:
+    // ---- Select next model (down), wrapping ----
+    pub fn select_next(_self: Self_) -> Int:
+        let count = len(_self.models)
+        if count > 0:
+            _self.selected = (_self.selected + 1) % count
+            _self.clamp_scroll()
+        return _self.selected
+
+    // ---- Select previous model (up), wrapping ----
+    pub fn select_prev(_self: Self_) -> Int:
+        let count = len(_self.models)
+        if count > 0:
+            _self.selected = (_self.selected - 1 + count) % count
+            _self.clamp_scroll()
+        return _self.selected
+
+    // ---- Confirm current selection, return model index ----
+    pub fn confirm(_self: Self_) -> Int:
+        return _self.selected
+
+    // ---- Keep scroll offset in valid range ----
+    fn clamp_scroll(_self: Self_):
+        let page_size: Int = 10
+        let count = len(_self.models)
+        if _self.selected < _self.scroll:
+            _self.scroll = _self.selected
+        if _self.selected >= _self.scroll + page_size:
+            _self.scroll = _self.selected - page_size + 1
+        if _self.scroll < 0:
+            _self.scroll = 0
+        if _self.scroll >= count:
+            _self.scroll = if count > 0: count - 1 else: 0
+
+    // ---- Render the model list as text lines ----
+    pub fn render(_self: Self_) -> [String]:
+        var lines_out: [String] = []
+        let page_size: Int = 10
+        let count = len(_self.models)
+
+        push(lines_out, "--- Model Selector ---")
+        push(lines_out, "Use up/down to navigate, enter to confirm")
+        push(lines_out, "")
+
+        var i: Int = _self.scroll
+        var rendered: Int = 0
+        while i < count and rendered < page_size:
+            let entry = _self.models[i]
+            let cursor = if i == _self.selected: ">" else: " "
+            let entry_txt = cursor + " " + entry.provider + " / " + entry.model_id + "  (" + entry.display_name + ")"
+            push(lines_out, entry_txt)
+            i = i + 1
+            rendered = rendered + 1
+
+        // Scroll indicators
+        if _self.scroll > 0:
+            push(lines_out, "  ... (scroll up for more) ...")
+        if _self.scroll + page_size < count:
+            push(lines_out, "  ... (scroll down for more) ...")
+
+        push(lines_out, "")
+        push(lines_out, "---")
+        return lines_out
+
+// ============================================================================
+//  Helpers: build ModelEntry tuples from string arrays
+// ============================================================================
+
+// ---- Build selector from parallel arrays ----
+pub fn make_entries(
+    providers: [String],
+    model_ids: [String],
+    names: [String],
+) -> [ModelEntry] with Pure:
+    var entries_out: [ModelEntry] = []
+    var i: Int = 0
+    while i < len(providers):
+        let prov = if i < len(providers): providers[i] else: ""
+        let mid = if i < len(model_ids): model_ids[i] else: ""
+        let dnm = if i < len(names): names[i] else: mid
+        let entry = ModelEntry {
+            provider: prov,
+            model_id: mid,
+            display_name: dnm,
+        }
+        push(entries_out, entry)
+        i = i + 1
+    return entries_out

@@ -1,0 +1,207 @@
+// ============================================================================
+//  screen.kn — TerminalScreen World
+//
+//  Part of the pi-squared CHARLIE (TUI) stream. Owns all terminal display
+//  state: dimensions, previous frame buffer, cursor position, overlay stack.
+//  Uses `patch` for journaled mutations that trigger re-render, and exports
+//  pure helper functions for buffer manipulation.
+//
+//  Ladder: Layer 1 (state authority) — TerminalScreen is a `world` because
+//  it holds compiler-owned global state. Layer 2 (state integrity) — all
+//  mutations go through `patch` so the compiler can journal, entangle, and
+//  trigger resonate tripwires on state changes.
+//
+//  Consumed by: render.kn (pulse loop), component/.kn files (render output),
+//  interactive mode (mode switching).
+//
+//  MarkScript: std::mks config tables provide runtime overrides for default
+//  terminal dimensions (e.g. fallback rows/cols on non-TTY stdout).
+// ============================================================================
+
+use std::os            // os_get_terminal_size, OsTerminalSize
+use std::text          // text_substring_string
+use tui::terminal      // get_terminal_size, is_terminal, enable_raw_mode,
+                       // disable_raw_mode
+
+// ============================================================================
+//  TERMINAL SCREEN WORLD
+//
+//  Single source of truth for terminal display dimensions, cursor state,
+//  previous frame buffer (for differential rendering), and overlay stack.
+//
+//  IMPORTANT: In Kain, world fields are accessed via the world name in
+//  patch/fn functions: `TerminalScreen.rows = ...`. Patches are standalone
+//  functions taking the world as a typed parameter.
+// ============================================================================
+
+world TerminalScreen:
+    // ── Display dimensions ──
+    state rows: Int = 24
+    state cols: Int = 80
+
+    // ── Previous frame buffer (for differential rendering) ──
+    state previous_lines: [String] = []
+
+    // ── Cursor position ──
+    state cursor_row: Int = 1
+    state cursor_col: Int = 1
+
+    // ── Raw mode tracking ──
+    state raw_mode_enabled: Bool = false
+
+    // ── Overlay stack — modal component IDs ──
+    state overlay_ids: [String] = []
+
+    // ── Full-render flag — set on resize, cleared after first differential frame ──
+    state needs_full_render: Bool = true
+
+    // ── Is this a terminal? ──
+    state is_term: Bool = true
+
+    // ── Surface binding (stub — wired by interactive mode) ──
+    surface web => PiTuiStub
+
+// ============================================================================
+//  PATCH: terminal_initialize — query terminal dimensions, set raw mode
+// ============================================================================
+
+pub fn terminal_initialize() -> Int with IO, Unsafe:
+    let term_size = os_get_terminal_size()
+    TerminalScreen.rows = term_size.rows
+    TerminalScreen.cols = term_size.columns
+    TerminalScreen.is_term = is_terminal()
+    if TerminalScreen.is_term:
+        let raw_status = enable_raw_mode()
+        TerminalScreen.raw_mode_enabled = raw_status == 0
+    TerminalScreen.needs_full_render = true
+    TerminalScreen.previous_lines = []
+    TerminalScreen.cursor_row = 1
+    TerminalScreen.cursor_col = 1
+    return 0
+
+// ============================================================================
+//  PATCH: terminal_update_dimensions — terminal resize event
+// ============================================================================
+
+pub patch terminal_update_dimensions(r_rows: Int, r_cols: Int) -> Int:
+    TerminalScreen.rows = r_rows
+    TerminalScreen.cols = r_cols
+    TerminalScreen.needs_full_render = true
+    return 0
+
+// ============================================================================
+//  PATCH: terminal_push_overlay — push a modal overlay by component ID
+// ============================================================================
+
+pub patch terminal_push_overlay(overlay_id: String) -> Int:
+    push(TerminalScreen.overlay_ids, overlay_id)
+    return 0
+
+// ============================================================================
+//  PATCH: terminal_pop_overlay — pop the top overlay, return its ID
+// ============================================================================
+
+pub patch terminal_pop_overlay() -> String:
+    let ids = TerminalScreen.overlay_ids
+    if len(ids) == 0:
+        return ""
+    let last_idx = len(ids) - 1
+    let last_val = ids[last_idx]
+    // Rebuild without the last element
+    var new_ids: [String] = []
+    var i: Int = 0
+    while i < last_idx:
+        push(new_ids, ids[i])
+        i = i + 1
+    TerminalScreen.overlay_ids = new_ids
+    return last_val
+
+// ============================================================================
+//  PATCH: terminal_set_cursor — position the hardware cursor
+// ============================================================================
+
+pub patch terminal_set_cursor(row: Int, col: Int) -> Int:
+    TerminalScreen.cursor_row = row
+    TerminalScreen.cursor_col = col
+    return 0
+
+// ============================================================================
+//  FN: screen_get_dimensions — read-only world access
+// ============================================================================
+
+pub fn screen_get_dimensions() -> (Int, Int):
+    return (TerminalScreen.rows, TerminalScreen.cols)
+
+// ============================================================================
+//  FN: screen_get_dimensions_tuple — alias returning same
+// ============================================================================
+
+pub fn screen_get_dimensions_tuple() -> (Int, Int):
+    return (TerminalScreen.rows, TerminalScreen.cols)
+
+// ============================================================================
+//  BUFFER HELPERS — pure functions for screen buffer manipulation
+// ============================================================================
+
+pub fn empty_buffer(e_rows: Int, e_cols: Int) -> [String] with Pure:
+    var buf: [String] = []
+    var r: Int = 0
+    while r < e_rows:
+        // Create a row of spaces
+        var ln: String = ""
+        var c: Int = 0
+        while c < e_cols:
+            ln = ln + " "
+            c = c + 1
+        push(buf, ln)
+        r = r + 1
+    return buf
+
+pub fn write_to_buffer(buffer: [String], w_row: Int, w_col: Int, text: String) -> [String] with Pure:
+    if w_row < 0 or w_row >= len(buffer):
+        return buffer
+
+    let ln = buffer[w_row]
+    let text_len = len(text)
+    let buf_len = len(ln)
+
+    // Build the new line: prefix + text + suffix
+    var new_line: String = ""
+
+    // Copy prefix (up to w_col)
+    var pi: Int = 0
+    while pi < w_col and pi < buf_len:
+        new_line = new_line + text_substring_string(ln, pi, 1)
+        pi = pi + 1
+
+    // Pad with spaces if w_col exceeds current line length
+    while pi < w_col:
+        new_line = new_line + " "
+        pi = pi + 1
+
+    // Write text at position
+    var ti: Int = 0
+    while ti < text_len:
+        new_line = new_line + text_substring_string(text, ti, 1)
+        ti = ti + 1
+
+    // Copy suffix (after text ends)
+    var si: Int = w_col + text_len
+    while si < buf_len:
+        new_line = new_line + text_substring_string(ln, si, 1)
+        si = si + 1
+
+    buffer[w_row] = new_line
+    return buffer
+
+// ============================================================================
+//  COMPONENT STUB — PiTuiStub
+//
+//  Minimal placeholder component for surface binding. Replaced by the full
+//  TUI component tree when interactive mode wires it in.
+//
+//  Ladder: Layer UI — Kain component with JSX render body.
+// ============================================================================
+
+pub component PiTuiStub():
+    render <text value="pi-tui v0.1" />

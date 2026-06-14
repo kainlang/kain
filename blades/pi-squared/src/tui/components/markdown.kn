@@ -1,0 +1,223 @@
+// ============================================================================
+//  markdown.kn — Simple markdown renderer component (plain text, v0.1)
+//  Ladder: Layer UI — stateless component with methods and JSX render
+//  Markscript: mks.exe compiles markdown to bytecode; this component renders
+//  markdown source for TUI display, providing a live preview surface for
+//  mks-authored documents before compilation.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  MARKDOWN TEXT COMPONENT — Renders markdown source as formatted text for
+//  TUI display. v0.1 supports: headings, code fences, unordered lists,
+//  pipe tables, and paragraph text. No syntax highlighting.
+//
+//  Rendering:
+//    # Title          →  ══ Title ══  + underline
+//    ## Title         →  ── Title ──  + underline
+//    ### Title        →  "   Title"
+//    ``` block        →  indented lines with border
+//    - item           →  • item
+//    | col | col |    →  pipe-delimited table
+// ============================================================================
+
+component MarkdownText(source: String, width: Int) with Pure:
+    state source: String = ""
+    state width: Int = 0
+
+    // ====================================================================
+    //  DISPLAY TEXT — Parse markdown and render as formatted text
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let raw_lines = text_split_lines(_self.source)
+        let w = _self.width
+        var effective_w = w
+        if effective_w < 10:
+            effective_w = 40
+        var result: String = ""
+        var in_code: Bool = false
+        var i: Int = 0
+
+        while i < len(raw_lines):
+            let raw = raw_lines[i]
+            let trimmed = _self._trim_left(raw)
+
+            // Fenced code block
+            if _self._starts_with(trimmed, "```"):
+                in_code = if in_code: false else: true
+                if in_code:
+                    let f_str = fmt_pad_right("┌─ code ", effective_w, "─")
+                    let NL = text_chr(10)
+            result = result + f_str + NL
+                else:
+                    let f_end = fmt_pad_right("└─ end ", effective_w, "─")
+                    let NL2 = text_chr(10)
+            result = result + f_end + NL2
+                i = i + 1
+                continue
+
+            if in_code:
+                let code_str = "  │ " + raw
+                let NL3 = text_chr(10)
+                result = result + fmt_pad_right(code_str, effective_w, " ") + NL3
+                i = i + 1
+                continue
+
+            // Empty line
+            if len(trimmed) == 0:
+                let NL4 = text_chr(10)
+                result = result + fmt_repeat(" ", effective_w) + NL4
+                i = i + 1
+                continue
+
+            // H1: # Title
+            if _self._starts_with(trimmed, "# ") or trimmed == "#":
+                let title = _self._strip_prefix(trimmed, "# ")
+                let hdr = "══ " + title + " ══"
+                let NL5 = text_chr(10)
+                result = result + fmt_pad_right(hdr, effective_w, " ") + NL5
+                result = result + fmt_pad_right(fmt_repeat("═", effective_w), effective_w, " ") + NL
+                i = i + 1
+                continue
+
+            // H2: ## Title
+            if _self._starts_with(trimmed, "## "):
+                let title = _self._strip_prefix(trimmed, "## ")
+                let hdr = "── " + title + " ──"
+                let NL5 = text_chr(10)
+                result = result + fmt_pad_right(hdr, effective_w, " ") + NL5
+                result = result + fmt_pad_right(fmt_repeat("─", effective_w), effective_w, " ") + NL
+                i = i + 1
+                continue
+
+            // H3: ### Title
+            if _self._starts_with(trimmed, "### "):
+                let title = _self._strip_prefix(trimmed, "### ")
+                let hdr = "   " + title
+                let NL5 = text_chr(10)
+                result = result + fmt_pad_right(hdr, effective_w, " ") + NL5
+                i = i + 1
+                continue
+
+            // List item: - or *
+            if _self._starts_with(trimmed, "- ") or _self._starts_with(trimmed, "* "):
+                let item_text = _self._strip_list_marker(trimmed)
+                result = result + fmt_pad_right("  • " + item_text, effective_w, " ") + NL
+                i = i + 1
+                continue
+
+            // Table row: | col | col |
+            if _self._starts_with(trimmed, "|"):
+                let table_line = _self._render_table(trimmed, effective_w)
+                let NL6 = text_chr(10)
+                result = result + table_line + NL6
+                i = i + 1
+                continue
+
+            // Default paragraph
+            let NL7 = text_chr(10)
+            result = result + fmt_pad_right(trimmed, effective_w, " ") + NL7
+            i = i + 1
+
+        return result
+
+    // ====================================================================
+    //  HELPERS
+    // ====================================================================
+
+    fn _trim_left(_self: Self_, s: String) -> String:
+        var idx: Int = 0
+        while idx < len(s):
+            let ch = _self._char_at(s, idx)
+            if ch != " " and ch != text_chr(9):
+                return _self._substr(s, idx, len(s) - idx)
+            idx = idx + 1
+        return ""
+
+    fn _char_at(_self: Self_, s: String, idx: Int) -> String:
+        if idx >= len(s):
+            return ""
+        let slice = text_slice(s, idx, 1)
+        return text_char_at(slice, 0)
+
+    fn _substr(_self: Self_, s: String, start: Int, length: Int) -> String:
+        if length < 1 or start >= len(s):
+            return ""
+        var result: String = ""
+        var ci: Int = start
+        while ci < start + length and ci < len(s):
+            result = result + _self._char_at(s, ci)
+            ci = ci + 1
+        return result
+
+    fn _starts_with(_self: Self_, s: String, prefix: String) -> Bool:
+        let pl = len(prefix)
+        if len(s) < pl:
+            return false
+        var idx: Int = 0
+        while idx < pl:
+            if _self._char_at(s, idx) != _self._char_at(prefix, idx):
+                return false
+            idx = idx + 1
+        return true
+
+    fn _strip_prefix(_self: Self_, s: String, prefix: String) -> String:
+        let pl = len(prefix)
+        if len(s) > pl:
+            return _self._substr(s, pl, len(s) - pl)
+        return ""
+
+    fn _strip_list_marker(_self: Self_, s: String) -> String:
+        let stripped = _self._strip_prefix(s, "- ")
+        if stripped == s:
+            stripped = _self._strip_prefix(s, "* ")
+        return stripped
+
+    // ====================================================================
+    //  TABLE RENDERING — Minimal pipe-table layout
+    // ====================================================================
+
+    fn _render_table(_self: Self_, row: String, w: Int) -> String:
+        var cells: [String] = []
+        var cell: String = ""
+        var ci: Int = 0
+        while ci < len(row):
+            let ch = _self._char_at(row, ci)
+            if ch == "|":
+                push(cells, cell)
+                cell = ""
+            else:
+                cell = cell + ch
+            ci = ci + 1
+        if len(cell) > 0:
+            push(cells, cell)
+
+        let col_count = len(cells)
+        let col_w = if col_count > 0: (w - 2) / col_count else: (w - 2)
+        if col_w < 4: col_w = 4
+
+        var pipe_line: String = "│"
+        var c_idx: Int = 0
+        while c_idx < len(cells):
+            let cell_val = _self._trim(cells[c_idx])
+            pipe_line = pipe_line + fmt_pad_right(cell_val, col_w, " ") + "│"
+            c_idx = c_idx + 1
+
+        return fmt_pad_right(pipe_line, w, " ")
+
+    fn _trim(_self: Self_, s: String) -> String:
+        return _self._trim_right(_self._trim_left(s))
+
+    fn _trim_right(_self: Self_, s: String) -> String:
+        var idx: Int = len(s) - 1
+        while idx >= 0:
+            let ch = _self._char_at(s, idx)
+            if ch != " " and ch != text_chr(9):
+                return _self._substr(s, 0, idx + 1)
+            idx = idx - 1
+        return ""
+
+    render <text value={display_text()} />

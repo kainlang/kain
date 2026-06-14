@@ -1,0 +1,306 @@
+// ============================================================================
+//  render.kn — Pulse Render Loop & Differential Rendering
+//
+//  Part of the pi-squared CHARLIE (TUI) stream. Provides the 60fps pulse
+//  render loop (commented-out template for v0.1), differential frame
+//  comparison (only writes changed lines to stdout), full-frame rendering
+//  (on resize), and the status/footer line formatter.
+//
+//  Ladder:
+//    Layer 5 (temporal) — `pulse tui_render_loop every 16ms` drives the
+//      frame schedule. This is the canonical temporal beat: the compiler
+//      owns timing, jitter, and missed-beat tracking.
+//    Layer 0 — `fn` for pure computation (diffing, formatting, cursor
+//      extraction). These are stateless transforms consumed by the pulse.
+//
+//  MarkScript: The pulse render loop is the markscript-equivalent of a
+//  reactive display pipeline — markscript's `@every` decorator drives
+//  markdown-to-bytecode rendering at a configurable interval. Here the
+//  same pulse-driven reactive display pattern is expressed in native Kain,
+//  with the compiler owning timing via `pulse` instead of a decorator.
+//  std::mks config tables can supply runtime overrides for frame interval,
+//  jitter tolerance, and ANSI-color-preference.
+// ============================================================================
+
+use std::os            // os_get_terminal_size, OsTerminalSize
+use std::text          // text_chr, text_substring_string, text_ord
+use tui::terminal      // KITTY_SYNC_START, KITTY_SYNC_END, CLEAR_SCREEN,
+                       // CLEAR_LINE_TO_END, CURSOR_HIDE, cursor_to,
+                       // SGR_RESET, SGR_REVERSE, SGR_DIM, CURSOR_MARKER,
+                       // sgr_fg, sgr_bg
+use tui::screen        // TerminalScreen, empty_buffer, write_to_buffer,
+                       // screen_get_dimensions
+
+// ============================================================================
+//  ESC CHAR HELPER  —  Kain lexer rejects \x hex escapes
+// ============================================================================
+
+fn render_esc() -> String:
+    return text_chr(27)
+
+// ============================================================================
+//  DIFFERENTIAL RENDER — compare old and new frame buffers
+// ============================================================================
+
+pub fn diff_buffers(old: [String], newer: [String]) -> [(Int, String)] with Pure:
+    var changes: [(Int, String)] = []
+    let max_len = len(newer)
+    var i: Int = 0
+
+    while i < max_len:
+        let old_line = if i < len(old): old[i] else: ""
+        let newer_line = newer[i]
+
+        if newer_line != old_line:
+            push(changes, (i, newer_line))
+
+        i = i + 1
+
+    return changes
+
+// ============================================================================
+//  RENDER FRAME — write differential or full frame to stdout
+//
+//  If needs_full_render is true, clears the screen and writes every line.
+//  Otherwise, diffs against previous_lines and writes only changed lines
+//  with cursor positioning. All output is wrapped in Kitty sync protocol
+//  to prevent terminal tearing.
+// ============================================================================
+
+pub fn render_frame(screen: TerminalScreen, lines: [String]) with IO:
+    let prev = screen.previous_lines
+    let needs_full = screen.needs_full_render
+
+    // Wrap output in Kitty synchronized update
+    print(KITTY_SYNC_START())
+
+    if needs_full:
+        // Full frame: clear and write everything
+        print(CURSOR_HIDE())
+        print(CLEAR_SCREEN())
+
+        var fi: Int = 0
+        while fi < len(lines):
+            print(cursor_to(fi + 1, 1))
+            print(lines[fi])
+            fi = fi + 1
+    else:
+        // Differential: only write changed lines
+        let changes = diff_buffers(prev, lines)
+        var ci: Int = 0
+        while ci < len(changes):
+            let (line_num, content) = changes[ci]
+            // Line numbers are 0-indexed in arrays → 1-indexed for ANSI cursor
+            print(cursor_to(line_num + 1, 1))
+            print(CLEAR_LINE())
+            print(content)
+            ci = ci + 1
+
+    print(KITTY_SYNC_END())
+
+// ============================================================================
+//  EXTRACT CURSOR MARKER — find CURSOR_MARKER in rendered output
+//
+//  Scans every line for the zero-width CURSOR_MARKER token. Returns the
+//  (row, col) of the first marker found, and strips the marker from lines.
+//  The marker is emitted by editable components (editor, input) to signal
+//  where the hardware cursor should be positioned.
+// ============================================================================
+
+pub fn extract_and_strip_marker(lines: [String]) -> ([String], Int, Int) with Pure:
+    let marker = CURSOR_MARKER()
+    var result_row: Int = 0
+    var result_col: Int = 0
+    var stripped: [String] = []
+    var li: Int = 0
+
+    while li < len(lines):
+        let ln = lines[li]
+        let marker_pos = find_string(ln, marker)
+
+        if marker_pos >= 0:
+            // Build line without the marker
+            var clean: String = ""
+            var si: Int = 0
+            while si < marker_pos:
+                clean = clean + text_substring_string(ln, si, 1)
+                si = si + 1
+            var sj: Int = marker_pos + len(marker)
+            while sj < len(ln):
+                clean = clean + text_substring_string(ln, sj, 1)
+                sj = sj + 1
+            push(stripped, clean)
+
+            // Record first marker position only
+            if result_row == 0 and result_col == 0:
+                result_row = li + 1
+                result_col = marker_pos + 1
+        else:
+            push(stripped, ln)
+
+        li = li + 1
+
+    return (stripped, result_row, result_col)
+
+// ============================================================================
+//  FORMAT STATUS LINE — footer with model, tokens, git, context pct
+//
+//  Returns a single line (col-width with padding) suitable for the bottom
+//  row of the terminal. Uses reverse video for visual separation.
+//
+//  Layout:
+//    ┌ model  ──  tokens  ──  git  ──  pct% ────────────────────────┐
+// ============================================================================
+
+pub fn format_status_line(
+    model: String,
+    tokens: Int,
+    git: String,
+    pct: Int,
+    cols: Int,
+) -> String with Pure:
+    let sep = "  " + SGR_DIM() + "|" + SGR_RESET() + "  "
+    var ln = SGR_REVERSE()
+
+    // Build status segments
+    ln = ln + model + sep
+    ln = ln + str(tokens) + " tok" + sep
+    if len(git) > 0:
+        ln = ln + git + sep
+    ln = ln + str(pct) + "%"
+
+    // Dim the trailing filler
+    let content_len = visible_ansi_len(ln)
+    if content_len < cols:
+        var pad_count = cols - content_len
+        ln = ln + SGR_DIM()
+        var pi: Int = 0
+        while pi < pad_count:
+            ln = ln + " "
+            pi = pi + 1
+
+    ln = ln + SGR_RESET()
+    return ln
+
+// ============================================================================
+//  VISIBLE ANSI LEN — rough estimate of visible character width
+//
+//  Strips ANSI escape sequences (ESC[...m, ESC[...H) to count visible
+//  characters. Approximate — does not handle CJK wide chars for v0.1.
+// ============================================================================
+
+fn visible_ansi_len(text: String) -> Int with Pure:
+    let esc_ch = render_esc()
+    var count: Int = 0
+    var i: Int = 0
+    let tlen = len(text)
+
+    while i < tlen:
+        let ch = text_substring_string(text, i, 1)
+        // Skip ANSI escape sequences: starts with ESC
+        if ch == esc_ch:
+            // Skip until we hit a letter terminator (m, H, A, B, etc.)
+            i = i + 1
+            while i < tlen:
+                let esc_ch2 = text_substring_string(text, i, 1)
+                let code = text_ord(esc_ch2)
+                i = i + 1
+                // ANSI terminator: letter A-Z or a-z
+                if (code >= 0x41 and code <= 0x5A) or (code >= 0x61 and code <= 0x7A):
+                    break
+            continue
+
+        count = count + 1
+        i = i + 1
+
+    return count
+
+// ============================================================================
+//  FIND STRING — simple substring search (returns index or -1)
+// ============================================================================
+
+fn find_string(haystack: String, needle: String) -> Int with Pure:
+    let h_len = len(haystack)
+    let n_len = len(needle)
+
+    if n_len == 0:
+        return 0
+    if n_len > h_len:
+        return -1
+
+    var hi: Int = 0
+    while hi <= h_len - n_len:
+        var matched: Bool = true
+        var ni: Int = 0
+        while ni < n_len:
+            if text_substring_string(haystack, hi + ni, 1) != text_substring_string(needle, ni, 1):
+                matched = false
+                break
+            ni = ni + 1
+        if matched:
+            return hi
+        hi = hi + 1
+
+    return -1
+
+// ============================================================================
+//  PULSE: Main render loop template
+//
+//  Fires every ~16ms (≈60 FPS) with 2ms jitter to desynchronize from
+//  other system timers. The pulse body:
+//    1. Gets terminal dimensions from TerminalScreen world
+//    2. Collects rendered lines from all active components
+//    3. Composites the overlay stack on top
+//    4. Extracts and strips CURSOR_MARKER tokens
+//    5. Writes differential or full frame to stdout
+//    6. Updates world state for next frame
+//
+//  ⚠ COMMENTED OUT for v0.1 — uncomment when component tree is wired.
+//  Pulse requires a fully compiled project with the runtime backing
+//  the temporal subsystem. Enable after:
+//    - editor.kn exists with render() → [String]
+//    - interactive.kn wires component → TerminalScreen
+//    - runtime supports pulse scheduling
+//
+//  pulse tui_render_loop every 16ms jitter 2ms:
+//      let (rows, cols) = TerminalScreen.get_dimensions()
+//
+//      // Collect render output from all active components
+//      let new_lines = render_all_components(cols, rows)
+//
+//      // Composite overlay stack (last overlay renders on top)
+//      let with_overlays = composite_overlays(new_lines, TerminalScreen.overlay_ids)
+//
+//      // Extract cursor position from CURSOR_MARKER
+//      let (stripped, cursor_row, cursor_col) = extract_and_strip_marker(with_overlays)
+//
+//      // Write differential output (or full frame if resized)
+//      render_frame(TerminalScreen, stripped)
+//
+//      // Update world state for next frame
+//      let _ = TerminalScreen.update_dimensions(rows, cols)
+//      let _ = TerminalScreen.set_cursor(cursor_row, cursor_col)
+//      TerminalScreen.previous_lines = stripped
+//      TerminalScreen.needs_full_render = false
+// ============================================================================
+
+// ============================================================================
+//  RENDER ALL COMPONENTS — stub: builds an empty buffer with footer
+//
+//  Replaced by actual component-render composition when editor, assistant,
+//  text, box, markdown, etc. are wired into the interactive mode loop.
+//
+//  Ladder: Layer 0 — plain fn. No world access needed (components hold
+//  their own render state). This stub exists so render.kn can compile
+//  independently.
+// ============================================================================
+
+pub fn render_all_components(r_cols: Int, r_rows: Int) -> [String] with Pure:
+    var buffer = empty_buffer(r_rows, r_cols)
+
+    // Footer (bottom row)
+    let footer_text = "pi-squared 0.1.0 — CHARLIE TUI"
+    let footer_row = r_rows - 1
+    buffer = write_to_buffer(buffer, footer_row, 0, footer_text)
+
+    return buffer

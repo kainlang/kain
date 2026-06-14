@@ -1,0 +1,130 @@
+use std::text
+
+struct EventListener:
+    event_name: String
+    callback: String
+    id: Int
+
+struct EventBus:
+    listeners: [EventListener]
+
+struct Event:
+    name: String
+    data: String
+
+fn create_bus() -> EventBus:
+    return EventBus { listeners: [] }
+
+fn bus_subscribe(bus: EventBus, event_name: String, callback: String, id: Int) -> EventBus:
+    let listener = EventListener {
+        event_name: event_name,
+        callback: callback,
+        id: id
+    }
+    let new_listeners = bus.listeners + [listener]
+    return EventBus { listeners: new_listeners }
+
+fn bus_emit(bus: EventBus, event: Event) -> [String]:
+    var called: [String] = []
+    var i: Int = 0
+    while i < len(bus.listeners):
+        if bus.listeners[i].event_name == event.name:
+            called = called + [bus.listeners[i].callback]
+        i = i + 1
+    return called
+
+fn bus_unsubscribe(bus: EventBus, id: Int) -> EventBus:
+    var remaining: [EventListener] = []
+    var i: Int = 0
+    while i < len(bus.listeners):
+        if bus.listeners[i].id != id:
+            remaining = remaining + [bus.listeners[i]]
+        i = i + 1
+    return EventBus { listeners: remaining }
+
+fn bus_listener_count(bus: EventBus) -> Int:
+    return len(bus.listeners)
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Create bus and subscribe listeners
+    let bus1 = create_bus()
+    let bus2 = bus_subscribe(bus1, "message:received", "on_message", 1)
+    let bus3 = bus_subscribe(bus2, "tool:called", "on_tool_call", 2)
+    let bus4 = bus_subscribe(bus3, "message:received", "on_message_log", 3)
+
+    // Test listener count
+    if bus_listener_count(bus4) != 3:
+        println("[FAIL] event_bus: expected 3 listeners, got " + str(bus_listener_count(bus4)))
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: 3 listeners registered")
+
+    // Test emit to message:received triggers 2 listeners
+    let ev1 = Event { name: "message:received", data: "hello" }
+    let called1 = bus_emit(bus4, ev1)
+    if len(called1) != 2:
+        println("[FAIL] event_bus: expected 2 callbacks for message:received, got " + str(len(called1)))
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: message:received triggers 2 listeners")
+
+    // Test emit to tool:called triggers 1 listener
+    let ev2 = Event { name: "tool:called", data: "read_file" }
+    let called2 = bus_emit(bus4, ev2)
+    if len(called2) != 1 or called2[0] != "on_tool_call":
+        println("[FAIL] event_bus: tool:called should trigger on_tool_call")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: tool:called triggers on_tool_call")
+
+    // Test emit to unknown event triggers none
+    let ev3 = Event { name: "unknown:event", data: "" }
+    let called3 = bus_emit(bus4, ev3)
+    if len(called3) != 0:
+        println("[FAIL] event_bus: unknown event should trigger nothing")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: unknown event triggers 0 listeners")
+
+    // Test unsubscribe removes listener
+    let bus5 = bus_unsubscribe(bus4, 2)
+    let called4 = bus_emit(bus5, Event { name: "tool:called", data: "" })
+    if len(called4) != 0:
+        println("[FAIL] event_bus: unsubscribed listener still triggered")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: unsubscribe removes listener")
+
+    // Test remaining listeners after unsubscribe
+    let called5 = bus_emit(bus5, Event { name: "message:received", data: "test" })
+    if len(called5) != 2:
+        println("[FAIL] event_bus: remaining subscribers not triggered after unsubscribe")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: remaining subscribers still work")
+
+    // Test event data is accessible
+    let ev4 = Event { name: "data:test", data: "{\"key\": \"value\"}" }
+    if text_contains_string(ev4.data, "key") == false:
+        println("[FAIL] event_bus: event data not preserved")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: event data preserved")
+
+    // Test multiple subscribe to same event returns all callbacks in order
+    let bus6 = bus_subscribe(create_bus(), "test", "first", 1)
+    let bus7 = bus_subscribe(bus6, "test", "second", 2)
+    let bus8 = bus_subscribe(bus7, "test", "third", 3)
+    let called6 = bus_emit(bus8, Event { name: "test", data: "" })
+    if len(called6) != 3 or called6[0] != "first" or called6[2] != "third":
+        println("[FAIL] event_bus: multiple subscribers order wrong")
+        failures = failures + 1
+    else:
+        println("[PASS] event_bus: multiple subscribers in insertion order")
+
+    println("=== EVENT BUS ===")
+    if failures == 0:
+        println("[PASS] All event bus tests passed")
+    return failures

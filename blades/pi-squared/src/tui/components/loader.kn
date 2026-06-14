@@ -1,0 +1,73 @@
+// ============================================================================
+//  loader.kn — Frame-animated loader/spinner component
+//  Ladder: Layer UI — component with state, methods, and JSX render
+//  Markscript: mks.exe displays animated loaders during compilation and
+//  tokenization phases; this component provides the frame-rotation logic.
+// ============================================================================
+
+// ============================================================================
+//  LOADER COMPONENT — Displays a rotating animation frame from a frame
+//  sequence. Each render cycle advances the animation according to the
+//  frame_interval. The current frame is displayed as a <text> element.
+//
+//  Default frame sets (for reference when instantiating):
+//    Spinner: ["◐", "◓", "◑", "◒"]
+//    Dots:    ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+//    Pulse:   ["█", "▓", "▒", "░", "▒", "▓"]
+// ============================================================================
+
+component Loader(frames: [String], frame_interval: Int) with Pure:
+    state frames: [String] = []
+    state frame_interval: Int = 0
+    state current_index: Int = 0
+    state tick_count: Int = 0
+
+    // ====================================================================
+    //  ANIMATION CONTROL
+    // ====================================================================
+
+    fn advance(_self: Self_):
+        _self.tick_count = _self.tick_count + 1
+        if _self.tick_count >= _self.frame_interval:
+            _self.tick_count = 0
+            _self.current_index = _self.current_index + 1
+            if _self.current_index >= len(_self.frames):
+                _self.current_index = 0
+
+    fn reset(_self: Self_):
+        _self.current_index = 0
+        _self.tick_count = 0
+
+    fn set_frames(_self: Self_, new_frames: [String]):
+        _self.frames = new_frames
+        _self.reset()
+
+    // ====================================================================
+    //  CURRENT FRAME ACCESSORS
+    // ====================================================================
+
+    fn current_frame(_self: Self_) -> String:
+        if len(_self.frames) == 0:
+            return " "
+        return _self.frames[_self.current_index]
+
+    fn frame_count(_self: Self_) -> Int:
+        return len(_self.frames)
+
+    fn frame_progress(_self: Self_) -> Float:
+        if len(_self.frames) < 2:
+            return 0.0
+        return Float(_self.current_index) / Float(len(_self.frames) - 1)
+
+    // ====================================================================
+    //  FULL RENDERED LINES — Returns the complete display content as a
+    //  single-element array (the spinner character plus optionally a
+    //  label for context). Used by the TUI composer.
+    // ====================================================================
+
+    fn display_lines(_self: Self_) -> [String]:
+        return [_self.current_frame()]
+
+    render <stack direction="horizontal">
+        <text value={current_frame()} />
+    </stack>

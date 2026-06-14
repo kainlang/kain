@@ -1,0 +1,77 @@
+// ============================================================================
+//  input.kn — Single-line text input component for TUI
+//  Ladder: Layer UI — component with state, methods, and JSX render
+//  Markscript: mks.exe uses single-line inputs for search and command
+//  entry in the TUI; this component provides the text input surface.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  INPUT LINE COMPONENT — A single-line text input with prompt prefix,
+//  editable text buffer, and cursor indicator rendered as a block char.
+//
+//  The parent TUI manages text and cursor_col; this component is a pure
+//  render surface. display_text() returns the rendered input as a single
+//  string with prompt, text, and cursor (█) at the correct position.
+// ============================================================================
+
+component InputLine(
+    text: String,
+    cursor_col: Int,
+    prompt: String
+) with Pure:
+    state text: String = ""
+    state cursor_col: Int = 0
+    state prompt: String = ""
+
+    // ====================================================================
+    //  DISPLAY TEXT — Rendered input with cursor marker
+    //
+    //  Layout: {prompt}{text-before}█{text-after}
+    //  When cursor is at end:   prompt + text + █ + space
+    //  When cursor is inside:   prompt + before + █ + after
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let text_len = len(_self.text)
+        let prompt_str = _self.prompt
+        let w: Int = 78
+
+        var before_cursor: String = ""
+        if _self.cursor_col > 0:
+            if _self.cursor_col <= text_len:
+                before_cursor = _self._substr(0, _self.cursor_col)
+            else:
+                before_cursor = _self.text
+        else:
+            before_cursor = ""
+
+        var after_cursor: String = ""
+        if _self.cursor_col >= 0 and _self.cursor_col < text_len:
+            after_cursor = _self._substr(_self.cursor_col, text_len - _self.cursor_col)
+        else:
+            after_cursor = ""
+
+        let cursor_ch: String = "█"
+        var line_content: String = ""
+        if _self.cursor_col >= text_len:
+            line_content = prompt_str + _self.text + cursor_ch + " "
+        else:
+            line_content = prompt_str + before_cursor + cursor_ch + after_cursor
+
+        return fmt_pad_right(line_content, w, " ")
+
+    fn _substr(_self: Self_, start: Int, length: Int) -> String:
+        if length < 1 or start >= len(_self.text):
+            return ""
+        var result: String = ""
+        var i: Int = start
+        while i < start + length and i < len(_self.text):
+            let slice = text_slice(_self.text, i, 1)
+            result = result + text_char_at(slice, 0)
+            i = i + 1
+        return result
+
+    render <text value={display_text()} />

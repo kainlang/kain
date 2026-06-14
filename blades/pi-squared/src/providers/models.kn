@@ -1,0 +1,226 @@
+// providers/models.kn — ModelRegistry world + built-in models
+// Ladder: Layer 1 (world) + Layer 0 (fn)
+
+use std::os    // os_get_env
+use std::json
+use types    // Model, ModelCost, ThinkingLevelMap, Api, Provider, CliArgs, HeaderEntry
+use providers::key_vault    // resolve_api_key_static, provider_to_env_var
+
+// Stub component for world surface requirement
+component PiModelsStub():
+    render <text value="pi-models" />
+
+world ModelRegistry:
+    surface web => PiModelsStub
+    state models_json: String = "{}"
+    state current_model_id: String = ""
+
+patch registry_register(reg: ModelRegistry, model_json: String) -> Int:
+    return 0
+
+patch registry_set_current(reg: ModelRegistry, model_id: String) -> Int:
+    return 0
+
+// ---- Built-in model definitions ----
+// Each model has its correct API endpoint base_url, provider, and capabilities.
+
+pub fn register_builtin_models() with IO:
+    return
+
+// ---- Resolve model by ID ----
+// Looks up model config from built-in table.
+// Returns default stub if model_id is empty or not found.
+
+pub fn resolve_model(args: CliArgs) -> Model with Pure:
+    let model_id = args.model
+    if model_id == "":
+        return default_model_stub()
+
+    // Check built-in models by ID
+    if model_id == "claude-sonnet-4-20250514":
+        return claude_sonnet_4()
+    elif model_id == "claude-haiku-4-20250514":
+        return claude_haiku_4()
+    elif model_id == "claude-opus-4-20250514":
+        return claude_opus_4()
+    elif model_id == "gpt-5.5":
+        return gpt_5_5()
+    elif model_id == "gemini-3.0-pro":
+        return gemini_3_pro()
+    elif model_id == "mistral-large":
+        return mistral_large()
+    else:
+        // Unknown model — return modified default with user's ID
+        let m = default_model_stub()
+        m.id = model_id
+        return m
+
+// ---- Anthropic models ----
+
+pub fn claude_sonnet_4() -> Model with Pure:
+    return Model {
+        id: "claude-sonnet-4-20250514",
+        name: "Claude Sonnet 4",
+        api: Api::AnthropicMessages,
+        provider: Provider::Anthropic,
+        base_url: "https://api.anthropic.com/v1/messages",
+        reasoning: true,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "256", low: "1024", medium: "4096", high: "8192", xhigh: "16384",
+        },
+        input_modalities: ["text"],
+        context_window: 200000, max_tokens: 8192,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 3.0, output_per_mtok: 15.0,
+            cache_read_per_mtok: 0.3, cache_write_per_mtok: 3.75,
+        },
+    }
+
+pub fn claude_haiku_4() -> Model with Pure:
+    return Model {
+        id: "claude-haiku-4-20250514",
+        name: "Claude Haiku 4",
+        api: Api::AnthropicMessages,
+        provider: Provider::Anthropic,
+        base_url: "https://api.anthropic.com/v1/messages",
+        reasoning: true,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "256", low: "1024", medium: "4096", high: "8192", xhigh: "16384",
+        },
+        input_modalities: ["text"],
+        context_window: 200000, max_tokens: 8192,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 1.0, output_per_mtok: 5.0,
+            cache_read_per_mtok: 0.1, cache_write_per_mtok: 1.25,
+        },
+    }
+
+pub fn claude_opus_4() -> Model with Pure:
+    return Model {
+        id: "claude-opus-4-20250514",
+        name: "Claude Opus 4",
+        api: Api::AnthropicMessages,
+        provider: Provider::Anthropic,
+        base_url: "https://api.anthropic.com/v1/messages",
+        reasoning: true,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "1024", low: "2048", medium: "8192", high: "16384", xhigh: "32768",
+        },
+        input_modalities: ["text"],
+        context_window: 200000, max_tokens: 16384,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 15.0, output_per_mtok: 75.0,
+            cache_read_per_mtok: 1.5, cache_write_per_mtok: 18.75,
+        },
+    }
+
+// ---- OpenAI models ----
+
+pub fn gpt_5_5() -> Model with Pure:
+    return Model {
+        id: "gpt-5.5",
+        name: "GPT-5.5",
+        api: Api::OpenAiCompletions,
+        provider: Provider::OpenAi,
+        base_url: "https://api.openai.com/v1/chat/completions",
+        reasoning: false,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "", low: "", medium: "", high: "", xhigh: "",
+        },
+        input_modalities: ["text"],
+        context_window: 200000, max_tokens: 16384,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 10.0, output_per_mtok: 40.0,
+            cache_read_per_mtok: 5.0, cache_write_per_mtok: 10.0,
+        },
+    }
+
+// ---- Google models ----
+
+pub fn gemini_3_pro() -> Model with Pure:
+    return Model {
+        id: "gemini-3.0-pro",
+        name: "Gemini 3.0 Pro",
+        api: Api::GoogleGenerativeAi,
+        provider: Provider::Google,
+        base_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-pro:streamGenerateContent",
+        reasoning: false,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "", low: "", medium: "", high: "", xhigh: "",
+        },
+        input_modalities: ["text"],
+        context_window: 2000000, max_tokens: 8192,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 1.25, output_per_mtok: 5.0,
+            cache_read_per_mtok: 0.1, cache_write_per_mtok: 0.0,
+        },
+    }
+
+// ---- Mistral models ----
+
+pub fn mistral_large() -> Model with Pure:
+    return Model {
+        id: "mistral-large",
+        name: "Mistral Large",
+        api: Api::MistralConversations,
+        provider: Provider::Mistral,
+        base_url: "https://api.mistral.ai/v1/chat/completions",
+        reasoning: false,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "", low: "", medium: "", high: "", xhigh: "",
+        },
+        input_modalities: ["text"],
+        context_window: 128000, max_tokens: 8192,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 2.0, output_per_mtok: 6.0,
+            cache_read_per_mtok: 0.1, cache_write_per_mtok: 0.0,
+        },
+    }
+
+// ---- Provider string conversions ----
+pub fn provider_to_string(p: Provider) -> String with Pure:
+    match p:
+        Provider::Anthropic => return "anthropic"
+        Provider::OpenAi => return "openai"
+        Provider::Google => return "google"
+        Provider::Mistral => return "mistral"
+        Provider::DeepSeek => return "deepseek"
+        Provider::GithubCopilot => return "github-copilot"
+        Provider::AmazonBedrock => return "amazon-bedrock"
+        Provider::OpenCode => return "opencode"
+        Provider::Faux => return "faux"
+
+pub fn parse_provider(s: String) -> Provider with Pure:
+    if s == "anthropic": return Provider::Anthropic
+    elif s == "openai": return Provider::OpenAi
+    elif s == "google": return Provider::Google
+    elif s == "mistral": return Provider::Mistral
+    elif s == "deepseek": return Provider::DeepSeek
+    elif s == "opencode": return Provider::OpenCode
+    elif s == "faux": return Provider::Faux
+    return Provider::Anthropic
+
+// ---- Convert Provider enum to string ----
+pub fn api_to_string(a: Api) -> String with Pure:
+    match a:
+        Api::AnthropicMessages => return "anthropic-messages"
+        Api::OpenAiCompletions => return "openai-completions"
+        Api::OpenAiResponses => return "openai-responses"
+        Api::GoogleGenerativeAi => return "google-generative-ai"
+        Api::MistralConversations => return "mistral-conversations"
+        Api::BedrockConverseStream => return "bedrock-converse-stream"
+        Api::Faux => return "faux"
+
+// ---- Resolve API key (stub for now) ----
+pub fn resolve_api_key_stub(provider: Provider, explicit_key: String) -> String with Pure:
+    return explicit_key
+
+// ---- Default model for fallback ----
+fn default_model_stub() -> Model with Pure:
+    return claude_sonnet_4()

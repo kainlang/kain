@@ -1,0 +1,131 @@
+use std::text
+use std::json
+
+struct ToolDef:
+    name: String
+    description: String
+    params: [String]
+
+struct ToolCall:
+    tool_name: String
+    args: [String]
+
+struct ToolResult:
+    success: Bool
+    output: String
+    tool_name: String
+
+fn find_tool(tools: [ToolDef], name: String) -> Int:
+    var i: Int = 0
+    while i < len(tools):
+        if tools[i].name == name:
+            return i
+        i = i + 1
+    return -1
+
+fn dispatch_tool(tools: [ToolDef], call: ToolCall) -> ToolResult:
+    let idx = find_tool(tools, call.tool_name)
+    if idx < 0:
+        return ToolResult { success: false, output: "tool not found: " + call.tool_name, tool_name: call.tool_name }
+    let tool = tools[idx]
+    // Simulate execution by echoing back tool name and args
+    var arg_summary: String = ""
+    var ai: Int = 0
+    while ai < len(call.args):
+        if ai > 0:
+            arg_summary = arg_summary + ", "
+        arg_summary = arg_summary + call.args[ai]
+        ai = ai + 1
+    let result_text = tool.name + "(" + arg_summary + ")"
+    return ToolResult { success: true, output: result_text, tool_name: call.tool_name }
+
+fn match_tool_by_prefix(tools: [ToolDef], prefix: String) -> [ToolDef]:
+    var matches: [ToolDef] = []
+    var i: Int = 0
+    while i < len(tools):
+        if text_starts_with_string(tools[i].name, prefix):
+            matches = matches + [tools[i]]
+        i = i + 1
+    return matches
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Define available tools
+    let tools = [
+        ToolDef { name: "read_file", description: "Read a file", params: ["path"] },
+        ToolDef { name: "write_file", description: "Write a file", params: ["path", "content"] },
+        ToolDef { name: "run_command", description: "Run a shell command", params: ["command"] },
+        ToolDef { name: "web_search", description: "Search the web", params: ["query"] }
+    ]
+
+    // Test find_tool existing
+    let idx1 = find_tool(tools, "read_file")
+    if idx1 < 0:
+        println("[FAIL] tool_dispatch: find_tool 'read_file' not found")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: find_tool finds existing tool")
+
+    // Test find_tool non-existing
+    let idx2 = find_tool(tools, "nonexistent")
+    if idx2 >= 0:
+        println("[FAIL] tool_dispatch: find_tool should not find nonexistent")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: find_tool returns -1 for missing")
+
+    // Test dispatch existing tool
+    let call1 = ToolCall { tool_name: "web_search", args: ["query=kain language"] }
+    let result1 = dispatch_tool(tools, call1)
+    if result1.success == false or text_contains_string(result1.output, "web_search") == false:
+        println("[FAIL] tool_dispatch: dispatch existing tool failed")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: dispatch existing tool returns success")
+
+    // Test dispatch non-existing tool
+    let call2 = ToolCall { tool_name: "delete_file", args: ["path=secret.txt"] }
+    let result2 = dispatch_tool(tools, call2)
+    if result2.success != false:
+        println("[FAIL] tool_dispatch: dispatch missing tool should fail")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: dispatch missing tool returns failure")
+
+    // Test prefix matching
+    let read_matches = match_tool_by_prefix(tools, "read")
+    if len(read_matches) != 1 or read_matches[0].name != "read_file":
+        println("[FAIL] tool_dispatch: prefix match 'read' failed")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: prefix match 'read' finds 1 tool")
+
+    // Test prefix matching with no results
+    let no_matches = match_tool_by_prefix(tools, "zzz")
+    if len(no_matches) != 0:
+        println("[FAIL] tool_dispatch: prefix match should return empty for no matches")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: prefix match returns empty for no matches")
+
+    // Test tool description access
+    if tools[2].description != "Run a shell command":
+        println("[FAIL] tool_dispatch: tool description wrong")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: tool description accessible")
+
+    // Test dispatch with no args
+    let call3 = ToolCall { tool_name: "run_command", args: [] }
+    let result3 = dispatch_tool(tools, call3)
+    if result3.success == false:
+        println("[FAIL] tool_dispatch: dispatch with empty args failed")
+        failures = failures + 1
+    else:
+        println("[PASS] tool_dispatch: dispatch with empty args works")
+
+    println("=== TOOL DISPATCH ===")
+    if failures == 0:
+        println("[PASS] All tool dispatch tests passed")
+    return failures

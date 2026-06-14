@@ -1,0 +1,52 @@
+// ============================================================================
+//  read.kn — File reading tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn with IO for filesystem access.
+//
+//  Reads file content with optional offset/limit truncation.
+//  Returns content blocks (text for files, placeholder for images).
+// ============================================================================
+
+use std::fs
+use types    // ContentBlock
+use std::text
+
+// ---- Read file content with optional truncation ----
+pub fn pi_read(path: String, offset: Int, limit: Int) -> [ContentBlock]:
+    if fs_exists(path) == false:
+        return [ContentBlock::TextBlock("File not found: " + path)]
+    if fs_is_file(path) == false:
+        return [ContentBlock::TextBlock("Not a file: " + path)]
+    let content = fs_read_text(path)
+    var display = content
+    if offset > 0:
+        display = read_str_offset(display, offset)
+    if limit > 0 and len(display) > limit:
+        display = read_str_limit(display, limit)
+        let NL = text_chr(10)
+        display = display + NL + "... [output truncated at " + str(limit) + " characters]"
+    return [ContentBlock::TextBlock(display)]
+
+// ---- Skip first N characters ----
+fn read_str_offset(text: String, n: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var ri2: Int = 0
+    while ri2 < len(text):
+        let ch = text_substring_string(text, ri2, 1)
+        if i >= n:
+            result = result + ch
+        i = i + 1
+    return result
+
+// ---- Limit to first N characters ----
+fn read_str_limit(text: String, n: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var ri2: Int = 0
+    while ri2 < len(text):
+        let ch = text_substring_string(text, ri2, 1)
+        if i >= n:
+            break
+        result = result + ch
+        i = i + 1
+    return result

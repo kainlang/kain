@@ -1,0 +1,194 @@
+// @mode check-pass
+// ============================================================================
+//  test/e2e/session_resume.kn — Session persistence structural tests
+//
+//  Tests JSONL parsing, compaction decision logic, token estimation,
+//  and session tree parent-child chain reconstruction.
+// ============================================================================
+
+use std::json
+use std::text
+
+pub struct SessionNode:
+    id: String
+    parent_id: String
+    content: String
+    role: String
+
+pub fn make_node(id: String, parent_id: String, content: String, role: String) -> SessionNode:
+    return SessionNode { id: id, parent_id: parent_id, content: content, role: role }
+
+pub fn estimate_tokens(text: String) -> Int:
+    let raw = len(text)
+    return (raw + 3) / 4
+
+pub fn should_compact(context_tokens: Int, max_tokens: Int, reserve: Int) -> Bool:
+    let effective_max = max_tokens - reserve
+    if effective_max <= 0:
+        return false
+    return context_tokens > effective_max
+
+pub fn walk_to_root(nodes: [SessionNode], start_id: String) -> [SessionNode]:
+    var result: [SessionNode] = []
+    var current: String = start_id
+    var safety: Int = 0
+    while current != "" and safety < 100:
+        var found: Bool = false
+        var i: Int = 0
+        while i < len(nodes):
+            if nodes[i].id == current:
+                push(result, nodes[i])
+                current = nodes[i].parent_id
+                found = true
+                break
+            i = i + 1
+        if found == false:
+            break
+        safety = safety + 1
+    return result
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== E2E: Session Resume Structurals ===")
+
+    // Test 1: Parse SessionInfo from JSON
+    let line1 = "{\"kind\":\"session_info\",\"id\":\"root\",\"parent_id\":\"\",\"timestamp\":\"2026-06-13T00:00:00Z\",\"name\":\"test-session\"}"
+    let val1 = json_parse_text(line1)
+    let k1 = json_string_or(val1, "kind", "")
+    let id1 = json_string_or(val1, "id", "")
+    let n1 = json_string_or(val1, "name", "")
+    if k1 == "session_info" and id1 == "root" and n1 == "test-session":
+        println("  [PASS] Parse SessionInfo JSON")
+    else:
+        println("  [FAIL] SessionInfo: kind=" + k1 + " id=" + id1 + " name=" + n1)
+        failures = failures + 1
+
+    // Test 2: Parse Message from JSON
+    let line2 = "{\"kind\":\"message\",\"id\":\"msg-1\",\"parent_id\":\"root\",\"timestamp\":\"2026-06-13T00:00:01Z\",\"role\":\"user\",\"content\":\"[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"hello\\\"}]\"}"
+    let val2 = json_parse_text(line2)
+    let k2 = json_string_or(val2, "kind", "")
+    let r2 = json_string_or(val2, "role", "")
+    if k2 == "message" and r2 == "user":
+        println("  [PASS] Parse Message JSON")
+    else:
+        println("  [FAIL] Message: kind=" + k2 + " role=" + r2)
+        failures = failures + 1
+
+    // Test 3: Detect corrupt JSON
+    let bad = "this is not valid json"
+    let val3 = json_parse_text(bad)
+    let vk = json_value_kind_code(val3)
+    if vk != JSON_KIND_CODE_OBJECT:
+        println("  [PASS] Corrupt JSON detected")
+    else:
+        println("  [FAIL] Corrupt JSON not detected")
+        failures = failures + 1
+
+    // Test 4: Parse Compaction entry
+    let line4 = "{\"kind\":\"compaction\",\"id\":\"comp-1\",\"parent_id\":\"msg-10\",\"timestamp\":\"2026-06-13T00:00:10Z\",\"summary\":\"Summarized 5 messages\",\"first_kept_entry_id\":\"msg-6\",\"tokens_before\":15000}"
+    let val4 = json_parse_text(line4)
+    let k4 = json_string_or(val4, "kind", "")
+    let s4 = json_string_or(val4, "summary", "")
+    let t4 = json_int_or(val4, "tokens_before", 0)
+    if k4 == "compaction" and s4 == "Summarized 5 messages" and t4 == 15000:
+        println("  [PASS] Parse Compaction JSON")
+    else:
+        println("  [FAIL] Compaction JSON")
+        failures = failures + 1
+
+    // Test 5: Parse ModelChange entry
+    let line5 = "{\"kind\":\"model_change\",\"id\":\"mc-1\",\"parent_id\":\"root\",\"timestamp\":\"2026-06-13T00:00:00Z\",\"provider_name\":\"openai\",\"model_id\":\"gpt-5.5\"}"
+    let val5 = json_parse_text(line5)
+    let k5 = json_string_or(val5, "kind", "")
+    let p5 = json_string_or(val5, "provider_name", "")
+    let m5 = json_string_or(val5, "model_id", "")
+    if k5 == "model_change" and p5 == "openai" and m5 == "gpt-5.5":
+        println("  [PASS] Parse ModelChange JSON")
+    else:
+        println("  [FAIL] ModelChange JSON")
+        failures = failures + 1
+
+    // Test 6: Parse ThinkingLevelChange entry
+    let line6 = "{\"kind\":\"thinking_level_change\",\"id\":\"tl-1\",\"parent_id\":\"root\",\"timestamp\":\"2026-06-13T00:00:00Z\",\"thinking_level\":\"high\"}"
+    let val6 = json_parse_text(line6)
+    let k6 = json_string_or(val6, "kind", "")
+    let l6 = json_string_or(val6, "thinking_level", "")
+    if k6 == "thinking_level_change" and l6 == "high":
+        println("  [PASS] Parse ThinkingLevelChange JSON")
+    else:
+        println("  [FAIL] ThinkingLevelChange JSON")
+        failures = failures + 1
+
+    // Test 7: Compaction decision logic
+    let cd1 = should_compact(50000, 100000, 16384)
+    let cd2 = should_compact(150000, 100000, 16384)
+    let cd3 = should_compact(100000, 5000, 6000)
+    if cd1 == false and cd2 == true and cd3 == false:
+        println("  [PASS] Compaction decision logic")
+    else:
+        println("  [FAIL] Compaction: " + str(cd1) + " " + str(cd2) + " " + str(cd3))
+        failures = failures + 1
+
+    // Test 8: Token estimation
+    let te1 = estimate_tokens("hello world!!!")
+    let te2 = estimate_tokens("")
+    if te1 > 0 and te2 == 0:
+        println("  [PASS] Token estimation: hello=" + str(te1) + " empty=" + str(te2))
+    else:
+        println("  [FAIL] Token estimation: " + str(te1) + " " + str(te2))
+        failures = failures + 1
+
+    // Test 9: Tree node creation
+    let nodes: [SessionNode] = [
+        make_node("root", "", "Hello", "user"),
+        make_node("msg-1", "root", "Hi!", "assistant"),
+        make_node("msg-2", "msg-1", "What is pi?", "user"),
+        make_node("msg-3", "msg-2", "3.14159", "assistant"),
+    ]
+    if len(nodes) == 4 and nodes[0].id == "root" and nodes[1].parent_id == "root":
+        println("  [PASS] Tree nodes created")
+    else:
+        println("  [FAIL] Tree node creation")
+        failures = failures + 1
+
+    // Test 10: Walk leaf to root
+    let path = walk_to_root(nodes, "msg-3")
+    if len(path) == 4:
+        println("  [PASS] Leaf-to-root: 4 nodes in path")
+    else:
+        println("  [FAIL] Leaf-to-root: " + str(len(path)) + " nodes")
+        failures = failures + 1
+
+    // Test 11: Path ordering (leaf first)
+    if len(path) >= 4 and path[0].id == "msg-3" and path[3].id == "root":
+        println("  [PASS] Path order leaf-to-root")
+    else:
+        println("  [FAIL] Path ordering")
+        failures = failures + 1
+
+    // Test 12: Root has empty parent
+    if nodes[0].parent_id == "":
+        println("  [PASS] Root has empty parent")
+    else:
+        println("  [FAIL] Root parent: " + nodes[0].parent_id)
+        failures = failures + 1
+
+    // Test 13: Single node walk
+    let single = walk_to_root([make_node("only", "", "lone", "user")], "only")
+    if len(single) == 1:
+        println("  [PASS] Single node walk")
+    else:
+        println("  [FAIL] Single node walk: " + str(len(single)))
+        failures = failures + 1
+
+    // Test 14: Unknown ID walk returns empty
+    let empty = walk_to_root(nodes, "nonexistent")
+    if len(empty) == 0:
+        println("  [PASS] Unknown ID returns empty")
+    else:
+        println("  [FAIL] Unknown ID: " + str(len(empty)))
+        failures = failures + 1
+
+    // Summary
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

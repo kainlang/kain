@@ -1,0 +1,260 @@
+// @mode check-pass
+// ============================================================================
+//  test/stress/concurrent_events.kn — Event type system stress tests
+//
+//  Tests event type string conversion, subscriber management,
+//  event routing, and bulk dispatch simulation.
+// ============================================================================
+
+pub enum AgentEventType:
+    AgentStart
+    AgentEnd
+    TurnStart
+    TurnEnd
+    MessageStart
+    MessageUpdate
+    MessageEnd
+    ToolExecutionStart
+    ToolExecutionEnd
+
+pub struct EventSubscription:
+    event_type: String
+    handler_id: String
+
+pub struct AgentEvent:
+    event_type: AgentEventType
+    payload: String
+    timestamp: String
+
+pub fn event_type_to_string(t: AgentEventType) -> String:
+    if t == AgentEventType::AgentStart:           return "agent_start"
+    if t == AgentEventType::AgentEnd:             return "agent_end"
+    if t == AgentEventType::TurnStart:            return "turn_start"
+    if t == AgentEventType::TurnEnd:              return "turn_end"
+    if t == AgentEventType::MessageStart:         return "message_start"
+    if t == AgentEventType::MessageUpdate:        return "message_update"
+    if t == AgentEventType::MessageEnd:           return "message_end"
+    if t == AgentEventType::ToolExecutionStart:   return "tool_execution_start"
+    if t == AgentEventType::ToolExecutionEnd:     return "tool_execution_end"
+    return ""
+
+pub const EMIT_COUNT: Int = 500
+pub const SUBSCRIBER_COUNT: Int = 10
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== Stress: Concurrent Events ===")
+
+    // Test 1: Event type conversion (all 9)
+    if event_type_to_string(AgentEventType::AgentStart) == "agent_start":
+        println("  [PASS] AgentStart -> agent_start")
+    else:
+        println("  [FAIL] AgentStart")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::AgentEnd) == "agent_end":
+        println("  [PASS] AgentEnd -> agent_end")
+    else:
+        println("  [FAIL] AgentEnd")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::TurnStart) == "turn_start":
+        println("  [PASS] TurnStart -> turn_start")
+    else:
+        println("  [FAIL] TurnStart")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::TurnEnd) == "turn_end":
+        println("  [PASS] TurnEnd -> turn_end")
+    else:
+        println("  [FAIL] TurnEnd")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::MessageStart) == "message_start":
+        println("  [PASS] MessageStart -> message_start")
+    else:
+        println("  [FAIL] MessageStart")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::MessageUpdate) == "message_update":
+        println("  [PASS] MessageUpdate -> message_update")
+    else:
+        println("  [FAIL] MessageUpdate")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::MessageEnd) == "message_end":
+        println("  [PASS] MessageEnd -> message_end")
+    else:
+        println("  [FAIL] MessageEnd")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::ToolExecutionStart) == "tool_execution_start":
+        println("  [PASS] ToolExecutionStart -> tool_execution_start")
+    else:
+        println("  [FAIL] ToolExecutionStart")
+        failures = failures + 1
+
+    if event_type_to_string(AgentEventType::ToolExecutionEnd) == "tool_execution_end":
+        println("  [PASS] ToolExecutionEnd -> tool_execution_end")
+    else:
+        println("  [FAIL] ToolExecutionEnd")
+        failures = failures + 1
+
+    // Test 2: Subscribe/Unsubscribe flow
+    var subs: [EventSubscription] = []
+    push(subs, EventSubscription { event_type: "turn_start", handler_id: "h-1" })
+    push(subs, EventSubscription { event_type: "message_end", handler_id: "h-2" })
+    push(subs, EventSubscription { event_type: "*", handler_id: "h-wild" })
+    if len(subs) == 3:
+        println("  [PASS] Subscribe: 3 subscriptions")
+    else:
+        println("  [FAIL] Subscribe: " + str(len(subs)))
+        failures = failures + 1
+
+    // Filter out h-1
+    var filtered: [EventSubscription] = []
+    var si: Int = 0
+    while si < len(subs):
+        if subs[si].handler_id != "h-1":
+            push(filtered, subs[si])
+        si = si + 1
+    if len(filtered) == 2:
+        println("  [PASS] Unsubscribe: 2 remaining")
+    else:
+        println("  [FAIL] Unsubscribe: " + str(len(filtered)))
+        failures = failures + 1
+
+    // Test 3: Event routing by type
+    var route_subs: [EventSubscription] = []
+    push(route_subs, EventSubscription { event_type: "turn_start", handler_id: "h-turn" })
+    push(route_subs, EventSubscription { event_type: "message_end", handler_id: "h-msg" })
+    push(route_subs, EventSubscription { event_type: "*", handler_id: "h-wild" })
+
+    var matched: Int = 0
+    var rsi: Int = 0
+    while rsi < len(route_subs):
+        if route_subs[rsi].event_type == "turn_start" or route_subs[rsi].event_type == "*":
+            matched = matched + 1
+        rsi = rsi + 1
+    if matched == 2:
+        println("  [PASS] Event routing: turn_start matches 2 subscribers")
+    else:
+        println("  [FAIL] Event routing: " + str(matched))
+        failures = failures + 1
+
+    // Reset match for message_end
+    matched = 0
+    rsi = 0
+    while rsi < len(route_subs):
+        if route_subs[rsi].event_type == "message_end" or route_subs[rsi].event_type == "*":
+            matched = matched + 1
+        rsi = rsi + 1
+    if matched == 2:
+        println("  [PASS] Event routing: message_end matches 2 subscribers")
+    else:
+        println("  [FAIL] Event routing: message_end")
+        failures = failures + 1
+
+    // Test 4: 500-event dispatch to 10 subscribers
+    var bulk_subs: [EventSubscription] = []
+    var bsi: Int = 0
+    while bsi < SUBSCRIBER_COUNT:
+        let hid = "handler-" + str(bsi)
+        let evt = if bsi == 0: "*" else: "turn_" + str(bsi % 3)
+        push(bulk_subs, EventSubscription { event_type: evt, handler_id: hid })
+        bsi = bsi + 1
+    if len(bulk_subs) == SUBSCRIBER_COUNT:
+        println("  [PASS] " + str(SUBSCRIBER_COUNT) + " subscribers created")
+    else:
+        println("  [FAIL] Subscribers: " + str(len(bulk_subs)))
+        failures = failures + 1
+
+    var total_deliveries: Int = 0
+    var ei: Int = 0
+    while ei < EMIT_COUNT:
+        let evt_n = ei % 5
+        let evt_str = if evt_n == 0: "turn_start" elif evt_n == 1: "turn_end" elif evt_n == 2: "message_start" elif evt_n == 3: "message_end" else: "tool_execution_start"
+        var dsi: Int = 0
+        while dsi < len(bulk_subs):
+            if bulk_subs[dsi].event_type == evt_str or bulk_subs[dsi].event_type == "*":
+                total_deliveries = total_deliveries + 1
+            dsi = dsi + 1
+        ei = ei + 1
+    if total_deliveries >= EMIT_COUNT:
+        println("  [PASS] " + str(total_deliveries) + " deliveries for " + str(EMIT_COUNT) + " events")
+    else:
+        println("  [FAIL] Deliveries: " + str(total_deliveries))
+        failures = failures + 1
+
+    // Test 5: All 9 event types interleaved
+    let all_types: [AgentEventType] = [
+        AgentEventType::AgentStart,
+        AgentEventType::TurnStart,
+        AgentEventType::MessageStart,
+        AgentEventType::MessageUpdate,
+        AgentEventType::MessageEnd,
+        AgentEventType::ToolExecutionStart,
+        AgentEventType::ToolExecutionEnd,
+        AgentEventType::TurnEnd,
+        AgentEventType::AgentEnd,
+    ]
+    var all_ok: Bool = true
+    var ti: Int = 0
+    while ti < len(all_types):
+        let s = event_type_to_string(all_types[ti])
+        if s == "":
+            all_ok = false
+        ti = ti + 1
+    if all_ok:
+        println("  [PASS] All " + str(len(all_types)) + " event types convert")
+    else:
+        println("  [FAIL] Event type conversion")
+        failures = failures + 1
+
+    // Test 6: Event creation with payloads
+    let ev1 = AgentEvent {
+        event_type: AgentEventType::TurnStart,
+        payload: "{\"turn\":1}",
+        timestamp: "t1",
+    }
+    if ev1.payload == "{\"turn\":1}":
+        println("  [PASS] Event with payload")
+    else:
+        println("  [FAIL] Event payload")
+        failures = failures + 1
+
+    // Test 7: Empty payload event
+    let ev2 = AgentEvent {
+        event_type: AgentEventType::AgentEnd,
+        payload: "",
+        timestamp: "0",
+    }
+    if ev2.payload == "":
+        println("  [PASS] Empty payload event")
+    else:
+        println("  [FAIL] Empty payload")
+        failures = failures + 1
+
+    // Test 8: Large payload
+    var large = "{"
+    var pi: Int = 0
+    while pi < 50:
+        large = large + "\"k" + str(pi) + "\":\"v" + str(pi) + "\""
+        if pi < 49:
+            large = large + ","
+        pi = pi + 1
+    large = large + "}"
+    let ev3 = AgentEvent {
+        event_type: AgentEventType::AgentStart,
+        payload: large,
+        timestamp: "large",
+    }
+    if len(ev3.payload) > 100:
+        println("  [PASS] Large payload: " + str(len(ev3.payload)) + " chars")
+    else:
+        println("  [FAIL] Large payload: " + str(len(ev3.payload)))
+        failures = failures + 1
+
+    // Summary
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

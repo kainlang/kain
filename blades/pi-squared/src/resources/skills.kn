@@ -1,0 +1,177 @@
+// ============================================================================
+//  skills.kn — Skill file loading and formatting (ALPHA-12)
+//  Ladder: Layer 0 — plain fn with IO for filesystem access.
+//
+//  Loads SKILL.md files with YAML frontmatter parsing.
+//  Formats skills as XML blocks for system prompt assembly.
+// ============================================================================
+
+use std::fs
+use std::text
+
+// ---- Parsed frontmatter from a SKILL.md file ----
+pub struct SkillFrontmatter:
+    name: String
+    description: String
+    when_to_use: String
+    tags: [String]
+
+// ---- Loaded skill file with frontmatter and body ----
+pub struct SkillFile:
+    path: String
+    frontmatter: SkillFrontmatter
+    content: String
+
+// ---- Simplified skill struct for ResourceLoader and system prompt ----
+pub struct Skill:
+    name: String
+    description: String
+    location: String
+    content: String
+    disable_model_invocation: Bool
+
+// ---- Load a single SKILL.md file ----
+pub fn load_skill(path: String) -> Option<SkillFile>:
+    if fs_exists(path) == false:
+        return none
+    let raw = fs_read_text(path)
+    if len(raw) < 6:
+        return none
+    // Check for opening --- delimiter
+    if ch_slice(raw, 0, 3) != "---":
+        return none
+    // Find closing ---
+    let NL = text_chr(10)
+    let closing = str_find(raw, NL + "---", 3)
+    if closing == -1:
+        return none
+    let fm_text = ch_slice(raw, 3, closing - 3)
+    let name = extract_field(fm_text, "name:")
+    let desc = extract_field(fm_text, "description:")
+    let when = extract_field(fm_text, "when_to_use:")
+    let body_start = closing + 4
+    let body = ch_slice(raw, body_start, len(raw) - body_start)
+    return Some(SkillFile {
+        path: path,
+        frontmatter: SkillFrontmatter {
+            name: name, description: desc,
+            when_to_use: when, tags: [],
+        },
+        content: body,
+    })
+
+// ---- Load all SKILL.md files from a directory ----
+pub fn load_skills_from_dir(dir: String) -> [SkillFile]:
+    var skills: [SkillFile] = []
+    if fs_exists(dir) == false:
+        return skills
+    let entries = fs_read_dir(dir)
+    var ei2: Int = 0
+    while ei2 < len(entries):
+        let entry = entries[ei2]
+        if entry.file_name != "SKILL.md":
+            continue
+        if entry.file_type != "file":
+            continue
+        let skill_opt = load_skill(entry.path)
+        if skill_opt != none:
+            push(skills, skill_opt)
+        ei2 = ei2 + 1
+    return skills
+
+// ---- Load skills into simplified Skill array for ResourceLoader ----
+pub fn load_skills(cwd: String) -> [Skill]:
+    var result: [Skill] = []
+    let dirs: [String] = [
+        fs_path_join(cwd, ".pi/skills"),
+        fs_path_join(cwd, ".pi/agent/skills"),
+    ]
+    var di: Int = 0
+    while di < len(dirs):
+        let skills = load_skills_from_dir(dirs[di])
+        var si: Int = 0
+        while si < len(skills):
+            let sk = skills[si]
+            push(result, Skill {
+                name: sk.frontmatter.name,
+                description: sk.frontmatter.description,
+                location: sk.path,
+                content: sk.content,
+                disable_model_invocation: false,
+            })
+            si = si + 1
+        di = di + 1
+    return result
+
+// ---- Format all skills as available_skills XML block ----
+pub fn format_skills_xml(skills: [Skill]) -> String with Pure:
+    let NL = text_chr(10)
+    var xml = "<available_skills>" + NL
+    var si2: Int = 0
+    while si2 < len(skills):
+        let skill = skills[si2]
+        if skill.disable_model_invocation == false:
+            xml = xml + "  <skill>" + NL
+            xml = xml + "    <name>" + skill.name + "</name>" + NL
+            xml = xml + "    <description>" + skill.description + "</description>" + NL
+            xml = xml + "    <location>" + skill.location + "</location>" + NL
+            xml = xml + "  </skill>" + NL
+        si2 = si2 + 1
+    xml = xml + "</available_skills>"
+    return xml
+
+// ---- Extract substring as characters ----
+fn ch_slice(text: String, start: Int, count: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    while i < len(text):
+        if i >= start and i < start + count:
+            let c = sk_ch_at(text, i)
+            result = result + c
+        i = i + 1
+    return result
+
+// ---- Find substring, return start index or -1 ----
+fn str_find(text: String, needle: String, start: Int) -> Int with Pure:
+    var i: Int = start
+    while i < len(text):
+        var is_match = true
+        var j: Int = 0
+        while j < len(needle):
+            if i + j >= len(text):
+                is_match = false
+                break
+            if sk_ch_at(text, i + j) != sk_ch_at(needle, j):
+                is_match = false
+                break
+            j = j + 1
+        if is_match:
+            return i
+        i = i + 1
+    return -1
+
+// ---- Get character at index ----
+fn sk_ch_at(text: String, index: Int) -> String with Pure:
+    if index < len(text):
+        return text_substring_string(text, index, 1)
+    return ""
+
+// ---- Extract field value after "key:" ----
+fn extract_field(text: String, key: String) -> String with Pure:
+    let key_start = str_find(text, key, 0)
+    if key_start == -1:
+        return ""
+    var val_start = key_start + len(key)
+    // Skip leading spaces
+    while val_start < len(text) and sk_ch_at(text, val_start) == " ":
+        val_start = val_start + 1
+    // Read until newline
+    var result = ""
+    let NL = text_chr(10)
+    while val_start < len(text) and sk_ch_at(text, val_start) != NL:
+        let c = sk_ch_at(text, val_start)
+        let DQ = text_chr(34)
+        if c != DQ
+            result = result + c
+        val_start = val_start + 1
+    return result

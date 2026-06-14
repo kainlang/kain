@@ -1,0 +1,31 @@
+// ============================================================================
+//  spacer.kn — Vertical spacer component for TUI layout
+//  Ladder: Layer UI — component with state and JSX render
+//  Markscript: mks.exe uses spacer lines between sections in the compiled
+//  TUI layout; this component provides the same spacing primitive.
+// ============================================================================
+
+// ============================================================================
+//  SPACER COMPONENT — Renders blank lines to create vertical gaps in the
+//  TUI layout. The height parameter controls the number of blank lines.
+//  Uses display_text() which returns a newline-separated string of empty
+//  lines. The JSX render wraps it in a single <text> element.
+// ============================================================================
+
+component Spacer(height: Int) with Pure:
+    state height: Int = 0
+
+    fn display_text(_self: Self_) -> String:
+        let h = _self.height
+        if h < 1:
+            return ""
+        var result: String = ""
+        var i: Int = 0
+        while i < h:
+            if i > 0:
+                let NL = text_chr(10)
+                result = result + NL
+            i = i + 1
+        return result
+
+    render <text value={display_text()} />

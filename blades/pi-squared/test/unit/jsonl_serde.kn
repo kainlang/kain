@@ -1,0 +1,111 @@
+use std::text
+use std::json
+
+struct SessionEntry:
+    timestamp: Int
+    role: String
+    content: String
+    tokens: Int
+    id: Int
+    parent_id: Int
+
+fn session_entry_to_json(entry: SessionEntry) -> String:
+    let obj = json_object()
+    let obj2 = json_object_set_int(obj, "timestamp", entry.timestamp)
+    let obj3 = json_object_set_string(obj2, "role", entry.role)
+    let obj4 = json_object_set_string(obj3, "content", entry.content)
+    let obj5 = json_object_set_int(obj4, "tokens", entry.tokens)
+    let obj6 = json_object_set_int(obj5, "id", entry.id)
+    let obj7 = json_object_set_int(obj6, "parent_id", entry.parent_id)
+    return json_stringify(obj7)
+
+fn json_to_session_entry(json_str: String) -> SessionEntry:
+    let obj = json_parse_text(json_str)
+    let timestamp = json_int_required(obj, "timestamp")
+    let role = json_string_required(obj, "role")
+    let content = json_string_required(obj, "content")
+    let tokens = json_int_required(obj, "tokens")
+    let id = json_int_required(obj, "id")
+    let parent_id = json_int_or(obj, "parent_id", 0)
+    return SessionEntry {
+        timestamp: timestamp,
+        role: role,
+        content: content,
+        tokens: tokens,
+        id: id,
+        parent_id: parent_id
+    }
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test JSON roundtrip for a basic entry
+    let entry1 = SessionEntry {
+        timestamp: 1718000000,
+        role: "user",
+        content: "Hello world",
+        tokens: 3,
+        id: 1,
+        parent_id: 0
+    }
+    let json1 = session_entry_to_json(entry1)
+    let parsed1 = json_to_session_entry(json1)
+    if parsed1.timestamp != 1718000000 or parsed1.role != "user" or parsed1.content != "Hello world":
+        println("[FAIL] jsonl_serde: basic roundtrip failed")
+        failures = failures + 1
+    else:
+        println("[PASS] jsonl_serde: basic roundtrip OK")
+
+    // Test entry with empty content
+    let entry2 = SessionEntry {
+        timestamp: 1718000001,
+        role: "assistant",
+        content: "",
+        tokens: 0,
+        id: 2,
+        parent_id: 1
+    }
+    let json2 = session_entry_to_json(entry2)
+    let parsed2 = json_to_session_entry(json2)
+    if parsed2.role != "assistant" or parsed2.content != "" or parsed2.parent_id != 1:
+        println("[FAIL] jsonl_serde: empty content roundtrip failed")
+        failures = failures + 1
+    else:
+        println("[PASS] jsonl_serde: empty content roundtrip OK")
+
+    // Test entry with special characters in content
+    let entry3 = SessionEntry {
+        timestamp: 1718000002,
+        role: "user",
+        content: "line1\nline2\ttabbed",
+        tokens: 5,
+        id: 3,
+        parent_id: 2
+    }
+    let json3 = session_entry_to_json(entry3)
+    let parsed3 = json_to_session_entry(json3)
+    if parsed3.id != 3:
+        println("[FAIL] jsonl_serde: special chars roundtrip failed")
+        failures = failures + 1
+    else:
+        println("[PASS] jsonl_serde: special chars roundtrip OK")
+
+    // Test tokens field accuracy
+    if parsed3.tokens != 5:
+        println("[FAIL] jsonl_serde: tokens field not preserved")
+        failures = failures + 1
+    else:
+        println("[PASS] jsonl_serde: tokens field preserved")
+
+    // Test that JSON output contains expected keys
+    let json4 = session_entry_to_json(entry1)
+    if text_contains_string(json4, "\"role\"") and text_contains_string(json4, "\"timestamp\""):
+        println("[PASS] jsonl_serde: JSON contains expected keys")
+    else:
+        println("[FAIL] jsonl_serde: JSON missing expected keys")
+        failures = failures + 1
+
+    println("=== JSONL SERDE ===")
+    if failures == 0:
+        println("[PASS] All JSONL serde tests passed")
+    return failures

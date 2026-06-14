@@ -1,0 +1,165 @@
+// ============================================================================
+//  theme.kn — Theme system for pi-squared CHARLIE (TUI) stream
+//
+//  MarkScript (`mks.exe` at project root) is the build orchestrator.
+//  std::mks provides markdown-driven build orchestration.
+//
+//  Provides:
+//    - A Theme struct with 18 color slots (all hex strings like "#1a1a2e")
+//    - ThemeWorld as the compiler-owned state authority (Layer 1)
+//    - patch set_theme for journaled theme mutations (Layer 2)
+//    - Dark and light theme presets
+//    - A component stub for UI wiring
+//
+//  Ladder:
+//    Layer 0 — struct, fn (core types and factory functions)
+//    Layer 1 — world (ThemeWorld owns the theme state)
+//    Layer 2 — patch (set_theme journals mutations)
+//    Layer 5 — resonate (theme_changed triggers re-render — commented,
+//              wired when the render surface is connected)
+//    Layer UI — component (PiThemeStub for surface binding)
+// ============================================================================
+
+// ============================================================================
+//  THEME STRUCT  —  18 string-based color slots
+//
+//  Every field is a hex color string like "#1a1a2e". This keeps the
+//  theme system JSON-serializable and trivially configurable from
+//  settings files, CLI args, or the session config.
+// ============================================================================
+
+pub struct Theme:
+    name:       String
+    bg:         String
+    fg:         String
+    accent:     String
+    success:    String
+    warning:    String
+    error:      String
+    info:       String
+    muted:      String
+    border:     String
+    selection:  String
+    cursor:     String
+    scrollbar:  String
+    link:       String
+    code_bg:    String
+    code_fg:    String
+    heading:    String
+    list_bullet: String
+    quote_bar:  String
+
+// ============================================================================
+//  THEME WORLD  —  compiler-owned state authority
+//
+//  Ladder: Layer 1. ThemeWorld owns the active theme. The current_theme_json
+//  field holds the serialized Theme for cross-actor transport, and theme_name
+//  is the human-readable selector ("dark", "light", or a custom name).
+// ============================================================================
+
+world ThemeWorld:
+    state current_theme_json: String = "{}"
+    state theme_name:         String = "dark"
+    surface web => PiThemeStub
+
+// ============================================================================
+//  PATCH SET THEME  —  journaled theme mutation
+//
+//  Ladder: Layer 2. Records the change in the patch journal, updates
+//  both the JSON and the name, and increments the epoch. The epoch bump
+//  signals entangle propagation and resonate handlers that state changed.
+//
+//  Note: Patch operates on world fields directly. The json parameter
+//  should be a serialized Theme struct that the renderer knows how to
+//  parse.
+// ============================================================================
+
+pub patch set_theme(theme_w: ThemeWorld, name: String, json: String) -> String:
+    theme_w.theme_name = name
+    theme_w.current_theme_json = json
+    return theme_w.current_theme_json
+
+// ============================================================================
+//  RESONATE THEME CHANGED  —  reactive tripwire (COMING SOON)
+//
+//  Ladder: Layer 5. When theme_name is written, this resonate handler
+//  fires to trigger a re-render of the TUI surface.
+//
+//  COMMENTED OUT until the render surface is wired. Resonate cannot
+//  reference PiThemeStub or the TUI renderer until those are connected
+//  to ThemeWorld in the surface binding. Uncomment when the render
+//  pipeline is live.
+//
+//  resonate ThemeWorld.theme_name dampen 16 ms:
+//      // Trigger re-render of all themed components.
+//      // The render surface reads ThemeWorld.current_theme_json to
+//      // repaint with the new colors.
+//      let _ = 0
+// ============================================================================
+
+// ============================================================================
+//  DARK THEME  —  dracula-inspired dark palette
+// ============================================================================
+
+pub fn dark_theme() -> Theme:
+    return Theme {
+        name:        "dark",
+        bg:          "#1a1a2e",
+        fg:          "#e0e0e0",
+        accent:      "#7c3aed",
+        success:     "#10b981",
+        warning:     "#f59e0b",
+        error:       "#ef4444",
+        info:        "#3b82f6",
+        muted:       "#6b7280",
+        border:      "#374151",
+        selection:   "#7c3aed",
+        cursor:      "#e0e0e0",
+        scrollbar:   "#374151",
+        link:        "#60a5fa",
+        code_bg:     "#0f0f23",
+        code_fg:     "#a5b4fc",
+        heading:     "#f0f0f0",
+        list_bullet: "#7c3aed",
+        quote_bar:   "#7c3aed",
+    }
+
+// ============================================================================
+//  LIGHT THEME  —  clean light palette
+// ============================================================================
+
+pub fn light_theme() -> Theme:
+    return Theme {
+        name:        "light",
+        bg:          "#ffffff",
+        fg:          "#1f2937",
+        accent:      "#7c3aed",
+        success:     "#059669",
+        warning:     "#d97706",
+        error:       "#dc2626",
+        info:        "#2563eb",
+        muted:       "#9ca3af",
+        border:      "#d1d5db",
+        selection:   "#ddd6fe",
+        cursor:      "#1f2937",
+        scrollbar:   "#d1d5db",
+        link:        "#2563eb",
+        code_bg:     "#f3f4f6",
+        code_fg:     "#4f46e5",
+        heading:     "#111827",
+        list_bullet: "#7c3aed",
+        quote_bar:   "#7c3aed",
+    }
+
+// ============================================================================
+//  THEME COMPONENT STUB  —  surface binding target
+//
+//  PiThemeStub is the UI component that ThemeWorld's surface points to.
+//  When the native_ui surface is connected, this component renders the
+//  theme's color swatch or applies the theme to the TUI render tree.
+//
+//  For the initial CHARLIE stub, it renders a placeholder text element.
+// ============================================================================
+
+component PiThemeStub():
+    render <text value="pi-theme" />

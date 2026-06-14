@@ -1,0 +1,253 @@
+// ============================================================================
+//  terminal.kn — Terminal FFI & ANSI Escape Constants
+//
+//  Part of the pi-squared CHARLIE (TUI) stream. Provides ANSI escape
+//  sequence constants (constructed at runtime via text_chr since the Kain
+//  lexer does not support \x hex escapes in string literals), cursor
+//  movement helpers, TrueColor SGR helpers, Kitty synchronized-output
+//  protocol, bracketed paste markers, terminal dimension detection via
+//  std::os, and raw-mode stubs for v0.1.
+//
+//  Ladder: Layer 0 — plain fn with Pure / IO effects. No world, no actor.
+//  These are stateless utilities consumed by TerminalScreen (screen.kn)
+//  and the pulse render loop (render.kn).
+//
+//  NOTE: All ANSI escape constants are exported as functions rather than
+//  const values because the Kain lexer rejects \x hex escapes in string
+//  literals. Each function builds the escape sequence at runtime using
+//  text_chr(27) for the ESC character (0x1B).
+// ============================================================================
+
+use std::os            // os_get_terminal_size, OsTerminalSize
+use std::text          // text_chr, text_substring_string
+
+// ============================================================================
+//  ESC HELPER  —  ESC character (U+001B = 27)
+// ============================================================================
+
+fn term_esc() -> String:
+    return text_chr(27)
+
+// ============================================================================
+//  CSI / OSC — escape introducers
+// ============================================================================
+
+pub fn CSI() -> String:
+    return term_esc() + "["
+
+pub fn OSC() -> String:
+    return term_esc() + "]"
+
+pub fn ST() -> String:
+    return term_esc() + "\\"
+
+// ============================================================================
+//  CURSOR — show / hide / save / restore
+// ============================================================================
+
+pub fn CURSOR_HIDE() -> String:
+    return term_esc() + "[?25l"
+
+pub fn CURSOR_SHOW() -> String:
+    return term_esc() + "[?25h"
+
+pub fn CURSOR_SAVE() -> String:
+    return term_esc() + "7"
+
+pub fn CURSOR_RESTORE() -> String:
+    return term_esc() + "8"
+
+// ============================================================================
+//  CLEAR — screen / line / to-end
+// ============================================================================
+
+pub fn CLEAR_SCREEN() -> String:
+    return term_esc() + "[2J"
+
+pub fn CLEAR_SCREEN_TO_END() -> String:
+    return term_esc() + "[0J"
+
+pub fn CLEAR_LINE() -> String:
+    return term_esc() + "[2K"
+
+pub fn CLEAR_LINE_TO_END() -> String:
+    return term_esc() + "[0K"
+
+// ============================================================================
+//  SGR (Select Graphic Rendition) — text styling constants
+// ============================================================================
+
+pub fn SGR_RESET() -> String:
+    return term_esc() + "[0m"
+
+pub fn SGR_BOLD() -> String:
+    return term_esc() + "[1m"
+
+pub fn SGR_DIM() -> String:
+    return term_esc() + "[2m"
+
+pub fn SGR_ITALIC() -> String:
+    return term_esc() + "[3m"
+
+pub fn SGR_UNDERLINE() -> String:
+    return term_esc() + "[4m"
+
+pub fn SGR_BLINK() -> String:
+    return term_esc() + "[5m"
+
+pub fn SGR_REVERSE() -> String:
+    return term_esc() + "[7m"
+
+pub fn SGR_HIDDEN() -> String:
+    return term_esc() + "[8m"
+
+pub fn SGR_STRIKETHROUGH() -> String:
+    return term_esc() + "[9m"
+
+// ============================================================================
+//  KITTY SYNCHRONIZED OUTPUT PROTOCOL — tear-free rendering
+// ============================================================================
+
+pub fn KITTY_SYNC_START() -> String:
+    return term_esc() + "[?2026h"
+
+pub fn KITTY_SYNC_END() -> String:
+    return term_esc() + "[?2026l"
+
+// ============================================================================
+//  BRACKETED PASTE MODE — paste markers
+// ============================================================================
+
+pub fn PASTE_START() -> String:
+    return term_esc() + "[200~"
+
+pub fn PASTE_END() -> String:
+    return term_esc() + "[201~"
+
+// ============================================================================
+//  CURSOR POSITION MARKER — zero-width cursor extraction token
+//
+//  Used by the pulse render loop: components emit CURSOR_MARKER at the
+//  desired cursor position. render.kn scans output lines for it, strips
+//  them, and positions the hardware cursor there for IME support.
+// ============================================================================
+
+pub fn CURSOR_MARKER() -> String:
+    return term_esc() + "[PI_CURSOR]"
+
+// ============================================================================
+//  CURSOR MOVEMENT — absolute + relative
+// ============================================================================
+
+pub fn cursor_to(row: Int, col: Int) -> String with Pure:
+    return CSI() + str(row) + ";" + str(col) + "H"
+
+pub fn cursor_up(n: Int) -> String with Pure:
+    return CSI() + str(n) + "A"
+
+pub fn cursor_down(n: Int) -> String with Pure:
+    return CSI() + str(n) + "B"
+
+pub fn cursor_forward(n: Int) -> String with Pure:
+    return CSI() + str(n) + "C"
+
+pub fn cursor_back(n: Int) -> String with Pure:
+    return CSI() + str(n) + "D"
+
+pub fn cursor_next_line(n: Int) -> String with Pure:
+    return CSI() + str(n) + "E"
+
+pub fn cursor_prev_line(n: Int) -> String with Pure:
+    return CSI() + str(n) + "F"
+
+pub fn cursor_horizontal_abs(n: Int) -> String with Pure:
+    return CSI() + str(n) + "G"
+
+// ============================================================================
+//  SGR TRUE COLOR HELPERS — Convert "#RRGGBB" to ANSI escape codes
+// ============================================================================
+
+pub fn sgr_fg(hex: String) -> String with Pure:
+    return term_esc() + "[38;2;" + hex_to_rgb(hex) + "m"
+
+pub fn sgr_bg(hex: String) -> String with Pure:
+    return term_esc() + "[48;2;" + hex_to_rgb(hex) + "m"
+
+pub fn sgr_underline_color(hex: String) -> String with Pure:
+    return term_esc() + "[58;2;" + hex_to_rgb(hex) + "m"
+
+// ============================================================================
+//  HEX TO RGB — parse "#RRGGBB" → "R;G;B"
+// ============================================================================
+
+fn hex_to_rgb(hex: String) -> String with Pure:
+    if text_starts_with_string(hex, "#") == false:
+        return "255;255;255"
+
+    if len(hex) < 7:
+        return "255;255;255"
+
+    let r_str = text_substring_string(hex, 1, 2)
+    let g_str = text_substring_string(hex, 3, 2)
+    let b_str = text_substring_string(hex, 5, 2)
+
+    let r = hex_pair_to_int(r_str)
+    let g = hex_pair_to_int(g_str)
+    let b = hex_pair_to_int(b_str)
+
+    return str(r) + ";" + str(g) + ";" + str(b)
+
+fn hex_digit_to_int(ch: String) -> Int with Pure:
+    if ch == "0": return 0
+    if ch == "1": return 1
+    if ch == "2": return 2
+    if ch == "3": return 3
+    if ch == "4": return 4
+    if ch == "5": return 5
+    if ch == "6": return 6
+    if ch == "7": return 7
+    if ch == "8": return 8
+    if ch == "9": return 9
+    if ch == "a" or ch == "A": return 10
+    if ch == "b" or ch == "B": return 11
+    if ch == "c" or ch == "C": return 12
+    if ch == "d" or ch == "D": return 13
+    if ch == "e" or ch == "E": return 14
+    if ch == "f" or ch == "F": return 15
+    return 0
+
+fn hex_pair_to_int(pair: String) -> Int with Pure:
+    if len(pair) < 2:
+        return 0
+    let hi = text_substring_string(pair, 0, 1)
+    let lo = text_substring_string(pair, 1, 1)
+    return (hex_digit_to_int(hi) * 16) + hex_digit_to_int(lo)
+
+// ============================================================================
+//  TERMINAL DIMENSIONS — via std::os::os_get_terminal_size
+// ============================================================================
+
+pub fn get_terminal_size() -> (Int, Int) with IO:
+    let size = os_get_terminal_size()
+    let rows = if size.rows > 0: size.rows else: 24
+    let cols = if size.columns > 0: size.columns else: 80
+    return (rows, cols)
+
+// ============================================================================
+//  RAW MODE STUBS — full C FFI implementation deferred to v0.2
+//
+//  v0.2 will add:
+//    Windows: include <windows.h> as win
+//      -> win.SetConsoleMode(win.GetStdHandle(...), ENABLE_VIRTUAL_TERMINAL_INPUT)
+//    POSIX:  include <termios.h> as termios
+//      -> termios.tcgetattr(0, &orig) -> cfmakeraw(&raw) -> tcsetattr(0, TCSANOW, &raw)
+// ============================================================================
+
+pub fn enable_raw_mode() -> Int with IO, Unsafe:
+    return 0
+
+pub fn disable_raw_mode() -> Int with IO, Unsafe:
+    return 0
+
+pub fn is_terminal() -> Bool with IO:
+    return true

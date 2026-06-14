@@ -1,0 +1,318 @@
+// @mode check-pass
+// ============================================================================
+//  test/e2e/cli_journeys.kn — End-to-end CLI journey tests
+//
+//  Re-implements a simplified CLI parser to test all 15+ flags,
+//  unknown flag detection, and positional argument collection.
+// ============================================================================
+
+use std::text
+
+pub struct CliFlags:
+    show_help: Bool
+    show_version: Bool
+    model: String
+    provider: String
+    thinking: String
+    continue_session: Bool
+    resume_session: Bool
+    session_id: String
+    fork_id: String
+    no_session: Bool
+    print_mode: Bool
+    mode: String
+    no_tools: Bool
+    system_prompt_path: String
+    unknown_flags: [String]
+    positional: [String]
+
+pub fn default_flags() -> CliFlags:
+    return CliFlags {
+        show_help: false, show_version: false,
+        model: "", provider: "", thinking: "",
+        continue_session: false, resume_session: false,
+        session_id: "", fork_id: "", no_session: false,
+        print_mode: false, mode: "interactive", no_tools: false,
+        system_prompt_path: "",
+        unknown_flags: [], positional: [],
+    }
+
+pub fn parse_args(argv: [String]) -> CliFlags:
+    var cfg = default_flags()
+    var i: Int = 0
+    while i < len(argv):
+        let arg = argv[i]
+        if arg == "--" or arg == "":  // skip executable path
+            if arg == "--":
+                var j = i + 1
+                while j < len(argv):
+                    push(cfg.positional, argv[j])
+                    j = j + 1
+                break
+            i = i + 1
+            continue
+
+        if arg == "--help" or arg == "-h":
+            cfg.show_help = true
+        elif arg == "--version" or arg == "-v":
+            cfg.show_version = true
+        elif arg == "--model" or arg == "-m":
+            if i + 1 < len(argv):
+                cfg.model = argv[i + 1]
+                i = i + 1
+        elif arg == "--provider":
+            if i + 1 < len(argv):
+                cfg.provider = argv[i + 1]
+                i = i + 1
+        elif arg == "--thinking" or arg == "-t":
+            if i + 1 < len(argv):
+                cfg.thinking = argv[i + 1]
+                i = i + 1
+        elif arg == "--continue" or arg == "-c":
+            cfg.continue_session = true
+        elif arg == "--resume":
+            cfg.resume_session = true
+        elif arg == "--session":
+            if i + 1 < len(argv):
+                cfg.session_id = argv[i + 1]
+                i = i + 1
+        elif arg == "--fork":
+            if i + 1 < len(argv):
+                cfg.fork_id = argv[i + 1]
+                i = i + 1
+        elif arg == "--no-session":
+            cfg.no_session = true
+        elif arg == "--print" or arg == "-p":
+            cfg.print_mode = true
+        elif arg == "--mode":
+            if i + 1 < len(argv):
+                cfg.mode = argv[i + 1]
+                i = i + 1
+        elif arg == "--no-tools" or arg == "-nt":
+            cfg.no_tools = true
+        elif arg == "--system-prompt":
+            if i + 1 < len(argv):
+                cfg.system_prompt_path = argv[i + 1]
+                i = i + 1
+        elif text_starts_with_string(arg, "-"):
+            push(cfg.unknown_flags, arg)
+        else:
+            push(cfg.positional, arg)
+        i = i + 1
+    return cfg
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== E2E: CLI Journeys ===")
+
+    // Test 1: --help
+    let f1 = parse_args(["pi-squared", "--help"])
+    if f1.show_help == true:
+        println("  [PASS] --help detected")
+    else:
+        println("  [FAIL] --help not detected")
+        failures = failures + 1
+
+    // Test 2: -h
+    let f2 = parse_args(["prog", "-h"])
+    if f2.show_help == true:
+        println("  [PASS] -h detected")
+    else:
+        println("  [FAIL] -h not detected")
+        failures = failures + 1
+
+    // Test 3: --version
+    let f3 = parse_args(["prog", "--version"])
+    if f3.show_version == true:
+        println("  [PASS] --version detected")
+    else:
+        println("  [FAIL] --version not detected")
+        failures = failures + 1
+
+    // Test 4: -v
+    let f4 = parse_args(["prog", "-v"])
+    if f4.show_version == true:
+        println("  [PASS] -v detected")
+    else:
+        println("  [FAIL] -v not detected")
+        failures = failures + 1
+
+    // Test 5: --model
+    let f5 = parse_args(["prog", "--model", "claude-sonnet-4-20250514"])
+    if f5.model == "claude-sonnet-4-20250514":
+        println("  [PASS] --model parsed")
+    else:
+        println("  [FAIL] --model: " + f5.model)
+        failures = failures + 1
+
+    // Test 6: --provider
+    let f6 = parse_args(["prog", "--provider", "openai"])
+    if f6.provider == "openai":
+        println("  [PASS] --provider parsed")
+    else:
+        println("  [FAIL] --provider: " + f6.provider)
+        failures = failures + 1
+
+    // Test 7: --thinking
+    let f7 = parse_args(["prog", "--thinking", "high"])
+    if f7.thinking == "high":
+        println("  [PASS] --thinking parsed")
+    else:
+        println("  [FAIL] --thinking: " + f7.thinking)
+        failures = failures + 1
+
+    // Test 8: -t
+    let f8 = parse_args(["prog", "-t", "low"])
+    if f8.thinking == "low":
+        println("  [PASS] -t parsed")
+    else:
+        println("  [FAIL] -t: " + f8.thinking)
+        failures = failures + 1
+
+    // Test 9: --continue
+    let f9 = parse_args(["prog", "--continue"])
+    if f9.continue_session == true:
+        println("  [PASS] --continue detected")
+    else:
+        println("  [FAIL] --continue not detected")
+        failures = failures + 1
+
+    // Test 10: -c
+    let f10 = parse_args(["prog", "-c"])
+    if f10.continue_session == true:
+        println("  [PASS] -c detected")
+    else:
+        println("  [FAIL] -c not detected")
+        failures = failures + 1
+
+    // Test 11: --session
+    let f11 = parse_args(["prog", "--session", "abc-123"])
+    if f11.session_id == "abc-123":
+        println("  [PASS] --session parsed")
+    else:
+        println("  [FAIL] --session: " + f11.session_id)
+        failures = failures + 1
+
+    // Test 12: --fork
+    let f12 = parse_args(["prog", "--fork", "node-42"])
+    if f12.fork_id == "node-42":
+        println("  [PASS] --fork parsed")
+    else:
+        println("  [FAIL] --fork: " + f12.fork_id)
+        failures = failures + 1
+
+    // Test 13: --no-session
+    let f13 = parse_args(["prog", "--no-session"])
+    if f13.no_session == true:
+        println("  [PASS] --no-session detected")
+    else:
+        println("  [FAIL] --no-session not detected")
+        failures = failures + 1
+
+    // Test 14: --print
+    let f14 = parse_args(["prog", "--print"])
+    if f14.print_mode == true:
+        println("  [PASS] --print detected")
+    else:
+        println("  [FAIL] --print not detected")
+        failures = failures + 1
+
+    // Test 15: -p
+    let f15 = parse_args(["prog", "-p"])
+    if f15.print_mode == true:
+        println("  [PASS] -p detected")
+    else:
+        println("  [FAIL] -p not detected")
+        failures = failures + 1
+
+    // Test 16: --mode
+    let f16 = parse_args(["prog", "--mode", "json"])
+    if f16.mode == "json":
+        println("  [PASS] --mode parsed")
+    else:
+        println("  [FAIL] --mode: " + f16.mode)
+        failures = failures + 1
+
+    // Test 17: --no-tools
+    let f17 = parse_args(["prog", "--no-tools"])
+    if f17.no_tools == true:
+        println("  [PASS] --no-tools detected")
+    else:
+        println("  [FAIL] --no-tools not detected")
+        failures = failures + 1
+
+    // Test 18: -nt
+    let f18 = parse_args(["prog", "-nt"])
+    if f18.no_tools == true:
+        println("  [PASS] -nt detected")
+    else:
+        println("  [FAIL] -nt not detected")
+        failures = failures + 1
+
+    // Test 19: --system-prompt
+    let f19 = parse_args(["prog", "--system-prompt", "./prompt.md"])
+    if f19.system_prompt_path == "./prompt.md":
+        println("  [PASS] --system-prompt parsed")
+    else:
+        println("  [FAIL] --system-prompt: " + f19.system_prompt_path)
+        failures = failures + 1
+
+    // Test 20: unknown flag
+    let f20 = parse_args(["prog", "--bogus-flag"])
+    if len(f20.unknown_flags) > 0 and f20.unknown_flags[0] == "--bogus-flag":
+        println("  [PASS] unknown flag detected: " + f20.unknown_flags[0])
+    else:
+        println("  [FAIL] unknown flag not detected")
+        failures = failures + 1
+
+    // Test 21: positional args
+    let f21 = parse_args(["prog", "hello", "world"])
+    if len(f21.positional) == 2 and f21.positional[0] == "hello" and f21.positional[1] == "world":
+        println("  [PASS] positional args collected")
+    else:
+        println("  [FAIL] positional: " + str(len(f21.positional)) + " items")
+        failures = failures + 1
+
+    // Test 22: -- separator
+    let f22 = parse_args(["prog", "--", "--help", "extra"])
+    if f22.show_help == false and len(f22.positional) == 2:
+        println("  [PASS] -- separator stops parsing")
+    else:
+        println("  [FAIL] -- separator: help=" + str(f22.show_help) + " pos=" + str(len(f22.positional)))
+        failures = failures + 1
+
+    // Test 23: -m short model
+    let f23 = parse_args(["prog", "-m", "gpt-5.5"])
+    if f23.model == "gpt-5.5":
+        println("  [PASS] -m parsed")
+    else:
+        println("  [FAIL] -m: " + f23.model)
+        failures = failures + 1
+
+    // Test 24: --resume
+    let f24 = parse_args(["prog", "--resume"])
+    if f24.resume_session == true:
+        println("  [PASS] --resume detected")
+    else:
+        println("  [FAIL] --resume not detected")
+        failures = failures + 1
+
+    // Test 25: default mode is interactive
+    let f25 = parse_args(["prog"])
+    if f25.mode == "interactive":
+        println("  [PASS] default mode is interactive")
+    else:
+        println("  [FAIL] default mode: " + f25.mode)
+        failures = failures + 1
+
+    // Test 26: combined flags
+    let f26 = parse_args(["prog", "--model", "gpt-5.5", "-p", "hello"])
+    if f26.model == "gpt-5.5" and f26.print_mode == true and len(f26.positional) == 1 and f26.positional[0] == "hello":
+        println("  [PASS] combined --model -p positional")
+    else:
+        println("  [FAIL] combined flags")
+        failures = failures + 1
+
+    // Summary
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

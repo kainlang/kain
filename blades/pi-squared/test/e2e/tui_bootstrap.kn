@@ -1,0 +1,274 @@
+// @mode check-pass
+// ============================================================================
+//  test/e2e/tui_bootstrap.kn — TUI bootstrap structural tests
+//
+//  Tests config defaults, law validation logic, struct creation,
+//  and basic Kain type system features.
+// ============================================================================
+
+use std::text
+
+pub struct ConfigDefaults:
+    default_provider: String
+    default_model: String
+    default_thinking_level: String
+    compaction_enabled: Bool
+    compaction_reserve_tokens: Int
+    compaction_keep_recent_tokens: Int
+    max_retries: Int
+    max_retry_delay_ms: Int
+    theme: String
+    steering_mode: String
+    follow_up_mode: String
+
+pub const CONFIG_DEFAULTS: ConfigDefaults = ConfigDefaults {
+    default_provider: "anthropic",
+    default_model: "claude-sonnet-4-20250514",
+    default_thinking_level: "medium",
+    compaction_enabled: true,
+    compaction_reserve_tokens: 16384,
+    compaction_keep_recent_tokens: 20000,
+    max_retries: 3,
+    max_retry_delay_ms: 30000,
+    theme: "dark",
+    steering_mode: "all",
+    follow_up_mode: "one-at-a-time",
+}
+
+pub struct ModelCost:
+    input_per_mtok: Float
+    output_per_mtok: Float
+    cache_read_per_mtok: Float
+    cache_write_per_mtok: Float
+
+pub struct ThinkingLevelMap:
+    minimal: String
+    low: String
+    medium: String
+    high: String
+    xhigh: String
+
+pub struct Model:
+    id: String
+    name: String
+    context_window: Int
+    max_tokens: Int
+    cost: ModelCost
+
+pub struct AbortSignal:
+    aborted: Bool
+    reason: String
+
+pub struct StreamOptions:
+    temperature: Float
+    max_tokens: Int
+    thinking_level: String
+    api_key: String
+
+pub fn valid_thinking_level(level: String) -> Bool:
+    return level == "off" or level == "minimal" or level == "low" or level == "medium" or level == "high" or level == "xhigh"
+
+pub fn valid_model_id(id: String) -> Bool:
+    return len(id) > 0 and len(id) <= 128
+
+pub fn valid_provider(name: String) -> Bool:
+    return name == "anthropic" or name == "google" or name == "openai" or name == "deepseek" or name == "mistral" or name == "github-copilot" or name == "amazon-bedrock"
+
+pub fn valid_retry_count(n: Int) -> Bool:
+    return n >= 0 and n <= 10
+
+pub fn valid_context_window(n: Int) -> Bool:
+    return n >= 4096 and n <= 2097152
+
+pub fn pick_str(cli: String, project: String, global_val: String, default_val: String) -> String:
+    if cli != "":
+        return cli
+    if project != "":
+        return project
+    if global_val != "":
+        return global_val
+    return default_val
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== E2E: TUI Bootstrap Structurals ===")
+
+    // Test 1: ConfigDefaults accessible
+    if CONFIG_DEFAULTS.default_provider == "anthropic":
+        println("  [PASS] default_provider")
+    else:
+        println("  [FAIL] default_provider: " + CONFIG_DEFAULTS.default_provider)
+        failures = failures + 1
+
+    if CONFIG_DEFAULTS.default_model == "claude-sonnet-4-20250514":
+        println("  [PASS] default_model")
+    else:
+        println("  [FAIL] default_model: " + CONFIG_DEFAULTS.default_model)
+        failures = failures + 1
+
+    if CONFIG_DEFAULTS.theme == "dark":
+        println("  [PASS] default theme")
+    else:
+        println("  [FAIL] default theme: " + CONFIG_DEFAULTS.theme)
+        failures = failures + 1
+
+    if CONFIG_DEFAULTS.max_retries == 3:
+        println("  [PASS] max_retries=3")
+    else:
+        println("  [FAIL] max_retries=" + str(CONFIG_DEFAULTS.max_retries))
+        failures = failures + 1
+
+    // Test 2: valid_thinking_level
+    if valid_thinking_level("off") and valid_thinking_level("medium") and valid_thinking_level("xhigh"):
+        println("  [PASS] valid thinking levels")
+    else:
+        println("  [FAIL] valid thinking levels")
+        failures = failures + 1
+
+    if valid_thinking_level("invalid") == false and valid_thinking_level("") == false:
+        println("  [PASS] invalid thinking levels rejected")
+    else:
+        println("  [FAIL] invalid thinking levels")
+        failures = failures + 1
+
+    // Test 3: valid_model_id
+    if valid_model_id("claude-sonnet-4-20250514") == true:
+        println("  [PASS] valid model ID")
+    else:
+        println("  [FAIL] valid model ID")
+        failures = failures + 1
+
+    if valid_model_id("") == false:
+        println("  [PASS] empty model ID rejected")
+    else:
+        println("  [FAIL] empty model ID")
+        failures = failures + 1
+
+    // Test 4: valid_provider
+    if valid_provider("anthropic") and valid_provider("openai") and valid_provider("google"):
+        println("  [PASS] valid providers accepted")
+    else:
+        println("  [FAIL] valid providers")
+        failures = failures + 1
+
+    if valid_provider("nonexistent") == false:
+        println("  [PASS] invalid provider rejected")
+    else:
+        println("  [FAIL] invalid provider")
+        failures = failures + 1
+
+    // Test 5: valid_retry_count
+    if valid_retry_count(3) and valid_retry_count(0) and valid_retry_count(10):
+        println("  [PASS] valid retry counts")
+    else:
+        println("  [FAIL] valid retry counts")
+        failures = failures + 1
+
+    if valid_retry_count(-1) == false and valid_retry_count(11) == false:
+        println("  [PASS] invalid retry counts rejected")
+    else:
+        println("  [FAIL] invalid retry counts")
+        failures = failures + 1
+
+    // Test 6: valid_context_window
+    if valid_context_window(200000) and valid_context_window(4096):
+        println("  [PASS] valid context windows")
+    else:
+        println("  [FAIL] valid context windows")
+        failures = failures + 1
+
+    if valid_context_window(1000) == false and valid_context_window(3000000) == false:
+        println("  [PASS] invalid context windows rejected")
+    else:
+        println("  [FAIL] invalid context windows")
+        failures = failures + 1
+
+    // Test 7: Struct creation (ModelCost)
+    let cost = ModelCost {
+        input_per_mtok: 15.0,
+        output_per_mtok: 75.0,
+        cache_read_per_mtok: 1.5,
+        cache_write_per_mtok: 7.5,
+    }
+    if cost.input_per_mtok == 15.0:
+        println("  [PASS] ModelCost struct")
+    else:
+        println("  [FAIL] ModelCost")
+        failures = failures + 1
+
+    // Test 8: Struct creation (Model)
+    let model = Model {
+        id: "test-model",
+        name: "Test Model",
+        context_window: 200000,
+        max_tokens: 8192,
+        cost: ModelCost {
+            input_per_mtok: 0.0, output_per_mtok: 0.0,
+            cache_read_per_mtok: 0.0, cache_write_per_mtok: 0.0,
+        },
+    }
+    if model.id == "test-model" and model.context_window == 200000:
+        println("  [PASS] Model struct")
+    else:
+        println("  [FAIL] Model struct")
+        failures = failures + 1
+
+    // Test 9: Struct creation (ThinkingLevelMap)
+    let tlm = ThinkingLevelMap {
+        minimal: "low", low: "medium", medium: "high", high: "xhigh", xhigh: "xhigh",
+    }
+    if tlm.minimal == "low" and tlm.high == "xhigh":
+        println("  [PASS] ThinkingLevelMap struct")
+    else:
+        println("  [FAIL] ThinkingLevelMap")
+        failures = failures + 1
+
+    // Test 10: Struct creation (StreamOptions)
+    let opts = StreamOptions {
+        temperature: 0.7,
+        max_tokens: 4096,
+        thinking_level: "medium",
+        api_key: "",
+    }
+    if opts.temperature == 0.7 and opts.max_tokens == 4096:
+        println("  [PASS] StreamOptions struct")
+    else:
+        println("  [FAIL] StreamOptions")
+        failures = failures + 1
+
+    // Test 11: pick_str merge logic
+    if pick_str("cli", "", "", "") == "cli":
+        println("  [PASS] pick_str: CLI wins")
+    else:
+        println("  [FAIL] pick_str: CLI")
+        failures = failures + 1
+
+    if pick_str("", "project", "", "") == "project":
+        println("  [PASS] pick_str: project wins")
+    else:
+        println("  [FAIL] pick_str: project")
+        failures = failures + 1
+
+    if pick_str("", "", "global", "") == "global":
+        println("  [PASS] pick_str: global wins")
+    else:
+        println("  [FAIL] pick_str: global")
+        failures = failures + 1
+
+    if pick_str("", "", "", "default") == "default":
+        println("  [PASS] pick_str: default fallback")
+    else:
+        println("  [FAIL] pick_str: default")
+        failures = failures + 1
+
+    // Test 12: AbortSignal
+    let sig = AbortSignal { aborted: false, reason: "" }
+    if sig.aborted == false:
+        println("  [PASS] AbortSignal initial state")
+    else:
+        println("  [FAIL] AbortSignal initial")
+        failures = failures + 1
+
+    // Summary
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

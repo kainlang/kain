@@ -1,0 +1,430 @@
+// ============================================================================
+//  editor.kn — Multi-line text editor component for pi-squared TUI
+//  Ladder: Layer UI — component with state, methods, and JSX render
+//  Markscript: mks.exe at pi-squared project root compiles MarkScript to
+//  bytecode; this editor provides the text editing surface for mks source.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  KEY ACTION ENUM — Semantic key actions handled by the editor.
+//  pi-squared translates raw terminal/input events into these actions.
+// ============================================================================
+
+enum PiKeyAction:
+    CharInsert(String)
+    Backspace
+    Delete
+    Enter
+    Tab
+    Escape
+    ArrowUp
+    ArrowDown
+    ArrowLeft
+    ArrowRight
+    Home
+    End
+    PageUp
+    PageDown
+    CtrlZ
+    CtrlY
+    CtrlS
+    CtrlK
+    CtrlW
+    CtrlA
+    CtrlC
+    CtrlV
+    CtrlX
+    CtrlF
+    CtrlG
+    None
+
+// ============================================================================
+//  EDITOR COMPONENT — Full multi-line text editor with undo/redo stack,
+//  kill ring, cursor management, and scroll offset. The display renders
+//  visible lines through a viewport with cursor marker (█).
+//
+//  State:
+//    text          — full multi-line buffer
+//    cursor_row    — row index in the line array
+//    cursor_col    — character offset in the current line
+//    scroll_offset — first visible line in the viewport
+//    undo_stack    — history of text states for Ctrl+Z
+//    redo_stack    — undone states for Ctrl+Y
+//    kill_ring     — killed (cut) lines for yank (Ctrl+W)
+//    modified      — dirty flag for save detection
+// ============================================================================
+
+component Editor(
+    text: String,
+    cursor_row: Int,
+    cursor_col: Int,
+    scroll_offset: Int
+) with Pure:
+    state text: String = ""
+    state cursor_row: Int = 0
+    state cursor_col: Int = 0
+    state scroll_offset: Int = 0
+    state undo_stack: [String] = []
+    state redo_stack: [String] = []
+    state kill_ring: [String] = []
+    state modified: Bool = false
+
+    // ====================================================================
+    //  TEXT BUFFER HELPERS
+    // ====================================================================
+
+    fn get_lines(_self: Self_) -> [String]:
+        if len(_self.text) == 0:
+            return [""]
+        return text_split_lines(_self.text)
+
+    fn line_count(_self: Self_) -> Int:
+        return len(_self.get_lines())
+
+    fn current_line_text(_self: Self_) -> String:
+        let ls = _self.get_lines()
+        if _self.cursor_row < len(ls):
+            return ls[_self.cursor_row]
+        return ""
+
+    fn clamp_row(_self: Self_, row: Int) -> Int:
+        let lc = _self.line_count()
+        if row < 0: return 0
+        if row >= lc: return lc - 1
+        return row
+
+    fn clamp_col(_self: Self_, row: Int, col: Int) -> Int:
+        let ls = _self.get_lines()
+        if row < len(ls):
+            let line_len = len(ls[row])
+            if col < 0: return 0
+            if col > line_len: return line_len
+            return col
+        return col
+
+    fn build_text(_self: Self_, lines_arr: [String]) -> String:
+        return fmt_join_strings(lines_arr, text_chr(10))
+
+    fn save_undo(_self: Self_):
+        push(_self.undo_stack, _self.text)
+        _self.redo_stack = []
+
+    // ====================================================================
+    //  CURSOR MOVEMENT
+    // ====================================================================
+
+    fn cursor_up_fn(_self: Self_):
+        if _self.cursor_row > 0:
+            _self.cursor_row = _self.cursor_row - 1
+            _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+            _self._adjust_scroll()
+
+    fn cursor_down_fn(_self: Self_):
+        if _self.cursor_row < _self.line_count() - 1:
+            _self.cursor_row = _self.cursor_row + 1
+            _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+            _self._adjust_scroll()
+
+    fn cursor_left_fn(_self: Self_):
+        if _self.cursor_col > 0:
+            _self.cursor_col = _self.cursor_col - 1
+        elif _self.cursor_row > 0:
+            _self.cursor_row = _self.cursor_row - 1
+            _self.cursor_col = len(_self.current_line_text())
+
+    fn cursor_right_fn(_self: Self_):
+        let cl = _self.current_line_text()
+        if _self.cursor_col < len(cl):
+            _self.cursor_col = _self.cursor_col + 1
+        elif _self.cursor_row < _self.line_count() - 1:
+            _self.cursor_row = _self.cursor_row + 1
+            _self.cursor_col = 0
+
+    fn cursor_home_fn(_self: Self_):
+        _self.cursor_col = 0
+
+    fn cursor_end_fn(_self: Self_):
+        _self.cursor_col = len(_self.current_line_text())
+
+    fn cursor_page_up_fn(_self: Self_):
+        let view_lines: Int = 20
+        var target: Int = _self.cursor_row - view_lines
+        if target < 0: target = 0
+        _self.cursor_row = target
+        _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+        _self._adjust_scroll()
+
+    fn cursor_page_down_fn(_self: Self_):
+        let view_lines: Int = 20
+        var target: Int = _self.cursor_row + view_lines
+        let lc = _self.line_count()
+        if target >= lc: target = lc - 1
+        _self.cursor_row = target
+        _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+        _self._adjust_scroll()
+
+    fn _adjust_scroll(_self: Self_):
+        if _self.cursor_row < _self.scroll_offset:
+            _self.scroll_offset = _self.cursor_row
+        let view_h: Int = 20
+        if _self.cursor_row >= _self.scroll_offset + view_h:
+            _self.scroll_offset = _self.cursor_row - view_h + 1
+
+    // ====================================================================
+    //  TEXT EDITING OPERATIONS
+    // ====================================================================
+
+    fn insert_char_fn(_self: Self_, ch: String):
+        _self.save_undo()
+        let ls = _self.get_lines()
+        let line_val = ls[_self.cursor_row]
+        let before = _self._substr(line_val, 0, _self.cursor_col)
+        let after = _self._substr(line_val, _self.cursor_col, len(line_val) - _self.cursor_col)
+        ls[_self.cursor_row] = before + ch + after
+        _self.text = _self.build_text(ls)
+        _self.cursor_col = _self.cursor_col + 1
+        _self.modified = true
+
+    fn delete_before_cursor_fn(_self: Self_):
+        if _self.cursor_col > 0:
+            _self.save_undo()
+            let ls = _self.get_lines()
+            let line_val = ls[_self.cursor_row]
+            let before = _self._substr(line_val, 0, _self.cursor_col - 1)
+            let after = _self._substr(line_val, _self.cursor_col, len(line_val) - _self.cursor_col)
+            ls[_self.cursor_row] = before + after
+            _self.text = _self.build_text(ls)
+            _self.cursor_col = _self.cursor_col - 1
+            _self.modified = true
+        elif _self.cursor_row > 0:
+            _self.save_undo()
+            let ls = _self.get_lines()
+            let merged = ls[_self.cursor_row - 1] + ls[_self.cursor_row]
+            _self.cursor_col = len(ls[_self.cursor_row - 1])
+            var new_lines: [String] = []
+            var i: Int = 0
+            while i < len(ls):
+                if i == _self.cursor_row - 1:
+                    push(new_lines, merged)
+                elif i == _self.cursor_row:
+                    let _ = 0
+                else:
+                    push(new_lines, ls[i])
+                i = i + 1
+            _self.text = _self.build_text(new_lines)
+            _self.cursor_row = _self.cursor_row - 1
+            _self.modified = true
+
+    fn delete_after_cursor_fn(_self: Self_):
+        let ls = _self.get_lines()
+        let line_val = ls[_self.cursor_row]
+        if _self.cursor_col < len(line_val):
+            _self.save_undo()
+            let before = _self._substr(line_val, 0, _self.cursor_col)
+            let after = _self._substr(line_val, _self.cursor_col + 1, len(line_val) - _self.cursor_col - 1)
+            ls[_self.cursor_row] = before + after
+            _self.text = _self.build_text(ls)
+            _self.modified = true
+        elif _self.cursor_row < len(ls) - 1:
+            _self.save_undo()
+            let merged = line_val + ls[_self.cursor_row + 1]
+            var new_lines: [String] = []
+            var i: Int = 0
+            while i < len(ls):
+                if i == _self.cursor_row:
+                    push(new_lines, merged)
+                elif i == _self.cursor_row + 1:
+                    let _ = 0
+                else:
+                    push(new_lines, ls[i])
+                i = i + 1
+            _self.text = _self.build_text(new_lines)
+            _self.modified = true
+
+    fn insert_newline_fn(_self: Self_):
+        _self.save_undo()
+        let ls = _self.get_lines()
+        let line_val = ls[_self.cursor_row]
+        let before = _self._substr(line_val, 0, _self.cursor_col)
+        let after = _self._substr(line_val, _self.cursor_col, len(line_val) - _self.cursor_col)
+        var new_lines: [String] = []
+        var i: Int = 0
+        while i < len(ls):
+            if i == _self.cursor_row:
+                push(new_lines, before)
+                push(new_lines, after)
+            else:
+                push(new_lines, ls[i])
+            i = i + 1
+        _self.text = _self.build_text(new_lines)
+        _self.cursor_row = _self.cursor_row + 1
+        _self.cursor_col = 0
+        _self.modified = true
+
+    fn insert_tab_fn(_self: Self_):
+        _self.insert_char_fn("    ")
+
+    // ====================================================================
+    //  KILL RING / YANK
+    // ====================================================================
+
+    fn kill_line_fn(_self: Self_):
+        _self.save_undo()
+        let ls = _self.get_lines()
+        let killed = ls[_self.cursor_row]
+        push(_self.kill_ring, killed)
+        var new_lines: [String] = []
+        var i: Int = 0
+        while i < len(ls):
+            if i != _self.cursor_row:
+                push(new_lines, ls[i])
+            i = i + 1
+        if len(new_lines) == 0:
+            push(new_lines, "")
+        if _self.cursor_row >= len(new_lines):
+            _self.cursor_row = len(new_lines) - 1
+        _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+        _self.text = _self.build_text(new_lines)
+        _self.modified = true
+
+    fn yank_fn(_self: Self_):
+        if len(_self.kill_ring) > 0:
+            let last_killed = _self.kill_ring[len(_self.kill_ring) - 1]
+            _self.save_undo()
+            let ls = _self.get_lines()
+            let line_val = ls[_self.cursor_row]
+            let before = _self._substr(line_val, 0, _self.cursor_col)
+            let after = _self._substr(line_val, _self.cursor_col, len(line_val) - _self.cursor_col)
+            ls[_self.cursor_row] = before + last_killed + after
+            _self.text = _self.build_text(ls)
+            _self.modified = true
+
+    // ====================================================================
+    //  UNDO / REDO
+    // ====================================================================
+
+    fn undo_fn(_self: Self_):
+        let stack_len = len(_self.undo_stack)
+        if stack_len > 0:
+            push(_self.redo_stack, _self.text)
+            _self.text = _self.undo_stack[stack_len - 1]
+            var new_stack: [String] = []
+            var i: Int = 0
+            while i < stack_len - 1:
+                push(new_stack, _self.undo_stack[i])
+                i = i + 1
+            _self.undo_stack = new_stack
+            let ls = _self.get_lines()
+            if _self.cursor_row >= len(ls):
+                _self.cursor_row = len(ls) - 1
+            if _self.cursor_row < 0:
+                _self.cursor_row = 0
+                _self.cursor_col = 0
+            _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+            _self.modified = true
+
+    fn redo_fn(_self: Self_):
+        let stack_len = len(_self.redo_stack)
+        if stack_len > 0:
+            push(_self.undo_stack, _self.text)
+            _self.text = _self.redo_stack[stack_len - 1]
+            var new_stack: [String] = []
+            var i: Int = 0
+            while i < stack_len - 1:
+                push(new_stack, _self.redo_stack[i])
+                i = i + 1
+            _self.redo_stack = new_stack
+            let ls = _self.get_lines()
+            if _self.cursor_row >= len(ls):
+                _self.cursor_row = len(ls) - 1
+            if _self.cursor_row < 0:
+                _self.cursor_row = 0
+                _self.cursor_col = 0
+            _self.cursor_col = _self.clamp_col(_self.cursor_row, _self.cursor_col)
+            _self.modified = true
+
+    // ====================================================================
+    //  KEY DISPATCH
+    // ====================================================================
+
+    fn handle_key(_self: Self_, key: PiKeyAction):
+        match key:
+            PiKeyAction::CharInsert(ch)     => _self.insert_char_fn(ch)
+            PiKeyAction::Backspace           => _self.delete_before_cursor_fn()
+            PiKeyAction::Delete              => _self.delete_after_cursor_fn()
+            PiKeyAction::Enter               => _self.insert_newline_fn()
+            PiKeyAction::Tab                 => _self.insert_tab_fn()
+            PiKeyAction::ArrowUp             => _self.cursor_up_fn()
+            PiKeyAction::ArrowDown           => _self.cursor_down_fn()
+            PiKeyAction::ArrowLeft           => _self.cursor_left_fn()
+            PiKeyAction::ArrowRight          => _self.cursor_right_fn()
+            PiKeyAction::Home                => _self.cursor_home_fn()
+            PiKeyAction::End                 => _self.cursor_end_fn()
+            PiKeyAction::PageUp              => _self.cursor_page_up_fn()
+            PiKeyAction::PageDown            => _self.cursor_page_down_fn()
+            PiKeyAction::CtrlZ               => _self.undo_fn()
+            PiKeyAction::CtrlY               => _self.redo_fn()
+            PiKeyAction::CtrlK               => _self.kill_line_fn()
+            PiKeyAction::CtrlW               => _self.yank_fn()
+            _ => 0
+
+    // ====================================================================
+    //  DISPLAY TEXT — Renders the visible viewport as a newline-separated
+    //  string. Each line in the viewport (starting at scroll_offset) is
+    //  rendered as-is, except the cursor row which has "█" at cursor_col.
+    //  A status line follows the content: "row N col M [modified]"
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let ls = _self.get_lines()
+        let view_h: Int = 20
+        var result: String = ""
+
+        var i: Int = _self.scroll_offset
+        var first: Bool = true
+        while i < len(ls):
+            let line_val = ls[i]
+            let display_line = if i == _self.cursor_row:
+                let before = _self._substr(line_val, 0, _self.cursor_col)
+                let after = _self._substr(line_val, _self.cursor_col, len(line_val) - _self.cursor_col)
+                before + "█" + after
+            else:
+                line_val
+            if first:
+                result = display_line
+                first = false
+            else:
+                let NL = text_chr(10)
+            result = result + NL + display_line
+            i = i + 1
+
+        // Fill remaining viewport with blank lines
+        while len(_self.get_lines()) - _self.scroll_offset < view_h:
+            result = result + NL
+            i = i + 1
+            if i - _self.scroll_offset >= view_h:
+                break
+
+        // Status bar line
+        let NL = text_chr(10)
+        let status = NL + "row " + str(_self.cursor_row + 1) + " col " + str(_self.cursor_col + 1)
+        let mod_flag = if _self.modified: " [modified]" else: ""
+        result = result + status + mod_flag
+
+        return result
+
+    fn _substr(_self: Self_, s: String, start: Int, length: Int) -> String:
+        if length < 1 or start >= len(s):
+            return ""
+        var result: String = ""
+        var ci: Int = start
+        while ci < start + length and ci < len(s):
+            let slice = text_slice(s, ci, 1)
+            result = result + text_char_at(slice, 0)
+            ci = ci + 1
+        return result
+
+    render <text value={display_text()} />

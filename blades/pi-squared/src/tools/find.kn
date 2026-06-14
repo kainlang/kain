@@ -1,0 +1,44 @@
+// ============================================================================
+//  find.kn — File search tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn for filesystem traversal.
+//
+//  Searches for files by name pattern using std::fs::fs_walk.
+// ============================================================================
+
+use std::fs
+
+// ---- Find files by name pattern ----
+pub fn pi_find(pattern: String, path: String, limit: Int) -> [String]:
+    let search_dir = if len(path) > 0: path else: "."
+    if fs_exists(search_dir) == false:
+        return []
+    if fs_is_dir(search_dir) == false:
+        return []
+    let entries = fs_walk(search_dir)
+    var matches: [String] = []
+    var fi: Int = 0
+    while fi < len(entries):
+        let entry = entries[fi]
+        if len(matches) < limit or limit <= 0:
+            if contains_pattern(entry.file_name, pattern):
+                push(matches, entry.path)
+        fi = fi + 1
+    return matches
+
+// ---- Check if filename contains pattern (simple substring match) ----
+fn contains_pattern(name: String, pattern: String) -> Bool with Pure:
+    if len(pattern) == 0:
+        return true
+    var i: Int = 0
+    while i <= len(name) - len(pattern):
+        var is_match = true
+        var j: Int = 0
+        while j < len(pattern):
+            if name[i + j] != pattern[j]:
+                is_match = false
+                break
+            j = j + 1
+        if is_match:
+            return true
+        i = i + 1
+    return false

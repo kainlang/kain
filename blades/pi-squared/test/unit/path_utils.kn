@@ -1,0 +1,115 @@
+use std::text
+
+fn path_join(parts: [String]) -> String:
+    if len(parts) == 0:
+        return ""
+    var result = parts[0]
+    var i: Int = 1
+    while i < len(parts):
+        if text_ends_with_string(result, "/") or text_ends_with_string(result, "\\"):
+            result = result + parts[i]
+        else:
+            result = result + "/" + parts[i]
+        i = i + 1
+    return result
+
+fn ancestor_walk(path: String) -> [String]:
+    var ancestors: [String] = []
+    var clean = text_trim_string(path)
+    if len(clean) == 0:
+        return ancestors
+    if clean == "/":
+        return ["/"]
+    // Normalize backslashes to forward slashes
+    clean = text_replace_string(clean, "\\", "/")
+    // Remove trailing slash
+    if text_ends_with_string(clean, "/") and len(clean) > 1:
+        clean = text_substring_string(clean, 0, len(clean) - 1)
+    ancestors = ancestors + [clean]
+    while text_contains_string(clean, "/"):
+        let last_slash = text_find_from(text_from(clean), "/", 0)
+        var slash_pos: Int = -1
+        // Find the LAST slash
+        var search_pos: Int = 0
+        while search_pos >= 0:
+            let pos = text_find_from(text_from(clean), "/", search_pos)
+            if pos >= 0:
+                slash_pos = pos
+                search_pos = pos + 1
+            else:
+                search_pos = -1
+        if slash_pos <= 0:
+            clean = "/"
+        else:
+            clean = text_substring_string(clean, 0, slash_pos)
+        if text_ends_with_string(clean, "/") == false:
+            ancestors = ancestors + [clean]
+    ancestors = ancestors + ["/"]
+    return ancestors
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test path_join with two parts
+    let joined1 = path_join(["base", "sub", "file.kn"])
+    if joined1 != "base/sub/file.kn":
+        println("[FAIL] path_utils: join 'base/sub/file.kn' got '" + joined1 + "'")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: path_join basic")
+
+    // Test path_join with trailing slash
+    let joined2 = path_join(["base/", "file.kn"])
+    if joined2 != "base/file.kn":
+        println("[FAIL] path_utils: join with trailing slash got '" + joined2 + "'")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: path_join with trailing slash")
+
+    // Test path_join empty
+    let joined3 = path_join([])
+    if joined3 != "":
+        println("[FAIL] path_utils: join empty should return empty")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: path_join empty")
+
+    // Test ancestor_walk root
+    let roots = ancestor_walk("test/sub/dir")
+    if len(roots) < 3:
+        println("[FAIL] path_utils: ancestor_walk too few results")
+        failures = failures + 1
+    elif roots[0] != "test/sub/dir":
+        println("[FAIL] path_utils: ancestor_walk first element wrong (got '" + roots[0] + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: ancestor_walk produces correct path list")
+
+    // Test ancestor_walk single file
+    let simple = ancestor_walk("file.kn")
+    if len(simple) < 2:
+        println("[FAIL] path_utils: ancestor_walk single file")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: ancestor_walk single file")
+
+    // Test ancestor_walk with backslashes (Windows)
+    let win = ancestor_walk("test\\sub\\dir")
+    if win[0] != "test/sub/dir":
+        println("[FAIL] path_utils: backslash normalization failed (got '" + win[0] + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: backslash normalization works")
+
+    // Test path_join with multiple parts
+    let joined4 = path_join(["a", "b", "c", "d"])
+    if joined4 != "a/b/c/d":
+        println("[FAIL] path_utils: multi-part join failed")
+        failures = failures + 1
+    else:
+        println("[PASS] path_utils: multi-part join works")
+
+    println("=== PATH UTILS ===")
+    if failures == 0:
+        println("[PASS] All path utils tests passed")
+    return failures

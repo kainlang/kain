@@ -1,0 +1,151 @@
+// ============================================================================
+//  events.kn — Agent lifecycle event bus actor (ALPHA-9)
+//
+//  Provides typed event dispatch for agent lifecycle events. Any component
+//  can subscribe to specific event types (by string name) and receive
+//  notifications as the agent progresses through turns, messages, and
+//  tool executions.
+//
+//  Ladder: Layer 7 — actor. The event bus is a concurrent fan-out
+//  dispatcher. Subscriber state is mutable; events are delivered
+//  asynchronously.
+//
+//  v0.1: Subscribers stored as an array. Event delivery is a no-op.
+//  v0.2: Route to extension handlers via ResourceLoader.
+// ============================================================================
+
+use std::time
+
+// ============================================================================
+//  EVENT TYPE ENUM  —  9 lifecycle event variants
+// ============================================================================
+
+pub enum AgentEventType:
+    AgentStart
+    AgentEnd
+    TurnStart
+    TurnEnd
+    MessageStart
+    MessageUpdate
+    MessageEnd
+    ToolExecutionStart
+    ToolExecutionEnd
+
+// ============================================================================
+//  EVENT STRUCT  —  typed payload wrapper with timestamp
+// ============================================================================
+
+pub struct AgentEvent:
+    event_type: AgentEventType
+    payload: String              // JSON-encoded payload
+    timestamp: String            // ISO 8601 timestamp
+
+// ============================================================================
+//  SUBSCRIPTION  —  a handler registered to receive certain events
+// ============================================================================
+
+pub struct EventSubscription:
+    event_type: String           // matches string form of AgentEventType
+    handler_id: String           // unique subscriber identifier
+
+// ============================================================================
+//  EVENT BUS ACTOR
+// ============================================================================
+
+actor AgentEventBus:
+    state subscribers: [EventSubscription] = []
+
+    // Subscribe — register a handler for an event type
+    on Subscribe(reply_to: P, event_type: String, handler_id: String):
+        let sub = EventSubscription {
+            event_type: event_type,
+            handler_id: handler_id,
+        }
+        var new_subs = self.subscribers
+        push(new_subs, sub)
+        self.subscribers = new_subs
+        send reply_to.Reply(value = "ok")
+        return
+
+    // Unsubscribe — remove all subscriptions for a handler_id
+    on Unsubscribe(reply_to: P, handler_id: String):
+        var filtered: [EventSubscription] = []
+        var s_i: Int = 0
+        while s_i < len(self.subscribers):
+            let sub = self.subscribers[s_i]
+            if sub.handler_id != handler_id:
+                push(filtered, sub)
+        self.subscribers = filtered
+        send reply_to.Reply(value = "ok")
+        return
+
+    // Emit — fire-and-forget delivery to matching subscribers
+    on Emit(reply_to: P, event: AgentEvent):
+        let event_str = event_type_to_string(event.event_type)
+        var s_i: Int = 0
+        while s_i < len(self.subscribers):
+            let sub = self.subscribers[s_i]
+            if sub.event_type == event_str or sub.event_type == "*":
+                deliver_event(sub.handler_id, event)
+        send reply_to.Reply(value = "ok")
+        return
+
+    // EmitSettled — wait for all subscribers to acknowledge (v0.2)
+    on EmitSettled(reply_to: P, event: AgentEvent):
+        // v0.2: implement ack tracking. For now, same as Emit.
+        let event_str = event_type_to_string(event.event_type)
+        var s_i: Int = 0
+        while s_i < len(self.subscribers):
+            let sub = self.subscribers[s_i]
+            if sub.event_type == event_str or sub.event_type == "*":
+                deliver_event(sub.handler_id, event)
+        send reply_to.Reply(value = "ok")
+        return
+
+// ============================================================================
+//  HELPER: event_type_to_string  —  maps enum variant to string key
+// ============================================================================
+
+pub fn event_type_to_string(t: AgentEventType) -> String with Pure:
+    match t:
+        AgentEventType::AgentStart           => return "agent_start"
+        AgentEventType::AgentEnd             => return "agent_end"
+        AgentEventType::TurnStart            => return "turn_start"
+        AgentEventType::TurnEnd              => return "turn_end"
+        AgentEventType::MessageStart         => return "message_start"
+        AgentEventType::MessageUpdate        => return "message_update"
+        AgentEventType::MessageEnd           => return "message_end"
+        AgentEventType::ToolExecutionStart   => return "tool_execution_start"
+        AgentEventType::ToolExecutionEnd     => return "tool_execution_end"
+
+// ============================================================================
+//  deliver_event  —  routes event to a handler
+//
+//  v0.1: no-op. v0.2: routes to extension handlers via ResourceLoader.
+// ============================================================================
+
+pub fn deliver_event(handler_id: String, event: AgentEvent) with Pure:
+    return
+
+// ============================================================================
+//  make_event  —  creates an AgentEvent with current timestamp
+// ============================================================================
+
+pub fn make_event(event_type: AgentEventType, payload: String) -> AgentEvent with IO:
+    return AgentEvent {
+        event_type: event_type,
+        payload: payload,
+        timestamp: str(now_millis()),
+    }
+
+// ============================================================================
+//  send_event  —  create and dispatch in one step
+//
+//  v0.1: no-op when bus_ref is empty. v0.2: routes to bus actor.
+// ============================================================================
+
+pub fn send_event(bus_ref: String, event_type: AgentEventType, payload: String) with Pure:
+    if bus_ref == "":
+        return    // no bus configured, silently skip
+    // v0.2: ask(bus_ref, "Emit", event = make_event(event_type, payload))
+    return

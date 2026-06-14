@@ -1,0 +1,61 @@
+// ============================================================================
+//  defaults.kn — Config default constants + ConfigValidation law predicates
+//
+//  Ladder: Layer 0 (const, struct) + Layer 2 (law).
+//  ConfigDefaults is a struct of hardcoded values (not a world — worlds
+//  require surface projections and this is static data).
+//  ConfigValidation provides 5 law predicates for runtime validation.
+//
+//  Laws are top-level declarations per Kain syntax.
+// ============================================================================
+
+// ============================================================================
+//  ConfigDefaults — hardcoded fallback values for layered settings merge
+//  Priority order: CLI > project > global > defaults
+// ============================================================================
+
+pub struct ConfigDefaults:
+    default_model: String
+    default_provider: String
+    default_thinking_level: String
+    compaction_enabled: Bool
+    compaction_reserve_tokens: Int
+    compaction_keep_recent_tokens: Int
+    max_retries: Int
+    max_retry_delay_ms: Int
+    theme: String
+    steering_mode: String
+    follow_up_mode: String
+
+pub const CONFIG_DEFAULTS: ConfigDefaults = ConfigDefaults {
+    default_model: "claude-sonnet-4-20250514",
+    default_provider: "anthropic",
+    default_thinking_level: "medium",
+    compaction_enabled: true,
+    compaction_reserve_tokens: 16384,
+    compaction_keep_recent_tokens: 20000,
+    max_retries: 3,
+    max_retry_delay_ms: 30000,
+    theme: "dark",
+    steering_mode: "all",
+    follow_up_mode: "one-at-a-time",
+}
+
+// ============================================================================
+//  ConfigValidation law predicates
+// ============================================================================
+
+pub law valid_thinking_level(level: String) -> Bool:
+    return level == "off" or level == "minimal" or level == "low" or level == "medium" or level == "high" or level == "xhigh"
+
+pub law valid_model_id(id: String) -> Bool:
+    return len(id) > 0 and len(id) <= 128
+
+pub law valid_provider(name: String) -> Bool:
+    return name == "anthropic" or name == "google" or name == "openai" or name == "deepseek" or name == "mistral" or name == "github-copilot" or name == "amazon-bedrock"
+
+pub law valid_retry_count(n: Int) -> Bool:
+    return n >= 0 and n <= 10
+
+pub law valid_context_window(n: Int) -> Bool:
+    return n >= 4096 and n <= 2097152

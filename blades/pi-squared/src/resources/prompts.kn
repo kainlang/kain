@@ -1,0 +1,107 @@
+// ============================================================================
+//  prompts.kn — Prompt template loading and expansion (ALPHA-12)
+//  Ladder: Layer 0 — plain fn with IO for filesystem access.
+//
+//  Loads .md files as named prompt templates and supports
+//  simple {{var}} substitution for template expansion.
+// ============================================================================
+
+use std::fs
+use std::text
+
+// ---- A single prompt template ----
+pub struct PromptTemplate:
+    name: String
+    tmpl: String
+    description: String
+
+// ---- Load all prompt templates from a directory ----
+pub fn load_prompt_templates(dir: String) -> [PromptTemplate]:
+    var templates: [PromptTemplate] = []
+    if fs_exists(dir) == false:
+        return templates
+    let entries = fs_read_dir(dir)
+    var ei3: Int = 0
+    while ei3 < len(entries):
+        let entry = entries[ei3]
+        if entry.file_type == "file" and str_ends_with(entry.file_name, ".md"):
+            let raw = fs_read_text(entry.path)
+            let stem = fs_path_stem(entry.file_name)
+            push(templates, PromptTemplate {
+                name: stem,
+                tmpl: raw,
+                description: "Loaded from " + entry.file_name,
+            })
+        ei3 = ei3 + 1
+    return templates
+
+// ---- Expand a template by replacing {{var}} with values ----
+// The vars parameter is a set of "key=value" pairs joined by newlines.
+pub fn expand_prompt_template(pt: PromptTemplate, vars: String) -> String with Pure:
+    var result = pt.tmpl
+    // Split vars by newlines, each "key=value"
+    var current_key = ""
+    var current_val = ""
+    var reading_val = false
+    var cv: Int = 0
+    while cv < len(vars):
+        let ch = text_substring_string(vars, cv, 1)
+        if reading_val == false:
+            if ch == "=":
+                reading_val = true
+            else:
+                current_key = current_key + ch
+        else:
+            if ch == text_chr(10):
+                result = replace_all(result, "{{" + current_key + "}}", current_val)
+                current_key = ""
+                current_val = ""
+                reading_val = false
+            else:
+                current_val = current_val + ch
+    if current_key != "":
+        result = replace_all(result, "{{" + current_key + "}}", current_val)
+    return result
+
+// ---- Replace all occurrences of a pattern in a string ----
+fn replace_all(text: String, pattern: String, replacement: String) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    while i < len(text):
+        var is_match = true
+        var j: Int = 0
+        while j < len(pattern):
+            if i + j >= len(text) or ch_at(text, i + j) != ch_at(pattern, j):
+                is_match = false
+                break
+            j = j + 1
+        if is_match:
+            result = result + replacement
+            i = i + len(pattern)
+        else:
+            result = result + ch_at(text, i)
+            i = i + 1
+    return result
+
+// ---- Get character at index ----
+fn ch_at(text: String, index: Int) -> String with Pure:
+    var i: Int = 0
+    var ct: Int = 0
+    while ct < len(text):
+        let ch = text_substring_string(text, ct, 1)
+        if i == index:
+            return ch
+        i = i + 1
+    return ""
+
+// ---- Check if string ends with suffix ----
+fn str_ends_with(s: String, suffix: String) -> Bool with Pure:
+    let sl = len(s)
+    let sufl = len(suffix)
+    if sufl > sl: return false
+    var i: Int = 0
+    while i < sufl:
+        if ch_at(s, sl - sufl + i) != ch_at(suffix, i):
+            return false
+        i = i + 1
+    return true

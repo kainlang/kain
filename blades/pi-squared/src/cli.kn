@@ -1,0 +1,244 @@
+// ============================================================================
+//  cli.kn — CLI argument parser for pi-squared
+//
+//  Parses 15 flags, supports --extension-foo=bar routing into unknown_flags,
+//  and collects positional arguments (prompt text).
+//
+//  Ladder: Layer 0 — plain fn with Pure effect. No world, no actor.
+//  Just CLI hygiene that translates argv into a typed CliArgs struct.
+//
+//  Exit codes:
+//    0 (EXIT_OK)      — success
+//    1 (EXIT_HELP)    — help or version shown (not an error)
+//    2 (EXIT_ERROR)   — runtime error
+//    3 (EXIT_UNKNOWN) — unknown flag
+// ============================================================================
+
+use std::process
+use std::text          // text_chr, text_starts_with_string
+use types          // CliArgs, default_cli_args
+
+// ============================================================================
+//  EXIT CODE CONSTANTS
+// ============================================================================
+
+pub const EXIT_OK:      Int = 0
+pub const EXIT_HELP:    Int = 1
+pub const EXIT_ERROR:   Int = 2
+pub const EXIT_UNKNOWN: Int = 3
+
+// ============================================================================
+//  GET USER ARGS  —  strips argv[0] (executable path)
+//
+//  Uses process_user_args() which portably handles the argv[0] stripping
+//  across native and interpreter lanes.
+// ============================================================================
+
+pub fn get_user_args() -> [String]:
+    return process_user_args()
+
+// ============================================================================
+//  VERSION STRING
+// ============================================================================
+
+pub fn version() -> String:
+    let NL = text_chr(10)
+    return "pi-squared 0.1.0" + NL
+
+// ============================================================================
+//  USAGE  —  help text covering all flags
+// ============================================================================
+
+pub fn usage() -> String:
+    let NL = text_chr(10)
+    let DQ = text_chr(34)
+    var text = "pi-squared 0.1.0" + NL
+    text = text + "A Kain-powered coding agent." + NL
+    text = text + NL
+    text = text + "USAGE:" + NL
+    text = text + "  pi-squared [FLAGS] [--] [prompt...]" + NL
+    text = text + "  pi-squared --help" + NL
+    text = text + "  pi-squared --version" + NL
+    text = text + NL
+    text = text + "FLAGS:" + NL
+    text = text + "  -h, --help                Show this help message and exit" + NL
+    text = text + "  -v, --version             Show version and exit" + NL
+    text = text + "  -m, --model <model>       Set LLM model (e.g. claude-sonnet-4-20250514)" + NL
+    text = text + "      --provider <provider> Set provider (anthropic, openai, google, etc.)" + NL
+    text = text + "  -t, --thinking <level>    Set thinking level (off, low, medium, high, xhigh)" + NL
+    text = text + "  -c, --continue            Continue the most recent session" + NL
+    text = text + "      --resume              Resume from last checkpoint" + NL
+    text = text + "      --session <id>        Load a specific session by ID" + NL
+    text = text + "      --fork <id>           Fork from a specific session entry" + NL
+    text = text + "      --no-session          Run without session persistence" + NL
+    text = text + "  -p, --print               Run in print mode (single-shot response to stdout)" + NL
+    text = text + "      --mode <mode>         Set interaction mode (interactive, print, json, rpc)" + NL
+    text = text + "  -nt, --no-tools           Disable all tools" + NL
+    text = text + "      --system-prompt <path> Path to custom system prompt file" + NL
+    text = text + "      --extension <path>     Load an extension (can be specified multiple times)" + NL
+    text = text + "      --extension-*          Arbitrary extension flags collected as unknown" + NL
+    text = text + NL
+    text = text + "EXAMPLES:" + NL
+    text = text + "  pi-squared --model claude-sonnet-4-20250514 " + DQ + "write a server" + DQ + NL
+    text = text + "  pi-squared -c --thinking high" + NL
+    text = text + "  pi-squared -p --no-tools " + DQ + "list files" + DQ + NL
+    text = text + "  pi-squared --help" + NL
+    text = text + "  pi-squared --extension-my-feature=42" + NL
+    text = text + NL
+    text = text + "EXIT CODES:" + NL
+    text = text + "  0   Success" + NL
+    text = text + "  1   Help or version shown (no error)" + NL
+    text = text + "  2   Runtime error" + NL
+    text = text + "  3   Unknown flag" + NL
+    return text
+
+// ============================================================================
+//  PARSE ARGS  —  translate argv into CliArgs
+//
+//  All 15 flags:
+//    --model / -m       --provider   --thinking / -t   --continue / -c
+//    --resume           --session    --fork             --no-session
+//    --print / -p       --mode       --no-tools / -nt   --system-prompt
+//    --extension        --help / -h  --version / -v
+//
+//  --extension-foo=bar  ->  unknown_flags
+//  --                   ->  stop flag parsing, collect remaining as positional
+// ============================================================================
+
+pub fn parse_args(argv: [String]) -> CliArgs:
+    var cfg = default_cli_args()
+    var i: Int = 0
+    while i < len(argv):
+        let arg = argv[i]
+
+        // -- : stop flag parsing, everything after is positional
+        if arg == "--":
+            var j = i + 1
+            while j < len(argv):
+                push(cfg.positional, argv[j])
+                j = j + 1
+            break
+
+        // Help / Version
+        if arg == "--help" or arg == "-h":
+            cfg.show_help = true
+            i = i + 1
+            continue
+
+        if arg == "--version" or arg == "-v":
+            cfg.show_version = true
+            i = i + 1
+            continue
+
+        // Model
+        if arg == "--model" or arg == "-m":
+            if i + 1 < len(argv):
+                cfg.model = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // Provider
+        if arg == "--provider":
+            if i + 1 < len(argv):
+                cfg.provider = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // Thinking
+        if arg == "--thinking" or arg == "-t":
+            if i + 1 < len(argv):
+                cfg.thinking = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // Continue
+        if arg == "--continue" or arg == "-c":
+            cfg.continue_session = true
+            i = i + 1
+            continue
+
+        // Resume
+        if arg == "--resume":
+            cfg.resume_session = true
+            i = i + 1
+            continue
+
+        // Session
+        if arg == "--session":
+            if i + 1 < len(argv):
+                cfg.session_id = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // Fork
+        if arg == "--fork":
+            if i + 1 < len(argv):
+                cfg.fork_id = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // No-session
+        if arg == "--no-session":
+            cfg.no_session = true
+            i = i + 1
+            continue
+
+        // Print
+        if arg == "--print" or arg == "-p":
+            cfg.print_mode = true
+            i = i + 1
+            continue
+
+        // Mode
+        if arg == "--mode":
+            if i + 1 < len(argv):
+                cfg.mode = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // No-tools
+        if arg == "--no-tools" or arg == "-nt":
+            cfg.no_tools = true
+            i = i + 1
+            continue
+
+        // System-prompt
+        if arg == "--system-prompt":
+            if i + 1 < len(argv):
+                cfg.system_prompt_path = argv[i + 1]
+                i = i + 1
+            i = i + 1
+            continue
+
+        // Extension
+        if arg == "--extension":
+            if i + 1 < len(argv):
+                push(cfg.extension_paths, argv[i + 1])
+                i = i + 1
+            i = i + 1
+            continue
+
+        // --extension-* : unknown extension flags
+        if text_starts_with_string(arg, "--extension-"):
+            push(cfg.unknown_flags, arg)
+            i = i + 1
+            continue
+
+        // Flag-like but unknown
+        if text_starts_with_string(arg, "-"):
+            cfg.exit_code = EXIT_UNKNOWN
+            push(cfg.unknown_flags, arg)
+            i = i + 1
+            continue
+
+        // Positional argument (prompt text)
+        push(cfg.positional, arg)
+        i = i + 1
+
+    return cfg

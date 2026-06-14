@@ -1,0 +1,269 @@
+// ============================================================================
+//  input.kn — Stdin buffering and key dispatch actor for pi-squared
+//              CHARLIE (TUI) stream
+//
+//  MarkScript (`mks.exe` at project root) is the build orchestrator.
+//  std::mks provides markdown-driven build orchestration.
+//
+//  InputActor manages a raw stdin buffer, parses terminal escape
+//  sequences into ParsedKey structs via `tui::keys`, and dispatches
+//  actions via `tui::keybindings`. Callers feed raw data through
+//  FeedData and retrieve parsed keys through GetNextKey.
+//
+//  Ladder: Layer 7 — actor. Stdin buffering is inherently stateful
+//  (buffer accumulation, paste mode, partial sequence tracking), and
+//  the actor boundary isolates the TUI input stream from the rest of
+//  the pi-squared process.
+// ============================================================================
+
+use std::text
+use tui::keys        // ParsedKey, parse_key_sequence, is_escape,
+                     // is_bracket_paste_start, is_bracket_paste_end,
+                     // is_csi, KEY_ESCAPE, default_parsed_key
+use tui::keybindings // dispatch_key, PiKeyAction, matches_keybinding
+
+// ============================================================================
+//  KEY EVENT STRUCT  —  what we emit to the event bus
+// ============================================================================
+
+pub struct KeyEvent:
+    key:     ParsedKey
+    action:  PiKeyAction
+    raw:     String
+
+// ============================================================================
+//  INPUT ACTOR
+//
+//  State machine:
+//    buffer accumulates raw stdin bytes until a complete key sequence
+//    is recognized. Parsed keys are queued in current_key. Paste mode
+//    is tracked so bracketed paste data passes through unparsed.
+//
+//  Messages:
+//    FeedData(data: String)
+//       -> append to buffer, try to parse complete sequences
+//    GetNextKey(reply_to: P)
+//       -> return current_key, clearing it (or empty if none)
+//    Abort(reply_to: P)
+//       -> clear buffer, reset state
+// ============================================================================
+
+actor InputActor:
+    state buffer:           String = ""
+    state current_key:      String = ""
+    state paste_mode:       Bool   = false
+    state event_bus_ref:    String = ""     // reference to the event bus actor
+
+    on FeedData(reply_to: P, data: String):
+        // Append new data to buffer
+        let buf_len = text_len(text_from(self.buffer))
+        let data_len = text_len(text_from(data))
+        if buf_len + data_len > 65536:
+            // Safety limit: clear buffer to prevent unbounded growth
+            self.buffer = data
+        else:
+            self.buffer = self.buffer + data
+
+        // Try to extract a complete key sequence
+        let extracted = try_extract_key(self.buffer)
+        if text_len(text_from(extracted.parsed_key_json)) == 0:
+            // Incomplete sequence — notify caller we're still buffering
+            send reply_to.Reply(value = "buffering")
+            return
+
+        // Complete sequence found: consume it from buffer and store result
+        self.current_key = extracted.parsed_key_json
+        self.buffer = extracted.remaining
+
+        // Forward to event bus if reference is set
+        if text_len(text_from(self.event_bus_ref)) > 0:
+            forward_to_event_bus(self.event_bus_ref, self.current_key)
+
+        send reply_to.Reply(value = "key_ready")
+        return
+
+    on GetNextKey(reply_to: P):
+        let key = self.current_key
+        self.current_key = ""
+        if text_len(text_from(key)) == 0:
+            send reply_to.Reply(value = "")
+            return
+        send reply_to.Reply(value = key)
+        return
+
+    on Abort(reply_to: P):
+        self.buffer = ""
+        self.current_key = ""
+        self.paste_mode = false
+        send reply_to.Reply(value = "ok")
+        return
+
+    on SetEventBus(reply_to: P, ref: String):
+        self.event_bus_ref = ref
+        send reply_to.Reply(value = "ok")
+        return
+
+// ============================================================================
+//  ESC CHAR HELPER  —  the Kain lexer rejects \x escapes in string literals
+// ============================================================================
+
+fn input_esc() -> String:
+    return text_chr(27)
+
+fn input_esc_bracket(s: String) -> String:
+    return input_esc() + "[" + s
+
+// ============================================================================
+//  TRY EXTRACT KEY  —  pull a complete key sequence from the buffer front
+//
+//  Returns a TryExtractResult with:
+//    parsed_key_json: serialized key ("" if incomplete)
+//    remaining:       unconsumed bytes
+// ============================================================================
+
+pub struct TryExtractResult:
+    parsed_key_json: String
+    remaining:       String
+
+pub fn try_extract_key(buffer: String) -> TryExtractResult:
+    let buf_len = text_len(text_from(buffer))
+    if buf_len == 0:
+        return TryExtractResult { parsed_key_json: "", remaining: "" }
+
+    // ---- Bracket paste: consume data until the end marker ----
+    if is_bracket_paste_start(buffer):
+        return extract_bracket_paste(buffer)
+
+    // ---- Escape sequence: find the complete sequence ----
+    if is_escape(buffer):
+        return extract_escape_sequence(buffer)
+
+    // ---- Simple byte: consume first byte as a complete key ----
+    let first_byte = text_byte_at(text_from(buffer), 0)
+
+    // Control characters and printable ASCII: single byte keys
+    if first_byte <= 0x7F:
+        let ch = text_chr(first_byte)
+        let parsed = simple_parsed_key(ch, first_byte)
+        let remaining = text_substring_string(buffer, 1, buf_len - 1)
+        return TryExtractResult {
+            parsed_key_json: ch,
+            remaining: remaining,
+        }
+
+    // ---- Multi-byte UTF-8 character ----
+    // Consume the first complete UTF-8 sequence
+    let seq_len = utf8_seq_len(first_byte)
+    if seq_len > buf_len:
+        // Incomplete UTF-8 — stay in buffer
+        return TryExtractResult { parsed_key_json: "", remaining: buffer }
+
+    let char_seq = text_substring_string(buffer, 0, seq_len)
+    let remaining = text_substring_string(buffer, seq_len, buf_len - seq_len)
+    return TryExtractResult {
+        parsed_key_json: char_seq,
+        remaining: remaining,
+    }
+
+// ============================================================================
+//  EXTRACT BRACKET PASTE
+//
+//  Buffer starts with ESC [ 200~. We need to find the closing ESC [ 201~
+//  to complete the paste. Until then, everything is paste data.
+// ============================================================================
+
+fn extract_bracket_paste(buffer: String) -> TryExtractResult:
+    // Find the end marker in the buffer
+    let buf_len = text_len(text_from(buffer))
+    let end_idx = text_find(text_from(buffer), input_esc_bracket("201~"))
+
+    if end_idx == -1 or end_idx > buf_len:
+        // Incomplete paste: wait for more data
+        // If buffer is growing too large, truncate to prevent OOM
+        if buf_len > 131072:
+            return TryExtractResult {
+                parsed_key_json: "",
+                remaining: "",
+            }
+        return TryExtractResult { parsed_key_json: "", remaining: buffer }
+
+    // We have the complete paste
+    let paste_end = end_idx + 6  // length of ESC [ 201 ~
+    // Extract the paste content (everything between start and end markers)
+    let start_len = 7  // ESC (1) + "[200~" (6) = 7 characters
+    let paste_content = text_substring_string(buffer, start_len, end_idx - start_len)
+    let remaining = text_substring_string(buffer, paste_end, buf_len - paste_end)
+
+    return TryExtractResult {
+        parsed_key_json: "[paste:" + str(end_idx) + "bytes]",
+        remaining: remaining,
+    }
+
+// ============================================================================
+//  EXTRACT ESCAPE SEQUENCE
+//
+//  Finds the length of the complete escape sequence at the front of buffer.
+//  Strategy: try to parse; if result is "unknown", the sequence is incomplete.
+// ============================================================================
+
+fn extract_escape_sequence(buffer: String) -> TryExtractResult:
+    let buf_len = text_len(text_from(buffer))
+
+    // Try parsing at increasing lengths until we get a clean parse
+    // or run out of buffer
+    var scan_len: Int = 2
+    while scan_len <= buf_len and scan_len <= 64:
+        let candidate = text_substring_string(buffer, 0, scan_len)
+        let parsed = parse_key_sequence(candidate)
+
+        if parsed.kind == "char" or parsed.kind == "function" or parsed.kind == "bracket_paste":
+            // Complete sequence found
+            let remaining = text_substring_string(buffer, scan_len, buf_len - scan_len)
+            return TryExtractResult {
+                parsed_key_json: parsed.key,
+                remaining: remaining,
+            }
+
+        scan_len = scan_len + 1
+
+    // Could not find a complete sequence within bounds
+    // Return the whole buffer as remaining to wait for more data
+    return TryExtractResult { parsed_key_json: "", remaining: buffer }
+
+// ============================================================================
+//  SIMPLE PARSED KEY
+// ============================================================================
+
+fn simple_parsed_key(key_str: String, byte_val: Int) -> ParsedKey:
+    return ParsedKey {
+        kind: if byte_val <= 0x1F: "control" else: "char",
+        key: key_str,
+        ctrl: byte_val <= 0x1F,
+        alt: false, shift: false, meta: false,
+        code: byte_val,
+    }
+
+// ============================================================================
+//  UTF-8 SEQUENCE LENGTH  —  from the leading byte
+// ============================================================================
+
+fn utf8_seq_len(lead: Int) -> Int:
+    if lead < 0x80:
+        return 1
+    if lead >= 0xC0 and lead <= 0xDF:
+        return 2
+    if lead >= 0xE0 and lead <= 0xEF:
+        return 3
+    if lead >= 0xF0 and lead <= 0xF4:
+        return 4
+    return 1  // invalid lead byte, treat as single byte
+
+// ============================================================================
+//  FORWARD TO EVENT BUS  —  stub for CHARLIE wiring
+//
+//  When the event bus actor is wired in, this sends the key event to it.
+//  For now it's a no-op stub.
+// ============================================================================
+
+fn forward_to_event_bus(event_bus_ref: String, key_json: String):
+    return

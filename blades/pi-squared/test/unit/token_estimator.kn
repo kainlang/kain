@@ -1,0 +1,82 @@
+use std::text
+
+fn estimate_tokens(text: String) -> Int:
+    let raw = len(text) / 4
+    if len(text) % 4 != 0:
+        return raw + 1
+    return raw
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test empty string
+    let t1 = estimate_tokens("")
+    if t1 != 0:
+        println("[FAIL] token_estimator: empty string should be 0 (got " + str(t1) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: empty string = 0 tokens")
+
+    // Test exactly 4 characters
+    let t2 = estimate_tokens("test")
+    if t2 != 1:
+        println("[FAIL] token_estimator: 'test' should be 1 token (got " + str(t2) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 'test' = 1 token")
+
+    // Test 1 character
+    let t3 = estimate_tokens("a")
+    if t3 != 1:
+        println("[FAIL] token_estimator: 'a' should be 1 token (got " + str(t3) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 'a' = 1 token")
+
+    // Test 5 characters (ceil)
+    let t4 = estimate_tokens("hello")
+    if t4 != 2:
+        println("[FAIL] token_estimator: 'hello' should be 2 tokens (got " + str(t4) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 'hello' = 2 tokens (ceil(5/4))")
+
+    // Test 8 characters (exact 2 tokens)
+    let t5 = estimate_tokens("12345678")
+    if t5 != 2:
+        println("[FAIL] token_estimator: 8 chars should be 2 tokens (got " + str(t5) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 8 chars = 2 tokens")
+
+    // Test long text (100 chars)
+    let t6 = estimate_tokens(text_repeat("a", 100))
+    if t6 != 25:
+        println("[FAIL] token_estimator: 100 chars should be 25 tokens (got " + str(t6) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 100 chars = 25 tokens")
+
+    // Test 3 characters (ceil(3/4) = 1)
+    let t7 = estimate_tokens("abc")
+    if t7 != 1:
+        println("[FAIL] token_estimator: 'abc' should be 1 token (got " + str(t7) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: 'abc' = 1 token")
+
+    // Test proportional: longer text ~= more tokens
+    let short_text = "Hello, how are you?"
+    let long_text = "Hello, how are you? I hope you are doing well today. The weather is nice."
+    let short_tokens = estimate_tokens(short_text)
+    let long_tokens = estimate_tokens(long_text)
+    if long_tokens <= short_tokens:
+        println("[FAIL] token_estimator: longer text should have more tokens")
+        failures = failures + 1
+    else:
+        println("[PASS] token_estimator: longer text proportionally more tokens (" + str(short_tokens) + " vs " + str(long_tokens) + ")")
+
+    println("=== TOKEN ESTIMATOR ===")
+    if failures == 0:
+        println("[PASS] All token estimator tests passed")
+    return failures

@@ -1,0 +1,150 @@
+use std::text
+
+struct SkillDef:
+    name: String
+    path: String
+    version: String
+    description: String
+
+struct ResourceLoader:
+    skills: [SkillDef]
+    loaded: [Bool]
+
+fn create_loader() -> ResourceLoader:
+    return ResourceLoader { skills: [], loaded: [] }
+
+fn register_skill(loader: ResourceLoader, skill: SkillDef) -> ResourceLoader:
+    let new_skills = loader.skills + [skill]
+    let new_loaded = loader.loaded + [false]
+    return ResourceLoader { skills: new_skills, loaded: new_loaded }
+
+fn load_skill(loader: ResourceLoader, name: String) -> ResourceLoader:
+    var new_loaded: [Bool] = []
+    var i: Int = 0
+    while i < len(loader.skills):
+        if loader.skills[i].name == name:
+            new_loaded = new_loaded + [true]
+        else:
+            new_loaded = new_loaded + [loader.loaded[i]]
+        i = i + 1
+    return ResourceLoader { skills: loader.skills, loaded: new_loaded }
+
+fn find_skill_index(loader: ResourceLoader, name: String) -> Int:
+    var i: Int = 0
+    while i < len(loader.skills):
+        if loader.skills[i].name == name:
+            return i
+        i = i + 1
+    return -1
+
+fn is_loaded(loader: ResourceLoader, name: String) -> Bool:
+    let idx = find_skill_index(loader, name)
+    if idx < 0:
+        return false
+    return loader.loaded[idx]
+
+fn total_loaded(loader: ResourceLoader) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(loader.loaded):
+        if loader.loaded[i]:
+            count = count + 1
+        i = i + 1
+    return count
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Create skills
+    let skill1 = SkillDef { name: "oracle", path: "oracle/skill.kn", version: "1.0.0", description: "Windows UI validator" }
+    let skill2 = SkillDef { name: "web_search", path: "web_search/skill.kn", version: "2.1.0", description: "Web search" }
+    let skill3 = SkillDef { name: "git_tools", path: "git_tools/skill.kn", version: "0.5.0", description: "Git operations" }
+
+    // Register skills
+    let loader1 = create_loader()
+    let loader2 = register_skill(loader1, skill1)
+    let loader3 = register_skill(loader2, skill2)
+    let loader4 = register_skill(loader3, skill3)
+
+    // Test skill count
+    if len(loader4.skills) != 3:
+        println("[FAIL] resource_loader: expected 3 skills, got " + str(len(loader4.skills)))
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: 3 skills registered")
+
+    // Test find_skill_index
+    let idx1 = find_skill_index(loader4, "oracle")
+    if idx1 != 0:
+        println("[FAIL] resource_loader: 'oracle' should be at index 0 (got " + str(idx1) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: find_skill_index correct")
+
+    // Test find_skill_index for missing skill
+    let idx2 = find_skill_index(loader4, "nonexistent")
+    if idx2 >= 0:
+        println("[FAIL] resource_loader: missing skill should return -1")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: missing skill returns -1")
+
+    // Test initially nothing is loaded
+    if total_loaded(loader4) != 0:
+        println("[FAIL] resource_loader: initially no skills should be loaded")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: initially 0 skills loaded")
+
+    // Test loading a skill
+    let loader5 = load_skill(loader4, "oracle")
+    if is_loaded(loader5, "oracle") == false:
+        println("[FAIL] resource_loader: oracle should be loaded")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: oracle loaded")
+
+    // Test other skills remain unloaded
+    if is_loaded(loader5, "web_search") != false:
+        println("[FAIL] resource_loader: web_search should remain unloaded")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: other skills remain unloaded")
+
+    // Test total_loaded count
+    if total_loaded(loader5) != 1:
+        println("[FAIL] resource_loader: expected 1 loaded skill")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: total_loaded = 1")
+
+    // Test skill metadata
+    let idx3 = find_skill_index(loader5, "web_search")
+    if idx3 >= 0:
+        if loader5.skills[idx3].version != "2.1.0":
+            println("[FAIL] resource_loader: skill version wrong")
+            failures = failures + 1
+        else:
+            println("[PASS] resource_loader: skill metadata preserved")
+
+    // Test loading multiple skills
+    let loader6 = load_skill(loader5, "git_tools")
+    let loader7 = load_skill(loader6, "web_search")
+    if total_loaded(loader7) != 3:
+        println("[FAIL] resource_loader: expected 3 loaded skills after loading all")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: 3 skills loaded")
+
+    // Test duplicate registration
+    let loader8 = register_skill(loader4, skill1)
+    if len(loader8.skills) != 4:
+        println("[FAIL] resource_loader: duplicate registration should add another entry")
+        failures = failures + 1
+    else:
+        println("[PASS] resource_loader: duplicate registration adds entry")
+
+    println("=== RESOURCE LOADER ===")
+    if failures == 0:
+        println("[PASS] All resource loader tests passed")
+    return failures

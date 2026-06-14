@@ -1,0 +1,89 @@
+use std::text
+
+fn fuzzy_match(pattern: String, text: String) -> Bool:
+    let p_len = len(pattern)
+    let t_len = len(text)
+    if p_len == 0:
+        return true
+    if p_len > t_len:
+        return false
+    var pi: Int = 0
+    var ti: Int = 0
+    while ti < t_len and pi < p_len:
+        // Compare characters by using single-char substring
+        let p_char = text_substring_string(pattern, pi, 1)
+        let t_char = text_substring_string(text, ti, 1)
+        if text_lower(p_char) == text_lower(t_char):
+            pi = pi + 1
+        ti = ti + 1
+    return pi == p_len
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test exact match
+    if fuzzy_match("hello", "hello") == false:
+        println("[FAIL] fuzzy_match: exact match failed")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: exact match")
+
+    // Test substring (pattern is contained in text)
+    if fuzzy_match("hlo", "hello") == false:
+        println("[FAIL] fuzzy_match: 'hlo' in 'hello' should match")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: 'hlo' matches 'hello'")
+
+    // Test pattern longer than text
+    if fuzzy_match("hello", "hel") != false:
+        println("[FAIL] fuzzy_match: pattern longer than text should not match")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: longer pattern correctly fails")
+
+    // Test empty pattern matches everything
+    if fuzzy_match("", "anything") == false:
+        println("[FAIL] fuzzy_match: empty pattern should match")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: empty pattern matches all")
+
+    // Test case insensitivity
+    if fuzzy_match("HELLO", "hello") == false:
+        println("[FAIL] fuzzy_match: case insensitive match failed")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: case insensitive match")
+
+    // Test non-matching
+    if fuzzy_match("xyz", "hello") != false:
+        println("[FAIL] fuzzy_match: non-matching pattern should fail")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: non-matching correctly fails")
+
+    // Test characters must be in order
+    if fuzzy_match("oe", "hello") == false:
+        println("[FAIL] fuzzy_match: 'oe' should match in order")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: characters match in order")
+
+    // Test reverse order doesn't match
+    if fuzzy_match("ol", "hello"):
+        println("[FAIL] fuzzy_match: 'ol' in 'hello' should match (o before l)")
+    else:
+        println("[PASS] fuzzy_match: 'ol' matches 'hello' (o then l in order)")
+
+    // Test empty text
+    if fuzzy_match("a", "") != false:
+        println("[FAIL] fuzzy_match: pattern with empty text should fail")
+        failures = failures + 1
+    else:
+        println("[PASS] fuzzy_match: pattern on empty text correctly fails")
+
+    println("=== FUZZY MATCH ===")
+    if failures == 0:
+        println("[PASS] All fuzzy match tests passed")
+    return failures

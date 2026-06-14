@@ -1,0 +1,76 @@
+// ============================================================================
+//  footer.kn — Status bar component for pi-squared TUI
+//  Ladder: Layer UI — stateless component with methods and JSX render
+//  Markscript: mks.exe reports compilation status in the footer; this
+//  component formats the status bar with model, token count, git info,
+//  context percentage, and editor mode.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  FOOTER COMPONENT — Single-line status bar displaying key session info.
+//
+//  Layout:  [mode]  model  │  N tok  │  git-branch  │  N%  │  mode
+//
+//  Sections are spread across the available width with dynamic spacing.
+// ============================================================================
+
+component Footer(
+    model: String,
+    tokens: Int,
+    git: String,
+    context_pct: Int,
+    mode: String
+) with Pure:
+
+    // ====================================================================
+    //  DISPLAY TEXT — Returns a single-line status bar string
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let w: Int = 80
+
+        let mode_str = "[" + _self.mode + "]"
+        let model_str = _self.model
+        let token_str = str(_self.tokens) + " tok"
+        let git_str = _self.git
+        let pct_str = str(_self.context_pct) + "%"
+
+        let left_portion = mode_str + "  " + model_str
+        let right_portion = token_str + "  │  " + git_str + "  │  " + pct_str + "  │  " + mode_str
+
+        let right_len = len(right_portion) + 2
+        let left_len = len(left_portion)
+
+        var result: String = ""
+        if left_len + right_len <= w:
+            let spaces = w - left_len - right_len
+            result = left_portion + fmt_repeat(" ", spaces) + right_portion
+        else:
+            let max_left = w - right_len - 1
+            let truncated_left = if max_left > 4:
+                _self._substr(left_portion, 0, max_left - 1) + "…"
+            else:
+                left_portion
+            let spaces = w - len(truncated_left) - len(right_portion)
+            if spaces < 0:
+                result = truncated_left
+            else:
+                result = truncated_left + fmt_repeat(" ", spaces) + right_portion
+
+        return result
+
+    fn _substr(_self: Self_, s: String, start: Int, length: Int) -> String:
+        if length < 1 or start >= len(s):
+            return ""
+        var result: String = ""
+        var i: Int = start
+        while i < start + length and i < len(s):
+            let slice = text_slice(s, i, 1)
+            result = result + text_char_at(slice, 0)
+            i = i + 1
+        return result
+
+    render <text value={display_text()} />

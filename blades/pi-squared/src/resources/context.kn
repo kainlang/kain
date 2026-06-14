@@ -1,0 +1,123 @@
+// ============================================================================
+//  context.kn — Context file loading from cwd→root walk (ALPHA-12)
+//  Ladder: Layer 0 — plain fn with IO for filesystem access.
+//
+//  Walks cwd up to filesystem root, collecting AGENTS.md, CLAUDE.md,
+//  SYSTEM.md, and APPEND_SYSTEM.md files from each ancestor directory.
+// ============================================================================
+
+use std::fs
+use std::text          // text_chr
+
+// ---- Context file entry ----
+pub struct ContextFile:
+    path: String
+    content: String
+    kind: String             // "agents_md" | "claude_md" | "system_md" | "append_system_md"
+
+// ---- File names to search for when walking up ----
+pub const CONTEXT_FILE_NAMES: [String] = [
+    "AGENTS.md", "CLAUDE.md", "SYSTEM.md", "APPEND_SYSTEM.md",
+]
+
+// ---- Collect context files by walking cwd → root ----
+pub fn collect_context_files(cwd: String) -> [String]:
+    var found: [String] = []
+    var current = cwd
+    var guard: Int = 0
+    while guard < 100:
+        guard = guard + 1
+        let name_count = len(CONTEXT_FILE_NAMES)
+        var ni: Int = 0
+        while ni < name_count:
+            let name = CONTEXT_FILE_NAMES[ni]
+            let path = fs_path_join(current, name)
+            if fs_exists(path):
+                var dupe = false
+                var fi: Int = 0
+                while fi < len(found):
+                    if found[fi] == path:
+                        dupe = true
+                        break
+                    fi = fi + 1
+                if dupe == false:
+                    push(found, path)
+            ni = ni + 1
+        let parent = fs_path_parent(current)
+        if parent == current:
+            break
+        current = parent
+    return found
+
+// ---- Load context files: returns (path, content) pairs as JSON ----
+pub fn load_context_files(file_paths: [String]) -> String:
+    var result: String = ""
+    var pi: Int = 0
+    while pi < len(file_paths):
+        let path = file_paths[pi]
+        if fs_exists(path):
+            let content = fs_read_text(path)
+            let NL = text_chr(10)
+            if len(result) > 0:
+                result = result + NL + "---FILE: " + path + "---" + NL
+            else:
+                result = "---FILE: " + path + "---" + NL
+            result = result + content
+        pi = pi + 1
+    return result
+
+// ---- Convenience: collect + load in one call ----
+pub fn load_context_files_by_walk(cwd: String) -> [ContextFile]:
+    var result: [ContextFile] = []
+    var current = cwd
+    var guard: Int = 0
+    while guard < 100:
+        guard = guard + 1
+        let name_count = len(CONTEXT_FILE_NAMES)
+        var ni: Int = 0
+        while ni < name_count:
+            let name = CONTEXT_FILE_NAMES[ni]
+            let path = fs_path_join(current, name)
+            if fs_exists(path):
+                let content = fs_read_text(path)
+                let kind = classify_context_file(name)
+                var dupe = false
+                var ci: Int = 0
+                while ci < len(result):
+                    if result[ci].kind == kind:
+                        dupe = true
+                        break
+                    ci = ci + 1
+                if dupe == false:
+                    push(result, ContextFile {
+                        path: path, content: content, kind: kind,
+                    })
+            ni = ni + 1
+        let parent = fs_path_parent(current)
+        if parent == current:
+            break
+        current = parent
+    return result
+
+// ---- Find ancestor directory containing a specific file ----
+pub fn find_ancestor_with_file(cwd: String, filename: String) -> String:
+    var current = cwd
+    var guard: Int = 0
+    while guard < 100:
+        guard = guard + 1
+        let path = fs_path_join(current, filename)
+        if fs_exists(path):
+            return path
+        let parent = fs_path_parent(current)
+        if parent == current:
+            break
+        current = parent
+    return ""
+
+// ---- Classify context file by its basename ----
+fn classify_context_file(name: String) -> String with Pure:
+    if name == "AGENTS.md": return "agents_md"
+    if name == "CLAUDE.md": return "claude_md"
+    if name == "SYSTEM.md": return "system_md"
+    if name == "APPEND_SYSTEM.md": return "append_system_md"
+    return "unknown"

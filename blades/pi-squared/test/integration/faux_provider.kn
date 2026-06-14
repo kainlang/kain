@@ -1,0 +1,107 @@
+use std::text
+use std::json
+
+struct ProviderMessage:
+    role: String
+    content: String
+
+struct ProviderResponse:
+    text: String
+    tokens: Int
+    model: String
+
+fn faux_echo(messages: [ProviderMessage], model: String) -> ProviderResponse:
+    // Echo back the last user message's content
+    var last_user_content: String = ""
+    var i: Int = 0
+    while i < len(messages):
+        if messages[i].role == "user":
+            last_user_content = messages[i].content
+        i = i + 1
+    return ProviderResponse {
+        text: "Echo: " + last_user_content,
+        tokens: len(last_user_content) / 4 + 1,
+        model: model
+    }
+
+fn faux_stream_tokens(text: String) -> [String]:
+    // Simulate streaming tokens by splitting on spaces
+    let words = text_split_string(text, " ")
+    var tokens: [String] = []
+    var i: Int = 0
+    while i < len(words):
+        if len(words[i]) > 0:
+            tokens = tokens + [words[i] + " "]
+        i = i + 1
+    return tokens
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test basic echo response
+    let msgs1 = [
+        ProviderMessage { role: "user", content: "Hello world" }
+    ]
+    let resp1 = faux_echo(msgs1, "test-model")
+    if text_contains_string(resp1.text, "Hello world") == false:
+        println("[FAIL] faux_provider: echo should contain user message")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: echo contains user message")
+
+    // Test response includes model name
+    if resp1.model != "test-model":
+        println("[FAIL] faux_provider: model name not preserved")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: model name preserved")
+
+    // Test token estimation in response
+    if resp1.tokens <= 0:
+        println("[FAIL] faux_provider: token count should be positive")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: token count positive")
+
+    // Test multi-turn conversation uses last user message
+    let msgs2 = [
+        ProviderMessage { role: "system", content: "You are a bot" },
+        ProviderMessage { role: "user", content: "First message" },
+        ProviderMessage { role: "assistant", content: "First reply" },
+        ProviderMessage { role: "user", content: "Second message" }
+    ]
+    let resp2 = faux_echo(msgs2, "gpt-4")
+    if text_contains_string(resp2.text, "Second message") == false:
+        println("[FAIL] faux_provider: should echo last user message")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: echoes last user message in multi-turn")
+
+    // Test streaming token simulation
+    let tokens = faux_stream_tokens("Hello world from Kain")
+    if len(tokens) < 3:
+        println("[FAIL] faux_provider: streaming produces too few tokens (" + str(len(tokens)) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: streaming produces " + str(len(tokens)) + " tokens")
+
+    // Test empty messages
+    let resp3 = faux_echo([], "model")
+    if resp3.text != "Echo: ":
+        println("[FAIL] faux_provider: empty messages should produce empty echo")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: empty messages produce empty echo")
+
+    // Test streaming with single word
+    let single = faux_stream_tokens("Hello")
+    if len(single) != 1:
+        println("[FAIL] faux_provider: single word streaming wrong count")
+        failures = failures + 1
+    else:
+        println("[PASS] faux_provider: single word streaming OK")
+
+    println("=== FAUX PROVIDER ===")
+    if failures == 0:
+        println("[PASS] All faux provider tests passed")
+    return failures

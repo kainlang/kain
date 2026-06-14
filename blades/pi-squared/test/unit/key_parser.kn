@@ -1,0 +1,110 @@
+use std::text
+
+struct KeySequence:
+    keys: [String]
+    modifiers: Int
+
+fn parse_key_sequence(input: String) -> KeySequence:
+    var keys: [String] = []
+    var modifiers: Int = 0
+    let parts = text_split_string(input, "+")
+    var i: Int = 0
+    while i < len(parts):
+        let part = text_trim_string(parts[i])
+        if part == "ctrl" or part == "Ctrl":
+            modifiers = modifiers | 1
+        elif part == "alt" or part == "Alt":
+            modifiers = modifiers | 2
+        elif part == "shift" or part == "Shift":
+            modifiers = modifiers | 4
+        elif part == "meta" or part == "Meta" or part == "win" or part == "Win":
+            modifiers = modifiers | 8
+        elif len(part) > 0:
+            keys = keys + [part]
+        i = i + 1
+    if len(keys) == 0:
+        keys = [""]
+    return KeySequence { keys: keys, modifiers: modifiers }
+
+fn key_has_modifier(ks: KeySequence, mod: String) -> Bool:
+    if mod == "ctrl":
+        return (ks.modifiers & 1) != 0
+    elif mod == "alt":
+        return (ks.modifiers & 2) != 0
+    elif mod == "shift":
+        return (ks.modifiers & 4) != 0
+    elif mod == "meta":
+        return (ks.modifiers & 8) != 0
+    return false
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test simple key (no modifiers)
+    let ks1 = parse_key_sequence("a")
+    if len(ks1.keys) != 1 or ks1.keys[0] != "a" or ks1.modifiers != 0:
+        println("[FAIL] key_parser: simple key 'a' not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: simple key 'a' parsed")
+
+    // Test ctrl+c
+    let ks2 = parse_key_sequence("ctrl+c")
+    if len(ks2.keys) != 1 or ks2.keys[0] != "c" or key_has_modifier(ks2, "ctrl") == false:
+        println("[FAIL] key_parser: ctrl+c not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: ctrl+c parsed")
+
+    // Test ctrl+shift+z
+    let ks3 = parse_key_sequence("ctrl+shift+z")
+    if len(ks3.keys) != 1 or ks3.keys[0] != "z" or key_has_modifier(ks3, "ctrl") == false or key_has_modifier(ks3, "shift") == false:
+        println("[FAIL] key_parser: ctrl+shift+z not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: ctrl+shift+z parsed")
+
+    // Test alt+tab
+    let ks4 = parse_key_sequence("alt+tab")
+    if len(ks4.keys) != 1 or ks4.keys[0] != "tab" or key_has_modifier(ks4, "alt") == false:
+        println("[FAIL] key_parser: alt+tab not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: alt+tab parsed")
+
+    // Test meta modifier
+    let ks5 = parse_key_sequence("meta+k")
+    if key_has_modifier(ks5, "meta") == false:
+        println("[FAIL] key_parser: meta modifier not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: meta modifier parsed")
+
+    // Test empty input
+    let ks6 = parse_key_sequence("")
+    if len(ks6.keys) != 1 or len(ks6.keys[0]) != 0:
+        println("[FAIL] key_parser: empty input not handled")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: empty input handled")
+
+    // Test Function keys
+    let ks7 = parse_key_sequence("f5")
+    if len(ks7.keys) != 1 or ks7.keys[0] != "f5":
+        println("[FAIL] key_parser: function key not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: function key parsed")
+
+    // Test mixed case modifiers
+    let ks8 = parse_key_sequence("Ctrl+Shift+Enter")
+    if key_has_modifier(ks8, "ctrl") == false or key_has_modifier(ks8, "shift") == false or ks8.keys[0] != "Enter":
+        println("[FAIL] key_parser: mixed case modifiers not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] key_parser: mixed case modifiers parsed")
+
+    println("=== KEY PARSER ===")
+    if failures == 0:
+        println("[PASS] All key parser tests passed")
+    return failures

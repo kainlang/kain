@@ -1,0 +1,76 @@
+// ============================================================================
+//  edit.kn — File editing tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn for filesystem access.
+//
+//  Reads a file, finds old_text, replaces with new_text, writes back.
+//  Returns a diff summary of the change.
+// ============================================================================
+
+use std::fs
+use tools::utils    // utils_str_find
+
+// ---- Edit file: find and replace text ----
+pub fn pi_edit(path: String, old_text: String, new_text: String) -> String:
+    if fs_exists(path) == false:
+        return "Error: file not found: " + path
+    if fs_is_file(path) == false:
+        return "Error: not a file: " + path
+    if len(old_text) == 0:
+        return "Error: old_text cannot be empty"
+
+    let content = fs_read_text(path)
+    let old_len = len(old_text)
+
+    // Find first occurrence
+    let idx = edit_str_find(content, old_text, 0)
+    if idx == -1:
+        return "Error: old_text not found in file"
+
+    // Count occurrences
+    var count: Int = 0
+    var search_pos: Int = 0
+    while true:
+        let pos = edit_str_find(content, old_text, search_pos)
+        if pos == -1: break
+        count = count + 1
+        search_pos = pos + 1
+
+    if count > 1:
+        return "Error: old_text found " + str(count) + " times (expected exactly 1)"
+
+    // Replace (simple character-by-character)
+    var result = ""
+    var i: Int = 0
+    while i < len(content):
+        var is_match = true
+        var j: Int = 0
+        while j < len(old_text):
+            if i + j >= len(content) or content[i + j] != old_text[j]:
+                is_match = false
+                break
+            j = j + 1
+        if is_match:
+            result = result + new_text
+            i = i + len(old_text)
+        else:
+            result = result + content[i]
+            i = i + 1
+
+    fs_write_text(path, result)
+    return "Replaced 1 occurrence in " + path + " (" + str(len(old_text)) + " chars -> " + str(len(new_text)) + " chars)"
+
+// ---- Find substring, return index or -1 ----
+fn edit_str_find(text: String, needle: String, start: Int) -> Int with Pure:
+    var i: Int = start
+    while i <= len(text) - len(needle):
+        var is_match = true
+        var j: Int = 0
+        while j < len(needle):
+            if text[i + j] != needle[j]:
+                is_match = false
+                break
+            j = j + 1
+        if is_match:
+            return i
+        i = i + 1
+    return -1

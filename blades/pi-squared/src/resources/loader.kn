@@ -1,0 +1,83 @@
+// ============================================================================
+//  loader.kn — ResourceLoader actor (ALPHA-11)
+//  Ladder: Layer 7 — actor for concurrent resource loading and caching.
+//
+//  Central resource authority for pi-squared. Loads skills, prompt templates,
+//  context files, extensions, and themes on demand. Builds the composite
+//  system prompt from all loaded resources.
+// ============================================================================
+
+use std::fs
+use types       // Model, Settings
+use resources::skills      // Skill, load_skills, format_skills_xml
+use resources::prompts     // PromptTemplate, load_prompt_templates
+use resources::context     // ContextFile, load_context_files_by_walk
+use resources::system_prompt   // build_system_prompt, build_base_prompt
+
+actor ResourceLoader:
+    state cwd: String = ""
+    state extensions_loaded: Bool = false
+    state skills_loaded: Bool = false
+    state system_prompt_base: String = ""
+    state available_skills: [Skill] = []
+    state available_templates: [PromptTemplate] = []
+    state context_files: [ContextFile] = []
+    state settings: Settings = default_settings()
+
+    // ---- Reload: reset all loaded resources ----
+    on Reload(reply_to: P):
+        self.extensions_loaded = false
+        self.skills_loaded = false
+        self.available_skills = []
+        self.available_templates = []
+        self.context_files = []
+        send reply_to.Reply(value = "ok")
+        return
+
+    // ---- LoadExtensions: scan extension directories ----
+    on LoadExtensions(reply_to: P):
+        // v0.1: stub — scan ~/.pi/agent/extensions/ and .pi/extensions/
+        self.extensions_loaded = true
+        send reply_to.Reply(value = "ok")
+        return
+
+    // ---- LoadSkills: find and parse SKILL.md files ----
+    on LoadSkills(reply_to: P):
+        self.available_skills = load_skills(self.cwd)
+        self.skills_loaded = true
+        send reply_to.Reply(value = str(len(self.available_skills)))
+        return
+
+    // ---- LoadPromptTemplates: load .md prompt template files ----
+    on LoadPromptTemplates(reply_to: P):
+        self.available_templates = load_prompt_templates(self.cwd)
+        send reply_to.Reply(value = str(len(self.available_templates)))
+        return
+
+    // ---- LoadThemes: load theme files (dark/light) ----
+    on LoadThemes(reply_to: P):
+        // v0.1: stub — load built-in themes
+        send reply_to.Reply(value = "ok")
+        return
+
+    // ---- LoadContextFiles: walk cwd→root for AGENTS.md etc. ----
+    on LoadContextFiles(reply_to: P):
+        self.context_files = load_context_files_by_walk(self.cwd)
+        send reply_to.Reply(value = str(len(self.context_files)))
+        return
+
+    // ---- BuildSystemPrompt: assemble final system prompt ----
+    on BuildSystemPrompt(reply_to: P, model: Model, active_tools: [String]):
+        let base = if len(self.system_prompt_base) > 0:
+            self.system_prompt_base
+        else:
+            build_base_prompt(self.settings)
+        let prompt = build_system_prompt(
+            base,
+            self.available_skills,
+            self.context_files,
+            model,
+            active_tools,
+        )
+        send reply_to.Reply(value = prompt)
+        return

@@ -1,0 +1,159 @@
+use std::text
+use std::json
+
+struct SettingsLayer:
+    name: String
+    values: [String]
+
+fn layer_get(layer: SettingsLayer, key: String) -> String:
+    var i: Int = 0
+    while i < len(layer.values):
+        let pair = layer.values[i]
+        let eq_pos = text_find(text_from(pair), "=", 0)
+        if eq_pos >= 0:
+            let k = text_substring_string(pair, 0, eq_pos)
+            if k == key:
+                return text_substring_string(pair, eq_pos + 1, len(pair) - eq_pos - 1)
+        i = i + 1
+    return ""
+
+fn layer_set(layer: SettingsLayer, key: String, value: String) -> SettingsLayer:
+    var new_vals: [String] = []
+    var found: Bool = false
+    var i: Int = 0
+    while i < len(layer.values):
+        let pair = layer.values[i]
+        let eq_pos = text_find(text_from(pair), "=", 0)
+        if eq_pos >= 0:
+            let k = text_substring_string(pair, 0, eq_pos)
+            if k == key:
+                new_vals = new_vals + [key + "=" + value]
+                found = true
+            else:
+                new_vals = new_vals + [pair]
+        else:
+            new_vals = new_vals + [pair]
+        i = i + 1
+    if found == false:
+        new_vals = new_vals + [key + "=" + value]
+    return SettingsLayer { name: layer.name, values: new_vals }
+
+fn merge_settings(layers: [SettingsLayer]) -> [String]:
+    var result_map: [String] = []
+    var i: Int = 0
+    while i < len(layers):
+        let layer = layers[i]
+        var j: Int = 0
+        while j < len(layer.values):
+            let pair = layer.values[j]
+            // Check if key already exists in result_map (prev layer set it)
+            let eq_pos = text_find(text_from(pair), "=", 0)
+            if eq_pos >= 0:
+                let k = text_substring_string(pair, 0, eq_pos)
+                var exists: Bool = false
+                var ri: Int = 0
+                while ri < len(result_map):
+                    let rp = result_map[ri]
+                    let rp_eq = text_find(text_from(rp), "=", 0)
+                    if rp_eq >= 0:
+                        let rk = text_substring_string(rp, 0, rp_eq)
+                        if rk == k:
+                            exists = true
+                    ri = ri + 1
+                // Add if NOT already present (first layer wins = default, higher idx = higher priority)
+                if exists == false:
+                    result_map = result_map + [pair]
+                else:
+                    // Replace: remove old, add new
+                    var new_map: [String] = []
+                    var ri2: Int = 0
+                    while ri2 < len(result_map):
+                        let rp2 = result_map[ri2]
+                        let rp_eq2 = text_find(text_from(rp2), "=", 0)
+                        if rp_eq2 >= 0:
+                            let rk2 = text_substring_string(rp2, 0, rp_eq2)
+                            if rk2 != k:
+                                new_map = new_map + [rp2]
+                        ri2 = ri2 + 1
+                    new_map = new_map + [pair]
+                    result_map = new_map
+            j = j + 1
+        i = i + 1
+    return result_map
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Create layers (0=default, 1=project, 2=CLI = highest priority)
+    let defaults = SettingsLayer { name: "defaults", values: ["model=gpt-3.5-turbo", "temperature=0.7", "timeout=30000"] }
+    let project = SettingsLayer { name: "project", values: ["model=gpt-4", "max_tokens=4096"] }
+    let cli = SettingsLayer { name: "cli", values: ["model=claude-3-opus"] }
+
+    // Test layer_get
+    let v1 = layer_get(defaults, "model")
+    if v1 != "gpt-3.5-turbo":
+        println("[FAIL] settings_manager: layer_get default model failed (got '" + v1 + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: layer_get returns correct value")
+
+    // Test merge: CLI wins over project wins over defaults
+    let merged = merge_settings([defaults, project, cli])
+    var model_val: String = ""
+    var temp_val: String = ""
+    var maxtok_val: String = ""
+    var i: Int = 0
+    while i < len(merged):
+        let pair = merged[i]
+        let eq_pos = text_find(text_from(pair), "=", 0)
+        if eq_pos >= 0:
+            let k = text_substring_string(pair, 0, eq_pos)
+            let v = text_substring_string(pair, eq_pos + 1, len(pair) - eq_pos - 1)
+            if k == "model":
+                model_val = v
+            elif k == "temperature":
+                temp_val = v
+            elif k == "max_tokens":
+                maxtok_val = v
+        i = i + 1
+
+    if model_val != "claude-3-opus":
+        println("[FAIL] settings_manager: CLI should override model (got '" + model_val + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: CLI overrides model")
+
+    if temp_val != "0.7":
+        println("[FAIL] settings_manager: defaults temperature lost (got '" + temp_val + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: defaults preserved when not overridden")
+
+    if maxtok_val != "4096":
+        println("[FAIL] settings_manager: project max_tokens lost (got '" + maxtok_val + "')")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: project values preserved")
+
+    // Test layer_set
+    let modified = layer_set(defaults, "temperature", "0.5")
+    let v2 = layer_get(modified, "temperature")
+    if v2 != "0.5":
+        println("[FAIL] settings_manager: layer_set didn't update value")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: layer_set updates value")
+
+    // Test layer_set adds new key
+    let extended = layer_set(defaults, "verbose", "true")
+    let v3 = layer_get(extended, "verbose")
+    if v3 != "true":
+        println("[FAIL] settings_manager: layer_set didn't add new key")
+        failures = failures + 1
+    else:
+        println("[PASS] settings_manager: layer_set adds new key")
+
+    println("=== SETTINGS MANAGER ===")
+    if failures == 0:
+        println("[PASS] All settings manager tests passed")
+    return failures

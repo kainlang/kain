@@ -1,0 +1,77 @@
+// ============================================================================
+//  system_prompt.kn — System prompt assembly (ALPHA-12)
+//  Ladder: Layer 0 — plain fn with Pure effect.
+//
+//  Assembles the final system prompt in layers:
+//    Layer 1: Base prompt (identity / capabilities)
+//    Layer 2: Context files (AGENTS.md, CLAUDE.md, etc.)
+//    Layer 3: Available skills (XML block)
+//    Layer 4: Dynamic model / tool info
+// ============================================================================
+
+use std::text       // text_chr
+use types       // Model
+use resources::skills    // Skill, format_skills_xml
+use resources::context   // ContextFile
+
+// ---- Build the base system prompt ----
+pub fn build_base_prompt(settings: Settings) -> String with Pure:
+    let NL = text_chr(10)
+    var prompt = "You are pi-squared, a helpful coding assistant." + NL
+    prompt = prompt + "You help users write, debug, and understand code." + NL
+    prompt = prompt + "You have access to tools for reading, writing, searching, and executing code." + NL
+    if len(settings.default_model) > 0:
+        prompt = prompt + "Default model: " + settings.default_model + NL
+    return prompt
+
+// ---- Append skills context to the prompt ----
+pub fn append_skills(prompt: String, skills: [Skill]) -> String with Pure:
+    if len(skills) == 0:
+        return prompt
+    let NL = text_chr(10)
+    return prompt + NL + NL + format_skills_xml(skills)
+
+// ---- Append context files to the prompt ----
+pub fn append_context_files(prompt: String, context_files: [ContextFile]) -> String with Pure:
+    var result = prompt
+    var ci: Int = 0
+    while ci < len(context_files):
+        let cf = context_files[ci]
+        let NL = text_chr(10)
+        result = result + NL + NL + "--- " + cf.kind + " ---" + NL
+        result = result + cf.content
+        ci = ci + 1
+    return result
+
+// ---- Append model and tool info to the prompt ----
+pub fn append_model_info(prompt: String, model: Model, active_tools: [String]) -> String with Pure:
+    var result = prompt
+    let NL = text_chr(10)
+    result = result + NL + NL + "Current model: " + model.name
+    var tool_list = ""
+    var ti: Int = 0
+    while ti < len(active_tools):
+        let t = active_tools[ti]
+        if len(tool_list) == 0:
+            tool_list = t
+        else:
+            tool_list = tool_list + ", " + t
+        ti = ti + 1
+    if len(active_tools) > 0:
+        let NL = text_chr(10)
+        result = result + NL + "Active tools: " + tool_list
+    return result
+
+// ---- Full system prompt assembly ----
+pub fn build_system_prompt(
+    base_prompt: String,
+    skills: [Skill],
+    context_files: [ContextFile],
+    model: Model,
+    active_tools: [String],
+) -> String with Pure:
+    var prompt = base_prompt
+    prompt = append_context_files(prompt, context_files)
+    prompt = append_skills(prompt, skills)
+    prompt = append_model_info(prompt, model, active_tools)
+    return prompt

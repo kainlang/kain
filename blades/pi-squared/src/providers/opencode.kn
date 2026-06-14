@@ -1,0 +1,31 @@
+// providers/opencode.kn — OpenCode AI provider (OpenAI-compatible API)
+//
+// OpenCode supports OpenAI-compatible endpoints at:
+//   - https://opencode.ai/zen/v1         (default OpenAI API)
+//   - https://opencode.ai/zen/go/v1      (Go variant)
+//
+// Uses OPENCODE_API_KEY env var for authentication.
+// API: OpenAiCompletions or OpenAiResponses depending on model config.
+//
+// Ladder: Layer 0 — fn with IO, Unsafe
+// v0.1: Stub — prints a placeholder event
+
+use types    // Model, LlmContext, LlmEvent, LlmEventKind, StreamOptions, AgentMessage, ContentBlock
+use providers::trait    // make_error_event, accumulate_from_events
+
+// ---- Stream: placeholder response ----
+// In v0.1 this emits Start -> TextDelta -> Done.
+// Future versions will implement real HTTP streaming via std::http.
+
+pub fn opencode_stream(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+    var events: [LlmEvent] = []
+    push(events, LlmEvent { kind: LlmEventKind::Start, data: "", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::TextDelta, data: "[OpenCode] Use OPENCODE_API_KEY env var for authentication", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::Done, data: "", tool_call_id: "", tool_name: "" })
+    return events
+
+// ---- Complete (non-streaming) convenience ----
+
+pub fn opencode_complete(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+    let events = opencode_stream(model, context, options)
+    return accumulate_from_events(events)

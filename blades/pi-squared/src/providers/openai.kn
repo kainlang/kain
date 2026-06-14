@@ -1,0 +1,17 @@
+// providers/openai.kn — OpenAI provider
+// Ladder: Layer 0 — fn with IO, Unsafe
+// v0.1: Stub
+
+use types    // Model, LlmContext, LlmEvent, LlmEventKind, StreamOptions, AgentMessage, ContentBlock
+use providers::trait    // make_error_event, accumulate_from_events
+
+pub fn openai_stream(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+    var events: [LlmEvent] = []
+    push(events, LlmEvent { kind: LlmEventKind::Start, data: "", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::TextDelta, data: "[OpenAI echo stub]", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::Done, data: "", tool_call_id: "", tool_name: "" })
+    return events
+
+pub fn openai_complete(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+    let events = openai_stream(model, context, options)
+    return accumulate_from_events(events)

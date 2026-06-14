@@ -1,0 +1,16 @@
+// ============================================================================
+//  write.kn — File writing tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn for filesystem access.
+//
+//  Writes content to a file, creating parent directories as needed.
+// ============================================================================
+
+use std::fs
+
+// ---- Write content to a file, return confirmation message ----
+pub fn pi_write(path: String, content: String) -> String:
+    let parent = fs_path_parent(path)
+    if len(parent) > 0 and fs_exists(parent) == false:
+        fs_create_dir_all(parent)
+    fs_write_text(path, content)
+    return "Written " + str(len(content)) + " bytes to " + path

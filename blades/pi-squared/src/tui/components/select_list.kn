@@ -1,0 +1,186 @@
+// ============================================================================
+//  select_list.kn — Scrollable select list with filter and highlight
+//  Ladder: Layer UI — component with state, navigation methods, JSX render
+//  Markscript: mks.exe provides a filtered item selector for symbol lookup,
+//  file navigation, and command palette; this component renders the list.
+// ============================================================================
+
+use std::text
+use std::bytes
+use std::fmt
+
+// ============================================================================
+//  SELECT LIST COMPONENT — A scrollable, filterable list of string items.
+//  Items matching the filter prefix are shown. The selected index tracks
+//  position within the filtered set. Scroll offset ensures the selected
+//  item stays visible in the viewport.
+// ============================================================================
+
+component SelectList(
+    items: [String],
+    selected: Int,
+    scroll: Int,
+    filter: String
+) with Pure:
+    state items: [String] = []
+    state selected: Int = 0
+    state scroll: Int = 0
+    state filter: String = ""
+
+    // ====================================================================
+    //  FILTERED ITEMS — Returns items matching the current filter
+    // ====================================================================
+
+    fn filtered_items(_self: Self_) -> [String]:
+        if len(_self.filter) == 0:
+            return _self.items
+        var result: [String] = []
+        var i: Int = 0
+        while i < len(_self.items):
+            let item_str = _self.items[i]
+            if _self._matches_filter(item_str):
+                push(result, item_str)
+            i = i + 1
+        return result
+
+    fn _matches_filter(_self: Self_, item_str: String) -> Bool:
+        let f = _self.filter
+        let f_len = len(f)
+        if f_len > len(item_str):
+            return false
+        var i: Int = 0
+        while i < f_len:
+            let i_byte = _self._byte_at(item_str, i)
+            let f_byte = _self._byte_at(f, i)
+            let i_lower = _self._ascii_lower(i_byte)
+            let f_lower = _self._ascii_lower(f_byte)
+            if i_lower != f_lower:
+                return false
+            i = i + 1
+        return true
+
+    fn _byte_at(_self: Self_, s: String, idx: Int) -> Int:
+        if idx >= len(s):
+            return 0
+        let bs = bytes_slice(s, idx, 1)
+        return bytes_byte_at(bs, 0)
+
+    fn _ascii_lower(_self: Self_, byte_val: Int) -> Int:
+        let ord_A: Int = 65
+        let ord_Z: Int = 90
+        let ord_a: Int = 97
+        if byte_val >= ord_A and byte_val <= ord_Z:
+            return byte_val + (ord_a - ord_A)
+        return byte_val
+
+    // ====================================================================
+    //  SELECTION NAVIGATION
+    // ====================================================================
+
+    fn select_next(_self: Self_):
+        let filtered = _self.filtered_items()
+        let count = len(filtered)
+        if count == 0:
+            return
+        _self.selected = _self.selected + 1
+        if _self.selected >= count:
+            _self.selected = count - 1
+        _self._ensure_visible()
+
+    fn select_prev(_self: Self_):
+        if _self.selected > 0:
+            _self.selected = _self.selected - 1
+        _self._ensure_visible()
+
+    fn select_first(_self: Self_):
+        _self.selected = 0
+        _self._ensure_visible()
+
+    fn select_last(_self: Self_):
+        let filtered = _self.filtered_items()
+        _self.selected = len(filtered) - 1
+        if _self.selected < 0:
+            _self.selected = 0
+        _self._ensure_visible()
+
+    fn select_page_down(_self: Self_):
+        let page_sz: Int = 15
+        _self.selected = _self.selected + page_sz
+        let filtered = _self.filtered_items()
+        if _self.selected >= len(filtered):
+            _self.selected = len(filtered) - 1
+        _self._ensure_visible()
+
+    fn select_page_up(_self: Self_):
+        let page_sz: Int = 15
+        _self.selected = _self.selected - page_sz
+        if _self.selected < 0:
+            _self.selected = 0
+        _self._ensure_visible()
+
+    fn _ensure_visible(_self: Self_):
+        let view_h: Int = 15
+        if _self.selected < _self.scroll:
+            _self.scroll = _self.selected
+        if _self.selected >= _self.scroll + view_h:
+            _self.scroll = _self.selected - view_h + 1
+
+    // ====================================================================
+    //  FILTER CONTROL
+    // ====================================================================
+
+    fn set_filter(_self: Self_, f: String):
+        _self.filter = f
+        _self.selected = 0
+        _self.scroll = 0
+
+    fn clear_filter(_self: Self_):
+        _self.filter = ""
+        _self.selected = 0
+        _self.scroll = 0
+
+    fn current_selection(_self: Self_) -> String:
+        let filtered = _self.filtered_items()
+        if _self.selected >= 0 and _self.selected < len(filtered):
+            return filtered[_self.selected]
+        return ""
+
+    // ====================================================================
+    //  DISPLAY TEXT — Filtered items rendered as one newline-separated
+    //  string with selection highlight (▸ for selected, "  " for others)
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let filtered = _self.filtered_items()
+        let view_h: Int = 15
+        var result: String = ""
+
+        // Filter indicator
+        if len(_self.filter) > 0:
+            let NL = text_chr(10)
+            result = result + "filter: " + _self.filter + NL
+        result = result + fmt_repeat("─", 40) + NL
+
+        var i: Int = _self.scroll
+        var rendered: Int = 0
+        while i < len(filtered) and rendered < view_h:
+            let item_str = filtered[i]
+            let prefix = if i == _self.selected: "▸ " else: "  "
+            if rendered > 0:
+                result = result + NL
+            result = result + prefix + item_str
+            i = i + 1
+            rendered = rendered + 1
+
+        // Fill remaining lines
+        while rendered < view_h:
+            result = result + NL
+            rendered = rendered + 1
+
+        // Footer
+        let NL4 = text_chr(10)
+        result = result + NL4 + str(len(filtered)) + " / " + str(len(_self.items))
+
+        return result
+
+    render <text value={display_text()} />

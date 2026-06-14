@@ -1,0 +1,96 @@
+// ============================================================================
+//  box.kn — Container box component with border and padding
+//  Ladder: Layer UI — component with methods and JSX render
+//  Markscript: mks.exe uses box-drawing characters for TUI layout panels;
+//  this component mirrors the container pattern for inline rendering.
+// ============================================================================
+
+use std::fmt
+
+// ============================================================================
+//  BOX COMPONENT — Renders a bordered container around text content with
+//  configurable padding and background fill character.
+//
+//  Border characters: ┌─┐ │ └─┘
+//  The bg parameter provides a fill character (typically " " or "░").
+//  Content is array of strings, each rendered as one line inside the box.
+//
+//  display_text() joins the full box rendering as a single string with
+//  newlines, rendered in one <text> element.
+// ============================================================================
+
+component Box(
+    content: [String],
+    width: Int,
+    height: Int,
+    pad_x: Int,
+    pad_y: Int,
+    bg: String
+) with Pure:
+    state content: [String] = []
+    state width: Int = 0
+    state height: Int = 0
+    state pad_x: Int = 0
+    state pad_y: Int = 0
+    state bg: String = " "
+
+    // ====================================================================
+    //  DISPLAY TEXT — Builds the bordered box as a newline-separated string
+    //  Structure:
+    //    ┌───────┐
+    //    │  ...  │
+    //    │ text  │
+    //    │  ...  │
+    //    └───────┘
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let w = _self.width
+        if w < 3:
+            return ""
+        let inner = w - 2
+        if inner < 1:
+            return ""
+        var result: String = ""
+
+        // Top border
+        result = result + "┌" + fmt_repeat("─", inner) + "┐" + NL
+
+        // Top padding
+        let bg_line = "│" + fmt_repeat(_self.bg, inner) + "│" + NL
+        var py: Int = 0
+        while py < _self.pad_y:
+            result = result + bg_line
+            py = py + 1
+
+        // Content lines with horizontal padding
+        var ci: Int = 0
+        while ci < len(_self.content):
+            let content_str = _self.content[ci]
+            let padded = fmt_repeat(" ", _self.pad_x) + content_str
+            let consumed = len(padded)
+            let remaining = inner - consumed
+            let right_pad = if remaining > 0: fmt_repeat(" ", remaining) else: ""
+            result = result + "│" + padded + right_pad + "│" + NL
+            ci = ci + 1
+
+        // Fill remaining content area
+        let used = _self.pad_y + len(_self.content)
+        let available = _self.height - 2
+        var fill_idx: Int = used
+        while fill_idx < available:
+            result = result + bg_line
+            fill_idx = fill_idx + 1
+
+        // Bottom padding
+        py = 0
+        while py < _self.pad_y:
+            result = result + bg_line
+            py = py + 1
+
+        // Bottom border
+        result = result + "└" + fmt_repeat("─", inner) + "┘"
+
+        return result
+
+    render <text value={display_text()} />

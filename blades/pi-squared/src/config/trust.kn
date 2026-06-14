@@ -1,0 +1,119 @@
+// ============================================================================
+//  trust.kn — TrustStore world + trust resolution
+//
+//  Ladder: Layer 1 (world) + Layer 2 (law) + Layer 0 (fn).
+//
+//  The TrustStore tracks which project directories the user has chosen
+//  to trust or distrust. Trust decisions are stored per-path in JSON-
+//  encoded state fields. Patches are top-level per Kain syntax.
+//
+//  Trust resolution walks cwd → root ancestors looking for trust markers
+//  (.pi/ directory, AGENTS.md files).
+// ============================================================================
+
+use std::fs
+use std::json
+
+// ============================================================================
+//  STUB COMPONENT — required for world surface projection
+// ============================================================================
+
+component PiTrustStub():
+    render <text value="pi-trust" />
+
+// ============================================================================
+//  TrustStore — persistent trust decisions
+//  State uses JSON object encoding for String→status mapping.
+// ============================================================================
+
+world TrustStore:
+    surface native_ui => PiTrustStub
+    state decisions_json: String = "{}"
+    state session_only_json: String = "{}"
+
+// ============================================================================
+//  Patches — journaled mutations on TrustStore state
+// ============================================================================
+
+patch trust(store: TrustStore, path: String) -> Int:
+    let obj = json_parse_text(store.decisions_json)
+    if json_is_object(obj):
+        store.decisions_json = json_stringify(
+            json_object_set_string(obj, path, "trusted")
+        )
+    return 0
+
+patch distrust(store: TrustStore, path: String) -> Int:
+    let obj = json_parse_text(store.decisions_json)
+    if json_is_object(obj):
+        store.decisions_json = json_stringify(
+            json_object_set_string(obj, path, "distrusted")
+        )
+    return 0
+
+patch trust_session_only(store: TrustStore, path: String) -> Int:
+    let obj = json_parse_text(store.session_only_json)
+    if json_is_object(obj):
+        store.session_only_json = json_stringify(
+            json_object_set_string(obj, path, "trusted")
+        )
+    return 0
+
+// ============================================================================
+//  Query functions
+// ============================================================================
+
+pub fn is_trusted(store: TrustStore, path: String) -> Bool:
+    let obj = json_parse_text(store.decisions_json)
+    if json_is_object(obj) and json_has_key(obj, path):
+        return json_string_required(obj, path) == "trusted"
+    return false
+
+pub fn is_distrusted(store: TrustStore, path: String) -> Bool:
+    let obj = json_parse_text(store.decisions_json)
+    if json_is_object(obj) and json_has_key(obj, path):
+        return json_string_required(obj, path) == "distrusted"
+    return false
+
+pub fn is_session_trusted(store: TrustStore, path: String) -> Bool:
+    let obj = json_parse_text(store.session_only_json)
+    if json_is_object(obj) and json_has_key(obj, path):
+        return json_string_required(obj, path) == "trusted"
+    return false
+
+// ============================================================================
+//  Law predicates
+// ============================================================================
+
+pub law has_trust_resources(cwd: String) -> Bool:
+    let has_settings = fs_exists(cwd + "/.pi/settings.json")
+    let has_extensions = fs_exists(cwd + "/.pi/extensions")
+    let has_skills = fs_exists(cwd + "/.pi/skills")
+    let has_system_md = fs_exists(cwd + "/.pi/SYSTEM.md")
+    let has_agents_md = fs_exists(cwd + "/AGENTS.md")
+    let has_claude_md = fs_exists(cwd + "/CLAUDE.md")
+    return has_settings or has_extensions or has_skills or has_system_md or has_agents_md or has_claude_md
+
+pub law trust_decision_is_valid(decision: Bool) -> Bool:
+    return true
+
+// ============================================================================
+//  resolve_trust — walk cwd → root looking for trust decisions
+// ============================================================================
+
+pub fn resolve_trust(cwd: String, trust_store: TrustStore) -> String:
+    if is_trusted(trust_store, cwd):
+        return "trusted"
+    if is_distrusted(trust_store, cwd):
+        return "untrusted"
+    if is_session_trusted(trust_store, cwd):
+        return "trusted"
+    var current = cwd
+    loop:
+        if has_trust_resources(current):
+            return "ask"
+        let parent = fs_path_parent(current)
+        if parent == current or parent == "":
+            break
+        current = parent
+    return "trusted"

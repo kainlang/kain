@@ -1,0 +1,70 @@
+// ============================================================================
+//  trait.kn — Tool interface definition for pi-squared
+//  Ladder: Layer 0 — trait + plain structs with Pure effect.
+//
+//  Defines the Tool trait that all tool implementations must conform to,
+//  plus supporting types for parameter schemas and execution modes.
+// ============================================================================
+
+use types
+
+// ---- Tool execution mode ----
+pub enum ToolExecutionMode:
+    Sequential
+    Parallel
+
+// ---- Tool parameter descriptor ----
+pub struct ToolParameter:
+    name: String
+    description: String
+    parameter_type: String
+    required: Bool
+
+// ---- Tool schema (for LLM function calling) ----
+pub struct ToolSchema:
+    name: String
+    description: String
+    parameters: [ToolParameter]
+
+// ---- Tool info (for registry storage) ----
+pub struct ToolInfo:
+    name: String
+    description: String
+    parameters: [ToolParameter]
+    prompt_guidelines: [String]
+
+// ---- Result of executing a tool ----
+pub struct ToolExecutionResult:
+    content: [ContentBlock]
+    is_error: Bool
+    terminate: Bool
+    tool_call_id: String
+    tool_name: String
+
+// ---- Tool trait: interface all tool implementations must satisfy ----
+pub trait Tool:
+    fn name(_self: Self_) -> String:
+        return ""
+    fn description(_self: Self_) -> String:
+        return ""
+    fn parameters(_self: Self_) -> [ToolParameter]:
+        return []
+    fn execute(_self: Self_, tool_call_id: String, params: String, signal: AbortSignal) -> ToolExecutionResult with IO, Unsafe:
+        return ToolExecutionResult {
+            content: [], is_error: true, terminate: false,
+            tool_call_id: tool_call_id, tool_name: _self.name(),
+        }
+    fn execution_mode(_self: Self_) -> ToolExecutionMode:
+        return ToolExecutionMode::Sequential
+
+// ---- Convert ToolExecutionResult to ToolResult ----
+pub fn to_tool_result(exec: ToolExecutionResult) -> ToolResult with Pure:
+    return ToolResult {
+        content: exec.content,
+        is_error: exec.is_error,
+        terminate: exec.terminate,
+        tool_call_id: exec.tool_call_id,
+        tool_name: exec.tool_name,
+        truncated: false,
+        full_output_path: "",
+    }

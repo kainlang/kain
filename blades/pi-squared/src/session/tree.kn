@@ -1,0 +1,406 @@
+// ============================================================================
+//  tree.kn — SessionTree actor
+//
+//  Append-only session tree with parentId pointers, JSONL persistence,
+//  context reconstruction (leaf->root walk), branching, and compaction.
+//
+//  Ladder: LAYER 7 — actor for concurrent state with message-passing.
+// ============================================================================
+
+use std::fs
+use std::json
+use std::time
+use std::text
+use std::random
+use types
+
+actor SessionTree:
+    state entries: [SessionEntry] = []
+    state leaf_id: String = ""
+    state session_file: String = ""
+    state version: Int = 3
+    state entry_count: Int = 0
+    state error_count: Int = 0
+
+    on AppendEntry(reply_to: P, entry: SessionEntry, persist: Bool):
+        let id = generate_uuid_v7()
+        entry.id = id
+        entry.parent_id = self.leaf_id
+        entry.timestamp = now_iso8601()
+        push(self.entries, entry)
+        self.entry_count = self.entry_count + 1
+        self.leaf_id = id
+        if persist and self.session_file != "":
+            let json_str = json_stringify_entry(entry)
+            let NL = text_chr(10)
+            let _ = fs_append_text(self.session_file, json_str + NL)
+        send reply_to.Reply(value = id)
+        return
+
+    on AppendMessage(reply_to: P, role: String, message: AgentMessage):
+        let id = generate_uuid_v7()
+        message.timestamp = now_iso8601()
+        var entry = msg_entry(id, self.leaf_id, role, message)
+        push(self.entries, entry)
+        self.entry_count = self.entry_count + 1
+        self.leaf_id = id
+        if self.session_file != "":
+            let json_str = json_stringify_entry(entry)
+            let NL = text_chr(10)
+            let _ = fs_append_text(self.session_file, json_str + NL)
+        send reply_to.Reply(value = id)
+        return
+
+    on AppendCompaction(reply_to: P, summary: String, first_kept_entry_id: String, tokens_before: Int):
+        let id = generate_uuid_v7()
+        var entry = comp_entry(id, self.leaf_id, summary, first_kept_entry_id, tokens_before)
+        push(self.entries, entry)
+        self.entry_count = self.entry_count + 1
+        self.leaf_id = id
+        if self.session_file != "":
+            let json_str = json_stringify_entry(entry)
+            let NL = text_chr(10)
+            let _ = fs_append_text(self.session_file, json_str + NL)
+        send reply_to.Reply(value = id)
+        return
+
+    on Branch(reply_to: P, target_id: String):
+        let idx = find_idx(self.entries, target_id)
+        if idx < 0:
+            send reply_to.Reply(value = "error: target not found")
+            return
+        self.leaf_id = target_id
+        send reply_to.Reply(value = "ok")
+        return
+
+    on GetContext(reply_to: P):
+        var messages: [AgentMessage] = []
+        var thinking_level: String = ""
+        var model_provider: String = ""
+        var model_id: String = ""
+        var seen_compact: Bool = false
+        var cid: String = self.leaf_id
+        while cid != "":
+            let idx = find_idx(self.entries, cid)
+            if idx < 0:
+                break
+            let e = self.entries[idx]
+            if e.kind == SessionEntryKind::Message:
+                if seen_compact == false:
+                    messages = prepend_msg(messages, e.message)
+            elif e.kind == SessionEntryKind::Compaction:
+                seen_compact = true
+                let sm = make_summary(e.summary)
+                messages = prepend_msg(messages, sm)
+            elif e.kind == SessionEntryKind::ModelChange:
+                model_provider = e.provider_name
+                model_id = e.model_id
+            elif e.kind == SessionEntryKind::ThinkingLevelChange:
+                thinking_level = e.thinking_level
+            cid = e.parent_id
+        let ctx = SessionContext {
+            messages: messages,
+            thinking_level: thinking_level,
+            model_provider: model_provider,
+            model_id: model_id,
+            active_tools: [],
+        }
+        send reply_to.Reply(value = ctx)
+        return
+
+    on GetTree(reply_to: P):
+        let roots = find_roots(self.entries)
+        var nodes: [SessionTreeNode] = []
+        var i: Int = 0
+        while i < len(roots):
+            let node = build_node(roots[i], self.entries)
+            push(nodes, node)
+            i = i + 1
+        send reply_to.Reply(value = nodes)
+        return
+
+    on LoadFile(reply_to: P, filepath: String):
+        self.session_file = filepath
+        var loaded: Int = 0
+        var errors: Int = 0
+        if fs_exists(filepath):
+            let raw = fs_read_text(filepath)
+            let raw_lines = text_split_lines(raw)
+            var li: Int = 0
+            while li < len(raw_lines):
+                let lv = text_trim_string(raw_lines[li])
+                if len(lv) == 0:
+                    li = li + 1
+                    continue
+                let e = try_parse_entry(lv)
+                if e.id != "":
+                    push(self.entries, e)
+                    self.leaf_id = e.id
+                    loaded = loaded + 1
+                else:
+                    errors = errors + 1
+                li = li + 1
+        self.entry_count = loaded
+        self.error_count = errors
+        send reply_to.Reply(value = loaded)
+        return
+
+    on SetInMemory(reply_to: P):
+        self.session_file = ""
+        send reply_to.Reply(value = "ok")
+        return
+
+fn msg_entry(id: String, pid: String, role: String, msg: AgentMessage) -> SessionEntry:
+    msg.role = role
+    return SessionEntry {
+        kind: SessionEntryKind::Message,
+        id: id, parent_id: pid, timestamp: msg.timestamp,
+        message: msg,
+        summary: "", first_kept_entry_id: "", tokens_before: 0,
+        from_id: "", provider_name: "", model_id: "",
+        thinking_level: "", name: "",
+    }
+
+fn comp_entry(id: String, pid: String, summary: String, fk: String, tokens: Int) -> SessionEntry:
+    return SessionEntry {
+        kind: SessionEntryKind::Compaction,
+        id: id, parent_id: pid, timestamp: now_iso8601(),
+        message: default_agent_message(),
+        summary: summary, first_kept_entry_id: fk, tokens_before: tokens,
+        from_id: "", provider_name: "", model_id: "",
+        thinking_level: "", name: "",
+    }
+
+fn generate_uuid_v7() -> String:
+    let ms = now_millis()
+    let r1 = random_ambient_next()
+    let r2 = random_ambient_next()
+    return "v7-" + str(ms) + "-" + hex_str(r1) + hex_str(r2)
+
+fn now_iso8601() -> String:
+    let ms: Int = now_millis()
+    return str(ms / 1000) + "." + str(ms % 1000)
+
+fn hex_str(v: Int) -> String:
+    if v == 0:
+        return "0"
+    var val: Int = v
+    var res: String = ""
+    let ch: String = "0123456789abcdef"
+    let vw = text_from(ch)
+    while val > 0:
+        let d = val % 16
+        res = text_char_at(vw, d) + res
+        val = val / 16
+    return res
+
+fn find_idx(entries: [SessionEntry], id: String) -> Int:
+    var i: Int = 0
+    while i < len(entries):
+        if entries[i].id == id:
+            return i
+        i = i + 1
+    return -1
+
+fn json_stringify_entry(e: SessionEntry) -> String:
+    let obj = json_object()
+    let o1 = json_object_set_string(obj, "kind", kind_str(e.kind))
+    let o2 = json_object_set_string(o1, "id", e.id)
+    let o3 = json_object_set_string(o2, "parent_id", e.parent_id)
+    let o4 = json_object_set_string(o3, "timestamp", e.timestamp)
+    if e.kind == SessionEntryKind::Message:
+        let o5 = json_object_set_string(o4, "role", e.message.role)
+        let o6 = json_object_set_string(o5, "content", blocks_str(e.message.content))
+        let o7 = json_object_set_bool(o6, "is_error", e.message.is_error)
+        return json_stringify(o7)
+    if e.kind == SessionEntryKind::Compaction:
+        let o5 = json_object_set_string(o4, "summary", e.summary)
+        let o6 = json_object_set_string(o5, "first_kept_entry_id", e.first_kept_entry_id)
+        let o7 = json_object_set_int(o6, "tokens_before", e.tokens_before)
+        return json_stringify(o7)
+    if e.kind == SessionEntryKind::ModelChange:
+        let o5 = json_object_set_string(o4, "provider_name", e.provider_name)
+        let o6 = json_object_set_string(o5, "model_id", e.model_id)
+        return json_stringify(o6)
+    if e.kind == SessionEntryKind::ThinkingLevelChange:
+        let o5 = json_object_set_string(o4, "thinking_level", e.thinking_level)
+        return json_stringify(o5)
+    if e.kind == SessionEntryKind::BranchSummary:
+        let o5 = json_object_set_string(o4, "from_id", e.from_id)
+        return json_stringify(o5)
+    if e.kind == SessionEntryKind::SessionInfo:
+        let o5 = json_object_set_string(o4, "name", e.name)
+        return json_stringify(o5)
+    return json_stringify(o4)
+
+fn kind_str(k: SessionEntryKind) -> String:
+    if k == SessionEntryKind::Message:             return "message"
+    if k == SessionEntryKind::Compaction:          return "compaction"
+    if k == SessionEntryKind::BranchSummary:       return "branch_summary"
+    if k == SessionEntryKind::ModelChange:         return "model_change"
+    if k == SessionEntryKind::ThinkingLevelChange: return "thinking_level_change"
+    if k == SessionEntryKind::Custom:              return "custom"
+    if k == SessionEntryKind::SessionInfo:         return "session_info"
+    if k == SessionEntryKind::Label:               return "label"
+    return "unknown"
+
+fn blocks_str(blocks: [ContentBlock]) -> String:
+    let arr = json_array()
+    var i: Int = 0
+    while i < len(blocks):
+        let b = blocks[i]
+        let obj = blk_json(b)
+        let _ = json_array_push_object(arr, obj)
+        i = i + 1
+    return json_stringify(arr)
+
+fn blk_json(b: ContentBlock) -> JsonObject:
+    match b:
+        ContentBlock::TextBlock(txt) => txt_obj(txt)
+        ContentBlock::ThinkingBlock(t, r) => think_obj(t, r)
+        ContentBlock::ToolCallBlock(i, n, a) => tc_obj(i, n, a)
+        _ => unk_obj()
+
+fn txt_obj(txt: String) -> JsonObject:
+    let obj = json_object()
+    let o1 = json_object_set_string(obj, "type", "text")
+    return json_object_set_string(o1, "text", txt)
+
+fn think_obj(t: String, r: Bool) -> JsonObject:
+    let obj = json_object()
+    let o1 = json_object_set_string(obj, "type", "thinking")
+    let o2 = json_object_set_string(o1, "thinking", t)
+    return json_object_set_bool(o2, "redacted", r)
+
+fn tc_obj(id: String, name: String, args: String) -> JsonObject:
+    let obj = json_object()
+    let o1 = json_object_set_string(obj, "type", "tool_call")
+    let o2 = json_object_set_string(o1, "tool_call_id", id)
+    let o3 = json_object_set_string(o2, "tool_name", name)
+    return json_object_set_string(o3, "arguments", args)
+
+fn unk_obj() -> JsonObject:
+    let obj = json_object()
+    return json_object_set_string(obj, "type", "unknown")
+
+fn try_parse_entry(lv: String) -> SessionEntry:
+    let val = json_parse_text(lv)
+    let kc = json_value_kind_code(val)
+    var empty = SessionEntry {
+        kind: SessionEntryKind::Message,
+        id: "", parent_id: "", timestamp: "",
+        message: default_agent_message(),
+        summary: "", first_kept_entry_id: "", tokens_before: 0,
+        from_id: "", provider_name: "", model_id: "",
+        thinking_level: "", name: "",
+    }
+    if kc != JSON_KIND_CODE_OBJECT:
+        return empty
+    let ks = json_string_or(val, "kind", "")
+    if ks == "":
+        return empty
+    let k = parse_kind(ks)
+    var e = SessionEntry {
+        kind: k, id: "", parent_id: "", timestamp: "",
+        message: default_agent_message(),
+        summary: "", first_kept_entry_id: "", tokens_before: 0,
+        from_id: "", provider_name: "", model_id: "",
+        thinking_level: "", name: "",
+    }
+    e.id = json_string_or(val, "id", "")
+    e.parent_id = json_string_or(val, "parent_id", "")
+    e.timestamp = json_string_or(val, "timestamp", "")
+    if k == SessionEntryKind::Message:
+        e.message.role = json_string_or(val, "role", "")
+        e.message.timestamp = e.timestamp
+        let cs = json_string_or(val, "content", "[]")
+        let cv = json_parse_text(cs)
+        e.message.content = parse_blocks(cv)
+        e.message.is_error = json_bool_or(val, "is_error", false)
+    elif k == SessionEntryKind::Compaction:
+        e.summary = json_string_or(val, "summary", "")
+        e.first_kept_entry_id = json_string_or(val, "first_kept_entry_id", "")
+        e.tokens_before = json_int_or(val, "tokens_before", 0)
+    elif k == SessionEntryKind::ModelChange:
+        e.provider_name = json_string_or(val, "provider_name", "")
+        e.model_id = json_string_or(val, "model_id", "")
+    elif k == SessionEntryKind::ThinkingLevelChange:
+        e.thinking_level = json_string_or(val, "thinking_level", "")
+    elif k == SessionEntryKind::BranchSummary:
+        e.from_id = json_string_or(val, "from_id", "")
+    elif k == SessionEntryKind::SessionInfo:
+        e.name = json_string_or(val, "name", "")
+    return e
+
+fn parse_kind(s: String) -> SessionEntryKind:
+    if s == "message":                 return SessionEntryKind::Message
+    if s == "compaction":              return SessionEntryKind::Compaction
+    if s == "branch_summary":          return SessionEntryKind::BranchSummary
+    if s == "model_change":            return SessionEntryKind::ModelChange
+    if s == "thinking_level_change":   return SessionEntryKind::ThinkingLevelChange
+    if s == "custom":                  return SessionEntryKind::Custom
+    if s == "session_info":            return SessionEntryKind::SessionInfo
+    if s == "label":                   return SessionEntryKind::Label
+    return SessionEntryKind::Custom
+
+fn parse_blocks(val: JsonValue) -> [ContentBlock]:
+    var blocks: [ContentBlock] = []
+    let vk = json_value_kind_code(val)
+    if vk != JSON_KIND_CODE_ARRAY:
+        return blocks
+    let alen = json_array_length(val)
+    var i: Int = 0
+    while i < alen:
+        let item = json_array_value_at(val, i)
+        let ik = json_value_kind_code(item)
+        if ik == JSON_KIND_CODE_OBJECT:
+            let bt = json_string_or(item, "type", "")
+            if bt == "text":
+                let txt = json_string_or(item, "text", "")
+                push(blocks, ContentBlock::TextBlock(txt))
+            elif bt == "thinking":
+                let t = json_string_or(item, "thinking", "")
+                let r = json_bool_or(item, "redacted", false)
+                push(blocks, ContentBlock::ThinkingBlock(t, r))
+            elif bt == "tool_call":
+                let ti = json_string_or(item, "tool_call_id", "")
+                let tn = json_string_or(item, "tool_name", "")
+                let ta = json_string_or(item, "arguments", "{}")
+                push(blocks, ContentBlock::ToolCallBlock(ti, tn, ta))
+        i = i + 1
+    return blocks
+
+fn find_roots(entries: [SessionEntry]) -> [SessionEntry]:
+    var roots: [SessionEntry] = []
+    var i: Int = 0
+    while i < len(entries):
+        if entries[i].parent_id == "":
+            push(roots, entries[i])
+        i = i + 1
+    return roots
+
+fn build_node(entry: SessionEntry, all: [SessionEntry]) -> SessionTreeNode:
+    var children: [SessionTreeNode] = []
+    var i: Int = 0
+    while i < len(all):
+        if all[i].parent_id == entry.id:
+            let child = build_node(all[i], all)
+            push(children, child)
+        i = i + 1
+    return SessionTreeNode { entry: entry, children: children }
+
+fn prepend_msg(msgs: [AgentMessage], msg: AgentMessage) -> [AgentMessage]:
+    var result: [AgentMessage] = []
+    push(result, msg)
+    var i: Int = 0
+    while i < len(msgs):
+        push(result, msgs[i])
+        i = i + 1
+    return result
+
+fn make_summary(summary: String) -> AgentMessage:
+    var msg = default_agent_message()
+    msg.role = "user"
+    push(msg.content, ContentBlock::TextBlock("[Compaction Summary]" + NL + summary))
+    msg.timestamp = now_iso8601()
+    return msg

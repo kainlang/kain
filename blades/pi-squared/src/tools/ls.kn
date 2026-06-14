@@ -1,0 +1,24 @@
+// ============================================================================
+//  ls.kn — Directory listing tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn with IO for filesystem access.
+//
+//  Lists directory entries with name, type, and size metadata.
+// ============================================================================
+
+use std::fs
+
+// ---- List directory entries ----
+pub fn pi_ls(path: String, limit: Int) -> [FsDirEntry]:
+    if fs_exists(path) == false:
+        return []
+    if fs_is_dir(path) == false:
+        return []
+    let entries = fs_read_dir(path)
+    if limit > 0 and len(entries) > limit:
+        var limited: [FsDirEntry] = []
+        var i: Int = 0
+        while i < limit and i < len(entries):
+            push(limited, entries[i])
+            i = i + 1
+        return limited
+    return entries

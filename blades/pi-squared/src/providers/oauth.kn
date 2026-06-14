@@ -1,0 +1,34 @@
+// providers/oauth.kn — OAuth flow stubs (deferred to v0.2)
+// Ladder: Layer 7 (actor)
+
+use types    // ErrorResult
+
+// ---- OAuth flow states ----
+pub enum OAuthStatus:
+    Pending
+    WaitingForCallback
+    Completed
+    Expired
+    Error
+
+// ---- OAuth credentials ----
+pub struct OAuthCredentials:
+    access_token: String
+    refresh_token: String
+    expires_at: String
+    provider: String
+
+// ---- Stub OAuth flow actor ----
+// Real implementation uses LocalCallbackServer actor (CHARLIE stream)
+// for the HTTP callback server component.
+
+pub fn oauth_status_text(status: OAuthStatus) -> String with Pure:
+    match status:
+        OAuthStatus::Pending => return "pending"
+        OAuthStatus::WaitingForCallback => return "waiting"
+        OAuthStatus::Completed => return "completed"
+        OAuthStatus::Expired => return "expired"
+        OAuthStatus::Error => return "error"
+
+pub fn oauth_default_status() -> OAuthStatus:
+    return OAuthStatus::Pending

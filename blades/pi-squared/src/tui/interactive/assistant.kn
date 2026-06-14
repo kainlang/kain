@@ -1,0 +1,128 @@
+// ============================================================================
+//  tui/interactive/assistant.kn — Assistant message display (CHARLIE-1)
+//  Ladder: Layer 0 — plain struct with fn methods. Terminal text rendering.
+//
+//  Renders assistant messages with collapsible thinking blocks, tool calls,
+//  and execution results. Each AssistantMessage is a self-contained renderer
+//  that produces terminal text lines (-> [String]) for the TUI screen buffer.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+// ============================================================================
+//  AssistantMessage struct
+//    text:      message body text
+//    thinking:  thinking/reasoning content (may be empty)
+//    tools:     tool call descriptor strings (may be empty)
+//    expanded:  overall message expanded state
+//
+//  Internal state (mutable via methods):
+//    expanded_thinking  — whether the thinking block is open
+//    expanded_tools     — per-tool expanded state
+// ============================================================================
+
+pub struct AssistantMessage:
+    text: String
+    thinking: String
+    tools: [String]
+    expanded: Bool
+    expanded_thinking: Bool
+    expanded_tools: [Bool]
+
+// ============================================================================
+//  Factory fn — builds an AssistantMessage with collapsed defaults
+// ============================================================================
+
+pub fn new_assistant_message(
+    text: String,
+    thinking: String,
+    tools: [String],
+    expanded: Bool,
+) -> AssistantMessage with Pure:
+    var tool_states: [Bool] = []
+    var ti: Int = 0
+    while ti < len(tools):
+        push(tool_states, false)
+        ti = ti + 1
+    return AssistantMessage {
+        text: text,
+        thinking: thinking,
+        tools: tools,
+        expanded: expanded,
+        expanded_thinking: false,
+        expanded_tools: tool_states,
+    }
+
+// ============================================================================
+//  AssistantMessage methods
+// ============================================================================
+
+impl AssistantMessage:
+    // ---- Toggle thinking block visibility ----
+    pub fn toggle_thinking(_self: Self_) -> Bool:
+        _self.expanded_thinking = if _self.expanded_thinking == true: false else: true
+        return _self.expanded_thinking
+
+    // ---- Toggle a specific tool block by index ----
+    pub fn toggle_tool(_self: Self_, idx: Int) -> Bool:
+        if idx >= 0 and idx < len(_self.expanded_tools):
+            _self.expanded_tools[idx] = if _self.expanded_tools[idx] == true: false else: true
+            return _self.expanded_tools[idx]
+        return false
+
+    // ---- Render the full message as text lines ----
+    pub fn render(_self: Self_) -> [String]:
+        var lines_out: [String] = []
+
+        // Divider + header
+        push(lines_out, "--- [pi-squared] Assistant ---")
+
+        // Message body text
+        push(lines_out, _self.text)
+        push(lines_out, "")
+
+        // Thinking block (collapsible)
+        if _self.thinking != "":
+            if _self.expanded_thinking:
+                push(lines_out, ">>> Thinking (press to collapse) <<<")
+                push(lines_out, _self.thinking)
+                push(lines_out, ">>> [End thinking] <<<")
+            else:
+                push(lines_out, ">>> Thinking... (press to expand) <<<")
+            push(lines_out, "")
+
+        // Tool blocks (per-tool expandable)
+        var t_idx: Int = 0
+        while t_idx < len(_self.tools):
+            let tool_name = _self.tools[t_idx]
+            let is_open = if t_idx < len(_self.expanded_tools):
+                _self.expanded_tools[t_idx]
+            else:
+                false
+            if is_open:
+                push(lines_out, "=== Tool: " + tool_name + " ===")
+                push(lines_out, "=== [End tool: " + tool_name + "] ===")
+            else:
+                push(lines_out, ">>> Tool: " + tool_name + " (press to expand) <<<")
+            t_idx = t_idx + 1
+
+        // Footer
+        push(lines_out, "--- [End assistant message] ---")
+        return lines_out
+
+// ============================================================================
+//  Helper: newline-joined render for buffer commits
+// ============================================================================
+
+pub fn render_to_string(msg: AssistantMessage) -> String with Pure:
+    var lines_in = msg.render()
+    var out_val = ""
+    var ri: Int = 0
+    while ri < len(lines_in):
+        if ri > 0:
+            let NL = text_chr(10)
+            out_val = out_val + NL
+        out_val = out_val + lines_in[ri]
+        ri = ri + 1
+    return out_val

@@ -1,0 +1,153 @@
+// ============================================================================
+//  agent.kn — Central AgentActor that orchestrates the LLM turn loop
+//
+//  Ladder: Layer 7 — actor. The agent manages mutable state (queues,
+//  abort signal, model config, streaming flag) and communicates with
+//  session tree, event bus, tool registry, and LLM providers via message
+//  passing.
+//
+//  v0.1: Echo-only stub. Architecture is wired for BRAVO provider stream.
+//  All stubs prefixed pi_ to avoid collision with stdlib runtime.kn.
+// ============================================================================
+
+use types
+
+// ============================================================================
+//  LOCAL STUBS — replaced by real implementations in BRAVO/CHARLIE streams
+// ============================================================================
+
+pub fn pi_session_append_message(session_ref: String, role: String, msg: AgentMessage) with Pure:
+    return
+
+pub fn pi_session_get_context(session_ref: String) -> SessionContext with Pure:
+    return SessionContext {
+        messages: [], thinking_level: "",
+        model_provider: "", model_id: "", active_tools: [],
+    }
+
+pub fn pi_resource_build_prompt(loader_ref: String, model: Model) -> String with Pure:
+    return "You are a helpful coding assistant."
+
+pub fn pi_llm_complete(ctx: LlmContext) -> AgentMessage with Pure:
+    var last_text: String = ""
+    var mi: Int = 0
+    while mi < len(ctx.messages):
+        let msg = ctx.messages[mi]
+        if msg.role == "user" and len(msg.content) > 0:
+            let last_block = msg.content[len(msg.content) - 1]
+            match last_block:
+                ContentBlock::TextBlock(t) => last_text = t
+                _ => last_text = "(non-text content)"
+        mi = mi + 1
+    var response = default_agent_message()
+    response.role = "assistant"
+    response.content = [ContentBlock::TextBlock("Echo: " + last_text)]
+    response.stop_reason = "stop"
+    response.timestamp = ""
+    return response
+
+pub fn pi_dispatch_tool(name: String, tool_call_id: String, arguments: String) -> ToolResult with Pure:
+    return ToolResult {
+        content: [ContentBlock::TextBlock("stub: " + name)],
+        is_error: false, terminate: false,
+        tool_call_id: tool_call_id, tool_name: name,
+        truncated: false, full_output_path: "",
+    }
+
+pub fn pi_tools_to_schema() -> String with Pure:
+    return "[]"
+
+pub fn pi_resolve_api_key(provider: Provider) -> String with Pure:
+    return ""
+
+pub fn pi_get_thinking_level() -> String with Pure:
+    return "medium"
+
+// ============================================================================
+//  AGENT ACTOR
+// ============================================================================
+
+actor AgentActor:
+    state system_prompt: String = ""
+    state model_config: String = ""          // JSON of Model
+    state is_streaming: Bool = false
+    state pending_tool_calls: Int = 0
+    state steer_queue: String = "[]"         // JSON array of AgentMessage
+    state follow_up_queue: String = "[]"
+    state abort_reason: String = ""
+    state session_actor_ref: String = ""
+    state event_bus_ref: String = ""
+    state resource_loader_ref: String = ""
+    state message_count: Int = 0
+
+    on Prompt(reply_to: P, text: String):
+        if self.is_streaming:
+            send reply_to.Reply(value = "busy")
+            return
+        self.is_streaming = true
+        self.abort_reason = ""
+        self.message_count = self.message_count + 1
+        send reply_to.Reply(value = "stub: prompt received")
+        return
+
+    on Continue(reply_to: P):
+        if self.is_streaming:
+            send reply_to.Reply(value = "busy")
+            return
+        send reply_to.Reply(value = "ok")
+        return
+
+    on Steer(reply_to: P, text: String):
+        self.steer_queue = pi_queue_enqueue(self.steer_queue, text)
+        send reply_to.Reply(value = "ok")
+        return
+
+    on FollowUp(reply_to: P, text: String):
+        self.follow_up_queue = pi_queue_enqueue(self.follow_up_queue, text)
+        send reply_to.Reply(value = "ok")
+        return
+
+    on Abort(reply_to: P):
+        self.abort_reason = "user requested abort"
+        self.is_streaming = false
+        send reply_to.Reply(value = "ok")
+        return
+
+    on SetModel(reply_to: P, model_json: String):
+        self.model_config = model_json
+        send reply_to.Reply(value = "ok")
+        return
+
+    on GetState(reply_to: P):
+        let status = if self.is_streaming: "streaming" else: "idle"
+        let summary = status + " | msgs: " + str(self.message_count) + " | model: echo-stub"
+        send reply_to.Reply(value = summary)
+        return
+
+    on SetSessionActor(reply_to: P, actor_ref: String):
+        self.session_actor_ref = actor_ref
+        send reply_to.Reply(value = "ok")
+        return
+
+    on SetEventBus(reply_to: P, actor_ref: String):
+        self.event_bus_ref = actor_ref
+        send reply_to.Reply(value = "ok")
+        return
+
+    on SetResourceLoader(reply_to: P, actor_ref: String):
+        self.resource_loader_ref = actor_ref
+        send reply_to.Reply(value = "ok")
+        return
+
+// ============================================================================
+//  QUEUE HELPERS (inline, avoid import dependency for now)
+// ============================================================================
+
+pub fn pi_queue_enqueue(queue_json: String, item: String) -> String:
+    return queue_json        // stub: no-op for v0.1
+
+pub fn pi_queue_drain(queue_json: String, mode: String) -> (String, String):
+    return ("[]", queue_json)  // stub
+
+pub fn pi_queue_clear(queue_json: String) -> String:
+    return "[]"

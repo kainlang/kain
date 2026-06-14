@@ -1,0 +1,82 @@
+// pipeline/llm.kn — Orchestrate llm_complete pipeline
+// Ladder: Layer 4 (orchestrate) + Layer 0 (fn)
+//
+// Full pipeline:
+//   build_payload (cpu) → resolve_key (converge) → provider_call (kain)
+//   → parse_events (cpu) → accumulate (kain) → validate (kain) → overflow_check (law)
+
+use types    // Model, LlmContext, LlmEvent, LlmEventKind, StreamOptions,
+             // AgentMessage, ContentBlock, SessionContext, ToolResult, Api, Provider
+use providers::trait    // LlmProvider, accumulate_from_events, make_error_event
+use providers::models    // resolve_api_key_converge, provider_to_string
+use providers::anthropic    // anthropic_stream
+
+// ---- Full LLM completion pipeline ----
+pub fn run_llm_pipeline(
+    model: Model,
+    messages: [AgentMessage],
+    system_prompt: String,
+    tools_schema: String,
+    api_key: String,
+) -> AgentMessage with IO, Unsafe:
+
+    // Phase 1: Build LLM context
+    var ctx = LlmContext {
+        messages: messages,
+        system_prompt: system_prompt,
+        tools_schema: tools_schema,
+        model: model,
+        options: StreamOptions {
+            temperature: 0.7,
+            max_tokens: model.max_tokens,
+            thinking_level: "",
+            api_key: api_key,
+            signal: types::AbortSignal { aborted: false, reason: "" },
+        },
+    }
+
+    // Phase 2: Dispatch to correct provider
+    let events = dispatch_by_provider(model, ctx)
+
+    // Phase 3: Accumulate events into final message
+    return accumulate_from_events(events)
+
+fn dispatch_by_provider(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    // Dispatch based on model.api
+    match model.api:
+        Api::AnthropicMessages => return anthropic_call(model, ctx)
+        Api::OpenAiCompletions => return openai_call(model, ctx)
+        Api::GoogleGenerativeAi => return google_call(model, ctx)
+        Api::MistralConversations => return mistral_call(model, ctx)
+        Api::Faux => return faux_call(model, ctx)
+        _ => return [make_error_event("Unknown API: " + api_to_string_stub(model.api))]
+
+fn anthropic_call(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    return anthropic_stream(model, ctx, ctx.options)
+
+fn openai_call(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    return [make_error_event("OpenAI provider not yet wired")]
+
+fn google_call(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    return [make_error_event("Google provider not yet wired")]
+
+fn mistral_call(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    return [make_error_event("Mistral provider not yet wired")]
+
+fn faux_call(model: Model, ctx: LlmContext) -> [LlmEvent] with IO, Unsafe:
+    var events: [LlmEvent] = []
+    push(events, LlmEvent { kind: LlmEventKind::Start, data: "", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::TextDelta, data: "[Faux] This is a test response from the FauxProvider.",
+        tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::Done, data: "", tool_call_id: "", tool_name: "" })
+    return events
+
+fn api_to_string_stub(api: Api) -> String with Pure:
+    match api:
+        Api::AnthropicMessages => return "anthropic-messages"
+        Api::OpenAiCompletions => return "openai-completions"
+        Api::OpenAiResponses => return "openai-responses"
+        Api::GoogleGenerativeAi => return "google-generative-ai"
+        Api::MistralConversations => return "mistral-conversations"
+        Api::BedrockConverseStream => return "bedrock"
+        Api::Faux => return "faux"

@@ -1,0 +1,72 @@
+// ============================================================================
+//  my-kain-app — Entry Point
+//  A Kain application built and orchestrated by MarkScript.
+//
+//  No build.kn, no KAIN.toml — the build pipeline lives in scripts/*.md,
+//  driven through the MarkScript IVT intent dispatch system.
+//
+//  Run directly:  kain run src/main.kn --target llvm
+//  Build via mks: mks run scripts/build.md
+// ============================================================================
+
+use std::io
+use std::text
+
+// ============================================================================
+//  TYPES
+// ============================================================================
+
+struct AppInfo:
+    name: String
+    version: String
+
+// ============================================================================
+//  PURE COMPUTATION
+// ============================================================================
+
+fn compute_checksum(seed: Int, iterations: Int) -> Int with Pure:
+    let modulus: Int = 1000000007
+    var acc: Int = seed % modulus
+    var i: Int = 0
+    while i < iterations:
+        acc = ((acc * 31) + i + 7) % modulus
+        i = i + 1
+    return acc
+
+// ============================================================================
+//  MAIN — Entry Point
+// ============================================================================
+
+fn main() -> Int:
+    let info: AppInfo = AppInfo {
+        name: "my-kain-app",
+        version: "0.1.0"
+    }
+
+    println("")
+    println("=== " + info.name + " v" + info.version + " ===")
+    println("Orchestrated by MarkScript")
+    println("")
+
+    // --- Run a quick computation ---
+    let result: Int = compute_checksum(42, 1000)
+    let result_str: String = text_to_string(result)
+    println("[compute] checksum(42, 1000) = " + result_str)
+    println("")
+
+    // --- Show available commands ---
+    println("[commands] Run these from project root:")
+    println("  mks run Mksfile.md            — Full pipeline")
+    println("  mks run scripts/build.md      — Build")
+    println("  mks run scripts/dev.md        — Dev loop")
+    println("  mks run scripts/test.md       — Run tests")
+    println("  mks run scripts/clean.md      — Clean artifacts")
+    println("  mks run scripts/help.md       — Help & reference")
+    println("")
+    println("  kain check src/                — Typecheck")
+    println("  kain build src/ --target llvm  — Compile")
+    println("  kain run src/main.kn           — Run directly")
+    println("")
+
+    println("[done] my-kain-app shutdown cleanly.")
+    return 0

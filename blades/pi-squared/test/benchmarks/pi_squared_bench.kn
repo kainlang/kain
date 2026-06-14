@@ -1,0 +1,260 @@
+use std::time
+use std::runtime
+use std::text
+
+const ITERATIONS: Int = 10000
+const MODULUS: Int = 1000000007
+
+struct BenchResult:
+    name: String
+    iterations: Int
+    elapsed_ms: Int
+    ops_per_sec: Float
+
+fn bench_cli_parse() -> BenchResult:
+    var total: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let flags: [String] = ["--help", "--version", "--model", "gpt-4", "--verbose"]
+        var help_found: Bool = false
+        var model_found: Bool = false
+        var model_val: String = ""
+        var j: Int = 0
+        while j < len(flags):
+            if flags[j] == "--help":
+                help_found = true
+            elif flags[j] == "--model" and j + 1 < len(flags):
+                model_found = true
+                model_val = flags[j + 1]
+            j = j + 1
+        if help_found:
+            total = total + 1
+        if model_found and model_val == "gpt-4":
+            total = total + 1
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "CLI parse", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_sse_parse() -> BenchResult:
+    let sample: String = "data: {\"choices\": [{\"delta\": {\"content\": \"Hello\"}}]}"
+    var total_chars: Int = 0
+    var event_count: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        if text_starts_with_string(sample, "data: "):
+            let payload: String = text_substring_string(sample, 6, len(sample) - 6)
+            total_chars = total_chars + len(payload)
+            event_count = event_count + 1
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "SSE parse", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_config_merge() -> BenchResult:
+    var merge_count: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let default_model: String = "gpt-3.5-turbo"
+        let override_model: String = "gpt-4"
+        let final_model: String = if override_model != "":
+            override_model
+        else:
+            default_model
+        let default_temp: Float = 0.7
+        let override_temp: Float = 0.0
+        let final_temp: Float = if override_temp > 0.0:
+            override_temp
+        else:
+            default_temp
+        let default_max: Int = 2048
+        let override_max: Int = 4096
+        let final_max: Int = if override_max > 0:
+            override_max
+        else:
+            default_max
+        if final_model == "gpt-4" and final_temp == 0.7 and final_max == 4096:
+            merge_count = merge_count + 1
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "Config merge", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_session_context() -> BenchResult:
+    var sum_depth: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let depth: Int = i % 50
+        let context_size: Int = (depth * 128) + 256
+        var evicted: Int = 0
+        if context_size > 4096:
+            evicted = context_size - 4096
+            evicted = evicted - (evicted % 128)
+        sum_depth = (sum_depth + evicted) % MODULUS
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "Session context trim", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_jsonl_serialize() -> BenchResult:
+    var hash: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let entry_id: String = "msg_" + str(i % 1000)
+        let role: String = if i % 2 == 0: "user" else: "assistant"
+        let content: String = "Benchmark message number " + str(i)
+        let entry: String = "{\"id\": \"" + entry_id + "\", \"role\": \"" + role + "\", \"content\": \"" + content + "\"}"
+        hash = (hash + len(entry)) % MODULUS
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "JSONL serialize", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_fuzzy_match() -> BenchResult:
+    var matches: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let pattern: String = "read"
+        let candidates: [String] = ["read", "write", "reader", "editing", "reading", "bread", "ready"]
+        for candidate in candidates:
+            var score: Int = 0
+            var j: Int = 0
+            let p_len: Int = len(pattern)
+            let c_len: Int = len(candidate)
+            let min_len: Int = if p_len < c_len: p_len else: c_len
+            while j < min_len:
+                let pc: String = text_substring_string(pattern, j, 1)
+                let cc: String = text_substring_string(candidate, j, 1)
+                if pc == cc:
+                    score = score + 1
+                j = j + 1
+            if score >= 3:
+                matches = matches + 1
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "Fuzzy match", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_token_estimate() -> BenchResult:
+    var total_tokens: Int = 0
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let content: String = "This is a sample message for LLM token estimation with enough words."
+        let words: [String] = text_split_string(content, " ")
+        let approx_tokens: Int = (len(words) * 4) / 3
+        total_tokens = (total_tokens + approx_tokens) % MODULUS
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "Token estimate", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+fn bench_startup_sequence() -> BenchResult:
+    var init_ok: Bool = true
+    var i: Int = 0
+    let start: Int = now_millis()
+
+    while i < ITERATIONS:
+        let config_loaded: Bool = true
+        let session_resumed: Bool = true
+        let tools_loaded: Bool = true
+        let provider_ready: Bool = true
+        if config_loaded and session_resumed and tools_loaded and provider_ready:
+            init_ok = true
+        else:
+            init_ok = false
+        i = i + 1
+
+    let elapsed: Int = now_millis() - start
+    let ops: Float = (ITERATIONS as Float * 1000.0) / (elapsed as Float)
+    return BenchResult { name: "Startup sequence", iterations: ITERATIONS, elapsed_ms: elapsed, ops_per_sec: ops }
+
+pub fn run_benchmarks() -> Int:
+    println("")
+    println("  Running " + str(ITERATIONS) + " iterations per benchmark...")
+    println("")
+
+    let results: [BenchResult] = [
+        bench_cli_parse(),
+        bench_sse_parse(),
+        bench_config_merge(),
+        bench_session_context(),
+        bench_jsonl_serialize(),
+        bench_fuzzy_match(),
+        bench_token_estimate(),
+        bench_startup_sequence()
+    ]
+
+    var best_ops: Float = 0.0
+    var worst_ops: Float = 999999999.0
+    var total_ops: Float = 0.0
+    var passed: Int = 0
+
+    for r in results:
+        let ops_k: Float = r.ops_per_sec / 1000.0
+        println("  [" + r.name + "]")
+        println("    Iterations: " + str(r.iterations))
+        println("    Elapsed:    " + str(r.elapsed_ms) + " ms")
+        println("    Throughput: " + str(ops_k) + " K ops/sec")
+        if r.ops_per_sec > 0.0:
+            passed = passed + 1
+        if r.ops_per_sec > best_ops:
+            best_ops = r.ops_per_sec
+        if r.ops_per_sec < worst_ops:
+            worst_ops = r.ops_per_sec
+        total_ops = total_ops + r.ops_per_sec
+        println("")
+
+    let avg_ops: Float = total_ops / (len(results) as Float)
+    println("=== Benchmark Summary ===")
+    println("  Passed:  " + str(passed) + "/" + str(len(results)))
+    println("  Best:    " + str(best_ops / 1000.0) + " K ops/sec")
+    println("  Worst:   " + str(worst_ops / 1000.0) + " K ops/sec")
+    println("  Average: " + str(avg_ops / 1000.0) + " K ops/sec")
+
+    if passed < len(results):
+        return 1
+    return 0
+
+pub fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        println("Runtime init failed: " + str(init_status))
+        return 100 + init_status
+
+    println("========================================")
+    println("  pi-squared Benchmark Suite v1.0")
+    println("  8 benchmarks, " + str(ITERATIONS) + " iterations each")
+    println("========================================")
+
+    let exit_code: Int = run_benchmarks()
+
+    println("")
+    println("=== Benchmarks complete ===")
+
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        println("Runtime shutdown failed: " + str(shutdown_status))
+        return 200 + shutdown_status
+
+    return exit_code

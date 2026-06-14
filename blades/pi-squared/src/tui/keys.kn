@@ -1,0 +1,463 @@
+// ============================================================================
+//  keys.kn — Terminal key sequence parsing for pi-squared CHARLIE (TUI) stream
+//
+//  MarkScript (`mks.exe` at project root) is the build orchestrator.
+//  std::mks provides markdown-driven build orchestration.
+//
+//  Detects:
+//    - Kitty CSI-u protocol  (ESC [ <code> ; <modifiers> u)
+//    - xterm modifyOtherKeys (ESC [ 27 ; <mod> ; <code> ~)
+//    - Legacy CSI sequences  (ESC [ ... <letter> / <number>~)
+//    - SS3 sequences         (ESC O <char>)
+//    - Bracket paste markers (ESC [ 200~ / ESC [ 201~)
+//    - Simple (non-escape) key presses with modifier bit scanning
+//
+//  Ladder: Layer 0 — plain Pure fn. Pure data transformation, no side effects,
+//  no mutable state, no world/actor needed.
+// ============================================================================
+
+use std::text
+
+// ============================================================================
+//  ESC CHAR HELPER  —  the Kain lexer rejects \x escapes in string literals
+// ============================================================================
+
+fn keys_esc() -> String:
+    return text_chr(27)
+
+fn keys_esc_bracket(s: String) -> String:
+    return keys_esc() + "[" + s
+
+// ============================================================================
+//  KEY NAME CONSTANTS
+// ============================================================================
+
+pub const KEY_ESCAPE:     String = "Escape"
+pub const KEY_ENTER:      String = "Enter"
+pub const KEY_BACKSPACE:  String = "Backspace"
+pub const KEY_TAB:        String = "Tab"
+pub const KEY_UP:         String = "Up"
+pub const KEY_DOWN:       String = "Down"
+pub const KEY_LEFT:       String = "Left"
+pub const KEY_RIGHT:      String = "Right"
+pub const KEY_HOME:       String = "Home"
+pub const KEY_END:        String = "End"
+pub const KEY_PAGE_UP:    String = "PageUp"
+pub const KEY_PAGE_DOWN:  String = "PageDown"
+pub const KEY_DELETE:     String = "Delete"
+pub const KEY_INSERT:     String = "Insert"
+
+// ============================================================================
+//  PARSED KEY
+// ============================================================================
+
+pub struct ParsedKey:
+    kind:  String   // "char" | "function" | "escape" | "bracket_paste" | "unknown"
+    key:   String   // canonical key name: "A", "Enter", "Up", "Escape", etc.
+    ctrl:  Bool
+    alt:   Bool
+    shift: Bool
+    meta:  Bool     // Meta / Super / Windows key
+    code:  Int      // Unicode code point or raw byte value
+
+pub fn default_parsed_key() -> ParsedKey:
+    return ParsedKey {
+        kind: "unknown", key: "",
+        ctrl: false, alt: false, shift: false, meta: false,
+        code: 0,
+    }
+
+// ============================================================================
+//  ESCAPE DETECTION  —  quick prefix checks on raw input
+// ============================================================================
+
+pub fn is_escape(data: String) -> Bool:
+    return text_starts_with_string(data, keys_esc())
+
+pub fn is_bracket_paste_start(data: String) -> Bool:
+    return text_starts_with_string(data, keys_esc_bracket("200~"))
+
+pub fn is_bracket_paste_end(data: String) -> Bool:
+    return text_starts_with_string(data, keys_esc_bracket("201~"))
+
+fn is_csi(data: String) -> Bool:
+    return text_starts_with_string(data, keys_esc_bracket(""))
+
+fn is_ss3(data: String) -> Bool:
+    return text_starts_with_string(data, keys_esc() + "O")
+
+// ============================================================================
+//  PARSE KEY SEQUENCE  —  main entry point
+//
+//  Reads a complete or partial terminal input sequence and returns a ParsedKey.
+//  If the sequence is incomplete (not enough bytes), kind is "unknown" with
+//  empty key. Callers should buffer and retry on incomplete sequences.
+// ============================================================================
+
+pub fn parse_key_sequence(data: String) -> ParsedKey:
+    let dlen = text_len(text_from(data))
+    if dlen == 0:
+        return default_parsed_key()
+
+    // ---- Non-escape bytes: simple key press ----
+    if is_escape(data) == false:
+        return parse_simple_byte(data)
+
+    // ---- Bare ESC with nothing else: the Escape key itself ----
+    if dlen == 1:
+        return ParsedKey {
+            kind: "escape", key: KEY_ESCAPE,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: 0x1B,
+        }
+
+    // ---- Need at least 2 bytes after ESC ----
+    if dlen < 3:
+        return ParsedKey {
+            kind: "escape", key: KEY_ESCAPE,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: 0x1B,
+        }
+
+    // ---- Dispatch by escape family ----
+    if is_csi(data):
+        return parse_csi(data)
+
+    if is_ss3(data):
+        return parse_ss3(data)
+
+    // ---- ESC followed by a single printable char: Alt+key ----
+    if dlen >= 2:
+        let second = text_byte_at(text_from(data), 1)
+        if second >= 0x20 and second <= 0x7E:
+            let alt_char = text_chr(second)
+            return ParsedKey {
+                kind: "char", key: alt_char,
+                ctrl: false, alt: true,
+                shift: second >= 0x41 and second <= 0x5A,
+                meta: false, code: second,
+            }
+
+    return default_parsed_key()
+
+// ============================================================================
+//  PARSE SIMPLE BYTE  —  single non-escape byte
+//
+//  Handles Enter, Backspace, Tab, Escape (standalone), Ctrl+letter,
+//  printable ASCII, and raw bytes outside printable range.
+// ============================================================================
+
+fn parse_simple_byte(data: String) -> ParsedKey:
+    let byte_val = text_byte_at(text_from(data), 0)
+
+    // Enter (CR = 0x0D)
+    if byte_val == 0x0D:
+        return ParsedKey {
+            kind: "char", key: KEY_ENTER,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Newline / line feed
+    if byte_val == 0x0A:
+        return ParsedKey {
+            kind: "char", key: KEY_ENTER,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Backspace (DEL = 0x7F or BS = 0x08)
+    if byte_val == 0x7F or byte_val == 0x08:
+        return ParsedKey {
+            kind: "char", key: KEY_BACKSPACE,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Tab (HT = 0x09)
+    if byte_val == 0x09:
+        return ParsedKey {
+            kind: "char", key: KEY_TAB,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Standalone Escape
+    if byte_val == 0x1B:
+        return ParsedKey {
+            kind: "escape", key: KEY_ESCAPE,
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Ctrl+letter (0x01 .. 0x1A  ->  Ctrl+A .. Ctrl+Z)
+    if byte_val >= 0x01 and byte_val <= 0x1A:
+        let ctrl_char = text_chr(byte_val + 0x60)
+        return ParsedKey {
+            kind: "char", key: ctrl_char,
+            ctrl: true, alt: false, shift: false, meta: false,
+            code: byte_val,
+        }
+
+    // Printable ASCII (0x20 .. 0x7E)
+    if byte_val >= 0x20 and byte_val <= 0x7E:
+        let char_str = text_chr(byte_val)
+        return ParsedKey {
+            kind: "char", key: char_str,
+            ctrl: false, alt: false, shift: byte_val >= 0x41 and byte_val <= 0x5A,
+            meta: false, code: byte_val,
+        }
+
+    // Raw byte outside normal printable / control range
+    return ParsedKey {
+        kind: "char", key: "?",
+        ctrl: false, alt: false, shift: false, meta: false,
+        code: byte_val,
+    }
+
+// ============================================================================
+//  PARSE CSI  —  ESC [ <params> <terminator>
+//
+//  Routes to Kitty CSI-u, xterm modifyOtherKeys, bracket paste, or
+//  legacy CSI depending on the terminator byte and parameter shape.
+// ============================================================================
+
+fn parse_csi(data: String) -> ParsedKey:
+    let dlen = text_len(text_from(data))
+
+    // ---- Bracket paste markers have fixed sequences ----
+    if text_starts_with_string(data, keys_esc_bracket("200~")):
+        return ParsedKey {
+            kind: "bracket_paste", key: "bracket_paste_start",
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: 0,
+        }
+    if text_starts_with_string(data, keys_esc_bracket("201~")):
+        return ParsedKey {
+            kind: "bracket_paste", key: "bracket_paste_end",
+            ctrl: false, alt: false, shift: false, meta: false,
+            code: 0,
+        }
+
+    // Need terminator: last byte determines the protocol family
+    let terminator = text_byte_at(text_from(data), dlen - 1)
+
+    // Kitty CSI-u  ->  terminator is 'u' (0x75)
+    if terminator == 0x75:
+        return parse_kitty_csi_u(data)
+
+    // xterm modifyOtherKeys / legacy tilde  ->  terminator is '~' (0x7E)
+    if terminator == 0x7E:
+        return parse_csi_tilde(data)
+
+    // Legacy letter terminator: A=Up B=Down C=Right D=Left H=Home F=End
+    return parse_csi_letter(data)
+
+// ============================================================================
+//  KITTY CSI-u  —  ESC [ <code> ; <modifiers> u
+//
+//  Modern terminal protocol: each key sends its Unicode code point
+//  and a modifier bitmask.  Bit 0=Shift, 1=Alt, 2=Ctrl, 3=Meta.
+// ============================================================================
+
+fn parse_kitty_csi_u(data: String) -> ParsedKey:
+    // Strip "ESC[" prefix and trailing "u"
+    let inner = text_substring_string(data, 2, text_len(text_from(data)) - 3)
+
+    // Split on ';' to get code and modifiers
+    let parts = text_split_string(inner, ";")
+
+    var code_part: String = ""
+    var mod_part: String = ""
+
+    if len(parts) >= 1:
+        code_part = parts[0]
+    if len(parts) >= 2:
+        mod_part = parts[1]
+
+    let code_point = parse_int_safe(code_part)
+    let modifiers  = parse_int_safe(mod_part)
+
+    let ctrl_on  = (modifiers & 4) != 0
+    let alt_on   = (modifiers & 2) != 0
+    let shift_on = (modifiers & 1) != 0
+    let meta_on  = (modifiers & 8) != 0
+
+    let key_name = if code_point > 0 and code_point <= 0x10FFFF:
+        text_chr(code_point)
+    else:
+        "?"
+
+    return ParsedKey {
+        kind: "char", key: key_name,
+        ctrl: ctrl_on, alt: alt_on, shift: shift_on, meta: meta_on,
+        code: code_point,
+    }
+
+// ============================================================================
+//  CSI TILDE  —  ESC [ <param> ~
+//
+//  Tilde-terminated sequences:
+//    1~ = Home     2~ = Insert   3~ = Delete
+//    4~ = End      5~ = PageUp   6~ = PageDown
+//    11~..15~ = F1..F5
+//
+//  xterm modifyOtherKeys: ESC [ 27 ; <mod> ; <code> ~
+//  The 27; prefix distinguishes it from legacy tilde sequences.
+// ============================================================================
+
+fn parse_csi_tilde(data: String) -> ParsedKey:
+    // Strip "ESC[" prefix and trailing "~"
+    let inner = text_substring_string(data, 2, text_len(text_from(data)) - 3)
+
+    // xterm modifyOtherKeys: inner starts with "27;"
+    if text_starts_with_string(inner, "27;"):
+        return parse_xterm_modify_other_keys(inner)
+
+    // Legacy tilde: inner is a semicolon-separated parameter list
+    let parts = text_split_string(inner, ";")
+    var param0: Int = 0
+    if len(parts) >= 1:
+        param0 = parse_int_safe(parts[0])
+
+    if param0 == 1:  return simple_function(KEY_HOME)
+    if param0 == 2:  return simple_function(KEY_INSERT)
+    if param0 == 3:  return simple_function(KEY_DELETE)
+    if param0 == 4:  return simple_function(KEY_END)
+    if param0 == 5:  return simple_function(KEY_PAGE_UP)
+    if param0 == 6:  return simple_function(KEY_PAGE_DOWN)
+
+    return default_parsed_key()
+
+// ============================================================================
+//  XTERM MODIFY OTHER KEYS  —  ESC [ 27 ; <mod> ; <code> ~
+//
+//  Bitmask: 1=Shift, 2=Alt, 4=Ctrl, 8=Meta
+// ============================================================================
+
+fn parse_xterm_modify_other_keys(inner: String) -> ParsedKey:
+    // inner is "27;<mod>;<code>"  (tilde already stripped at caller)
+    let parts = text_split_string(inner, ";")
+
+    if len(parts) < 3:
+        return default_parsed_key()
+
+    let modifiers  = parse_int_safe(parts[1])
+    let code_point = parse_int_safe(parts[2])
+
+    let ctrl_on  = (modifiers & 4) != 0
+    let alt_on   = (modifiers & 2) != 0
+    let shift_on = (modifiers & 1) != 0
+    let meta_on  = (modifiers & 8) != 0
+
+    let key_name = if code_point > 0 and code_point <= 0x10FFFF:
+        text_chr(code_point)
+    else:
+        "?"
+
+    return ParsedKey {
+        kind: "char", key: key_name,
+        ctrl: ctrl_on, alt: alt_on, shift: shift_on, meta: meta_on,
+        code: code_point,
+    }
+
+// ============================================================================
+//  CSI LETTER  —  ESC [ <params> <letter>
+//
+//  letter = A (Up), B (Down), C (Right), D (Left)
+//           H (Home), F (End)
+//  Optional parameter prefix carries modifier information.
+// ============================================================================
+
+fn parse_csi_letter(data: String) -> ParsedKey:
+    let dlen = text_len(text_from(data))
+    let terminator = text_byte_at(text_from(data), dlen - 1)
+
+    // Extract parameters between "ESC[" and the terminator letter
+    let params_str = text_substring_string(data, 2, dlen - 3)
+    let parts = text_split_string(params_str, ";")
+    var param0: Int = 0
+    if len(parts) >= 1:
+        param0 = parse_int_safe(parts[0])
+
+    if terminator == 0x41:  // 'A'
+        return key_with_mod(param0, KEY_UP)
+    if terminator == 0x42:  // 'B'
+        return key_with_mod(param0, KEY_DOWN)
+    if terminator == 0x43:  // 'C'
+        return key_with_mod(param0, KEY_RIGHT)
+    if terminator == 0x44:  // 'D'
+        return key_with_mod(param0, KEY_LEFT)
+    if terminator == 0x48:  // 'H'
+        return key_with_mod(param0, KEY_HOME)
+    if terminator == 0x46:  // 'F'
+        return key_with_mod(param0, KEY_END)
+
+    return default_parsed_key()
+
+// ============================================================================
+//  SS3  —  ESC O <char>
+//
+//  Used for F1-F4 and some cursor keys on xterm.
+//    ESC O P = F1    ESC O Q = F2
+//    ESC O R = F3    ESC O S = F4
+// ============================================================================
+
+fn parse_ss3(data: String) -> ParsedKey:
+    let dlen = text_len(text_from(data))
+    if dlen < 3:
+        return default_parsed_key()
+
+    let third = text_byte_at(text_from(data), 2)
+    if third == 0x50:  // 'P'
+        return simple_function("F1")
+    if third == 0x51:  // 'Q'
+        return simple_function("F2")
+    if third == 0x52:  // 'R'
+        return simple_function("F3")
+    if third == 0x53:  // 'S'
+        return simple_function("F4")
+
+    return default_parsed_key()
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn simple_function(key_name: String) -> ParsedKey:
+    return ParsedKey {
+        kind: "function", key: key_name,
+        ctrl: false, alt: false, shift: false, meta: false,
+        code: 0,
+    }
+
+fn key_with_mod(mod_val: Int, key_name: String) -> ParsedKey:
+    // CSI modifier values:
+    // 1=none  2=Shift     3=Alt       4=Alt+Shift
+    // 5=Ctrl  6=Ctrl+Shift 7=Ctrl+Alt 8=Ctrl+Alt+Shift
+    let ctrl_on: Bool   = mod_val >= 5 and mod_val <= 8
+    let alt_on: Bool    = mod_val == 3 or mod_val == 4 or mod_val == 7 or mod_val == 8
+    let shift_on: Bool  = mod_val == 2 or mod_val == 4 or mod_val == 6 or mod_val == 8
+
+    return ParsedKey {
+        kind: "function", key: key_name,
+        ctrl: ctrl_on, alt: alt_on, shift: shift_on,
+        meta: false, code: mod_val,
+    }
+
+fn parse_int_safe(s: String) -> Int:
+    let slen = text_len(text_from(s))
+    if slen == 0:
+        return 0
+    var result: Int = 0
+    var i: Int = 0
+    if text_byte_at(text_from(s), 0) == 0x2D:  // '-'
+        i = 1
+    while i < slen:
+        let b = text_byte_at(text_from(s), i)
+        if b >= 0x30 and b <= 0x39:
+            result = result * 10 + (b - 0x30)
+        else:
+            return 0
+        i = i + 1
+    return result

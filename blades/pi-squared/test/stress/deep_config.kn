@@ -1,0 +1,208 @@
+// @mode check-pass
+// ============================================================================
+//  test/stress/deep_config.kn — Deep config merge stress tests
+//
+//  Tests layered settings merge priority and config validation logic.
+// ============================================================================
+
+pub fn pick_str(cli: String, project: String, global_val: String, default_val: String) -> String:
+    if cli != "":
+        return cli
+    if project != "":
+        return project
+    if global_val != "":
+        return global_val
+    return default_val
+
+pub fn pick_int(cli: Int, project: Int, global_val: Int, default_val: Int) -> Int:
+    if cli != 0:
+        return cli
+    if project != 0:
+        return project
+    if global_val != 0:
+        return global_val
+    return default_val
+
+pub fn pick_bool(cli: Bool, project: Bool, global_val: Bool, default_val: Bool) -> Bool:
+    if cli:
+        return true
+    if project:
+        return true
+    if global_val:
+        return true
+    return default_val
+
+pub fn valid_thinking_level(level: String) -> Bool:
+    return level == "off" or level == "minimal" or level == "low" or level == "medium" or level == "high" or level == "xhigh"
+
+pub fn valid_provider(name: String) -> Bool:
+    return name == "anthropic" or name == "google" or name == "openai" or name == "deepseek" or name == "mistral" or name == "github-copilot" or name == "amazon-bedrock"
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== Stress: Deep Config Merge ===")
+
+    // Test 1: CLI beats project
+    if pick_str("cli-val", "project-val", "", "") == "cli-val":
+        println("  [PASS] CLI beats project")
+    else:
+        println("  [FAIL] CLI beats project")
+        failures = failures + 1
+
+    // Test 2: Project beats global
+    if pick_str("", "project-val", "global-val", "") == "project-val":
+        println("  [PASS] Project beats global")
+    else:
+        println("  [FAIL] Project beats global")
+        failures = failures + 1
+
+    // Test 3: Global beats default
+    if pick_str("", "", "global-val", "default") == "global-val":
+        println("  [PASS] Global beats default")
+    else:
+        println("  [FAIL] Global beats default")
+        failures = failures + 1
+
+    // Test 4: Fallback to default
+    if pick_str("", "", "", "fallback") == "fallback":
+        println("  [PASS] Fallback to default")
+    else:
+        println("  [FAIL] Fallback to default")
+        failures = failures + 1
+
+    // Test 5: All empty falls to default
+    if pick_str("", "", "", "ultimate") == "ultimate":
+        println("  [PASS] All empty -> default")
+    else:
+        println("  [FAIL] All empty")
+        failures = failures + 1
+
+    // Test 6: Int priority
+    if pick_int(10, 5, 3, 1) == 10:
+        println("  [PASS] Int: CLI wins")
+    else:
+        println("  [FAIL] Int: CLI")
+        failures = failures + 1
+
+    if pick_int(0, 10, 5, 1) == 10:
+        println("  [PASS] Int: project wins")
+    else:
+        println("  [FAIL] Int: project")
+        failures = failures + 1
+
+    if pick_int(0, 0, 10, 1) == 10:
+        println("  [PASS] Int: global wins")
+    else:
+        println("  [FAIL] Int: global")
+        failures = failures + 1
+
+    if pick_int(0, 0, 0, 10) == 10:
+        println("  [PASS] Int: default fallback")
+    else:
+        println("  [FAIL] Int: default")
+        failures = failures + 1
+
+    // Test 7: Bool priority
+    if pick_bool(true, false, false, false) == true:
+        println("  [PASS] Bool: CLI true")
+    else:
+        println("  [FAIL] Bool: CLI")
+        failures = failures + 1
+
+    if pick_bool(false, true, false, false) == true:
+        println("  [PASS] Bool: project true")
+    else:
+        println("  [FAIL] Bool: project")
+        failures = failures + 1
+
+    if pick_bool(false, false, true, false) == true:
+        println("  [PASS] Bool: global true")
+    else:
+        println("  [FAIL] Bool: global")
+        failures = failures + 1
+
+    if pick_bool(false, false, false, true) == true:
+        println("  [PASS] Bool: default true")
+    else:
+        println("  [FAIL] Bool: default")
+        failures = failures + 1
+
+    if pick_bool(false, false, false, false) == false:
+        println("  [PASS] Bool: all false")
+    else:
+        println("  [FAIL] Bool: all false")
+        failures = failures + 1
+
+    // Test 8: 50-level merge chain
+    var current = ""
+    var di: Int = 0
+    while di < 50:
+        if di == 25:
+            current = "depth-" + str(di)
+        current = pick_str(
+            "",
+            if di == 49: "final-value" else: "",
+            current,
+            "default",
+        )
+        di = di + 1
+    if current == "final-value":
+        println("  [PASS] 50-level merge chain")
+    else:
+        println("  [FAIL] 50-level merge: " + current)
+        failures = failures + 1
+
+    // Test 9: Mixed keys with different empty/non-empty patterns
+    if pick_str("a", "", "", "d") == "a":
+        println("  [PASS] key1: CLI")
+    else:
+        println("  [FAIL] key1")
+        failures = failures + 1
+
+    if pick_str("", "b", "", "d") == "b":
+        println("  [PASS] key2: project")
+    else:
+        println("  [FAIL] key2")
+        failures = failures + 1
+
+    if pick_str("", "", "c", "d") == "c":
+        println("  [PASS] key3: global")
+    else:
+        println("  [FAIL] key3")
+        failures = failures + 1
+
+    if pick_str("", "", "", "d") == "d":
+        println("  [PASS] key4: default")
+    else:
+        println("  [FAIL] key4")
+        failures = failures + 1
+
+    // Test 10: Valid thinking levels
+    if valid_thinking_level("off") and valid_thinking_level("low") and valid_thinking_level("medium") and valid_thinking_level("high") and valid_thinking_level("xhigh") and valid_thinking_level("minimal"):
+        println("  [PASS] All valid thinking levels")
+    else:
+        println("  [FAIL] Valid thinking levels")
+        failures = failures + 1
+
+    if valid_thinking_level("invalid") == false:
+        println("  [PASS] Invalid thinking level rejected")
+    else:
+        println("  [FAIL] Invalid thinking level")
+        failures = failures + 1
+
+    // Test 11: Valid providers
+    if valid_provider("anthropic") and valid_provider("openai") and valid_provider("google") and valid_provider("deepseek") and valid_provider("mistral"):
+        println("  [PASS] All valid providers")
+    else:
+        println("  [FAIL] Valid providers")
+        failures = failures + 1
+
+    if valid_provider("nonexistent") == false:
+        println("  [PASS] Invalid provider rejected")
+    else:
+        println("  [FAIL] Invalid provider")
+        failures = failures + 1
+
+    // Summary
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

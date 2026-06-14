@@ -1,0 +1,237 @@
+// ============================================================================
+//  providers/sse.kn — SSE parser for LLM provider stream transport
+//  Ladder: Layer 0 — pure functions for SSE event parsing and conversion
+//
+//  Parses Server-Sent Events (SSE) format used by Anthropic Messages API,
+//  OpenAI Chat Completions, and Google Gemini streaming endpoints.
+//
+//  SSE spec: https://html.spec.whatwg.org/multipage/server-sent-events.html
+// ============================================================================
+
+use types    // LlmEvent, LlmEventKind
+use std::text
+use std::fs   // fs_parse_int_or_zero for retry parsing
+
+// ---- Data structures ----
+
+pub struct SseEvent:
+    data: String           // The data payload (consecutive data: lines joined with \n)
+    event_type: String     // From event: field (default "message")
+    id: String             // From id: field
+    retry: Int             // From retry: field
+    is_done: Bool          // True if data == "[DONE]"
+
+pub struct SseParseResult:
+    events: [SseEvent]     // Fully parsed events
+    remaining: String      // Partial event data for next parsing pass
+
+// ---- Helper: default empty SSE event ----
+
+pub fn empty_sse_event() -> SseEvent with Pure:
+    return SseEvent {
+        data: "",
+        event_type: "message",
+        id: "",
+        retry: 0,
+        is_done: false,
+    }
+
+// ---- Helper: serialize incomplete event lines back to string ----
+// Used to return partial event data as the "remaining" field.
+
+pub fn serialize_partial_sse(lines: [String]) -> String with Pure:
+    if len(lines) == 0:
+        return ""
+    var result: String = lines[0]
+    var i: Int = 1
+    while i < len(lines):
+        let NL = text_chr(10)
+        result = result + NL + lines[i]
+        i = i + 1
+    return result
+
+// ---- Parse a single SSE event block from accumulated lines ----
+// Each line is a "field:value" pair. Consecutive "data:" lines are
+// concatenated with \n per SSE spec.
+
+fn parse_sse_block(lines: [String]) -> SseEvent with Pure:
+    var ev = empty_sse_event()
+    var data_parts: [String] = []
+    var i: Int = 0
+
+    while i < len(lines):
+        let ln = lines[i]
+        let colon_pos = text_find_from(text_from(ln), ":", 0)
+
+        if colon_pos >= 0:
+            let field = text_substring_string(ln, 0, colon_pos)
+            var raw_value = text_substring_string(ln, colon_pos + 1, len(ln) - colon_pos - 1)
+
+            // SSE spec: strip leading space from the value after the colon
+            if text_starts_with_string(raw_value, " "):
+                raw_value = text_substring_string(raw_value, 1, len(raw_value) - 1)
+
+            if field == "data":
+                push(data_parts, raw_value)
+            elif field == "event":
+                ev.event_type = raw_value
+            elif field == "id":
+                ev.id = raw_value
+            elif field == "retry":
+                ev.retry = fs_parse_int_or_zero(text_trim_string(raw_value))
+        i = i + 1
+
+    // Join consecutive data lines with newline per SSE spec
+    ev.data = if len(data_parts) == 0:
+        ""
+    elif len(data_parts) == 1:
+        data_parts[0]
+    else:
+        text_join_strings(data_parts, text_chr(10))
+
+    // Check for OpenAI-style [DONE] marker
+    if ev.data == "[DONE]":
+        ev.is_done = true
+        ev.event_type = "done"
+
+    return ev
+
+// ---- Parse full SSE stream into events + remaining ----
+// Splits raw text on \n, detects empty lines as event boundaries (per SSE
+// spec), and accumulates lines into SseEvent blocks. The "remaining" field
+// holds incomplete event lines for the next parsing pass (streaming use).
+
+pub fn parse_sse_stream(raw: String) -> SseParseResult with Pure:
+    let lines = text_split_lines(raw)
+    var event_lines: [String] = []
+    var events: [SseEvent] = []
+    var i: Int = 0
+    let n = len(lines)
+
+    while i < n:
+        let ln = text_trim_string(lines[i])
+        if len(ln) == 0:
+            // Empty line = event boundary
+            if len(event_lines) > 0:
+                push(events, parse_sse_block(event_lines))
+                event_lines = []
+        elif text_starts_with_string(ln, ":") == false:
+            // Not a comment line — accumulate into current event
+            push(event_lines, ln)
+        i = i + 1
+
+    // Remaining: incomplete event or handle trailing [DONE] without \n\n
+    var remaining: String = ""
+    if len(event_lines) > 0:
+        // Check if partial block contains a [DONE] marker
+        let partial_text = text_join_strings(event_lines, text_chr(10))
+        if text_contains_string(partial_text, "[DONE]"):
+            push(events, parse_sse_block(event_lines))
+            remaining = ""
+        else:
+            remaining = partial_text
+
+    return SseParseResult { events: events, remaining: remaining }
+
+// ---- Convert SSE events to LLM events ----
+// Maps SSE event_type strings to LlmEventKind variants.
+// Supports Anthropic Messages API, OpenAI, and Google event types.
+
+pub fn sse_to_llm_events(sse_events: [SseEvent]) -> [LlmEvent] with Pure:
+    var result: [LlmEvent] = []
+    var i: Int = 0
+
+    while i < len(sse_events):
+        let ev = sse_events[i]
+
+        if ev.is_done:
+            push(result, LlmEvent {
+                kind: LlmEventKind::Done,
+                data: "",
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "message_start":
+            push(result, LlmEvent {
+                kind: LlmEventKind::Start,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "content_block_start":
+            // Forward as Start — tool/thinking identification done by consumer
+            push(result, LlmEvent {
+                kind: LlmEventKind::Start,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "content_block_delta":
+            // Determine delta kind from event data JSON (type field)
+            let delta_kind = classify_delta_kind(ev.data)
+            push(result, LlmEvent {
+                kind: delta_kind,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "content_block_stop":
+            push(result, LlmEvent {
+                kind: LlmEventKind::TextEnd,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "message_delta":
+            // Partial message metadata (stop reason, usage)
+            push(result, LlmEvent {
+                kind: LlmEventKind::Done,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "message_stop":
+            push(result, LlmEvent {
+                kind: LlmEventKind::Done,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "error":
+            push(result, LlmEvent {
+                kind: LlmEventKind::Error,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        elif ev.event_type == "ping":
+            // Ping events are heartbeats — skip, nothing to emit
+            let _ = 0
+        else:
+            // Default: treat unknown event types as TextDelta
+            push(result, LlmEvent {
+                kind: LlmEventKind::TextDelta,
+                data: ev.data,
+                tool_call_id: "",
+                tool_name: "",
+            })
+        i = i + 1
+
+    return result
+
+// ---- Classify delta event kind from data JSON ----
+// Inspects the data payload to determine whether a content_block_delta
+// is a text delta, thinking delta, or tool call delta.
+
+fn classify_delta_kind(data: String) -> LlmEventKind with Pure:
+    // Use JSON substring detection to determine delta type
+    // This avoids needing a full JSON parser at this layer
+    let DQ = text_chr(34)
+    if text_contains_string(data, DQ + "type" + DQ + ":" + DQ + "text_delta" + DQ):
+        return LlmEventKind::TextDelta
+    if text_contains_string(data, DQ + "type" + DQ + ":" + DQ + "thinking_delta" + DQ):
+        return LlmEventKind::ThinkingDelta
+    if text_contains_string(data, DQ + "type" + DQ + ":" + DQ + "input_json_delta" + DQ):
+        return LlmEventKind::ToolCallDelta
+    // Default fallback
+    return LlmEventKind::TextDelta

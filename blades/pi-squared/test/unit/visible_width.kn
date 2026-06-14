@@ -1,0 +1,95 @@
+use std::text
+
+fn visible_width(s: String) -> Int:
+    var w: Int = 0
+    var i: Int = 0
+    while i < len(s):
+        let c_ord = text_ord(text_substring_string(s, i, 1))
+        // Control characters (0x00-0x1F except tab, newline, carriage return)
+        if c_ord == 0x0A or c_ord == 0x0D:
+            // newline / CR: width 0, advance past
+            i = i + 1
+            continue
+        if c_ord < 0x20:
+            i = i + 1
+            continue
+        // CJK Unified Ideographs (U+4E00-U+9FFF), CJK Unified Ideographs Extension A (U+3400-U+4DBF)
+        // Hangul Syllables (U+AC00-U+D7AF), etc.
+        if c_ord >= 0x1100 and c_ord <= 0x11FF: // Hangul Jamo
+            w = w + 2
+        elif c_ord >= 0x2E80 and c_ord <= 0x2FFF: // CJK Radicals
+            w = w + 2
+        elif c_ord >= 0x3040 and c_ord <= 0x9FFF: // Hiragana, Katakana, CJK Unified
+            w = w + 2
+        elif c_ord >= 0xAC00 and c_ord <= 0xD7AF: // Hangul Syllables
+            w = w + 2
+        elif c_ord >= 0xF900 and c_ord <= 0xFAFF: // CJK Compatibility Ideographs
+            w = w + 2
+        elif c_ord >= 0xFF01 and c_ord <= 0xFF60: // Fullwidth forms
+            w = w + 2
+        elif c_ord >= 0xFFE0 and c_ord <= 0xFFE6: // Fullwidth signs
+            w = w + 2
+        else:
+            w = w + 1
+        i = i + 1
+    return w
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test empty string
+    let w1 = visible_width("")
+    if w1 != 0:
+        println("[FAIL] visible_width: empty string width should be 0")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: empty string = 0")
+
+    // Test ASCII string
+    let w2 = visible_width("hello")
+    if w2 != 5:
+        println("[FAIL] visible_width: 'hello' width should be 5 (got " + str(w2) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: 'hello' = 5")
+
+    // Test mixed ASCII and CJK
+    let mix = "a" + text_chr(0x4E2D) + "b" + text_chr(0x56FD)
+    let w3 = visible_width(mix)
+    if w3 != 6:
+        println("[FAIL] visible_width: 'a<U+4E2D>b<U+56FD>' should be 6 (got " + str(w3) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: mixed ASCII+CJK = 6")
+
+    // Test newlines have zero width
+    let with_nl = "ab\ncd"
+    let w4 = visible_width(with_nl)
+    if w4 != 4:
+        println("[FAIL] visible_width: 'ab\\ncd' should be 4 (got " + str(w4) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: newlines width 0")
+
+    // Test fullwidth characters
+    let full = text_chr(0xFF21) + text_chr(0xFF22)
+    let w5 = visible_width(full)
+    if w5 != 4:
+        println("[FAIL] visible_width: fullwidth chars should be 4 (got " + str(w5) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: fullwidth = 2 each")
+
+    // Test control characters have zero width
+    let ctrl = text_chr(0x01) + text_chr(0x02)
+    let w6 = visible_width(ctrl)
+    if w6 != 0:
+        println("[FAIL] visible_width: control chars should be 0")
+        failures = failures + 1
+    else:
+        println("[PASS] visible_width: control chars = 0")
+
+    println("=== VISIBLE WIDTH ===")
+    if failures == 0:
+        println("[PASS] All visible width tests passed")
+    return failures

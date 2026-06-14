@@ -1,0 +1,251 @@
+// ============================================================================
+//  extensions/loader.kn — Markscript-powered plugin system for pi-squared
+//                         (DELTA-2)
+//
+//  Each extension is a .md file compiled via std::mks with JIT.
+//  The .md file contains:
+//    - A Metadata table with extension properties
+//    - Command tables defining slash commands
+//    - Tool tables defining available tools
+//    - Blockquote intents handling command execution
+//    - Fenced code blocks for markscript logic
+//
+//  Ladder:
+//    Layer 0 — fn + struct for loading logic
+//    Layer 7 — actor for managing loaded extensions (planned)
+//
+//  Integration with commands.kn:
+//    load_extension() reads the .md tables and produces Extension structs.
+//    The CommandRegistry actor in commands.kn registers the commands.
+//    Dispatch routes back to the extension's VM for execution.
+// ============================================================================
+
+use std::fs
+use std::text
+use std::mks
+use resources::commands  // Command, HANDLER_TYPE_EXTENSION
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const EXTENSION_CMD_HANDLER_BASE: Int = 100
+
+// ============================================================================
+//  STRUCTS
+// ============================================================================
+
+/// A loaded extension with its VM, commands, tools, and metadata.
+pub struct Extension:
+    name: String
+    path: String
+    version: String
+    vm: MarkScriptVM        // persistent VM for command dispatch
+    commands: [Command]     // slash commands this extension provides
+    tools: [String]         // tool names this extension provides
+    valid: Bool             // false if loading failed
+
+// ============================================================================
+//  LOAD A SINGLE EXTENSION  (.md file -> Extension)
+// ============================================================================
+
+/// Load and parse a markscript extension .md file.
+/// Returns the Extension struct with a loaded VM and parsed commands.
+pub fn load_extension(path: String) -> Extension with IO:
+    // Check file exists
+    if fs_exists(path) == false:
+        return extension_error("file not found: " + path)
+
+    // Run the markscript file through std::mks
+    // run_file() is from use std::mks — returns a VM with tables and handlers
+    let vm = run_file(path)
+
+    // Check for errors
+    if ok(vm) == false:
+        let err_text = error_text(vm)
+        return extension_error("markscript error: " + err_text)
+
+    // Extract metadata from tables
+    let ext_name = read_table_string(vm, 0, 1, 0)
+    let ext_version = read_table_string(vm, 0, 2, 1)
+
+    // Parse commands from command tables
+    var commands: [Command] = extract_commands(vm, ext_name)
+
+    // Parse tool names from metadata
+    let tools_raw = read_table_string(vm, 0, 4, 1)
+    var tools: [String] = parse_tool_list(tools_raw)
+
+    return Extension {
+        name: ext_name,
+        path: path,
+        version: ext_version,
+        vm: vm,
+        commands: commands,
+        tools: tools,
+        valid: true,
+    }
+
+// ============================================================================
+//  LOAD ALL EXTENSIONS FROM A DIRECTORY
+// ============================================================================
+
+/// Walk a directory for .md files and load each as an extension.
+/// Returns only valid extensions (load failures are skipped).
+pub fn load_extensions(dir: String) -> [Extension] with IO:
+    var results: [Extension] = []
+
+    if fs_exists(dir) == false:
+        return results
+
+    let entries = fs_read_dir(dir)
+    var ei: Int = 0
+    while ei < len(entries):
+        let entry = entries[ei]
+        if entry.file_type == "file":
+            let name = entry.file_name
+            if ends_with_text(name, ".md"):
+                let ext = load_extension(entry.path)
+                if ext.valid:
+                    push(results, ext)
+        ei = ei + 1
+
+    return results
+
+/// Load extensions from given directories.
+pub fn load_extensions_from_dirs(global_dir: String, local_dir: String) -> [Extension] with IO:
+    var results: [Extension] = []
+    let global_exts = load_extensions(global_dir)
+    var gi: Int = 0
+    while gi < len(global_exts):
+        push(results, global_exts[gi])
+        gi = gi + 1
+    let local_exts = load_extensions(local_dir)
+    var li: Int = 0
+    while li < len(local_exts):
+        push(results, local_exts[li])
+        li = li + 1
+    return results
+
+// ============================================================================
+//  EXTENSION LIFECYCLE
+// ============================================================================
+
+/// Convert an Extension's commands into Command structs for the registry.
+pub fn extension_to_commands(ext: Extension) -> [Command]:
+    return ext.commands
+
+/// Convert an Extension's tool list into a string array.
+pub fn extension_tools(ext: Extension) -> [String]:
+    return ext.tools
+
+/// Get all extension names from an array of extensions.
+pub fn extension_names(exts: [Extension]) -> [String]:
+    var names: [String] = []
+    var ei: Int = 0
+    while ei < len(exts):
+        if exts[ei].valid:
+            push(names, exts[ei].name)
+        ei = ei + 1
+    return names
+
+// ============================================================================
+//  INTERNAL HELPERS
+// ============================================================================
+
+/// Read a string from a table cell with bounds checking.
+/// Uses std::mks public API (get_string, table_rows, table_cols).
+fn read_table_string(vm: MarkScriptVM, table_idx: Int, row: Int, col: Int) -> String:
+    let tc = table_count(vm)
+    if table_idx < 0 or table_idx >= tc:
+        return ""
+    let rows = table_rows(vm, table_idx)
+    let cols = table_cols(vm, table_idx)
+    if row < 0 or row >= rows or col < 0 or col >= cols:
+        return ""
+    return get_string(vm, table_idx, row, col)
+
+/// Extract commands from an extension's VM tables.
+/// Scans all tables for ones that look like command definitions.
+/// Uses std::mks public API (table_count, get_string, table_rows, table_cols).
+fn extract_commands(vm: MarkScriptVM, ext_name: String) -> [Command]:
+    var commands: [Command] = []
+
+    let tc = table_count(vm)
+    var ti: Int = 0
+    while ti < tc:
+        let rows = table_rows(vm, ti)
+        let cols = table_cols(vm, ti)
+        if rows >= 1 and cols >= 2:
+            // Check first cell for "Commands" header
+            let header = get_string(vm, ti, 0, 0)
+            if header == "Commands":
+                var row: Int = 1
+                while row < rows:
+                    let cmd_name = get_string(vm, ti, row, 0)
+                    let cmd_desc = get_string(vm, ti, row, 1)
+                    let cmd_usage = get_string(vm, ti, row, 2)
+                    if cmd_name != "":
+                        let usage = if cmd_usage == "": "/" + cmd_name else: cmd_usage
+                        push(commands, Command {
+                            name: cmd_name,
+                            description: cmd_desc,
+                            usage: usage,
+                            handler_type: HANDLER_TYPE_EXTENSION,
+                            handler_ref: ext_name + "::" + cmd_name,
+                            extension_name: ext_name,
+                        })
+                    row = row + 1
+            // Also check for "Tools" header
+            elif header == "Tools":
+                // Tool table — skip for now, handled by extension_tools()
+                let _ = "tools"
+        ti = ti + 1
+
+    return commands
+
+/// Parse a comma-separated tool list string into an array.
+fn parse_tool_list(raw: String) -> [String]:
+    var tools: [String] = []
+    var current: String = ""
+    var i: Int = 0
+    while i < len(raw):
+        let ch = text_substring_string(raw, i, 1)
+        if ch == ",":
+            let trimmed = trim_string(current)
+            if trimmed != "":
+                push(tools, trimmed)
+            current = ""
+        else:
+            current = current + ch
+        i = i + 1
+    let trimmed = trim_string(current)
+    if trimmed != "":
+        push(tools, trimmed)
+    return tools
+
+/// Trim whitespace from a string.
+fn trim_string(s: String) -> String:
+    let trimmed = text_materialize(text_trim(text_from(s)))
+    return trimmed
+
+/// Create an error Extension struct.
+fn extension_error(reason: String) -> Extension:
+    return Extension {
+        name: "", path: "", version: "",
+        vm: make(),
+        commands: [], tools: [], valid: false,
+    }
+
+/// Check if a string ends with a given suffix.
+fn ends_with_text(s: String, suffix: String) -> Bool:
+    let sl = len(s)
+    let sufl = len(suffix)
+    if sufl > sl: return false
+    var i: Int = 0
+    while i < sufl:
+        let si = text_substring_string(s, sl - sufl + i, 1)
+        let pi = text_substring_string(suffix, i, 1)
+        if si != pi: return false
+        i = i + 1
+    return true

@@ -1,0 +1,39 @@
+// providers/faux.kn — FauxProvider for testing
+// Ladder: Layer 7 (actor) + Layer 0 (fn)
+// Provides scripted LLM responses for tests without real HTTP calls.
+
+use types    // Model, LlmContext, LlmEvent, LlmEventKind, StreamOptions,
+             // AgentMessage, ContentBlock
+use providers::trait    // make_error_event, accumulate_from_events
+
+// Stub component for world surface requirement
+component PiFauxStub():
+    render <text value="pi-faux" />
+
+// ---- Scripted response entry ----
+pub struct ScriptedResponse:
+    input_pattern: String
+    output_text: String
+    output_events: [LlmEvent]
+    is_error: Bool
+
+// ---- FauxProviderWorld stores scripted responses ----
+world FauxProviderWorld:
+    surface web => PiFauxStub
+    state scripts_json: String = "[]"
+
+patch faux_set_scripts(scripts: String) -> Int:
+    return 0
+
+// ---- Stream: returns scripted response matching input ----
+pub fn faux_stream(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+    var events: [LlmEvent] = []
+    push(events, LlmEvent { kind: LlmEventKind::Start, data: "", tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::TextDelta, data: "[FauxProvider] Test response from pi-squared FauxProvider",
+        tool_call_id: "", tool_name: "" })
+    push(events, LlmEvent { kind: LlmEventKind::Done, data: "", tool_call_id: "", tool_name: "" })
+    return events
+
+pub fn faux_complete(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+    let events = faux_stream(model, context, options)
+    return accumulate_from_events(events)

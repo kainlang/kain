@@ -1,0 +1,85 @@
+// ============================================================================
+//  utils.kn — Tool output formatting, truncation, and diff helpers
+//  Ladder: Layer 0 — plain fn with Pure or IO effects.
+// ============================================================================
+
+use std::fmt
+use std::text
+
+// ---- Format byte count as human-readable string ----
+pub fn format_size(bytes: Int) -> String with Pure:
+    if bytes < 1024:
+        return str(bytes) + " B"
+    elif bytes < 1024 * 1024:
+        let kb = bytes / 1024
+        return str(kb) + " KB"
+    elif bytes < 1024 * 1024 * 1024:
+        let mb = bytes / (1024 * 1024)
+        return str(mb) + " MB"
+    else:
+        let gb = bytes / (1024 * 1024 * 1024)
+        return str(gb) + " GB"
+
+// ---- Truncate text to max_lines or max_bytes ----
+pub fn truncate(text: String, max_lines: Int, max_bytes: Int) -> String with Pure:
+    if len(text) <= max_bytes:
+        return text
+    if len(text) > max_bytes:
+        let NL = text_chr(10)
+        return utils_str_slice(text, 0, max_bytes - 64) + NL + "... [truncated at " + str(max_bytes) + " bytes]"
+    return text
+
+// ---- Slice text: extract first n characters ----
+pub fn utils_str_slice(text: String, start: Int, count: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var ui: Int = 0
+    while ui < len(text):
+        let ch = text_substring_string(text, ui, 1)
+        if i >= start and i < start + count:
+            result = result + ch
+        i = i + 1
+    return result
+
+// ---- Simple diff summary (character-level) ----
+pub fn compute_diff(old_text: String, new_text: String) -> String with Pure:
+    if old_text == new_text: return "no changes"
+    let old_len = len(old_text)
+    let new_len = len(new_text)
+    if old_len == 0 and new_len > 0: return str(new_len) + " character(s) added"
+    if new_len == 0 and old_len > 0: return str(old_len) + " character(s) removed"
+    let diff_len = if old_len > new_len: old_len - new_len else: new_len - old_len
+    return str(diff_len) + " character(s) different"
+
+// ---- Join strings with separator ----
+pub fn str_join(strings: [String], separator: String) -> String with Pure:
+    return fmt_join_strings(strings, separator)
+
+// ---- Find substring, return start index or -1 ----
+pub fn utils_str_find(text: String, needle: String, start: Int) -> Int with Pure:
+    var i: Int = start
+    while i <= len(text) - len(needle):
+        var found = true
+        var j: Int = 0
+        while j < len(needle):
+            if text[i + j] != needle[j]:
+                found = false
+                break
+            j = j + 1
+        if found:
+            return i
+        i = i + 1
+    return -1
+
+// ---- Limit string to N characters ----
+pub fn utils_str_limit(text: String, n: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var ui: Int = 0
+    while ui < len(text):
+        let ch = text_substring_string(text, ui, 1)
+        if i >= n:
+            break
+        result = result + ch
+        i = i + 1
+    return result

@@ -1,0 +1,127 @@
+use std::text
+use std::json
+use std::os
+
+struct SessionEntry:
+    timestamp: Int
+    role: String
+    content: String
+    tokens: Int
+    id: Int
+    parent_id: Int
+
+fn serialize_entries(entries: [SessionEntry]) -> String:
+    var lines: [String] = []
+    var i: Int = 0
+    while i < len(entries):
+        let entry = entries[i]
+        let obj = json_object()
+        let o2 = json_object_set_int(obj, "ts", entry.timestamp)
+        let o3 = json_object_set_string(o2, "role", entry.role)
+        let o4 = json_object_set_string(o3, "content", entry.content)
+        let o5 = json_object_set_int(o4, "tokens", entry.tokens)
+        let o6 = json_object_set_int(o5, "id", entry.id)
+        let o7 = json_object_set_int(o6, "pid", entry.parent_id)
+        lines = lines + [json_stringify(o7)]
+        i = i + 1
+    return text_join_strings(lines, "\n")
+
+fn deserialize_entries(text: String) -> [SessionEntry]:
+    var entries: [SessionEntry] = []
+    let lines = text_split_lines(text)
+    var i: Int = 0
+    while i < len(lines):
+        let line = text_trim_string(lines[i])
+        if len(line) == 0:
+            i = i + 1
+            continue
+        let obj = json_parse_text(line)
+        let entry = SessionEntry {
+            timestamp: json_int_required(obj, "ts"),
+            role: json_string_required(obj, "role"),
+            content: json_string_required(obj, "content"),
+            tokens: json_int_or(obj, "tokens", 0),
+            id: json_int_required(obj, "id"),
+            parent_id: json_int_or(obj, "pid", 0)
+        }
+        entries = entries + [entry]
+        i = i + 1
+    return entries
+
+fn write_temp_file(path: String, content: String) -> Bool:
+    return os_write_text(path, content)
+
+fn read_temp_file(path: String) -> String:
+    return os_read_text(path)
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Create test entries
+    let entries = [
+        SessionEntry { timestamp: 1000, role: "user", content: "Hello", tokens: 2, id: 1, parent_id: 0 },
+        SessionEntry { timestamp: 1001, role: "assistant", content: "Hi", tokens: 1, id: 2, parent_id: 1 },
+        SessionEntry { timestamp: 1002, role: "user", content: "What is Kain?", tokens: 3, id: 3, parent_id: 2 }
+    ]
+
+    // Test serialization
+    let serialized = serialize_entries(entries)
+    if len(serialized) == 0:
+        println("[FAIL] session_persist: serialization produced empty output")
+        failures = failures + 1
+    else:
+        println("[PASS] session_persist: serialization produced output")
+
+    // Test deserialization
+    let parsed = deserialize_entries(serialized)
+    if len(parsed) != 3:
+        println("[FAIL] session_persist: deserialized " + str(len(parsed)) + " entries, expected 3")
+        failures = failures + 1
+    else:
+        println("[PASS] session_persist: deserialized " + str(len(parsed)) + " entries")
+
+    // Test content integrity across roundtrip
+    if len(parsed) >= 3:
+        if parsed[0].content != "Hello" or parsed[1].role != "assistant":
+            println("[FAIL] session_persist: content integrity lost in roundtrip")
+            failures = failures + 1
+        else:
+            println("[PASS] session_persist: content integrity preserved")
+
+    // Test parent_id references
+    if len(parsed) >= 3:
+        if parsed[2].parent_id != 2:
+            println("[FAIL] session_persist: parent_id not preserved")
+            failures = failures + 1
+        else:
+            println("[PASS] session_persist: parent_id preserved")
+
+    // Test ID uniqueness
+    var has_dup: Bool = false
+    var i: Int = 0
+    while i < len(parsed):
+        var j: Int = i + 1
+        while j < len(parsed):
+            if parsed[i].id == parsed[j].id:
+                has_dup = true
+            j = j + 1
+        i = i + 1
+    if has_dup:
+        println("[FAIL] session_persist: duplicate IDs found")
+        failures = failures + 1
+    else:
+        println("[PASS] session_persist: unique IDs preserved")
+
+    // Test empty list roundtrip
+    let empty_serialized = serialize_entries([])
+    let empty_parsed = deserialize_entries(empty_serialized)
+    if len(empty_parsed) != 0:
+        println("[FAIL] session_persist: empty list roundtrip failed")
+        failures = failures + 1
+    else:
+        println("[PASS] session_persist: empty list roundtrip OK")
+
+    println("=== SESSION PERSIST ===")
+    if failures == 0:
+        println("[PASS] All session persist tests passed")
+    return failures

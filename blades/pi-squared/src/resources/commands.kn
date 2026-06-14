@@ -1,0 +1,606 @@
+// ============================================================================
+//  resources/commands.kn — Slash command system for pi-squared (DELTA-1)
+//
+//  Pattern: /command [args...]
+//  Like pi's /compact, /model, /session, /fork, /help, /exit
+//
+//  Ladder:
+//    Layer 0 — fn + struct for pure parsing and handler logic
+//    Layer 7 — actor for the mutable command registry with dynamic
+//              extension command registration
+//
+//  Two-level dispatch:
+//    1. parse_command(input) — pure string parsing → structured Command
+//    2. CommandRegistry actor — holds built-in + extension commands,
+//       dispatches by name
+//
+//  Built-in commands reference (mirroring pi):
+//    /compact    — trigger session compaction
+//    /model      — set active model
+//    /session    — show session info and stats
+//    /fork       — fork session from a previous entry
+//    /help       — show command help
+//    /clear      — clear terminal
+//    /exit       — quit pi-squared
+//    /extension  — manage extensions (load, list, unload)
+//    /settings   — open settings panel
+//    /thinking   — set thinking level
+//    /reload     — reload resources
+//    /tree       — navigate session tree
+// ============================================================================
+
+use std::text
+use types        // CliArgs, Settings, Model, SessionEntry
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const HANDLER_TYPE_BUILTIN:    String = "builtin"
+pub const HANDLER_TYPE_EXTENSION:  String = "extension"
+pub const HANDLER_TYPE_MARKSCRIPT: String = "markscript"
+
+pub const CMD_PREFIX: String = "/"
+
+// ============================================================================
+//  STRUCTS
+// ============================================================================
+
+/// A registered slash command with metadata.
+pub struct Command:
+    name: String             // e.g. "compact", "model"
+    description: String      // e.g. "Manually compact the session context"
+    usage: String            // e.g. "/compact" or "/model <name>"
+    handler_type: String     // "builtin" | "extension" | "markscript"
+    handler_ref: String      // handler_id string or function name for extension dispatch
+    extension_name: String   // "" for built-in, extension name for plugins
+
+/// Result of a command dispatch.
+pub struct CommandResult:
+    handled: Bool            // true if a handler was found
+    output: String           // output text to display
+    exit_code: Int           // 0 = success, 1 = exit requested, -1 = error
+
+/// Result of parsing a command from raw input text.
+pub struct ParseResult:
+    is_command: Bool         // true if input starts with /
+    command: Command         // parsed command (valid only if is_command)
+    arg_text: String         // everything after the command name
+    original: String         // the full original input
+
+// ============================================================================
+//  PURE PARSER FUNCTIONS
+// ============================================================================
+
+/// Check if a raw input string starts with the command prefix.
+pub fn is_command_input(input: String) -> Bool with Pure:
+    if len(input) == 0: return false
+    let first = text_substring_string(input, 0, 1)
+    return first == "/"
+
+/// Parse a raw input line into a ParseResult.
+/// Input: "/compact"
+/// Input: "/model claude-sonnet-4-20250514"
+/// Input: "/session tree"
+///
+/// Returns ParseResult with is_command=false if no leading slash.
+pub fn parse_input(input: String) -> ParseResult with Pure:
+    let original = input
+
+    // Check for leading /
+    if is_command_input(input) == false:
+        return ParseResult {
+            is_command: false,
+            command: empty_command(),
+            arg_text: "",
+            original: original,
+        }
+
+    // Strip the leading /
+    let body = text_substring_string(input, 1, len(input) - 1)
+
+    // Split on first space to get command name and args
+    var cmd_name: String = ""
+    var args: String = ""
+    var found_space: Bool = false
+    var i: Int = 0
+    while i < len(body):
+        let ch = text_substring_string(body, i, 1)
+        if ch == " " and found_space == false:
+            found_space = true
+        else:
+            if found_space:
+                args = args + ch
+            else:
+                cmd_name = cmd_name + ch
+        i = i + 1
+
+    let cmd = find_builtin(cmd_name)
+    return ParseResult {
+        is_command: cmd.name != "",
+        command: cmd,
+        arg_text: args,
+        original: original,
+    }
+
+/// Look up a built-in command by name (case-sensitive).
+/// Returns an empty command (name="") if not found.
+fn find_builtin(name: String) -> Command with Pure:
+    if name == "help":
+        return Command {
+            name: "help", description: "Show available commands",
+            usage: "/help [command]", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_help", extension_name: "",
+        }
+    elif name == "compact":
+        return Command {
+            name: "compact", description: "Manually compact session context",
+            usage: "/compact", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_compact", extension_name: "",
+        }
+    elif name == "model":
+        return Command {
+            name: "model", description: "Set or show active model",
+            usage: "/model [name]", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_model", extension_name: "",
+        }
+    elif name == "session":
+        return Command {
+            name: "session", description: "Show session info and stats",
+            usage: "/session [subcommand]", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_session", extension_name: "",
+        }
+    elif name == "fork":
+        return Command {
+            name: "fork", description: "Fork session from a previous entry",
+            usage: "/fork <entry_id>", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_fork", extension_name: "",
+        }
+    elif name == "clear":
+        return Command {
+            name: "clear", description: "Clear terminal screen",
+            usage: "/clear", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_clear", extension_name: "",
+        }
+    elif name == "exit" or name == "quit":
+        return Command {
+            name: "exit", description: "Quit pi-squared",
+            usage: "/exit", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_exit", extension_name: "",
+        }
+    elif name == "extension":
+        return Command {
+            name: "extension", description: "Manage extensions",
+            usage: "/extension [load|list|unload] [path]",
+            handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_extension", extension_name: "",
+        }
+    elif name == "settings":
+        return Command {
+            name: "settings", description: "Open settings panel",
+            usage: "/settings [key] [value]",
+            handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_settings", extension_name: "",
+        }
+    elif name == "thinking":
+        return Command {
+            name: "thinking", description: "Set thinking level",
+            usage: "/thinking <off|low|medium|high|xhigh>",
+            handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_thinking", extension_name: "",
+        }
+    elif name == "reload":
+        return Command {
+            name: "reload", description: "Reload extensions, skills, prompts, and themes",
+            usage: "/reload", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_reload", extension_name: "",
+        }
+    elif name == "tree":
+        return Command {
+            name: "tree", description: "Navigate session tree branches",
+            usage: "/tree [subcommand [arg]]",
+            handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_tree", extension_name: "",
+        }
+    elif name == "clone":
+        return Command {
+            name: "clone", description: "Duplicate current session at current position",
+            usage: "/clone", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_clone", extension_name: "",
+        }
+    elif name == "export":
+        return Command {
+            name: "export", description: "Export session to file",
+            usage: "/export [path]", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_export", extension_name: "",
+        }
+    elif name == "import":
+        return Command {
+            name: "import", description: "Import and resume a session from file",
+            usage: "/import <path>", handler_type: HANDLER_TYPE_BUILTIN,
+            handler_ref: "handle_import", extension_name: "",
+        }
+    else:
+        return empty_command()
+
+/// Return an empty/invalid command for "not found" results.
+fn empty_command() -> Command with Pure:
+    return Command {
+        name: "", description: "", usage: "",
+        handler_type: "", handler_ref: "", extension_name: "",
+    }
+
+// ============================================================================
+//  BUILT-IN HANDLER FUNCTIONS  (return output text + optional action flags)
+//
+//  These are the "what to do" logic. The CommandRegistry actor below wires
+//  them into the interactive mode's event loop.
+// ============================================================================
+
+/// Generate help text for all built-in commands or one specific command.
+pub fn handle_help(args: String, commands: [Command]) -> String with Pure:
+    let NL = text_chr(10)
+    if args != "":
+        return handle_help_specific(args, commands)
+    var text = "Available commands:" + NL
+    text = text + NL
+    var ci: Int = 0
+    while ci < len(commands):
+        let cmd = commands[ci]
+        if cmd.name != "":
+            text = text + "  " + cmd.usage + NL
+            text = text + "      " + cmd.description + NL
+        ci = ci + 1
+    text = text + NL
+    text = text + "Type /help <command> for details on a specific command." + NL
+    text = text + "Type /exit to quit." + NL
+    return text
+
+fn handle_help_specific(cmd_name: String, commands: [Command]) -> String with Pure:
+    let NL = text_chr(10)
+    var ci: Int = 0
+    while ci < len(commands):
+        let cmd = commands[ci]
+        if cmd.name == cmd_name and cmd.name != "":
+            var text = "Command: " + cmd.name + " (" + cmd.handler_type + ")" + NL
+            text = text + "  " + cmd.description + NL
+            text = text + "  Usage: " + cmd.usage + NL
+            if cmd.extension_name != "":
+                text = text + "  Extension: " + cmd.extension_name + NL
+            return text
+        ci = ci + 1
+    return "Unknown command: " + cmd_name + NL
+
+/// Handle /compact — trigger session compaction.
+pub fn handle_compact(args: String, settings: String) -> String with Pure:
+    let NL = text_chr(10)
+    let _ = args
+    let _ = settings
+    return "Compaction triggered." + NL
+
+/// Handle /model — show or set model.
+pub fn handle_model(args: String, current_model: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Current model: " + current_model + NL
+    return "Model set to: " + args + NL
+
+/// Handle /session — show session info.
+pub fn handle_session(args: String, entry_count: Int, session_file: String) -> String with Pure:
+    let NL = text_chr(10)
+    var text: String = ""
+    if args == "tree":
+        text = text + "Session tree:" + NL
+        text = text + "  (tree view not yet implemented)" + NL
+    elif args == "stats":
+        text = text + "Session stats:" + NL
+        text = text + "  Entries: " + str(entry_count) + NL
+        text = text + "  File: " + session_file + NL
+    else:
+        text = text + "Session info:" + NL
+        text = text + "  Entries: " + str(entry_count) + NL
+        text = text + "  File: " + session_file + NL
+        text = text + "  Subcommands: stats, tree" + NL
+    return text
+
+/// Handle /fork — fork session from a specific entry.
+pub fn handle_fork(args: String, entry_count: Int) -> String with Pure:
+    let NL = text_chr(10)
+    let _ = entry_count
+    if args == "":
+        return "Usage: /fork <entry_id>" + NL
+    return "Forking from entry: " + args + NL
+
+/// Handle /clear — clear terminal.
+/// Returns a clear-screen marker. The TUI layer (when built) should
+/// interpret this and emit the appropriate terminal escape sequence.
+pub fn handle_clear() -> String with Pure:
+    let NL = text_chr(10)
+    return "CLEAR" + NL
+
+/// Handle /exit — quit pi-squared.
+pub fn handle_exit() -> String with Pure:
+    let NL = text_chr(10)
+    return "Goodbye!" + NL
+
+/// Handle /extension — manage extensions.
+pub fn handle_extension(args: String, extension_list: [String]) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "list":
+        var text: String = "Loaded extensions:" + NL
+        var ei: Int = 0
+        while ei < len(extension_list):
+            text = text + "  " + extension_list[ei] + NL
+            ei = ei + 1
+        if len(extension_list) == 0:
+            text = text + "  (none)" + NL
+        return text
+    elif starts_with_text(args, "load "):
+        let path = text_substring_string(args, 5, len(args) - 5)
+        return "Loading extension from: " + path + NL
+    elif args == "unload":
+        return "Unloading extensions..." + NL
+    else:
+        var text: String = "Usage: /extension <subcommand>" + NL
+        text = text + "  /extension list       — list loaded extensions" + NL
+        text = text + "  /extension load <path> — load extension from .md file" + NL
+        text = text + "  /extension unload     — unload all extensions" + NL
+        return text
+
+/// Handle /settings — view or modify settings.
+pub fn handle_settings(args: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Settings:" + NL + "  (settings panel not yet implemented)" + NL
+    return "Setting " + args + " updated." + NL
+
+/// Handle /thinking — set thinking level.
+pub fn handle_thinking(args: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Current thinking level: medium" + NL
+    if args == "off" or args == "low" or args == "medium" or args == "high" or args == "xhigh":
+        return "Thinking level set to: " + args + NL
+    return "Invalid thinking level: " + args + " (use off, low, medium, high, xhigh)" + NL
+
+/// Handle /reload — reload all resources.
+pub fn handle_reload() -> String with Pure:
+    let NL = text_chr(10)
+    return "Reloading extensions, skills, prompts, and themes..." + NL
+
+/// Handle /tree — navigate session tree.
+pub fn handle_tree(args: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Session tree:" + NL + "  (tree view not yet implemented)" + NL
+    return "Tree: " + args + NL
+
+/// Handle /clone — duplicate session.
+pub fn handle_clone() -> String with Pure:
+    let NL = text_chr(10)
+    return "Session cloned." + NL
+
+/// Handle /export — export session.
+pub fn handle_export(args: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Exporting session to default format..." + NL
+    return "Exporting session to: " + args + NL
+
+/// Handle /import — import session.
+pub fn handle_import(args: String) -> String with Pure:
+    let NL = text_chr(10)
+    if args == "":
+        return "Usage: /import <path-to-jsonl>" + NL
+    return "Importing session from: " + args + NL
+
+// ============================================================================
+//  STRING HELPERS
+// ============================================================================
+
+/// Check if a string starts with a given prefix (text-based).
+fn starts_with_text(s: String, prefix: String) -> Bool with Pure:
+    let sl = len(s)
+    let pl = len(prefix)
+    if pl > sl: return false
+    var i: Int = 0
+    while i < pl:
+        if text_substring_string(s, i, 1) != text_substring_string(prefix, i, 1):
+            return false
+        i = i + 1
+    return true
+
+// ============================================================================
+//  COMMAND REGISTRY ACTOR  —  holds all commands, dispatches by name
+//
+//  The interactive mode spawns this actor and sends messages to it.
+//  Extension plugins register their commands here during loading.
+// ============================================================================
+
+actor CommandRegistry:
+    state commands: [Command] = []
+    state command_count: Int = 0
+    state loaded_extensions: [String] = []
+    state extension_count: Int = 0
+
+    // ---- InitBuiltins: populate the built-in command table ----
+    on InitBuiltins(reply_to: P):
+        var cmds: [Command] = []
+        push(cmds, find_builtin("help"))
+        push(cmds, find_builtin("compact"))
+        push(cmds, find_builtin("model"))
+        push(cmds, find_builtin("session"))
+        push(cmds, find_builtin("fork"))
+        push(cmds, find_builtin("clear"))
+        push(cmds, find_builtin("exit"))
+        push(cmds, find_builtin("extension"))
+        push(cmds, find_builtin("settings"))
+        push(cmds, find_builtin("thinking"))
+        push(cmds, find_builtin("reload"))
+        push(cmds, find_builtin("tree"))
+        push(cmds, find_builtin("clone"))
+        push(cmds, find_builtin("export"))
+        push(cmds, find_builtin("import"))
+        self.commands = cmds
+        self.command_count = len(cmds)
+        send reply_to.Reply(value = str(len(cmds)))
+        return
+
+    // ---- RegisterCommand: add a command from an extension ----
+    on RegisterCommand(reply_to: P, cmd: Command):
+        // Check for duplicates
+        var ci: Int = 0
+        while ci < len(self.commands):
+            if self.commands[ci].name == cmd.name:
+                // Overwrite existing
+                self.commands[ci] = cmd
+                send reply_to.Reply(value = "updated")
+                return
+            ci = ci + 1
+        push(self.commands, cmd)
+        self.command_count = self.command_count + 1
+        send reply_to.Reply(value = "registered")
+        return
+
+    // ---- RegisterCommands: bulk-register from extension ----
+    on RegisterCommands(reply_to: P, cmds: [Command], ext_name: String):
+        var ext_found: Bool = false
+        var ei: Int = 0
+        while ei < len(self.loaded_extensions):
+            if self.loaded_extensions[ei] == ext_name:
+                ext_found = true
+                break
+            ei = ei + 1
+        if ext_found == false:
+            push(self.loaded_extensions, ext_name)
+            self.extension_count = self.extension_count + 1
+
+        var ci: Int = 0
+        while ci < len(cmds):
+            var registered: Bool = false
+            var di: Int = 0
+            while di < len(self.commands):
+                if self.commands[di].name == cmds[ci].name:
+                    self.commands[di] = cmds[ci]
+                    registered = true
+                    break
+                di = di + 1
+            if registered == false:
+                push(self.commands, cmds[ci])
+                self.command_count = self.command_count + 1
+            ci = ci + 1
+        send reply_to.Reply(value = str(len(cmds)) + " commands registered from " + ext_name)
+        return
+
+    // ---- UnregisterExtension: remove all commands for an extension ----
+    on UnregisterExtension(reply_to: P, ext_name: String):
+        var keep: [Command] = []
+        var ci: Int = 0
+        while ci < len(self.commands):
+            if self.commands[ci].extension_name != ext_name:
+                push(keep, self.commands[ci])
+            ci = ci + 1
+
+        var ext_keep: [String] = []
+        var ei: Int = 0
+        while ei < len(self.loaded_extensions):
+            if self.loaded_extensions[ei] != ext_name:
+                push(ext_keep, self.loaded_extensions[ei])
+            ei = ei + 1
+
+        self.commands = keep
+        self.command_count = len(keep)
+        self.loaded_extensions = ext_keep
+        self.extension_count = len(ext_keep)
+        send reply_to.Reply(value = "unregistered " + ext_name)
+        return
+
+    // ---- DispatchCommand: find and run a command ----
+    on DispatchCommand(reply_to: P, cmd_name: String, args: String, current_model: String, model_provider: String, entry_count: Int, session_file: String, settings_str: String):
+        var ci: Int = 0
+        while ci < len(self.commands):
+            let cmd = self.commands[ci]
+            if cmd.name == cmd_name and cmd.name != "":
+                var output: String = ""
+
+                // Dispatch to built-in handlers
+                if cmd.handler_type == HANDLER_TYPE_BUILTIN:
+                    output = dispatch_builtin_handler(cmd_name, args, current_model, entry_count, session_file)
+
+                // Extension commands — would delegate to extension VM
+                elif cmd.handler_type == HANDLER_TYPE_EXTENSION or cmd.handler_type == HANDLER_TYPE_MARKSCRIPT:
+                    let NL1 = text_chr(10)
+                    output = "Extension command '" + cmd_name + "' dispatched (handler: " + cmd.handler_ref + ")" + NL1
+
+                // Unknown handler type
+                else:
+                    let NL2 = text_chr(10)
+                    output = "Unknown handler type: " + cmd.handler_type + NL2
+
+                let needs_exit = cmd_name == "exit" or cmd_name == "quit"
+                send reply_to.Reply(value = output)
+                // If this is /exit, we'd signal the loop to stop
+                // For now, just return the output
+                return
+            ci = ci + 1
+
+        let NL = text_chr(10)
+        send reply_to.Reply(value = "Unknown command: " + cmd_name + NL)
+        return
+
+    // ---- ListCommands: get all registered commands ----
+    on ListCommands(reply_to: P):
+        send reply_to.Reply(value = str(self.command_count))
+        return
+
+    // ---- GetCommands: get the full command list ----
+    on GetCommands(reply_to: P):
+        var cmds = self.commands
+        send reply_to.Reply(value = "ok")
+        return
+
+    // ---- GetExtensions: get the extension list ----
+    on GetExtensions(reply_to: P):
+        send reply_to.Reply(value = str(self.extension_count))
+        return
+
+// ============================================================================
+//  BUILT-IN HANDLER DISPATCH  (pure, stateless — called from actor handler)
+// ============================================================================
+
+fn dispatch_builtin_handler(name: String, args: String, current_model: String, entry_count: Int, session_file: String) -> String with Pure:
+    // Gather extension list for /extension
+    var empty_exts: [String] = []
+
+    if name == "help":
+        return "Available commands: /compact, /model, /session, /fork, /clear, /exit, /extension, /settings, /thinking, /reload, /tree, /clone, /export, /import" + NL + "Type /help <command> for details." + NL
+    elif name == "compact":
+        return handle_compact(args, "")
+    elif name == "model":
+        return handle_model(args, current_model)
+    elif name == "session":
+        return handle_session(args, entry_count, session_file)
+    elif name == "fork":
+        return handle_fork(args, entry_count)
+    elif name == "clear":
+        return handle_clear()
+    elif name == "exit" or name == "quit":
+        return handle_exit()
+    elif name == "extension":
+        return handle_extension(args, empty_exts)
+    elif name == "settings":
+        return handle_settings(args)
+    elif name == "thinking":
+        return handle_thinking(args)
+    elif name == "reload":
+        return handle_reload()
+    elif name == "tree":
+        return handle_tree(args)
+    elif name == "clone":
+        return handle_clone()
+    elif name == "export":
+        return handle_export(args)
+    elif name == "import":
+        return handle_import(args)
+    else:
+        return "Unknown command: " + name + NL

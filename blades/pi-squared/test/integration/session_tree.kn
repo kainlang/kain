@@ -1,0 +1,140 @@
+use std::text
+
+struct SessionNode:
+    id: Int
+    parent_id: Int
+    content: String
+    role: String
+    children: [Int]
+
+fn make_node(id: Int, parent_id: Int, content: String, role: String) -> SessionNode:
+    return SessionNode {
+        id: id,
+        parent_id: parent_id,
+        content: content,
+        role: role,
+        children: []
+    }
+
+fn append_child(root: [SessionNode], parent_id: Int, child_id: Int) -> [SessionNode]:
+    var result: [SessionNode] = []
+    var i: Int = 0
+    while i < len(root):
+        let node = root[i]
+        if node.id == parent_id:
+            let updated = SessionNode {
+                id: node.id,
+                parent_id: node.parent_id,
+                content: node.content,
+                role: node.role,
+                children: node.children + [child_id]
+            }
+            result = result + [updated]
+        else:
+            result = result + [node]
+        i = i + 1
+    return result
+
+fn get_context_path(tree: [SessionNode], node_id: Int) -> [SessionNode]:
+    var path: [SessionNode] = []
+    var current_id: Int = node_id
+    var found: Bool = true
+    while found and current_id != 0:
+        found = false
+        var i: Int = 0
+        while i < len(tree):
+            if tree[i].id == current_id:
+                path = path + [tree[i]]
+                current_id = tree[i].parent_id
+                found = true
+                break
+            i = i + 1
+    return path
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Build a simple tree
+    let tree = [
+        make_node(1, 0, "Hello", "user"),
+        make_node(2, 1, "Hi there!", "assistant"),
+        make_node(3, 2, "What is pi?", "user"),
+        make_node(4, 3, "Pi is 3.14159...", "assistant")
+    ]
+
+    // Test tree structure: node 2 has parent 1
+    if tree[1].parent_id != 1:
+        println("[FAIL] session_tree: parent-child relationship wrong")
+        failures = failures + 1
+    else:
+        println("[PASS] session_tree: parent-child relationship correct")
+
+    // Test append_child adds child_id to parent's children list
+    let updated = append_child(tree, 1, 2)
+    var found_child: Bool = false
+    var i: Int = 0
+    while i < len(updated):
+        if updated[i].id == 1:
+            var ci: Int = 0
+            while ci < len(updated[i].children):
+                if updated[i].children[ci] == 2:
+                    found_child = true
+                ci = ci + 1
+        i = i + 1
+    if found_child == false:
+        println("[FAIL] session_tree: append_child didn't add child")
+        failures = failures + 1
+    else:
+        println("[PASS] session_tree: append_child adds child correctly")
+
+    // Test get_context_path from leaf to root
+    let context = get_context_path(tree, 4)
+    if len(context) < 2:
+        println("[FAIL] session_tree: context path too short")
+        failures = failures + 1
+    else:
+        println("[PASS] session_tree: context path has " + str(len(context)) + " nodes")
+
+    // Test node content integrity
+    var found_hello: Bool = false
+    var found_pi: Bool = false
+    var j: Int = 0
+    while j < len(tree):
+        if tree[j].id == 1 and tree[j].content == "Hello":
+            found_hello = true
+        if tree[j].id == 3 and text_contains_string(tree[j].content, "pi"):
+            found_pi = true
+        j = j + 1
+    if found_hello == false or found_pi == false:
+        println("[FAIL] session_tree: node content integrity wrong")
+        failures = failures + 1
+    else:
+        println("[PASS] session_tree: node content integrity preserved")
+
+    // Test context path is ordered from leaf to root
+    if len(context) >= 2:
+        if context[0].content == "Pi is 3.14159..." and context[len(context)-1].id <= 2:
+            println("[PASS] session_tree: context path ordered leaf to root")
+        else:
+            println("[FAIL] session_tree: context path ordering wrong")
+            failures = failures + 1
+
+    // Test branching: two messages from same parent
+    let branch1 = append_child(tree, 2, 5)
+    let branch2 = append_child(branch1, 2, 6)
+    var bcount: Int = 0
+    var k: Int = 0
+    while k < len(branch2):
+        if branch2[k].id == 2:
+            bcount = len(branch2[k].children)
+        k = k + 1
+    if bcount < 2:
+        println("[FAIL] session_tree: branching should have 2+ children (got " + str(bcount) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] session_tree: branching has " + str(bcount) + " children")
+
+    println("=== SESSION TREE ===")
+    if failures == 0:
+        println("[PASS] All session tree tests passed")
+    return failures

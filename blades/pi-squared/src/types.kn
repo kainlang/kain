@@ -1,0 +1,342 @@
+// ============================================================================
+//  types.kn — Core data models for pi-squared
+//
+//  All structs, enums, and type aliases shared across the entire codebase.
+//  Pure type definitions — no fns with effects, no worlds, no actors.
+//
+//  Ladder: Layer 0 — plain code (struct, enum, fn). No world/actor needed.
+//
+//  This is the single source of truth for every data model that BRAVO,
+//  CHARLIE, and DELTA import. Every other file in the project uses
+//  `use types` to access these definitions.
+// ============================================================================
+
+// ---- Content blocks (what goes inside messages) ----
+
+pub enum ContentBlock:
+    TextBlock(String)
+    ThinkingBlock(String, Bool)
+    ToolCallBlock(String, String, String)   // arguments is JSON string
+    ImageBlock(String, String)
+
+// ---- Single message in the conversation ----
+
+pub struct AgentMessage:
+    role: String                           // "user" | "assistant" | "toolResult"
+    content: [ContentBlock]
+    timestamp: String                      // ISO 8601
+    // Assistant-only fields:
+    api: String                            // "" = not set
+    provider: String
+    model: String
+    usage: Usage
+    stop_reason: String                    // "stop" | "length" | "toolUse" | "error" | "aborted"
+    error_message: String
+    response_id: String
+    // ToolResult-only fields:
+    tool_call_id: String
+    tool_name: String
+    is_error: Bool
+    terminate: Bool
+
+// ---- Token usage ----
+
+pub struct Usage:
+    input: Int
+    output: Int
+    cache_read: Int
+    cache_write: Int
+    total: Int
+
+// ---- Session entry variants (JSONL line) ----
+
+pub enum SessionEntryKind:
+    Message
+    Compaction
+    BranchSummary
+    ModelChange
+    ThinkingLevelChange
+    Custom
+    SessionInfo
+    Label
+
+pub struct SessionEntry:
+    kind: SessionEntryKind
+    id: String                             // UUIDv7
+    parent_id: String                      // "" = root
+    timestamp: String                      // ISO 8601
+    // Message variant fields:
+    message: AgentMessage                  // valid when kind == Message
+    // Compaction variant fields:
+    summary: String
+    first_kept_entry_id: String
+    tokens_before: Int
+    // BranchSummary variant fields:
+    from_id: String
+    // ModelChange variant fields:
+    provider_name: String
+    model_id: String
+    // ThinkingLevelChange variant fields:
+    thinking_level: String
+    // SessionInfo variant fields:
+    name: String
+
+// ---- Settings (all optional for layered merge) ----
+
+pub struct Settings:
+    default_provider: String
+    default_model: String
+    default_thinking_level: String
+    transport: String
+    enabled_models: [String]
+    shell_path: String
+    shell_command_prefix: String
+    npm_command: String
+    compaction_enabled: Bool
+    compaction_reserve_tokens: Int
+    compaction_keep_recent_tokens: Int
+    branch_summary_enabled: Bool
+    max_retries: Int
+    max_retry_delay_ms: Int
+    session_dir: String
+    theme: String
+    terminal_rows: Int
+    terminal_cols: Int
+    quiet_startup: Bool
+    packages: [String]
+    extensions: [String]
+    skills: [String]
+    prompts: [String]
+    steering_mode: String
+    follow_up_mode: String
+    double_escape_action: String
+    default_project_trust: String
+
+// ---- LLM model descriptor ----
+
+pub enum Api:
+    AnthropicMessages
+    OpenAiCompletions
+    OpenAiResponses
+    GoogleGenerativeAi
+    MistralConversations
+    BedrockConverseStream
+    Faux
+
+pub enum Provider:
+    Anthropic
+    OpenAi
+    Google
+    Mistral
+    DeepSeek
+    GithubCopilot
+    AmazonBedrock
+    OpenCode
+    Faux
+
+pub struct Model:
+    id: String
+    name: String
+    api: Api
+    provider: Provider
+    base_url: String
+    reasoning: Bool
+    thinking_level_map: ThinkingLevelMap
+    input_modalities: [String]
+    context_window: Int
+    max_tokens: Int
+    headers: [HeaderEntry]
+    cost: ModelCost
+
+pub struct ModelCost:
+    input_per_mtok: Float
+    output_per_mtok: Float
+    cache_read_per_mtok: Float
+    cache_write_per_mtok: Float
+
+pub struct ThinkingLevelMap:
+    minimal: String
+    low: String
+    medium: String
+    high: String
+    xhigh: String
+
+pub struct HeaderEntry:
+    key: String
+    value: String
+
+// ---- Abort signal (cancellation token) ----
+
+pub struct AbortSignal:
+    aborted: Bool
+    reason: String
+
+impl AbortSignal:
+    pub fn abort(_self: Self_, reason: String) -> Bool:
+        _self.aborted = true
+        _self.reason = reason
+        return true
+
+    pub fn is_aborted(_self: Self_) -> Bool:
+        return _self.aborted
+
+// ---- Error handling ----
+
+pub struct ErrorResult:
+    code: String
+    message: String
+    details: String                      // JSON string
+    request_id: String
+    retry_after_ms: Int
+
+pub enum PiResult:
+    Ok(String)                           // JSON-encoded payload for generic carry
+    Err(ErrorResult)
+
+// ---- CLI config (parsed from argv) ----
+
+pub struct CliArgs:
+    model: String
+    provider: String
+    thinking: String
+    continue_session: Bool
+    resume_session: Bool
+    session_id: String
+    fork_id: String
+    no_session: Bool
+    print_mode: Bool
+    mode: String                         // "interactive" | "print" | "json" | "rpc"
+    no_tools: Bool
+    system_prompt_path: String
+    extension_paths: [String]
+    show_help: Bool
+    show_version: Bool
+    exit_code: Int
+    unknown_flags: [String]
+    positional: [String]
+
+// ---- Session context (result of GetContext) ----
+
+pub struct SessionContext:
+    messages: [AgentMessage]
+    thinking_level: String
+    model_provider: String
+    model_id: String
+    active_tools: [String]
+
+// ---- Tool result ----
+
+pub struct ToolResult:
+    content: [ContentBlock]
+    is_error: Bool
+    terminate: Bool
+    tool_call_id: String
+    tool_name: String
+    truncated: Bool
+    full_output_path: String
+
+// ---- LLM context (sent to providers) ----
+
+pub struct LlmContext:
+    messages: [AgentMessage]
+    system_prompt: String
+    tools_schema: String                 // JSON string
+    model: Model
+    options: StreamOptions
+
+pub struct StreamOptions:
+    temperature: Float
+    max_tokens: Int
+    thinking_level: String
+    api_key: String
+    signal: AbortSignal
+
+// ---- LLM event stream ----
+
+pub enum LlmEventKind:
+    Start
+    TextDelta
+    TextEnd
+    ThinkingDelta
+    ThinkingEnd
+    ToolCallDelta
+    ToolCallEnd
+    Done
+    Error
+
+pub struct LlmEvent:
+    kind: LlmEventKind
+    data: String                         // text for deltas, JSON for tool calls, error message
+    tool_call_id: String
+    tool_name: String
+
+// ---- Session tree node ----
+
+pub struct SessionTreeNode:
+    entry: SessionEntry
+    children: [SessionTreeNode]
+
+// ---- Compaction result ----
+
+pub struct CompactionResult:
+    summary: String
+    new_leaf_id: String
+    tokens_before: Int
+    tokens_after: Int
+
+// ---- Startup phases and results ----
+
+pub enum StartupPhase:
+    Init
+    CliParse
+    Migrations
+    SettingsLoad
+    SessionResolve
+    TrustResolve
+    ResourceLoad
+    ModelResolve
+    Ready
+
+// StartupResult variants use positional payloads:
+//   Error(StartupPhase, Int)         — phase, exit code
+//   Ready(String, String, String, Model, String)  — settings_actor, session_actor, resource_actor, model, system_prompt
+pub enum StartupResult:
+    Help
+    Version
+    Error(StartupPhase, Int)
+    Ready(String, String, String, Model, String)
+
+// ---- Default instances ----
+
+pub fn default_agent_message() -> AgentMessage:
+    return AgentMessage {
+        role: "", content: [], timestamp: "",
+        api: "", provider: "", model: "",
+        usage: Usage { input: 0, output: 0, cache_read: 0, cache_write: 0, total: 0 },
+        stop_reason: "", error_message: "", response_id: "",
+        tool_call_id: "", tool_name: "", is_error: false, terminate: false,
+    }
+
+pub fn default_settings() -> Settings:
+    return Settings {
+        default_provider: "", default_model: "", default_thinking_level: "",
+        transport: "", enabled_models: [],
+        shell_path: "", shell_command_prefix: "", npm_command: "",
+        compaction_enabled: true, compaction_reserve_tokens: 0, compaction_keep_recent_tokens: 0,
+        branch_summary_enabled: true, max_retries: 0, max_retry_delay_ms: 0,
+        session_dir: "", theme: "", terminal_rows: 0, terminal_cols: 0,
+        quiet_startup: false, packages: [], extensions: [], skills: [], prompts: [],
+        steering_mode: "", follow_up_mode: "", double_escape_action: "",
+        default_project_trust: "",
+    }
+
+pub fn default_cli_args() -> CliArgs:
+    return CliArgs {
+        model: "", provider: "", thinking: "",
+        continue_session: false, resume_session: false,
+        session_id: "", fork_id: "", no_session: false,
+        print_mode: false, mode: "interactive", no_tools: false,
+        system_prompt_path: "", extension_paths: [],
+        show_help: false, show_version: false,
+        exit_code: 0, unknown_flags: [], positional: [],
+    }

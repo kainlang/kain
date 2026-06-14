@@ -1,0 +1,159 @@
+// ============================================================================
+//  tui/interactive/tree_view.kn — Session tree browser (CHARLIE-5)
+//  Ladder: Layer 0 — plain struct with fn methods. Terminal text rendering.
+//
+//  Displays a indented tree browser for session entry hierarchies. Each entry
+//  can be expanded or collapsed to reveal or hide its children. The user
+//  navigates the flat rendered list with up/down and toggles expand/collapse.
+//
+//  The tree is stored as a flat array of entries with parallel expansion
+//  state and indent levels. Toggling an entry hides/shows its subtree.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+// ============================================================================
+//  TreeEntry struct — a single node in the tree
+// ============================================================================
+
+pub struct TreeEntry:
+    label: String
+    indent: Int
+    has_children: Bool
+
+// ============================================================================
+//  TreeView struct
+//    entries:   flat list of all tree nodes
+//    indent:    indent level per entry (parallel array)
+//    expanded:  expansion state per entry (parallel array)
+//    selected:  currently highlighted index in the flat list
+// ============================================================================
+
+pub struct TreeView:
+    entries: [String]
+    indent_levels: [Int]
+    expanded: [Bool]
+    has_children: [Bool]
+    selected: Int
+
+// ============================================================================
+//  Factory fn
+// ============================================================================
+
+pub fn new_tree_view(
+    entries: [String],
+    indent_levels: [Int],
+    has_children: [Bool],
+    selected: Int,
+) -> TreeView with Pure:
+    var exp: [Bool] = []
+    var ei: Int = 0
+    while ei < len(entries):
+        let is_folder = if ei < len(has_children): has_children[ei] else: false
+        push(exp, is_folder)  // folders start expanded
+        ei = ei + 1
+    return TreeView {
+        entries: entries,
+        indent_levels: indent_levels,
+        expanded: exp,
+        has_children: has_children,
+        selected: if selected < len(entries): selected else: 0,
+    }
+
+// ============================================================================
+//  TreeView methods
+// ============================================================================
+
+impl TreeView:
+    // ---- Toggle expand/collapse at index ----
+    pub fn toggle_expand(_self: Self_, idx: Int) -> Bool:
+        if idx >= 0 and idx < len(_self.entries):
+            if idx < len(_self.has_children) and _self.has_children[idx]:
+                _self.expanded[idx] = if _self.expanded[idx] == true: false else: true
+                return _self.expanded[idx]
+        return false
+
+    // ---- Select next visible entry (down) ----
+    pub fn select_next(_self: Self_) -> Int:
+        let count = len(_self.entries)
+        if count > 0:
+            _self.selected = (_self.selected + 1) % count
+        return _self.selected
+
+    // ---- Select previous visible entry (up) ----
+    pub fn select_prev(_self: Self_) -> Int:
+        let count = len(_self.entries)
+        if count > 0:
+            _self.selected = (_self.selected - 1 + count) % count
+        return _self.selected
+
+    // ---- Render the visible tree as text lines ----
+    pub fn render(_self: Self_) -> [String]:
+        var lines_out: [String] = []
+        let page_size: Int = 15
+        let count = len(_self.entries)
+
+        push(lines_out, "--- Session Tree ---")
+        push(lines_out, "")
+
+        var i: Int = 0
+        var rendered: Int = 0
+        while i < count and rendered < page_size:
+            let label = _self.entries[i]
+            let indent = if i < len(_self.indent_levels): _self.indent_levels[i] else: 0
+            let is_folder = if i < len(_self.has_children): _self.has_children[i] else: false
+            let is_expanded = if i < len(_self.expanded): _self.expanded[i] else: false
+            let is_selected = i == _self.selected
+
+            // Build indent string
+            var prefix = ""
+            var pi: Int = 0
+            while pi < indent:
+                prefix = prefix + "  "
+                pi = pi + 1
+
+            // Node marker
+            let node_char = if is_folder:
+                if is_expanded: "v" else: ">"
+            else:
+                "-"
+
+            let cursor = if is_selected: "*" else: " "
+            let entry_txt = cursor + prefix + node_char + " " + label
+            push(lines_out, entry_txt)
+            i = i + 1
+            rendered = rendered + 1
+
+        if count > page_size:
+            push(lines_out, "")
+            push(lines_out, "  ... " + str(count - page_size) + " more entries ...")
+
+        push(lines_out, "")
+        push(lines_out, "---")
+        return lines_out
+
+// ============================================================================
+//  Helper: build flat tree from a simple array of labels
+// ============================================================================
+
+pub fn make_flat_view(
+    labels: [String],
+    indents: [Int],
+    folders: [Bool],
+) -> TreeView with Pure:
+    return new_tree_view(labels, indents, folders, 0)
+
+// ============================================================================
+//  Helper: quick simple list (no nesting)
+// ============================================================================
+
+pub fn make_simple_list(items: [String]) -> TreeView with Pure:
+    var indents: [Int] = []
+    var folders: [Bool] = []
+    var i: Int = 0
+    while i < len(items):
+        push(indents, 0)
+        push(folders, false)
+        i = i + 1
+    return new_tree_view(items, indents, folders, 0)

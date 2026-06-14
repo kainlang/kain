@@ -1,0 +1,193 @@
+use std::text
+use std::process
+use std::os
+
+struct TestEntry:
+    name: String
+    file: String
+    category: String
+    description: String
+    requires_network: Bool
+    requires_faux: Bool
+    slow: Bool
+    target: String
+
+struct RunnerArgs:
+    filter: String
+    list_only: Bool
+    category: String
+    include_slow: Bool
+    offline: Bool
+
+pub const ALL_TESTS: [TestEntry] = [
+    // Unit tests (9)
+    TestEntry { name: "cli_parser", file: "unit/cli_parser.kn", category: "unit", description: "CLI argument parsing --help, --model, --provider, --thinking, --continue, --print, -p, --no-tools, --extension, -- separator, positionals", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "sse_parser", file: "unit/sse_parser.kn", category: "unit", description: "SSE event stream parsing data:/event: lines, \\n\\n boundaries, [DONE], consecutive data", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "config_merge", file: "unit/config_merge.kn", category: "unit", description: "Deep config merge defaults, project overrides, CLI wins", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "jsonl_serde", file: "unit/jsonl_serde.kn", category: "unit", description: "SessionEntry JSON serialization/deserialization roundtrip", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "key_parser", file: "unit/key_parser.kn", category: "unit", description: "Key sequence parsing ctrl+c, alt+tab, meta modifiers", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "path_utils", file: "unit/path_utils.kn", category: "unit", description: "Path join, ancestor walk, backslash normalization", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "token_estimator", file: "unit/token_estimator.kn", category: "unit", description: "ceil(len/4) token estimation for empty, short, long text", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "fuzzy_match", file: "unit/fuzzy_match.kn", category: "unit", description: "Substring fuzzy matching case insensitive, in-order, edge cases", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+    TestEntry { name: "visible_width", file: "unit/visible_width.kn", category: "unit", description: "Character width estimation ASCII=1, CJK=2, fullwidth, controls=0", requires_network: false, requires_faux: false, slow: false, target: "unit" },
+
+    // Integration tests (8)
+    TestEntry { name: "session_tree", file: "integration/session_tree.kn", category: "integration", description: "Session tree AppendEntry, Branch, GetContext, GetTree, children tracking", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "session_persist", file: "integration/session_persist.kn", category: "integration", description: "Session save/load JSONL roundtrip, id integrity, empty list", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "settings_manager", file: "integration/settings_manager.kn", category: "integration", description: "Settings layer merge defaults, project, CLI priority", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "tool_dispatch", file: "integration/tool_dispatch.kn", category: "integration", description: "Tool name lookup, dispatch execution, prefix matching", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "faux_provider", file: "integration/faux_provider.kn", category: "integration", description: "Faux provider echo response, multi-turn, streaming tokens", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "event_bus", file: "integration/event_bus.kn", category: "integration", description: "Event subscribe/emit/unsubscribe, multiple listeners, no cross-talk", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "resource_loader", file: "integration/resource_loader.kn", category: "integration", description: "Skill registration, load/unload, find, loaded count", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+    TestEntry { name: "compaction", file: "integration/compaction.kn", category: "integration", description: "Token estimation, should_compact watermark, message compaction", requires_network: false, requires_faux: false, slow: false, target: "integration" },
+
+    // E2E tests (4)
+    TestEntry { name: "basic_chat", file: "e2e/basic_chat.kn", category: "e2e", description: "End-to-end chat: send message, receive response, verify output", requires_network: true, requires_faux: true, slow: true, target: "e2e" },
+    TestEntry { name: "tool_use", file: "e2e/tool_use.kn", category: "e2e", description: "End-to-end tool use: request tool, execute, return result", requires_network: true, requires_faux: true, slow: true, target: "e2e" },
+    TestEntry { name: "session_restore", file: "e2e/session_restore.kn", category: "e2e", description: "End-to-end session persistence: save, reload, continue", requires_network: true, requires_faux: true, slow: true, target: "e2e" },
+    TestEntry { name: "error_handling", file: "e2e/error_handling.kn", category: "e2e", description: "End-to-end error handling: invalid input, provider error, recovery", requires_network: true, requires_faux: true, slow: true, target: "e2e" },
+
+    // Stress tests (4)
+    TestEntry { name: "concurrent_sessions", file: "stress/concurrent_sessions.kn", category: "stress", description: "Multiple simultaneous sessions with message interleaving", requires_network: false, requires_faux: true, slow: true, target: "stress" },
+    TestEntry { name: "high_throughput", file: "stress/high_throughput.kn", category: "stress", description: "Rapid message throughput with backpressure tracking", requires_network: false, requires_faux: true, slow: true, target: "stress" },
+    TestEntry { name: "memory_pressure", file: "stress/memory_pressure.kn", category: "stress", description: "Large session trees, deep history chains, memory limits", requires_network: false, requires_faux: true, slow: true, target: "stress" },
+    TestEntry { name: "long_running", file: "stress/long_running.kn", category: "stress", description: "Extended session with 1000+ messages and compaction cycles", requires_network: false, requires_faux: true, slow: true, target: "stress" }
+]
+
+fn index_of_str(s: String, needle: String) -> Int:
+    let s_len = len(s)
+    let n_len = len(needle)
+    if s_len < n_len:
+        return -1
+    if n_len == 0:
+        return 0
+    var i: Int = 0
+    while i <= s_len - n_len:
+        var found: Bool = true
+        var j: Int = 0
+        while j < n_len:
+            if text_substring_string(s, i + j, 1) != text_substring_string(needle, j, 1):
+                found = false
+                break
+            j = j + 1
+        if found:
+            return i
+        i = i + 1
+    return -1
+
+fn parse_runner_args() -> RunnerArgs:
+    let raw_args = process_args()
+    var result = RunnerArgs { filter: "", list_only: false, category: "", include_slow: false, offline: false }
+    var i: Int = 0
+    while i < len(raw_args):
+        let arg = raw_args[i]
+        if arg == "--list":
+            result.list_only = true
+        elif arg == "--slow":
+            result.include_slow = true
+        elif arg == "--offline":
+            result.offline = true
+        elif text_starts_with_string(arg, "--filter="):
+            result.filter = text_substring_string(arg, 9, len(arg) - 9)
+        elif arg == "--filter":
+            i = i + 1
+            if i < len(raw_args):
+                result.filter = raw_args[i]
+        elif text_starts_with_string(arg, "--category="):
+            result.category = text_substring_string(arg, 11, len(arg) - 11)
+        elif arg == "--category":
+            i = i + 1
+            if i < len(raw_args):
+                result.category = raw_args[i]
+        i = i + 1
+    return result
+
+fn filter_tests(all: [TestEntry], args: RunnerArgs) -> [TestEntry]:
+    var filtered: [TestEntry] = []
+    var i: Int = 0
+    while i < len(all):
+        let test = all[i]
+        // Category filter
+        if len(args.category) > 0 and test.category != args.category:
+            i = i + 1
+            continue
+        // Slow filter
+        if args.include_slow == false and test.slow:
+            i = i + 1
+            continue
+        // Offline filter: skip network tests
+        if args.offline and test.requires_network:
+            i = i + 1
+            continue
+        // Name/description filter (substring match)
+        if len(args.filter) > 0:
+            let name_match = index_of_str(text_lower(test.name), text_lower(args.filter)) >= 0
+            let desc_match = index_of_str(text_lower(test.description), text_lower(args.filter)) >= 0
+            if name_match == false and desc_match == false:
+                i = i + 1
+                continue
+        filtered = filtered + [test]
+        i = i + 1
+    return filtered
+
+fn list_tests(tests: [TestEntry]):
+    println("--- Tests (" + str(len(tests)) + ") ---")
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let slow_tag = if t.slow: " [SLOW]" else: ""
+        let net_tag = if t.requires_network: " [NET]" else: ""
+        println("  " + t.name + " (" + t.category + ")" + slow_tag + net_tag + ": " + t.description)
+        i = i + 1
+
+fn run_single_test(test: TestEntry) -> Int:
+    let file_path = "test/" + test.file
+    println("--- Running: " + test.name + " (" + file_path + ") ---")
+    let output = process_output_text("kain", "run", file_path, "", 60000)
+    let status = process_last_status()
+    println(output)
+    if status != 0:
+        println("[FAIL] " + test.name + " exited with code " + str(status))
+    else:
+        if text_contains_string(output, "[PASS]"):
+            println("[PASS] " + test.name + " passed")
+        else:
+            println("[WARN] " + test.name + " returned 0 but no [PASS] marker found")
+    return status
+
+pub fn main() -> Int:
+    let args = parse_runner_args()
+    let filtered = filter_tests(ALL_TESTS, args)
+
+    if args.list_only:
+        list_tests(filtered)
+        return 0
+
+    if len(filtered) == 0:
+        println("No tests match the given filters.")
+        return 0
+
+    println("=== PI-SQUARED TEST RUNNER ===")
+    println("Running " + str(len(filtered)) + " test(s)...")
+    println("")
+
+    var total_failures: Int = 0
+    var total_run: Int = 0
+    var i: Int = 0
+    while i < len(filtered):
+        let test = filtered[i]
+        let status = run_single_test(test)
+        if status != 0:
+            total_failures = total_failures + 1
+        total_run = total_run + 1
+        i = i + 1
+
+    println("")
+    println("=== RESULTS ===")
+    println("Passed: " + str(total_run - total_failures) + "/" + str(total_run))
+    if total_failures > 0:
+        println("Failed: " + str(total_failures))
+    else:
+        println("[PASS] All tests passed")
+
+    return total_failures

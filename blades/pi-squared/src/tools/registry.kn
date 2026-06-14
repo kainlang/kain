@@ -1,0 +1,169 @@
+// ============================================================================
+//  registry.kn — Tool registry world + converge dispatch (ALPHA-13)
+//  Ladder: Layer 3 (converge for dispatch), Layer 1 (world for state).
+//
+//  Maintains a registry of available tools and dispatches tool calls
+//  to the correct implementation via converge multi-lane routing.
+// ============================================================================
+
+use std::json
+use std::text       // text_chr
+use types    // ToolResult, AbortSignal, ContentBlock
+use tools::trait    // ToolInfo, ToolExecutionMode, ToolExecutionResult
+use tools::read     // pi_read
+use tools::write    // pi_write
+use tools::edit     // pi_edit
+use tools::bash     // pi_bash
+use tools::grep     // pi_grep
+use tools::find     // pi_find
+use tools::ls       // pi_ls
+use tools::utils    // utils_str_find
+
+// ---- Stub component for world surface projection ----
+component PiToolRegistryStub():
+    render <text value="pi-tools" />
+
+// ---- Tool registry: world-persisted tool definitions ----
+world ToolRegistry:
+    surface web => PiToolRegistryStub
+    state active_tool_names: String = "[]"   // JSON array of registered tool names
+
+// ---- Register a new tool ----
+patch register_tool(name: String, info: ToolInfo) -> Int:
+    let names = json_string_array_field(json_parse_text(ToolRegistry.active_tool_names))
+    var updated: JsonArray = json_array()
+    var ni: Int = 0
+    while ni < len(names):
+        updated = json_array_push_string(updated, names[ni])
+        ni = ni + 1
+    updated = json_array_push_string(updated, name)
+    ToolRegistry.active_tool_names = json_stringify(updated)
+    return 0
+
+// ---- Find tool info by name (v0.1: stub) ----
+pub fn find_tool_by_name(name: String) -> Option<ToolInfo>:
+    return none
+
+// ---- Converge: dispatch tool execution via multi-lane routing ----
+converge dispatch_tool(
+    tool_name: String,
+    tool_call_id: String,
+    params: String,
+    signal: AbortSignal
+) -> ToolResult:
+    spec reference:
+        let result = execute_tool_by_name(tool_name, tool_call_id, params, signal)
+        return result
+    fast cached_lane when capability("tool.result_cache"):
+        let result = execute_tool_by_name(tool_name, tool_call_id, params, signal)
+        return result
+
+// ---- Dispatch to the correct tool implementation by name ----
+fn execute_tool_by_name(
+    name: String,
+    tool_call_id: String,
+    params: String,
+    signal: AbortSignal
+) -> ToolResult:
+    if name == "read":
+        let parsed = json_parse_text(params)
+        let path = json_string_required(parsed, "path")
+        let offset = json_int_or(parsed, "offset", 0)
+        let limit = json_int_or(parsed, "limit", 0)
+        let blocks = pi_read(path, offset, limit)
+        return ToolResult {
+            content: blocks, is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "write":
+        let parsed = json_parse_text(params)
+        let path = json_string_required(parsed, "path")
+        let content = json_string_or(parsed, "content", "")
+        let msg = pi_write(path, content)
+        return ToolResult {
+            content: [ContentBlock::TextBlock(msg)], is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "edit":
+        let parsed = json_parse_text(params)
+        let path = json_string_required(parsed, "path")
+        let old_text = json_string_required(parsed, "old_text")
+        let new_text = json_string_or(parsed, "new_text", "")
+        let msg = pi_edit(path, old_text, new_text)
+        let is_err = utils_str_find(msg, "Error:", 0) != -1
+        return ToolResult {
+            content: [ContentBlock::TextBlock(msg)], is_error: is_err, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "bash":
+        let parsed = json_parse_text(params)
+        let command = json_string_required(parsed, "command")
+        let timeout = json_int_or(parsed, "timeout", 30000)
+        let output = pi_bash(command, timeout)
+        return ToolResult {
+            content: [ContentBlock::TextBlock(output)], is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "grep":
+        let parsed = json_parse_text(params)
+        let pattern = json_string_required(parsed, "pattern")
+        let path = json_string_or(parsed, "path", "")
+        let glob = json_string_or(parsed, "glob", "")
+        let context = json_int_or(parsed, "context", 0)
+        let ignore_case = json_bool_or(parsed, "ignore_case", false)
+        let fixed = json_bool_or(parsed, "fixed", false)
+        let output = pi_grep(pattern, path, glob, context, ignore_case, fixed)
+        return ToolResult {
+            content: [ContentBlock::TextBlock(output)], is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "find":
+        let parsed = json_parse_text(params)
+        let pattern = json_string_required(parsed, "pattern")
+        let path = json_string_or(parsed, "path", "")
+        let limit = json_int_or(parsed, "limit", 50)
+        let matches = pi_find(pattern, path, limit)
+        var output = ""
+        var pi_idx: Int = 0
+        while pi_idx < len(matches):
+            let NL = text_chr(10)
+            output = output + matches[pi_idx] + NL
+            pi_idx = pi_idx + 1
+        return ToolResult {
+            content: [ContentBlock::TextBlock(output)], is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    elif name == "ls":
+        let parsed = json_parse_text(params)
+        let path = json_string_or(parsed, "path", ".")
+        let limit = json_int_or(parsed, "limit", 100)
+        let entries = pi_ls(path, limit)
+        var output = ""
+        var ri: Int = 0
+        while ri < len(entries):
+            let entry = entries[ri]
+            output = output + entry.file_name
+            if entry.file_type == "dir":
+                output = output + " (dir)"
+            else:
+                output = output + " " + str(entry.metadata.len) + " B"
+            let NL2 = text_chr(10)
+            output = output + NL2
+        return ToolResult {
+            content: [ContentBlock::TextBlock(output)], is_error: false, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }
+    else:
+        return ToolResult {
+            content: [ContentBlock::TextBlock("Tool not found: " + name)],
+            is_error: true, terminate: false,
+            tool_call_id: tool_call_id, tool_name: name,
+            truncated: false, full_output_path: "",
+        }

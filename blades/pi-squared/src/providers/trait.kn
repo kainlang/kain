@@ -1,0 +1,77 @@
+// ============================================================================
+//  providers/trait.kn — LlmProvider trait definition
+//  Ladder: Layer 0 — trait + struct definitions
+//
+//  All trait methods must have default implementations in Kain.
+//  Individual provider implementations override these via impl blocks.
+// ============================================================================
+
+use types    // Model, LlmContext, LlmEvent, StreamOptions, AgentMessage, ContentBlock, Api
+
+// ---- LlmProvider trait that every LLM provider must implement ----
+pub trait LlmProvider:
+    fn stream(model: Model, context: LlmContext, options: StreamOptions) -> [LlmEvent] with IO, Unsafe:
+        return []
+
+    fn complete(model: Model, context: LlmContext, options: StreamOptions) -> AgentMessage with IO, Unsafe:
+        return default_agent_message()
+
+    fn api_key_name() -> String:
+        return ""
+
+    fn provider_name() -> String:
+        return ""
+
+// ---- Provider handle stored in registry ----
+pub struct LlmProviderHandle:
+    api: String
+    name: String
+    stream_fn: String
+    complete_fn: String
+
+// ---- Message conversion helpers ----
+pub fn convert_messages(api: Api, messages: [AgentMessage]) -> String with Pure:
+    if api == Api::AnthropicMessages:
+        return convert_to_anthropic(messages)
+    elif api == Api::OpenAiCompletions:
+        return convert_to_openai(messages)
+    elif api == Api::GoogleGenerativeAi:
+        return convert_to_google(messages)
+    elif api == Api::MistralConversations:
+        return convert_to_mistral(messages)
+    else:
+        return "[]"
+
+fn convert_to_anthropic(messages: [AgentMessage]) -> String with Pure:
+    // Anthropic Messages API: {role, content: [{type, text}]}
+    return "[]"   // stub
+
+fn convert_to_openai(messages: [AgentMessage]) -> String with Pure:
+    // OpenAI Chat: {role, content}
+    return "[]"   // stub
+
+fn convert_to_google(messages: [AgentMessage]) -> String with Pure:
+    // Google Gemini: {role, parts: [{text}]}
+    return "[]"   // stub
+
+fn convert_to_mistral(messages: [AgentMessage]) -> String with Pure:
+    return "[]"   // stub
+
+// ---- Accumulate events into final message ----
+pub fn accumulate_from_events(events: [LlmEvent]) -> AgentMessage with Pure:
+    var content: [ContentBlock] = []
+    for e in events:
+        if e.kind == LlmEventKind::TextDelta:
+            push(content, ContentBlock::TextBlock(e.data))
+        if e.kind == LlmEventKind::ThinkingDelta:
+            push(content, ContentBlock::ThinkingBlock(e.data, true))
+        if e.kind == LlmEventKind::ToolCallDelta:
+            push(content, ContentBlock::ToolCallBlock("", "", e.data))
+    var msg = default_agent_message()
+    msg.role = "assistant"
+    msg.content = content
+    msg.stop_reason = "stop"
+    return msg
+
+pub fn make_error_event(msg: String) -> LlmEvent with Pure:
+    return LlmEvent { kind: LlmEventKind::Error, data: msg, tool_call_id: "", tool_name: "" }

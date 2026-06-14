@@ -1,0 +1,407 @@
+// ============================================================================
+//  settings.kn — PiSettingsManager actor
+//
+//  Ladder: Layer 7 (actor) — concurrent state machine for layered config.
+//
+//  The settings manager implements a 4-layer merge:
+//    CLI overrides > Project settings > Global settings > ConfigDefaults
+//
+//  Message handlers:
+//    GetSetting        — retrieve a single key at a given scope
+//    SetSetting        — set a key at a given scope, persist to file
+//    GetEffectiveAll   — return fully merged settings as JSON string
+//    ApplyCliOverrides — store CLI flags as an override layer
+//    Reload            — re-read settings from disk
+// ============================================================================
+
+use std::fs
+use std::json
+use types          // Settings, CliArgs, default_settings
+use config::defaults   // ConfigDefaults, ConfigValidation
+
+// ============================================================================
+//  PiSettingsManager actor
+// ============================================================================
+
+actor PiSettingsManager:
+    state global_settings: Settings = default_settings()
+    state project_settings: Settings = default_settings()
+    state cli_overrides: CliArgs = default_cli_args()
+    state global_path: String = ""
+    state project_path: String = ""
+
+    on GetSetting(reply_to: P, key: String, scope: String):
+        if scope == "global":
+            let value = get_setting_value(self.global_settings, key)
+            send reply_to.Reply(value = value)
+            return
+        elif scope == "project":
+            let value = get_setting_value(self.project_settings, key)
+            send reply_to.Reply(value = value)
+            return
+        else:
+            let effective = get_effective(self, key)
+            send reply_to.Reply(value = effective)
+            return
+
+    on SetSetting(reply_to: P, key: String, value: String, scope: String):
+        if scope == "global":
+            self.global_settings = set_setting_field(self.global_settings, key, value)
+            if self.global_path != "":
+                persist_settings(self.global_path, self.global_settings)
+            send reply_to.Reply(value = "ok")
+            return
+        elif scope == "project":
+            self.project_settings = set_setting_field(self.project_settings, key, value)
+            if self.project_path != "":
+                persist_settings(self.project_path, self.project_settings)
+            send reply_to.Reply(value = "ok")
+            return
+        send reply_to.Reply(value = "error: invalid scope")
+        return
+
+    on GetEffectiveAll(reply_to: P):
+        let merged = merge_settings(self.global_settings, self.project_settings, self.cli_overrides)
+        let serialized = serialize_settings_to_json(merged)
+        send reply_to.Reply(value = serialized)
+        return
+
+    on ApplyCliOverrides(reply_to: P, overrides: CliArgs):
+        self.cli_overrides = overrides
+        send reply_to.Reply(value = "ok")
+        return
+
+    on Reload(reply_to: P):
+        if self.global_path != "":
+            self.global_settings = load_settings_file(self.global_path)
+        if self.project_path != "":
+            self.project_settings = load_settings_file(self.project_path)
+        send reply_to.Reply(value = "ok")
+        return
+
+// ============================================================================
+//  get_effective — resolve a single key across all 4 layers
+// ============================================================================
+
+fn get_effective(self: PiSettingsManager, key: String) -> String:
+    let cli_value = cli_arg_to_string(self.cli_overrides, key)
+    if cli_value != "":
+        return cli_value
+    let project_value = get_setting_value(self.project_settings, key)
+    if project_value != "":
+        return project_value
+    let global_value = get_setting_value(self.global_settings, key)
+    if global_value != "":
+        return global_value
+    return world_default_to_string(key)
+
+// ============================================================================
+//  merge_settings — deep merge all 4 layers into a single Settings
+// ============================================================================
+
+fn merge_settings(global: Settings, project: Settings, cli: CliArgs) -> Settings:
+    var result = default_settings()
+    result.default_provider = pick_str(cli.provider, project.default_provider, global.default_provider, CONFIG_DEFAULTS.default_provider)
+    result.default_model = pick_str(cli.model, project.default_model, global.default_model, CONFIG_DEFAULTS.default_model)
+    result.default_thinking_level = pick_str(cli.thinking, project.default_thinking_level, global.default_thinking_level, CONFIG_DEFAULTS.default_thinking_level)
+    result.transport = pick_str("", project.transport, global.transport, "")
+    result.shell_path = pick_str("", project.shell_path, global.shell_path, "")
+    result.shell_command_prefix = pick_str("", project.shell_command_prefix, global.shell_command_prefix, "")
+    result.npm_command = pick_str("", project.npm_command, global.npm_command, "")
+    result.session_dir = pick_str("", project.session_dir, global.session_dir, "")
+    result.theme = pick_str("", project.theme, global.theme, CONFIG_DEFAULTS.theme)
+    result.steering_mode = pick_str("", project.steering_mode, global.steering_mode, CONFIG_DEFAULTS.steering_mode)
+    result.follow_up_mode = pick_str("", project.follow_up_mode, global.follow_up_mode, CONFIG_DEFAULTS.follow_up_mode)
+    result.double_escape_action = pick_str("", project.double_escape_action, global.double_escape_action, "")
+    result.default_project_trust = pick_str("", project.default_project_trust, global.default_project_trust, "")
+    if cli.no_session:
+        result.quiet_startup = true
+    else:
+        result.quiet_startup = pick_bool(false, project.quiet_startup, global.quiet_startup, false)
+    result.compaction_enabled = pick_bool(false, project.compaction_enabled, global.compaction_enabled, CONFIG_DEFAULTS.compaction_enabled)
+    result.branch_summary_enabled = pick_bool(false, project.branch_summary_enabled, global.branch_summary_enabled, true)
+    result.compaction_reserve_tokens = pick_int(0, project.compaction_reserve_tokens, global.compaction_reserve_tokens, CONFIG_DEFAULTS.compaction_reserve_tokens)
+    result.compaction_keep_recent_tokens = pick_int(0, project.compaction_keep_recent_tokens, global.compaction_keep_recent_tokens, CONFIG_DEFAULTS.compaction_keep_recent_tokens)
+    result.max_retries = pick_int(0, project.max_retries, global.max_retries, CONFIG_DEFAULTS.max_retries)
+    result.max_retry_delay_ms = pick_int(0, project.max_retry_delay_ms, global.max_retry_delay_ms, CONFIG_DEFAULTS.max_retry_delay_ms)
+    result.terminal_rows = pick_int(0, project.terminal_rows, global.terminal_rows, 0)
+    result.terminal_cols = pick_int(0, project.terminal_cols, global.terminal_cols, 0)
+    result.enabled_models = pick_str_array([], project.enabled_models, global.enabled_models, [])
+    result.packages = pick_str_array([], project.packages, global.packages, [])
+    result.extensions = pick_str_array(cli.extension_paths, project.extensions, global.extensions, [])
+    result.skills = pick_str_array([], project.skills, global.skills, [])
+    result.prompts = pick_str_array([], project.prompts, global.prompts, [])
+    return result
+
+// ============================================================================
+//  load_settings_file — read + parse JSON settings file
+// ============================================================================
+
+fn load_settings_file(path: String) -> Settings:
+    if fs_exists(path) == false:
+        return default_settings()
+    let raw = fs_read_text(path)
+    if len(raw) == 0:
+        return default_settings()
+    let obj = json_parse_text(raw)
+    var s = default_settings()
+    s.default_provider = json_string_or(obj, "default_provider", CONFIG_DEFAULTS.default_provider)
+    s.default_model = json_string_or(obj, "default_model", CONFIG_DEFAULTS.default_model)
+    s.default_thinking_level = json_string_or(obj, "default_thinking_level", CONFIG_DEFAULTS.default_thinking_level)
+    s.transport = json_string_or(obj, "transport", "")
+    s.enabled_models = json_string_array_field(obj, "enabled_models")
+    s.shell_path = json_string_or(obj, "shell_path", "")
+    s.shell_command_prefix = json_string_or(obj, "shell_command_prefix", "")
+    s.npm_command = json_string_or(obj, "npm_command", "")
+    s.compaction_enabled = json_bool_or(obj, "compaction_enabled", CONFIG_DEFAULTS.compaction_enabled)
+    s.compaction_reserve_tokens = json_int_or(obj, "compaction_reserve_tokens", CONFIG_DEFAULTS.compaction_reserve_tokens)
+    s.compaction_keep_recent_tokens = json_int_or(obj, "compaction_keep_recent_tokens", CONFIG_DEFAULTS.compaction_keep_recent_tokens)
+    s.branch_summary_enabled = json_bool_or(obj, "branch_summary_enabled", true)
+    s.max_retries = json_int_or(obj, "max_retries", CONFIG_DEFAULTS.max_retries)
+    s.max_retry_delay_ms = json_int_or(obj, "max_retry_delay_ms", CONFIG_DEFAULTS.max_retry_delay_ms)
+    s.session_dir = json_string_or(obj, "session_dir", "")
+    s.theme = json_string_or(obj, "theme", CONFIG_DEFAULTS.theme)
+    s.terminal_rows = json_int_or(obj, "terminal_rows", 0)
+    s.terminal_cols = json_int_or(obj, "terminal_cols", 0)
+    s.quiet_startup = json_bool_or(obj, "quiet_startup", false)
+    s.packages = json_string_array_field(obj, "packages")
+    s.extensions = json_string_array_field(obj, "extensions")
+    s.skills = json_string_array_field(obj, "skills")
+    s.prompts = json_string_array_field(obj, "prompts")
+    s.steering_mode = json_string_or(obj, "steering_mode", CONFIG_DEFAULTS.steering_mode)
+    s.follow_up_mode = json_string_or(obj, "follow_up_mode", CONFIG_DEFAULTS.follow_up_mode)
+    s.double_escape_action = json_string_or(obj, "double_escape_action", "")
+    s.default_project_trust = json_string_or(obj, "default_project_trust", "ask")
+    return s
+
+// ============================================================================
+//  persist_settings — serialize Settings to JSON and write to file
+// ============================================================================
+
+fn persist_settings(path: String, settings: Settings):
+    let serialized = serialize_settings_to_json(settings)
+    fs_write_text(path, serialized)
+
+// ============================================================================
+//  serialize_settings_to_json — convert Settings struct to JSON string
+// ============================================================================
+
+fn serialize_settings_to_json(settings: Settings) -> String:
+    let obj = json_object()
+    obj = json_object_set_string(obj, "default_provider", settings.default_provider)
+    obj = json_object_set_string(obj, "default_model", settings.default_model)
+    obj = json_object_set_string(obj, "default_thinking_level", settings.default_thinking_level)
+    obj = json_object_set_string(obj, "transport", settings.transport)
+    obj = json_object_set_string_array(obj, "enabled_models", settings.enabled_models)
+    obj = json_object_set_string(obj, "shell_path", settings.shell_path)
+    obj = json_object_set_string(obj, "shell_command_prefix", settings.shell_command_prefix)
+    obj = json_object_set_string(obj, "npm_command", settings.npm_command)
+    obj = json_object_set_bool(obj, "compaction_enabled", settings.compaction_enabled)
+    obj = json_object_set_int(obj, "compaction_reserve_tokens", settings.compaction_reserve_tokens)
+    obj = json_object_set_int(obj, "compaction_keep_recent_tokens", settings.compaction_keep_recent_tokens)
+    obj = json_object_set_bool(obj, "branch_summary_enabled", settings.branch_summary_enabled)
+    obj = json_object_set_int(obj, "max_retries", settings.max_retries)
+    obj = json_object_set_int(obj, "max_retry_delay_ms", settings.max_retry_delay_ms)
+    obj = json_object_set_string(obj, "session_dir", settings.session_dir)
+    obj = json_object_set_string(obj, "theme", settings.theme)
+    obj = json_object_set_int(obj, "terminal_rows", settings.terminal_rows)
+    obj = json_object_set_int(obj, "terminal_cols", settings.terminal_cols)
+    obj = json_object_set_bool(obj, "quiet_startup", settings.quiet_startup)
+    obj = json_object_set_string_array(obj, "packages", settings.packages)
+    obj = json_object_set_string_array(obj, "extensions", settings.extensions)
+    obj = json_object_set_string_array(obj, "skills", settings.skills)
+    obj = json_object_set_string_array(obj, "prompts", settings.prompts)
+    obj = json_object_set_string(obj, "steering_mode", settings.steering_mode)
+    obj = json_object_set_string(obj, "follow_up_mode", settings.follow_up_mode)
+    obj = json_object_set_string(obj, "double_escape_action", settings.double_escape_action)
+    obj = json_object_set_string(obj, "default_project_trust", settings.default_project_trust)
+    return json_stringify(obj)
+
+// ============================================================================
+//  get_setting_value — field lookup by name, returns as String
+// ============================================================================
+
+fn get_setting_value(settings: Settings, key: String) -> String:
+    if key == "default_provider":
+        return settings.default_provider
+    elif key == "default_model":
+        return settings.default_model
+    elif key == "default_thinking_level":
+        return settings.default_thinking_level
+    elif key == "transport":
+        return settings.transport
+    elif key == "shell_path":
+        return settings.shell_path
+    elif key == "shell_command_prefix":
+        return settings.shell_command_prefix
+    elif key == "npm_command":
+        return settings.npm_command
+    elif key == "session_dir":
+        return settings.session_dir
+    elif key == "theme":
+        return settings.theme
+    elif key == "steering_mode":
+        return settings.steering_mode
+    elif key == "follow_up_mode":
+        return settings.follow_up_mode
+    elif key == "double_escape_action":
+        return settings.double_escape_action
+    elif key == "default_project_trust":
+        return settings.default_project_trust
+    elif key == "compaction_enabled":
+        return str(settings.compaction_enabled)
+    elif key == "compaction_reserve_tokens":
+        return str(settings.compaction_reserve_tokens)
+    elif key == "compaction_keep_recent_tokens":
+        return str(settings.compaction_keep_recent_tokens)
+    elif key == "branch_summary_enabled":
+        return str(settings.branch_summary_enabled)
+    elif key == "max_retries":
+        return str(settings.max_retries)
+    elif key == "max_retry_delay_ms":
+        return str(settings.max_retry_delay_ms)
+    elif key == "terminal_rows":
+        return str(settings.terminal_rows)
+    elif key == "terminal_cols":
+        return str(settings.terminal_cols)
+    elif key == "quiet_startup":
+        return str(settings.quiet_startup)
+    return ""
+
+// ============================================================================
+//  set_setting_field — field update by name, returns new Settings
+// ============================================================================
+
+fn set_setting_field(settings: Settings, key: String, value: String) -> Settings:
+    var result = settings
+    if key == "default_provider":
+        result.default_provider = value
+    elif key == "default_model":
+        result.default_model = value
+    elif key == "default_thinking_level":
+        result.default_thinking_level = value
+    elif key == "transport":
+        result.transport = value
+    elif key == "shell_path":
+        result.shell_path = value
+    elif key == "shell_command_prefix":
+        result.shell_command_prefix = value
+    elif key == "npm_command":
+        result.npm_command = value
+    elif key == "session_dir":
+        result.session_dir = value
+    elif key == "theme":
+        result.theme = value
+    elif key == "steering_mode":
+        result.steering_mode = value
+    elif key == "follow_up_mode":
+        result.follow_up_mode = value
+    elif key == "double_escape_action":
+        result.double_escape_action = value
+    elif key == "default_project_trust":
+        result.default_project_trust = value
+    elif key == "compaction_enabled":
+        result.compaction_enabled = value == "true"
+    elif key == "compaction_reserve_tokens":
+        result.compaction_reserve_tokens = int(value)
+    elif key == "compaction_keep_recent_tokens":
+        result.compaction_keep_recent_tokens = int(value)
+    elif key == "branch_summary_enabled":
+        result.branch_summary_enabled = value == "true"
+    elif key == "max_retries":
+        result.max_retries = int(value)
+    elif key == "max_retry_delay_ms":
+        result.max_retry_delay_ms = int(value)
+    elif key == "terminal_rows":
+        result.terminal_rows = int(value)
+    elif key == "terminal_cols":
+        result.terminal_cols = int(value)
+    elif key == "quiet_startup":
+        result.quiet_startup = value == "true"
+    return result
+
+// ============================================================================
+//  cli_arg_to_string — extract a settings-relevant CLI arg as string
+// ============================================================================
+
+fn cli_arg_to_string(cli: CliArgs, key: String) -> String:
+    if key == "default_model" or key == "model":
+        return cli.model
+    elif key == "default_provider" or key == "provider":
+        return cli.provider
+    elif key == "default_thinking_level" or key == "thinking":
+        return cli.thinking
+    elif key == "mode":
+        return cli.mode
+    elif key == "quiet_startup" or key == "no_session":
+        return str(cli.no_session)
+    return ""
+
+// ============================================================================
+//  world_default_to_string — read a ConfigDefaults field as string
+// ============================================================================
+
+fn world_default_to_string(key: String) -> String:
+    if key == "default_model":
+        return CONFIG_DEFAULTS.default_model
+    elif key == "default_provider":
+        return CONFIG_DEFAULTS.default_provider
+    elif key == "default_thinking_level":
+        return CONFIG_DEFAULTS.default_thinking_level
+    elif key == "compaction_enabled":
+        return str(CONFIG_DEFAULTS.compaction_enabled)
+    elif key == "compaction_reserve_tokens":
+        return str(CONFIG_DEFAULTS.compaction_reserve_tokens)
+    elif key == "compaction_keep_recent_tokens":
+        return str(CONFIG_DEFAULTS.compaction_keep_recent_tokens)
+    elif key == "max_retries":
+        return str(CONFIG_DEFAULTS.max_retries)
+    elif key == "max_retry_delay_ms":
+        return str(CONFIG_DEFAULTS.max_retry_delay_ms)
+    elif key == "theme":
+        return CONFIG_DEFAULTS.theme
+    elif key == "steering_mode":
+        return CONFIG_DEFAULTS.steering_mode
+    elif key == "follow_up_mode":
+        return CONFIG_DEFAULTS.follow_up_mode
+    return ""
+
+// ============================================================================
+//  Merge helper functions
+// ============================================================================
+
+fn pick_str(cli: String, project: String, global_val: String, default_val: String) -> String:
+    if cli != "":
+        return cli
+    if project != "":
+        return project
+    if global_val != "":
+        return global_val
+    return default_val
+
+fn pick_bool(cli: Bool, project: Bool, global_val: Bool, default_val: Bool) -> Bool:
+    if cli:
+        return true
+    if project:
+        return true
+    if global_val:
+        return true
+    return default_val
+
+fn pick_int(cli: Int, project: Int, global_val: Int, default_val: Int) -> Int:
+    if cli != 0:
+        return cli
+    if project != 0:
+        return project
+    if global_val != 0:
+        return global_val
+    return default_val
+
+fn pick_str_array(cli: [String], project: [String], global_val: [String], default_val: [String]) -> [String]:
+    if len(cli) > 0:
+        return cli
+    if len(project) > 0:
+        return project
+    if len(global_val) > 0:
+        return global_val
+    return default_val

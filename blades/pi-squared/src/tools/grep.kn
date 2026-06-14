@@ -1,0 +1,63 @@
+// ============================================================================
+//  grep.kn — Code search tool (ALPHA-14)
+//  Ladder: Layer 0 — plain fn for subprocess execution.
+//
+//  Uses ripgrep (rg) to search file contents with pattern matching.
+//  Supports path filtering, glob patterns, context lines, and case
+//  sensitivity control.
+// ============================================================================
+
+use std::process
+use std::fs
+use std::text
+
+// ---- Search file contents with ripgrep ----
+pub fn pi_grep(
+    pattern: String,
+    path: String,
+    glob: String,
+    context: Int,
+    ignore_case: Bool,
+    fixed: Bool,
+) -> String:
+    var cmd = "rg --no-heading --color never"
+    if context > 0:
+        cmd = cmd + " -C " + str(context)
+    if ignore_case:
+        cmd = cmd + " -i"
+    if fixed:
+        cmd = cmd + " -F"
+    else:
+        cmd = cmd + " -e"
+    if len(glob) > 0:
+        cmd = cmd + " -g " + glob
+    cmd = cmd + " " + grep_escape_arg(pattern)
+    if len(path) > 0:
+        cmd = cmd + " " + grep_escape_arg(path)
+    let output = process_output_text("cmd.exe", "/c", cmd, "", 15000)
+    let status = process_last_status()
+    if status == 0 or status == 1:
+        if len(output) > 102400:
+            let NL = text_chr(10)
+            return grep_str_limit(output, 102400) + NL + "... [output truncated at 100KB]"
+        return output
+    let NL = text_chr(10)
+    return "rg exited with code " + str(status) + NL + output
+
+// ---- Escape argument for shell (surround with quotes) ----
+fn grep_escape_arg(arg: String) -> String with Pure:
+    let DQ = text_chr(34)
+    return DQ + arg + DQ
+
+// ---- Limit string to N characters ----
+fn grep_str_limit(text: String, n: Int) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    var gi: Int = 0
+    while gi < len(text):
+        let ch = text_substring_string(text, gi, 1)
+        if i >= n:
+            break
+        result = result + ch
+        i = i + 1
+    return result

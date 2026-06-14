@@ -1,0 +1,119 @@
+// ============================================================================
+//  tui/interactive/tool_exec.kn — Tool execution display (CHARLIE-2)
+//  Ladder: Layer 0 — plain struct with fn methods. Terminal text rendering.
+//
+//  Displays a single tool execution: name, arguments, output, and status.
+//  The component renders a colored header bar, an expandable args section,
+//  and an expandable output section.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+// ============================================================================
+//  Status constants for tool execution
+// ============================================================================
+
+pub const STATUS_PENDING:   String = "pending"
+pub const STATUS_RUNNING:   String = "running"
+pub const STATUS_SUCCESS:   String = "success"
+pub const STATUS_FAILURE:   String = "failure"
+pub const STATUS_TIMEOUT:   String = "timeout"
+pub const STATUS_CANCELLED: String = "cancelled"
+
+// ============================================================================
+//  ToolExecution struct
+//    name:     tool name (e.g. "read", "bash", "edit")
+//    args:     JSON string of tool arguments
+//    output:   tool output text (may be truncated)
+//    status:   one of the STATUS_* constants above
+//    expanded: whether the detail view is shown
+// ============================================================================
+
+pub struct ToolExecution:
+    name: String
+    args: String
+    output: String
+    status: String
+    expanded: Bool
+
+// ============================================================================
+//  Factory fn
+// ============================================================================
+
+pub fn new_tool_execution(name: String, args: String, output: String, status: String) -> ToolExecution with Pure:
+    return ToolExecution {
+        name: name,
+        args: args,
+        output: output,
+        status: status,
+        expanded: false,
+    }
+
+// ============================================================================
+//  ToolExecution methods
+// ============================================================================
+
+impl ToolExecution:
+    // ---- Toggle expanded detail ----
+    pub fn toggle(_self: Self_) -> Bool:
+        _self.expanded = if _self.expanded == true: false else: true
+        return _self.expanded
+
+    // ---- Status icon: returns a single-character indicator ----
+    pub fn status_icon(_self: Self_) -> String with Pure:
+        if _self.status == STATUS_PENDING:
+            return "o"
+        elif _self.status == STATUS_RUNNING:
+            return "~"
+        elif _self.status == STATUS_SUCCESS:
+            return "."
+        elif _self.status == STATUS_FAILURE:
+            return "X"
+        elif _self.status == STATUS_TIMEOUT:
+            return "T"
+        elif _self.status == STATUS_CANCELLED:
+            return "-"
+        else:
+            return "?"
+
+    // ---- Render the tool execution as text lines ----
+    pub fn render(_self: Self_) -> [String]:
+        var lines_out: [String] = []
+        let icon = _self.status_icon()
+
+        // Header line: icon + name + status
+        let header = "  [" + icon + "] " + _self.name + "  [" + _self.status + "]"
+        push(lines_out, header)
+
+        if _self.expanded:
+            // Arguments section
+            push(lines_out, "    Args:")
+            push(lines_out, "      " + _self.args)
+
+            // Output section
+            if _self.output != "":
+                push(lines_out, "    Output:")
+                push(lines_out, "      " + _self.output)
+            else:
+                push(lines_out, "    Output: (none)")
+
+            push(lines_out, "    -- end " + _self.name + " --")
+
+        return lines_out
+
+// ============================================================================
+//  Helpers
+// ============================================================================
+
+// ---- Create a success ToolExecution from raw output ----
+pub fn success_result(name: String, args: String, output: String) -> ToolExecution with Pure:
+    return new_tool_execution(name, args, output, STATUS_SUCCESS)
+
+// ---- Create a failed ToolExecution from an error message ----
+pub fn failure_result(name: String, args: String, error: String) -> ToolExecution with Pure:
+    return new_tool_execution(name, args, "Error: " + error, STATUS_FAILURE)
+
+// ---- Create a pending ToolExecution ----
+pub fn pending_execution(name: String, args: String) -> ToolExecution with Pure:
+    return new_tool_execution(name, args, "", STATUS_PENDING)

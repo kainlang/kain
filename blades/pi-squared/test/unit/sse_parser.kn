@@ -1,0 +1,113 @@
+use std::text
+
+struct SSEMessage:
+    event: String
+    data: String
+
+fn parse_sse(input: String) -> [SSEMessage]:
+    var messages: [SSEMessage] = []
+    let blocks = text_split_string(input, "\n\n")
+    var bi: Int = 0
+    while bi < len(blocks):
+        let block = blocks[bi]
+        let trimmed = text_trim_string(block)
+        if len(trimmed) == 0:
+            bi = bi + 1
+            continue
+        if trimmed == "[DONE]":
+            bi = bi + 1
+            continue
+        var current_event: String = ""
+        var current_data: String = ""
+        let lines = text_split_lines(trimmed)
+        var li: Int = 0
+        while li < len(lines):
+            let line = lines[li]
+            if text_starts_with_string(line, "event: "):
+                current_event = text_substring_string(line, 7, len(line) - 7)
+            elif text_starts_with_string(line, "data: "):
+                if len(current_data) > 0:
+                    current_data = current_data + "\n"
+                current_data = current_data + text_substring_string(line, 6, len(line) - 6)
+            elif text_starts_with_string(line, "data:"):
+                if len(current_data) > 0:
+                    current_data = current_data + "\n"
+                current_data = current_data + text_substring_string(line, 5, len(line) - 5)
+            li = li + 1
+        messages = messages + [SSEMessage { event: current_event, data: current_data }]
+        bi = bi + 1
+    return messages
+
+pub fn main() -> Int:
+    var failures: Int = 0
+
+    // Test basic data-only message
+    let input1 = "data: hello world\n\n"
+    let msgs1 = parse_sse(input1)
+    if len(msgs1) != 1 or msgs1[0].data != "hello world":
+        println("[FAIL] sse_parser: basic data message not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: basic data message parsed")
+
+    // Test event + data
+    let input2 = "event: message\ndata: {\"key\":\"value\"}\n\n"
+    let msgs2 = parse_sse(input2)
+    if len(msgs2) != 1 or msgs2[0].event != "message" or text_contains_string(msgs2[0].data, "value") == false:
+        println("[FAIL] sse_parser: event+data message not parsed")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: event+data message parsed")
+
+    // Test [DONE] marker
+    let input3 = "data: progress\n\n[DONE]\n\n"
+    let msgs3 = parse_sse(input3)
+    if len(msgs3) != 1 or msgs3[0].data != "progress":
+        println("[FAIL] sse_parser: [DONE] not skipped correctly")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: [DONE] skipped correctly")
+
+    // Test consecutive data lines (multi-line data)
+    let input4 = "data: line1\ndata: line2\n\n"
+    let msgs4 = parse_sse(input4)
+    if len(msgs4) != 1:
+        println("[FAIL] sse_parser: consecutive data lines count wrong")
+        failures = failures + 1
+    elif text_contains_string(msgs4[0].data, "line1") == false or text_contains_string(msgs4[0].data, "line2") == false:
+        println("[FAIL] sse_parser: consecutive data lines content wrong")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: consecutive data lines merged")
+
+    // Test multiple events
+    let input5 = "data: first\n\ndata: second\n\n"
+    let msgs5 = parse_sse(input5)
+    if len(msgs5) != 2:
+        println("[FAIL] sse_parser: multiple events count wrong (got " + str(len(msgs5)) + ")")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: multiple events parsed correctly")
+
+    // Test empty input
+    let input6 = ""
+    let msgs6 = parse_sse(input6)
+    if len(msgs6) != 0:
+        println("[FAIL] sse_parser: empty input should return no messages")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: empty input returns no messages")
+
+    // Test partial event (no trailing newline)
+    let input7 = "data: partial"
+    let msgs7 = parse_sse(input7)
+    if len(msgs7) != 1 or msgs7[0].data != "partial":
+        println("[FAIL] sse_parser: partial event without trailing newline")
+        failures = failures + 1
+    else:
+        println("[PASS] sse_parser: partial event parsed")
+
+    println("=== SSE PARSER ===")
+    if failures == 0:
+        println("[PASS] All SSE parser tests passed")
+    return failures

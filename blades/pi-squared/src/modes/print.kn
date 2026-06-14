@@ -1,0 +1,144 @@
+// ============================================================================
+//  modes/print.kn — Single-shot print mode (CHARLIE-7)
+//
+//  Ladder: Layer 0 — sequential fn pipeline. No world, actor, or pulse
+//  needed. One-shot prompt-to-stdout with no interactive loop or state.
+//
+//  Takes a prompt, model, and optional system prompt, runs a single LLM
+//  turn through the pipeline, prints the response to stdout, and exits.
+//
+//  In v0.1 this is a stub that echoes the input. Future versions will
+//  thread through the full LLM provider pipeline (providers::*), session
+//  persistence (session::*), and tool execution (tools::registry).
+//
+//  Called from main.kn's enter_mode() dispatcher when flags.print_mode
+//  is true, or when --mode print is passed.
+//
+//  Exit codes:
+//    0   Success
+//    2   Error (missing prompt or pipeline failure)
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+use std::runtime
+use std::process
+use std::text          // text_chr
+use types       // CliArgs, Model, Settings, AgentMessage, default_agent_message
+
+// ============================================================================
+//  Entry point for print mode
+//
+//  Flow:
+//    1. Reconstruct prompt from CLI positional args
+//    2. (Future) Run through LLM provider pipeline
+//    3. Print response to stdout
+//    4. Return exit code
+// ============================================================================
+
+pub fn run_print_mode(
+    settings_ref: String,
+    session_ref: String,
+    resources_ref: String,
+    model: Model,
+    system_prompt: String,
+    flags: CliArgs,
+) -> Int with IO:
+    // ---- Step 1: Reconstruct prompt from positional args ----
+    var prompt = assemble_prompt(flags.positional)
+    if prompt == "":
+        println("pi-squared: print mode requires a prompt argument")
+        let DQ = text_chr(34)
+        println("Usage: pi-squared --print " + DQ + "your prompt here" + DQ)
+        println("       pi-squared --print -- " + DQ + "prompt with dashes" + DQ)
+        return 2
+
+    // ---- Step 2: Print header ----
+    println("pi-squared 0.1.0 — print mode")
+    println("Model: " + model.name)
+    if model.provider != Provider::Faux:
+        println("Provider: " + model.provider)
+    println("---")
+    println("")
+
+    // ---- Step 3: Run LLM pipeline (stub) ----
+    //   v0.1: echo the prompt. v0.2: thread through providers::* pipeline.
+    //
+    //   Planned pipeline:
+    //     let context = LlmContext {
+    //         messages: [AgentMessage { role: "user", content: prompt, ... }],
+    //         system_prompt: system_prompt,
+    //         model: model,
+    //         options: StreamOptions { ... },
+    //     }
+    //     let provider = resolve_provider(model.provider)
+    //     let response = provider.complete(model, context, options)
+    //     print(response.content)
+    //
+    println("[Echo] " + prompt)
+    println("")
+
+    // ---- Step 4: Print footer ----
+    println("---")
+    println("[Done]")
+
+    return 0
+
+// ============================================================================
+//  assemble_prompt  —  join positional args into a single prompt string
+// ============================================================================
+
+pub fn assemble_prompt(positional: [String]) -> String with Pure:
+    var result = ""
+    var i: Int = 0
+    while i < len(positional):
+        if i > 0:
+            result = result + " "
+        result = result + positional[i]
+        i = i + 1
+    return result
+
+// ============================================================================
+//  Quick convenience: run from a bare string (useful for testing)
+// ============================================================================
+
+pub fn run_print_prompt(prompt: String, model_name: String) -> Int with IO:
+    let m = Model {
+        id: model_name, name: model_name,
+        api: Api::Faux, provider: Provider::Faux,
+        base_url: "", reasoning: false,
+        thinking_level_map: ThinkingLevelMap {
+            minimal: "", low: "", medium: "", high: "", xhigh: "",
+        },
+        input_modalities: [], context_window: 0, max_tokens: 0,
+        headers: [],
+        cost: ModelCost {
+            input_per_mtok: 0.0, output_per_mtok: 0.0,
+            cache_read_per_mtok: 0.0, cache_write_per_mtok: 0.0,
+        },
+    }
+    let flags = CliArgs {
+        model: model_name, provider: "", thinking: "",
+        continue_session: false, resume_session: false,
+        session_id: "", fork_id: "", no_session: false,
+        print_mode: true, mode: "print", no_tools: false,
+        system_prompt_path: "", extension_paths: [],
+        show_help: false, show_version: false,
+        exit_code: 0, unknown_flags: [], positional: [prompt],
+    }
+    return run_print_mode("", "", "", m, "", flags)
+
+// ============================================================================
+//  run_print_mode_standalone  —  bare-minimum print mode (bypasses startup pipeline)
+//
+//  Used by main.kn when --print / -p is specified. Avoids the full startup
+//  pipeline (runtime init, migrations, config, sessions, actors, model resolution)
+//  and goes straight to printing the prompt.
+// ============================================================================
+
+pub fn run_print_mode_standalone(prompt: String) -> Int with IO:
+    // Print a simple context-free response
+    println("[pi-squared print] " + prompt)
+    println("[done]")
+    return 0

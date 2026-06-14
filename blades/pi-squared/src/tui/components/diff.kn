@@ -1,0 +1,147 @@
+// ============================================================================
+//  diff.kn — Line-based diff display component
+//  Ladder: Layer UI — stateless component with methods and JSX render
+//  Markscript: mks.exe uses diff views to show the impact of bytecode
+//  transformations; this component renders old/new text as a unified diff
+//  with +, -, and space prefix markers.
+// ============================================================================
+
+use std::text
+use std::fmt
+
+// ============================================================================
+//  DIFF VIEW COMPONENT — Compares old and new text line-by-line using an
+//  LCS-based diff algorithm. Output uses unified diff format:
+//
+//    + added line      (prefix marker)
+//    - removed line    (prefix marker)
+//      context line    (no marker)
+//
+//  v0.1 uses simple prefix characters. Each line is padded to width.
+// ============================================================================
+
+component DiffView(old: String, new_text: String, width: Int) with Pure:
+
+    // ====================================================================
+    //  DISPLAY TEXT — Compute LCS diff and render as formatted text
+    // ====================================================================
+
+    fn display_text(_self: Self_) -> String:
+        let old_lines = text_split_lines(_self.old)
+        let new_lines = text_split_lines(_self.new_text)
+        let w = _self.width
+        let hunks = _self._compute_diff(old_lines, new_lines)
+        var result: String = ""
+        var i: Int = 0
+        while i < len(hunks):
+            let hunk = hunks[i]
+            let kind = hunk[0]
+            let line_text = hunk[1]
+            var marker: String = " "
+            if kind == "+":
+                marker = "+"
+            elif kind == "-":
+                marker = "-"
+            let display = marker + " " + line_text
+            if i > 0:
+                let NL = text_chr(10)
+        result = result + NL
+            result = result + fmt_pad_right(display, w, " ")
+            i = i + 1
+        return result
+
+    // ====================================================================
+    //  DIFF ALGORITHM — Line-based LCS with backtracking
+    //  Each hunk is a 2-element [kind, line] array.
+    // ====================================================================
+
+    fn _compute_diff(_self: Self_, old_lines: [String], new_lines: [String]) -> [[String]]:
+        let lcs = _self._lcs(old_lines, new_lines)
+        var result: [[String]] = []
+        var oi: Int = 0
+        var ni: Int = 0
+        var li: Int = 0
+
+        while li < len(lcs):
+            let lcs_item = lcs[li]
+            // Removals from old not in LCS at this position
+            while oi < len(old_lines) and old_lines[oi] != lcs_item:
+                push(result, ["-", old_lines[oi]])
+                oi = oi + 1
+            // Additions from new not in LCS
+            while ni < len(new_lines) and new_lines[ni] != lcs_item:
+                push(result, ["+", new_lines[ni]])
+                ni = ni + 1
+            // Common line as context
+            push(result, [" ", lcs_item])
+            oi = oi + 1
+            ni = ni + 1
+            li = li + 1
+
+        // Remaining deletions
+        while oi < len(old_lines):
+            push(result, ["-", old_lines[oi]])
+            oi = oi + 1
+
+        // Remaining additions
+        while ni < len(new_lines):
+            push(result, ["+", new_lines[ni]])
+            ni = ni + 1
+
+        return result
+
+    // ====================================================================
+    //  LONGEST COMMON SUBSEQUENCE — Full DP table for backtracking
+    // ====================================================================
+
+    fn _lcs(_self: Self_, a: [String], b: [String]) -> [String]:
+        let m = len(a)
+        let n = len(b)
+        if m == 0 or n == 0:
+            return []
+
+        // Build full DP table
+        var table: [[Int]] = []
+        var i: Int = 0
+        while i <= m:
+            var row: [Int] = []
+            var j: Int = 0
+            while j <= n:
+                if i == 0 or j == 0:
+                    push(row, 0)
+                elif a[i - 1] == b[j - 1]:
+                    push(row, table[i - 1][j - 1] + 1)
+                else:
+                    let up_val = table[i - 1][j]
+                    let left_val = row[j - 1]
+                    if up_val > left_val:
+                        push(row, up_val)
+                    else:
+                        push(row, left_val)
+                j = j + 1
+            push(table, row)
+            i = i + 1
+
+        // Backtrack
+        var result: [String] = []
+        var ri: Int = m
+        var rj: Int = n
+        while ri > 0 and rj > 0:
+            if a[ri - 1] == b[rj - 1]:
+                push(result, a[ri - 1])
+                ri = ri - 1
+                rj = rj - 1
+            elif table[ri - 1][rj] >= table[ri][rj - 1]:
+                ri = ri - 1
+            else:
+                rj = rj - 1
+
+        // Reverse
+        var reversed: [String] = []
+        var k: Int = len(result) - 1
+        while k >= 0:
+            push(reversed, result[k])
+            k = k - 1
+        return reversed
+
+    render <text value={display_text()} />

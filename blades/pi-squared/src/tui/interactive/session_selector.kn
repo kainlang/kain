@@ -1,0 +1,121 @@
+// ============================================================================
+//  tui/interactive/session_selector.kn — Session list picker (CHARLIE-4)
+//  Ladder: Layer 0 — plain struct with fn methods. Terminal text rendering.
+//
+//  Displays a scrollable list of saved sessions. Each session entry carries
+//  a session ID, a session name/title, and a date string. The user can
+//  navigate up/down and confirm a selection.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. std::mks
+//  provides direct markscript VM embedding for build/config scripting.
+// ============================================================================
+
+// ============================================================================
+//  SessionEntry struct — a single session in the picker
+// ============================================================================
+
+pub struct SessionEntry:
+    session_id: String
+    name: String
+    date: String
+
+// ============================================================================
+//  SessionSelector struct
+//    sessions:  available sessions (id, name, date)
+//    selected:  currently highlighted index
+// ============================================================================
+
+pub struct SessionSelector:
+    sessions: [SessionEntry]
+    selected: Int
+
+// ============================================================================
+//  Factory fn
+// ============================================================================
+
+pub fn new_session_selector(sessions: [SessionEntry], selected: Int) -> SessionSelector with Pure:
+    return SessionSelector {
+        sessions: sessions,
+        selected: selected,
+    }
+
+// ============================================================================
+//  SessionSelector methods
+// ============================================================================
+
+impl SessionSelector:
+    // ---- Select next session (down), wrapping ----
+    pub fn select_next(_self: Self_) -> Int:
+        let count = len(_self.sessions)
+        if count > 0:
+            _self.selected = (_self.selected + 1) % count
+        return _self.selected
+
+    // ---- Select previous session (up), wrapping ----
+    pub fn select_prev(_self: Self_) -> Int:
+        let count = len(_self.sessions)
+        if count > 0:
+            _self.selected = (_self.selected - 1 + count) % count
+        return _self.selected
+
+    // ---- Confirm current selection, return session index ----
+    pub fn confirm(_self: Self_) -> Int:
+        return _self.selected
+
+    // ---- Render the session list as text lines ----
+    pub fn render(_self: Self_) -> [String]:
+        var lines_out: [String] = []
+        let page_size: Int = 12
+        let count = len(_self.sessions)
+
+        push(lines_out, "--- Session Selector ---")
+        push(lines_out, "Choose a session to continue, or start fresh")
+        push(lines_out, "")
+
+        var i: Int = 0
+        var rendered: Int = 0
+        while i < count and rendered < page_size:
+            let entry = _self.sessions[i]
+            let cursor = if i == _self.selected: ">" else: " "
+            let date_txt = if entry.date == "": "(no date)" else: entry.date
+            let name_txt = if entry.name == "": "(untitled)" else: entry.name
+            let entry_txt = cursor + " [" + date_txt + "] " + name_txt + "  (" + entry.session_id + ")"
+            push(lines_out, entry_txt)
+            i = i + 1
+            rendered = rendered + 1
+
+        if count == 0:
+            push(lines_out, "  (no saved sessions)")
+
+        if count > page_size:
+            push(lines_out, "")
+            push(lines_out, "  ... " + str(count - page_size) + " more sessions ...")
+
+        push(lines_out, "")
+        push(lines_out, "---")
+        return lines_out
+
+// ============================================================================
+//  Helpers
+// ============================================================================
+
+// ---- Build SessionEntry from parallel arrays ----
+pub fn build_entries(
+    ids: [String],
+    names: [String],
+    dates: [String],
+) -> [SessionEntry] with Pure:
+    var entries_out: [SessionEntry] = []
+    var i: Int = 0
+    while i < len(ids):
+        let sid = ids[i]
+        let nam = if i < len(names): names[i] else: ""
+        let dat = if i < len(dates): dates[i] else: ""
+        let entry = SessionEntry {
+            session_id: sid,
+            name: nam,
+            date: dat,
+        }
+        push(entries_out, entry)
+        i = i + 1
+    return entries_out

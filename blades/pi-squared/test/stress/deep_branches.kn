@@ -1,0 +1,184 @@
+// @mode check-pass
+// ============================================================================
+//  test/stress/deep_branches.kn — Deep branch tree stress tests
+//
+//  Tests SessionTree branching with 50-level nested chains:
+//    - Build deep chains
+//    - Leaf-to-root walking
+//    - Multi-branch merging
+//    - Context reconstruction correctness
+// ============================================================================
+
+use types
+
+pub const BRANCH_DEPTH: Int = 50
+
+pub fn build_deep_chain(depth: Int) -> [SessionEntry]:
+    var entries: [SessionEntry] = []
+    var ei: Int = 0
+    while ei < depth:
+        let id_str = "entry-" + str(ei)
+        let pid_str = if ei == 0: "" else: "entry-" + str(ei - 1)
+        var empty = default_agent_message()
+        empty.role = if ei % 2 == 0: "user" else: "assistant"
+        empty.content = [ContentBlock::TextBlock("Branch depth " + str(ei))]
+        empty.timestamp = "t" + str(ei)
+        var entry = SessionEntry {
+            kind: SessionEntryKind::Message,
+            id: id_str, parent_id: pid_str, timestamp: "t" + str(ei),
+            message: empty,
+            summary: "", first_kept_entry_id: "", tokens_before: 0,
+            from_id: pid_str, provider_name: "", model_id: "",
+            thinking_level: "", name: "",
+        }
+        push(entries, entry)
+        ei = ei + 1
+    return entries
+
+pub fn main() -> Int:
+    var failures: Int = 0
+    println("=== Stress: Deep Branches ===")
+
+    // ---- Test 1: Build 50-entry chain ----
+    let entries = build_deep_chain(BRANCH_DEPTH)
+    if len(entries) == BRANCH_DEPTH:
+        println("  [PASS] Built " + str(BRANCH_DEPTH) + "-entry chain")
+    else:
+        println("  [FAIL] Chain length: " + str(len(entries)))
+        failures = failures + 1
+
+    // ---- Test 2: Chain structure (sequential parent links) ----
+    var chain_ok: Bool = true
+    if entries[0].parent_id != "":
+        chain_ok = false
+    var ei2: Int = 1
+    while ei2 < BRANCH_DEPTH:
+        if entries[ei2].parent_id != "entry-" + str(ei2 - 1):
+            chain_ok = false
+        ei2 = ei2 + 1
+    if chain_ok:
+        println("  [PASS] Chain parent links correct")
+    else:
+        println("  [FAIL] Chain parent links wrong")
+        failures = failures + 1
+
+    // ---- Test 3: Leaf-to-root walk (50 steps) ----
+    var cid: String = "entry-" + str(BRANCH_DEPTH - 1)
+    var steps: Int = 0
+    var reached_root: Bool = false
+    while cid != "" and steps < 200:
+        var found: Bool = false
+        var ei3: Int = 0
+        while ei3 < len(entries):
+            if entries[ei3].id == cid:
+                if entries[ei3].parent_id == "":
+                    reached_root = true
+                cid = entries[ei3].parent_id
+                found = true
+                break
+            ei3 = ei3 + 1
+        if found == false:
+            break
+        steps = steps + 1
+    if reached_root == true and steps == BRANCH_DEPTH:
+        println("  [PASS] Leaf-to-root: " + str(steps) + " steps")
+    else:
+        println("  [FAIL] Leaf-to-root: steps=" + str(steps) + " root=" + str(reached_root))
+        failures = failures + 1
+
+    // ---- Test 4: Branch at specific depth (depth 25) ----
+    var target_id = "entry-25"
+    var found_target: Bool = false
+    var ei4: Int = 0
+    while ei4 < len(entries):
+        if entries[ei4].id == target_id:
+            found_target = true
+            break
+        ei4 = ei4 + 1
+    if found_target == true:
+        println("  [PASS] Found target entry at depth 25")
+    else:
+        println("  [FAIL] Target entry not found")
+        failures = failures + 1
+
+    // ---- Test 5: Multi-branch (3 independent chains) ----
+    let chain_a = build_deep_chain(10)
+    let chain_b = build_deep_chain(15)
+    let chain_c = build_deep_chain(20)
+    var all_entries: [SessionEntry] = []
+    var merge_ok: Bool = true
+    var ci: Int = 0
+    while ci < len(chain_a):
+        push(all_entries, chain_a[ci])
+        ci = ci + 1
+    ci = 0
+    while ci < len(chain_b):
+        push(all_entries, chain_b[ci])
+        ci = ci + 1
+    ci = 0
+    while ci < len(chain_c):
+        push(all_entries, chain_c[ci])
+        ci = ci + 1
+    if len(all_entries) != 10 + 15 + 20:
+        merge_ok = false
+
+    var root_count: Int = 0
+    var ei5: Int = 0
+    while ei5 < len(all_entries):
+        if all_entries[ei5].parent_id == "":
+            root_count = root_count + 1
+        ei5 = ei5 + 1
+    if root_count != 3:
+        merge_ok = false
+    if merge_ok:
+        println("  [PASS] Multi-branch: " + str(root_count) + " roots, " + str(len(all_entries)) + " entries")
+    else:
+        println("  [FAIL] Multi-branch: " + str(root_count) + " roots, " + str(len(all_entries)) + " entries")
+        failures = failures + 1
+
+    // ---- Test 6: Context reconstruction order ----
+    var ctx_msgs: [AgentMessage] = []
+    var ctx_id: String = "entry-" + str(BRANCH_DEPTH - 1)
+    var safety: Int = 0
+    while ctx_id != "" and safety < 200:
+        var found_ctx: Bool = false
+        var ei6: Int = 0
+        while ei6 < len(entries):
+            if entries[ei6].id == ctx_id:
+                var new_msgs: [AgentMessage] = []
+                push(new_msgs, entries[ei6].message)
+                var mi: Int = 0
+                while mi < len(ctx_msgs):
+                    push(new_msgs, ctx_msgs[mi])
+                    mi = mi + 1
+                ctx_msgs = new_msgs
+                ctx_id = entries[ei6].parent_id
+                found_ctx = true
+                break
+            ei6 = ei6 + 1
+        if found_ctx == false:
+            break
+        safety = safety + 1
+    if len(ctx_msgs) == BRANCH_DEPTH:
+        println("  [PASS] Context reconstruction: " + str(len(ctx_msgs)) + " messages")
+    else:
+        println("  [FAIL] Context reconstruction: " + str(len(ctx_msgs)) + " messages")
+        failures = failures + 1
+
+    // ---- Test 7: Entry role alternation ----
+    var role_ok: Bool = true
+    var ei7: Int = 0
+    while ei7 < BRANCH_DEPTH:
+        let expected_role = if ei7 % 2 == 0: "user" else: "assistant"
+        if entries[ei7].message.role != expected_role:
+            role_ok = false
+        ei7 = ei7 + 1
+    if role_ok:
+        println("  [PASS] Role alternation correct")
+    else:
+        println("  [FAIL] Role alternation wrong")
+        failures = failures + 1
+
+    // ---- Summary ----
+    println("=== Results: " + str(failures) + " failures ===")
+    return failures

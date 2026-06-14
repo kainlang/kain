@@ -1,0 +1,190 @@
+// ============================================================================
+//  compaction.kn -- Session compaction pipeline
+//
+//  Token estimation, context analysis, and orchestrate pipeline for
+//  session compaction: analyze -> summarize -> apply.
+//
+//  Ladder:
+//    Layer 0: fn + Pure for token estimation
+//    Layer 4: orchestrate for the multi-stage compaction pipeline
+//    Layer 5: pulse for periodic compaction check (placeholder)
+// ============================================================================
+
+use types
+use session::tree
+
+// ============================================================================
+//  Token Estimation (Pure functions)
+// ============================================================================
+
+pub fn estimate_tokens(text: String) -> Int with Pure:
+    let raw = len(text)
+    return (raw + 3) / 4
+
+pub fn estimate_message_tokens(msg: AgentMessage) -> Int with Pure:
+    var total: Int = 0
+    var i: Int = 0
+    while i < len(msg.content):
+        let block = msg.content[i]
+        match block:
+            ContentBlock::TextBlock(txt) => total = total + estimate_tokens(txt)
+            ContentBlock::ThinkingBlock(t, _) => total = total + estimate_tokens(t)
+            ContentBlock::ToolCallBlock(_, n, a) => total = total + estimate_tokens(n) + estimate_tokens(a) + 10
+            _ => total = total + 10
+        i = i + 1
+    total = total + 5
+    return total
+
+pub fn estimate_context_tokens(context: SessionContext) -> Int with Pure:
+    var total: Int = 0
+    var i: Int = 0
+    while i < len(context.messages):
+        total = total + estimate_message_tokens(context.messages[i])
+        i = i + 1
+    return total
+
+// ============================================================================
+//  Compaction Decision Logic
+// ============================================================================
+
+pub fn should_compact(context_tokens: Int, max_tokens: Int, reserve: Int) -> Bool with Pure:
+    let effective_max = max_tokens - reserve
+    if effective_max <= 0:
+        return false
+    return context_tokens > effective_max
+
+pub fn find_cut_point(messages: [AgentMessage], total_tokens: Int, keep_recent: Int) -> Int with Pure:
+    var tokens_from_end: Int = 0
+    var cut_index: Int = len(messages)
+    var i: Int = len(messages) - 1
+    while i >= 0:
+        let msg_tokens = estimate_message_tokens(messages[i])
+        if tokens_from_end + msg_tokens > keep_recent:
+            cut_index = i + 1
+            break
+        tokens_from_end = tokens_from_end + msg_tokens
+        if i == 0:
+            cut_index = 0
+            break
+        i = i - 1
+    return cut_index
+
+pub fn select_entries_for_compaction(entries: [SessionEntry], keep_tokens: Int) -> [SessionEntry] with Pure:
+    var total_tokens: Int = 0
+    var ei: Int = 0
+    while ei < len(entries):
+        if entries[ei].kind == SessionEntryKind::Message:
+            total_tokens = total_tokens + estimate_message_tokens(entries[ei].message)
+        ei = ei + 1
+    let cut = find_cut_point_for_entries(entries, total_tokens, keep_tokens)
+    var result: [SessionEntry] = []
+    var ri: Int = 0
+    while ri < cut:
+        push(result, entries[ri])
+        ri = ri + 1
+    return result
+
+fn find_cut_point_for_entries(entries: [SessionEntry], total_tokens: Int, keep_tokens: Int) -> Int:
+    var tokens_from_end: Int = 0
+    var cut_index: Int = len(entries)
+    var i: Int = len(entries) - 1
+    while i >= 0:
+        var entry_tokens: Int = 5
+        if entries[i].kind == SessionEntryKind::Message:
+            entry_tokens = estimate_message_tokens(entries[i].message)
+        if tokens_from_end + entry_tokens > keep_tokens:
+            cut_index = i + 1
+            break
+        tokens_from_end = tokens_from_end + entry_tokens
+        if i == 0:
+            cut_index = 0
+            break
+        i = i - 1
+    return cut_index
+
+// ============================================================================
+//  Summary Generation (Stub -- real LLM call is Stream BRAVO)
+// ============================================================================
+
+pub fn generate_compaction_summary(messages: [AgentMessage], start_idx: Int, end_idx: Int) -> String with Pure:
+    var text: String = "## Compaction Summary
+
+"
+    text = text + "Compacted " + str(end_idx - start_idx) + " messages.
+
+"
+    text = text + "Goal: continue the coding task
+"
+    text = text + "Constraints: follow project conventions
+"
+    text = text + "Previous content was compacted to save context window space.
+"
+    return text
+
+fn compacted_message_count(messages: [AgentMessage], start: Int, end: Int) -> Int:
+    if end > start:
+        return end - start
+    return 0
+
+// ============================================================================
+//  Apply Compaction
+// ============================================================================
+
+pub fn apply_compaction(tree_actor_ref: String, summary: String, first_kept_entry_id: String, tokens_before: Int) -> Int with IO:
+    return tokens_before
+
+// ============================================================================
+//  Intermediate structs for pipeline stages
+// ============================================================================
+
+pub struct AnalysisResult:
+    total_tokens: Int
+    cut_point: Int
+    messages: [AgentMessage]
+
+pub struct SummaryResult:
+    summary: String
+    tokens_before: Int
+
+// ============================================================================
+//  Pipeline Stage Functions
+// ============================================================================
+
+pub fn analyze_for_compaction(context: SessionContext, keep_recent: Int) -> AnalysisResult with Pure:
+    let total = estimate_context_tokens(context)
+    let cut = find_cut_point(context.messages, total, keep_recent)
+    return AnalysisResult { total_tokens: total, cut_point: cut, messages: context.messages }
+
+pub fn summarize_compaction(analysis: AnalysisResult) -> SummaryResult with Pure:
+    let summary = generate_compaction_summary(analysis.messages, 0, analysis.cut_point)
+    return SummaryResult { summary: summary, tokens_before: analysis.total_tokens }
+
+pub fn apply_compaction_result(sr: SummaryResult, ar: AnalysisResult) -> CompactionResult:
+    let after = estimate_tokens(sr.summary)
+    return CompactionResult { summary: sr.summary, new_leaf_id: "", tokens_before: ar.total_tokens, tokens_after: after }
+
+// ============================================================================
+//  Orchestrate: Compaction Pipeline
+//  analyze (cpu) -> summarize (kain) -> apply (kain)
+// ============================================================================
+
+orchestrate compact_pipeline(context: SessionContext, keep_recent_tokens: Int) -> CompactionResult:
+    stage analyze: cpu analyze_for_compaction(context, keep_recent_tokens) residency host policy static
+    stage summarize: kain summarize_compaction(analyze) deps [analyze] residency host policy static
+    stage apply: kain apply_compaction_result(summarize, analyze) deps [summarize, analyze] residency host policy static
+    return apply
+
+// ============================================================================
+//  Pulse: Periodic Compaction Check (Placeholder)
+//  Wired in main.kn once all subsystems are loaded.
+// ============================================================================
+
+pulse compaction_check every 30000 ms jitter 2000 ms:
+    let _tick = pulse_tick
+    let _dt = pulse_dt_ms
+    // In production:
+    //   1. Get compaction_enabled from PiSettingsManager
+    //   2. Get current context from SessionTree.GetContext
+    //   3. Call should_compact() with threshold
+    //   4. If yes, run compact_pipeline
+    //   5. Append compaction via AppendCompaction

@@ -1,0 +1,108 @@
+// ============================================================================
+//  extensions/api.kn — Extension API exposed to markscript plugins (DELTA-3)
+//
+//  This module defines the contract between pi-squared and markscript plugins.
+//  Plugin .md files run inside a std::mks VM that has:
+//    - Built-in handlers (read file, write file, print, assert, etc.)
+//    - Custom handler IDs for pi-squared commands (100+)
+//    - Access to session data, settings, and tool state
+//
+//  Handler ID reservation:
+//    1-12:    std::mks built-in handlers
+//    13-99:   Reserved for future pi-squared internal handlers
+//    100-199: Extension command handlers (dynamically allocated)
+//    200+:    Extension tool handlers
+//
+//  Ladder: Layer 0 — plain fn + const. No world, no actor.
+//  Pure helpers exposed to extension authors.
+// ============================================================================
+
+use std::mks
+use std::text
+use resources::commands  // Command, HANDLER_TYPE_EXTENSION
+
+// ============================================================================
+//  HANDLER ID CONSTANTS
+// ============================================================================
+
+/// Base handler ID for extension command dispatch.
+/// Each registered command gets a unique handler_id = EXTENSION_BASE + index.
+pub const EXTENSION_BASE:    Int = 100
+
+/// Base handler ID for extension tool dispatch.
+pub const EXTENSION_TOOLS:   Int = 200
+
+// ============================================================================
+//  COMMAND DISPATCH  —  route extension handler IDs to functions
+// ============================================================================
+
+/// Dispatch an extension command by its handler ID.
+/// Used by the interactive mode's markscript dispatch loop.
+/// Returns output text.
+pub fn dispatch_extension(vm: MarkScriptVM, handler_id: Int, args_str: String) -> String with IO:
+    let _ = vm
+    let _ = handler_id
+    let _ = args_str
+
+    // The extension's intent handler was triggered during run_file()/run_string().
+    // The dispatch loop re-enters if handler_id > 0.
+    // For now, return acknowledgment — full dispatch will be wired by the
+    // interactive mode's event loop.
+    let NL = text_chr(10)
+    return "extension command dispatched (handler_id=" + str(handler_id) + ")" + NL
+
+// ============================================================================
+//  PLUGIN HELPERS  —  convenience functions for extension authors
+// ============================================================================
+
+/// Register a custom intent handler on an extension VM.
+/// Returns the updated VM with the handler bound.
+pub fn register_extension_handler(vm: MarkScriptVM, phrase: String, handler_id: Int) -> MarkScriptVM:
+    return bind(vm, phrase, handler_id)
+
+/// Extract all registered command names from an extension VM.
+/// Uses std::mks public API (table_count, get_string, table_rows, table_cols).
+pub fn extension_commands_from_vm(vm: MarkScriptVM, ext_name: String) -> [Command]:
+    var commands: [Command] = []
+
+    let tc = table_count(vm)
+    var ti: Int = 0
+    while ti < tc:
+        let rows = table_rows(vm, ti)
+        let cols = table_cols(vm, ti)
+        if rows >= 1 and cols >= 2:
+            let header = get_string(vm, ti, 0, 0)
+            if header == "Commands":
+                var row: Int = 1
+                while row < rows:
+                    let cmd_name = get_string(vm, ti, row, 0)
+                    let cmd_desc = get_string(vm, ti, row, 1)
+                    let cmd_usage = get_string(vm, ti, row, 2)
+                    if cmd_name != "":
+                        let usage = if cmd_usage == "": "/" + cmd_name else: cmd_usage
+                        push(commands, Command {
+                            name: cmd_name,
+                            description: cmd_desc,
+                            usage: usage,
+                            handler_type: HANDLER_TYPE_EXTENSION,
+                            handler_ref: ext_name + "::" + cmd_name,
+                            extension_name: ext_name,
+                        })
+                    row = row + 1
+        ti = ti + 1
+
+    return commands
+
+// ============================================================================
+//  API CONTEXT  —  shared between pi-squared and plugins
+// ============================================================================
+
+/// Context object passed to extension dispatch.
+/// Provides access to current session state, settings, and the command registry.
+pub struct ExtensionContext:
+    session_file: String
+    entry_count: Int
+    current_model: String
+    current_provider: String
+    settings_json: String      // JSON-encoded settings
+    plugin_dir: String         // directory of the plugin .md file

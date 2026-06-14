@@ -1,0 +1,43 @@
+// ============================================================================
+//  migrations.kn — Session + config migration functions (ALPHA-7)
+//  Ladder: Layer 0 — plain fn with Pure effect.
+//
+//  Format version upgrades for session files and config files.
+//  Sequential migration pipeline: v1→v2→v3.
+// ============================================================================
+
+use types    // SessionEntry, Settings (stub)
+use session::tree    // SessionEntry (inline type)
+
+// ---- Current format versions ----
+pub const SESSION_VERSION: Int = 3
+pub const CONFIG_VERSION: Int = 2
+
+// ---- Migrate v2 entries to v3 (ModelChange, ThinkingLevelChange) ----
+pub fn migrate_session_v2_to_v3(entries: [SessionEntry]) -> [SessionEntry] with Pure:
+    // v3 adds structured message kinds — no structural changes needed for existing entries
+    return entries
+
+// ---- Migrate v1 entries to v2 (Compaction support) ----
+pub fn migrate_session_v1_to_v2(entries: [SessionEntry]) -> [SessionEntry] with Pure:
+    // v2 adds Compaction entry kind — existing entries unchanged
+    return entries
+
+// ---- Apply all migrations in sequence ----
+pub fn migrate_session_entries(entries: [SessionEntry], from_version: Int) -> [SessionEntry] with Pure:
+    var result = entries
+    if from_version < 2:
+        result = migrate_session_v1_to_v2(result)
+    if from_version < 3:
+        result = migrate_session_v2_to_v3(result)
+    return result
+
+// ---- Run config format migrations ----
+pub fn run_config_migrations():
+    // v0.1: no migrations needed
+    return
+
+// ---- Run session file migrations ----
+pub fn run_session_migrations():
+    // v0.1: walk session directory, detect older format, migrate
+    return
