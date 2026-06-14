@@ -65,6 +65,10 @@ pub fn knc_check_patch_law(env: TypeEnv, node: AstNode, idx: Int, kind: Int) -> 
         item: TypedItem {
             kind: kind, name: "pl_" + str(name_idx), name_idx: name_idx,
             resolved_type: ret, ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

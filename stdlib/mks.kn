@@ -1,0 +1,1815 @@
+// ============================================================================
+//  STD::MKS — First-Class Kain Stdlib Module for MarkScript Embedding
+//
+//  Makes it trivially easy for any Kain program to embed and drive the
+//  Markscript VM. Markscript is a markdown-native intent engine — .md files
+//  become executable configuration, data tables become typed matrices, and
+//  blockquote intents ("> do something") dispatch to registered handlers.
+//
+//  ## Quick Start
+//
+//      use std::mks
+//
+//      // One-shot: load + execute a .md file
+//      let vm = mks.run_file("config.md")
+//
+//      // One-shot: compile + execute a string
+//      let vm = mks.run_string("# Hello\n\n> print world")
+//
+//      // Table access (tables parsed from markdown at compile time)
+//      let count = mks.table_count(vm)
+//      let host  = mks.get_string(vm, 0, 0, 0)   // table[0].row[0].col[0]
+//      let port  = mks.get_int(vm, 0, 0, 1)      // table[0].row[0].col[1]
+//
+//  ## Manual VM Lifecycle
+//
+//      let vm = mks.make()                        // create fresh VM
+//      let vm = mks.run_string(vm, "# MyConfig")  // execute on existing VM
+//      if mks.ok(vm):                             // check success
+//          let tables = mks.table_count(vm)
+//      else:
+//          println(mks.error(vm))
+//
+//  ## Custom Handler Registration
+//
+//      let vm = mks.make()
+//      let vm = mks.bind(vm, "deploy app", 100)   // map phrase to handler_id
+//      // Then intercept handler_id in your own dispatch loop
+//
+//  ## Ladder Rung
+//  Layer 0 (fn) — this is a plain module exporting functions, structs, and
+//  enums for embedding the Markscript VM. The VM itself uses value semantics
+//  throughout (no ptr<T> parameters).
+//
+//  ## Relationship to the Markscript Blade
+//  This stdlib module is self-contained. It includes the core Markscript VM,
+//  parser, lexer, and bridge directly. For the full Markscript CLI tool
+//  (mks.exe), see `blades/markscript/`.
+//
+//  ## Conventions
+//  - All VM functions return a new VM (value semantics)
+//  - Table indices are 0-based
+//  - handler_id 0 means "no handler" / "not found"
+//  - Error state is checked via `ok(vm)` or `error(vm)`
+// ============================================================================
+
+use std::text
+use std::fs
+
+// ===========================================================================
+//  ERROR MODEL — MarkError, error kinds, formatting
+// ===========================================================================
+
+pub const ERROR_OK:              Int = 0
+pub const ERROR_NAME:            Int = 1
+pub const ERROR_ARITY:           Int = 2
+pub const ERROR_BOUNDS:          Int = 3
+pub const ERROR_TYPE:            Int = 4
+pub const ERROR_IMPORT:          Int = 5
+pub const ERROR_CIRCULAR_IMPORT: Int = 6
+
+pub struct MarkError:
+    kind:       Int
+    message:    String
+    line_no:    Int
+    domain:     String
+    routine:    String
+    suggestion: String
+
+pub fn error_ok() -> MarkError:
+    return MarkError {
+        kind: ERROR_OK,
+        message: "",
+        line_no: 0,
+        domain: "",
+        routine: "",
+        suggestion: ""
+    }
+
+pub fn make_error(kind: Int, message: String, line_no: Int, domain: String, routine: String) -> MarkError:
+    return MarkError {
+        kind: kind,
+        message: message,
+        line_no: line_no,
+        domain: domain,
+        routine: routine,
+        suggestion: ""
+    }
+
+pub fn error_kind_name(kind: Int) -> String:
+    if kind == ERROR_OK:              return "OK"
+    elif kind == ERROR_NAME:          return "name error"
+    elif kind == ERROR_ARITY:         return "arity error"
+    elif kind == ERROR_BOUNDS:        return "bounds error"
+    elif kind == ERROR_TYPE:          return "type error"
+    elif kind == ERROR_IMPORT:        return "import error"
+    elif kind == ERROR_CIRCULAR_IMPORT: return "circular import error"
+    else:                             return "unknown error(" + str(kind) + ")"
+
+pub fn format_error(err: MarkError) -> String:
+    if err.kind == ERROR_OK:
+        return ""
+    let name = error_kind_name(err.kind)
+    var result_str = "Error: " + name + ": " + err.message
+    if err.line_no > 0:
+        result_str = result_str + "\n  at line " + str(err.line_no)
+    if err.domain != "":
+        result_str = result_str + ", domain \"" + err.domain + "\""
+    if err.routine != "":
+        result_str = result_str + ", routine \"" + err.routine + "\""
+    if err.suggestion != "":
+        result_str = result_str + "\n  suggestion: " + err.suggestion
+    return result_str
+
+// ===========================================================================
+//  TYPE SYSTEM — MarkValue (10 kinds), MatrixRecord, widget records
+// ===========================================================================
+
+pub const MARK_INT:    Int = 0
+pub const MARK_FLOAT:  Int = 1
+pub const MARK_STRING: Int = 2
+pub const MARK_TABLE:  Int = 3
+pub const MARK_CODE:   Int = 4
+pub const MARK_BOOL:   Int = 5
+pub const MARK_ARRAY:  Int = 6
+pub const MARK_DICT:   Int = 7
+pub const MARK_WIDGET: Int = 8
+pub const MARK_EVENT:  Int = 9
+
+/// Typed runtime value — the universal data carrier in the Markscript VM.
+/// Every stack element, accumulator, and table cell uses MarkValue.
+pub struct MarkValue:
+    kind:      Int       // one of the MARK_* constants
+    int_val:   Int
+    float_val: Float
+    str_val:   String
+    bool_val:  Bool
+    handle_val: Int       // widget/event handle reference
+
+/// A parsed markdown table stored in row-major flat array form.
+pub struct MatrixRecord:
+    handle_id: Int
+    cols:      Int
+    rows:      Int
+    col_types: Array<Int>        // MARK_INT | MARK_FLOAT | MARK_STRING per column
+    data:      Array<MarkValue>  // flat row-major cell data
+
+pub struct CodeBlockRecord:
+    lang_hash:    Int
+    content_hash: Int
+
+pub struct VarEntry:
+    name_hash: Int
+    value:     MarkValue
+
+pub struct WidgetProperty:
+    name:  String
+    value: MarkValue
+
+pub struct WidgetRecord:
+    handle:     Int
+    name:       String
+    kind:       String
+    parent:     Int
+    properties: Array<WidgetProperty>
+
+pub struct DictEntry:
+    key:   String
+    value: MarkValue
+
+pub struct FnRecord:
+    name_hash: Int
+    entry_ip:  Int
+
+pub struct ImportedModule:
+    path: String
+    name: String
+
+pub struct ProcessRecord:
+    pid:       Int
+    handle:    Int
+    command:   String
+    status:    Int
+    exit_code: Int
+    stdout:    String
+    stderr:    String
+
+// ===========================================================================
+//  MARKVALUE CONSTRUCTORS
+// ===========================================================================
+
+pub fn mark_int(val: Int) -> MarkValue:
+    return MarkValue { kind: MARK_INT, int_val: val, float_val: 0.0, str_val: "", bool_val: false, handle_val: 0 }
+
+pub fn mark_float(val: Float) -> MarkValue:
+    return MarkValue { kind: MARK_FLOAT, int_val: 0, float_val: val, str_val: "", bool_val: false, handle_val: 0 }
+
+pub fn mark_string(val: String) -> MarkValue:
+    return MarkValue { kind: MARK_STRING, int_val: 0, float_val: 0.0, str_val: val, bool_val: false, handle_val: 0 }
+
+pub fn mark_bool(val: Bool) -> MarkValue:
+    return MarkValue { kind: MARK_BOOL, int_val: 0, float_val: 0.0, str_val: "", bool_val: val, handle_val: 0 }
+
+pub fn mark_empty() -> MarkValue:
+    return MarkValue { kind: MARK_INT, int_val: 0, float_val: 0.0, str_val: "", bool_val: false, handle_val: 0 }
+
+pub fn mark_widget(handle: Int) -> MarkValue:
+    return MarkValue { kind: MARK_WIDGET, int_val: handle, float_val: 0.0, str_val: "", bool_val: false, handle_val: handle }
+
+pub fn mark_event(event_id: Int) -> MarkValue:
+    return MarkValue { kind: MARK_EVENT, int_val: event_id, float_val: 0.0, str_val: "", bool_val: false, handle_val: event_id }
+
+pub fn mark_value_to_string(val: MarkValue) -> String:
+    if val.kind == MARK_INT:    return str(val.int_val)
+    elif val.kind == MARK_FLOAT:  return str(val.float_val)
+    elif val.kind == MARK_STRING: return val.str_val
+    elif val.kind == MARK_TABLE:  return "<table>"
+    elif val.kind == MARK_CODE:   return "<code>"
+    elif val.kind == MARK_BOOL:
+        if val.bool_val: return "true"
+        return "false"
+    elif val.kind == MARK_ARRAY:  return "<array:" + str(val.int_val) + ">"
+    elif val.kind == MARK_DICT:   return "<dict:" + str(val.int_val) + ">"
+    elif val.kind == MARK_WIDGET: return "<widget:" + str(val.handle_val) + ">"
+    elif val.kind == MARK_EVENT:  return "<event:" + str(val.handle_val) + ">"
+    else:                         return "<unknown:" + str(val.kind) + ">"
+
+// ===========================================================================
+//  WIDGET HELPERS
+// ===========================================================================
+
+pub fn widget_record_new(handle: Int, name: String, kind: String) -> WidgetRecord:
+    return WidgetRecord { handle: handle, name: name, kind: kind, parent: -1, properties: [] }
+
+pub fn widget_prop_get(widget: WidgetRecord, prop_name: String) -> MarkValue:
+    var i: Int = 0
+    while i < len(widget.properties):
+        if widget.properties[i].name == prop_name:
+            return widget.properties[i].value
+        i = i + 1
+    return mark_empty()
+
+pub fn widget_prop_set(widget: WidgetRecord, prop_name: String, value: MarkValue) -> WidgetRecord:
+    var w = widget
+    var i: Int = 0
+    while i < len(w.properties):
+        if w.properties[i].name == prop_name:
+            w.properties[i].value = value
+            return w
+        i = i + 1
+    push(w.properties, WidgetProperty { name: prop_name, value: value })
+    return w
+
+// ===========================================================================
+//  VM STATE — MarkScriptVM, HandlerResult, ExecResult
+// ===========================================================================
+
+/// The Markscript Virtual Machine — complete execution state.
+/// All operations return a new VM (value semantics, no mutation in place).
+pub struct MarkScriptVM:
+    ip:              Int
+    accumulator:     MarkValue
+    stack:           Array<MarkValue>
+    data_table:      Array<MatrixRecord>
+    data_table_cnt:  Int
+    code_blocks:     Array<CodeBlockRecord>
+    call_stack:      Array<Int>
+    ivt_phrases:     Array<Int>
+    ivt_handler_ids: Array<Int>
+    ivt_count:       Int
+    variables:       Array<VarEntry>
+    var_count:       Int
+    error:           MarkError
+    pending_hash:    Int
+    widgets:         Array<WidgetRecord>
+    widget_count:    Int
+    processes:       Array<ProcessRecord>
+    arrays:          Array<Array<MarkValue>>
+    dicts:           Array<Array<DictEntry>>
+    functions:       Array<FnRecord>
+    modules:         Array<ImportedModule>
+
+/// Result returned by a bridge handler. value is pushed onto the VM stack.
+pub struct HandlerResult:
+    vm:     MarkScriptVM
+    value:  MarkValue
+    err:    String         // empty = success
+
+/// Result returned by execute_bytecode / resume_execution.
+/// If handler_id > 0, the caller must dispatch and call resume_execution.
+pub struct ExecResult:
+    vm:          MarkScriptVM
+    accumulator: MarkValue
+    data_table:  Array<MatrixRecord>
+    code_blocks: Array<CodeBlockRecord>
+    error:       MarkError
+    handler_id:  Int           // 0 = no handler pending, >0 = dispatch
+    bc:          Array<Int>    // bytecode (for resume)
+    ip:          Int           // instruction pointer (for resume)
+
+// ===========================================================================
+//  VM CONSTRUCTOR
+// ===========================================================================
+
+/// Create a fresh, empty Markscript VM. No built-in handlers registered.
+/// Use mks_make() (which calls init_vm_with_builtins) for a ready-to-use VM.
+pub fn init_vm() -> MarkScriptVM:
+    return MarkScriptVM {
+        ip: 0,
+        accumulator: mark_empty(),
+        stack: [],
+        data_table: [],
+        data_table_cnt: 0,
+        code_blocks: [],
+        call_stack: [],
+        ivt_phrases: [],
+        ivt_handler_ids: [],
+        ivt_count: 0,
+        variables: [],
+        var_count: 0,
+        error: error_ok(),
+        pending_hash: 0,
+        widgets: [],
+        widget_count: 0,
+        processes: [],
+        arrays: [],
+        dicts: [],
+        functions: [],
+        modules: []
+    }
+
+// ===========================================================================
+//  HASH FUNCTION — DJB2 variant (multiply by 31)
+// ===========================================================================
+
+pub fn hash_name(s: String) -> Int:
+    let view = text_from(s)
+    let sl = text_len(view)
+    var h: Int = 0
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        h = h * 31 + cv
+        i = i + 1
+    return h
+
+// ===========================================================================
+//  IVT OPERATIONS — Intent Vector Table (phrase → handler mapping)
+// ===========================================================================
+
+/// Register an intent phrase → handler_id mapping in the IVT.
+/// The handler_id is an opaque integer; the dispatch loop maps it to a callback.
+pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> MarkScriptVM:
+    var p = vm.ivt_phrases
+    var h = vm.ivt_handler_ids
+    var c = vm.ivt_count
+    push(p, phrase_hash)
+    push(h, handler_id)
+    c = c + 1
+    return rebuild_vm(vm, p, h, c)
+
+/// Look up a handler_id by phrase hash. Returns 0 if not found.
+pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
+    var i: Int = 0
+    while i < vm.ivt_count:
+        if i < len(vm.ivt_phrases) and vm.ivt_phrases[i] == hash:
+            return vm.ivt_handler_ids[i]
+        i = i + 1
+    return 0
+
+/// Rebuild VM with updated IVT arrays (helper — value semantics).
+fn rebuild_vm(vm: MarkScriptVM, phrases: Array<Int>, handlers: Array<Int>, count: Int) -> MarkScriptVM:
+    return MarkScriptVM {
+        ip: vm.ip,
+        accumulator: vm.accumulator,
+        stack: vm.stack,
+        data_table: vm.data_table,
+        data_table_cnt: vm.data_table_cnt,
+        code_blocks: vm.code_blocks,
+        call_stack: vm.call_stack,
+        ivt_phrases: phrases,
+        ivt_handler_ids: handlers,
+        ivt_count: count,
+        variables: vm.variables,
+        var_count: vm.var_count,
+        error: vm.error,
+        pending_hash: vm.pending_hash,
+        widgets: vm.widgets,
+        widget_count: vm.widget_count,
+        processes: vm.processes,
+        arrays: vm.arrays,
+        dicts: vm.dicts,
+        functions: vm.functions,
+        modules: vm.modules
+    }
+
+// ===========================================================================
+//  OPCODE CONSTANTS — the shared contract between parser and VM
+// ===========================================================================
+
+pub const OP_HALT:           Int = 0
+pub const OP_ENTER_DOMAIN:   Int = 1
+pub const OP_ROUTINE_HEADER: Int = 2
+pub const OP_PUSH_PARAM:     Int = 3
+pub const OP_EXECUTE_CALL:   Int = 4
+pub const OP_PUSH_MATRIX:    Int = 5
+pub const OP_FENCED_CODE:    Int = 6
+pub const OP_PUSH_STACK:     Int = 7
+pub const OP_POP_STACK:      Int = 8
+pub const OP_DUP:            Int = 9
+pub const OP_CALL:           Int = 10
+pub const OP_RET:            Int = 11
+pub const OP_JMP:            Int = 12
+pub const OP_JZ:             Int = 13
+pub const OP_ADD:            Int = 14
+pub const OP_SUB:            Int = 15
+pub const OP_MUL:            Int = 16
+pub const OP_DIV:            Int = 17
+pub const OP_LOAD_VAR:       Int = 18
+pub const OP_STORE_VAR:      Int = 19
+pub const OP_JN:             Int = 20
+pub const OP_ITER_GET:       Int = 21
+pub const OP_CALL_FN:        Int = 22
+pub const OP_RET_VAL:        Int = 23
+
+// ===========================================================================
+//  LEXER — Token types and tokenizer for markdown source
+// ===========================================================================
+
+pub const TOK_HEADER1:       Int = 0
+pub const TOK_HEADER2:       Int = 1
+pub const TOK_BLOCKQUOTE:    Int = 2
+pub const TOK_TABLEPIPE:     Int = 3
+pub const TOK_TEXTSTR:       Int = 4
+pub const TOK_EOF:           Int = 5
+pub const TOK_HEADER3:       Int = 6
+pub const TOK_HEADER4:       Int = 7
+pub const TOK_HEADER5:       Int = 8
+pub const TOK_HEADER6:       Int = 9
+pub const TOK_FENCE:         Int = 10
+pub const TOK_LANG_TAG:      Int = 11
+pub const TOK_FENCED_CODE:   Int = 12
+pub const TOK_BOLD:          Int = 13
+pub const TOK_ITALIC:        Int = 14
+pub const TOK_CODE_SPAN:     Int = 15
+pub const TOK_LIST_UNORDERED: Int = 16
+pub const TOK_LIST_ORDERED:  Int = 17
+pub const TOK_LINK_TEXT:     Int = 18
+pub const TOK_LINK_URL:      Int = 19
+pub const TOK_HR:            Int = 20
+pub const TOK_NEWLINE:       Int = 21
+
+pub struct Token:
+    kind:    Int
+    text:    String
+    line_no: Int
+
+pub struct LexerState:
+    source:       String
+    pos:          Int
+    len:          Int
+    line_no:      Int
+    prev_kind:    Int
+    at_line_start: Bool
+
+pub struct TokenResult:
+    token: Token
+    state: LexerState
+
+pub fn create_lexer(content: String) -> LexerState:
+    let src_len = len(content)
+    return LexerState {
+        source: content,
+        pos: 0,
+        len: src_len,
+        line_no: 1,
+        prev_kind: -1,
+        at_line_start: true
+    }
+
+pub fn token_kind(tok: Token) -> Int:
+    return tok.kind
+
+pub fn token_text(tok: Token) -> String:
+    return tok.text
+
+// ===========================================================================
+//  LEXER HELPERS
+// ===========================================================================
+
+fn get_ch(source: String, pos: Int) -> String:
+    return text_substring_string(source, pos, 1)
+
+fn is_structural_token(kind: Int) -> Bool:
+    if kind == -1: return true
+    if kind >= TOK_HEADER1 and kind <= TOK_HEADER6: return true
+    if kind == TOK_BLOCKQUOTE or kind == TOK_TABLEPIPE: return true
+    if kind == TOK_FENCE or kind == TOK_FENCED_CODE or kind == TOK_LANG_TAG: return true
+    if kind == TOK_LIST_UNORDERED or kind == TOK_LIST_ORDERED: return true
+    if kind == TOK_HR or kind == TOK_EOF: return true
+    return false
+
+fn check_hr(source: String, pos: Int, hr_char: String) -> Bool:
+    var i = pos
+    var count: Int = 0
+    while i < len(source):
+        let c = get_ch(source, i)
+        if c == "\n" or c == "\r":
+            return count >= 3
+        if c == " " or c == "\t":
+            i = i + 1
+            continue
+        if c != hr_char:
+            return false
+        count = count + 1
+        i = i + 1
+    return count >= 3
+
+// ===========================================================================
+//  CORE TOKENIZER — reads one token from the source
+// ===========================================================================
+
+pub fn next_token(state: LexerState) -> TokenResult:
+    var s = state
+    var ch: String = ""
+
+    loop:
+        if s.pos >= s.len:
+            let tok = Token { kind: TOK_EOF, text: "", line_no: s.line_no }
+            s.prev_kind = TOK_EOF
+            return TokenResult { token: tok, state: s }
+
+        ch = get_ch(s.source, s.pos)
+
+        if ch == "\n":
+            if is_structural_token(s.prev_kind) == false:
+                s.line_no = s.line_no + 1
+                s.pos = s.pos + 1
+                let tok = Token { kind: TOK_NEWLINE, text: "\n", line_no: s.line_no - 1 }
+                s.prev_kind = TOK_NEWLINE
+                s.at_line_start = true
+                return TokenResult { token: tok, state: s }
+            s.line_no = s.line_no + 1
+            s.pos = s.pos + 1
+            s.at_line_start = true
+            continue
+
+        if ch == " " or ch == "\r" or ch == "\t":
+            s.pos = s.pos + 1
+            continue
+
+        break
+
+    // Triple backtick
+    if ch == "`":
+        if s.pos + 2 < s.len:
+            let c1 = get_ch(s.source, s.pos + 1)
+            let c2 = get_ch(s.source, s.pos + 2)
+            if c1 == "`" and c2 == "`":
+                s.pos = s.pos + 3
+                let tok = Token { kind: TOK_FENCE, text: "```", line_no: s.line_no }
+                s.prev_kind = TOK_FENCE
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+    // Headers
+    if ch == "#":
+        var hash_count: Int = 1
+        var peek_pos: Int = s.pos + 1
+        while peek_pos < s.len and hash_count < 6:
+            if get_ch(s.source, peek_pos) == "#":
+                hash_count = hash_count + 1
+                peek_pos = peek_pos + 1
+            else:
+                break
+        s.pos = peek_pos
+        var kind: Int = TOK_HEADER1
+        if hash_count == 2: kind = TOK_HEADER2
+        elif hash_count == 3: kind = TOK_HEADER3
+        elif hash_count == 4: kind = TOK_HEADER4
+        elif hash_count == 5: kind = TOK_HEADER5
+        elif hash_count == 6: kind = TOK_HEADER6
+        let tok = Token { kind: kind, text: "#", line_no: s.line_no }
+        s.prev_kind = kind
+        s.at_line_start = false
+        return TokenResult { token: tok, state: s }
+
+    // Blockquote
+    if ch == ">":
+        s.pos = s.pos + 1
+        let tok = Token { kind: TOK_BLOCKQUOTE, text: ">", line_no: s.line_no }
+        s.prev_kind = TOK_BLOCKQUOTE
+        s.at_line_start = false
+        return TokenResult { token: tok, state: s }
+
+    // Table pipe
+    if ch == "|":
+        s.pos = s.pos + 1
+        let tok = Token { kind: TOK_TABLEPIPE, text: "|", line_no: s.line_no }
+        s.prev_kind = TOK_TABLEPIPE
+        s.at_line_start = false
+        return TokenResult { token: tok, state: s }
+
+    // Line-start detection
+    if s.at_line_start:
+        if ch == "-":
+            if check_hr(s.source, s.pos, "-"):
+                while s.pos < s.len:
+                    if get_ch(s.source, s.pos) == "\n": break
+                    s.pos = s.pos + 1
+                let tok = Token { kind: TOK_HR, text: "---", line_no: s.line_no }
+                s.prev_kind = TOK_HR
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+            if s.pos + 1 < s.len and get_ch(s.source, s.pos + 1) == " ":
+                s.pos = s.pos + 2
+                let tok = Token { kind: TOK_LIST_UNORDERED, text: "- ", line_no: s.line_no }
+                s.prev_kind = TOK_LIST_UNORDERED
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        if ch == "*":
+            if check_hr(s.source, s.pos, "*"):
+                while s.pos < s.len:
+                    if get_ch(s.source, s.pos) == "\n": break
+                    s.pos = s.pos + 1
+                let tok = Token { kind: TOK_HR, text: "***", line_no: s.line_no }
+                s.prev_kind = TOK_HR
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+            if s.pos + 1 < s.len and get_ch(s.source, s.pos + 1) == " ":
+                s.pos = s.pos + 2
+                let tok = Token { kind: TOK_LIST_UNORDERED, text: "* ", line_no: s.line_no }
+                s.prev_kind = TOK_LIST_UNORDERED
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            var digit_end = s.pos
+            while digit_end < s.len:
+                let dc = get_ch(s.source, digit_end)
+                let dv = text_ord(dc)
+                if dv >= 48 and dv <= 57: digit_end = digit_end + 1
+                else: break
+            if digit_end + 1 < s.len:
+                let dot_ch = get_ch(s.source, digit_end)
+                let space_ch = get_ch(s.source, digit_end + 1)
+                if dot_ch == "." and space_ch == " ":
+                    let marker_text = text_substring_string(s.source, s.pos, digit_end + 2 - s.pos)
+                    s.pos = digit_end + 2
+                    let tok = Token { kind: TOK_LIST_ORDERED, text: marker_text, line_no: s.line_no }
+                    s.prev_kind = TOK_LIST_ORDERED
+                    s.at_line_start = false
+                    return TokenResult { token: tok, state: s }
+
+    // Text
+    let start = s.pos
+    loop:
+        if s.pos >= s.len: break
+        let nch = get_ch(s.source, s.pos)
+        if nch == "\n" or nch == "#" or nch == ">" or nch == "|": break
+        s.pos = s.pos + 1
+    let raw = text_substring_string(s.source, start, s.pos - start)
+    let tok = Token { kind: TOK_TEXTSTR, text: raw, line_no: s.line_no }
+    s.prev_kind = TOK_TEXTSTR
+    s.at_line_start = false
+    return TokenResult { token: tok, state: s }
+
+// ===========================================================================
+//  TABLE PARSER — reads markdown tables into typed MatrixRecord
+// ===========================================================================
+
+fn all_dashes(text: String) -> Bool:
+    let view = text_from(text)
+    let sl = text_len(view)
+    if sl == 0: return false
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch != "-" and ch != ":" and ch != " " and ch != "|": return false
+        i = i + 1
+    return true
+
+pub fn float_to_int(f: Float) -> Int:
+    if f >= 0.0:
+        var result: Int = 0
+        var remaining: Float = f
+        while remaining >= 1.0:
+            result = result + 1
+            remaining = remaining - 1.0
+        return result
+    else:
+        var result: Int = 0
+        var remaining: Float = -f
+        while remaining >= 1.0:
+            result = result + 1
+            remaining = remaining - 1.0
+        return -result
+
+pub struct TableParseResult:
+    handle_id: Int
+    cols:      Int
+    rows:      Int
+    col_types: Array<Int>
+    data:      Array<MarkValue>
+    state:     LexerState
+
+fn is_integer_literal(s: String) -> Bool:
+    let view = text_from(s)
+    let sl = text_len(view)
+    if sl == 0: return false
+    var i: Int = 0
+    if text_char_at(view, 0) == "-":
+        i = 1
+        if sl == 1: return false
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        if cv < 48 or cv > 57: return false
+        i = i + 1
+    return true
+
+fn is_float_literal(s: String) -> Bool:
+    let view = text_from(s)
+    let sl = text_len(view)
+    if sl == 0: return false
+    var i: Int = 0
+    var has_dot: Bool = false
+    if text_char_at(view, 0) == "-":
+        i = 1
+        if sl == 1: return false
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch == ".":
+            if has_dot: return false
+            has_dot = true
+        else:
+            let cv = text_ord(ch)
+            if cv < 48 or cv > 57: return false
+        i = i + 1
+    return has_dot
+
+fn infer_cell_type(cell_text: String) -> Int:
+    let trimmed = text_materialize(text_trim(text_from(cell_text)))
+    if trimmed == "": return MARK_STRING
+    if is_integer_literal(trimmed): return MARK_INT
+    if is_float_literal(trimmed): return MARK_FLOAT
+    return MARK_STRING
+
+fn widen_column_type(existing: Int, new_cell_type: Int) -> Int:
+    if existing == MARK_STRING or new_cell_type == MARK_STRING: return MARK_STRING
+    if existing == MARK_INT and new_cell_type == MARK_FLOAT: return MARK_FLOAT
+    if existing == MARK_FLOAT and new_cell_type == MARK_INT: return MARK_FLOAT
+    return existing
+
+fn parse_cell_value(cell_text: String, col_type: Int) -> MarkValue:
+    let trimmed = text_materialize(text_trim(text_from(cell_text)))
+    if col_type == MARK_INT:
+        var result: Int = 0
+        var neg: Bool = false
+        var i: Int = 0
+        let view = text_from(trimmed)
+        let sl = text_len(view)
+        if sl > 0 and text_char_at(view, 0) == "-":
+            neg = true
+            i = 1
+        while i < sl:
+            let cv = text_ord(text_char_at(view, i))
+            if cv >= 48 and cv <= 57:
+                result = result * 10 + (cv - 48)
+            i = i + 1
+        if neg: result = -result
+        return mark_int(result)
+    elif col_type == MARK_FLOAT:
+        var whole: Int = 0
+        var frac: Int = 0
+        var frac_div: Int = 1
+        var neg: Bool = false
+        var in_frac: Bool = false
+        var i: Int = 0
+        let view = text_from(trimmed)
+        let sl = text_len(view)
+        if sl > 0 and text_char_at(view, 0) == "-":
+            neg = true
+            i = 1
+        while i < sl:
+            let ch = text_char_at(view, i)
+            if ch == ".": in_frac = true
+            else:
+                let cv = text_ord(ch)
+                if cv >= 48 and cv <= 57:
+                    if in_frac:
+                        frac = frac * 10 + (cv - 48)
+                        frac_div = frac_div * 10
+                    else:
+                        whole = whole * 10 + (cv - 48)
+            i = i + 1
+        var fval: Float = whole
+        if frac_div > 1: fval = fval + frac / frac_div
+        if neg: fval = -fval
+        return mark_float(fval)
+    else:
+        return mark_string(trimmed)
+
+fn parse_matrix_table(state: LexerState, handle_id: Int) -> TableParseResult:
+    var s = state
+    var all_data: Array<MarkValue> = []
+    var col_types: Array<Int> = []
+    var cols: Int = 0
+    var rows: Int = 0
+    var is_header: Bool = true
+
+    loop:
+        var row_values: Array<String> = []
+        var cell_start = s.pos
+        loop:
+            if s.pos >= s.len: break
+            let ch = text_substring_string(s.source, s.pos, 1)
+            if ch == "|" or ch == "\n":
+                let cell_raw = text_substring_string(s.source, cell_start, s.pos - cell_start)
+                let trimmed = text_materialize(text_trim(text_from(cell_raw)))
+                push(row_values, trimmed)
+            if ch == "\n":
+                s.line_no = s.line_no + 1
+                s.pos = s.pos + 1
+                break
+            elif ch == "|":
+                s.pos = s.pos + 1
+                cell_start = s.pos
+                continue
+            else:
+                s.pos = s.pos + 1
+                continue
+
+        var has_content: Bool = false
+        var vi: Int = 0
+        while vi < len(row_values):
+            if row_values[vi] != "": has_content = true
+            vi = vi + 1
+
+        if has_content == false:
+            var peek_pos = s.pos
+            loop:
+                if peek_pos >= s.len: break
+                let pk = text_substring_string(s.source, peek_pos, 1)
+                if pk == "\n": peek_pos = peek_pos + 1
+                elif pk == " " or pk == "\r" or pk == "\t": peek_pos = peek_pos + 1
+                else: break
+            if peek_pos < s.len:
+                let pk = text_substring_string(s.source, peek_pos, 1)
+                if pk == "|":
+                    s.pos = peek_pos
+                    continue
+            break
+
+        var is_sep: Bool = true
+        var si: Int = 0
+        while si < len(row_values):
+            if row_values[si] != "" and all_dashes(row_values[si]) == false:
+                is_sep = false
+            si = si + 1
+
+        if is_sep and is_header:
+            is_header = false
+            var peek_pos2 = s.pos
+            loop:
+                if peek_pos2 >= s.len: break
+                let pk2 = text_substring_string(s.source, peek_pos2, 1)
+                if pk2 == "\n": peek_pos2 = peek_pos2 + 1
+                elif pk2 == " " or pk2 == "\r" or pk2 == "\t": peek_pos2 = peek_pos2 + 1
+                else: break
+            if peek_pos2 < s.len:
+                let pk2 = text_substring_string(s.source, peek_pos2, 1)
+                if pk2 == "|":
+                    s.pos = peek_pos2
+                    continue
+            break
+
+        var cells: Array<String> = []
+        var ci: Int = 0
+        while ci < len(row_values):
+            if row_values[ci] != "": push(cells, row_values[ci])
+            ci = ci + 1
+
+        if len(cells) == 0: continue
+
+        if cols == 0:
+            cols = len(cells)
+            var cti: Int = 0
+            while cti < cols:
+                push(col_types, MARK_INT)
+                cti = cti + 1
+
+        let effective_cols = cols
+        if len(cells) < effective_cols:
+            let ec = len(cells)
+            var ci2: Int = 0
+            while ci2 < ec:
+                let ctype = infer_cell_type(cells[ci2])
+                if ci2 < len(col_types):
+                    col_types[ci2] = widen_column_type(col_types[ci2], ctype)
+                ci2 = ci2 + 1
+            var ci3: Int = 0
+            while ci3 < ec:
+                var ct = MARK_STRING
+                if ci3 < len(col_types): ct = col_types[ci3]
+                push(all_data, parse_cell_value(cells[ci3], ct))
+                ci3 = ci3 + 1
+            rows = rows + 1
+
+        if is_header:
+            is_header = false
+
+        var peek_pos3 = s.pos
+        loop:
+            if peek_pos3 >= s.len: break
+            let pk3 = text_substring_string(s.source, peek_pos3, 1)
+            if pk3 == "\n": peek_pos3 = peek_pos3 + 1
+            elif pk3 == " " or pk3 == "\r" or pk3 == "\t": peek_pos3 = peek_pos3 + 1
+            else: break
+        if peek_pos3 < s.len:
+            let pk3 = text_substring_string(s.source, peek_pos3, 1)
+            if pk3 == "|":
+                s.pos = peek_pos3
+                continue
+        break
+
+    s.at_line_start = true
+    s.prev_kind = TOK_TABLEPIPE
+    return TableParseResult {
+        handle_id: handle_id,
+        cols: cols,
+        rows: rows,
+        col_types: col_types,
+        data: all_data,
+        state: s
+    }
+
+// ===========================================================================
+//  PARSER — token stream → bytecode (Array<Int>)
+// ===========================================================================
+
+pub fn parse_source(state: LexerState) -> Array<Int>:
+    var bc: Array<Int> = []
+    var s = state
+    var done = false
+    var next_handle: Int = 0
+
+    while done == false:
+        let nr = next_token(s)
+        let tok = nr.token
+        s = nr.state
+        let kind = token_kind(tok)
+
+        if kind == TOK_EOF:
+            done = true
+
+        elif kind == TOK_HEADER1:
+            let name_nr = next_token(s)
+            let name_tok = name_nr.token
+            s = name_nr.state
+            let name = token_text(name_tok)
+            push(bc, OP_ENTER_DOMAIN)
+            push(bc, hash_name(name))
+
+        elif kind == TOK_HEADER2:
+            let name_nr = next_token(s)
+            let name_tok = name_nr.token
+            s = name_nr.state
+            let name = token_text(name_tok)
+            push(bc, OP_ROUTINE_HEADER)
+            push(bc, hash_name(name))
+
+        elif kind == TOK_BLOCKQUOTE:
+            let phrase_nr = next_token(s)
+            let phrase_tok = phrase_nr.token
+            s = phrase_nr.state
+            let phrase = token_text(phrase_tok)
+            push(bc, OP_PUSH_PARAM)
+            push(bc, hash_name(phrase))
+            push(bc, OP_EXECUTE_CALL)
+
+        elif kind == TOK_TABLEPIPE:
+            let tresult = parse_matrix_table(s, next_handle)
+            s = tresult.state
+            next_handle = next_handle + 1
+
+            push(bc, OP_PUSH_MATRIX)
+            push(bc, tresult.handle_id)
+            push(bc, tresult.cols)
+            push(bc, tresult.rows)
+
+            let cell_count = len(tresult.data)
+            let data_count = cell_count * 2
+            push(bc, data_count)
+
+            let col_count = len(tresult.col_types)
+            push(bc, col_count)
+            var cti: Int = 0
+            while cti < col_count:
+                push(bc, tresult.col_types[cti])
+                cti = cti + 1
+
+            var ci4: Int = 0
+            while ci4 < cell_count:
+                let mv = tresult.data[ci4]
+                push(bc, mv.kind)
+                if mv.kind == MARK_INT:
+                    push(bc, mv.int_val)
+                elif mv.kind == MARK_FLOAT:
+                    let scaled = float_to_int(mv.float_val * 1000000.0)
+                    push(bc, scaled)
+                elif mv.kind == MARK_STRING:
+                    push(bc, hash_name(mv.str_val))
+                else:
+                    push(bc, 0)
+                ci4 = ci4 + 1
+
+        elif kind == TOK_FENCE:
+            let content_start = s.pos
+            var closed = false
+            loop:
+                let fnr = next_token(s)
+                s = fnr.state
+                let fk = token_kind(fnr.token)
+                if fk == TOK_FENCE:
+                    closed = true
+                    break
+                elif fk == TOK_EOF: break
+
+            var raw = ""
+            if closed:
+                let end_pos = s.pos - 3
+                if end_pos > content_start:
+                    raw = text_substring_string(s.source, content_start, end_pos - content_start)
+            else:
+                raw = text_substring_string(s.source, content_start, s.pos - content_start)
+
+            var lang_text = ""
+            var code_text = ""
+            var rp: Int = 0
+            let rlen = len(raw)
+            while rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == " " or rc == "\t" or rc == "\n" or rc == "\r": rp = rp + 1
+                else: break
+            var ls: Int = rp
+            while rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == "\n" or rc == "\r": break
+                rp = rp + 1
+            if rp > ls:
+                lang_text = text_materialize(text_trim(text_from(text_substring_string(raw, ls, rp - ls))))
+            if rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == "\r":
+                    rp = rp + 1
+                    if rp < rlen and text_substring_string(raw, rp, 1) == "\n": rp = rp + 1
+                elif rc == "\n": rp = rp + 1
+            if rp < rlen:
+                code_text = text_substring_string(raw, rp, rlen - rp)
+
+            push(bc, OP_FENCED_CODE)
+            push(bc, hash_name(lang_text))
+            push(bc, hash_name(code_text))
+
+        elif kind == TOK_NEWLINE:
+            continue
+
+        else:
+            continue
+
+    push(bc, OP_HALT)
+    return bc
+
+/// Compile markdown source string to bytecode.
+pub fn compile_source(state: LexerState) -> Array<Int>:
+    return parse_source(state)
+
+// ===========================================================================
+//  VM EXECUTION — execute_bytecode + resume_execution
+// ===========================================================================
+
+fn pop_stack(stk: Array<MarkValue>) -> MarkValue:
+    let stk_len = len(stk)
+    if stk_len > 0:
+        let v = stk[stk_len - 1]
+        pop(stk)
+        return v
+    return mark_empty()
+
+fn peek_stack(stk: Array<MarkValue>) -> MarkValue:
+    let stk_len = len(stk)
+    if stk_len > 0: return stk[stk_len - 1]
+    return mark_empty()
+
+fn is_zero_value(v: MarkValue) -> Bool:
+    if v.kind == MARK_INT:    return v.int_val == 0
+    elif v.kind == MARK_FLOAT:  return v.float_val == 0.0
+    elif v.kind == MARK_STRING: return v.str_val == ""
+    return false
+
+fn is_negative_value(v: MarkValue) -> Bool:
+    if v.kind == MARK_INT:   return v.int_val < 0
+    elif v.kind == MARK_FLOAT: return v.float_val < 0.0
+    return false
+
+fn lookup_handler_ivt(phrases: Array<Int>, handler_ids: Array<Int>, ivtc: Int, hash: Int) -> Int:
+    var i: Int = 0
+    while i < ivtc:
+        if i < len(phrases) and phrases[i] == hash:
+            return handler_ids[i]
+        i = i + 1
+    return 0
+
+/// Execute bytecode on the VM. Returns ExecResult.
+/// If handler_id > 0, the caller must dispatch and call resume_execution.
+pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
+    let bc_len = len(bc)
+    var ip = vm.ip
+    var acc = vm.accumulator
+    var stk = vm.stack
+    var dt = vm.data_table
+    var cb = vm.code_blocks
+    var callstk = vm.call_stack
+    var ivt_p = vm.ivt_phrases
+    var ivt_h = vm.ivt_handler_ids
+    var ivtc = vm.ivt_count
+    var vars = vm.variables
+    var varc = vm.var_count
+    var pending_hash = vm.pending_hash
+    var verr = vm.error
+    var wgts = vm.widgets
+    var wgtc = vm.widget_count
+    var procs = vm.processes
+    var arrays_arr = vm.arrays
+    var dicts_arr = vm.dicts
+    var fns = vm.functions
+    var mods = vm.modules
+
+    while ip < bc_len:
+        let opcode = bc[ip]
+
+        if opcode == OP_HALT:
+            return make_exec_result(ip, acc, stk, dt, cb, callstk, ivt_p, ivt_h, ivtc, vars, varc, verr, pending_hash, wgts, wgtc, procs, arrays_arr, dicts_arr, fns, mods, bc, vm.data_table_cnt, 0)
+
+        elif opcode == OP_ENTER_DOMAIN:
+            ip = ip + 1
+            if ip < bc_len: acc = mark_int(bc[ip])
+            ip = ip + 1
+
+        elif opcode == OP_ROUTINE_HEADER:
+            ip = ip + 1
+            if ip < bc_len: acc = mark_int(bc[ip])
+            ip = ip + 1
+
+        elif opcode == OP_PUSH_PARAM:
+            ip = ip + 1
+            if ip < bc_len: pending_hash = pending_hash + bc[ip]
+            ip = ip + 1
+
+        elif opcode == OP_EXECUTE_CALL:
+            let handler_id = lookup_handler_ivt(ivt_p, ivt_h, ivtc, pending_hash)
+            if handler_id > 0:
+                pending_hash = 0
+                ip = ip + 1
+                return make_exec_result(ip, acc, stk, dt, cb, callstk, ivt_p, ivt_h, ivtc, vars, varc, verr, pending_hash, wgts, wgtc, procs, arrays_arr, dicts_arr, fns, mods, bc, vm.data_table_cnt, handler_id)
+            else:
+                verr = make_error(ERROR_NAME, "unknown intent phrase (hash=" + str(pending_hash) + ")", 0, "", "")
+                ip = ip + 1
+            pending_hash = 0
+
+        elif opcode == OP_PUSH_MATRIX:
+            ip = ip + 1
+            if ip + 3 >= bc_len:
+                ip = bc_len
+                continue
+            let handle = bc[ip]
+            ip = ip + 1
+            let cols = bc[ip]
+            ip = ip + 1
+            let rows = bc[ip]
+            ip = ip + 1
+            let data_count = bc[ip]
+            ip = ip + 1
+            var col_types: Array<Int> = []
+            if ip < bc_len:
+                let col_count = bc[ip]
+                ip = ip + 1
+                var cti: Int = 0
+                while cti < col_count and ip < bc_len:
+                    push(col_types, bc[ip])
+                    ip = ip + 1
+                    cti = cti + 1
+            var cell_data: Array<MarkValue> = []
+            let cell_count = data_count / 2
+            var ci5: Int = 0
+            while ci5 < cell_count and ip + 1 < bc_len:
+                let kind = bc[ip]
+                ip = ip + 1
+                let payload = bc[ip]
+                ip = ip + 1
+                if kind == MARK_INT: push(cell_data, mark_int(payload))
+                elif kind == MARK_FLOAT:
+                    let fval: Float = payload
+                    push(cell_data, mark_float(fval / 1000000.0))
+                elif kind == MARK_STRING: push(cell_data, mark_string("hash:" + str(payload)))
+                else: push(cell_data, mark_int(payload))
+                ci5 = ci5 + 1
+            while len(dt) <= handle:
+                push(dt, MatrixRecord { handle_id: len(dt), cols: 0, rows: 0, col_types: [], data: [] })
+            dt[handle] = MatrixRecord { handle_id: handle, cols: cols, rows: rows, col_types: col_types, data: cell_data }
+            acc = mark_int(handle)
+
+        elif opcode == OP_FENCED_CODE:
+            ip = ip + 1
+            if ip + 1 >= bc_len:
+                ip = bc_len
+                continue
+            let lang_hash = bc[ip]
+            ip = ip + 1
+            let content_hash = bc[ip]
+            ip = ip + 1
+            push(cb, CodeBlockRecord { lang_hash: lang_hash, content_hash: content_hash })
+            acc = mark_int(lang_hash)
+
+        elif opcode == OP_PUSH_STACK:
+            ip = ip + 1
+            if ip < bc_len: push(stk, mark_int(bc[ip]))
+            ip = ip + 1
+
+        elif opcode == OP_POP_STACK:
+            acc = pop_stack(stk)
+            ip = ip + 1
+
+        elif opcode == OP_DUP:
+            let top = peek_stack(stk)
+            if top.kind != MARK_INT or top.int_val != 0: push(stk, top)
+            ip = ip + 1
+
+        elif opcode == OP_CALL:
+            let target_hash_val = peek_stack(stk)
+            var target_hash: Int = 0
+            if target_hash_val.kind == MARK_INT: target_hash = target_hash_val.int_val
+            pop(stk)
+            let hid = lookup_handler_ivt(ivt_p, ivt_h, ivtc, target_hash)
+            if hid > 0:
+                push(callstk, ip + 1)
+                return make_exec_result(ip + 1, acc, stk, dt, cb, callstk, ivt_p, ivt_h, ivtc, vars, varc, verr, pending_hash, wgts, wgtc, procs, arrays_arr, dicts_arr, fns, mods, bc, vm.data_table_cnt, hid)
+            else:
+                verr = make_error(ERROR_NAME, "unknown intent (hash=" + str(target_hash) + ")", 0, "", "")
+            ip = ip + 1
+
+        elif opcode == OP_RET:
+            if len(callstk) > 0:
+                ip = callstk[len(callstk) - 1]
+                pop(callstk)
+            else: ip = ip + 1
+
+        elif opcode == OP_JMP:
+            ip = ip + 1
+            if ip < bc_len: ip = bc[ip]
+            else: ip = bc_len
+
+        elif opcode == OP_JZ:
+            ip = ip + 1
+            if ip >= bc_len:
+                ip = ip + 1
+                continue
+            let target = bc[ip]
+            ip = ip + 1
+            if is_zero_value(pop_stack(stk)): ip = target
+
+        elif opcode == OP_JN:
+            ip = ip + 1
+            if ip >= bc_len:
+                ip = ip + 1
+                continue
+            let target = bc[ip]
+            ip = ip + 1
+            if is_negative_value(pop_stack(stk)): ip = target
+
+        elif opcode == OP_ADD or opcode == OP_SUB or opcode == OP_MUL or opcode == OP_DIV:
+            let stk_len = len(stk)
+            if stk_len >= 2:
+                let b = pop_stack(stk)
+                let a = pop_stack(stk)
+                var result = mark_int(0)
+                if a.kind == MARK_INT and b.kind == MARK_INT:
+                    let av = a.int_val
+                    let bv = b.int_val
+                    if opcode == OP_ADD: result = mark_int(av + bv)
+                    elif opcode == OP_SUB: result = mark_int(av - bv)
+                    elif opcode == OP_MUL: result = mark_int(av * bv)
+                    elif opcode == OP_DIV:
+                        if bv == 0: verr = make_error(ERROR_TYPE, "division by zero", 0, "", "")
+                        else: result = mark_int(av / bv)
+                elif a.kind == MARK_FLOAT or b.kind == MARK_FLOAT:
+                    var af: Float = 0.0
+                    var bf: Float = 0.0
+                    if a.kind == MARK_FLOAT: af = a.float_val
+                    elif a.kind == MARK_INT: af = a.int_val
+                    if b.kind == MARK_FLOAT: bf = b.float_val
+                    elif b.kind == MARK_INT: bf = b.int_val
+                    if opcode == OP_ADD: result = mark_float(af + bf)
+                    elif opcode == OP_SUB: result = mark_float(af - bf)
+                    elif opcode == OP_MUL: result = mark_float(af * bf)
+                    elif opcode == OP_DIV:
+                        if bf == 0.0: verr = make_error(ERROR_TYPE, "division by zero", 0, "", "")
+                        else: result = mark_float(af / bf)
+                push(stk, result)
+            ip = ip + 1
+
+        elif opcode == OP_LOAD_VAR:
+            ip = ip + 1
+            if ip < bc_len:
+                let name_hash = bc[ip]
+                var found_idx: Int = -1
+                var vi2: Int = 0
+                while vi2 < varc:
+                    if vi2 < len(vars) and vars[vi2].name_hash == name_hash:
+                        found_idx = vi2
+                        break
+                    vi2 = vi2 + 1
+                if found_idx >= 0: push(stk, vars[found_idx].value)
+                else: push(stk, mark_empty())
+            ip = ip + 1
+
+        elif opcode == OP_STORE_VAR:
+            ip = ip + 1
+            if ip < bc_len:
+                let name_hash = bc[ip]
+                let val = pop_stack(stk)
+                var found_idx2: Int = -1
+                var vi3: Int = 0
+                while vi3 < varc:
+                    if vi3 < len(vars) and vars[vi3].name_hash == name_hash:
+                        found_idx2 = vi3
+                        break
+                    vi3 = vi3 + 1
+                if found_idx2 >= 0: vars[found_idx2].value = val
+                else:
+                    while len(vars) <= varc:
+                        push(vars, VarEntry { name_hash: 0, value: mark_empty() })
+                    vars[varc] = VarEntry { name_hash: name_hash, value: val }
+                    varc = varc + 1
+            ip = ip + 1
+
+        else:
+            ip = ip + 1
+
+    return make_exec_result(ip, acc, stk, dt, cb, callstk, ivt_p, ivt_h, ivtc, vars, varc, verr, pending_hash, wgts, wgtc, procs, arrays_arr, dicts_arr, fns, mods, bc, vm.data_table_cnt, 0)
+
+fn make_exec_result(ip: Int, acc: MarkValue, stk: Array<MarkValue>, dt: Array<MatrixRecord>, cb: Array<CodeBlockRecord>, callstk: Array<Int>, ivt_p: Array<Int>, ivt_h: Array<Int>, ivtc: Int, vars: Array<VarEntry>, varc: Int, verr: MarkError, pending_hash: Int, wgts: Array<WidgetRecord>, wgtc: Int, procs: Array<ProcessRecord>, arrays_arr: Array<Array<MarkValue>>, dicts_arr: Array<Array<DictEntry>>, fns: Array<FnRecord>, mods: Array<ImportedModule>, bc: Array<Int>, dt_cnt: Int, hid: Int) -> ExecResult:
+    return ExecResult {
+        vm: MarkScriptVM {
+            ip: ip, accumulator: acc, stack: stk,
+            data_table: dt, data_table_cnt: dt_cnt,
+            code_blocks: cb, call_stack: callstk,
+            ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
+            variables: vars, var_count: varc,
+            error: verr, pending_hash: pending_hash,
+            widgets: wgts, widget_count: wgtc,
+            processes: procs,
+            arrays: arrays_arr, dicts: dicts_arr,
+            functions: fns, modules: mods
+        },
+        accumulator: acc,
+        data_table: dt,
+        code_blocks: cb,
+        error: verr,
+        handler_id: hid,
+        bc: bc,
+        ip: ip
+    }
+
+/// Resume VM execution after a handler dispatch.
+pub fn resume_execution(vm: MarkScriptVM, bc: Array<Int>, handler_result: HandlerResult) -> ExecResult:
+    var v = handler_result.vm
+    push(v.stack, handler_result.value)
+    if handler_result.err != "":
+        if v.error.kind == ERROR_OK:
+            v.error = make_error(ERROR_NAME, handler_result.err, 0, "", "")
+    let cstk_len = len(v.call_stack)
+    if cstk_len > 0:
+        v.ip = v.call_stack[cstk_len - 1]
+        pop(v.call_stack)
+    return execute_bytecode(v, bc)
+
+// ===========================================================================
+//  BUILT-IN HANDLER CONSTANTS
+// ===========================================================================
+
+pub const FN_FS_READ_TEXT:   Int = 1
+pub const FN_FS_WRITE_TEXT:  Int = 2
+pub const FN_FS_EXISTS:      Int = 3
+pub const FN_PROCESS_OUTPUT: Int = 4
+pub const FN_PROCESS_SPAWN:  Int = 5
+pub const FN_IMPORT_KAIN:    Int = 6
+pub const FN_ASSERT:         Int = 7
+pub const FN_PRINTLN:        Int = 8
+pub const FN_STR:            Int = 9
+pub const FN_LEN:            Int = 10
+pub const FN_PUSH:           Int = 11
+pub const FN_POP:            Int = 12
+
+// ===========================================================================
+//  BUILT-IN HANDLER IMPLEMENTATIONS
+// ===========================================================================
+
+fn handler_println(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        let val_str = mark_value_to_string(args[0])
+        println("[PRINT] " + val_str)
+    return HandlerResult { vm: vm, value: mark_int(0), err: "" }
+
+fn handler_assert(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "assert: need actual and expected values" }
+    let actual = args[0]
+    let expected = args[1]
+    var equal: Bool = false
+    if actual.kind == expected.kind:
+        if actual.kind == MARK_INT: equal = actual.int_val == expected.int_val
+        elif actual.kind == MARK_FLOAT: equal = actual.float_val == expected.float_val
+        elif actual.kind == MARK_STRING: equal = actual.str_val == expected.str_val
+    if equal:
+        return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "assertion failed: " + mark_value_to_string(actual) + " != " + mark_value_to_string(expected) }
+
+fn handler_fs_read_text(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING: path = args[0].str_val
+        elif args[0].kind == MARK_INT: path = str(args[0].int_val)
+    if path == "": return HandlerResult { vm: vm, value: mark_string(""), err: "read file: no path provided" }
+    let content = fs_read_text(path)
+    return HandlerResult { vm: vm, value: mark_string(content), err: "" }
+
+fn handler_fs_write_text(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    var content: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING: path = args[0].str_val
+        elif args[0].kind == MARK_INT: path = str(args[0].int_val)
+    if len(args) > 1:
+        if args[1].kind == MARK_STRING: content = args[1].str_val
+        elif args[1].kind == MARK_INT: content = str(args[1].int_val)
+    if path == "": return HandlerResult { vm: vm, value: mark_int(0), err: "write file: no path provided" }
+    fs_write_text(path, content)
+    return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+
+fn handler_fs_exists(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING: path = args[0].str_val
+        elif args[0].kind == MARK_INT: path = str(args[0].int_val)
+    if path == "": return HandlerResult { vm: vm, value: mark_int(0), err: "file exists: no path provided" }
+    let exists = fs_exists(path)
+    return HandlerResult { vm: vm, value: mark_int(if exists: 1 else: 0), err: "" }
+
+fn handler_str(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0: return HandlerResult { vm: vm, value: mark_string(mark_value_to_string(args[0])), err: "" }
+    return HandlerResult { vm: vm, value: mark_string(""), err: "str: no value provided" }
+
+fn handler_len(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        let val = args[0]
+        if val.kind == MARK_STRING: return HandlerResult { vm: vm, value: mark_int(len(val.str_val)), err: "" }
+    return HandlerResult { vm: vm, value: mark_int(0), err: "len: no value provided" }
+
+// ===========================================================================
+//  DISPATCH — maps handler_id to the correct handler
+// ===========================================================================
+
+/// Dispatch a handler_id with arguments to the built-in handler table.
+/// For custom handlers (handler_id >= 100), the caller should intercept
+/// the dispatch loop before calling this function.
+pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    if fn_id == FN_FS_READ_TEXT:
+        return handler_fs_read_text(vm, args)
+    elif fn_id == FN_FS_WRITE_TEXT:
+        return handler_fs_write_text(vm, args)
+    elif fn_id == FN_FS_EXISTS:
+        return handler_fs_exists(vm, args)
+    elif fn_id == FN_ASSERT:
+        return handler_assert(vm, args)
+    elif fn_id == FN_PRINTLN:
+        return handler_println(vm, args)
+    elif fn_id == FN_STR:
+        return handler_str(vm, args)
+    elif fn_id == FN_LEN:
+        return handler_len(vm, args)
+    else:
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "unknown function id: " + str(fn_id)
+        }
+
+// ===========================================================================
+//  INIT VM WITH BUILTINS — registers standard intent phrases
+// ===========================================================================
+
+/// Create a new VM pre-loaded with built-in handlers (read file, write file,
+/// file exists, assert, print, str, len).
+pub fn init_vm_with_builtins() -> MarkScriptVM:
+    var v = init_vm()
+    v = register_handler(v, hash_name("read file"), FN_FS_READ_TEXT)
+    v = register_handler(v, hash_name("write file"), FN_FS_WRITE_TEXT)
+    v = register_handler(v, hash_name("file exists"), FN_FS_EXISTS)
+    v = register_handler(v, hash_name("assert"), FN_ASSERT)
+    v = register_handler(v, hash_name("print"), FN_PRINTLN)
+    return v
+
+// ===========================================================================
+//  PUBLIC API — std::mks module surface
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+//  Construction & Lifecycle
+// ---------------------------------------------------------------------------
+
+/// Create a fresh VM with all built-in handlers registered.
+/// Equivalent to init_vm_with_builtins(). Ready to use immediately.
+///
+///     let vm = mks.make()
+///     let vm = mks.run_string(vm, "# Config\n| Key | Value |\n| port | 8080 |")
+///     let port = mks.get_int(vm, 0, 0, 1)  // reads 8080
+pub fn make() -> MarkScriptVM:
+    return init_vm_with_builtins()
+
+/// Shutdown/cleanup a VM. Currently a no-op — the VM uses value semantics
+/// and requires no explicit teardown. Provided for forward compatibility.
+pub fn done(vm: MarkScriptVM) -> Int:
+    let _ = vm
+    return 0
+
+// ---------------------------------------------------------------------------
+//  Execution
+// ---------------------------------------------------------------------------
+
+/// Load and execute a markscript file. Reads the .md source from disk,
+/// compiles it to bytecode, and runs it through the VM.
+/// Returns the final VM state with tables, variables, and error info.
+///
+///     let vm = mks.run_file("config.md")
+///     if mks.ok(vm):
+///         let host = mks.get_string(vm, 0, 0, 0)
+pub fn run_file(path: String) -> MarkScriptVM:
+    let source = fs_read_text(path)
+    if source == "":
+        return make()
+    return run_string(source)
+
+/// Compile and execute a markscript string. Parses the markdown source,
+/// compiles it to bytecode, and runs the full VM execution + dispatch loop.
+/// Returns the final VM state.
+///
+///     let vm = mks.run_string("# Hello\n\n> print world")
+pub fn run_string(source: String) -> MarkScriptVM:
+    var vm = make()
+    let lexer_state = create_lexer(source)
+    let bc = compile_source(lexer_state)
+    let bc_len = len(bc)
+    if bc_len == 0: return vm
+
+    let er = execute_bytecode(vm, bc)
+    vm = er.vm
+
+    var current_er = er
+    var iteration: Int = 0
+    let max_iterations: Int = 100
+
+    while current_er.handler_id > 0 and iteration < max_iterations:
+        let fn_id = current_er.handler_id
+
+        var args: Array<MarkValue> = []
+        let stk_len = len(current_er.vm.stack)
+        var ai: Int = 0
+        while ai < stk_len:
+            push(args, current_er.vm.stack[ai])
+            ai = ai + 1
+        while len(current_er.vm.stack) > 0:
+            pop(current_er.vm.stack)
+
+        let hr = dispatch_fn(current_er.vm, fn_id, args)
+        let _ = hr.err
+
+        let next_er = resume_execution(current_er.vm, bc, hr)
+        current_er = next_er
+        iteration = iteration + 1
+
+    vm = current_er.vm
+    return vm
+
+/// Execute a markscript string on a pre-existing VM (reuses handlers,
+/// variables, and widgets from previous runs).
+pub fn run_with_vm(vm: MarkScriptVM, source: String) -> MarkScriptVM:
+    let lexer_state = create_lexer(source)
+    let bc = compile_source(lexer_state)
+    let bc_len = len(bc)
+    if bc_len == 0: return vm
+
+    let er = execute_bytecode(vm, bc)
+    var current_er = er
+    var iteration: Int = 0
+    let max_iterations: Int = 100
+
+    while current_er.handler_id > 0 and iteration < max_iterations:
+        let fn_id = current_er.handler_id
+        var args: Array<MarkValue> = []
+        let stk_len = len(current_er.vm.stack)
+        var ai: Int = 0
+        while ai < stk_len:
+            push(args, current_er.vm.stack[ai])
+            ai = ai + 1
+        while len(current_er.vm.stack) > 0:
+            pop(current_er.vm.stack)
+
+        let hr = dispatch_fn(current_er.vm, fn_id, args)
+        let next_er = resume_execution(current_er.vm, bc, hr)
+        current_er = next_er
+        iteration = iteration + 1
+
+    return current_er.vm
+
+// ---------------------------------------------------------------------------
+//  Error Handling
+// ---------------------------------------------------------------------------
+
+/// Check if the VM is in an OK (error-free) state.
+/// Returns true if no error is recorded.
+pub fn ok(vm: MarkScriptVM) -> Bool:
+    return vm.error.kind == ERROR_OK
+
+/// Get the error message string, or empty string if no error.
+pub fn error_text(vm: MarkScriptVM) -> String:
+    return format_error(vm.error)
+
+/// Structured VM status for pattern matching.
+pub enum MksStatus:
+    Ok
+    CompileError(String)
+    RuntimeError(String)
+
+/// Get the VM's current status.
+pub fn status(vm: MarkScriptVM) -> MksStatus:
+    if vm.error.kind == ERROR_OK:
+        return MksStatus::Ok
+    elif vm.error.kind == ERROR_NAME or vm.error.kind == ERROR_ARITY or vm.error.kind == ERROR_BOUNDS or vm.error.kind == ERROR_TYPE:
+        return MksStatus::RuntimeError(format_error(vm.error))
+    else:
+        return MksStatus::CompileError(format_error(vm.error))
+
+// ---------------------------------------------------------------------------
+//  Table Access API
+// ---------------------------------------------------------------------------
+
+/// Get the total number of data tables stored in the VM.
+///
+///     let count = mks.table_count(vm)
+///     var i: Int = 0
+///     while i < count:
+///         let rows = mks.table_rows(vm, i)
+///         ...
+pub fn table_count(vm: MarkScriptVM) -> Int:
+    return len(vm.data_table)
+
+/// Get the number of rows in a table by index.
+pub fn table_rows(vm: MarkScriptVM, table_idx: Int) -> Int:
+    if table_idx >= 0 and table_idx < len(vm.data_table):
+        return vm.data_table[table_idx].rows
+    return 0
+
+/// Get the number of columns in a table by index.
+pub fn table_cols(vm: MarkScriptVM, table_idx: Int) -> Int:
+    if table_idx >= 0 and table_idx < len(vm.data_table):
+        return vm.data_table[table_idx].cols
+    return 0
+
+/// Get the column header names for a table (first row, string values).
+/// Returns an array of strings, one per column. Empty strings for
+/// non-string cells.
+///
+///     let headers = mks.table_header(vm, 0)
+///     // ["host", "port", "tls"]
+pub fn table_header(vm: MarkScriptVM, table_idx: Int) -> Array<String>:
+    var result: Array<String> = []
+    if table_idx < 0 or table_idx >= len(vm.data_table): return result
+    let dt = vm.data_table[table_idx]
+    if dt.cols <= 0: return result
+    var ci: Int = 0
+    while ci < dt.cols:
+        if ci < len(dt.data):
+            let cell = dt.data[ci]
+            if cell.kind == MARK_STRING: push(result, cell.str_val)
+            elif cell.kind == MARK_INT: push(result, str(cell.int_val))
+            else: push(result, "")
+        else:
+            push(result, "")
+        ci = ci + 1
+    return result
+
+/// Get an Int value from a table cell by (table_index, row, col).
+/// Returns 0 if the cell is out of bounds or not an Int.
+///
+///     let port = mks.get_int(vm, 0, 0, 1)  // table 0, row 0, col 1
+pub fn get_int(vm: MarkScriptVM, table_idx: Int, row: Int, col: Int) -> Int:
+    if table_idx < 0 or table_idx >= len(vm.data_table): return 0
+    let dt = vm.data_table[table_idx]
+    if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols: return 0
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_INT: return cell.int_val
+        elif cell.kind == MARK_FLOAT: return float_to_int(cell.float_val)
+    return 0
+
+/// Get a String value from a table cell by (table_index, row, col).
+/// Returns "" if the cell is out of bounds or not representable as a string.
+pub fn get_string(vm: MarkScriptVM, table_idx: Int, row: Int, col: Int) -> String:
+    if table_idx < 0 or table_idx >= len(vm.data_table): return ""
+    let dt = vm.data_table[table_idx]
+    if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols: return ""
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_STRING: return cell.str_val
+        elif cell.kind == MARK_INT: return str(cell.int_val)
+        elif cell.kind == MARK_FLOAT: return str(cell.float_val)
+    return ""
+
+/// Get a Float value from a table cell by (table_index, row, col).
+/// Returns 0.0 if the cell is out of bounds or not numeric.
+pub fn get_float(vm: MarkScriptVM, table_idx: Int, row: Int, col: Int) -> Float:
+    if table_idx < 0 or table_idx >= len(vm.data_table): return 0.0
+    let dt = vm.data_table[table_idx]
+    if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols: return 0.0
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_FLOAT: return cell.float_val
+        elif cell.kind == MARK_INT: return cell.int_val as Float
+    return 0.0
+
+/// Get a Bool value from a table cell by (table_index, row, col).
+/// Returns false if the cell is out of bounds. Only MARK_BOOL cells
+/// return their bool_val; MARK_INT cells return true for non-zero.
+pub fn get_bool(vm: MarkScriptVM, table_idx: Int, row: Int, col: Int) -> Bool:
+    if table_idx < 0 or table_idx >= len(vm.data_table): return false
+    let dt = vm.data_table[table_idx]
+    if row < 0 or row >= dt.rows or col < 0 or col >= dt.cols: return false
+    let idx = row * dt.cols + col
+    if idx >= 0 and idx < len(dt.data):
+        let cell = dt.data[idx]
+        if cell.kind == MARK_BOOL: return cell.bool_val
+        elif cell.kind == MARK_INT: return cell.int_val != 0
+    return false
+
+// ---------------------------------------------------------------------------
+//  Custom Handler Registration
+// ---------------------------------------------------------------------------
+
+/// Register a custom intent phrase → handler_id mapping in the IVT.
+/// The handler_id should be >= 100 to avoid collisions with built-in handlers.
+///
+/// After binding, when a markscript source contains "> phrase", the VM
+/// will pause execution with handler_id set. The caller must intercept
+/// the dispatch loop to handle custom handler_ids.
+///
+///     let vm = mks.make()
+///     let vm = mks.bind(vm, "deploy app", 100)
+///     let vm = mks.run_string(vm, "# Deploy\n> deploy app\n")
+///     // After execution, check vm.ivt_* for pending handlers
+pub fn bind(vm: MarkScriptVM, phrase: String, handler_id: Int) -> MarkScriptVM:
+    let phrase_hash = hash_name(phrase)
+    return register_handler(vm, phrase_hash, handler_id)
+
+/// Look up a handler_id by intent phrase. Returns 0 if not found.
+pub fn lookup(vm: MarkScriptVM, phrase: String) -> Int:
+    return lookup_handler(vm, hash_name(phrase))
+
+// ---------------------------------------------------------------------------
+//  Domain / Routine Querying
+// ---------------------------------------------------------------------------
+
+/// List all domain names extracted from # Level-1 headers during compilation.
+/// Currently returns an empty array — domain extraction requires bytecode
+/// scanning (domains are stored as OP_ENTER_DOMAIN operands).
+///
+/// For full domain extraction, inspect the bytecode directly:
+///     let bc = mks.compile(vm, source)
+///     // scan bc for OP_ENTER_DOMAIN ops
+pub fn domains(vm: MarkScriptVM) -> Array<String>:
+    let _ = vm
+    return []
+
+/// List all routine names for a given domain index.
+/// Currently returns an empty array — see domains() for details.
+pub fn routines(vm: MarkScriptVM, domain_idx: Int) -> Array<String>:
+    let _ = vm
+    let _ = domain_idx
+    return []

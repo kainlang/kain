@@ -46,6 +46,10 @@ pub fn knc_check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAnd
         item: TypedItem {
             kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
             resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

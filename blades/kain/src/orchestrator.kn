@@ -150,13 +150,15 @@ pub struct KcDiagnostic:
     span_end:    Int
 
 pub struct KcDiagnosticBag:
-    messages: Array<KcDiagnostic>
+    errors:   Array<KcDiagnostic>
+    warnings: Array<KcDiagnostic>
+    notes:    Array<KcDiagnostic>
 
 pub fn kc_diag_bag_new() -> KcDiagnosticBag:
-    return KcDiagnosticBag { messages: [] }
+    return KcDiagnosticBag { errors: [], warnings: [], notes: [] }
 
 pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
-    return len(bag.messages) > 0
+    return len(bag.errors) > 0
 
 pub fn kc_diagnostic_new(severity: Int, message: String, kind: String, span_start: Int, span_end: Int) -> KcDiagnostic:
     return KcDiagnostic {
@@ -202,13 +204,23 @@ pub fn driver_session_compile(session: DriverSession, source: String, source_pat
     return CompileResult { success: false, output: "", exit_code: 1, errors: kc_diag_bag_new() }
 
 pub fn emit_diagnostics_to_stderr(bag: KcDiagnosticBag) with IO:
+    // Print errors
     var i: Int = 0
-    while i < len(bag.messages):
-        let d: KcDiagnostic = bag.messages[i]
-        let sev: String = "error"
-        if d.severity == 1: sev = "warning"
-        if d.severity == 2: sev = "note"
-        println(d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": " + sev + ": " + d.message)
+    while i < len(bag.errors):
+        let d: KcDiagnostic = bag.errors[i]
+        println(d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": error: " + d.message)
+        i = i + 1
+    // Print warnings
+    i = 0
+    while i < len(bag.warnings):
+        let d: KcDiagnostic = bag.warnings[i]
+        println(d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": warning: " + d.message)
+        i = i + 1
+    // Print notes
+    i = 0
+    while i < len(bag.notes):
+        let d: KcDiagnostic = bag.notes[i]
+        println(d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": note: " + d.message)
         i = i + 1
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -422,6 +434,108 @@ pub fn handler_build_package(project_root: String) -> Int with IO:
     println("[kainc] BUILD PACKAGE: SUCCESS")
     return 0
 
+// ═════════════════════════════════════════════════════════════════════════════
+// strip_local_imports — remove `use` lines that import local files
+//
+// Combined source already has all definitions inline. Local `use module`
+// imports trigger module resolution and pull in original files, causing
+// duplicate symbol errors. Keep `use std::*` lines (stdlib imports).
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn strip_local_imports(text: String) -> String:
+    var output: String = ""
+    let lines: Array<String> = text_split_lines(text)
+    var li: Int = 0
+    while li < len(lines):
+        let ln: String = lines[li]
+        // Keep lines that are NOT local file imports
+        if text_starts_with_string(ln, "use "):
+            // Strip only bare module imports (not use std::*)
+            if text_starts_with_string(ln, "use std::"):
+                output = output + ln + "\n"
+            // else: skip this line (it's a local file import)
+        else:
+            output = output + ln + "\n"
+        li = li + 1
+    return output
+
+// ═════════════════════════════════════════════════════════════════════════════
+// dedup_combined_source — strip duplicate top-level definitions
+//
+// Uses std::text functions (text_starts_with_string, text_substring_string)
+// to avoid per-character array indexing on large strings.
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn dedup_combined_source(text: String) -> String:
+    var seen_names: String = "|"
+    var output: String = ""
+
+    // Split into lines and process each
+    let lines: Array<String> = text_split_lines(text)
+    var skip_def: Bool = false
+    var li: Int = 0
+    while li < len(lines):
+        let ln: String = lines[li]
+
+        // Check for top-level declarations
+        var is_def: Bool = false
+        var name_start: Int = 0
+        if text_starts_with_string(ln, "pub struct "):
+            is_def = true
+            name_start = 11
+        elif text_starts_with_string(ln, "pub fn "):
+            is_def = true
+            name_start = 7
+        elif text_starts_with_string(ln, "pub const "):
+            is_def = true
+            name_start = 11
+        elif text_starts_with_string(ln, "pub type "):
+            is_def = true
+            name_start = 9
+        elif text_starts_with_string(ln, "type "):
+            is_def = true
+            name_start = 5
+        elif text_starts_with_string(ln, "const "):
+            if text_starts_with_string(ln, "const "):
+                is_def = true
+                name_start = 6
+
+        if skip_def and is_def:
+            skip_def = false
+            // Fall through to process this new declaration
+
+        if is_def:
+            // Extract symbol name
+            var symbol_name: String = ""
+            var ni: Int = name_start
+            while ni < len(ln):
+                let nc: String = text_substring_string(ln, ni, 1)
+                if nc == ":" or nc == "(" or nc == " " or nc == "=":
+                    ni = len(ln)  // break
+                else:
+                    symbol_name = symbol_name + nc
+                ni = ni + 1
+
+            if symbol_name != "":
+                let marker: String = "|" + symbol_name + "|"
+                if text_contains_string(seen_names, marker):
+                    skip_def = true
+                    li = li + 1
+                    continue
+                else:
+                    seen_names = seen_names + symbol_name + "|"
+
+        if skip_def:
+            li = li + 1
+            continue
+
+        output = output + ln + "\n"
+        li = li + 1
+
+    return output 
+
+// ═════════════════════════════════════════════════════════════════════════════
+
 pub fn handler_selfhost_phase1(project_root: String) -> Int with IO:
     println("[kainc] selfhost phase1: combining sources from " + project_root)
 
@@ -458,6 +572,18 @@ pub fn handler_selfhost_phase1(project_root: String) -> Int with IO:
         fi = fi + 1
 
     println("[kainc] phase1: read " + str(files_read) + " / " + str(len(SOURCE_ORDER)) + " source files")
+
+    // ── Strip local imports: combined source has all defs inline ──
+    let stripped: String = strip_local_imports(combined)
+    let strip_kb: Int = (len(combined) - len(stripped)) / 1000
+    println("[kainc] phase1: stripped ~" + str(strip_kb) + " KB of local imports")
+    combined = stripped
+
+    // ── Dedup pass: strip duplicate top-level definitions ──
+    let deduped: String = dedup_combined_source(combined)
+    let removed_kb: Int = (len(combined) - len(deduped)) / 1000
+    println("[kainc] phase1: dedup removed ~" + str(removed_kb) + " KB of duplicates")
+    combined = deduped
 
     // Write combined source
     let out_dir: String = project_root + "/.selfhost/bootstrap/combined"

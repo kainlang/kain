@@ -54,6 +54,10 @@ pub fn knc_check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItem
         item: TypedItem {
             kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
             resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

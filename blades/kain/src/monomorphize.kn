@@ -116,6 +116,10 @@ pub struct TypedItem:
     resolved_type: ResolvedType
     ast_index:     Int
     effects:       Int
+    field_names:   Array<Int>
+    field_types:   Array<ResolvedType>
+    fn_param_types: Array<ResolvedType>
+    fn_ret_type:    ResolvedType
 
 pub struct TypedProgram:
     items:  Array<TypedItem>
@@ -404,6 +408,10 @@ pub fn instantiate_generic(fn_item: TypedItem, type_args: Array<ResolvedType>, b
     let concrete_type: ResolvedType = substitute_type(fn_item.resolved_type, bindings)
 
     // Create the instantiated item
+    // Forward struct field info and function signature info
+    let is_struct: Bool = fn_item.kind == AST_ITEM_STRUCT
+    let is_fn: Bool = fn_item.kind == AST_ITEM_FUNCTION
+
     let inst: TypedItem = TypedItem {
         kind: fn_item.kind,
         name: mangled,
@@ -411,6 +419,10 @@ pub fn instantiate_generic(fn_item: TypedItem, type_args: Array<ResolvedType>, b
         resolved_type: concrete_type,
         ast_index: fn_item.ast_index,
         effects: fn_item.effects,
+        field_names: if is_struct: fn_item.field_names else: [],
+        field_types: if is_struct: fn_item.field_types else: [],
+        fn_param_types: if is_fn: fn_item.fn_param_types else: [],
+        fn_ret_type: if is_fn: fn_item.fn_ret_type else: mono_rt_unit(),
     }
 
     return InstantiateResult {

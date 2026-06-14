@@ -306,6 +306,10 @@ pub struct TypedItem:
     resolved_type: ResolvedType
     ast_index:     Int
     effects:       Int
+    field_names:   Array<Int>
+    field_types:   Array<ResolvedType>
+    fn_param_types: Array<ResolvedType>
+    fn_ret_type:    ResolvedType
 
 pub struct MonomorphizedProgram:
     items:       Array<TypedItem>
@@ -690,24 +694,17 @@ pub fn emit_struct_defs_from_program(gen: LlvmGenerator,
             let ast_idx: Int = item.ast_index
             var field_types_str: String = ""
             if ast_idx >= 0 and ast_idx < len(program.ast_nodes):
-                let struct_node: AstNode = program.ast_nodes[ast_idx]
-                let sd: Array<Int> = struct_node.data
-                let sdlen: Int = len(sd)
-                let gc: Int = if sdlen > 1: sd[1] else: 0
-                let fc_pos: Int = 2 + 2 * gc
-                let fcount: Int = if fc_pos < sdlen: sd[fc_pos] else: 0
+                let fcount: Int = len(item.field_types)
                 var fi: Int = 0
                 while fi < fcount:
                     if fi > 0:
                         field_types_str = field_types_str + ", "
-                    // All fields default to i64 for now (typechecker defaults to Int)
-                    field_types_str = field_types_str + "i64"
+                    let ft: ResolvedType = item.field_types[fi]
+                    field_types_str = field_types_str + map_type_to_llvm(ft)
                     fi = fi + 1
-            else:
-                field_types_str = "i64"
 
             if field_types_str == "":
-                field_types_str = "i64"
+                field_types_str = "i8"
 
             // Register struct definition for field access lookups
             r = struct_defs_register(r, type_name, field_types_str)
@@ -917,16 +914,26 @@ pub fn compile_function_textual(gen: LlvmGenerator,
     // ── Emit function signature ──
     r = emit_blank(r)
     r = emit_raw(r, "define " + ret_llvm + " @" + fn_name + "(")
-
-    // Emit parameters
+    // Emit parameters (use resolved types when available)
     let param_count: Int = item.resolved_type.fn_param_count
-    var pi: Int = 0
-    while pi < param_count:
-        if pi > 0:
-            r = emit_raw(r, ", ")
-        // Parameters are passed as i64 for simplicity
-        r = emit_raw(r, "i64 %param_" + str(pi))
-        pi = pi + 1
+    let pcount: Int = len(item.fn_param_types)
+    if pcount > 0:
+        var pi: Int = 0
+        while pi < pcount:
+            if pi > 0:
+                r = emit_raw(r, ", ")
+            let pt: ResolvedType = item.fn_param_types[pi]
+            r = emit_raw(r, map_type_to_llvm(pt) + " %param_" + str(pi))
+            pi = pi + 1
+    else:
+        let param_count: Int = item.resolved_type.fn_param_count
+        var pi: Int = 0
+        while pi < param_count:
+            if pi > 0:
+                r = emit_raw(r, ", ")
+            // Fallback: all params are i64
+            r = emit_raw(r, "i64 %param_" + str(pi))
+            pi = pi + 1
 
     r = emit_raw(r, ")")
 
@@ -981,10 +988,13 @@ pub fn compile_function_textual(gen: LlvmGenerator,
         let alloca_result: GenResult = next_reg(r)
         r = alloca_result.gen
         let alloca_reg: String = alloca_result.reg
-        r = emit_raw(r, alloca_reg + " = alloca i64, align 8\n")
-        r = emit_raw(r, "store i64 " + param_reg + ", ptr " + alloca_reg + ", align 8\n")
+        let param_llvm_ty: String = "i64"
+        if pcount > 0 and pi2 < pcount:
+            param_llvm_ty = map_type_to_llvm(item.fn_param_types[pi2])
+        r = emit_raw(r, alloca_reg + " = alloca " + param_llvm_ty + ", align 8\n")
+        r = emit_raw(r, "store " + param_llvm_ty + " " + param_reg + ", ptr " + alloca_reg + ", align 8\n")
         let param_name: String = "param_" + str(pi2)
-        r = locals_add(r, param_name, alloca_reg, "i64")
+        r = locals_add(r, param_name, alloca_reg, param_llvm_ty)
         pi2 = pi2 + 1
 
     // ── Compile function body via block ──
@@ -1484,8 +1494,18 @@ pub fn compile_call_textual(gen: LlvmGenerator,
     let fn_name_idx: Int = if dlen > 0: ast_data_get(node, 0) else: -1
     let fn_name: String = "fn_" + str(fn_name_idx)
 
-    // Determine return type — default to i64
+    // Determine return type — look up from program, default to i64
     let ret_ty: String = "i64"
+    // Try to find the function’s TypedItem for return type info
+    if len(gen.program_items) > 0:
+        var ii: Int = 0
+        while ii < len(gen.program_items):
+            let item: TypedItem = gen.program_items[ii]
+            if item.name_idx == fn_name_idx and item.kind == AST_ITEM_FUNCTION:
+                let actual_ret: ResolvedType = if item.fn_ret_type.kind != 0: item.fn_ret_type else: item.resolved_type
+                ret_ty = map_type_to_llvm(actual_ret)
+                ii = len(gen.program_items)  // break
+            ii = ii + 1
 
     // Compile arguments
     let mut g: LlvmGenerator = gen
@@ -1608,13 +1628,14 @@ pub fn compile_field_access_textual(gen: LlvmGenerator,
 
     // Determine field index by walking the struct's AST for field name
     var field_index: Int = 0
+    var matched_name_idx: Int = -1
+    var found_struct: Bool = false
     if obj_ty != "ptr" and obj_ty != "i64":
         // obj_ty is like %struct_N — extract the struct name_idx
         // The struct type is %struct_<name_idx>
         // We need to find the struct AST node and locate the field name
         // Walk all AST nodes looking for the struct definition
         var si: Int = 0
-        var found_struct: Bool = false
         while si < len(ast_nodes):
             let s_node: AstNode = ast_nodes[si]
             if s_node.kind == AST_ITEM_STRUCT:
@@ -1626,6 +1647,7 @@ pub fn compile_field_access_textual(gen: LlvmGenerator,
                 let expected_name: String = "%struct_" + str(s_name_idx)
                 if expected_name == obj_ty:
                     found_struct = true
+                    matched_name_idx = s_name_idx
                     let gc: Int = if sdlen > 1: sd[1] else: 0
                     let fc_pos: Int = 2 + 2 * gc
                     let fcount: Int = if fc_pos < sdlen: sd[fc_pos] else: 0
@@ -1644,12 +1666,24 @@ pub fn compile_field_access_textual(gen: LlvmGenerator,
     g = gep_nr.gen
     g = emit_raw(g, "  " + gep_nr.reg + " = getelementptr inbounds " + obj_ty + ", ptr " + obj_reg + ", i32 0, i32 " + str(field_index) + "\n")
 
+    // Determine field LLVM type from TypedItem
+    let field_llvm_ty: String = "i64"
+    if found_struct:
+        var pii: Int = 0
+        while pii < len(gen.program_items):
+            let s_item: TypedItem = gen.program_items[pii]
+            if s_item.kind == AST_ITEM_STRUCT and s_item.name_idx == matched_name_idx:
+                if field_index < len(s_item.field_types):
+                    field_llvm_ty = map_type_to_llvm(s_item.field_types[field_index])
+                pii = len(gen.program_items)
+            pii = pii + 1
+
     // Load field value
     let load_nr: GenResult = next_reg(g)
     g = load_nr.gen
-    g = emit_raw(g, "  " + load_nr.reg + " = load i64, ptr " + gep_nr.reg + ", align 8\n")
+    g = emit_raw(g, "  " + load_nr.reg + " = load " + field_llvm_ty + ", ptr " + gep_nr.reg + ", align 8\n")
 
-    return GenTypeResult { gen: g, reg: load_nr.reg, llvm_type: "i64" }
+    return GenTypeResult { gen: g, reg: load_nr.reg, llvm_type: field_llvm_ty }
 
 // ═══════════════════════════════════════════════════════════════════
 // compile_assign_textual — store into local variable

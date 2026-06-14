@@ -61,6 +61,10 @@ pub fn knc_check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv
         item: TypedItem {
             kind: AST_ITEM_WORLD, name: "w_" + str(name_idx), name_idx: name_idx,
             resolved_type: rt_struct_as(name_idx), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 
@@ -99,6 +103,10 @@ pub fn knc_check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAnd
         item: TypedItem {
             kind: AST_ITEM_ENTANGLE, name: "ent_" + str(name_idx), name_idx: name_idx,
             resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

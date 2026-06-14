@@ -23,13 +23,15 @@ pub struct KcDiagnostic:
     span_end:    Int
 
 pub struct KcDiagnosticBag:
-    messages: Array<KcDiagnostic>
+    errors:   Array<KcDiagnostic>
+    warnings: Array<KcDiagnostic>
+    notes:    Array<KcDiagnostic>
 
 pub fn kc_diag_bag_new() -> KcDiagnosticBag:
-    return KcDiagnosticBag { messages: [] }
+    return KcDiagnosticBag { errors: [], warnings: [], notes: [] }
 
 pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
-    return len(bag.messages) > 0
+    return len(bag.errors) > 0
 
 pub struct Token:
     kind:    Int
@@ -79,6 +81,10 @@ pub struct TypedItem:
     resolved_type: ResolvedType
     ast_index:     Int
     effects:       Int
+    field_names:   Array<Int>
+    field_types:   Array<ResolvedType>
+    fn_param_types: Array<ResolvedType>
+    fn_ret_type:    ResolvedType
 
 pub struct TypedProgram:
     items:  Array<TypedItem>
@@ -326,14 +332,21 @@ pub fn emit_progress(session: DriverSession, phase: Int) -> DriverSession:
 
 pub fn emit_diagnostics_to_stderr(bag: KcDiagnosticBag) with IO:
     var i: Int = 0
-    while i < len(bag.messages):
-        let d: KcDiagnostic = bag.messages[i]
-        let sev: String = "error"
-        if d.severity == 1:
-            sev = "warning"
-        if d.severity == 2:
-            sev = "note"
-        let msg: String = d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": " + sev + "[" + d.error_kind + "]: " + d.message
+    while i < len(bag.errors):
+        let d: KcDiagnostic = bag.errors[i]
+        let msg: String = d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": error[" + d.error_kind + "]: " + d.message
+        println(msg)
+        i = i + 1
+    i = 0
+    while i < len(bag.warnings):
+        let d: KcDiagnostic = bag.warnings[i]
+        let msg: String = d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": warning[" + d.error_kind + "]: " + d.message
+        println(msg)
+        i = i + 1
+    i = 0
+    while i < len(bag.notes):
+        let d: KcDiagnostic = bag.notes[i]
+        let msg: String = d.file_path + ":" + str(d.line_no) + ":" + str(d.column) + ": note[" + d.error_kind + "]: " + d.message
         println(msg)
         i = i + 1
 
@@ -351,7 +364,9 @@ pub fn compile_file(file_path: String, target: String) -> CompileResult with IO:
             message: "cannot read file: " + file_path, error_kind: "E0001",
             span_start: 0, span_end: 0,
         }
-        bag.messages.push(diag)
+        let bag: KcDiagnosticBag = KcDiagnosticBag {
+            errors: [diag], warnings: [], notes: [],
+        }
         return compile_result_error(bag)
     let session: DriverSession = driver_session_new()
     session.file_path = file_path
@@ -371,7 +386,9 @@ pub fn check_file(file_path: String) -> KcCheckResult with IO:
             message: "cannot read file: " + file_path, error_kind: "E0001",
             span_start: 0, span_end: 0,
         }
-        bag.messages.push(diag)
+        let bag: KcDiagnosticBag = KcDiagnosticBag {
+            errors: [diag], warnings: [], notes: [],
+        }
         return KcCheckResult { success: false, diagnostics: bag }
     let session: DriverSession = driver_session_new()
     session.file_path = file_path
@@ -491,20 +508,13 @@ pub fn compile_workspace(ws_root: String, target: String) -> CompileResult with 
         return compile_result_error(kc_diag_bag_new())
 
     // Compile each source file
-    var all_errors: KcDiagnosticBag = kc_diag_bag_new()
     var fi: Int = 0
     while fi < len(source_files):
         let f: String = fs_path_join(ws_root, source_files[fi])
         let result: CompileResult = compile_file(f, target)
         if result.success == false:
-            var ei: Int = 0
-            while ei < len(result.errors.messages):
-                all_errors.messages.push(result.errors.messages[ei])
-                ei = ei + 1
+            return result
         fi = fi + 1
-
-    if kc_diag_bag_has_errors(all_errors):
-        return compile_result_error(all_errors)
 
     println("[kainc] compile_workspace: all " + str(len(source_files)) + " files compiled successfully")
     return compile_result_ok("")

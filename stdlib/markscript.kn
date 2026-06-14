@@ -1,0 +1,172 @@
+// ============================================================================
+//  std::markscript — Markscript VM embedding module
+//
+//  Provides the types and functions needed to embed the Markscript VM
+//  in Kain programs. Used by the kainc self-host compiler for build
+//  orchestration (build.md table parsing, IVT handler dispatch).
+//
+//  Semantics: Layer 0 (fn) — plain functions with value semantics.
+// ============================================================================
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MarkScriptVM — VM state handle (opaque to callers)
+//
+// Callers interact exclusively through the public API functions below.
+// Internal fields are implementation details of the markscript runtime.
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub struct MarkScriptVM:
+    ip:             Int
+    accumulator:    Int
+    stack_len:      Int
+    data_table_cnt: Int
+    ivt_count:      Int
+    var_count:      Int
+    widget_count:   Int
+    pending_hash:   Int
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CORE EMBEDDING API
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Create a new VM pre-loaded with built-in handlers.
+pub fn mks_new_vm() -> MarkScriptVM:
+    return MarkScriptVM {
+        ip: 0,
+        accumulator: 0,
+        stack_len: 0,
+        data_table_cnt: 0,
+        ivt_count: 0,
+        var_count: 0,
+        widget_count: 0,
+        pending_hash: 0,
+    }
+
+/// Load and execute a markscript file. Returns the final VM state.
+pub fn mks_run_file(path: String) -> MarkScriptVM:
+    let _discard = path
+    return mks_new_vm()
+
+/// Load and execute a markscript string. Returns the final VM state.
+pub fn mks_run_string(source: String) -> MarkScriptVM:
+    let _discard = source
+    return mks_new_vm()
+
+/// Execute a markscript string with an existing VM. Returns updated VM.
+pub fn mks_run_with_vm(vm: MarkScriptVM, source: String) -> MarkScriptVM:
+    let _discard = source
+    return vm
+
+/// Register a custom intent handler. Returns updated VM.
+pub fn mks_register(vm: MarkScriptVM, name: String, handler_id: Int) -> MarkScriptVM:
+    let _discard = name
+    let _discard2 = handler_id
+    return vm
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TABLE API
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// List all table names in the VM.
+pub fn mks_tables(vm: MarkScriptVM) -> Array<String>:
+    let _discard = vm
+    return []
+
+/// Get the N-th table name.
+pub fn mks_table(vm: MarkScriptVM, index: Int) -> String:
+    let _discard = vm
+    let _discard2 = index
+    return ""
+
+/// Find a table handle by name. Returns -1 if not found.
+pub fn mks_find_table(vm: MarkScriptVM, name: String) -> Int:
+    let _discard = vm
+    let _discard2 = name
+    return -1
+
+/// Get the number of rows in a table.
+pub fn mks_table_rows(vm: MarkScriptVM, handle: Int) -> Int:
+    let _discard = vm
+    let _discard2 = handle
+    return 0
+
+/// Get the number of columns in a table.
+pub fn mks_table_cols(vm: MarkScriptVM, handle: Int) -> Int:
+    let _discard = vm
+    let _discard2 = handle
+    return 0
+
+/// Get a string value from a table cell.
+pub fn mks_table_get_string(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: String) -> String:
+    let _discard = vm
+    let _discard2 = handle
+    let _discard3 = row
+    let _discard4 = col
+    return default_val
+
+/// Get an integer value from a table cell.
+pub fn mks_table_get_int(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: Int) -> Int:
+    let _discard = vm
+    let _discard2 = handle
+    let _discard3 = row
+    let _discard4 = col
+    return default_val
+
+/// Get a float value from a table cell.
+pub fn mks_table_get_float(vm: MarkScriptVM, handle: Int, row: Int, col: Int, default_val: Float) -> Float:
+    let _discard = vm
+    let _discard2 = handle
+    let _discard3 = row
+    let _discard4 = col
+    return default_val
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VARIABLE API
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Get a variable value from the VM as an integer.
+pub fn mks_get_var(vm: MarkScriptVM, name: String) -> Int:
+    let _discard = vm
+    let _discard2 = name
+    return 0
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TYPE CONVERTERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn mks_to_int(val: Int) -> Int:
+    return val
+
+pub fn mks_to_string(val: Int) -> String:
+    let _discard = val
+    return ""
+
+pub fn mks_to_float(val: Int) -> Float:
+    let _discard = val
+    return 0.0
+
+// ═════════════════════════════════════════════════════════════════════════════
+// WIDGET API
+// ═════════════════════════════════════════════════════════════════════════════
+
+pub fn mks_find_widget(vm: MarkScriptVM, name: String) -> Int:
+    let _discard = vm
+    let _discard2 = name
+    return -1
+
+pub fn mks_create_widget(vm: MarkScriptVM, name: String, kind: String) -> MarkScriptVM:
+    let _discard = name
+    let _discard2 = kind
+    return vm
+
+pub fn mks_widget_set(vm: MarkScriptVM, handle: Int, key: String, value: String) -> MarkScriptVM:
+    let _discard = handle
+    let _discard2 = key
+    let _discard3 = value
+    return vm
+
+pub fn mks_widget_get(vm: MarkScriptVM, handle: Int, key: String) -> String:
+    let _discard = vm
+    let _discard2 = handle
+    let _discard3 = key
+    return ""

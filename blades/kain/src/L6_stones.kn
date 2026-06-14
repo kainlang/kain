@@ -85,6 +85,10 @@ pub fn knc_check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv
             resolved_type: types.rt_unit(),
             ast_index: idx,
             effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 
@@ -118,6 +122,10 @@ pub fn knc_check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndE
             resolved_type: types.rt_unit(),
             ast_index: idx,
             effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 
@@ -195,6 +203,10 @@ pub fn knc_check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAnd
             resolved_type: value_type,
             ast_index: idx,
             effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

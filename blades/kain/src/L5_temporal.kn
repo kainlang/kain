@@ -110,6 +110,10 @@ pub fn knc_check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv
             resolved_type: types.rt_unit(),
             ast_index: idx,
             effects: eff,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 
@@ -201,6 +205,10 @@ pub fn knc_check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAnd
             resolved_type: types.rt_unit(),
             ast_index: idx,
             effects: eff,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
         }
     }
 

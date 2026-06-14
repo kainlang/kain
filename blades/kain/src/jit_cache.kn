@@ -12,7 +12,7 @@
 
 // ── Shatter-Struct Code Cache ───────────────────────────────────────────────
 
-shatter struct CacheStore:
+struct CacheStore:
     hashes:   Array<Int>
     ptrs:     Array<ptr<Byte>>
     sizes:    Array<Int>
