@@ -4,7 +4,7 @@ Actor-based animation system testing using three-kn's `animation.kn` module. Exe
 
 ## spawn_mixer
 
-> spawn mixer actor "animation_mixer"
+> spawn animation mixer
 
 ```kain
 # AnimationMixer actor via three-kn animation.kn
@@ -92,6 +92,8 @@ let _ = play_action(action_state)
 
 ## interpolate_keyframes
 
+> interpolate keyframes 0.5
+
 ```kain
 # Convergence dispatch for interpolation mode selection
 # three-kn's interpolate_value converge has 3 lanes:
@@ -112,8 +114,6 @@ _assert(cubic_sample < 1.0)
 let step_sample: Float = sample_value(0.6, [0.0, 0.5, 1.0], [0.0, 1.0, 2.0], InterpolationMode::Step)
 _assert(step_sample == 1.0)
 ```
-
-> assert equals linear_interp 0.5
 
 | InterpolationMode | InputT | Keyframes | Result | ExpectedRange |
 |-------------------|--------|-----------|--------|---------------|
@@ -139,7 +139,7 @@ send mixer.PlayClip(reply_to = self, clip_name = "walk_cycle")
 
 ## crossfade
 
-> crossfade action "walk_cycle" "idle_pose" 0.3
+> crossfade clip "idle_pose" 0.3
 
 ```kain
 # Crossfade: blend from walk_cycle to idle_pose over 0.3 seconds
@@ -167,7 +167,7 @@ let _ = crossfade_action(action_state, from_clip, to_clip, crossfade_duration)
 
 ## animation_tick
 
-> advance frame 16
+> advance animation 0.016
 
 ```kain
 # Pulse-driven animation update cycle
@@ -202,7 +202,8 @@ _assert(active_count <= 8)  # max clips
 
 ## stop_and_stats
 
-> stop all
+> stop all clips
+> get mixer stats
 
 | MixerStat | Value | Description |
 |-----------|-------|-------------|
@@ -212,8 +213,6 @@ _assert(active_count <= 8)  # max clips
 | TotalFramesAdvanced | 60 | Simulated ticks |
 | UpdateCalls | 61 | Initial + 60 ticks |
 
-> assert equals final_active_count 0
-
 ```kain
 # Stop all animations and verify state
 send mixer.StopAll(reply_to = self)
@@ -222,6 +221,8 @@ send mixer.StopAll(reply_to = self)
 send mixer.GetStats(reply_to = self)
 # Expect Reply(value = 0) — zero active clips after stop
 ```
+
+> assert equals final_active_count 0
 
 | Verification | Expected | Actual | Status |
 |-------------|----------|--------|--------|

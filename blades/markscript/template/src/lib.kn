@@ -1,0 +1,52 @@
+// ============================================================================
+//  my-kain-app — Library Module
+//
+//  Shared utilities — all names are unique (std::math shadows checked).
+// ============================================================================
+
+// ============================================================================
+//  UTILITY FUNCTIONS
+// ============================================================================
+
+pub fn clamp_int(value: Int, lo: Int, hi: Int) -> Int with Pure:
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
+
+pub fn is_even(value: Int) -> Bool with Pure:
+    return value % 2 == 0
+
+pub fn fib_number(n: Int) -> Int with Pure:
+    if n <= 1:
+        return n
+    var a: Int = 0
+    var b: Int = 1
+    var i: Int = 2
+    while i <= n:
+        let next: Int = a + b
+        a = b
+        b = next
+        i = i + 1
+    return b
+
+pub fn fact_value(n: Int) -> Int with Pure:
+    if n <= 1:
+        return 1
+    var result: Int = 1
+    var i: Int = 2
+    while i <= n:
+        result = result * i
+        i = i + 1
+    return result
+
+pub fn max_of(a: Int, b: Int) -> Int with Pure:
+    if a > b:
+        return a
+    return b
+
+pub fn min_of(a: Int, b: Int) -> Int with Pure:
+    if a < b:
+        return a
+    return b

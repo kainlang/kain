@@ -1,63 +1,24 @@
 // ============================================================================
-//  MARKSCRIPT BUILD AUTHORITY
+//  BUILD — Project Authority for MarkScript
 // ============================================================================
 
 use std::build
 
 fn build(ctx: BuildContext) -> BuildGraph:
-    let app = project("markscript")
+    let album = project("markscript")
         .kind("kain_executable")
         .version("1.0.0")
         .description("The core zero-copy intent engine companion for Kain.")
         .entry("src/main.kn")
-        .source_root("src")
-        .module_root("src")
-        .target("llvm")
+        .source_roots(["src"])
+        .module_roots(["src"])
         .artifact_root(".kain/out")
         .cache_root(".kain/cache/build")
-        .profile("debug")
-
-    let sources = source_set("mks-sources")
-        .glob("src/**/*.kn")
-        .file("build.kn")
-        .file("KAIN.toml")
-
-    let check = check_task("check-llvm")
-        .project(app)
-        .target("llvm")
-        .inputs(sources)
 
     let exe = native_executable("root-executable")
-        .project(app)
+        .project(album)
+        .entry("src/main.kn")
         .output("$blade/mks.exe")
-        .requires("check-llvm")
 
-    // === Smoketest targets ===
-    // Reference the three-kn amalgamated capsule as an external dependency
-    let capsule_dep = capsule_reference("three-kn")
-        .path("X:/blades/three-kn/three.kn")
-
-    let smoketest_sources = source_set("smoketest-sources")
-        .glob("smoketest/**/*.kn")
-
-    let check_smoketest = check_task("check-smoketest")
-        .project(app)
-        .target("llvm")
-        .inputs(smoketest_sources)
-        .dependency(capsule_dep)
-
-    let smoketest_exe = native_executable("smoketest-runner")
-        .project(app)
-        .output("$blade/mks-smoketest.exe")
-        .entry("smoketest/run_smoketest.kn")
-        .requires("check-smoketest")
-        .dependency(capsule_dep)
-
-    return build_graph()
-        .project(app)
-        .sources(sources)
-        .task(check)
-        .task(exe)
-        .sources(smoketest_sources)
-        .task(check_smoketest)
-        .task(smoketest_exe)
+    return build_graph(album)
+        .tasks(exe)

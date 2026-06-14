@@ -6,6 +6,7 @@ Scene construction, camera configuration, geometry creation, lighting, fog, and 
 
 > create scene "main_scene"
 > set background color 0.12 0.12 0.14
+> begin graphics session
 
 | Property | Value | Notes |
 |----------|-------|-------|
@@ -14,10 +15,13 @@ Scene construction, camera configuration, geometry creation, lighting, fog, and 
 | BackgroundG | 0.12 | Linear sRGB |
 | BackgroundB | 0.14 | Linear sRGB |
 | EnableFog | true | Exponential fog |
+| GraphicsSession | active | Initiated via begin graphics session |
 
 ## setup_camera
 
 > create perspective camera "main_camera"
+> set camera position 0.0 5.0 10.0
+> build view matrix 0.0 5.0 10.0 0.0 0.0 0.0
 
 ```kain
 # Perspective camera via three-kn camera.kn camera_state_valid law
@@ -126,7 +130,7 @@ let _ = render_directional_shadow_maps()
 
 ## setup_fog
 
-> set fog "exponential" 0.01 20.0
+> set scene fog 0.01 20.0
 
 ```kain
 # Fog via three-kn scene_graph.kn set_fog patch
@@ -150,7 +154,7 @@ _assert(law_status(fog_range_valid(sg)) == 1)
 
 ## create_render_targets
 
-> create render target "hdr_color"
+> init render targets 1920 1080
 
 ```kain
 # HDR render target via three-kn texture.kn create_render_target
@@ -171,7 +175,10 @@ _assert(hdr_id > 0)
 _assert(depth_id > 0)
 ```
 
+> create render target "hdr_color"
 > create render target "depth_buffer"
+> create render target "bloom_ping"
+> create render target "bloom_pong"
 
 | RenderTarget | Width | Height | Format | Samples | HDR | DepthStencil |
 |-------------|-------|--------|--------|---------|-----|-------------|
@@ -179,10 +186,6 @@ _assert(depth_id > 0)
 | depth_buffer | 1920 | 1080 | D32F | 4 | false | true |
 | bloom_ping | 960 | 540 | RGBA16F | 1 | true | false |
 | bloom_pong | 960 | 540 | RGBA16F | 1 | true | false |
-
-> create render target "bloom_ping"
-
-> create render target "bloom_pong"
 
 ## verify_scene_setup
 
