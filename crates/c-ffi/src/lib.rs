@@ -588,6 +588,7 @@ fn artifact_mode_for_target(target: CompileTarget) -> Option<ArtifactMode> {
         CompileTarget::Rust => Some(ArtifactMode::Generate),
         CompileTarget::C => Some(ArtifactMode::Generate),
         CompileTarget::Llvm => Some(ArtifactMode::Generate),
+        CompileTarget::BareMetal => Some(ArtifactMode::Generate),
         _ => None,
     }
 }

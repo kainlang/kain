@@ -1,0 +1,172 @@
+// ============================================================================
+//  no_std.kn — Bare-Metal Gate for the Kain Standard Library
+// ============================================================================
+//  This module is the authoritative import surface for bare-metal Kain code.
+//  When targeting --target baremetal (CompileTarget::BareMetal), import this
+//  module to bring all bare-metal-safe stdlib modules into compilation scope:
+//
+//      use std::no_std
+//
+//  Then use individual CORE modules as normal:
+//      use std::math
+//      use std::hash
+//      use std::collections
+//
+//  WHAT THIS MODULE DOES:
+//    - Compiles all 24 CORE modules (pure Kain, no OS dependency)
+//    - Compiles all 3 ALLOC modules (need kmalloc/kfree bridge)
+//    - Compiles std::machine (CPU intrinsics + VM ops)
+//    - Compiles 4 HYBRID modules (data types OK, I/O blocked)
+//    - Documents which modules are BLOCKED on bare metal
+//
+//  WHAT IS BLOCKED (22 modules — requires hosted OS):
+//    fs, net, os, os_path, process, platform, runtime,
+//    python, cuda, gpu, graphics, graphics::shared,
+//    actor, gen_server, input, ui, http, http2, mcp, tls,
+//    thread, interop, wasm, js
+//
+//  See: docs/STDLIB_CATEGORY_MAP.md for the full categorization.
+//  See: blades/os/stdlib/no_std_bridge.kn for KAINOS kernel bridge.
+// ============================================================================
+
+// ============================================================================
+//  CORE — Pure Kain, works on bare metal (no kernel bridge needed)
+// ============================================================================
+//  24 modules. Pure computation, CPU intrinsics, or byte-buffer parsing.
+//  Zero OS dependency. Safe to use on bare metal.
+
+use std::math          // 250 symbols — vectors, matrices, quaternions, noise, intersections, colors
+use std::hash          //  47 symbols — Wang hash, FNV-1a, CRC32, Fingerprint32
+// NOTE: std::bits is NOT imported here because it defines rotl32/rotr32 which
+// collide with std::hash's rotl32/rotr32 (stdlib collision — known issue).
+// std::hash provides the rotation functions; import std::bits separately
+// if you need popcount32, clz32, ctz32, bswap32, u8/u16/u32, i8/i16/i32,
+// wrapping_add/sub/mul_u32.
+// use std::bits          //  17 symbols — popcount, clz, ctz, bswap, rotl, rotr, wrapping arithmetic
+use std::ascii         //  53 symbols — character classification, case conversion
+use std::text          //  59 symbols — TextSlice, StringView, trim, split, join, escape
+use std::fmt           //  76 symbols — FmtWriter, int/float/bool/hex formatting, padding
+use std::base64        //  14 symbols — base64 encode/decode
+use std::result        //  20 symbols — ok, cancelled, invalid_argument, not_found sentinels
+use std::target        //   6 symbols — Arch, OS, Env, Target enums, target_current()
+use std::memory        //  19 symbols — volatile load/store, fences (lfence/sfence/mfence), prefetch
+use std::atomic        //  44 symbols — atomic load/store/add/sub/cas/exchange with ordering
+use std::bytes         //  33 symbols — ByteSlice, BytesBuilder, hex encode/decode
+use std::crypto        //   9 symbols — SHA-256, SHA-512 hash primitives (excludes entropy)
+use std::json          // 133 symbols — JSON parser/serializer
+use std::semver        //  28 symbols — semantic version parser, compare, satisfies
+use std::uri           //  10 symbols — URI parser (scheme, authority, path, query, fragment)
+use std::tar           //   9 symbols — tar format parser
+use std::zip           //   9 symbols — zip format parser
+use std::compress      //   9 symbols — compression algorithms (deflate/inflate)
+use std::unicode       //  13 symbols — codepoint classification, UTF-8 encode/decode
+use std::simd          //  16 symbols — I64x4 SIMD vector type with lane ops
+use std::path          //  11 symbols — path join, parent, filename, extension, stem, normalize
+use std::elf           //  11 symbols — ELF header/program/section header structs + parser
+use std::mmio          //  20 symbols — MMIO bit field ops, endian swap, volatile read/write
+
+// ============================================================================
+//  ALLOC — CORE modules that need a kernel heap (kmalloc/kfree bridge)
+// ============================================================================
+//  3 modules. These dynamically allocate memory. On bare metal, provide a
+//  kernel allocator bridge via @link_name("KAIN_alloc").
+//  See blades/os/stdlib/no_std_bridge.kn for KAINOS kernel backing.
+
+use std::alloc         //  33 symbols — BumpAllocator, ArenaAllocator, PoolAllocator, AllocatorVTable
+use std::collections   // 110 symbols — ArrayList, HashMap, SlotMap, PriorityQueue, StringIntMap, etc.
+use std::io            //  29 symbols — RingBuffer, StringBuilder, BufferedReader, BufferedWriter
+
+// ============================================================================
+//  MACHINE — CPU intrinsics + VM operations
+// ============================================================================
+//  38 symbols. On bare metal:
+//    SAFE (CPU intrinsics): pause, rdtsc, fences (load_fence/store_fence/full_fence),
+//      cache_flush, spin_loop_hint, cpuid_* (eax/ebx/ecx/edx), prefetch_read/write,
+//      cpu_logical_count, cpu_core_count, cpu_package_count,
+//      cpu_cache_line_bytes, current_thread_id, current_thread_affinity_mask
+//    NEED KERNEL (VM ops): vm_reserve, vm_commit, vm_decommit, vm_release,
+//      vm_lock, vm_unlock, vm_map, vm_unmap, vm_map_huge,
+//      vm_protect_* (none/read/read_write/execute_read/execute_read_write),
+//      numa_node_count, numa_current_node, numa_bind_current_thread,
+//      set_current_thread_affinity
+//
+//  VM ops will linker-error on bare metal without a kernel VMM bridge.
+//  Use kainos::mm::virtual for kernel-backed VM operations.
+
+use std::machine       //  38 symbols — CPU intrinsics + VM operations
+
+// ============================================================================
+//  HYBRID — Data types OK, I/O operations require kernel bridge
+// ============================================================================
+//  4 modules. Data types work on bare metal. I/O functions need kernel bridge.
+//
+//  std::time: Duration, Instant, Deadline, Ticker, DateTime types OK.
+//    now_millis(), instant_now(), sleep_millis() → need HPET/APIC timer bridge.
+//  std::random: Xoshiro128, ShatteredRngBuffer PRNG core OK.
+//    random_ambient_* → need RDRAND or HPET jitter entropy.
+//  std::sync: McsMutex (spinlock), TeleportChannel OK.
+//    Once, WaitGroup, RwLock, Semaphore, CondVar → need OS parking.
+//  std::intent: Pure wrappers (patch_status, law_status, converge_choose) OK.
+//    native_* queries → need C runtime ABI (stub to 0 on bare metal).
+
+use std::time          //  33 symbols — Duration, Instant, Deadline, Ticker, DateTime
+use std::random        //  21 symbols — Xoshiro128, ShatteredRngBuffer, ambient entropy
+use std::sync          //  62 symbols — MCS mutex, TeleportChannel, Once, WaitGroup, etc.
+use std::intent        //  90 symbols — entangle/patch/law/resonate/converge/orchestrate telemetry
+
+// ============================================================================
+//  STD — BLOCKED (requires hosted OS)
+// ============================================================================
+//  These 22 modules are NOT imported because they depend on OS services
+//  (filesystem, networking, GPU drivers, process management, threading).
+//  Importing them on bare metal will produce linker errors or runtime failures.
+//
+//  Module              Needs              KAINOS Alternative
+//  -----------------   ----------------   ----------------------------------------
+//  std::runtime        C runtime init     kainos::kernel::main
+//  std::fs             Filesystem I/O     kainos::fs::vfs (VFS), ext4, fat32
+//  std::net            TCP stack          kainos::net::tcp, udp, ip, stack
+//  std::os             OS kernel          kainos::mm, kainos::compat::posix
+//  std::os_path        OS path (wraps os) std::path (imported above)
+//  std::process        fork/exec          kainos::compat::posix::process
+//  std::platform       dlopen/dlsym       N/A (static linking on bare metal)
+//  std::python         CPython embed      N/A (no Python on bare metal)
+//  std::cuda           NVIDIA driver      N/A (no GPU driver on bare metal)
+//  std::gpu            GPU resources      kainos::drivers::gpu::drm (future)
+//  std::graphics       Windowing          kainos::ui::compositor (future)
+//  std::actor          OS threads         kainos::kernel::actor_mgmt, ipc::mailbox
+//  std::gen_server     std::actor         kainos::kernel::actor_mgmt
+//  std::input          HID driver         kainos::drivers::input::hid
+//  std::ui             Windowing          kainos::ui::desktop (future)
+//  std::http           TCP networking     kainos::net::tcp + HTTP layer
+//  std::http2          TCP + TLS          kainos::net::tcp + std::crypto
+//  std::mcp            Networking         N/A
+//  std::tls            Networking         std::crypto (imported) + kainos::net
+//  std::thread         OS threads         kainos::kernel::scheduler
+//  std::interop        Host bridges       N/A
+//  std::graphics::shared GPU resources    kainos::drivers::gpu::drm (future)
+//  std::wasm           WASM runtime       N/A (wrong target)
+//  std::js             JS runtime         N/A (wrong target)
+
+// ============================================================================
+//  TOOLING — Build-time only (not linked into bare-metal binary)
+// ============================================================================
+//  These 11 modules are build-system declarations, LSP integration, test
+//  harness, or proof framework. They contain no runtime symbols and should
+//  not be imported in bare-metal kernel code:
+//
+//  std::build, std::kain, std::test, std::proof,
+//  std::bench, std::attrition, std::certify,
+//  std::diagnostics, std::z3, std::reload, std::reflect
+//
+//  For bare-metal diagnostics, use kainos::init::logging (kprintf/kprint_hex).
+
+// ============================================================================
+//  END — no_std.kn
+// ============================================================================
+//  Total imported: 24 CORE + 3 ALLOC + 1 MACHINE + 4 HYBRID = 32 modules
+//  Blocked:         22 STD + 11 TOOLING + 2 TARGET-SPECIFIC = 35 modules
+//
+//  Bridge required:  kmalloc/kfree for ALLOC, HPET/APIC for time, RDRAND for entropy
+//  Bridge optional:  VM ops, ambient entropy, OS parking primitives
+//  See: blades/os/stdlib/no_std_bridge.kn for KAINOS kernel backing.

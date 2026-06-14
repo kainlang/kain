@@ -157,6 +157,7 @@ pub fn selected_c_compiler_flavor() -> CCompilerFlavor {
 pub fn c_abi_kind_for_target(target: CompileTarget) -> CAbiKind {
     match target {
         CompileTarget::Ue5 | CompileTarget::Ue5Editor => CAbiKind::GenericLlp64,
+        CompileTarget::BareMetal => CAbiKind::GenericLp64,
         _ => CAbiKind::GenericLp64,
     }
 }

@@ -380,10 +380,10 @@ pub fn emit_runtime_contract_bundle(
         left.service == right.service && left.provider == right.provider && left.lane == right.lane
     });
 
-    // Emit full reflection payload for LLVM and Rust targets
+    // Emit full reflection payload for LLVM, Rust, and BareMetal targets
     let reflection_payload = if matches!(
         target,
-        CompileTarget::C | CompileTarget::Llvm | CompileTarget::Rust
+        CompileTarget::C | CompileTarget::Llvm | CompileTarget::Rust | CompileTarget::BareMetal
     ) {
         Some(emit_reflection_payload(program))
     } else {
@@ -720,6 +720,26 @@ fn collect_runtime_capabilities(
                 ));
             }
         }
+        CompileTarget::BareMetal => {
+            capabilities.push(runtime_capability(
+                "native.freestanding-core",
+                "freestanding-core",
+                Some("Program targets the freestanding bare-metal runtime core (no OS, no libc)."),
+            ));
+            // Bare metal includes core CPU intrinsics capability
+            capabilities.push(runtime_capability(
+                "cpu.capabilities",
+                "freestanding-core",
+                Some("Program can query CPUID feature bits at runtime for converge lane selection."),
+            ));
+            if summary.ownership_ops > 0 {
+                capabilities.push(runtime_capability(
+                    "memory.ownership",
+                    "freestanding-core",
+                    Some("Program uses compiler-owned collapse/observe/decay/share memory ownership scopes on bare metal."),
+                ));
+            }
+        }
         _ => {}
     }
 
@@ -735,6 +755,11 @@ fn runtime_service_bindings_for_target(
             runtime_service_binding("driver.bundle", "kain-driver", "rust-native"),
             runtime_service_binding("ui.runtime-bundle", "kain-ui", "rust-native"),
             runtime_service_binding("host.ui-native", "kain-ui-native", "rust-native"),
+        ],
+        CompileTarget::BareMetal => vec![
+            runtime_service_binding("base.memory", "freestanding-core", "freestanding-core"),
+            runtime_service_binding("memory.ownership", "freestanding-core", "freestanding-core"),
+            runtime_service_binding("base.diagnostics", "freestanding-core", "freestanding-core"),
         ],
         CompileTarget::C | CompileTarget::Llvm => vec![
             runtime_service_binding("base.memory", "runtime/native", "raw-native"),
@@ -811,7 +836,7 @@ fn runtime_service_bindings_for_target(
         }
     }
 
-    if matches!(target, CompileTarget::C | CompileTarget::Llvm) {
+    if matches!(target, CompileTarget::C | CompileTarget::Llvm | CompileTarget::BareMetal) {
         if summary.shared_fanout_ops > 0 {
             bindings.push(runtime_service_binding(
                 "memory.shared-fanout",
@@ -1682,6 +1707,8 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
         "interpret"
     } else if target == CompileTarget::Test {
         "test"
+    } else if target == CompileTarget::BareMetal {
+        "bare-metal"
     } else {
         "ks"
     }
@@ -1692,6 +1719,8 @@ fn runtime_lane_name(target: CompileTarget) -> &'static str {
         "rust-native"
     } else if target == CompileTarget::C || target == CompileTarget::Llvm {
         "raw-native"
+    } else if target == CompileTarget::BareMetal {
+        "freestanding-core"
     } else {
         compile_target_name(target)
     }

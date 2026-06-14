@@ -81,6 +81,8 @@ pub enum CompileTarget {
     Test,
     /// KainScript — JS with embedded JSDoc types. Runs natively, fully typed.
     Ks,
+    /// Bare metal / freestanding — no OS, no libc. Targets x86_64-unknown-none.
+    BareMetal,
 }
 
 impl CompileTarget {
@@ -104,6 +106,7 @@ impl CompileTarget {
             "interpret" | "run" => Some(Self::Interpret),
             "test" => Some(Self::Test),
             "ks" | "kainscript" | "kscript" => Some(Self::Ks),
+            "baremetal" | "bare-metal" | "bare" | "kernel" => Some(Self::BareMetal),
             _ => None,
         }
     }

@@ -515,6 +515,7 @@ pub fn lower_typed_program_memory_for_target(
         | CompileTarget::Wasm
         | CompileTarget::C
         | CompileTarget::Llvm
+        | CompileTarget::BareMetal
         | CompileTarget::Cpp
         | CompileTarget::Rust
         | CompileTarget::Ue5

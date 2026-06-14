@@ -37,10 +37,11 @@ enum LlvmTargetId {
     WindowsX64Msvc,
     LinuxX64Gnu,
     MacOsArm64,
+    BareMetalX64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct LlvmTargetDescriptor {
+pub struct LlvmTargetDescriptor {
     id: LlvmTargetId,
     triple: &'static str,
     datalayout: &'static str,
@@ -202,10 +203,17 @@ const LLVM_TARGET_MACOS_ARM64: LlvmTargetDescriptor = LlvmTargetDescriptor {
     datalayout: "e-m:o-i64:64-i128:128-n32:64-S128",
 };
 
+const LLVM_TARGET_BAREMETAL_X64: LlvmTargetDescriptor = LlvmTargetDescriptor {
+    id: LlvmTargetId::BareMetalX64,
+    triple: "x86_64-unknown-none",
+    datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+};
+
 const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_WINDOWS_X64_MSVC,
     LLVM_TARGET_LINUX_X64_GNU,
     LLVM_TARGET_MACOS_ARM64,
+    LLVM_TARGET_BAREMETAL_X64,
 ];
 const ABI_TAGGED_HEADER_BYTES: i64 = 16;
 const ABI_TAG_OPTION_NONE_LLVM: i64 = 0;
@@ -457,8 +465,25 @@ fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
         .unwrap_or(&LLVM_TARGET_WINDOWS_X64_MSVC)
 }
 
+/// Resolve the LLVM target descriptor for a given Kain compile target.
+pub fn resolve_llvm_target_for_compile_target(
+    target: CompileTarget,
+) -> &'static LlvmTargetDescriptor {
+    match target {
+        CompileTarget::BareMetal => &LLVM_TARGET_BAREMETAL_X64,
+        _ => resolve_host_llvm_target_descriptor(),
+    }
+}
+
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
-    generate_with_options(program, false, None, "")
+    generate_with_target(program, resolve_host_llvm_target_descriptor())
+}
+
+pub fn generate_with_target(
+    program: &TypedProgram,
+    target: &'static LlvmTargetDescriptor,
+) -> KainResult<Vec<u8>> {
+    generate_with_options(program, false, None, "", target)
 }
 
 /// Generate LLVM IR with optional DWARF debug metadata.
@@ -468,7 +493,13 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
 /// line.  Module-level `!DICompileUnit`, `!DIFile`, and per-function
 /// `!DISubprogram` metadata nodes are emitted as LLVM metadata.
 pub fn generate_with_debug(program: &TypedProgram, source: &str, filename: &str) -> KainResult<Vec<u8>> {
-    generate_with_options(program, true, Some(source), filename)
+    generate_with_options(
+        program,
+        true,
+        Some(source),
+        filename,
+        resolve_host_llvm_target_descriptor(),
+    )
 }
 
 fn generate_with_options(
@@ -476,6 +507,7 @@ fn generate_with_options(
     debug_info: bool,
     source: Option<&str>,
     filename: &str,
+    target: &'static LlvmTargetDescriptor,
 ) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
@@ -490,7 +522,7 @@ fn generate_with_options(
             starts
         })
         .unwrap_or_default();
-    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts);
+    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts, target);
     gen.collect_original_pointer_let_type_hints(program);
     gen.compile_module(&lowered)?;
     Ok(gen.output.into_bytes())
@@ -764,7 +796,7 @@ struct LlvmFunctionState {
 }
 
 impl LlvmGenerator {
-    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>) -> Self {
+    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>, target: &'static LlvmTargetDescriptor) -> Self {
         Self {
             output: String::new(),
             reg_count: 0,
@@ -825,7 +857,7 @@ impl LlvmGenerator {
             current_impl_target: None,
             actor_return_label: None,
             actor_return_slot: None,
-            target: resolve_host_llvm_target_descriptor(),
+            target,
             world_globals: HashMap::new(),
             const_globals: HashMap::new(),
             python_import_globals: HashMap::new(),
@@ -3032,12 +3064,16 @@ impl LlvmGenerator {
     fn target_is_x86_64(&self) -> bool {
         matches!(
             self.target.id,
-            LlvmTargetId::WindowsX64Msvc | LlvmTargetId::LinuxX64Gnu
+            LlvmTargetId::WindowsX64Msvc | LlvmTargetId::LinuxX64Gnu | LlvmTargetId::BareMetalX64
         )
     }
 
     fn target_is_windows_x64(&self) -> bool {
         matches!(self.target.id, LlvmTargetId::WindowsX64Msvc)
+    }
+
+    fn target_is_bare_metal(&self) -> bool {
+        matches!(self.target.id, LlvmTargetId::BareMetalX64)
     }
 
     fn escape_llvm_inline_asm_fragment(value: &str) -> String {

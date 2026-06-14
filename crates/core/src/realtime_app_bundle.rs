@@ -2556,7 +2556,7 @@ fn collect_requirements(
     }
     match target {
         CompileTarget::Rust => requirements.push("host.native-ui".to_string()),
-        CompileTarget::C | CompileTarget::Llvm => requirements.push("host.raw-native".to_string()),
+        CompileTarget::C | CompileTarget::Llvm | CompileTarget::BareMetal => requirements.push("host.raw-native".to_string()),
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
             if has_world_web =>
         {
@@ -2585,6 +2585,8 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
         "c"
     } else if target == CompileTarget::Llvm {
         "llvm"
+    } else if target == CompileTarget::BareMetal {
+        "baremetal"
     } else if target == CompileTarget::Rust {
         "rust"
     } else if target == CompileTarget::Cpp {

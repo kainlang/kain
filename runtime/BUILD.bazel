@@ -1,6 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load(":native_runtime_rules.bzl", "POSIX_C_COPTS", "WINDOWS_COPTS", "declare_runtime_bundle", "platform_select")
 load(":runtime_manifest_data.bzl", "NATIVE_CORE_RUNTIME", "NATIVE_RUNTIME", "NATIVE_RUNTIME_ACTOR_TESTS", "NATIVE_RUNTIME_OWNERSHIP_TESTS")
+load(":BUILD.freestanding", "declare_freestanding_core_runtime")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -37,6 +38,9 @@ alias(
     name = "native_runtime",
     actual = ":native_core_runtime",
 )
+
+# ── Freestanding core runtime (bare metal, no OS, no libc) ────────────
+declare_freestanding_core_runtime()
 
 cc_test(
     name = "native_test_actor_monitor_link",

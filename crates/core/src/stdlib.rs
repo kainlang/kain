@@ -1486,6 +1486,7 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::C, &["", "c"]),
     (CompileTarget::Rust, &[""]),
     (CompileTarget::Cpp, &[""]),
+    (CompileTarget::BareMetal, &[""]),
     (CompileTarget::Interpret, &[""]),
     (CompileTarget::Test, &[""]),
     (CompileTarget::Ks, &[""]), // KainScript shares stdlib with JS

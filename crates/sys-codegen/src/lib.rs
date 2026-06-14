@@ -11,6 +11,8 @@ pub mod codegen_rust;
 pub use codegen_c::generate as generate_c;
 pub use codegen_cpp::generate as generate_cpp;
 pub use codegen_llvm::generate as generate_llvm;
+pub use codegen_llvm::generate_with_target as generate_llvm_with_target;
+pub use codegen_llvm::resolve_llvm_target_for_compile_target;
 pub use codegen_llvm::generate_with_debug as generate_with_debug;
 pub use codegen_rust::generate as generate_rust;
 pub use codegen_rust::generate_gpu_host_wrappers as generate_rust_gpu_host_wrappers;

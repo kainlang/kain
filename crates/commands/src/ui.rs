@@ -38,11 +38,104 @@ pub struct CommandUiPreferences<'a> {
 pub fn apply_command_ui(mut command: Command, preferences: CommandUiPreferences<'_>) -> Command {
     command = command.color(preferences.color_choice);
     command = command.styles(styles_for_theme(preferences.theme));
+
+    // Apply banner/footer first so they're included when we render the help.
     if preferences.experimental_help {
         command = command.before_help(leak_string(render_help_banner(preferences)));
         command = command.after_help(leak_string(render_help_footer(preferences)));
     }
+
+    // Inject subcommand category headings by post-processing the rendered help.
+    command = inject_subcommand_categories(command);
+
     command
+}
+
+/// Post-process the clap-rendered help to inject category section headings
+/// between groups of subcommands. Only applies to the static clap-derive help
+/// (detected by the presence of "check" as the first subcommand).
+fn inject_subcommand_categories(mut root: Command) -> Command {
+    let bin_name = root.get_name().to_string();
+    if bin_name != "kain" && bin_name != "kn" {
+        return root;
+    }
+
+    // Only apply to the static derive command tree (starts with "check", "build", …).
+    // The dynamic registry tree is alphabetical and handled separately.
+    let first_sc = root.get_subcommands().next().map(|sc| sc.get_name().to_string());
+    if first_sc.as_deref() != Some("check") {
+        return root;
+    }
+
+    // Define the category groups and their headings.
+    let categories: &[(&str, &[&str])] = &[
+        (
+            "Core Commands",
+            &[
+                "  check", "  build", "  run", "  test", "  doctor", "  clean",
+                "  format", "  repl", "  watch", "  init",
+            ],
+        ),
+        (
+            "Package Commands",
+            &["  add", "  install", "  publish", "  amalgamate"],
+        ),
+        (
+            "Import Commands",
+            &[
+                "  import", "  import-c", "  import-rust", "  import-crate",
+                "  import-asm", "  import-ts",
+            ],
+        ),
+        (
+            "Tooling Commands",
+            &["  lsp", "  config", "  selfhost", "  stdlib-map", "  commands"],
+        ),
+        (
+            "Runtime & Platform",
+            &["  runtime", "  native-ui", "  bridge", "  codebase"],
+        ),
+        (
+            "Specialized Commands",
+            &["  gpu-artifacts", "  inject", "  omni", "  fabric"],
+        ),
+    ];
+
+    // Force color on for the render pass if the terminal supports it,
+    // so ANSI escape codes are embedded in the override help text.
+    let use_color = should_emit_manual_color(root.get_color());
+    let mut render_root = if use_color {
+        root.clone().color(ColorChoice::Always)
+    } else {
+        root.clone()
+    };
+
+    // Render the full help to a buffer with colors embedded.
+    let mut output = Vec::new();
+    if render_root.write_help(&mut output).is_err() {
+        return root;
+    }
+    let help_text = String::from_utf8_lossy(&output).to_string();
+
+    // Inject section headings before the first subcommand of each group.
+    // We match on the indented command name (two spaces + command name).
+    let mut result = help_text.clone();
+    for (heading, patterns) in categories.iter() {
+        for pattern in *patterns {
+            if let Some(pos) = result.find(pattern) {
+                // Verify we're at the start of a subcommand line (preceded by newline).
+                if pos == 0 || result.as_bytes().get(pos.wrapping_sub(1)) == Some(&b'\n') {
+                    let heading_line = format!("\n{heading}:\n");
+                    result.insert_str(pos, &heading_line);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Override the help output with our post-processed version.
+    root = root.override_help(leak_string(result));
+    root
 }
 
 fn should_emit_manual_color(choice: ColorChoice) -> bool {
@@ -61,7 +154,7 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
     if !should_emit_manual_color(preferences.color_choice) {
         let tagline = match preferences.bin {
             "kn" => "run-first launcher / hot authoring lane",
-            _ => "compiler / interop / native weirdness",
+            _ => "compiler · interop · native",
         };
         return format!(
             " {bin:^6}\n {tagline}\n",
@@ -72,7 +165,7 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
     if matches!(preferences.theme, CommandUiTheme::Plain) {
         let tagline = match preferences.bin {
             "kn" => "run-first launcher / hot authoring lane",
-            _ => "compiler / interop / native weirdness",
+            _ => "compiler · interop · native",
         };
         return format!(
             " {bin:^6}\n {tagline}\n",
@@ -84,7 +177,7 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
     let reset = "\x1b[0m";
     let tagline = match preferences.bin {
         "kn" => "run-first launcher / hot authoring lane",
-        _ => "compiler / interop / native weirdness",
+        _ => "compiler · interop · native",
     };
     format!(
         "{lead}╭─{accent} {bin:^6} {lead}─╮{reset}\n{accent} {tagline}{reset}\n",

@@ -492,8 +492,226 @@ pub enum ConfigCommand {
     },
 }
 
+// ─────────────────────────────────────────────────────────────
+//  KainCommand — top-level subcommand enum, organized by
+//  category via clap's next_help_heading for `kain --help`.
+// ─────────────────────────────────────────────────────────────
+
 #[derive(Subcommand, Debug)]
 pub enum KainCommand {
+    // ── Core Commands ──────────────────────────────────────────
+    /// Check Kain source without emitting backend artifacts
+    #[command(visible_alias = "c")]
+    Check {
+        /// Input Kain source file or directory. Use '-' to read from stdin.
+        input: PathBuf,
+
+        /// Target profile to typecheck against
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed file
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Emit structured JSON to stdout for LLMs and CI
+        #[arg(long, conflicts_with = "json_out")]
+        json: bool,
+
+        /// Write a structured JSON check report to a file
+        #[arg(long = "json-out", conflicts_with = "json")]
+        json_out: Option<PathBuf>,
+    },
+
+    /// Build a file, project, or build authority. Without input, builds the current project.
+    #[command(visible_alias = "b")]
+    Build {
+        #[command(subcommand)]
+        command: Option<BuildCommand>,
+
+        /// Optional input file or project path. If omitted, builds the current project root.
+        input: Option<PathBuf>,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Single target override for file builds (e.g. ts, rust, wasm)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Override targets (comma-separated: wasm,js,rust)
+        #[arg(long, value_delimiter = ',')]
+        targets: Option<Vec<String>>,
+
+        /// Canonical build lane: bootstrap, dev, release, dist, or selfhost
+        #[arg(long)]
+        lane: Option<String>,
+
+        /// Clean generated .kain roots before building
+        #[arg(long)]
+        clean: bool,
+
+        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
+        #[arg(short = 'g', long = "debug")]
+        debug: bool,
+
+        /// Build UE5 plugin from KAIN.toml [ue5] config
+        #[arg(long)]
+        ue5: bool,
+
+        #[arg(long)]
+        r#rust: bool,
+
+        /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
+        #[arg(long)]
+        embed: bool,
+    },
+
+    /// Run a file, blade, manifest, or workspace through the unified run pipeline
+    #[command(visible_alias = "r")]
+    Run {
+        #[command(subcommand)]
+        command: Option<RunCommand>,
+
+        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
+        #[arg(short = 'g', long = "debug")]
+        debug: bool,
+
+        /// Emit the run report JSON to stdout
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without executing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+
+    /// Run Kain source tests using Rust-style pass/fail directives
+    #[command(visible_alias = "t")]
+    Test {
+        /// Input Kain source file or directory
+        input: PathBuf,
+
+        /// Override test mode: check-pass, check-fail, run-pass, run-fail, kain-test
+        #[arg(long)]
+        mode: Option<String>,
+
+        /// Default target profile for check modes
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed case
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Run cases marked with //@ ignore instead of skipping them
+        #[arg(long)]
+        ignored: bool,
+
+        /// Emit structured JSON to stdout for LLMs and CI
+        #[arg(long, conflicts_with = "json_out")]
+        json: bool,
+
+        /// Write a structured JSON test report to a file
+        #[arg(long = "json-out", conflicts_with = "json")]
+        json_out: Option<PathBuf>,
+    },
+
+    /// Show binary/build diagnostics and resolved compiler capabilities
+    #[command(visible_alias = "d")]
+    Doctor {
+        #[command(flatten)]
+        repair: DoctorRepairArgs,
+    },
+
+    /// Clean generated .kain roots for the current workspace
+    #[command(visible_alias = "cl")]
+    Clean {
+        /// Path inside the workspace to clean
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Clean scope: build, run, amalgamate, or all
+        #[arg(long, default_value = "all")]
+        scope: String,
+
+        /// Print the clean plan without removing anything
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Format Kain source using the compiler-owned canonical printer
+    #[command(visible_alias = "fmt", visible_alias = "f")]
+    Format {
+        /// Input Kain source files or directories. Use '-' or piped stdin.
+        inputs: Vec<PathBuf>,
+
+        /// Check whether the source is already formatted
+        #[arg(long, conflicts_with = "write")]
+        check: bool,
+
+        /// Rewrite the resolved input files in place
+        #[arg(short = 'w', long, conflicts_with = "check")]
+        write: bool,
+    },
+
+    /// Start the interactive Kain REPL
+    Repl,
+
+    /// Watch a run plan and re-run it when inputs change
+    Watch {
+        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit the run report JSON to stdout
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without entering the watcher loop
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+
     /// Initialize a new KAIN project
     #[command(visible_alias = "i")]
     Init {
@@ -506,6 +724,7 @@ pub enum KainCommand {
         name: Option<String>,
     },
 
+    // ── Package Commands ───────────────────────────────────────
     /// Record a capsule-backed dependency in the current project and pin it in KAIN.lock
     Add {
         /// Installed package name, local package root, or source capsule path
@@ -558,151 +777,6 @@ pub enum KainCommand {
         /// Store the capsules as compressed archives instead of editable file blocks
         #[arg(long)]
         archive: bool,
-    },
-
-    /// Start the Language Server
-    Lsp,
-
-    /// Show or initialize the Kain config control plane
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommand,
-    },
-
-    /// Show binary/build diagnostics and resolved compiler capabilities
-    #[command(visible_alias = "d")]
-    Doctor {
-        #[command(flatten)]
-        repair: DoctorRepairArgs,
-    },
-
-    /// Format Kain source using the compiler-owned canonical printer
-    #[command(visible_alias = "fmt", visible_alias = "f")]
-    Format {
-        /// Input Kain source files or directories. Use '-' or piped stdin.
-        inputs: Vec<PathBuf>,
-
-        /// Check whether the source is already formatted
-        #[arg(long, conflicts_with = "write")]
-        check: bool,
-
-        /// Rewrite the resolved input files in place
-        #[arg(short = 'w', long, conflicts_with = "check")]
-        write: bool,
-    },
-
-    /// Generate, print, or check the compiler-owned stdlib symbol atlas
-    #[command(name = "stdlib-map")]
-    StdlibMap {
-        /// Repo root. Defaults to auto-discovery from the current directory.
-        #[arg(long)]
-        repo_root: Option<PathBuf>,
-
-        /// Stdlib source root. Defaults to <repo>/stdlib.
-        #[arg(long)]
-        stdlib_root: Option<PathBuf>,
-
-        /// Native runtime manifest to include. Repeatable.
-        #[arg(long = "native-manifest")]
-        native_manifests: Vec<PathBuf>,
-
-        /// JSON output path for --write/--check.
-        #[arg(long)]
-        json_out: Option<PathBuf>,
-
-        /// LLM markdown output path for --write/--check.
-        #[arg(long)]
-        llm_out: Option<PathBuf>,
-
-        /// Rewrite checked-in generated atlas files.
-        #[arg(long, conflicts_with = "check")]
-        write: bool,
-
-        /// Fail if checked-in generated atlas files are stale.
-        #[arg(long, conflicts_with = "write")]
-        check: bool,
-
-        /// Print JSON instead of LLM markdown when not writing/checking.
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Check Kain source without emitting backend artifacts
-    #[command(visible_alias = "c")]
-    Check {
-        /// Input Kain source file or directory. Use '-' to read from stdin.
-        input: PathBuf,
-
-        /// Target profile to typecheck against
-        #[arg(short, long, default_value = "run")]
-        target: String,
-
-        /// Stop after the first failed file
-        #[arg(long)]
-        fail_fast: bool,
-
-        /// Emit structured JSON to stdout for LLMs and CI
-        #[arg(long, conflicts_with = "json_out")]
-        json: bool,
-
-        /// Write a structured JSON check report to a file
-        #[arg(long = "json-out", conflicts_with = "json")]
-        json_out: Option<PathBuf>,
-    },
-
-    /// Run Kain source tests using Rust-style pass/fail directives
-    #[command(visible_alias = "t")]
-    Test {
-        /// Input Kain source file or directory
-        input: PathBuf,
-
-        /// Override test mode: check-pass, check-fail, run-pass, run-fail, kain-test
-        #[arg(long)]
-        mode: Option<String>,
-
-        /// Default target profile for check modes
-        #[arg(short, long, default_value = "run")]
-        target: String,
-
-        /// Stop after the first failed case
-        #[arg(long)]
-        fail_fast: bool,
-
-        /// Run cases marked with //@ ignore instead of skipping them
-        #[arg(long)]
-        ignored: bool,
-
-        /// Emit structured JSON to stdout for LLMs and CI
-        #[arg(long, conflicts_with = "json_out")]
-        json: bool,
-
-        /// Write a structured JSON test report to a file
-        #[arg(long = "json-out", conflicts_with = "json")]
-        json_out: Option<PathBuf>,
-    },
-
-    /// Run self-host bootstrap workflows
-    Selfhost {
-        #[command(subcommand)]
-        command: SelfHostCommand,
-    },
-
-    /// Build mixed-language omni manifests through the dedicated orchestration layer
-    Omni {
-        #[command(subcommand)]
-        command: OmniCommand,
-    },
-
-    /// Validate and scaffold local-first Fabric manifests for polyglot execution
-    Fabric {
-        #[command(subcommand)]
-        command: FabricCommand,
-    },
-
-    /// Import grouped foreign source workflows
-    Import {
-        #[command(subcommand)]
-        command: ImportCommand,
     },
 
     /// Pack, inspect, and unpack portable Kain source capsules
@@ -775,230 +849,11 @@ pub enum KainCommand {
         module_index: String,
     },
 
-    /// Build a file, project, or build authority. Without input, builds the current project.
-    #[command(visible_alias = "b")]
-    Build {
+    // ── Import Commands ────────────────────────────────────────
+    /// Import grouped foreign source workflows
+    Import {
         #[command(subcommand)]
-        command: Option<BuildCommand>,
-
-        /// Optional input file or project path. If omitted, builds the current project root.
-        input: Option<PathBuf>,
-
-        /// Output file path
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Single target override for file builds (e.g. ts, rust, wasm)
-        #[arg(short, long)]
-        target: Option<String>,
-
-        /// Override targets (comma-separated: wasm,js,rust)
-        #[arg(long, value_delimiter = ',')]
-        targets: Option<Vec<String>>,
-
-        /// Canonical build lane: bootstrap, dev, release, dist, or selfhost
-        #[arg(long)]
-        lane: Option<String>,
-
-        /// Clean generated .kain roots before building
-        #[arg(long)]
-        clean: bool,
-
-        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
-        #[arg(short = 'g', long = "debug")]
-        debug: bool,
-
-        /// Build UE5 plugin from KAIN.toml [ue5] config
-        #[arg(long)]
-        ue5: bool,
-
-        #[arg(long)]
-        r#rust: bool,
-
-        /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
-        #[arg(long)]
-        embed: bool,
-    },
-
-    /// Clean generated .kain roots for the current workspace
-    #[command(visible_alias = "cl")]
-    Clean {
-        /// Path inside the workspace to clean
-        #[arg(default_value = ".")]
-        path: PathBuf,
-
-        /// Clean scope: build, run, amalgamate, or all
-        #[arg(long, default_value = "all")]
-        scope: String,
-
-        /// Print the clean plan without removing anything
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Build and validate the manifest-driven native runtime bundle
-    Runtime {
-        #[command(subcommand)]
-        command: RuntimeCommand,
-    },
-
-    /// Native desktop app workflows
-    #[command(name = "native-ui")]
-    NativeUi {
-        #[command(subcommand)]
-        command: NativeUiCommand,
-    },
-
-    /// Resident Kain host bridge workflows
-    Bridge {
-        #[command(subcommand)]
-        command: BridgeCommand,
-    },
-
-    /// Trusted local codebase control and package/runtime operators
-    Codebase {
-        #[command(subcommand)]
-        command: CodebaseCommand,
-    },
-
-    /// Start the interactive Kain REPL
-    Repl,
-
-    /// Run a file, blade, manifest, or workspace through the unified run pipeline
-    #[command(visible_alias = "r")]
-    Run {
-        #[command(subcommand)]
-        command: Option<RunCommand>,
-
-        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
-        input: Option<PathBuf>,
-
-        /// Run target override
-        #[arg(long, default_value = "auto")]
-        target: String,
-
-        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
-        #[arg(short = 'g', long = "debug")]
-        debug: bool,
-
-        /// Emit the run report JSON to stdout
-        #[arg(long)]
-        json: bool,
-
-        /// Include trace-oriented report detail
-        #[arg(long)]
-        trace: bool,
-
-        /// Keep cached/generated run artifacts
-        #[arg(long = "keep-artifacts")]
-        keep_artifacts: bool,
-
-        /// Print the resolved run plan without executing
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Runtime args. Use `--` before this vector.
-        #[arg(last = true)]
-        args: Vec<String>,
-    },
-
-    /// Watch a run plan and re-run it when inputs change
-    Watch {
-        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
-        input: Option<PathBuf>,
-
-        /// Run target override
-        #[arg(long, default_value = "auto")]
-        target: String,
-
-        /// Emit the run report JSON to stdout
-        #[arg(long)]
-        json: bool,
-
-        /// Include trace-oriented report detail
-        #[arg(long)]
-        trace: bool,
-
-        /// Keep cached/generated run artifacts
-        #[arg(long = "keep-artifacts")]
-        keep_artifacts: bool,
-
-        /// Print the resolved run plan without entering the watcher loop
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Runtime args. Use `--` before this vector.
-        #[arg(last = true)]
-        args: Vec<String>,
-    },
-
-    /// Generate paired GPU artifacts (SPIR-V, Rust host wrappers, reflection JSON)
-    GpuArtifacts {
-        input: PathBuf,
-
-        /// Output base path for generated GPU artifacts
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Restrict artifact output to a specific target: spirv, cuda, hlsl, all (default: all)
-        #[arg(long, default_value = "all")]
-        target: String,
-
-        /// Skip compute residency sidecar generation (the .json + .bin staging files)
-        #[arg(long)]
-        no_residency: bool,
-
-        /// Skip derived cross-target artifacts (HLSL from SPIR-V, PTX from SPIR-V)
-        #[arg(long)]
-        no_derived: bool,
-    },
-
-    /// Inject KAIN file into existing plugin (non-destructive)
-    Inject {
-        /// Input .kn file(s)
-        inputs: Vec<PathBuf>,
-
-        /// Target plugin directory (auto-detected if omitted)
-        #[arg(long)]
-        plugin_dir: Option<PathBuf>,
-
-        /// Plugin name (auto-detected if omitted)
-        #[arg(long)]
-        plugin: Option<String>,
-
-        /// Force overwrite existing files
-        #[arg(long)]
-        force: bool,
-
-        /// Dry run (show what would be generated)
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Use UE5 codegen
-        #[arg(long)]
-        ue5: bool,
-    },
-
-    /// Import legacy assembly and transliterate into KAIN firmware scaffolding
-    ImportAsm {
-        /// Input assembly source file
-        input: PathBuf,
-
-        /// Input dialect format
-        #[arg(long, default_value = "6502-furby")]
-        format: String,
-
-        /// Output .kn file (default: Kain/generated/furby_firmware.kn)
-        #[arg(long)]
-        out: Option<PathBuf>,
-
-        /// Parse/canonicalize and report only, without writing generated .kn and map
-        #[arg(long)]
-        validate_only: bool,
+        command: ImportCommand,
     },
 
     /// Import C source code into KAIN
@@ -1115,6 +970,24 @@ pub enum KainCommand {
         no_default_features: bool,
     },
 
+    /// Import legacy assembly and transliterate into KAIN firmware scaffolding
+    ImportAsm {
+        /// Input assembly source file
+        input: PathBuf,
+
+        /// Input dialect format
+        #[arg(long, default_value = "6502-furby")]
+        format: String,
+
+        /// Output .kn file (default: Kain/generated/furby_firmware.kn)
+        #[arg(long)]
+        out: Option<PathBuf>,
+
+        /// Parse/canonicalize and report only, without writing generated .kn and map
+        #[arg(long)]
+        validate_only: bool,
+    },
+
     /// Import TypeScript source code into KAIN
     ImportTs {
         /// Input TypeScript source file or directory
@@ -1149,10 +1022,148 @@ pub enum KainCommand {
         report_json: Option<PathBuf>,
     },
 
+    // ── Tooling Commands ───────────────────────────────────────
+    /// Start the Language Server
+    Lsp,
+
+    /// Show or initialize the Kain config control plane
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+
+    /// Run self-host bootstrap workflows
+    Selfhost {
+        #[command(subcommand)]
+        command: SelfHostCommand,
+    },
+
+    /// Generate, print, or check the compiler-owned stdlib symbol atlas
+    #[command(name = "stdlib-map")]
+    StdlibMap {
+        /// Repo root. Defaults to auto-discovery from the current directory.
+        #[arg(long)]
+        repo_root: Option<PathBuf>,
+
+        /// Stdlib source root. Defaults to <repo>/stdlib.
+        #[arg(long)]
+        stdlib_root: Option<PathBuf>,
+
+        /// Native runtime manifest to include. Repeatable.
+        #[arg(long = "native-manifest")]
+        native_manifests: Vec<PathBuf>,
+
+        /// JSON output path for --write/--check.
+        #[arg(long)]
+        json_out: Option<PathBuf>,
+
+        /// LLM markdown output path for --write/--check.
+        #[arg(long)]
+        llm_out: Option<PathBuf>,
+
+        /// Rewrite checked-in generated atlas files.
+        #[arg(long, conflicts_with = "check")]
+        write: bool,
+
+        /// Fail if checked-in generated atlas files are stale.
+        #[arg(long, conflicts_with = "write")]
+        check: bool,
+
+        /// Print JSON instead of LLM markdown when not writing/checking.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Inspect and export the command registry.
     Commands {
         #[command(subcommand)]
         command: RegistryCommand,
+    },
+
+    // ── Runtime & Platform ─────────────────────────────────────
+    /// Build and validate the manifest-driven native runtime bundle
+    Runtime {
+        #[command(subcommand)]
+        command: RuntimeCommand,
+    },
+
+    /// Native desktop app workflows
+    #[command(name = "native-ui")]
+    NativeUi {
+        #[command(subcommand)]
+        command: NativeUiCommand,
+    },
+
+    /// Resident Kain host bridge workflows
+    Bridge {
+        #[command(subcommand)]
+        command: BridgeCommand,
+    },
+
+    /// Trusted local codebase control and package/runtime operators
+    Codebase {
+        #[command(subcommand)]
+        command: CodebaseCommand,
+    },
+
+    // ── Specialized Commands ───────────────────────────────────
+    /// Generate paired GPU artifacts (SPIR-V, Rust host wrappers, reflection JSON)
+    GpuArtifacts {
+        input: PathBuf,
+
+        /// Output base path for generated GPU artifacts
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Restrict artifact output to a specific target: spirv, cuda, hlsl, all (default: all)
+        #[arg(long, default_value = "all")]
+        target: String,
+
+        /// Skip compute residency sidecar generation (the .json + .bin staging files)
+        #[arg(long)]
+        no_residency: bool,
+
+        /// Skip derived cross-target artifacts (HLSL from SPIR-V, PTX from SPIR-V)
+        #[arg(long)]
+        no_derived: bool,
+    },
+
+    /// Inject KAIN file into existing plugin (non-destructive)
+    Inject {
+        /// Input .kn file(s)
+        inputs: Vec<PathBuf>,
+
+        /// Target plugin directory (auto-detected if omitted)
+        #[arg(long)]
+        plugin_dir: Option<PathBuf>,
+
+        /// Plugin name (auto-detected if omitted)
+        #[arg(long)]
+        plugin: Option<String>,
+
+        /// Force overwrite existing files
+        #[arg(long)]
+        force: bool,
+
+        /// Dry run (show what would be generated)
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Use UE5 codegen
+        #[arg(long)]
+        ue5: bool,
+    },
+
+    /// Build mixed-language omni manifests through the dedicated orchestration layer
+    Omni {
+        #[command(subcommand)]
+        command: OmniCommand,
+    },
+
+    /// Validate and scaffold local-first Fabric manifests for polyglot execution
+    Fabric {
+        #[command(subcommand)]
+        command: FabricCommand,
     },
 
     /// Runtime-contributed command fallback.

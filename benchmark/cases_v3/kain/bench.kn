@@ -1,0 +1,53 @@
+use std::collections
+use std::math
+use std::sync
+use std::atomic
+use std::thread
+use std::fs
+use std::net
+use std::process
+use std::time
+
+const MODULUS: Int = 1000000007
+var _v3_rand_state: Int = 42
+
+fn v3_rand_next() -> Int:
+    _v3_rand_state = (_v3_rand_state * 1103515245 + 12345) & 0x7fffffff
+    return _v3_rand_state
+
+fn v3_safe_mod(v: Int, m: Int) -> Int:
+    let r = v % m
+    if r < 0:
+        return r + m
+    return r
+
+const BT_MIN_DEPTH: Int = 4
+const BT_MAX_DEPTH: Int = 16
+
+fn bench_binary_trees_compute() -> Int with Unsafe:
+    var checksum: Int = 0
+    var depth: Int = BT_MIN_DEPTH
+    while depth <= BT_MAX_DEPTH:
+        let iterations: Int = 1 << (BT_MAX_DEPTH - depth + BT_MIN_DEPTH)
+        let node_count: Int = (1 << (depth + 1)) - 1
+        var i: Int = 0
+        while i < iterations:
+            let tree_nodes: ptr<Int> = alloc_zeroed(node_count, "Int")
+            var j: Int = 0
+            while j < node_count:
+                mem_store(ptr_offset(tree_nodes, j, "Int"), 1, "Int")
+                j = j + 1
+            var sum: Int = 0
+            var k: Int = 0
+            while k < node_count:
+                sum = (sum + mem_load(ptr_offset(tree_nodes, k, "Int"), "Int")) % MODULUS
+                k = k + 1
+            decay tree_nodes
+            checksum = (checksum + sum) % MODULUS
+            i = i + 1
+        depth = depth + 2
+    return checksum
+
+fn main() -> Int:
+    let result = bench_binary_trees_compute()
+    return v3_safe_mod(result, MODULUS)

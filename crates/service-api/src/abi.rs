@@ -545,6 +545,7 @@ pub fn target_from_code(code: u32) -> CompileTarget {
         16 => CompileTarget::Interpret,
         17 => CompileTarget::Test,
         18 => CompileTarget::Ks,
+        19 => CompileTarget::BareMetal,
         _ => CompileTarget::Llvm,
     }
 }

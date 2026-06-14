@@ -116,6 +116,11 @@ const TARGET_SPECS: &[TargetSpec] = &[
         aliases: &["llvm", "native", "n"],
     },
     TargetSpec {
+        target: CompileTarget::BareMetal,
+        extension: "ll",
+        aliases: &["baremetal", "bare-metal", "bare", "kernel"],
+    },
+    TargetSpec {
         target: CompileTarget::C,
         extension: "c",
         aliases: &["c"],
@@ -1000,6 +1005,7 @@ impl DriverSession {
                     #[cfg(feature = "sys")]
                     CompileTarget::C
                     | CompileTarget::Llvm
+                    | CompileTarget::BareMetal
                     | CompileTarget::Rust
                     | CompileTarget::Cpp => self
                         .frontend_to_sys_codegen_program_with_source_path_and_progress(
@@ -1173,6 +1179,26 @@ impl DriverSession {
                                 })
                             })
                         }
+                    }
+
+                    #[cfg(feature = "sys")]
+                    CompileTarget::BareMetal => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        let llvm_target = sys::resolve_llvm_target_for_compile_target(target);
+                        sys::generate_llvm_with_target(&typed_for_codegen, llvm_target)
+                            .and_then(|bytes| {
+                                String::from_utf8(bytes).map_err(|err| {
+                                    KainError::codegen(
+                                        format!("LLVM output was not valid UTF-8: {err}"),
+                                        Span::default(),
+                                    )
+                                })
+                            })
                     }
 
                     #[cfg(feature = "sys")]
@@ -2832,7 +2858,8 @@ fn prepare_c_ffi_source(
 
 fn register_frontend_extensions_for_target(target: CompileTarget) {
     match target {
-        CompileTarget::Interpret | CompileTarget::Test | CompileTarget::Llvm => {
+        CompileTarget::Interpret | CompileTarget::Test | CompileTarget::Llvm
+        | CompileTarget::BareMetal => {
             kain_interop::register();
             kain_codebase::register();
             kain_python::register();
@@ -2858,7 +2885,8 @@ fn prepare_frontend_source_for_target(
             let source = kain_node::prepare_source_for_runtime(&source, target)?;
             prepare_rust_ffi_source(&source, source_path, target)
         }
-        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm => {
+        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
+        | CompileTarget::BareMetal => {
             prepare_c_ffi_source(source, source_path, target)
         }
         _ => Ok(source.to_string()),
@@ -2886,6 +2914,7 @@ pub fn compile_target_name(target: CompileTarget) -> &'static str {
     match target {
         CompileTarget::Wasm => "wasm",
         CompileTarget::Llvm => "llvm",
+        CompileTarget::BareMetal => "baremetal",
         CompileTarget::C => "c",
         CompileTarget::Spirv => "spirv",
         CompileTarget::Hlsl => "hlsl",
@@ -3102,7 +3131,8 @@ pub(crate) fn resolve_world_selection(
 
 fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfaceKind> {
     match target {
-        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm | CompileTarget::Cpp => {
+        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
+        | CompileTarget::BareMetal | CompileTarget::Cpp => {
             Some(WorldSurfaceKind::NativeUi)
         }
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {

@@ -3732,7 +3732,7 @@ fn run_kain_compile(
         }
     }
 
-    if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+    if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
         artifacts.extend(stage_native_backend_artifacts(
             &session,
             &source,
@@ -3746,7 +3746,7 @@ fn run_kain_compile(
         // After IR generation and artifact staging, produce the final
         // native binary. Pure-compute programs link with -nostdlib;
         // runtime-using programs need the native runtime bundle.
-        if emit != NativeEmit::Exe || target == CompileTarget::Llvm {
+        if emit != NativeEmit::Exe || target == CompileTarget::Llvm || target == CompileTarget::BareMetal {
             // For LLVM target + any emit mode, link the native binary.
             // For sharedlib/staticlib/object, always link.
             // For exe with C target, the C compiler handles linking.
@@ -3758,6 +3758,7 @@ fn run_kain_compile(
                 source_text: &source,
                 runtime_artifacts: NativeRuntimeArtifacts::default(),
                 extra_args: Vec::new(),
+                compile_target: target,
             };
             match link_native_binary(&link_req) {
                 Ok(exe_path) => {
@@ -5513,7 +5514,7 @@ fn kain_compile_expected_outputs(
             primary_output.with_extension("ts"),
             primary_output.with_extension("wasm"),
         ],
-        CompileTarget::Llvm | CompileTarget::C => vec![
+        CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal => vec![
             primary_output.to_path_buf(),
             primary_output.with_extension("runtime_contract.json"),
             primary_output.with_extension("realtime_app.json"),
@@ -5535,7 +5536,7 @@ fn resolve_materialized_output_path(
     let expected_extension = kain_driver::target_extension(target);
     if matches!(
         target,
-        CompileTarget::Llvm | CompileTarget::C | CompileTarget::Usf
+        CompileTarget::Llvm | CompileTarget::C | CompileTarget::Usf | CompileTarget::BareMetal
     ) || resolved.extension().is_none()
     {
         resolved.set_extension(expected_extension);

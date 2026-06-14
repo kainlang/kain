@@ -1,0 +1,163 @@
+name = "kain-native-core-freestanding"
+
+# Freestanding runtime manifest — bare-metal subset of the full native runtime.
+# Compiles with -ffreestanding -nostdlib. Provides minimal symbols that
+# Kain-compiled code expects (string_new, KAIN_alloc, print_i64 stubs, etc.).
+# Mirrors Rust's `core` vs `std` split: core is the platform-independent
+# subset that works without an OS, std is the full hosted runtime.
+#
+# Core files (17) — compile with -ffreestanding -nostdlib:
+#
+#   MEMORY & LAYOUT:
+#     arena.c           — arena allocator (CBMC-proven, no OS deps)
+#     buddy.c           — buddy allocator (no OS deps)
+#     bitfield.c        — bitfield array (pure data structure)
+#     union.c           — union-find (pure data structure)
+#     deferred_free.c   — deferred free queue (no OS deps)
+#     handle.c          — generation-tagged handles (no OS deps)
+#     fixup.c           — relocation fixup registry (no OS deps)
+#
+#   COMPILER SEMANTIC RUNTIME:
+#     entangle.c        — state entanglement propagation
+#     wire.c            — wire protocol helpers
+#     event.c           — event dispatch (no OS deps)
+#     batch_queue.c     — batch queues (no OS deps)
+#
+#   MACHINE STONES (CORE SUBSET):
+#     ownership.c       — ownership state machine (atomic_flag spinlock, no OS mutex)
+#     converge.c        — converge lane selection (cpuid/intrin only, no OS)
+#     profile.c         — profiling zones (_Thread_local only)
+#
+#   INFRASTRUCTURE:
+#     version.c         — version string (needs snprintf stub in freestanding)
+#     services.c        — service registry (needs snprintf stub in freestanding)
+#     crash_handler.c   — crash forensics (needs fprintf stub → serial)
+
+sources = [
+    "native/src/core/arena.c",
+    "native/src/core/buddy.c",
+    "native/src/core/bitfield.c",
+    "native/src/core/union.c",
+    "native/src/core/deferred_free.c",
+    "native/src/core/handle.c",
+    "native/src/core/entangle.c",
+    "native/src/core/wire.c",
+    "native/src/core/event.c",
+    "native/src/core/batch_queue.c",
+    "native/src/core/fixup.c",
+    "native/src/core/ownership.c",
+    "native/src/core/converge.c",
+    "native/src/core/profile.c",
+    "native/src/core/version.c",
+    "native/src/core/services.c",
+    "native/src/core/crash_handler.c",
+    # Freestanding stubs — provide no-op implementations for LLVM IR symbols
+    # that Kain-compiled code emits (print_i64, string_new, KAIN_alloc, etc.)
+    "native/src/core/freestanding_stubs.c",
+]
+
+include_dirs = [
+    "native/include",
+]
+
+# No platform-specific sources — freestanding is platform-independent.
+windows_sources = []
+linux_sources = []
+macos_sources = []
+
+# Freestanding defines — no WIN32, no POSIX.
+common_defines = [
+    "KAIN_FREESTANDING",
+]
+
+windows_defines = []
+linux_defines = []
+macos_defines = []
+
+[version]
+runtime_major = 0
+runtime_minor = 1
+runtime_patch = 0
+abi_major = 0
+abi_minor = 1
+abi_patch = 0
+
+[metadata]
+description = "KAIN native C runtime core — freestanding bare-metal subset"
+target_platforms = ["bare-metal"]
+active_platforms = ["bare-metal"]
+runtime_lane = "freestanding-core"
+compatibility_class = "experimental"
+
+# ── Minimal service set for bare metal ──
+# Only the services that don't require an OS or libc.
+
+[[services]]
+key = "base.memory"
+name = "Base Memory Services"
+provider = "freestanding-core"
+requirement = "required"
+status = "available"
+description = "Core allocation via arena/buddy allocators — no OS backing"
+
+[[services]]
+key = "memory.ownership"
+name = "Ownership State Guards"
+provider = "freestanding-core"
+requirement = "required"
+status = "available"
+description = "Native collapse/observe/decay guards with atomic_flag spinlock"
+
+[[services]]
+key = "base.diagnostics"
+name = "Base Diagnostics"
+provider = "freestanding-core"
+requirement = "optional"
+status = "degraded"
+description = "Minimal diagnostics — crash_handler routes to serial, no OS telemetry"
+
+[[services]]
+key = "cpu.capabilities"
+name = "Native CPU Capability Service"
+provider = "freestanding-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-published CPUID feature bits for converge selectors"
+
+[[services]]
+key = "control.converge.autotune"
+name = "Converge Lane Selector And Telemetry"
+provider = "freestanding-core"
+requirement = "optional"
+status = "available"
+description = "Proof-bounded native converge lane selection"
+
+[[services]]
+key = "runtime.profile"
+name = "Runtime Profiling Zones"
+provider = "freestanding-core"
+requirement = "optional"
+status = "available"
+description = "Scoped push/pop profiling zones with _Thread_local storage"
+
+[[services]]
+key = "memory.handles"
+name = "Generation Tagged Runtime Handles"
+provider = "freestanding-core"
+requirement = "optional"
+status = "available"
+description = "Index plus magic runtime handles for stale rejection"
+
+[[services]]
+key = "memory.fixup"
+name = "Relocation Fixup Registry"
+provider = "freestanding-core"
+requirement = "optional"
+status = "available"
+description = "Known-ref registration and self-updating pointer patching"
+
+# No link libraries on bare metal — everything is statically linked.
+[link]
+windows = []
+linux = []
+macos = []

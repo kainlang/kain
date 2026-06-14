@@ -1106,7 +1106,7 @@ fn run_source_with_session(
 ) -> bool {
     let source = source.to_string();
 
-    if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+    if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
         if source_has_c_ffi_imports(&source) {
             let prepare = CPrepareContext {
                 current_dir: std::env::current_dir().ok(),
@@ -1137,7 +1137,7 @@ fn run_source_with_session(
         }
     }
 
-    let native_backend_output_paths = if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+    let native_backend_output_paths = if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
         let Some(paths) = resolve_native_backend_output_paths(target, output, source_path) else {
             eprintln!(" Output path is required when compiling inline or stdin source.");
             return false;
@@ -1347,7 +1347,7 @@ fn run_source_with_session(
                 let default_ext = target_extension(target);
 
                 // Determine where to write the primary output
-                let output_path = if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+                let output_path = if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
                     // For raw-native backends, always write the backend source artifact first.
                     native_backend_output_paths
                         .as_ref()
@@ -1385,7 +1385,7 @@ fn run_source_with_session(
                 if !ensure_parent_dir(&output_path) {
                     return false;
                 }
-                if target == CompileTarget::Llvm {
+                if target == CompileTarget::Llvm || target == CompileTarget::BareMetal {
                     match slice_llvm_native_executable_ir(&compiled_output) {
                         Ok(Some((sliced_output, stats))) => {
                             eprintln!(
@@ -1421,7 +1421,7 @@ fn run_source_with_session(
 
                 let mut native_artifacts_require_gpu_runtime = false;
 
-                if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+                if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
                     match llvm_native_stage::stage_native_backend_artifacts_with_session(
                         session,
                         &source,
@@ -1681,7 +1681,7 @@ fn run_source_with_session(
                 }
 
                 // Post-processing for raw-native backends
-                if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+                if matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
                     let exe_path = native_backend_output_paths
                         .as_ref()
                         .map(|paths| paths.executable_path.clone())
@@ -1848,6 +1848,7 @@ fn run_source_with_session(
                         source_text: &source,
                         runtime_artifacts: link_artifacts,
                         extra_args: clang_extra_args,
+                        compile_target: target,
                     };
 
                     match kain_build::link_native_binary(&link_req) {
@@ -2128,7 +2129,7 @@ fn resolve_native_backend_output_paths(
     output: Option<&PathBuf>,
     source_path: Option<&Path>,
 ) -> Option<NativeBackendOutputPaths> {
-    if !matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+    if !matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal) {
         return None;
     }
 

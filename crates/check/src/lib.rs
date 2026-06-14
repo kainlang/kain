@@ -370,6 +370,7 @@ pub fn compile_target_name(target: CompileTarget) -> &'static str {
         CompileTarget::Hybrid => "hybrid",
         CompileTarget::C => "c",
         CompileTarget::Llvm => "llvm",
+        CompileTarget::BareMetal => "baremetal",
         CompileTarget::Rust => "rust",
         CompileTarget::Cpp => "cpp",
         CompileTarget::Ue5 => "ue5",

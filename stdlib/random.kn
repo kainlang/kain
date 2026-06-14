@@ -270,6 +270,7 @@ world AmbientRandomWorld:
     state seed2: Int = 11121
     state seed3: Int = 31415
     surface web => RandomDummyPanel
+    surface native_ui => RandomDummyPanel
 
 world AmbientRandomMirrorWorld:
     state seed0_copy: Int = 12345

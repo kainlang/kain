@@ -24,6 +24,7 @@
 //! | `Object`  | .obj/.o   | `-c`                         |
 
 use kain_core::install_layout;
+use kain_core::CompileTarget;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -97,6 +98,8 @@ pub struct NativeLinkRequest<'a> {
     /// Used by `kain run` to pass toolchain tuning flags (opt level,
     /// target CPU, debug info, section flags, etc.).
     pub extra_args: Vec<String>,
+    /// Kain compile target (affects linker flags for bare metal, etc.).
+    pub compile_target: CompileTarget,
 }
 
 // ── Precompiled runtime archive ──────────────────────────────────────
@@ -161,6 +164,43 @@ fn source_uses_runtime(source: &str) -> bool {
     markers.iter().any(|m| source.contains(m))
 }
 
+/// Resolve path to the precompiled freestanding runtime static library.
+///
+/// Priority:
+/// 1. `KAIN_RUNTIME_CORE_LIB_PATH` env var (explicit path)
+/// 2. `~/.kain/lib/libkain_runtime_core.a` or `kain_runtime_core.lib`
+pub fn resolve_precompiled_freestanding_runtime_archive() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("KAIN_RUNTIME_CORE_LIB_PATH") {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    if let Some(layout) = install_layout::default_kain_install_layout() {
+        let lib_name = if cfg!(windows) {
+            "kain_runtime_core.lib"
+        } else {
+            "libkain_runtime_core.a"
+        };
+        let candidate = layout.lib_dir.join(lib_name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        let fallback = layout.home_dir.join("lib").join(lib_name);
+        if fallback.exists() {
+            return Some(fallback);
+        }
+    }
+
+    None
+}
+
+/// Platform link libraries for bare-metal targets — always empty.
+pub fn bare_metal_link_libs() -> Vec<&'static str> {
+    Vec::new()
+}
+
 // ── Link ─────────────────────────────────────────────────────────────
 
 /// Link LLVM IR into a native binary.
@@ -210,10 +250,19 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
         cmd.arg(arg);
     }
 
+    // Bare metal target-specific flags
+    if req.compile_target == CompileTarget::BareMetal {
+        cmd.arg("-target").arg("x86_64-unknown-none");
+        cmd.arg("-ffreestanding");
+        cmd.arg("-nostdlib");
+    }
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
-    if !uses_runtime && !has_artifacts {
+    if req.compile_target == CompileTarget::BareMetal {
+        // Already added -nostdlib -ffreestanding above; skip the normal host-OS branch
+    } else if !uses_runtime && !has_artifacts {
         // Pure compute — no C runtime needed
         cmd.arg("-nostdlib");
         #[cfg(windows)]
@@ -244,8 +293,10 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
         }
     }
 
-    #[cfg(windows)]
-    cmd.arg("-Wl,/subsystem:console");
+    if req.compile_target != CompileTarget::BareMetal {
+        #[cfg(windows)]
+        cmd.arg("-Wl,/subsystem:console");
+    }
 
     cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
@@ -259,8 +310,10 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
     cmd.arg("-Wl,/OPT:REF");
 
     // Default runtime link libraries for the platform
-    for lib in platform_link_libs() {
-        cmd.arg(format!("-l{}", lib));
+    if req.compile_target != CompileTarget::BareMetal {
+        for lib in platform_link_libs() {
+            cmd.arg(format!("-l{}", lib));
+        }
     }
 
     // Also pass any explicit link libs from the request
@@ -280,10 +333,19 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
         cmd.arg(arg);
     }
 
+    // Bare metal target-specific flags
+    if req.compile_target == CompileTarget::BareMetal {
+        cmd.arg("-target").arg("x86_64-unknown-none");
+        cmd.arg("-ffreestanding");
+        cmd.arg("-nostdlib");
+    }
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
-    if !uses_runtime && !has_artifacts {
+    if req.compile_target == CompileTarget::BareMetal {
+        // Already added -nostdlib above
+    } else if !uses_runtime && !has_artifacts {
         cmd.arg("-nostdlib");
         cmd.arg("-Wl,-noentry");
     } else if has_artifacts {
@@ -319,8 +381,10 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
     cmd.arg("-Wl,/OPT:REF");
 
     // Default runtime link libraries for the platform
-    for lib in platform_link_libs() {
-        cmd.arg(format!("-l{}", lib));
+    if req.compile_target != CompileTarget::BareMetal {
+        for lib in platform_link_libs() {
+            cmd.arg(format!("-l{}", lib));
+        }
     }
 
     for lib in &req.runtime_artifacts.link_libs {
