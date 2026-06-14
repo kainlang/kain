@@ -41,6 +41,7 @@ pub struct MksConfig:
     json:        Bool          // structured JSON output (—json)
     show_help:   Bool          // —help / -h flag
     show_version: Bool         // —version / -v flag
+    section:     String        // —section <name> filter
 
 // ===========================================================================
 //  GET USER ARGS  —  strips argv[0] (executable path)
@@ -91,6 +92,7 @@ pub fn default_config() -> MksConfig:
         json: false,
         show_help: false,
         show_version: false,
+        section: "",
     }
 
 // ===========================================================================
@@ -157,6 +159,8 @@ pub fn usage() -> String:
     text = text + "  -q, --quiet         Suppress runtime logging and telemetry
 "
     text = text + "      --json          Output structured JSON (where supported)
+"
+    text = text + "      --section <name>  Execute only the named section
 "
     text = text + "
 "
@@ -319,6 +323,11 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
 
             elif arg == "--json":
                 cfg.json = true
+
+            elif arg == "--section":
+                index = index + 1
+                if index < len(argv):
+                    cfg.section = argv[index]
 
             // Unknown flags are silently skipped
 

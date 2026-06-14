@@ -68,6 +68,11 @@ fn opcode_name(op: Int) -> String:
     elif op == OP_LOAD_VAR:     return "OP_LOAD_VAR"
     elif op == OP_STORE_VAR:    return "OP_STORE_VAR"
     elif op == OP_JN:           return "OP_JN"
+    elif op == OP_ITER_GET:     return "OP_ITER_GET"
+    elif op == OP_CALL_FN:      return "OP_CALL_FN"
+    elif op == OP_RET_VAL:      return "OP_RET_VAL"
+    elif op == OP_PUSH_STRING_REF: return "OP_PUSH_STRING_REF"
+    elif op == OP_ERROR_BOUNDARY:  return "OP_ERROR_BOUNDARY"
     else:                       return "UNKNOWN(" + str(op) + ")"
 
 // ===========================================================================
@@ -85,6 +90,7 @@ fn is_no_operand_op(op: Int) -> Bool:
     if op == OP_SUB: return true
     if op == OP_MUL: return true
     if op == OP_DIV: return true
+    if op == OP_ERROR_BOUNDARY: return true
     return false
 
 fn is_single_operand_op(op: Int) -> Bool:
@@ -97,6 +103,7 @@ fn is_single_operand_op(op: Int) -> Bool:
     if op == OP_LOAD_VAR: return true
     if op == OP_STORE_VAR: return true
     if op == OP_JN: return true
+    if op == OP_PUSH_STRING_REF: return true
     return false
 
 fn disassemble_bytecode(bc: Array<Int>) -> Int:
@@ -204,6 +211,8 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
     var current_vm = er.vm
     var current_er = er
     var iteration: Int = 0
+    var succeeded: Int = 0
+    var failed: Int = 0
     let max_iterations: Int = 100  // safety limit
 
     while current_er.handler_id > 0 and iteration < max_iterations:
@@ -231,12 +240,15 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
         let hr = dispatch_fn(current_vm, fn_id, args)
 
         if hr.err != "":
-            println("[DISPATCH] Handler error: " + hr.err)
+            succeeded = succeeded + 0
+            failed = failed + 1
+            println("[DISPATCH] Handler error (fn_id=" + str(fn_id) + "): " + hr.err)
             // Continue execution even on error (the VM records the error)
             let next_er = resume_execution(current_vm, bc, hr)
             current_vm = next_er.vm
             current_er = next_er
         else:
+            succeeded = succeeded + 1
             // Continue VM execution with the handler's result
             let next_er = resume_execution(current_vm, bc, hr)
             current_vm = next_er.vm
@@ -248,6 +260,7 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
         println("[DISPATCH] Reached iteration limit (" + str(max_iterations) + ") — possible infinite handler loop")
 
     println("[DISPATCH] Handler chain complete (" + str(iteration) + " dispatch(s))")
+    println("[DISPATCH] Summary: " + str(succeeded) + " handler(s) succeeded, " + str(failed) + " failed")
 
 // ===========================================================================
 //  REPL MODE — Interactive intent prompt
@@ -489,10 +502,72 @@ fn cmd_run(cfg: MksConfig) -> Int:
     let op_count = len(bytecode)
     println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
 
+    // ---- Load string constants from parser into VM ------------------------
+    let strings = parser_strings_table()
+
+    // ---- Section filtering (—section flag) ---------------------------------
+    if cfg.section != "":
+        let section_hash = hash_name(cfg.section)
+        var filtered: Array<Int> = []
+        var in_section: Bool = false
+        var found: Bool = false
+        var bi: Int = 0
+        while bi < len(bytecode):
+            let op = bytecode[bi]
+            if op == OP_ENTER_DOMAIN or op == OP_ROUTINE_HEADER:
+                if bi + 1 < len(bytecode):
+                    let h = bytecode[bi + 1]
+                    if h == section_hash:
+                        in_section = true
+                        found = true
+                    else:
+                        in_section = false
+            if in_section:
+                push(filtered, op)
+                // Copy operand too
+                if op == OP_ENTER_DOMAIN or op == OP_ROUTINE_HEADER or op == OP_PUSH_PARAM or op == OP_PUSH_STACK or op == OP_JMP or op == OP_JZ or op == OP_LOAD_VAR or op == OP_STORE_VAR or op == OP_JN or op == OP_CALL_FN:
+                    bi = bi + 1
+                    if bi < len(bytecode):
+                        push(filtered, bytecode[bi])
+                elif op == OP_FENCED_CODE:
+                    bi = bi + 1
+                    if bi < len(bytecode): push(filtered, bytecode[bi])
+                    bi = bi + 1
+                    if bi < len(bytecode): push(filtered, bytecode[bi])
+                elif op == OP_PUSH_MATRIX:
+                    bi = bi + 1
+                    if bi < len(bytecode): push(filtered, bytecode[bi])
+                    bi = bi + 1
+                    if bi < len(bytecode): push(filtered, bytecode[bi])
+                    bi = bi + 1
+                    if bi < len(bytecode): push(filtered, bytecode[bi])
+                    bi = bi + 1
+                    if bi < len(bytecode):
+                        let dc = bytecode[bi]
+                        push(filtered, dc)
+                        bi = bi + 1
+                        var di: Int = 0
+                        while di < dc and bi < len(bytecode):
+                            push(filtered, bytecode[bi])
+                            bi = bi + 1
+                            di = di + 1
+                        continue
+            bi = bi + 1
+
+        if found == false:
+            println("[SECTION] Warning: section \"" + cfg.section + "\" not found in file")
+            println("[SECTION] Available sections (scan bytecode for OP_ENTER_DOMAIN/OP_ROUTINE_HEADER)")
+            return 2
+
+        push(filtered, OP_HALT)
+        bytecode = filtered
+        println("[SECTION] Filtered to section \"" + cfg.section + "\" (" + str(len(bytecode)) + " ops)")
+
     // ---- Execute bytecode -------------------------------------------------
 
     println("")
     let vm = init_vm_with_builtins()
+    let vm = load_string_constants(vm, strings)
     println("[EXEC] Starting VM (registered " + str(vm.ivt_count) + " built-in handlers)...")
     let er = execute_bytecode(vm, bytecode)
 
@@ -579,6 +654,53 @@ fn cmd_check(cfg: MksConfig) -> Int:
             ei = ei + 1
 
     let op_count = len(bytecode)
+
+    // ---- Compile-time intent validation ---------------------------------
+    // Scan bytecode for intent dispatch sequences (OP_PUSH_PARAM + OP_EXECUTE_CALL)
+    // and validate each intent hash against the registered handlers.
+    if op_count > 1:
+        let vm_ref = init_vm_with_builtins()
+        var intent_hashes: Array<Int> = []
+        var bi: Int = 0
+        while bi < op_count - 1:
+            if bytecode[bi] == OP_PUSH_PARAM and bi + 1 < op_count:
+                let hash = bytecode[bi + 1]
+                // Check for duplicates
+                var dup: Bool = false
+                var dh: Int = 0
+                while dh < len(intent_hashes):
+                    if intent_hashes[dh] == hash:
+                        dup = true
+                        break
+                    dh = dh + 1
+                if dup == false:
+                    push(intent_hashes, hash)
+            bi = bi + 1
+
+        var intents_checked: Int = 0
+        var intents_unknown: Int = 0
+        var ii: Int = 0
+        let intent_phrases = parser_intents_phrases()
+        let intent_hashes_ref = parser_intents_hashes()
+        while ii < len(intent_hashes):
+            let hash = intent_hashes[ii]
+            let handler_id = lookup_handler(vm_ref, hash)
+            if handler_id == 0:
+                // Unknown intent — try to find the original phrase text
+                var phrase_text: String = "hash=" + str(hash)
+                var pi: Int = 0
+                while pi < len(intent_hashes_ref) and pi < len(intent_phrases):
+                    if intent_hashes_ref[pi] == hash:
+                        phrase_text = "\"" + intent_phrases[pi] + "\" (hash=" + str(hash) + ")"
+                        break
+                    pi = pi + 1
+                println("[CHECK] WARNING: Unknown intent " + phrase_text)
+                intents_unknown = intents_unknown + 1
+            intents_checked = intents_checked + 1
+            ii = ii + 1
+
+        if intents_checked > 0:
+            println("[CHECK] " + str(intents_checked) + " intent(s) checked, " + str(intents_unknown) + " unknown")
 
     println("")
     if has_fatal:
@@ -669,7 +791,9 @@ fn cmd_eval(cfg: MksConfig) -> Int:
         println("[RESULT] Nothing to execute")
         return 0
 
+    let strings = parser_strings_table()
     let vm = init_vm_with_builtins()
+    let vm = load_string_constants(vm, strings)
     let er = execute_bytecode(vm, bytecode)
 
     if er.handler_id > 0:
@@ -901,7 +1025,9 @@ fn cmd_pipe(cfg: MksConfig) -> Int:
             print("}\n")
         return 0
 
+    let strings = parser_strings_table()
     let vm = init_vm_with_builtins()
+    let vm = load_string_constants(vm, strings)
     let er = execute_bytecode(vm, bytecode)
 
     // Handle dispatch loop
@@ -1011,7 +1137,9 @@ fn cmd_watch(cfg: MksConfig) -> Int:
                     println("[WATCH] Nothing to execute")
                 continue
 
+            let strings = parser_strings_table()
             let vm = init_vm_with_builtins()
+            let vm = load_string_constants(vm, strings)
             let er = execute_bytecode(vm, bytecode)
 
             // Handle dispatch loop
@@ -1110,7 +1238,9 @@ fn cmd_build(cfg: MksConfig) -> Int:
                 print("}\n")
             return 0
 
+        let strings = parser_strings_table()
         let vm = init_vm_with_builtins()
+        let vm = load_string_constants(vm, strings)
         let er = execute_bytecode(vm, bytecode)
 
         // Handle dispatch loop
@@ -1220,7 +1350,9 @@ fn cmd_test(cfg: MksConfig) -> Int:
         let op_count = len(bytecode)
         if op_count <= 1:
             return 0
+        let strings = parser_strings_table()
         let vm = init_vm_with_builtins()
+        let vm = load_string_constants(vm, strings)
         let er = execute_bytecode(vm, bytecode)
         var final_er = er
         if er.handler_id > 0:
@@ -1325,7 +1457,9 @@ fn cmd_clean(cfg: MksConfig) -> Int:
         let op_count = len(bytecode)
         if op_count <= 1:
             return 0
+        let strings = parser_strings_table()
         let vm = init_vm_with_builtins()
+        let vm = load_string_constants(vm, strings)
         let er = execute_bytecode(vm, bytecode)
         if er.handler_id > 0:
             var cv = er.vm

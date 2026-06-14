@@ -1165,9 +1165,9 @@ fn handler_fs_chmod(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
 //  BETA: PROCESS HANDLERS (38-40) — simple process queries
 // ===========================================================================
 
-// --- handler_process_exit_code (38) — "exit code" intent ------------------
-// args[0] = process handle (int)
-fn handler_process_exit_code(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+// --- handler_process_exit_code_beta (38) — "exit code" intent -------------
+// args[0] = process handle (int) — direct PID-based exit code query
+fn handler_process_exit_code_beta(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var pid: Int = -1
     if len(args) > 0 and args[0].kind == MARK_INT:
         pid = args[0].int_val
@@ -2006,7 +2006,7 @@ pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> Hand
 
     // --- BETA: Process handlers (38-40) ---
     elif fn_id == FN_PROCESS_EXIT_CODE:
-        hr = handler_process_exit_code(vm, args)
+        hr = handler_process_exit_code_beta(vm, args)
     elif fn_id == FN_PROCESS_STDERR:
         hr = handler_process_stderr(vm, args)
     elif fn_id == FN_PROCESS_KILL:
