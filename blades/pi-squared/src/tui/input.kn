@@ -82,7 +82,7 @@ actor InputActor:
         send reply_to.Reply(value = "key_ready")
         return
 
-    on GetNextKey(reply_to: P):
+    on GetNextKey(reply_to: P, _unused: String):
         let key = self.current_key
         self.current_key = ""
         if text_len(text_from(key)) == 0:
@@ -91,7 +91,7 @@ actor InputActor:
         send reply_to.Reply(value = key)
         return
 
-    on Abort(reply_to: P):
+    on Abort(reply_to: P, _unused: String):
         self.buffer = ""
         self.current_key = ""
         self.paste_mode = false

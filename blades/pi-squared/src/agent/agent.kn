@@ -90,7 +90,7 @@ actor AgentActor:
         send reply_to.Reply(value = "stub: prompt received")
         return
 
-    on Continue(reply_to: P):
+    on Continue(reply_to: P, _unused: String):
         if self.is_streaming:
             send reply_to.Reply(value = "busy")
             return
@@ -107,7 +107,7 @@ actor AgentActor:
         send reply_to.Reply(value = "ok")
         return
 
-    on Abort(reply_to: P):
+    on Abort(reply_to: P, _unused: String):
         self.abort_reason = "user requested abort"
         self.is_streaming = false
         send reply_to.Reply(value = "ok")
@@ -118,7 +118,7 @@ actor AgentActor:
         send reply_to.Reply(value = "ok")
         return
 
-    on GetState(reply_to: P):
+    on GetState(reply_to: P, _unused: String):
         let status = if self.is_streaming: "streaming" else: "idle"
         let summary = status + " | msgs: " + str(self.message_count) + " | model: echo-stub"
         send reply_to.Reply(value = summary)

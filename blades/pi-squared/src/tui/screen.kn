@@ -59,7 +59,7 @@ world TerminalScreen:
     state is_term: Bool = true
 
     // ── Surface binding (stub — wired by interactive mode) ──
-    surface web => PiTuiStub
+    surface native_ui => PiTuiStub
 
 // ============================================================================
 //  PATCH: terminal_initialize — query terminal dimensions, set raw mode

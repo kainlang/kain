@@ -86,15 +86,18 @@ pub fn render_frame(screen: TerminalScreen, lines: [String]) with IO:
             fi = fi + 1
     else:
         // Differential: only write changed lines
-        let changes = diff_buffers(prev, lines)
-        var ci: Int = 0
-        while ci < len(changes):
-            let (line_num, content) = changes[ci]
-            // Line numbers are 0-indexed in arrays → 1-indexed for ANSI cursor
-            print(cursor_to(line_num + 1, 1))
-            print(CLEAR_LINE())
-            print(content)
-            ci = ci + 1
+        var di: Int = 0
+        while di < len(lines):
+            let newer_line = lines[di]
+            var old_line: String = ""
+            if di < len(prev):
+                old_line = prev[di]
+            if newer_line != old_line:
+                // Line numbers are 0-indexed in arrays → 1-indexed for ANSI
+                print(cursor_to(di + 1, 1))
+                print(CLEAR_LINE())
+                print(newer_line)
+            di = di + 1
 
     print(KITTY_SYNC_END())
 

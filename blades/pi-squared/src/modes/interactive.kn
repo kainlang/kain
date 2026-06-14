@@ -132,6 +132,19 @@ pub fn run_interactive_mode(
     let stdin_path = if os_is_windows(): "CONIN$" else: "/dev/stdin"
     let stdin_file = os_open(stdin_path, "r")
 
+    // Null-check: os_open returns null handle when stdin is piped/redirected
+    // (os_open always constructs an OsFile struct, but abi_fs_open returns NULL
+    // on failure, making the handle field a null ptr).
+    if ptr_to_int(stdin_file.handle) == 0:
+        println("[pi-squared] Failed to open terminal stdin: " + stdin_path)
+        let _ = disable_raw_mode()
+        TerminalScreen.raw_mode_enabled = false
+        TerminalScreen.needs_full_render = true
+        print(CURSOR_SHOW())
+        print(CLEAR_SCREEN())
+        print(cursor_to(1, 1))
+        return 3
+
     // ---- Stage 3: Spawn actors ----
     let event_bus_ref = ""  // event bus not wired yet
     let input_actor = spawn InputActor(event_bus_ref = event_bus_ref)
@@ -186,7 +199,7 @@ pub fn run_interactive_mode(
 
         // 6d. If key ready, get it and handle
         if feed_result == "key_ready":
-            let key_str: String = ask(input_actor, "GetNextKey")
+            let key_str: String = ask(input_actor, "GetNextKey", "")
 
             if key_str != "":
                 let parsed: ParsedKey = parse_key_sequence(key_str)
@@ -203,7 +216,8 @@ pub fn run_interactive_mode(
     print(cursor_to(1, 1))
 
     let _ = disable_raw_mode()
-    let _ = os_close(stdin_file)
+    if ptr_to_int(stdin_file.handle) != 0:
+        let _ = os_close(stdin_file)
     TerminalScreen.raw_mode_enabled = false
     TerminalScreen.needs_full_render = true
 
@@ -319,7 +333,7 @@ fn action_submit(state: InteractiveState, agent_actor: AgentActor) -> Interactiv
     push(state.messages, "")
 
     // 3. Get agent state info and add echo response
-    let agent_info: String = ask(agent_actor, "GetState")
+    let agent_info: String = ask(agent_actor, "GetState", "")
     push(state.messages, "[pi-squared] Echo: " + prompt_text)
     push(state.messages, "    Agent: " + agent_info)
     push(state.messages, "")
@@ -349,7 +363,7 @@ fn action_abort(state: InteractiveState, agent_actor: AgentActor) -> Interactive
 
     // 2. Abort agent if streaming
     if state.is_streaming:
-        let _ = ask(agent_actor, "Abort")
+        let _ = ask(agent_actor, "Abort", "")
         state.is_streaming = false
         push(state.messages, "[Aborted]")
         push(state.messages, "")
@@ -393,7 +407,7 @@ fn action_cascade(state: InteractiveState, agent_actor: AgentActor) -> Interacti
     if state.is_streaming:
         return state  // already streaming
     if len(state.messages) > 0:
-        let _ = ask(agent_actor, "Continue")
+        let _ = ask(agent_actor, "Continue", "")
         push(state.messages, "[Cascade — continuing...]")
         push(state.messages, "")
     return state
