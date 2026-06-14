@@ -351,14 +351,15 @@ pub fn mono_type_to_string(ty: ResolvedType) -> String:
 // ═══════════════════════════════════════════════════════════════════
 pub struct MonomorphizedProgram:
     items:       Array<TypedItem>
-    mangled_map: Array<String>     // mapping from original name to mangled name
+    mangled_map: Array<String>
+    ast_nodes:   Array<AstNode>
 
 // ── monomorphize entry point ──
 // Given a TypedProgram, finds generic function calls, instantiates them
 // with concrete types, and returns a MonomorphizedProgram.
 // Stream RED: Added basic generic detection loop.
 
-pub fn monomorphize(typed: TypedProgram) -> MonomorphizedProgram:
+pub fn monomorphize(typed: TypedProgram, env: TypeEnv) -> MonomorphizedProgram:
     let mut items: Array<TypedItem> = []
     let mut mangled: Array<String> = []
     // Track generic items for potential instantiation
@@ -392,6 +393,7 @@ pub fn monomorphize(typed: TypedProgram) -> MonomorphizedProgram:
     return MonomorphizedProgram {
         items: items,
         mangled_map: mangled,
+        ast_nodes: typed.ast_nodes,
     }
 
 // ── instantiate_generic: create a monomorphized copy of a generic function ──

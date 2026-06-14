@@ -87,8 +87,9 @@ pub struct TypedItem:
     fn_ret_type:    ResolvedType
 
 pub struct TypedProgram:
-    items:  Array<TypedItem>
-    errors: KcDiagnosticBag
+    items:     Array<TypedItem>
+    errors:    KcDiagnosticBag
+    ast_nodes: Array<AstNode>
 
 pub struct MonomorphizedProgram:
     items:       Array<TypedItem>
@@ -149,7 +150,7 @@ pub fn type_env_new() -> TypeEnv:
     return TypeEnv { all_types: [] }
 
 pub fn typecheck(env: TypeEnv, prog: AstProgram) -> TypedProgram:
-    return TypedProgram { items: [], errors: kc_diag_bag_new() }
+    return TypedProgram { items: [], errors: kc_diag_bag_new(), ast_nodes: prog.nodes }
 
 pub fn monomorphize(typed: TypedProgram, env: TypeEnv) -> MonomorphizedProgram:
     return MonomorphizedProgram { items: typed.items, mangled_map: [] }
