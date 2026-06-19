@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Unreferenced world with no entry point
-component Foo:
+component Foo():
     render <panel />
 
 world OrphanWorld:

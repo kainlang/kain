@@ -16,7 +16,7 @@ world W3:
     state c: Int = 0
     surface native_ui => Foo
 
-component Foo:
+component Foo():
     render <panel />
 
 entangle W1.a <-> W2.b with single_writer

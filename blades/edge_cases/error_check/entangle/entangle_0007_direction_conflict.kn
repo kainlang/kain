@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Conflicting bidirectional links on same field pair
-component Foo:
+component Foo():
     render <panel />
 
 world A:

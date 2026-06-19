@@ -6,7 +6,7 @@
 // Triggers: World init failure -- may trigger at build time
 // Note: passes `kain check` but may fail `kain build --target llvm`
 
-component Foo:
+component Foo():
     render <panel />
 
 world BadInit:

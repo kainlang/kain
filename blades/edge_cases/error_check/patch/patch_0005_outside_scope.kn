@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Patch called from pure context
-component Foo:
+component Foo():
     render <panel />
 
 world App:

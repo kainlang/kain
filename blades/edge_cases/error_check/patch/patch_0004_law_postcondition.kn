@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Postcondition law check fails after patch
-component Foo:
+component Foo():
     render <panel />
 
 world State:

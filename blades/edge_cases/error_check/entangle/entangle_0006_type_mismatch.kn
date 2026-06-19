@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Entangled fields have different types
-component Foo:
+component Foo():
     render <panel />
 
 world A:

@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Invalid decay transition
-component Lifecycle:
+component Lifecycle():
     state phase: Int = 0
     fn bad_decay():
         decay self.phase

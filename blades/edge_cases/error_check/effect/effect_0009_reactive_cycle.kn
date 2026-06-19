@@ -12,7 +12,7 @@ world B:
     state val_copy: Int = 0
     surface native_ui => Foo
 
-component Foo:
+component Foo():
     render <panel />
 
 entangle A.val <-> B.val_copy with single_writer

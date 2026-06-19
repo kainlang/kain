@@ -8,7 +8,7 @@ world Source:
     state data: Int = 0
     surface native_ui => Foo
 
-component Foo:
+component Foo():
     render <panel />
 
 fn main():

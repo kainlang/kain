@@ -12,7 +12,7 @@ world Mirror:
     state count_copy: Int = 0
     surface native_ui => Foo
 
-component Foo:
+component Foo():
     render <panel />
 
 entangle Authority.count <-> Mirror.count_copy with single_writer

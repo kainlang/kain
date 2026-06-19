@@ -4,7 +4,7 @@
 //@ severity: warning
 
 // Triggers: emit with no observer
-component Emitter:
+component Emitter():
     state val: Int = 0
     fn fire():
         emit self.val

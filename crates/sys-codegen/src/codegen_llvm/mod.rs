@@ -3184,7 +3184,7 @@ impl LlvmGenerator {
             .iter()
             .map(|operand| {
                 let (value, ty) = self.compile_expr(operand)?;
-                Ok((self.coerce_to_i64_storage(&value, &ty), "i64".to_string()))
+                Ok((self.coerce_to_i64_storage(&value, &ty)?, "i64".to_string()))
             })
             .collect::<KainResult<Vec<_>>>()?;
         self.emit_inline_asm_call(template, &compiled_operands, options, span)
@@ -7989,9 +7989,9 @@ impl LlvmGenerator {
                     if method == "unwrap" && !args.is_empty() {
                         return Err(KainError::codegen("unwrap expects no arguments", *span));
                     }
-                    let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
+                    let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty)?;
                     self.emit_release_if_new_object_expr(receiver, &boxed_value, &boxed_ty);
-                    return Ok(result);
+                    return Ok(result?);
                 }
             }
             Expr::MethodCall {
@@ -8063,7 +8063,7 @@ impl LlvmGenerator {
                     if let Some(result) =
                         self.compile_actor_builtin_ask(name, args, *span, Some(target_ty))?
                     {
-                        return Ok(result);
+                        return Ok(result?);
                     }
                 }
             }
@@ -8109,7 +8109,7 @@ impl LlvmGenerator {
                 return Ok((reg, target_ty.to_string()));
             }
 
-            let ptr_source = self.coerce_to_i64_storage(&val, src_ty);
+            let ptr_source = self.coerce_to_i64_storage(&val, src_ty)?;
             let reg = self.next_reg();
             self.emit(&format!(
                 "  {} = inttoptr i64 {} to {}",
@@ -10059,7 +10059,7 @@ impl LlvmGenerator {
         }
 
         self.emit_label(&payload_label);
-        let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
+        let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty)?;
         self.emit_release_if_new_object_expr(value_expr, &boxed_value, &boxed_ty);
         Ok(result)
     }
@@ -10172,7 +10172,7 @@ impl LlvmGenerator {
         let (value, ty) = self.compile_expr(expr)?;
         if is_json_handle {
             return Ok(JsonAnyArgument {
-                value: self.coerce_to_i64_storage(&value, &ty),
+                value: self.coerce_to_i64_storage(&value, &ty)?,
                 release_after_call: false,
             });
         }
@@ -10224,11 +10224,11 @@ impl LlvmGenerator {
                 }
             }
             _ if ty.ends_with('*') => JsonAnyArgument {
-                value: self.coerce_to_i64_storage(&value, &ty),
+                value: self.coerce_to_i64_storage(&value, &ty)?,
                 release_after_call: false,
             },
             _ => JsonAnyArgument {
-                value: self.coerce_to_i64_storage(&value, &ty),
+                value: self.coerce_to_i64_storage(&value, &ty)?,
                 release_after_call: false,
             },
         };
@@ -10308,7 +10308,7 @@ impl LlvmGenerator {
         if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) {
             let (value, ty) = self.compile_expr(expr)?;
             return Ok(JsonAnyArgument {
-                value: self.coerce_to_i64_storage(&value, &ty),
+                value: self.coerce_to_i64_storage(&value, &ty)?,
                 release_after_call: false,
             });
         }
@@ -17815,7 +17815,7 @@ impl LlvmGenerator {
         }
 
         if let Some(result) = self.compile_manual_find_substring_call_fast_path(func_name, args)? {
-            return Ok(result);
+            return Ok(result?);
         }
 
         if func_name == "len" && args.len() == 1 {
@@ -18015,7 +18015,7 @@ impl LlvmGenerator {
         }
 
         if let Some(result) = self.compile_json_builtin_call(func_name, args)? {
-            return Ok(result);
+            return Ok(result?);
         }
 
         if func_name == "push" && args.len() == 2 {
@@ -18029,7 +18029,7 @@ impl LlvmGenerator {
                     self.compile_expr(&args[1].value)?
                 };
                 self.emit_heap_owned_retain_for_transfer(&args[1].value, &value, &value_ty);
-                let stored = self.coerce_runtime_array_storage_from_compiled(&value, &value_ty);
+                let stored = self.coerce_runtime_array_storage_from_compiled(&value, &value_ty)?;
                 self.emit(&format!(
                     "  call void @array_push(i8* {}, i64 {})",
                     array, stored
@@ -18403,7 +18403,7 @@ impl LlvmGenerator {
                 for item in args {
                     let (val, ty) = self.compile_expr(item)?;
                     self.emit_heap_owned_retain_for_transfer(item, &val, &ty);
-                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
+                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty)?;
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
                         arr, stored
@@ -19258,7 +19258,7 @@ impl LlvmGenerator {
                 for item in items {
                     let (val, ty) = self.compile_expr(item)?;
                     self.emit_heap_owned_retain_for_transfer(item, &val, &ty);
-                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
+                    let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty)?;
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
                         arr, stored
@@ -19948,7 +19948,7 @@ impl LlvmGenerator {
 
                 if *op == BinaryOp::Add && self.expr_is_known_string(expr) {
                     if let Some(result) = self.compile_string_concat_expression(expr)? {
-                        return Ok(result);
+                        return Ok(result?);
                     }
                 }
 
@@ -20334,9 +20334,9 @@ impl LlvmGenerator {
                             let payload_ty = self
                                 .tagged_value_expr_success_llvm_ty(receiver)
                                 .unwrap_or_else(|| "i64".to_string());
-                            let result = self.compile_tagged_value_payload_copy(&obj_val, &payload_ty);
+                            let result = self.compile_tagged_value_payload_copy(&obj_val, &payload_ty)?;
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
-                            return Ok(result);
+                            return Ok(result?);
                         }
                         _ => {}
                     }
@@ -20420,12 +20420,12 @@ impl LlvmGenerator {
                     if let Some(result) =
                         self.compile_actor_builtin_ask(name, args, *span, None)?
                     {
-                        return Ok(result);
+                        return Ok(result?);
                     }
                     if let Some(result) =
                         self.compile_native_variant_function_call(name, args, *span)?
                     {
-                        return Ok(result);
+                        return Ok(result?);
                     }
                 }
 
@@ -20519,7 +20519,7 @@ impl LlvmGenerator {
                 if let Some(result) =
                     self.compile_native_option_or_result_variant(enum_name, variant, fields, *span)?
                 {
-                    return Ok(result);
+                    return Ok(result?);
                 }
 
                 let struct_ty = format!("%{}", Self::llvm_named_type_name(enum_name));

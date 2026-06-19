@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Entangle references non-existent world
-component Foo:
+component Foo():
     render <panel />
 
 world Real:

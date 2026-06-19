@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Law returns non-Bool type
-component Foo:
+component Foo():
     render <panel />
 
 world App:

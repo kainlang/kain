@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Law precondition fails on patch value
-component Foo:
+component Foo():
     render <panel />
 
 world State:

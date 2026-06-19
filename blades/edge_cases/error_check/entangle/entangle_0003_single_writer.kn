@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Second writer to single_writer field
-component Foo:
+component Foo():
     render <panel />
 
 world Author:

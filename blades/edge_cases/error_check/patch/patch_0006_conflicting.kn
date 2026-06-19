@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Two patches mutate the same field concurrently
-component Foo:
+component Foo():
     render <panel />
 
 world App:

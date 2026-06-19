@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Surface kind not supported on current target
-component Foo:
+component Foo():
     render <panel />
 
 world WebWorld:

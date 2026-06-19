@@ -4,7 +4,7 @@
 //@ severity: error
 
 // Triggers: Entangle cycle between worlds
-component Foo:
+component Foo():
     render <panel />
 
 world A:
