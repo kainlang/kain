@@ -14,7 +14,7 @@ echo "=== pi-squared Rebuild ==="
 echo ""
 
 # Step 1: Build to LLVM IR
-echo "[1/4] Building to LLVM IR..."
+echo "[1/3] Building to LLVM IR..."
 cd "$PI_ROOT"
 kain build --target llvm 2>/dev/null || true
 
@@ -23,11 +23,11 @@ if [ ! -f "$LLVM_IR" ]; then
     echo "ERROR: LLVM IR not found at $LLVM_IR"
     exit 1
 fi
-echo "[2/4] LLVM IR: $(wc -l < "$LLVM_IR") lines"
+echo "[2/3] LLVM IR: $(wc -l < "$LLVM_IR") lines"
 
 # Step 3: Fix dangling declarations
 # Find all @function symbols that are called but never defined
-echo "[3/4] Fixing dangling declarations..."
+echo "[3/3] Fixing dangling declarations..."
 python - << 'PYFIX'
 import re
 import sys
@@ -95,16 +95,21 @@ PYFIX
 
 # Step 4: Link with clang
 echo "[4/4] Linking pi-squared.exe..."
+# NOTE: -Wl,/subsystem:console is REQUIRED. Without it, clang defaults
+# to Windows GUI subsystem (2), which discards stdout/stderr in PowerShell
+# and cmd.exe — the binary runs but produces NO visible output.
+# UTF-8 console init is now handled by include <windows.h> as win in main.kn
+# — no external C files or .obj needed.
 "$CLANG" \
     -target x86_64-pc-windows-msvc \
-    -Wl,-undefined,run_interactive_mode \
-    -Wl,-undefined,assemble_prompt \
+    -Wl,/subsystem:console \
     -o pi-squared.exe \
     "$LLVM_IR" \
     -L "$KAIN_LIB" -lkain_runtime \
     -L "$MSVC_LIB" \
     -lole32 -luser32 -lgdi32 -lkernel32 -lshell32 -lws2_32 -lwinhttp -lbcrypt -ladvapi32 \
-    -Wl,-defaultlib:msvcrt 2>&1 | grep -v "warning: overriding" || true
+    -Wl,-defaultlib:msvcrt \
+    -Wl,-subsystem:console 2>&1 | grep -v "warning: overriding" || true
 
 if [ -f pi-squared.exe ]; then
     SIZE=$(ls -la pi-squared.exe | awk '{print $5}')

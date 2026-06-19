@@ -1,8 +1,8 @@
 # KN.MD — Kain Self-Host Compiler (kainc) State Document
 
-**Version:** 2.3 | **Date:** 2026-06-13 | **Status:** Authoritative — Single Source of Truth
-**Source root:** `X:\blades\kain\src\` — **34 files, ~19,500 lines** | **Master spec:** `research/SELFHOST-KN.MD` (v2.0)
-**Overall completion:** ~68% (L0 core ~80% real; Selfhost pipeline operational; Codegen program-aware; L1-L7 stubs extracted)
+**Version:** 2.4 | **Date:** 2026-06-13 | **Status:** Authoritative — Single Source of Truth
+**Source root:** `X:\blades\kain\src\` — **34 files in 9 subdirectories, ~19,500 lines** | **Master spec:** `research/SELFHOST-KN.MD` (v2.0)
+**Overall completion:** ~70% (L0 core ~85% real; Selfhost pipeline operational; Workspace organized; L1-L7 stubs extracted)
 
 ---
 
