@@ -21,8 +21,34 @@ authors = ["Kain Compiler Team"]
 license = "MIT"
 
 [build]
-entry = "main.kn"
+entry = "cli/main.kn"
 source_root = "."
+source_roots = [
+    ".",
+    "core",
+    "parser",
+    "typecheck",
+    "codegen",
+    "cli",
+    "cli/commands",
+    "layers",
+    "jit",
+    "backend",
+    "repl",
+]
+module_roots = [
+    ".",
+    "core",
+    "parser",
+    "typecheck",
+    "codegen",
+    "cli",
+    "cli/commands",
+    "layers",
+    "jit",
+    "backend",
+    "repl",
+]
 target = "llvm"
 profile = "debug"
 output = "kainc"
@@ -54,61 +80,60 @@ link_libs = ["kain_runtime"]
 
 [source_order]
 files = [
-    # ── Foundation types (no cross-file deps) ──
-    "token.kn",           # TokenKind constants, Token struct
-    "error.kn",           # KcDiagnostic, KcDiagnosticBag
-    "span.kn",            # Span struct, span helpers
-    "ast.kn",             # AST constants (item/stmt/expr/type/pattern/binop/unary)
+    # ── Foundation types (core/) ──
+    "core/token.kn",
+    "core/error.kn",
+    "core/span.kn",
+    "core/ast.kn",
 
-    # ── Build config helpers (no cross-file deps, consumed by orchestrator) ──
-    "build.kn",           # Column name constants, config helpers, markscript table schema
+    # ── Build config (cli/) ──
+    "cli/build.kn",
 
-    # ── Typechecker + Effects (depends on: ast, token, error) ──
-    # MUST come before construct files to avoid circular-import stdlib collisions
-    "types.kn",           # ResolvedType (20 variants), 4-pass pipeline, types_compatible
-    "effects.kn",         # 8-effect lattice, can_call(), effect_set_* helpers
+    # ── Typechecker + Effects (typecheck/) ──
+    "typecheck/types.kn",
+    "typecheck/effects.kn",
 
-    # ── L1 + L2 semantic constructs (state authority + integrity) ──
-    "L1_state.kn",         # World + Entangle check + codegen stubs
-    "L2_integrity.kn",     # Patch + Law check + codegen stubs
+    # ── L1 + L2 semantic constructs (layers/) ──
+    "layers/L1_state.kn",
+    "layers/L2_integrity.kn",
 
-    # ── Lexer (depends on: token, error, span) ──
-    "lexer.kn",           # DFA lexer, indent processor, tokenize_all
+    # ── Lexer (parser/) ──
+    "parser/lexer.kn",
 
-    # ── Builtins + Runtime contract (depends on: token, ast) ──
-    "builtins.kn",        # BuiltinType, BuiltinFunction, 27 primitive types
-    "runtime.kn",         # Runtime function table (~200 entries), C type mapping
+    # ── Builtins + Runtime contract (core/ + codegen/) ──
+    "core/builtins.kn",
+    "codegen/runtime.kn",
 
-    # ── LLVM FFI + JIT layer (depends on: runtime for type defs) ──
-    "llvm_ffi.kn",        # LLVM-C FFI types + GOLF wrapper functions (70+ wrappers)
-    "jit_metal.kn",       # W^X lifecycle, trampoline, vm_map/protect/fence
-    "jit_x86.kn",         # Path A: direct x86-64 JIT emission library
-    "jit_orc.kn",         # Path B: OrcJIT binding (currently stub)
-    "jit_cache.kn",       # Shatter struct JIT cache with SoA layout
-    "jit.kn",             # JIT dispatcher (auto-select OrcJIT vs Path A)
+    # ── LLVM FFI + JIT (codegen/ + jit/) ──
+    "codegen/llvm_ffi.kn",
+    "jit/jit_metal.kn",
+    "jit/jit_x86.kn",
+    "jit/jit_orc.kn",
+    "jit/jit_cache.kn",
+    "jit/jit.kn",
 
-    # ── Parser (depends on: token, error, span, ast, lexer) ──
-    "parser.kn",          # Full recursive-descent parser (108 keywords, ~3345 lines)
+    # ── Parser (parser/) ──
+    "parser/parser.kn",
 
-    # ── Construct implementations (depends on: types, ast, effects) ──
-    "L3_dispatch.kn",     # Converge: typecheck + codegen stubs (L3)
-    "L4_stage.kn",        # Orchestrate: typecheck + codegen stubs (L4)
-    "L5_temporal.kn",     # Pulse + Resonate: typecheck + codegen stubs (L5)
-    "L6_stones.kn",       # Axiom + Shatter + Teleport: typecheck + codegen stubs (L6)
-    "L7_systems.kn",      # Actor + Ownership: typecheck + codegen stubs (L7)
-    "GpuBackend.kn",      # Shader + Dispatch: typecheck + codegen stubs (GPU)
+    # ── Construct implementations (layers/ + backend/) ──
+    "layers/L3_dispatch.kn",
+    "layers/L4_stage.kn",
+    "layers/L5_temporal.kn",
+    "layers/L6_stones.kn",
+    "layers/L7_systems.kn",
+    "backend/GpuBackend.kn",
 
-    # ── Monomorphization + Codegen (depends on: types, llvm_ffi, runtime) ──
-    "monomorphize.kn",    # Generic instantiation, unify(), substitute_type(), mangle_name
-    "codegen.kn",         # Path A (textual LLVM IR) + Path B stubs, LlvmGenerator
+    # ── Monomorphization + Codegen (typecheck/ + codegen/) ──
+    "typecheck/monomorphize.kn",
+    "codegen/codegen.kn",
 
-    # ── Compiler driver + Orchestration (depends on: build.kn, codegen, markscript) ──
-    "compiler.kn",        # DriverSession pipeline: Resolve→Lex→Parse→Typecheck→Mono→Codegen
-    "orchestrator.kn",    # Markscript VM embedding, 9 IVT handlers, CLI entry points
+    # ── Compiler driver + Orchestration (cli/) ──
+    "cli/compiler.kn",
+    "cli/orchestrator.kn",
 
-    # ── CLI + Entry point ──
-    "cli.kn",             # CLI argument parsing (12 subcommands), subcommand dispatch
-    "main.kn",            # Entry point: parse_args → run_subcommand
+    # ── CLI + Entry point (cli/) ──
+    "cli/cli.kn",
+    "cli/main.kn",
 ]
 
 # ────────────────────────────────────────────────────────────────────
