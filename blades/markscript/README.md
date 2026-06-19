@@ -159,7 +159,40 @@ OP_PUSH_PARAM hash("apply gravity")
 OP_EXECUTE_CALL
 ```
 
-The IVT maps phrase hashes to handler IDs at runtime. **78 built-in handlers** bridge to the Kain stdlib — filesystem, process management, math, string operations, JSON, networking, time, regex, templates, random, and UI events. See [`docs/IVT_AND_HANDLERS.md`](docs/IVT_AND_HANDLERS.md) for the full registry.
+The IVT maps phrase hashes to handler IDs at runtime. **81 built-in handlers** bridge to the Kain stdlib — filesystem, process management, math, string operations, JSON, networking, time, regex, templates, random, and UI events. See [`docs/IVT_AND_HANDLERS.md`](docs/IVT_AND_HANDLERS.md) for the full registry.
+
+### Data-Driven Intent Keyword Registry
+
+Intent keywords are **data-driven** — the single source of truth is [`std/intents.md`](std/intents.md), a markdown table with 57 single-word intent keywords. The module `src/registry.kn` reads this file at startup and populates an `IntentRegistry` world. The parser calls `is_keyword()` from this world instead of a hardcoded list.
+
+**To add a new intent keyword:** edit `std/intents.md`, add a row to the table, register the handler in `bridge.kn`. No parser or compiler changes needed.
+
+#### Three-Way Blockquote Classification
+
+The parser classifies every blockquote (`> text`) into one of three categories:
+
+| Category | Detection | Action |
+|----------|-----------|--------|
+| **Known intent keyword** | First word in `std/intents.md` registry | Emit `OP_PUSH_PARAM` + `OP_EXECUTE_CALL` |
+| **Prose documentation** | First word in 57-word `PROSE_STARTERS` list (articles, prepositions, pronouns, conjunctions, interrogatives) | Skip — no bytecode emitted |
+| **Unknown word** | Not in registry, not a prose-starter | Skip — treated as prose (fallback) |
+
+This means standard markdown blockquotes like `> This is documentation` never trigger intent dispatch, while `> print "hello"` always will.
+
+#### Intent Keyword Categories (57 keywords)
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| **File I/O** | 7 | `read`, `write`, `exists`, `mkdir`, `readdir`, `stat`, `touch`, `chmod` |
+| **String** | 9 | `concat`, `split`, `join`, `substr`, `replace`, `upper`, `lower`, `trim`, `contains` |
+| **Math** | 8 | `sin`, `cos`, `sqrt`, `abs`, `min`, `max`, `clamp`, `random` |
+| **Random** | 4 | `randint`, `randfloat`, `randrange`, `randfrange`, `maybe`, `diceroll` |
+| **JSON** | 2 | `parse`, `stringify` |
+| **Time** | 2 | `time`, `sleep` |
+| **Process** | 8 | `run`, `spawn`, `await`, `kill`, `exitcode`, `stdout`, `stderr`, `pipe`, `env`, `cwd` |
+| **UI** | 4 | `click`, `key`, `focus`, `close`, `find`, `set`, `get`, `create` |
+| **Template** | 1 | `template` |
+| **Core** | 3 | `print`, `assert`, `import` |
 
 ### Process Lifecycle
 
@@ -260,12 +293,21 @@ Imports are resolved at compile-time, before bytecode emission. Rules:
     └──────────┬──────────────────┘
                │ tokens
                ▼
+    ┌─────────────────────────────────┐
+    │ INTENT REGISTRY (registry.kn)   │
+    │ Reads std/intents.md →           │
+    │ IntentRegistry world             │
+    │ is_keyword() lookup for parser   │
+    └────────────┬────────────────────┘
+                 │ keyword set
+                 ▼
     ┌───────────────────────────────┐
     │ PARSER + COMPILER (parser.kn) │
     │ Single-pass: tokens→bytecode  │
     │ • Tables → OP_PUSH_MATRIX     │
     │ • Intents → OP_PUSH_PARAM +   │
     │              OP_EXECUTE_CALL   │
+    │ • Prose/intent disambiguation │
     │ • @import resolution          │
     │ • Mini-language → VM opcodes  │
     └──────────┬────────────────────┘
@@ -294,7 +336,8 @@ Imports are resolved at compile-time, before bytecode emission. Rules:
 | File | LOC | Role |
 |------|-----|------|
 | `src/lexer.kn` | ~350 | Tokenizer — 22 token types, value semantics |
-| `src/parser.kn` | ~500 | Single-pass bytecode compiler, @import, mini-language |
+| `src/registry.kn` | ~250 | Data-driven intent keyword loader from std/intents.md |
+| `src/parser.kn` | ~500 | Single-pass bytecode compiler, @import, prose/intent disambiguation, mini-language |
 | `src/vm.kn` | ~847 | Virtual Machine — 23 opcodes, stack, IVT, processes, widgets, arrays |
 | `src/main.kn` | ~1,406 | CLI driver, 13 subcommands, --json, auto-discovery |
 | `src/cli.kn` | ~664 | Argument parser, build auto-detection, JSON output |
@@ -376,10 +419,11 @@ markscript/
 │   ├── main.kn                — CLI (13 subcommands), handler loop, --json
 │   ├── cli.kn                 — argument parser, auto-detection, MksConfig
 │   ├── lexer.kn               — 22-token tokenizer
-│   ├── parser.kn              — single-pass bytecode compiler, mini-language
+│   ├── registry.kn            — data-driven intent keyword loader (std/intents.md)
+│   ├── parser.kn              — single-pass bytecode compiler, prose/intent disambiguation
 │   ├── vm.kn                  — 23-opcode stack VM, IVT, state management
 │   ├── types.kn               — MarkValue (10 kinds), MatrixRecord, WidgetRecord
-│   ├── bridge.kn              — 78-handler IVT registry + dispatch
+│   ├── bridge.kn              — 81-handler IVT registry + dispatch
 │   ├── bridge_stdlib.kn       — BETA: 35 stdlib handler functions
 │   ├── error.kn               — runtime error formatting, did-you-mean
 │   ├── import.kn              — @import resolution
@@ -410,13 +454,17 @@ markscript/
 ├── benchmarks/                ← Benchmark suite (17 benchmarks)
 ├── attrition/                 ← Sabotage definitions (20 cases)
 ├── examples/                  ← executable example scripts
+│   ├── verified/              ★ Verified examples (all pass mks run)
+│   │   ├── intent_registry_demo.md    — 57-keyword registry + prose disambiguation
+│   │   ├── full_stdlib_exercise.md    — all 8 intent categories
+│   │   ├── markscript_mini_language_demo.md — mini-language: vars, if/else, functions
+│   │   ├── table_parser_demo.md       — pipe tables with type inference
+│   │   ├── import_directive_demo.md   — @import resolution
+│   │   └── prose_vs_intent_demo.md    — 3-way classification with 50+ prose-starters
 │   ├── pong.md                — complete Pong game (8 domains, 24 routines, 9 tables)
 │   ├── fizzbuzz.md            — mini-language: loops, if/else, vars
 │   ├── game_engine.md         — physics/AI/rendering loop
-│   ├── data_pipeline.md       — streaming ETL pipeline
-│   ├── servo_controller.md    — 6-axis servo with PID
-│   ├── kain_project_config.md — KAIN.toml equivalent in markscript
-│   └── ... (25 total)
+│   └── ... (25+ total)
 ├── mks/                       ← Hex color mixer (markscript-driven Kain UI)
 │   ├── ui.md                  — UI spec in markscript tables
 │   ├── readme.md              — markscript build orchestrator

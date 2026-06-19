@@ -22,6 +22,9 @@ use std::text
 //  INTENT REGISTRY WORLD — shared state between registry and parser
 // ============================================================================
 
+component IntentRegistryPanel():
+    render <panel title="intent-registry" />
+
 pub world IntentRegistry:
     state keywords:       Array<String> = []
     state keyword_hashes: Array<Int> = []
@@ -29,6 +32,7 @@ pub world IntentRegistry:
     state loaded:         Bool = false
     state load_path:      String = ""
     state load_error:     String = ""
+    surface web => IntentRegistryPanel
 
 // ============================================================================
 //  STRING UTILITIES — all prefixed with reg_ to avoid namespace collisions
@@ -159,12 +163,14 @@ fn reg_parse_table(source: String) -> Array<String>:
 
             if separator_seen:
                 let cells = reg_split_pipe(row)
-                if len(cells) >= 1:
-                    let kw = reg_trim(cells[0])
+                // cells[0] is empty (leading |), keyword is at cells[1]
+                if len(cells) >= 2:
+                    let kw = reg_trim(cells[1])
                     if kw != "" and kw != "keyword":
                         push(keywords, kw)
             elif header_seen:
                 let cells = reg_split_pipe(row)
+                // Check if this is a separator row (skip empty leading cell)
                 var maybe_sep = true
                 var ci = 0
                 while ci < len(cells):
@@ -177,8 +183,8 @@ fn reg_parse_table(source: String) -> Array<String>:
                     separator_seen = true
                 else:
                     let cells2 = reg_split_pipe(row)
-                    if len(cells2) >= 1:
-                        let kw = reg_trim(cells2[0])
+                    if len(cells2) >= 2:
+                        let kw = reg_trim(cells2[1])
                         if kw != "":
                             push(keywords, kw)
                     separator_seen = true

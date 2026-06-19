@@ -186,7 +186,7 @@ fn is_mks_intent_kw(word: String) -> Bool:
     // Check the data-driven intent registry (loaded from std/intents.md)
     // Falls back to false if registry hasn't been loaded yet — all
     // blockquotes are treated as prose.
-    return registry.is_keyword(word)
+    return is_keyword(word)
 
 // ===========================================================================
 //  MARKSCRIPT MINI-LANGUAGE PARSER

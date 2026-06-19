@@ -56,7 +56,7 @@ fn read_source(path: String) -> String:
 
 fn load_intent_registry(source_filepath: String) -> Bool:
     // Skip if already loaded
-    if registry.is_loaded():
+    if is_loaded():
         return true
 
     // Build candidate paths
@@ -74,12 +74,12 @@ fn load_intent_registry(source_filepath: String) -> Bool:
     while ci < len(candidates):
         let path = candidates[ci]
         if fs_exists(path):
-            let count = registry.load_registry(path)
+            let count = load_registry(path)
             if count > 0:
                 println("[REGISTRY] Loaded " + str(count) + " intent keywords from " + path)
                 return true
             else:
-                let err = registry.get_error()
+                let err = get_error()
                 if err != "":
                     println("[REGISTRY] Warning: " + err)
         ci = ci + 1
@@ -837,6 +837,9 @@ fn cmd_eval(cfg: MksConfig) -> Int:
 
     let source = cfg.eval_expr
     println("[INPUT] " + source)
+
+    // Load intent keyword registry before compilation
+    load_intent_registry("")
 
     let lex = create_lexer(source)
     let bytecode = compile_source(lex)

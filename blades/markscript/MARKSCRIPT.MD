@@ -221,6 +221,59 @@ Function parameter types determine how arguments are parsed from the intent. Ret
 
 ---
 
+## Data-Driven Intent Keyword Registry (2.0)
+
+The intent keyword registry is **data-driven**. The single source of truth is `std/intents.md` — a markdown table with 57 single-word intent keywords. Adding a new intent requires editing ONLY that file and registering the handler in `bridge.kn`.
+
+### Architecture
+
+```
+std/intents.md (markdown table)
+    │
+    ▼ load_registry()
+registry.kn (IntentRegistry world)
+    │ is_keyword()
+    ▼
+parser.kn (prose/intent disambiguation)
+```
+
+### Flow
+
+1. **Startup:** `main.kn` calls `load_intent_registry()` before every compilation
+2. **Load:** `registry.kn` reads `std/intents.md`, parses the keyword table, populates `IntentRegistry` world
+3. **Lookup:** `parser.kn` calls `is_keyword(word)` for each blockquote's first word
+4. **Disambiguation:** Three-way classification (keyword → intent, prose-starter → doc, unknown → doc)
+
+### Registry Module (`src/registry.kn`)
+
+- **`load_registry(path)`:** Reads the markdown table, extracts keyword column, populates `IntentRegistry` world
+- **`is_keyword(word)`:** Hash-based lookup against the loaded keyword set
+- **`is_loaded()`:** Returns whether the registry has been loaded
+- **`keyword_count()`:** Returns the number of loaded keywords
+
+### The Prose-Starter List
+
+A closed, stable set of ~50 English words that begin sentences. When a blockquote's first word matches one of these, it is treated as prose documentation (no bytecode emitted). The list includes:
+
+| Category | Words |
+|----------|-------|
+| **Articles/Determiners** | The, This, That, These, Those, A, An, Some, Any, All, Each, Every, One, No, Other |
+| **Pronouns** | I, We, You, He, She, It, They |
+| **Prepositions** | In, At, On, By, From, To, With, For, As, So, Not, Just, Also |
+| **Conjunctions** | And, But, Or, If, Because, However |
+| **Interrogatives** | Who, What, When, Where, Why, Which, How |
+| **Discourse Markers** | Then, Now, Here, There, Still, Therefore, However, Meanwhile, Nevertheless, Furthermore, Moreover, Thus, Hence |
+
+### How to Add a New Intent Keyword
+
+1. Add a row to `std/intents.md` with: keyword, handler_fn, handler_id, description
+2. Register the handler in `src/bridge.kn` with a new function and handler ID
+3. Rebuild: `kain build`
+
+No parser, compiler, or registry changes needed.
+
+---
+
 ## Error Model
 
 All errors are runtime errors with structured reporting. Markdown itself cannot produce parser errors.
@@ -379,15 +432,22 @@ markscript/
 ├── src/
 │   ├── main.kn                 — CLI, disassembler, execution driver
 │   ├── lexer.kn                — 22 token types, value-semantics tokenizer
-│   ├── parser.kn               — single-pass token→bytecode compiler, @import
+│   ├── registry.kn             — data-driven intent keyword loader (std/intents.md)
+│   ├── parser.kn               — single-pass token→bytecode compiler, prose/intent disambiguation
 │   ├── vm.kn                   — 17-opcode stack VM, typed data, IVT dispatch
 │   ├── types.kn                — MarkValue, MatrixRecord, type inference
-│   ├── bridge.kn               — IVT handler registry, intent→Kain binding
+│   ├── bridge.kn               — IVT handler registry, intent→Kain binding (81 handlers)
 │   ├── error.kn                — MarkError, formatting, did-you-mean
 │   ├── import.kn               — @import resolution, cycle detection, namespace merge
-│   └── test_lexer.kn           — comprehensive tokenizer test suite
+│   ├── jit.kn                  — x86-64 JIT compiler
+│   ├── std_markscript.kn       — clean embedding API for Kain programs
+│   ├── markscript_ui.kn        — UI event binding bridge
+│   ├── schema.kn               — config schema validation
+│   ├── gen.kn                  — config → code generator
+│   └── config.kn               — layered config merging
 │
-├── std/                          — Markscript stdlib (written in Markscript)
+├── std/                        — Markscript stdlib (written in Markscript)
+│   ├── intents.md              — data-driven intent keyword registry (57 keywords)
 │   ├── io.md
 │   ├── math.md
 │   ├── build.md
