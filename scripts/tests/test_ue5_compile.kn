@@ -1,8 +1,0 @@
-// Simple test actor to verify -t ue5 compilation with metadata loading
-
-actor TestActor:
-    state health: Float = 100.0
-    
-    on Server_TakeDamage(amount: Float):
-        health = health - amount
-        println("Health: {health}")
