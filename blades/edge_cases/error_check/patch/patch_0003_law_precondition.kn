@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0003
+//@ expect-error: "Patch Law Precondition Failed"
+//@ severity: error
+
+// Triggers: Law precondition fails on patch value
+component Foo:
+    render <panel />
+
+world State:
+    state count: Int = 0
+    surface native_ui => Foo
+
+law value_ok(v: Int) -> Bool:
+    return v >= 0
+
+patch bad_update(target: State, v: Int) -> Int:
+    target.count = v
+    return target.count

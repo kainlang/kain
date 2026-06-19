@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0003
+//@ known-gap: Toolchain detection is environment-dependent. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Missing toolchain -- requires specific environment setup
+// This file exists to document the coverage gap.

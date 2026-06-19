@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-VALIDATE-0001
+//@ expect-error: "Validation Error"
+//@ severity: error
+
+// Triggers: Generic validation error -- structural pass rejection
+// Shader with missing comptime block that should have been caught in validation
+shader compute BadShader(id: UVec3) -> Void:
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    dst[id.x] = src[id.x]
+    return

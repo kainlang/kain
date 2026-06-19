@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0005
+//@ expect-error: "Entangle Cross-World Scope Error"
+//@ severity: error
+
+// Triggers: Entangle references world not in scope
+fn main():
+    entangle W1.a <-> W2.b with single_writer

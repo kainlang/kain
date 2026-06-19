@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-STATE-0001
+//@ expect-error: "State Error"
+//@ severity: error
+
+// Triggers: Generic state machine error
+// State machine with invalid structure

@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0001
+//@ expect-error: "Config Error"
+//@ severity: error
+
+// Triggers: Generic config error
+// Note: Config errors typically come from build.kn or KAIN.toml, not .kn source

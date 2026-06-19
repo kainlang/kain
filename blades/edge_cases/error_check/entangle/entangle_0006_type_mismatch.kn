@@ -1,0 +1,18 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0006
+//@ expect-error: "Entangle Type Mismatch"
+//@ severity: error
+
+// Triggers: Entangled fields have different types
+component Foo:
+    render <panel />
+
+world A:
+    state val: Int = 0
+    surface native_ui => Foo
+
+world B:
+    state val_str: String = "hello"
+    surface native_ui => Foo
+
+entangle A.val <-> B.val_str with single_writer

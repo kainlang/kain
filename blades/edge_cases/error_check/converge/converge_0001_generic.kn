@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0001
+//@ expect-error: "Converge Error"
+//@ severity: error
+
+// Triggers: Generic converge error
+converge bad(x: Int) -> Int:
+    // Missing spec lane
+    fast llvm when target("llvm"):
+        return x * 2

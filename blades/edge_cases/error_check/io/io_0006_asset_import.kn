@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-IO-0006
+//@ known-gap: Asset import failure requires a corrupted asset file. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Asset import failure -- requires a corrupt asset file
+// This file exists to document the coverage gap.

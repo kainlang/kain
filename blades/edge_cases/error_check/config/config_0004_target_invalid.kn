@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0004
+//@ expect-error: "Target Specification Invalid"
+//@ severity: error
+
+// Triggers: Invalid target specification in build flag
+// Note: typically triggered via `kain build --target invalid`

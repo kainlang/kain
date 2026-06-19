@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-STATE-0003
+//@ expect-error: "State Transition Cycle"
+//@ severity: error
+
+// Triggers: State transitions form cycle without exit
+enum CycleState:
+    A
+    B
+
+fn transition(s: CycleState) -> CycleState:
+    match s:
+        CycleState::A => return CycleState::B
+        CycleState::B => return CycleState::A

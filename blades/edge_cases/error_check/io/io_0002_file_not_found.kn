@@ -1,0 +1,13 @@
+//@ build-fail
+//@ error: KAIN-IO-0002
+//@ expect-error: "File Not Found"
+//@ severity: error
+
+// Triggers: File not found at compile/build time
+// Note: passes `kain check` but fails `kain build --target llvm`
+
+use std::fs
+
+fn main() -> Int:
+    let _ = fs_read_text("nonexistent_file_xyz.abc")
+    return 0

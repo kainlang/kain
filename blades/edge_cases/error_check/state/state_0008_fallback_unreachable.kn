@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-STATE-0008
+//@ expect-error: "Fallback Handler Unreachable"
+//@ severity: warning
+
+// Triggers: Fallback handler is unreachable dead code
+axiom all_covered:
+    when target("x86_64")
+    guarantee "covers everything"
+    fallback still_unreachable

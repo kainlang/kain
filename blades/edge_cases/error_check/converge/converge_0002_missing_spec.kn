@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0002
+//@ expect-error: "Converge Missing Spec Lane"
+//@ severity: error
+
+// Triggers: Converge without spec lane
+converge no_spec(x: Int) -> Int:
+    fast avx2 when capability("cpu.x86.avx2"):
+        return x * 3

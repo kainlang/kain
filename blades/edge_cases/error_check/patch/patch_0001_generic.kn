@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0001
+//@ expect-error: "Patch Error"
+//@ severity: error
+
+// Triggers: Generic patch error
+patch bad(target: Int, v: Int) -> Int:
+    target = v
+    return target

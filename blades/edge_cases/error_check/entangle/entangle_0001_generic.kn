@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0001
+//@ expect-error: "Entangle Error"
+//@ severity: error
+
+// Triggers: Generic entangle error
+// Malformed entangle declaration
+entangle

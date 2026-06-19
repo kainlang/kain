@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0007
+//@ expect-error: "Entangle Direction Conflict"
+//@ severity: error
+
+// Triggers: Conflicting bidirectional links on same field pair
+component Foo:
+    render <panel />
+
+world A:
+    state val: Int = 0
+    surface native_ui => Foo
+
+world B:
+    state val_copy: Int = 0
+    surface native_ui => Foo
+
+entangle A.val <-> B.val_copy with single_writer
+entangle B.val_copy <-> A.val with single_writer

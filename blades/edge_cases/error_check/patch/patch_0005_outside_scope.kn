@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0005
+//@ expect-error: "Patch Applied Outside World Scope"
+//@ severity: error
+
+// Triggers: Patch called from pure context
+component Foo:
+    render <panel />
+
+world App:
+    state flag: Int = 0
+    surface native_ui => Foo
+
+patch set_flag(target: App, v: Int) -> Int:
+    target.flag = v
+    return target.flag
+
+fn main() with Pure:
+    set_flag(App, 1)

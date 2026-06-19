@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0007
+//@ expect-error: "Patch Law Return Type Mismatch"
+//@ severity: error
+
+// Triggers: Law returns non-Bool type
+component Foo:
+    render <panel />
+
+world App:
+    state val: Int = 0
+    surface native_ui => Foo
+
+law bad_law(v: Int) -> Int:
+    return v + 1
+
+patch update(target: App, v: Int) -> Int:
+    target.val = v
+    return target.val

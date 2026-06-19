@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-STATE-0007
+//@ expect-error: "Every Clause Unbounded"
+//@ severity: warning
+
+// Triggers: Warning about unbounded every clause
+axiom unbounded_axiom:
+    when target("llvm")
+    guarantee "runs forever"

@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TEST-0001
+//@ expect-error: "Test Error"
+//@ severity: error
+
+// Triggers: Generic test error -- malformed test assertion
+test "bad test":
+    assert 1 == 2

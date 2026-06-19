@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-STATE-0004
+//@ expect-error: "Invalid State Transition"
+//@ severity: error
+
+// Triggers: Transition to non-existent state
+enum RealStates:
+    Active
+    Idle
+
+fn broken_transition(s: RealStates) -> RealStates:
+    match s:
+        RealStates::Active => return RealStates::Dead
+        RealStates::Idle => return RealStates::Active

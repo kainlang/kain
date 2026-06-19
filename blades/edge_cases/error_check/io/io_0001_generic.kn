@@ -1,0 +1,13 @@
+//@ build-fail
+//@ error: KAIN-IO-0001
+//@ expect-error: "IO Error"
+//@ severity: error
+
+// Triggers: Generic IO error
+// Note: passes `kain check` but fails `kain build --target llvm` due to IO at compile time
+
+use std::fs
+
+fn main() -> Int:
+    let _ = fs_read_text("/nonexistent/path/file.txt")
+    return 0

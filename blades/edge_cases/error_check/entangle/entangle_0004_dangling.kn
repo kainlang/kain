@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0004
+//@ expect-error: "Entangle Dangling Reference"
+//@ severity: error
+
+// Triggers: Entangle references non-existent world
+component Foo:
+    render <panel />
+
+world Real:
+    state val: Int = 0
+    surface native_ui => Foo
+
+entangle Real.val <-> GhostWorld.field with single_writer

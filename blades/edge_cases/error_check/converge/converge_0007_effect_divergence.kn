@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0007
+//@ expect-error: "Converge Effect Set Divergence"
+//@ severity: error
+
+// Triggers: Lanes have different effect annotations
+converge effect_divergence(x: Int) -> Int:
+    spec reference:
+        return x * 2
+    fast io_lane when target("llvm"):
+        println("side effect in fast lane")
+        return x * 3

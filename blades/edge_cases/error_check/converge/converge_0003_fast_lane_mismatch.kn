@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0003
+//@ expect-error: "Converge Fast Lane Contract Mismatch"
+//@ severity: error
+
+// Triggers: Fast lane returns different type than spec
+converge mismatched(x: Int) -> Int:
+    spec reference:
+        return x * 2
+    fast wrong_type when target("llvm"):
+        return "not an int"

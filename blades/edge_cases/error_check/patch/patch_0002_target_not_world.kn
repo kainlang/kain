@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0002
+//@ expect-error: "Patch Target Is Not A World"
+//@ severity: error
+
+// Triggers: Patch targets struct instead of world
+struct Data:
+    count: Int
+
+patch update(target: Data, v: Int) -> Int:
+    target.count = v
+    return target.count

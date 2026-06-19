@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-STATE-0005
+//@ expect-error: "Pulse Without State"
+//@ severity: error
+
+// Triggers: Pulse used without associated state machine
+pulse orphan_pulse every 100 ms jitter 10 ms:
+    let _ = pulse_tick

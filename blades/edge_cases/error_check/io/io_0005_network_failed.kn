@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-IO-0005
+//@ known-gap: Network failures require actual network operations. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Network request failure -- requires network access
+// This file exists to document the coverage gap.

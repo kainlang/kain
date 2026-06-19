@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0006
+//@ expect-error: "Dependency Resolution Failed"
+//@ severity: error
+
+// Triggers: Unresolvable dependency reference
+use nonexistent_package::something
+
+fn main():
+    return 0

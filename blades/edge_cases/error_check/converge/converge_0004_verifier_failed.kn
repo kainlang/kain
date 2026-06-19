@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0004
+//@ expect-error: "Converge Verifier Failed"
+//@ severity: error
+
+// Triggers: Fast lane diverges from spec on random inputs
+converge divergent(x: Int) -> Int:
+    spec reference:
+        return x * 2
+    fast wrong when target("llvm"):
+        return x * 3
+    verify random(4)

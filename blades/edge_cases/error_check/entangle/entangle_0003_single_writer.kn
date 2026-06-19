@@ -1,0 +1,21 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0003
+//@ expect-error: "Entangle Single Writer Violation"
+//@ severity: error
+
+// Triggers: Second writer to single_writer field
+component Foo:
+    render <panel />
+
+world Author:
+    state count: Int = 0
+    surface native_ui => Foo
+
+world Mirror:
+    state count_copy: Int = 0
+    surface native_ui => Foo
+
+entangle Author.count <-> Mirror.count_copy with single_writer
+
+fn main():
+    Mirror.count_copy = 42

@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0006
+//@ expect-error: "Converge Return Type Divergence"
+//@ severity: error
+
+// Triggers: Lanes return different types
+converge type_divergence(x: Int) -> Int:
+    spec reference:
+        return 42
+    fast string_lane when target("llvm"):
+        return "diverge"

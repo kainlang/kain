@@ -1,0 +1,20 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0006
+//@ expect-error: "Conflicting Patch Mutations"
+//@ severity: error
+
+// Triggers: Two patches mutate the same field concurrently
+component Foo:
+    render <panel />
+
+world App:
+    state val: Int = 0
+    surface native_ui => Foo
+
+patch inc(target: App) -> Int:
+    target.val = target.val + 1
+    return target.val
+
+patch dec(target: App) -> Int:
+    target.val = target.val - 1
+    return target.val

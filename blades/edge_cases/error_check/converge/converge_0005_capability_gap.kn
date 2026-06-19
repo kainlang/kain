@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0005
+//@ expect-error: "Converge Capability Gap At Target"
+//@ severity: error
+
+// Triggers: No lane matches target -- all fast lanes require missing capabilities
+converge no_match(x: Int) -> Int:
+    spec reference:
+        return x * 2
+    fast gpu_only when capability("gpu.compute"):
+        return x * 3

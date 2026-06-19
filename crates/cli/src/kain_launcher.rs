@@ -868,8 +868,8 @@ fn capture_rendered_failure(
     source_path: Option<&Path>,
     structured_diagnostic: Option<serde_json::Value>,
     context: serde_json::Value,
-) {
-    let _ = kain_core::diagnostic_capture::capture_event_if_enabled(
+) -> bool {
+    let captured = kain_core::diagnostic_capture::capture_event_if_enabled(
         kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
             event_kind: event_kind.to_string(),
             command: command.to_string(),
@@ -887,7 +887,8 @@ fn capture_rendered_failure(
             tags: Vec::new(),
             context,
         },
-    );
+    )
+    .unwrap_or(false)
 }
 
 fn capture_kain_error_failure(
@@ -901,12 +902,6 @@ fn capture_kain_error_failure(
     rendered_output: &str,
 ) {
     let phase = match error {
-        kain_core::KainError::Lexer { .. } => "lexer",
-        kain_core::KainError::Parser { .. } => "parser",
-        kain_core::KainError::Type { .. } => "type",
-        kain_core::KainError::Effect { .. } => "effect",
-        kain_core::KainError::Borrow { .. } => "borrow",
-        kain_core::KainError::Codegen { .. } | kain_core::KainError::CodegenWithLocation { .. } => {
             "codegen"
         }
         kain_core::KainError::Runtime { .. } => "runtime",
@@ -2823,7 +2818,22 @@ fn run_check_command(
         }
     };
     if json_stdout {
-        if !emit_structured_report(StructuredReportDestination::Stdout, &report, "check") {
+        // THETA-3: prefer the full per-file diagnostic JSON envelope when
+        // available. `kain-check` populates `diagnostics_json` from
+        // `kain_error::diagnostics_to_json_string(...)` for every file that
+        // failed through the typed frontend. That gives `--json` consumers
+        // (LLMs, CI) the rich payload (severity, kind, code, title, message,
+        // file, location, labels, notes, help, phase) instead of a summary.
+        let full_diag: Vec<&str> = report
+            .files
+            .iter()
+            .filter_map(|f| f.diagnostics_json.as_deref())
+            .collect();
+        if !full_diag.is_empty() {
+            for json_str in &full_diag {
+                println!("{json_str}");
+            }
+        } else if !emit_structured_report(StructuredReportDestination::Stdout, &report, "check") {
             return false;
         }
         // When --audit is also set, append the audit JSON to the same payload.
@@ -2842,7 +2852,26 @@ fn run_check_command(
     }
 
     if let Some(path) = json_out {
-        if !emit_structured_report(StructuredReportDestination::File(path), &report, "check") {
+        // THETA-3: same preference for file output. Per-file diagnostic JSON
+        // envelopes when available, falling back to the summary-level
+        // `CheckReport` envelope.
+        let full_diag: Vec<&str> = report
+            .files
+            .iter()
+            .filter_map(|f| f.diagnostics_json.as_deref())
+            .collect();
+        if !full_diag.is_empty() {
+            let merged = full_diag.join("\n");
+            if let Err(error) = std::fs::write(path, &merged) {
+                eprintln!(
+                    "{} Failed to write JSON report: {}",
+                    p().status_error(""),
+                    error
+                );
+                return false;
+            }
+            println!("{} Wrote check report: {}", p().status_ok(""), path.display());
+        } else if !emit_structured_report(StructuredReportDestination::File(path), &report, "check") {
             return false;
         }
     }
@@ -2862,19 +2891,36 @@ fn run_check_command(
     }
 
     let painter = p();
-    let status_word = if report.is_success() {
-        painter.status_ok("passed")
-    } else {
-        painter.status_error("failed")
-    };
-    println!(
-        " Check {}: {}/{} passed",
-        status_word, report.passed, report.total
-    );
+    // THETA-1: rustc-style inline error display. Errors first, summary last.
+    // `file.error` already contains a fully-rendered rustc-style block with
+    // ANSI colors, source snippets, line numbers, and carets (built by
+    // `session.format_error()` via `active_painter()`). Print it verbatim.
     for file in report.files.iter().filter(|file| !file.passed()) {
         if let Some(error) = &file.error {
-            eprintln!("  {}: {}", painter.status_error(&file.path), error);
+            eprint!("{error}");
         }
+    }
+    if report.is_success() {
+        println!(
+            "{} Check passed: {}/{} files ok",
+            painter.status_ok(""),
+            report.passed,
+            report.total
+        );
+    } else {
+        let failed_paths: Vec<&str> = report
+            .files
+            .iter()
+            .filter(|f| !f.passed())
+            .map(|f| f.path.as_str())
+            .collect();
+        eprintln!(
+            "{} Check FAILED: {} - {}/{} passed",
+            painter.status_error(""),
+            failed_paths.join(", "),
+            report.passed,
+            report.total
+        );
     }
     // ── Telemetry footer (ETA-B) ─────────────────────────────────
     // For the human-readable output, surface confidence and gap summary so
@@ -2902,40 +2948,13 @@ fn run_check_command(
             }
         }
     }
-    if !report.is_success() {
-        let rendered = report
-            .files
-            .iter()
-            .filter_map(|file| {
-                file.error
-                    .as_ref()
-                    .map(|error| format!("  {}: {}\n", file.path, error))
-            })
-            .collect::<String>();
-        capture_rendered_failure(
-            "check-failure",
-            "check",
-            if rendered.is_empty() {
-                " Check failed\n".to_string()
-            } else {
-                rendered
-            },
-            None,
-            Some(kain_check::compile_target_name(target)),
-            None,
-            Some(input),
-            None,
-            serde_json::json!({
-                "summary": {
-                    "target": report.target.clone(),
-                    "total": report.total,
-                    "passed": report.passed,
-                    "failed": report.failed,
-                },
-                "files": &report.files,
-            }),
-        );
-    }
+    // THETA-1 cleanup: the previous "check-failure" capture_rendered_failure
+    // block was redundant — individual file errors already capture via the
+    // `capture_kain_error_failure` path in the frontend, and the structured
+    // JSON for `--json` exports is handled by the diagnostics_json branch
+    // in the json_stdout / json_out paths above. The
+    // `capture_rendered_failure` function signature is preserved for other
+    // call sites; only this redundant check-failure capture is removed.
     report.is_success()
 }
 

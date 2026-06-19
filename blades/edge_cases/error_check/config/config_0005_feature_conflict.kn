@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0005
+//@ expect-error: "Feature Flag Conflict"
+//@ severity: error
+
+// Triggers: Conflicting feature flags
+// Note: typically triggered via build configuration

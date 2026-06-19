@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-ENTANGLE-0002
+//@ expect-error: "Entangle Cycle Detected"
+//@ severity: error
+
+// Triggers: Entangle cycle between worlds
+component Foo:
+    render <panel />
+
+world A:
+    state val: Int = 0
+    surface native_ui => Foo
+
+world B:
+    state val_copy: Int = 0
+    surface native_ui => Foo
+
+entangle A.val <-> B.val_copy with single_writer
+entangle B.val_copy <-> A.val with single_writer

@@ -1,0 +1,15 @@
+//@ check-fail
+//@ error: KAIN-STATE-0002
+//@ expect-error: "State Machine Inexhaustive"
+//@ severity: error
+
+// Triggers: State machine missing transition for a possible event
+enum Phase:
+    Start
+    Middle
+    End
+
+fn next(p: Phase) -> Phase:
+    match p:
+        Phase::Start => return Phase::Middle
+        // Missing Phase::Middle and Phase::End

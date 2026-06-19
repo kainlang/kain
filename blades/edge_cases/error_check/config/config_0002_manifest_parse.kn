@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-CONFIG-0002
+//@ expect-error: "Manifest Parse Error"
+//@ severity: error
+
+// Triggers: Invalid manifest -- requires a broken KAIN.toml
+// This error is triggered by malformed project configuration
+// Note: most config errors come from the manifest, not from .kn source

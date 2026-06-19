@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-STATE-0006
+//@ expect-error: "Guarantee Violation"
+//@ severity: error
+
+// Triggers: Guarantee that cannot be proven
+axiom unprovable_guarantee:
+    when target("llvm")
+    guarantee "this will never be reached"
+    fallback none

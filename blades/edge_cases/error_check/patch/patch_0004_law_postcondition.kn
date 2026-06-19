@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-PATCH-0004
+//@ expect-error: "Patch Law Postcondition Failed"
+//@ severity: error
+
+// Triggers: Postcondition law check fails after patch
+component Foo:
+    render <panel />
+
+world State:
+    state count: Int = 0
+    surface native_ui => Foo
+
+law count_positive(target: State) -> Bool:
+    return target.count > 0
+
+patch zero_patch(target: State) -> Int:
+    target.count = 0
+    return target.count

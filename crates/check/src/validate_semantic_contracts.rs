@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use kain_core::ast::{
     Block, ConvergeLaneKind, ConvergeSelector, ElseBranch, Expr, Stmt, Type,
 };
+use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram};
 use kain_error::{
     CompilerPhase, DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind,
@@ -52,7 +53,7 @@ fn validate_actor_message_completeness(
     reports: &mut Vec<DiagnosticReport>,
 ) {
     // Step 1: Collect all actor message handlers
-    let mut actor_handlers: HashMap<String, (HashSet<String>, kain_core::ast::Span)> = HashMap::new();
+    let mut actor_handlers: HashMap<String, (HashSet<String>, Span)> = HashMap::new();
 
     for item in &program.items {
         if let TypedItem::Actor(actor) = item {
@@ -95,7 +96,7 @@ fn validate_actor_message_completeness(
 
 fn find_actor_sends_in_body(
     body: &Block,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
     fn_name: &str,
     reports: &mut Vec<DiagnosticReport>,
 ) {
@@ -106,7 +107,7 @@ fn find_actor_sends_in_body(
 
 fn find_actor_sends_in_stmt(
     stmt: &Stmt,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
     fn_name: &str,
     reports: &mut Vec<DiagnosticReport>,
 ) {
@@ -142,7 +143,7 @@ fn find_actor_sends_in_stmt(
 
 fn find_actor_sends_in_expr(
     expr: &Expr,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
     fn_name: &str,
     reports: &mut Vec<DiagnosticReport>,
 ) {
@@ -336,7 +337,7 @@ fn find_actor_sends_in_expr(
 
 fn find_actor_sends_in_else(
     branch: &ElseBranch,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
     fn_name: &str,
     reports: &mut Vec<DiagnosticReport>,
 ) {
@@ -370,7 +371,7 @@ fn extract_message_name(expr: &Expr) -> Option<String> {
 /// Attempt to infer the actor type name from the first argument of send().
 fn infer_actor_name(
     expr: &Expr,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
 ) -> Option<String> {
     match expr {
         Expr::Ident(name, _) => {
@@ -408,7 +409,7 @@ fn extract_spawn_actor_name(expr: &Expr) -> Option<String> {
 /// Extract the actor name from a receiver expression like spawn(ActorType).
 fn extract_receiver_actor_name(
     receiver: &Expr,
-    actor_handlers: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
+    actor_handlers: &HashMap<String, (HashSet<String>, Span)>,
 ) -> Option<String> {
     match receiver {
         Expr::Spawn { actor, .. } => Some(actor.clone()),
@@ -498,7 +499,7 @@ fn find_world_writes_in_body(
     body: &Block,
     world_name: &str,
     field_name: &str,
-    violations: &mut Vec<kain_core::ast::Span>,
+    violations: &mut Vec<Span>,
 ) {
     for stmt in &body.stmts {
         find_world_writes_in_stmt(stmt, world_name, field_name, violations);
@@ -509,7 +510,7 @@ fn find_world_writes_in_stmt(
     stmt: &Stmt,
     world_name: &str,
     field_name: &str,
-    violations: &mut Vec<kain_core::ast::Span>,
+    violations: &mut Vec<Span>,
 ) {
     match stmt {
         Stmt::Expr(expr) => {
@@ -545,7 +546,7 @@ fn find_world_writes_in_expr(
     expr: &Expr,
     world_name: &str,
     field_name: &str,
-    violations: &mut Vec<kain_core::ast::Span>,
+    violations: &mut Vec<Span>,
 ) {
     // Pattern: WorldName.field_name = value  (assignment target)
     // Or: WorldName.field_name used as left side of Assign
@@ -609,7 +610,7 @@ fn find_world_writes_in_else(
     branch: &ElseBranch,
     world_name: &str,
     field_name: &str,
-    violations: &mut Vec<kain_core::ast::Span>,
+    violations: &mut Vec<Span>,
 ) {
     match branch {
         ElseBranch::Else(block) => {
@@ -629,7 +630,7 @@ fn check_world_field_access(
     expr: &Expr,
     world_name: &str,
     field_name: &str,
-    violations: &mut Vec<kain_core::ast::Span>,
+    violations: &mut Vec<Span>,
 ) {
     if let Expr::Field { object, field, span } = expr {
         if field == field_name {
@@ -655,7 +656,7 @@ fn validate_entangle_completeness(
     reports: &mut Vec<DiagnosticReport>,
 ) {
     // Build map of world -> set of state field names
-    let mut world_fields: HashMap<String, (HashSet<String>, kain_core::ast::Span)> = HashMap::new();
+    let mut world_fields: HashMap<String, (HashSet<String>, Span)> = HashMap::new();
     for item in &program.items {
         if let TypedItem::World(world) = item {
             let fields: HashSet<String> = world.ast.states.iter()
@@ -682,8 +683,8 @@ fn validate_entangle_completeness(
 
 fn check_entangle_endpoint(
     endpoint: &kain_core::ast::EntangleEndpoint,
-    world_fields: &HashMap<String, (HashSet<String>, kain_core::ast::Span)>,
-    entangle_span: &kain_core::ast::Span,
+    world_fields: &HashMap<String, (HashSet<String>, Span)>,
+    entangle_span: &Span,
     side: &str,
     reports: &mut Vec<DiagnosticReport>,
 ) {
@@ -1000,7 +1001,7 @@ fn validate_pulse_cadence_conflicts(
     reports: &mut Vec<DiagnosticReport>,
 ) {
     // Collect all pulses keyed by target world field
-    let mut pulses: Vec<(&kain_core::ast::PulseDef, kain_core::ast::Span)> = Vec::new();
+    let mut pulses: Vec<(&kain_core::ast::PulseDef, Span)> = Vec::new();
 
     for item in &program.items {
         if let TypedItem::Pulse(pulse) = item {
@@ -1410,7 +1411,7 @@ fn find_foreign_world_writes_in_body(
     body: &Block,
     target_world: &str,
     world_names: &HashSet<String>,
-    violations: &mut Vec<(String, kain_core::ast::Span)>,
+    violations: &mut Vec<(String, Span)>,
 ) {
     for stmt in &body.stmts {
         find_foreign_world_writes_in_stmt(stmt, target_world, world_names, violations);
@@ -1421,7 +1422,7 @@ fn find_foreign_world_writes_in_stmt(
     stmt: &Stmt,
     target_world: &str,
     world_names: &HashSet<String>,
-    violations: &mut Vec<(String, kain_core::ast::Span)>,
+    violations: &mut Vec<(String, Span)>,
 ) {
     match stmt {
         Stmt::Expr(expr) => {
@@ -1457,7 +1458,7 @@ fn find_foreign_world_writes_in_expr(
     expr: &Expr,
     target_world: &str,
     world_names: &HashSet<String>,
-    violations: &mut Vec<(String, kain_core::ast::Span)>,
+    violations: &mut Vec<(String, Span)>,
 ) {
     // Pattern: OtherWorld.field = value
     if let Expr::Assign { target, value, .. } = expr {
@@ -1507,7 +1508,7 @@ fn find_foreign_world_field(
     expr: &Expr,
     target_world: &str,
     world_names: &HashSet<String>,
-    violations: &mut Vec<(String, kain_core::ast::Span)>,
+    violations: &mut Vec<(String, Span)>,
 ) {
     if let Expr::Field { object, field: _field, span } = expr {
         if let Expr::Ident(w, _) = object.as_ref() {
@@ -1522,7 +1523,7 @@ fn find_foreign_world_writes_in_else(
     branch: &ElseBranch,
     target_world: &str,
     world_names: &HashSet<String>,
-    violations: &mut Vec<(String, kain_core::ast::Span)>,
+    violations: &mut Vec<(String, Span)>,
 ) {
     match branch {
         ElseBranch::Else(block) => {
@@ -1549,7 +1550,7 @@ fn validate_law_satisfiability(
     reports: &mut Vec<DiagnosticReport>,
 ) {
     // Collect all law names and their bodies
-    let mut laws: Vec<(&kain_core::ast::LawDef, kain_core::ast::Span)> = Vec::new();
+    let mut laws: Vec<(&kain_core::ast::LawDef, Span)> = Vec::new();
 
     for item in &program.items {
         if let TypedItem::Law(law) = item {
@@ -1730,7 +1731,7 @@ fn validate_world_dead_state(
     reports: &mut Vec<DiagnosticReport>,
 ) {
     // Collect all world state fields
-    let mut world_states: HashMap<String, (HashSet<String>, kain_core::ast::Span)> = HashMap::new();
+    let mut world_states: HashMap<String, (HashSet<String>, Span)> = HashMap::new();
     for item in &program.items {
         if let TypedItem::World(world) = item {
             let fields: HashSet<String> = world.ast.states.iter()

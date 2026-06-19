@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 pub mod audit;
 pub mod telemetry;
 mod validate;
+mod validate_codegen;
 mod validate_semantic_contracts;
 
 use std::collections::HashMap;
@@ -248,6 +249,14 @@ pub fn check_source_with_session(
                 &mut semantic_errors,
             );
 
+            // ── Codegen-extracted validation pass ────────────────────────
+            // Runs validators extracted from LLVM codegen error patterns.
+            // These catch errors that were previously only detected during
+            // LLVM IR emission (atomics, asm targets, bitcast widths, etc.)
+            let codegen_errors =
+                validate_codegen::validate_codegen_checks(&checked.typed);
+            semantic_errors.extend(codegen_errors);
+
             if let Some(first) = semantic_errors.first() {
                 let error = KainError::rich(first.clone());
                 let diagnostic = error.diagnostic_json();
@@ -415,6 +424,7 @@ fn check_file_with_session_raw(
             required_capabilities: Vec::new(),
             error: Some(format!("failed to read source: {error}")),
             diagnostic: None,
+            diagnostics_json: None,
             confidence_score: None,
             validator_count: None,
             validators_skipped: None,
@@ -450,6 +460,7 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    diagnostics_json: None,
                     confidence_score: None,
                     validator_count: None,
                     validators_skipped: None,

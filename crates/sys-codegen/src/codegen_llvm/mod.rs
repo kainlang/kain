@@ -8464,7 +8464,7 @@ impl LlvmGenerator {
         &mut self,
         boxed_value: &str,
         target_ty: &str,
-    ) -> (String, String) {
+    ) -> KainResult<(String, String)> {
         if target_ty == "void" {
             return ("0".to_string(), "i64".to_string());
         }
@@ -8487,7 +8487,13 @@ impl LlvmGenerator {
         self.emit_label(&immediate_label);
         let (immediate_value, immediate_ty) = if matches!(target_ty, "i64" | "i32" | "i8" | "i1") {
             self.compile_tagged_immediate_integer_payload_from_i64_bits(&handle_bits, target_ty)
-                .expect("tagged immediate integer decode should be representable")
+                .map_err(|_| KainError::codegen(
+                    format!(
+                        "Cannot decode tagged immediate integer payload: handle bits {} cannot be represented as LLVM type {}",
+                        handle_bits, target_ty
+                    ),
+                    self.current_source_span.unwrap_or(Span::default()),
+                ))?
         } else if target_ty == "i8*" {
             let untagged_bits = self.next_reg();
             self.emit(&format!(
@@ -9234,8 +9240,8 @@ impl LlvmGenerator {
         let (base, base_ty) = self.compile_expr(base_expr)?;
         let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
         let (offset, _) = self.compile_expr(offset_expr)?;
-        let (stride, _) = if stride_literal.is_some() {
-            (stride_literal.unwrap().to_string(), "i64".to_string())
+        let (stride, _) = if let Some(stride_val) = stride_literal {
+            (stride_val.to_string(), "i64".to_string())
         } else {
             self.compile_expr(stride_expr)?
         };
@@ -10058,31 +10064,36 @@ impl LlvmGenerator {
         Ok(result)
     }
 
-    fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> String {
+    fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> KainResult<String> {
         match ty {
-            "i64" => val.to_string(),
+            "i64" => Ok(val.to_string()),
             "i32" => {
                 let reg = self.next_reg();
                 self.emit(&format!("  {} = sext i32 {} to i64", reg, val));
-                reg
+                Ok(reg)
             }
             "i1" => {
                 let reg = self.next_reg();
                 self.emit(&format!("  {} = zext i1 {} to i64", reg, val));
-                reg
+                Ok(reg)
             }
             "i8" => {
                 let reg = self.next_reg();
                 self.emit(&format!("  {} = sext i8 {} to i64", reg, val));
-                reg
+                Ok(reg)
             }
             "double" => self
                 .emit_saturating_fptosi(val, "i64")
-                .expect("double -> i64 saturation should stay supported"),
+                .map_err(|_| KainError::codegen(
+                    "LLVM @llvm.fptosi.sat.i64.f64 intrinsic not available. \
+                     This target may not support saturating float-to-int conversion."
+                        .to_string(),
+                    Span::default(),
+                )),
             _ if ty.ends_with('*') => {
                 let reg = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint {} {} to i64", reg, ty, val));
-                reg
+                Ok(reg)
             }
             // Struct value type (e.g. %SemanticToken) — heap-box via KAIN_alloc,
             // store the value, then ptrtoint to i64 so array_push receives a pointer
@@ -10113,19 +10124,19 @@ impl LlvmGenerator {
                     "  {} = ptrtoint {}* {} to i64",
                     result, ty, struct_ptr
                 ));
-                result
+                Ok(result)
             }
-            _ => val.to_string(),
+            _ => Ok(val.to_string()),
         }
     }
 
-    fn coerce_runtime_array_storage_from_compiled(&mut self, val: &str, ty: &str) -> String {
+    fn coerce_runtime_array_storage_from_compiled(&mut self, val: &str, ty: &str) -> KainResult<String> {
         match ty {
             // Proof: crates/sys-codegen/z3/proofs/casts-double-bitcast-roundtrip-preserves-array-float-storage.yaml
             "double" => {
                 let bits = self.next_reg();
                 self.emit(&format!("  {} = bitcast double {} to i64", bits, val));
-                bits
+                Ok(bits)
             }
             _ => self.coerce_to_i64_storage(val, ty),
         }
@@ -14185,7 +14196,7 @@ impl LlvmGenerator {
 
         // 8. Emit crash forensics table
         if self.debug_info_enabled && !self.crash_table.is_empty() {
-            self.emit_crash_table();
+            self.emit_crash_table()?;
         }
 
         Ok(())
@@ -14223,7 +14234,7 @@ impl LlvmGenerator {
 
     /// Emit the crash forensics table: a compile-time array of
     /// `%KainCrashEntry` values the runtime binary-searches on SIGSEGV.
-    fn emit_crash_table(&mut self) {
+    fn emit_crash_table(&mut self) -> KainResult<()> {
         let entries: Vec<CrashTableEntry> = self.crash_table.clone();
         let count = entries.len();
         if count == 0 {
@@ -14262,7 +14273,15 @@ impl LlvmGenerator {
             count + 1  /* +1 for sentinel */
         ));
         for (i, entry) in entries.iter().enumerate() {
-            let fn_global = name_globals.get(&entry.fn_name).unwrap();
+            let fn_global = name_globals.get(&entry.fn_name)
+                .ok_or_else(|| KainError::codegen(
+                    format!(
+                        "Crash table entry references unregistered function '{}'. \
+                         This is an internal compiler error: the function should have been registered during prescan.",
+                        entry.fn_name
+                    ),
+                    Span::default(),
+                ))?;
             self.emit(&format!(
                 "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }},",
                 entry.fn_ptr_name,
@@ -14279,6 +14298,7 @@ impl LlvmGenerator {
         ));
         self.emit("]");
         self.emit("");
+        Ok(())
     }
 
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
@@ -16797,7 +16817,11 @@ impl LlvmGenerator {
         self.emit(&format!("  br label %{}", label_merge));
 
         if let Some(else_branch) = else_branch {
-            let label_else = label_else.expect("else label must exist when else branch is present");
+            let label_else = label_else
+                .ok_or_else(|| KainError::codegen(
+                    "Internal error: else branch present but no else label was allocated".to_string(),
+                    Span::default(),
+                ))?;
             self.emit_label(&label_else);
             match else_branch {
                 ElseBranch::Else(block) => self.compile_block(block)?,
@@ -20350,7 +20374,17 @@ impl LlvmGenerator {
                             arg_types.push(ty);
                         }
 
-                        let ret_ty = self.functions.get(&func_name).unwrap().clone();
+                        let ret_ty = self.functions.get(&func_name)
+                            .ok_or_else(|| KainError::codegen(
+                                format!(
+                                    "Cannot compile call to '{}': function not registered in LLVM generator. \
+                                     This may happen if the function is declared but not defined, or if \
+                                     the function name was mangled unexpectedly.",
+                                    func_name
+                                ),
+                                *span,
+                            ))?
+                            .clone();
                         let res = self.next_reg();
 
                         let arg_str = compiled_args

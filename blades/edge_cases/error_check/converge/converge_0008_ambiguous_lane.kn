@@ -1,0 +1,13 @@
+//@ check-fail
+//@ error: KAIN-CONVERGE-0008
+//@ expect-error: "Converge Ambiguous Lane Selection"
+//@ severity: error
+
+// Triggers: Multiple lanes match the same capability
+converge ambiguous(x: Int) -> Int:
+    spec reference:
+        return x * 2
+    fast lane_a when target("llvm"):
+        return x * 3
+    fast lane_b when target("llvm"):
+        return x * 4

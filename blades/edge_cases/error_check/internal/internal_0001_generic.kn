@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-INTERNAL-0001
+//@ known-gap: Internal compiler errors (ICEs) are environment-specific bugs that cannot be triggered from static .kn source alone. They require specific compiler state corruption or edge cases.
+//@ severity: error
+
+// Triggers: Internal compiler error -- requires hitting a compiler bug
+// This file exists to document the coverage gap.
