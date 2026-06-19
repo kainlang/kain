@@ -1,0 +1,67 @@
+[package]
+name = "kain-labs"
+version = "0.1.0"
+description = "Native Kain labs workspace for a KQuantum-inspired GPU particle simulator."
+
+[blade]
+name = "kain-labs"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm", "spirv"]
+
+[[blade.dependencies]]
+name = "kain-fsx"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-json"
+kind = "kain"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/layout.kn",
+  "src/theme.kn",
+  "src/modes.kn",
+  "src/graphics.kn",
+  "src/ui_helpers.kn",
+  "src/kernels.kn",
+  "native/kquantum_vulkan_bridge.h",
+  "native/kquantum_vulkan_bridge.c",
+  "native/shaders/kquantum_particles.vert",
+  "native/shaders/kquantum_particles.frag",
+  "config/quantum_modes.toml",
+]
+
+[[build.tasks]]
+id = "gpu-kernels"
+kind = "kain"
+entry = "src/kernels.kn"
+target = "spirv"
+inputs = ["src/kernels.kn"]
+
+[manifests]
+mode_catalog = "config/quantum_modes.toml"
+reference = "reference/KQuantum.tsx"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "kquantum_vulkan_bridge"
+header = "native/kquantum_vulkan_bridge.h"
+shared_lib = ".kain/native/kquantum_vulkan_bridge.obj"

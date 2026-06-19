@@ -1,0 +1,105 @@
+[package]
+name = "fluid-studio"
+version = "0.1.0"
+description = "Data-driven Kain fluid simulator with Kaintana controls, authored GPU shaders, and a Vulkain 3D presentation lane."
+
+[blade]
+name = "fluid-studio"
+entry = "src/main.kn"
+source_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+  "../kain-json/src",
+]
+module_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+  "../kain-json/src",
+]
+build_targets = ["llvm", "spirv"]
+
+[[blade.dependencies]]
+name = "kaintana"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "vulkain"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-json"
+kind = "kain"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[platform.packages]]
+name = "vulkan"
+provider = "system"
+dispatch_model = "vulkan-loader-dispatch"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/fluid_studio_state.kn",
+  "src/fluid_studio_ui_types.kn",
+  "src/fluid_studio_ui.kn",
+  "src/fluid_studio_views.kn",
+  "src/fluid_studio_sim.kn",
+  "src/fluid_studio_scene.kn",
+  "src/fluid_compute.kn",
+  "src/fluid_surface.frag.kn",
+  "config/fluid_studio.runtime.json",
+  "build.kn",
+  "run.ps1",
+]
+
+[[build.tasks]]
+id = "check-spirv-surface"
+kind = "check"
+entry = "src/fluid_surface.frag.kn"
+target = "spirv"
+inputs = ["src/fluid_surface.frag.kn"]
+
+[[build.tasks]]
+id = "check-spirv-compute"
+kind = "check"
+entry = "src/fluid_compute.kn"
+target = "spirv"
+inputs = ["src/fluid_compute.kn"]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "kaintana_desktop_bridge"
+header = "../kaintana/native/kaintana_desktop_bridge.h"
+shared_lib = "../kaintana/.kain/native/kaintana_desktop_bridge.obj"
+link_libs = ["user32", "gdi32"]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"

@@ -1,0 +1,96 @@
+[package]
+name = "kloner"
+version = "0.1.0"
+description = "Faithful Kain-native workstation recreation of the legacy KCloner operator."
+
+[blade]
+name = "kloner"
+entry = "src/main.kn"
+source_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+]
+module_roots = [
+  "src",
+  "../kaintana/src",
+  "../kaintana/src/api",
+  "../kaintana/src/core",
+  "../kaintana/src/platform/desktop",
+  "../kaintana/src/platform/vulkan",
+  "../kaintana/src/platform/winit",
+  "../vulkain/src",
+]
+build_targets = ["llvm"]
+
+[[blade.dependencies]]
+name = "kaintana"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "vulkain"
+kind = "kain"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[platform.packages]]
+name = "vulkan"
+provider = "system"
+dispatch_model = "vulkan-loader-dispatch"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "src/kloner_lattice.kn",
+  "src/kloner_session.kn",
+  "src/kloner_state.kn",
+  "src/kloner_scene.kn",
+  "src/kloner_ui.kn",
+  "build.kn",
+  "../kaintana/src/api/kaintana_ui.kn",
+  "../kaintana/src/api/widgets.kn",
+  "../kaintana/src/core/layout.kn",
+  "../kaintana/src/core/reconciliation.kn",
+  "../kaintana/src/core/render_commands.kn",
+  "../kaintana/src/core/theme.kn",
+  "../kaintana/src/core/types.kn",
+  "../kaintana/src/core/widget_events.kn",
+  "../kaintana/src/platform/vulkan/vulkan_adapter.kn",
+  "../vulkain/src/vulkain.kn",
+  "../vulkain/native/vulkain_bridge.h",
+  "../vulkain/native/vulkain_bridge.c",
+  "../vulkain/native/shaders/vulkain_basic.vert",
+  "../vulkain/native/shaders/vulkain_basic.frag",
+  "run.ps1",
+  "reference/KCloner.tsx",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "kaintana_desktop_bridge"
+header = "../kaintana/native/kaintana_desktop_bridge.h"
+shared_lib = "../kaintana/.kain/native/kaintana_desktop_bridge.obj"
+link_libs = ["user32", "gdi32"]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"
