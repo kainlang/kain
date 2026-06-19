@@ -1,0 +1,89 @@
+[package]
+name = "spirv-visualizer"
+version = "0.1.0"
+description = "Data-driven SPIR-V capability visualizer for Kain-authored shader artifacts."
+
+[blade]
+name = "spirv-visualizer"
+entry = "src/main.kn"
+source_roots = [
+  "src",
+  "../kain-config/src",
+  "../fsx/src",
+  "../kain-json/src",
+  "../kain-fmt/src",
+  "../vulkain/src",
+]
+module_roots = [
+  "src",
+  "../kain-config/src",
+  "../fsx/src",
+  "../kain-json/src",
+  "../kain-fmt/src",
+  "../vulkain/src",
+]
+build_targets = ["llvm"]
+
+[[blade.dependencies]]
+name = "kain-config"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-fsx"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-json"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-fmt"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "vulkain"
+kind = "kain"
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[platform.packages]]
+name = "vulkan"
+provider = "system"
+dispatch_model = "vulkan-loader-dispatch"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/main.kn",
+  "build.kn",
+  "KAIN.toml",
+  "run.ps1",
+  "config/spirv_visualizer.runtime.json",
+  "shaders/spirv_visualizer_samples.kn",
+  "../kain-config/src/kain_config.kn",
+  "../fsx/src/kain_fsx.kn",
+  "../kain-json/src/kain_json.kn",
+  "../vulkain/src/vulkain.kn",
+  "../vulkain/native/vulkain_bridge.h",
+  "../vulkain/native/vulkain_bridge.c",
+  "../vulkain/native/shaders/vulkain_basic.vert",
+  "../vulkain/native/shaders/vulkain_basic.frag",
+]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "vulkain_bridge"
+header = "../vulkain/native/vulkain_bridge.h"
+shared_lib = "../vulkain/.kain/native/${kain_dynlib:vulkain_bridge}"

@@ -1,55 +1,29 @@
 [package]
 name = "vulkain"
 version = "0.1.0"
-description = "Raw reusable Vulkan window package for Kain LLVM blades."
-
-[blade]
-name = "vulkain"
-kind = "kain_library"
-entry = "src/main.kn"
-source_roots = ["src"]
-module_roots = ["src"]
-build_targets = ["llvm"]
-
-[run]
-entry = "src/main.kn"
-target = "llvm"
+description = "Pure Kain Vulkan renderer via include <vulkan/vulkan.h> as vk"
 
 [build]
-entry = "src/main.kn"
-artifact_root = ".kain/out"
+entry = "vulkan_window_demo.kn"
+artifact_root = ".kain/out/llvm"
 cache_root = ".kain/cache/build"
 profile = "debug"
 
-[[platform.packages]]
-name = "vulkan"
-provider = "system"
-dispatch_model = "vulkan-loader-dispatch"
-
-[[build.tasks]]
-id = "check-llvm"
-kind = "check"
-entry = "src/main.kn"
-target = "llvm"
-inputs = [
-  "src/main.kn",
-  "src/vulkain.kn",
-  "config/vulkain.runtime.json",
-  "native/vulkain_bridge.h",
-  "native/vulkain_bridge.c",
-  "native/shaders/vulkain_basic.vert",
-  "native/shaders/vulkain_basic.frag",
-]
-
 [c_ffi]
+include_paths = [
+  ".",
+  "${env:VULKAN_SDK}/include",
+]
 
 [[c_ffi.libraries]]
-name = "vulkain_bridge"
-header = "native/vulkain_bridge.h"
-sources = ["native/vulkain_bridge.c"]
+name = "vulkan_bridge"
+header = "vulkan_bridge.h"
+sources = ["vulkan_bridge.c"]
 include_paths = [
-  "native",
-  "${env:KAIN_PLATFORM_VULKAN_INCLUDE}",
+  ".",
+  "${env:VULKAN_SDK}/include",
 ]
-defines = ["_CRT_SECURE_NO_WARNINGS"]
-link_libs = ["user32"]
+static_libs = [
+  "${env:VULKAN_SDK}/Lib/vulkan-1.lib",
+]
+link_libs = ["user32", "gdi32", "shell32"]
