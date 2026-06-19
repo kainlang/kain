@@ -1,0 +1,112 @@
+pub fn mode_zero_point() -> Int:
+    return 0
+
+pub fn mode_galactic_spiral() -> Int:
+    return 3
+
+pub fn mode_quantum_pilot() -> Int:
+    return 6
+
+pub fn mode_neural_lattice() -> Int:
+    return 12
+
+pub fn mode_navier_stokes() -> Int:
+    return 17
+
+pub fn mode_hellfire() -> Int:
+    return 20
+
+pub fn mode_plasma_arc() -> Int:
+    return 21
+
+pub fn mode_super_vortex() -> Int:
+    return 22
+
+pub fn mode_label(mode_id: Int) -> String:
+    if mode_id == mode_zero_point():
+        return "ZERO-POINT FIELD"
+    if mode_id == mode_galactic_spiral():
+        return "GALACTIC SPIRAL"
+    if mode_id == mode_quantum_pilot():
+        return "QUANTUM PILOT"
+    if mode_id == mode_neural_lattice():
+        return "NEURAL LATTICE"
+    if mode_id == mode_navier_stokes():
+        return "NAVIER-STOKES"
+    if mode_id == mode_hellfire():
+        return "HELLFIRE"
+    if mode_id == mode_plasma_arc():
+        return "PLASMA ARC"
+    if mode_id == mode_super_vortex():
+        return "SUPER VORTEX"
+    return "PHOTO-KINESIS"
+
+pub fn mode_category(mode_id: Int) -> String:
+    if mode_id == mode_zero_point() or mode_id == mode_galactic_spiral():
+        return "COSMIC"
+    if mode_id == mode_quantum_pilot() or mode_id == mode_neural_lattice():
+        return "QUANTUM"
+    if mode_id == mode_navier_stokes():
+        return "HYDRO"
+    if mode_id == mode_hellfire() or mode_id == mode_plasma_arc() or mode_id == mode_super_vortex():
+        return "ELEMENTAL"
+    return "OPTICAL"
+
+pub fn mode_description(mode_id: Int) -> String:
+    if mode_id == mode_zero_point():
+        return "Stable origin springs, low chaos, coherent zero-point shimmer."
+    if mode_id == mode_galactic_spiral():
+        return "Density waves orbit through a flattened galactic disc."
+    if mode_id == mode_quantum_pilot():
+        return "Pilot-wave guidance steers particles around invisible wells."
+    if mode_id == mode_neural_lattice():
+        return "Synaptic lattice pulses ripple through a compute field."
+    if mode_id == mode_navier_stokes():
+        return "Fluid pressure projection feeds particle advection."
+    if mode_id == mode_hellfire():
+        return "Buoyant thermal rise with turbulent ember curl."
+    if mode_id == mode_plasma_arc():
+        return "Magnetic flux tubes twist into luminous braids."
+    if mode_id == mode_super_vortex():
+        return "Cyclonic field with aggressive spin-up and center pull."
+    return "Photokinetic projection shaped by external image color."
+
+pub fn next_mode(mode_id: Int) -> Int:
+    if mode_id == mode_zero_point():
+        return mode_galactic_spiral()
+    if mode_id == mode_galactic_spiral():
+        return mode_quantum_pilot()
+    if mode_id == mode_quantum_pilot():
+        return mode_neural_lattice()
+    if mode_id == mode_neural_lattice():
+        return mode_navier_stokes()
+    if mode_id == mode_navier_stokes():
+        return mode_hellfire()
+    if mode_id == mode_hellfire():
+        return mode_plasma_arc()
+    if mode_id == mode_plasma_arc():
+        return mode_super_vortex()
+    return mode_zero_point()
+
+pub fn palette_name(index: Int) -> String:
+    if index == 0:
+        return "COSMIC"
+    if index == 1:
+        return "INFERNO"
+    if index == 2:
+        return "ARCTIC"
+    if index == 3:
+        return "TOXIC"
+    return "NEON"
+
+pub fn bool_word(value: Bool) -> String:
+    if value:
+        return "yes"
+    return "no"
+
+pub fn clamp_particle_count(value: Int) -> Int:
+    if value < 4096:
+        return 4096
+    if value > 262144:
+        return 262144
+    return value

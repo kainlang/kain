@@ -1,0 +1,80 @@
+// KAINOS — Pure Kain Port I/O via asm() operand binding
+// Pattern from jit.kn: Intel syntax + register constraints
+
+use std::machine
+use std::memory
+
+// outb — write byte to I/O port using asm operand binding
+fn outb(port: Int, val: Int) with Unsafe:
+    asm("out dx, al", val, port, constraints = "{al},{dx}", intel = true)
+    return
+
+// outw — write word to I/O port
+fn outw(port: Int, val: Int) with Unsafe:
+    asm("out dx, ax", val, port, constraints = "{ax},{dx}", intel = true)
+    return
+
+// Write a null-terminated string to QEMU debug port 0xE9
+fn dbg_puts(msg: ptr<Byte>) with Unsafe:
+    var i: Int = 0
+    while i < 1024:
+        let ch: Byte = mem_load(ptr_offset(msg, i, "Byte"), "Byte")
+        if ch == 0 as Byte:
+            return
+        outb(0xE9, ch as Int)
+        i = i + 1
+    return
+
+fn kainos_hello() -> Int with Unsafe:
+    // Output to QEMU debug port 0xE9 — pure Kain, no C helpers
+    outb(0xE9, 10)  // newline
+    outb(0xE9, 32)  // space
+    outb(0xE9, 75)  // K
+    outb(0xE9, 65)  // A
+    outb(0xE9, 73)  // I
+    outb(0xE9, 78)  // N
+    outb(0xE9, 79)  // O
+    outb(0xE9, 83)  // S
+    outb(0xE9, 32)  // space
+    outb(0xE9, 118) // v
+    outb(0xE9, 48)  // 0
+    outb(0xE9, 46)  // .
+    outb(0xE9, 49)  // 1
+    outb(0xE9, 46)  // .
+    outb(0xE9, 48)  // 0
+    outb(0xE9, 32)  // space
+    outb(0xE9, 45)  // -
+    outb(0xE9, 32)  // space
+    outb(0xE9, 80)  // P
+    outb(0xE9, 117) // u
+    outb(0xE9, 114) // r
+    outb(0xE9, 101) // e
+    outb(0xE9, 32)  // space
+    outb(0xE9, 75)  // K
+    outb(0xE9, 97)  // a
+    outb(0xE9, 105) // i
+    outb(0xE9, 110) // n
+    outb(0xE9, 32)  // space
+    outb(0xE9, 80)  // P
+    outb(0xE9, 111) // o
+    outb(0xE9, 114) // r
+    outb(0xE9, 116) // t
+    outb(0xE9, 32)  // space
+    outb(0xE9, 73)  // I
+    outb(0xE9, 47)  // /
+    outb(0xE9, 79)  // O
+    outb(0xE9, 10)  // newline
+
+    // Use dbg_puts with string literal
+    let banner: ptr<Byte> = "KAIN compiled to x86-64, running on bare metal\n\0" as ptr<Byte>
+    dbg_puts(banner)
+
+    let info: ptr<Byte> = "Port I/O via asm() operand binding (jit.kn pattern)\n\0" as ptr<Byte>
+    dbg_puts(info)
+
+    let sig: ptr<Byte> = "KAINOS > \0" as ptr<Byte>
+    dbg_puts(sig)
+
+    loop:
+        asm("hlt")
+    return 0

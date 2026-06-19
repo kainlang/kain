@@ -1,0 +1,84 @@
+// L4_stage.kn — Orchestrate construct: typecheck + codegen stubs
+// STREAM: FOXTROT + GOLF — Construct Implementation
+//
+// Implements the L4 stage graph layer (orchestrate) for the self-host compiler.
+// Typecheck: knc_check_orchestrate() validates stage DAG, runtime kinds,
+//            residency/transfer compatibility, axiom guards, and law requires.
+// Codegen: knc_compile_orchestrate() emits ABI calls for each stage,
+//          mapping stage metadata strings to LLVM IR.
+//
+// Imports from types.kn, ast.kn for shared constants/structs.
+// No local duplicates — all types resolved from the self-host workspace.
+//
+// Spec layers reference: X:/blades/kain/spec-layers/L4_stage.md
+// Language reference: X:/docs/ORCHESTRATE.MD
+
+use typecheck::types
+use typecheck::effects
+use core::ast
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_orchestrate — Typecheck an orchestrate declaration
+//
+// An orchestrate block declares a multi-stage computation graph with:
+//   - Stage bindings, each typed by runtime kind (cpu, gpu, law, etc.)
+//   - Optional metadata per stage:
+//       * when target/capability selectors
+//       * after / deps for dependency ordering
+//       * residency (host, shared, device) + transfer (none, host_to_device, etc.)
+//       * guarded by <axiom> — capability-gated execution
+//       * fallback abort/<stage>/degrade <stage>
+//       * requires <law_stage>
+//       * policy static/telemetry_prefer_gpu/...
+//   - A body block with local statements and a return expression
+//
+// Validation the spec-layer will add:
+//   - Stage runtime kind validation (0-11, ERR_ORCHESTRATE_UNKNOWN_RUNTIME)
+//   - Duplicate stage name detection (ERR_ORCHESTRATE_DUPLICATE_STAGE)
+//   - Dependency resolution (each dep must be a declared stage)
+//   - Guard is-axiom check (guarded by must reference axiom, not fn)
+//   - Requires is-stage check (requires must reference law stage)
+//   - Fallback target resolution
+//   - Transfer/residency compatibility matrix
+//   - Cycle detection via DFS (ERR_ORCHESTRATE_CYCLE_DETECTED)
+//   - Body block type inference vs declared return type
+//
+// Current status: STUB — returns TypedItem with i64 return type.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_check_orchestrate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_ORCHESTRATE, name: "orch_" + str(name_idx), name_idx: name_idx,
+            resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_compile_orchestrate — Codegen an orchestrate declaration (STUB)
+//
+// Current status: STUB — passes generator through unchanged.
+// Spec-layer implementation will emit:
+//   - The orchestrate name as a callable function (the body)
+//   - Inside the body, for each stage call:
+//       * call void @abi_orchestrate_stage_begin_graph(...metadata...)
+//       * call the stage function
+//       * call void @abi_orchestrate_stage_end_i64(result)
+//   - Metadata strings mapped from enum constants:
+//       * runtime kind (0-11) -> "kain", "c", "cpu", "gpu", "dispatch", etc.
+//       * residency (1-3) -> "host", "shared", "device"
+//       * transfer (1-4) -> "none", "host_to_device", "device_to_host", "shared_view"
+//       * fallback kind (1-3) -> "abort", "stage", "degrade"
+//       * policy (1-4) -> "static", "telemetry_prefer_gpu", etc.
+//   - Telemetry counters via the C runtime (stdlib_abi.c)
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_compile_orchestrate(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+    return gen

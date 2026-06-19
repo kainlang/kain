@@ -1,0 +1,50 @@
+// KAINOS VGA Hello World — minimal bare-metal proof of life
+// Writes "KAINOS" to VGA text mode buffer at 0xB8000
+// No runtime dependencies — pure freestanding Kain
+
+use std::machine
+use std::memory
+
+const VGA_BUFFER: Int = 0xB8000
+const VGA_COLS: Int = 80
+const VGA_ROWS: Int = 25
+
+fn vga_putc(offset: Int, c: Int, attr: Int) with Unsafe:
+    let vga_ptr: Int = VGA_BUFFER + (offset * 2)
+    let vga: ptr<Int> = int_to_ptr(vga_ptr, "Int")
+    mem_store(vga, c | (attr << 8), "Int")
+    return
+
+fn vga_write_str(msg: ptr<Byte>, row: Int, col: Int) with Unsafe:
+    let base: Int = (row * VGA_COLS) + col
+    var i: Int = 0
+    while i < 256:
+        let ch: Byte = mem_load(ptr_offset(msg, i, "Byte"), "Byte")
+        if ch == 0 as Byte:
+            return
+        vga_putc(base + i, ch as Int, 0x1F)
+        i = i + 1
+    return
+
+// Called from assembly after multiboot entry
+fn kainos_hello() -> Int with Unsafe:
+    let msg1: ptr<Byte> = "KAINOS booted.\0" as ptr<Byte>
+    let msg2: ptr<Byte> = "Single address space.\0" as ptr<Byte>
+    let msg3: ptr<Byte> = "Actor kernel alive.\0" as ptr<Byte>
+    let msg4: ptr<Byte> = "Semantic stack: worlds.\0" as ptr<Byte>
+    let msg5: ptr<Byte> = "Converge: no ring 0 trap.\0" as ptr<Byte>
+    let msg6: ptr<Byte> = "7-layer ladder: kernelized.\0" as ptr<Byte>
+    let msg7: ptr<Byte> = "x86-64 identity-mapped.\0" as ptr<Byte>
+
+    vga_write_str(msg1, 0, 0)
+    vga_write_str(msg2, 1, 0)
+    vga_write_str(msg3, 2, 0)
+    vga_write_str(msg4, 4, 0)
+    vga_write_str(msg5, 5, 0)
+    vga_write_str(msg6, 6, 0)
+    vga_write_str(msg7, 10, 0)
+
+    // Halt
+    loop:
+        asm("hlt")
+    return 0

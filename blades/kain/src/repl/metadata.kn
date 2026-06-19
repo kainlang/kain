@@ -1,0 +1,59 @@
+// metadata.kn — Build metadata for the Kain REPL
+//
+// Ported from crates/repl/src/metadata.rs
+//
+// ReplBuildMetadata carries compiler identity: language name, version,
+// build number, and target triple. Used to format the REPL banner line.
+
+// ═══════════════════════════════════════════════════════════════════
+//  ReplBuildMetadata
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ReplBuildMetadata:
+    language_name: String
+    version: String
+    build_number: String
+    target_triple: String
+
+impl ReplBuildMetadata:
+    /// Format the REPL banner line:
+    ///   "Kain 0.1.0 (build 77) [x86_64-pc-windows-msvc]"
+    pub fn banner(_self: Self_) -> String:
+        return _self.language_name + " " + _self.version + " (build " + _self.build_number + ") [" + _self.target_triple + "]"
+
+/// Create a new ReplBuildMetadata with explicit string fields.
+pub fn repl_build_metadata_create(language_name: String, version: String, build_number: String, target_triple: String) -> ReplBuildMetadata:
+    return ReplBuildMetadata {
+        language_name: language_name,
+        version: version,
+        build_number: build_number,
+        target_triple: target_triple,
+    }
+
+/// Convenience default: language_name="Kain", version="dev", build_number="dev", target_triple="unknown"
+pub fn repl_build_metadata_default() -> ReplBuildMetadata:
+    return repl_build_metadata_create("Kain", "dev", "dev", "unknown")
+
+// ═══════════════════════════════════════════════════════════════════
+//  Tests
+// ═══════════════════════════════════════════════════════════════════
+
+test "renders existing CLI banner shape":
+    let meta = repl_build_metadata_create("Kain", "0.1.0", "77", "x86_64-pc-windows-msvc")
+    let banner = meta.banner()
+    let expected = "Kain 0.1.0 (build 77) [x86_64-pc-windows-msvc]"
+    assert(banner == expected, "banner should match exact format")
+
+test "default metadata uses dev version":
+    let def_meta = repl_build_metadata_default()
+    assert(def_meta.language_name == "Kain", "default language is Kain")
+    assert(def_meta.version == "dev", "default version is dev")
+    assert(def_meta.build_number == "dev", "default build number is dev")
+    assert(def_meta.target_triple == "unknown", "default target triple is unknown")
+
+test "create constructor stores fields correctly":
+    let meta = repl_build_metadata_create("TestLang", "2.0.0", "100", "aarch64-linux-gnu")
+    assert(meta.language_name == "TestLang", "language_name field")
+    assert(meta.version == "2.0.0", "version field")
+    assert(meta.build_number == "100", "build_number field")
+    assert(meta.target_triple == "aarch64-linux-gnu", "target_triple field")

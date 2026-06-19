@@ -1,0 +1,238 @@
+// L5_temporal.kn — Pulse + Resonate typechecker and codegen stubs
+// STREAM: FOXTROT + GOLF
+// Layer 5: Temporal constructs — timed recurrence and reactive tripwires
+//
+// SELF-CONTAINED for standalone check (duplicates types.kn+ast.kn+effects.kn constants).
+// When compiled in the workspace, types from types.kn, ast.kn take precedence.
+
+use typecheck::types
+use typecheck::effects
+use core::ast
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// Duration Unit Helpers
+// ═══════════════════════════════════════════════════════════════════
+
+// knc_is_valid_duration_unit — check if a unit string is a valid duration specifier
+pub fn knc_is_valid_duration_unit(unit: String) -> Bool:
+    return unit == "ns" or unit == "us" or unit == "ms" or unit == "s" or unit == "tick" or unit == "ticks"
+
+// knc_duration_unit_code — map unit string to integer encoding
+// 0=ns, 1=us, 2=ms, 3=s, 4=tick, 5=ticks, -1=invalid
+pub fn knc_duration_unit_code(unit: String) -> Int:
+    if unit == "ns":    return 0
+    if unit == "us":    return 1
+    if unit == "ms":    return 2
+    if unit == "s":     return 3
+    if unit == "tick":  return 4
+    if unit == "ticks": return 5
+    return -1
+
+// pulse_body_effects — from effects.kn (via `use effects`)
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_pulse — typecheck a pulse declaration
+// ═══════════════════════════════════════════════════════════════════
+//
+// Pulse AST layout (from parser.kn parse_pulse_item):
+//   data[0] = name_idx
+//   data[1] = body_idx
+//   data[2] = interval_value
+//   data[3] = interval_unit  (string-table index)
+//   data[4] = jitter_value   (0 if no jitter)
+//   data[5] = jitter_unit    (0 if no jitter)
+//   data[6] = has_jitter_flag  (0 or 1)
+//
+// T-PULSE-01: Validate interval > 0, validate units
+// T-PULSE-02: Inject pulse_tick, pulse_dt_ms, pulse_missed locals
+// T-PULSE-03: Auto-emit all effects
+//
+pub fn knc_check_pulse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+    let body_idx: Int = if dlen > 1: data[1] else: -1
+    let interval_value: Int = if dlen > 2: data[2] else: -1
+    let interval_unit_idx: Int = if dlen > 3: data[3] else: -1
+    let jitter_value: Int = if dlen > 4: data[4] else: 0
+    let jitter_unit_idx: Int = if dlen > 5: data[5] else: 0
+    let has_jitter: Int = if dlen > 6: data[6] else: 0
+
+    let mut e: TypeEnv = env
+    let err_kind: String = "E0200"
+
+    // T-PULSE-01: Validate interval > 0
+    if interval_value <= 0:
+        e = types.type_error(e, "pulse interval must be positive, got '" + str(interval_value) + "'",
+            err_kind, node.span_start, node.span_end)
+
+    // Validate interval unit
+    let interval_unit: String = types.strtab_lookup_name(e, interval_unit_idx)
+    if interval_unit != "" and !knc_is_valid_duration_unit(interval_unit):
+        e = types.type_error(e, "pulse interval has invalid unit '" + interval_unit + "'",
+            err_kind, node.span_start, node.span_end)
+
+    // Validate jitter >= 0
+    if has_jitter != 0:
+        if jitter_value < 0:
+            e = types.type_error(e, "pulse jitter must be non-negative, got '" + str(jitter_value) + "'",
+                err_kind, node.span_start, node.span_end)
+
+        let jitter_unit: String = types.strtab_lookup_name(e, jitter_unit_idx)
+        if jitter_unit != "" and !knc_is_valid_duration_unit(jitter_unit):
+            e = types.type_error(e, "pulse jitter has invalid unit '" + jitter_unit + "'",
+                err_kind, node.span_start, node.span_end)
+
+    // T-PULSE-02: Inject pulse locals into the body scope
+    let int_type: ResolvedType = types.rt_i64()
+    e = types.push_scope(e)
+    e = types.define_var(e, "pulse_tick", int_type)
+    e = types.define_var(e, "pulse_dt_ms", int_type)
+    e = types.define_var(e, "pulse_missed", int_type)
+
+    // Typecheck the body if present
+    if body_idx >= 0 and body_idx < len(e.ast_nodes):
+        e = types.check_block_body(e, body_idx, types.rt_unit(), pulse_body_effects())
+
+    // Pop the injected pulse-local scope
+    e = types.pop_scope(e)
+
+    // T-PULSE-03: Auto-emit all effects
+    let eff: Int = pulse_body_effects()
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: ast.AST_ITEM_PULSE,
+            name: "pulse_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: types.rt_unit(),
+            ast_index: idx,
+            effects: eff,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_resonate — typecheck a resonate declaration
+// ═══════════════════════════════════════════════════════════════════
+//
+// Resonate AST layout (from parser.kn parse_resonate_item):
+//   data[0] = body_idx
+//   data[1] = dampen_value    (0 if no dampen)
+//   data[2] = dampen_unit     (0 if no dampen)
+//   data[3] = has_dampen_flag  (0 or 1)
+//   data[4] = endpoint_count  (N)
+//   data[5..5+N-1] = endpoint_segments (string-table indices)
+// Synthetic name: "resonate__{world}__{field}"
+//
+// T-RES-01: Extract endpoint, resolve World.field, validate dampen >= 0
+// T-RES-02: Inject resonate_old_i64, resonate_new_i64, resonate_fired locals
+// T-RES-03: Self-feedback detection (not yet wired — requires mutation scan)
+// T-RES-04: Auto-emit all effects
+//
+pub fn knc_check_resonate(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let body_idx: Int = if dlen > 0: data[0] else: -1
+    let dampen_value: Int = if dlen > 1: data[1] else: 0
+    let dampen_unit_idx: Int = if dlen > 2: data[2] else: 0
+    let has_dampen: Int = if dlen > 3: data[3] else: 0
+    let endpoint_count: Int = if dlen > 4: data[4] else: 0
+
+    let mut e: TypeEnv = env
+    let err_kind: String = "E0200"
+
+    // T-RES-01: Validate dampen >= 0 if present
+    if has_dampen != 0:
+        if dampen_value < 0:
+            e = types.type_error(e, "resonate dampen must be non-negative, got '" + str(dampen_value) + "'",
+                err_kind, node.span_start, node.span_end)
+
+        let dampen_unit: String = types.strtab_lookup_name(e, dampen_unit_idx)
+        if dampen_unit != "" and !knc_is_valid_duration_unit(dampen_unit):
+            e = types.type_error(e, "resonate dampen has invalid unit '" + dampen_unit + "'",
+                err_kind, node.span_start, node.span_end)
+
+    // Validate endpoint has at least 2 segments (World.field)
+    if endpoint_count < 2:
+        e = types.type_error(e, "resonate must target at least World.field (2 segments), got " + str(endpoint_count),
+            err_kind, node.span_start, node.span_end)
+
+    // Build synthetic name from endpoint segments
+    let seg0: String = if endpoint_count > 0 and 5 < dlen:
+        types.strtab_lookup_name(e, data[5])
+    else:
+        ""
+    let seg1: String = if endpoint_count > 1 and 6 < dlen:
+        types.strtab_lookup_name(e, data[6])
+    else:
+        ""
+    let synth_name: String = "resonate__" + seg0 + "__" + seg1
+
+    // T-RES-02: Inject resonate locals into the body scope
+    let int_type: ResolvedType = types.rt_i64()
+    let bool_type: ResolvedType = types.rt_bool()
+    e = types.push_scope(e)
+    e = types.define_var(e, "resonate_old_i64", int_type)
+    e = types.define_var(e, "resonate_new_i64", int_type)
+    e = types.define_var(e, "resonate_fired", bool_type)
+
+    // Typecheck the body if present
+    if body_idx >= 0 and body_idx < len(e.ast_nodes):
+        e = types.check_block_body(e, body_idx, types.rt_unit(), pulse_body_effects())
+
+    // Pop the injected resonate-local scope
+    e = types.pop_scope(e)
+
+    // T-RES-03: Self-feedback detection — STUB
+    // Full implementation needs to scan the body for WorldName.field = expr
+    // assignments and compare against the trigger (seg0, seg1) pair.
+
+    // T-RES-04: Auto-emit all effects
+    let eff: Int = pulse_body_effects()
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: ast.AST_ITEM_RESONATE,
+            name: synth_name,
+            name_idx: -1,
+            resolved_type: types.rt_unit(),
+            ast_index: idx,
+            effects: eff,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// Codegen Stubs (knc_compile_pulse, knc_compile_resonate)
+// ═══════════════════════════════════════════════════════════════════
+//
+// NOTE: These stubs use a Generator placeholder (Int) instead of the
+// full LlvmGenerator because codegen.kn defines TypedItem differently
+// from types.kn, causing struct-name collision on import. Full LLVM IR
+// emission for pulse and resonate lives in codegen.kn.
+
+pub type knc_L5_Generator = Int  // Placeholder — will be LlvmGenerator
+
+// knc_compile_pulse — STUB: emit pulse body function + fire wrapper + registration
+pub fn knc_compile_pulse(gen: knc_L5_Generator, item: TypedItem) -> knc_L5_Generator:
+    // C-PULSE-02: void @__kain_pulse_body_{name}(i64 tick, i64 dt, i64 missed)
+    // C-PULSE-03: void @__kain_pulse_fire_{name}() snapshot->body call chain
+    // C-PULSE-04: @kain_machine_pulse_start(token, ns, jitter, fire_wrapper)
+    return gen
+
+// knc_compile_resonate — STUB: emit resonate handler + binding table + store guard
+pub fn knc_compile_resonate(gen: knc_L5_Generator, item: TypedItem) -> knc_L5_Generator:
+    // C-RES-01: void @__kain_resonate_{name}(i64 old, i64 new, i1 fired)
+    // C-RES-02: (world, field) -> handler binding table
+    // C-RES-03: post-store guard: abi_resonate_should_fire_i64 + handler call
+    return gen

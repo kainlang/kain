@@ -1,0 +1,180 @@
+// terminal.kn — Text-mode REPL terminal loop
+//
+// Ported from crates/repl/src/terminal.rs
+//
+// Simplified for text-mode: reads stdin line by line, dispatches directives
+// via the ReplSession from repl::session, and provides stub evaluation.
+//
+// Uses:
+//   repl::session   — session_new, session_prompt, session_accept_raw_line,
+//                     session_finish_input, AcceptLineResult, ReplLineAction
+//   repl::command   — REPL_HELP_TEXT
+//   repl::metadata  — ReplBuildMetadata, repl_build_metadata_default
+
+use std::text
+use repl::session
+use repl::command
+use repl::metadata
+
+// ═══════════════════════════════════════════════════════════════════
+//  ReplTerminalConfig
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ReplTerminalConfig:
+    metadata:    ReplBuildMetadata
+    source_name: String
+
+impl ReplTerminalConfig:
+    /// Format a debug-friendly label for this terminal config.
+    pub fn label(_self: Self_) -> String:
+        return _self.source_name + " [" + _self.metadata.version + "]"
+
+/// Create a new config with the given metadata and default source_name "<repl>".
+pub fn repl_terminal_config_create(metadata: ReplBuildMetadata) -> ReplTerminalConfig:
+    return ReplTerminalConfig {
+        metadata: metadata,
+        source_name: "<repl>",
+    }
+
+/// Return a ReplTerminalConfig with default metadata.
+pub fn repl_terminal_config_default() -> ReplTerminalConfig:
+    return repl_terminal_config_create(repl_build_metadata_default())
+
+// ═══════════════════════════════════════════════════════════════════
+//  REPL Loop — Main Entry Point
+// ═══════════════════════════════════════════════════════════════════
+
+/// Print the REPL help text.
+pub fn repl_handle_help() -> Bool with IO:
+    println(REPL_HELP_TEXT)
+    return true
+
+/// Stub evaluation — print source text.
+pub fn repl_handle_evaluate(source: String) -> Bool with IO:
+    if source != "":
+        println("[repl] evaluate source (stub):")
+        println(source)
+    else:
+        println("[repl] nothing to evaluate")
+    return true
+
+/// Handle .theme command.
+pub fn repl_handle_theme(arg: Option<String>) -> Bool with IO:
+    if arg == none:
+        println("theme")
+    else:
+        let name: String = match arg:
+            Some(v) => v
+            _ => ""
+        println("theme " + name)
+    return true
+
+/// Handle .open command.
+pub fn repl_handle_open(arg: Option<String>) -> Bool with IO:
+    if arg == none:
+        stderr_write(" open failed: path required for .open\n")
+    else:
+        let path: String = match arg:
+            Some(v) => v
+            _ => ""
+        println("opened " + path)
+    return true
+
+/// Run the text-mode REPL.
+///
+/// Prints the banner, then enters a read-evaluate-print loop:
+///   1. Print the session prompt (">>> " or "... ")
+///   2. Read a line from stdin
+///   3. On EOF: finish any buffered input, return true
+///   4. Feed line into session_accept_raw_line
+///   5. Dispatch the returned ReplLineAction
+///
+/// Actions:
+///   Exit     — break the loop
+///   Help     — print REPL_HELP_TEXT
+///   Evaluate — stub-print the source buffer
+///   Clear    — buffer was cleared, continue
+///   Theme    — acknowledge theme command
+///   Open     — acknowledge open command
+///   Continue — accumulate, continue looping
+pub fn run_terminal_repl(config: ReplTerminalConfig) -> Bool with IO:
+    println(config.metadata.banner())
+
+    var sess: ReplSession = session_new()
+    var raw: String = ""
+
+    loop:
+        // Print prompt (no newline)
+        stdout_write(session_prompt(sess))
+
+        // Read one line from stdin
+        raw = read_line()
+
+        // EOF detection
+        if raw == "":
+            let finish: FinishInputResult = session_finish_input(sess)
+            if finish.source != none:
+                let source_text: String = match finish.source:
+                    Some(src) => src
+                    _ => ""
+                println("[repl] evaluate on EOF (stub):")
+                println(source_text)
+            println("")
+            return true
+
+        // Process the line through the session
+        let result: AcceptLineResult = session_accept_raw_line(sess, raw)
+        sess = result.session
+        let action: ReplLineAction = result.action
+
+        // Check Exit first — simple equality, no pattern binding needed
+        if action == ReplLineAction::Exit:
+            println("")
+            return true
+
+        // Dispatch remaining actions. All arms return Bool.
+        let _dispatched: Bool = match action:
+            ReplLineAction::Help =>
+                repl_handle_help()
+            ReplLineAction::Clear =>
+                true
+            ReplLineAction::Continue =>
+                true
+            ReplLineAction::Evaluate(src) =>
+                repl_handle_evaluate(src)
+            ReplLineAction::Theme(arg) =>
+                repl_handle_theme(arg)
+            ReplLineAction::Open(arg) =>
+                repl_handle_open(arg)
+            _ =>
+                true
+
+// ═══════════════════════════════════════════════════════════════════
+//  Tests
+// ═══════════════════════════════════════════════════════════════════
+
+test "help text contains expected commands":
+    let help_text: String = REPL_HELP_TEXT
+    assert(text_starts_with_string(help_text, ".run"), "help starts with .run")
+    assert(text_contains_string(help_text, ".clear"), "help contains .clear")
+    assert(text_contains_string(help_text, ".quit"), "help contains .quit")
+    assert(text_contains_string(help_text, ".help"), "help contains .help")
+    assert(text_contains_string(help_text, ".theme"), "help contains .theme")
+    assert(text_contains_string(help_text, ".open"), "help contains .open")
+
+test "terminal config default uses dev metadata":
+    let cfg = repl_terminal_config_default()
+    assert(cfg.metadata.language_name == "Kain", "default metadata language")
+    assert(cfg.source_name == "<repl>", "default source_name is <repl>")
+
+test "terminal config create stores fields":
+    let meta = repl_build_metadata_create("TestKain", "1.0.0", "42", "x86_64-pc-windows-msvc")
+    let cfg = repl_terminal_config_create(meta)
+    assert(cfg.metadata.version == "1.0.0", "version stored in config")
+    assert(cfg.source_name == "<repl>", "source_name defaults to <repl>")
+
+test "terminal config label formats correctly":
+    let meta = repl_build_metadata_create("Kain", "0.5.0", "33", "x86_64-linux-gnu")
+    let cfg = repl_terminal_config_create(meta)
+    let label = cfg.label()
+    assert(label == "<repl> [0.5.0]", "label format: source_name [version]")

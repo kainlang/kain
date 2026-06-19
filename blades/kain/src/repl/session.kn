@@ -1,0 +1,324 @@
+// repl/session.kn — REPL session state management
+// STREAM: GOLF
+//
+// Exact port of X:/crates/repl/src/session.rs
+// ReplLineAction enum, ReplSession struct, accept_raw_line + buffer helpers
+
+use std::text
+use std::text::text_trim_string
+use std::text::text_starts_with_string
+use std::text::text_substring_string
+use std::text::text_from
+use std::text::text_find
+use repl::command
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplLineAction — result of accepting a raw input line
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum ReplLineAction:
+    Continue
+    Exit
+    Clear
+    Help
+    Theme(Option<String>)
+    Open(Option<String>)
+    Evaluate(String)
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplSession — holds the multi-line input buffer
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ReplSession:
+    buffer: String
+
+// ═══════════════════════════════════════════════════════════════════
+// AcceptLineResult — bundled session + action for accept_raw_line
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct AcceptLineResult:
+    session: ReplSession
+    action:  ReplLineAction
+
+// ═══════════════════════════════════════════════════════════════════
+// FinishInputResult — bundled session + optional source for finish_input
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct FinishInputResult:
+    session: ReplSession
+    source:  Option<String>
+
+// ═══════════════════════════════════════════════════════════════════
+// session_new — create an empty session
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_new() -> ReplSession:
+    return ReplSession { buffer: "" }
+
+// ═══════════════════════════════════════════════════════════════════
+// session_prompt — ">>> " when buffer is empty, "... " otherwise
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_prompt(session: ReplSession) -> String:
+    if text_trim_string(session.buffer) == "":
+        return ">>> "
+    else:
+        return "... "
+
+// ═══════════════════════════════════════════════════════════════════
+// session_buffered_source — access the accumulated buffer content
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_buffered_source(session: ReplSession) -> String:
+    return session.buffer
+
+// ═══════════════════════════════════════════════════════════════════
+// session_clear — discard the buffer, return empty session
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_clear(session: ReplSession) -> ReplSession:
+    return ReplSession { buffer: "" }
+
+// ═══════════════════════════════════════════════════════════════════
+// session_replace_buffer — replace the buffer with new source text
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_replace_buffer(source: String) -> ReplSession:
+    return ReplSession { buffer: source }
+
+// ═══════════════════════════════════════════════════════════════════
+// session_accept_raw_line — process one raw input line
+//
+// Returns a bundled AcceptLineResult with the new session state
+// and the ReplLineAction describing what the caller should do next.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_accept_raw_line(
+    session: ReplSession,
+    raw_line: String,
+) -> AcceptLineResult:
+    // Trim trailing \r and \n (same as Rust trim_end_matches(['\r', '\n']))
+    let trimmed: String = trim_trailing_newlines(raw_line)
+
+    // ── Check for REPL directives ──
+    let directive: Option<ReplDirective> = cmd_parse(trimmed)
+    if directive != none:
+        match directive:
+            Some(ReplDirective::Exit) =>
+                return AcceptLineResult { session: session, action: ReplLineAction::Exit }
+
+            Some(ReplDirective::Clear) =>
+                return AcceptLineResult {
+                    session: session_clear(session),
+                    action:  ReplLineAction::Clear,
+                }
+
+            Some(ReplDirective::Run) =>
+                return take_buffer_for_evaluation_if_present(session)
+
+            Some(ReplDirective::Help) =>
+                return AcceptLineResult { session: session, action: ReplLineAction::Help }
+
+            Some(ReplDirective::Theme) =>
+                return AcceptLineResult {
+                    session: session,
+                    action:  ReplLineAction::Theme(extract_command_arg(trimmed, 6)),
+                }
+
+            Some(ReplDirective::Open) =>
+                return AcceptLineResult {
+                    session: session,
+                    action:  ReplLineAction::Open(extract_command_arg(trimmed, 5)),
+                }
+
+            _ =>
+                return AcceptLineResult { session: session, action: ReplLineAction::Continue }
+
+    // ── Empty line evaluates the buffer ──
+    if trimmed == "":
+        return take_buffer_for_evaluation_if_present(session)
+
+    // ── Append the original (untrimmed) line to the buffer ──
+    let new_buffer: String = session.buffer + raw_line
+    let new_session: ReplSession = ReplSession { buffer: new_buffer }
+    return AcceptLineResult {
+        session: new_session,
+        action:  ReplLineAction::Continue,
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// session_finish_input — finalize input when stream ends
+// Returns FinishInputResult with optional normalized source.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn session_finish_input(session: ReplSession) -> FinishInputResult:
+    if text_trim_string(session.buffer) == "":
+        return FinishInputResult { session: session, source: none }
+    else:
+        let source: String = normalize_script_source(session.buffer)
+        return FinishInputResult {
+            session: ReplSession { buffer: "" },
+            source:  Some(source),
+        }
+
+// ═══════════════════════════════════════════════════════════════════
+// take_buffer_for_evaluation_if_present
+//
+// If the buffer is non-empty, normalize it into an Evaluate action.
+// Otherwise return Continue (keep session as-is).
+// ═══════════════════════════════════════════════════════════════════
+
+fn take_buffer_for_evaluation_if_present(
+    session: ReplSession,
+) -> AcceptLineResult:
+    if text_trim_string(session.buffer) == "":
+        return AcceptLineResult { session: session, action: ReplLineAction::Continue }
+    else:
+        let source: String = normalize_script_source(session.buffer)
+        let cleared: ReplSession = ReplSession { buffer: "" }
+        return AcceptLineResult {
+            session: cleared,
+            action:  ReplLineAction::Evaluate(source),
+        }
+
+// ═══════════════════════════════════════════════════════════════════
+// normalize_script_source — strip BOM and shebang from source
+//
+// Port of X:/crates/repl/src/source.rs normalize_script_source()
+// Removes leading U+FEFF (UTF-8 BOM) and any #! shebang line.
+// ═══════════════════════════════════════════════════════════════════
+
+fn normalize_script_source(source: String) -> String:
+    var result: String = source
+
+    // Strip leading UTF-8 BOM (\u{feff})
+    if text_starts_with_string(result, "\u{feff}"):
+        result = text_substring_string(result, 1, len(result) - 1)
+
+    // Strip shebang line (#!...\n)
+    if text_starts_with_string(result, "#!"):
+        let view = text_from(result)
+        let newline_pos: Int = text_find(view, "\n")
+        if newline_pos >= 0:
+            let after: Int = len(result) - (newline_pos + 1)
+            result = text_substring_string(result, newline_pos + 1, after)
+        else:
+            result = ""
+
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// extract_command_arg — extract argument after a directive prefix
+//
+// The prefix_len is the length of the directive (e.g. ".theme" = 6,
+// ".open" = 5). Returns none when no argument, Some(value) when present.
+// ═══════════════════════════════════════════════════════════════════
+
+fn extract_command_arg(line_val: String, prefix_len: Int) -> Option<String>:
+    let rest: String = text_trim_string(
+        text_substring_string(line_val, prefix_len, len(line_val) - prefix_len)
+    )
+    if rest == "":
+        return none
+    else:
+        return Some(rest)
+
+// ═══════════════════════════════════════════════════════════════════
+// trim_trailing_newlines — strip trailing \r and \n characters
+//
+// Port of Rust's .trim_end_matches(['\r', '\n'])
+// ═══════════════════════════════════════════════════════════════════
+
+fn trim_trailing_newlines(s: String) -> String:
+    var end: Int = len(s)
+    while end > 0:
+        let ch: String = s[end - 1]
+        if ch != "\r" and ch != "\n":
+            break
+        end = end - 1
+    if end == len(s):
+        return s
+    var result: String = ""
+    var i: Int = 0
+    while i < end:
+        result = result + s[i]
+        i = i + 1
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_prompt_tracks_buffer_state() -> String:
+    var session: ReplSession = session_new()
+    if session_prompt(session) != ">>> ":
+        return "FAIL: initial prompt"
+
+    let r1: AcceptLineResult = session_accept_raw_line(session, "fn main() -> Int:\n")
+    session = r1.session
+    if r1.action != ReplLineAction::Continue:
+        return "FAIL: action should be Continue"
+
+    if session_prompt(session) != "... ":
+        return "FAIL: prompt after buffer append"
+
+    return "OK"
+
+fn test_blank_line_evaluates_non_empty_buffer() -> String:
+    var session: ReplSession = session_new()
+    let r1: AcceptLineResult = session_accept_raw_line(session, "fn main() -> Int:\n")
+    session = r1.session
+    let r2: AcceptLineResult = session_accept_raw_line(session, "    return 7\n")
+    session = r2.session
+    let r3: AcceptLineResult = session_accept_raw_line(session, "\n")
+    session = r3.session
+
+    // Check that the action is Evaluate with the accumulated source
+    if r3.action != ReplLineAction::Evaluate("fn main() -> Int:\n    return 7\n"):
+        return "FAIL: expected Evaluate with accumulated source"
+
+    if session_prompt(session) != ">>> ":
+        return "FAIL: prompt should reset after evaluation"
+
+    return "OK"
+
+fn test_clear_discards_buffer_without_evaluation() -> String:
+    var session: ReplSession = session_new()
+    let r1: AcceptLineResult = session_accept_raw_line(session, "fn main() -> Int:\n")
+    session = r1.session
+
+    let r2: AcceptLineResult = session_accept_raw_line(session, ".clear\n")
+    session = r2.session
+    if r2.action != ReplLineAction::Clear:
+        return "FAIL: expected Clear action"
+
+    if session_buffered_source(session) != "":
+        return "FAIL: buffer should be empty after Clear"
+
+    return "OK"
+
+fn test_theme_command_is_reported_without_touching_buffer() -> String:
+    var session: ReplSession = session_new()
+    let r: AcceptLineResult = session_accept_raw_line(session, ".theme plain\n")
+    session = r.session
+
+    if r.action != ReplLineAction::Theme(Some("plain")):
+        return "FAIL: expected Theme(Some(plain))"
+
+    if session_buffered_source(session) != "":
+        return "FAIL: buffer should be empty after Theme"
+
+    return "OK"
+
+fn test_open_command_is_reported_without_touching_buffer() -> String:
+    var session: ReplSession = session_new()
+    let r: AcceptLineResult = session_accept_raw_line(session, ".open demo.kn\n")
+    session = r.session
+
+    if r.action != ReplLineAction::Open(Some("demo.kn")):
+        return "FAIL: expected Open(Some(demo.kn))"
+
+    if session_buffered_source(session) != "":
+        return "FAIL: buffer should be empty after Open"
+
+    return "OK"

@@ -89,60 +89,52 @@ pub fn hash_name(s: String) -> Int:
     return h
 
 // ===========================================================================
-//  STRING CONSTANT TABLE — survives compilation (Fix #1)
+//  PARSER STATE WORLD — consolidated string table + intent registry (Fix #1 + #4)
 //
-//  Strings in ```markscript blocks are stored here at parse time so the
-//  original text survives. Instead of hashing "hello" → 84721023 (lost
-//  forever), we push the index into this table and emit OP_PUSH_STRING_REF.
-//  The VM runner calls parser_strings_table() after compilation to load
-//  strings into the VM for runtime lookup.
+//  Strings in ```markscript blocks are stored at parse time so the original
+//  text survives. Intent phrases from blockquotes are recorded alongside their
+//  hashes for IVT validation at compile time. Both live in one world so LLVM
+//  codegen has a single surface target.
 // ===========================================================================
 
-world ParserStrings:
-    state table: Array<String> = []
-    state count: Int = 0
+component ParserStatePanel():
+    render <panel title="parser-state" />
+
+world ParserState:
+    state string_table:   Array<String> = []
+    state string_count:   Int = 0
+    state intent_phrases: Array<String> = []
+    state intent_hashes:  Array<Int> = []
+    state intent_count:   Int = 0
+    surface web => ParserStatePanel
 
 pub fn parser_strings_reset():
-    ParserStrings.table = []
-    ParserStrings.count = 0
+    ParserState.string_table = []
+    ParserState.string_count = 0
 
 pub fn parser_strings_push(s: String) -> Int:
-    let idx = ParserStrings.count
-    ParserStrings.table[idx] = s
-    ParserStrings.count = idx + 1
+    let idx = ParserState.string_count
+    push(ParserState.string_table, s)
+    ParserState.string_count = idx + 1
     return idx
 
 pub fn parser_strings_get(idx: Int) -> String:
-    return ParserStrings.table[idx]
+    return ParserState.string_table[idx]
 
 pub fn parser_strings_table() -> Array<String>:
-    return ParserStrings.table
-
-// ===========================================================================
-//  INTENT REGISTRY — records intent phrases during parsing (Fix #4)
-//
-//  Each blockquote intent (e.g. "> run") is recorded here alongside its
-//  hash. The check command calls parser_intents_phrases() and
-//  parser_intents_hashes() to validate against the IVT at compile time,
-//  catching typos before runtime.
-// ===========================================================================
-
-world ParserIntents:
-    state phrases: Array<String> = []
-    state hashes:   Array<Int> = []
-    state count:    Int = 0
+    return ParserState.string_table
 
 pub fn parser_intents_record(phrase: String, hash: Int):
-    let idx = ParserIntents.count
-    ParserIntents.phrases[idx] = phrase
-    ParserIntents.hashes[idx] = hash
-    ParserIntents.count = idx + 1
+    let idx = ParserState.intent_count
+    push(ParserState.intent_phrases, phrase)
+    push(ParserState.intent_hashes, hash)
+    ParserState.intent_count = idx + 1
 
 pub fn parser_intents_phrases() -> Array<String>:
-    return ParserIntents.phrases
+    return ParserState.intent_phrases
 
 pub fn parser_intents_hashes() -> Array<Int>:
-    return ParserIntents.hashes
+    return ParserState.intent_hashes
 
 // ===========================================================================
 //  PROSE DETECTION — disambiguates markdown blockquotes from MKS intents (Fix #2)

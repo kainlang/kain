@@ -1,0 +1,76 @@
+// L3_dispatch.kn — Converge construct: typecheck + codegen stubs
+// STREAM: FOXTROT + GOLF — Construct Implementation
+//
+// Implements the L3 dispatch layer (converge) for the self-host compiler.
+// Typecheck: knc_check_converge() validates spec + fast lane signatures.
+// Codegen: knc_compile_converge() emits spec function, fast lane functions,
+//          and the dispatch function with cached lane selection.
+//
+// Imports from types.kn, ast.kn for shared constants/structs.
+// No local duplicates — all types resolved from the self-host workspace.
+//
+// Spec layers reference: X:/blades/kain/spec-layers/L3_dispatch.md
+// Language reference: X:/docs/CONVERGE.MD
+
+use typecheck::types
+use typecheck::effects
+use core::ast
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_converge — Typecheck a converge declaration
+//
+// A converge block has:
+//   - Exactly 1 spec lane (the reference/ground-truth implementation)
+//   - At least 1 fast lane, each with an optional selector
+//   - Optional verify random(N) clause for spec-vs-fast fuzzing
+//
+// All lanes must share the same function signature (params + return type).
+// The spec lane is the fallback if no fast lane's selector matches.
+// Selectors: target("llvm"), capability("cpu.x86.avx2"), etc.
+//
+// Current status: STUB — returns TypedItem with i64 return type.
+// Spec-layer implementation will add:
+//   - Signature derivation from converge name + params + return type
+//   - Spec lane body typecheck against dispatcher signature
+//   - Fast lane body typecheck against dispatcher signature
+//   - Selector validation (target/capability strings non-empty)
+//   - Verify random count validation (N >= 0, warn if N > 10000)
+//   - Duplicate lane name detection
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_check_converge(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_CONVERGE, name: "cvg_" + str(name_idx), name_idx: name_idx,
+            resolved_type: types.rt_i64(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_compile_converge — Codegen a converge declaration (STUB)
+//
+// Current status: STUB — passes generator through unchanged.
+// Spec-layer implementation will emit:
+//   - @{name}__spec — spec lane function body
+//   - @{name}__fast_{lane} — each fast lane as a separate callable
+//   - @{name} — dispatch function with:
+//       * Static global cache: @__kain_converge_cached_{name}
+//       * Target("...") resolved statically at compile time
+//       * Capability("...") probes via abi_cpu_capability_mask_for_key
+//       * Fallback to spec if no fast lane matches
+//       * Cached lane selection (once per process)
+//   - Optional verify random(N) startup code:
+//       * Generate N random arg sets
+//       * Call spec and selected fast lane
+//       * Call abi_converge_record_telemetry on mismatch
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_compile_converge(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+    return gen

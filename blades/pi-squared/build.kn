@@ -10,11 +10,23 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .module_roots(["src"])
         .artifact_root(".kain/out")
         .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("pi-squared-sources")
+        .root("src")
+        .glob("src/**/*.kn")
+
+    let check = check_task("check-llvm")
+        .project(album)
+        .target("llvm")
+        .inputs(sources)
 
     let exe = native_executable("root-executable")
         .project(album)
         .entry("src/main.kn")
         .output("$blade/pi-squared.exe")
+        .requires(check)
 
     return build_graph(album)
-        .tasks(exe)
+        .task(check)
+        .task(exe)

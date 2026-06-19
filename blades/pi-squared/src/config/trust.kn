@@ -27,7 +27,7 @@ component PiTrustStub():
 // ============================================================================
 
 world TrustStore:
-    surface native_ui => PiTrustStub
+    surface web => PiTrustStub
     state decisions_json: String = "{}"
     state session_only_json: String = "{}"
 

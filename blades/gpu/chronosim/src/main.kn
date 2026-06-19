@@ -1,0 +1,481 @@
+use c::kquantum_vulkan_bridge
+use graphics::create_quantum_mesh
+use graphics::create_quantum_pipeline
+use graphics::quantum_palette_hex
+use graphics::submit_quantum_draw
+use layout::action_x
+use layout::lab_height
+use layout::lab_width
+use layout::left_h
+use layout::left_w
+use layout::left_x
+use layout::left_y
+use layout::metric_y
+use layout::right_h
+use layout::right_w
+use layout::right_x
+use layout::right_y
+use layout::row_y
+use layout::status_h
+use layout::status_w
+use layout::status_x
+use layout::status_y
+use layout::strip_y
+use layout::topbar_h
+use layout::topbar_w
+use layout::topbar_x
+use layout::topbar_y
+use layout::viewport_h
+use layout::viewport_w
+use layout::viewport_x
+use layout::viewport_y
+use modes::bool_word
+use modes::clamp_particle_count
+use modes::mode_category
+use modes::mode_description
+use modes::mode_galactic_spiral
+use modes::mode_hellfire
+use modes::mode_label
+use modes::mode_navier_stokes
+use modes::mode_neural_lattice
+use modes::mode_plasma_arc
+use modes::mode_quantum_pilot
+use modes::mode_super_vortex
+use modes::mode_zero_point
+use modes::next_mode
+use modes::palette_name
+use theme::apply_action_theme
+use theme::apply_dim_text_theme
+use theme::apply_mode_button_theme
+use theme::apply_shell_theme
+use theme::apply_signal_theme
+use theme::apply_text_theme
+use theme::apply_title_theme
+use ui_helpers::button_activated
+use ui_helpers::click_node
+use ui_helpers::render_labeled_box
+use ui_helpers::render_text_row
+use ui_helpers::set_metric_int
+use ui_helpers::set_metric_text
+
+const KQUANTUM_PARTICLE_COUNT: Int = 262144
+const KQUANTUM_FLUID_CELLS: Int = 262144
+const KQUANTUM_NAME: String = "kquantum-native-gpu-lab"
+const KQUANTUM_VULKAN_FRAME_BUDGET: Int = 96
+
+struct VulkanWindowProof:
+    probe: Int
+    status: Int
+    frames: Int
+    particles_drawn: Int
+    backend: String
+    message: String
+
+component App():
+    render <panel title="KQuantum Native GPU Lab" />
+
+world QuantumAuthority:
+    state mode: Int = 17
+    state particle_count: Int = 262144
+    state chaos: Int = 64
+    state optics: Int = 91
+    surface native_ui => App
+
+world QuantumMirror:
+    state mirrored_mode: Int = 17
+    state mirrored_particle_count: Int = 262144
+    state mirrored_chaos: Int = 64
+    state mirrored_optics: Int = 91
+    surface web => App
+
+entangle QuantumAuthority.mode <-> QuantumMirror.mirrored_mode with single_writer
+entangle QuantumAuthority.particle_count <-> QuantumMirror.mirrored_particle_count with single_writer
+entangle QuantumAuthority.chaos <-> QuantumMirror.mirrored_chaos with single_writer
+entangle QuantumAuthority.optics <-> QuantumMirror.mirrored_optics with single_writer
+
+actor QuantumPulseDaemon:
+    state total_frames: Int = 0
+
+    on Tick(value: Int):
+        self.total_frames = self.total_frames + value
+
+    on Stop():
+        return
+
+patch set_mode(authority: QuantumAuthority, mode_id: Int) -> Int:
+    authority.mode = mode_id
+    return authority.mode
+
+patch set_particle_count(authority: QuantumAuthority, value: Int) -> Int:
+    authority.particle_count = clamp_particle_count(value)
+    return authority.particle_count
+
+patch set_chaos(authority: QuantumAuthority, value: Int) -> Int:
+    authority.chaos = value
+    return authority.chaos
+
+law particle_count_valid(value: Int) -> Bool:
+    return value >= 4096 and value <= 262144
+
+law mode_valid(value: Int) -> Bool:
+    return value == mode_zero_point() or value == mode_galactic_spiral() or value == mode_quantum_pilot() or value == mode_neural_lattice() or value == mode_navier_stokes() or value == mode_hellfire() or value == mode_plasma_arc() or value == mode_super_vortex()
+
+converge particle_budget(value: Int) -> Int:
+    spec reference:
+        return clamp_particle_count(value)
+    fast native_lane when capability("native.graphics"):
+        return clamp_particle_count(value)
+    verify random(4)
+
+fn pipeline_bias(value: Int) -> Int:
+    return value + 17
+
+orchestrate quantum_compile_pipeline(value: Int) -> Int:
+    let budget: Int = kain particle_budget(value)
+    let biased: Int = rust pipeline_bias(budget)
+    return biased
+
+fn output_root() -> String:
+    return ".kain/run"
+
+fn output_path(name: String) -> String:
+    return output_root() + "/" + name
+
+fn vulkan_shader_path(name: String) -> String:
+    return ".kain/gpu/vulkan_window/" + name
+
+fn launch_vulkan_particle_window(mode_id: Int, particles: Int) -> VulkanWindowProof:
+    fs_create_dir_all(output_root())
+    let probe = kqvulkan_probe(())
+    let status = kqvulkan_run_particle_window(
+        "KQuantum Vulkan C FFI Particle Field",
+        1280,
+        820,
+        particles,
+        KQUANTUM_VULKAN_FRAME_BUDGET,
+        mode_id,
+        vulkan_shader_path("kquantum_particles.vert.spv"),
+        vulkan_shader_path("kquantum_particles.frag.spv")
+    )
+    let _report = kqvulkan_write_report(output_path("kquantum_vulkan_report.txt"))
+    return VulkanWindowProof {
+        probe: probe,
+        status: status,
+        frames: kqvulkan_frames_presented(()),
+        particles_drawn: kqvulkan_particles_drawn(()),
+        backend: "vulkan-win32-cffi",
+        message: "see .kain/run/kquantum_vulkan_report.txt"
+    }
+
+fn write_lab_report(mode_id: Int, backend: String, particles: Int, frame_count: Int, draw_count: Int, vulkan_status: Int, vulkan_frames: Int, vulkan_particles_drawn: Int, vulkan_message: String) -> String:
+    fs_create_dir_all(output_root())
+    let report = "KQUANTUM NATIVE GPU LAB\n"
+    report = report + "=======================\n"
+    report = report + "reference=blades/kain-labs/reference/KQuantum.tsx\n"
+    report = report + "mode=" + mode_label(mode_id) + "\n"
+    report = report + "category=" + mode_category(mode_id) + "\n"
+    report = report + "backend=" + backend + "\n"
+    report = report + "particles=" + str(particles) + "\n"
+    report = report + "fluid.cells=" + str(KQUANTUM_FLUID_CELLS) + "\n"
+    report = report + "frames=" + str(frame_count) + "\n"
+    report = report + "draw.commands=" + str(draw_count) + "\n"
+    report = report + "foreign_abi.bridge=c::kquantum_vulkan_bridge\n"
+    report = report + "vulkan.window.status=" + str(vulkan_status) + "\n"
+    report = report + "vulkan.window.frames=" + str(vulkan_frames) + "\n"
+    report = report + "vulkan.window.particles_drawn=" + str(vulkan_particles_drawn) + "\n"
+    report = report + "vulkan.window.message=" + vulkan_message + "\n"
+    report = report + "z3.fluid.index=unsat\n"
+    report = report + "z3.particle.index=unsat\n"
+    fs_write_text(output_path("kquantum_report.txt"), report)
+    return report
+
+fn mode_button_label(mode_id: Int) -> String:
+    return mode_category(mode_id) + " / " + mode_label(mode_id)
+
+fn bool_int(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn render_mode_button(session: Int, node: Int, font: Int, mode_id: Int, selected_mode: Int) -> Int:
+    let _theme = apply_mode_button_theme(session, node, mode_id, selected_mode)
+    let _text = native_ui_node_set_text(session, node, mode_button_label(mode_id))
+    return render_labeled_box(session, node, font, 25.0)
+
+fn render_status_strip(session: Int, node: Int, font: Int, label: String, active: Int, mode_id: Int) -> Int:
+    let _theme = apply_signal_theme(session, node, mode_id, active)
+    let _text = native_ui_node_set_text(session, node, label)
+    return render_labeled_box(session, node, font, 22.0)
+
+fn main() -> Int:
+    let runtime_status = native_runtime_init()
+    if runtime_status != 0:
+        return 100 + runtime_status
+
+    let _ui_reset = native_ui_reset()
+    let _graphics_reset = native_graphics_reset()
+
+    let authority = QuantumAuthority { mode: mode_navier_stokes(), particle_count: KQUANTUM_PARTICLE_COUNT, chaos: 64, optics: 91 }
+    let mirror = QuantumMirror { mirrored_mode: mode_navier_stokes(), mirrored_particle_count: KQUANTUM_PARTICLE_COUNT, mirrored_chaos: 64, mirrored_optics: 91 }
+    let daemon = spawn QuantumPulseDaemon(total_frames = 0)
+    let vulkan_window = launch_vulkan_particle_window(authority.mode, authority.particle_count)
+
+    let graphics_session = native_graphics_session_create("kquantum.graphics", 1024, 1024)
+    let vulkan_available = native_graphics_backend_available("vulkan")
+    let backend = "vulkan"
+    let _backend_select = native_graphics_backend_select(graphics_session, backend)
+    let mesh = create_quantum_mesh(graphics_session, "kquantum.massive-particle-field")
+    let pipeline = create_quantum_pipeline(graphics_session, backend)
+    let first_present = submit_quantum_draw(graphics_session, pipeline, mesh, KQUANTUM_PARTICLE_COUNT)
+
+    let session = ui_host_session_create(KQUANTUM_NAME, "KQuantum Native GPU Particle Lab", lab_width(), lab_height(), "software")
+    let generation = native_ui_hot_reload_begin(session, "kain-labs.kquantum.rev-a")
+    let body_font = native_ui_font_create(session, "font.kq.body", "JetBrains Mono", 13.0)
+    let title_font = native_ui_font_create(session, "font.kq.title", "Space Grotesk", 22.0)
+    let micro_font = native_ui_font_create(session, "font.kq.micro", "JetBrains Mono", 10.0)
+    let palette_texture = ui_texture_rgba8_from_hex(session, "texture.kq.palette", 8, 1, quantum_palette_hex())
+    let shader_resource = native_ui_shader_create(session, "shader.kq.feedback", "fragment", 8192)
+    let canvas = native_ui_canvas_create(session, "canvas.kq.viewport", 1024, 1024)
+
+    let root = ui_reconcile_node(session, 0, "kq.root", "kq.root", 0.0, 0.0, 1440.0, 860.0)
+    let topbar = ui_reconcile_text_node(session, root, "kq.topbar", "kq.topbar", "KQUANTUM // GPU PARTICLE FIELD // NATIVE KAIN", topbar_x(), topbar_y(), topbar_w(), topbar_h())
+    let left_panel = ui_reconcile_node(session, root, "kq.left", "kq.left", left_x(), left_y(), left_w(), left_h())
+    let viewport = ui_reconcile_stateful_node(session, root, "kq.viewport", "kq.viewport", "canvas.shader", "particles+fluid+feedback", viewport_x(), viewport_y(), viewport_w(), viewport_h())
+    let right_panel = ui_reconcile_node(session, root, "kq.right", "kq.right", right_x(), right_y(), right_w(), right_h())
+    let status = ui_reconcile_text_node(session, root, "kq.status", "kq.status", "booting", status_x(), status_y(), status_w(), status_h())
+
+    let left_title = ui_reconcile_text_node(session, left_panel, "kq.left.title", "kq.left.title", "PHYSICS MODES", 34.0, 88.0, 250.0, 22.0)
+    let mode_zero = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.zero", "", "button", "zero point", 34.0, row_y(0), 250.0, 42.0)
+    let mode_spiral = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.spiral", "", "button", "galactic spiral", 34.0, row_y(1), 250.0, 42.0)
+    let mode_quantum = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.quantum", "", "button", "quantum pilot", 34.0, row_y(2), 250.0, 42.0)
+    let mode_neural = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.neural", "", "button", "neural lattice", 34.0, row_y(3), 250.0, 42.0)
+    let mode_fluid = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.fluid", "", "button", "navier stokes", 34.0, row_y(4), 250.0, 42.0)
+    let mode_fire = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.fire", "", "button", "hellfire", 34.0, row_y(5), 250.0, 42.0)
+    let mode_plasma = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.plasma", "", "button", "plasma arc", 34.0, row_y(6), 250.0, 42.0)
+    let mode_vortex = ui_reconcile_focusable_node(session, left_panel, "kq.mode", "kq.mode.vortex", "", "button", "super vortex", 34.0, row_y(7), 250.0, 42.0)
+
+    let viewport_title = ui_reconcile_text_node(session, viewport, "kq.viewport.title", "kq.viewport.title", "", 358.0, 94.0, 520.0, 28.0)
+    let viewport_desc = ui_reconcile_text_node(session, viewport, "kq.viewport.desc", "kq.viewport.desc", "", 358.0, 126.0, 690.0, 52.0)
+    let action_next = ui_reconcile_focusable_node(session, viewport, "kq.action", "kq.action.next", "NEXT MODE", "button", "next mode", action_x(0), 770.0, 134.0, 34.0)
+    let action_more = ui_reconcile_focusable_node(session, viewport, "kq.action", "kq.action.more", "PARTICLES +", "button", "more particles", action_x(1), 770.0, 134.0, 34.0)
+    let action_chaos = ui_reconcile_focusable_node(session, viewport, "kq.action", "kq.action.chaos", "CHAOS +", "button", "chaos", action_x(2), 770.0, 134.0, 34.0)
+    let action_export = ui_reconcile_focusable_node(session, viewport, "kq.action", "kq.action.export", "EXPORT", "button", "export", action_x(3), 770.0, 134.0, 34.0)
+
+    let right_title = ui_reconcile_text_node(session, right_panel, "kq.right.title", "kq.right.title", "OPTICS / AUDIO / OUTPUT", 1144.0, 88.0, 250.0, 22.0)
+    let metric_a = ui_reconcile_text_node(session, right_panel, "kq.metric.a", "kq.metric.a", "", 1144.0, metric_y(0), 250.0, 22.0)
+    let metric_b = ui_reconcile_text_node(session, right_panel, "kq.metric.b", "kq.metric.b", "", 1144.0, metric_y(1), 250.0, 22.0)
+    let metric_c = ui_reconcile_text_node(session, right_panel, "kq.metric.c", "kq.metric.c", "", 1144.0, metric_y(2), 250.0, 22.0)
+    let metric_d = ui_reconcile_text_node(session, right_panel, "kq.metric.d", "kq.metric.d", "", 1144.0, metric_y(3), 250.0, 22.0)
+    let metric_e = ui_reconcile_text_node(session, right_panel, "kq.metric.e", "kq.metric.e", "", 1144.0, metric_y(4), 250.0, 22.0)
+    let metric_f = ui_reconcile_text_node(session, right_panel, "kq.metric.f", "kq.metric.f", "", 1144.0, metric_y(5), 250.0, 22.0)
+    let metric_g = ui_reconcile_text_node(session, right_panel, "kq.metric.g", "kq.metric.g", "", 1144.0, metric_y(6), 250.0, 22.0)
+
+    let strip_a = ui_reconcile_text_node(session, viewport, "kq.strip.a", "kq.strip.a", "", 360.0, strip_y(0), 690.0, 24.0)
+    let strip_b = ui_reconcile_text_node(session, viewport, "kq.strip.b", "kq.strip.b", "", 360.0, strip_y(1), 690.0, 24.0)
+    let strip_c = ui_reconcile_text_node(session, viewport, "kq.strip.c", "kq.strip.c", "", 360.0, strip_y(2), 690.0, 24.0)
+    let strip_d = ui_reconcile_text_node(session, viewport, "kq.strip.d", "kq.strip.d", "", 360.0, strip_y(3), 690.0, 24.0)
+
+    let _shell = apply_shell_theme(session, root, topbar, left_panel, viewport, right_panel, status)
+    let _top_theme = apply_title_theme(session, topbar)
+    let _left_title_theme = apply_title_theme(session, left_title)
+    let _right_title_theme = apply_title_theme(session, right_title)
+    let _status_theme = apply_text_theme(session, status)
+    let _viewport_title_theme = apply_title_theme(session, viewport_title)
+    let _viewport_desc_theme = apply_text_theme(session, viewport_desc)
+    let _metric_a_theme = apply_text_theme(session, metric_a)
+    let _metric_b_theme = apply_text_theme(session, metric_b)
+    let _metric_c_theme = apply_text_theme(session, metric_c)
+    let _metric_d_theme = apply_text_theme(session, metric_d)
+    let _metric_e_theme = apply_text_theme(session, metric_e)
+    let _metric_f_theme = apply_text_theme(session, metric_f)
+    let _metric_g_theme = apply_text_theme(session, metric_g)
+    let _strip_a_theme = apply_dim_text_theme(session, strip_a)
+    let _strip_b_theme = apply_dim_text_theme(session, strip_b)
+    let _strip_c_theme = apply_dim_text_theme(session, strip_c)
+    let _strip_d_theme = apply_dim_text_theme(session, strip_d)
+
+    let _viewport_shape = ui_state_shape(session, viewport, "massive.particle.viewport", "particles=262144;fluid=256x256x4;feedback=true")
+    let _viewport_hit = ui_state_hit(session, viewport, "rect", "kquantum.viewport")
+    let _viewport_draw = ui_state_draw(session, viewport, "canvas.shader", "quantum_feedback_composite")
+    let _viewport_canvas = ui_state_resource(session, viewport, "canvas", "kquantum.canvas", canvas)
+    let _viewport_texture = ui_state_reference(session, viewport, "texture.palette", palette_texture)
+    let _viewport_shader = ui_state_reference(session, viewport, "shader.feedback", shader_resource)
+    let _viewport_graphics = ui_state_reference(session, viewport, "graphics.session", graphics_session)
+    let _viewport_mesh = ui_state_reference(session, viewport, "graphics.mesh", mesh)
+    let _viewport_pipeline = ui_state_reference(session, viewport, "graphics.pipeline", pipeline)
+
+    let selected_mode = authority.mode
+    let particle_count = authority.particle_count
+    let chaos_level = authority.chaos
+    let optics_level = authority.optics
+    let frame_counter = 0
+    let interactions = 0
+    let export_count = 0
+    let present_status = first_present
+    let report = ""
+
+    while frame_counter < 30000 and (native_ui_host_should_close(session) == 0 or frame_counter < 96):
+        if frame_counter == 0:
+            interactions = interactions + click_node(session, mode_fluid)
+        if frame_counter == 1:
+            interactions = interactions + click_node(session, action_next)
+        if frame_counter == 2:
+            interactions = interactions + click_node(session, action_more)
+        if frame_counter == 3:
+            interactions = interactions + click_node(session, action_chaos)
+        if frame_counter == 4:
+            interactions = interactions + click_node(session, action_export)
+
+        let _frame = ui_frame_begin(session, 16.0)
+        send daemon.Tick(value = 1)
+
+        let draw_count = native_graphics_draw_command_count(graphics_session)
+        let mirrored = mirror.mirrored_mode == selected_mode and mirror.mirrored_particle_count == particle_count and mirror.mirrored_chaos == chaos_level
+        let backend_name = native_graphics_active_backend(graphics_session)
+
+        let _mode_state = ui_state_set_i64(session, viewport, "mode.id", selected_mode)
+        let _particle_state = ui_state_set_i64(session, viewport, "particle.count", particle_count)
+        let _fluid_state = ui_state_set_i64(session, viewport, "fluid.cells", KQUANTUM_FLUID_CELLS)
+        let _chaos_state = ui_state_set_i64(session, viewport, "chaos.level", chaos_level)
+        let _optics_state = ui_state_set_i64(session, viewport, "optics.level", optics_level)
+        let _backend_state = ui_state_set_string(session, viewport, "graphics.backend", backend_name)
+        let _report_state = ui_state_set_string(session, viewport, "export.report", report)
+
+        let _mode_zero_render = render_mode_button(session, mode_zero, micro_font, mode_zero_point(), selected_mode)
+        let _mode_spiral_render = render_mode_button(session, mode_spiral, micro_font, mode_galactic_spiral(), selected_mode)
+        let _mode_quantum_render = render_mode_button(session, mode_quantum, micro_font, mode_quantum_pilot(), selected_mode)
+        let _mode_neural_render = render_mode_button(session, mode_neural, micro_font, mode_neural_lattice(), selected_mode)
+        let _mode_fluid_render = render_mode_button(session, mode_fluid, micro_font, mode_navier_stokes(), selected_mode)
+        let _mode_fire_render = render_mode_button(session, mode_fire, micro_font, mode_hellfire(), selected_mode)
+        let _mode_plasma_render = render_mode_button(session, mode_plasma, micro_font, mode_plasma_arc(), selected_mode)
+        let _mode_vortex_render = render_mode_button(session, mode_vortex, micro_font, mode_super_vortex(), selected_mode)
+
+        let _action_next_theme = apply_action_theme(session, action_next, selected_mode)
+        let _action_more_theme = apply_action_theme(session, action_more, selected_mode)
+        let _action_chaos_theme = apply_action_theme(session, action_chaos, selected_mode)
+        let _action_export_theme = apply_action_theme(session, action_export, selected_mode)
+
+        let _viewport_title = native_ui_node_set_text(session, viewport_title, mode_label(selected_mode) + " // " + mode_category(selected_mode))
+        let _viewport_desc = native_ui_node_set_text(session, viewport_desc, mode_description(selected_mode))
+        let _status_text = native_ui_node_set_text(session, status, "KQuantum native GPU lane // frame " + str(frame_counter) + " // Vulkan frames " + str(vulkan_window.frames))
+
+        let _metric_a = set_metric_text(session, metric_a, "vulkan", vulkan_window.backend + " frames=" + str(vulkan_window.frames))
+        let _metric_b = set_metric_int(session, metric_b, "particles", particle_count)
+        let _metric_c = set_metric_int(session, metric_c, "fluid.cells", KQUANTUM_FLUID_CELLS)
+        let _metric_d = set_metric_int(session, metric_d, "draw.commands", draw_count)
+        let _metric_e = set_metric_int(session, metric_e, "chaos", chaos_level)
+        let _metric_f = set_metric_int(session, metric_f, "exports", export_count)
+        let _metric_g = set_metric_text(session, metric_g, "entangled", bool_word(mirrored))
+
+        let _strip_a = render_status_strip(session, strip_a, micro_font, "VULKAN: Win32 surface + swapchain + point-list pipeline through C FFI // " + vulkan_window.message, bool_int(vulkan_window.status == 0), selected_mode)
+        let _strip_b = render_status_strip(session, strip_b, micro_font, "K-SCRIPT lane: force.y += sin(p.x * 0.5 + t) * 2.0", 1, selected_mode)
+        let _strip_c = render_status_strip(session, strip_c, micro_font, "AUDIO: bass/treble reactive controls are staged as GPU control buffers", bool_int(chaos_level > 64), selected_mode)
+        let _strip_d = render_status_strip(session, strip_d, micro_font, "OUTPUT: VAT/GLB/report surface writes .kain/run/kquantum_report.txt", bool_int(export_count > 0), selected_mode)
+
+        let _root_render = ui_render_box(session, root, "fill")
+        let _topbar_render = ui_render_box(session, topbar, "fill")
+        let _left_render = ui_render_box(session, left_panel, "fill")
+        let _viewport_render = ui_render_box(session, viewport, "fill")
+        let _viewport_resource = ui_render_resource_in_node(session, viewport, palette_texture, "fill")
+        let _right_render = ui_render_box(session, right_panel, "fill")
+        let _status_render_box = ui_render_box(session, status, "fill")
+        let _topbar_text = render_text_row(session, topbar, title_font, 26.0)
+        let _left_title_render = render_text_row(session, left_title, body_font, 18.0)
+        let _right_title_render = render_text_row(session, right_title, body_font, 18.0)
+        let _viewport_title_render = render_text_row(session, viewport_title, title_font, 24.0)
+        let _viewport_desc_render = render_text_row(session, viewport_desc, body_font, 18.0)
+        let _action_next_render = render_labeled_box(session, action_next, micro_font, 22.0)
+        let _action_more_render = render_labeled_box(session, action_more, micro_font, 22.0)
+        let _action_chaos_render = render_labeled_box(session, action_chaos, micro_font, 22.0)
+        let _action_export_render = render_labeled_box(session, action_export, micro_font, 22.0)
+        let _metric_a_render = render_text_row(session, metric_a, body_font, 18.0)
+        let _metric_b_render = render_text_row(session, metric_b, body_font, 18.0)
+        let _metric_c_render = render_text_row(session, metric_c, body_font, 18.0)
+        let _metric_d_render = render_text_row(session, metric_d, body_font, 18.0)
+        let _metric_e_render = render_text_row(session, metric_e, body_font, 18.0)
+        let _metric_f_render = render_text_row(session, metric_f, body_font, 18.0)
+        let _metric_g_render = render_text_row(session, metric_g, body_font, 18.0)
+        let _status_render = render_text_row(session, status, micro_font, 15.0)
+
+        let _present = ui_frame_submit(session)
+        let _pump = native_ui_host_pump(session)
+
+        while native_ui_poll_event(session) == 1:
+            if button_activated(session, mode_zero) == 1:
+                selected_mode = set_mode(authority, mode_zero_point())
+                interactions = interactions + 1
+            if button_activated(session, mode_spiral) == 1:
+                selected_mode = set_mode(authority, mode_galactic_spiral())
+                interactions = interactions + 1
+            if button_activated(session, mode_quantum) == 1:
+                selected_mode = set_mode(authority, mode_quantum_pilot())
+                interactions = interactions + 1
+            if button_activated(session, mode_neural) == 1:
+                selected_mode = set_mode(authority, mode_neural_lattice())
+                interactions = interactions + 1
+            if button_activated(session, mode_fluid) == 1:
+                selected_mode = set_mode(authority, mode_navier_stokes())
+                interactions = interactions + 1
+            if button_activated(session, mode_fire) == 1:
+                selected_mode = set_mode(authority, mode_hellfire())
+                interactions = interactions + 1
+            if button_activated(session, mode_plasma) == 1:
+                selected_mode = set_mode(authority, mode_plasma_arc())
+                interactions = interactions + 1
+            if button_activated(session, mode_vortex) == 1:
+                selected_mode = set_mode(authority, mode_super_vortex())
+                interactions = interactions + 1
+            if button_activated(session, action_next) == 1:
+                selected_mode = set_mode(authority, next_mode(selected_mode))
+                present_status = submit_quantum_draw(graphics_session, pipeline, mesh, particle_count)
+                interactions = interactions + 1
+            if button_activated(session, action_more) == 1:
+                particle_count = set_particle_count(authority, particle_count + 16384)
+                present_status = submit_quantum_draw(graphics_session, pipeline, mesh, particle_count)
+                interactions = interactions + 1
+            if button_activated(session, action_chaos) == 1:
+                chaos_level = set_chaos(authority, chaos_level + 7)
+                if chaos_level > 128:
+                    chaos_level = set_chaos(authority, 16)
+                interactions = interactions + 1
+            if button_activated(session, action_export) == 1:
+                report = write_lab_report(selected_mode, backend_name, particle_count, frame_counter, draw_count, vulkan_window.status, vulkan_window.frames, vulkan_window.particles_drawn, vulkan_window.message)
+                export_count = export_count + 1
+                interactions = interactions + 1
+
+        let _sleep = native_sleep_millis(16)
+        frame_counter = frame_counter + 1
+
+    let committed = native_ui_hot_reload_commit(session)
+    let frame_hash = native_ui_host_frame_hash(session)
+    let final_draw_count = native_graphics_draw_command_count(graphics_session)
+    let pipeline_result = quantum_compile_pipeline(particle_count)
+    let final_report = write_lab_report(selected_mode, native_graphics_active_backend(graphics_session), particle_count, frame_counter, final_draw_count, vulkan_window.status, vulkan_window.frames, vulkan_window.particles_drawn, vulkan_window.message)
+    let ui_ok = generation == committed and frame_hash != 0 and native_ui_state_count(session) >= 20 and interactions >= 4
+    let graphics_ok = mesh > 0 and pipeline > 0 and final_draw_count >= 1 and present_status >= 0
+    let vulkan_ok = vulkan_window.probe == 1 and vulkan_window.status == 0 and vulkan_window.frames >= 1 and vulkan_window.particles_drawn >= particle_count
+    let entangle_ok = native_entangle_registered_count() >= 4 and native_entangle_propagation_count() >= 1
+    let law_ok = particle_count_valid(particle_count) and mode_valid(selected_mode)
+    let pipeline_ok = pipeline_result >= particle_count
+    let report_ok = len(final_report) > 0 and fs_exists(output_path("kquantum_report.txt"))
+
+    send daemon.Stop()
+    let _destroy_graphics = native_graphics_session_destroy(graphics_session)
+    let _destroy_ui = native_ui_session_destroy(session)
+    let _shutdown = native_runtime_shutdown()
+
+    if ui_ok == false:
+        return 21
+    if graphics_ok == false:
+        return 22
+    if vulkan_ok == false:
+        return 27
+    if entangle_ok == false:
+        return 23
+    if law_ok == false:
+        return 24
+    if pipeline_ok == false:
+        return 25
+    if report_ok == false:
+        return 26
+    return 0

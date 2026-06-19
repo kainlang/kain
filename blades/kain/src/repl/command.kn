@@ -1,0 +1,135 @@
+// repl/command.kn — REPL directive parsing
+// STREAM: GOLF
+//
+// Exact port of X:/crates/repl/src/command.rs
+// ReplDirective enum, REPL_HELP_TEXT, parse(), parse_theme_argument(), parse_open_argument()
+
+use std::text
+use std::text::text_starts_with_string
+use std::text::text_trim_string
+use std::text::text_substring_string
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplDirective — parsed REPL meta-commands
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum ReplDirective:
+    Exit
+    Clear
+    Run
+    Help
+    Theme
+    Open
+
+// ═══════════════════════════════════════════════════════════════════
+// REPL_HELP_TEXT — help text shown for .help
+// ═══════════════════════════════════════════════════════════════════
+
+pub const REPL_HELP_TEXT: String = ".run             run buffer\n.clear           clear buffer\n.quit            quit\n.help            command list\n.theme           theme status\n.theme <name>    switch theme\n.open <path>     open file"
+
+// ═══════════════════════════════════════════════════════════════════
+// parse — match a trimmed line against known directives
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn cmd_parse(trimmed_line: String) -> Option<ReplDirective>:
+    if trimmed_line == ".exit" or trimmed_line == ".quit":
+        return Some(ReplDirective::Exit)
+
+    if trimmed_line == ".clear":
+        return Some(ReplDirective::Clear)
+
+    if trimmed_line == ".run":
+        return Some(ReplDirective::Run)
+
+    if trimmed_line == ".help":
+        return Some(ReplDirective::Help)
+
+    if trimmed_line == ".theme" or text_starts_with_string(trimmed_line, ".theme "):
+        return Some(ReplDirective::Theme)
+
+    if trimmed_line == ".open" or text_starts_with_string(trimmed_line, ".open "):
+        return Some(ReplDirective::Open)
+
+    return none
+
+// ═══════════════════════════════════════════════════════════════════
+// parse_theme_argument — extract optional theme name from ".theme <name>"
+// Returns None if not a Theme directive, Some(None) if no argument,
+// Some(Some(name)) if argument present.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn parse_theme_argument(trimmed_line: String) -> Option<Option<String>>:
+    if cmd_parse(trimmed_line) != Some(ReplDirective::Theme):
+        return none
+
+    // Strip ".theme" (6 chars), trim the rest
+    let rest: String = text_trim_string(
+        text_substring_string(trimmed_line, 6, len(trimmed_line) - 6)
+    )
+    if rest == "":
+        return Some(none)
+    else:
+        return Some(Some(rest))
+
+// ═══════════════════════════════════════════════════════════════════
+// parse_open_argument — extract optional path from ".open <path>"
+// Returns None if not an Open directive, Some(None) if no argument,
+// Some(Some(path)) if argument present.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn parse_open_argument(trimmed_line: String) -> Option<Option<String>>:
+    if cmd_parse(trimmed_line) != Some(ReplDirective::Open):
+        return none
+
+    // Strip ".open" (5 chars), trim the rest
+    let rest: String = text_trim_string(
+        text_substring_string(trimmed_line, 5, len(trimmed_line) - 5)
+    )
+    if rest == "":
+        return Some(none)
+    else:
+        return Some(Some(rest))
+
+// ═══════════════════════════════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════════════════════════════
+
+fn test_parses_known_directives() -> String:
+    if cmd_parse(".exit") != Some(ReplDirective::Exit):
+        return "FAIL: .exit"
+    if cmd_parse(".quit") != Some(ReplDirective::Exit):
+        return "FAIL: .quit"
+    if cmd_parse(".clear") != Some(ReplDirective::Clear):
+        return "FAIL: .clear"
+    if cmd_parse(".run") != Some(ReplDirective::Run):
+        return "FAIL: .run"
+    if cmd_parse(".help") != Some(ReplDirective::Help):
+        return "FAIL: .help"
+    if cmd_parse(".theme") != Some(ReplDirective::Theme):
+        return "FAIL: .theme"
+    if cmd_parse(".open") != Some(ReplDirective::Open):
+        return "FAIL: .open"
+    if cmd_parse(".theme plain") != Some(ReplDirective::Theme):
+        return "FAIL: .theme plain"
+    if cmd_parse(".open demo.kn") != Some(ReplDirective::Open):
+        return "FAIL: .open demo.kn"
+    return "OK"
+
+fn test_leaves_source_like_dot_lines_for_the_language() -> String:
+    if cmd_parse(".unknown") != none:
+        return "FAIL: .unknown should not parse"
+    return "OK"
+
+fn test_parses_theme_argument_when_present() -> String:
+    if parse_theme_argument(".theme") != Some(none):
+        return "FAIL: .theme (no arg)"
+    if parse_theme_argument(".theme graphite") != Some(Some("graphite")):
+        return "FAIL: .theme graphite"
+    return "OK"
+
+fn test_parses_open_argument_when_present() -> String:
+    if parse_open_argument(".open") != Some(none):
+        return "FAIL: .open (no arg)"
+    if parse_open_argument(".open demo.kn") != Some(Some("demo.kn")):
+        return "FAIL: .open demo.kn"
+    return "OK"

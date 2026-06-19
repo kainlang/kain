@@ -1,0 +1,302 @@
+// theme.kn — REPL color palette and theme management
+// STREAM: ALPHA
+// Port of crates/repl/src/theme.rs
+// Simplified: ANSI 0-15 color codes instead of ratatui Color/SemanticRole.
+// The lattice/ratatui dependency is replaced with a plain palette struct.
+//
+// Theme cycling: "plain" -> "dark" -> "light"
+
+// ═══════════════════════════════════════════════════════════════════
+// Theme name constants
+// ═══════════════════════════════════════════════════════════════════
+
+pub const DEFAULT_REPL_THEME:     String = "plain"
+pub const THEME_PLAIN:            String = "plain"
+pub const THEME_DARK:             String = "dark"
+pub const THEME_LIGHT:            String = "light"
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplPalette
+// ═══════════════════════════════════════════════════════════════════
+// ANSI 0-15 color indices mapped to semantic roles.
+// Plain theme uses standard ANSI terminal colors.
+// Dark/Light use extended themes.
+//
+// NOTE: field named `op_syntax` instead of `operator` because
+// `operator` is a reserved keyword in Kain.
+
+pub struct ReplPalette:
+    chrome_accent:       Int
+    chrome_secondary:    Int
+    chrome_muted:        Int
+    border:              Int
+    border_focus:        Int
+    panel_background:    Int
+    panel_background_active: Int
+    text_primary:        Int
+    text_muted:          Int
+    text_subtle:         Int
+    status_fg:           Int
+    status_bg:           Int
+    title_info:          Int
+    title_success:       Int
+    title_error:         Int
+    number:              Int
+    str_color:           Int
+    identifier_type:     Int
+    identifier_plain:    Int
+    keyword:             Int
+    keyword_type:        Int
+    keyword_effect:      Int
+    keyword_actor:       Int
+    keyword_world:       Int
+    keyword_ownership:   Int
+    keyword_proof:       Int
+    keyword_shader:      Int
+    op_syntax:           Int
+    directive:           Int
+    invalid:             Int
+
+// ═══════════════════════════════════════════════════════════════════
+// Supported theme names
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn repl_theme_names() -> Array<String>:
+    return [THEME_PLAIN, THEME_DARK, THEME_LIGHT]
+
+// ═══════════════════════════════════════════════════════════════════
+// active_repl_theme_name
+// ═══════════════════════════════════════════════════════════════════
+// Returns the active theme name. Simplified: always returns "plain"
+// for now (no lattice/tooling-config dependency in self-host).
+
+pub fn active_repl_theme_name() -> String:
+    return DEFAULT_REPL_THEME
+
+// ═══════════════════════════════════════════════════════════════════
+// repl_palette
+// ═══════════════════════════════════════════════════════════════════
+// Returns a full ReplPalette for the given theme name.
+// The default theme ("plain") uses standard ANSI terminal colors.
+// Dark theme uses brighter colors on dark backgrounds.
+// Light theme uses darker colors on light backgrounds.
+
+pub fn repl_palette(theme_name: String) -> ReplPalette:
+    if theme_name == THEME_DARK:
+        return _dark_palette()
+    elif theme_name == THEME_LIGHT:
+        return _light_palette()
+    else:
+        return _plain_palette()
+
+// ── Internal palette constructors ──
+
+fn _plain_palette() -> ReplPalette:
+    // ANSI 0-15 standard terminal colors:
+    //   0=black    1=red      2=green    3=yellow
+    //   4=blue     5=magenta  6=cyan     7=white
+    //   8=bright black  9=bright red   10=bright green  11=bright yellow
+    //  12=bright blue  13=bright magenta 14=bright cyan  15=bright white
+    return ReplPalette {
+        chrome_accent:          4,    // blue
+        chrome_secondary:       6,    // cyan
+        chrome_muted:           8,    // bright black (gray)
+        border:                 8,    // bright black
+        border_focus:           4,    // blue
+        panel_background:       0,    // black
+        panel_background_active: 7,   // white
+        text_primary:           15,   // bright white
+        text_muted:             7,    // white
+        text_subtle:            8,    // bright black (gray)
+        status_fg:              15,   // bright white
+        status_bg:              4,    // blue
+        title_info:             6,    // cyan
+        title_success:          2,    // green
+        title_error:            1,    // red
+        number:                 5,    // magenta
+        str_color:              2,    // green
+        identifier_type:        4,    // blue
+        identifier_plain:       15,   // bright white
+        keyword:                1,    // red
+        keyword_type:           4,    // blue
+        keyword_effect:         5,    // magenta
+        keyword_actor:          6,    // cyan
+        keyword_world:          3,    // yellow
+        keyword_ownership:      5,    // magenta
+        keyword_proof:          2,    // green
+        keyword_shader:         6,    // cyan
+        op_syntax:              3,    // yellow
+        directive:              5,    // magenta
+        invalid:                1,    // red
+    }
+
+fn _dark_palette() -> ReplPalette:
+    // Dark theme: brighter colors for better contrast on dark backgrounds.
+    return ReplPalette {
+        chrome_accent:          12,   // bright blue
+        chrome_secondary:       14,   // bright cyan
+        chrome_muted:           8,    // bright black (gray)
+        border:                 8,    // bright black
+        border_focus:           12,   // bright blue
+        panel_background:       0,    // black
+        panel_background_active: 15,  // bright white
+        text_primary:           15,   // bright white
+        text_muted:             7,    // white
+        text_subtle:            8,    // bright black
+        status_fg:              0,    // black
+        status_bg:              12,   // bright blue
+        title_info:             14,   // bright cyan
+        title_success:          10,   // bright green
+        title_error:            9,    // bright red
+        number:                 13,   // bright magenta
+        str_color:              10,   // bright green
+        identifier_type:        12,   // bright blue
+        identifier_plain:       15,   // bright white
+        keyword:                9,    // bright red
+        keyword_type:           12,   // bright blue
+        keyword_effect:         13,   // bright magenta
+        keyword_actor:          14,   // bright cyan
+        keyword_world:          11,   // bright yellow
+        keyword_ownership:      13,   // bright magenta
+        keyword_proof:          10,   // bright green
+        keyword_shader:         14,   // bright cyan
+        op_syntax:              11,   // bright yellow
+        directive:              13,   // bright magenta
+        invalid:                9,    // bright red
+    }
+
+fn _light_palette() -> ReplPalette:
+    // Light theme: darker colors for readability on light backgrounds.
+    return ReplPalette {
+        chrome_accent:          4,    // blue
+        chrome_secondary:       6,    // cyan
+        chrome_muted:           7,    // white (light gray)
+        border:                 7,    // white
+        border_focus:           4,    // blue
+        panel_background:       15,   // bright white
+        panel_background_active: 0,   // black
+        text_primary:           0,    // black
+        text_muted:             8,    // bright black (gray)
+        text_subtle:            8,    // bright black
+        status_fg:              15,   // bright white
+        status_bg:              4,    // blue
+        title_info:             6,    // cyan
+        title_success:          2,    // green
+        title_error:            1,    // red
+        number:                 5,    // magenta
+        str_color:              2,    // green
+        identifier_type:        4,    // blue
+        identifier_plain:       0,    // black
+        keyword:                1,    // red
+        keyword_type:           4,    // blue
+        keyword_effect:         5,    // magenta
+        keyword_actor:          6,    // cyan
+        keyword_world:          3,    // yellow
+        keyword_ownership:      5,    // magenta
+        keyword_proof:          2,    // green
+        keyword_shader:         6,    // cyan
+        op_syntax:              3,    // yellow
+        directive:              5,    // magenta
+        invalid:                1,    // red
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// cycle_repl_theme_name
+// ═══════════════════════════════════════════════════════════════════
+// Cycle through ["plain", "dark", "light"].
+// If reverse is true, cycles backwards.
+
+pub fn cycle_repl_theme_name(current: String, reverse: Bool) -> String:
+    let names: Array<String> = repl_theme_names()
+    let fallback_index: Int = 0   // "plain" is always at index 0
+    var current_index: Int = fallback_index
+
+    // Find current theme in the list
+    var i: Int = 0
+    while i < len(names):
+        if names[i] == current:
+            current_index = i
+            break
+        i = i + 1
+
+    // Calculate next index
+    let count: Int = len(names)
+    if count == 0:
+        return DEFAULT_REPL_THEME
+
+    let next_index: Int = if reverse:
+        if current_index == 0:
+            count - 1
+        else:
+            current_index - 1
+    else:
+        (current_index + 1) % count
+
+    return names[next_index]
+
+// ═══════════════════════════════════════════════════════════════════
+// Tests
+// ═══════════════════════════════════════════════════════════════════
+
+test "default theme is plain":
+    assert(DEFAULT_REPL_THEME == "plain", "default theme is plain")
+
+test "active repl theme is plain":
+    assert(active_repl_theme_name() == "plain", "active theme is plain")
+
+test "repl_theme_names returns three themes":
+    let names = repl_theme_names()
+    assert(len(names) == 3, "three themes")
+    assert(names[0] == "plain", "first is plain")
+    assert(names[1] == "dark", "second is dark")
+    assert(names[2] == "light", "third is light")
+
+test "plain palette chrome_accent is blue":
+    let pal = repl_palette("plain")
+    assert(pal.chrome_accent == 4, "plain chrome_accent is blue")
+
+test "dark palette chrome_accent is bright blue":
+    let pal = repl_palette("dark")
+    assert(pal.chrome_accent == 12, "dark chrome_accent is bright blue")
+
+test "light palette chrome_accent is blue":
+    let pal = repl_palette("light")
+    assert(pal.chrome_accent == 4, "light chrome_accent is blue")
+
+test "unknown theme falls back to plain":
+    let pal = repl_palette("unknown")
+    assert(pal.chrome_accent == 4, "unknown theme falls back to plain")
+
+test "cycle forward through themes":
+    assert(cycle_repl_theme_name("plain", false) == "dark", "plain -> dark")
+    assert(cycle_repl_theme_name("dark", false) == "light", "dark -> light")
+    assert(cycle_repl_theme_name("light", false) == "plain", "light -> plain")
+
+test "cycle reverse through themes":
+    assert(cycle_repl_theme_name("plain", true) == "light", "plain -> light (rev)")
+    assert(cycle_repl_theme_name("dark", true) == "plain", "dark -> plain (rev)")
+    assert(cycle_repl_theme_name("light", true) == "dark", "light -> dark (rev)")
+
+test "cycle from unknown theme":
+    assert(cycle_repl_theme_name("unknown", false) == "dark", "unknown forwards to dark")
+
+test "cycle full round":
+    let mut t: String = "plain"
+    t = cycle_repl_theme_name(t, false)
+    assert(t == "dark", "first step to dark")
+    t = cycle_repl_theme_name(t, false)
+    assert(t == "light", "second step to light")
+    t = cycle_repl_theme_name(t, false)
+    assert(t == "plain", "third step back to plain")
+
+test "palette text_primary varies by theme":
+    let plain = repl_palette("plain")
+    assert(plain.text_primary == 15, "plain text is bright white")
+    let dark = repl_palette("dark")
+    assert(dark.text_primary == 15, "dark text is bright white")
+    let light = repl_palette("light")
+    assert(light.text_primary == 0, "light text is black")
+
+test "palette keyword_effect is magenta":
+    let pal = repl_palette("plain")
+    assert(pal.keyword_effect == 5, "plain keyword_effect is magenta")

@@ -1,0 +1,42 @@
+// KAINOS Debug Console Boot — uses QEMU debug port 0xE9
+// This port works reliably in QEMU for early boot output
+
+use std::machine
+use std::memory
+
+const DEBUG_PORT: Int = 0xE9
+
+fn dbg_putc(c: Int) with Unsafe:
+    let port_ptr: ptr<Int> = int_to_ptr(DEBUG_PORT, "Int")
+    mem_store(port_ptr, c, "Int")
+    return
+
+fn dbg_puts(msg: ptr<Byte>) with Unsafe:
+    var i: Int = 0
+    while i < 1024:
+        let ch: Byte = mem_load(ptr_offset(msg, i, "Byte"), "Byte")
+        if ch == 0 as Byte:
+            return
+        dbg_putc(ch as Int)
+        i = i + 1
+    return
+
+fn kainos_hello() -> Int with Unsafe:
+    let ln: ptr<Byte> = "\n\0" as ptr<Byte>
+    let msg1: ptr<Byte> = "KAINOS v0.1.0 — booted via Kain native code\n\0" as ptr<Byte>
+    let msg2: ptr<Byte> = "Single address space kernel | x86-64 identity-mapped\n\0" as ptr<Byte>
+    let msg3: ptr<Byte> = "Semantic stack: world, converge, actor, teleport\n\0" as ptr<Byte>
+    let msg4: ptr<Byte> = "7-layer decision ladder: kernelized\n\0" as ptr<Byte>
+    let msg5: ptr<Byte> = "KAINOS > \0" as ptr<Byte>
+
+    dbg_puts(ln)
+    dbg_puts(msg1)
+    dbg_puts(msg2)
+    dbg_puts(msg3)
+    dbg_puts(msg4)
+    dbg_puts(ln)
+    dbg_puts(msg5)
+
+    loop:
+        asm("hlt")
+    return 0

@@ -1,0 +1,229 @@
+// ============================================================================
+//  extensions/tui_widgets.kn — TUI Widget Bridge for markscript plugins
+//
+//  Renders markscript-defined widgets as panels in the pi-squared TUI.
+//  Widget data comes from plugin VM tables, rendered as formatted text
+//  blocks for the TUI frame buffer.
+//
+//  Ladder:
+//    Layer 0 — fn for rendering (pure transforms)
+//    Layer 5 — pulse for timed widget refresh (planned)
+//    Layer UI — component for widget containers (planned with Kaintana)
+//
+//  Widget Types:
+//    info    — single-value display (weather temp, stock price)
+//    table   — multi-row data display (system stats, scores)
+//    chart   — simple ASCII bar chart (CPU, memory)
+//    custom  — user-defined rendering via markscript handler
+// ============================================================================
+
+use std::fmt
+use std::text
+use tui::theme          // Theme, get_theme, theme_color_to_ansi
+use extensions::plugin_registry  // PluginWidget, PluginInfo
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const WIDGET_LINE_MAX: Int = 80
+
+// ============================================================================
+//  RENDER WIDGET  —  convert PluginWidget data to TUI lines
+// ============================================================================
+
+/// Render a single widget as an array of display lines.
+/// Each line fits within the widget's configured width.
+pub fn render_widget(widget: PluginWidget, theme: Theme) -> [String] with Pure:
+    var lines: [String] = []
+
+    // Widget header with box art
+    let sep = fmt_repeat("─", widget.width - 2)
+    push(lines, "┌" + sep + "┐")
+    push(lines, "│ " + widget.name + fmt_repeat(" ", widget.width - 3 - len(widget.name)) + "│")
+
+    // Divider
+    push(lines, "├" + sep + "┤")
+
+    // Widget content based on type
+    if widget.widget_type == "info":
+        let content_lines = render_info_widget(widget)
+        var ci: Int = 0
+        while ci < len(content_lines):
+            push(lines, content_lines[ci])
+            ci = ci + 1
+
+    elif widget.widget_type == "table":
+        let table_lines = render_table_widget(widget)
+        var ti: Int = 0
+        while ti < len(table_lines):
+            push(lines, table_lines[ti])
+            ti = ti + 1
+
+    elif widget.widget_type == "chart":
+        let chart_lines = render_chart_widget(widget)
+        var chi: Int = 0
+        while chi < len(chart_lines):
+            push(lines, chart_lines[chi])
+            chi = chi + 1
+
+    else:
+        // Default: show raw data
+        var di: Int = 0
+        while di < len(widget.data):
+            let data_line = widget.data[di]
+            let padded = "│ " + data_line + fmt_repeat(" ", widget.width - 4 - len(data_line)) + " │"
+            push(lines, padded)
+            di = di + 1
+
+    // Bottom border
+    push(lines, "└" + sep + "┘")
+
+    return lines
+
+// ============================================================================
+//  RENDER INFO WIDGET  —  data lines with left padding
+// ============================================================================
+
+fn render_info_widget(widget: PluginWidget) -> [String] with Pure:
+    var lines: [String] = []
+    var di: Int = 0
+    while di < len(widget.data):
+        let line = widget.data[di]
+        let inner_w = widget.width - 4
+        let display = if len(line) > inner_w:
+            text_substring_string(line, 0, inner_w)
+        else:
+            line
+        let padded = "│ " + display + fmt_repeat(" ", inner_w - len(display)) + " │"
+        push(lines, padded)
+        di = di + 1
+    // Fill remaining space
+    if len(lines) < 3:
+        var fi: Int = len(lines)
+        while fi < 3:
+            let pad = "│ " + fmt_repeat(" ", widget.width - 4) + " │"
+            push(lines, pad)
+            fi = fi + 1
+    return lines
+
+// ============================================================================
+//  RENDER TABLE WIDGET  —  display data as aligned columns
+// ============================================================================
+
+fn render_table_widget(widget: PluginWidget) -> [String] with Pure:
+    var lines: [String] = []
+    let inner_w = widget.width - 4
+    // Each data entry becomes a row
+    var ri: Int = 0
+    while ri < len(widget.data):
+        let entry = widget.data[ri]
+        var row = "│ "
+        if len(entry) > inner_w:
+            row = row + text_substring_string(entry, 0, inner_w)
+        else:
+            row = row + entry + fmt_repeat(" ", inner_w - len(entry))
+        row = row + " │"
+        push(lines, row)
+        ri = ri + 1
+    if len(lines) < 3:
+        var fi2: Int = len(lines)
+        while fi2 < 3:
+            let pad2 = "│ " + fmt_repeat(" ", inner_w) + " │"
+            push(lines, pad2)
+            fi2 = fi2 + 1
+    return lines
+
+// ============================================================================
+//  RENDER CHART WIDGET  —  simple ASCII bar chart
+// ============================================================================
+
+fn render_chart_widget(widget: PluginWidget) -> [String] with Pure:
+    var lines: [String] = []
+    let inner_w = widget.width - 4
+    let bar_max = inner_w - 6  // reserve space for labels
+    if bar_max < 4:
+        bar_max = 4
+
+    // Each data entry is "label:value" where value is 0-100
+    var ri2: Int = 0
+    while ri2 < len(widget.data):
+        let entry2 = widget.data[ri2]
+        let colon_idx = index_of_char(entry2, ':')
+        var label: String = ""
+        var value_str: String = "0"
+        if colon_idx >= 0:
+            label = text_substring_string(entry2, 0, colon_idx)
+            value_str = text_substring_string(entry2, colon_idx + 1, len(entry2) - colon_idx - 1)
+        else:
+            label = entry2
+        // Parse integer value
+        var val: Int = 0
+        var vi: Int = 0
+        while vi < len(value_str):
+            let cv = text_ord(text_substring_string(value_str, vi, 1))
+            if cv >= 48 and cv <= 57:
+                val = val * 10 + (cv - 48)
+            vi = vi + 1
+        if val > 100: val = 100
+        let bar_len = (val * bar_max) / 100
+        if bar_len < 0: bar_len = 0
+        let bar_fill = fmt_repeat("█", bar_len)
+        let bar_empty = fmt_repeat("░", bar_max - bar_len)
+        let row2 = "│ " + label + fmt_repeat(" ", 4 - len(label)) + " ▏" + bar_fill + bar_empty + " │"
+        push(lines, row2)
+        ri2 = ri2 + 1
+
+    return lines
+
+// ============================================================================
+//  RENDER ALL WIDGETS  —  concatenate multiple widget renderings
+// ============================================================================
+
+/// Render all widgets from all plugins into a sidebar-style block.
+/// Returns lines suitable for appending to the TUI frame buffer.
+pub fn render_all_widgets(widgets: [PluginWidget], theme: Theme) -> [String] with Pure:
+    var all_lines: [String] = []
+    var wi: Int = 0
+    while wi < len(widgets):
+        let widget_lines = render_widget(widgets[wi], theme)
+        var li: Int = 0
+        while li < len(widget_lines):
+            push(all_lines, widget_lines[li])
+            li = li + 1
+        // Spacer between widgets
+        if wi < len(widgets) - 1:
+            push(all_lines, "")
+        wi = wi + 1
+    return all_lines
+
+// ============================================================================
+//  HELPER  —  find colon in string
+// ============================================================================
+
+fn index_of_char(s: String, ch: String) -> Int with Pure:
+    var i: Int = 0
+    while i < len(s):
+        if text_substring_string(s, i, 1) == ch:
+            return i
+        i = i + 1
+    return -1
+
+// ============================================================================
+//  fmt_repeat  —  repeat a string N times
+// ============================================================================
+
+fn fmt_repeat(s: String, count: Int) -> String with Pure:
+    var result: String = ""
+    var i: Int = 0
+    while i < count:
+        result = result + s
+        i = i + 1
+    return result
+
+// ============================================================================
+//  text_substring_string  —  wrap for import convenience
+// ============================================================================
+
+fn text_substring_string(s: String, start: Int, length: Int) -> String with Pure:
+    return text_substring_string(s, start, length)

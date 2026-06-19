@@ -1,0 +1,303 @@
+// L7_systems.kn — Actor + Ownership construct file
+// STREAM: RED (typecheck) + BLUE (codegen stubs)
+//
+// Layer 7 of the decision ladder:
+//   actor — message-passing concurrency with typed handlers, spawn/send/ask
+//   collapse/observe/decay — explicit raw pointer lifecycle (ownership state machine)
+//   share/fanout — safe parallel write lanes
+//
+// Imports from types.kn, ast.kn for shared constants/structs.
+// No local duplicates — all types resolved from the self-host workspace.
+//
+// Construction flow:
+//   1. OwnershipState enum + transition table validate state-machine moves
+//   2. RegionPolicy table gates which operations are allowed per memory region
+//   3. ActorContract types hold parsed actor definitions
+//   4. check_actor()/check_collapse()/check_observe()/check_decay()
+//   5. Codegen stubs — real emission in BLUE stream
+
+use typecheck::types
+use typecheck::effects
+use core::ast
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// OWNERSHIP STATE MACHINE (5 states, 8 transitions)
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum OwnershipState:
+    Idle
+    Observed
+    Collapsed
+    Shared
+    Decayed
+
+pub enum OwnershipTransition:
+    BeginObserve
+    EndObserve
+    BeginCollapse
+    EndCollapse
+    BeginShare
+    EndShare
+    Decay
+
+// ── ownership_apply — transition table ──
+// Returns >= 0 on success (count for Observed nesting), negative error code on failure.
+pub fn ownership_apply(state: OwnershipState, transition: OwnershipTransition, count: Int) -> Int:
+    if state == OwnershipState::Idle:
+        if transition == OwnershipTransition::BeginObserve:
+            return 1
+        if transition == OwnershipTransition::BeginCollapse:
+            return 0
+        if transition == OwnershipTransition::BeginShare:
+            return 0
+        if transition == OwnershipTransition::Decay:
+            return 0
+        return -1
+    if state == OwnershipState::Observed:
+        if transition == OwnershipTransition::BeginObserve:
+            return count + 1
+        if transition == OwnershipTransition::EndObserve:
+            if count <= 1:
+                return 0
+            return count - 1
+        return -2
+    if state == OwnershipState::Collapsed:
+        if transition == OwnershipTransition::EndCollapse:
+            return 0
+        return -3
+    if state == OwnershipState::Shared:
+        if transition == OwnershipTransition::EndShare:
+            return 0
+        return -4
+    if state == OwnershipState::Decayed:
+        return -5
+    return -99
+
+// ═══════════════════════════════════════════════════════════════════
+// OWNERSHIP REGION POLICY (7 regions)
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum OwnershipRegionKind:
+    LocalAlloca
+    HeapAllocation
+    RcObject
+    WorldState
+    EntangledAuthority
+    EntangledMirror
+    ImportedPointer
+
+pub struct RegionPolicy:
+    can_observe:  Bool
+    can_collapse: Bool
+    can_share:    Bool
+    can_decay:    Bool
+    observe_mode: Int
+    decay_mode:   Int
+
+pub fn region_policy_new() -> RegionPolicy:
+    return RegionPolicy { can_observe: false, can_collapse: false, can_share: false, can_decay: false, observe_mode: 0, decay_mode: 0 }
+
+pub fn ownership_region_policy(kind: OwnershipRegionKind) -> RegionPolicy:
+    if kind == OwnershipRegionKind::LocalAlloca:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: false, can_decay: true, observe_mode: 0, decay_mode: 0 }
+    if kind == OwnershipRegionKind::HeapAllocation:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: true, can_decay: true, observe_mode: 0, decay_mode: 1 }
+    if kind == OwnershipRegionKind::RcObject:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: false, can_decay: true, observe_mode: 0, decay_mode: 2 }
+    if kind == OwnershipRegionKind::WorldState:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: false, can_decay: false, observe_mode: 1, decay_mode: 0 }
+    if kind == OwnershipRegionKind::EntangledAuthority:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: false, can_decay: false, observe_mode: 1, decay_mode: 0 }
+    if kind == OwnershipRegionKind::EntangledMirror:
+        return RegionPolicy { can_observe: true, can_collapse: false, can_share: false, can_decay: false, observe_mode: 1, decay_mode: 0 }
+    if kind == OwnershipRegionKind::ImportedPointer:
+        return RegionPolicy { can_observe: true, can_collapse: true, can_share: true, can_decay: true, observe_mode: 0, decay_mode: 0 }
+    return region_policy_new()
+
+// ═══════════════════════════════════════════════════════════════════
+// ACTOR CONTRACT TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ActorStateSlot:
+    name:        String
+    type_name:   String
+    has_default: Bool
+
+pub struct ActorHandlerParam:
+    name:      String
+    type_name: String
+
+pub struct ActorHandlerSignature:
+    name:         String
+    params:       Array<ActorHandlerParam>
+    body_effects: Int
+
+pub struct ActorContract:
+    name:     String
+    name_idx: Int
+    state:    Array<ActorStateSlot>
+    handlers: Array<ActorHandlerSignature>
+
+pub fn actor_contract_new(name: String, name_idx: Int) -> ActorContract:
+    return ActorContract { name: name, name_idx: name_idx, state: [], handlers: [] }
+
+pub fn actor_contract_add_state(contract: ActorContract, name: String, type_name: String, has_default: Bool) -> ActorContract:
+    let mut c: ActorContract = contract
+    c.state.push(ActorStateSlot { name: name, type_name: type_name, has_default: has_default })
+    return c
+
+pub fn actor_contract_add_handler(contract: ActorContract, name: String, params: Array<ActorHandlerParam>, body_effects: Int) -> ActorContract:
+    let mut c: ActorContract = contract
+    c.handlers.push(ActorHandlerSignature { name: name, params: params, body_effects: body_effects })
+    return c
+
+pub fn actor_contract_validate(contract: ActorContract) -> Bool:
+    if len(contract.handlers) == 0:
+        return false
+    var hi: Int = 0
+    while hi < len(contract.handlers):
+        var hj: Int = hi + 1
+        while hj < len(contract.handlers):
+            if contract.handlers[hi].name == contract.handlers[hj].name:
+                return false
+            hj = hj + 1
+        hi = hi + 1
+    var si: Int = 0
+    while si < len(contract.state):
+        var sj: Int = si + 1
+        while sj < len(contract.state):
+            if contract.state[si].name == contract.state[sj].name:
+                return false
+            sj = sj + 1
+        si = si + 1
+    return true
+
+// ═══════════════════════════════════════════════════════════════════
+// TYPECHECKER: L7 constructs
+// ═══════════════════════════════════════════════════════════════════
+
+// ── check_actor — validate actor item declaration ──
+pub fn check_actor(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_ACTOR, name: "actor_" + str(name_idx), name_idx: name_idx,
+            resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_collapse — validate collapse ptr: body ──
+pub fn check_collapse(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let body_idx: Int = if ast_data_len(node) > 1: ast_data_get(node, 1) else: -1
+    let body_ty: ResolvedType = types.rt_unit()
+    if body_idx >= 0 and body_idx < len(env.ast_nodes):
+        body_ty = types.infer_expr_type(env, env.ast_nodes[body_idx])
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_COLLAPSE, name: "collapse_" + str(idx), name_idx: -1,
+            resolved_type: body_ty, ast_index: idx,
+            effects: EFF_UNSAFE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_observe — validate observe ptr: body ──
+pub fn check_observe(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let body_idx: Int = if ast_data_len(node) > 1: ast_data_get(node, 1) else: -1
+    let body_ty: ResolvedType = types.rt_unit()
+    if body_idx >= 0 and body_idx < len(env.ast_nodes):
+        body_ty = types.infer_expr_type(env, env.ast_nodes[body_idx])
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_OBSERVE, name: "observe_" + str(idx), name_idx: -1,
+            resolved_type: body_ty, ast_index: idx,
+            effects: EFF_UNSAFE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_decay — validate decay ptr ──
+pub fn check_decay(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_DECAY, name: "decay_" + str(idx), name_idx: -1,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: EFF_UNSAFE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_share — validate share ptr: body (with fanout stmts) ──
+pub fn check_share(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_SHARE, name: "share_" + str(idx), name_idx: -1,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: EFF_UNSAFE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_spawn — validate spawn expression ──
+pub fn check_spawn(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_SPAWN, name: "spawn_" + str(idx), name_idx: -1,
+            resolved_type: types.rt_struct_as(name_idx), ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ── check_send — validate send expression ──
+pub fn check_send(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_EXPR_SEND, name: "send_" + str(idx), name_idx: -1,
+            resolved_type: types.rt_unit(), ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// CODEGEN STUBS (BLUE stream — real emission deferred)
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn compile_actor_spawn() -> Int:
+    return 0
+
+pub fn compile_ownership_op() -> Int:
+    return 0

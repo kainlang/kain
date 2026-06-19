@@ -1,0 +1,496 @@
+// registry.kn — TOML-driven command registry
+// STREAM: GOLD
+//
+// Loads command manifests from .toml files in a directory and provides
+// lookup, filtering, and introspection. Each .toml follows the schema:
+//
+//   [pack]
+//   id = "core"
+//   title = "Core Kain Commands"
+//   owner = "crates/cli"
+//   about = "..."
+//
+//   [[commands]]
+//   id = "check"
+//   bins = ["kain", "kn"]
+//   path = ["check"]
+//   about = "Analyze Kain source without executing it"
+//   handler = "builtin:check"
+//   tags = ["source", "diagnostics"]
+//
+// Ladder rung: Layer 0 (fn, struct) — plain data and file I/O.
+
+use std::text
+use std::fs
+use std::os
+
+// ═══════════════════════════════════════════════════════════════════
+// CommandPack — metadata about a command pack (one .toml file)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct CommandPack:
+    id:    String
+    title: String
+    owner: String
+    about: String
+
+pub fn command_pack_new() -> CommandPack:
+    return CommandPack {
+        id: "", title: "", owner: "", about: "",
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// CommandSpec — a single command entry from [[commands]]
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct CommandSpec:
+    pack_id: String
+    id:      String
+    bins:    Array<String>
+    path:    Array<String>
+    about:   String
+    handler: String
+    hidden:  Bool
+    tags:    Array<String>
+
+pub fn command_spec_new() -> CommandSpec:
+    return CommandSpec {
+        pack_id: "",
+        id:      "",
+        bins:    [],
+        path:    [],
+        about:   "",
+        handler: "",
+        hidden:  false,
+        tags:    [],
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// CommandRegistry — holds all packs and commands
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct CommandRegistry:
+    packs:    Array<CommandPack>
+    commands: Array<CommandSpec>
+
+pub fn command_registry_new() -> CommandRegistry:
+    return CommandRegistry { packs: [], commands: [] }
+
+// ═══════════════════════════════════════════════════════════════════
+// ── TOML Parser Helpers ──
+// ═══════════════════════════════════════════════════════════════════
+
+// ── find_char: locate first occurrence of a character in a string ──
+
+pub fn find_char(text: String, ch: String) -> Int:
+    var i: Int = 0
+    while i < len(text):
+        if text[i] == ch:
+            return i
+        i = i + 1
+    return -1
+
+// ── find_char_from: locate first occurrence at or after start index ──
+
+pub fn find_char_from(text: String, ch: String, start: Int) -> Int:
+    if start < 0:
+        return -1
+    var i: Int = start
+    while i < len(text):
+        if text[i] == ch:
+            return i
+        i = i + 1
+    return -1
+
+// ── last_char: find last occurrence of a character ──
+
+pub fn last_char(text: String, ch: String) -> Int:
+    var pos: Int = -1
+    var i: Int = 0
+    while i < len(text):
+        if text[i] == ch:
+            pos = i
+        i = i + 1
+    return pos
+
+// ── extract_toml_value: strip surrounding quotes from a string
+//     Input:  "\"core\""
+//     Output: "core"
+
+pub fn extract_toml_value(raw: String) -> String:
+    let trimmed: String = text_trim_string(raw)
+    if len(trimmed) >= 2 and trimmed[0] == "\"" and trimmed[len(trimmed) - 1] == "\"":
+        return text_substring_string(trimmed, 1, len(trimmed) - 2)
+    return trimmed
+
+// ── extract_array_values: parse ["a", "b", "c"] into Array<String>
+//     Returns empty array for nested arrays like [["x"]]
+
+pub fn extract_array_values(raw: String) -> Array<String>:
+    let trimmed: String = text_trim_string(raw)
+    var start: Int = -1
+    var end: Int = -1
+
+    var i: Int = 0
+    while i < len(trimmed):
+        if trimmed[i] == "[":
+            start = i
+        elif trimmed[i] == "]":
+            end = i
+            i = len(trimmed)  // break after finding closing bracket
+        i = i + 1
+
+    if start < 0 or end < 0 or end <= start + 1:
+        return []
+
+    let inner: String = text_substring_string(trimmed, start + 1, end - start - 1)
+    let trimmed_inner: String = text_trim_string(inner)
+
+    if len(trimmed_inner) == 0:
+        return []
+
+    // Nested array detection — skip if inner starts with [
+    if trimmed_inner[0] == "[":
+        return []
+
+    let parts: Array<String> = text_split_string(inner, ",")
+    var result: Array<String> = []
+    var pi: Int = 0
+    while pi < len(parts):
+        let part: String = text_trim_string(parts[pi])
+        if len(part) >= 2 and part[0] == "\"" and part[len(part) - 1] == "\"":
+            result.push(text_substring_string(part, 1, len(part) - 2))
+        pi = pi + 1
+    return result
+
+// ── is_comment_or_blank: check if a trimmed line is a comment or blank ──
+
+pub fn is_comment_or_blank(ln: String) -> Bool:
+    let trimmed: String = text_trim_string(ln)
+    if len(trimmed) == 0:
+        return true
+    if trimmed[0] == "#":
+        return true
+    return false
+
+// ═══════════════════════════════════════════════════════════════════
+// parse_toml_registry — parse a single .toml file into a CommandRegistry
+//
+// Handles:
+//   [pack] section  → one CommandPack
+//   [[commands]]    → zero or more CommandSpec entries
+//   key = "value"   → string values
+//   key = [...]     → flat string arrays
+//
+// Does NOT handle:
+//   Nested arrays ([[...]])
+//   Inline tables
+//   Multi-line strings
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn parse_toml_registry(text: String, source_file: String) -> CommandRegistry:
+    let raw_lines: Array<String> = text_split_lines(text)
+
+    // ── Pre-filter: strip comments and blanks ──
+    var lines: Array<String> = []
+    var li: Int = 0
+    while li < len(raw_lines):
+        if is_comment_or_blank(raw_lines[li]) == false:
+            lines.push(text_trim_string(raw_lines[li]))
+        li = li + 1
+
+    let mut registry: CommandRegistry = command_registry_new()
+    let mut current_pack: CommandPack = command_pack_new()
+    var current_cmd: CommandSpec = command_spec_new()
+    var in_pack: Bool = false
+    var in_commands: Bool = false
+    var pack_id: String = ""
+
+    li = 0
+    while li < len(lines):
+        let ln: String = lines[li]
+
+        // ── Section header detection ──
+        if ln == "[pack]":
+            // Finalize previous command
+            if in_commands and current_cmd.id != "":
+                registry.commands.push(current_cmd)
+                current_cmd = command_spec_new()
+
+            // Save previous pack if any
+            if in_pack and current_pack.id != "":
+                registry.packs.push(current_pack)
+
+            in_pack = true
+            in_commands = false
+            current_pack = command_pack_new()
+
+        elif ln == "[[commands]]":
+            // Finalize previous command
+            if in_commands and current_cmd.id != "":
+                registry.commands.push(current_cmd)
+
+            in_pack = false
+            in_commands = true
+            current_cmd = command_spec_new()
+            current_cmd.pack_id = pack_id
+
+        // ── Key-value parsing ──
+        elif in_pack:
+            let eq_pos: Int = find_char(ln, "=")
+            if eq_pos >= 0:
+                let key: String = text_trim_string(
+                    text_substring_string(ln, 0, eq_pos),
+                )
+                let val: String = extract_toml_value(
+                    text_substring_string(
+                        ln,
+                        eq_pos + 1,
+                        len(ln) - eq_pos - 1,
+                    ),
+                )
+                if key == "id":
+                    current_pack.id = val
+                    pack_id = val
+                elif key == "title":
+                    current_pack.title = val
+                elif key == "owner":
+                    current_pack.owner = val
+                elif key == "about":
+                    current_pack.about = val
+
+        elif in_commands:
+            let eq_pos: Int = find_char(ln, "=")
+            if eq_pos >= 0:
+                let key: String = text_trim_string(
+                    text_substring_string(ln, 0, eq_pos),
+                )
+                let rest: String = text_trim_string(
+                    text_substring_string(
+                        ln,
+                        eq_pos + 1,
+                        len(ln) - eq_pos - 1,
+                    ),
+                )
+
+                if len(rest) > 0 and rest[0] == "[":
+                    // Array value
+                    let values: Array<String> = extract_array_values(rest)
+                    if key == "bins":
+                        current_cmd.bins = values
+                    elif key == "path":
+                        current_cmd.path = values
+                    elif key == "tags":
+                        current_cmd.tags = values
+                    // alias_paths and args: skipped (nested arrays)
+                else:
+                    // String value
+                    let val: String = extract_toml_value(rest)
+                    if key == "id":
+                        current_cmd.id = val
+                    elif key == "about":
+                        current_cmd.about = val
+                    elif key == "handler":
+                        current_cmd.handler = val
+                    elif key == "hidden":
+                        current_cmd.hidden = val == "true"
+
+        li = li + 1
+
+    // ── Finalize trailing entries ──
+    if in_commands and current_cmd.id != "":
+        registry.commands.push(current_cmd)
+    if in_pack and current_pack.id != "":
+        // Only add pack if not already added (dedup by id)
+        var found: Bool = false
+        var pi: Int = 0
+        while pi < len(registry.packs):
+            if registry.packs[pi].id == current_pack.id:
+                found = true
+                pi = len(registry.packs)  // break
+            pi = pi + 1
+        if found == false:
+            registry.packs.push(current_pack)
+
+    return registry
+
+// ── merge_registries: combine commands/packs from two registries ──
+
+pub fn merge_registries(into: CommandRegistry, from: CommandRegistry) -> CommandRegistry:
+    var result: CommandRegistry = into
+
+    var pi: Int = 0
+    while pi < len(from.packs):
+        // Dedup by pack id
+        var found: Bool = false
+        var ri: Int = 0
+        while ri < len(result.packs):
+            if result.packs[ri].id == from.packs[pi].id:
+                found = true
+                ri = len(result.packs)  // break
+            ri = ri + 1
+        if found == false:
+            result.packs.push(from.packs[pi])
+        pi = pi + 1
+
+    var ci: Int = 0
+    while ci < len(from.commands):
+        result.commands.push(from.commands[ci])
+        ci = ci + 1
+
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// load_from_directory — scan a directory for .toml files, parse each
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn load_from_directory(dir_path: String) -> CommandRegistry with IO:
+    let listing: String = abi_fs_read_dir_paths_text(dir_path)
+    if listing == "":
+        println("[registry] WARNING: no files found in " + dir_path)
+        return command_registry_new()
+
+    let file_lines: Array<String> = text_split_lines(listing)
+    var registry: CommandRegistry = command_registry_new()
+
+    var li: Int = 0
+    while li < len(file_lines):
+        let file_name: String = file_lines[li]
+        if len(file_name) > 5:
+            let ext_start: Int = len(file_name) - 5
+            let ext_check: Bool = file_name[ext_start] == "." and file_name[ext_start + 1] == "t"
+            let ext_check2: Bool = file_name[ext_start + 2] == "o" and file_name[ext_start + 3] == "m"
+            let ext_check3: Bool = file_name[ext_start + 4] == "l"
+            if ext_check and ext_check2 and ext_check3:
+                let full_path: String = dir_path + "/" + file_name
+                let content: String = fs_read_text(full_path)
+                if content != "":
+                    let parsed: CommandRegistry = parse_toml_registry(
+                        content,
+                        file_name,
+                    )
+                    registry = merge_registries(registry, parsed)
+        li = li + 1
+
+    println(
+        "[registry] loaded "
+        + str(len(registry.commands))
+        + " commands from "
+        + str(len(registry.packs))
+        + " packs ("
+        + dir_path
+        + ")",
+    )
+    return registry
+
+// ═══════════════════════════════════════════════════════════════════
+// find_by_path — look up a command by its path segments
+//
+// path_parts is an array of path segments, e.g. ["build"] or ["runtime", "build"]
+// Returns none if not found.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn find_by_path(registry: CommandRegistry, path_parts: Array<String>) -> Option<CommandSpec>:
+    var ci: Int = 0
+    while ci < len(registry.commands):
+        let cmd: CommandSpec = registry.commands[ci]
+        if len(cmd.path) == len(path_parts):
+            var matched: Bool = true
+            var pi: Int = 0
+            while pi < len(path_parts):
+                if cmd.path[pi] != path_parts[pi]:
+                    matched = false
+                    pi = len(path_parts)  // break
+                pi = pi + 1
+            if matched:
+                return Option::Some(cmd)
+        ci = ci + 1
+    return Option::None
+
+// ═══════════════════════════════════════════════════════════════════
+// list_all — return all commands in the registry
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn list_all(registry: CommandRegistry) -> Array<CommandSpec>:
+    return registry.commands
+
+// ═══════════════════════════════════════════════════════════════════
+// list_by_tag — filter commands by tag membership
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn list_by_tag(registry: CommandRegistry, tag: String) -> Array<CommandSpec>:
+    var result: Array<CommandSpec> = []
+    var ci: Int = 0
+    while ci < len(registry.commands):
+        let cmd: CommandSpec = registry.commands[ci]
+        var ti: Int = 0
+        while ti < len(cmd.tags):
+            if cmd.tags[ti] == tag:
+                result.push(cmd)
+                ti = len(cmd.tags)  // break
+            ti = ti + 1
+        ci = ci + 1
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// list_by_bin — filter commands available to a specific binary
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn list_by_bin(registry: CommandRegistry, bin_name: String) -> Array<CommandSpec>:
+    var result: Array<CommandSpec> = []
+    var ci: Int = 0
+    while ci < len(registry.commands):
+        let cmd: CommandSpec = registry.commands[ci]
+        var bi: Int = 0
+        while bi < len(cmd.bins):
+            if cmd.bins[bi] == bin_name:
+                result.push(cmd)
+                bi = len(cmd.bins)  // break
+            bi = bi + 1
+        ci = ci + 1
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// command_path_string — render a command's path as "check" or "build native-ui"
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn command_path_string(cmd: CommandSpec) -> String:
+    var result: String = ""
+    var pi: Int = 0
+    while pi < len(cmd.path):
+        if pi > 0:
+            result = result + " "
+        result = result + cmd.path[pi]
+        pi = pi + 1
+    return result
+
+// ═══════════════════════════════════════════════════════════════════
+// find_pack — look up a pack by id
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn find_pack(registry: CommandRegistry, pack_id: String) -> Option<CommandPack>:
+    var pi: Int = 0
+    while pi < len(registry.packs):
+        if registry.packs[pi].id == pack_id:
+            return Option::Some(registry.packs[pi])
+        pi = pi + 1
+    return Option::None
+
+// ═══════════════════════════════════════════════════════════════════
+// command_count_by_tag — count commands per tag
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn command_count_by_tag(registry: CommandRegistry) -> Int:
+    var total: Int = 0
+    var ci: Int = 0
+    while ci < len(registry.commands):
+        total = total + len(registry.commands[ci].tags)
+        ci = ci + 1
+    return total
+
+// ═══════════════════════════════════════════════════════════════════
+// registry_size — count total commands in the registry
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn registry_size(registry: CommandRegistry) -> Int:
+    return len(registry.commands)

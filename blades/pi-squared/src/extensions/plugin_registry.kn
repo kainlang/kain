@@ -1,0 +1,523 @@
+// ============================================================================
+//  extensions/plugin_registry.kn — Plugin Lifecycle Manager (ACTOR)
+//
+//  Full plugin lifecycle: install, enable, disable, unload, reload.
+//  Each plugin is a .md file loaded via std::mks. The registry actor
+//  owns all loaded plugin state and dispatches tool/command calls to
+//  the plugin's VM.
+//
+//  Ladder:
+//    Layer 7 — actor (PluginRegistry owns mutable plugin state over time)
+//    Layer 0 — fn for helpers, struct for PluginInfo
+//    Layer 1 — world (PluginWorld for settings/status — future)
+//
+//  Handler ID Reservation:
+//    1-12:    std::mks built-in
+//    100-199: Extension command dispatch
+//    200-299: Extension tool dispatch
+//    300-399: Plugin lifecycle commands
+// ============================================================================
+
+use std::fs
+use std::mks
+use std::text
+use resources::commands  // Command, HANDLER_TYPE_EXTENSION, HANDLER_TYPE_MARKSCRIPT
+use extensions::loader   // Extension, load_extension, extension_to_commands, extension_tools, extension_names
+use extensions::api      // EXTENSION_BASE, EXTENSION_TOOLS, register_extension_handler
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const PLUGIN_LIFECYCLE_BASE:   Int = 300
+pub const PLUGIN_TOOL_BASE:        Int = EXTENSION_TOOLS  // 200
+
+// ============================================================================
+//  PLUGIN INFO  —  internal plugin state for the actor
+// ============================================================================
+
+pub struct PluginInfo:
+    name:         String
+    path:         String
+    version:      String
+    enabled:      Bool
+    vm:           MarkScriptVM      // persistent VM with bound handlers
+    commands:     [Command]
+    tools:        [PluginTool]
+    widgets:      [PluginWidget]
+    handler_next: Int               // next handler_id to assign for tools
+
+pub struct PluginTool:
+    name:        String
+    description: String
+    handler_id:  Int
+
+pub struct PluginWidget:
+    name:        String      // e.g. "weather_panel"
+    widget_type: String      // "info", "chart", "table", "custom"
+    width:       Int         // columns to reserve in TUI
+    update_ms:   Int         // refresh interval in ms
+    refresh_action: String   // markscript phrase to trigger refresh
+    data:        [String]    // current rendered data lines
+
+// ============================================================================
+//  PLUGIN REGISTRY ACTOR  —  owns all plugin state
+// ============================================================================
+
+actor PluginRegistry:
+    state plugins: [PluginInfo] = []
+    state plugin_count: Int = 0
+
+    // ==================================================================
+    //  INSTALL — load a plugin from .md file and register it
+    // ==================================================================
+
+    on Install(reply_to: P, path: String, command_registry: CommandRegistry):
+        // Check if already installed
+        var existing: Int = -1
+        var pi: Int = 0
+        while pi < len(self.plugins):
+            if self.plugins[pi].path == path:
+                existing = pi
+                break
+            pi = pi + 1
+
+        if existing >= 0:
+            send reply_to.Reply(value = "already installed: " + self.plugins[existing].name)
+            return
+
+        // Load the .md file
+        let ext = load_extension(path)
+        if ext.valid == false:
+            send reply_to.Reply(value = "install failed: " + ext.path)
+            return
+
+        var info = PluginInfo {
+            name: ext.name,
+            path: ext.path,
+            version: ext.version,
+            enabled: true,
+            vm: ext.vm,
+            commands: [],
+            tools: [],
+            widgets: [],
+            handler_next: PLUGIN_TOOL_BASE
+        }
+
+        // Parse commands from extension
+        info.commands = ext.commands
+
+        // Parse tools from VM tables
+        let tools = self.parse_tool_tables(ext.vm)
+        info.tools = tools
+        info.handler_next = PLUGIN_TOOL_BASE + len(tools)
+
+        // Parse widgets from VM tables
+        let widgets = self.parse_widget_tables(ext.vm)
+        info.widgets = widgets
+
+        // Bind tool handler phrases to the VM
+        var v = info.vm
+        var ti: Int = 0
+        while ti < len(tools):
+            let tool = tools[ti]
+            v = register_extension_handler(v, tool.name, tool.handler_id)
+            ti = ti + 1
+
+        // Bind refresh action phrases for widgets
+        var wi: Int = 0
+        while wi < len(widgets):
+            let widget = widgets[wi]
+            if widget.refresh_action != "":
+                v = register_extension_handler(v, widget.refresh_action, PLUGIN_LIFECYCLE_BASE + wi)
+            wi = wi + 1
+
+        info.vm = v
+
+        // Register commands with CommandRegistry
+        if len(info.commands) > 0:
+            send command_registry.RegisterCommands(reply_to = reply_to, cmds = info.commands, ext_name = info.name)
+        else:
+            let _ = reply_to
+
+        // Store plugin
+        push(self.plugins, info)
+        self.plugin_count = self.plugin_count + 1
+
+        send reply_to.Reply(value = "installed: " + info.name + " v" + info.version)
+        return
+
+    // ==================================================================
+    //  INSTALL_ALL — load all plugins from a config.md plugin list
+    // ==================================================================
+
+    on InstallAll(reply_to: P, plugin_paths: [String], command_registry: CommandRegistry):
+        var results: [String] = []
+        var pi2: Int = 0
+        while pi2 < len(plugin_paths):
+            let pl_path = plugin_paths[pi2]
+            if fs_exists(pl_path) == false:
+                push(results, "not found: " + pl_path)
+                pi2 = pi2 + 1
+                continue
+            let ext = load_extension(pl_path)
+            if ext.valid == false:
+                push(results, "failed: " + pl_path)
+                pi2 = pi2 + 1
+                continue
+            // Check duplicates
+            var dup: Bool = false
+            var di: Int = 0
+            while di < len(self.plugins):
+                if self.plugins[di].path == pl_path:
+                    dup = true
+                    break
+                di = di + 1
+            if dup:
+                push(results, "already installed: " + ext.name)
+                pi2 = pi2 + 1
+                continue
+
+            var info2 = PluginInfo {
+                name: ext.name,
+                path: ext.path,
+                version: ext.version,
+                enabled: true,
+                vm: ext.vm,
+                commands: ext.commands,
+                tools: self.parse_tool_tables(ext.vm),
+                widgets: self.parse_widget_tables(ext.vm),
+                handler_next: PLUGIN_TOOL_BASE
+            }
+            info2.handler_next = PLUGIN_TOOL_BASE + len(info2.tools)
+
+            // Bind tool handlers
+            var v2 = info2.vm
+            var tj: Int = 0
+            while tj < len(info2.tools):
+                let t2 = info2.tools[tj]
+                v2 = register_extension_handler(v2, t2.name, t2.handler_id)
+                tj = tj + 1
+            var wj: Int = 0
+            while wj < len(info2.widgets):
+                let w2 = info2.widgets[wj]
+                if w2.refresh_action != "":
+                    v2 = register_extension_handler(v2, w2.refresh_action, PLUGIN_LIFECYCLE_BASE + wj)
+                wj = wj + 1
+            info2.vm = v2
+
+            // Register commands
+            if len(info2.commands) > 0:
+                send command_registry.RegisterCommands(reply_to = reply_to, cmds = info2.commands, ext_name = info2.name)
+
+            push(self.plugins, info2)
+            self.plugin_count = self.plugin_count + 1
+            push(results, "installed: " + info2.name + " v" + info2.version)
+            pi2 = pi2 + 1
+
+        send reply_to.Reply(value = "installed " + str(len(results)) + " plugins")
+        return
+
+    // ==================================================================
+    //  ENABLE — enable a plugin by name
+    // ==================================================================
+
+    on Enable(reply_to: P, plugin_name: String):
+        var found: Bool = false
+        var pi3: Int = 0
+        while pi3 < len(self.plugins):
+            if self.plugins[pi3].name == plugin_name:
+                self.plugins[pi3].enabled = true
+                found = true
+                break
+            pi3 = pi3 + 1
+        if found:
+            send reply_to.Reply(value = "enabled: " + plugin_name)
+        else:
+            send reply_to.Reply(value = "not found: " + plugin_name)
+        return
+
+    // ==================================================================
+    //  DISABLE — disable a plugin by name
+    // ==================================================================
+
+    on Disable(reply_to: P, plugin_name: String):
+        var found2: Bool = false
+        var pi4: Int = 0
+        while pi4 < len(self.plugins):
+            if self.plugins[pi4].name == plugin_name:
+                self.plugins[pi4].enabled = false
+                found2 = true
+                break
+            pi4 = pi4 + 1
+        if found2:
+            send reply_to.Reply(value = "disabled: " + plugin_name)
+        else:
+            send reply_to.Reply(value = "not found: " + plugin_name)
+        return
+
+    // ==================================================================
+    //  UNLOAD — unload a plugin, unregister commands
+    // ==================================================================
+
+    on Unload(reply_to: P, plugin_name: String, command_registry: CommandRegistry):
+        var found3: Bool = false
+        var pi5: Int = 0
+        while pi5 < len(self.plugins):
+            if self.plugins[pi5].name == plugin_name:
+                // Unregister commands
+                send command_registry.UnregisterExtension(reply_to = reply_to, ext_name = plugin_name)
+                // Remove from list
+                var pi6: Int = pi5
+                while pi6 < len(self.plugins) - 1:
+                    self.plugins[pi6] = self.plugins[pi6 + 1]
+                    pi6 = pi6 + 1
+                pop(self.plugins)
+                self.plugin_count = self.plugin_count - 1
+                found3 = true
+                break
+            pi5 = pi5 + 1
+        if found3:
+            send reply_to.Reply(value = "unloaded: " + plugin_name)
+        else:
+            send reply_to.Reply(value = "not found: " + plugin_name)
+        return
+
+    // ==================================================================
+    //  RELOAD — reload all plugins (fresh VM state)
+    // ==================================================================
+
+    on Reload(reply_to: P, command_registry: CommandRegistry):
+        var old_plugins = self.plugins
+        self.plugins = []
+        self.plugin_count = 0
+        var rp: Int = 0
+        while rp < len(old_plugins):
+            let op = old_plugins[rp]
+            if fs_exists(op.path):
+                let ext2 = load_extension(op.path)
+                if ext2.valid:
+                    var info3 = PluginInfo {
+                        name: ext2.name,
+                        path: ext2.path,
+                        version: ext2.version,
+                        enabled: op.enabled,
+                        vm: ext2.vm,
+                        commands: ext2.commands,
+                        tools: self.parse_tool_tables(ext2.vm),
+                        widgets: self.parse_widget_tables(ext2.vm),
+                        handler_next: PLUGIN_TOOL_BASE
+                    }
+                    info3.handler_next = PLUGIN_TOOL_BASE + len(info3.tools)
+                    var v3 = info3.vm
+                    var tk: Int = 0
+                    while tk < len(info3.tools):
+                        let t3 = info3.tools[tk]
+                        v3 = register_extension_handler(v3, t3.name, t3.handler_id)
+                        tk = tk + 1
+                    var wk: Int = 0
+                    while wk < len(info3.widgets):
+                        let w3 = info3.widgets[wk]
+                        if w3.refresh_action != "":
+                            v3 = register_extension_handler(v3, w3.refresh_action, PLUGIN_LIFECYCLE_BASE + wk)
+                        wk = wk + 1
+                    info3.vm = v3
+                    if len(info3.commands) > 0:
+                        send command_registry.RegisterCommands(reply_to = reply_to, cmds = info3.commands, ext_name = info3.name)
+                    push(self.plugins, info3)
+                    self.plugin_count = self.plugin_count + 1
+            rp = rp + 1
+        send reply_to.Reply(value = "reloaded " + str(self.plugin_count) + " plugins")
+        return
+
+    // ==================================================================
+    //  DISPATCH_TOOL — execute a tool via markscript VM
+    // ==================================================================
+
+    on DispatchTool(reply_to: P, tool_name: String, args_text: String):
+        var pi7: Int = 0
+        while pi7 < len(self.plugins):
+            if self.plugins[pi7].enabled == false:
+                pi7 = pi7 + 1
+                continue
+            var ti2: Int = 0
+            while ti2 < len(self.plugins[pi7].tools):
+                if self.plugins[pi7].tools[ti2].name == tool_name:
+                    let tool = self.plugins[pi7].tools[ti2]
+                    // Execute the tool by running the handler phrase through the VM
+                    let vm = self.plugins[pi7].vm
+                    let source = "> " + tool_name
+                    let result_vm = mks.run_with_vm(vm, source)
+                    self.plugins[pi7].vm = result_vm
+
+                    // Check VM state for result
+                    let NL = text_chr(10)
+                    if mks.ok(result_vm):
+                        send reply_to.Reply(value = "tool executed: " + tool_name + NL + args_text)
+                    else:
+                        send reply_to.Reply(value = "tool error: " + mks.error_text(result_vm) + NL)
+                    return
+                ti2 = ti2 + 1
+            pi7 = pi7 + 1
+        let NL2 = text_chr(10)
+        send reply_to.Reply(value = "tool not found: " + tool_name + NL2)
+        return
+
+    // ==================================================================
+    //  GET_ALL_WIDGETS — fetch widget data from all enabled plugins
+    // ==================================================================
+
+    on GetAllWidgets(reply_to: P):
+        var all_widgets: [PluginWidget] = []
+        var pi8: Int = 0
+        while pi8 < len(self.plugins):
+            if self.plugins[pi8].enabled == false:
+                pi8 = pi8 + 1
+                continue
+            var wj2: Int = 0
+            while wj2 < len(self.plugins[pi8].widgets):
+                push(all_widgets, self.plugins[pi8].widgets[wj2])
+                wj2 = wj2 + 1
+            pi8 = pi8 + 1
+        send reply_to.Reply(value = str(len(all_widgets)))
+        return
+
+    // ==================================================================
+    //  DISPATCH_WIDGET_REFRESH — trigger a widget's refresh action
+    // ==================================================================
+
+    on DispatchWidgetRefresh(reply_to: P, widget_name: String):
+        var pi9: Int = 0
+        while pi9 < len(self.plugins):
+            if self.plugins[pi9].enabled == false:
+                pi9 = pi9 + 1
+                continue
+            var wj3: Int = 0
+            while wj3 < len(self.plugins[pi9].widgets):
+                if self.plugins[pi9].widgets[wj3].name == widget_name:
+                    let widget = self.plugins[pi9].widgets[wj3]
+                    if widget.refresh_action != "":
+                        let vm2 = self.plugins[pi9].vm
+                        let src = "> " + widget.refresh_action
+                        let result_vm2 = mks.run_with_vm(vm2, src)
+                        self.plugins[pi9].vm = result_vm2
+                        if mks.ok(result_vm2):
+                            send reply_to.Reply(value = "widget refreshed: " + widget_name)
+                        else:
+                            send reply_to.Reply(value = "widget error: " + mks.error_text(result_vm2))
+                    else:
+                        let NL3 = text_chr(10)
+                        send reply_to.Reply(value = "no refresh action for: " + widget_name + NL3)
+                    return
+                wj3 = wj3 + 1
+            pi9 = pi9 + 1
+        let NL4 = text_chr(10)
+        send reply_to.Reply(value = "widget not found: " + widget_name + NL4)
+        return
+
+    // ==================================================================
+    //  LIST — list all plugins and their status
+    // ==================================================================
+
+    on List(reply_to: P):
+        var text: String = ""
+        let NL5 = text_chr(10)
+        text = text + "Plugins (" + str(self.plugin_count) + "):" + NL5
+        var pi10: Int = 0
+        while pi10 < len(self.plugins):
+            let p = self.plugins[pi10]
+            let status_str = if p.enabled: "enabled" else: "disabled"
+            text = text + "  " + p.name + " v" + p.version + " [" + status_str + "]" + NL5
+            text = text + "    commands: " + str(len(p.commands)) + NL5
+            text = text + "    tools: " + str(len(p.tools)) + NL5
+            text = text + "    widgets: " + str(len(p.widgets)) + NL5
+            pi10 = pi10 + 1
+        send reply_to.Reply(value = text)
+        return
+
+    // ==================================================================
+    //  FIND_TOOL — find a tool handler_id by name across all plugins
+    // ==================================================================
+
+    on FindTool(reply_to: P, tool_name: String):
+        var pi11: Int = 0
+        while pi11 < len(self.plugins):
+            if self.plugins[pi11].enabled == false:
+                pi11 = pi11 + 1
+                continue
+            var ti3: Int = 0
+            while ti3 < len(self.plugins[pi11].tools):
+                if self.plugins[pi11].tools[ti3].name == tool_name:
+                    send reply_to.Reply(value = str(self.plugins[pi11].tools[ti3].handler_id))
+                    return
+                ti3 = ti3 + 1
+            pi11 = pi11 + 1
+        send reply_to.Reply(value = "0")
+        return
+
+    // ==================================================================
+    //  INTERNAL: parse tool definitions from markscript tables
+    // ==================================================================
+
+    fn parse_tool_tables(vm: MarkScriptVM) -> [PluginTool] with Pure:
+        var tools: [PluginTool] = []
+        let tc = mks.table_count(vm)
+        var ti4: Int = 0
+        var next_id = PLUGIN_TOOL_BASE
+        while ti4 < tc:
+            let rows = mks.table_rows(vm, ti4)
+            let cols = mks.table_cols(vm, ti4)
+            if rows >= 1 and cols >= 3:
+                let header = mks.get_string(vm, ti4, 0, 0)
+                if header == "Tools" or header == "Tool":
+                    var row: Int = 1
+                    while row < rows:
+                        let tool_name = mks.get_string(vm, ti4, row, 0)
+                        let tool_desc = mks.get_string(vm, ti4, row, 1)
+                        if tool_name != "":
+                            push(tools, PluginTool {
+                                name: tool_name,
+                                description: tool_desc,
+                                handler_id: next_id
+                            })
+                            next_id = next_id + 1
+                        row = row + 1
+            ti4 = ti4 + 1
+        return tools
+
+    // ==================================================================
+    //  INTERNAL: parse widget definitions from markscript tables
+    // ==================================================================
+
+    fn parse_widget_tables(vm: MarkScriptVM) -> [PluginWidget] with Pure:
+        var widgets: [PluginWidget] = []
+        let tc2 = mks.table_count(vm)
+        var ti5: Int = 0
+        while ti5 < tc2:
+            let rows2 = mks.table_rows(vm, ti5)
+            let cols2 = mks.table_cols(vm, ti5)
+            if rows2 >= 1:
+                let header2 = mks.get_string(vm, ti5, 0, 0)
+                if header2 == "Widgets" or header2 == "TUI Widgets" or header2 == "Widget":
+                    if rows2 >= 2:
+                        var row2: Int = 1
+                        while row2 < rows2:
+                            let wname = mks.get_string(vm, ti5, row2, 0)
+                            let wtype = mks.get_string(vm, ti5, row2, 1)
+                            let wwidth = mks.get_int(vm, ti5, row2, 2)
+                            let wupdate = mks.get_int(vm, ti5, row2, 3)
+                            let waction = ""
+                            if cols2 > 4:
+                                waction = mks.get_string(vm, ti5, row2, 4)
+                            if wname != "":
+                                push(widgets, PluginWidget {
+                                    name: wname,
+                                    widget_type: if wtype == "": "info" else: wtype,
+                                    width: if wwidth < 10: 30 else: wwidth,
+                                    update_ms: if wupdate < 1000: 30000 else: wupdate,
+                                    refresh_action: waction,
+                                    data: []
+                                })
+                            row2 = row2 + 1
+            ti5 = ti5 + 1
+        return widgets

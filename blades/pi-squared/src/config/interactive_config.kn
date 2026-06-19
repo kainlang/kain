@@ -1,0 +1,356 @@
+// ============================================================================
+//  config/interactive_config.kn — Config-driven settings for TUI GOD MODE
+//  (DELTA-4)
+//
+//  All colors, keybindings, animation speeds, and UI preferences come from
+//  this module. In the future, these values can be loaded from markscript
+//  configuration tables or JSON settings files. For v0.1, they are defined
+//  as constants and structs that can be overridden.
+//
+//  Ladder: Layer 0 — plain code (const, struct). Pure configuration data.
+//
+//  Markscript: pi-squared uses mks.exe for build orchestration. These
+//  constants correspond to the "InteractiveConfig" table in a future
+//  markscript configuration file.
+// ============================================================================
+
+use std::text       // text_chr
+use std::fmt        // fmt_repeat
+
+// ============================================================================
+//  ANSI COLOR CONSTANTS
+// ============================================================================
+
+// ── Message role colors (SGR codes for foreground) ──
+pub const COLOR_USER:       String = "32"    // green
+pub const COLOR_ASSISTANT:  String = "34"    // blue
+pub const COLOR_TOOL:       String = "35"    // magenta
+pub const COLOR_ERROR:      String = "31"    // red
+pub const COLOR_SYSTEM:     String = "33"    // yellow
+pub const COLOR_THINKING:   String = "90"    // bright black (dim)
+pub const COLOR_DIM:        String = "2"     // dim text
+pub const COLOR_BOLD:       String = "1"     // bold
+
+// ── UI chrome colors ──
+pub const COLOR_STATUS_BG:      String = "44"  // blue background
+pub const COLOR_STATUS_FG:      String = "97"  // bright white
+pub const COLOR_SEPARATOR:      String = "90"  // bright black
+pub const COLOR_SPLASH:         String = "36"  // cyan
+pub const COLOR_COMMAND:        String = "33"  // yellow
+pub const COLOR_PALETTE_SEL:    String = "7"   // reverse video for palette selection
+pub const COLOR_INACTIVE:       String = "90"  // bright black for dim items
+
+// ── Thinking block colors ──
+pub const COLOR_THINKING_HEADER: String = "90"  // bright black
+pub const COLOR_THINKING_BODY:  String = "90"  // bright black
+
+// ── Tool call colors ──
+pub const COLOR_TOOL_HEADER: String = "35"  // magenta
+pub const COLOR_TOOL_BODY:   String = "90"  // dim
+
+// ── Token colors ──
+pub const COLOR_OK:      String = "32"  // green
+pub const COLOR_WARN:    String = "33"  // yellow
+pub const COLOR_CRIT:    String = "31"  // red
+
+// ============================================================================
+//  ANIMATION / TIMING CONSTANTS
+// ============================================================================
+
+pub const TYPING_SPEED_MS:     Int = 16   // ms per animation step
+pub const TYPING_CHUNK_SIZE:   Int = 3    // characters per frame
+pub const SPLASH_DISPLAY_MS:   Int = 1200 // ms to show splash before normal render
+pub const MAX_SCROLLBACK:      Int = 10000
+pub const STATUS_UPDATE_MS:    Int = 1000  // ms between status bar refreshes
+
+// ============================================================================
+//  LAYOUT CONSTANTS
+// ============================================================================
+
+pub const SPLIT_PANEL_MIN_COLS: Int = 40   // minimum cols for split view
+pub const INPUT_MIN_ROWS:       Int = 1    // minimum input area height
+pub const INPUT_MAX_ROWS:       Int = 12   // maximum input area height before scroll
+pub const STATUS_BAR_ROWS:      Int = 1    // rows reserved for status bar
+pub const SEPARATOR_ROWS:       Int = 1    // rows for separator line
+pub const PALETTE_HEIGHT:       Int = 12   // max rows for command palette
+
+// ============================================================================
+//  SPLASH SCREEN ART  —  box-drawn logo
+// ============================================================================
+
+pub fn splash_art() -> [String] with Pure:
+    return [
+        "",
+        "  ╔══════════════════════════════════════════════════════╗",
+        "  ║                                                      ║",
+        "  ║     ██████╗ ██╗       ███████╗ ██████╗ ██╗   ██╗   ║",
+        "  ║     ██╔══██╗██║       ██╔════╝██╔═══██╗██║   ██║   ║",
+        "  ║     ██████╔╝██║       ███████╗██║   ██║██║   ██║   ║",
+        "  ║     ██╔═══╝ ██║       ╚════██║██║   ██║██║   ██║   ║",
+        "  ║     ██║     ███████╗  ███████║╚██████╔╝╚██████╔╝   ║",
+        "  ║     ╚═╝     ╚══════╝  ╚══════╝ ╚═════╝  ╚═════╝    ║",
+        "  ║                                                      ║",
+        "  ║              T U I  G O D  M O D E                  ║",
+        "  ║                                                      ║",
+        "  ║         Interactive Agent Terminal v0.1              ║",
+        "  ║                                                      ║",
+        "  ╚══════════════════════════════════════════════════════╝",
+        "",
+        "  Type /help for commands, Ctrl+P for palette, Enter to send",
+        "",
+    ]
+
+// ============================================================================
+//  SGR HELPERS
+// ============================================================================
+
+pub fn sgr(code: String) -> String:
+    return text_chr(27) + "[" + code + "m"
+
+pub fn sgr_reset() -> String:
+    return sgr("0")
+
+pub fn wrap_sgr(text: String, color: String) -> String:
+    return sgr(color) + text + sgr_reset()
+
+// ============================================================================
+//  COMMAND PALETTE ENTRIES
+// ============================================================================
+
+pub struct PaletteEntry:
+    id: String
+    label: String
+    description: String
+    action: String
+
+pub fn default_palette_entries() -> [PaletteEntry] with Pure:
+    return [
+        PaletteEntry { id: "new-session",   label: "New Session",            description: "Create a new session",               action: "new_session" },
+        PaletteEntry { id: "fork-session",  label: "Fork Session",           description: "Fork from current position",          action: "fork_session" },
+        PaletteEntry { id: "save-session",  label: "Save Session",           description: "Save session to JSONL",               action: "save_session" },
+        PaletteEntry { id: "switch-model",  label: "Switch Model",           description: "Select a different LLM model",        action: "open_model_selector" },
+        PaletteEntry { id: "compact",       label: "Compact Session",        description: "Manually compact session context",    action: "compact" },
+        PaletteEntry { id: "toggle-tools",  label: "Toggle Tools",           description: "Enable/disable tool execution",       action: "toggle_tools" },
+        PaletteEntry { id: "toggle-think",  label: "Toggle Thinking",        description: "Toggle extended thinking mode",       action: "toggle_thinking" },
+        PaletteEntry { id: "clear",         label: "Clear Terminal",         description: "Clear the terminal display",          action: "clear" },
+        PaletteEntry { id: "toggle-split",  label: "Toggle Split View",      description: "Toggle side-by-side code preview",    action: "toggle_split" },
+        PaletteEntry { id: "toggle-follow", label: "Follow / Free Scroll",   description: "Toggle auto-follow latest messages",  action: "toggle_follow" },
+        PaletteEntry { id: "export",        label: "Export Session",         description: "Export session to HTML/JSONL",        action: "export" },
+        PaletteEntry { id: "help",          label: "Help / Keybindings",     description: "Show full keyboard reference",        action: "help" },
+        PaletteEntry { id: "quit",          label: "Quit",                   description: "Exit pi-squared",                     action: "quit" },
+    ]
+
+// ============================================================================
+//  FUZZY FILTER  —  simple prefix/substring match. Returns matched entries.
+//
+//  For a production palette, this would use proper fuzzy scoring. For v0.1,
+//  we use a case-insensitive substring match weighted by position:
+//    - prefix match = score 100
+//    - word boundary match = score 50
+//    - substring match = score 25
+// ============================================================================
+
+pub fn fuzzy_filter(query: String, entries: [PaletteEntry]) -> [PaletteEntry] with Pure:
+    if len(query) == 0:
+        return entries
+
+    var results: [PaletteEntry] = []
+    var query_upper = str_to_upper(query)
+    var ei: Int = 0
+    while ei < len(entries):
+        let entry = entries[ei]
+        let label_upper = str_to_upper(entry.label)
+        if fuzzy_match(label_upper, query_upper):
+            push(results, entry)
+        elif entry.id != "":
+            // Also search in id
+            let id_upper = str_to_upper(entry.id)
+            if fuzzy_match(id_upper, query_upper):
+                push(results, entry)
+        ei = ei + 1
+    return results
+
+/// Score a match: prefix=3, contains=2, char-by-char subsequence=1, no match=0
+pub fn fuzzy_score(label: String, query: String) -> Int with Pure:
+    let lu = str_to_upper(label)
+    let qu = str_to_upper(query)
+    let ll = len(lu)
+    let ql = len(qu)
+
+    if ql > ll: return 0
+    if ql == 0: return 3  // empty query matches everything
+
+    // Prefix match
+    var pm: Bool = true
+    var pi: Int = 0
+    while pi < ql:
+        if text_byte_at(text_from(lu), pi) != text_byte_at(text_from(qu), pi):
+            pm = false
+            break
+        pi = pi + 1
+    if pm: return 3
+
+    // Substring match
+    if text_contains_string(lu, qu): return 2
+
+    // Subsequence match (chars in order but not contiguous)
+    var li: Int = 0
+    var qi: Int = 0
+    while li < ll and qi < ql:
+        if text_byte_at(text_from(lu), li) == text_byte_at(text_from(qu), qi):
+            qi = qi + 1
+        li = li + 1
+    if qi == ql: return 1
+
+    return 0
+
+pub fn str_to_upper(s: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(s):
+        let b = text_byte_at(text_from(s), i)
+        if b >= 0x61 and b <= 0x7A:
+            result = result + text_chr(b - 32)
+        else:
+            result = result + text_chr(b)
+        i = i + 1
+    return result
+
+fn fuzzy_match(label: String, query: String) -> Bool:
+    return fuzzy_score(label, query) > 0
+
+// ============================================================================
+//  STATUS BAR BUILDER
+// ============================================================================
+
+pub fn build_status_bar(
+    mode: String,
+    model: String,
+    provider: String,
+    token_count: Int,
+    session_name: String,
+    git_branch: String,
+    scroll_info: String,
+    cols: Int,
+) -> String with Pure:
+    let NL = text_chr(10)
+
+    // Left side: [mode] model provider tokens
+    var left = "[" + mode + "]"
+    if model != "":
+        left = left + " " + model
+    if token_count > 0:
+        left = left + " | t:" + str(token_count)
+
+    // Right side: session scroll git
+    var right = ""
+    if session_name != "":
+        right = right + " " + session_name
+    if scroll_info != "":
+        right = right + " " + scroll_info
+    if git_branch != "":
+        right = right + " @" + git_branch
+
+    let left_len = len(left)
+    let right_len = len(right)
+    let pad_needed = cols - left_len - right_len - 2
+
+    if pad_needed > 0:
+        var pad = fmt_repeat(" ", pad_needed)
+        return left + pad + right
+    else:
+        if len(left) + 3 + 8 > cols:
+            return text_substring_string(left, 0, cols - 1)
+        return left + " ... " + right
+
+// ============================================================================
+//  FUN COMMANDS
+// ============================================================================
+
+pub const ROLL_SIDES: Int = 20
+
+pub fn roll_dice(sides: Int) -> Int with Pure:
+    let base = text_len(text_from(str(sides * 1234567)))
+    return (base * 17 + 31) % sides + 1
+
+pub const EIGHT_BALL_ANSWERS: [String] = [
+    "It is certain.",
+    "It is decidedly so.",
+    "Without a doubt.",
+    "Yes — definitely.",
+    "You may rely on it.",
+    "As I see it, yes.",
+    "Most likely.",
+    "Outlook good.",
+    "Yes.",
+    "Signs point to yes.",
+    "Reply hazy, try again.",
+    "Ask again later.",
+    "Better not tell you now.",
+    "Cannot predict now.",
+    "Concentrate and ask again.",
+    "Don't count on it.",
+    "My reply is no.",
+    "My sources say no.",
+    "Outlook not so good.",
+    "Very doubtful.",
+]
+
+pub fn eight_ball() -> String with Pure:
+    let seed = text_len(text_from(str(EIGHT_BALL_ANSWERS[0])))
+    let idx = (seed * 37 + 11) % len(EIGHT_BALL_ANSWERS)
+    return EIGHT_BALL_ANSWERS[idx]
+
+pub const FORTUNES: [String] = [
+    "A beautiful, smart, and loving person will be pushed into your life.",
+    "A dubious friend may be an enemy in camouflage.",
+    "A faithful friend is a strong defense.",
+    "A fresh start will put you on your way.",
+    "A golden egg of opportunity falls into your lap this month.",
+    "A lifetime of happiness is ahead of you.",
+    "A light heart carries you through all the hard times.",
+    "A man is born with a fortune his life seeks.",
+    "A pleasant surprise is waiting for you.",
+    "A short pencil is usually better than a long memory.",
+    "A smile is your personal welcome mat.",
+    "A smooth long journey! Great expectations.",
+    "A soft voice may be awfully sharp.",
+    "A truly rich life contains love and art in abundance.",
+    "Accept something that you cannot change, and you will feel better.",
+    "Adventure can be real joy.",
+    "All the effort you are making will ultimately pay off.",
+    "All the troubles you have will pass away very quickly.",
+    "An inch of time is an inch of gold.",
+    "Any day above ground is a good day.",
+]
+
+pub fn fortune() -> String with Pure:
+    let seed = text_len(text_from(str(FORTUNES[0])))
+    let idx = (seed * 13 + 7) % len(FORTUNES)
+    return FORTUNES[idx]
+
+// ============================================================================
+//  TYPING ANIMATION BUILDER  —  produces the next N chars from a buffer
+//
+//  typing_buffer: full text being typed
+//  typing_index:  current position (0 = not started)
+//  chunk_size:    chars to reveal per frame
+//  Returns: (visible_text: revealed portion so far, is_done: Bool)
+// ============================================================================
+
+pub fn typing_tick(
+    typing_buffer: String,
+    typing_index: Int,
+    chunk_size: Int,
+) -> (String, Bool) with Pure:
+    let total = len(typing_buffer)
+    if total == 0:
+        return ("", true)
+    if typing_index >= total:
+        return (typing_buffer, true)
+    var new_index = typing_index + chunk_size
+    if new_index > total:
+        new_index = total
+    let visible = text_substring_string(typing_buffer, 0, new_index)
+    let is_done = new_index >= total
+    return (visible, is_done)

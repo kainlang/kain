@@ -417,6 +417,14 @@ pub fn register_stdlib_handlers(vm: MarkScriptVM) -> MarkScriptVM:
     // --- BETA: Random range handlers (49-50) ---
     v = register_handler(v, hash_name("rand range"), FN_RANDOM_INT_RANGE)
     v = register_handler(v, hash_name("rand float range"), FN_RANDOM_FLOAT_RANGE)
+    // Single-word aliases for blockquote dispatch
+    v = register_handler(v, hash_name("randint"), FN_MATH_RANDOM_INT)
+    v = register_handler(v, hash_name("randfloat"), FN_MATH_RANDOM_FLOAT)
+    v = register_handler(v, hash_name("randrange"), FN_RANDOM_INT_RANGE)
+    v = register_handler(v, hash_name("randfrange"), FN_RANDOM_FLOAT_RANGE)
+    // Extra verb aliases
+    v = register_handler(v, hash_name("maybe"), FN_MATH_RANDOM_INT)
+    v = register_handler(v, hash_name("diceroll"), FN_RANDOM_INT_RANGE)
 
     // --- GAMMA: Process lifecycle intents (51-59) ---
     v = register_handler(v, hash_name("spawn tracked"), FN_PROCESS_SPAWN_TRACKED)
@@ -913,8 +921,32 @@ fn handler_string_contains(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerR
 //  BETA: MATH HANDLERS (22-30) — scalar math operations
 // ===========================================================================
 
+// Helper: extract a Float from any MarkValue (Int, Float, or String parseable)
+fn mark_value_to_float(mv: MarkValue) -> Float:
+    if mv.kind == MARK_FLOAT:
+        return mv.float_val
+    elif mv.kind == MARK_INT:
+        return mv.int_val
+    elif mv.kind == MARK_STRING:
+        return parse_float_str(mv.str_val)
+    else:
+        return 0.0
+
+// Helper: extract an Int from any MarkValue (Int or String parseable)
+fn mark_value_to_int(mv: MarkValue) -> Int:
+    if mv.kind == MARK_INT:
+        return mv.int_val
+    elif mv.kind == MARK_FLOAT:
+        return mv.float_val
+    elif mv.kind == MARK_STRING:
+        if looks_like_int(mv.str_val):
+            return ms_parse_int(mv.str_val)
+        return parse_float_str(mv.str_val)
+    else:
+        return 0
+
 // --- handler_math_sin (22) — "sin" intent ---------------------------------
-// args[0] = angle in radians (float or int)
+// args[0] = angle in radians (float or int, or string from blockquote)
 fn handler_math_sin(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var val: Float = 0.0
     if len(args) > 0:
@@ -922,11 +954,13 @@ fn handler_math_sin(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
             val = args[0].float_val
         elif args[0].kind == MARK_INT:
             val = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            val = parse_float_str(args[0].str_val)
     let result = fast_sin(val)
     return HandlerResult { vm: vm, value: mark_float(result), err: "" }
 
 // --- handler_math_cos (23) — "cos" intent ---------------------------------
-// args[0] = angle in radians (float or int)
+// args[0] = angle in radians (float or int, or string from blockquote)
 fn handler_math_cos(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var val: Float = 0.0
     if len(args) > 0:
@@ -934,6 +968,8 @@ fn handler_math_cos(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
             val = args[0].float_val
         elif args[0].kind == MARK_INT:
             val = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            val = parse_float_str(args[0].str_val)
     let result = fast_cos(val)
     return HandlerResult { vm: vm, value: mark_float(result), err: "" }
 
@@ -946,6 +982,8 @@ fn handler_math_sqrt(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
             val = args[0].float_val
         elif args[0].kind == MARK_INT:
             val = args[0].int_val
+        elif args[0].kind == MARK_STRING:
+            val = parse_float_str(args[0].str_val)
     if val < 0.0:
         return HandlerResult { vm: vm, value: mark_float(0.0), err: "sqrt: negative input" }
     if val == 0.0:
@@ -955,9 +993,15 @@ fn handler_math_sqrt(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var iter: Int = 0
     while iter < 20:
         let new_guess = (guess + val / guess) / 2.0
-        if new_guess == guess:
-            break
-        guess = new_guess
+        // Float equality is unreliable — check convergence via abs diff
+        let diff = new_guess - guess
+        if diff < 0.0:
+            diff = -diff
+        if diff < 0.0000001:
+            guess = new_guess
+            iter = 20
+        else:
+            guess = new_guess
         iter = iter + 1
     return HandlerResult { vm: vm, value: mark_float(guess), err: "" }
 
@@ -975,6 +1019,18 @@ fn handler_math_abs(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
             if v < 0:
                 return HandlerResult { vm: vm, value: mark_int(-v), err: "" }
             return HandlerResult { vm: vm, value: mark_int(v), err: "" }
+        elif args[0].kind == MARK_STRING:
+            let s = args[0].str_val
+            if looks_like_int(s):
+                let v = ms_parse_int(s)
+                if v < 0:
+                    return HandlerResult { vm: vm, value: mark_int(-v), err: "" }
+                return HandlerResult { vm: vm, value: mark_int(v), err: "" }
+            elif looks_like_float(s):
+                let v = parse_float_str(s)
+                if v < 0.0:
+                    return HandlerResult { vm: vm, value: mark_float(-v), err: "" }
+                return HandlerResult { vm: vm, value: mark_float(v), err: "" }
     return HandlerResult { vm: vm, value: mark_int(0), err: "abs: no argument" }
 
 // --- handler_math_min (26) — "min" intent ---------------------------------
@@ -982,22 +1038,19 @@ fn handler_math_abs(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
 fn handler_math_min(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     if len(args) < 2:
         return HandlerResult { vm: vm, value: mark_int(0), err: "min: need two arguments" }
-    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT:
-        var a: Float = 0.0
-        var b: Float = 0.0
-        if args[0].kind == MARK_FLOAT:
-            a = args[0].float_val
-        elif args[0].kind == MARK_INT:
-            a = args[0].int_val
-        if args[1].kind == MARK_FLOAT:
-            b = args[1].float_val
-        elif args[1].kind == MARK_INT:
-            b = args[1].int_val
+    let use_float = args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT
+    if use_float == false and args[0].kind == MARK_STRING and looks_like_float(args[0].str_val):
+        use_float = true
+    if use_float == false and args[1].kind == MARK_STRING and looks_like_float(args[1].str_val):
+        use_float = true
+    if use_float:
+        let a = mark_value_to_float(args[0])
+        let b = mark_value_to_float(args[1])
         if a < b:
             return HandlerResult { vm: vm, value: mark_float(a), err: "" }
         return HandlerResult { vm: vm, value: mark_float(b), err: "" }
-    let a = args[0].int_val
-    let b = args[1].int_val
+    let a = mark_value_to_int(args[0])
+    let b = mark_value_to_int(args[1])
     if a < b:
         return HandlerResult { vm: vm, value: mark_int(a), err: "" }
     return HandlerResult { vm: vm, value: mark_int(b), err: "" }
@@ -1007,22 +1060,19 @@ fn handler_math_min(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
 fn handler_math_max(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     if len(args) < 2:
         return HandlerResult { vm: vm, value: mark_int(0), err: "max: need two arguments" }
-    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT:
-        var a: Float = 0.0
-        var b: Float = 0.0
-        if args[0].kind == MARK_FLOAT:
-            a = args[0].float_val
-        elif args[0].kind == MARK_INT:
-            a = args[0].int_val
-        if args[1].kind == MARK_FLOAT:
-            b = args[1].float_val
-        elif args[1].kind == MARK_INT:
-            b = args[1].int_val
+    let use_float = args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT
+    if use_float == false and args[0].kind == MARK_STRING and looks_like_float(args[0].str_val):
+        use_float = true
+    if use_float == false and args[1].kind == MARK_STRING and looks_like_float(args[1].str_val):
+        use_float = true
+    if use_float:
+        let a = mark_value_to_float(args[0])
+        let b = mark_value_to_float(args[1])
         if a > b:
             return HandlerResult { vm: vm, value: mark_float(a), err: "" }
         return HandlerResult { vm: vm, value: mark_float(b), err: "" }
-    let a = args[0].int_val
-    let b = args[1].int_val
+    let a = mark_value_to_int(args[0])
+    let b = mark_value_to_int(args[1])
     if a > b:
         return HandlerResult { vm: vm, value: mark_int(a), err: "" }
     return HandlerResult { vm: vm, value: mark_int(b), err: "" }
@@ -1032,22 +1082,23 @@ fn handler_math_max(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
 fn handler_math_clamp(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     if len(args) < 3:
         return HandlerResult { vm: vm, value: mark_int(0), err: "clamp: need value, lo, hi" }
-    if args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT or args[2].kind == MARK_FLOAT:
-        var v: Float = 0.0
-        var lo: Float = 0.0
-        var hi: Float = 0.0
-        if args[0].kind == MARK_FLOAT: v = args[0].float_val
-        elif args[0].kind == MARK_INT: v = args[0].int_val
-        if args[1].kind == MARK_FLOAT: lo = args[1].float_val
-        elif args[1].kind == MARK_INT: lo = args[1].int_val
-        if args[2].kind == MARK_FLOAT: hi = args[2].float_val
-        elif args[2].kind == MARK_INT: hi = args[2].int_val
+    let use_float = args[0].kind == MARK_FLOAT or args[1].kind == MARK_FLOAT or args[2].kind == MARK_FLOAT
+    if use_float == false and args[0].kind == MARK_STRING and looks_like_float(args[0].str_val):
+        use_float = true
+    if use_float == false and args[1].kind == MARK_STRING and looks_like_float(args[1].str_val):
+        use_float = true
+    if use_float == false and args[2].kind == MARK_STRING and looks_like_float(args[2].str_val):
+        use_float = true
+    if use_float:
+        var v = mark_value_to_float(args[0])
+        var lo = mark_value_to_float(args[1])
+        var hi = mark_value_to_float(args[2])
         if v < lo: v = lo
         if v > hi: v = hi
         return HandlerResult { vm: vm, value: mark_float(v), err: "" }
-    var v = args[0].int_val
-    let lo = args[1].int_val
-    let hi = args[2].int_val
+    var v = mark_value_to_int(args[0])
+    let lo = mark_value_to_int(args[1])
+    let hi = mark_value_to_int(args[2])
     if v < lo: v = lo
     if v > hi: v = hi
     return HandlerResult { vm: vm, value: mark_int(v), err: "" }
@@ -1335,10 +1386,10 @@ fn handler_template_render(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerR
 fn handler_random_int_range(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var min_val: Int = 0
     var max_val: Int = 100
-    if len(args) > 0 and args[0].kind == MARK_INT:
-        min_val = args[0].int_val
-    if len(args) > 1 and args[1].kind == MARK_INT:
-        max_val = args[1].int_val
+    if len(args) > 0:
+        min_val = mark_value_to_int(args[0])
+    if len(args) > 1:
+        max_val = mark_value_to_int(args[1])
     let val = random_ambient_int_in_range(min_val, max_val)
     return HandlerResult { vm: vm, value: mark_int(val), err: "" }
 
@@ -1348,15 +1399,9 @@ fn handler_random_float_range(vm: MarkScriptVM, args: Array<MarkValue>) -> Handl
     var min_val: Float = 0.0
     var max_val: Float = 1.0
     if len(args) > 0:
-        if args[0].kind == MARK_FLOAT:
-            min_val = args[0].float_val
-        elif args[0].kind == MARK_INT:
-            min_val = args[0].int_val
+        min_val = mark_value_to_float(args[0])
     if len(args) > 1:
-        if args[1].kind == MARK_FLOAT:
-            max_val = args[1].float_val
-        elif args[1].kind == MARK_INT:
-            max_val = args[1].int_val
+        max_val = mark_value_to_float(args[1])
     let t = random_ambient_float()
     let val = min_val + t * (max_val - min_val)
     return HandlerResult { vm: vm, value: mark_float(val), err: "" }
@@ -1914,171 +1959,331 @@ fn dispatch_stdlib(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> Hand
     return HandlerResult { vm: vm, value: mark_int(0), err: "BETA handler " + str(fn_id) + " not connected" }
 
 // ===========================================================================
+//  ARGUMENT DECODING — reconstruct count+bytes into MarkValue strings
+//
+//  Blockquote argument passing encodes strings as: count MARK_INT, then N
+//  byte-valued MARK_INTs. This helper walks args and converts those sequences
+//  into proper MARK_STRING (or MARK_INT/MARK_FLOAT for numeric text).
+//  Multi-arg strings like `> concat "a" "b"` produce two separate sequences.
+// ===========================================================================
+
+fn is_printable_byte(b: Int) -> Bool:
+    // Printable ASCII or common whitespace (space, tab, newline, carriage return)
+    return (b >= 32 and b <= 126) or b == 9 or b == 10 or b == 13
+
+// Check if a reconstructed string is a valid integer literal
+fn looks_like_int(s: String) -> Bool:
+    let sl = len(s)
+    if sl == 0:
+        return false
+    var start: Int = 0
+    if text_substring_string(s, 0, 1) == "-":
+        start = 1
+        if sl == 1:
+            return false
+    var i: Int = start
+    while i < sl:
+        let ch = text_substring_string(s, i, 1)
+        let cv = text_ord(ch)
+        if cv < 48 or cv > 57:
+            return false
+        i = i + 1
+    return true
+
+// Check if a reconstructed string is a valid float literal (digits . digits)
+fn looks_like_float(s: String) -> Bool:
+    let sl = len(s)
+    if sl < 2:
+        return false
+    var has_dot: Bool = false
+    var has_digit: Bool = false
+    var start: Int = 0
+    if text_substring_string(s, 0, 1) == "-":
+        start = 1
+    var i: Int = start
+    while i < sl:
+        let ch = text_substring_string(s, i, 1)
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            has_digit = true
+        elif ch == ".":
+            if has_dot:
+                return false
+            has_dot = true
+        else:
+            return false
+        i = i + 1
+    return has_dot and has_digit
+
+fn decode_count_bytes_args(args: Array<MarkValue>) -> Array<MarkValue>:
+    var decoded: Array<MarkValue> = []
+    var i: Int = 0
+    while i < len(args):
+        // Check for count+bytes pattern at position i
+        var is_count_bytes: Bool = false
+        if args[i].kind == MARK_INT:
+            let count = args[i].int_val
+            if count > 0 and (i + count) < len(args):
+                var all_bytes: Bool = true
+                var bi: Int = 0
+                while bi < count:
+                    if args[i + 1 + bi].kind != MARK_INT:
+                        all_bytes = false
+                        bi = count
+                    elif is_printable_byte(args[i + 1 + bi].int_val) == false:
+                        all_bytes = false
+                        bi = count
+                    bi = bi + 1
+                if all_bytes:
+                    is_count_bytes = true
+                    // Reconstruct string from byte values
+                    var byte_arr: Array<Int> = []
+                    var bj: Int = 0
+                    while bj < count:
+                        push(byte_arr, args[i + 1 + bj].int_val)
+                        bj = bj + 1
+                    let reconstructed = text_from_byte_array(byte_arr)
+                    // Always keep as MARK_STRING — float_val in MarkValue doesn't
+                    // survive Array<MarkValue> passthrough in all LLVM codegen lanes.
+                    // Handlers will parse numeric strings themselves.
+                    push(decoded, mark_string(reconstructed))
+                    // Advance past count + N byte values
+                    i = i + 1 + count
+        if is_count_bytes == false:
+            // Not a count+bytes sequence — pass through raw value
+            push(decoded, args[i])
+            i = i + 1
+    return decoded
+
+// ===========================================================================
+//  BLOCKQUOTE ARG SPLITTING — parse quoted/space-separated args from string
+//
+//  When the parser strips outer quotes from `> cmd "a" "b"` it produces
+//  a single string like `a" "b`. This helper splits it back into individual
+//  arguments by detecting " " boundaries and unquoted whitespace.
+// ===========================================================================
+
+fn split_blockquote_string(raw: String) -> Array<String>:
+    var result: Array<String> = []
+    var current: String = ""
+    var in_quote: Bool = false
+    var i: Int = 0
+    let slen = len(raw)
+    while i < slen:
+        let ch = text_substring_string(raw, i, 1)
+        if ch == "\"":
+            if in_quote:
+                // End of quoted segment — flush current
+                push(result, current)
+                current = ""
+                in_quote = false
+                // Skip the following space if present (the " " separator)
+                if i + 1 < slen and text_substring_string(raw, i + 1, 1) == " ":
+                    i = i + 1
+            else:
+                // Start of quoted segment — flush any unquoted current
+                if current != "":
+                    push(result, current)
+                    current = ""
+                in_quote = true
+        elif ch == " " and in_quote == false:
+            // Space outside quotes — flush current
+            if current != "":
+                push(result, current)
+                current = ""
+        else:
+            current = current + ch
+        i = i + 1
+    // Flush remaining
+    if current != "":
+        push(result, current)
+    return result
+
+fn decode_and_split_args(args: Array<MarkValue>) -> Array<MarkValue>:
+    // First decode count+bytes, then split single strings if they appear to
+    // contain multiple quoted/space-separated arguments
+    let decoded = decode_count_bytes_args(args)
+    if len(decoded) == 1 and decoded[0].kind == MARK_STRING:
+        let parts = split_blockquote_string(decoded[0].str_val)
+        if len(parts) > 1:
+            var split_args: Array<MarkValue> = []
+            var pi: Int = 0
+            while pi < len(parts):
+                // Keep as strings — float_val doesn't survive Array passthrough
+                push(split_args, mark_string(parts[pi]))
+                pi = pi + 1
+            return split_args
+    return decoded
+
+// ===========================================================================
 //  GENERIC DISPATCH — route function ID to the correct handler
 // ===========================================================================
 
 pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    // Decode count+bytes blockquote arguments into proper string/int/float values
+    // Also split single quoted strings into multiple args (for multi-arg handlers)
+    let norm_args = decode_and_split_args(args)
     var hr: HandlerResult = HandlerResult { vm: vm, value: mark_int(0), err: "unreachable" }
 
     // --- ALPHA: Primary handlers (1-12) ---
     if fn_id == FN_FS_READ_TEXT:
-        hr = handler_fs_read_text(vm, args)
+        hr = handler_fs_read_text(vm, norm_args)
     elif fn_id == FN_FS_WRITE_TEXT:
-        hr = handler_fs_write_text(vm, args)
+        hr = handler_fs_write_text(vm, norm_args)
     elif fn_id == FN_FS_EXISTS:
-        hr = handler_fs_exists(vm, args)
+        hr = handler_fs_exists(vm, norm_args)
     elif fn_id == FN_PROCESS_OUTPUT:
-        hr = handler_process_output(vm, args)
+        hr = handler_process_output(vm, norm_args)
     elif fn_id == FN_PROCESS_SPAWN:
-        hr = handler_process_spawn(vm, args)
+        hr = handler_process_spawn(vm, norm_args)
     elif fn_id == FN_IMPORT_KAIN:
-        hr = handler_import_kain(vm, args)
+        hr = handler_import_kain(vm, norm_args)
     elif fn_id == FN_ASSERT:
-        hr = handler_assert(vm, args)
+        hr = handler_assert(vm, norm_args)
     elif fn_id == FN_PRINTLN:
-        hr = handler_println(vm, args)
+        hr = handler_println(vm, norm_args)
     elif fn_id == FN_STR:
-        hr = handler_str(vm, args)
+        hr = handler_str(vm, norm_args)
     elif fn_id == FN_LEN:
-        hr = handler_len(vm, args)
+        hr = handler_len(vm, norm_args)
     elif fn_id == FN_PUSH:
-        hr = handler_push(vm, args)
+        hr = handler_push(vm, norm_args)
     elif fn_id == FN_POP:
-        hr = handler_pop(vm, args)
+        hr = handler_pop(vm, norm_args)
 
     // --- BETA: String handlers (13-21) ---
     elif fn_id == FN_STRING_CONCAT:
-        hr = handler_string_concat(vm, args)
+        hr = handler_string_concat(vm, norm_args)
     elif fn_id == FN_STRING_SPLIT:
-        hr = handler_string_split(vm, args)
+        hr = handler_string_split(vm, norm_args)
     elif fn_id == FN_STRING_JOIN:
-        hr = handler_string_join(vm, args)
+        hr = handler_string_join(vm, norm_args)
     elif fn_id == FN_STRING_SUBSTR:
-        hr = handler_string_substr(vm, args)
+        hr = handler_string_substr(vm, norm_args)
     elif fn_id == FN_STRING_REPLACE:
-        hr = handler_string_replace(vm, args)
+        hr = handler_string_replace(vm, norm_args)
     elif fn_id == FN_STRING_UPPER:
-        hr = handler_string_upper(vm, args)
+        hr = handler_string_upper(vm, norm_args)
     elif fn_id == FN_STRING_LOWER:
-        hr = handler_string_lower(vm, args)
+        hr = handler_string_lower(vm, norm_args)
     elif fn_id == FN_STRING_TRIM:
-        hr = handler_string_trim(vm, args)
+        hr = handler_string_trim(vm, norm_args)
     elif fn_id == FN_STRING_CONTAINS:
-        hr = handler_string_contains(vm, args)
+        hr = handler_string_contains(vm, norm_args)
 
     // --- BETA: Math handlers (22-30) ---
     elif fn_id == FN_MATH_SIN:
-        hr = handler_math_sin(vm, args)
+        hr = handler_math_sin(vm, norm_args)
     elif fn_id == FN_MATH_COS:
-        hr = handler_math_cos(vm, args)
+        hr = handler_math_cos(vm, norm_args)
     elif fn_id == FN_MATH_SQRT:
-        hr = handler_math_sqrt(vm, args)
+        hr = handler_math_sqrt(vm, norm_args)
     elif fn_id == FN_MATH_ABS:
-        hr = handler_math_abs(vm, args)
+        hr = handler_math_abs(vm, norm_args)
     elif fn_id == FN_MATH_MIN:
-        hr = handler_math_min(vm, args)
+        hr = handler_math_min(vm, norm_args)
     elif fn_id == FN_MATH_MAX:
-        hr = handler_math_max(vm, args)
+        hr = handler_math_max(vm, norm_args)
     elif fn_id == FN_MATH_CLAMP:
-        hr = handler_math_clamp(vm, args)
+        hr = handler_math_clamp(vm, norm_args)
     elif fn_id == FN_MATH_RANDOM_INT:
-        hr = handler_math_random_int(vm, args)
+        hr = handler_math_random_int(vm, norm_args)
     elif fn_id == FN_MATH_RANDOM_FLOAT:
-        hr = handler_math_random_float(vm, args)
+        hr = handler_math_random_float(vm, norm_args)
 
     // --- BETA: JSON handlers (31-32) ---
     elif fn_id == FN_JSON_PARSE:
-        hr = handler_json_parse(vm, args)
+        hr = handler_json_parse(vm, norm_args)
     elif fn_id == FN_JSON_STRINGIFY:
-        hr = handler_json_stringify(vm, args)
+        hr = handler_json_stringify(vm, norm_args)
 
     // --- BETA: Filesystem handlers (33-37) ---
     elif fn_id == FN_FS_MKDIR:
-        hr = handler_fs_mkdir(vm, args)
+        hr = handler_fs_mkdir(vm, norm_args)
     elif fn_id == FN_FS_READ_DIR:
-        hr = handler_fs_read_dir(vm, args)
+        hr = handler_fs_read_dir(vm, norm_args)
     elif fn_id == FN_FS_STAT:
-        hr = handler_fs_stat(vm, args)
+        hr = handler_fs_stat(vm, norm_args)
     elif fn_id == FN_FS_TOUCH:
-        hr = handler_fs_touch(vm, args)
+        hr = handler_fs_touch(vm, norm_args)
     elif fn_id == FN_FS_CHMOD:
-        hr = handler_fs_chmod(vm, args)
+        hr = handler_fs_chmod(vm, norm_args)
 
     // --- BETA: Process handlers (38-40) ---
     elif fn_id == FN_PROCESS_EXIT_CODE:
-        hr = handler_process_exit_code_beta(vm, args)
+        hr = handler_process_exit_code_beta(vm, norm_args)
     elif fn_id == FN_PROCESS_STDERR:
-        hr = handler_process_stderr(vm, args)
+        hr = handler_process_stderr(vm, norm_args)
     elif fn_id == FN_PROCESS_KILL:
-        hr = handler_process_kill_fn(vm, args)
+        hr = handler_process_kill_fn(vm, norm_args)
 
     // --- BETA: Time handlers (41-43) ---
     elif fn_id == FN_TIME_NOW:
-        hr = handler_time_now(vm, args)
+        hr = handler_time_now(vm, norm_args)
     elif fn_id == FN_TIME_SLEEP:
-        hr = handler_time_sleep(vm, args)
+        hr = handler_time_sleep(vm, norm_args)
     elif fn_id == FN_TIME_FORMAT:
-        hr = handler_time_format(vm, args)
+        hr = handler_time_format(vm, norm_args)
 
     // --- BETA: Network handlers (44-45) ---
     elif fn_id == FN_NET_HTTP_GET:
-        hr = handler_net_http_get(vm, args)
+        hr = handler_net_http_get(vm, norm_args)
     elif fn_id == FN_NET_TCP_CONNECT:
-        hr = handler_net_tcp_connect(vm, args)
+        hr = handler_net_tcp_connect(vm, norm_args)
 
     // --- BETA: Regex handlers (46-47) ---
     elif fn_id == FN_REGEX_MATCH:
-        hr = handler_regex_match(vm, args)
+        hr = handler_regex_match(vm, norm_args)
     elif fn_id == FN_REGEX_REPLACE:
-        hr = handler_regex_replace(vm, args)
+        hr = handler_regex_replace(vm, norm_args)
 
     // --- BETA: Template handler (48) ---
     elif fn_id == FN_TEMPLATE_RENDER:
-        hr = handler_template_render(vm, args)
+        hr = handler_template_render(vm, norm_args)
 
     // --- BETA: Random range handlers (49-50) ---
     elif fn_id == FN_RANDOM_INT_RANGE:
-        hr = handler_random_int_range(vm, args)
+        hr = handler_random_int_range(vm, norm_args)
     elif fn_id == FN_RANDOM_FLOAT_RANGE:
-        hr = handler_random_float_range(vm, args)
+        hr = handler_random_float_range(vm, norm_args)
 
     // --- GAMMA: Process lifecycle handlers (51-59) ---
     elif fn_id == FN_PROCESS_SPAWN_TRACKED:
-        hr = handler_process_spawn_tracked(vm, args)
+        hr = handler_process_spawn_tracked(vm, norm_args)
     elif fn_id == FN_PROCESS_AWAIT:
-        hr = handler_process_await(vm, args)
+        hr = handler_process_await(vm, norm_args)
     elif fn_id == FN_PROCESS_KILL_PID:
-        hr = handler_process_kill(vm, args)
+        hr = handler_process_kill(vm, norm_args)
     elif fn_id == FN_PROCESS_EXIT_CODE_PID:
-        hr = handler_process_exit_code_pid(vm, args)
+        hr = handler_process_exit_code_pid(vm, norm_args)
     elif fn_id == FN_PROCESS_STDOUT_PID:
-        hr = handler_process_stdout_pid(vm, args)
+        hr = handler_process_stdout_pid(vm, norm_args)
     elif fn_id == FN_PROCESS_STDERR_PID:
-        hr = handler_process_stderr_pid(vm, args)
+        hr = handler_process_stderr_pid(vm, norm_args)
     elif fn_id == FN_PROCESS_PIPE:
-        hr = handler_process_pipe(vm, args)
+        hr = handler_process_pipe(vm, norm_args)
     elif fn_id == FN_PROCESS_ENV:
-        hr = handler_process_env(vm, args)
+        hr = handler_process_env(vm, norm_args)
     elif fn_id == FN_PROCESS_CWD:
-        hr = handler_process_cwd(vm, args)
+        hr = handler_process_cwd(vm, norm_args)
 
     // --- DELTA: UI scripting handlers (71-78) ---
     elif fn_id == FN_UI_ON_CLICK:
-        hr = handler_ui_on_click(vm, args)
+        hr = handler_ui_on_click(vm, norm_args)
     elif fn_id == FN_UI_ON_KEY:
-        hr = handler_ui_on_key(vm, args)
+        hr = handler_ui_on_key(vm, norm_args)
     elif fn_id == FN_UI_ON_FOCUS:
-        hr = handler_ui_on_focus(vm, args)
+        hr = handler_ui_on_focus(vm, norm_args)
     elif fn_id == FN_UI_ON_CLOSE:
-        hr = handler_ui_on_close(vm, args)
+        hr = handler_ui_on_close(vm, norm_args)
     elif fn_id == FN_UI_GET_WIDGET:
-        hr = handler_ui_get_widget(vm, args)
+        hr = handler_ui_get_widget(vm, norm_args)
     elif fn_id == FN_UI_SET_PROPERTY:
-        hr = handler_ui_set_property(vm, args)
+        hr = handler_ui_set_property(vm, norm_args)
     elif fn_id == FN_UI_GET_PROPERTY:
-        hr = handler_ui_get_property(vm, args)
+        hr = handler_ui_get_property(vm, norm_args)
     elif fn_id == FN_UI_CREATE_WIDGET:
-        hr = handler_ui_create_widget(vm, args)
+        hr = handler_ui_create_widget(vm, norm_args)
 
     else:
         hr = HandlerResult {

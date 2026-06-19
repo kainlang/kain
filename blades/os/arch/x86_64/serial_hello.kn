@@ -1,0 +1,52 @@
+// KAINOS Serial Boot Test — writes to COM1 port 0x3F8
+// Uses ptr<Int> to avoid Byte/Int type issues
+
+use std::machine
+use std::memory
+
+const COM1: Int = 0x3F8
+
+fn serial_putc(c: Int) with Unsafe:
+    let lsr_ptr: ptr<Int> = int_to_ptr(COM1 + 5, "Int")
+    var ready: Int = 0
+    while (ready & 0x20) == 0:
+        ready = mem_load(lsr_ptr, "Int") & 0xFF
+    let thr_ptr: ptr<Int> = int_to_ptr(COM1, "Int")
+    mem_store(thr_ptr, c, "Int")
+    return
+
+fn serial_puts(msg: ptr<Byte>) with Unsafe:
+    var i: Int = 0
+    while i < 1024:
+        let ch: Byte = mem_load(ptr_offset(msg, i, "Byte"), "Byte")
+        if ch == 0 as Byte:
+            return
+        serial_putc(ch as Int)
+        i = i + 1
+    return
+
+fn kainos_hello() -> Int with Unsafe:
+    // Quick serial init: 8N1, FIFO on
+    let lcr: ptr<Int> = int_to_ptr(COM1 + 3, "Int")
+    mem_store(lcr, 0x03, "Int")
+    let fcr: ptr<Int> = int_to_ptr(COM1 + 2, "Int")
+    mem_store(fcr, 0x07, "Int")
+
+    let ln: ptr<Byte> = "\n\r\0" as ptr<Byte>
+    let msg1: ptr<Byte> = "KAINOS v0.1.0 - booted via Kain native code\n\r\0" as ptr<Byte>
+    let msg2: ptr<Byte> = "Single address space kernel | x86-64 identity-mapped\n\r\0" as ptr<Byte>
+    let msg3: ptr<Byte> = "Semantic stack: world, converge, actor, teleport\n\r\0" as ptr<Byte>
+    let msg4: ptr<Byte> = "7-layer decision ladder: kernelized\n\r\0" as ptr<Byte>
+    let msg5: ptr<Byte> = "KAINOS > \0" as ptr<Byte>
+
+    serial_puts(ln)
+    serial_puts(msg1)
+    serial_puts(msg2)
+    serial_puts(msg3)
+    serial_puts(msg4)
+    serial_puts(ln)
+    serial_puts(msg5)
+
+    loop:
+        asm("hlt")
+    return 0

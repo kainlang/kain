@@ -1,0 +1,424 @@
+// builtin_handlers.kn — Handler dispatch for command registry
+// STREAM: GOLD
+//
+// Maps handler names from the TOML command registry to the orchestrator's
+// compile/run/test/selfhost entry points. New commands are added by
+// writing a .toml file + a handler variant.
+//
+// Ladder rung: Layer 0 (fn, enum) — dispatch logic + IO boundary.
+
+use std::text
+use std::os
+use cli::orchestrator
+
+// ═══════════════════════════════════════════════════════════════════
+// BuiltinHandler enum — all recognized handler variants
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum BuiltinHandler:
+    Check
+    Build
+    Run
+    Test
+    Fmt
+    Doctor
+    SelfHost
+    Repl
+    Clean
+    Help
+    Version
+    // ── Extended handlers (registered but stub) ──
+    NativeUiDev
+    Watch
+    Init
+    Lsp
+    BridgeServe
+    ImportC
+    ImportRust
+    ImportCrate
+    ImportTs
+    ImportAsm
+    AmalgamatePack
+    AmalgamateInspect
+    AmalgamateUnpack
+    StdlibMap
+    RuntimeBuild
+    RuntimeValidate
+    FabricInit
+    FabricValidate
+    FabricRun
+    OmniInit
+    OmniBuild
+    CodebaseInspect
+    CodebaseRun
+    CommandsList
+    CommandsExport
+    CommandsPacks
+    CommandsHelp
+    Add
+    Install
+    Publish
+    GpuArtifacts
+    Inject
+    Unknown
+
+// ═══════════════════════════════════════════════════════════════════
+// parse_handler — convert "builtin:X" string to BuiltinHandler variant
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn parse_handler(handler_name: String) -> BuiltinHandler:
+    if handler_name == "builtin:check":
+        return BuiltinHandler::Check
+    elif handler_name == "builtin:build":
+        return BuiltinHandler::Build
+    elif handler_name == "builtin:build-native-ui":
+        return BuiltinHandler::Build
+    elif handler_name == "builtin:run":
+        return BuiltinHandler::Run
+    elif handler_name == "builtin:run-dev":
+        return BuiltinHandler::Run
+    elif handler_name == "builtin:run-plan":
+        return BuiltinHandler::Run
+    elif handler_name == "builtin:test":
+        return BuiltinHandler::Test
+    elif handler_name == "builtin:format":
+        return BuiltinHandler::Fmt
+    elif handler_name == "builtin:doctor":
+        return BuiltinHandler::Doctor
+    elif handler_name == "builtin:selfhost-bootstrap":
+        return BuiltinHandler::SelfHost
+    elif handler_name == "builtin:selfhost-phase1":
+        return BuiltinHandler::SelfHost
+    elif handler_name == "builtin:selfhost-phase2":
+        return BuiltinHandler::SelfHost
+    elif handler_name == "builtin:repl":
+        return BuiltinHandler::Repl
+    elif handler_name == "builtin:clean":
+        return BuiltinHandler::Clean
+    elif handler_name == "builtin:watch":
+        return BuiltinHandler::Watch
+    elif handler_name == "builtin:native-ui-dev":
+        return BuiltinHandler::NativeUiDev
+    elif handler_name == "builtin:init":
+        return BuiltinHandler::Init
+    elif handler_name == "builtin:lsp":
+        return BuiltinHandler::Lsp
+    elif handler_name == "builtin:bridge-serve":
+        return BuiltinHandler::BridgeServe
+    elif handler_name == "builtin:import-c":
+        return BuiltinHandler::ImportC
+    elif handler_name == "builtin:import-rust":
+        return BuiltinHandler::ImportRust
+    elif handler_name == "builtin:import-crate":
+        return BuiltinHandler::ImportCrate
+    elif handler_name == "builtin:import-ts":
+        return BuiltinHandler::ImportTs
+    elif handler_name == "builtin:import-asm":
+        return BuiltinHandler::ImportAsm
+    elif handler_name == "builtin:amalgamate-pack":
+        return BuiltinHandler::AmalgamatePack
+    elif handler_name == "builtin:amalgamate-inspect":
+        return BuiltinHandler::AmalgamateInspect
+    elif handler_name == "builtin:amalgamate-unpack":
+        return BuiltinHandler::AmalgamateUnpack
+    elif handler_name == "builtin:stdlib-map":
+        return BuiltinHandler::StdlibMap
+    elif handler_name == "builtin:runtime-build":
+        return BuiltinHandler::RuntimeBuild
+    elif handler_name == "builtin:runtime-validate":
+        return BuiltinHandler::RuntimeValidate
+    elif handler_name == "builtin:fabric-init":
+        return BuiltinHandler::FabricInit
+    elif handler_name == "builtin:fabric-validate":
+        return BuiltinHandler::FabricValidate
+    elif handler_name == "builtin:fabric-run":
+        return BuiltinHandler::FabricRun
+    elif handler_name == "builtin:omni-init":
+        return BuiltinHandler::OmniInit
+    elif handler_name == "builtin:omni-build":
+        return BuiltinHandler::OmniBuild
+    elif handler_name == "builtin:codebase-inspect":
+        return BuiltinHandler::CodebaseInspect
+    elif handler_name == "builtin:codebase-run":
+        return BuiltinHandler::CodebaseRun
+    elif handler_name == "builtin:commands-list":
+        return BuiltinHandler::CommandsList
+    elif handler_name == "builtin:commands-export":
+        return BuiltinHandler::CommandsExport
+    elif handler_name == "builtin:commands-packs":
+        return BuiltinHandler::CommandsPacks
+    elif handler_name == "builtin:commands-help":
+        return BuiltinHandler::CommandsHelp
+    elif handler_name == "builtin:add":
+        return BuiltinHandler::Add
+    elif handler_name == "builtin:install":
+        return BuiltinHandler::Install
+    elif handler_name == "builtin:publish":
+        return BuiltinHandler::Publish
+    elif handler_name == "builtin:gpu-artifacts":
+        return BuiltinHandler::GpuArtifacts
+    elif handler_name == "builtin:inject":
+        return BuiltinHandler::Inject
+    elif handler_name == "builtin:help":
+        return BuiltinHandler::Help
+    return BuiltinHandler::Unknown
+
+// ═══════════════════════════════════════════════════════════════════
+// dispatch_handler — route a handler name + args to the right function
+//
+// Returns exit code: 0 = success, non-zero = failure.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn dispatch_handler(
+    handler_name: String,
+    input_path: String,
+    target: String,
+    profile: String,
+) -> Int with IO:
+    let handler: BuiltinHandler = parse_handler(handler_name)
+    match handler:
+        BuiltinHandler::Check  => return orchestrator.orch_check_cli(input_path)
+        BuiltinHandler::Build  => return orchestrator.orch_build_cli(input_path, target, profile, "")
+        BuiltinHandler::Run    => return orchestrator.orch_run_cli(input_path)
+        BuiltinHandler::Test   => return orchestrator.orch_test_cli(input_path)
+        BuiltinHandler::SelfHost => return orchestrator.orch_selfhost_cli(input_path, false)
+
+        BuiltinHandler::Fmt    => return dispatch_fmt(input_path)
+        BuiltinHandler::Doctor => return dispatch_doctor()
+        BuiltinHandler::Repl   => return dispatch_repl()
+        BuiltinHandler::Clean  => return dispatch_clean(input_path)
+        BuiltinHandler::Help   => return dispatch_help()
+        BuiltinHandler::Version => return dispatch_version()
+
+        // ── Extended stubs ──
+        BuiltinHandler::NativeUiDev     => return dispatch_native_ui_dev(input_path)
+        BuiltinHandler::Watch           => return dispatch_watch(input_path)
+        BuiltinHandler::Init            => return dispatch_init(input_path)
+        BuiltinHandler::Lsp             => return dispatch_lsp()
+        BuiltinHandler::BridgeServe     => return dispatch_bridge_serve()
+        BuiltinHandler::ImportC         => return dispatch_import_c(input_path)
+        BuiltinHandler::ImportRust      => return dispatch_import_rust(input_path)
+        BuiltinHandler::ImportCrate     => return dispatch_import_crate(input_path)
+        BuiltinHandler::ImportTs        => return dispatch_import_ts(input_path)
+        BuiltinHandler::ImportAsm       => return dispatch_import_asm(input_path)
+        BuiltinHandler::AmalgamatePack  => return dispatch_amalgamate_pack(input_path)
+        BuiltinHandler::AmalgamateInspect => return dispatch_amalgamate_inspect(input_path)
+        BuiltinHandler::AmalgamateUnpack  => return dispatch_amalgamate_unpack(input_path)
+        BuiltinHandler::StdlibMap       => return dispatch_stdlib_map()
+        BuiltinHandler::RuntimeBuild    => return dispatch_runtime_build()
+        BuiltinHandler::RuntimeValidate => return dispatch_runtime_validate()
+        BuiltinHandler::FabricInit      => return dispatch_fabric_init(input_path)
+        BuiltinHandler::FabricValidate  => return dispatch_fabric_validate(input_path)
+        BuiltinHandler::FabricRun       => return dispatch_fabric_run(input_path)
+        BuiltinHandler::OmniInit        => return dispatch_omni_init(input_path)
+        BuiltinHandler::OmniBuild       => return dispatch_omni_build(input_path)
+        BuiltinHandler::CodebaseInspect => return dispatch_codebase_inspect(input_path)
+        BuiltinHandler::CodebaseRun     => return dispatch_codebase_run(input_path)
+        BuiltinHandler::CommandsList    => return dispatch_commands_list()
+        BuiltinHandler::CommandsExport  => return dispatch_commands_export()
+        BuiltinHandler::CommandsPacks   => return dispatch_commands_packs()
+        BuiltinHandler::CommandsHelp    => return dispatch_commands_help()
+        BuiltinHandler::Add             => return dispatch_add(input_path)
+        BuiltinHandler::Install         => return dispatch_install(input_path)
+        BuiltinHandler::Publish         => return dispatch_publish(input_path)
+        BuiltinHandler::GpuArtifacts    => return dispatch_gpu_artifacts(input_path)
+        BuiltinHandler::Inject          => return dispatch_inject(input_path)
+
+        BuiltinHandler::Unknown => return dispatch_unknown(handler_name)
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Core handler implementations ──
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn dispatch_check(input_path: String) -> Int with IO:
+    return orchestrator.orch_check_cli(input_path)
+
+pub fn dispatch_build(input_path: String, target: String, profile: String) -> Int with IO:
+    return orchestrator.orch_build_cli(input_path, target, profile, "")
+
+pub fn dispatch_run(input_path: String) -> Int with IO:
+    return orchestrator.orch_run_cli(input_path)
+
+pub fn dispatch_test(input_path: String) -> Int with IO:
+    return orchestrator.orch_test_cli(input_path)
+
+pub fn dispatch_fmt(input_path: String) -> Int with IO:
+    println("[handlers] fmt: " + input_path + " — STUB (not yet implemented)")
+    return 0
+
+pub fn dispatch_doctor() -> Int with IO:
+    println("[handlers] doctor: environment check — STUB")
+    println("[handlers]   binary:  kainc 0.1.0-alpha")
+    println("[handlers]   target:  x86_64-pc-windows-msvc")
+    println("[handlers]   status:  bootstrap mode (limited diagnostics)")
+    return 0
+
+pub fn dispatch_selfhost(input_path: String) -> Int with IO:
+    return orchestrator.orch_selfhost_cli(input_path, false)
+
+pub fn dispatch_repl() -> Int with IO:
+    // REPL requires terminal module which depends on keyboard input.
+    // In bootstrap mode, print a warning and return.
+    println("[handlers] repl: interactive REPL — STUB")
+    println("[handlers]   To start the REPL, run `kainc repl` when the terminal module is available.")
+    println("[handlers]   For now, use `kain` (the Rust bootstrap) for full REPL support.")
+    return 0
+
+pub fn dispatch_clean(input_path: String) -> Int with IO:
+    println("[handlers] clean: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_help() -> Int with IO:
+    // Delegates to cli.kn's print_help if called from the command registry.
+    // For now, print basic help.
+    println("kainc — Kain Self-Host Compiler")
+    println("")
+    println("See `kainc help` for subcommands, or use the Rust bootstrap `kain`.")
+    return 0
+
+pub fn dispatch_version() -> Int with IO:
+    println("kainc 0.1.0-alpha")
+    println("Target: x86_64-pc-windows-msvc")
+    println("Build: 2026-06-13")
+    return 0
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Extended handler stubs ──
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn dispatch_native_ui_dev(input_path: String) -> Int with IO:
+    println("[handlers] native-ui dev: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_watch(input_path: String) -> Int with IO:
+    println("[handlers] watch: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_init(input_path: String) -> Int with IO:
+    println("[handlers] init: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_lsp() -> Int with IO:
+    println("[handlers] lsp: language server — STUB")
+    return 0
+
+pub fn dispatch_bridge_serve() -> Int with IO:
+    println("[handlers] bridge serve — STUB")
+    return 0
+
+pub fn dispatch_import_c(input_path: String) -> Int with IO:
+    println("[handlers] import-c: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_import_rust(input_path: String) -> Int with IO:
+    println("[handlers] import-rust: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_import_crate(input_path: String) -> Int with IO:
+    println("[handlers] import-crate: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_import_ts(input_path: String) -> Int with IO:
+    println("[handlers] import-ts: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_import_asm(input_path: String) -> Int with IO:
+    println("[handlers] import-asm: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_amalgamate_pack(input_path: String) -> Int with IO:
+    println("[handlers] amalgamate pack: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_amalgamate_inspect(input_path: String) -> Int with IO:
+    println("[handlers] amalgamate inspect: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_amalgamate_unpack(input_path: String) -> Int with IO:
+    println("[handlers] amalgamate unpack: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_stdlib_map() -> Int with IO:
+    println("[handlers] stdlib-map — STUB")
+    return 0
+
+pub fn dispatch_runtime_build() -> Int with IO:
+    println("[handlers] runtime build — STUB")
+    return 0
+
+pub fn dispatch_runtime_validate() -> Int with IO:
+    println("[handlers] runtime validate — STUB")
+    return 0
+
+pub fn dispatch_fabric_init(input_path: String) -> Int with IO:
+    println("[handlers] fabric init: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_fabric_validate(input_path: String) -> Int with IO:
+    println("[handlers] fabric validate: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_fabric_run(input_path: String) -> Int with IO:
+    println("[handlers] fabric run: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_omni_init(input_path: String) -> Int with IO:
+    println("[handlers] omni init: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_omni_build(input_path: String) -> Int with IO:
+    println("[handlers] omni build: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_codebase_inspect(input_path: String) -> Int with IO:
+    println("[handlers] codebase inspect: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_codebase_run(input_path: String) -> Int with IO:
+    println("[handlers] codebase run: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_commands_list() -> Int with IO:
+    println("[handlers] commands list — STUB")
+    return 0
+
+pub fn dispatch_commands_export() -> Int with IO:
+    println("[handlers] commands export — STUB")
+    return 0
+
+pub fn dispatch_commands_packs() -> Int with IO:
+    println("[handlers] commands packs — STUB")
+    return 0
+
+pub fn dispatch_commands_help() -> Int with IO:
+    println("[handlers] commands help — STUB (shows dynamic help from registry)")
+    return 0
+
+pub fn dispatch_add(input_path: String) -> Int with IO:
+    println("[handlers] add package: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_install(input_path: String) -> Int with IO:
+    println("[handlers] install package: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_publish(input_path: String) -> Int with IO:
+    println("[handlers] publish: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_gpu_artifacts(input_path: String) -> Int with IO:
+    println("[handlers] gpu-artifacts: " + input_path + " — STUB")
+    return 0
+
+pub fn dispatch_inject(input_path: String) -> Int with IO:
+    println("[handlers] inject: " + input_path + " — STUB")
+    return 0
+
+// ═══════════════════════════════════════════════════════════════════
+// dispatch_unknown — fallback for unrecognized handlers
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn dispatch_unknown(handler_name: String) -> Int with IO:
+    println("[handlers] WARNING: unknown handler: " + handler_name)
+    println("[handlers]   Run `kainc help` for available subcommands.")
+    return 1

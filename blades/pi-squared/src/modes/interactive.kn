@@ -1,117 +1,30 @@
-// ============================================================================
-//  modes/interactive.kn — Interactive TUI mode (CHARLIE-6)
-//
-//  Ladder: Layer 7 (actor) for InputActor + AgentActor state machines,
-//          Layer 5 (pulse) for the 60fps render beat (template),
-//          Layer 3 (converge dispatch_key) for keybinding resolution,
-//          Layer 1 (world TerminalScreen) for terminal display state,
-//          Layer 0 (fn) for the main loop, screen assembly, and key handling.
-//
-//  ARCHITECTURE
-//  ────────────
-//  Main loop (this file):
-//    1. terminal_initialize() — raw mode, query terminal size
-//    2. Spawn InputActor + AgentActor
-//    3. Enter while-running loop:
-//       a. os_read(stdin, buf, 1) — blocking read one byte
-//       b. FeedData → InputActor (buffers escape sequences)
-//       c. GetNextKey → InputActor (returns parsed key string)
-//       d. parse_key_sequence → ParsedKey
-//       e. handle_key → ParsedKey → dispatch_key → PiKeyAction → update state
-//       f. build_screen_buffer(InteractiveState) → [String]
-//       g. render_frame(TerminalScreen, buffer) — diff to terminal
-//    4. Cleanup: disable_raw_mode, os_close stdin
-//
-//  The actor handles (input_actor, agent_actor) are kept as local variables
-//  in the main loop and threaded into key/action handlers as parameters.
-//  InteractiveState stores only data — no actor references. This avoids
-//  coupling the state struct to concrete actor handle types.
-//
-//  pulse-based 60fps render is available as a template (commented out) once
-//  the runtime supports concurrent pulse + main-loop execution. For now,
-//  rendering happens synchronously after each keypress.
-//
-//  Exit codes:
-//    0   Success
-//    2   Terminal init failure
-// ============================================================================
+// modes/interactive.kn — Interactive REPL for pi-squared
+// Ladder: Layer 0 — fn with IO, Unsafe for stdin reading
+// Uses std::os for portable stdin access (CONIN$ on Windows, /dev/stdin on POSIX)
+// No raw mode, no TUI rendering overhead — just clean cooked-mode terminal I/O
 
-use std::runtime
-use std::os             // os_open, os_read, os_close, os_is_windows, OsFile, os_sleep_millis
-use std::text           // text_chr, text_byte_at, text_from, text_len, text_substring_string, text_from_byte_array
-use std::fmt            // fmt_join_strings, fmt_repeat
-use types               // CliArgs, Model, Settings
-use tui::screen         // TerminalScreen, terminal_initialize, terminal_update_dimensions,
-                        // empty_buffer, write_to_buffer, screen_get_dimensions,
-                        // terminal_set_cursor, terminal_push_overlay, terminal_pop_overlay
-use tui::render         // render_frame, render_all_components, format_status_line,
-                        // extract_and_strip_marker, diff_buffers
-use tui::terminal       // CURSOR_HIDE, CURSOR_SHOW, CLEAR_SCREEN, cursor_to,
-                        // disable_raw_mode, enable_raw_mode, CURSOR_MARKER,
-                        // SGR_RESET, SGR_REVERSE, SGR_DIM, SGR_BOLD,
-                        // KITTY_SYNC_START, KITTY_SYNC_END,
-                        // CLEAR_LINE, CLEAR_LINE_TO_END
-use tui::keys           // ParsedKey, parse_key_sequence,
-                        // KEY_ESCAPE, KEY_ENTER, KEY_BACKSPACE, KEY_TAB,
-                        // KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT,
-                        // KEY_HOME, KEY_END, KEY_PAGE_UP, KEY_PAGE_DOWN,
-                        // KEY_DELETE, KEY_INSERT
-use tui::keybindings    // PiKeyAction, dispatch_key, default_keybindings, matches_keybinding
-use tui::input          // InputActor
-use agent::agent        // AgentActor
+use std::os       // os_open, os_read, os_close, os_is_windows
+use std::text     // text_chr
+use types         // Model, CliArgs, default_agent_message
 
-// ============================================================================
-//  INTERACTIVE STATE  —  all mutable data for the TUI session
-//
-//  Ladder: Layer 0 struct. Transient application state — no world-level
-//  persistence or entangle propagation needed.
-//
-//  NOTE: Actor handles (InputActor, AgentActor) are NOT stored here.
-//  They're threaded as parameters to keep the state struct agnostic
-//  of concrete actor types.
-// ============================================================================
-
+// The InteractiveState struct holds REPL state before entering the terminal loop.
+// Terminal state (raw mode, cursor, screen) is managed transiently.
 pub struct InteractiveState:
-    // ── Input buffer ──
-    input_lines:   [String]      // multi-line input buffer, one string per line
-    cursor_row:    Int            // row within input_lines
-    cursor_col:    Int            // col within current input line
-    prompt:        String         // prompt prefix, e.g. ">>> "
+    messages:   [String]
+    running:    Bool
+    model_name: String
 
-    // ── Conversation ──
-    messages:      [String]      // rendered conversation lines
-    scroll_offset: Int            // first visible line in messages area
+// Create fresh state with welcome banner
+fn new_state(model_name: String) -> InteractiveState:
+    var msgs: [String] = []
+    push(msgs, "pi-squared 0.1.0 — interactive mode")
+    push(msgs, "Model: " + model_name)
+    push(msgs, "")
+    push(msgs, "Type your input. /help for commands. /exit to quit.")
+    push(msgs, "")
+    return InteractiveState { messages: msgs, running: true, model_name: model_name }
 
-    // ── Status flags ──
-    is_streaming:  Bool           // agent is generating a response
-    editor_open:   Bool           // full-editor overlay is active
-    running:       Bool           // main loop should continue
-
-// ============================================================================
-//  FACTORY
-// ============================================================================
-
-pub fn new_interactive_state() -> InteractiveState with Pure:
-    return InteractiveState {
-        input_lines:   [""],
-        cursor_row:    0,
-        cursor_col:    0,
-        prompt:        ">>> ",
-        messages:      [],
-        scroll_offset: 0,
-        is_streaming:  false,
-        editor_open:   false,
-        running:       true,
-    }
-
-// ============================================================================
-//  MAIN ENTRY POINT
-//
-//  Called from main.kn's enter_mode() dispatcher. Sets up the terminal,
-//  spawns actors, and enters the interactive input→render loop.
-//  Actor handles are kept on the stack and threaded into action handlers.
-// ============================================================================
-
+// Entry point for the REPL
 pub fn run_interactive_mode(
     settings_ref: String,
     session_ref: String,
@@ -120,488 +33,79 @@ pub fn run_interactive_mode(
     system_prompt: String,
     flags: CliArgs,
 ) -> Int with IO, Unsafe:
-    // ---- Stage 1: Terminal init ----
-    let init_status = terminal_initialize()
-    if init_status != 0:
-        println("[pi-squared] terminal_initialize failed: " + str(init_status))
-        return 2
 
-    let (initial_rows, initial_cols) = screen_get_dimensions()
+    // Print welcome banner
+    println("")
+    println("pi-squared 0.1.0 — interactive mode")
+    println("Model: " + model.name)
+    println("")
+    println("Type below. /help for commands.")
+    println("")
 
-    // ---- Stage 2: Open stdin for raw key reading ----
+    // Open stdin for reading (cooked/line-buffered)
+    // Open stdin for interactive reading
+    // Windows: CONIN$ opens the console input buffer
+    // POSIX: /dev/stdin opens stdin
     let stdin_path = if os_is_windows(): "CONIN$" else: "/dev/stdin"
     let stdin_file = os_open(stdin_path, "r")
 
-    // Null-check: os_open returns null handle when stdin is piped/redirected
-    // (os_open always constructs an OsFile struct, but abi_fs_open returns NULL
-    // on failure, making the handle field a null ptr).
-    if ptr_to_int(stdin_file.handle) == 0:
-        println("[pi-squared] Failed to open terminal stdin: " + stdin_path)
-        let _ = disable_raw_mode()
-        TerminalScreen.raw_mode_enabled = false
-        TerminalScreen.needs_full_render = true
-        print(CURSOR_SHOW())
-        print(CLEAR_SCREEN())
-        print(cursor_to(1, 1))
-        return 3
-
-    // ---- Stage 3: Spawn actors ----
-    let event_bus_ref = ""  // event bus not wired yet
-    let input_actor = spawn InputActor(event_bus_ref = event_bus_ref)
-    let agent_actor = spawn AgentActor(event_bus_ref = event_bus_ref)
-
-    // Wire up agent's refs
-    let _ = ask(agent_actor, "SetEventBus", actor_ref = event_bus_ref)
-
-    // ---- Stage 4: Initialize state ----
-    var state = new_interactive_state()
-
-    // Add initial welcome message
-    push(state.messages, "pi-squared 0.1.0 — interactive mode")
-    push(state.messages, "Model: " + model.name)
-    push(state.messages, "")
-    push(state.messages, "Ctrl+E  Open editor")
-    push(state.messages, "Ctrl+L  Cascade (continue)")
-    push(state.messages, "Ctrl+C / Escape  Abort / exit")
-    push(state.messages, "Ctrl+N  New session")
-    push(state.messages, "Ctrl+S  Save session")
-    push(state.messages, "Up/Down  Scroll conversation")
-    push(state.messages, "PageUp/PageDown  Page scroll")
-    push(state.messages, "---")
-    push(state.messages, "")
-
-    // ---- Stage 5: Initial render ----
-    print(CURSOR_HIDE())
-    print(CLEAR_SCREEN())
-
-    let initial_buffer = build_screen_buffer(state, initial_rows, initial_cols)
-    render_frame(TerminalScreen, initial_buffer)
-
-    // Allocate 1-byte read buffer
+    // Allocate a 1-byte read buffer with ownership lifecycle
     let read_buf: ptr<Int> = alloc_zeroed(1, "Int")
     defer decay read_buf
 
-    // ---- Stage 6: Main input→render loop ----
-    while state.running:
-        // 6a. Read one byte from stdin (blocking in raw mode)
-        let n_read: Int = os_read(stdin_file, read_buf, 1)
+    var running: Bool = true
+    while running:
+        // Show prompt
+        print("> ")
 
-        if n_read <= 0:
-            // EOF or error — exit
-            state.running = false
-            break
+        // Read characters one at a time until newline
+        var line_chars: [Int] = []
+        var line_done: Bool = false
+        while line_done == false:
+            let br = os_read(stdin_file, read_buf, 1)
+            if br <= 0:
+                line_done = true
+                running = false
+            else:
+                let c = mem_load(read_buf, "Int")
+                if c == 10:        // LF
+                    line_done = true
+                elif c == 3:       // Ctrl+C
+                    line_done = true
+                    running = false
+                elif c == 4:       // Ctrl+D
+                    line_done = true
+                    running = false
+                else:
+                    push(line_chars, c)
 
-        // 6b. Extract the raw byte
-        let byte_val: Int = mem_load(read_buf, "Int")
+        // Build the input string
+        var input: String = ""
+        var ci: Int = 0
+        while ci < len(line_chars):
+            input = input + text_chr(line_chars[ci])
+            ci = ci + 1
 
-        // 6c. Feed to InputActor and check for complete key
-        let feed_result: String = feed_byte_and_check(input_actor, byte_val)
+        // Dispatch commands
+        if input == "/exit" or input == "/quit":
+            running = false
+        elif input == "/help":
+            println("  /help   — show this help")
+            println("  /exit   — exit")
+            println("  /model  — show current model")
+            println("  /clear  — clear screen (ANSI escape)")
+            println("  /echo   — echo text back")
+            println("")
+        elif input == "/clear":
+            print("\x1b[2J\x1b[H")
+        elif input == "/model":
+            println("Model: " + model.name)
+        elif input != "":
+            // Echo input back
+            println("[echo] " + input)
 
-        // 6d. If key ready, get it and handle
-        if feed_result == "key_ready":
-            let key_str: String = ask(input_actor, "GetNextKey", "")
-
-            if key_str != "":
-                let parsed: ParsedKey = parse_key_sequence(key_str)
-                state = handle_key(state, parsed, agent_actor)
-
-        // 6e. Re-render on every iteration
-        let (rows, cols) = screen_get_dimensions()
-        let frame_buffer = build_screen_buffer(state, rows, cols)
-        render_frame(TerminalScreen, frame_buffer)
-
-    // ---- Stage 7: Cleanup ----
-    print(CURSOR_SHOW())
-    print(CLEAR_SCREEN())
-    print(cursor_to(1, 1))
-
-    let _ = disable_raw_mode()
-    if ptr_to_int(stdin_file.handle) != 0:
-        let _ = os_close(stdin_file)
-    TerminalScreen.raw_mode_enabled = false
-    TerminalScreen.needs_full_render = true
-
+    // Clean shutdown
+    // Don't close stdin — it's owned by the process
     println("")
-    println("pi-squared interactive mode closed.")
-    return 0
-
-// ============================================================================
-//  FEED BYTE TO INPUT ACTOR  —  send a raw byte, return "key_ready" or "buffering"
-// ============================================================================
-
-pub fn feed_byte_and_check(input_actor: InputActor, byte_val: Int) -> String with IO:
-    // Convert byte to single-character string
-    let raw_char: String = text_chr(byte_val)
-    // Ask InputActor to process this byte
-    let result: String = ask(input_actor, "FeedData", raw_char)
-    return result
-
-// ============================================================================
-//  HANDLE KEY  —  dispatches a ParsedKey, updates state
-//
-//  Key dispatch strategy:
-//    1. Enter       → submit input buffer
-//    2. Backspace   → delete character before cursor
-//    3. Tab         → insert 4 spaces
-//    4. Escape      → abort / exit
-//    5. Ctrl+letter → dispatch_key → PiKeyAction → handle_action
-//    6. Printable char → insert into input buffer
-//    7. Function key (arrows, page) → dispatch_key → PiKeyAction
-// ============================================================================
-
-pub fn handle_key(
-    state: InteractiveState,
-    key: ParsedKey,
-    agent_actor: AgentActor,
-) -> InteractiveState with IO:
-    let kind = key.kind
-    let key_name = key.key
-
-    // ── Char keys ──
-    if kind == "char":
-        // Enter: submit
-        if key_name == KEY_ENTER:
-            return action_submit(state, agent_actor)
-
-        // Backspace
-        if key_name == KEY_BACKSPACE:
-            return editor_delete_before(state)
-
-        // Tab
-        if key_name == KEY_TAB:
-            return editor_insert_text(state, "    ")
-
-        // Ctrl+letter: dispatch to PiKeyAction
-        if key.ctrl:
-            let action = dispatch_key(key)
-            return handle_action(state, action, agent_actor)
-
-        // Printable char: insert into input buffer
-        return editor_insert_text(state, key_name)
-
-    // ── Function keys (arrows, page up/down, etc.) ──
-    if kind == "function":
-        let action = dispatch_key(key)
-        return handle_action(state, action, agent_actor)
-
-    // ── Escape key ──
-    if kind == "escape":
-        if key_name == KEY_ESCAPE:
-            return handle_action(state, PiKeyAction::Abort, agent_actor)
-        // Any other escape defaults to Abort
-        return handle_action(state, PiKeyAction::Abort, agent_actor)
-
-    return state
-
-// ============================================================================
-//  HANDLE ACTION  —  apply a PiKeyAction, may communicate with agent
-// ============================================================================
-
-pub fn handle_action(
-    state: InteractiveState,
-    action: PiKeyAction,
-    agent_actor: AgentActor,
-) -> InteractiveState with IO:
-    match action:
-        PiKeyAction::Submit     => return action_submit(state, agent_actor)
-        PiKeyAction::Abort      => return action_abort(state, agent_actor)
-        PiKeyAction::ScrollUp   => return action_scroll(state, -1)
-        PiKeyAction::ScrollDown => return action_scroll(state, 1)
-        PiKeyAction::PageUp     => return action_scroll(state, -20)
-        PiKeyAction::PageDown   => return action_scroll(state, 20)
-        PiKeyAction::OpenEditor => return action_toggle_editor(state)
-        PiKeyAction::Cascade    => return action_cascade(state, agent_actor)
-        _ => return state
-
-// ============================================================================
-//  ACTION: Submit  —  send input buffer text to agent, echo as message
-// ============================================================================
-
-fn action_submit(state: InteractiveState, agent_actor: AgentActor) -> InteractiveState with IO:
-    // Join input lines into a single prompt string
-    let prompt_text = join_lines(state.input_lines)
-
-    // If empty, insert a newline in the input buffer
-    if prompt_text == "":
-        return editor_insert_newline(state)
-
-    // 1. Send prompt to AgentActor (echo stub for now)
-    let reply: String = ask(agent_actor, "Prompt", text = prompt_text)
-
-    // 2. Add user message to conversation
-    push(state.messages, "[user] " + prompt_text)
-    push(state.messages, "")
-
-    // 3. Get agent state info and add echo response
-    let agent_info: String = ask(agent_actor, "GetState", "")
-    push(state.messages, "[pi-squared] Echo: " + prompt_text)
-    push(state.messages, "    Agent: " + agent_info)
-    push(state.messages, "")
-
-    // 4. Clear input buffer
-    state.input_lines = [""]
-    state.cursor_row = 0
-    state.cursor_col = 0
-
-    return state
-
-// ============================================================================
-//  ACTION: Abort  —  abort generation or exit interactive mode
-//
-//  Priority:
-//    1. If editor is open → close it
-//    2. If agent is streaming → abort the agent
-//    3. Otherwise → exit the interactive loop
-// ============================================================================
-
-fn action_abort(state: InteractiveState, agent_actor: AgentActor) -> InteractiveState with IO:
-    // 1. Close editor if open
-    if state.editor_open:
-        state.editor_open = false
-        let _ = terminal_pop_overlay()
-        return state
-
-    // 2. Abort agent if streaming
-    if state.is_streaming:
-        let _ = ask(agent_actor, "Abort", "")
-        state.is_streaming = false
-        push(state.messages, "[Aborted]")
-        push(state.messages, "")
-        return state
-
-    // 3. Exit the interactive loop
-    state.running = false
-    return state
-
-// ============================================================================
-//  ACTION: Scroll  —  scroll conversation view
-// ============================================================================
-
-fn action_scroll(state: InteractiveState, delta: Int) -> InteractiveState:
-    let new_offset = state.scroll_offset + delta
-    if new_offset < 0:
-        state.scroll_offset = 0
-    elif new_offset > len(state.messages):
-        state.scroll_offset = len(state.messages)
-    else:
-        state.scroll_offset = new_offset
-    return state
-
-// ============================================================================
-//  ACTION: Toggle editor overlay
-// ============================================================================
-
-fn action_toggle_editor(state: InteractiveState) -> InteractiveState:
-    state.editor_open = if state.editor_open == true: false else: true
-    if state.editor_open:
-        let _ = terminal_push_overlay("editor")
-    else:
-        let _ = terminal_pop_overlay()
-    return state
-
-// ============================================================================
-//  ACTION: Cascade  —  continue LLM generation (stub: sends "Continue" to agent)
-// ============================================================================
-
-fn action_cascade(state: InteractiveState, agent_actor: AgentActor) -> InteractiveState with IO:
-    if state.is_streaming:
-        return state  // already streaming
-    if len(state.messages) > 0:
-        let _ = ask(agent_actor, "Continue", "")
-        push(state.messages, "[Cascade — continuing...]")
-        push(state.messages, "")
-    return state
-
-// ============================================================================
-//  EDITOR: insert text at cursor
-// ============================================================================
-
-pub fn editor_insert_text(state: InteractiveState, text: String) -> InteractiveState:
-    var row = state.cursor_row
-    let col = state.cursor_col
-
-    // Ensure row exists
-    while row >= len(state.input_lines):
-        push(state.input_lines, "")
-
-    let cur_line = state.input_lines[row]
-    let before = text_substring_string(cur_line, 0, col)
-    let after = text_substring_string(cur_line, col, len(cur_line) - col)
-    state.input_lines[row] = before + text + after
-    state.cursor_col = col + len(text)
-    return state
-
-// ============================================================================
-//  EDITOR: insert newline at cursor
-// ============================================================================
-
-pub fn editor_insert_newline(state: InteractiveState) -> InteractiveState:
-    let row = state.cursor_row
-    let col = state.cursor_col
-
-    // Ensure row exists
-    while row >= len(state.input_lines):
-        push(state.input_lines, "")
-
-    let cur_line = state.input_lines[row]
-    let before_val = text_substring_string(cur_line, 0, col)
-    let after_val = text_substring_string(cur_line, col, len(cur_line) - col)
-    state.input_lines[row] = before_val
-
-    // Insert new line after current
-    var new_lines: [String] = []
-    var i: Int = 0
-    while i < len(state.input_lines):
-        push(new_lines, state.input_lines[i])
-        if i == row:
-            push(new_lines, after_val)
-        i = i + 1
-    state.input_lines = new_lines
-    state.cursor_row = row + 1
-    state.cursor_col = 0
-    return state
-
-// ============================================================================
-//  EDITOR: delete character before cursor (Backspace)
-// ============================================================================
-
-pub fn editor_delete_before(state: InteractiveState) -> InteractiveState:
-    let row = state.cursor_row
-    let col = state.cursor_col
-
-    // Ensure row exists
-    while row >= len(state.input_lines):
-        push(state.input_lines, "")
-
-    if col > 0:
-        // Delete within current line
-        let cur_line = state.input_lines[row]
-        let before_val = text_substring_string(cur_line, 0, col - 1)
-        let after_val = text_substring_string(cur_line, col, len(cur_line) - col)
-        state.input_lines[row] = before_val + after_val
-        state.cursor_col = col - 1
-    elif row > 0:
-        // Merge with previous line
-        let prev_line = state.input_lines[row - 1]
-        let cur_line = state.input_lines[row]
-        let new_col = len(prev_line)
-        state.input_lines[row - 1] = prev_line + cur_line
-
-        // Remove current line
-        var new_lines: [String] = []
-        var li: Int = 0
-        while li < len(state.input_lines):
-            if li != row:
-                push(new_lines, state.input_lines[li])
-            li = li + 1
-        state.input_lines = new_lines
-        state.cursor_row = row - 1
-        state.cursor_col = new_col
-
-    return state
-
-// ============================================================================
-//  BUILD SCREEN BUFFER  —  assemble the full terminal frame from state
-//
-//  Layout (top to bottom):
-//    [0..msg_end]        conversation messages (scrollable)
-//    [separator_row]     horizontal divider
-//    [editor_start..]    input area (editor or single-line input)
-//    [info_row]          commentary / info line
-//    [last_row]          footer status line
-// ============================================================================
-
-pub fn build_screen_buffer(
-    state: InteractiveState,
-    rows: Int,
-    cols: Int,
-) -> [String] with Pure:
-    var buffer = empty_buffer(rows, cols)
-
-    let footer_row = rows - 1
-    let info_row = rows - 2
-    let separator_row = rows - 4
-    let msg_area_end = separator_row
-
-    // ── 1. Conversation messages (scrollable) ──
-    let msg_count = len(state.messages)
-    var msg_line: Int = 0
-    var msg_idx: Int = state.scroll_offset
-    while msg_line < msg_area_end and msg_idx < msg_count:
-        let msg = state.messages[msg_idx]
-        buffer = write_to_buffer(buffer, msg_line, 0, msg)
-        msg_line = msg_line + 1
-        msg_idx = msg_idx + 1
-
-    // ── 2. Separator line ──
-    let sep_text = fmt_repeat("─", cols)
-    buffer = write_to_buffer(buffer, separator_row, 0, sep_text)
-
-    // ── 3. Input area ──
-    if state.editor_open:
-        buffer = write_to_buffer(buffer, separator_row + 1, 0,
-            "[Editor overlay — Ctrl+E to close]")
-    else:
-        // Render input line with cursor marker
-        let input_display = build_input_line(state, cols)
-        buffer = write_to_buffer(buffer, separator_row + 1, 0, input_display)
-
-    // ── 4. Commentary / info line ──
-    let info = "msgs:" + str(msg_count) + " scroll:" + str(state.scroll_offset) + " lines:" + str(len(state.input_lines)) + " cur:" + str(state.cursor_row) + "," + str(state.cursor_col)
-    let stream_flag = if state.is_streaming: " [streaming]" else: ""
-    buffer = write_to_buffer(buffer, info_row, 0, info + stream_flag)
-
-    // ── 5. Footer status line ──
-    let mode_label = if state.editor_open: "EDITOR" else: "INTERACTIVE"
-    let footer = format_status_line("pi-squared " + mode_label, msg_count, "", 0, cols)
-    buffer = write_to_buffer(buffer, footer_row, 0, footer)
-
-    return buffer
-
-// ============================================================================
-//  BUILD INPUT LINE  —  render input with cursor marker
-//
-//  Produces: ">>> text before█text after"
-//  The CURSOR_MARKER is stripped by render_frame's extract_and_strip_marker.
-// ============================================================================
-
-pub fn build_input_line(state: InteractiveState, cols: Int) -> String with Pure:
-    var safe_row = state.cursor_row
-    if safe_row >= len(state.input_lines):
-        safe_row = len(state.input_lines) - 1
-    if safe_row < 0:
-        safe_row = 0
-
-    let cur_line = state.input_lines[safe_row]
-    let prompt = state.prompt
-
-    var safe_col = state.cursor_col
-    if safe_col > len(cur_line):
-        safe_col = len(cur_line)
-
-    let before = text_substring_string(cur_line, 0, safe_col)
-    let after = text_substring_string(cur_line, safe_col, len(cur_line) - safe_col)
-    return prompt + before + CURSOR_MARKER() + after
-
-// ============================================================================
-//  JOIN LINES  —  join input_lines into a single string with newlines
-//
-//  Uses text_chr(10) for newline since the Kain lexer rejects \n escapes.
-// ============================================================================
-
-pub fn join_lines(lines: [String]) -> String with Pure:
-    return fmt_join_strings(lines, text_chr(10))
-
-// ============================================================================
-//  run_interactive_mode_standalone  —  quick interactive welcome (no setup)
-//
-//  Prints a welcome banner and returns immediately. Used as a fast path
-//  when startup pipeline overhead isn't needed.
-// ============================================================================
-
-pub fn run_interactive_mode_standalone() -> Int with IO:
-    println("pi-squared 0.1.0 — Interactive TUI mode")
-    println("Type /help for commands. Ctrl+C to exit.")
-    println("")
-    println("[ready]")
+    println("bye")
     return 0

@@ -1,0 +1,133 @@
+// ============================================================================
+//  VULKAN WINDOW DEMO — Pure Kain Vulkan via include
+//  File: vulkan_window_demo.kn
+//  Tests: include <vulkan/vulkan.h> as vk
+//  Goal:  Create a Vulkan instance, enumerate devices, spawn a window
+// ============================================================================
+
+include <vulkan/vulkan.h> as vk
+
+use std::runtime
+use std::machine
+
+const VK_STRUCTURE_TYPE_APPLICATION_INFO: Int = 0
+const VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO: Int = 1
+
+// ============================================================================
+//  RAW MEMORY HELPERS
+// ============================================================================
+
+fn alloc_struct(byte_count: Int) -> ptr<Int> with Unsafe:
+    let cells = byte_count / 8
+    if byte_count % 8 > 0:
+        cells = cells + 1
+    return alloc_zeroed(cells, "Int")
+
+fn write_i32(base: ptr<Int>, byte_offset: Int, value: Int) with Unsafe:
+    let cell_index = byte_offset / 8
+    let byte_in_cell = byte_offset % 8
+    let ptr = ptr_offset(base, cell_index, "Int")
+    let existing = mem_load(ptr, "Int")
+    let shift = byte_in_cell * 8
+    let mask = ~(0xFFFFFFFF << shift)
+    let cleared = existing & mask
+    let shifted = value << shift
+    let result = cleared | shifted
+    mem_store(ptr, result, "Int")
+
+fn write_i64(base: ptr<Int>, byte_offset: Int, value: Int) with Unsafe:
+    let cell_index = byte_offset / 8
+    let ptr = ptr_offset(base, cell_index, "Int")
+    mem_store(ptr, value, "Int")
+
+// ============================================================================
+//  VULKAN INSTANCE CREATION
+// ============================================================================
+
+fn create_vulkan_instance() -> Int with Unsafe:
+    // VkApplicationInfo (48 bytes on x64):
+    let app_info = alloc_struct(48)
+    collapse app_info:
+        write_i32(app_info, 0, VK_STRUCTURE_TYPE_APPLICATION_INFO)  // sType @ 0
+        write_i64(app_info, 8, 0)                                   // pNext @ 8
+        write_i64(app_info, 16, 0)                                  // pApplicationName @ 16
+        write_i32(app_info, 24, 0)                                  // applicationVersion @ 24
+        write_i64(app_info, 32, 0)                                  // pEngineName @ 32
+        write_i32(app_info, 40, 0)                                  // engineVersion @ 40
+        write_i32(app_info, 44, 0x00400000)                         // apiVersion = VK_API_VERSION_1_0
+        0
+
+    // VkInstanceCreateInfo (64 bytes on x64)
+    let create_info = alloc_struct(64)
+    collapse create_info:
+        write_i32(create_info, 0, VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)  // sType @ 0
+        write_i64(create_info, 8, 0)                                       // pNext @ 8
+        write_i32(create_info, 16, 0)                                      // flags @ 16
+        write_i64(create_info, 24, ptr_to_int(app_info))                   // pApplicationInfo @ 24
+        write_i32(create_info, 32, 0)                                      // enabledLayerCount @ 32
+        write_i64(create_info, 40, 0)                                      // ppEnabledLayerNames @ 40
+        write_i32(create_info, 48, 0)                                      // enabledExtensionCount @ 48
+        write_i64(create_info, 56, 0)                                      // ppEnabledExtensionNames @ 56
+        0
+
+    let instance_ptr = alloc_struct(8)
+    collapse instance_ptr:
+        mem_store(instance_ptr, 0, "Int")
+        0
+
+    let result = vk_CreateInstance(ptr_to_int(create_info), 0, ptr_to_int(instance_ptr))
+    let instance = 0
+    if result == 0:
+        instance = observe instance_ptr:
+            mem_load(instance_ptr, "Int")
+    else:
+        instance = result * -1  // negative = error
+    
+    decay create_info
+    decay app_info
+    decay instance_ptr
+    return instance
+
+// ============================================================================
+//  PHYSICAL DEVICE ENUMERATION
+// ============================================================================
+
+fn enumerate_devices(instance: Int) -> Int with Unsafe:
+    let count_ptr = alloc_struct(8)
+    collapse count_ptr:
+        mem_store(count_ptr, 0, "Int")
+        0
+
+    let result = vk_EnumeratePhysicalDevices(instance, ptr_to_int(count_ptr), 0)
+    if result != 0:
+        decay count_ptr
+        return 0
+
+    let count = observe count_ptr:
+        mem_load(count_ptr, "Int")
+    decay count_ptr
+    return count
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int with IO, Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 1
+
+    println("=== Vulkan Test ===")
+    
+    // Test: call vulkan functions with NULL args to check ABI
+    println("calling vkCreateInstance(NULL,0,NULL)...")
+    let null_result = vk_CreateInstance(0, 0, 0)
+    println("vkCreateInstance(NULL) = " + str(null_result))
+
+    if null_result < 0:
+        println("Vulkan ABI works (got VK_ERROR_INITIALIZATION_FAILED or VK_ERROR_OUT_OF_HOST_MEMORY)")
+    else:
+        println("Unexpected result: " + str(null_result))
+
+    let shutdown = runtime_shutdown()
+    return 0

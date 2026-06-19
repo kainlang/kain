@@ -1,0 +1,127 @@
+// source.kn — REPL script source normalization
+// Ported from crates/repl/src/source.rs
+//
+// normalize_script_source:
+//   1. Removes UTF-8 BOM (U+FEFF) if the source starts with one
+//   2. Strips the shebang (#!...) line if present
+//   3. Trims trailing whitespace from every line
+//   4. Ensures the result ends with a trailing newline
+
+use std::text
+
+// ─────────────────────────────────────────────────────────────
+// normalize_script_source — normalize a REPL script source
+// ─────────────────────────────────────────────────────────────
+
+pub fn normalize_script_source(raw: String) -> String:
+    // Step 1: Remove UTF-8 BOM (U+FEFF) if present
+    let bom_char: String = text_chr(0xFEFF)
+    var stripped: String = raw
+    if text_starts_with_string(raw, bom_char):
+        stripped = text_substring_string(raw, 1, len(raw) - 1)
+
+    // Step 2: Strip shebang (#!...) line if present
+    var no_shebang: String = stripped
+    if text_starts_with_string(stripped, "#!"):
+        let newline_pos: Int = find_newline(stripped)
+        if newline_pos >= 0:
+            no_shebang = text_substring_string(stripped, newline_pos + 1, len(stripped) - newline_pos - 1)
+        else:
+            no_shebang = ""
+
+    // Step 3: Trim trailing whitespace from each line
+    let lines: Array<String> = text_split_lines(no_shebang)
+    let mut result_parts: Array<String> = []
+    var i: Int = 0
+    while i < len(lines):
+        let line_text: String = lines[i]
+        let trimmed: String = trim_trailing_whitespace(line_text)
+        push(result_parts, trimmed)
+        i = i + 1
+
+    var result: String = text_join_strings(result_parts, "\n")
+
+    // Step 4: Ensure the result ends with a trailing newline
+    if text_ends_with_string(result, "\n") == false:
+        result = result + "\n"
+
+    return result
+
+// ─────────────────────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────────────────────
+
+// find_newline — return index of first '\n' in string, or -1
+fn find_newline(s: String) -> Int:
+    var i: Int = 0
+    while i < len(s):
+        if s[i] == "\n":
+            return i
+        i = i + 1
+    return -1
+
+// trim_trailing_whitespace — remove trailing spaces, tabs, and CR
+fn trim_trailing_whitespace(s: String) -> String:
+    var i: Int = len(s) - 1
+    while i >= 0:
+        let c: String = s[i]
+        if c != " " and c != "\t" and c != "\r":
+            return text_substring_string(s, 0, i + 1)
+        i = i - 1
+    return ""
+
+// ─────────────────────────────────────────────────────────────
+// Inline tests
+// ─────────────────────────────────────────────────────────────
+
+test "removes UTF-8 BOM":
+    let bom: String = text_chr(0xFEFF)
+    let input: String = bom + "fn main():\n    pass\n"
+    let result: String = normalize_script_source(input)
+    let expected: String = "fn main():\n    pass\n"
+    assert(result == expected, "BOM should be stripped from start of source")
+
+test "removes shebang line":
+    let input: String = "#!/usr/bin/env kn\nfn main():\n    pass\n"
+    let result: String = normalize_script_source(input)
+    let expected: String = "fn main():\n    pass\n"
+    assert(result == expected, "shebang line should be removed")
+
+test "removes BOM and shebang together":
+    let bom: String = text_chr(0xFEFF)
+    let input: String = bom + "#!/usr/bin/env kn\nlet x: Int = 42\n"
+    let result: String = normalize_script_source(input)
+    let expected: String = "let x: Int = 42\n"
+    assert(result == expected, "both BOM and shebang should be stripped")
+
+test "no-op when no BOM or shebang":
+    let input: String = "fn add(a: Int, b: Int) -> Int:\n    return a + b\n"
+    let result: String = normalize_script_source(input)
+    assert(result == input, "source without BOM/shebang should pass through unchanged")
+
+test "adds trailing newline":
+    let input: String = "fn main():\n    pass"
+    let result: String = normalize_script_source(input)
+    let expected: String = "fn main():\n    pass\n"
+    assert(result == expected, "trailing newline should be added")
+
+test "trims trailing whitespace":
+    let input: String = "fn main():  \n    pass  \t\n"
+    let result: String = normalize_script_source(input)
+    let expected: String = "fn main():\n    pass\n"
+    assert(result == expected, "trailing whitespace should be stripped from each line")
+
+test "handles empty source":
+    let result: String = normalize_script_source("")
+    assert(result == "\n", "empty source should produce single newline")
+
+test "handles shebang-only source":
+    let input: String = "#!/usr/bin/env kn\n"
+    let result: String = normalize_script_source(input)
+    assert(result == "\n", "shebang-only source should produce single newline")
+
+test "handles multiline without trailing newline":
+    let input: String = "line1\nline2\nline3"
+    let result: String = normalize_script_source(input)
+    let expected: String = "line1\nline2\nline3\n"
+    assert(result == expected, "trailing newline should be added for multiline input")

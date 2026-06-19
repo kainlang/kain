@@ -1,0 +1,351 @@
+// highlight.kn — REPL syntax highlighter using ANSI escape codes
+// Simplified port of crates/repl/src/highlight.rs
+//
+// Uses a char-by-char state machine that scans source and emits
+// ANSI color codes:
+//   Cyan  (36)  — keywords: fn, let, mut, if, else, return, ...
+//   Gray  (90)  — line comments  // ...
+//   Green (32)  — string and char literals
+//   Yellow(33)  — numeric literals
+//   Reset (0)   — back to terminal default
+
+use std::text
+use std::ascii
+
+// ─────────────────────────────────────────────────────────────
+// KainSyntaxHighlighter
+// ─────────────────────────────────────────────────────────────
+
+pub struct KainSyntaxHighlighter:
+    keywords: Array<String>
+
+pub fn highlighter_new() -> KainSyntaxHighlighter:
+    return KainSyntaxHighlighter {
+        keywords: [
+            "fn", "let", "mut", "var", "const",
+            "if", "else", "elif", "match",
+            "for", "while", "loop", "break", "continue", "return",
+            "in", "with", "as",
+            "struct", "enum", "trait", "impl",
+            "pub", "use", "mod", "type",
+            "self", "Self",
+            "true", "false", "none",
+            "import", "include",
+            "defer", "await",
+            "world", "entangle", "single_writer", "surface",
+            "patch", "law",
+            "converge", "spec", "fast", "verify", "random", "when",
+            "orchestrate", "stage", "after", "deps", "residency",
+            "transfer", "guarded", "by", "requires", "policy", "fallback",
+            "pulse", "every", "jitter", "resonate", "dampen",
+            "axiom", "guarantee", "shatter", "teleport", "via", "to", "from",
+            "actor", "spawn", "send", "on", "state",
+            "collapse", "observe", "decay", "share", "fanout",
+            "component", "render",
+            "shader", "vertex", "fragment", "compute",
+            "uniform", "workgroup", "dispatch",
+            "comptime", "macro",
+            "test"
+        ]
+    }
+
+// ─────────────────────────────────────────────────────────────
+// Keyword check
+// ─────────────────────────────────────────────────────────────
+
+fn highlighter_is_keyword(hl: KainSyntaxHighlighter, word: String) -> Bool:
+    var i: Int = 0
+    while i < len(hl.keywords):
+        if hl.keywords[i] == word:
+            return true
+        i = i + 1
+    return false
+
+// ─────────────────────────────────────────────────────────────
+// Character classification helpers using byte comparisons
+// ─────────────────────────────────────────────────────────────
+
+fn is_digit(c: String) -> Bool:
+    let code: Int = text_ord(c)
+    return code >= 48 and code <= 57
+
+fn is_alpha_start(c: String) -> Bool:
+    let code: Int = text_ord(c)
+    return (code >= 65 and code <= 90) or (code >= 97 and code <= 122) or code == 95
+
+fn is_alpha_num(c: String) -> Bool:
+    return is_alpha_start(c) or is_digit(c)
+
+fn is_hex_digit(c: String) -> Bool:
+    let code: Int = text_ord(c)
+    return (code >= 48 and code <= 57) or (code >= 65 and code <= 70) or (code >= 97 and code <= 102)
+
+// ─────────────────────────────────────────────────────────────
+// highlight — apply ANSI color codes to source text
+// ─────────────────────────────────────────────────────────────
+
+pub fn highlight(hl: KainSyntaxHighlighter, source: String) -> String:
+    let esc: String = chr(27)
+    let cyan: String   = esc + "[36m"
+    let gray: String   = esc + "[90m"
+    let green: String  = esc + "[32m"
+    let yellow: String = esc + "[33m"
+    let reset: String  = esc + "[0m"
+
+    var output: String = ""
+    var i: Int = 0
+    let n: Int = len(source)
+
+    while i < n:
+        let c: String = source[i]
+
+        // ── Line comment: // ──
+        if c == "/":
+            if (i + 1) < n:
+                if source[i + 1] == "/":
+                    output = output + gray + "//"
+                    i = i + 2
+                    while i < n:
+                        if source[i] == "\n":
+                            break
+                        output = output + source[i]
+                        i = i + 1
+                    output = output + reset
+                    continue
+
+        // ── String literal: "..." ──
+        if c == "\"":
+            output = output + green + "\""
+            i = i + 1
+            while i < n:
+                let ch: String = source[i]
+                if ch == "\\":
+                    if (i + 1) < n:
+                        output = output + ch + source[i + 1]
+                        i = i + 2
+                    else:
+                        output = output + ch
+                        i = i + 1
+                else:
+                    output = output + ch
+                    i = i + 1
+                    if ch == "\"":
+                        break
+            output = output + reset
+            continue
+
+        // ── Char literal: '...' ──
+        if c == "'":
+            output = output + green + "'"
+            i = i + 1
+            while i < n:
+                let ch: String = source[i]
+                if ch == "\\":
+                    if (i + 1) < n:
+                        output = output + ch + source[i + 1]
+                        i = i + 2
+                    else:
+                        output = output + ch
+                        i = i + 1
+                else:
+                    output = output + ch
+                    i = i + 1
+                    if ch == "'":
+                        break
+            output = output + reset
+            continue
+
+        // ── Numeric literal ──
+        if is_digit(c):
+            output = output + yellow
+            // Check for hex prefix: 0x...
+            if c == "0":
+                if (i + 1) < n:
+                    let nxt: String = source[i + 1]
+                    if nxt == "x" or nxt == "X":
+                        output = output + c + nxt
+                        i = i + 2
+                        while i < n:
+                            if is_hex_digit(source[i]):
+                                output = output + source[i]
+                                i = i + 1
+                            else:
+                                break
+                        output = output + reset
+                        continue
+            // Decimal digits (use if+break to avoid short-circuit issues)
+            while i < n:
+                if is_digit(source[i]):
+                    output = output + source[i]
+                    i = i + 1
+                else:
+                    break
+            // Optional float: digit.digit
+            if i < n:
+                if source[i] == ".":
+                    if (i + 1) < n:
+                        if is_digit(source[i + 1]):
+                            output = output + "."
+                            i = i + 1
+                            while i < n:
+                                if is_digit(source[i]):
+                                    output = output + source[i]
+                                    i = i + 1
+                                else:
+                                    break
+            output = output + reset
+            continue
+
+        // ── Keyword or identifier ──
+        if is_alpha_start(c):
+            let start: Int = i
+            i = i + 1
+            while i < n:
+                if is_alpha_num(source[i]):
+                    i = i + 1
+                else:
+                    break
+            let word: String = text_substring_string(source, start, i - start)
+            if highlighter_is_keyword(hl, word):
+                output = output + cyan + word + reset
+            else:
+                output = output + word
+            continue
+
+        // ── Default: emit character as-is ──
+        output = output + c
+        i = i + 1
+
+    return output
+
+// ─────────────────────────────────────────────────────────────
+// Inline tests
+// ─────────────────────────────────────────────────────────────
+
+test "highlights keywords in cyan":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "fn main():"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let reset: String = esc + "[0m"
+    let expected: String = cyan + "fn" + reset + " main():"
+    assert(result == expected, "'fn' should be wrapped in cyan ANSI codes")
+
+test "highlights comments in gray":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "// this is a comment"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let gray: String = esc + "[90m"
+    let reset: String = esc + "[0m"
+    let expected: String = gray + "// this is a comment" + reset
+    assert(result == expected, "comment should be wrapped in gray ANSI codes")
+
+test "highlights string literals in green":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "\"hello world\""
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let green: String = esc + "[32m"
+    let reset: String = esc + "[0m"
+    let expected: String = green + "\"hello world\"" + reset
+    assert(result == expected, "string literal should be wrapped in green ANSI codes")
+
+test "highlights numbers in yellow":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "let x: Int = 42"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let yellow: String = esc + "[33m"
+    let reset: String = esc + "[0m"
+    let expected: String = cyan + "let" + reset + " x: Int = " + yellow + "42" + reset
+    assert(result == expected, "keyword and number should be highlighted correctly")
+
+test "highlights multiple keywords":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "pub fn add(a: Int, b: Int) -> Int:\n    return a + b"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let reset: String = esc + "[0m"
+    assert(text_contains_string(result, cyan + "pub" + reset), "'pub' should be highlighted")
+    assert(text_contains_string(result, cyan + "fn" + reset), "'fn' should be highlighted")
+    assert(text_contains_string(result, cyan + "return" + reset), "'return' should be highlighted")
+
+test "does not highlight non-keyword identifiers":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "let foundation: Int = 42"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let reset: String = esc + "[0m"
+    assert(text_contains_string(result, cyan + "foundation" + reset) == false,
+        "'foundation' is not a keyword and should not be highlighted")
+    assert(text_contains_string(result, cyan + "let" + reset),
+        "'let' is a keyword and should be highlighted")
+
+test "highlights hex numbers":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "0xFF + 1"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let yellow: String = esc + "[33m"
+    let reset: String = esc + "[0m"
+    let expected: String = yellow + "0xFF" + reset + " + " + yellow + "1" + reset
+    assert(result == expected, "hex literals should be highlighted in yellow")
+
+test "comments suppress keyword highlighting":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "// fn let return"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let gray: String = esc + "[90m"
+    let reset: String = esc + "[0m"
+    let expected: String = gray + "// fn let return" + reset
+    assert(result == expected, "keywords inside comments should not be highlighted")
+
+test "highlights float literals":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "let pi: Float = 3.14159"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let yellow: String = esc + "[33m"
+    let reset: String = esc + "[0m"
+    assert(text_contains_string(result, cyan + "let" + reset), "'let' should be highlighted")
+    assert(text_contains_string(result, yellow + "3.14159" + reset),
+        "'3.14159' should be highlighted as a number")
+
+test "highlights multiline source":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "fn add(a: Int, b: Int) -> Int:\n    return a + b\n"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let reset: String = esc + "[0m"
+    assert(text_contains_string(result, cyan + "fn" + reset),
+        "'fn' should be highlighted on the first line")
+    assert(text_contains_string(result, cyan + "return" + reset),
+        "'return' should be highlighted on the second line")
+
+test "char literal highlighting":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "let grade: Char = 'A'"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let green: String = esc + "[32m"
+    let reset: String = esc + "[0m"
+    assert(text_contains_string(result, green + "'A'" + reset),
+        "char literal 'A' should be highlighted in green")
+
+test "highlights use and mod keywords":
+    let hl: KainSyntaxHighlighter = highlighter_new()
+    let input: String = "use std::text"
+    let result: String = highlight(hl, input)
+    let esc: String = chr(27)
+    let cyan: String = esc + "[36m"
+    let reset: String = esc + "[0m"
+    let expected: String = cyan + "use" + reset + " std::text"
+    assert(result == expected, "'use' keyword should be highlighted in cyan")

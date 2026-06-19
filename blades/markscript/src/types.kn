@@ -169,11 +169,34 @@ pub fn mark_event(event_id: Int) -> MarkValue:
 //  VALUE → STRING CONVERSION
 // ===========================================================================
 
+// Build a string representation of a Float with fractional part preserved.
+// Kain's builtin str() for Float truncates to integer in some codegen lanes;
+// this manual implementation guarantees decimal output.
+fn float_to_string(val: Float) -> String:
+    if val < 0.0:
+        return "-" + float_to_string(-val)
+    let int_part: Int = val
+    let frac = val - int_part
+    var result = str(int_part)
+    if frac > 0.0000001 or frac < -0.0000001:
+        result = result + "."
+        var remaining = frac
+        var digits: Int = 0
+        while digits < 8:
+            remaining = remaining * 10.0
+            let digit: Int = remaining
+            result = result + str(digit)
+            remaining = remaining - digit
+            if remaining < 0.0000001 and remaining > -0.0000001:
+                digits = 8
+            digits = digits + 1
+    return result
+
 pub fn mark_value_to_string(val: MarkValue) -> String:
     if val.kind == MARK_INT:
         return str(val.int_val)
     elif val.kind == MARK_FLOAT:
-        return str(val.float_val)
+        return float_to_string(val.float_val)
     elif val.kind == MARK_STRING:
         return val.str_val
     elif val.kind == MARK_TABLE:
@@ -317,7 +340,7 @@ fn parse_bool_or_int(s: String) -> Int:
     return result
 
 // Parse float text to Float value
-fn parse_float_str(s: String) -> Float:
+pub fn parse_float_str(s: String) -> Float:
     // Parse whole part
     var whole: Int = 0
     var frac: Int = 0
@@ -351,7 +374,9 @@ fn parse_float_str(s: String) -> Float:
 
     var fval: Float = whole
     if frac_div > 1:
-        fval = fval + frac / frac_div
+        let frac_f: Float = frac
+        let frac_div_f: Float = frac_div
+        fval = fval + frac_f / frac_div_f
 
     if neg:
         fval = -fval

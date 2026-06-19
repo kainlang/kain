@@ -1,0 +1,263 @@
+// evaluation.kn — REPL evaluation types and evaluator
+// STREAM: ALPHA
+// Port of crates/repl/src/evaluation.rs
+// Simplified: interpret-only, shells out to `kain check` on a temp file.
+//
+// ReplEvaluator is the front door for REPL source evaluation. It writes
+// source to a temp file, shells out to `kain check`, and captures the
+// result as a ReplEvaluation or ReplEvaluationError.
+
+use std::text
+use std::fs
+use std::process
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplEvaluation
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ReplEvaluation:
+    visible_value:      Option<String>
+    execution_complete: Bool
+
+// Build an evaluation from `kain check` stdout text.
+// Hides "()" and empty / whitespace-only output (no visible value).
+pub fn repl_eval_from_interpret_output(output: String) -> ReplEvaluation:
+    let trimmed: String = text_trim_string(output)
+    let visible_value: Option<String> = if len(trimmed) == 0 or trimmed == "()":
+        none
+    else:
+        Some(output)
+    return ReplEvaluation {
+        visible_value:      visible_value,
+        execution_complete: true,
+    }
+
+// Build an evaluation from a raw string (e.g. `kain run` output).
+// Preserves the output as-is.
+pub fn repl_eval_from_raw_output(output: String) -> ReplEvaluation:
+    let trimmed: String = text_trim_string(output)
+    let visible_value: Option<String> = if len(trimmed) == 0 or trimmed == "()":
+        none
+    else:
+        Some(output)
+    return ReplEvaluation {
+        visible_value:      visible_value,
+        execution_complete: true,
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplEvaluationError
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct ReplEvaluationError:
+    formatted_error: String
+
+// Return the error text with ANSI escape sequences stripped.
+pub fn repl_error_plain_text(err: ReplEvaluationError) -> String:
+    return strip_ansi_sequences(err.formatted_error)
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplEvaluationResult
+// ═══════════════════════════════════════════════════════════════════
+
+// Simple tagged-result pattern: is_ok=true = Ok, false = Err.
+pub struct ReplEvaluationResult:
+    is_ok:    Bool
+    ok_value: ReplEvaluation
+    err_value: ReplEvaluationError
+
+pub fn repl_ok(value: ReplEvaluation) -> ReplEvaluationResult:
+    return ReplEvaluationResult {
+        is_ok:      true,
+        ok_value:   value,
+        err_value:  ReplEvaluationError { formatted_error: "" },
+    }
+
+pub fn repl_err(error: ReplEvaluationError) -> ReplEvaluationResult:
+    return ReplEvaluationResult {
+        is_ok:      false,
+        ok_value:   ReplEvaluation { visible_value: none, execution_complete: false },
+        err_value:  error,
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// strip_ansi_sequences
+// ═══════════════════════════════════════════════════════════════════
+
+// Remove ANSI escape sequences from a string.
+// Handles CSI sequences: ESC [ <params> <command letter>
+pub fn strip_ansi_sequences(input: String) -> String:
+    let bytes: Array<Int> = text_bytes_array(text_from(input))
+    let mut result: Array<Int> = []
+    var i: Int = 0
+
+    while i < len(bytes):
+        // Check for ESC (0x1B) followed by '['
+        if bytes[i] == 0x1B:
+            if i + 1 < len(bytes) and bytes[i + 1] == 0x5B:  // '['
+                // Skip ESC + '[' + param bytes + command byte
+                i = i + 2
+                while i < len(bytes):
+                    let b: Int = bytes[i]
+                    // Parameter bytes: 0x30-0x3F (digits, ;, ?, etc.)
+                    // Command byte: 0x40-0x7E
+                    if b >= 0x40 and b <= 0x7E:
+                        // Command byte -- end of sequence
+                        i = i + 1
+                        break
+                    i = i + 1
+                continue
+            else:
+                // Bare ESC not followed by '[' -- preserve it
+                push(result, bytes[i])
+                i = i + 1
+        else:
+            push(result, bytes[i])
+            i = i + 1
+
+    return text_from_byte_array(result)
+
+// ═══════════════════════════════════════════════════════════════════
+// ReplEvaluator
+// ═══════════════════════════════════════════════════════════════════
+// Simplified: interpret-only mode. Writes source to a temp file and
+// shells out to `kain check` to validate/typecheck it.
+// Future: add native compilation via `kain run` and in-process
+// self-host compiler evaluation.
+
+pub struct ReplEvaluator:
+    // Placeholder for future state (driver session, config, etc.)
+    dummy: Bool
+
+// Create a new ReplEvaluator.
+pub fn repl_evaluator_create() -> ReplEvaluator:
+    return ReplEvaluator { dummy: false }
+
+// Evaluate a source string by writing it to a temp file and
+// running `kain check`. Returns the result as ReplEvaluation
+// on success, or ReplEvaluationError on failure.
+pub fn repl_evaluate_source(source_name: String, source: String) -> ReplEvaluationResult:
+    // Write source to temp file
+    let prefix: String = "kain_repl_" + source_name + "_"
+    let temp_path: String = fs_temp_file(prefix)
+    let write_result: Int = abi_fs_write_text(temp_path, source)
+
+    if write_result != 0:
+        // Try writing in the current directory as fallback
+        let fallback: String = source_name + ".kn"
+        let fb_result: Int = abi_fs_write_text(fallback, source)
+        if fb_result != 0:
+            return repl_err(ReplEvaluationError {
+                formatted_error: "failed to write source to temp file",
+            })
+        return _run_kain_check(fallback)
+
+    let result: ReplEvaluationResult = _run_kain_check(temp_path)
+
+    // Clean up temp file
+    let _ = abi_fs_remove_file(temp_path)
+    return result
+
+// Internal: run `kain check` on a file and capture output.
+fn _run_kain_check(file_path: String) -> ReplEvaluationResult:
+    let spec_id: Int = process_spec_create_piped("kain")
+    if spec_id < 0:
+        return repl_err(ReplEvaluationError {
+            formatted_error: "failed to create process spec for kain check",
+        })
+
+    let _ = process_spec_add_arg(spec_id, "check")
+    let _ = process_spec_add_arg(spec_id, file_path)
+
+    let proc_id: Int = process_spawn(spec_id)
+    if proc_id < 0:
+        return repl_err(ReplEvaluationError {
+            formatted_error: "failed to spawn kain check process",
+        })
+
+    let wait_result: Int = process_wait(proc_id, 30000)
+    let exit_code: Int = process_exit_code(proc_id)
+    let stdout_text: String = process_stdout_read_text(proc_id)
+    let stderr_text: String = process_stderr_read_text(proc_id)
+
+    if wait_result == 0 and exit_code == 0:
+        return repl_ok(repl_eval_from_raw_output(stdout_text))
+    else:
+        let error_text: String = if len(stderr_text) > 0:
+            stderr_text
+        elif len(stdout_text) > 0:
+            stdout_text
+        else:
+            "kain check exited with code " + str(exit_code)
+        return repl_err(ReplEvaluationError {
+            formatted_error: error_text,
+        })
+
+// ═══════════════════════════════════════════════════════════════════
+// Tests
+// ═══════════════════════════════════════════════════════════════════
+
+test "from_interpret_output hides ()":
+    let eval = repl_eval_from_interpret_output("()")
+    assert(eval.visible_value == none, "visible_value is none for ()")
+    assert(eval.execution_complete == true, "execution_complete is true")
+
+test "from_interpret_output hides empty string":
+    let eval = repl_eval_from_interpret_output("")
+    assert(eval.visible_value == none, "visible_value is none for empty")
+
+test "from_interpret_output hides whitespace":
+    let eval = repl_eval_from_interpret_output("  ")
+    assert(eval.visible_value == none, "visible_value is none for whitespace")
+
+test "from_interpret_output preserves value":
+    let eval = repl_eval_from_interpret_output("42")
+    assert(eval.visible_value == Some("42"), "visible_value preserves '42'")
+
+test "from_interpret_output preserves text":
+    let eval = repl_eval_from_interpret_output("hello world")
+    assert(eval.visible_value == Some("hello world"), "visible_value preserves text")
+
+test "strip_ansi_sequences removes basic ansi":
+    let clean = strip_ansi_sequences("\u{1b}[31merror\u{1b}[0m: bad news")
+    assert(clean == "error: bad news", "ansi stripped correctly")
+
+test "strip_ansi_sequences leaves plain text":
+    let clean = strip_ansi_sequences("plain text")
+    assert(clean == "plain text", "no ansi preserved")
+
+test "strip_ansi_sequences removes multiple sequences":
+    let clean = strip_ansi_sequences("\u{1b}[32mOK\u{1b}[0m \u{1b}[1mbold\u{1b}[22m")
+    assert(clean == "OK bold", "multiple ansi stripped")
+
+test "strip_ansi_sequences removes cursor escapes":
+    let clean = strip_ansi_sequences("\u{1b}[2J\u{1b}[Hclear")
+    assert(clean == "clear", "cursor escape sequences stripped")
+
+test "from_raw_output preserves value":
+    let eval = repl_eval_from_raw_output("result: 42")
+    assert(eval.visible_value == Some("result: 42"), "visible_value preserved")
+    assert(eval.execution_complete == true, "execution_complete is true")
+
+test "repl_ok creates ok result":
+    let eval = ReplEvaluation { visible_value: Some("42"), execution_complete: true }
+    let res = repl_ok(eval)
+    assert(res.is_ok == true, "is_ok is true")
+    assert(res.ok_value.visible_value == Some("42"), "ok_value preserved")
+
+test "repl_err creates err result":
+    let err = ReplEvaluationError { formatted_error: "error text" }
+    let res = repl_err(err)
+    assert(res.is_ok == false, "is_ok is false")
+    assert(res.err_value.formatted_error == "error text", "err_value preserved")
+
+test "repl_error_plain_text strips ansi":
+    let err = ReplEvaluationError {
+        formatted_error: "\u{1b}[31mcompiler error\u{1b}[0m",
+    }
+    let plain = repl_error_plain_text(err)
+    assert(plain == "compiler error", "ansi stripped from error")
+
+test "repl_evaluator_create":
+    let ev = repl_evaluator_create()
+    assert(ev.dummy == false, "default evaluator has dummy=false")

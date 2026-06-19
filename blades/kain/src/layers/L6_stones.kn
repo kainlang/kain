@@ -1,0 +1,243 @@
+// L6_stones.kn — Axiom + Shatter + Teleport typechecker and codegen stubs
+// STREAM: FOXTROT + GOLF
+// Layer 6: Machine Stones — capability assumptions, SoA layout, zero-copy handoff
+//
+// SELF-CONTAINED for standalone check (duplicates types.kn+ast.kn+effects.kn constants).
+// When compiled in the workspace, types from types.kn, ast.kn take precedence.
+
+use typecheck::types
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// Predicate kind encoding: 0=target, 1=arch, 2=capability
+// ═══════════════════════════════════════════════════════════════════
+const KNC_PRED_TARGET:     Int = 0
+const KNC_PRED_ARCH:       Int = 1
+const KNC_PRED_CAPABILITY: Int = 2
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_axiom — typecheck an axiom declaration (T-AXM-01)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Axiom AST layout (from parser.kn parse_axiom_item):
+//   data[0] = name_idx
+//   data[1] = predicate_count (N)
+//   data[2..2+2*N-1] = (kind, value_idx) pairs
+//     next = guarantee_count (M)
+//     next = (guarantee_idx)* M entries
+//     next = has_fallback (0 or 1)
+//     next = fallback_idx (if has_fallback)
+//
+// T-AXM-01: At least 1 predicate, at least 1 guarantee, fallback present
+// T-AXM-02: Predicate kind must be in {0, 1, 2}
+//
+pub fn knc_check_axiom(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+    let pred_count: Int = if dlen > 1: data[1] else: 0
+    let mut e: TypeEnv = env
+    let err_kind: String = "E0200"
+
+    // T-AXM-01: Must have at least 1 predicate
+    if pred_count < 1:
+        e = types.type_error(e, "axiom '" + types.strtab_lookup_name(e, name_idx)
+            + "' must declare at least one machine predicate (when target/arch/capability)",
+            err_kind, node.span_start, node.span_end)
+
+    // T-AXM-02: Validate predicate kind in {0, 1, 2}
+    var pi: Int = 0
+    var pred_base: Int = 2
+    while pi < pred_count:
+        let pos: Int = pred_base + 2 * pi
+        if pos + 1 < dlen:
+            let pk: Int = data[pos]
+            if pk < KNC_PRED_TARGET or pk > KNC_PRED_CAPABILITY:
+                e = types.type_error(e, "axiom predicate kind " + str(pk) + " is invalid (must be 0=target, 1=arch, 2=capability)",
+                    err_kind, node.span_start, node.span_end)
+        pi = pi + 1
+
+    // Skip to guarantees
+    let gtee_start: Int = pred_base + 2 * pred_count
+    let gtee_count: Int = if gtee_start < dlen: data[gtee_start] else: 0
+
+    // Must have at least 1 guarantee
+    if gtee_count < 1:
+        e = types.type_error(e, "axiom '" + types.strtab_lookup_name(e, name_idx)
+            + "' must declare at least one guarantee string",
+            err_kind, node.span_start, node.span_end)
+
+    // Must have a fallback
+    let fb_start: Int = gtee_start + 1 + gtee_count
+    let has_fallback: Int = if fb_start < dlen: data[fb_start] else: 0
+    let fallback_idx: Int = if fb_start + 1 < dlen: data[fb_start + 1] else: -1
+    if has_fallback == 0 or fallback_idx < 0:
+        e = types.type_error(e, "axiom '" + types.strtab_lookup_name(e, name_idx)
+            + "' must declare a portable fallback function",
+            err_kind, node.span_start, node.span_end)
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: ast.AST_ITEM_AXIOM,
+            name: "ax_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: types.rt_unit(),
+            ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_shatter — predeclare shatter struct metadata (T-SHT-01)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Shatter is NOT a separate AST item kind — it's a struct modifier.
+// The parser parses `shatter struct Name:` as AST_ITEM_STRUCT with
+// an AST_ATTR_SHATTER attribute pushed into the attrs array.
+//
+// This function provides the standalone check entry point for the
+// shatter modifier. The actual struct typechecking happens in
+// check_struct_item (types.kn) which detects the shatter attribute.
+//
+// For now, this returns a UNIT-typed item with a "shatter_" prefix
+// so codegen can detect shattered structs by name.
+//
+pub fn knc_check_shatter(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let name_idx: Int = if dlen > 0: data[0] else: -1
+    let mut e: TypeEnv = env
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: ast.AST_ITEM_STRUCT,
+            name: "shatter_" + str(name_idx),
+            name_idx: name_idx,
+            resolved_type: types.rt_unit(),
+            ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_teleport — typecheck a teleport expression (T-TEL-01)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Teleport AST layout (AST_EXPR_TELEPORT):
+//   data[0] = value_idx (child expression index)
+//   data[1] = src_name_idx (source world name, string-table index)
+//   data[2] = tgt_name_idx (target world name, string-table index)
+//   data[3] = has_via_flag (0 or 1)
+//   data[4] = via_idx (channel name, string-table index; only if has_via_flag)
+//
+// T-TEL-01: Infer value type, validate source != target, validate world existence
+// T-TEL-02: World existence check (env must have registered worlds)
+// T-TEL-03: Move semantic — mark source identifier as moved (STUB)
+//
+pub fn knc_check_teleport(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let data: Array<Int> = node.data
+    let dlen: Int = len(data)
+    let value_idx: Int = if dlen > 0: data[0] else: -1
+    let src_name_idx: Int = if dlen > 1: data[1] else: -1
+    let tgt_name_idx: Int = if dlen > 2: data[2] else: -1
+    let has_via: Int = if dlen > 3: data[3] else: 0
+    let via_idx: Int = if dlen > 4 and has_via != 0: data[4] else: -1
+
+    let mut e: TypeEnv = env
+    let err_kind: String = "E0200"
+    let src_name: String = types.strtab_lookup_name(e, src_name_idx)
+    let tgt_name: String = types.strtab_lookup_name(e, tgt_name_idx)
+
+    // T-TEL-02: Validate source world exists
+    let src_world_type_name: String = "w_" + str(src_name_idx)
+    let src_world_type: ResolvedType = types.lookup_type(e, src_world_type_name)
+    let src_world_known: Bool = src_world_type.kind != types.RT_UNKNOWN
+    if !src_world_known:
+        e = types.type_error(e, "teleport source world '" + src_name + "' is not a declared world",
+            err_kind, node.span_start, node.span_end)
+
+    // Validate target world exists
+    let tgt_world_type_name: String = "w_" + str(tgt_name_idx)
+    let tgt_world_type: ResolvedType = types.lookup_type(e, tgt_world_type_name)
+    let tgt_world_known: Bool = tgt_world_type.kind != types.RT_UNKNOWN
+    if !tgt_world_known:
+        e = types.type_error(e, "teleport target world '" + tgt_name + "' is not a declared world",
+            err_kind, node.span_start, node.span_end)
+
+    // Validate source != target
+    if src_name != "" and tgt_name != "" and src_name == tgt_name:
+        e = types.type_error(e, "teleport source and target must be different worlds, got '"
+            + src_name + "' == '" + tgt_name + "'",
+            err_kind, node.span_start, node.span_end)
+
+    // Validate via channel is non-empty if present
+    if has_via != 0 and via_idx >= 0:
+        let via_name: String = types.strtab_lookup_name(e, via_idx)
+        if via_name == "":
+            e = types.type_error(e, "teleport channel cannot be empty",
+                err_kind, node.span_start, node.span_end)
+
+    // Infer value expression type (teleport preserves the value type)
+    let value_type: ResolvedType = types.rt_unit()
+
+    // T-TEL-03: Move semantic — mark source identifier as moved (STUB)
+    // Full implementation tracks moved identifiers in a moved set
+    // and checks resolve_ident before returning the type.
+
+    return TypedItemAndEnv {
+        env: e,
+        item: TypedItem {
+            kind: ast.AST_EXPR_TELEPORT,
+            name: "tel_" + src_name + "_to_" + tgt_name,
+            name_idx: -1,
+            resolved_type: value_type,
+            ast_index: idx,
+            effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// Codegen Stubs (knc_compile_axiom, knc_compile_shatter, knc_compile_teleport)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Full LLVM IR emission lives in codegen.kn. These stubs use a Generator
+// placeholder (Int) until the module system supports importing both
+// types.kn and codegen.kn's LlvmGenerator without struct-name collision.
+
+pub type knc_L6_Generator = Int  // Placeholder — will be LlvmGenerator
+
+// knc_compile_axiom — STUB: emit axiom accept function + static strings
+pub fn knc_compile_axiom(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
+    // C-AXM-01: define i64 @__kain_axiom_accept_{name}(), calls @kain_machine_axiom_accept
+    // C-AXM-02: capability_bit mapping for capability predicate strings
+    // C-AXM-03: Static string constants for target, arch, and capability values
+    return gen
+
+// knc_compile_shatter — STUB: emit SoA lane bases for shattered struct arrays
+pub fn knc_compile_shatter(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
+    // C-SHT-01: Track shattered struct names for codegen decisions
+    // C-SHT-02: Shattered array literal -> @kain_machine_shatter_alloc + lane base calls
+    // C-SHT-03: Shattered field access -> GEP on lane_base or @kain_machine_shatter_lane_ptr
+    // C-SHT-04: Shattered scope cleanup -> @kain_machine_shatter_free on scope exit
+    return gen
+
+// knc_compile_teleport — STUB: emit teleport expression lowering
+pub fn knc_compile_teleport(gen: knc_L6_Generator, item: TypedItem) -> knc_L6_Generator:
+    // C-TEL-01: Pointer-type -> bitcast to i8*, @kain_machine_teleport_ptr, bitcast back
+    // C-TEL-02: Scalar-type -> @kain_machine_teleport_note for bookkeeping
+    // C-TEL-03: Static string constants for source/target world names and channel names
+    return gen

@@ -1,0 +1,240 @@
+// -- KAIN CAPSULE v2 ----------------------------------------------------------
+// name:       main
+// kind:       entry
+// storage:    editable
+// contents:   source
+// digest:     sha256:dc02b599f9b5367f6dfe3d992b0784d1ddad1a837fb419a331bbe3925534f552
+// capsule:    main
+// entry:      main.kn
+// structure:  1 files | 1 modules
+// ---------------------------------------------------------------------------
+//
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+//
+// [functions]
+//   fn run_interactive_mode(, fn run_print_mode(
+//   fn run_print_mode_standalone(prompt: String) -> Int with IO
+//   fn main() -> Int with IO, fn phase_to_str(p: StartupPhase) -> String with Pure
+//   fn enter_mode(
+//
+//!kain-capsule
+// schema = 2
+// kind = "entry"
+// storage = "editable"
+// contents = "source"
+// compression = "none"
+// digest = "sha256:dc02b599f9b5367f6dfe3d992b0784d1ddad1a837fb419a331bbe3925534f552"
+// created_at = "2026-06-14T01:28:27.056415800+00:00"
+// file_count = 1
+// module_count = 1
+// preview_symbol_limit = 40
+// api_index = "auto"
+// module_index = "auto"
+// name = "main"
+// capsule_set = "main"
+// root_label = "main"
+// entry = "main.kn"
+//!end-kain-capsule
+//!kain-file
+// path = "main.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 6778
+// sha256 = "sha256:7f308850c5319a845ccd89c521620627ac2ef686d336ab06b5ef6bfe76430332"
+// trailing_newline = true
+//!kain-file-content
+// // ============================================================================
+// //  main.kn — pi-squared main entry point
+// //
+// //  Startup phases:
+// //    1. Parse CLI (--help/--version -> exit immediately)
+// //    2. Run startup pipeline (init -> migrations -> dir -> config -> actors -> model -> prompt)
+// //    3. Handle result via match on StartupResult variants
+// //    4. Shutdown (runtime_shutdown)
+// //
+// //  Exit codes:
+// //    0   Success
+// //    1   Help or version shown
+// //    2   Startup error
+// //    3   Unknown flag / mode
+// //    4   Shutdown error
+// // ============================================================================
+//
+// use std::runtime
+// use std::process
+// use cli              // get_user_args, parse_args, usage, version, EXIT_HELP, EXIT_OK, EXIT_ERROR, EXIT_UNKNOWN
+// use types            // StartupResult, StartupPhase, Model, CliArgs, default_cli_args
+// use pipeline::startup  // run_startup_pipeline
+//
+// // ============================================================================
+// //  STUB IMPLEMENTATIONS  —  real bodies live in modes/interactive.kn and
+// //  modes/print.kn, but the LLVM IR slicer removes cross-file functions.
+// //  These stubs let the binary link while we fix the slicer.
+// // ============================================================================
+//
+// fn run_interactive_mode(
+//     settings_ref: String,
+//     session_ref: String,
+//     resources_ref: String,
+//     model: Model,
+//     system_prompt: String,
+//     flags: CliArgs,
+// ) -> Int with IO:
+//     println("pi-squared: interactive mode is not yet available (stub)")
+//     println("Model: " + model.name)
+//     return 0
+//
+// fn run_print_mode(
+//     settings_ref: String,
+//     session_ref: String,
+//     resources_ref: String,
+//     model: Model,
+//     system_prompt: String,
+//     flags: CliArgs,
+// ) -> Int with IO:
+//     println("pi-squared: print mode is not yet available (stub)")
+//     println("Model: " + model.name)
+//     return 0
+//
+// fn run_print_mode_standalone(prompt: String) -> Int with IO:
+//     println("pi-squared: print mode is not yet available (stub)")
+//     println("Prompt: " + prompt)
+//     return 0
+//
+// // ============================================================================
+// //  MAIN ENTRY POINT
+// // ============================================================================
+//
+// fn main() -> Int with IO:
+//     // ---- Phase 1: Parse CLI ----
+//     let argv = process_user_args()
+//     let flags = parse_args(argv)
+//
+//     // --help / -h: show usage and exit immediately
+//     if flags.show_help:
+//         print(usage())
+//         return EXIT_HELP
+//
+//     // --version / -v
+//     if flags.show_version:
+//         print(version())
+//         return EXIT_HELP
+//
+//     // Check for unknown flags
+//     if len(flags.unknown_flags) > 0:
+//         print("pi-squared: unknown flag(s): ")
+//         var ufi: Int = 0
+//         while ufi < len(flags.unknown_flags):
+//             print(flags.unknown_flags[ufi] + " ")
+//             ufi = ufi + 1
+//         print("\n")
+//         print("Run 'pi-squared --help' for usage.\n")
+//         return EXIT_UNKNOWN
+//
+//     // --print / -p: bypass startup pipeline, run directly
+//     if flags.print_mode:
+//         var prompt = ""
+//         var pi: Int = 0
+//         while pi < len(flags.positional):
+//             if len(prompt) > 0:
+//                 prompt = prompt + " "
+//             prompt = prompt + flags.positional[pi]
+//             pi = pi + 1
+//         if prompt == "":
+//             println("Error: print mode requires a prompt argument")
+//             println("Usage: pi-squared --print \"your prompt here\"")
+//             return EXIT_ERROR
+//         let print_exit = run_print_mode_standalone(prompt)
+//         let shutdown_status = runtime_shutdown()
+//         if shutdown_status != 0:
+//             return 200 + shutdown_status
+//         return print_exit
+//
+//     // ---- Phase 2: Run startup pipeline ----
+//     let result = run_startup_pipeline(flags)
+//
+//     // ---- Phase 3: Handle result via pattern match ----
+//     var exit_code: Int = 0
+//
+//     match result:
+//         StartupResult::Help =>
+//             print(usage())
+//             exit_code = EXIT_HELP
+//
+//         StartupResult::Version =>
+//             print(version())
+//             exit_code = EXIT_HELP
+//
+//         StartupResult::Error(phase, code) =>
+//             print("pi-squared: startup error in phase ")
+//             print(phase_to_str(phase))
+//             print(" (exit " + str(code) + ")\n")
+//             exit_code = code
+//
+//         StartupResult::Ready(settings_ref, session_ref, resources_ref, model, system_prompt) =>
+//             // Print welcome banner
+//             if flags.no_session == false:
+//                 println("pi-squared 0.1.0 — ready")
+//                 println("Model: " + model.name)
+//                 println("")
+//
+//             // Enter the requested mode
+//             exit_code = enter_mode(
+//                 settings_ref,
+//                 session_ref,
+//                 resources_ref,
+//                 model,
+//                 system_prompt,
+//                 flags,
+//             )
+//
+//     // ---- Phase 4: Shutdown ----
+//     let shutdown_status = runtime_shutdown()
+//     if shutdown_status != 0:
+//         return 200 + shutdown_status
+//
+//     return exit_code
+//
+// // ============================================================================
+// //  Phase name helper (StartupPhase has no Display)
+// // ============================================================================
+//
+// fn phase_to_str(p: StartupPhase) -> String with Pure:
+//     match p:
+//         StartupPhase::Init => return "Init"
+//         StartupPhase::CliParse => return "CliParse"
+//         StartupPhase::Migrations => return "Migrations"
+//         StartupPhase::SettingsLoad => return "SettingsLoad"
+//         StartupPhase::SessionResolve => return "SessionResolve"
+//         StartupPhase::TrustResolve => return "TrustResolve"
+//         StartupPhase::ResourceLoad => return "ResourceLoad"
+//         StartupPhase::ModelResolve => return "ModelResolve"
+//         StartupPhase::Ready => return "Ready"
+//
+// // ============================================================================
+// //  MODE DISPATCH
+// // ============================================================================
+//
+// fn enter_mode(
+//     settings_ref: String,
+//     session_ref: String,
+//     resources_ref: String,
+//     model: Model,
+//     system_prompt: String,
+//     flags: CliArgs,
+// ) -> Int with IO:
+//     let mode = if flags.print_mode: "print" else: flags.mode
+//     if mode == "print":
+//         return run_print_mode(settings_ref, session_ref, resources_ref, model, system_prompt, flags)
+//     elif mode == "interactive":
+//         return run_interactive_mode(settings_ref, session_ref, resources_ref, model, system_prompt, flags)
+//     elif mode == "json":
+//         println("pi-squared: json mode not yet implemented\n")
+//         return 3
+//     elif mode == "rpc":
+//         println("pi-squared: rpc mode not yet implemented\n")
+//         return 3
+//     else:
+//         println("pi-squared: unknown mode: " + mode + "\n")
+//         return 3
+//!end-kain-file

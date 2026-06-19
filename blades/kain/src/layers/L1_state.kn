@@ -1,0 +1,157 @@
+// L1_state.kn — World + Entangle construct: typecheck + codegen stubs
+// STREAM: FOXTROT + GOLF — Construct Implementation
+//
+// Implements the L1 state authority layer (world + entangle) for the
+// self-host compiler. Typecheck: knc_check_world() validates world state
+// slots, surface declarations, and field types. knc_check_entangle()
+// validates endpoint paths, type-matches fields, and deduplicates.
+// Codegen: knc_compile_world_item() emits LLVM globals and init functions
+// for world instances. knc_compile_entangle_item() emits ABI registration
+// calls for entangled field pairs.
+//
+// Spec layers reference: X:/blades/kain/spec-layers/L1_state.md
+// Language reference: X:/docs/WORLD.MD, X:/docs/ENTANGLE.MD
+//
+// ═══════════════════════════════════════════════════════════════════
+// Imports
+// ═══════════════════════════════════════════════════════════════════
+
+use typecheck::types
+use typecheck::effects
+use core::ast
+use typecheck::effects
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_world — Typecheck a world declaration
+//
+// A world is a compiler-owned state container:
+//
+//   world <Name>:
+//       state <field>: <Type> = <init_expr>
+//       surface <kind> => <Component>
+//
+// Each world has:
+//   - State slots (name + type + initializer)
+//   - At least one surface binding (native_ui, web, viewport3d, ue5)
+//   - A struct-like type for dotted access (WorldName.field)
+//   - Entangle coupling support (via knc_check_entangle)
+//
+// Phase 1 will add:
+//   (A) State slot resolution: for each `state <name>: <Type> = <init>`:
+//       - Resolve <Type> via resolve_type_in_env()
+//       - Infer <init_expr> type via infer_expr_type()
+//       - Call ensure_type_compatible() for init/decl match
+//       - Register field name + type in env for WorldName.field access
+//   (B) Surface validation: if surface_count == 0,
+//       push diagnostic "world 'X' must declare at least one surface"
+//   (C) World registration: struct type via declare_named_type()
+//       and val binding for dotted access
+//   (D) World metadata tracking: world_names, world_field_names,
+//       world_field_types parallel arrays in TypeEnv
+//   (E) Effects: world declaration is Pure
+//
+// Current status: STUB — registers world name as struct-like type
+// with no field resolution or surface validation.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_check_world(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_WORLD, name: "w_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_struct_as(name_idx), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_check_entangle — Typecheck an entangle declaration
+//
+// An entangle couples two world fields across world boundaries:
+//
+//   entangle <LeftWorld>.<left_field> <-> <RightWorld>.<right_field>
+//       with single_writer
+//
+// The compiler tracks propagation counts, enforces single-writer
+// semantics, and generates sync machinery:
+//   (A) Both endpoints must be dotted paths: "WorldName.field"
+//       with registered world and existing state field
+//   (B) Both endpoint types must match via types_compatible()
+//   (C) No endpoint may participate in more than one entangle
+//   (D) The right endpoint (mirror) is write-guarded — any assignment
+//       to it in a fn/patch body produces a diagnostic
+//
+// Phase 1 will add:
+//   - Endpoint world/field existence validation
+//   - Field type cross-checking between endpoints
+//   - Endpoint dedup against entangle_endpoint_set
+//   - Mirror write-field registration for single-writer enforcement
+//   - Entangle metadata arrays in TypeEnv
+//
+// Current status: STUB — registers entangle with generated name,
+// no endpoint validation or type-matching.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_check_entangle(env: TypeEnv, node: AstNode, idx: Int) -> TypedItemAndEnv:
+    let name_idx: Int = if ast_data_len(node) > 0: ast_data_get(node, 0) else: -1
+    return TypedItemAndEnv {
+        env: env,
+        item: TypedItem {
+            kind: AST_ITEM_ENTANGLE, name: "ent_" + str(name_idx), name_idx: name_idx,
+            resolved_type: rt_unit(), ast_index: idx, effects: EFF_PURE,
+            field_names: [],
+            field_types: [],
+            fn_param_types: [],
+            fn_ret_type: types.rt_unit(),
+        }
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_compile_world_item — Codegen a world declaration (STUB)
+//
+// Phase 1 will emit:
+//   (A) LLVM struct type: %world_Name = type { i64, i64, ... }
+//       One i64 per state field, in declaration order
+//   (B) Zero-initialized global:
+//       @__kain_world_Name = global %world_Name zeroinitializer
+//   (C) Init flag:
+//       @__kain_world_init_flag_Name = global i1 0
+//   (D) Init function:
+//       define void @__kain_init_world_Name():
+//           GEP + store for each state field with its initial value
+//   (E) World globals tracked in LlvmGenerator for field access:
+//       world_init_fns: Array<String>
+//       world_globals:  Array<String>
+//
+// Current status: STUB — passes generator through unchanged.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_compile_world_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+    return gen
+
+// ═══════════════════════════════════════════════════════════════════
+// knc_compile_entangle_item — Codegen an entangle declaration (STUB)
+//
+// Phase 1 will emit:
+//   (A) Global string constants for endpoint paths:
+//       @".ent_N.left"  = private unnamed_addr constant "World.field\00"
+//       @".ent_N.right" = private unnamed_addr constant "World.field\00"
+//       @".ent_N.policy" = private unnamed_addr constant "single_writer\00"
+//       @".ent_N.type"  = private unnamed_addr constant "Int\00"
+//   (B) abi_entangle_register() call:
+//       call i64 @abi_entangle_register(
+//           ptr @".ent_N.left", ptr @".ent_N.right",
+//           ptr @".ent_N.policy", ptr @".ent_N.type")
+//   (C) ABI declares for entangle runtime:
+//       declare i64 @abi_entangle_register(ptr, ptr, ptr, ptr)
+//       declare i64 @abi_entangle_record_i64(ptr, ptr, i64)
+//
+// Current status: STUB — passes generator through unchanged.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn knc_compile_entangle_item(gen: LlvmGenerator, item: TypedItem) -> LlvmGenerator:
+    return gen

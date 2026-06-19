@@ -1,0 +1,25 @@
+// Minimal kernel — outputs 'K' to serial via inline asm
+// No strings, no runtime calls, just asm
+use std::machine
+
+fn kainos_hello() -> Int with Unsafe:
+    // Write 'K' to COM1 using inline asm
+    // Wait for THR empty, then output character
+    asm("1: mov dx, 0x3FD; in al, dx; test al, 0x20; jz 1b; mov dx, 0x3F8; mov al, 0x4B; out dx, al")
+    
+    // Write 'A' 
+    asm("1: mov dx, 0x3FD; in al, dx; test al, 0x20; jz 1b; mov dx, 0x3F8; mov al, 0x41; out dx, al")
+
+    // Write 'I'
+    asm("1: mov dx, 0x3FD; in al, dx; test al, 0x20; jz 1b; mov dx, 0x3F8; mov al, 0x49; out dx, al")
+
+    // Write 'N'
+    asm("1: mov dx, 0x3FD; in al, dx; test al, 0x20; jz 1b; mov dx, 0x3F8; mov al, 0x4E; out dx, al")
+
+    // Write '\n'
+    asm("1: mov dx, 0x3FD; in al, dx; test al, 0x20; jz 1b; mov dx, 0x3F8; mov al, 0x0A; out dx, al")
+
+    // Halt
+    loop:
+        asm("hlt")
+    return 0

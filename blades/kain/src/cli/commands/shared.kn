@@ -1,0 +1,213 @@
+// shared.kn — Port of crates/commands/src/shared.rs
+// STREAM: GOLD
+//
+// Launcher detection, menu rendering, and shared constants for the CLI
+// command registry system. Pure data + logic — minimal IO.
+//
+// Ladder rung: Layer 0 (fn, enum, const) — plain data and pure functions.
+
+use std::text
+use std::os
+
+// ═══════════════════════════════════════════════════════════════════
+// LauncherKind constants (Int-based for bootstrap compatibility)
+// ═══════════════════════════════════════════════════════════════════
+
+pub const LAUNCHER_KAIN:    Int = 0
+pub const LAUNCHER_KN:      Int = 1
+pub const LAUNCHER_BLADE:   Int = 2
+pub const LAUNCHER_UNKNOWN: Int = 3
+
+// ═══════════════════════════════════════════════════════════════════
+// LauncherKind enum (full API for future use)
+// ═══════════════════════════════════════════════════════════════════
+
+pub enum LauncherKind:
+    Kain
+    Kn
+    Blade
+    Unknown
+
+// ── Convert Int constant to enum ──
+
+pub fn launcher_kind_from_int(value: Int) -> LauncherKind:
+    if value == LAUNCHER_KN:
+        return LauncherKind::Kn
+    elif value == LAUNCHER_BLADE:
+        return LauncherKind::Blade
+    elif value == LAUNCHER_KAIN:
+        return LauncherKind::Kain
+    else:
+        return LauncherKind::Unknown
+
+// ── Convert enum to Int constant ──
+
+pub fn launcher_kind_to_int(kind: LauncherKind) -> Int:
+    match kind:
+        LauncherKind::Kn      => LAUNCHER_KN
+        LauncherKind::Blade   => LAUNCHER_BLADE
+        LauncherKind::Kain    => LAUNCHER_KAIN
+        LauncherKind::Unknown => LAUNCHER_UNKNOWN
+
+// ═══════════════════════════════════════════════════════════════════
+// display_name
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn display_name(launcher: LauncherKind) -> String:
+    match launcher:
+        LauncherKind::Kn      => "kn"
+        LauncherKind::Blade   => "blade"
+        LauncherKind::Kain    => "kain"
+        LauncherKind::Unknown => "kain"
+
+pub fn display_name_int(launcher: Int) -> String:
+    return display_name(launcher_kind_from_int(launcher))
+
+// ═══════════════════════════════════════════════════════════════════
+// prefers_interpret_default — Kn prefers interpret mode
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn prefers_interpret_default(launcher: LauncherKind) -> Bool:
+    return launcher == LauncherKind::Kn
+
+pub fn prefers_interpret_default_int(launcher: Int) -> Bool:
+    return launcher == LAUNCHER_KN
+
+// ═══════════════════════════════════════════════════════════════════
+// detect_launcher_from_path — extract binary stem from path → Int
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn detect_launcher_from_path(exe_path: String) -> Int:
+    if exe_path == "":
+        return LAUNCHER_UNKNOWN
+
+    // Find the last path separator
+    var last_sep: Int = -1
+    var i: Int = 0
+    while i < len(exe_path):
+        if exe_path[i] == "/" or exe_path[i] == "\\":
+            last_sep = i
+        i = i + 1
+
+    // Get the filename (after last separator)
+    let filename: String = text_substring_string(
+        exe_path,
+        last_sep + 1,
+        len(exe_path) - last_sep - 1,
+    )
+
+    // Remove extension — find last dot
+    var dot_pos: Int = -1
+    i = 0
+    while i < len(filename):
+        if filename[i] == ".":
+            dot_pos = i
+        i = i + 1
+
+    let stem: String = if dot_pos >= 0:
+        text_substring_string(filename, 0, dot_pos)
+    else:
+        filename
+
+    let lower_stem: String = text_lower(stem)
+
+    if lower_stem == "kn":
+        return LAUNCHER_KN
+    elif lower_stem == "blade":
+        return LAUNCHER_BLADE
+    elif lower_stem == "kain":
+        return LAUNCHER_KAIN
+    else:
+        return LAUNCHER_UNKNOWN
+
+// ═══════════════════════════════════════════════════════════════════
+// should_show_launcher_menu — only for kn with no command or input
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn should_show_launcher_menu(launcher: LauncherKind, has_command: Bool, has_input: Bool) -> Bool:
+    return launcher == LauncherKind::Kn and has_command == false and has_input == false
+
+pub fn should_show_launcher_menu_int(launcher: Int, has_command: Bool, has_input: Bool) -> Bool:
+    return launcher == LAUNCHER_KN and has_command == false and has_input == false
+
+// ═══════════════════════════════════════════════════════════════════
+// resolve_legacy_target_alias — "wasm" with no explicit output → "run"
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn resolve_legacy_target_alias(launcher: LauncherKind, requested_target: String, has_output: Bool) -> String:
+    let lower_target: String = text_lower(requested_target)
+    if prefers_interpret_default(launcher) and lower_target == "wasm" and has_output == false:
+        return "run"
+    else:
+        return requested_target
+
+pub fn resolve_legacy_target_alias_int(launcher: Int, requested_target: String, has_output: Bool) -> String:
+    return resolve_legacy_target_alias(launcher_kind_from_int(launcher), requested_target, has_output)
+
+// ═══════════════════════════════════════════════════════════════════
+// Constants — KN_SHORTCUTS and KN_PYTHON_INTEROP_HINTS
+// ═══════════════════════════════════════════════════════════════════
+
+pub const KN_SHORTCUTS: Array<String> = [
+    "kn <file.kn>                Run a Kain file immediately",
+    "kn -c \"fn main(): ...\"      Run inline Kain code",
+    "Get-Content script.kn | kn   Run piped Kain source",
+    "kn <file.kn> --watch        Re-run on save for fast authoring",
+    "kn native-ui dev <file.kn>  Launch native desktop dev loop with hot reload",
+    "kn run <file.kn>            Explicit interpret mode",
+    "kn check <file.kn>          Typecheck Kain source without emitting artifacts",
+    "kn test <path>              Run Kain test directives and `test` items",
+    "kn build <file.kn> -t rust  Generate Rust output",
+    "kn fmt <file.kn>            Canonicalize Kain source",
+    "kn doctor                   Inspect PATH + runtime wiring",
+    "kn doctor --repair <file>    Repair a source file in place or dry-run",
+    "kn doctor --repair-tree <dir> Repair every .kn file under a tree",
+    "kn doctor --repair <file> --profile aggressive",
+]
+
+pub const KN_PYTHON_INTEROP_HINTS: Array<String> = [
+    "use std::python",
+    "use std::js",
+    "use std::interop",
+    "import numpy as np",
+    "import mypyfile",
+]
+
+// ═══════════════════════════════════════════════════════════════════
+// render_launcher_menu — returns formatted help text for kn launcher
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn render_launcher_menu(launcher: LauncherKind) -> String:
+    if launcher != LauncherKind::Kn:
+        return ""
+
+    var menu: String = " kn Quick Start\n"
+    menu = menu + " Run-first authoring is active for this launcher.\n\n"
+
+    var si: Int = 0
+    while si < len(KN_SHORTCUTS):
+        menu = menu + " " + KN_SHORTCUTS[si] + "\n"
+        si = si + 1
+
+    menu = menu + "\n"
+    menu = menu + " Python interop is already wired in:\n"
+
+    var hi: Int = 0
+    while hi < len(KN_PYTHON_INTEROP_HINTS):
+        menu = menu + "   - " + KN_PYTHON_INTEROP_HINTS[hi] + "\n"
+        hi = hi + 1
+
+    menu = menu + "\n"
+    menu = menu + " Example:\n"
+    menu = menu + "   sibling `mypyfile.py` can be imported directly from `main.kn`\n"
+
+    return menu
+
+// ═══════════════════════════════════════════════════════════════════
+// print_kn_quick_start — render and print the kn launcher menu
+// Called by cli.kn when kn is launched without arguments.
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn print_kn_quick_start() with IO:
+    let menu: String = render_launcher_menu(LauncherKind::Kn)
+    println(menu)

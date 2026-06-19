@@ -1,0 +1,221 @@
+// ============================================================================
+//  tui/interactive/command_palette.kn — Fuzzy command palette (Ctrl+P)
+//  (DELTA-4)
+//
+//  Implements a fuzzy-searching command palette overlay a la VS Code / pi.
+//  Opens as a searchable list overlaid on top of the conversation. Typing
+//  filters by fuzzy label match. Enter executes the selected command.
+//  Escape closes the palette without action.
+//
+//  Ladder: Layer 0 — plain struct + fn. No world/actor needed — just
+//  rendering logic + keyboard navigation data.
+//
+//  Markscript: The palette entries correspond to the "PaletteCommands"
+//  table in markscript configuration, allowing extensions to register
+//  their own palette entries.
+// ============================================================================
+
+use std::text
+use std::fmt           // fmt_repeat
+use config::interactive_config  // PaletteEntry, fuzzy_filter, fuzzy_score,
+                                // default_palette_entries, COLOR_PALETTE_SEL,
+                                // COLOR_DIM, sgr, sgr_reset, wrap_sgr, PALETTE_HEIGHT
+
+// ============================================================================
+//  COMMAND PALETTE STATE
+// ============================================================================
+
+pub struct PaletteState:
+    open: Bool
+    query: String
+    entries: [PaletteEntry]
+    filtered: [PaletteEntry]
+    selection: Int
+    scroll_offset: Int
+    height: Int
+    cols: Int
+
+pub fn new_palette_state(cols: Int) -> PaletteState with Pure:
+    let entries = default_palette_entries()
+    return PaletteState {
+        open: false,
+        query: "",
+        entries: entries,
+        filtered: entries,
+        selection: 0,
+        scroll_offset: 0,
+        height: PALETTE_HEIGHT,
+        cols: cols,
+    }
+
+// ============================================================================
+//  PALETTE ACTIONS
+// ============================================================================
+
+pub fn palette_open(state: PaletteState) -> PaletteState:
+    state.open = true
+    state.query = ""
+    state.filtered = state.entries
+    state.selection = 0
+    state.scroll_offset = 0
+    return state
+
+pub fn palette_close(state: PaletteState) -> PaletteState:
+    state.open = false
+    state.query = ""
+    state.selection = 0
+    state.scroll_offset = 0
+    return state
+
+pub fn palette_type_char(state: PaletteState, ch: String) -> PaletteState:
+    if state.open == false:
+        return state
+    state.query = state.query + ch
+    state.filtered = fuzzy_filter(state.query, state.entries)
+    state.selection = 0
+    state.scroll_offset = 0
+    return state
+
+pub fn palette_backspace(state: PaletteState) -> PaletteState:
+    if state.open == false:
+        return state
+    let qlen = len(state.query)
+    if qlen > 0:
+        state.query = text_substring_string(state.query, 0, qlen - 1)
+    state.filtered = fuzzy_filter(state.query, state.entries)
+    state.selection = 0
+    state.scroll_offset = 0
+    return state
+
+pub fn palette_select_next(state: PaletteState) -> PaletteState:
+    if state.open == false or len(state.filtered) == 0:
+        return state
+    state.selection = state.selection + 1
+    if state.selection >= len(state.filtered):
+        state.selection = len(state.filtered) - 1
+    // Auto-scroll
+    if state.selection >= state.scroll_offset + state.height:
+        state.scroll_offset = state.selection - state.height + 1
+    return state
+
+pub fn palette_select_prev(state: PaletteState) -> PaletteState:
+    if state.open == false or len(state.filtered) == 0:
+        return state
+    state.selection = state.selection - 1
+    if state.selection < 0:
+        state.selection = 0
+    // Auto-scroll
+    if state.selection < state.scroll_offset:
+        state.scroll_offset = state.selection
+    return state
+
+/// Get the currently selected entry's action string.
+/// Returns empty string if nothing selected or palette closed.
+pub fn palette_get_selected_action(state: PaletteState) -> String:
+    if state.open == false or len(state.filtered) == 0:
+        return ""
+    if state.selection < 0 or state.selection >= len(state.filtered):
+        return ""
+    return state.filtered[state.selection].action
+
+// ============================================================================
+//  RENDER  —  produce overlay lines for the palette
+//
+//  Layout:
+//    ┌─ Command Palette ─────────────────────────────────┐
+//    │ > query here                                       │
+//    │                                                    │
+//    │  1  New Session                  Ctrl+N            │
+//    │  2  Fork Session                 Ctrl+F            │
+//    │ ▶ 3  Save Session                                   │
+//    │  4  Compact Session              Ctrl+Shift+C      │
+//    │ ...                                                │
+//    └────────────────────────────────────────────────────┘
+// ============================================================================
+
+pub fn palette_render(
+    state: PaletteState,
+    available_rows: Int,
+    available_cols: Int,
+) -> [String] with Pure:
+    if state.open == false:
+        return []
+
+    let pal_rows = state.height
+    if pal_rows > available_rows - 2:
+        pal_rows = available_rows - 2
+    if pal_rows < 3:
+        pal_rows = 3
+
+    let effective_w = available_cols - 4
+    if effective_w < 20:
+        effective_w = 20
+
+    var lines: [String] = []
+
+    // ── Top border ──
+    let top = "┌─ Command Palette " + fmt_repeat("─", effective_w - 17) + "┐"
+    push(lines, top)
+
+    // ── Query input line ──
+    let query_prefix = "│ > "
+    let query_full = query_prefix + state.query + text_chr(0x2588)  // █ cursor
+    push(lines, truncate_to(query_full, effective_w + 6))
+
+    // ── Separator ──
+    let sep = "│ " + fmt_repeat("─", effective_w) + " │"
+    push(lines, sep)
+
+    // ── Filtered entries ──
+    let visible_count = pal_rows - 3
+    var vi: Int = 0
+    while vi < visible_count:
+        let idx = state.scroll_offset + vi
+        if idx >= len(state.filtered):
+            push(lines, "│ " + fmt_repeat(" ", effective_w) + " │")
+        else:
+            let entry = state.filtered[idx]
+            let is_sel = idx == state.selection
+
+            let num_str = str(idx + 1)
+            let num_pad = if len(num_str) == 1: " " else: ""
+            let label = entry.label
+            let desc = entry.description
+
+            var line: String = "│ "
+
+            if is_sel:
+                // Selected: show with reverse video
+                let marker = "▶ "
+                let entry_text = pare_to(marker + num_pad + num_str + "  " + label, effective_w - len(marker))
+                line = line + wrap_sgr(entry_text, COLOR_PALETTE_SEL)
+            else:
+                let entry_text = pare_to("  " + num_pad + num_str + "  " + label, effective_w - 2)
+                // Description: show in dim
+                let remaining = effective_w - len(entry_text) - 2
+                if remaining > 3:
+                    entry_text = entry_text + "  " + wrap_sgr(desc, COLOR_DIM)
+                line = line + pare_to(entry_text, effective_w)
+            line = line + " │"
+            push(lines, line)
+        vi = vi + 1
+
+    // ── Bottom border ──
+    let bottom = "└" + fmt_repeat("─", effective_w + 2) + "┘"
+    push(lines, bottom)
+
+    return lines
+
+// ============================================================================
+//  TEXT HELPERS
+// ============================================================================
+
+fn truncate_to(s: String, max_len: Int) -> String:
+    if max_len < 1:
+        return ""
+    if len(s) <= max_len:
+        return s
+    return text_substring_string(s, 0, max_len - 1) + "…"
+
+fn pare_to(s: String, w: Int) -> String:
+    return truncate_to(s, w)

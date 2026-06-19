@@ -17,18 +17,45 @@
 
 use std::runtime
 use std::process
-use std::text          // text_chr
-use cli              // get_user_args, parse_args, usage, version, EXIT_HELP, EXIT_OK, EXIT_ERROR, EXIT_UNKNOWN
-use types            // StartupResult, StartupPhase, Model, CliArgs, default_cli_args
-use pipeline::startup  // run_startup_pipeline
-use modes::interactive  // run_interactive_mode
-use modes::print        // run_print_mode, run_print_mode_standalone, run_print_prompt
+use std::os
+use std::text
+use cli
+use types
+use pipeline::startup
+use modes::interactive
+use modes::print
+
+// ---- Windows console UTF-8 init via native Win32 ----
+// Uses libclang-extracted <windows.h> — no C files, no @extern, no .obj linking.
+// 6,294 Win32 functions extracted automatically. Just call win_FunctionName().
+include <windows.h> as win
+
+const STD_OUTPUT_HANDLE: Int = -11          // (DWORD)-11
+const ENABLE_VT_PROCESSING: Int = 4         // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+
+fn init_console_utf8() with Unsafe:
+    // Force console to UTF-8 codepage 65001
+    let _ = win_SetConsoleOutputCP(65001)
+    let _ = win_SetConsoleCP(65001)
+    // Enable ANSI/VT escape code processing (read-modify-write)
+    let stdout_handle = win_GetStdHandle(STD_OUTPUT_HANDLE)
+    if stdout_handle != 0 and stdout_handle != -1:
+        let mode: ptr<Int> = alloc_zeroed(1, "Int")
+        let ok = win_GetConsoleMode(stdout_handle, mode)
+        if ok != 0:
+            let current = mem_load(mode, "Int")
+            let _ = win_SetConsoleMode(stdout_handle, current | ENABLE_VT_PROCESSING)
+        decay mode
+    return 0
 
 // ============================================================================
 //  MAIN ENTRY POINT
 // ============================================================================
 
 fn main() -> Int with IO, Unsafe:
+    if os_is_windows():
+        init_console_utf8()
+
     // ---- Phase 1: Parse CLI ----
     let argv = process_user_args()
     let flags = parse_args(argv)
