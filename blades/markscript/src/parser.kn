@@ -18,6 +18,7 @@
 use std::text
 use lexer
 use types
+use registry
 
 // ===========================================================================
 //  OPCODE CONSTANTS (20 total — all 21 values 0-20, matching the spec)
@@ -137,29 +138,55 @@ pub fn parser_intents_hashes() -> Array<Int>:
     return ParserState.intent_hashes
 
 // ===========================================================================
-//  PROSE DETECTION — disambiguates markdown blockquotes from MKS intents (Fix #2)
+//  PROSE / INTENT DISAMBIGUATION — data-driven via registry.kn
 //
 //  Standard markdown blockquotes like "> This is documentation" should NOT
 //  be treated as MKS intents. We check if the first word is a common prose
 //  starter (articles, prepositions, pronouns, conjunctions). If so, the
 //  line is treated as prose — no bytecode is emitted.
+//
+//  Intent keywords are loaded at startup from the registry data file
+//  (std/intents.md) into the IntentRegistry world. This function checks
+//  that world instead of a hardcoded list. New intents = add a row to
+//  the data file. No parser changes needed.
+//
+//  The prose-starter list is a closed, stable set (~50 English words that
+//  begin sentences). It changes only when English grammar changes.
 // ===========================================================================
 
+const PROSE_STARTERS: Array<String> = [
+    // Articles & determiners
+    "The", "This", "That", "These", "Those",
+    "A", "An", "Some", "Any", "All",
+    "Each", "Every", "One", "No", "Other",
+    // Pronouns
+    "I", "We", "You", "He", "She", "It", "They",
+    // Prepositions
+    "In", "At", "On", "By", "From", "To", "With", "For",
+    "As", "So", "Not", "Just", "Also",
+    // Conjunctions
+    "And", "But", "Or", "If", "Because", "However",
+    // Interrogatives
+    "Who", "What", "When", "Where", "Why", "Which", "How",
+    // Sentence-initial adverbs / discourse markers
+    "Then", "Now", "Here", "There", "Still",
+    "Therefore", "However", "Meanwhile", "Nevertheless",
+    "Furthermore", "Moreover", "Thus", "Hence"
+]
+
 fn is_prose_starter(word: String) -> Bool:
-    if word == "The" or word == "This" or word == "A" or word == "An": return true
-    if word == "In" or word == "It" or word == "We" or word == "You": return true
-    if word == "For" or word == "But" or word == "And" or word == "Or": return true
-    if word == "If" or word == "To" or word == "With" or word == "All": return true
-    if word == "Some" or word == "Each" or word == "Every": return true
-    if word == "These" or word == "Those" or word == "As" or word == "At": return true
-    if word == "From" or word == "By" or word == "On" or word == "Not": return true
-    if word == "So" or word == "That" or word == "There" or word == "Their": return true
-    if word == "When" or word == "Where" or word == "Which" or word == "Who": return true
-    if word == "How" or word == "What" or word == "Why" or word == "Just": return true
-    if word == "One" or word == "Any" or word == "No" or word == "Other": return true
-    if word == "Also" or word == "Because" or word == "However": return true
-    if word == "Then" or word == "Now" or word == "Here" or word == "Still": return true
+    var i = 0
+    while i < len(PROSE_STARTERS):
+        if PROSE_STARTERS[i] == word:
+            return true
+        i = i + 1
     return false
+
+fn is_mks_intent_kw(word: String) -> Bool:
+    // Check the data-driven intent registry (loaded from std/intents.md)
+    // Falls back to false if registry hasn't been loaded yet — all
+    // blockquotes are treated as prose.
+    return registry.is_keyword(word)
 
 // ===========================================================================
 //  MARKSCRIPT MINI-LANGUAGE PARSER
@@ -1015,13 +1042,17 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
                     break
                 si = si + 1
 
-            // Fix #2: Prose vs Intent Disambiguation
-            // Check if the first word is a common prose starter (article,
-            // preposition, pronoun, conjunction). If so, treat the blockquote
-            // as markdown documentation — emit no bytecode.
-            // This prevents "> This is documentation" from producing
-            // "unknown intent phrase" errors.
+            // Fix #2: Prose vs Intent Disambiguation (data-driven)
+            // Three-way classification:
+            //   1. Known prose starter → markdown documentation (skip)
+            //   2. Registered intent keyword → emit bytecode (proceed)
+            //   3. Unknown word → default to prose with optional warning
             if is_prose_starter(intent_word):
+                continue
+            if is_mks_intent_kw(intent_word) == false:
+                // Unknown word — could be a typo or unusual prose.
+                // The registry may not be loaded, or the word isn't registered.
+                // Default: treat as prose documentation.
                 continue
 
             // Fix #8 TODO: Variable Interpolation

@@ -34,6 +34,7 @@ use bridge          // init_vm_with_builtins, dispatch_handler, dispatch_fn, HAN
 use import          // resolve_imports, extract_imports, ImportResult, ImportExtractResult
 use error           // format_error, MarkError, ERROR_*, error_ok, error_kind_name
 use jit             // jit_selftest, jit_compile_block, init_cache, cache_hit_count
+use registry        // load_registry, is_loaded, keyword_count, get_error
 
 // ===========================================================================
 //  FILE READING
@@ -41,6 +42,51 @@ use jit             // jit_selftest, jit_compile_block, init_cache, cache_hit_co
 
 fn read_source(path: String) -> String:
     return fs_read_text(path)
+
+// ===========================================================================
+//  REGISTRY LOADING — loads the intent keyword registry data file
+//
+//  Tries multiple locations for intents.md:
+//    1. std/intents.md (relative to CWD — project root)
+//    2. {source_dir}/intents.md (next to the source file)
+//    3. {source_dir}/../std/intents.md (parent's std/)
+//
+//  Returns true if the registry was loaded successfully.
+// ===========================================================================
+
+fn load_intent_registry(source_filepath: String) -> Bool:
+    // Skip if already loaded
+    if registry.is_loaded():
+        return true
+
+    // Build candidate paths
+    var candidates: Array<String> = []
+    push(candidates, "std/intents.md")
+
+    if source_filepath != "":
+        let base = fs_path_parent(source_filepath)
+        if base != "":
+            push(candidates, base + "/intents.md")
+            push(candidates, base + "/../std/intents.md")
+
+    // Try each candidate
+    var ci = 0
+    while ci < len(candidates):
+        let path = candidates[ci]
+        if fs_exists(path):
+            let count = registry.load_registry(path)
+            if count > 0:
+                println("[REGISTRY] Loaded " + str(count) + " intent keywords from " + path)
+                return true
+            else:
+                let err = registry.get_error()
+                if err != "":
+                    println("[REGISTRY] Warning: " + err)
+        ci = ci + 1
+
+    // No registry file found — proceed without intents
+    // All blockquotes will be treated as prose.
+    return false
 
 // ===========================================================================
 //  OPCODE NAME TABLE (all 20, matching the spec)
@@ -453,6 +499,10 @@ fn cmd_run(cfg: MksConfig) -> Int:
         source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n| Density | Viscosity | Friction |\n| 1.05    | 0.88      | 0.45     |\n\n\n> apply grain overlay\n\n\n```python\nprint(\"hello world\")\n```\n"
         println("[INPUT] Using demo source (no file arg)")
 
+    // ---- Load intent keyword registry (data-driven, from std/intents.md) ---
+
+    load_intent_registry(filepath)
+
     // ---- Resolve @import directives ---------------------------------------
 
     var base_dir: String = fs_path_parent(filepath)
@@ -620,6 +670,9 @@ fn cmd_check(cfg: MksConfig) -> Int:
     let source = read_source(cfg.filepath)
     let base_dir = fs_path_parent(cfg.filepath)
 
+    // Load intent keyword registry before compilation
+    load_intent_registry(cfg.filepath)
+
     // Resolve @import directives
     let extracted = extract_imports(source)
     var bytecode: Array<Int> = []
@@ -750,6 +803,9 @@ fn cmd_disasm(cfg: MksConfig) -> Int:
 
     let source = read_source(cfg.filepath)
     println("[INPUT] Loaded: " + cfg.filepath)
+
+    // Load intent keyword registry before compilation
+    load_intent_registry(cfg.filepath)
 
     let lex = create_lexer(source)
     let bytecode = compile_source(lex)
@@ -892,6 +948,10 @@ fn cmd_doc(cfg: MksConfig) -> Int:
     println("")
 
     let source = read_source(cfg.filepath)
+
+    // Load intent keyword registry before compilation
+    load_intent_registry(cfg.filepath)
+
     let bytecode = compile_source(create_lexer(source))
     let op_count = len(bytecode)
 
@@ -956,6 +1016,9 @@ fn cmd_jit_run(cfg: MksConfig) -> Int with Unsafe:
 
     let source = read_source(cfg.filepath)
     println("[INPUT] Loaded: " + cfg.filepath)
+
+    // Load intent keyword registry before compilation
+    load_intent_registry(cfg.filepath)
 
     let lex = create_lexer(source)
     let bytecode = compile_source(lex)

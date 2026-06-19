@@ -1,0 +1,253 @@
+// ============================================================================
+//  MARKSCRIPT INTENT REGISTRY — Data-driven keyword loading
+//
+//  This module is the SINGLE bridge between the data file (intents.md)
+//  and the parser/compiler. It reads the intent keyword table from a
+//  standard markdown file and populates a shared world. The parser
+//  checks this world instead of a hardcoded list.
+//
+//  To add a new intent keyword:
+//    1. Add a row to std/intents.md
+//    2. Register the handler in bridge.kn
+//  No parser or compiler changes needed.
+//
+//  All internal helpers are prefixed with `reg_` to avoid namespace
+//  collisions with parser.kn, config.kn, and stdlib identifiers.
+// ============================================================================
+
+use std::fs
+use std::text
+
+// ============================================================================
+//  INTENT REGISTRY WORLD — shared state between registry and parser
+// ============================================================================
+
+pub world IntentRegistry:
+    state keywords:       Array<String> = []
+    state keyword_hashes: Array<Int> = []
+    state keyword_count:  Int = 0
+    state loaded:         Bool = false
+    state load_path:      String = ""
+    state load_error:     String = ""
+
+// ============================================================================
+//  STRING UTILITIES — all prefixed with reg_ to avoid namespace collisions
+// ============================================================================
+
+fn reg_trim(s: String) -> String:
+    var start = 0
+    var end = len(s)
+    while start < end:
+        let ch = reg_char_at(s, start)
+        if ch == " " or ch == "\t" or ch == "\r":
+            start = start + 1
+        else:
+            break
+    while end > start:
+        let ch = reg_char_at(s, end - 1)
+        if ch == " " or ch == "\t" or ch == "\r":
+            end = end - 1
+        else:
+            break
+    return text_substring_string(s, start, end - start)
+
+fn reg_char_at(s: String, idx: Int) -> String:
+    return text_substring_string(s, idx, 1)
+
+fn reg_first_char(s: String) -> String:
+    if s == "":
+        return ""
+    return text_substring_string(s, 0, 1)
+
+fn reg_split_lines(text: String) -> Array<String>:
+    var ln_array: Array<String> = []
+    var start = 0
+    var i = 0
+    let tlen = len(text)
+    while i < tlen:
+        let ch = text_substring_string(text, i, 1)
+        if ch == "\n":
+            push(ln_array, text_substring_string(text, start, i - start))
+            start = i + 1
+        i = i + 1
+    if start <= tlen:
+        push(ln_array, text_substring_string(text, start, tlen - start))
+    return ln_array
+
+fn reg_split_pipe(ln: String) -> Array<String>:
+    var cells: Array<String> = []
+    var start = 0
+    var i = 0
+    let slen = len(ln)
+    while i < slen:
+        let ch = reg_char_at(ln, i)
+        if ch == "|":
+            if i > start:
+                push(cells, reg_trim(text_substring_string(ln, start, i - start)))
+            else:
+                push(cells, "")
+            start = i + 1
+        i = i + 1
+    if start <= slen:
+        push(cells, reg_trim(text_substring_string(ln, start, slen - start)))
+    return cells
+
+fn reg_all_sep_chars(ln: String) -> Bool:
+    var i = 0
+    let slen = len(ln)
+    while i < slen:
+        let ch = reg_char_at(ln, i)
+        if ch != "-" and ch != ":" and ch != " " and ch != "|":
+            return false
+        i = i + 1
+    return true
+
+// ============================================================================
+//  HASH FUNCTION — matches parser.kn's hash_name (multiply by 31, DJB2 variant)
+//  Must stay in sync. Prefixed to avoid collision with parser.kn.
+// ============================================================================
+
+fn reg_hash_name(s: String) -> Int:
+    let view = text_from(s)
+    let sl = text_len(view)
+    var h: Int = 0
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        h = h * 31 + cv
+        i = i + 1
+    return h
+
+// ============================================================================
+//  TABLE PARSER — extracts keyword column from markdown pipe table
+//
+//  Parses tables like:
+//    | keyword  | handler_fn | handler_id | description |
+//    |----------|------------|-----------|-------------|
+//    | read     | ...        | 2         | ...         |
+//
+//  Returns only the first column (keyword names).
+// ============================================================================
+
+fn reg_parse_table(source: String) -> Array<String>:
+    var keywords: Array<String> = []
+    let ln_array = reg_split_lines(source)
+    var in_table = false
+    var header_seen = false
+    var separator_seen = false
+    var i = 0
+
+    while i < len(ln_array):
+        let raw_row = ln_array[i]
+        let row = reg_trim(raw_row)
+
+        if row == "":
+            if in_table:
+                break
+            i = i + 1
+            continue
+
+        let fc = reg_first_char(row)
+
+        if fc == "|":
+            if in_table == false:
+                in_table = true
+                header_seen = true
+                i = i + 1
+                continue
+
+            if separator_seen:
+                let cells = reg_split_pipe(row)
+                if len(cells) >= 1:
+                    let kw = reg_trim(cells[0])
+                    if kw != "" and kw != "keyword":
+                        push(keywords, kw)
+            elif header_seen:
+                let cells = reg_split_pipe(row)
+                var maybe_sep = true
+                var ci = 0
+                while ci < len(cells):
+                    let c = reg_trim(cells[ci])
+                    if c != "" and reg_all_sep_chars(c) == false:
+                        maybe_sep = false
+                        break
+                    ci = ci + 1
+                if maybe_sep:
+                    separator_seen = true
+                else:
+                    let cells2 = reg_split_pipe(row)
+                    if len(cells2) >= 1:
+                        let kw = reg_trim(cells2[0])
+                        if kw != "":
+                            push(keywords, kw)
+                    separator_seen = true
+        else:
+            if in_table:
+                break
+        i = i + 1
+
+    return keywords
+
+// ============================================================================
+//  LOAD REGISTRY — reads intents.md and populates the IntentRegistry world
+// ============================================================================
+
+pub fn load_registry(path: String) -> Int:
+    if IntentRegistry.loaded and IntentRegistry.load_path == path:
+        return IntentRegistry.keyword_count
+
+    IntentRegistry.keywords = []
+    IntentRegistry.keyword_hashes = []
+    IntentRegistry.keyword_count = 0
+    IntentRegistry.loaded = false
+    IntentRegistry.load_path = path
+    IntentRegistry.load_error = ""
+
+    if fs_exists(path) == false:
+        IntentRegistry.load_error = "registry file not found: " + path
+        return 0
+
+    let source = fs_read_text(path)
+    if source == "":
+        IntentRegistry.load_error = "registry file is empty: " + path
+        return 0
+
+    let keywords = reg_parse_table(source)
+
+    IntentRegistry.keywords = keywords
+    IntentRegistry.keyword_count = len(keywords)
+
+    var hashes: Array<Int> = []
+    var ki = 0
+    while ki < IntentRegistry.keyword_count:
+        push(hashes, reg_hash_name(keywords[ki]))
+        ki = ki + 1
+    IntentRegistry.keyword_hashes = hashes
+
+    IntentRegistry.loaded = true
+    return IntentRegistry.keyword_count
+
+// ============================================================================
+//  LOOKUP FUNCTIONS — used by parser.kn at compile time
+// ============================================================================
+
+pub fn is_keyword(word: String) -> Bool:
+    if IntentRegistry.loaded == false:
+        return false
+    let h = reg_hash_name(word)
+    var i = 0
+    while i < IntentRegistry.keyword_count:
+        if IntentRegistry.keyword_hashes[i] == h:
+            return true
+        i = i + 1
+    return false
+
+pub fn keyword_count() -> Int:
+    return IntentRegistry.keyword_count
+
+pub fn is_loaded() -> Bool:
+    return IntentRegistry.loaded
+
+pub fn get_error() -> String:
+    return IntentRegistry.load_error

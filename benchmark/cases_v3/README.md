@@ -1,9 +1,9 @@
 # V3 Benchmark Runner — MarkScript Edition
 
 > Dogfooding MarkScript as the CASES_V3 benchmark orchestration engine.
-> `mks run runner.md` executes the full pipeline: build → calibrate → run → report.
+> `mks run README.md` executes the full pipeline: build → calibrate → run → report.
 > All configuration is tables. All dispatch is blockquote intents. All logic is markscript.
-> The Python runner (`bench.py`) still exists for statistical timing when needed.
+> The Python runner in .bak/(`bench.py`) still exists for statistical timing when needed.
 
 ## Metadata
 
