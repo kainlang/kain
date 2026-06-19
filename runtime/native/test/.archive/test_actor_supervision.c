@@ -1,15 +1,5 @@
 /*
  * Test: Actor Supervision Policies
- *
- * This test validates:
- * - Restart policies (PERMANENT, TEMPORARY, TRANSIENT)
- * - Bounded restart counting with time windows
- * - Escalation when restart limits exceeded
- * - Supervision strategies (ONE_FOR_ONE, ONE_FOR_ALL, REST_FOR_ONE)
- * - Supervisor notification on child exit
- * - Observable restart events
- *
- * Requirements: 6.2, 6.3, 6.4
  */
 
 #include "../include/actor.h"

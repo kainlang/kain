@@ -8,19 +8,6 @@
 #include "union.h"
 
 /*
- * KAIN Native Runtime Low-Level Memory Helpers
- *
- * This header defines the canonical low-level memory helper ABI for the KAIN
- * native runtime. These helpers provide the bridge between compiler-emitted
- * code and native memory operations.
- *
- * Requirements Coverage:
- * - Requirement 3.1: Canonical low-level helper surface
- * - Requirement 3.2: Address-of, bind-local, load/store operations
- * - Requirement 3.6: Pointer and allocation helper behavior
- *
- * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
- * Compiler: crates/core/src/low_level_memory.rs
  */
 
 #ifdef __cplusplus

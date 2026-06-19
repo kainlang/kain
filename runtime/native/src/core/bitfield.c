@@ -1,23 +1,4 @@
 /*
- * KAIN Native Runtime Bitfield Operations
- *
- * Implementation of canonical bitfield access helpers for the KAIN
- * native runtime. These helpers provide C-compatible bitfield semantics
- * with explicit control over packing, width, and sign extension.
- *
- * Requirements Coverage:
- * - Requirement 3.2: Bitfield operations
- * - Requirement 3.3: ABI-aware packing and bit ordering
- * - Requirement 3.6: Memory layout and ABI policy
- *
- * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
- * Headers: runtime/native/include/bitfield.h
- *
- * Bitfield Packing Rules:
- * - Bitfield unit size: always 8 bytes (uint64_t)
- * - Bit ordering: LSB-first (x86_64, ARM64, WASM)
- * - Integer promotion: fields < 32 bits promote to i32/u32
- * - Sign extension: applied for signed fields during get operations
  */
 
 #include "../../include/bitfield.h"
