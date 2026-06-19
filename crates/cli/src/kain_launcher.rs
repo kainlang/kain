@@ -902,6 +902,12 @@ fn capture_kain_error_failure(
     rendered_output: &str,
 ) {
     let phase = match error {
+        kain_core::KainError::Lexer { .. } => "lexer",
+        kain_core::KainError::Parser { .. } => "parser",
+        kain_core::KainError::Type { .. } => "type",
+        kain_core::KainError::Effect { .. } => "effect",
+        kain_core::KainError::Borrow { .. } => "borrow",
+        kain_core::KainError::Codegen { .. } | kain_core::KainError::CodegenWithLocation { .. } => {
             "codegen"
         }
         kain_core::KainError::Runtime { .. } => "runtime",
@@ -910,7 +916,7 @@ fn capture_kain_error_failure(
         kain_core::KainError::Rich(_) => "rich",
         kain_core::KainError::Multi(_) => "multi",
     };
-    capture_rendered_failure(
+    let captured = capture_rendered_failure(
         "kain-error",
         command,
         rendered_output,
@@ -926,6 +932,23 @@ fn capture_kain_error_failure(
             "error_display": error.to_string(),
         }),
     );
+    // THETA-4: One-time notification when capture is active. Without this,
+    // diagnostic capture can feel like a silent JSON dump: the user sees a
+    // nice rustc-style error in the terminal and never knows that the same
+    // event is being appended to `diagnostics/errors.jsonl`. We use a
+    // process-wide AtomicBool to ensure we only emit the notice once,
+    // regardless of how many errors fire in this `kain` invocation.
+    if captured {
+        static CAPTURE_NOTIFIED: AtomicBool = AtomicBool::new(false);
+        if !CAPTURE_NOTIFIED.swap(true, Ordering::Relaxed) {
+            let config = kain_core::tooling_config::active_kain_tooling_config();
+            eprintln!(
+                "{} Diagnostic capture active - events written to: {}",
+                p().status_info(""),
+                config.diagnostics.path.display()
+            );
+        }
+    }
 }
 
 fn capture_run_report_failure(

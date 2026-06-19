@@ -31,8 +31,9 @@ pub struct ValidatorRun {
     pub skip_reason: Option<String>,
     /// How many errors did it find?
     pub errors_found: usize,
-    /// Estimated cost: "cheap", "medium", or "expensive".
-    pub cost: &'static str,
+    /// Estimated cost: "cheap", "medium", or "expensive". Owned String so
+    /// `Deserialize` doesn't have to bound it to `'static`.
+    pub cost: String,
 }
 
 /// Telemetry snapshot from a single `kain check` run.
@@ -149,7 +150,7 @@ fn all_validators() -> Vec<ValidatorRun> {
     ]
 }
 
-fn v(name: &str, category: &str, always_runs: bool, cost: &'static str) -> ValidatorRun {
+fn v(name: &str, category: &str, always_runs: bool, cost: &str) -> ValidatorRun {
     ValidatorRun {
         name: name.to_string(),
         category: category.to_string(),
@@ -160,7 +161,7 @@ fn v(name: &str, category: &str, always_runs: bool, cost: &'static str) -> Valid
             Some("not yet implemented".to_string())
         },
         errors_found: 0,
-        cost,
+        cost: cost.to_string(),
     }
 }
 
