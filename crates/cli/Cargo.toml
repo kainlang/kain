@@ -25,6 +25,7 @@ kain-amalgamate = { path = "../amalgamate" }
 kain-build = { path = "../build" }
 kain-check = { path = "../check" }
 kain-clean = { path = "../clean" }
+kain-error = { path = "../error" }
 kain-test = { path = "../test" }
 kain-driver = { path = "../driver", default-features = false }
 kain-fmt = { path = "../fmt" }

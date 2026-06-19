@@ -869,7 +869,7 @@ fn capture_rendered_failure(
     structured_diagnostic: Option<serde_json::Value>,
     context: serde_json::Value,
 ) -> bool {
-    let captured = kain_core::diagnostic_capture::capture_event_if_enabled(
+    kain_core::diagnostic_capture::capture_event_if_enabled(
         kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
             event_kind: event_kind.to_string(),
             command: command.to_string(),
@@ -1913,7 +1913,7 @@ fn run_source_with_session(
                                         let gpu_error = kain_core::error::KainError::rich(
                                             kain_core::error::DiagnosticReport::new(
                                                 kain_core::error::ErrorKind::Codegen,
-                                                kain_core::error::DiagnosticCode::CodegenBackendFailed,
+                                                kain_error::DiagnosticCode::CodegenBackendFailed,
                                                 format!("Failed to stage compute runtime DLL: {}", err),
                                             )
                                             .severity(kain_core::error::DiagnosticSeverity::Error)
@@ -1941,7 +1941,7 @@ fn run_source_with_session(
                             let link_error = kain_core::error::KainError::rich(
                                 kain_core::error::DiagnosticReport::new(
                                     kain_core::error::ErrorKind::Codegen,
-                                    kain_core::error::DiagnosticCode::CodegenLinkingFailed,
+                                    kain_error::DiagnosticCode::CodegenLinkingFailed,
                                     format!("Native linking failed: {}", err),
                                 )
                                 .severity(kain_core::error::DiagnosticSeverity::Error)

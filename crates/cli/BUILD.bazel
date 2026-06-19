@@ -63,6 +63,7 @@ rust_library(
         "//crates/core:kain-core",
         "//crates/crate-ffi:kain-crate-ffi",
         "//crates/driver:kain-driver",
+        "//crates/error:kain-error",
         "//crates/fmt:kain-fmt",
         "//crates/gpu:gpu",
         "//crates/host:kain-host",

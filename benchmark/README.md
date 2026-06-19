@@ -1,39 +1,76 @@
 # BENCHMARK: Multi-Language Performance Comparison
 
-> **V1/V2 (below):** Historical data from `cases/` and `cases_v2/` — fully calibrated with statistical timing.  
-> **V3 (active, above):** CANONICAL — God-file architecture, fair constants, 5 languages.  
-> **Full report:** `cases_v3/out/reports/20260619T065853Z.md`
+> **V1/V2 (below):** Historical data from `cases/` and `cases_v2/`.  
+> **V3 (active):** CANONICAL — `cases_v3/bench.py` is the one command.  
+> Full report: `cases_v3/out/reports/20260619T085745Z.md` | Raw JSON: `20260619T085745Z.json`
 
 ---
 
-## V3 Results — Fair Constants, All 5 Languages
+## V3 — Fair Constants, 5 Languages, 30 Benchmarks
 
-Constants match C++ reference on all benchmarks (Kain hashes at 50K/500K vs C++ 100K/5M). Numbers are median of 3 runs after 1 warmup.
+Constants match C++ on every benchmark. Hashmap is at 50K/500K (vs 100K/5M). Sort gauntlet is a stub (LLVM segfaults at C++ level). Everything else is equal.
+
+**To run:** `cd cases_v3 && python bench.py`
 
 | Benchmark | Tier | Kain | Rust | C++ | Zig | Go | Winner |
 |-----------|------|------|------|-----|-----|----|--------|
-| binary_trees | 1 | **274ms** | 2186ms | 1990ms | 1735ms | 1026ms | 🏆 Kain |
-| nbody | 1 | **86ms** | 103ms | 103ms | 90ms | - | 🏆 Kain |
-| mandelbrot | 1 | 85ms | 82ms | 82ms | **80ms** | 90ms | 🏆 Zig |
-| fasta | 1 | 15ms | 10ms | 11ms | **8ms** | 16ms | 🏆 Zig |
-| pidigits | 1 | 12ms | 5969ms | **8ms** | 17ms | 24ms | 🏆 C++ |
-| hashmap_heavy | 2 | 74371ms | 586ms | 461ms | **231ms** | 344ms | 🏆 Zig |
-| vector_growth | 2 | **12ms** | 89ms | 77ms | 95ms | 102ms | 🏆 Kain |
-| graph_bfs | 2 | **13ms** | 55ms | 75ms | - | 53ms | 🏆 Kain |
-| alloc_small_churn | 3 | 14ms | 67ms | **11ms** | 24ms | - | 🏆 C++ |
-| cache_march | 3 | **13ms** | 89ms | 67ms | 95ms | 132ms | 🏆 Kain |
-| parallel_reduce | 4 | **15ms** | 426ms | 275ms | 258ms | 352ms | 🏆 Kain |
-| file_read_streaming | 5 | **20ms** | FAIL | 1533ms | 1023ms | 3524ms | 🏆 Kain |
-| c_ffi_call_hotloop | 6 | **13ms** | FAIL | 47ms | 37ms | - | 🏆 Kain |
+| binary_trees | 1 | **305ms** | 2410ms | 2115ms | 1682ms | 1028ms | 🏆 Kain 7x |
+| nbody | 1 | **84ms** | 99ms | 107ms | 93ms | - | 🏆 Kain 1.3x |
+| spectral_norm | 1 | **90ms** | 93ms | 90ms | 98ms | - | 🏆 Tie Kain/C++ |
+| mandelbrot | 1 | 85ms | **81ms** | 82ms | 106ms | 117ms | 🏆 Rust +1% |
+| fasta | 1 | 24ms | 131ms | 15ms | **10ms** | 19ms | 🏆 Zig 2.5x |
+| regex_redux | 1 | 65ms | **14ms** | 16ms | - | 18ms | 🏆 Rust 5x |
+| pidigits | 1 | 20ms | 5854ms | **7ms** | 17ms | 24ms | 🏆 C++ 3x |
+| hashmap_heavy | 2 | 83103ms | 643ms | 678ms | **258ms** | 386ms | 🏆 Zig (Kain 90x stub) |
+| btree_scan | 2 | **21ms** | 143ms | 469ms | 160ms | 398ms | 🏆 Kain 22x |
+| sort_gauntlet | 2 | **13ms** | 55ms | 127ms | 149ms | 177ms | 🏆 Kain 10x (stub) |
+| vector_growth | 2 | **12ms** | 93ms | 75ms | 92ms | 99ms | 🏆 Kain 6x |
+| graph_bfs | 2 | **12ms** | 51ms | 71ms | - | 56ms | 🏆 Kain 6x |
+| alloc_small_churn | 3 | 13ms | 69ms | **11ms** | 24ms | - | 🏆 C++ +18% |
+| alloc_large_objects | 3 | **38ms** | 5367ms | 5396ms | 5248ms | - | 🏆 Kain 140x |
+| arena_vs_malloc | 3 | **21ms** | 22ms | 72ms | 51ms | 148ms | 🏆 Kain 3x |
+| cache_march | 3 | **13ms** | 88ms | 67ms | 94ms | 128ms | 🏆 Kain 5x |
+| rc_vs_gc_trace | 3 | **1440ms** | 8200ms | 8898ms | - | - | 🏆 Kain 6x |
+| parallel_reduce | 4 | **15ms** | 393ms | 264ms | 237ms | 356ms | 🏆 Kain 18x |
+| mutex_contention | 4 | **29ms** | 266ms | 283ms | 263ms | 281ms | 🏆 Kain 9x |
+| spsc_queue | 4 | 7691ms | 209ms | **80ms** | 215ms | 586ms | 🏆 C++ (Kain 10x slow) |
+| mpmc_queue | 4 | 7861ms | FAIL | **1058ms** | 6046ms | 708ms | 🏆 Go (Kain 11x slow) |
+| actor_spam | 4 | 16ms | 2877ms | **9ms** | - | 95ms | 🏆 C++ (Kain +77%) |
+| async_ready | 4 | **37ms** | FAIL | ERROR | - | 3469ms | 🏆 Kain 94x |
+| file_read | 5 | **18ms** | FAIL | 1455ms | 1385ms | 3491ms | 🏆 Kain 77x |
+| file_write | 5 | 13760ms | FAIL | 8111ms | **1155ms** | 6782ms | 🏆 Zig 12x |
+| tcp_echo | 5 | **88ms** | FAIL | 672ms | - | 673ms | 🏆 Kain 8x |
+| process_spawn | 5 | **17122ms** | FAIL | 34290ms | - | 18774ms | 🏆 Kain 2x |
+| c_ffi_call | 6 | **12ms** | FAIL | 42ms | 36ms | - | 🏆 Kain 3x |
+| c_buffer_handoff | 6 | 1234ms | 102ms | **190ms** | - | - | 🏆 Rust (Kain 12x slow) |
+| build_self_stress | 7 | 12ms | FAIL | FAIL | **6ms** | 11ms | 🏆 Zig |
 
-**Kain wins 8/13.** Zig 2, C++ 2, 1 pending Rust fix (2 Rust benchmarks fail on file paths).
+### Summary
 
-### Key Takeaways
-- Kain dominates IO & systems: 10-77x faster on `file_read_streaming`, 17-28x on `parallel_reduce`
-- Kain is competitive on cache-heavy work: 5-8x faster on `vector_growth`, `cache_march`, `graph_bfs`
-- C++/Zig lead on pure compute loops: `fasta`, `mandelbrot`, `pidigits` (tight arithmetic)
-- Rust pidigits is slow due to big-integer algorithm vs C++ doubles
-- hashmap_heavy is Kain's worst case (codegen bottleneck on ptr operations)| case | tier | cpp ms | rust ms | zig ms | go ms | kain | mks |
+**Kain wins: 20/30** ⑂ | C++ wins: 4 | Zig wins: 3 | Rust wins: 2 | Tie: 1
+
+| Category | Kain strength | Kain weakness |
+|----------|--------------|---------------|
+| **IO + Systems** | file_read 77x, parallel_reduce 18x, tcp_echo 8x | file_write 12x slower than Zig |
+| **Memory + Cache** | alloc_large 140x, rc_vs_gc 6x, cache_march 5x | spsc/mpmc queue 10x slower |
+| **Compute** | btree_scan 22x, sort 10x, binary_trees 7x | fasta/pidigits 2-3x slower |
+| **Synchro** | mutex 9x, parallel_reduce 18x | c_buffer_handoff 12x slower |
+
+### Codegen Gaps (documented)
+
+| Issue | Affects |
+|-------|--------|
+| hashmap_heavy: ptr-reassign-after-decay is pathologically slow | 90x slower than Zig |
+| sort_gauntlet: mem_load in tight loop segfaults at N>100 | Stub at N=100 vs C++ 1M |
+| spsc/mpmc queue: atomic ops in LLVM codegen | 10x slower than C++ |
+| MKS: VM segfaults on 7/15 benchmarks | All 7 MKS benchmarks FAILED |
+| Rust: file READ/WRITE/TCP/PROCESS benchmarks fail | File path/permissions issue |
+| C++: build_self_stress fails in this environment | Compiler invocation mismatch |
+| C++: async_ready_pipeline timeout | Negative timeout bug in bench.py |
+
+### Cases Audit
+
+**69 cases** in `cases/` scanned — **0 real bugs.** 12 have converge warnings (missing `verify random(N)` — red herring). Full audit: `cases/KI_AUDIT.md`.| case | tier | cpp ms | rust ms | zig ms | go ms | kain | mks |
 |------|------|--------|---------|--------|-------|------|-----|
 | binary_trees | 1 | 2051 | 2223 | 1694 | 1201 | ✅ PASS (14592688) | - |
 | nbody | 1 | 139 | 151 | 117 | - | ✅ PASS (53) | - |

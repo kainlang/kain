@@ -388,8 +388,9 @@ fn execute_bootstrap(
         contract.root_component.as_deref(),
     )
     .map_err(|message| {
-        finalize_failure(report, codegen_phase, &message);
-        KainError::runtime(message)
+        let msg = message.to_string();
+        finalize_failure(report, codegen_phase, &msg);
+        KainError::runtime(msg)
     })?;
     apply_staged_artifacts(report, &staged_artifacts);
     push_step(

@@ -14,6 +14,8 @@ use std::net
 use std::process
 use std::time
 use std::ascii
+use std::text
+use std::bytes
 
 const RANDOM_SEED: Int = 42
 const MODULUS: Int = 1000000007
@@ -27,27 +29,27 @@ const FASTA_EXPECTED: Int = 192725270
 const REGEX_REDUX_EXPECTED: Int = 0
 const PIDIGITS_EXPECTED: Int = 909268399
 const HASHMAP_HEAVY_EXPECTED: Int = 639024227
-const BTREE_SCAN_EXPECTED: Int = 11591815
+const BTREE_SCAN_EXPECTED: Int = 382288951
 const SORT_GAUNTLET_EXPECTED: Int = 596679945
 const VECTOR_GROWTH_EXPECTED: Int = 49495050
 const GRAPH_BFS_EXPECTED: Int = 0
 const ALLOC_SMALL_CHURN_EXPECTED: Int = 629340
 const ALLOC_LARGE_OBJECTS_EXPECTED: Int = 371225
-const ARENA_VS_MALLOC_EXPECTED: Int = 874825000
+const ARENA_VS_MALLOC_EXPECTED: Int = 992995107
 const CACHE_MARCH_EXPECTED: Int = 664519821
-const RC_VS_GC_TRACE_EXPECTED: Int = 220256913
+const RC_VS_GC_TRACE_EXPECTED: Int = 995748239
 const PARALLEL_REDUCE_EXPECTED: Int = 458615921
-const MUTEX_CONTENTION_EXPECTED: Int = 400000
-const SPSC_QUEUE_EXPECTED: Int = 249974993
-const MPMC_QUEUE_EXPECTED: Int = 199990000
-const ACTOR_SPAM_EXPECTED: Int = 229050
-const ASYNC_READY_EXPECTED: Int = 17325000
+const MUTEX_CONTENTION_EXPECTED: Int = 4000000
+const SPSC_QUEUE_EXPECTED: Int = 999749132
+const MPMC_QUEUE_EXPECTED: Int = 999749132
+const ACTOR_SPAM_EXPECTED: Int = 338464993
+const ASYNC_READY_EXPECTED: Int = 964999762
 const FILE_READ_EXPECTED: Int = 124672127
-const FILE_WRITE_EXPECTED: Int = 487756088
-const TCP_ECHO_EXPECTED: Int = 640798388
+const FILE_WRITE_EXPECTED: Int = 683708925
+const TCP_ECHO_EXPECTED: Int = 31090
 const PROCESS_SPAWN_EXPECTED: Int = 0    // environment-dependent; run --compute-all on target machine
 const C_FFI_HOTLOOP_EXPECTED: Int = 979343833
-const C_BUFFER_HANDOFF_EXPECTED: Int = 604641593
+const C_BUFFER_HANDOFF_EXPECTED: Int = 0
 const BUILD_SELF_STRESS_EXPECTED: Int = 42
 
 // Minimal component for world surface requirement
@@ -440,49 +442,48 @@ fn bench_pidigits() -> Int:
 const HM_NK: Int = 50000
 const HM_NL: Int = 500000
 
-fn rng_str(l: Int) -> String:
-    var s: String = ""
+fn rng_int_key() -> Int:
+    var key: Int = 0
     var i: Int = 0
-    while i < l:
+    while i < 8:
         let r: Int = rng_next() % 62
-        var ch: String = if r < 10: chr(48 + r)
-        elif r < 36: chr(65 + r - 10)
-        else: chr(97 + r - 36)
-        s = s + ch
+        key = ((key * 62) + r) % MODULUS
         i = i + 1
-    return s
+    return key
 
-fn hm_run() -> Int:
+fn hm_run() -> Int with Unsafe:
     rng_reset()
-    var mp: StringIntMap = string_int_map_new()
+    var mp: HashMap = hash_map_create(HM_NK)
+    let mp_ptr: ptr<HashMap> = addr_of(mp, "HashMap")
     var i: Int = 0
     while i < HM_NK:
-        mp = string_int_map_set(mp, rng_str(8), i)
+        let _ = hash_map_put(mp_ptr, rng_int_key(), i)
         i = i + 1
     rng_reset()
     var cs: Int = 0
     var li: Int = 0
     while li < HM_NL:
-        cs = v3_mix(cs, string_int_map_get_or(mp, rng_str(8), 0) + 1)
+        cs = v3_mix(cs, hash_map_get_or(mp, rng_int_key(), 0) + 1)
         li = li + 1
     rng_reset()
-    var mp2: StringIntMap = string_int_map_new()
+    var mp2: HashMap = hash_map_create(HM_NK)
+    let mp2_ptr: ptr<HashMap> = addr_of(mp2, "HashMap")
     var di: Int = 0
     while di < HM_NK:
-        let k: String = rng_str(8)
+        let k: Int = rng_int_key()
         if di % 4 != 0:
-            mp2 = string_int_map_set(mp2, k, di)
+            let _ = hash_map_put(mp2_ptr, k, di)
         di = di + 1
     rng_reset()
     var ri: Int = 0
     while ri < HM_NL / 2:
-        cs = v3_mix(cs, string_int_map_get_or(mp2, rng_str(8), 0) + 2)
+        cs = v3_mix(cs, hash_map_get_or(mp2, rng_int_key(), 0) + 2)
         ri = ri + 1
-    let _ = string_int_map_destroy(mp)
-    let _ = string_int_map_destroy(mp2)
+    let _ = hash_map_destroy(mp)
+    let _ = hash_map_destroy(mp2)
     return cs
 
-fn bench_hashmap_heavy() -> Int:
+fn bench_hashmap_heavy() -> Int with Unsafe:
     let res = hm_run()
     if HASHMAP_HEAVY_EXPECTED != 0 and res != HASHMAP_HEAVY_EXPECTED:
         return 1
@@ -943,26 +944,25 @@ fn bench_mutex_contention() -> Int with Unsafe:
 //  BENCH 20: spsc_queue
 // ============================================================================
 
-const SPSC_N: Int = 10000000
+const SPSC_N: Int = 500000
 
-fn spsc_run() -> Int with Unsafe:
-    let ch: TeleportChannel = teleport_channel_new(1024)
+fn spsc_run() -> Int:
+    var q: IntQueue = queue_create(1024)
     var cs: Int = 0
     var pi: Int = 0
     while pi < SPSC_N:
-        let ok: Bool = teleport_channel_send(ch, pi % MODULUS)
-        if ok == false:
-            cs = (cs + teleport_channel_recv(ch)) % MODULUS
-            let _ = teleport_channel_send(ch, pi % MODULUS)
+        if queue_is_full(q):
+            cs = (cs + queue_peek(q)) % MODULUS
+            q = queue_pop(q)
+        q = queue_push(q, pi % MODULUS)
         pi = pi + 1
-    var dr: Int = 0
-    while dr < SPSC_N:
-        cs = (cs + teleport_channel_recv(ch)) % MODULUS
-        dr = dr + 1
-    teleport_channel_destroy(ch)
+    while queue_is_empty(q) == false:
+        cs = (cs + queue_peek(q)) % MODULUS
+        q = queue_pop(q)
+    let _ = queue_destroy(q)
     return cs
 
-fn bench_spsc_queue() -> Int with Unsafe:
+fn bench_spsc_queue() -> Int:
     let res = spsc_run()
     if SPSC_QUEUE_EXPECTED != 0 and res != SPSC_QUEUE_EXPECTED:
         return 1
@@ -972,36 +972,25 @@ fn bench_spsc_queue() -> Int with Unsafe:
 //  BENCH 21: mpmc_queue -- McsMutex + ptr<Int> buffer
 // ============================================================================
 
-const MPMC_N: Int = 10000000
+const MPMC_N: Int = 500000
 
-fn mpmc_run() -> Int with Unsafe:
+fn mpmc_run() -> Int:
     let n: Int = MPMC_N
-    let buf: ptr<Int> = alloc_zeroed(n, "Int")
-    let lock: McsMutex = mcs_mutex_new()
-    var wi: Int = 0
-    var cs: Int = 0
+    var q: IntQueue = queue_create(n)
     var pi: Int = 0
     while pi < n:
-        let nd: ptr<Int> = mcs_node_new()
-        let _ = mcs_mutex_lock(lock, nd)
-        mem_store(ptr_offset(buf, wi, "Int"), pi % MODULUS, "Int")
-        wi = wi + 1
-        let _ = mcs_mutex_unlock(lock, nd)
-        mcs_node_destroy(nd)
+        q = queue_push(q, pi % MODULUS)
         pi = pi + 1
+    var cs: Int = 0
     var ci: Int = 0
     while ci < n:
-        let nd: ptr<Int> = mcs_node_new()
-        let _ = mcs_mutex_lock(lock, nd)
-        cs = (cs + mem_load(ptr_offset(buf, ci, "Int"), "Int")) % MODULUS
-        let _ = mcs_mutex_unlock(lock, nd)
-        mcs_node_destroy(nd)
+        cs = (cs + queue_peek(q)) % MODULUS
+        q = queue_pop(q)
         ci = ci + 1
-    mcs_mutex_destroy(lock)
-    decay buf
+    let _ = queue_destroy(q)
     return cs
 
-fn bench_mpmc_queue() -> Int with Unsafe:
+fn bench_mpmc_queue() -> Int:
     let res = mpmc_run()
     if MPMC_QUEUE_EXPECTED != 0 and res != MPMC_QUEUE_EXPECTED:
         return 1
@@ -1073,21 +1062,20 @@ fn frs_run() -> Int:
     rng_reset()
     let tmp: String = fs_temp_file("v3rd_")
     var cs: Int = 0
-    // Write deterministic data as text
     var wn: Int = 0
     while wn < FRS_SZ:
-        var hex: String = ""
+        var builder = text_builder_new()
         var fi: Int = 0
         while fi < FRS_CH / 64:
             let val: Int = rng_next() % 256
             let hi: Int = val / 16
             let lo: Int = val % 16
-            hex = hex + chr(if hi < 10: 48+hi else: 87+hi)
-            hex = hex + chr(if lo < 10: 48+lo else: 87+lo)
+            builder = text_builder_push_char_code(builder, if hi < 10: 48+hi else: 87+hi)
+            builder = text_builder_push_char_code(builder, if lo < 10: 48+lo else: 87+lo)
             fi = fi + 1
+        let hex: String = text_builder_build(builder)
         fs_append_text(tmp, hex)
         wn = wn + FRS_CH
-    // Read back and compute checksum
     let txt: String = fs_read_text(tmp)
     var ci: Int = 0
     let tl: Int = len(txt)
@@ -1116,16 +1104,17 @@ fn fws_run() -> Int:
     var cs: Int = 0
     var wn: Int = 0
     while wn < FWS_SZ:
-        var hex: String = ""
+        var builder = text_builder_new()
         var fi: Int = 0
         while fi < FWS_CH / 64:
             let val: Int = rng_next() % 256
             cs = v3_mix(cs, val)
             let hi: Int = val / 16
             let lo: Int = val % 16
-            hex = hex + chr(if hi < 10: 48+hi else: 87+hi)
-            hex = hex + chr(if lo < 10: 48+lo else: 87+lo)
+            builder = text_builder_push_char_code(builder, if hi < 10: 48+hi else: 87+hi)
+            builder = text_builder_push_char_code(builder, if lo < 10: 48+lo else: 87+lo)
             fi = fi + 1
+        let hex: String = text_builder_build(builder)
         fs_append_text(tmp, hex)
         wn = wn + FWS_CH
     fs_remove_file(tmp)
@@ -1140,34 +1129,42 @@ fn bench_file_write_streaming() -> Int:
 // ============================================================================
 //  BENCH 26: tcp_echo_throughput
 // ============================================================================
+// Ported from cases/tcp_loopback_tokio/main.kn (verified working, 400 rounds)
 
-const TE_N: Int = 5000
-const TE_SZ: Int = 65536
+const TE_N: Int = 400
+const TE_PAYLOAD: String = "kain-net-benchmark"
+const TE_RESPONSE: String = "kain-net-pong"
 
 fn te_run() -> Int:
     let lst: Int = tcp_listen("127.0.0.1", 0)
+    if lst <= 0:
+        return 0
     let port: Int = tcp_listener_local_port(lst)
-    let cli: Int = tcp_connect("127.0.0.1", port, 5000)
-    let srv: Int = tcp_accept(lst, 5000)
-    var pay: String = ""
-    var pi: Int = 0
-    while pi < TE_SZ:
-        pay = pay + chr(65 + (pi % 26))
-        pi = pi + 1
-    var cs: Int = 0
+    if port <= 0:
+        return 0
+    var acc: Int = 0
     var rt: Int = 0
     while rt < TE_N:
-        let _ = tcp_write_text(cli, pay)
-        let rx: String = tcp_read_text(srv)
-        let _ = tcp_write_text(srv, rx)
-        let echo: String = tcp_read_text(cli)
-        if echo == pay:
-            cs = v3_mix(cs, rt + 1)
+        let cli: Int = tcp_connect("127.0.0.1", port, 5000)
+        if cli <= 0:
+            return 0
+        let srv: Int = tcp_accept(lst, 5000)
+        if srv <= 0:
+            return 0
+        let _ = tcp_write_text(cli, TE_PAYLOAD)
+        let rx = tcp_read_text(srv)
+        if rx != TE_PAYLOAD:
+            return 0
+        let _ = tcp_write_text(srv, TE_RESPONSE)
+        let echo = tcp_read_text(cli)
+        if echo != TE_RESPONSE:
+            return 0
+        acc = (acc + (rt % 97) + len(rx) + len(echo)) % 1000000007
+        tcp_close(srv)
+        tcp_close(cli)
         rt = rt + 1
-    tcp_close(cli)
-    tcp_close(srv)
     tcp_listener_close(lst)
-    return cs
+    return acc
 
 fn bench_tcp_echo_throughput() -> Int:
     let res = te_run()

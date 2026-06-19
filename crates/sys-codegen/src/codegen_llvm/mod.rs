@@ -11997,7 +11997,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_runtime_mem_load(&args[0].value, "i64", span))
+                Ok(Some(self.compile_runtime_mem_load(&args[0].value, "i64", span)?))
             }
             "__kain_mem_store" => {
                 // Canonical ABI: void __kain_mem_store(i8* ptr, i8* value, i64 size)
@@ -12008,7 +12008,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span)?))
             }
             "__kain_volatile_load" => {
                 if args.len() != 1 {
@@ -12017,7 +12017,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_runtime_volatile_mem_load(&args[0].value, "i64", span))
+                Ok(Some(self.compile_runtime_volatile_mem_load(&args[0].value, "i64", span)?))
             }
             "__kain_volatile_store" => {
                 if args.len() != 2 {
@@ -12026,7 +12026,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_runtime_volatile_mem_store(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_runtime_volatile_mem_store(&args[0].value, &args[1].value, span)?))
             }
             "__kain_atomic_load_ordered" => {
                 if args.len() != 2 {
@@ -12035,7 +12035,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_ordered_atomic_load(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_ordered_atomic_load(&args[0].value, &args[1].value, span)?))
             }
             "__kain_atomic_store_ordered" => {
                 if args.len() != 3 {
@@ -12049,7 +12049,7 @@ impl LlvmGenerator {
                     &args[1].value,
                     &args[2].value,
                     span,
-                ))
+                )?))
             }
             "__kain_atomic_add_ordered"
             | "__kain_atomic_sub_ordered"
@@ -12078,7 +12078,7 @@ impl LlvmGenerator {
                     &args[1].value,
                     &args[2].value,
                     span,
-                ))
+                )?))
             }
             "__kain_atomic_compare_exchange_ordered" => {
                 if args.len() != 5 {
@@ -12094,7 +12094,7 @@ impl LlvmGenerator {
                     &args[3].value,
                     &args[4].value,
                     span,
-                ))
+                )?))
             }
             "__kain_atomic_fence" => {
                 if args.len() != 1 {
@@ -12103,7 +12103,7 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                Ok(Some(self.compile_ordered_atomic_fence(&args[0].value, span))
+                Ok(Some(self.compile_ordered_atomic_fence(&args[0].value, span)?))
             }
             "__kain_atomic_load_seqcst" => {
                 if args.len() != 1 {
@@ -12336,7 +12336,7 @@ impl LlvmGenerator {
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
-                ))
+                )?))
             }
             "__kain_ptr_offset" => {
                 // Canonical ABI: i8* __kain_ptr_offset(i8* ptr, i64 offset, i64 stride)
@@ -12351,7 +12351,7 @@ impl LlvmGenerator {
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
-                ))
+                )?))
             }
             "__kain_alloc" => {
                 // Canonical ABI: i8* __kain_alloc(i64 size, i64 stride, i32 zeroed)

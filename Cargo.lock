@@ -535,6 +535,7 @@ dependencies = [
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
+ "kain-error",
  "kain-fmt",
  "kain-host",
  "kain-import",

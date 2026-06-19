@@ -67,7 +67,8 @@ pub fn stage_native_backend_artifacts_with_session(
     let runtime_contract_path = runtime_contract_artifact_path(output_path);
     write_json_artifact(
         &runtime_contract_path,
-        &kain_core::runtime_contract_bundle_to_json(&contract_bundle)?,
+        &kain_core::runtime_contract_bundle_to_json(&contract_bundle)
+            .map_err(|e| KainError::runtime(e.to_string()))?,
         "runtime contract",
     )?;
 
