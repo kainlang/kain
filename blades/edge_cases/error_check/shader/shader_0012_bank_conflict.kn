@@ -1,0 +1,12 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0012
+//@ expect-error: "Shared Memory Bank Conflict"
+//@ severity: warning
+
+// Triggers: Warning about shared memory bank conflict
+// Note: passes `kain check` but emits warning during `kain build --target spirv`
+
+shader compute BankConflict(id: UVec3) -> Void workgroup(64, 1, 1):
+    uniform data: StorageBuffer<UInt> @0
+    data[id.x] = data[id.x] + UInt(1)
+    return

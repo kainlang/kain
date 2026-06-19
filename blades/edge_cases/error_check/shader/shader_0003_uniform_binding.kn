@@ -1,0 +1,13 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0003
+//@ expect-error: "Uniform Binding Error"
+//@ severity: error
+
+// Triggers: Conflicting uniform binding slots
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute ConflictingUniforms(id: UVec3) -> Void:
+    uniform a: StorageBuffer<UInt> @0
+    uniform b: StorageBuffer<UInt> @0
+    a[id.x] = b[id.x]
+    return

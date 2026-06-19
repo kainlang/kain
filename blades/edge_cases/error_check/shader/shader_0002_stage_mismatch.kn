@@ -1,0 +1,14 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0002
+//@ expect-error: "Shader Stage Mismatch"
+//@ severity: error
+
+// Triggers: Vertex input accessed from fragment shader
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader vertex VShader(position: Vec3) -> Vec4:
+    return vec4(position, 1.0)
+
+shader fragment FShader(uv: Vec2) -> Vec4:
+    uniform tint: Vec3 @0
+    return vec4(tint, 1.0)

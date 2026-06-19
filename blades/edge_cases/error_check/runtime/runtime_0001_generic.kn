@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-RUNTIME-0001
+//@ known-gap: Generic runtime errors occur at runtime, not during check/build. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Generic runtime error -- requires executing the program
+// This file exists to document the coverage gap.

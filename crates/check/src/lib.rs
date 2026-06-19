@@ -11,8 +11,8 @@ use kain_driver::{
 use kain_error::{diagnostics_to_json_string, KainError};
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
-mod audit;
-mod telemetry;
+pub mod audit;
+pub mod telemetry;
 mod validate;
 mod validate_semantic_contracts;
 

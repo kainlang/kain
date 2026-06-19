@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-MEM-0008
+//@ expect-error: "Address Space Mismatch"
+//@ severity: error
+
+// Triggers: Pointer in wrong address space
+fn main() with Unsafe:
+    let p: ptr<Int> = alloc(4, "Int")
+    // Using a host pointer in a context that expects a different address space
+    let _ = p

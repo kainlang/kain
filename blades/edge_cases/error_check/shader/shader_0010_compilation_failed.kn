@@ -1,0 +1,12 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0010
+//@ expect-error: "Shader Compilation Failed"
+//@ severity: error
+
+// Triggers: Shader backend compilation error
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute BadCompile(id: UVec3) -> Void:
+    uniform buf: StorageBuffer<UInt> @0
+    buf[id.x] = UInt(0)
+    return

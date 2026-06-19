@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0002
+//@ expect-error: "Comptime Evaluation Exceeded Recursion Limit"
+//@ severity: error
+
+// Triggers: Comptime recursion exceeding limit
+fn recurse(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    comptime:
+        return recurse(n - 1)
+
+fn main():
+    let _ = recurse(2000)

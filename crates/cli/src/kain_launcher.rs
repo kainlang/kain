@@ -2784,6 +2784,7 @@ fn run_check_command(
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    diagnostics_json: None,
                     confidence_score: None,
                     validator_count: None,
                     validators_skipped: None,
@@ -2810,6 +2811,7 @@ fn run_check_command(
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    diagnostics_json: None,
                     confidence_score: None,
                     validator_count: None,
                     validators_skipped: None,
@@ -2874,6 +2876,32 @@ fn run_check_command(
             eprintln!("  {}: {}", painter.status_error(&file.path), error);
         }
     }
+    // ── Telemetry footer (ETA-B) ─────────────────────────────────
+    // For the human-readable output, surface confidence and gap summary so
+    // users understand what `kain check` actually validated.
+    for file in &report.files {
+        if let (Some(confidence), Some(ran), Some(skipped)) =
+            (file.confidence_score, file.validator_count, file.validators_skipped)
+        {
+            let mode = if file.pedantic.unwrap_or(false) {
+                "pedantic"
+            } else {
+                "default"
+            };
+            println!(
+                "  confidence: {:.0}% ({} mode, {} ran, {} skipped)",
+                confidence * 100.0,
+                mode,
+                ran,
+                skipped
+            );
+            if let Some(gap) = &file.gap_summary {
+                if !gap.is_empty() {
+                    println!("  gap: {gap}");
+                }
+            }
+        }
+    }
     if !report.is_success() {
         let rendered = report
             .files
@@ -2909,6 +2937,92 @@ fn run_check_command(
         );
     }
     report.is_success()
+}
+
+/// Run the audit pipeline: invoke the build lane, capture its stderr, and
+/// compare against the check report to surface build-only errors that
+/// `kain check` did not catch. Returns `None` when audit is skipped (e.g.,
+/// the build pipeline could not be invoked from the current context).
+fn run_check_audit(
+    input: &Path,
+    target: CompileTarget,
+    check_report: &kain_check::CheckReport,
+) -> Option<kain_check::audit::AuditReport> {
+    use std::process::Stdio;
+
+    // Resolve the input file or workspace root the same way `kain check` did.
+    let resolved = match resolve_check_input(input) {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!("{} audit: failed to resolve input: {}", p().status_error(""), err);
+            return None;
+        }
+    };
+
+    // Only the LLVM target supports a direct in-process build invocation
+    // through the CLI. For other targets, fall back to spawning `kain build`
+    // as a subprocess and capturing its stderr.
+    let build_output = if matches!(target, CompileTarget::Llvm) {
+        match run_inline_build_for_audit(&resolved) {
+            Ok(output) => output,
+            Err(err) => {
+                eprintln!("{} audit: inline build failed: {}", p().status_error(""), err);
+                return None;
+            }
+        }
+    } else {
+        match spawn_kain_build_subprocess(input, target) {
+            Ok(output) => output,
+            Err(err) => {
+                eprintln!("{} audit: subprocess build failed: {}", p().status_error(""), err);
+                return None;
+            }
+        }
+    };
+
+    let check_error_strings: Vec<String> = check_report
+        .files
+        .iter()
+        .filter_map(|file| file.error.clone())
+        .collect();
+
+    Some(kain_check::audit::audit_build_vs_check(
+        &check_error_strings,
+        &build_output,
+    ))
+}
+
+/// Attempt a direct in-process build to capture build-side errors.
+///
+/// Phase 1: deliberately conservative. We shell out to `kain build` and
+/// aggregate stderr+stdout. This is a faithful (if slow) reflection of
+/// what the build pipeline would emit, and keeps the audit logic pure.
+fn run_inline_build_for_audit(input: &Path) -> Result<String, String> {
+    spawn_kain_build_subprocess(input, CompileTarget::Llvm)
+}
+
+fn spawn_kain_build_subprocess(input: &Path, target: CompileTarget) -> Result<String, String> {
+    use std::process::Stdio;
+    let exe = std::env::current_exe().map_err(|err| format!("current_exe: {err}"))?;
+    let target_name = kain_check::compile_target_name(target);
+    let child = std::process::Command::new(exe)
+        .arg("build")
+        .arg(input)
+        .arg("--target")
+        .arg(target_name)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|err| format!("spawn build: {err}"))?;
+
+    let mut combined = String::new();
+    if !child.stdout.is_empty() {
+        combined.push_str(&String::from_utf8_lossy(&child.stdout));
+    }
+    if !child.stderr.is_empty() {
+        combined.push_str(&String::from_utf8_lossy(&child.stderr));
+    }
+    Ok(combined)
 }
 
 fn resolve_check_input(input: &Path) -> Result<PathBuf, String> {

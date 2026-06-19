@@ -1,0 +1,14 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0011
+//@ expect-error: "GPU Memory Budget Exceeded"
+//@ severity: error
+
+// Triggers: GPU memory budget exceeded
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute HeavyShader(id: UVec3) -> Void:
+    uniform a: StorageBuffer<UInt> @0
+    uniform b: StorageBuffer<UInt> @1
+    uniform c: StorageBuffer<UInt> @2
+    a[id.x] = b[id.x] + c[id.x]
+    return

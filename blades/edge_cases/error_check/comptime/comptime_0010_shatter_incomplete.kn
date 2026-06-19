@@ -1,0 +1,13 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0010
+//@ expect-error: "Shatter Pattern Incomplete"
+//@ severity: error
+
+// Triggers: Shatter doesn't cover all concrete types
+fn generic_compute<T>(v: T) -> Int:
+    return 0
+
+// Shatter pattern doesn't cover all uses
+// Note: may only trigger as a warning
+fn main():
+    let _ = generic_compute(42)

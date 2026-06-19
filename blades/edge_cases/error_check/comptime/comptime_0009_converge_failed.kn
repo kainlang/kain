@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0009
+//@ expect-error: "Converge Failed"
+//@ severity: error
+
+// Triggers: Converge variants diverge (return different types)
+converge bad_converge(v: Int) -> Int:
+    spec reference:
+        return v * 2
+    fast alt when target("llvm"):
+        return "wrong type"

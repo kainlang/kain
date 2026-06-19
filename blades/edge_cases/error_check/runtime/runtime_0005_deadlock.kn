@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-RUNTIME-0005
+//@ known-gap: Deadlock detection is a runtime feature. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Deadlock -- requires runtime actor scheduling
+// This file exists to document the coverage gap.

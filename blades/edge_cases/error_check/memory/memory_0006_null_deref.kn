@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-MEM-0006
+//@ expect-error: "Null Pointer Dereference"
+//@ severity: error
+
+// Triggers: Dereferencing nullable pointer without null check
+fn main() with Unsafe:
+    let p: ptr<Int> = none
+    let v = mem_load(p, "Int")

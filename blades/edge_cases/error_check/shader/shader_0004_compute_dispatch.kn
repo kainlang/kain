@@ -1,0 +1,12 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0004
+//@ expect-error: "Compute Dispatch Dimension Error"
+//@ severity: error
+
+// Triggers: Invalid dispatch dimensions
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute BadDispatch(id: UVec3) -> Void workgroup(0, 1, 1):
+    uniform buf: StorageBuffer<UInt> @0
+    buf[id.x] = UInt(0)
+    return

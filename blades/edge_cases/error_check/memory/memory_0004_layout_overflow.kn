@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-MEM-0004
+//@ expect-error: "Memory Layout Overflow"
+//@ severity: error
+
+// Triggers: Type exceeds max layout size
+struct Huge:
+    data: Array<Int>
+
+fn main():
+    let h = Huge { data: [] }

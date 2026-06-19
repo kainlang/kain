@@ -1,0 +1,13 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0008
+//@ expect-error: "Collapse Target Invalid"
+//@ severity: error
+
+// Triggers: Invalid collapse target in shader
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute CollapseShader(id: UVec3) -> Void workgroup(64, 1, 1):
+    uniform data: StorageBuffer<UInt> @0
+    collapse data:
+        data[id.x] = data[id.x] + UInt(1)
+    return

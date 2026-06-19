@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-MEM-0002
+//@ expect-error: "Memory Semantics Unsupported By Backend"
+//@ severity: error
+
+// Triggers: Memory operation unsupported on backend (e.g., raw pointer on WASM)
+fn main() with Unsafe:
+    let p: ptr<Int> = int_to_ptr(0x1000)

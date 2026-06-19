@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-MEM-0001
+//@ expect-error: "Memory Lowering Required"
+//@ severity: error
+
+// Triggers: Raw pointer without lowering policy
+fn main() with Unsafe:
+    let p: ptr<Int> = alloc(4, "Int")

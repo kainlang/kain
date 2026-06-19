@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-RUNTIME-0002
+//@ known-gap: Actor panics can only be triggered by running the actor system. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Actor panic -- requires runtime execution
+// This file exists to document the coverage gap.

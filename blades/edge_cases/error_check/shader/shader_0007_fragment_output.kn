@@ -1,0 +1,10 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0007
+//@ expect-error: "Fragment Output Layout Error"
+//@ severity: error
+
+// Triggers: Fragment output format mismatch
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader fragment BadFragment(uv: Vec2) -> Vec3:
+    return vec3(1.0, 0.0, 0.0)

@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-MEM-0005
+//@ expect-error: "Alignment Requirement Not Satisfied"
+//@ severity: error
+
+// Triggers: Misaligned access
+fn main() with Unsafe:
+    let p: ptr<Int> = alloc(4, "Int")
+    let q: ptr<Int> = ptr_offset(p, 1, "Int")
+    let v = mem_load(q, "Int")

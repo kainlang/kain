@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0006
+//@ expect-error: "Law Violation"
+//@ severity: error
+
+// Triggers: Law invariant violated at compile time
+law always_positive(v: Int) -> Bool:
+    return v > 0
+
+fn main():
+    let x = -5
+    // This would violate the law if checked

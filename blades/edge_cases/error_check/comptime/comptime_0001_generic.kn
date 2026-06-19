@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0001
+//@ expect-error: "Comptime Error"
+//@ severity: error
+
+// Triggers: Generic comptime error
+comptime:
+    let x = runtime_value()

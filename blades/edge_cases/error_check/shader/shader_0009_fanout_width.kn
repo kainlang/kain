@@ -1,0 +1,11 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0009
+//@ expect-error: "Fanout Width Exceeded"
+//@ severity: error
+
+// Triggers: Fanout exceeds wavefront/warp size
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute FanoutShader(id: UVec3) -> Void workgroup(1, 1, 1):
+    uniform data: StorageBuffer<UInt> @0
+    return

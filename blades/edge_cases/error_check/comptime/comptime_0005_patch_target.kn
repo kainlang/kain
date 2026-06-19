@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0005
+//@ expect-error: "Patch Target Not Found"
+//@ severity: error
+
+// Triggers: Patch targets non-existent item
+patch bad_patch(target: Int, v: Int) -> Int:
+    target = v
+    return target

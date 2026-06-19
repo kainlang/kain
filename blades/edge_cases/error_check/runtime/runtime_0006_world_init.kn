@@ -1,0 +1,13 @@
+//@ build-fail
+//@ error: KAIN-RUNTIME-0006
+//@ expect-error: "World Initialization Failed"
+//@ severity: error
+
+// Triggers: World init failure -- may trigger at build time
+// Note: passes `kain check` but may fail `kain build --target llvm`
+
+component Foo:
+    render <panel />
+
+world BadInit:
+    surface native_ui => Foo

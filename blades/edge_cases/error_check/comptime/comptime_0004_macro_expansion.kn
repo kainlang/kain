@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0004
+//@ expect-error: "Macro Expansion Error"
+//@ severity: error
+
+// Triggers: Macro produces invalid syntax on expansion
+macro bad_expand!(x: expr):
+    x + + +
+
+fn main():
+    let result = bad_expand!(5)

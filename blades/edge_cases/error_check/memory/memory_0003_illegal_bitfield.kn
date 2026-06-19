@@ -1,0 +1,13 @@
+//@ check-fail
+//@ error: KAIN-MEM-0003
+//@ expect-error: "Illegal Bitfield Address"
+//@ severity: error
+
+// Triggers: Taking address of a bitfield
+struct Bitfield:
+    low: UInt bit 4
+    high: UInt bit 4
+
+fn main() with Unsafe:
+    let b = Bitfield { low: UInt(3), high: UInt(5) }
+    let p: ptr<UInt> = &b.low

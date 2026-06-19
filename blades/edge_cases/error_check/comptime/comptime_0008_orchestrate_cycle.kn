@@ -1,0 +1,17 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0008
+//@ expect-error: "Orchestrate Dependency Cycle"
+//@ severity: error
+
+// Triggers: Orchestrate with cyclic dependency
+fn step_a(v: Int) -> Int:
+    return v + 1
+
+fn step_b(v: Int) -> Int:
+    return v * 2
+
+orchestrate cyclic_pipeline(v: Int) -> Int:
+    stage first: cpu step_a(v)
+    stage second: cpu step_b(first) deps [first]
+    stage third: cpu step_a(second) deps [second, first]
+    return third

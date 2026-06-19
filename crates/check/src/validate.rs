@@ -669,7 +669,7 @@ fn validate_ownership_in_stmt(
             }
             // Register variable from pattern name for tracking
             let name = match pattern {
-                kain_core::ast::Pattern::Ident(name, _) => Some(name.as_str()),
+                kain_core::ast::Pattern::Binding { ref name, .. } => Some(name.as_str()),
                 _ => None,
             };
             if let Some(name) = name {

@@ -1,0 +1,11 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0005
+//@ expect-error: "Shader Resource Not GPU-Compatible"
+//@ severity: error
+
+// Triggers: GPU-incompatible resource type
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute BadResource(id: UVec3) -> Void:
+    uniform data: StorageBuffer<String> @0
+    return

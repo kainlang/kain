@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-RUNTIME-0003
+//@ known-gap: Message delivery failures can only be triggered at runtime. Cannot be triggered from static .kn source alone.
+//@ severity: error
+
+// Triggers: Message delivery to destroyed actor -- requires runtime execution
+// This file exists to document the coverage gap.

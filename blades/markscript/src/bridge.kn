@@ -1967,6 +1967,26 @@ fn handler_ui_create_widget(vm: MarkScriptVM, args: Array<MarkValue>) -> Handler
     let new_handle = v.widget_count - 1
     return HandlerResult { vm: v, value: mark_widget(new_handle), err: "" }
 
+// --- handler_qualifier_echo (80) — qualifier keywords: and|with|exclude|after|before|... ---
+// All 14 natural-language pipeline modifiers route through this handler.
+// It acknowledges the qualifier word and echoes its arguments.
+fn handler_qualifier_echo(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var qualifier: String = "qualifier"
+    if len(args) > 0 and args[0].kind == MARK_STRING:
+        qualifier = args[0].str_val
+    elif len(args) > 0 and args[0].kind == MARK_INT:
+        qualifier = str(args[0].int_val)
+    var phrase: String = ""
+    var ai: Int = 1
+    while ai < len(args):
+        phrase = phrase + mark_value_to_string(args[ai])
+        if ai < len(args) - 1:
+            phrase = phrase + " "
+        ai = ai + 1
+    let output = "[QUALIFIER: " + qualifier + "] " + phrase
+    println(output)
+    return HandlerResult { vm: vm, value: mark_string(output), err: "" }
+
 // ===========================================================================
 //  BETA STDLIB STUBS — bridging functions until bridge_stdlib is integrated
 // ===========================================================================

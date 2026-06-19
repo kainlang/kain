@@ -9390,40 +9390,39 @@ fn infer_ownership_region(
     target: &Expr,
     _target_ty: &ResolvedType,
 ) -> OwnershipRegionKind {
-    // Check 1: Is this a world state access? (e.g., MyWorld.my_field)
-    if let Expr::Access { object, .. } = target {
-        if let Some(_world_name) = extract_world_name(object) {
-            // Check if this looks like a world access by resolving the base
-            // If the base resolves to a world type, classify as WorldState
-            // TODO: Check entangle registry for more precise region kind
-            //       (EntangledAuthority vs EntangledMirror)
-            return OwnershipRegionKind::WorldState;
+    // Check 1: alloc() / alloc_zeroed() / realloc_mem() calls
+    //   These are comptime-known heap allocation functions.
+    if is_alloc_call(target) {
+        return OwnershipRegionKind::HeapAllocation;
+    }
+
+    // Check 2: Dotted access whose base is a known type
+    //   e.g., MyWorld.my_field -- if MyWorld is in env.types,
+    //   this is a world state field access.
+    if let Expr::Field { object, .. } = target {
+        if let Some(base_name) = extract_world_name(object) {
+            if env.lookup_type(&base_name).is_some() {
+                return OwnershipRegionKind::WorldState;
+            }
         }
     }
 
-    // Check 2: Is this a local alloca? (stack-allocated variable)
+    // Check 3: Direct ident -- distinguish local variables from types/globals
     if let Expr::Ident(name, _) = target {
-        if let Some(local_info) = env.locals.get(name) {
-            // Check if this is a ptr<T> from a local variable
-            match &local_info.ty {
+        // If the name is registered as a type AND resolves, classify as
+        // WorldState (worlds are registered as struct types).
+        if env.lookup_type(name).is_some() {
+            return OwnershipRegionKind::WorldState;
+        }
+        // If NOT a type but resolves to a Ptr/Ref type, treat as local
+        // alloca (stack variable or function parameter).
+        if let Some(ty) = env.lookup(name) {
+            match ty {
                 ResolvedType::Ptr { .. } | ResolvedType::Ref { .. } => {
                     return OwnershipRegionKind::LocalAlloca;
                 }
                 _ => {}
             }
-        }
-    }
-
-    // Check 3: Is this from alloc() / alloc_zeroed()?
-    // (Comptime-known -- the alloc functions create HeapAllocation regions)
-    if is_alloc_call(target) {
-        return OwnershipRegionKind::HeapAllocation;
-    }
-
-    // Check 4: Is this a direct world identifier? (e.g., `decay SomeWorld`)
-    if let Expr::Ident(name, _) = target {
-        if env.lookup_type(name).is_some() {
-            return OwnershipRegionKind::WorldState;
         }
     }
 
@@ -9446,7 +9445,7 @@ fn is_alloc_call(expr: &Expr) -> bool {
 fn extract_world_name(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Ident(name, _) => Some(name.clone()),
-        Expr::Access { object, .. } => extract_world_name(object),
+        Expr::Field { object, .. } => extract_world_name(object),
         _ => None,
     }
 }

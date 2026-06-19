@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0003
+//@ expect-error: "Comptime Access To Runtime Value"
+//@ severity: error
+
+// Triggers: Comptime block accesses runtime value
+fn main():
+    let runtime_var = 42
+    comptime:
+        let _ = runtime_var

@@ -1,0 +1,10 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0006
+//@ expect-error: "Vertex Input Layout Error"
+//@ severity: error
+
+// Triggers: Vertex input layout mismatch
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader vertex BadVertex(color: Vec4) -> Vec4:
+    return color

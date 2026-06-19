@@ -1,0 +1,13 @@
+//@ check-fail
+//@ error: KAIN-COMPTIME-0007
+//@ expect-error: "Axiom Contradiction"
+//@ severity: error
+
+// Triggers: Two contradictory axioms
+axiom always_true:
+    when target("llvm")
+    guarantee "always true"
+
+axiom always_false:
+    when target("llvm")
+    guarantee "contradicts always_true"

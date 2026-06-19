@@ -1,0 +1,12 @@
+//@ build-fail
+//@ error: KAIN-SHADER-0001
+//@ expect-error: "Unsupported Shader Call"
+//@ severity: error
+
+// Triggers: Unsupported intrinsic in shader stage
+// Note: passes `kain check` but fails `kain build --target spirv`
+
+shader compute BadShader(id: UVec3) -> Void:
+    uniform buf: StorageBuffer<UInt> @0
+    buf[id.x] = UInt(0)
+    return
