@@ -1,8 +1,0 @@
-shader fragment FluidStudioMeshSurface(mesh_color: Vec3) -> Vec4:
-    let lift = (mesh_color.x + mesh_color.y + mesh_color.z) / 3.0
-    return vec4(
-        mesh_color.x * 0.68 + mesh_color.z * 0.20 + lift * 0.12,
-        mesh_color.y * 0.74 + mesh_color.x * 0.10 + lift * 0.16,
-        mesh_color.z * 0.82 + mesh_color.y * 0.08 + lift * 0.10,
-        1.0
-    )

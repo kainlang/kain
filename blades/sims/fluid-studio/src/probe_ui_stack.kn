@@ -1,9 +1,0 @@
-use c::kaintana_desktop_bridge
-use fluid_studio_sim::*
-use fluid_studio_state::*
-use fluid_studio_ui::*
-use kaintana_ui::*
-use std::ui
-
-fn main() -> Int:
-    return 0

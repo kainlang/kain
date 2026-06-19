@@ -23,7 +23,7 @@ use std::io
 use std::math
 use std::time
 
-include <windows.h> as win
+include <vulkan.h> as vk
 
 // ============================================================================
 //  MANUAL WINDOWS API DECLARATIONS (pointer-taking functions)

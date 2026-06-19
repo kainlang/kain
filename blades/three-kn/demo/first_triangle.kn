@@ -1,0 +1,129 @@
+// ============================================================================
+//  FIRST TRIANGLE — Minimal Kain Graphics Demo
+//  File: demo/first_triangle.kn
+//  Purpose: Render a colored triangle using std::graphics.
+// ============================================================================
+
+use std::graphics
+use std::runtime
+
+// ============================================================================
+//  BACKEND PROBE
+// ============================================================================
+
+fn choose_backend() -> String:
+    if graphics_backend_supported("vulkan") == 1 and graphics_backend_available("vulkan") == 0:
+        return "vulkan"
+    if graphics_backend_supported("d3d12") == 1 and graphics_backend_available("d3d12") == 0:
+        return "d3d12"
+    if graphics_backend_supported("auto") == 1:
+        return "auto"
+    return ""
+
+// ============================================================================
+//  VERTEX DATA (IEEE 754 little-endian hex)
+//  3 vertices x (3 pos + 3 color) = 18 f32 = 72 bytes = 144 hex chars
+//
+// Vertex 0: pos(0.0, 0.5, 0.0), color(1.0, 0.0, 0.0)
+//   0.0=00000000  0.5=0000003F  0.0=00000000  1.0=0000803F  0.0=00000000  0.0=00000000
+// Vertex 1: pos(-0.5, -0.5, 0.0), color(0.0, 1.0, 0.0)
+//   -0.5=000000BF -0.5=000000BF  0.0=00000000  0.0=00000000  1.0=0000803F  0.0=00000000
+// Vertex 2: pos(0.5, -0.5, 0.0), color(0.0, 0.0, 1.0)
+//   0.5=0000003F -0.5=000000BF  0.0=00000000  0.0=00000000  0.0=00000000  1.0=0000803F
+// ============================================================================
+
+const TRI_VERTEX_HEX: String = "000000000000003F000000000000803F0000000000000000000000BF000000BF00000000000000000000803F000000000000003F000000BF0000000000000000000000000000803F"
+const TRI_INDEX_HEX: String = "000001000200"
+const SPIRV_STUB: String = "03022307"
+const FRAMES: Int = 3000
+const W: Int = 800
+const H: Int = 600
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let _r: Int = graphics_reset()
+
+    let backend: String = choose_backend()
+    if backend == "":
+        runtime_shutdown()
+        return 1
+
+    let session: Int = graphics_session_create("first-triangle", W, H)
+    if session <= 0:
+        runtime_shutdown()
+        return 2
+
+    let _be: Int = graphics_backend_select(session, backend)
+    if _be < 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 3
+
+    let vb: Int = graphics_buffer_create_from_hex(session, "vertex", "tri.vb", TRI_VERTEX_HEX, 24)
+    if vb <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 4
+
+    let ib: Int = graphics_buffer_create_from_hex(session, "index", "tri.ib", TRI_INDEX_HEX, 2)
+    if ib <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 5
+
+    let mesh: Int = graphics_mesh_create(session, "tri.mesh", vb, ib, 3, 3)
+    if mesh <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 6
+
+    let vs: Int = graphics_shader_spirv_from_hex(session, "tri.vs", "vertex", "main", SPIRV_STUB)
+    if vs <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 7
+
+    let fs: Int = graphics_shader_spirv_from_hex(session, "tri.fs", "fragment", "main", SPIRV_STUB)
+    if fs <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 8
+
+    let pipeline: Int = graphics_pipeline_create(session, "tri.pipe", vs, fs, backend)
+    if pipeline <= 0:
+        let _d: Int = graphics_session_destroy(session)
+        runtime_shutdown()
+        return 9
+
+    // Render loop — runs synchronously
+    var frame: Int = 0
+    while frame < FRAMES:
+        let _begin: Int = graphics_begin_frame(session, 16.0)
+        let _draw: Int = graphics_draw_mesh(session, pipeline, mesh, 1)
+        let _end: Int = graphics_end_frame(session)
+        let _present: Int = graphics_present(session)
+        frame = frame + 1
+
+    // Verify draw commands were recorded
+    let cmd_count: Int = graphics_draw_command_count(session)
+    if cmd_count != 1:
+        let _d: Int = graphics_session_destroy(session)
+        let _sd: Int = runtime_shutdown()
+        return 10
+
+    let instances: Int = graphics_draw_command_instances(session, 0)
+    if instances != 1:
+        let _d: Int = graphics_session_destroy(session)
+        let _sd: Int = runtime_shutdown()
+        return 11
+
+    let _d: Int = graphics_session_destroy(session)
+    let _sd: Int = runtime_shutdown()
+    return 0

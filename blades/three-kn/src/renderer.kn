@@ -295,6 +295,17 @@ pub fn render_opaque_pass(
     lights: LightState, materials: MaterialState,
     textures: TextureRegistry, state: GPURenderState
 ) -> Void with GPU:
+    // Issue draw call for the current mesh using the active pipeline.
+    // Reads from the state world: session, current_pipeline_id, current_mesh_id, instance_count.
+    let session: Int = state.session
+    let pipeline_id: Int = state.current_pipeline_id
+    let mesh_id: Int = state.current_mesh_id
+    let instances: Int = state.instance_count
+    if session > 0 and pipeline_id > 0 and mesh_id > 0 and instances > 0:
+        let draw_status: Int = graphics_draw_mesh(session, pipeline_id, mesh_id, instances)
+        state.draw_calls_this_frame = state.draw_calls_this_frame + 1
+        // Estimate: 1 triangle per instance (simplified — real impl uses mesh index count)
+        state.triangles_this_frame = state.triangles_this_frame + instances
     return
 
 pub fn render_transparent_pass(
