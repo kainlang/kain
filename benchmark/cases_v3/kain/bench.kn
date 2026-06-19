@@ -492,7 +492,7 @@ fn bench_hashmap_heavy() -> Int:
 //  BENCH 9: btree_scan
 // ============================================================================
 
-const BS_N: Int = 500
+const BS_N: Int = 500000
 
 fn bs_run() -> Int with Unsafe:
     rng_reset()
@@ -737,9 +737,9 @@ fn bench_alloc_large_objects() -> Int with Unsafe:
 //  BENCH 15: arena_vs_malloc
 // ============================================================================
 
-const AVM_NO: Int = 5000
-const AVM_NR: Int = 5
-const AVM_NF: Int = 3
+const AVM_NO: Int = 100000
+const AVM_NR: Int = 10
+const AVM_NF: Int = 10
 
 fn avm_run() -> Int with Unsafe:
     rng_reset()
@@ -828,8 +828,8 @@ fn bench_cache_march() -> Int with Unsafe:
 //  BENCH 17: rc_vs_gc_trace
 // ============================================================================
 
-const RG_N: Int = 3000
-const RG_EP: Int = 1
+const RG_N: Int = 100000
+const RG_EP: Int = 100
 
 fn rg_run() -> Int with Unsafe:
     rng_reset()
@@ -917,7 +917,7 @@ fn bench_parallel_reduce() -> Int with Unsafe:
 // ============================================================================
 
 const MC_NT: Int = 4
-const MC_NI: Int = 100000
+const MC_NI: Int = 1000000
 
 fn mc_run() -> Int with Unsafe:
     let ctr: ptr<Int> = alloc_zeroed(1, "Int")
@@ -943,7 +943,7 @@ fn bench_mutex_contention() -> Int with Unsafe:
 //  BENCH 20: spsc_queue
 // ============================================================================
 
-const SPSC_N: Int = 50000
+const SPSC_N: Int = 10000000
 
 fn spsc_run() -> Int with Unsafe:
     let ch: TeleportChannel = teleport_channel_new(1024)
@@ -972,7 +972,7 @@ fn bench_spsc_queue() -> Int with Unsafe:
 //  BENCH 21: mpmc_queue -- McsMutex + ptr<Int> buffer
 // ============================================================================
 
-const MPMC_N: Int = 20000
+const MPMC_N: Int = 10000000
 
 fn mpmc_run() -> Int with Unsafe:
     let n: Int = MPMC_N
@@ -1013,8 +1013,8 @@ fn bench_mpmc_queue() -> Int with Unsafe:
 //  Uses sequential simulation of actor message passing.
 // ============================================================================
 
-const AS_NA: Int = 10
-const AS_NM: Int = 5
+const AS_NA: Int = 10000
+const AS_NM: Int = 100
 
 fn as_run() -> Int:
     rng_reset()
@@ -1042,8 +1042,8 @@ fn bench_actor_spam() -> Int:
 //  Uses sequential computation of the same checksum.
 // ============================================================================
 
-const AP_NF: Int = 100
-const AP_NR: Int = 500
+const AP_NF: Int = 1000
+const AP_NR: Int = 10000
 
 fn ap_run() -> Int:
     var cs: Int = 0
@@ -1107,7 +1107,7 @@ fn bench_file_read_streaming() -> Int:
 //  BENCH 25: file_write_streaming
 // ============================================================================
 
-const FWS_SZ: Int = 262144
+const FWS_SZ: Int = 1073741824
 const FWS_CH: Int = 65536
 
 fn fws_run() -> Int:
@@ -1141,8 +1141,8 @@ fn bench_file_write_streaming() -> Int:
 //  BENCH 26: tcp_echo_throughput
 // ============================================================================
 
-const TE_N: Int = 10
-const TE_SZ: Int = 256
+const TE_N: Int = 5000
+const TE_SZ: Int = 65536
 
 fn te_run() -> Int:
     let lst: Int = tcp_listen("127.0.0.1", 0)
@@ -1179,7 +1179,7 @@ fn bench_tcp_echo_throughput() -> Int:
 //  BENCH 27: process_spawn_chain
 // ============================================================================
 
-const PS_N: Int = 20
+const PS_N: Int = 1000
 
 fn ps_run() -> Int:
     rng_reset()
@@ -1239,8 +1239,8 @@ fn bench_c_ffi_call_hotloop() -> Int:
 //  BENCH 29: c_buffer_handoff (pure Kain)
 // ============================================================================
 
-const CB_N: Int = 500
-const CB_NI: Int = 256
+const CB_N: Int = 100000
+const CB_NI: Int = 4096
 
 fn cb_run() -> Int with Unsafe:
     let buf: ptr<Int> = alloc_zeroed(CB_NI, "Int")

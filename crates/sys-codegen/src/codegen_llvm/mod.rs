@@ -12,7 +12,8 @@ use kain_core::ast::{
 };
 use kain_core::effects::EffectSet;
 use kain_core::error::{KainError, KainResult};
-use kain_core::error::{DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind, CompilerPhase};
+use kain_core::error::{DiagnosticReport, DiagnosticSeverity, ErrorKind, CompilerPhase};
+use kain_core::DiagnosticCode;
 use kain_core::types::{
     IntSize, ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport,
     TypedItem, TypedProgram, TypedResonate,
@@ -3240,7 +3241,7 @@ impl LlvmGenerator {
             ));
         }
         let (pointer_value, pointer_ty) = self.compile_expr(pointer)?;
-        let pointer_i64 = self.coerce_to_i64_storage(&pointer_value, &pointer_ty);
+        let pointer_i64 = self.coerce_to_i64_storage(&pointer_value, &pointer_ty)?;
         self.emit_inline_asm_call(
             "clflush ($0)",
             &[(pointer_i64, "i64".to_string())],
@@ -3259,10 +3260,10 @@ impl LlvmGenerator {
         ptr: &str,
         ptr_ty: &str,
         llvm_ty: &str,
-    ) -> String {
+    ) -> KainResult<String> {
         let target_ptr_ty = format!("{}*", llvm_ty);
         if ptr_ty == target_ptr_ty {
-            return ptr.to_string();
+            return Ok(ptr.to_string());
         }
         if ptr_ty.ends_with('*') {
             let typed_ptr = self.next_reg();
@@ -3270,15 +3271,15 @@ impl LlvmGenerator {
                 "  {} = bitcast {} {} to {}",
                 typed_ptr, ptr_ty, ptr, target_ptr_ty
             ));
-            return typed_ptr;
+            return Ok(typed_ptr);
         }
-        let ptr_i64 = self.coerce_to_i64_storage(ptr, ptr_ty);
+        let ptr_i64 = self.coerce_to_i64_storage(ptr, ptr_ty)?;
         let typed_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = inttoptr i64 {} to {}",
             typed_ptr, ptr_i64, target_ptr_ty
         ));
-        typed_ptr
+        Ok(typed_ptr)
     }
 
     fn compile_non_ephemeral_typed_memory_pointer(
@@ -3317,7 +3318,7 @@ impl LlvmGenerator {
                 let Some(access_width) = Self::obvious_llvm_type_byte_width(llvm_ty) else {
                     let (ptr, ptr_ty) = self.compile_expr(pointer)?;
                     let typed_ptr =
-                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
+                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty)?;
                     let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                     return Ok((typed_ptr, alignment));
                 };
@@ -3334,7 +3335,7 @@ impl LlvmGenerator {
                 } else {
                     let (ptr, ptr_ty) = self.compile_expr(pointer)?;
                     let typed_ptr =
-                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
+                        self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty)?;
                     let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                     Ok((typed_ptr, alignment))
                 }
@@ -3342,7 +3343,7 @@ impl LlvmGenerator {
             _ => {
                 let (ptr, ptr_ty) = self.compile_expr(pointer)?;
                 let typed_ptr =
-                    self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty);
+                    self.coerce_pointer_value_to_typed_memory_pointer(&ptr, &ptr_ty, llvm_ty)?;
                 let alignment = self.safe_memory_access_alignment(pointer, llvm_ty);
                 Ok((typed_ptr, alignment))
             }
@@ -8008,7 +8009,7 @@ impl LlvmGenerator {
                     }
                     let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty)?;
                     self.emit_release_if_new_object_expr(receiver, &boxed_value, &boxed_ty);
-                    return Ok(result?);
+                    return Ok(result);
                 }
             }
             Expr::MethodCall {
@@ -8040,7 +8041,7 @@ impl LlvmGenerator {
 
                     self.emit_label(&payload_label);
                     let (payload_value, payload_ty) =
-                        self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
+                        self.compile_tagged_value_payload_copy(&boxed_value, target_ty)?;
                     let payload_block = self.current_block.clone();
                     self.emit(&format!("  br label %{}", merge_label));
 
@@ -8080,7 +8081,7 @@ impl LlvmGenerator {
                     if let Some(result) =
                         self.compile_actor_builtin_ask(name, args, *span, Some(target_ty))?
                     {
-                        return Ok(result?);
+                        return Ok(result);
                     }
                 }
             }
@@ -8483,7 +8484,7 @@ impl LlvmGenerator {
         target_ty: &str,
     ) -> KainResult<(String, String)> {
         if target_ty == "void" {
-            return ("0".to_string(), "i64".to_string());
+            return Ok(("0".to_string(), "i64".to_string()));
         }
 
         let handle_bits = self.emit_tagged_value_handle_bits(boxed_value);
@@ -8551,7 +8552,7 @@ impl LlvmGenerator {
             merged, target_ty, immediate_value, immediate_block, loaded, boxed_block
         ));
         debug_assert_eq!(immediate_ty, target_ty);
-        (merged, target_ty.to_string())
+        Ok((merged, target_ty.to_string()))
     }
 
     fn compile_tagged_value_from_compiled_payload(
@@ -8956,7 +8957,7 @@ impl LlvmGenerator {
 
     fn compile_atomic_i64_pointer(&mut self, pointer: &Expr) -> KainResult<String> {
         let compiled_ptr = self.compile_expr(pointer)?;
-        let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+        let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
         let typed_ptr = self.next_reg();
         self.emit(&format!(
             "  {} = inttoptr i64 {} to i64*",
@@ -9255,7 +9256,7 @@ impl LlvmGenerator {
         let known_i64_bindings = self.current_known_i64_literals();
         let stride_literal = Self::resolve_i64_literal(stride_expr, &known_i64_bindings);
         let (base, base_ty) = self.compile_expr(base_expr)?;
-        let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
+        let base_i64 = self.coerce_to_i64_storage(&base, &base_ty)?;
         let (offset, _) = self.compile_expr(offset_expr)?;
         let (stride, _) = if let Some(stride_val) = stride_literal {
             (stride_val.to_string(), "i64".to_string())
@@ -9297,7 +9298,7 @@ impl LlvmGenerator {
             self.emit(&format!("  {} = bitcast {} {} to i8*", cast, ptr_ty, ptr));
             cast
         } else {
-            let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+            let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty)?;
             let cast = self.next_reg();
             self.emit(&format!("  {} = inttoptr i64 {} to i8*", cast, ptr_i64));
             cast
@@ -10439,7 +10440,7 @@ impl LlvmGenerator {
         match (func_name, args.len()) {
             ("json_object_set", 3) => {
                 let (object, object_ty) = self.compile_expr(&args[0].value)?;
-                let object_i64 = self.coerce_to_i64_storage(&object, &object_ty);
+                let object_i64 = self.coerce_to_i64_storage(&object, &object_ty)?;
                 let (key, key_ty) = self.compile_expr_for_target_type(&args[1].value, "i8*")?;
                 let value_any = self.compile_json_any_argument(&args[2].value)?;
                 self.emit(&format!(
@@ -10457,7 +10458,7 @@ impl LlvmGenerator {
             }
             ("json_array_push", 2) => {
                 let (array, array_ty) = self.compile_expr(&args[0].value)?;
-                let array_i64 = self.coerce_to_i64_storage(&array, &array_ty);
+                let array_i64 = self.coerce_to_i64_storage(&array, &array_ty)?;
                 let value_any = self.compile_json_any_argument(&args[1].value)?;
                 self.emit(&format!(
                     "  call void @json_array_push(i64 {}, i64 {})",
@@ -11133,7 +11134,7 @@ impl LlvmGenerator {
                         VariantPatternFields::Tuple(patterns) if patterns.len() == 1 => {
                             let target_ty = "i64";
                             let (payload_value, payload_ty) =
-                                self.compile_tagged_value_payload_copy(scrutinee_val, target_ty);
+                                self.compile_tagged_value_payload_copy(scrutinee_val, target_ty)?;
                             return self.bind_local_pattern_value(
                                 &patterns[0],
                                 payload_value,
@@ -11911,30 +11912,30 @@ impl LlvmGenerator {
         func_name: &str,
         args: &[kain_core::ast::CallArg],
         span: kain_core::Span,
-    ) -> Option<KainResult<(String, String)>> {
+    ) -> KainResult<Option<(String, String)>> {
         match func_name {
             "__kain_bind_local" => {
                 // Canonical ABI: i8* __kain_bind_local(i8* ptr)
                 // Requirements: 1.4, 3.2
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_bind_local expects 1 argument",
                         span,
-                    )));
+                    ));
                 }
                 let (addr, ty) = match &args[0].value {
                     Expr::Ident(name, arg_span) => match self.locals.get(name).cloned() {
                         Some(pair) => pair,
                         None => {
-                            return Some(Err(KainError::codegen(
+                            return Err(KainError::codegen(
                                 format!("Undefined variable: {}", name),
                                 *arg_span,
-                            )))
+                            ))
                         }
                     },
                     other => match self.compile_temporary_address(other) {
                         Ok(pair) => pair,
-                        Err(err) => return Some(Err(err)),
+                        Err(err) => return Err(err),
                     },
                 };
                 // Cast typed pointer to i8*
@@ -11949,20 +11950,20 @@ impl LlvmGenerator {
                 // Convert back to i64 for compatibility with existing codegen
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Ok(Some((res, "i64".to_string())))
             }
             "__kain_addr_of" => {
                 // Canonical ABI: i8* __kain_addr_of(i8* ptr, i64 size)
                 // Requirements: 1.4, 3.2
                 if args.len() < 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_addr_of expects at least 1 argument",
                         span,
-                    )));
+                    ));
                 }
                 let (addr, ty) = match self.compile_addressable_ptr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 // Cast typed pointer to i8*
                 let ptr_i8 = self.next_reg();
@@ -11971,7 +11972,7 @@ impl LlvmGenerator {
                 let size = if args.len() > 1 {
                     match self.compile_expr(&args[1].value) {
                         Ok((val, _)) => val,
-                        Err(err) => return Some(Err(err)),
+                        Err(err) => return Err(err),
                     }
                 } else {
                     "8".to_string()
@@ -11985,65 +11986,65 @@ impl LlvmGenerator {
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Ok(Some((res, "i64".to_string())))
             }
             "__kain_mem_load" => {
                 // Canonical ABI: void __kain_mem_load(i8* ptr, i8* out, i64 size)
                 // Requirements: 1.4, 3.2
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_mem_load expects 1 argument",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_runtime_mem_load(&args[0].value, "i64", span))
+                Ok(Some(self.compile_runtime_mem_load(&args[0].value, "i64", span))
             }
             "__kain_mem_store" => {
                 // Canonical ABI: void __kain_mem_store(i8* ptr, i8* value, i64 size)
                 // Requirements: 1.4, 3.2
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_mem_store expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_runtime_mem_store(&args[0].value, &args[1].value, span))
             }
             "__kain_volatile_load" => {
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_volatile_load expects 1 argument",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_runtime_volatile_mem_load(&args[0].value, "i64", span))
+                Ok(Some(self.compile_runtime_volatile_mem_load(&args[0].value, "i64", span))
             }
             "__kain_volatile_store" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_volatile_store expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_runtime_volatile_mem_store(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_runtime_volatile_mem_store(&args[0].value, &args[1].value, span))
             }
             "__kain_atomic_load_ordered" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_load_ordered expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_ordered_atomic_load(&args[0].value, &args[1].value, span))
+                Ok(Some(self.compile_ordered_atomic_load(&args[0].value, &args[1].value, span))
             }
             "__kain_atomic_store_ordered" => {
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_store_ordered expects 3 arguments",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_ordered_atomic_store(
+                Ok(Some(self.compile_ordered_atomic_store(
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
@@ -12057,10 +12058,10 @@ impl LlvmGenerator {
             | "__kain_atomic_xor_ordered"
             | "__kain_atomic_exchange_ordered" => {
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         format!("{func_name} expects 3 arguments"),
                         span,
-                    )));
+                    ));
                 }
                 let op = match func_name {
                     "__kain_atomic_add_ordered" => "add",
@@ -12071,7 +12072,7 @@ impl LlvmGenerator {
                     "__kain_atomic_exchange_ordered" => "xchg",
                     _ => unreachable!(),
                 };
-                Some(self.compile_ordered_atomic_rmw(
+                Ok(Some(self.compile_ordered_atomic_rmw(
                     op,
                     &args[0].value,
                     &args[1].value,
@@ -12081,12 +12082,12 @@ impl LlvmGenerator {
             }
             "__kain_atomic_compare_exchange_ordered" => {
                 if args.len() != 5 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_compare_exchange_ordered expects 5 arguments",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_ordered_atomic_compare_exchange(
+                Ok(Some(self.compile_ordered_atomic_compare_exchange(
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
@@ -12097,25 +12098,25 @@ impl LlvmGenerator {
             }
             "__kain_atomic_fence" => {
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_fence expects 1 argument",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_ordered_atomic_fence(&args[0].value, span))
+                Ok(Some(self.compile_ordered_atomic_fence(&args[0].value, span))
             }
             "__kain_atomic_load_seqcst" => {
                 if args.len() != 1 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_load_seqcst expects 1 argument",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12126,20 +12127,20 @@ impl LlvmGenerator {
                     "  {} = load atomic i64, i64* {} seq_cst, align 8",
                     loaded, typed_ptr
                 ));
-                Some(Ok((loaded, "i64".to_string())))
+                Ok(Some((loaded, "i64".to_string())))
             }
             "__kain_atomic_store_seqcst" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_store_seqcst expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12147,26 +12148,26 @@ impl LlvmGenerator {
                 ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 self.emit(&format!(
                     "  store atomic i64 {}, i64* {} seq_cst, align 8",
                     value, typed_ptr
                 ));
-                Some(Ok(("0".to_string(), "void".to_string())))
+                Ok(Some(("0".to_string(), "void".to_string())))
             }
             "__kain_atomic_add_seqcst" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_add_seqcst expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12174,27 +12175,27 @@ impl LlvmGenerator {
                 ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let previous = self.next_reg();
                 self.emit(&format!(
                     "  {} = atomicrmw add i64* {}, i64 {} seq_cst",
                     previous, typed_ptr, value
                 ));
-                Some(Ok((previous, "i64".to_string())))
+                Ok(Some((previous, "i64".to_string())))
             }
             "__kain_atomic_sub_seqcst" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_sub_seqcst expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12202,27 +12203,27 @@ impl LlvmGenerator {
                 ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let previous = self.next_reg();
                 self.emit(&format!(
                     "  {} = atomicrmw sub i64* {}, i64 {} seq_cst",
                     previous, typed_ptr, value
                 ));
-                Some(Ok((previous, "i64".to_string())))
+                Ok(Some((previous, "i64".to_string())))
             }
             "__kain_atomic_exchange_seqcst" => {
                 if args.len() != 2 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_exchange_seqcst expects 2 arguments",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12230,27 +12231,27 @@ impl LlvmGenerator {
                 ));
                 let value = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let previous = self.next_reg();
                 self.emit(&format!(
                     "  {} = atomicrmw xchg i64* {}, i64 {} seq_cst",
                     previous, typed_ptr, value
                 ));
-                Some(Ok((previous, "i64".to_string())))
+                Ok(Some((previous, "i64".to_string())))
             }
             "__kain_atomic_compare_exchange_seqcst" => {
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_atomic_compare_exchange_seqcst expects 3 arguments",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_ptr = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1);
+                let ptr_i64 = self.coerce_to_i64_storage(&compiled_ptr.0, &compiled_ptr.1)?;
                 let typed_ptr = self.next_reg();
                 self.emit(&format!(
                     "  {} = inttoptr i64 {} to i64*",
@@ -12258,11 +12259,11 @@ impl LlvmGenerator {
                 ));
                 let expected = match self.compile_expr_as_i64(&args[1].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let desired = match self.compile_expr_as_i64(&args[2].value) {
                     Ok(value) => value,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let cmpxchg = self.next_reg();
                 self.emit(&format!(
@@ -12274,22 +12275,22 @@ impl LlvmGenerator {
                     "  {} = extractvalue {{ i64, i1 }} {}, 1",
                     success, cmpxchg
                 ));
-                Some(Ok((success, "i1".to_string())))
+                Ok(Some((success, "i1".to_string())))
             }
             "__kain_field_ptr" => {
                 // Canonical ABI: i8* __kain_field_ptr(i8* ptr, const char* field, size_t offset)
                 // Requirements: 1.4, 3.2
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_field_ptr expects 3 arguments (ptr, field_name, offset)",
                         span,
-                    )));
+                    ));
                 }
                 let compiled_base = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
-                let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1);
+                let base_i64 = self.coerce_to_i64_storage(&compiled_base.0, &compiled_base.1)?;
 
                 // Get field name (for diagnostics, not used in calculation)
                 let field_name = match &args[1].value {
@@ -12300,7 +12301,7 @@ impl LlvmGenerator {
 
                 let (offset, _) = match self.compile_expr(&args[2].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
 
                 // Cast base to i8*
@@ -12320,18 +12321,18 @@ impl LlvmGenerator {
                 // Convert to i64
                 let res = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint i8* {} to i64", res, result));
-                Some(Ok((res, "i64".to_string())))
+                Ok(Some((res, "i64".to_string())))
             }
             "__kain_index_ptr" => {
                 // Canonical ABI: i8* __kain_index_ptr(i8* ptr, i64 index, i64 stride)
                 // Requirements: 1.4, 3.2
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_index_ptr expects 3 arguments (ptr, index, stride)",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_raw_ptr_offset_i64(
+                Ok(Some(self.compile_raw_ptr_offset_i64(
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
@@ -12341,12 +12342,12 @@ impl LlvmGenerator {
                 // Canonical ABI: i8* __kain_ptr_offset(i8* ptr, i64 offset, i64 stride)
                 // Requirements: 1.4, 3.2
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_ptr_offset expects 3 arguments (ptr, offset, stride)",
                         span,
-                    )));
+                    ));
                 }
-                Some(self.compile_raw_ptr_offset_i64(
+                Ok(Some(self.compile_raw_ptr_offset_i64(
                     &args[0].value,
                     &args[1].value,
                     &args[2].value,
@@ -12356,22 +12357,22 @@ impl LlvmGenerator {
                 // Canonical ABI: i8* __kain_alloc(i64 size, i64 stride, i32 zeroed)
                 // Requirements: 1.4, 3.6
                 if args.len() != 3 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_alloc expects 3 arguments (size, stride, zeroed)",
                         span,
-                    )));
+                    ));
                 }
                 let (size, _) = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let (stride, _) = match self.compile_expr(&args[1].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let (zeroed, _) = match self.compile_expr(&args[2].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
 
                 // Call canonical helper
@@ -12380,32 +12381,32 @@ impl LlvmGenerator {
                     "  {} = call i8* @__kain_alloc(i64 {}, i64 {}, i32 {})",
                     result, size, stride, zeroed
                 ));
-                Some(Ok((result, "i8*".to_string())))
+                Ok(Some((result, "i8*".to_string())))
             }
             "__kain_realloc" => {
                 // Canonical ABI: i8* __kain_realloc(i8* ptr, i64 size, i64 stride, i32 zeroed_new)
                 // Requirements: 1.4, 3.6
                 if args.len() != 4 {
-                    return Some(Err(KainError::codegen(
+                    return Err(KainError::codegen(
                         "__kain_realloc expects 4 arguments (ptr, size, stride, zeroed_new)",
                         span,
-                    )));
+                    ));
                 }
                 let (ptr, ptr_ty) = match self.compile_expr(&args[0].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let (size, _) = match self.compile_expr(&args[1].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let (stride, _) = match self.compile_expr(&args[2].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
                 let (zeroed_new, _) = match self.compile_expr(&args[3].value) {
                     Ok(pair) => pair,
-                    Err(err) => return Some(Err(err)),
+                    Err(err) => return Err(err),
                 };
 
                 // Cast to i8*
@@ -12414,7 +12415,7 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = bitcast {} {} to i8*", cast, ptr_ty, ptr));
                     cast
                 } else {
-                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+                    let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty)?;
                     let cast = self.next_reg();
                     self.emit(&format!("  {} = inttoptr i64 {} to i8*", cast, ptr_i64));
                     cast
@@ -12426,9 +12427,9 @@ impl LlvmGenerator {
                     "  {} = call i8* @__kain_realloc(i8* {}, i64 {}, i64 {}, i32 {})",
                     result, ptr_i8, size, stride, zeroed_new
                 ));
-                Some(Ok((result, "i8*".to_string())))
+                Ok(Some((result, "i8*".to_string())))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -14255,7 +14256,7 @@ impl LlvmGenerator {
         let entries: Vec<CrashTableEntry> = self.crash_table.clone();
         let count = entries.len();
         if count == 0 {
-            return;
+            return Ok(());
         }
         self.emit("");
         self.emit("; ── Crash forensics table ─────────────────────────────────────");
@@ -17832,7 +17833,7 @@ impl LlvmGenerator {
         }
 
         if let Some(result) = self.compile_manual_find_substring_call_fast_path(func_name, args)? {
-            return Ok(result?);
+            return Ok(result);
         }
 
         if func_name == "len" && args.len() == 1 {
@@ -18032,7 +18033,7 @@ impl LlvmGenerator {
         }
 
         if let Some(result) = self.compile_json_builtin_call(func_name, args)? {
-            return Ok(result?);
+            return Ok(result);
         }
 
         if func_name == "push" && args.len() == 2 {
@@ -18608,7 +18609,7 @@ impl LlvmGenerator {
                         }
                     })
                     .unwrap_or(8);
-                let base_i64 = self.coerce_to_i64_storage(&base, &base_ty);
+                let base_i64 = self.coerce_to_i64_storage(&base, &base_ty)?;
                 let stride_literal =
                     Some(stride).filter(|_| self.expr_is_proven_nonnegative_i64(offset));
                 let scaled =
@@ -19126,7 +19127,7 @@ impl LlvmGenerator {
                             };
                         self.emit_heap_owned_retain_for_transfer(value, &rhs, &rhs_ty);
                         let stored =
-                            self.coerce_runtime_array_storage_from_compiled(&rhs, &rhs_ty);
+                            self.coerce_runtime_array_storage_from_compiled(&rhs, &rhs_ty)?;
                         self.emit(&format!(
                             "  call void @array_set(i8* {}, i64 {}, i64 {})",
                             obj_val, idx_val, stored
@@ -19965,7 +19966,7 @@ impl LlvmGenerator {
 
                 if *op == BinaryOp::Add && self.expr_is_known_string(expr) {
                     if let Some(result) = self.compile_string_concat_expression(expr)? {
-                        return Ok(result?);
+                        return Ok(result);
                     }
                 }
 
@@ -20315,7 +20316,7 @@ impl LlvmGenerator {
 
                             self.emit_label(&ok_label);
                             let (payload, payload_llvm_ty) =
-                                self.compile_tagged_value_payload_copy(&obj_val, &payload_ty);
+                                self.compile_tagged_value_payload_copy(&obj_val, &payload_ty)?;
                             let some_value = self.compile_tagged_value_from_compiled_payload(
                                 ABI_TAG_OPTION_SOME_LLVM,
                                 &payload,
@@ -20353,7 +20354,7 @@ impl LlvmGenerator {
                                 .unwrap_or_else(|| "i64".to_string());
                             let result = self.compile_tagged_value_payload_copy(&obj_val, &payload_ty)?;
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
-                            return Ok(result?);
+                            return Ok(result);
                         }
                         _ => {}
                     }
@@ -20431,18 +20432,18 @@ impl LlvmGenerator {
             }
             Expr::Call { callee, args, span } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
-                    if let Some(result) = self.compile_lowered_helper_call(name, args, *span) {
-                        return result;
+                    if let Some(result) = self.compile_lowered_helper_call(name, args, *span)? {
+                        return Ok(result);
                     }
                     if let Some(result) =
                         self.compile_actor_builtin_ask(name, args, *span, None)?
                     {
-                        return Ok(result?);
+                        return Ok(result);
                     }
                     if let Some(result) =
                         self.compile_native_variant_function_call(name, args, *span)?
                     {
-                        return Ok(result?);
+                        return Ok(result);
                     }
                 }
 
@@ -20453,7 +20454,7 @@ impl LlvmGenerator {
                             || self.expr_carries_runtime_any_value(&args[0].value)
                         {
                             let (value, value_ty) = self.compile_expr(&args[0].value)?;
-                            let value_i64 = self.coerce_to_i64_storage(&value, &value_ty);
+                            let value_i64 = self.coerce_to_i64_storage(&value, &value_ty)?;
                             let result = self.next_reg();
                             self.emit(&format!(
                                 "  {} = call i8* @to_string_any(i64 {})",
@@ -20536,7 +20537,7 @@ impl LlvmGenerator {
                 if let Some(result) =
                     self.compile_native_option_or_result_variant(enum_name, variant, fields, *span)?
                 {
-                    return Ok(result?);
+                    return Ok(result);
                 }
 
                 let struct_ty = format!("%{}", Self::llvm_named_type_name(enum_name));
