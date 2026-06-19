@@ -6034,7 +6034,470 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
         check_block_semantics(env, &pulse.body, &ctx)
     })?;
 
+    if let Some(budget) = &pulse.budget {
+        verify_pulse_budget(env, &pulse.name, budget, &pulse.body)?;
+    }
+
     Ok(TypedPulse { ast: pulse.clone() })
+}
+
+/// Verify that a `pulse` callback body respects budget constraints.
+///
+/// Walks the body AST and rejects any direct call to forbidden operations.
+/// Phase 1 rule: only reject direct calls by name — no interprocedural analysis.
+fn verify_pulse_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    budget: &PulseBudget,
+    body: &Block,
+) -> KainResult<()> {
+    let alloc_limit = budget.alloc;
+    let lock_limit = budget.lock;
+    let io_limit = budget.io;
+
+    let mut state = BudgetVerifyState {
+        alloc_count: 0,
+        lock_count: 0,
+        io_count: 0,
+    };
+
+    verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, body, &mut state)?;
+    Ok(())
+}
+
+struct BudgetVerifyState {
+    alloc_count: u32,
+    lock_count: u32,
+    io_count: u32,
+}
+
+fn verify_block_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    block: &Block,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    for stmt in &block.stmts {
+        verify_stmt_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, stmt, state)?;
+    }
+    Ok(())
+}
+
+fn verify_stmt_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    stmt: &Stmt,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    match stmt {
+        Stmt::Expr(expr) | Stmt::Defer { expr, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, expr, state)?;
+        }
+        Stmt::Let { value, .. } => {
+            if let Some(val) = value {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, val, state)?;
+            }
+        }
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for d in dispatch_size {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, d, state)?;
+            }
+        }
+        Stmt::Return(Some(expr), _) => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, expr, state)?;
+        }
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, iter, state)?;
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, body, state)?;
+        }
+        Stmt::While { condition, body, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, condition, state)?;
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, body, state)?;
+        }
+        Stmt::Loop { body, .. } => {
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, body, state)?;
+        }
+        Stmt::Item(item) => {
+            verify_item_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, item, state)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn verify_item_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    item: &Item,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    match item {
+        Item::Function(func) => {
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &func.body, state)?;
+        }
+        Item::Const(c) => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &c.value, state)?;
+        }
+        Item::Comptime(comptime) => {
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &comptime.body, state)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn verify_expr_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    expr: &Expr,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    match expr {
+        Expr::Call { callee, args, span } => {
+            // Check direct call by function name
+            if let Expr::Ident(name, _) = callee.as_ref() {
+                check_call_budget(env, pulse_name, name, span, alloc_limit, lock_limit, io_limit, state)?;
+            }
+            // Also check the callee itself (could be a method call chain, etc.)
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, callee, state)?;
+            for arg in args {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &arg.value, state)?;
+            }
+        }
+        Expr::MethodCall { receiver, method, args, span } => {
+            check_method_call_budget(env, pulse_name, method, span, alloc_limit, lock_limit, io_limit, state)?;
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, receiver, state)?;
+            for arg in args {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &arg.value, state)?;
+            }
+        }
+        Expr::Collapse { target, .. } | Expr::Decay { target, .. } | Expr::Observe { target, .. } => {
+            check_lock_budget(env, pulse_name, &callee_name_for_ownership(expr), span_of_expr(expr), lock_limit, state)?;
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, target, state)?;
+        }
+        Expr::Binary { left, right, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, left, state)?;
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, right, state)?;
+        }
+        Expr::Unary { operand, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, operand, state)?;
+        }
+        Expr::Assign { target, value, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, target, state)?;
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, value, state)?;
+        }
+        Expr::If { condition, then_branch, else_branch, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, condition, state)?;
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, then_branch, state)?;
+            if let Some(eb) = else_branch {
+                match eb.as_ref() {
+                    ElseBranch::Else(block) => verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, block, state)?,
+                    ElseBranch::ElseIf(cond, block, rest) => {
+                        verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, cond, state)?;
+                        verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, block, state)?;
+                        if let Some(r) = rest {
+                            match r.as_ref() {
+                                ElseBranch::Else(b) => verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, b, state)?,
+                                ElseBranch::ElseIf(c, b, r2) => {
+                                    verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, c, state)?;
+                                    verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, b, state)?;
+                                    // Only handle 2 levels deep for else-if chains in Phase 1
+                                    if let Some(rr) = r2 {
+                                        match rr.as_ref() {
+                                            ElseBranch::Else(bb) => verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, bb, state)?,
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, scrutinee, state)?;
+            for arm in arms {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &arm.body, state)?;
+                if let Some(guard) = &arm.guard {
+                    verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, guard, state)?;
+                }
+            }
+        }
+        Expr::Block(block, _) => {
+            verify_block_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, block, state)?;
+        }
+        Expr::Lambda { body, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, body, state)?;
+        }
+        Expr::Index { object, index, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, object, state)?;
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, index, state)?;
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(s) = start {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, s, state)?;
+            }
+            if let Some(e) = end {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, e, state)?;
+            }
+        }
+        Expr::Array(elems, _) | Expr::Tuple(elems, _) | Expr::FString(elems, _) => {
+            for elem in elems {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, elem, state)?;
+            }
+        }
+        Expr::Struct { fields, rest, .. } => {
+            for (_, val) in fields {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, val, state)?;
+            }
+            if let Some(r) = rest {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, r, state)?;
+            }
+        }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, val) in fields {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, val, state)?;
+            }
+        }
+        Expr::EnumVariant { fields, .. } => {
+            match &fields {
+                EnumVariantFields::Unit => {}
+                EnumVariantFields::Tuple(elems) => {
+                    for val in elems {
+                        verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, val, state)?;
+                    }
+                }
+                EnumVariantFields::Struct(fields) => {
+                    for (_, val) in fields {
+                        verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, val, state)?;
+                    }
+                }
+            }
+        }
+        Expr::Ref { value, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, value, state)?;
+        }
+        Expr::Cast { value, .. } => {
+            verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, value, state)?;
+        }
+        Expr::StageCall { args, .. } => {
+            for arg in args {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, &arg.value, state)?;
+            }
+        }
+        Expr::MacroCall { args, .. } => {
+            for arg in args {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, arg, state)?;
+            }
+        }
+        // Leaf expressions — nothing to recurse into
+        Expr::Int(..) | Expr::Float(..) | Expr::String(..) | Expr::Bool(..) | Expr::None(_)
+        | Expr::Ident(..) | Expr::Field { .. } => {}
+        _ => {
+            // For any new expression kind we miss, be conservative and don't error.
+            // Phase 1: only reject known-forbidden patterns.
+        }
+    }
+    Ok(())
+}
+
+/// Known function names that allocate heap memory.
+const ALLOC_FORBIDDEN_NAMES: &[&str] = &[
+    "alloc",
+    "alloc_zeroed",
+    "realloc_mem",
+];
+
+/// Known function names that acquire locks or perform atomic compare-exchange.
+const LOCK_FORBIDDEN_NAMES: &[&str] = &[
+    "atomic_flag_test_and_set_explicit",
+    "atomic_compare_exchange_strong_explicit",
+    "mcs_mutex_lock",
+    "rwlock_write_lock",
+    "rwlock_read_lock",
+];
+
+/// Known I/O function names.
+const IO_FORBIDDEN_PREFIXES: &[&str] = &[
+    "print",
+    "println",
+    "fs_",
+    "io_",
+    "network_",
+    "file_",
+];
+
+/// Known I/O function names (exact match).
+const IO_FORBIDDEN_NAMES: &[&str] = &[
+    "import",
+    "include",
+];
+
+fn check_call_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    name: &str,
+    span: &Span,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    // Check alloc
+    if let Some(limit) = alloc_limit {
+        if ALLOC_FORBIDDEN_NAMES.contains(&name) {
+            state.alloc_count += 1;
+            if limit == 0 || state.alloc_count > limit {
+                return Err(env.type_error_with_code(
+                    DiagnosticCode::PulseBudgetAlloc,
+                    format!(
+                        "allocation in pulse with budget(alloc=0): '{}' in pulse '{}'\n  = note: pulse '{}' budget(alloc={}) forbids allocations\n  = help: pre-allocate buffers before the pulse starts, or increase budget",
+                        span_source_snippet(env, span),
+                        pulse_name,
+                        pulse_name,
+                        limit
+                    ),
+                    *span,
+                ));
+            }
+            return Ok(());
+        }
+    }
+
+    // Check lock
+    if let Some(limit) = lock_limit {
+        if is_lock_forbidden(name) {
+            state.lock_count += 1;
+            if limit == 0 || state.lock_count > limit {
+                return Err(env.type_error_with_code(
+                    DiagnosticCode::PulseBudgetLock,
+                    format!(
+                        "locking operation in pulse with budget(lock=0): '{}' in pulse '{}'\n  = note: pulse '{}' budget(lock={}) forbids locking operations\n  = help: move lock acquisition outside the pulse body, or increase budget",
+                        span_source_snippet(env, span),
+                        pulse_name,
+                        pulse_name,
+                        limit
+                    ),
+                    *span,
+                ));
+            }
+            return Ok(());
+        }
+    }
+
+    // Check IO
+    if let Some(limit) = io_limit {
+        if is_io_forbidden(name) {
+            state.io_count += 1;
+            if limit == 0 || state.io_count > limit {
+                return Err(env.type_error_with_code(
+                    DiagnosticCode::PulseBudgetIO,
+                    format!(
+                        "I/O operation in pulse with budget(io=0): '{}' in pulse '{}'\n  = note: pulse '{}' budget(io={}) forbids I/O operations\n  = help: perform I/O during initialization, not in the callback, or increase budget",
+                        span_source_snippet(env, span),
+                        pulse_name,
+                        pulse_name,
+                        limit
+                    ),
+                    *span,
+                ));
+            }
+            return Ok(());
+        }
+    }
+
+    Ok(())
+}
+
+fn check_method_call_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    method: &str,
+    span: &Span,
+    alloc_limit: Option<u32>,
+    lock_limit: Option<u32>,
+    io_limit: Option<u32>,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    // Method calls might be on std types — apply same checks
+    check_call_budget(env, pulse_name, method, span, alloc_limit, lock_limit, io_limit, state)
+}
+
+fn check_lock_budget(
+    env: &TypeEnv,
+    pulse_name: &str,
+    _op_name: &str,
+    span: Span,
+    lock_limit: Option<u32>,
+    state: &mut BudgetVerifyState,
+) -> KainResult<()> {
+    if let Some(limit) = lock_limit {
+        state.lock_count += 1;
+        if limit == 0 || state.lock_count > limit {
+            return Err(env.type_error_with_code(
+                DiagnosticCode::PulseBudgetLock,
+                format!(
+                    "ownership operation in pulse with budget(lock=0): '{}' in pulse '{}'\n  = note: pulse '{}' budget(lock={}) forbids ownership operations\n  = help: pre-allocate buffers on the main thread and use non-owning views",
+                    span_source_snippet(env, &span),
+                    pulse_name,
+                    pulse_name,
+                    limit
+                ),
+                span,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn is_lock_forbidden(name: &str) -> bool {
+    LOCK_FORBIDDEN_NAMES.contains(&name)
+}
+
+fn is_io_forbidden(name: &str) -> bool {
+    if IO_FORBIDDEN_NAMES.contains(&name) {
+        return true;
+    }
+    for prefix in IO_FORBIDDEN_PREFIXES {
+        if name.starts_with(prefix) {
+            return true;
+        }
+    }
+    false
+}
+
+fn callee_name_for_ownership(expr: &Expr) -> String {
+    match expr {
+        Expr::Collapse { .. } => "collapse".to_string(),
+        Expr::Observe { .. } => "observe".to_string(),
+        Expr::Decay { .. } => "decay".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+fn span_of_expr(expr: &Expr) -> Span {
+    match expr {
+        Expr::Collapse { span, .. } | Expr::Observe { span, .. } | Expr::Decay { span, .. } => *span,
+        Expr::Call { span, .. } => *span,
+        _ => Span::new(0, 0),
+    }
+}
+
+fn span_source_snippet(env: &TypeEnv, span: &Span) -> String {
+    env.diagnostic_primary_text(*span)
 }
 
 fn check_resonate(env: &mut TypeEnv, resonate: &ResonateDef) -> KainResult<TypedResonate> {

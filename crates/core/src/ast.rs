@@ -310,6 +310,7 @@ pub struct PulseDef {
     pub name: String,
     pub interval: PulseDuration,
     pub jitter: Option<PulseDuration>,
+    pub budget: Option<PulseBudget>,
     pub body: Block,
     pub visibility: Visibility,
     pub attributes: Vec<Attribute>,
@@ -326,6 +327,26 @@ pub struct PulseDuration {
 impl PulseDuration {
     pub fn as_authored(&self) -> String {
         format!("{}{}", self.value, self.unit)
+    }
+}
+
+/// Budget constraints on a `pulse` callback body.
+///
+/// All fields are `Option<u32>`: `None` means unlimited / no constraint.
+/// When a field is `Some(0)`, the operation class is completely forbidden.
+/// When `Some(N)` with N > 0, at most N operations of that class are allowed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PulseBudget {
+    pub alloc: Option<u32>,
+    pub lock: Option<u32>,
+    pub io: Option<u32>,
+    pub span: Span,
+}
+
+impl PulseBudget {
+    /// True when no field restricts operations at all (unlimited).
+    pub fn is_unlimited(&self) -> bool {
+        self.alloc == None && self.lock == None && self.io == None
     }
 }
 

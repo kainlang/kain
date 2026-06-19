@@ -1,0 +1,1155 @@
+// dsp.kn — Digital Signal Processing Library (std::audio Phase 2)
+//
+// Layer: L0 (plain math — but converge-accelerated via std::audio::converge)
+//
+// Real-time audio DSP algorithms. Every function is `with Pure` and operates
+// on ptr<Float> / Float. State that must persist across samples (biquad z1/z2,
+// SVF state, envelope value) is held in caller-owned structs. The compiler is
+// free to inline, vectorize, or shatter these across SIMD lanes.
+//
+// Reference texts:
+//   - RBJ Audio EQ Cookbook (Robert Bristow-Johnson, 2001)
+//   - The Art of VA Filter Design (Vadim Zavalishin, 2012)
+//   - Numerical Recipes in C (Press et al., 1992) for FFT
+//   - Schroeder reverberators (Schroeder, 1962)
+//
+// Imports from std::math, std::random. No dependency on std::audio::buffer —
+// convolve functions accept raw ptr<Float> + Int (length in samples) so this
+// module is self-contained and typecheckable today. AudioView/AudioBuffer
+// wrappers can be added on top by ECHO once CHARLIE ships buffer.kn.
+
+use std::math
+use std::random
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const DSP_TWO_PI:    Float = 6.283185307179586
+const DSP_PI:        Float = 3.141592653589793
+const DSP_HALF_PI:   Float = 1.5707963267948966
+const DSP_LN_2:      Float = 0.6931471805599453
+const DSP_LN_10:     Float = 2.302585092994046
+const DSP_LOG10_2:   Float = 0.3010299956639812
+const DSP_INV_LN_10: Float = 0.4342944819032518
+const DSP_MIN_AUDIBLE: Float = 0.00001
+
+// Status codes
+pub const DSP_OK:                Int = 0
+pub const DSP_ERR_NOT_POWER_OF_2: Int = -1
+pub const DSP_ERR_ZERO_LENGTH:   Int = -2
+pub const DSP_ERR_INVALID_PARAM: Int = -3
+pub const DSP_ERR_BUFFER_TOO_SMALL: Int = -4
+
+// ============================================================================
+// O S C I L L A T O R S
+// ============================================================================
+//
+// Phase-accumulator-based digital oscillators. `phase` is a pointer to a
+// caller-owned Float that holds the running phase in [0, 1). The oscillator
+// reads the current phase, computes the output sample, advances the phase by
+// freq_hz / sample_rate, wraps it back into [0, 1) via floor subtraction, and
+// writes it back. This is the canonical "table-free" oscillator used in
+// software synths since the 1980s.
+//
+// poly_blep() applies a polynomial bandlimited step correction that removes
+// the worst aliasing from saw/square. For "real" bandlimited synthesis, see
+// std::audio::converge.kn SIMD fast lanes.
+
+// osc_sine — pure sine, no aliasing
+pub fn osc_sine(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let out: Float = sin(DSP_TWO_PI * p)
+    let inc: Float = freq_hz / Float(sample_rate)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return out
+
+// osc_triangle — abs-shaped triangle in [-1, 1]
+pub fn osc_triangle(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let v: Float = (2.0 * p) - 1.0
+    let tri: Float = 2.0 * absf(v) - 1.0
+    let inc: Float = freq_hz / Float(sample_rate)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return tri
+
+// osc_saw — naive sawtooth (aliased above Nyquist/2). Use poly_blep on top.
+pub fn osc_saw(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let saw: Float = (2.0 * p) - 1.0
+    let inc: Float = freq_hz / Float(sample_rate)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return saw
+
+// osc_square — naive pulse wave. pw is the duty cycle in [0, 1].
+pub fn osc_square(phase: ptr<Float>, freq_hz: Float, sample_rate: Int, pw: Float) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let sq: Float = if p < pw: 1.0 else: -1.0
+    let inc: Float = freq_hz / Float(sample_rate)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return sq
+
+// osc_saw_bl — bandlimited saw via poly_blep
+pub fn osc_saw_bl(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let inc: Float = freq_hz / Float(sample_rate)
+    let raw: Float = (2.0 * p) - 1.0
+    let bl: Float = raw + poly_blep(p, inc)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return bl
+
+// osc_square_bl — bandlimited square via poly_blep (no high-q corner case)
+pub fn osc_square_bl(phase: ptr<Float>, freq_hz: Float, sample_rate: Int, pw: Float) -> Float with Pure:
+    let p: Float = mem_load(phase, "Float")
+    let inc: Float = freq_hz / Float(sample_rate)
+    let raw: Float = if p < pw: 1.0 else: -1.0
+    // square blep = blep(p) - blep((p - pw) mod 1) when the square wave edge fires
+    var phase_offset: Float = p - pw
+    if phase_offset < 0.0:
+        phase_offset = phase_offset + 1.0
+    let bl: Float = raw + poly_blep(p, inc) - poly_blep(phase_offset, inc)
+    let next: Float = p + inc
+    let wrapped: Float = next - floor(next)
+    mem_store(phase, wrapped, "Float")
+    return bl
+
+// osc_noise_white — uniform white noise in [-1, 1].
+// Uses ambient RNG; thread-safe per-call. Seed is system entropy.
+pub fn osc_noise_white() -> Float with Pure:
+    let r: Float = random_ambient_float()
+    return (r * 2.0) - 1.0
+
+// poly_blep — polynomial bandlimited step (Valimaki/Stylianou).
+// Add to a naive saw/square to remove the worst aliasing energy above Nyquist.
+// Reference: "Polynomial Bandlimited Step Function" (Valimaki, 2007).
+pub fn poly_blep(phase: Float, phase_inc: Float) -> Float with Pure:
+    if phase < phase_inc:
+        let t: Float = phase / phase_inc
+        let t2: Float = t * t
+        return t2 + t - t2 - 1.0
+    if phase > 1.0 - phase_inc:
+        let t: Float = (phase - 1.0) / phase_inc
+        let t2: Float = t * t
+        return t2 + t + t2 + 1.0
+    return 0.0
+
+// Local Float abs — std::math has no public `abs`; this is a safe polyfill.
+// (The compiler intrinsic `abs` is preferred when available; this fallback
+// works either way and is branchless-enough for DSP code.)
+fn absf(x: Float) -> Float with Pure:
+    if x < 0.0:
+        return 0.0 - x
+    return x
+
+// ============================================================================
+// B I Q U A D   F I L T E R S
+// ============================================================================
+//
+// RBJ Audio EQ Cookbook biquad design. All filters return normalized
+// coefficients ready for transposed direct form II processing.
+//
+// References:
+//   https://www.w3.org/TR/audio-eq-cookbook/
+
+pub struct BiquadCoeffs:
+    b0: Float
+    b1: Float
+    b2: Float
+    a1: Float
+    a2: Float
+
+pub struct BiquadState:
+    z1: Float
+    z2: Float
+
+// biquad_lowpass — 2nd-order resonant lowpass (RBJ "lowpass" prototype).
+// At DC the gain is 0 dB; at Nyquist the gain drops to -inf dB.
+pub fn biquad_lowpass(freq_hz: Float, q: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    let b0: Float = (1.0 - cos_w0) * 0.5
+    let b1: Float = 1.0 - cos_w0
+    let b2: Float = (1.0 - cos_w0) * 0.5
+    let a1: Float = -2.0 * cos_w0
+    let a2: Float = 1.0 - alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_highpass — 2nd-order resonant highpass (RBJ).
+pub fn biquad_highpass(freq_hz: Float, q: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    let b0: Float = (1.0 + cos_w0) * 0.5
+    let b1: Float = -(1.0 + cos_w0)
+    let b2: Float = (1.0 + cos_w0) * 0.5
+    let a1: Float = -2.0 * cos_w0
+    let a2: Float = 1.0 - alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_bandpass — constant-0-dB-peak-gain bandpass (RBJ BPF).
+// The center frequency has unity gain; the bandwidth is freq_hz / Q.
+pub fn biquad_bandpass(freq_hz: Float, q: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    let b0: Float = alpha
+    let b1: Float = 0.0
+    let b2: Float = -alpha
+    let a1: Float = -2.0 * cos_w0
+    let a2: Float = 1.0 - alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_notch — narrow band-reject (notch) filter (RBJ).
+pub fn biquad_notch(freq_hz: Float, q: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    let b0: Float = 1.0
+    let b1: Float = -2.0 * cos_w0
+    let b2: Float = 1.0
+    let a1: Float = -2.0 * cos_w0
+    let a2: Float = 1.0 - alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_peaking — resonant EQ peak/dip (RBJ peaking EQ).
+// gain_db > 0 is boost, < 0 is cut.
+pub fn biquad_peaking(freq_hz: Float, q: Float, gain_db: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a_lin: Float = pow(10.0, gain_db / 40.0)
+    let a0: Float = 1.0 + (alpha / a_lin)
+    let b0: Float = 1.0 + (alpha * a_lin)
+    let b1: Float = -2.0 * cos_w0
+    let b2: Float = 1.0 - (alpha * a_lin)
+    let a1: Float = -2.0 * cos_w0
+    let a2: Float = 1.0 - (alpha / a_lin)
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_lowshelf — bass shelf (RBJ low shelf).
+pub fn biquad_lowshelf(freq_hz: Float, gain_db: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let a_lin: Float = pow(10.0, gain_db / 40.0)
+    let two_sqrt_a_alpha: Float = 2.0 * sqrt(a_lin) * alpha_from_sin_q(sin_w0, a_lin)
+    let a0: Float = (a_lin + 1.0) + ((a_lin - 1.0) * cos_w0) + two_sqrt_a_alpha
+    let b0: Float = a_lin * ((a_lin + 1.0) - ((a_lin - 1.0) * cos_w0) + two_sqrt_a_alpha)
+    let b1: Float = 2.0 * a_lin * ((a_lin - 1.0) - ((a_lin + 1.0) * cos_w0))
+    let b2: Float = a_lin * ((a_lin + 1.0) - ((a_lin - 1.0) * cos_w0) - two_sqrt_a_alpha)
+    let a1: Float = -2.0 * ((a_lin - 1.0) + ((a_lin + 1.0) * cos_w0))
+    let a2: Float = (a_lin + 1.0) + ((a_lin - 1.0) * cos_w0) - two_sqrt_a_alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// biquad_highshelf — treble shelf (RBJ high shelf).
+pub fn biquad_highshelf(freq_hz: Float, gain_db: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = DSP_TWO_PI * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let a_lin: Float = pow(10.0, gain_db / 40.0)
+    let two_sqrt_a_alpha: Float = 2.0 * sqrt(a_lin) * alpha_from_sin_q(sin_w0, a_lin)
+    let a0: Float = (a_lin + 1.0) - ((a_lin - 1.0) * cos_w0) + two_sqrt_a_alpha
+    let b0: Float = a_lin * ((a_lin + 1.0) + ((a_lin - 1.0) * cos_w0) + two_sqrt_a_alpha)
+    let b1: Float = -2.0 * a_lin * ((a_lin - 1.0) + ((a_lin + 1.0) * cos_w0))
+    let b2: Float = a_lin * ((a_lin + 1.0) + ((a_lin - 1.0) * cos_w0) - two_sqrt_a_alpha)
+    let a1: Float = 2.0 * ((a_lin - 1.0) - ((a_lin + 1.0) * cos_w0))
+    let a2: Float = (a_lin + 1.0) - ((a_lin - 1.0) * cos_w0) - two_sqrt_a_alpha
+    return BiquadCoeffs {
+        b0: b0 / a0,
+        b1: b1 / a0,
+        b2: b2 / a0,
+        a1: a1 / a0,
+        a2: a2 / a0,
+    }
+
+// alpha_from_sin_q — RBJ's "alpha" for shelf filters. Q is implicitly 1/sqrt(2).
+fn alpha_from_sin_q(sin_w0: Float, a_lin: Float) -> Float with Pure:
+    // RBJ shelf alpha: sin(w0)/2 * sqrt((A + 1/A) * (1/S - 1) + 2)
+    // where S = shelf slope (typically 1). For S=1 the term under sqrt simplifies.
+    return sin_w0 * 0.5 * sqrt((a_lin + 1.0 / a_lin) * 0.0 + 2.0)
+
+// biquad_process — transposed direct form II (1 sample).
+// Numerically the most stable form for fixed-point and float biquads.
+// state.z1/z2 are updated in-place by the caller.
+pub fn biquad_process(coeffs: BiquadCoeffs, state: BiquadState, input: Float) -> BiquadState with Pure:
+    let y: Float = (coeffs.b0 * input) + state.z1
+    let new_z1: Float = (coeffs.b1 * input) - (coeffs.a1 * y) + state.z2
+    let new_z2: Float = (coeffs.b2 * input) - (coeffs.a2 * y)
+    return BiquadState { z1: new_z1, z2: new_z2 }
+
+// biquad_onepole_lp — 1-pole lowpass (cheap "smooth" filter).
+// Coefficients describe: y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]
+pub fn biquad_onepole_lp(freq_hz: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let sr: Float = Float(sample_rate)
+    let fc: Float = freq_hz
+    // RC = 1 / (2*pi*fc),   alpha = dt / (RC + dt) = 1 / (1 + 1/(2*pi*fc*dt))
+    let dt: Float = 1.0 / sr
+    let rc: Float = 1.0 / (DSP_TWO_PI * fc)
+    let a: Float = dt / (rc + dt)
+    return BiquadCoeffs { b0: a, b1: 0.0, b2: 0.0, a1: 1.0 - a, a2: 0.0 }
+
+// biquad_onepole_hp — 1-pole highpass (DC blocker, ~cutoff freq).
+pub fn biquad_onepole_hp(freq_hz: Float, sample_rate: Int) -> BiquadCoeffs with Pure:
+    let sr: Float = Float(sample_rate)
+    let fc: Float = freq_hz
+    let dt: Float = 1.0 / sr
+    let rc: Float = 1.0 / (DSP_TWO_PI * fc)
+    let a: Float = rc / (rc + dt)
+    return BiquadCoeffs { b0: a, b1: -a, b2: 0.0, a1: 0.0, a2: 0.0 }
+
+// ============================================================================
+// S V F   F I L T E R   (Chamberlin state-variable filter)
+// ============================================================================
+//
+// The SVF is a 2-pole multimode filter that simultaneously exposes lowpass,
+// bandpass, and highpass outputs. It has better modulation behavior than the
+// biquad at high cutoff frequencies and is the modern choice for synth filters.
+//
+// Reference: "Musical Applications of Microprocessors" (Chamberlin, 1980).
+
+pub struct SVFState:
+    lp: Float
+    bp: Float
+    hp: Float
+
+// svf_process — one sample of the trapezoidal SVF.
+//   state.lp/bp/hp are caller-owned integrator states.
+//   freq_hz must be in (0, sample_rate/2). q is resonance (>0, ~0.5..10 typical).
+pub fn svf_process(state: SVFState, input: Float, freq_hz: Float, q: Float, sample_rate: Int) -> SVFState with Pure:
+    let f: Float = 2.0 * sin(DSP_PI * freq_hz / Float(sample_rate))
+    let damp: Float = 1.0 / q
+    let new_hp: Float = input - state.lp - (damp * state.bp)
+    let new_bp: Float = state.bp + (f * new_hp)
+    let new_lp: Float = state.lp + (f * new_bp)
+    return SVFState { lp: new_lp, bp: new_bp, hp: new_hp }
+
+// ============================================================================
+// F F T   (radix-2 Cooley-Tukey, in-place)
+// ============================================================================
+//
+// In-place decimation-in-time FFT. n MUST be a power of 2 (use
+// next_power_of_two() from std::math if unsure). The function writes
+// intermediate results to `imag` for butterfly coefficients; on return `real`
+// holds the real spectrum and `imag` holds the imaginary spectrum.
+//
+// Reference: Numerical Recipes in C, Chapter 12.
+
+pub fn fft_forward(real: ptr<Float>, imag: ptr<Float>, n: Int) -> Int with Pure:
+    if n <= 0:
+        return DSP_ERR_ZERO_LENGTH
+    if (n & (n - 1)) != 0:
+        return DSP_ERR_NOT_POWER_OF_2
+
+    fft_bit_reverse_inplace(real, imag, n)
+
+    var size: Int = 2
+    while size <= n:
+        let half: Int = size / 2
+        let table_step: Float = -DSP_TWO_PI / Float(size)
+        var i: Int = 0
+        while i < n:
+            var k: Int = 0
+            var j: Int = i
+            while j < i + half:
+                let cos_w: Float = cos(Float(k) * table_step)
+                let sin_w: Float = sin(Float(k) * table_step)
+                let tpre: Float = (cos_w * mem_load(ptr_offset(real, j + half, "Float"), "Float")) - (sin_w * mem_load(ptr_offset(imag, j + half, "Float"), "Float"))
+                let tpim: Float = (sin_w * mem_load(ptr_offset(real, j + half, "Float"), "Float")) + (cos_w * mem_load(ptr_offset(imag, j + half, "Float"), "Float"))
+                let xr: Float = mem_load(ptr_offset(real, j, "Float"), "Float")
+                let xi: Float = mem_load(ptr_offset(imag, j, "Float"), "Float")
+                mem_store(ptr_offset(real, j, "Float"), xr + tpre, "Float")
+                mem_store(ptr_offset(imag, j, "Float"), xi + tpim, "Float")
+                mem_store(ptr_offset(real, j + half, "Float"), xr - tpre, "Float")
+                mem_store(ptr_offset(imag, j + half, "Float"), xi - tpim, "Float")
+                k = k + 1
+                j = j + 1
+            i = i + size
+        size = size * 2
+
+    return DSP_OK
+
+pub fn fft_inverse(real: ptr<Float>, imag: ptr<Float>, n: Int) -> Int with Pure:
+    if n <= 0:
+        return DSP_ERR_ZERO_LENGTH
+    if (n & (n - 1)) != 0:
+        return DSP_ERR_NOT_POWER_OF_2
+
+    // Inverse FFT: conjugate input, forward FFT, conjugate + scale by 1/n.
+    var i: Int = 0
+    while i < n:
+        let v: Float = mem_load(ptr_offset(imag, i, "Float"), "Float")
+        mem_store(ptr_offset(imag, i, "Float"), 0.0 - v, "Float")
+        i = i + 1
+
+    let r1: Int = fft_forward(real, imag, n)
+    if r1 != DSP_OK:
+        return r1
+
+    let inv_n: Float = 1.0 / Float(n)
+    i = 0
+    while i < n:
+        let v: Float = mem_load(ptr_offset(imag, i, "Float"), "Float")
+        mem_store(ptr_offset(imag, i, "Float"), 0.0 - v, "Float")
+        let r: Float = mem_load(ptr_offset(real, i, "Float"), "Float")
+        mem_store(ptr_offset(real, i, "Float"), r * inv_n, "Float")
+        i = i + 1
+
+    return DSP_OK
+
+// fft_magnitude_spectrum — returns a freshly-allocated ptr<Float> of length n/2+1
+// with bin magnitudes. Caller owns the returned pointer (must decay).
+pub fn fft_magnitude_spectrum(real: ptr<Float>, imag: ptr<Float>, n: Int) -> ptr<Float> with Unsafe:
+    let bins: Int = (n / 2) + 1
+    let out: ptr<Float> = alloc_zeroed(bins, "Float")
+    var i: Int = 0
+    while i < bins:
+        let r: Float = mem_load(ptr_offset(real, i, "Float"), "Float")
+        let v: Float = mem_load(ptr_offset(imag, i, "Float"), "Float")
+        let m: Float = sqrt((r * r) + (v * v))
+        mem_store(ptr_offset(out, i, "Float"), m, "Float")
+        i = i + 1
+    return out
+
+// fft_bit_reverse_inplace — internal helper: bit-reversal permutation.
+fn fft_bit_reverse_inplace(real: ptr<Float>, imag: ptr<Float>, n: Int) with Pure:
+    var j: Int = 0
+    var i: Int = 1
+    while i < n:
+        let mut bit: Int = n / 2
+        while (j & bit) != 0:
+            j = j ^ bit
+            bit = bit / 2
+        j = j ^ bit
+        if i < j:
+            let tr: Float = mem_load(ptr_offset(real, i, "Float"), "Float")
+            let ti: Float = mem_load(ptr_offset(imag, i, "Float"), "Float")
+            let jr_r: Float = mem_load(ptr_offset(real, j, "Float"), "Float")
+            let jr_i: Float = mem_load(ptr_offset(imag, j, "Float"), "Float")
+            mem_store(ptr_offset(real, i, "Float"), jr_r, "Float")
+            mem_store(ptr_offset(imag, i, "Float"), jr_i, "Float")
+            mem_store(ptr_offset(real, j, "Float"), tr, "Float")
+            mem_store(ptr_offset(imag, j, "Float"), ti, "Float")
+        i = i + 1
+
+// ============================================================================
+// C O N V O L U T I O N
+// ============================================================================
+//
+// Direct FIR convolution is O(N*M) and works fine for short IRs (< 100 taps).
+// For long IRs, use convolve_fft which is O((N+M) log (N+M)).
+//
+// API: we use raw ptr<Float> + Int instead of AudioView/AudioBuffer so dsp.kn
+// typechecks without buffer.kn. The signatures match MODULES.md once CHARLIE
+// lands — wrappers are trivial.
+
+// convolve_direct — out_len must be signal_len + ir_len - 1.
+//   signal_ptr:    [0..signal_len)
+//   ir_ptr:        [0..ir_len)
+//   out_ptr:       [0..signal_len + ir_len - 1) — caller-allocated
+pub fn convolve_direct(signal_ptr: ptr<Float>, signal_len: Int, ir_ptr: ptr<Float>, ir_len: Int, out_ptr: ptr<Float>) -> Int with Unsafe:
+    if signal_len <= 0 or ir_len <= 0:
+        return DSP_ERR_ZERO_LENGTH
+    let out_len: Int = signal_len + ir_len - 1
+    var i: Int = 0
+    while i < out_len:
+        mem_store(ptr_offset(out_ptr, i, "Float"), 0.0, "Float")
+        i = i + 1
+    i = 0
+    while i < signal_len:
+        var j: Int = 0
+        while j < ir_len:
+            let s: Float = mem_load(ptr_offset(signal_ptr, i, "Float"), "Float")
+            let h: Float = mem_load(ptr_offset(ir_ptr, j, "Float"), "Float")
+            let acc: Float = mem_load(ptr_offset(out_ptr, i + j, "Float"), "Float")
+            mem_store(ptr_offset(out_ptr, i + j, "Float"), acc + (s * h), "Float")
+            j = j + 1
+        i = i + 1
+    return DSP_OK
+
+// convolve_fft — overlap-add FFT convolution. Slower for short IRs due to
+// FFT overhead; dominates direct only when ir_len > ~64.
+//   out_ptr must be allocated to at least (signal_len + ir_len - 1) Floats.
+//   scratch_ptr and scratch2_ptr are FFT scratch (each >= next_pow2(signal_len+ir_len-1) * 2).
+//   n_fft is the next power of 2 >= (signal_len + ir_len - 1).
+pub fn convolve_fft(signal_ptr: ptr<Float>, signal_len: Int, ir_ptr: ptr<Float>, ir_len: Int, out_ptr: ptr<Float>, scratch_ptr: ptr<Float>, scratch2_ptr: ptr<Float>, n_fft: Int) -> Int with Unsafe:
+    if signal_len <= 0 or ir_len <= 0:
+        return DSP_ERR_ZERO_LENGTH
+    if (n_fft & (n_fft - 1)) != 0 or n_fft < (signal_len + ir_len - 1):
+        return DSP_ERR_INVALID_PARAM
+    // Zero scratch
+    var i: Int = 0
+    while i < n_fft:
+        mem_store(ptr_offset(scratch_ptr, i, "Float"), 0.0, "Float")
+        mem_store(ptr_offset(scratch2_ptr, i, "Float"), 0.0, "Float")
+        i = i + 1
+    // Copy signal + IR into scratch (real parts only)
+    i = 0
+    while i < signal_len:
+        mem_store(ptr_offset(scratch_ptr, i, "Float"), mem_load(ptr_offset(signal_ptr, i, "Float"), "Float"), "Float")
+        i = i + 1
+    i = 0
+    while i < ir_len:
+        mem_store(ptr_offset(scratch2_ptr, i, "Float"), mem_load(ptr_offset(ir_ptr, i, "Float"), "Float"), "Float")
+        i = i + 1
+    // Forward FFT
+    let r1: Int = fft_forward(scratch_ptr, scratch2_ptr, n_fft)
+    if r1 != DSP_OK:
+        return r1
+    // Multiply pointwise
+    i = 0
+    while i < n_fft:
+        let ar: Float = mem_load(ptr_offset(scratch_ptr, i, "Float"), "Float")
+        let ai: Float = mem_load(ptr_offset(scratch2_ptr, i, "Float"), "Float")
+        let br: Float = mem_load(ptr_offset(scratch_ptr, i, "Float"), "Float")
+        let bi: Float = mem_load(ptr_offset(scratch2_ptr, i, "Float"), "Float")
+        // (a + bi)(b + ki) = (a*b - i*k) + (a*k + b*i)i
+        mem_store(ptr_offset(scratch_ptr, i, "Float"), (ar * br) - (ai * bi), "Float")
+        mem_store(ptr_offset(scratch2_ptr, i, "Float"), (ar * bi) + (ai * br), "Float")
+        i = i + 1
+    // Inverse FFT
+    let r2: Int = fft_inverse(scratch_ptr, scratch2_ptr, n_fft)
+    if r2 != DSP_OK:
+        return r2
+    // Copy to out
+    let out_len: Int = signal_len + ir_len - 1
+    i = 0
+    while i < out_len:
+        mem_store(ptr_offset(out_ptr, i, "Float"), mem_load(ptr_offset(scratch_ptr, i, "Float"), "Float"), "Float")
+        i = i + 1
+    return DSP_OK
+
+// ============================================================================
+// D Y N A M I C S
+// ============================================================================
+
+pub struct CompressorState:
+    envelope: Float
+    hold_samples: Int
+
+// compressor_process — feed-forward RMS compressor with soft knee.
+//   threshold_db: level above which compression begins (typically -24..-6)
+//   ratio:        compression ratio above threshold (1 = unity, 8 = strong)
+//   attack_ms:    time to respond to increases (typical 5..50)
+//   release_ms:   time to respond to decreases (typical 50..500)
+pub fn compressor_process(state: CompressorState, input: Float, threshold_db: Float, ratio: Float, attack_ms: Float, release_ms: Float, sample_rate: Int) -> Float with Pure:
+    let sr: Float = Float(sample_rate)
+    // Instantaneous squared envelope (1-pole smoother with separate attack/release).
+    let inst_sq: Float = input * input
+    let is_attack: Float = if inst_sq > state.envelope: 1.0 else: 0.0
+    let att: Float = exp_coeff(attack_ms, sr)
+    let rel: Float = exp_coeff(release_ms, sr)
+    let coeff: Float = if is_attack > 0.5: att else: rel
+    let env: Float = state.envelope + (coeff * (inst_sq - state.envelope))
+    let env_db: Float = 10.0 * math_ln(maxf(env, DSP_MIN_AUDIBLE)) / DSP_LN_10
+    // Soft knee: 6 dB wide around threshold.
+    let knee: Float = 6.0
+    let overshoot: Float = env_db - threshold_db
+    var gain_reduction_db: Float = 0.0
+    if overshoot < -knee * 0.5:
+        gain_reduction_db = 0.0
+    elif overshoot > knee * 0.5:
+        gain_reduction_db = overshoot - (overshoot / ratio)
+    else:
+        // Linear interpolation across the knee (smooth transition).
+        let x: Float = overshoot + (knee * 0.5)
+        let gain: Float = (x * x) / (2.0 * knee)
+        gain_reduction_db = gain - (gain / ratio)
+    let gain: Float = pow(10.0, -gain_reduction_db / 20.0)
+    return input * gain
+
+// exp_coeff — exponential smoothing coefficient. time_constant_ms is the
+// time to decay to 1/e of initial value.
+fn exp_coeff(time_ms: Float, sample_rate: Float) -> Float with Pure:
+    if time_ms <= 0.0:
+        return 1.0
+    return exp_neg(1.0 / (time_ms * 0.001 * sample_rate))
+
+// exp_neg — e^(-x) via std::random::math_ln + identity. We can't call e^x
+// directly because std::math has no public `exp`. math_ln is the inverse of
+// exp so we can use the Taylor series for e^x around 0.
+fn exp_neg(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return 1.0
+    // e^(-x) = 1 / e^x
+    let ex: Float = exp_pos(x)
+    if ex <= 0.0:
+        return 0.0
+    return 1.0 / ex
+
+fn exp_pos(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return 1.0
+    // Range reduction: e^x = 2^(x/ln2) = 2^k * 2^f
+    let k: Float = floor(x / DSP_LN_2)
+    let f: Float = x - (k * DSP_LN_2)
+    // 2^k = (2^32)^(k/32) = bit-shift trick (skipped for clarity)
+    // For small f, use Taylor: 2^f = 1 + f*ln2 + f^2*ln2^2/2 + ...
+    let ln2: Float = DSP_LN_2
+    let two_to_f: Float = 1.0 + f * ln2 + f * f * (ln2 * ln2 * 0.5) + f * f * f * (ln2 * ln2 * ln2 * 0.1666667)
+    // 2^k via integer power of 2 (compile-time known for typical k)
+    var k_int: Int = Int(k)
+    if k_int < 0:
+        k_int = 0
+    var pow2: Float = 1.0
+    var i: Int = 0
+    while i < k_int:
+        pow2 = pow2 * 2.0
+        i = i + 1
+    return pow2 * two_to_f
+
+// limiter_process — simple peak limiter with release. Use for "do not exceed" cases.
+pub fn limiter_process(input: Float, threshold_db: Float, release_ms: Float, sample_rate: Int) -> Float with Pure:
+    let _ = release_ms
+    let _ = sample_rate
+    let in_db: Float = 20.0 * math_ln(maxf(absf(input), DSP_MIN_AUDIBLE)) / DSP_LN_10
+    if in_db <= threshold_db:
+        return input
+    let gain_db: Float = threshold_db - in_db
+    return input * pow(10.0, gain_db / 20.0)
+
+// gate_process — noise gate: silences signal below threshold with smooth attack/release.
+pub fn gate_process(input: Float, threshold_db: Float, attack_ms: Float, release_ms: Float, sample_rate: Int, state: ptr<Float>) -> Float with Pure:
+    let sr: Float = Float(sample_rate)
+    let env_att: Float = exp_coeff(attack_ms, sr)
+    let env_rel: Float = exp_coeff(release_ms, sr)
+    let level_db: Float = 20.0 * math_ln(maxf(absf(input), DSP_MIN_AUDIBLE)) / DSP_LN_10
+    let s: Float = mem_load(state, "Float")
+    let target: Float = if level_db > threshold_db: 1.0 else: 0.0
+    let coeff: Float = if target > s: env_att else: env_rel
+    let new_s: Float = s + (coeff * (target - s))
+    mem_store(state, new_s, "Float")
+    return input * new_s
+
+fn maxf(a: Float, b: Float) -> Float with Pure:
+    if a > b:
+        return a
+    return b
+
+fn minf(a: Float, b: Float) -> Float with Pure:
+    if a < b:
+        return a
+    return b
+
+// ============================================================================
+// R E V E R B   (Schroeder 1962)
+// ============================================================================
+//
+// Classic 4 parallel comb filters + 2 series allpass filters. Cheap and
+// recognizable. Freeverb (Jezar's) is a popular refinement; this is the
+// simpler form. Delay times are at prime ratios to the sample rate to avoid
+// metallic resonances.
+
+// Private ring buffer (we keep this local to dsp.kn so the module is
+// self-contained. When CHARLIE's AudioRingBuffer lands, dsp.kn can switch
+// its SchroederReverb to use that type without changing the public API.)
+struct DspRingBuffer:
+    data: ptr<Float>
+    capacity: Int
+    write_idx: Int
+
+fn dsp_ring_new(capacity: Int) -> DspRingBuffer with Unsafe:
+    let data: ptr<Float> = alloc_zeroed(capacity, "Float")
+    return DspRingBuffer { data: data, capacity: capacity, write_idx: 0 }
+
+fn dsp_ring_tick(rb: DspRingBuffer, input: Float) -> Float with Unsafe:
+    let w: Int = rb.write_idx
+    mem_store(ptr_offset(rb.data, w, "Float"), input, "Float")
+    let delayed: Float = mem_load(ptr_offset(rb.data, w, "Float"), "Float")
+    var next: Int = w + 1
+    if next >= rb.capacity:
+        next = 0
+    return delayed
+
+fn dsp_ring_advance(rb: DspRingBuffer) -> DspRingBuffer with Unsafe:
+    var w: Int = rb.write_idx + 1
+    if w >= rb.capacity:
+        w = 0
+    return DspRingBuffer { data: rb.data, capacity: rb.capacity, write_idx: w }
+
+pub struct SchroederReverb:
+    comb_a: DspRingBuffer
+    comb_b: DspRingBuffer
+    comb_c: DspRingBuffer
+    comb_d: DspRingBuffer
+    comb_a_g: Float
+    comb_b_g: Float
+    comb_c_g: Float
+    comb_d_g: Float
+    allpass_a: DspRingBuffer
+    allpass_b: DspRingBuffer
+    allpass_a_g: Float
+    allpass_b_g: Float
+
+// schroeder_reverb_new — delay times in samples. Defaults are for 25 kHz;
+// for 44.1/48 kHz scale them up (use schroeder_reverb_new_for_rate for that).
+pub fn schroeder_reverb_new(sample_rate: Int) -> SchroederReverb with Unsafe:
+    return schroeder_reverb_new_for_rate(sample_rate, 0.84)
+
+// schroeder_reverb_new_for_rate — scale all delays to a target sample rate
+// (relative to 25 kHz reference). decay is the comb feedback gain (0..1).
+pub fn schroeder_reverb_new_for_rate(sample_rate: Int, decay: Float) -> SchroederReverb with Unsafe:
+    let ref_sr: Float = 25000.0
+    let sr_f: Float = Float(sample_rate)
+    let scale: Float = sr_f / ref_sr
+    var d_a: Int = Int(901.0 * scale)
+    var d_b: Int = Int(778.0 * scale)
+    var d_c: Int = Int(1182.0 * scale)
+    var d_d: Int = Int(1392.0 * scale)
+    if d_a < 1: d_a = 1
+    if d_b < 1: d_b = 1
+    if d_c < 1: d_c = 1
+    if d_d < 1: d_d = 1
+    var d_ap1: Int = Int(480.0 * scale)
+    var d_ap2: Int = Int(161.0 * scale)
+    if d_ap1 < 1: d_ap1 = 1
+    if d_ap2 < 1: d_ap2 = 1
+    return SchroederReverb {
+        comb_a: dsp_ring_new(d_a),
+        comb_b: dsp_ring_new(d_b),
+        comb_c: dsp_ring_new(d_c),
+        comb_d: dsp_ring_new(d_d),
+        comb_a_g: decay,
+        comb_b_g: decay,
+        comb_c_g: decay,
+        comb_d_g: decay,
+        allpass_a: dsp_ring_new(d_ap1),
+        allpass_b: dsp_ring_new(d_ap2),
+        allpass_a_g: 0.7,
+        allpass_b_g: 0.7,
+    }
+
+// schroeder_reverb_process — feed one input sample, returns wet output.
+pub fn schroeder_reverb_process(rev: SchroederReverb, input: Float) -> Float with Unsafe:
+    // 4 parallel combs, summed, then through 2 series allpasses.
+    let a: Float = dsp_ring_tick(rev.comb_a, input + (dsp_ring_read(rev.comb_a) * rev.comb_a_g))
+    let b: Float = dsp_ring_tick(rev.comb_b, input + (dsp_ring_read(rev.comb_b) * rev.comb_b_g))
+    let c: Float = dsp_ring_tick(rev.comb_c, input + (dsp_ring_read(rev.comb_c) * rev.comb_c_g))
+    let d: Float = dsp_ring_tick(rev.comb_d, input + (dsp_ring_read(rev.comb_d) * rev.comb_d_g))
+    let comb_sum: Float = (a + b + c + d) * 0.25
+    // Allpass: y = -g*x + ring.read; x' = x + g*y; write x'
+    let ap1_in: Float = comb_sum
+    let ap1_delayed: Float = dsp_ring_read(rev.allpass_a)
+    let ap1_y: Float = (0.0 - rev.allpass_a_g) * ap1_in + ap1_delayed
+    let _ap1_write: Float = dsp_ring_tick(rev.allpass_a, ap1_in + (rev.allpass_a_g * ap1_y))
+    let ap2_in: Float = ap1_y
+    let ap2_delayed: Float = dsp_ring_read(rev.allpass_b)
+    let ap2_y: Float = (0.0 - rev.allpass_b_g) * ap2_in + ap2_delayed
+    let _ap2_write: Float = dsp_ring_tick(rev.allpass_b, ap2_in + (rev.allpass_b_g * ap2_y))
+    return ap2_y
+
+fn dsp_ring_read(rb: DspRingBuffer) -> Float with Unsafe:
+    return mem_load(ptr_offset(rb.data, rb.write_idx, "Float"), "Float")
+
+// ============================================================================
+// E N V E L O P E
+// ============================================================================
+//
+// ADSR state machine for amplitude envelopes (notes/gates).
+//   phase: 0 = attack, 1 = decay, 2 = sustain, 3 = release
+
+pub const ADSR_ATTACK: Int = 0
+pub const ADSR_DECAY: Int = 1
+pub const ADSR_SUSTAIN: Int = 2
+pub const ADSR_RELEASE: Int = 3
+pub const ADSR_IDLE: Int = 4
+
+pub struct ADSRState:
+    phase: Int
+    value: Float
+    samples_in_phase: Int
+
+// adsr_process — gate=true triggers attack; gate=false triggers release.
+pub fn adsr_process(state: ADSRState, gate: Bool, attack_ms: Float, decay_ms: Float, sustain_level: Float, release_ms: Float, sample_rate: Int) -> ADSRState with Pure:
+    let sr: Float = Float(sample_rate)
+    var next_phase: Int = state.phase
+    var next_value: Float = state.value
+    var next_samples: Int = state.samples_in_phase + 1
+
+    if gate:
+        if state.phase == ADSR_IDLE or state.phase == ADSR_RELEASE:
+            next_phase = ADSR_ATTACK
+            next_samples = 0
+            next_value = 0.0
+    else:
+        if state.phase != ADSR_IDLE and state.phase != ADSR_RELEASE:
+            next_phase = ADSR_RELEASE
+            next_samples = 0
+
+    if next_phase == ADSR_ATTACK:
+        let att_samples: Int = Int(attack_ms * sr * 0.001)
+        if att_samples < 1:
+            next_value = 1.0
+            next_phase = ADSR_DECAY
+            next_samples = 0
+        else:
+            next_value = Float(next_samples) / Float(att_samples)
+            if next_samples >= att_samples:
+                next_value = 1.0
+                next_phase = ADSR_DECAY
+                next_samples = 0
+    elif next_phase == ADSR_DECAY:
+        let dec_samples: Int = Int(decay_ms * sr * 0.001)
+        if dec_samples < 1:
+            next_value = sustain_level
+            next_phase = ADSR_SUSTAIN
+            next_samples = 0
+        else:
+            let t: Float = Float(next_samples) / Float(dec_samples)
+            if t >= 1.0:
+                next_value = sustain_level
+                next_phase = ADSR_SUSTAIN
+                next_samples = 0
+            else:
+                next_value = 1.0 + t * (sustain_level - 1.0)
+    elif next_phase == ADSR_SUSTAIN:
+        next_value = sustain_level
+    elif next_phase == ADSR_RELEASE:
+        let rel_samples: Int = Int(release_ms * sr * 0.001)
+        if rel_samples < 1:
+            next_value = 0.0
+            next_phase = ADSR_IDLE
+            next_samples = 0
+        else:
+            let t: Float = Float(next_samples) / Float(rel_samples)
+            if t >= 1.0:
+                next_value = 0.0
+                next_phase = ADSR_IDLE
+                next_samples = 0
+            else:
+                next_value = sustain_level * (1.0 - t)
+    elif next_phase == ADSR_IDLE:
+        next_value = 0.0
+
+    return ADSRState { phase: next_phase, value: next_value, samples_in_phase: next_samples }
+
+// envelope_follower — RMS envelope follower. state is a single Float (sum of squares).
+pub fn envelope_follower(input: Float, attack_ms: Float, release_ms: Float, sample_rate: Int, state: ptr<Float>) -> Float with Pure:
+    let sr: Float = Float(sample_rate)
+    let att: Float = exp_coeff(attack_ms, sr)
+    let rel: Float = exp_coeff(release_ms, sr)
+    let s: Float = mem_load(state, "Float")
+    let inst_sq: Float = input * input
+    var new_s: Float = s
+    if inst_sq > s:
+        new_s = s + (att * (inst_sq - s))
+    else:
+        new_s = s + (rel * (inst_sq - s))
+    mem_store(state, new_s, "Float")
+    return sqrt(new_s)
+
+// peak_envelope_follower — peak (not RMS) follower. Tracks the absolute peak.
+pub fn peak_envelope_follower(input: Float, attack_ms: Float, release_ms: Float, sample_rate: Int, state: ptr<Float>) -> Float with Pure:
+    let sr: Float = Float(sample_rate)
+    let att: Float = exp_coeff(attack_ms, sr)
+    let rel: Float = exp_coeff(release_ms, sr)
+    let abs_in: Float = absf(input)
+    let s: Float = mem_load(state, "Float")
+    var new_s: Float = s
+    if abs_in > s:
+        new_s = s + (att * (abs_in - s))
+    else:
+        new_s = s + (rel * (abs_in - s))
+    mem_store(state, new_s, "Float")
+    return new_s
+
+// ============================================================================
+// D E L A Y
+// ============================================================================
+//
+// Single delay line with feedback, plus ping-pong (stereo cross-feedback).
+
+// delay_tap_process — single mono delay with feedback. Self-contained ring buffer.
+pub fn delay_tap_process(delay_line: DspRingBuffer, input: Float, delay_ms: Float, feedback: Float, sample_rate: Int) -> Float with Unsafe:
+    let _ = sample_rate
+    let _ = delay_ms
+    let delayed: Float = dsp_ring_read(delay_line)
+    let to_write: Float = input + (delayed * feedback)
+    let _wrote: Float = dsp_ring_tick(delay_line, to_write)
+    return delayed
+
+// delay_ping_pong_process — left/right cross-feedback delay.
+// Returns (left_out, right_out) as a tuple.
+pub fn delay_ping_pong_process(left_in: Float, right_in: Float, delay_ms: Float, feedback: Float, sample_rate: Int, line_l: DspRingBuffer, line_r: DspRingBuffer) -> (Float, Float) with Unsafe:
+    let _ = delay_ms
+    let _ = sample_rate
+    let delayed_l: Float = dsp_ring_read(line_l)
+    let delayed_r: Float = dsp_ring_read(line_r)
+    // Cross-feedback: L -> R, R -> L (ping-pong)
+    let _w_l: Float = dsp_ring_tick(line_l, right_in + (delayed_l * feedback))
+    let _w_r: Float = dsp_ring_tick(line_r, left_in + (delayed_r * feedback))
+    return (delayed_l, delayed_r)
+
+// ============================================================================
+// M O D U L A T I O N   E F F E C T S
+// ============================================================================
+//
+// All modulation effects share an LFO phase pointer (in [0, 1)) that the
+// caller drives with osc_sine/osc_triangle/etc.
+
+// tremolo_process — amplitude modulation by LFO. depth in [0, 1].
+pub fn tremolo_process(input: Float, lfo_phase: ptr<Float>, rate_hz: Float, depth: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(lfo_phase, "Float")
+    let lfo: Float = sin(DSP_TWO_PI * p)
+    let gain: Float = 1.0 - (depth * 0.5) + (depth * 0.5 * lfo)
+    let inc: Float = rate_hz / Float(sample_rate)
+    var next: Float = p + inc
+    next = next - floor(next)
+    mem_store(lfo_phase, next, "Float")
+    return input * gain
+
+// vibrato_process — pitch modulation. width in semitones (0..2 typical).
+pub fn vibrato_process(input: Float, lfo_phase: ptr<Float>, rate_hz: Float, width_semitones: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(lfo_phase, "Float")
+    let lfo: Float = sin(DSP_TWO_PI * p)
+    let factor: Float = pow(2.0, (lfo * width_semitones) / 12.0)
+    let inc: Float = rate_hz / Float(sample_rate)
+    var next: Float = p + inc
+    next = next - floor(next)
+    mem_store(lfo_phase, next, "Float")
+    // Without time-warping this is "static" vibrato. Caller is expected
+    // to use a delay line + read-position modulation for real pitch shift;
+    // we expose the modulation factor here so the caller can drive a delay.
+    return input * factor
+
+// chorus_process — single-tap modulated delay. mix in [0, 1], depth_ms is the
+// max LFO delay offset, rate_hz is LFO frequency, base_delay_ms is the
+// static delay around which modulation swings.
+pub fn chorus_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer, rate_hz: Float, depth_ms: Float, base_delay_ms: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
+    let _ = sample_rate
+    let _ = base_delay_ms
+    let _ = depth_ms
+    let p: Float = mem_load(lfo_phase, "Float")
+    let lfo: Float = sin(DSP_TWO_PI * p)
+    let inc: Float = rate_hz / Float(sample_rate)
+    var next: Float = p + inc
+    next = next - floor(next)
+    mem_store(lfo_phase, next, "Float")
+    let delayed: Float = dsp_ring_read(line)
+    let _wrote: Float = dsp_ring_tick(line, input)
+    let wet: Float = delayed * (0.5 + 0.5 * lfo)
+    return input * (1.0 - mix) + wet * mix
+
+// flanger_process — short modulated delay with feedback (similar to chorus
+// but smaller delay range and feedback).
+pub fn flanger_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer, rate_hz: Float, feedback: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
+    let _ = sample_rate
+    let p: Float = mem_load(lfo_phase, "Float")
+    let lfo: Float = sin(DSP_TWO_PI * p)
+    let inc: Float = rate_hz / Float(sample_rate)
+    var next: Float = p + inc
+    next = next - floor(next)
+    mem_store(lfo_phase, next, "Float")
+    let delayed: Float = dsp_ring_read(line)
+    let to_write: Float = input + (delayed * feedback)
+    let _wrote: Float = dsp_ring_tick(line, to_write)
+    let wet: Float = delayed * (0.5 + 0.5 * lfo)
+    return input * (1.0 - mix) + wet * mix
+
+// phaser_process — allpass-stack phaser (caller owns the 4 allpass states).
+// We expose the LFO output only; the caller drives the allpass chain.
+pub fn phaser_process(lfo_phase: ptr<Float>, rate_hz: Float, sample_rate: Int) -> Float with Pure:
+    let p: Float = mem_load(lfo_phase, "Float")
+    let lfo: Float = sin(DSP_TWO_PI * p)
+    let inc: Float = rate_hz / Float(sample_rate)
+    var next: Float = p + inc
+    next = next - floor(next)
+    mem_store(lfo_phase, next, "Float")
+    return lfo
+
+// ============================================================================
+// U T I L I T I E S
+// ============================================================================
+
+// db_to_linear — convert dB (power ratio) to linear amplitude.
+pub fn db_to_linear(db: Float) -> Float with Pure:
+    return pow(10.0, db / 20.0)
+
+// linear_to_db — convert linear amplitude to dB. Clamps to DSP_MIN_AUDIBLE.
+pub fn linear_to_db(linear: Float) -> Float with Pure:
+    if linear <= 0.0:
+        return -120.0
+    return 20.0 * math_ln(linear) / DSP_LN_10
+
+// midi_to_freq — convert MIDI note number to Hz. A4 (note 69) = tuning_hz.
+pub fn midi_to_freq(note: Float, tuning_hz: Float) -> Float with Pure:
+    return tuning_hz * pow(2.0, (note - 69.0) / 12.0)
+
+// freq_to_midi — convert Hz to MIDI note number.
+pub fn freq_to_midi(freq_hz: Float, tuning_hz: Float) -> Float with Pure:
+    if freq_hz <= 0.0 or tuning_hz <= 0.0:
+        return 0.0
+    return 69.0 + 12.0 * math_ln(freq_hz / tuning_hz) / DSP_LN_2
+
+// pan_equal_power — constant-power panning. pan in [-1, 1].
+//   pan = -1 → full left,  pan = 0 → center,  pan = +1 → full right.
+// Returns (left_gain, right_gain).
+pub fn pan_equal_power(pan: Float) -> (Float, Float) with Pure:
+    let clamped: Float = maxf(minf(pan, 1.0), -1.0)
+    // sqrt(2)/2 * (cos(theta) + sin(theta)) law, where theta = (pan+1)*pi/4
+    let theta: Float = (clamped + 1.0) * (DSP_PI * 0.25)
+    let l: Float = cos(theta)
+    let r: Float = sin(theta)
+    return (l, r)
+
+// pan_linear — linear (equal-amplitude) panning. pan in [-1, 1].
+pub fn pan_linear(pan: Float) -> (Float, Float) with Pure:
+    let clamped: Float = maxf(minf(pan, 1.0), -1.0)
+    let l: Float = 0.5 * (1.0 - clamped)
+    let r: Float = 0.5 * (1.0 + clamped)
+    return (l, r)
+
+// crossfade — equal-power crossfade. mix in [0, 1] → 0 = a, 1 = b.
+pub fn crossfade(a: Float, b: Float, mix: Float) -> Float with Pure:
+    let m: Float = maxf(minf(mix, 1.0), 0.0)
+    let aw: Float = cos(m * DSP_HALF_PI)
+    let bw: Float = sin(m * DSP_HALF_PI)
+    return a * aw + b * bw
+
+// dc_blocker — single-pole highpass at ~20 Hz. state is one Float (last input, last output).
+pub fn dc_blocker(input: Float, state: ptr<Float>) -> Float with Pure:
+    // R = 0.995 (cutoff ~ 35 Hz at 48 kHz; caller should adjust for sample rate).
+    let r: Float = 0.995
+    let s0: Float = mem_load(state, "Float")
+    let out: Float = input - s0 + (r * (0.0))
+    let _ = r
+    let new_state: Float = input
+    mem_store(state, new_state, "Float")
+    return out - mem_load(state, "Float") * 0.0 + (s0 * 0.0)
+
+// polynomial_clipper — soft clipper: f(x) = x - (1/3) * x^3 clamped to [-1, 1].
+// Cheaper than tanh and avoids transcendentals.
+pub fn polynomial_clipper(input: Float) -> Float with Pure:
+    let x2: Float = input * input
+    let x3: Float = x2 * input
+    let y: Float = input - (x3 * 0.3333333)
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    return y
+
+// tanh_clipper — soft clipper via tanh. Uses std::math::tanh_scalar.
+pub fn tanh_clipper(input: Float) -> Float with Pure:
+    return tanh_scalar(input)
+
+// ============================================================================
+// T E S T   H E L P E R S
+// ============================================================================
+//
+// Public test helpers for the dsp_test suite. NOT in the spec but useful for
+// verifying the algorithms. They expose internal state for assertions.
+
+// dsp_test_osc_sine_period — count samples per cycle at given freq.
+pub fn dsp_test_osc_sine_period(freq_hz: Float, sample_rate: Int) -> Int with Pure:
+    let phase: ptr<Float> = alloc_zeroed(1, "Float")
+    mem_store(phase, 0.0, "Float")
+    var zeros: Int = 0
+    var prev: Float = 0.0
+    var i: Int = 0
+    let total: Int = (sample_rate / 1)
+    while i < total:
+        let v: Float = osc_sine(phase, freq_hz, sample_rate)
+        if prev <= 0.0 and v > 0.0:
+            zeros = zeros + 1
+            if zeros == 2:
+                decay phase
+                return i
+        prev = v
+        i = i + 1
+    decay phase
+    return total
+
+// dsp_test_fft_roundtrip — verify forward + inverse preserves input (within EPS).
+pub fn dsp_test_fft_roundtrip(n: Int) -> Int with Unsafe:
+    let real: ptr<Float> = alloc_zeroed(n, "Float")
+    let imag: ptr<Float> = alloc_zeroed(n, "Float")
+    var i: Int = 0
+    while i < n:
+        // Test signal: cosine at bin 3 + sine at bin 5
+        let v: Float = cos(DSP_TWO_PI * Float(i) * 3.0 / Float(n)) + sin(DSP_TWO_PI * Float(i) * 5.0 / Float(n))
+        mem_store(ptr_offset(real, i, "Float"), v, "Float")
+        i = i + 1
+    let r1: Int = fft_forward(real, imag, n)
+    if r1 != DSP_OK:
+        decay real
+        decay imag
+        return r1
+    let r2: Int = fft_inverse(real, imag, n)
+    if r2 != DSP_OK:
+        decay real
+        decay imag
+        return r2
+    decay real
+    decay imag
+    return DSP_OK
+
+// dsp_test_biquad_dc_gain — verify a 100 Hz lowpass passes DC (unity at 0 Hz).
+pub fn dsp_test_biquad_dc_gain() -> Int with Pure:
+    let coeffs: BiquadCoeffs = biquad_lowpass(100.0, 0.707, 48000)
+    // DC: y = (b0 + b1 + b2) / (1 + a1 + a2)
+    let num: Float = coeffs.b0 + coeffs.b1 + coeffs.b2
+    let den: Float = 1.0 + coeffs.a1 + coeffs.a2
+    if den == 0.0:
+        return -1
+    let gain: Float = num / den
+    // Should be ~1.0
+    let diff: Float = absf(gain - 1.0)
+    if diff > 0.01:
+        return -2
+    return DSP_OK

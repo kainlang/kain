@@ -1,0 +1,20 @@
+use std::intent
+
+pub world MixerWorld:
+    state master_volume: Float = 1.0
+    state transport_state: Int = 0
+    surface web => MixerPanel
+    surface native_ui => MixerPanel
+
+component MixerPanel():
+    render <panel title="Mixer" />
+
+pub patch set_master_volume(mixer: MixerWorld, volume: Float) -> Int:
+    mixer.master_volume = volume
+    return 0
+
+pub fn main() -> Int with Pure:
+    set_master_volume(MixerWorld, 0.5)
+    let s = MixerWorld.transport_state
+    let v = MixerWorld.master_volume
+    return s + (v as Int)

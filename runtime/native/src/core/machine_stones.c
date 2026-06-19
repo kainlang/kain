@@ -52,6 +52,9 @@ typedef struct KainMachinePulseSlot {
     KainMachinePulseFireFn fire;
     uint8_t occupied;
     uint8_t scheduled;
+    uint32_t budget_alloc;   // 0 = forbidden, >0 = max allowed; UINT32_MAX = unlimited
+    uint32_t budget_lock;    // 0 = forbidden
+    uint32_t budget_io;      // 0 = forbidden
 } KainMachinePulseSlot;
 
 typedef struct KainMachinePulseFireJob {
@@ -276,6 +279,9 @@ static KainMachinePulseSlot* kain_machine_pulse_slot(uint64_t token) {
                 slot->fire_count = 0u;
                 slot->fire = NULL;
                 slot->scheduled = 0u;
+                slot->budget_alloc = UINT32_MAX;
+                slot->budget_lock = UINT32_MAX;
+                slot->budget_io = UINT32_MAX;
             }
             return slot;
         }

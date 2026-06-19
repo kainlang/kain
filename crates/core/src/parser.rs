@@ -1863,6 +1863,12 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+        let budget = if self.peek_contextual_ident("budget") {
+            self.advance();
+            Some(self.parse_pulse_budget()?)
+        } else {
+            None
+        };
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         let body_span = body.span;
@@ -1870,6 +1876,7 @@ impl<'a> Parser<'a> {
             name,
             interval,
             jitter,
+            budget,
             body,
             visibility: vis,
             attributes: attrs,
@@ -1895,6 +1902,67 @@ impl<'a> Parser<'a> {
         Ok(PulseDuration {
             value,
             unit,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    /// Parse `budget(alloc=N, lock=N, io=N)` clause on a `pulse` declaration.
+    ///
+    /// Each field is optional; missing fields are `None` (unlimited).
+    /// Syntax: `budget(` <field> (`,` <field>)* `)`
+    /// where <field> ::= `alloc=0` | `lock=0` | `io=0` (any integer literal).
+    fn parse_pulse_budget(&mut self) -> KainResult<PulseBudget> {
+        let start = self.current_span();
+        self.expect(TokenKind::LParen)?;
+        let mut alloc: Option<u32> = None;
+        let mut lock: Option<u32> = None;
+        let mut io: Option<u32> = None;
+        let mut first = true;
+        loop {
+            if self.peek_kind() == TokenKind::RParen {
+                break;
+            }
+            if !first {
+                self.expect(TokenKind::Comma)?;
+            }
+            first = false;
+            let field = self.parse_ident()?;
+            self.expect(TokenKind::Eq)?;
+            let value = match self.peek_kind() {
+                TokenKind::Int(v) => {
+                    self.advance();
+                    if v < 0 {
+                        return Err(self.parser_error(
+                            format!("budget '{}' must be >= 0, got {}", field, v),
+                            self.current_span(),
+                        ));
+                    }
+                    v as u32
+                }
+                _ => {
+                    return Err(self.parser_error(
+                        format!("budget '{}' expects an integer literal", field),
+                        self.current_span(),
+                    ));
+                }
+            };
+            match field.as_str() {
+                "alloc" => alloc = Some(value),
+                "lock" => lock = Some(value),
+                "io" => io = Some(value),
+                other => {
+                    return Err(self.parser_error(
+                        format!("unknown budget field '{}', expected alloc, lock, or io", other),
+                        self.current_span(),
+                    ));
+                }
+            }
+        }
+        self.expect(TokenKind::RParen)?;
+        Ok(PulseBudget {
+            alloc,
+            lock,
+            io,
             span: start.merge(self.current_span()),
         })
     }

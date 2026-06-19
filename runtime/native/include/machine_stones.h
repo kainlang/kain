@@ -16,7 +16,34 @@ extern "C" {
 #define KAIN_MACHINE_CAP_X86_AVX2 UINT64_C(0x0000000000000400)
 #define KAIN_MACHINE_CAP_X86_AVX512F UINT64_C(0x0000000000000800)
 
+// ══════════════════════════════════════════════════════════════════════
+// STREAM ALPHA / ALPHA-6 boundary ─────────────────────────────────────
+// Audio capability bits added by Stream BRAVO below this marker.
+// Do NOT edit above this line for capability adds — BRAVO owns those.
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Pulse slot wire format ─────────────────────────────────────────────
+// Mirrored from machine_stones.c; the canonical definition lives there.
+// This typedef exists so LLVM codegen can reference field offsets.
 typedef void (*KainMachinePulseFireFn)(void);
+
+typedef struct KainMachinePulseSlot {
+    uint64_t token;
+    uint64_t last_ns;
+    uint64_t tick;
+    uint64_t interval_ns;
+    uint64_t jitter_ns;
+    uint64_t next_due_ns;
+    uint64_t fire_count;
+    KainMachinePulseFireFn fire;
+    uint8_t occupied;
+    uint8_t scheduled;
+    uint32_t budget_alloc;   // 0 = forbidden, >0 = max allowed; UINT32_MAX = unlimited
+    uint32_t budget_lock;    // 0 = forbidden
+    uint32_t budget_io;      // 0 = forbidden
+} KainMachinePulseSlot;
+
+uint64_t kain_machine_now_ns(void);
 
 uint64_t kain_machine_now_ns(void);
 uint64_t kain_machine_real_time_now_ms(void);

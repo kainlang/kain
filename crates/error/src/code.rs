@@ -214,6 +214,13 @@ impl DiagnosticCode {
     pub const PatchConflictingMutation: Self = Self::new("KAIN-PATCH-0006");
     pub const PatchLawReturnTypeMismatch: Self = Self::new("KAIN-PATCH-0007");
 
+    // ── Pulse Budget ─────────────────────────────────────────────────────
+    // Real-time safety: budget constraint violations detected at compile
+    // time inside `pulse budget(alloc, lock, io)` scopes.
+    pub const PulseBudgetAlloc: Self = Self::new("KAIN-PULSE-BUDGET-0001");
+    pub const PulseBudgetLock: Self = Self::new("KAIN-PULSE-BUDGET-0002");
+    pub const PulseBudgetIO: Self = Self::new("KAIN-PULSE-BUDGET-0003");
+
     // ── Misc leaf domains ────────────────────────────────────────────────
     pub const IoGeneric: Self = Self::new("KAIN-IO-0001");
     pub const ConfigGeneric: Self = Self::new("KAIN-CONFIG-0001");
