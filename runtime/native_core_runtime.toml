@@ -27,6 +27,7 @@ sources = [
     "native/src/core/machine_stones.c",
     "native/src/core/stdlib_abi.c",
     "native/src/core/input_system.c",
+    "native/src/core/audio_system.c",
     "native/src/core/net_system.c",
     "native/src/core/process_system.c",
     "native/src/core/graphics_system.c",
@@ -460,6 +461,24 @@ requirement = "optional"
 status = "available"
 platforms = ["windows", "linux", "macos"]
 description = "Native child-process, pipe, and PTY session management"
+
+[[services]]
+key = "audio.device"
+name = "Native Audio Device Streaming"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native f32 audio device streaming via WASAPI/CoreAudio/ALSA shared-mode playback; event-driven callbacks; no exclusive mode in Phase 1"
+
+[[services]]
+key = "audio.midi"
+name = "Native MIDI Input"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native MIDI 1.0 input via WinMM/CoreMIDI/ALSA raw MIDI; platform callback dispatch into user-supplied handler"
 
 [[services]]
 key = "gfx.compute"

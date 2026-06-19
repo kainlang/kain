@@ -496,6 +496,19 @@ uint64_t kain_machine_pulse_total_fire_count(void) {
     return atomic_load_explicit(&g_machine_pulse_total_fire_count, memory_order_acquire);
 }
 
+void kain_machine_pulse_set_budget(
+    uint64_t pulse_token,
+    uint32_t budget_alloc,
+    uint32_t budget_lock,
+    uint32_t budget_io
+) {
+    KainMachinePulseSlot* slot = kain_machine_pulse_slot(pulse_token);
+    if (slot == NULL) return;
+    slot->budget_alloc = budget_alloc;
+    slot->budget_lock = budget_lock;
+    slot->budget_io = budget_io;
+}
+
 void* kain_machine_teleport_ptr(
     void* ptr,
     const char* source_world,

@@ -259,8 +259,11 @@ static const GUID kain_iid_iaudio_render_client = {
 static const GUID kain_class_immdevice_enumerator = {
     0xbcde0395, 0xe52f, 0x467c, {0x8e, 0x3d, 0xc4, 0x57, 0x92, 0x91, 0x0e, 0x13}
 };
-static const GUID kain_propkey_device_friendly_name = {
-    0xa45c254e, 0xdf1c, 0x4efd, {0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0}
+/* PKEY_Device_FriendlyName = {a45c254e-df1c-4efd-8020-67d146a850e0}, pid=14.
+   We declare the PROPERTYKEY directly so the surface is stable across SDKs. */
+static const PROPERTYKEY kain_pkey_device_friendly_name = {
+    { 0xa45c254e, 0xdf1c, 0x4efd, { 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0 } },
+    14u
 };
 
 /* Wide-string <-> int64 device id hash. We hash the device id to fit into
@@ -361,7 +364,7 @@ static int abi_audio_win_enumerate(KainNativeAudioDeviceInfo* devices, int64_t m
             continue;
         }
         PropVariantInit(&name_var);
-        if (props->lpVtbl->GetValue(props, &kain_propkey_device_friendly_name, &name_var) != S_OK) {
+        if (props->lpVtbl->GetValue(props, &kain_pkey_device_friendly_name, &name_var) != S_OK) {
             name_var.vt = VT_EMPTY;
         }
 
@@ -427,7 +430,7 @@ static int64_t abi_audio_win_default_device(KainNativeAudioDeviceInfo* out_devic
     }
     PropVariantInit(&name_var);
     if (props) {
-        props->lpVtbl->GetValue(props, &kain_propkey_device_friendly_name, &name_var);
+        props->lpVtbl->GetValue(props, &kain_pkey_device_friendly_name, &name_var);
     }
     memset(out_device, 0, sizeof(*out_device));
     out_device->device_id = abi_audio_win_hash_wide(id_wide);
@@ -483,9 +486,10 @@ static DWORD WINAPI abi_audio_win_thread_proc(LPVOID param) {
         if (FAILED(hr)) {
             continue;
         }
-        UINT32 available = s->buffer_size_frames > padding_frames
-                               ? (UINT32)(s->buffer_size_frames - padding_frames)
-                               : 0u;
+        UINT32 available = 0u;
+        if ((UINT32)s->buffer_size_frames > padding_frames) {
+            available = (UINT32)s->buffer_size_frames - padding_frames;
+        }
         if (available == 0u) {
             continue;
         }
@@ -528,7 +532,6 @@ static int64_t abi_audio_win_open_stream(
     WAVEFORMATEX* mix = NULL;
     HRESULT hr;
     int64_t result;
-    int allocated_slot = 0;
     (void)device_id;
     (void)input_channels; /* Phase 1 is output-only. */
 
@@ -631,7 +634,6 @@ static int64_t abi_audio_win_open_stream(
     device = NULL;
 
     slot->in_use = 1;
-    allocated_slot = 1;
     slot->id = g_next_stream_id++;
     slot->sample_rate = sample_rate;
     slot->buffer_size_frames = (int32_t)actual_buffer_frames;
@@ -736,16 +738,16 @@ static int64_t abi_audio_win_midi_count(void) {
 }
 
 static int64_t abi_audio_win_midi_name(int64_t device_id, char* out, int64_t cap) {
-    MIDIINCAPS caps;
+    MIDIINCAPSA caps;
     MMRESULT r;
     if (!out || cap <= 0) {
         return abi_audio_fail(ABI_AUDIO_ERR_INVALID_ARG, "invalid_arg", "out buffer is null");
     }
-    r = midiInGetDevCaps((UINT)device_id, &caps, sizeof(caps));
+    r = midiInGetDevCapsA((UINT)device_id, &caps, sizeof(caps));
     if (r != MMSYSERR_NOERROR) {
         return abi_audio_fail(ABI_AUDIO_ERR_MIDI_NO_DEVICE, "no_device", "midiInGetDevCaps failed");
     }
-    snprintf(out, (size_t)cap, "%ls", caps.szPname);
+    snprintf(out, (size_t)cap, "%s", caps.szPname);
     abi_audio_ok();
     return ABI_AUDIO_OK;
 }

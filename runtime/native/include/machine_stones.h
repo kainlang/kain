@@ -16,6 +16,12 @@ extern "C" {
 #define KAIN_MACHINE_CAP_X86_AVX2 UINT64_C(0x0000000000000400)
 #define KAIN_MACHINE_CAP_X86_AVX512F UINT64_C(0x0000000000000800)
 
+/* Audio device capabilities — Phase 1 */
+#define KAIN_MACHINE_CAP_AUDIO_WASAPI     UINT64_C(0x0000000001000000)
+#define KAIN_MACHINE_CAP_AUDIO_COREAUDIO  UINT64_C(0x0000000002000000)
+#define KAIN_MACHINE_CAP_AUDIO_ALSA       UINT64_C(0x0000000004000000)
+#define KAIN_MACHINE_CAP_AUDIO_ASIO       UINT64_C(0x0000000008000000)  /* Phase 2 */
+
 // ══════════════════════════════════════════════════════════════════════
 // STREAM ALPHA / ALPHA-6 boundary ─────────────────────────────────────
 // Audio capability bits added by Stream BRAVO below this marker.
@@ -64,6 +70,12 @@ int64_t kain_machine_pulse_start(
 );
 void kain_machine_pulse_stop_all(void);
 uint64_t kain_machine_pulse_total_fire_count(void);
+void kain_machine_pulse_set_budget(
+    uint64_t pulse_token,
+    uint32_t budget_alloc,
+    uint32_t budget_lock,
+    uint32_t budget_io
+);
 void* kain_machine_teleport_ptr(
     void* ptr,
     const char* source_world,

@@ -39,6 +39,8 @@
 #define KAIN_SERVICE_KEY_ASYNC_TIMERS           "async.timers"
 #define KAIN_SERVICE_KEY_IO_NET                 "io.net"
 #define KAIN_SERVICE_KEY_IO_PROCESS             "io.process"
+#define KAIN_SERVICE_KEY_AUDIO_DEVICE           "audio.device"
+#define KAIN_SERVICE_KEY_AUDIO_MIDI             "audio.midi"
 #define KAIN_SERVICE_KEY_PLATFORM_APP_HOST      "platform.app-host"
 #define KAIN_SERVICE_KEY_PLATFORM_INPUT         "platform.input"
 #define KAIN_SERVICE_KEY_GFX_VIEWPORT           "gfx.viewport"

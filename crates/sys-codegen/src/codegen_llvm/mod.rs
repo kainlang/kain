@@ -109,6 +109,9 @@ struct NativePulseInfo {
     token: u64,
     interval_ns: u64,
     jitter_ns: u64,
+    budget_alloc: u32,
+    budget_lock: u32,
+    budget_io: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -13573,17 +13576,23 @@ impl LlvmGenerator {
                         name: axiom.ast.name.clone(),
                     });
                 }
-                TypedItem::Pulse(pulse) => self.native_pulses.push(NativePulseInfo {
-                    name: pulse.ast.name.clone(),
-                    token: Self::stable_runtime_hash64(&pulse.ast.name),
-                    interval_ns: Self::machine_pulse_duration_ns(&pulse.ast.interval),
-                    jitter_ns: pulse
-                        .ast
-                        .jitter
-                        .as_ref()
-                        .map(Self::machine_pulse_duration_ns)
-                        .unwrap_or(0),
-                }),
+                TypedItem::Pulse(pulse) => {
+                    let budget = pulse.ast.budget.as_ref();
+                    self.native_pulses.push(NativePulseInfo {
+                        name: pulse.ast.name.clone(),
+                        token: Self::stable_runtime_hash64(&pulse.ast.name),
+                        interval_ns: Self::machine_pulse_duration_ns(&pulse.ast.interval),
+                        jitter_ns: pulse
+                            .ast
+                            .jitter
+                            .as_ref()
+                            .map(Self::machine_pulse_duration_ns)
+                            .unwrap_or(0),
+                        budget_alloc: budget.map_or(u32::MAX, |b| b.alloc.unwrap_or(u32::MAX)),
+                        budget_lock: budget.map_or(u32::MAX, |b| b.lock.unwrap_or(u32::MAX)),
+                        budget_io: budget.map_or(u32::MAX, |b| b.io.unwrap_or(u32::MAX)),
+                    });
+                }
                 TypedItem::Struct(struct_def) if struct_def.ast.is_shattered() => {
                     self.shattered_structs.insert(struct_def.ast.name.clone());
                 }
@@ -14748,6 +14757,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_machine_pulse_start(i64, i64, i64, void ()*)");
         self.emit("declare void @kain_machine_pulse_stop_all()");
         self.emit("declare i64 @kain_machine_pulse_total_fire_count()");
+        self.emit("declare void @kain_machine_pulse_set_budget(i64, i32, i32, i32)");
         self.emit("declare i8* @kain_machine_teleport_ptr(i8*, i8*, i8*, i8*)");
         self.emit("declare void @kain_machine_teleport_note(i8*, i8*, i8*)");
         self.emit("declare i8* @kain_machine_shatter_alloc(i64, i64)");
@@ -15761,6 +15771,23 @@ impl LlvmGenerator {
             .unwrap_or(0);
         self.emit(&format!("define void @{}() {{", fire_symbol));
         self.emit_label("entry");
+        let budget_alloc = pulse.ast.budget.as_ref().map_or(u32::MAX, |b| b.alloc.unwrap_or(u32::MAX));
+        let budget_lock = pulse.ast.budget.as_ref().map_or(u32::MAX, |b| b.lock.unwrap_or(u32::MAX));
+        let budget_io = pulse.ast.budget.as_ref().map_or(u32::MAX, |b| b.io.unwrap_or(u32::MAX));
+        if pulse.ast.budget.is_some() {
+            self.emit(&format!(
+                "  ; pulse budget metadata: alloc={} lock={} io={}",
+                if budget_alloc == u32::MAX { String::from("unlimited") } else { budget_alloc.to_string() },
+                if budget_lock == u32::MAX { String::from("unlimited") } else { budget_lock.to_string() },
+                if budget_io == u32::MAX { String::from("unlimited") } else { budget_io.to_string() },
+            ));
+            self.emit(&format!("  call void @kain_machine_pulse_set_budget(i64 {}, i32 {}, i32 {}, i32 {})",
+                Self::llvm_i64_literal_for_u64(token),
+                budget_alloc,
+                budget_lock,
+                budget_io,
+            ));
+        }
         let tick_ptr = "%pulse.tick.out";
         let dt_ptr = "%pulse.dt.out";
         let missed_ptr = "%pulse.missed.out";

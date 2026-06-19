@@ -59,12 +59,12 @@ pub const DSP_ERR_BUFFER_TOO_SMALL: Int = -4
 // osc_sine — pure sine, no aliasing
 pub fn osc_sine(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
     let p: Float = mem_load(phase, "Float")
-    let out: Float = sin(DSP_TWO_PI * p)
+    let out_val: Float = sin(DSP_TWO_PI * p)
     let inc: Float = freq_hz / Float(sample_rate)
     let next: Float = p + inc
     let wrapped: Float = next - floor(next)
     mem_store(phase, wrapped, "Float")
-    return out
+    return out_val
 
 // osc_triangle — abs-shaped triangle in [-1, 1]
 pub fn osc_triangle(phase: ptr<Float>, freq_hz: Float, sample_rate: Int) -> Float with Pure:
@@ -400,13 +400,13 @@ pub fn fft_forward(real: ptr<Float>, imag: ptr<Float>, n: Int) -> Int with Pure:
 
     var size: Int = 2
     while size <= n:
-        let half: Int = size / 2
+        let half_size: Int = size / 2
         let table_step: Float = -DSP_TWO_PI / Float(size)
         var i: Int = 0
         while i < n:
             var k: Int = 0
             var j: Int = i
-            while j < i + half:
+            while j < i + half_size:
                 let cos_w: Float = cos(Float(k) * table_step)
                 let sin_w: Float = sin(Float(k) * table_step)
                 let tpre: Float = (cos_w * mem_load(ptr_offset(real, j + half, "Float"), "Float")) - (sin_w * mem_load(ptr_offset(imag, j + half, "Float"), "Float"))
@@ -456,15 +456,15 @@ pub fn fft_inverse(real: ptr<Float>, imag: ptr<Float>, n: Int) -> Int with Pure:
 // with bin magnitudes. Caller owns the returned pointer (must decay).
 pub fn fft_magnitude_spectrum(real: ptr<Float>, imag: ptr<Float>, n: Int) -> ptr<Float> with Unsafe:
     let bins: Int = (n / 2) + 1
-    let out: ptr<Float> = alloc_zeroed(bins, "Float")
+    let out_buf: ptr<Float> = alloc_zeroed(bins, "Float")
     var i: Int = 0
     while i < bins:
         let r: Float = mem_load(ptr_offset(real, i, "Float"), "Float")
         let v: Float = mem_load(ptr_offset(imag, i, "Float"), "Float")
         let m: Float = sqrt((r * r) + (v * v))
-        mem_store(ptr_offset(out, i, "Float"), m, "Float")
+        mem_store(ptr_offset(out_buf, i, "Float"), m, "Float")
         i = i + 1
-    return out
+    return out_buf
 
 // fft_bit_reverse_inplace — internal helper: bit-reversal permutation.
 fn fft_bit_reverse_inplace(real: ptr<Float>, imag: ptr<Float>, n: Int) with Pure:
@@ -743,7 +743,7 @@ pub fn schroeder_reverb_new(sample_rate: Int) -> SchroederReverb with Unsafe:
 
 // schroeder_reverb_new_for_rate — scale all delays to a target sample rate
 // (relative to 25 kHz reference). decay is the comb feedback gain (0..1).
-pub fn schroeder_reverb_new_for_rate(sample_rate: Int, decay: Float) -> SchroederReverb with Unsafe:
+pub fn schroeder_reverb_new_for_rate(sample_rate: Int, decay_val: Float) -> SchroederReverb with Unsafe:
     let ref_sr: Float = 25000.0
     let sr_f: Float = Float(sample_rate)
     let scale: Float = sr_f / ref_sr
@@ -764,10 +764,10 @@ pub fn schroeder_reverb_new_for_rate(sample_rate: Int, decay: Float) -> Schroede
         comb_b: dsp_ring_new(d_b),
         comb_c: dsp_ring_new(d_c),
         comb_d: dsp_ring_new(d_d),
-        comb_a_g: decay,
-        comb_b_g: decay,
-        comb_c_g: decay,
-        comb_d_g: decay,
+        comb_a_g: decay_val,
+        comb_b_g: decay_val,
+        comb_c_g: decay_val,
+        comb_d_g: decay_val,
         allpass_a: dsp_ring_new(d_ap1),
         allpass_b: dsp_ring_new(d_ap2),
         allpass_a_g: 0.7,
@@ -970,7 +970,7 @@ pub fn vibrato_process(input: Float, lfo_phase: ptr<Float>, rate_hz: Float, widt
 // chorus_process — single-tap modulated delay. mix in [0, 1], depth_ms is the
 // max LFO delay offset, rate_hz is LFO frequency, base_delay_ms is the
 // static delay around which modulation swings.
-pub fn chorus_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer, rate_hz: Float, depth_ms: Float, base_delay_ms: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
+pub fn chorus_process(input: Float, lfo_phase: ptr<Float>, line_buf: DspRingBuffer, rate_hz: Float, depth_ms: Float, base_delay_ms: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
     let _ = sample_rate
     let _ = base_delay_ms
     let _ = depth_ms
@@ -980,14 +980,14 @@ pub fn chorus_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer, 
     var next: Float = p + inc
     next = next - floor(next)
     mem_store(lfo_phase, next, "Float")
-    let delayed: Float = dsp_ring_read(line)
-    let _wrote: Float = dsp_ring_tick(line, input)
+    let delayed: Float = dsp_ring_read(line_buf)
+    let _wrote: Float = dsp_ring_tick(line_buf, input)
     let wet: Float = delayed * (0.5 + 0.5 * lfo)
     return input * (1.0 - mix) + wet * mix
 
 // flanger_process — short modulated delay with feedback (similar to chorus
 // but smaller delay range and feedback).
-pub fn flanger_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer, rate_hz: Float, feedback: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
+pub fn flanger_process(input: Float, lfo_phase: ptr<Float>, line_buf: DspRingBuffer, rate_hz: Float, feedback: Float, mix: Float, sample_rate: Int) -> Float with Unsafe:
     let _ = sample_rate
     let p: Float = mem_load(lfo_phase, "Float")
     let lfo: Float = sin(DSP_TWO_PI * p)
@@ -995,9 +995,9 @@ pub fn flanger_process(input: Float, lfo_phase: ptr<Float>, line: DspRingBuffer,
     var next: Float = p + inc
     next = next - floor(next)
     mem_store(lfo_phase, next, "Float")
-    let delayed: Float = dsp_ring_read(line)
+    let delayed: Float = dsp_ring_read(line_buf)
     let to_write: Float = input + (delayed * feedback)
-    let _wrote: Float = dsp_ring_tick(line, to_write)
+    let _wrote: Float = dsp_ring_tick(line_buf, to_write)
     let wet: Float = delayed * (0.5 + 0.5 * lfo)
     return input * (1.0 - mix) + wet * mix
 
@@ -1066,11 +1066,13 @@ pub fn dc_blocker(input: Float, state: ptr<Float>) -> Float with Pure:
     // R = 0.995 (cutoff ~ 35 Hz at 48 kHz; caller should adjust for sample rate).
     let r: Float = 0.995
     let s0: Float = mem_load(state, "Float")
-    let out: Float = input - s0 + (r * (0.0))
-    let _ = r
-    let new_state: Float = input
-    mem_store(state, new_state, "Float")
-    return out - mem_load(state, "Float") * 0.0 + (s0 * 0.0)
+    // y[n] = x[n] - x[n-1] + R * y[n-1]
+    let prev_out: Float = mem_load(ptr_offset(state, 1, "Float"), "Float")
+    let out_val: Float = input - s0 + (r * prev_out)
+    // Update state: first slot = last input, second slot = last output.
+    mem_store(state, input, "Float")
+    mem_store(ptr_offset(state, 1, "Float"), out_val, "Float")
+    return out_val
 
 // polynomial_clipper — soft clipper: f(x) = x - (1/3) * x^3 clamped to [-1, 1].
 // Cheaper than tanh and avoids transcendentals.
@@ -1096,7 +1098,7 @@ pub fn tanh_clipper(input: Float) -> Float with Pure:
 // verifying the algorithms. They expose internal state for assertions.
 
 // dsp_test_osc_sine_period — count samples per cycle at given freq.
-pub fn dsp_test_osc_sine_period(freq_hz: Float, sample_rate: Int) -> Int with Pure:
+pub fn dsp_test_osc_sine_period(freq_hz: Float, sample_rate: Int) -> Int with Unsafe:
     let phase: ptr<Float> = alloc_zeroed(1, "Float")
     mem_store(phase, 0.0, "Float")
     var zeros: Int = 0
