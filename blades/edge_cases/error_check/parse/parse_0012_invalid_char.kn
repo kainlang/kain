@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0012
+//@ expect-error: "Invalid Character Literal"
+//@ severity: error
+
+// Triggers: Multi-character char literal
+let c = 'ab'

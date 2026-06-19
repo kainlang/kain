@@ -177,3 +177,105 @@ pub fn enrich_report(
 
     report
 }
+
+/// Lightweight enrichment for codegen-phase errors.
+///
+/// Unlike the full `enrich_report()` which requires AST-level context
+/// (visible symbols, scope matches, etc.), this function works with only
+/// the error message and span --- what the LLVM codegen has available.
+/// It classifies the failure mode and adds targeted help text.
+pub fn enrich_codegen_error(
+    report: &mut DiagnosticReport,
+    error_message: &str,
+) {
+    // Classify failure mode from the error message pattern
+    let mode = classify_codegen_failure(error_message);
+
+    // Add classification as a note
+    if let Some(mode_str) = mode.as_ref() {
+        report.tags.push(format!("failure-mode:{}", mode_str));
+    }
+
+    match mode.as_deref() {
+        Some("atomic-ordering") => {
+            report.help.push(
+                "Atomic ordering codes: 0=relaxed, 2=acquire, 3=release, 4=acq_rel, 5=seq_cst. \
+                 Check that store only uses relaxed/release/seq_cst and compare_exchange \
+                 failure ordering is not stronger than success.".to_string()
+            );
+        }
+        Some("unsupported-target") => {
+            report.help.push(
+                "This construct requires a specific target architecture. \
+                 Consider wrapping it in an axiom block with `when target(...)` to gate it.".to_string()
+            );
+        }
+        Some("type-mapping") => {
+            report.help.push(
+                "A Kain type does not have a direct LLVM representation. \
+                 Check that you're using types with known LLVM mappings (Int→i64, Float→double, etc.).".to_string()
+            );
+        }
+        Some("bitcast-width") => {
+            report.help.push(
+                "bitcast requires source and target types to have the same byte width at the LLVM level. \
+                 Use size_of<T>() to compare widths before bitcasting.".to_string()
+            );
+        }
+        Some("method-arity") => {
+            report.help.push(
+                "Check the expected argument count for this method. \
+                 unwrap() takes 0 args, expect(msg) takes 1, unwrap_or(default) takes 1.".to_string()
+            );
+        }
+        Some("actor-message") => {
+            report.help.push(
+                "Actor message names must match the actor's handler declarations. \
+                 Use `send reply_to.Reply(value = ...)` for reply ports.".to_string()
+            );
+        }
+        Some("shader-stage") => {
+            report.help.push(
+                "Shader stage validation failed. Check that vertex/fragment/compute inputs \
+                 and outputs match the expected stage interface.".to_string()
+            );
+        }
+        _ => {
+            // No specific help available, add generic suggestion
+            report.help.push(
+                "Try running `kain check` for additional validation. \
+                 If the error persists, this may be a codegen-internal issue.".to_string()
+            );
+        }
+    }
+}
+
+/// Classify a codegen error message into a failure mode category.
+fn classify_codegen_failure(msg: &str) -> Option<String> {
+    let lower = msg.to_lowercase();
+    if lower.contains("atomic") || lower.contains("ordering") {
+        Some("atomic-ordering".to_string())
+    } else if lower.contains("x86_64-only") || lower.contains("unsupported target")
+        || lower.contains("not supported on")
+    {
+        Some("unsupported-target".to_string())
+    } else if lower.contains("bitcast") || lower.contains("width")
+        || lower.contains("llvm type")
+    {
+        Some("bitcast-width".to_string())
+    } else if lower.contains("expects") && (lower.contains("argument") || lower.contains("arg")) {
+        Some("method-arity".to_string())
+    } else if lower.contains("actor") || lower.contains("message") || lower.contains("reply") {
+        Some("actor-message".to_string())
+    } else if lower.contains("shader") || lower.contains("stage") || lower.contains("vertex")
+        || lower.contains("fragment") || lower.contains("compute")
+    {
+        Some("shader-stage".to_string())
+    } else if lower.contains("type") && (lower.contains("map") || lower.contains("represent")
+        || lower.contains("lower"))
+    {
+        Some("type-mapping".to_string())
+    } else {
+        None
+    }
+}

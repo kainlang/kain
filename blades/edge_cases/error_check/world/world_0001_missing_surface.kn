@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0001
+//@ expect-error: "World Missing Surface"
+//@ severity: error
+
+// Triggers: World without any surface declaration
+world EmptyWorld:
+    state x: Int = 0

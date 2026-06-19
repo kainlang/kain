@@ -4,6 +4,9 @@ use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::CompileTarget;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
+use kain_error::{
+    CompilerPhase, DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind, KainError,
+};
 use kain_fmt::format_program;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,7 +33,7 @@ pub fn stage_llvm_native_artifacts(
     source: &str,
     output_path: &Path,
     root_component: Option<&str>,
-) -> Result<LlvmNativeArtifactStage, String> {
+) -> Result<LlvmNativeArtifactStage, KainError> {
     stage_native_backend_artifacts(source, CompileTarget::Llvm, output_path, root_component)
 }
 
@@ -39,7 +42,7 @@ pub fn stage_native_backend_artifacts(
     target: CompileTarget,
     output_path: &Path,
     root_component: Option<&str>,
-) -> Result<LlvmNativeArtifactStage, String> {
+) -> Result<LlvmNativeArtifactStage, KainError> {
     let session = kain_driver::DriverSession::default();
     stage_native_backend_artifacts_with_session(
         &session,
@@ -58,21 +61,18 @@ pub fn stage_native_backend_artifacts_with_session(
     target: CompileTarget,
     output_path: &Path,
     root_component: Option<&str>,
-) -> Result<LlvmNativeArtifactStage, String> {
+) -> Result<LlvmNativeArtifactStage, KainError> {
     let contract_bundle = session
-        .compile_runtime_contract_bundle_with_source_path(source, source_path, target)
-        .map_err(|err| err.to_string())?;
+        .compile_runtime_contract_bundle_with_source_path(source, source_path, target)?;
     let runtime_contract_path = runtime_contract_artifact_path(output_path);
     write_json_artifact(
         &runtime_contract_path,
-        &kain_core::runtime_contract_bundle_to_json(&contract_bundle)
-            .map_err(|err| err.to_string())?,
+        &kain_core::runtime_contract_bundle_to_json(&contract_bundle)?,
         "runtime contract",
     )?;
 
     let realtime_bundle = session
-        .compile_realtime_app_bundle_with_source_path(source, source_path, target, root_component)
-        .map_err(|err| err.to_string())?;
+        .compile_realtime_app_bundle_with_source_path(source, source_path, target, root_component)?;
     let realtime_app_path = realtime_app_artifact_path(output_path);
     write_json_artifact(
         &realtime_app_path,
@@ -103,7 +103,7 @@ pub fn stage_native_backend_artifacts_with_session(
                 {
                     None
                 } else {
-                    return Err(message);
+                    return Err(err);
                 }
             }
         }
@@ -115,8 +115,7 @@ pub fn stage_native_backend_artifacts_with_session(
         &realtime_bundle.bundle,
         shader_bundle_output.as_ref().map(|output| &output.bundle),
         output_path.parent().unwrap_or_else(|| Path::new(".")),
-    )
-    .map_err(|err| err.to_string())?;
+    )?;
     let compute_residency_path = compute_artifact_paths
         .iter()
         .find(|path| {
@@ -190,7 +189,7 @@ fn filter_shader_item(item: &Item) -> Option<Item> {
     }
 }
 
-pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, String> {
+pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, KainError> {
     if !cfg!(windows) {
         return Ok(None);
     }
@@ -206,7 +205,7 @@ pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, 
         false,
         Some(&cargo_target_dir),
     )
-    .map_err(|err| err.to_string())
+    .map_err(|err| err)
 }
 
 pub fn runtime_contract_artifact_path(output_path: &Path) -> PathBuf {
@@ -224,23 +223,39 @@ pub fn shader_bundle_artifact_path(output_path: &Path) -> PathBuf {
         .join(SHADER_BUNDLE_FILE_NAME)
 }
 
-fn write_json_artifact(path: &Path, contents: &str, label: &str) -> Result<(), String> {
+fn write_json_artifact(path: &Path, contents: &str, label: &str) -> Result<(), KainError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
-            format!(
-                "unable to create {} directory {}: {}",
-                label,
-                parent.display(),
-                err
+            KainError::rich(
+                DiagnosticReport::new(
+                    ErrorKind::Codegen,
+                    DiagnosticCode::CodegenBackendFailed,
+                    format!(
+                        "unable to create {} directory {}: {}",
+                        label,
+                        parent.display(),
+                        err
+                    ),
+                )
+                .severity(DiagnosticSeverity::Error)
+                .phase(CompilerPhase::Codegen),
             )
         })?;
     }
     fs::write(path, contents.as_bytes()).map_err(|err| {
-        format!(
-            "unable to write {} artifact {}: {}",
-            label,
-            path.display(),
-            err
+        KainError::rich(
+            DiagnosticReport::new(
+                ErrorKind::Codegen,
+                DiagnosticCode::CodegenBackendFailed,
+                format!(
+                    "unable to write {} artifact {}: {}",
+                    label,
+                    path.display(),
+                    err
+                ),
+            )
+            .severity(DiagnosticSeverity::Error)
+            .phase(CompilerPhase::Codegen),
         )
     })?;
     Ok(())

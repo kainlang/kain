@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0016
+//@ expect-error: "Use/Import Syntax Error"
+//@ severity: error
+
+// Triggers: Double '::' in import path
+use std..math

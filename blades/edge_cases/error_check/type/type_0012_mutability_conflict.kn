@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0012
+//@ expect-error: "Mutable/Immutable Conflict"
+//@ severity: error
+
+// Triggers: Assigning to let (immutable) variable
+fn main():
+    let x = 5
+    x = 10

@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0005
+//@ expect-error: "Builtin Symbol Shadowed"
+//@ severity: warning
+
+// Triggers: User-defined name shadows a builtin type
+fn int():
+    return 0

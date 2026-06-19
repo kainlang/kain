@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0014
+//@ expect-error: "Effect Annotation Syntax Error"
+//@ severity: error
+
+// Triggers: Effect annotation in wrong position
+fn main() -> Int with:
+    return 0

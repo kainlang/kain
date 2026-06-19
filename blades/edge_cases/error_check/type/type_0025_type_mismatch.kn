@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0025
+//@ expect-error: "Type Mismatch"
+//@ severity: error
+
+// Triggers: String assigned to Int variable
+fn main():
+    let x: Int = "hello"

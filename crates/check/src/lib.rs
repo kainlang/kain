@@ -8,17 +8,25 @@ use kain_core::{emit_runtime_contract_bundle, CompileTarget, TypedItem, TypedPro
 use kain_driver::{
     DriverSession, ToolingProgressEvent, ToolingProgressSink, ToolingProgressStatus,
 };
-use kain_error::KainError;
+use kain_error::{diagnostics_to_json_string, KainError};
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
+mod audit;
+mod telemetry;
 mod validate;
+mod validate_semantic_contracts;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckOptions {
     pub target: CompileTargetName,
     pub fail_fast: bool,
+    /// Run ALL validators including expensive/speculative ones.
+    /// Default: false. Pass --pedantic on the CLI to enable.
+    #[serde(default)]
+    pub pedantic: bool,
     #[serde(skip)]
     pub progress: Option<ToolingProgressSink>,
 }
@@ -28,12 +36,19 @@ impl CheckOptions {
         Self {
             target: CompileTargetName::from(target),
             fail_fast: false,
+            pedantic: false,
             progress: None,
         }
     }
 
     pub fn target(&self) -> CompileTarget {
         self.target.0
+    }
+
+    /// Builder: enable pedantic mode.
+    pub fn with_pedantic(mut self, pedantic: bool) -> Self {
+        self.pedantic = pedantic;
+        self
     }
 }
 
@@ -86,6 +101,39 @@ pub struct CheckFileReport {
     pub error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<serde_json::Value>,
+    /// Full `diagnostics_to_json()` envelope ({"diagnostics":[...], "summary":{...}}).
+    /// Populated for CLI --json / --json-out paths so consumers get the rich,
+    /// structured diagnostic payload rather than the summary-level `CheckReport`
+    /// serialization. When `None`, the caller should fall back to the structured
+    /// report produced by `emit_structured_report` in the CLI layer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics_json: Option<String>,
+
+    // ── Telemetry fields (ETA-B) ─────────────────────────────────
+    /// Confidence score (0.0-1.0) that this file would pass `kain build`.
+    /// Based on which validators ran and category coverage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence_score: Option<f64>,
+
+    /// Count of validators that executed during this check.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validator_count: Option<usize>,
+
+    /// Count of validators that were skipped (target mismatch, not yet implemented).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validators_skipped: Option<usize>,
+
+    /// Human-readable gap report: what errors might still occur at build time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gap_summary: Option<String>,
+
+    /// Validator categories still missing (not covered by any ran validator).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub missing_categories: Option<Vec<String>>,
+
+    /// Whether the check ran in pedantic mode (extra validators).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pedantic: Option<bool>,
 }
 
 impl CheckFileReport {
@@ -151,15 +199,112 @@ pub fn check_source_with_session(
         options.progress.as_ref(),
     ) {
         Ok(checked) => {
+            // ── Monomorphization validation ──────────────────────────────
+            // Run monomorphization to catch generic instantiation errors,
+            // trait bound violations (where T: Debug unsatisfied), and
+            // async lowering failures at check time instead of build time.
+            // This does NOT run LLVM codegen — only the monomorphization
+            // pass which resolves concrete types and validates trait impls.
+            if let Err(mono_error) = kain_core::monomorphize::monomorphize(&checked.typed) {
+                let diagnostic = mono_error.diagnostic_json();
+                let diagnostics_json = Some(diagnostics_to_json_string(&mono_error.to_diagnostic_reports()));
+                return attach_telemetry(
+                    CheckFileReport {
+                        path: source_name.to_string(),
+                        target: compile_target_name(target).to_string(),
+                        status: CheckStatus::Failed,
+                        item_count: 0,
+                        test_count: 0,
+                        required_capabilities: Vec::new(),
+                        error: Some(session.format_error(source_name, source, &mono_error)),
+                        diagnostic,
+                        diagnostics_json,
+                        confidence_score: None,
+                        validator_count: None,
+                        validators_skipped: None,
+                        gap_summary: None,
+                        missing_categories: None,
+                        pedantic: None,
+                    },
+                    options,
+                );
+            }
+
             // ── Semantic validation pass ─────────────────────────────────
             // Runs proactive checks for invariants the typechecker doesn't
             // enforce but the codegen/runtime requires.
-            let semantic_errors =
+            let mut semantic_errors =
                 validate::validate_semantic_stack(&checked.typed);
+
+            // ── Semantic contract validation pass ────────────────────
+            // Validates decision-ladder contracts: actor message completeness,
+            // resonate anti-feedback, entangle completeness, converge lane
+            // coverage, orchestrate liveness, pulse conflicts, teleport type
+            // match, patch binding, law satisfiability, dead state detection.
+            // These catch categories of logic errors that neither check
+            // nor build currently detect.
+            validate_semantic_contracts::validate_semantic_contracts(
+                &checked.typed,
+                &mut semantic_errors,
+            );
+
             if let Some(first) = semantic_errors.first() {
                 let error = KainError::rich(first.clone());
                 let diagnostic = error.diagnostic_json();
-                return CheckFileReport {
+                let diagnostics_json = Some(diagnostics_to_json_string(&error.to_diagnostic_reports()));
+                return attach_telemetry(
+                    CheckFileReport {
+                        path: source_name.to_string(),
+                        target: compile_target_name(target).to_string(),
+                        status: CheckStatus::Failed,
+                        item_count: 0,
+                        test_count: 0,
+                        required_capabilities: Vec::new(),
+                        error: Some(session.format_error(source_name, source, &error)),
+                        diagnostic,
+                        diagnostics_json,
+                        confidence_score: None,
+                        validator_count: None,
+                        validators_skipped: None,
+                        gap_summary: None,
+                        missing_categories: None,
+                        pedantic: None,
+                    },
+                    options,
+                );
+            }
+
+            let bundle = emit_runtime_contract_bundle(&checked.typed, target);
+            attach_telemetry(
+                CheckFileReport {
+                    path: source_name.to_string(),
+                    target: compile_target_name(target).to_string(),
+                    status: CheckStatus::Passed,
+                    item_count: count_typed_items(&checked.typed),
+                    test_count: count_typed_tests(&checked.typed),
+                    required_capabilities: bundle
+                        .required_capabilities
+                        .into_iter()
+                        .map(|capability| capability.key)
+                        .collect(),
+                    error: None,
+                    diagnostic: None,
+                    diagnostics_json: None,
+                    confidence_score: None,
+                    validator_count: None,
+                    validators_skipped: None,
+                    gap_summary: None,
+                    missing_categories: None,
+                    pedantic: None,
+                },
+                options,
+            )
+        }
+        Err(error) => {
+            let diagnostic = error.diagnostic_json();
+            let diagnostics_json = Some(diagnostics_to_json_string(&error.to_diagnostic_reports()));
+            attach_telemetry(
+                CheckFileReport {
                     path: source_name.to_string(),
                     target: compile_target_name(target).to_string(),
                     status: CheckStatus::Failed,
@@ -168,39 +313,50 @@ pub fn check_source_with_session(
                     required_capabilities: Vec::new(),
                     error: Some(session.format_error(source_name, source, &error)),
                     diagnostic,
-                };
-            }
-
-            let bundle = emit_runtime_contract_bundle(&checked.typed, target);
-            CheckFileReport {
-                path: source_name.to_string(),
-                target: compile_target_name(target).to_string(),
-                status: CheckStatus::Passed,
-                item_count: count_typed_items(&checked.typed),
-                test_count: count_typed_tests(&checked.typed),
-                required_capabilities: bundle
-                    .required_capabilities
-                    .into_iter()
-                    .map(|capability| capability.key)
-                    .collect(),
-                error: None,
-                diagnostic: None,
-            }
-        }
-        Err(error) => {
-            let diagnostic = error.diagnostic_json();
-            CheckFileReport {
-                path: source_name.to_string(),
-                target: compile_target_name(target).to_string(),
-                status: CheckStatus::Failed,
-                item_count: 0,
-                test_count: 0,
-                required_capabilities: Vec::new(),
-                error: Some(session.format_error(source_name, source, &error)),
-                diagnostic,
-            }
+                    diagnostics_json,
+                    confidence_score: None,
+                    validator_count: None,
+                    validators_skipped: None,
+                    gap_summary: None,
+                    missing_categories: None,
+                    pedantic: None,
+                },
+                options,
+            )
         }
     }
+}
+
+/// Compute telemetry for a check run and attach it to the report.
+///
+/// The "always-on" validator list mirrors what `check_source_with_session`
+/// actually executes. Stream ALPHA / BRAVO / ETA-A validators are not yet
+/// wired into the pipeline, so they appear as skipped; pedantic mode only
+/// changes the skip messaging, not the wiring.
+fn attach_telemetry(mut report: CheckFileReport, options: &CheckOptions) -> CheckFileReport {
+    let ran_validators: Vec<&str> = vec![
+        "typechecker",
+        "validate_semantic_stack",
+        "validate_reply_ports",
+        "validate_converge_contracts",
+    ];
+    let errors_per_validator: HashMap<String, usize> = HashMap::new();
+    let telemetry = telemetry::compute_telemetry(
+        &ran_validators,
+        &errors_per_validator,
+        options.pedantic,
+    );
+    report.confidence_score = Some(telemetry.confidence);
+    report.validator_count = Some(telemetry.validators_ran);
+    report.validators_skipped = Some(telemetry.validators_skipped);
+    report.gap_summary = Some(telemetry.gap_summary);
+    report.missing_categories = if telemetry.missing_categories.is_empty() {
+        None
+    } else {
+        Some(telemetry.missing_categories)
+    };
+    report.pedantic = Some(options.pedantic);
+    report
 }
 
 pub fn check_file(path: &Path, options: &CheckOptions) -> CheckFileReport {
@@ -259,6 +415,12 @@ fn check_file_with_session_raw(
             required_capabilities: Vec::new(),
             error: Some(format!("failed to read source: {error}")),
             diagnostic: None,
+            confidence_score: None,
+            validator_count: None,
+            validators_skipped: None,
+            gap_summary: None,
+            missing_categories: None,
+            pedantic: None,
         },
     }
 }
@@ -288,6 +450,12 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    confidence_score: None,
+                    validator_count: None,
+                    validators_skipped: None,
+                    gap_summary: None,
+                    missing_categories: None,
+                    pedantic: None,
                 }],
             };
         }

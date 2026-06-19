@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0008
+//@ expect-error: "Unclosed Delimiter"
+//@ severity: error
+
+// Triggers: Unclosed parenthesis
+let x = (a + b

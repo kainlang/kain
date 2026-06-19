@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0002
+//@ expect-error: "Missing Effect Capability"
+//@ severity: error
+
+// Triggers: Calling GPU function from non-GPU context
+fn do_gpu() with GPU:
+    return 0
+
+fn main():
+    do_gpu()

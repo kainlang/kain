@@ -97,35 +97,35 @@ LANGUAGE_CONFIG: dict[str, dict[str, Any]] = {
     "kain": {
         "label": "Kain LLVM",
         "source": CASES_V3 / "kain" / "bench.kn",
-        "binary": REPO_ROOT / ".kain" / "out" / "x86_64-windows" / "dev" / "ll" / "bench" / "compile" / "bench.exe",
+        "binary": CASES_V3 / "build" / "kain" / "bench.exe",
         "build_cmd": None,
         "extension": ".kn",
     },
     "rust": {
         "label": "Rust LLVM",
         "source": CASES_V3 / "rust" / "bench.rs",
-        "binary": CASES_V3 / "rust" / "bench.exe",
+        "binary": CASES_V3 / "build" / "rust" / "bench.exe",
         "build_cmd": None,
         "extension": ".rs",
     },
     "cpp": {
         "label": "C++ Clang",
         "source": CASES_V3 / "cpp" / "bench.cpp",
-        "binary": CASES_V3 / "cpp" / "bench.exe",
+        "binary": CASES_V3 / "build" / "cpp" / "bench.exe",
         "build_cmd": None,
         "extension": ".cpp",
     },
     "zig": {
         "label": "Zig ReleaseFast",
         "source": CASES_V3 / "zig" / "bench.zig",
-        "binary": CASES_V3 / "zig" / "bench.exe",
+        "binary": CASES_V3 / "build" / "zig" / "bench.exe",
         "build_cmd": None,
         "extension": ".zig",
     },
     "go": {
         "label": "Go gc",
         "source": CASES_V3 / "go" / "bench.go",
-        "binary": CASES_V3 / "go" / "bench.exe",
+        "binary": CASES_V3 / "build" / "go" / "bench.exe",
         "build_cmd": None,
         "extension": ".go",
     },
@@ -146,7 +146,29 @@ LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "mks"]
 # ============================================================================
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="CASES_V3 Benchmark Runner")
+    """CASES_V3 Benchmark Runner — the Frictionless Lane.
+
+    No-args usage (the ultimate goal):
+        bench.py            # auto-build if needed, run ALL benchmarks, write report
+        bench.py --run      # explicit: run ALL benchmarks
+        bench.py build      # compile all god files
+        bench.py list       # list all 30+ benchmarks
+        bench.py run --case binary_trees  # run one benchmark
+        bench.py run --tier 1             # run all Tier 1
+        bench.py expected --language cpp  # show expected checksums
+    """
+    parser = argparse.ArgumentParser(
+        description="CASES_V3 Benchmark Runner — just run: bench.py",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--run", action="store_true",
+                        help="Run all benchmarks (default action when no subcommand given)")
+    parser.add_argument("--no-build", action="store_true",
+                        help="Skip auto-build step (assume binaries are fresh)")
+    parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument("--warmups", type=int, default=1)
+    parser.add_argument("--timeout", type=int, default=300)
+
     sub = parser.add_subparsers(dest="command")
 
     # build
@@ -158,29 +180,41 @@ def main() -> int:
     run_p.add_argument("--case", help="Benchmark ID or comma-separated IDs")
     run_p.add_argument("--tier", type=int, help="Run all benchmarks in a tier (1-7)")
     run_p.add_argument("--language", help="Language(s) to run (comma-separated)")
-    run_p.add_argument("--warmups", type=int, default=1)
-    run_p.add_argument("--runs", type=int, default=3)
-    run_p.add_argument("--timeout", type=int, default=300)
+    run_p.add_argument("--warmups", type=int, default=None)
+    run_p.add_argument("--runs", type=int, default=None)
+    run_p.add_argument("--timeout", type=int, default=None)
+    run_p.add_argument("--no-build", action="store_true", help="Skip auto-build step")
 
     # suite
-    suite_p = sub.add_parser("suite", help="Run a named suite")
-    suite_p.add_argument("name", help="Suite name from suites.json")
-
-    # list
     sub.add_parser("list", help="List all benchmarks")
-
-    # expected
-    exp_p = sub.add_parser("expected", help="Show expected checksums")
+    exp_p = sub.add_parser("expected", help="Show expected checksums for a language")
     exp_p.add_argument("--language", default="cpp", help="Language to query")
 
     args = parser.parse_args()
 
+    # === FRICTIONLESS DEFAULT: no subcommand -> just run ===
+    # `bench.py` (no args) = auto-build + run all
+    # `bench.py --no-build` = run all without rebuilding
+    # `bench.py --runs 5` = run all with 5 timed runs
+    if args.command is None:
+        return _frictionless_run(build_first=not args.no_build,
+                                 warmups=args.warmups, runs=args.runs,
+                                 timeout=args.timeout)
+
     if args.command == "build":
         return cmd_build(args)
     elif args.command == "run":
-        return cmd_run(args)
-    elif args.command == "suite":
-        return cmd_suite(args)
+        # Auto-build unless --no-build
+        if not args.no_build:
+            print("[AUTO-BUILD] Compiling god files first...")
+            build_args = argparse.Namespace(language=None)
+            cmd_build(build_args)
+        warmups = args.warmups if args.warmups is not None else 1
+        runs = args.runs if args.runs is not None else 3
+        timeout = args.timeout if args.timeout is not None else 300
+        ns = argparse.Namespace(case=args.case, tier=args.tier, language=args.language,
+                                warmups=warmups, runs=runs, timeout=timeout)
+        return cmd_run(ns)
     elif args.command == "list":
         return cmd_list()
     elif args.command == "expected":
@@ -188,6 +222,25 @@ def main() -> int:
     else:
         parser.print_help()
         return 0
+
+
+def _frictionless_run(build_first: bool, warmups: int, runs: int, timeout: int) -> int:
+    """The Ultimate Goal: `bench.py` -> build + run all + report."""
+    print("=" * 60)
+    print("  CASES_V3 — Running all benchmarks (frictionless mode)")
+    print("=" * 60)
+
+    if build_first:
+        print("\n[AUTO-BUILD] Compiling god files...")
+        build_args = argparse.Namespace(language=None)
+        build_result = cmd_build(build_args)
+        if build_result != 0:
+            print("[WARN] Build had errors — continuing with available binaries")
+        print()
+
+    ns = argparse.Namespace(case=None, tier=None, language=None,
+                            warmups=warmups, runs=runs, timeout=timeout)
+    return cmd_run(ns)
 
 
 # ============================================================================
@@ -216,7 +269,12 @@ def cmd_build(args) -> int:
             continue
 
         binary = cfg["binary"]
-        print(f"[BUILD] {lang}: {source} → {binary}")
+        # Skip rebuild if binary is newer than source (frictionless: don't recompile)
+        if binary.exists() and binary.stat().st_mtime > source.stat().st_mtime:
+            print(f"[SKIP] {lang}: binary up to date ({binary.name})")
+            continue
+
+        print(f"[BUILD] {lang}: {source} -> {binary}")
 
         try:
             if lang == "kain":
@@ -239,13 +297,15 @@ def cmd_build(args) -> int:
 
 def _build_kain(source: Path, binary: Path):
     kain_exe = _find_kain()
+    out_dir = binary.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # -o sets the output base name; kain appends .exe
     result = subprocess.run(
-        [str(kain_exe), "build", str(source), "--target", "llvm", "-o", str(binary.with_suffix(""))],
-        capture_output=True, text=True, timeout=120,
+        [str(kain_exe), "build", str(source), "--target", "llvm", "-o", str(out_dir / "bench")],
+        capture_output=True, text=True, timeout=180,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"kain build failed:\n{result.stderr[-500:]}")
-    # kain outputs .exe at the -o path; verify
+        raise RuntimeError(f"kain build failed:\n{result.stderr[-500:]}\nstdout: {result.stdout[-500:]}")
     if not binary.exists():
         raise RuntimeError(f"binary not produced at {binary}")
 
@@ -265,7 +325,7 @@ def _build_cpp(source: Path, binary: Path):
     cxx = _find_tool("clang++", fallback_dirs=[REPO_ROOT / "toolchain" / "llvm" / "bin"])
     result = subprocess.run(
         [cxx, "-std=c++20", "-O3", "-march=native", "-DNDEBUG", "-o", str(binary), str(source)],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=300,
     )
     if result.returncode != 0:
         raise RuntimeError(f"clang++ failed:\n{result.stderr[-500:]}")

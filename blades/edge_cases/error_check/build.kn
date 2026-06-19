@@ -1,0 +1,12 @@
+// ============================================================================
+//  ERROR CHECK BUILD AUTHORITY
+//  Comprehensive error diagnostic testing pipeline.
+//  Supports: kain check  (check-fail mode for type errors)
+//            kain build (build-fail mode for codegen errors)
+//            kain test  (run all error tests with telemetry)
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    return build_graph(ctx)

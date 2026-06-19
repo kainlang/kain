@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0014
+//@ expect-error: "Recursive Type Without Indirection"
+//@ severity: error
+
+// Triggers: Struct directly contains itself without pointer/indirection
+struct Node:
+    value: Int
+    next: Node

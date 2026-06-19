@@ -1,0 +1,15 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0013
+//@ expect-error: "Pattern Match Inexhaustive"
+//@ severity: error
+
+// Triggers: Match without all enum variants and no catch-all
+enum Color:
+    Red
+    Green
+    Blue
+
+fn describe(c: Color) -> String:
+    match c:
+        Color::Red => return "red"
+        Color::Green => return "green"

@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0009
+//@ expect-error: "Mismatched Delimiter"
+//@ severity: error
+
+// Triggers: Closing brace on array
+let arr = [1, 2, 3}

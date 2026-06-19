@@ -1,0 +1,16 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0010
+//@ expect-error: "Implicit Clone On Large Value"
+//@ severity: warning
+
+// Triggers: Warning on large implicit clone
+struct BigStruct:
+    data: Array<Int>
+
+fn consume(b: BigStruct):
+    let _ = b
+
+fn main():
+    let big = BigStruct { data: [1, 2, 3, 4, 5] }
+    consume(big)
+    let _ = big

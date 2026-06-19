@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0007
+//@ expect-error: "Weak Reference Upgraded Unsafely"
+//@ severity: error
+
+// Triggers: Upgrading weak ref without checking liveness
+fn main():
+    let weak_ref: ptr<Int> = none
+    let strong = weak_ref.upgrade()

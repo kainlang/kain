@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0005
+//@ expect-error: "Capability Gate Failure"
+//@ severity: error
+
+// Triggers: Capability check fails at compile time
+fn use_avx2() with Pure:
+    // avx2 capability not available
+    return 0
+
+fn main():
+    use_avx2()

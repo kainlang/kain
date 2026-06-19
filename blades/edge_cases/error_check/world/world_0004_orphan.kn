@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0004
+//@ expect-error: "World Orphan"
+//@ severity: error
+
+// Triggers: Unreferenced world with no entry point
+component Foo:
+    render <panel />
+
+world OrphanWorld:
+    surface native_ui => Foo

@@ -1,0 +1,18 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0005
+//@ expect-error: "Entanglement Target Invalid"
+//@ severity: error
+
+// Triggers: Entangle references non-existent world field
+world A:
+    state val: Int = 0
+    surface native_ui => Foo
+
+world B:
+    state other: Int = 0
+    surface native_ui => Foo
+
+component Foo:
+    render <panel />
+
+entangle A.val <-> B.nonexistent with single_writer

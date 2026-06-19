@@ -521,6 +521,14 @@ pub enum KainCommand {
         /// Write a structured JSON check report to a file
         #[arg(long = "json-out", conflicts_with = "json")]
         json_out: Option<PathBuf>,
+
+        /// Run ALL validators including expensive/speculative ones (ETA-B)
+        #[arg(long)]
+        pedantic: bool,
+
+        /// Run check then build, report errors build caught that check missed (ETA-C)
+        #[arg(long)]
+        audit: bool,
     },
 
     /// Build a file, project, or build authority. Without input, builds the current project.
@@ -1223,6 +1231,39 @@ mod tests {
             }) => {
                 assert!(!json);
                 assert_eq!(json_out, Some(PathBuf::from("report.json")));
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_check_pedantic_flag() {
+        let cli = KainCli::parse_from(["kain", "check", "main.kn", "--pedantic"]);
+        match cli.command {
+            Some(KainCommand::Check { pedantic, .. }) => {
+                assert!(pedantic);
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_check_pedantic_default_false() {
+        let cli = KainCli::parse_from(["kain", "check", "main.kn"]);
+        match cli.command {
+            Some(KainCommand::Check { pedantic, .. }) => {
+                assert!(!pedantic);
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_check_audit_flag() {
+        let cli = KainCli::parse_from(["kain", "check", "main.kn", "--audit"]);
+        match cli.command {
+            Some(KainCommand::Check { audit, .. }) => {
+                assert!(audit);
             }
             other => panic!("expected check command, got {other:?}"),
         }

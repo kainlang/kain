@@ -1,0 +1,11 @@
+//@ build-fail
+//@ error: KAIN-CODEGEN-0002
+//@ expect-error: "Unknown Codegen Variable"
+//@ severity: error
+
+// Triggers: Lowering pass lost a binding
+// Note: passes `kain check` but may fail `kain build --target llvm`
+
+fn main() -> Int:
+    let x = 42
+    return x

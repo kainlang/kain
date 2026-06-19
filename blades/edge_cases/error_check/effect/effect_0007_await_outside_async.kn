@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0007
+//@ expect-error: "Await Outside Async"
+//@ severity: error
+
+// Triggers: await used in non-async function
+async fn fetch() -> Int with Async:
+    return 42
+
+fn main():
+    let result = await fetch()

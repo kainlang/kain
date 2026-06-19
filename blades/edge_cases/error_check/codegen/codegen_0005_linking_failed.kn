@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-CODEGEN-0005
+//@ known-gap: Cannot trigger linking errors from .kn source alone -- requires external library linkage that the test harness does not provide
+//@ severity: error
+
+// Triggers: Linking error -- requires an external library not present in the test environment
+// This file exists to document the coverage gap.

@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0009
+//@ expect-error: "Ambiguous Trait Implementation"
+//@ severity: error
+
+// Triggers: Two impls of same trait for same type
+trait Greet:
+    fn greet(_self: Self_) -> String
+
+struct Person:
+    name: String
+
+impl Greet for Person:
+    fn greet(_self: Self_) -> String:
+        return "Hello"
+
+impl Greet for Person:
+    fn greet(_self: Self_) -> String:
+        return "Hi"

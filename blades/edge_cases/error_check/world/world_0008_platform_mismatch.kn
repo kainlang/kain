@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0008
+//@ expect-error: "Surface Kind Platform Mismatch"
+//@ severity: error
+
+// Triggers: Surface kind not supported on current target
+component Foo:
+    render <panel />
+
+world WebWorld:
+    surface ue5 => Foo

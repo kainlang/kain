@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0010
+//@ expect-error: "Unsafe Block Not Allowed"
+//@ severity: error
+
+// Triggers: Unsafe in a context that disallows it
+fn main() with Unsafe:
+    let p: ptr<Int> = none

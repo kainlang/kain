@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0011
+//@ expect-error: "Cyclic Type Definition"
+//@ severity: error
+
+// Triggers: Struct directly contains itself (infinite size)
+struct Recursive:
+    inner: Recursive

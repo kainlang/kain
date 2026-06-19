@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0013
+//@ expect-error: "Attribute Syntax Error"
+//@ severity: error
+
+// Triggers: Space between @ and attribute name
+@ material_graph
+fn main():
+    return 0

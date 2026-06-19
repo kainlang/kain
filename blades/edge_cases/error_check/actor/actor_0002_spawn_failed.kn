@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0002
+//@ expect-error: "Actor Spawn Failed"
+//@ severity: error
+
+// Triggers: Spawn non-existent actor type
+fn main():
+    spawn NonExistentActor

@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0002
+//@ expect-error: "Expected Token"
+//@ severity: error
+
+// Triggers: Missing ':' after fn header
+fn main
+    return 0

@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0001
+//@ expect-error: "Parse Error"
+//@ severity: error
+
+// Triggers: Generic parse error from gibberish input
+!!!! invalid @@@@

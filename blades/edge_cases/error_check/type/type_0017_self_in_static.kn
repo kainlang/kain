@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0017
+//@ expect-error: "Self Type In Static Context"
+//@ severity: error
+
+// Triggers: Self used outside trait/impl context
+fn make() -> Self:
+    return 0

@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0003
+//@ expect-error: "Surface Component Type Error"
+//@ severity: error
+
+// Triggers: Surface maps to non-component type
+struct NotAComponent:
+    x: Int
+
+world BadWorld:
+    surface native_ui => NotAComponent

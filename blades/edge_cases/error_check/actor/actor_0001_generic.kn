@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0001
+//@ expect-error: "Component/Actor Error"
+//@ severity: error
+
+// Triggers: Generic actor error
+actor BadActor:
+    // Actor with no state and no handlers

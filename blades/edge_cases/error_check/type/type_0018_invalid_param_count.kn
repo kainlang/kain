@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0018
+//@ expect-error: "Invalid Type Parameter Count"
+//@ severity: error
+
+// Triggers: Vec takes 1 type arg, but 2 provided
+use std::collections
+
+fn main():
+    let v: Vec<Int, String> = []

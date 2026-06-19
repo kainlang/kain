@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0005
+//@ expect-error: "Missing Delimiter Before Newline"
+//@ severity: error
+
+// Triggers: Newline before ':' in block header
+fn greet
+    return 0

@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0002
+//@ expect-error: "Multiple Mutable Borrows"
+//@ severity: error
+
+// Triggers: Two mutable references to same variable
+fn main():
+    let mut x = 5
+    let a = &mut x
+    let b = &mut x

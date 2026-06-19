@@ -1,0 +1,18 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0003
+//@ expect-error: "Effect Polymorphism Mismatch"
+//@ severity: error
+
+// Triggers: Effect polymorphic function instantiated with conflicting effects
+fn run<E>(f: fn() with E) with E:
+    f()
+
+fn pure_work() with Pure:
+    return
+
+fn io_work() with IO:
+    println("io")
+
+fn main():
+    run(pure_work)
+    run(io_work)

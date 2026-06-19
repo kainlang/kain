@@ -1,0 +1,16 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0008
+//@ expect-error: "Trait Method Missing"
+//@ severity: error
+
+// Triggers: Impl missing a required trait method
+trait Counter:
+    fn count(_self: Self_) -> Int
+    fn reset(_self: Self_)
+
+struct MyCounter:
+    val: Int
+
+impl Counter for MyCounter:
+    fn count(_self: Self_) -> Int:
+        return _self.val

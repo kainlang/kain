@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0006
+//@ expect-error: "Async In Sync Context"
+//@ severity: error
+
+// Triggers: Calling async function from sync context
+async fn fetch_data() -> Int with Async:
+    return 42
+
+fn main():
+    fetch_data()

@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0010
+//@ expect-error: "Invalid Numeric Literal"
+//@ severity: error
+
+// Triggers: Invalid hex literal with non-hex characters
+let x = 0xZZZ

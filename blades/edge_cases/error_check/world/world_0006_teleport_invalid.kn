@@ -1,0 +1,15 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0006
+//@ expect-error: "Teleport Destination Invalid"
+//@ severity: error
+
+// Triggers: Teleport to non-existent world
+world Source:
+    state data: Int = 0
+    surface native_ui => Foo
+
+component Foo:
+    render <panel />
+
+fn main():
+    let moved = teleport Source.data from Source to NonExistent via my_bus

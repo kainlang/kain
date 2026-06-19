@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0006
+//@ expect-error: "Invalid World Surface Kind"
+//@ severity: error
+
+// Triggers: Invalid surface kind 'desktop' -- must be native_ui, viewport3d, web, or ue5
+world W:
+    surface desktop => MyPanel

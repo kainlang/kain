@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0003
+//@ expect-error: "Unexpected Token"
+//@ severity: error
+
+// Triggers: Extra indentation causes unexpected token
+let x = 5
+  let y = 10

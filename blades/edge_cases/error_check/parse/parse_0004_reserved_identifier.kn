@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0004
+//@ expect-error: "Reserved Identifier"
+//@ severity: error
+
+// Triggers: Using reserved word 'emit' as identifier
+fn emit():
+    return 0

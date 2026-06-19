@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0003
+//@ expect-error: "World Requires Surface"
+//@ severity: error
+
+// Triggers: World without any surface projection
+world EmptyWorld:
+    state x: Int = 0

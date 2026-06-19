@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0006
+//@ expect-error: "Decay Transition Invalid"
+//@ severity: error
+
+// Triggers: Invalid decay transition
+component Lifecycle:
+    state phase: Int = 0
+    fn bad_decay():
+        decay self.phase

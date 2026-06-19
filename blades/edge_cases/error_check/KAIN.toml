@@ -1,0 +1,26 @@
+[package]
+name = "error_check"
+version = "0.1.0"
+description = "Comprehensive error diagnostic testing pipeline -- proves every compiler error code is triggerable with correct diagnostic output."
+authors = ["Kain Toolchain"]
+
+[blade]
+name = "error_check"
+kind = "kain_library"
+entry = "run_all.kn"
+source_roots = ["."]
+module_roots = ["."]
+build_targets = ["llvm"]
+
+[run]
+entry = "run_all.kn"
+target = "llvm"
+
+[build]
+entry = "run_all.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[dependencies]
+# No external dependencies -- tests the compiler itself

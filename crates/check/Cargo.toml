@@ -10,6 +10,7 @@ kain-core = { path = "../core" }
 kain-driver = { path = "../driver", default-features = false }
 kain-error = { path = "../error" }
 kain-fs = { path = "../fs" }
+kain-ownership = { path = "../ownership" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

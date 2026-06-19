@@ -1,0 +1,19 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0009
+//@ expect-error: "Reactive Cycle Detected"
+//@ severity: error
+
+// Triggers: Reactive cycle between two worlds via entangle
+world A:
+    state val: Int = 0
+    surface native_ui => Foo
+
+world B:
+    state val_copy: Int = 0
+    surface native_ui => Foo
+
+component Foo:
+    render <panel />
+
+entangle A.val <-> B.val_copy with single_writer
+entangle B.val_copy <-> A.val with single_writer

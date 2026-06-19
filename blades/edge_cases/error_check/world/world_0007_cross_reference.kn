@@ -1,0 +1,24 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0007
+//@ expect-error: "World Cross-Reference Cycle"
+//@ severity: error
+
+// Triggers: Cyclic world references via entangle
+world W1:
+    state a: Int = 0
+    surface native_ui => Foo
+
+world W2:
+    state b: Int = 0
+    surface native_ui => Foo
+
+world W3:
+    state c: Int = 0
+    surface native_ui => Foo
+
+component Foo:
+    render <panel />
+
+entangle W1.a <-> W2.b with single_writer
+entangle W2.b <-> W3.c with single_writer
+entangle W3.c <-> W1.a with single_writer

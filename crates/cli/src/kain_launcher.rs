@@ -1451,7 +1451,18 @@ fn run_source_with_session(
                             }
                         }
                         Err(err) => {
-                            eprintln!(" Failed to stage native backend artifacts: {}", err);
+                            let rendered = session.format_error(source_name, &source, &err);
+                            eprint!("{rendered}");
+                            capture_kain_error_failure(
+                                "compile",
+                                None,
+                                Some("llvm"),
+                                source_name,
+                                source_path,
+                                &source,
+                                &err,
+                                &rendered,
+                            );
                             return false;
                         }
                     }
@@ -1881,14 +1892,57 @@ fn run_source_with_session(
                                     }
                                     Ok(None) => {}
                                     Err(err) => {
-                                        eprintln!(" Failed to stage compute runtime DLL: {}", err);
+                                        let gpu_error = kain_core::error::KainError::rich(
+                                            kain_core::error::DiagnosticReport::new(
+                                                kain_core::error::ErrorKind::Codegen,
+                                                kain_core::error::DiagnosticCode::CodegenBackendFailed,
+                                                format!("Failed to stage compute runtime DLL: {}", err),
+                                            )
+                                            .severity(kain_core::error::DiagnosticSeverity::Error)
+                                            .phase(kain_core::error::CompilerPhase::Codegen)
+                                            .help("Ensure the GPU runtime library is built and accessible."),
+                                        );
+                                        let rendered = session.format_error(source_name, &source, &gpu_error);
+                                        eprint!("{rendered}");
+                                        capture_kain_error_failure(
+                                            "compile",
+                                            None,
+                                            Some("llvm"),
+                                            source_name,
+                                            source_path,
+                                            &source,
+                                            &gpu_error,
+                                            &rendered,
+                                        );
                                         return false;
                                     }
                                 }
                             }
                         }
                         Err(err) => {
-                            eprintln!(" Linking failed: {}", err);
+                            let link_error = kain_core::error::KainError::rich(
+                                kain_core::error::DiagnosticReport::new(
+                                    kain_core::error::ErrorKind::Codegen,
+                                    kain_core::error::DiagnosticCode::CodegenLinkingFailed,
+                                    format!("Native linking failed: {}", err),
+                                )
+                                .severity(kain_core::error::DiagnosticSeverity::Error)
+                                .phase(kain_core::error::CompilerPhase::Linking)
+                                .note("The native linker reported an error.")
+                                .help("Check that all required native libraries are installed and accessible."),
+                            );
+                            let rendered = session.format_error(source_name, &source, &link_error);
+                            eprint!("{rendered}");
+                            capture_kain_error_failure(
+                                "compile",
+                                None,
+                                Some("llvm"),
+                                source_name,
+                                source_path,
+                                &source,
+                                &link_error,
+                                &rendered,
+                            );
                             return false;
                         }
                     }
@@ -2684,6 +2738,8 @@ fn run_check_command(
     fail_fast: bool,
     json_stdout: bool,
     json_out: Option<&Path>,
+    pedantic: bool,
+    audit: bool,
 ) -> bool {
     let Some(target) = parse_compile_target(target) else {
         if json_stdout {
@@ -2698,6 +2754,7 @@ fn run_check_command(
     };
     let mut options = kain_check::CheckOptions::new(target);
     options.fail_fast = fail_fast;
+    options.pedantic = pedantic;
     options.progress = cli::progress::stderr_progress_sink(!(json_stdout || json_out.is_some()));
 
     let report = if input == Path::new("-") {
@@ -2727,6 +2784,12 @@ fn run_check_command(
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    confidence_score: None,
+                    validator_count: None,
+                    validators_skipped: None,
+                    gap_summary: None,
+                    missing_categories: None,
+                    pedantic: None,
                 }],
             },
         }
@@ -2747,6 +2810,12 @@ fn run_check_command(
                     required_capabilities: Vec::new(),
                     error: Some(error),
                     diagnostic: None,
+                    confidence_score: None,
+                    validator_count: None,
+                    validators_skipped: None,
+                    gap_summary: None,
+                    missing_categories: None,
+                    pedantic: None,
                 }],
             },
         }
@@ -2755,12 +2824,38 @@ fn run_check_command(
         if !emit_structured_report(StructuredReportDestination::Stdout, &report, "check") {
             return false;
         }
+        // When --audit is also set, append the audit JSON to the same payload.
+        if audit {
+            if let Some(audit_report) = run_check_audit(input, target, &report) {
+                if !emit_structured_report(
+                    StructuredReportDestination::Stdout,
+                    &audit_report,
+                    "audit",
+                ) {
+                    return false;
+                }
+            }
+        }
         return report.is_success();
     }
 
     if let Some(path) = json_out {
         if !emit_structured_report(StructuredReportDestination::File(path), &report, "check") {
             return false;
+        }
+    }
+
+    // --audit: run the build pipeline and compare against check results.
+    if audit {
+        if let Some(audit_report) = run_check_audit(input, target, &report) {
+            match serde_json::to_string_pretty(&audit_report) {
+                Ok(pretty) => println!("{pretty}"),
+                Err(err) => eprintln!(
+                    "{} Failed to serialize audit report: {}",
+                    p().status_error(""),
+                    err
+                ),
+            }
         }
     }
 
@@ -3657,8 +3752,18 @@ pub fn main_entry() {
                     fail_fast,
                     json,
                     json_out,
+                    pedantic,
+                    audit,
                 }) => {
-                    if !run_check_command(&input, &target, fail_fast, json, json_out.as_deref()) {
+                    if !run_check_command(
+                        &input,
+                        &target,
+                        fail_fast,
+                        json,
+                        json_out.as_deref(),
+                        pedantic,
+                        audit,
+                    ) {
                         std::process::exit(1);
                     }
                 }

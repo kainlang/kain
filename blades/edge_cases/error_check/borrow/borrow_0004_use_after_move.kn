@@ -1,0 +1,16 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0004
+//@ expect-error: "Use After Move"
+//@ severity: error
+
+// Triggers: Using value after ownership transfer
+struct Data:
+    payload: Int
+
+fn consume(d: Data):
+    let _ = d
+
+fn main():
+    let d = Data { payload: 42 }
+    consume(d)
+    let _ = d.payload

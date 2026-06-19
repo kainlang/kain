@@ -1,0 +1,7 @@
+//@ build-fail
+//@ error: KAIN-CODEGEN-0011
+//@ known-gap: Budget tracking for codegen is not currently wired in the compiler -- this error code exists but has no trigger path
+//@ severity: error
+
+// Triggers: Codegen budget exceeded -- but budget tracking is not wired
+// This file exists to document the coverage gap.

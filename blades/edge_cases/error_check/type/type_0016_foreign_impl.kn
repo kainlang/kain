@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0016
+//@ expect-error: "Impl On Foreign Type"
+//@ severity: error
+
+// Triggers: Impl trait for a type when both are foreign (stdlib trait on stdlib type)
+use std::math
+
+impl math::Abs for Int:
+    fn abs(_self: Self_) -> Int:
+        return _self

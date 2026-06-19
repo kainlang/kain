@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0023
+//@ expect-error: "Callable Type Expected"
+//@ severity: error
+
+// Triggers: Calling non-function value
+fn main():
+    let x = 5
+    x()

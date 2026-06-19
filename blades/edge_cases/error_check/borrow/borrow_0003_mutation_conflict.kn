@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0003
+//@ expect-error: "Borrow And Mutation Conflict"
+//@ severity: error
+
+// Triggers: Mutating while borrowed
+fn main():
+    let mut x = 5
+    let r = &x
+    x = 10
+    let _ = r

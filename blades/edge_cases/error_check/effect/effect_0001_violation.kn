@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0001
+//@ expect-error: "Effect Violation"
+//@ severity: error
+
+// Triggers: Generic effect violation
+fn main() with Pure:
+    println("side effect in pure function")

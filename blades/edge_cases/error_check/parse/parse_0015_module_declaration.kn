@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0015
+//@ expect-error: "Module Declaration Error"
+//@ severity: error
+
+// Triggers: Bare mod keyword with no name
+mod

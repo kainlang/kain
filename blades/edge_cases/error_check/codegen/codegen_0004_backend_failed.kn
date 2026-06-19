@@ -1,0 +1,10 @@
+//@ build-fail
+//@ error: KAIN-CODEGEN-0004
+//@ expect-error: "Backend Compilation Failed"
+//@ severity: error
+
+// Triggers: LLVM rejects generated code
+// Note: passes `kain check` but may fail `kain build --target llvm`
+
+fn main() -> Int:
+    return 0

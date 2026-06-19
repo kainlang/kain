@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0004
+//@ expect-error: "Duplicate Symbol"
+//@ severity: error
+
+// Triggers: Two functions with the same name
+fn foo():
+    return 0
+
+fn foo():
+    return 1

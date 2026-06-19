@@ -1,0 +1,22 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0006
+//@ expect-error: "Single Writer Violation"
+//@ severity: error
+
+// Triggers: Two worlds writing to the same single_writer entangled field
+world Authority:
+    state count: Int = 0
+    surface native_ui => Foo
+
+world Mirror:
+    state count_copy: Int = 0
+    surface native_ui => Foo
+
+component Foo:
+    render <panel />
+
+entangle Authority.count <-> Mirror.count_copy with single_writer
+
+// Mirror writes to single_writer field -- violation
+fn main():
+    Mirror.count_copy = 42

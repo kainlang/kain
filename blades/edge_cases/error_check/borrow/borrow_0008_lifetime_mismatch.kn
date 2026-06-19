@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0008
+//@ expect-error: "Lifetime Mismatch"
+//@ severity: error
+
+// Triggers: Reference outlives the value it points to
+fn dangling() -> ptr<Int>:
+    let x = 5
+    return &x

@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-WORLD-0002
+//@ expect-error: "Duplicate Surface Kind"
+//@ severity: error
+
+// Triggers: Two surfaces of the same kind in one world
+component Foo:
+    render <panel />
+
+world DupeWorld:
+    surface native_ui => Foo
+    surface native_ui => Foo

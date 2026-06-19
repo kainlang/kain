@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0005
+//@ expect-error: "Emit Without Listener"
+//@ severity: warning
+
+// Triggers: emit with no observer
+component Emitter:
+    state val: Int = 0
+    fn fire():
+        emit self.val

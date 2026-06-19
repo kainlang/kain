@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0021
+//@ expect-error: "Missing Return In Non-Void Function"
+//@ severity: error
+
+// Triggers: Non-void function with no return on all paths
+fn compute() -> Int:
+    let x = 5
+    // no return statement

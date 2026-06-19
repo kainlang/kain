@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0020
+//@ expect-error: "Return Type Mismatch"
+//@ severity: error
+
+// Triggers: Function declares Int return but returns String
+fn answer() -> Int:
+    return "hello"

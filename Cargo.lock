@@ -2152,6 +2152,7 @@ dependencies = [
  "kain-driver",
  "kain-error",
  "kain-fs",
+ "kain-ownership",
  "serde",
  "serde_json",
  "tempfile",
@@ -2546,14 +2547,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kain-runtime-parallel"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "kain-script"
 version = "0.1.0"
 dependencies = [
@@ -2637,6 +2630,7 @@ dependencies = [
  "kain-actor",
  "kain-core",
  "kain-ownership",
+ "kain-semantic",
  "serde",
  "serde_json",
 ]

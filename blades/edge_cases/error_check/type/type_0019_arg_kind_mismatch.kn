@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0019
+//@ expect-error: "Type Argument Kind Mismatch"
+//@ severity: error
+
+// Triggers: Type arg doesn't satisfy kind constraint
+trait Number:
+    fn value(_self: Self_) -> Int
+
+fn double<T: Number>(x: T) -> Int:
+    return x.value() * 2
+
+fn main():
+    double("hello")

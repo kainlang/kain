@@ -1,0 +1,9 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0004
+//@ expect-error: "Pure Function With Side Effect"
+//@ severity: error
+
+// Triggers: Pure function calls println
+fn compute() -> Int with Pure:
+    println("this is a side effect")
+    return 42

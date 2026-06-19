@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0007
+//@ expect-error: "Expected Contextual Keyword"
+//@ severity: error
+
+// Triggers: Contextual keyword 'surface' used in wrong position
+fn surface():
+    return 0

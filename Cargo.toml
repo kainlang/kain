@@ -62,7 +62,7 @@ members = [
     "crates/web",
     "crates/sys-codegen",
     "crates/cli",
-    "runtime/parallel/rust/kain-runtime-parallel",
+    # "runtime/parallel/rust/kain-runtime-parallel",  # TODO: missing directory - fix in separate stream
     # "crates/browser" # Uncomment when ready to integrate
 
     # ── Unreal asset read/write (unrealmodding, vendored into crates/unreal/) ─

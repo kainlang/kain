@@ -1,0 +1,13 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0024
+//@ expect-error: "Field Not Found"
+//@ severity: error
+
+// Triggers: Accessing non-existent struct field
+struct Point:
+    x: Int
+    y: Int
+
+fn main():
+    let p = Point { x: 1, y: 2 }
+    let _ = p.z

@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0001
+//@ expect-error: "Borrow Error"
+//@ severity: error
+
+// Triggers: Generic borrow error
+fn main():
+    let mut x = 5
+    let a = &mut x
+    let b = &mut x

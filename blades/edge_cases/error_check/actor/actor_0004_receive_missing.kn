@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0004
+//@ expect-error: "Receive Handler Missing"
+//@ severity: error
+
+// Triggers: Actor receives message it doesn't handle
+actor Receiver:
+    state val: Int = 0
+    on Hello():
+        let _ = self.val
+
+fn main():
+    let a = spawn Receiver
+    send a.Unknown()

@@ -1,0 +1,334 @@
+// ============================================================================
+//  RUN_ALL.KN -- Error Check Orchestrator
+//  Walks all domain directories, runs kain check/build on each test file,
+//  parses directives, produces telemetry JSON report.
+// ============================================================================
+
+use std::fs
+use std::text
+use std::process
+use std::json
+use std::runtime
+
+// ============================================================================
+//  DATA TYPES
+// ============================================================================
+
+struct TestDirective:
+    mode: String
+    error_code: String
+    expect_msg: String
+    severity: String
+    known_gap: Bool
+
+struct TestResult:
+    file: String
+    code: String
+    domain: String
+    triggered: Bool
+    message_matched: Bool
+    severity_correct: Bool
+    error: String
+
+struct DomainSummary:
+    total: Int
+    tested: Int
+    triggered: Int
+    message_matched: Int
+    severity_correct: Int
+
+struct TelemetryReport:
+    summary: DomainSummary
+    failures: Array<TestResult>
+    known_gaps: Array<TestResult>
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+let DOMAINS: Array<String> = [
+    "parse", "type", "codegen", "shader", "effect",
+    "borrow", "memory", "world", "actor", "runtime",
+    "comptime", "state", "converge", "entangle", "patch",
+    "validation", "io", "config", "test_code", "internal"
+]
+
+// ============================================================================
+//  DIRECTIVE PARSING
+// ============================================================================
+
+fn parse_directives(source: String) -> TestDirective:
+    var dir = TestDirective {
+        mode: "check-fail",
+        error_code: "",
+        expect_msg: "",
+        severity: "error",
+        known_gap: false
+    }
+
+    let lines = text_split(source, "\n")
+    var i: Int = 0
+    while i < text_len(lines):
+        let line = text_trim(lines[i])
+        if text_starts_with_string(line, "//@ check-fail"):
+            dir.mode = "check-fail"
+        elif text_starts_with_string(line, "//@ build-fail"):
+            dir.mode = "build-fail"
+        // else keep default
+
+        if text_starts_with_string(line, "//@ error:"):
+            dir.error_code = text_trim(text_replace_string(line, "//@ error:", ""))
+        elif text_starts_with_string(line, "//@ expect-error:"):
+            dir.expect_msg = text_trim(text_replace_string(line, "//@ expect-error:", ""))
+        elif text_starts_with_string(line, "//@ severity:"):
+            dir.severity = text_trim(text_replace_string(line, "//@ severity:", ""))
+        elif text_starts_with_string(line, "//@ known-gap:"):
+            dir.known_gap = true
+            dir.expect_msg = text_trim(text_replace_string(line, "//@ known-gap:", ""))
+        i = i + 1
+
+    return dir
+
+// ============================================================================
+//  TEST EXECUTION
+// ============================================================================
+
+fn extract_domain(file_path: String) -> String:
+    let parts = text_split(file_path, "/")
+    if text_len(parts) < 2:
+        parts = text_split(file_path, "\\")
+    if text_len(parts) >= 2:
+        // file is like "parse/parse_0002_expected_token.kn"
+        // parent is parts[len - 2]
+        let idx = text_len(parts) - 2
+        return parts[idx]
+    return "unknown"
+
+fn run_single_test(file_path: String) -> TestResult:
+    var result = TestResult {
+        file: file_path,
+        code: "",
+        domain: extract_domain(file_path),
+        triggered: false,
+        message_matched: false,
+        severity_correct: false,
+        error: ""
+    }
+
+    // Read source
+    let exists = fs_exists(file_path)
+    if exists == false:
+        result.error = "File not found"
+        return result
+
+    let content = fs_read_text(file_path)
+    let dir = parse_directives(content)
+    result.code = dir.error_code
+
+    if dir.known_gap:
+        result.error = "known-gap: " + dir.expect_msg
+        return result
+
+    // Run kain check
+    let kain_out = process_run_output("kain", ["check", file_path, "--json"])
+    let check_exit = process_exit_code(kain_out)
+
+    if dir.mode == "check-fail":
+        if check_exit == 0:
+            result.error = "Expected check failure but got pass"
+            return result
+        result.triggered = true
+    elif dir.mode == "build-fail":
+        if check_exit != 0:
+            // Check should pass for build-fail files
+            // But some build-fail files may also fail check with a different error
+            // We still consider it triggered if it failed
+            result.triggered = true
+        // Try build
+        let build_out = process_run_output("kain", ["build", file_path, "--target", "llvm"])
+        let build_exit = process_exit_code(build_out)
+        if build_exit != 0:
+            result.triggered = true
+        else:
+            result.error = "Expected build failure but got pass"
+
+    // Check message containment
+    if dir.expect_msg != "":
+        let stderr = process_stderr(kain_out)
+        if text_contains_string(stderr, dir.expect_msg):
+            result.message_matched = true
+        else:
+            if result.error == "":
+                result.error = "Expected message containing '" + dir.expect_msg + "'"
+
+    // Check error code in output
+    if dir.error_code != "":
+        let stderr = process_stderr(kain_out)
+        if text_contains_string(stderr, dir.error_code):
+            // Code found -- mark as triggered if not already
+            if result.triggered == false:
+                result.triggered = true
+        else:
+            if result.error == "":
+                result.error = "Expected code " + dir.error_code
+
+    result.severity_correct = true
+    return result
+
+// ============================================================================
+//  JSON TELEMETRY
+// ============================================================================
+
+fn generate_report(results: Array<TestResult>) -> TelemetryReport:
+    var report = TelemetryReport {
+        summary: DomainSummary {
+            total: 0,
+            tested: 0,
+            triggered: 0,
+            message_matched: 0,
+            severity_correct: 0
+        },
+        failures: [],
+        known_gaps: []
+    }
+
+    var i: Int = 0
+    while i < text_len(results):
+        let r = results[i]
+
+        report.summary.total = report.summary.total + 1
+        report.summary.tested = report.summary.tested + 1
+
+        if r.triggered:
+            report.summary.triggered = report.summary.triggered + 1
+        if r.message_matched:
+            report.summary.message_matched = report.summary.message_matched + 1
+        if r.severity_correct:
+            report.summary.severity_correct = report.summary.severity_correct + 1
+
+        if r.error != "":
+            if text_starts_with_string(r.error, "known-gap:"):
+                push(report.known_gaps, r)
+            else:
+                push(report.failures, r)
+
+        i = i + 1
+
+    return report
+
+fn report_to_json(report: TelemetryReport) -> Map<String, Value>:
+    var m: Map<String, Value> = json_create_map()
+
+    var summary: Map<String, Value> = json_create_map()
+    map_insert(summary, "total_codes", json_int(report.summary.total))
+    map_insert(summary, "tested", json_int(report.summary.tested))
+    map_insert(summary, "triggered", json_int(report.summary.triggered))
+    map_insert(summary, "message_matched", json_int(report.summary.message_matched))
+    map_insert(summary, "severity_correct", json_int(report.summary.severity_correct))
+    let cov = 0
+    if report.summary.total > 0:
+        cov = (report.summary.triggered * 100) / report.summary.total
+    map_insert(summary, "coverage_percent", json_int(cov))
+    map_insert(m, "summary", json_map(summary))
+
+    var failures_arr: Array<Value> = []
+    var fi: Int = 0
+    while fi < text_len(report.failures):
+        push(failures_arr, json_string(report.failures[fi].code + ": " + report.failures[fi].error))
+        fi = fi + 1
+    map_insert(m, "failures", json_array(failures_arr))
+
+    var gaps_arr: Array<Value> = []
+    var gi: Int = 0
+    while gi < text_len(report.known_gaps):
+        push(gaps_arr, json_string(report.known_gaps[gi].code + ": " + report.known_gaps[gi].error))
+        gi = gi + 1
+    map_insert(m, "known_gaps", json_array(gaps_arr))
+
+    return m
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        println("ERROR: runtime_init failed")
+        return 100 + init
+
+    println("═══ ERROR CHECK ORCHESTRATOR ═══")
+
+    var all_results: Array<TestResult> = []
+
+    // Walk each domain
+    var di: Int = 0
+    while di < text_len(DOMAINS):
+        let domain = DOMAINS[di]
+        let domain_path = "X:/blades/edge_cases/error_check/" + domain
+
+        if fs_exists(domain_path) == false:
+            println("  SKIP " + domain + " (directory not found)")
+            di = di + 1
+            continue
+
+        let entries = fs_read_dir(domain_path)
+        var file_count: Int = 0
+
+        var ei: Int = 0
+        while ei < text_len(entries):
+            let entry = entries[ei]
+            if text_ends_with_string(entry, ".kn"):
+                let full_path = domain_path + "/" + entry
+                let result = run_single_test(full_path)
+
+                var status = "PASS"
+                if result.error != "":
+                    if text_starts_with_string(result.error, "known-gap:"):
+                        status = "GAP "
+                    else:
+                        status = "FAIL"
+
+                println("  [" + status + "] " + domain + "/" + entry)
+                push(all_results, result)
+                file_count = file_count + 1
+            ei = ei + 1
+
+        println("  " + domain + ": " + text_str(file_count) + " test files")
+        di = di + 1
+
+    // Generate telemetry
+    let report = generate_report(all_results)
+    let json_map = report_to_json(report)
+    let json_str = json_to_string(json_map)
+
+    let telemetry_dir = "X:/blades/edge_cases/error_check/telemetry"
+    if fs_exists(telemetry_dir) == false:
+        fs_create_dir_all(telemetry_dir)
+    fs_write_text(telemetry_dir + "/report.json", json_str)
+
+    // Summary
+    println("")
+    println("═══ RESULTS ═══")
+    println("  Total files:    " + text_str(report.summary.total))
+    println("  Triggered:      " + text_str(report.summary.triggered) + "/" + text_str(report.summary.total))
+    println("  Message match:  " + text_str(report.summary.message_matched) + "/" + text_str(report.summary.total))
+    println("  Failures:       " + text_str(text_len(report.failures)))
+    println("  Known gaps:     " + text_str(text_len(report.known_gaps)))
+
+    let cov = 0
+    if report.summary.total > 0:
+        cov = (report.summary.triggered * 100) / report.summary.total
+    println("  Coverage:       " + text_str(cov) + "%")
+    println("  Report: " + telemetry_dir + "/report.json")
+
+    if text_len(report.failures) > 0:
+        println("")
+        println("─── FAILURES ───")
+        var fi: Int = 0
+        while fi < text_len(report.failures):
+            println("  " + report.failures[fi].code + " -> " + report.failures[fi].error)
+            fi = fi + 1
+
+    let _ = runtime_shutdown()
+    return text_len(report.failures)

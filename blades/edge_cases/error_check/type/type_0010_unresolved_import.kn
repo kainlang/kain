@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0010
+//@ expect-error: "Unresolved Import"
+//@ severity: error
+
+// Triggers: Import to non-existent module
+use std::nonexistent_module_xyz
+
+fn main():
+    return 0

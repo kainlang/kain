@@ -1,0 +1,10 @@
+//@ build-fail
+//@ error: KAIN-CODEGEN-0009
+//@ expect-error: "Codegen Intrinsic Not Found"
+//@ severity: error
+
+// Triggers: Platform-specific intrinsic not found
+// Note: passes `kain check` but may fail `kain build`
+
+fn main() -> Int:
+    return 0

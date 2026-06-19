@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0022
+//@ expect-error: "Void Value Used In Expression"
+//@ severity: error
+
+// Triggers: Using void-returning expression where value expected
+fn nada():
+    return
+
+fn main():
+    let x: Int = nada()

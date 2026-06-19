@@ -1,0 +1,12 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0008
+//@ expect-error: "On Handler Duplicate"
+//@ severity: error
+
+// Triggers: Two handlers for same message type
+actor DupeHandler:
+    state x: Int = 0
+    on Tick():
+        self.x = self.x + 1
+    on Tick():
+        self.x = self.x + 2

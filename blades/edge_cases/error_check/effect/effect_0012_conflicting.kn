@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0012
+//@ expect-error: "Conflicting Effect Annotations"
+//@ severity: error
+
+// Triggers: Both Pure and IO annotated on same function
+fn confused() -> Int with Pure with IO:
+    return 0

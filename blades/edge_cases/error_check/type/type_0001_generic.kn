@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0001
+//@ expect-error: "Type Error"
+//@ severity: error
+
+// Triggers: Generic type error
+fn main():
+    let x = "hello" + 42

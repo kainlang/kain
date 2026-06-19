@@ -71,3 +71,17 @@
 | key        | handler_ui_on_key        | 72        | Handle UI key             |
 | focus      | handler_ui_on_focus      | 73        | Handle UI focus           |
 | close      | handler_ui_on_close      | 74        | Handle UI close           |
+| and        | handler_qualifier_echo   | 80        | Logical AND / concatenate |
+| with       | handler_qualifier_echo   | 80        | Context / accompaniment   |
+| exclude    | handler_qualifier_echo   | 80        | Filter / exclude items    |
+| after      | handler_qualifier_echo   | 80        | Schedule after delay      |
+| before     | handler_qualifier_echo   | 80        | Precondition gate         |
+| from       | handler_qualifier_echo   | 80        | Source / extraction       |
+| to         | handler_qualifier_echo   | 80        | Destination / conversion  |
+| using      | handler_qualifier_echo   | 80        | Tool / method invocation  |
+| by         | handler_qualifier_echo   | 80        | Group / sort / by-criteria|
+| not        | handler_qualifier_echo   | 80        | Negation / logical NOT    |
+| only       | handler_qualifier_echo   | 80        | Restrict / filter-only    |
+| except     | handler_qualifier_echo   | 80        | Exception / exclusion     |
+| until      | handler_qualifier_echo   | 80        | Loop until condition      |
+| since      | handler_qualifier_echo   | 80        | Time since / from point   |

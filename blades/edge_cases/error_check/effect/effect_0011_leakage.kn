@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0011
+//@ expect-error: "Effect Leakage Through Public API"
+//@ severity: warning
+
+// Triggers: Public function exposes IO effect
+pub fn public_helper():
+    println("internal IO leaked through public API")

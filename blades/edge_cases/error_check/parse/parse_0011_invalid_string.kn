@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0011
+//@ expect-error: "Invalid String Literal"
+//@ severity: error
+
+// Triggers: Unescaped newline inside string literal
+let s = "hello
+world"

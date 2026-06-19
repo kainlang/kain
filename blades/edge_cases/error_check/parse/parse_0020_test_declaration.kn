@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0020
+//@ expect-error: "Test Declaration Syntax Error"
+//@ severity: error
+
+// Triggers: Malformed test declaration with colon after 'test'
+test: {}

@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0006
+//@ expect-error: "Missing Type Annotation"
+//@ severity: error
+
+// Triggers: Variable declared without type and without initializer
+fn main():
+    let x

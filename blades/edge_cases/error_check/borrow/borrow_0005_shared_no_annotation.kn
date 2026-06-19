@@ -1,0 +1,15 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0005
+//@ expect-error: "Shared State Without Annotation"
+//@ severity: error
+
+// Triggers: Cross-actor access to unannotated shared state
+actor Worker:
+    state counter: Int = 0
+    on Ping():
+        let _ = self.counter
+
+actor Consumer:
+    state ref: Int = 0
+    on Pong():
+        let _ = self.ref

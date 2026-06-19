@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0002
+//@ expect-error: "Unknown Identifier"
+//@ severity: error
+
+// Triggers: Reference to undefined variable
+fn main():
+    let x = undefined_var

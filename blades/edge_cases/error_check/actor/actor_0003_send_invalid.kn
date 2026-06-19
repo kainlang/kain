@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0003
+//@ expect-error: "Send To Invalid Actor"
+//@ severity: error
+
+// Triggers: Send to unknown actor reference
+actor Worker:
+    state count: Int = 0
+    on Ping():
+        let _ = self.count
+
+fn main():
+    var dead_ref: ActorRef = none
+    send dead_ref.Ping()

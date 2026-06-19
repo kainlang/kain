@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0018
+//@ expect-error: "Comptime Block Syntax Error"
+//@ severity: error
+
+// Triggers: Malformed comptime block -- missing body delimiter
+comptime
+    // empty block

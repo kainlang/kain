@@ -1,0 +1,15 @@
+//@ check-fail
+//@ error: KAIN-ACTOR-0007
+//@ expect-error: "Component Lifecycle Violation"
+//@ severity: error
+
+// Triggers: Operating on destroyed component
+actor LifecycleActor:
+    state alive: Bool = true
+    on Kill():
+        self.alive = false
+
+fn main():
+    let a = spawn LifecycleActor
+    send a.Kill()
+    send a.Kill()

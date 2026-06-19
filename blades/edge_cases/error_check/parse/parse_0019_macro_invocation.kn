@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0019
+//@ expect-error: "Macro Invocation Syntax Error"
+//@ severity: error
+
+// Triggers: Malformed macro -- missing parameters
+macro invalid_macro:
+    return 0

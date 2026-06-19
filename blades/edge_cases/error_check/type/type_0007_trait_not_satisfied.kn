@@ -1,0 +1,14 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0007
+//@ expect-error: "Trait Not Satisfied"
+//@ severity: error
+
+// Triggers: Type doesn't satisfy trait bound
+trait Printable:
+    fn print(_self: Self_)
+
+fn show(v: T) where T: Printable:
+    let _ = v
+
+fn main():
+    show(42)

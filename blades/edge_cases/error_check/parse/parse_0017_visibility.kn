@@ -1,0 +1,7 @@
+//@ check-fail
+//@ error: KAIN-PARSE-0017
+//@ expect-error: "Visibility Modifier Error"
+//@ severity: error
+
+// Triggers: Bare 'pub' keyword with no declaration
+pub

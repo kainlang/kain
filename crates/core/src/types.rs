@@ -9315,7 +9315,14 @@ fn validate_ownership_target(
     span: Span,
 ) -> KainResult<()> {
     let target_ty = infer_expr_type(env, target, None)?;
-    let policy = OwnershipPolicy::for_region(OwnershipRegionKind::HeapAllocation);
+
+    // ── Infer the actual ownership region from context ─────────────────
+    // Instead of hardcoding HeapAllocation (the most permissive policy),
+    // determine the region from the expression context so that
+    // region-specific restrictions are enforced at check time.
+    let region_kind = infer_ownership_region(env, target, &target_ty);
+    let policy = OwnershipPolicy::for_region(region_kind);
+
     let supported = match operation {
         OBSERVE_KEYWORD => policy.supports_observe(),
         COLLAPSE_KEYWORD => policy.supports_collapse(),
@@ -9324,8 +9331,38 @@ fn validate_ownership_target(
         _ => false,
     };
     if !supported {
+        let explanation = match (operation, region_kind) {
+            (DECAY_KEYWORD, OwnershipRegionKind::WorldState) =>
+                "World state is compiler-owned; you cannot decay it. \
+                 World state persists for the program lifetime.",
+            (DECAY_KEYWORD, OwnershipRegionKind::EntangledMirror) =>
+                "Entangled mirrors are read-only snapshots; you cannot decay them. \
+                 Only the entangled authority can modify the source world.",
+            (COLLAPSE_KEYWORD, OwnershipRegionKind::EntangledMirror) =>
+                "Entangled mirrors are read-only snapshots; you cannot collapse them. \
+                 The mirror reflects the entangled world -- it's not a mutable allocation.",
+            (SHARE_KEYWORD, OwnershipRegionKind::LocalAlloca) =>
+                "Stack-allocated (local) pointers cannot be shared. \
+                 Share requires a heap allocation. Use alloc() to create a shareable pointer.",
+            (SHARE_KEYWORD, OwnershipRegionKind::WorldState) =>
+                "World state pointers cannot be shared. \
+                 World state is compiler-managed and does not support parallel write lanes.",
+            _ => "This ownership operation is not valid for this memory region.",
+        };
+        let help = match (operation, region_kind) {
+            (DECAY_KEYWORD, OwnershipRegionKind::WorldState) =>
+                "Remove the decay - world state is automatically managed by the compiler.",
+            (SHARE_KEYWORD, OwnershipRegionKind::LocalAlloca) =>
+                "Use alloc() or alloc_zeroed() instead of stack allocation.",
+            _ => "Check that the pointer targets a compatible memory region.",
+        };
         return Err(env.type_error(
-            format!("{operation} is not supported for raw heap ownership regions"),
+            format!(
+                "{operation} is not supported for {} ownership regions: {} {}",
+                region_kind.as_str(),
+                explanation,
+                help
+            ),
             span,
         ));
     }
@@ -9339,6 +9376,78 @@ fn validate_ownership_target(
             ),
             target.span(),
         )),
+    }
+}
+
+/// Infer the ownership region kind from context.
+///
+/// This determines what kind of memory region a pointer targets,
+/// which gates which ownership operations are legal on it.
+/// When the region cannot be confidently determined, falls back to
+/// `HeapAllocation` (the most permissive policy) to avoid false positives.
+fn infer_ownership_region(
+    env: &TypeEnv,
+    target: &Expr,
+    _target_ty: &ResolvedType,
+) -> OwnershipRegionKind {
+    // Check 1: Is this a world state access? (e.g., MyWorld.my_field)
+    if let Expr::Access { object, .. } = target {
+        if let Some(_world_name) = extract_world_name(object) {
+            // Check if this looks like a world access by resolving the base
+            // If the base resolves to a world type, classify as WorldState
+            // TODO: Check entangle registry for more precise region kind
+            //       (EntangledAuthority vs EntangledMirror)
+            return OwnershipRegionKind::WorldState;
+        }
+    }
+
+    // Check 2: Is this a local alloca? (stack-allocated variable)
+    if let Expr::Ident(name, _) = target {
+        if let Some(local_info) = env.locals.get(name) {
+            // Check if this is a ptr<T> from a local variable
+            match &local_info.ty {
+                ResolvedType::Ptr { .. } | ResolvedType::Ref { .. } => {
+                    return OwnershipRegionKind::LocalAlloca;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Check 3: Is this from alloc() / alloc_zeroed()?
+    // (Comptime-known -- the alloc functions create HeapAllocation regions)
+    if is_alloc_call(target) {
+        return OwnershipRegionKind::HeapAllocation;
+    }
+
+    // Check 4: Is this a direct world identifier? (e.g., `decay SomeWorld`)
+    if let Expr::Ident(name, _) = target {
+        if env.lookup_type(name).is_some() {
+            return OwnershipRegionKind::WorldState;
+        }
+    }
+
+    // Default: most permissive (preserves backward compatibility)
+    // This ensures we never REJECT valid code, only ADD new checks
+    OwnershipRegionKind::HeapAllocation
+}
+
+/// Check if an expression is a call to alloc() or alloc_zeroed().
+fn is_alloc_call(expr: &Expr) -> bool {
+    if let Expr::Call { callee, .. } = expr {
+        if let Expr::Ident(name, _) = callee.as_ref() {
+            return name == "alloc" || name == "alloc_zeroed" || name == "realloc_mem";
+        }
+    }
+    false
+}
+
+/// Try to extract a world name from an expression (e.g., MyWorld.field → "MyWorld").
+fn extract_world_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::Access { object, .. } => extract_world_name(object),
+        _ => None,
     }
 }
 

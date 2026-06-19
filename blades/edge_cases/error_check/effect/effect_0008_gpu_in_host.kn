@@ -1,0 +1,11 @@
+//@ check-fail
+//@ error: KAIN-EFFECT-0008
+//@ expect-error: "GPU Effect In Host Context"
+//@ severity: error
+
+// Triggers: GPU-annotated function called from non-GPU host context
+fn gpu_kernel() with GPU:
+    return 0
+
+fn main():
+    gpu_kernel()

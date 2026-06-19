@@ -1,0 +1,8 @@
+//@ check-fail
+//@ error: KAIN-TYPE-0015
+//@ expect-error: "Type Alias Cycle"
+//@ severity: error
+
+// Triggers: Type aliases form a cycle
+type A = B
+type B = A

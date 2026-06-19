@@ -1,0 +1,10 @@
+//@ check-fail
+//@ error: KAIN-BORROW-0009
+//@ expect-error: "Send Constraint Violation"
+//@ severity: error
+
+// Triggers: Sending non-Send type between actors
+actor Sender:
+    state data: ptr<Int> = none
+    on SendAction(reply_to: P):
+        send reply_to.Reply(value = self.data)

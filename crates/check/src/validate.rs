@@ -13,16 +13,18 @@ use kain_core::types::{TypedActor, TypedItem, TypedProgram};
 use kain_error::{
     CompilerPhase, DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind,
 };
+use kain_error::span::Span;
+use kain_ownership::{OwnershipState, OwnershipTransition, OwnershipTransitionError};
+use std::collections::{HashMap, HashSet};
 
 /// Run all proactive semantic validators against a typed program.
 pub fn validate_semantic_stack(program: &TypedProgram) -> Vec<DiagnosticReport> {
     let mut reports = Vec::new();
     validate_reply_ports(program, &mut reports);
     validate_converge_contracts(program, &mut reports);
-    // Add more validators here:
-    // validate_entangle_type_match(program, &mut reports);
-    // validate_orchestrate_graph(program, &mut reports);
-    // validate_ownership_transitions(program, &mut reports);
+    validate_entangle_type_match(program, &mut reports);
+    validate_orchestrate_graph(program, &mut reports);
+    validate_ownership_transitions(program, &mut reports);
     reports
 }
 
@@ -314,6 +316,565 @@ fn validate_converge_contracts(program: &TypedProgram, reports: &mut Vec<Diagnos
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Entangle type match validation
+// ---------------------------------------------------------------------------
+// Entangled world fields must have compatible types across the entanglement
+// endpoints. The typechecker validates that the worlds and fields exist, but
+// does not enforce that the types are identical or coercible. This validator
+// catches mismatches that would otherwise fail at codegen or runtime.
+
+fn validate_entangle_type_match(program: &TypedProgram, reports: &mut Vec<DiagnosticReport>) {
+    for item in &program.items {
+        if let TypedItem::Entangle(entangle) = item {
+            // EntangleEndpoint.segments = [world_name, field_name]
+            let world_a_name = entangle.ast.left.segments.first().cloned();
+            let field_a_name = entangle.ast.left.segments.get(1).cloned();
+            let world_b_name = entangle.ast.right.segments.first().cloned();
+            let field_b_name = entangle.ast.right.segments.get(1).cloned();
+
+            let world_a = world_a_name.as_deref().and_then(|name| find_world(program, name));
+            let world_b = world_b_name.as_deref().and_then(|name| find_world(program, name));
+
+            if let (Some(world_a_def), Some(world_b_def)) = (world_a, world_b) {
+                let ty_a = field_a_name
+                    .as_deref()
+                    .and_then(|field| find_world_state_field(world_a_def, field));
+                let ty_b = field_b_name
+                    .as_deref()
+                    .and_then(|field| find_world_state_field(world_b_def, field));
+
+                if let (Some(ty_a), Some(ty_b)) = (ty_a, ty_b) {
+                    let ty_a_str = type_to_string(&ty_a);
+                    let ty_b_str = type_to_string(&ty_b);
+                    if ty_a_str != ty_b_str {
+                        let wa = world_a_name.as_deref().unwrap_or("?");
+                        let fa = field_a_name.as_deref().unwrap_or("?");
+                        let wb = world_b_name.as_deref().unwrap_or("?");
+                        let fb = field_b_name.as_deref().unwrap_or("?");
+                        reports.push(
+                            DiagnosticReport::new(
+                                ErrorKind::Entangle,
+                                DiagnosticCode::TypeGeneric,
+                                format!(
+                                    "Entangled fields have incompatible types: '{}.{}' is '{}' but '{}.{}' is '{}'",
+                                    wa, fa, ty_a_str, wb, fb, ty_b_str,
+                                ),
+                            )
+                            .severity(DiagnosticSeverity::Error)
+                            .phase(CompilerPhase::StateValidation)
+                            .primary_label(
+                                entangle.ast.span,
+                                "entangled fields must have the same type",
+                            )
+                            .note("Entangled fields are bidirectionally synchronized. Their types must be identical.")
+                            .help(format!(
+                                "Change '{}.{}' from '{}' to '{}' or '{}.{}' from '{}' to '{}'",
+                                wa, fa, ty_a_str, ty_b_str, wb, fb, ty_b_str, ty_a_str,
+                            )),
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Find a world definition in the typed program by name.
+fn find_world<'a>(program: &'a TypedProgram, name: &str) -> Option<&'a TypedItem> {
+    program.items.iter().find(|item| {
+        if let TypedItem::World(world) = item {
+            world.ast.name == name
+        } else {
+            false
+        }
+    })
+}
+
+/// Find a state field type in a world definition.
+fn find_world_state_field(item: &TypedItem, field_name: &str) -> Option<Type> {
+    if let TypedItem::World(world) = item {
+        world.ast.states.iter()
+            .find(|state| state.name == field_name)
+            .map(|state| state.ty.clone())
+    } else {
+        None
+    }
+}
+
+/// Convert a Type to a human-readable string for error messages.
+fn type_to_string(ty: &Type) -> String {
+    match ty {
+        Type::Named { name, generics, .. } if generics.is_empty() => name.clone(),
+        Type::Named { name, generics, .. } => {
+            let gens: Vec<String> = generics.iter().map(type_to_string).collect();
+            format!("{}<{}>", name, gens.join(", "))
+        }
+        Type::Ptr { inner, mutable, .. } => {
+            if *mutable {
+                format!("ptr_mut<{}>", type_to_string(inner))
+            } else {
+                format!("ptr<{}>", type_to_string(inner))
+            }
+        }
+        Type::Ref { inner, mutable, .. } => {
+            if *mutable {
+                format!("&mut {}", type_to_string(inner))
+            } else {
+                format!("&{}", type_to_string(inner))
+            }
+        }
+        Type::Array(inner, size, ..) => {
+            format!("[{}; {}]", type_to_string(inner), size)
+        }
+        Type::Slice(inner, ..) => {
+            format!("[{}]", type_to_string(inner))
+        }
+        Type::Tuple(types, ..) => {
+            let ts: Vec<String> = types.iter().map(type_to_string).collect();
+            format!("({})", ts.join(", "))
+        }
+        Type::Function { params, return_type, .. } => {
+            let ps: Vec<String> = params.iter().map(type_to_string).collect();
+            format!("fn({}) -> {}", ps.join(", "), type_to_string(return_type))
+        }
+        Type::Option(inner, ..) => format!("{}?", type_to_string(inner)),
+        Type::Result(ok, err, ..) => {
+            format!("{}!{}", type_to_string(ok), type_to_string(err))
+        }
+        Type::Impl { trait_name, generics, .. } if generics.is_empty() => {
+            format!("impl {}", trait_name)
+        }
+        Type::Impl { trait_name, generics, .. } => {
+            let gens: Vec<String> = generics.iter().map(type_to_string).collect();
+            format!("impl {}<{}>", trait_name, gens.join(", "))
+        }
+        Type::Infer(..) => "_".to_string(),
+        Type::Never(..) => "!".to_string(),
+        Type::Unit(..) => "()".to_string(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Orchestrate graph validation
+// ---------------------------------------------------------------------------
+// Orchestrate declarations define a DAG of stages with dependencies.
+// The typechecker validates individual stage syntax but not graph-level
+// invariants: cycles, unreachable stages, or missing dependency targets.
+// This validator catches those structural issues at check time.
+
+fn validate_orchestrate_graph(program: &TypedProgram, reports: &mut Vec<DiagnosticReport>) {
+    for item in &program.items {
+        if let TypedItem::Orchestrate(orchestrate) = item {
+            let graph = &orchestrate.graph;
+            let stage_names: HashSet<&str> = graph.stages.iter()
+                .map(|s| s.binding_name.as_str())
+                .collect();
+
+            // Build adjacency list for cycle detection
+            let mut deps: HashMap<&str, Vec<&str>> = HashMap::new();
+            for stage in &graph.stages {
+                let stage_deps: Vec<&str> = stage.metadata.dependencies.iter()
+                    .map(|d| d.as_str())
+                    .collect();
+                deps.insert(&stage.binding_name, stage_deps);
+            }
+
+            // Check 1: All dependency targets exist
+            for stage in &graph.stages {
+                for dep in &stage.metadata.dependencies {
+                    if !stage_names.contains(dep.as_str()) {
+                        reports.push(
+                            DiagnosticReport::new(
+                                ErrorKind::Type,
+                                DiagnosticCode::TypeGeneric,
+                                format!(
+                                    "Orchestrate '{}': stage '{}' depends on unknown stage '{}'",
+                                    graph.name, stage.binding_name, dep
+                                ),
+                            )
+                            .severity(DiagnosticSeverity::Error)
+                            .phase(CompilerPhase::StateValidation)
+                            .primary_label(
+                                orchestrate.ast.span,
+                                format!("dependency '{}' not found in orchestrate stages", dep),
+                            )
+                            .help(format!(
+                                "Available stages: {}",
+                                stage_names.iter().cloned().collect::<Vec<_>>().join(", ")
+                            )),
+                        );
+                    }
+                }
+            }
+
+            // Check 2: Cycle detection (DFS)
+            if let Some(cycle) = detect_cycle(&deps) {
+                let cycle_str = cycle.iter().cloned().collect::<Vec<_>>().join(" → ");
+                reports.push(
+                    DiagnosticReport::new(
+                        ErrorKind::Type,
+                        DiagnosticCode::TypeGeneric,
+                        format!(
+                            "Orchestrate '{}' has a cyclic stage dependency: {}",
+                            graph.name, cycle_str
+                        ),
+                    )
+                    .severity(DiagnosticSeverity::Error)
+                    .phase(CompilerPhase::StateValidation)
+                    .primary_label(orchestrate.ast.span, "cycle detected in stage dependencies")
+                    .help("Break the cycle by removing or reversing one of the dependencies."),
+                );
+            }
+        }
+    }
+}
+
+/// Detect a cycle in a dependency graph. Returns the first cycle found.
+fn detect_cycle<'a>(deps: &HashMap<&'a str, Vec<&'a str>>) -> Option<Vec<&'a str>> {
+    let mut visited: HashSet<&str> = HashSet::new();
+    let mut in_stack: HashSet<&str> = HashSet::new();
+    let mut path: Vec<&str> = Vec::new();
+
+    fn dfs<'a>(
+        node: &'a str,
+        deps: &HashMap<&'a str, Vec<&'a str>>,
+        visited: &mut HashSet<&'a str>,
+        in_stack: &mut HashSet<&'a str>,
+        path: &mut Vec<&'a str>,
+    ) -> Option<Vec<&'a str>> {
+        visited.insert(node);
+        in_stack.insert(node);
+        path.push(node);
+
+        if let Some(neighbors) = deps.get(node) {
+            for &neighbor in neighbors {
+                if !visited.contains(neighbor) {
+                    if let Some(cycle) = dfs(neighbor, deps, visited, in_stack, path) {
+                        return Some(cycle);
+                    }
+                } else if in_stack.contains(neighbor) {
+                    // Found cycle – extract it from path
+                    if let Some(pos) = path.iter().position(|&n| n == neighbor) {
+                        let mut cycle: Vec<&str> = path[pos..].to_vec();
+                        cycle.push(neighbor); // close the cycle
+                        return Some(cycle);
+                    }
+                }
+            }
+        }
+
+        path.pop();
+        in_stack.remove(node);
+        None
+    }
+
+    for &node in deps.keys() {
+        if !visited.contains(node) {
+            path.clear();
+            if let Some(cycle) = dfs(node, deps, &mut visited, &mut in_stack, &mut path) {
+                return Some(cycle);
+            }
+        }
+    }
+
+    None
+}
+
+// ---------------------------------------------------------------------------
+//  Ownership transition validation
+// ---------------------------------------------------------------------------
+// The typechecker validates ownership constructs structurally (target type
+// must be Ptr/Ref, no early exits from ownership scopes). But it does NOT
+// track the full ownership state machine: Idle→Collapsed→Idle,
+// Idle→Observed(n)→Idle, Idle→Decayed (terminal).
+//
+// This validator performs a lightweight intra-procedural walk over each
+// function body, tracking per-variable ownership state transitions and
+// flagging violations at check time.
+//
+// NOTE: This is an intra-procedural best-effort pass. Cross-function and
+// cross-region analysis requires the full ownership crate integration
+// (planned for a future pass). We catch the most common violations:
+// double-collapse, double-decay, collapse-while-observed, etc.
+
+fn validate_ownership_transitions(program: &TypedProgram, reports: &mut Vec<DiagnosticReport>) {
+    for item in &program.items {
+        if let TypedItem::Function(func) = item {
+            let mut tracker = OwnershipTracker::new();
+            validate_ownership_in_body(
+                &func.ast.body,
+                &mut tracker,
+                &func.ast.name,
+                reports,
+            );
+        }
+    }
+}
+
+/// Tracks ownership states for pointer variables within a function body.
+struct OwnershipTracker {
+    states: HashMap<String, OwnershipState>,
+}
+
+impl OwnershipTracker {
+    fn new() -> Self {
+        Self {
+            states: HashMap::new(),
+        }
+    }
+
+    fn apply(
+        &mut self,
+        ptr_name: &str,
+        transition: OwnershipTransition,
+    ) -> Result<(), OwnershipTransitionError> {
+        let current = self
+            .states
+            .get(ptr_name)
+            .copied()
+            .unwrap_or(OwnershipState::Idle);
+        let next = current.apply(transition)?;
+        self.states.insert(ptr_name.to_string(), next);
+        Ok(())
+    }
+}
+
+fn validate_ownership_in_body(
+    body: &Block,
+    tracker: &mut OwnershipTracker,
+    fn_name: &str,
+    reports: &mut Vec<DiagnosticReport>,
+) {
+    for stmt in &body.stmts {
+        validate_ownership_in_stmt(stmt, tracker, fn_name, reports);
+    }
+}
+
+fn validate_ownership_in_stmt(
+    stmt: &Stmt,
+    tracker: &mut OwnershipTracker,
+    fn_name: &str,
+    reports: &mut Vec<DiagnosticReport>,
+) {
+    match stmt {
+        Stmt::Expr(expr) => {
+            validate_ownership_in_expr(expr, tracker, fn_name, reports);
+        }
+        Stmt::Let { pattern, value, .. } => {
+            if let Some(expr) = value {
+                validate_ownership_in_expr(expr, tracker, fn_name, reports);
+            }
+            // Register variable from pattern name for tracking
+            let name = match pattern {
+                kain_core::ast::Pattern::Ident(name, _) => Some(name.as_str()),
+                _ => None,
+            };
+            if let Some(name) = name {
+                tracker
+                    .states
+                    .entry(name.to_string())
+                    .or_insert(OwnershipState::Idle);
+            }
+        }
+        Stmt::Return(Some(expr), _) => {
+            validate_ownership_in_expr(expr, tracker, fn_name, reports);
+        }
+        Stmt::Defer { expr, .. } => {
+            validate_ownership_in_expr(expr, tracker, fn_name, reports);
+        }
+        Stmt::For { iter, body, .. } => {
+            validate_ownership_in_expr(iter, tracker, fn_name, reports);
+            validate_ownership_in_body(body, tracker, fn_name, reports);
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            validate_ownership_in_expr(condition, tracker, fn_name, reports);
+            validate_ownership_in_body(body, tracker, fn_name, reports);
+        }
+        Stmt::Loop { body, .. } => {
+            validate_ownership_in_body(body, tracker, fn_name, reports);
+        }
+        Stmt::Fanout { iter, body, .. } => {
+            validate_ownership_in_expr(iter, tracker, fn_name, reports);
+            validate_ownership_in_body(body, tracker, fn_name, reports);
+        }
+        Stmt::Dispatch { .. }
+        | Stmt::Return(None, _)
+        | Stmt::Break(..)
+        | Stmt::Continue(_)
+        | Stmt::Item(_) => {}
+    }
+}
+
+fn validate_ownership_in_expr(
+    expr: &Expr,
+    tracker: &mut OwnershipTracker,
+    fn_name: &str,
+    reports: &mut Vec<DiagnosticReport>,
+) {
+    match expr {
+        Expr::Collapse { target, body, span } => {
+            if let Some(ptr_name) = extract_ptr_name(target) {
+                let transition = OwnershipTransition::BeginCollapse;
+                if let Err(err) = tracker.apply(&ptr_name, transition) {
+                    reports.push(ownership_violation_report(
+                        fn_name, &ptr_name, &err, "collapse", *span,
+                    ));
+                } else {
+                    // Walk body expression, then end collapse
+                    validate_ownership_in_expr(body, tracker, fn_name, reports);
+                    let _ = tracker.apply(&ptr_name, OwnershipTransition::EndCollapse);
+                }
+            }
+        }
+        Expr::Observe { target, body, span } => {
+            if let Some(ptr_name) = extract_ptr_name(target) {
+                let transition = OwnershipTransition::BeginObserve;
+                if let Err(err) = tracker.apply(&ptr_name, transition) {
+                    reports.push(ownership_violation_report(
+                        fn_name, &ptr_name, &err, "observe", *span,
+                    ));
+                } else {
+                    validate_ownership_in_expr(body, tracker, fn_name, reports);
+                    let _ = tracker.apply(&ptr_name, OwnershipTransition::EndObserve);
+                }
+            }
+        }
+        Expr::Decay { target, span } => {
+            if let Some(ptr_name) = extract_ptr_name(target) {
+                let transition = OwnershipTransition::Decay;
+                if let Err(err) = tracker.apply(&ptr_name, transition) {
+                    reports.push(ownership_violation_report(
+                        fn_name, &ptr_name, &err, "decay", *span,
+                    ));
+                }
+            }
+        }
+        Expr::Share { target, body, span } => {
+            if let Some(ptr_name) = extract_ptr_name(target) {
+                let transition = OwnershipTransition::BeginShare;
+                if let Err(err) = tracker.apply(&ptr_name, transition) {
+                    reports.push(ownership_violation_report(
+                        fn_name, &ptr_name, &err, "share", *span,
+                    ));
+                } else {
+                    validate_ownership_in_expr(body, tracker, fn_name, reports);
+                    let _ = tracker.apply(&ptr_name, OwnershipTransition::EndShare);
+                }
+            }
+        }
+        // Recurse into complex expressions
+        Expr::Call { callee, args, .. } => {
+            validate_ownership_in_expr(callee, tracker, fn_name, reports);
+            for arg in args {
+                validate_ownership_in_expr(&arg.value, tracker, fn_name, reports);
+            }
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            validate_ownership_in_expr(condition, tracker, fn_name, reports);
+            validate_ownership_in_body(then_branch, tracker, fn_name, reports);
+            if let Some(branch) = else_branch {
+                validate_ownership_in_else(branch, tracker, fn_name, reports);
+            }
+        }
+        Expr::Block(block, _) => {
+            validate_ownership_in_body(block, tracker, fn_name, reports);
+        }
+        Expr::Binary { left, right, .. } => {
+            validate_ownership_in_expr(left, tracker, fn_name, reports);
+            validate_ownership_in_expr(right, tracker, fn_name, reports);
+        }
+        Expr::Unary { operand, .. } => {
+            validate_ownership_in_expr(operand, tracker, fn_name, reports);
+        }
+        Expr::Return(Some(inner), _) => {
+            validate_ownership_in_expr(inner, tracker, fn_name, reports);
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            validate_ownership_in_expr(scrutinee, tracker, fn_name, reports);
+            for arm in arms {
+                validate_ownership_in_expr(&arm.body, tracker, fn_name, reports);
+            }
+        }
+        Expr::Assign { target, value, .. } => {
+            validate_ownership_in_expr(target, tracker, fn_name, reports);
+            validate_ownership_in_expr(value, tracker, fn_name, reports);
+        }
+        Expr::SendMsg {
+            target, data, ..
+        } => {
+            validate_ownership_in_expr(target, tracker, fn_name, reports);
+            for (_, data_expr) in data {
+                validate_ownership_in_expr(data_expr, tracker, fn_name, reports);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn validate_ownership_in_else(
+    branch: &ElseBranch,
+    tracker: &mut OwnershipTracker,
+    fn_name: &str,
+    reports: &mut Vec<DiagnosticReport>,
+) {
+    match branch {
+        ElseBranch::Else(block) => {
+            validate_ownership_in_body(block, tracker, fn_name, reports);
+        }
+        ElseBranch::ElseIf(cond, block, next) => {
+            validate_ownership_in_expr(cond, tracker, fn_name, reports);
+            validate_ownership_in_body(block, tracker, fn_name, reports);
+            if let Some(next_branch) = next {
+                validate_ownership_in_else(next_branch, tracker, fn_name, reports);
+            }
+        }
+    }
+}
+
+/// Extract the variable name from an ownership target expression.
+fn extract_ptr_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(name, _) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+fn ownership_violation_report(
+    fn_name: &str,
+    ptr_name: &str,
+    err: &OwnershipTransitionError,
+    operation: &str,
+    span: Span,
+) -> DiagnosticReport {
+    DiagnosticReport::new(
+        ErrorKind::Borrow,
+        DiagnosticCode::TypeGeneric,
+        format!(
+            "Ownership violation in '{}': cannot {} '{}' — {}",
+            fn_name, operation, ptr_name, err
+        ),
+    )
+    .severity(DiagnosticSeverity::Error)
+    .phase(CompilerPhase::BorrowChecking)
+    .primary_label(span, format!("invalid {} on '{}'", operation, ptr_name))
+    .help(format!(
+        "Check that '{}' is in the correct ownership state for {}. \
+         Valid states: collapse requires Idle, observe requires Idle or Observed, \
+         decay requires Idle (terminal).",
+        ptr_name, operation
+    ))
 }
 
 #[cfg(test)]
