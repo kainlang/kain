@@ -1,0 +1,21 @@
+[pack]
+id = "unreal"
+title = "Unreal Engine Commands"
+owner = "crates/cli"
+about = "UE5-era command surfaces and Unreal-facing artifact injection lanes kept visible as a dedicated command pack."
+
+[[commands]]
+id = "gpu-artifacts"
+bins = ["kain", "kn"]
+path = ["gpu-artifacts"]
+about = "Inspect generated GPU or Unreal-facing artifacts"
+handler = "builtin:gpu-artifacts"
+tags = ["unreal", "ue5", "gpu", "artifacts"]
+
+[[commands]]
+id = "inject"
+bins = ["kain", "kn"]
+path = ["inject"]
+about = "Inject generated Kain artifacts into an Unreal-oriented target"
+handler = "builtin:inject"
+tags = ["unreal", "ue5", "artifacts"]

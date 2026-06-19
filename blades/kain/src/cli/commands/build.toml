@@ -1,0 +1,29 @@
+[pack]
+id = "build"
+title = "Build Commands"
+owner = "crates/build"
+about = "Project, native, and UI build entrypoints for Kain source and build authority roots."
+
+[[commands]]
+id = "build"
+bins = ["kain", "kn"]
+path = ["build"]
+about = "Build the current Kain project"
+handler = "builtin:build"
+tags = ["build", "project", "native", "unreal", "ue5"]
+
+[[commands]]
+id = "build.native-ui"
+bins = ["kain", "kn"]
+path = ["build", "native-ui"]
+about = "Build a native UI projection"
+handler = "builtin:build-native-ui"
+tags = ["build", "ui", "native"]
+
+[[commands]]
+id = "native-ui.dev"
+bins = ["kain", "kn"]
+path = ["native-ui", "dev"]
+about = "Run the native UI development host"
+handler = "builtin:native-ui-dev"
+tags = ["ui", "native", "dev"]

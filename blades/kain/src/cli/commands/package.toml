@@ -1,0 +1,29 @@
+[pack]
+id = "package"
+title = "Capsule Package Commands"
+owner = "crates/cli"
+about = "Capsule-backed package publish, install, and dependency pinning workflows."
+
+[[commands]]
+id = "add"
+bins = ["kain", "kn"]
+path = ["add"]
+about = "Install or reuse a capsule-backed package and record it in the current project"
+handler = "builtin:add"
+tags = ["package", "dependency", "lockfile"]
+
+[[commands]]
+id = "install"
+bins = ["kain", "kn"]
+path = ["install"]
+about = "Install a capsule-backed package into the global Kain package store"
+handler = "builtin:install"
+tags = ["package", "capsule", "global-store"]
+
+[[commands]]
+id = "publish"
+bins = ["kain", "kn"]
+path = ["publish"]
+about = "Publish a local Kain package as a portable capsule set"
+handler = "builtin:publish"
+tags = ["package", "capsule", "distribution"]

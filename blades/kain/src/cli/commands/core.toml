@@ -1,0 +1,62 @@
+[pack]
+id = "core"
+title = "Core Kain Commands"
+owner = "crates/cli"
+about = "Language-server, diagnostics, formatting, checking, testing, and REPL entrypoints shared by kain and kn."
+
+[[commands]]
+id = "init"
+bins = ["kain", "kn"]
+path = ["init"]
+about = "Initialize a new Kain project"
+handler = "builtin:init"
+tags = ["project"]
+
+[[commands]]
+id = "lsp"
+bins = ["kain", "kn"]
+path = ["lsp"]
+about = "Run the Kain language server"
+handler = "builtin:lsp"
+tags = ["language-server"]
+
+[[commands]]
+id = "doctor"
+bins = ["kain", "kn"]
+path = ["doctor"]
+about = "Inspect the Kain installation and environment"
+handler = "builtin:doctor"
+tags = ["diagnostics"]
+
+[[commands]]
+id = "format"
+bins = ["kain", "kn"]
+path = ["fmt"]
+alias_paths = [["format"]]
+about = "Format Kain source files or directories"
+handler = "builtin:format"
+tags = ["source"]
+
+[[commands]]
+id = "check"
+bins = ["kain", "kn"]
+path = ["check"]
+about = "Analyze Kain source without executing it"
+handler = "builtin:check"
+tags = ["source", "diagnostics"]
+
+[[commands]]
+id = "test"
+bins = ["kain", "kn"]
+path = ["test"]
+about = "Run Kain test files or compiletest suites"
+handler = "builtin:test"
+tags = ["testing"]
+
+[[commands]]
+id = "repl"
+bins = ["kain", "kn"]
+path = ["repl"]
+about = "Launch the interactive Kain REPL"
+handler = "builtin:repl"
+tags = ["interactive"]

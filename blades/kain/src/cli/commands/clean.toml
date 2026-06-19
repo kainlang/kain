@@ -1,0 +1,13 @@
+[pack]
+id = "clean"
+title = "Clean Commands"
+owner = "crates/clean"
+about = "Safe cleanup for generated .kain build, run, and capsule cache surfaces."
+
+[[commands]]
+id = "clean"
+bins = ["kain", "kn"]
+path = ["clean"]
+about = "Clean generated .kain roots under the current workspace"
+handler = "builtin:clean"
+tags = ["build", "cache", "clean"]
