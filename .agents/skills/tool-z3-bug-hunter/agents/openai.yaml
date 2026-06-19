@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tool Z3 Bug Hunter"
-  short_description: "Hunt solver-backed bugs and log edge cases"
-  default_prompt: "Use $tool-z3-bug-hunter with the owning subsystem skill to hunt weird edge-case bugs, use Z3 where applicable, and append only reproducible findings to repo-root BUGS.md without fixing them."

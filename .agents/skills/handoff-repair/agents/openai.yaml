@@ -1,4 +1,0 @@
-interface:
-  display_name: "Handoff Repair"
-  short_description: "Assess and finish prior agent work"
-  default_prompt: "Use $handoff-repair to assess prior agent work, remove hardcoded paths or assumptions, make it compatible with the existing codebase, and wire it into the codebase."

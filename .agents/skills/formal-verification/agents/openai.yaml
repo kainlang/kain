@@ -1,4 +1,0 @@
-interface:
-  display_name: "Formal Verification"
-  short_description: "Prove code, find counterexamples, debug with math"
-  default_prompt: "Use $formal-verification to assess this folder, extract invariants, and prove or break the core logic."

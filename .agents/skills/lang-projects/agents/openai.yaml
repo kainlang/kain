@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lang Projects"
-  short_description: "Author Kain project, build, evidence, and capsule flows"
-  default_prompt: "Use $lang-projects to structure a Kain project, build.kn evidence DAG, local run/check/build loop, portable capsule, or workspace flow without confusing authored project authority with repo build internals."

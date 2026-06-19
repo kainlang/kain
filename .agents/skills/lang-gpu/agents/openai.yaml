@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lang GPU"
-  short_description: "Author Kain shader and rendering flows"
-  default_prompt: "Use $lang-gpu to author a Kain shader, GPU artifact flow, or rendering pipeline with the right stdlib/runtime boundaries."

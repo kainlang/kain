@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lang Systems"
-  short_description: "Systems-level Kain authoring"
-  default_prompt: "Use $lang-systems to author actors, effects, ownership, raw memory, zero-copy, and unsafe systems Kain while routing compiler/runtime substrate changes to the owning bootstrap or runtime skill."

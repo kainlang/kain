@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lang Python"
-  short_description: "Modern Kain Python interop and facades"
-  default_prompt: "Use $lang-python to design or repair modern Kain Python interop: natural import/from imports, host-object kwargs calls, thin package facades, local .py helpers, project dependency truth, std::python/std::interop, region caches, async futures, actor callbacks, shared/owned tensor-image-buffer adoption, and GPU bridge contracts; co-load $lang-c-abi only for native ABI/package metadata."

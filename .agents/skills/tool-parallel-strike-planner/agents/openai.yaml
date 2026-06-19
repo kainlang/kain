@@ -1,4 +1,0 @@
-interface:
-  display_name: "Parallel Strike Planner"
-  short_description: "Draft parallel local multi-agent strike plans"
-  default_prompt: "Use $tool-parallel-strike-planner to draft a repo-truth strike plan with fully parallel local agent lanes."

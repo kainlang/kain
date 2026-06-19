@@ -1,4 +1,0 @@
-interface:
-  display_name: "Full Execution Mode"
-  short_description: "YOLO execution with proof and closure"
-  default_prompt: "Use $full-execution-mode to take this task all the way through implementation, validation, and proof with no placeholder TODOs."

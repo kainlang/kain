@@ -1,3 +1,0 @@
-interface:
-  display_name: "Bootstrap Gpu"
-  short_description: "Change Kain GPU compiler truth: SPIR-V, PTX/CUDA, HLSL/WGSL text codegen, bundles, and GPU proofs"

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Runtime Core"
-  short_description: "Native runtime proof and ABI work"
-  default_prompt: "Use $runtime-core to make a proof-backed native runtime change."

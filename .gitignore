@@ -4,9 +4,16 @@
 /private
 .pi2/
 private/
+*.zip
+*.rar
+.pi/
+.agents/
 **/*target*/**
 *.json
+*.img
+*.iso
 *.jsonl
+*.elf
 *.lnk
 *.exe
 .pi/

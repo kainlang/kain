@@ -1,4 +1,0 @@
-interface:
-  display_name: "Wildcard Just Write Bro"
-  short_description: "Fast intuition-first Kain authoring lane"
-  default_prompt: "Use $wildcard-justwritebro to load the core Kain authoring skills, skip the repo scavenger hunt, and draft bold Kain immediately from first principles."
