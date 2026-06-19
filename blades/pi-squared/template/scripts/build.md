@@ -1,4 +1,4 @@
-# Build — Full Build Pipeline
+# Build – Full Build Pipeline
 
 Orchestrates the complete Kain compilation pipeline through MarkScript.
 Each heading is a domain (stage). Run with: mks run scripts/build.md

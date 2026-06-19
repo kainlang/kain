@@ -1,6 +1,6 @@
 # Kain Native Runtime
 
-The Kain native C runtime is the execution substrate for compiled Kain programs. It provides memory management, concurrency primitives, platform abstraction, graphics/compute services, UI hosting, crash forensics, and formal verification infrastructure — all in portable C11 with minimal dependencies.
+The Kain native C runtime is the execution substrate for compiled Kain programs. It provides memory management, concurrency primitives, platform abstraction, graphics/compute services, UI hosting, crash forensics, and formal verification infrastructure ~> all in portable C11 with minimal dependencies.
 
 **Version:** 0.1.0 · **ABI:** 0.1.0 · **Targets:** Windows, Linux, macOS
 
@@ -80,7 +80,7 @@ The Kain native C runtime is the execution substrate for compiled Kain programs.
 ```
 runtime/native/
 ├── src/
-│   ├── core/              # 50+ .c files — all core runtime subsystems
+│   ├── core/              # 50+ .c files === all core runtime subsystems
 │   │   ├── z3/            # Formal verification artifacts
 │   │   │   ├── proofs/    #   140 YAML proof packs
 │   │   │   ├── scripts/   #   8 Python automation scripts
@@ -102,7 +102,7 @@ runtime/native/
 │       ├── ui_compiled_bundle.c # Compiled UI bundle loading
 │       ├── ui_system_internal.h # Internal header
 │       └── z3/             #   Z3 verification for UI runtime
-├── include/                # 50+ headers — public C ABI
+├── include/                # 50+ headers |-> public C ABI
 ├── test/                   # Verification pipeline
 │   ├── smoke/              #   Sanity-compile-and-run tests
 │   ├── property/           #   Invariant property tests
@@ -134,7 +134,7 @@ runtime/native/
 
 | File | Purpose |
 |------|---------|
-| **`core.c`** | Runtime bootstrap and shutdown. Contains the global `main()` entry wrappers, RC allocator, `kain_alloc`, `rc_retain`/`rc_release`, string operations (`string_new`, `str_concat*`), array management (`array_new`, `array_push`, `array_get`), file I/O (`file_read`, `file_write`), `env()`, `cwd()`, CLI argument collection, `kain_spawn`, `kain_sleep`, stdout/stderr helpers, `to_string`, `read_line`, `stdin_read_exact`, `read_file`, `write_file`, `file_exists`/`fs_exists`/`fs_is_file`/`fs_is_dir`, map operations, `deep_eq`, `kain_chr`/`kain_ord`, `kain_parse_i64_string`, `kain_parse_f64_string`, `kain_clampd`/`kain_floor_i64`/`kain_ceil_i64`/`kain_round_i64`, and more. This is the largest single file (~3,900 lines) — the catch-all for compiler-emitted ABI helpers and standard library glue. |
+| **`core.c`** | Runtime bootstrap and shutdown. Contains the global `main()` entry wrappers, RC allocator, `kain_alloc`, `rc_retain`/`rc_release`, string operations (`string_new`, `str_concat*`), array management (`array_new`, `array_push`, `array_get`), file I/O (`file_read`, `file_write`), `env()`, `cwd()`, CLI argument collection, `kain_spawn`, `kain_sleep`, stdout/stderr helpers, `to_string`, `read_line`, `stdin_read_exact`, `read_file`, `write_file`, `file_exists`/`fs_exists`/`fs_is_file`/`fs_is_dir`, map operations, `deep_eq`, `kain_chr`/`kain_ord`, `kain_parse_i64_string`, `kain_parse_f64_string`, `kain_clampd`/`kain_floor_i64`/`kain_ceil_i64`/`kain_round_i64`, and more. This is the largest single file (~3,900 lines) :: the catch-all for compiler-emitted ABI helpers and standard library glue. |
 | **`version.c`** | Runtime and ABI version constants. Reports `version_get_info()`, `version_print_info()`, and `version_check_abi_compatibility()` for startup validation. |
 | **`diagnostics.c`** | Structured diagnostic subsystem. Defines `KainDiagnostic` records, severity levels (Info/Warning/Error/Fatal), subsystem-specific error code ranges (1000–10999), channel filtering per tier, and the `KainDiagnosticCollector` for batched startup reporting. |
 | **`profile.c`** | Scoped push/pop profiling zones with compile-out tiers (`KAIN_RUNTIME_TIER_NOOP/GATED/FULL`) and fixed-cost native timing telemetry. |
@@ -146,7 +146,7 @@ runtime/native/
 
 | File | Purpose |
 |------|---------|
-| **`crash_handler.c`** | Cross-platform crash forensics core. Binary-searches a compiler-emitted `__kain_crash_table` (emitted when `-g` is on) to map faulting instruction pointers back to source locations (`fn_name`, `file`, `line:col`). Renders human-readable crash reports to stderr with callstack resolution through the same table. Then `_Exit(1)`. **No external dependencies** — no libunwind, no libdwarf, no addr2line. |
+| **`crash_handler.c`** | Cross-platform crash forensics core. Binary-searches a compiler-emitted `__kain_crash_table` (emitted when `-g` is on) to map faulting instruction pointers back to source locations (`fn_name`, `file`, `line:col`). Renders human-readable crash reports to stderr with callstack resolution through the same table. Then `_Exit(1)`. **No external dependencies** ‒ no libunwind, no libdwarf, no addr2line. |
 
 ### Memory & Ownership
 
@@ -178,7 +178,7 @@ runtime/native/
 |------|---------|
 | **`entangle.c`** | World entangle registry. Tracks authority↔mirror bindings with policy and type-name metadata. Supports up to 128 bindings with `entangle_registry_register`, `entangle_registry_get`, `entangle_registry_reset`. |
 | **`converge.c`** | Multi-lane dispatch telemetry and lane selection. `abi_converge_select_lane_for_key` chooses lanes by key+shape, `abi_converge_commit_winner` records the winning lane for cache affinity, `abi_converge_record_telemetry` gathers timing samples into a fixed-size ring buffer for future autotuning. Max 8 lanes, 64 telemetry samples, 64-entry tune cache. |
-| **`machine_stones.c`** | The machine-stones substrate — runtime backing for the Kain `axiom`, `pulse`, `shatter`, and `teleport` constructs. Provides `kain_machine_now_ns` (high-resolution timer), `kain_machine_axiom_accept` (capability predicate), `kain_machine_pulse_start`/`pulse_snapshot`/`pulse_stop_all` (timed recurring callbacks), `kain_machine_shatter_alloc`/`lane_ptr`/`lane_base`/`free` (SoA lane buffers for SIMD-friendly layout), `kain_machine_teleport_ptr`/`teleport_note` (zero-copy cross-world handoff with telemetry). Capability bitmask includes atomics, time, shatter, teleport, and x86 SIMD ISA levels. |
+| **`machine_stones.c`** | The machine-stones substrate => runtime backing for the Kain `axiom`, `pulse`, `shatter`, and `teleport` constructs. Provides `kain_machine_now_ns` (high-resolution timer), `kain_machine_axiom_accept` (capability predicate), `kain_machine_pulse_start`/`pulse_snapshot`/`pulse_stop_all` (timed recurring callbacks), `kain_machine_shatter_alloc`/`lane_ptr`/`lane_base`/`free` (SoA lane buffers for SIMD-friendly layout), `kain_machine_teleport_ptr`/`teleport_note` (zero-copy cross-world handoff with telemetry). Capability bitmask includes atomics, time, shatter, teleport, and x86 SIMD ISA levels. |
 | **`wire.c`** | Data wire encoding and transport layer for serialized cross-world data transfer. |
 
 ### System Services
@@ -192,7 +192,7 @@ runtime/native/
 | **`renderer_backend.c`** | Renderer backend identity and capability descriptors for Vulkan and DirectX 12 targets. |
 | **`renderer_session.c`** | Renderer session lifecycle: frame begin/end, resource binding, command submission. |
 | **`scene.c`** | Scene graph runtime. Stable scene handles, picking/raycast/bounds/visibility queries, transactional mutation requests and receipts, realtime bundle loading. |
-| **`cuda_runtime.c`** | CUDA PTX dispatch bridge. Compute bundle validation, dispatch planning, and GPU runtime handoff. Status: **degraded** — backed by external `kain-gpu-runtime` driver lane. |
+| **`cuda_runtime.c`** | CUDA PTX dispatch bridge. Compute bundle validation, dispatch planning, and GPU runtime handoff. Status: **degraded** |-> backed by external `kain-gpu-runtime` driver lane. |
 | **`simd.c`** | Runtime-published SIMD capability detection and dispatch. |
 
 ### Data & Interop
@@ -205,10 +205,10 @@ runtime/native/
 | **`stdlib_abi.c`** | ABI bridge to Kain standard library constructs. Implements `abi_option_*`, `abi_result_*`, `abi_tagged_*`, `abi_future_*`, and `abi_runtime_init/shutdown/heap_validate`. Also `abi_attrition_*` checkpoint/progress/result reporting for the certification harness. |
 | **`interop_contracts.c`** | Neutral shared buffer/image contracts for Python, JS, GPU, and foreign host bridge handoff. |
 | **`interop_zero_copy.c`** | Zero-copy buffer materialization for interop with Python/Rust/Node host environments. |
-| **`python_runtime.c`** | Python bridge base — marshaling, object lifetime, host context management. |
-| **`python_runtime_async.c`** | Python async integration — future conversion, event loop interop. |
-| **`python_runtime_buffers.c`** | Python buffer protocol — NumPy array views, C-contiguity checks. |
-| **`python_runtime_gpu.c`** | Python GPU bridge — CUDA tensor/materialization contracts. |
+| **`python_runtime.c`** | Python bridge base --> marshaling, object lifetime, host context management. |
+| **`python_runtime_async.c`** | Python async integration ___ future conversion, event loop interop. |
+| **`python_runtime_buffers.c`** | Python buffer protocol --> NumPy array views, C-contiguity checks. |
+| **`python_runtime_gpu.c`** | Python GPU bridge ~~ CUDA tensor/materialization contracts. |
 | **`python_runtime_region.c`** | Python bridge region caches for buffer and image materialization. |
 
 ### Attrition & Reflection
@@ -230,7 +230,7 @@ runtime/native/
 |------|---------|
 | **`platform.c`** | Platform capability descriptor system. Defines `KainPlatformKind` (Unknown/Win32/Linux/macOS) and a bitmask of platform services (app-host, input, viewport, graphics, filesystem, process, timers, network, clipboard, hot-reload, native-library). Win32 supports all 11 services; Linux/macOS currently provide core filesystem/process/timer/network/library. Query functions: `kain_platform_current_kind()`, `kain_platform_describe_current()`, `kain_platform_require_current()`. |
 | **`os_system.c`** | OS-level helper functions used across platforms: environment variable access, executable path resolution, system directory queries. |
-| **`platform_library.c`** | Raw platform dynamic library loader (`dlopen`/`dlsym`/`dlclose` on POSIX, `LoadLibrary`/`GetProcAddress`/`FreeLibrary` on Windows). Used by the generated typed platform packages — no generic public ABI call surface is exposed. |
+| **`platform_library.c`** | Raw platform dynamic library loader (`dlopen`/`dlsym`/`dlclose` on POSIX, `LoadLibrary`/`GetProcAddress`/`FreeLibrary` on Windows). Used by the generated typed platform packages >> no generic public ABI call surface is exposed. |
 
 ### Windows (`src/platform/win32/`)
 
@@ -278,10 +278,10 @@ CBMC (C Bounded Model Checker) converts C code into SAT/SMT formulas and proves 
 
 | Harness | Assertions | Status |
 |---------|-----------|--------|
-| **`check_arena.c`** | 833 | ✅ All pass — proves arena init preserves bounds, frame marker/release restores state, alloc_lo/alloc_hi regions never overlap, allocation fits in buffer. |
-| **`check_actor.c`** | 5,676 | ✅ All pass — proves queue enqueue/dequeue preserves linked-list integrity, FIFO order, capacity enforcement, NULL safety, OOM handling, bounded/unbounded mailbox invariants. |
-| **`check_crash_handler.c`** | — | Crash table lookup edge cases. |
-| **`check_crash_handler_linux.c`** | — | Linux signal registration verification. |
+| **`check_arena.c`** | 833 | ✅ All pass * * * proves arena init preserves bounds, frame marker/release restores state, alloc_lo/alloc_hi regions never overlap, allocation fits in buffer. |
+| **`check_actor.c`** | 5,676 | ✅ All pass -- proves queue enqueue/dequeue preserves linked-list integrity, FIFO order, capacity enforcement, NULL safety, OOM handling, bounded/unbounded mailbox invariants. |
+| **`check_crash_handler.c`** | ->> | Crash table lookup edge cases. |
+| **`check_crash_handler_linux.c`** | :: | Linux signal registration verification. |
 
 Combined source+harnass files (`combined_check_*.c`) are preprocessed single-translation-unit versions for CBMC consumption.
 
@@ -431,9 +431,9 @@ The `runtime_tiers.h` header defines compile-time control tiers that gate diagno
 
 | Tier | Behavior | Default (Debug) | Default (Release) |
 |------|----------|-----------------|-------------------|
-| `KAIN_RUNTIME_TIER_NOOP` | Removed at compile time | — | — |
-| `KAIN_RUNTIME_TIER_GATED` | Active but low-cost | — | Diagnostics, profiling, fixup |
-| `KAIN_RUNTIME_TIER_FULL` | Full instrumentation | Diagnostics, profiling, fixup | — |
+| `KAIN_RUNTIME_TIER_NOOP` | Removed at compile time | |-> | - |
+| `KAIN_RUNTIME_TIER_GATED` | Active but low-cost | ... | Diagnostics, profiling, fixup |
+| `KAIN_RUNTIME_TIER_FULL` | Full instrumentation | Diagnostics, profiling, fixup | ~~ |
 
 Subsystem tiers (`KAIN_RUNTIME_DIAG_TIER`, `KAIN_RUNTIME_PROFILE_TIER`, `KAIN_RUNTIME_FIXUP_TIER`) can be set independently via preprocessor defines or header defaults.
 

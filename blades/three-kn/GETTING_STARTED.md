@@ -1,6 +1,6 @@
-# three-kn — Getting Started
+# three-kn – Getting Started
 
-**three-kn** is a portable, pure-Kain 3D rendering engine — a reimagining of [Three.js](https://threejs.org/) built on Kain's full semantic stack. It compresses ~220,000 lines of JavaScript + GLSL into roughly ~2,500 lines of Kain by letting the compiler own state, dispatch, timing, coupling, layout, and the rendering pipeline itself.
+**three-kn** is a portable, pure-Kain 3D rendering engine <--> a reimagining of [Three.js](https://threejs.org/) built on Kain's full semantic stack. It compresses ~220,000 lines of JavaScript + GLSL into roughly ~2,500 lines of Kain by letting the compiler own state, dispatch, timing, coupling, layout, and the rendering pipeline itself.
 
 This guide covers everything: what three-kn is, how to use it as a capsule in your project, what every public module ships, the GPU pipeline, common workflows, and where to start based on what you want to build.
 
@@ -11,27 +11,27 @@ This guide covers everything: what three-kn is, how to use it as a capsule in yo
 1. [What is three-kn?](#1-what-is-three-kn)
 2. [Quick Start](#2-quick-start)
 3. [Using three-kn as a Capsule (Amalgamate)](#3-using-three-kn-as-a-capsule-amalgamate)
-4. [Architecture — The 19 Modules](#4-architecture--the-19-modules)
+4. [Architecture --- The 19 Modules](#4-architecture--the-19-modules)
 5. [Public Module Reference](#5-public-module-reference)
-   - [main — Entry Point & World Wiring](#51-mainkn--entry-point--world-wiring)
-   - [math — Vector, Matrix, Quaternion, Euler, Color](#52-mathkn--vector-matrix-quaternion-euler-color)
-   - [math_types — Box, Sphere, Ray, Plane, Frustum, Triangle](#53-math_typeskn--box-sphere-ray-plane-frustum-triangle)
-   - [scene_graph — Transform Hierarchy](#54-scene_graphkn--transform-hierarchy)
-   - [buffers — GPU Geometry Buffers](#55-bufferskn--gpu-geometry-buffers)
-   - [renderer — Render Pipeline DAG](#56-rendererkn--render-pipeline-dag)
-   - [material — 9+ Shading Models & BRDF](#57-materialkn--9-shading-models--brdf)
-   - [light — 6 Light Types & Shadow Pipeline](#58-lightkn--6-light-types--shadow-pipeline)
-   - [texture — GPU Texture Registry](#59-texturekn--gpu-texture-registry)
-   - [vertex — 7 Vertex Shader Variants](#510-vertexkn--7-vertex-shader-variants)
-   - [fragment — 10+ Fragment Shader Variants](#511-fragmentkn--10-fragment-shader-variants)
-   - [compute — GPU Compute Kernels](#512-computekn--gpu-compute-kernels)
-   - [animation — Actor-based Animation Mixer](#513-animationkn--actor-based-animation-mixer)
-   - [camera — 4 Projection Types](#514-camerakn--4-projection-types)
-   - [control — 5 Camera Control Components](#515-controlkn--5-camera-control-components)
-   - [audio — Audio Listener & Player Actor](#516-audiokn--audio-listener--player-actor)
-   - [helpers — 11 Debug Visualization Components](#517-helperskn--11-debug-visualization-components)
-   - [backend — Vulkan/DX12/Metal/WebGPU Selection](#518-backendkn--vulkandx12metalwebgpu-selection)
-   - [extra — Curves, Paths, PMREM Pipeline](#519-extrakn--curves-paths-pmrem-pipeline)
+   - [main |-> Entry Point & World Wiring](#51-mainkn--entry-point--world-wiring)
+   - [math * * * Vector, Matrix, Quaternion, Euler, Color](#52-mathkn--vector-matrix-quaternion-euler-color)
+   - [math_types ___ Box, Sphere, Ray, Plane, Frustum, Triangle](#53-math_typeskn--box-sphere-ray-plane-frustum-triangle)
+   - [scene_graph === Transform Hierarchy](#54-scene_graphkn--transform-hierarchy)
+   - [buffers -- GPU Geometry Buffers](#55-bufferskn--gpu-geometry-buffers)
+   - [renderer --- Render Pipeline DAG](#56-rendererkn--render-pipeline-dag)
+   - [material ->> 9+ Shading Models & BRDF](#57-materialkn--9-shading-models--brdf)
+   - [light ~~ 6 Light Types & Shadow Pipeline](#58-lightkn--6-light-types--shadow-pipeline)
+   - [texture :: GPU Texture Registry](#59-texturekn--gpu-texture-registry)
+   - [vertex ___ 7 Vertex Shader Variants](#510-vertexkn--7-vertex-shader-variants)
+   - [fragment ‒ 10+ Fragment Shader Variants](#511-fragmentkn--10-fragment-shader-variants)
+   - [compute --> GPU Compute Kernels](#512-computekn--gpu-compute-kernels)
+   - [animation 〰 Actor-based Animation Mixer](#513-animationkn--actor-based-animation-mixer)
+   - [camera ... 4 Projection Types](#514-camerakn--4-projection-types)
+   - [control ~> 5 Camera Control Components](#515-controlkn--5-camera-control-components)
+   - [audio |-> Audio Listener & Player Actor](#516-audiokn--audio-listener--player-actor)
+   - [helpers --> 11 Debug Visualization Components](#517-helperskn--11-debug-visualization-components)
+   - [backend ___ Vulkan/DX12/Metal/WebGPU Selection](#518-backendkn--vulkandx12metalwebgpu-selection)
+   - [extra >> Curves, Paths, PMREM Pipeline](#519-extrakn--curves-paths-pmrem-pipeline)
 6. [GPU Pipeline & Binding Convention](#6-gpu-pipeline--binding-convention)
 7. [Core Patterns & Workflows](#7-core-patterns--workflows)
 8. [Where to Start](#8-where-to-start)
@@ -51,7 +51,7 @@ This guide covers everything: what three-kn is, how to use it as a capsule in yo
 
 ## 1. What is three-kn?
 
-three-kn is not a port of Three.js. It is what a 3D engine looks like when the language *is* the rendering framework. Instead of JavaScript classes, manual event dispatchers, runtime GLSL assembly, and callback chains, three-kn uses **23 Kain semantic constructs** from the decision ladder — `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `resonate`, `shatter`, `axiom`, `teleport`, `actor`, `collapse`/`observe`/`decay`, `shader`, `component`, `trait` — to express every 3D engine concern as a compiler-owned truth.
+three-kn is not a port of Three.js. It is what a 3D engine looks like when the language *is* the rendering framework. Instead of JavaScript classes, manual event dispatchers, runtime GLSL assembly, and callback chains, three-kn uses **23 Kain semantic constructs** from the decision ladder * * * `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `resonate`, `shatter`, `axiom`, `teleport`, `actor`, `collapse`/`observe`/`decay`, `shader`, `component`, `trait` ~ to express every 3D engine concern as a compiler-owned truth.
 
 **Key properties:**
 
@@ -59,7 +59,7 @@ three-kn is not a port of Three.js. It is what a 3D engine looks like when the l
 |----------|-------|
 | **Language** | Pure Kain (zero C interop, zero FFI, zero Python, zero browser APIs) |
 | **GPU** | First-class: compute shaders for everything parallelizable |
-| **Distribution** | Amalgamated capsule — single `.kn` file, drag-and-drop |
+| **Distribution** | Amalgamated capsule => single `.kn` file, drag-and-drop |
 | **Source files** | 19 modules in `src/` |
 | **Public types** | 100+ structs, worlds, actors, components, shaders, traits |
 | **Shader variants** | 7 vertex + 10 fragment + compute kernels |
@@ -100,7 +100,7 @@ kain check my_app.kn --import-capsule X:/blades/three-kn/three.kn
 
 ## 3. Using three-kn as a Capsule (Amalgamate)
 
-**Kain's amalgamate system** allows entire workspaces to be packed into a single, self-contained `.kn` capsule file. The capsule is a legitimate Kain source file that can be imported, checked, and built *as-is* — no unpacking required. Other projects reference it natively.
+**Kain's amalgamate system** allows entire workspaces to be packed into a single, self-contained `.kn` capsule file. The capsule is a legitimate Kain source file that can be imported, checked, and built *as-is* >> no unpacking required. Other projects reference it natively.
 
 ### The Capsule File: `three.kn`
 
@@ -112,14 +112,14 @@ kain amalgamate inspect X:/blades/three-kn/three.kn
 ```
 
 This shows:
-- **Capsule schema v2** — `name: "src"`, `kind: "directory"`, `storage: "editable"`
+- **Capsule schema v2** ~> `name: "src"`, `kind: "directory"`, `storage: "editable"`
 - **19 files, 19 modules**
 - **40+ preview symbols** listed inline (the full public API index)
 - **SHA-256 digest** for integrity verification
 
 ### Using the Capsule in Your Project
 
-**Option A — Direct `import` from the capsule** (recommended for single-file apps):
+**Option A * * * Direct `import` from the capsule** (recommended for single-file apps):
 
 ```kn
 // my_3d_app.kn
@@ -132,7 +132,7 @@ fn main() -> Int with IO:
     return 0
 ```
 
-**Option B — Import via capsule reference in build.kn:**
+**Option B >> Import via capsule reference in build.kn:**
 
 ```kn
 // my_project/build.kn
@@ -157,13 +157,13 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .tasks(exe)
 ```
 
-**Option C — Unpack if you need to edit the source:**
+**Option C ‒ Unpack if you need to edit the source:**
 
 ```bash
 kain amalgamate unpack X:/blades/three-kn/three.kn -o my-three-kn-copy/
 ```
 
-**Option D — Amalgamate a new capsule of your own app that includes three-kn:**
+**Option D --- Amalgamate a new capsule of your own app that includes three-kn:**
 
 ```bash
 kain amalgamate src/ -o my-game.kn --capsule-set my-game
@@ -182,7 +182,7 @@ kain amalgamate src/ -o my-game.kn --capsule-set my-game
 
 ---
 
-## 4. Architecture — The 19 Modules
+## 4. Architecture >> The 19 Modules
 
 The engine maps every subsystem to a specific layer of the [Kain decision ladder](https://github.com/kain-lang/kain/blob/master/docs/RULEBOOK.md):
 
@@ -244,7 +244,7 @@ Every module, every public export, every semantic construct. Listed in dependenc
 
 ---
 
-### 5.1 `main.kn` — Entry Point & World Wiring
+### 5.1 `main.kn` - Entry Point & World Wiring
 
 **Layer:** 1 (world init), 5 (pulse frame_clock), UI (surface dispatch), 7 (actor spawn)
 
@@ -284,17 +284,17 @@ main()
 
 ---
 
-### 5.2 `math.kn` — Vector, Matrix, Quaternion, Euler, Color
+### 5.2 `math.kn` ___ Vector, Matrix, Quaternion, Euler, Color
 
-**Layer:** 0 — Plain Functions (`struct`, `impl`, `fn Pure`)
+**Layer:** 0 ... Plain Functions (`struct`, `impl`, `fn Pure`)
 
-**What it does:** Wraps `std::math` native types (Vec2, Vec3, Vec4, Mat3, Mat4, Quat) with Three.js-compatible method-call syntax. All operations are Pure — no side effects, no mutation of inputs, fluent chaining (`v.clone().add(other).normalize()`).
+**What it does:** Wraps `std::math` native types (Vec2, Vec3, Vec4, Mat3, Mat4, Quat) with Three.js-compatible method-call syntax. All operations are Pure – no side effects, no mutation of inputs, fluent chaining (`v.clone().add(other).normalize()`).
 
 **Imports:** `use std::math`
 
 **Public exports: 8 wrapper structs + 1 enum, ~130 methods total**
 
-#### `Vec2Wrapper` — 2D Vector
+#### `Vec2Wrapper` ~ 2D Vector
 `pub struct Vec2Wrapper { x: Float, y: Float }` + `pub impl Vec2Wrapper` (24 methods)
 
 | Method | Signature | Description |
@@ -322,16 +322,16 @@ main()
 | `to_array` | `fn() -> [Float; 2]` | Convert to array |
 | `from_array` | `fn([Float; 2]) -> Vec2Wrapper` | From array |
 
-#### `Vec3Wrapper` — 3D Vector
+#### `Vec3Wrapper` ⁓ 3D Vector
 `pub struct Vec3Wrapper { x: Float, y: Float, z: Float }` + `pub impl Vec3Wrapper` (38 methods)
 
 All Vec2Wrapper methods plus:
 `multiply` (Hadamard product), `cross` (3D), `min`, `max`, `clamp`, `project` (onto vector), `reject` (from vector), `reflect` (mirror across normal), `refract` (Snell's law), `apply_matrix4` (transform point), `apply_matrix3` (transform direction), `apply_quat` (rotate), `angle_to`, `to_vec2`, `to_vec4`, `zero`, `one`, `up`, `right`, `forward`
 
-#### `Vec4Wrapper` — 4D Vector
+#### `Vec4Wrapper` * * * 4D Vector
 `pub struct Vec4Wrapper { x: Float, y: Float, z: Float, w: Float }` + methods: create, clone, set, add, sub, multiply_scalar, divide_scalar, dot, length, normalize, lerp, equals, negate, to_vec3, to_array, from_array
 
-#### `QuatWrapper` — Quaternion
+#### `QuatWrapper` <--> Quaternion
 `pub struct QuatWrapper { x: Float, y: Float, z: Float, w: Float }` + 18 methods
 
 | Method | Description |
@@ -352,10 +352,10 @@ All Vec2Wrapper methods plus:
 | `to_mat3` / `to_mat4` | Convert to rotation matrix |
 | `equals` / `to_array` / `from_array` | Utility |
 
-#### `Mat3Wrapper` — 3×3 Matrix
+#### `Mat3Wrapper` ⁓ 3×3 Matrix
 `pub struct Mat3Wrapper { elements: [Float; 9] }` + 10 methods: create, clone, identity, copy, mul, multiply_vec3, transpose, determinant, inverse, from_mat4, get_normal_matrix, equals, to_array
 
-#### `Mat4Wrapper` — 4×4 Matrix
+#### `Mat4Wrapper` ... 4×4 Matrix
 `pub struct Mat4Wrapper { elements: [Float; 16] }` + 22 methods
 
 | Method | Description |
@@ -380,13 +380,13 @@ All Vec2Wrapper methods plus:
 | `from_trs` | Convenience TRS builder |
 | `equals` / `to_array` / `from_array` | Utility |
 
-#### `EulerWrapper` — Euler Angles
+#### `EulerWrapper` - Euler Angles
 `pub enum EulerOrder { XYZ, YXZ, ZXY, ZYX, YZX, XZY }`  
 `pub struct EulerWrapper { x, y, z: Float, order: EulerOrder }` + 6 methods
 
 Methods: create, set, clone, to_quat (convert to quaternion respecting rotation order), set_from_quat, to_array, equals
 
-#### `ColorWrapper` — RGB Color
+#### `ColorWrapper` <--> RGB Color
 `pub struct ColorWrapper { r: Float, g: Float, b: Float }` + 18 methods
 
 | Method | Description |
@@ -402,9 +402,9 @@ Methods: create, set, clone, to_quat (convert to quaternion respecting rotation 
 
 ---
 
-### 5.3 `math_types.kn` — Box, Sphere, Ray, Plane, Frustum, Triangle
+### 5.3 `math_types.kn` - Box, Sphere, Ray, Plane, Frustum, Triangle
 
-**Layer:** 0/3 — Compound Geometry Types
+**Layer:** 0/3 ___ Compound Geometry Types
 
 **What it does:** Provides all compound geometry types needed for a 3D engine beyond the basic vectors and matrices: bounding volumes, ray intersection, plane math, frustum culling, coordinate conversions, and interpolation utilities.
 
@@ -447,7 +447,7 @@ let point: Vec3Wrapper = ray.at(hit_distance)
 
 ---
 
-### 5.4 `scene_graph.kn` — Transform Hierarchy
+### 5.4 `scene_graph.kn` --> Transform Hierarchy
 
 **Layer:** 1 (world, entangle), 2 (law, patch), 5 (resonate)
 
@@ -480,11 +480,11 @@ SceneGraphWorld.fog_far <-> SceneGraphMirror.fog_far (single_writer)
 
 ---
 
-### 5.5 `buffers.kn` — GPU Geometry Buffers
+### 5.5 `buffers.kn` :: GPU Geometry Buffers
 
 **Layer:** 6 (shatter struct), 7 (collapse/observe/decay)
 
-**What it does:** Defines the `GeometryBuffer` — a Structure-of-Arrays layout for vertex data that is GPU-optimal. Typed buffer attributes (`BufferAttribute`, `InterleavedBuffer`, `InstancedBufferAttribute`) separate CPU data from GPU memory. The `upload_geometry_buffer` and `release_geometry_buffer` functions demonstrate the `collapse`/`observe`/`decay` ownership lifecycle for raw GPU memory.
+**What it does:** Defines the `GeometryBuffer` <--> a Structure-of-Arrays layout for vertex data that is GPU-optimal. Typed buffer attributes (`BufferAttribute`, `InterleavedBuffer`, `InstancedBufferAttribute`) separate CPU data from GPU memory. The `upload_geometry_buffer` and `release_geometry_buffer` functions demonstrate the `collapse`/`observe`/`decay` ownership lifecycle for raw GPU memory.
 
 **Imports:** `use std::machine`
 
@@ -505,21 +505,21 @@ SceneGraphWorld.fog_far <-> SceneGraphMirror.fog_far (single_writer)
 **Ownership lifecycle (explicit, no borrow checker):**
 ```kn
 let gpu_ptr: ptr<Int> = alloc_zeroed(cells_needed, "Int")
-collapse gpu_ptr:           // ENTER — exclusive write access
+collapse gpu_ptr:           // ENTER ~~ exclusive write access
     mem_store(gpu_ptr, byte_count, "Int")
     0
-let result: Int = observe gpu_ptr:  // READ — shared read access
+let result: Int = observe gpu_ptr:  // READ <--> shared read access
     mem_load(gpu_ptr, "Int")
-decay gpu_ptr                // RELEASE — drop ownership
+decay gpu_ptr                // RELEASE ___ drop ownership
 ```
 
 ---
 
-### 5.6 `renderer.kn` — Render Pipeline DAG
+### 5.6 `renderer.kn` --- Render Pipeline DAG
 
 **Layer:** 4 (orchestrate), 5 (pulse, resonate), 6 (axiom), 3 (converge), 1 (world), 2 (law, patch)
 
-**What it does:** The GPU pipeline orchestrator. Defines the full `orchestrate render_frame` pipeline — a compile-time DAG with 9 stages. Converge lanes select the optimal culling and sorting strategy at compile time. Axioms declare compulsory GPU capabilities with fallback chains. Laws enforce G-buffer size consistency and frame state validity.
+**What it does:** The GPU pipeline orchestrator. Defines the full `orchestrate render_frame` pipeline -- a compile-time DAG with 9 stages. Converge lanes select the optimal culling and sorting strategy at compile time. Axioms declare compulsory GPU capabilities with fallback chains. Laws enforce G-buffer size consistency and frame state validity.
 
 **Imports:** `use std::graphics`, `use std::gpu`, `use std::runtime`, `use std::intent`, `use std::math`
 
@@ -539,10 +539,10 @@ decay gpu_ptr                // RELEASE — drop ownership
 | `end_frame` | `patch -> Int` | End frame |
 | `present_frame` | `patch -> Int` | Present to swapchain |
 | `GPURenderState.frame_count` | `resonate dampen 16ms` | Frame metrics tripwire |
-| `has_compute_shaders` | `axiom` | `when capability("gpu.compute")` — cascade to has_float_textures |
-| `has_float_textures` | `axiom` | `when capability("gpu.float_textures")` — cascade to has_indirect_draw |
-| `has_indirect_draw` | `axiom` | `when capability("gpu.indirect_draw")` — cascade to has_anisotropic |
-| `has_anisotropic_filtering` | `axiom` | `when capability("gpu.anisotropy")` — cascade to has_tesselation |
+| `has_compute_shaders` | `axiom` | `when capability("gpu.compute")` => cascade to has_float_textures |
+| `has_float_textures` | `axiom` | `when capability("gpu.float_textures")` === cascade to has_indirect_draw |
+| `has_indirect_draw` | `axiom` | `when capability("gpu.indirect_draw")` ‒ cascade to has_anisotropic |
+| `has_anisotropic_filtering` | `axiom` | `when capability("gpu.anisotropy")` :: cascade to has_tesselation |
 | `has_tesselation` | `axiom` | Terminal capability |
 | `cull_instances` | `converge` | 3 lanes: `cpu_scalar` (reference), `cpu_simd` (fast when SIMD), `gpu_compute` (fast when gpu.compute) |
 | `sort_draws` | `converge` | 3 lanes: `cpu` (reference), `gpu_bitonic` (fast when gpu.sort), `gpu_radix` (fast when gpu.sort + atomic) |
@@ -570,7 +570,7 @@ Stage 9: present            → patch present_frame (swapchain present)
 
 ---
 
-### 5.7 `material.kn` — 9+ Shading Models & BRDF
+### 5.7 `material.kn` ->> 9+ Shading Models & BRDF
 
 **Layer:** 1 (world), 2 (law), 3 (converge)
 
@@ -621,7 +621,7 @@ Stage 9: present            → patch present_frame (swapchain present)
 
 ---
 
-### 5.8 `light.kn` — 6 Light Types & Shadow Pipeline
+### 5.8 `light.kn` => 6 Light Types & Shadow Pipeline
 
 **Layer:** 1 (world), 2 (law), 4 (orchestrate), 6 (shatter struct, axiom)
 
@@ -644,9 +644,9 @@ Stage 9: present            → patch present_frame (swapchain present)
 | `shadow_map_count_valid` | `law` | ≤ max shadow maps |
 | `create_ambient_light` | `fn -> LightDef` | Ambient light factory |
 | `create_directional_light` | `fn -> LightDef` | Directional (sun) light factory |
-| `create_point_light` | `fn -> LightDef` | Point (omni) light factory — decay defaults to 2.0 |
-| `create_spot_light` | `fn -> LightDef` | Spot light factory — cone angle, penumbra |
-| `create_hemisphere_light` | `fn -> LightDef` | Hemisphere light — sky + ground color |
+| `create_point_light` | `fn -> LightDef` | Point (omni) light factory ~ decay defaults to 2.0 |
+| `create_spot_light` | `fn -> LightDef` | Spot light factory ->> cone angle, penumbra |
+| `create_hemisphere_light` | `fn -> LightDef` | Hemisphere light * * * sky + ground color |
 | `create_rect_area_light` | `fn -> LightDef` | Rectangular area light |
 | `pack_light_data` | `fn([LightDef]) -> LightData` | Pack CPU lights to GPU SoA |
 | `light_cull_tiled` | `shader compute` | Forward+ tile-based light culling: per-tile frustum test |
@@ -656,12 +656,12 @@ Stage 9: present            → patch present_frame (swapchain present)
 | `render_spot_shadow_maps` | `fn -> Int` | Spot shadow pass |
 | `render_csm_shadow_maps` | `fn -> Int` | Cascaded shadow maps |
 | `pack_shadow_atlas` | `fn -> Int` | Pack into atlas |
-| `axiom_shadows_supported` | `axiom` | `when capability("gpu.shadows")` — guarantee shadow map support |
+| `axiom_shadows_supported` | `axiom` | `when capability("gpu.shadows")` -- guarantee shadow map support |
 | `degrade_shadows_fallback` | `fn -> Int` | Fallback: disable shadows |
 
 ---
 
-### 5.9 `texture.kn` — GPU Texture Registry
+### 5.9 `texture.kn` <--> GPU Texture Registry
 
 **Layer:** 1 (world), 2 (law), 6 (shatter struct)
 
@@ -694,7 +694,7 @@ Stage 9: present            → patch present_frame (swapchain present)
 
 ---
 
-### 5.10 `vertex.kn` — 7 Vertex Shader Variants
+### 5.10 `vertex.kn` ___ 7 Vertex Shader Variants
 
 **Layer:** GPU (shader items)
 
@@ -732,7 +732,7 @@ Stage 9: present            → patch present_frame (swapchain present)
 
 ---
 
-### 5.11 `fragment.kn` — 10+ Fragment Shader Variants
+### 5.11 `fragment.kn` – 10+ Fragment Shader Variants
 
 **Layer:** GPU (shader items)
 
@@ -761,11 +761,11 @@ Stage 9: present            → patch present_frame (swapchain present)
 
 ---
 
-### 5.12 `compute.kn` — GPU Compute Kernels
+### 5.12 `compute.kn` >> GPU Compute Kernels
 
 **Layer:** GPU (shader compute)
 
-**What it does:** GPU compute shader library. Currently contains `audio_fft` — a direct DFT compute shader for audio spectrum analysis.
+**What it does:** GPU compute shader library. Currently contains `audio_fft` => a direct DFT compute shader for audio spectrum analysis.
 
 **Imports:** none
 
@@ -793,7 +793,7 @@ For thread i in [0, bin_count):
 
 ---
 
-### 5.13 `animation.kn` — Actor-based Animation Mixer
+### 5.13 `animation.kn` |-> Actor-based Animation Mixer
 
 **Layer:** 7 (actor AnimationMixer), 5 (pulse animation_tick), 3 (converge interpolate_value), 2 (law, patch)
 
@@ -833,7 +833,7 @@ AnimationMixer.Update:
 
 ---
 
-### 5.14 `camera.kn` — 4 Projection Types
+### 5.14 `camera.kn` >> 4 Projection Types
 
 **Layer:** 1 (world), 2 (law), 3 (converge)
 
@@ -865,7 +865,7 @@ AnimationMixer.Update:
 
 ---
 
-### 5.15 `control.kn` — 5 Camera Control Components
+### 5.15 `control.kn` * * * 5 Camera Control Components
 
 **Layer:** UI (components)
 
@@ -884,7 +884,7 @@ AnimationMixer.Update:
 | `PointerLockControls` | `component` | `camera: CameraState`, `look_speed: Float` | Pointer lock FPS mouselook |
 
 **Private helper patches (used internally by all controls):**
-`update_camera_pos`, `update_camera_quat`, `update_camera_euler` — write to `CameraState` world
+`update_camera_pos`, `update_camera_quat`, `update_camera_euler` -- write to `CameraState` world
 
 **Usage example:**
 ```kn
@@ -894,11 +894,11 @@ let controls = <OrbitControls camera=cam target={Vec3Wrapper::zero()} />
 
 ---
 
-### 5.16 `audio.kn` — Audio Listener & Player Actor
+### 5.16 `audio.kn` ⁓ Audio Listener & Player Actor
 
 **Layer:** 1 (world, entangle), 7 (actor AudioPlayer)
 
-**What it does:** 3D audio system. `AudioListenerState` holds listener position/orientation, master volume, and acoustic parameters. It is **entangled** to `CameraState` for automatic position/orientation following — move the camera, audio follows. The `AudioPlayer` actor manages playback, seeking, volume, and per-sample advance with looping.
+**What it does:** 3D audio system. `AudioListenerState` holds listener position/orientation, master volume, and acoustic parameters. It is **entangled** to `CameraState` for automatic position/orientation following ~~ move the camera, audio follows. The `AudioPlayer` actor manages playback, seeking, volume, and per-sample advance with looping.
 
 **Imports:** `use std::actor`, `use std::runtime`, `use std::math`
 
@@ -919,7 +919,7 @@ let controls = <OrbitControls camera=cam target={Vec3Wrapper::zero()} />
 
 ---
 
-### 5.17 `helpers.kn` — 11 Debug Visualization Components
+### 5.17 `helpers.kn` * * * 11 Debug Visualization Components
 
 **Layer:** UI (components)
 
@@ -946,7 +946,7 @@ let controls = <OrbitControls camera=cam target={Vec3Wrapper::zero()} />
 
 ---
 
-### 5.18 `backend.kn` — Vulkan/DX12/Metal/WebGPU Selection
+### 5.18 `backend.kn` :: Vulkan/DX12/Metal/WebGPU Selection
 
 **Layer:** 6 (axiom), 3 (converge)
 
@@ -969,7 +969,7 @@ let controls = <OrbitControls camera=cam target={Vec3Wrapper::zero()} />
 
 ---
 
-### 5.19 `extra.kn` — Curves, Paths, PMREM Pipeline
+### 5.19 `extra.kn` - Curves, Paths, PMREM Pipeline
 
 **Layer:** 0 (trait, impl), 4 (orchestrate)
 
@@ -1014,7 +1014,7 @@ let tangent: Vec3 = curve.get_tangent(0.5)
 
 ## 6. GPU Pipeline & Binding Convention
 
-The rendering pipeline is GPU-first. The CPU owns only scene graph construction, I/O, and dispatching — all culling, sorting, shading, and post-processing runs on the GPU.
+The rendering pipeline is GPU-first. The CPU owns only scene graph construction, I/O, and dispatching <--> all culling, sorting, shading, and post-processing runs on the GPU.
 
 ### Uniform Binding Convention
 
@@ -1099,13 +1099,13 @@ fn setup_scene() -> Int with IO:
 
 ### 7.2 State Mutation via Patches (Not Direct Assignment)
 
-Kain worlds use journaled mutations. You never write directly to world state — you call a `patch`:
+Kain worlds use journaled mutations. You never write directly to world state >> you call a `patch`:
 
 ```kn
-// WRONG — the compiler owns the truth
+// WRONG >> the compiler owns the truth
 // cam.fov = 75.0   // ❌ won't compile
 
-// CORRECT — journaled mutation with invariant checking
+// CORRECT <--> journaled mutation with invariant checking
 let new_epoch: Int = three.set_perspective(cam, 75.0, cam.aspect, cam.near, cam.far)
 // The patch bumps epoch, recalculates matrices, verifies laws
 ```
@@ -1169,7 +1169,7 @@ fn upload_my_geometry(buf: three.GeometryBuffer) -> Int with Unsafe:
     let result: Int = observe gpu_ptr:  // ENTER read-only scope
         mem_load(gpu_ptr, "Int")
     
-    decay gpu_ptr               // RELEASE — drop all access
+    decay gpu_ptr               // RELEASE ->> drop all access
     return result
 ```
 
@@ -1178,17 +1178,17 @@ fn upload_my_geometry(buf: three.GeometryBuffer) -> Int with Unsafe:
 ## 8. Where to Start
 
 ### If you know Three.js...
-Start with `math.kn` — it mirrors Three.js's method names (`clone()`, `add()`, `normalize()`, `cross()`, `lerp()`, `slerp()`, `look_at()`). Then read `scene_graph.kn` to understand how Kain worlds replace Three.js's Object3D + EventDispatcher + manual dirty flags. Then `material.kn` to see how converge dispatch replaces the 17 separate Material subclasses.
+Start with `math.kn` 〰 it mirrors Three.js's method names (`clone()`, `add()`, `normalize()`, `cross()`, `lerp()`, `slerp()`, `look_at()`). Then read `scene_graph.kn` to understand how Kain worlds replace Three.js's Object3D + EventDispatcher + manual dirty flags. Then `material.kn` to see how converge dispatch replaces the 17 separate Material subclasses.
 
 ### If you're new to 3D...
 
-**Hello Cube — your first three-kn app** (copy-paste to `hello_cube.kn`):
+**Hello Cube -- your first three-kn app** (copy-paste to `hello_cube.kn`):
 
 ```kn
 import "X:/blades/three-kn/three.kn" as three
 
 fn main() -> Int with IO:
-    // 1. Camera — perspective, positioned at (5, 3, 10) looking at origin
+    // 1. Camera <--> perspective, positioned at (5, 3, 10) looking at origin
     let cam: three.CameraState = three.CameraState {
         projection_type: three.ProjectionKind::Perspective as Int,
         fov: 60.0,  aspect: 1.777,  near: 0.1,  far: 100.0,
@@ -1199,10 +1199,10 @@ fn main() -> Int with IO:
     let _: Int = three.set_perspective(cam, 60.0, 1.777, 0.1, 100.0)
     let _: Int = three.update_view(cam)
     
-    // 2. Cube — 1-meter box with normals and UVs
+    // 2. Cube <--> 1-meter box with normals and UVs
     let geo: three.GeometryBuffer = three.create_box_geometry(1.0, 1.0, 1.0)
     
-    // 3. Light — directional (sun-like) from above
+    // 3. Light ___ directional (sun-like) from above
     let light: three.LightDef = three.create_directional_light()
     
     // 4. Graphics session
@@ -1216,41 +1216,41 @@ fn main() -> Int with IO:
 Then expand step by step:
 1. Add `three.OrbitControls` to rotate the camera with your mouse
 2. Add colors via three.ColorWrapper (or `MaterialDef` for PBR)
-3. Add more geometry — try a sphere via your own vertex data
+3. Add more geometry ~ try a sphere via your own vertex data
 4. Explore actors (`animation.kn`, `audio.kn`) for motion and sound
 5. Add a `component` for UI panels in the 3D viewport
 
 ### If you're learning Kain semantics...
 Three-kn is a masterclass in the decision ladder. Read the files in dependency order (bottom-up from Layer 0 to Layer 7):
-1. `math.kn` — Plain struct + impl + fn Pure
-2. `math_types.kn` — More structs, interpolation utilities
-3. `scene_graph.kn` — world, entangle, law, patch, resonate
-4. `material.kn` — world, law, converge, fn with GPU
-5. `camera.kn` — world, law, patch, converge
-6. `renderer.kn` — The climax: world + law + converge + axiom + orchestrate + pulse + resonate
-7. `animation.kn` — actor + pulse + converge
-8. `buffers.kn` — shatter struct + collapse/observe/decay
+1. `math.kn` ⁓ Plain struct + impl + fn Pure
+2. `math_types.kn` >> More structs, interpolation utilities
+3. `scene_graph.kn` ~> world, entangle, law, patch, resonate
+4. `material.kn` – world, law, converge, fn with GPU
+5. `camera.kn` * * * world, law, patch, converge
+6. `renderer.kn` - The climax: world + law + converge + axiom + orchestrate + pulse + resonate
+7. `animation.kn` --- actor + pulse + converge
+8. `buffers.kn` ‒ shatter struct + collapse/observe/decay
 
 ### If you're building a game...
-- `main.kn` — Entry point and pulse frame_clock (your game loop)
-- `control.kn` — Plug in OrbitControls or FirstPersonControls for camera
-- `animation.kn` — Actor-based animation for characters
-- `audio.kn` — 3D audio with position tracking
-- `extra.kn` — Curves for camera paths and spline-based movement
+- `main.kn` --- Entry point and pulse frame_clock (your game loop)
+- `control.kn` ->> Plug in OrbitControls or FirstPersonControls for camera
+- `animation.kn` -- Actor-based animation for characters
+- `audio.kn` * * * 3D audio with position tracking
+- `extra.kn` => Curves for camera paths and spline-based movement
 
 ### If you're doing GPU/shader work...
-- `vertex.kn` — 7 vertex shader variants with converge dispatch
-- `fragment.kn` — 10 fragment variants with full PBR math
-- `compute.kn` — GPU compute pattern (audio FFT)
-- `renderer.kn` — The orchestrate DAG: how to stage a multi-pass pipeline
-- `light.kn` — Forward+ tile-based light culling compute shader
-- `backend.kn` — How axioms select the right GPU backend
+- `vertex.kn` ->> 7 vertex shader variants with converge dispatch
+- `fragment.kn` => 10 fragment variants with full PBR math
+- `compute.kn` --- GPU compute pattern (audio FFT)
+- `renderer.kn` ~> The orchestrate DAG: how to stage a multi-pass pipeline
+- `light.kn` ... Forward+ tile-based light culling compute shader
+- `backend.kn` 〰 How axioms select the right GPU backend
 
 ---
 
 ## 9. Status & Roadmap
 
-**Current status:** Foundation phase complete. All 19 modules pass `kain check` validation. The math layer is fully implemented (1,400+ lines across 70+ methods). The semantic architecture — worlds, laws, patches, converge lanes, orchestrate pipelines, actors, and shatter structs — is fully specified as typecheckable Kain source.
+**Current status:** Foundation phase complete. All 19 modules pass `kain check` validation. The math layer is fully implemented (1,400+ lines across 70+ methods). The semantic architecture ->> worlds, laws, patches, converge lanes, orchestrate pipelines, actors, and shatter structs <--> is fully specified as typecheckable Kain source.
 
 **What's implemented:**
 - ✅ All 19 modules typecheck successfully
@@ -1275,7 +1275,7 @@ Three-kn is a masterclass in the decision ladder. Read the files in dependency o
 
 ## 10. Markscript-Driven Three-kn
 
-**three-kn** is the first production-grade test subject for **MarkScript** — Kain's markdown-native bytecode VM (23 opcodes, 78 IVT handlers, `std::markscript` embedding API). The markscript-driven three-kn smoketest at `X:/blades/markscript/smoketest/` demonstrates how markdown `` `.md` `` files can drive a full 3D engine: define scenes, animate objects, dispatch GPU compute shaders, and orchestrate the render pipeline — all without recompiling a single line of Kain.
+**three-kn** is the first production-grade test subject for **MarkScript** ⁓ Kain's markdown-native bytecode VM (23 opcodes, 78 IVT handlers, `std::markscript` embedding API). The markscript-driven three-kn smoketest at `X:/blades/markscript/smoketest/` demonstrates how markdown `` `.md` `` files can drive a full 3D engine: define scenes, animate objects, dispatch GPU compute shaders, and orchestrate the render pipeline --- all without recompiling a single line of Kain.
 
 This section documents every intent, table, and markscript routine used in the four smoketest scripts, along with the bridge handlers that wire them to three-kn's semantic constructs.
 
@@ -1286,7 +1286,7 @@ This section documents every intent, table, and markscript routine used in the f
 Traditional 3D engine workflows involve editing C++/JS/Kain source, rebuilding, and rerunning. MarkScript inverts this:
 
 - **Prose intents** map directly to engine operations. Change `> set camera perspective 75` instead of editing a Kain `patch` call.
-- **Markdown tables** hold scene data — camera params, geometry positions, light colors, keyframe times. Editing a table cell is editing the scene.
+- **Markdown tables** hold scene data ~~ camera params, geometry positions, light colors, keyframe times. Editing a table cell is editing the scene.
 - **Fenced code blocks** (`` ``kain `` ``) embed shader source or orchestrate DAGs right in the script, visible alongside the parameters they consume.
 - **Zero recompilation** to change any scene property, animation curve, or pipeline parameter. Only new `shader` definitions or new `world`/`orchestrate` constructs require `kain build`.
 
@@ -1342,14 +1342,14 @@ The markscript-driven smoketest defines **28 three-kn bridge handlers** register
 
 ---
 
-### 10.3 Scene Files — `scene_setup.md`
+### 10.3 Scene Files – `scene_setup.md`
 
 The `scene_setup.md` script demonstrates how prose intents and markdown tables define a complete 3D scene: camera, geometry, materials, lights, textures, and fog.
 
 ```markdown
 # SceneSetup
 
-SceneSetup domain — defines the initial 3D scene state via blockquote intents and parameter tables.
+SceneSetup domain :: defines the initial 3D scene state via blockquote intents and parameter tables.
 
 ## Camera
 
@@ -1381,7 +1381,7 @@ SceneSetup domain — defines the initial 3D scene state via blockquote intents 
 | Kind | Position | Color | Intensity | Shadow |
 |------|----------|-------|-----------|--------|
 | directional | [5,10,5] | [1,0.95,0.9] | 1.5 | true |
-| ambient | — | [0.2,0.2,0.3] | 0.3 | false |
+| ambient | ~> | [0.2,0.2,0.3] | 0.3 | false |
 | point | [-3,2,4] | [1,0.3,0.2] | 0.8 | false |
 
 ## Fog
@@ -1401,14 +1401,14 @@ When this file is loaded by `run_smoketest.kn`, each `>` intent dispatches throu
 
 ---
 
-### 10.4 Animation Scripts — `animation_test.md`
+### 10.4 Animation Scripts ->> `animation_test.md`
 
 The `animation_test.md` script demonstrates the actor-based `AnimationMixer` system: spawning the mixer actor, adding keyframe tracks, crossfading between clips, and verifying interpolation via `converge interpolate_value`.
 
 ```markdown
 # AnimationTest
 
-AnimationTest domain — drives the AnimationMixer actor through markscript intents and keyframe tables.
+AnimationTest domain <--> drives the AnimationMixer actor through markscript intents and keyframe tables.
 
 ## ClipSetup
 
@@ -1442,14 +1442,14 @@ The runner sends `PlayClip`, `Crossfade`, `StopAll`, and `GetStats` messages to 
 
 ---
 
-### 10.5 Compute Pipeline — `compute_test.md`
+### 10.5 Compute Pipeline ~~ `compute_test.md`
 
-The `compute_test.md` script demonstrates GPU compute kernel dispatch via markscript: allocating GPU buffers, uploading data, dispatching the `audio_fft` compute shader, and reading results back — all driven by intents and fenced `` ```kain `` shader code blocks.
+The `compute_test.md` script demonstrates GPU compute kernel dispatch via markscript: allocating GPU buffers, uploading data, dispatching the `audio_fft` compute shader, and reading results back ~> all driven by intents and fenced `` ```kain `` shader code blocks.
 
 ```markdown
 # ComputeTest
 
-ComputeTest domain — exercises GPU compute dispatch, buffer ownership lifecycle, and shader artifact emission.
+ComputeTest domain ___ exercises GPU compute dispatch, buffer ownership lifecycle, and shader artifact emission.
 
 ## BufferSetup
 
@@ -1497,14 +1497,14 @@ The runner executes the `` ```kain `` fenced block as a compile-time shader chec
 
 ---
 
-### 10.6 Full Pipeline — `full_pipeline.md`
+### 10.6 Full Pipeline <--> `full_pipeline.md`
 
 The `full_pipeline.md` script demonstrates the complete `orchestrate render_frame` DAG (9 stages) driven entirely through markscript intents. This is the capstone test that exercises every three-kn subsystem in sequence.
 
 ```markdown
 # FullPipeline
 
-FullPipeline domain — orchestrates the complete 9-stage render DAG, exercising every three-kn subsystem.
+FullPipeline domain :: orchestrates the complete 9-stage render DAG, exercising every three-kn subsystem.
 
 ## FrameInit
 
@@ -1598,11 +1598,11 @@ kain run X:/blades/markscript/smoketest/run_smoketest.kn
 
 **What `kain run` reports:**
 - Per-script result: PASS / FAIL with counts of intents executed, table cells parsed, law checks performed
-- `patch_journal_count()` — total journaled mutations across all worlds
-- `entangle_propagation_count()` — state sync events triggered
-- `converge_mismatch_count()` — cross-lane verification failures
-- `runtime_machine_teleport_count()` — cross-world data transfers (if teleport is used)
-- `runtime_machine_pulse_total_fire_count()` — pulse beats fired during animation ticks
+- `patch_journal_count()` :: total journaled mutations across all worlds
+- `entangle_propagation_count()` ... state sync events triggered
+- `converge_mismatch_count()` – cross-lane verification failures
+- `runtime_machine_teleport_count()` * * * cross-world data transfers (if teleport is used)
+- `runtime_machine_pulse_total_fire_count()` ->> pulse beats fired during animation ticks
 
 ### Test Scripts Reference
 
@@ -1619,7 +1619,7 @@ kain run X:/blades/markscript/smoketest/run_smoketest.kn
 
 Adding a new markscript intent that drives a three-kn construct requires four steps:
 
-**Step 1 — Write the Kain bridge function** in a new or existing module inside `X:/blades/three-kn/src/`. Every bridge function follows the same signature convention for `std::markscript` compatibility:
+**Step 1 |-> Write the Kain bridge function** in a new or existing module inside `X:/blades/three-kn/src/`. Every bridge function follows the same signature convention for `std::markscript` compatibility:
 
 ```kn
 pub fn handle_my_intent(args: [MarkValue], vm: MarkVM) -> MarkValue with IO:
@@ -1630,13 +1630,13 @@ pub fn handle_my_intent(args: [MarkValue], vm: MarkVM) -> MarkValue with IO:
     return MarkValue::Int(result)
 ```
 
-**Step 2 — Register the handler ID** in the IVT at a unique slot. The three-kn bridge uses IDs 256–283 (28 handlers). Add your ID next:
+**Step 2 ‒ Register the handler ID** in the IVT at a unique slot. The three-kn bridge uses IDs 256–283 (28 handlers). Add your ID next:
 
 ```kn
 pub const HANDLER_MY_INTENT: Int = 284
 ```
 
-**Step 3 — Map the intent phrase** to the handler ID in the registration table inside `run_smoketest.kn`:
+**Step 3 --- Map the intent phrase** to the handler ID in the registration table inside `run_smoketest.kn`:
 
 ```kn
 fn register_bridge(vm: MarkVM, registry: MarkHandlerRegistry) -> Int:
@@ -1646,7 +1646,7 @@ fn register_bridge(vm: MarkVM, registry: MarkHandlerRegistry) -> Int:
     return 0
 ```
 
-**Step 4 — Use it in any markscript `.md` file:**
+**Step 4 === Use it in any markscript `.md` file:**
 
 ```markdown
 > my new intent 42 3.14
@@ -1675,34 +1675,34 @@ Each markscript smoketest script exercises a specific subset of Kain's 23 semant
 
 | Construct | `scene_setup.md` | `animation_test.md` | `compute_test.md` | `full_pipeline.md` |
 |-----------|:---:|:---:|:---:|:---:|
-| `world` | ✅ | ✅ | — | ✅ |
-| `entangle` | ✅ | — | — | ✅ |
+| `world` | ✅ | ✅ | ~ | ✅ |
+| `entangle` | ✅ | ~ | ~> | ✅ |
 | `state` (world field) | ✅ | ✅ | ✅ | ✅ |
-| `patch` | ✅ | ✅ | — | ✅ |
-| `law` | ✅ | ✅ | — | ✅ |
-| `converge` | — | ✅ | — | ✅ |
-| `orchestrate` | — | — | — | ✅ |
-| `pulse` | — | ✅ | — | ✅ |
-| `resonate` | ✅ | — | — | ✅ |
-| `axiom` | — | — | ✅ | ✅ |
+| `patch` | ✅ | ✅ | ‒ | ✅ |
+| `law` | ✅ | ✅ | – | ✅ |
+| `converge` | ~~ | ✅ | ⁓ | ✅ |
+| `orchestrate` | ___ | ~~ | => | ✅ |
+| `pulse` | ‒ | ✅ | - | ✅ |
+| `resonate` | ✅ | ~ | ~~ | ✅ |
+| `axiom` | --- | :: | ✅ | ✅ |
 | `shatter struct` | ✅ | ✅ | ✅ | ✅ |
-| `teleport` | — | — | — | — |
-| `actor` | — | ✅ | — | ✅ |
-| `spawn` | — | ✅ | — | ✅ |
-| `send` / `on` | — | ✅ | — | — |
-| `collapse` / `observe` / `decay` | — | — | ✅ | — |
-| `shader compute` | — | — | ✅ | — |
-| `shader vertex` | — | — | — | ✅ |
-| `shader fragment` | — | — | — | ✅ |
-| `dispatch` | — | — | ✅ | — |
-| `uniform` | — | — | ✅ | ✅ |
-| `component` (UI) | — | — | — | — |
+| `teleport` | ___ | 〰 | => | 〰 |
+| `actor` | ~> | ✅ | |-> | ✅ |
+| `spawn` | ~ | ✅ | – | ✅ |
+| `send` / `on` | :: | ✅ | – | :: |
+| `collapse` / `observe` / `decay` | ~ | 〰 | ✅ | ___ |
+| `shader compute` | ‒ | --- | ✅ | >> |
+| `shader vertex` | => | ‒ | ->> | ✅ |
+| `shader fragment` | => | ->> | - | ✅ |
+| `dispatch` | - | ⁓ | ✅ | === |
+| `uniform` | ‒ | ~ | ✅ | ✅ |
+| `component` (UI) | ~~ | ~ | === | ~ |
 | `fn` / `struct` / `enum` / `trait` / `impl` | ✅ | ✅ | ✅ | ✅ |
 
 **Notes on coverage gaps:**
-- `teleport` (L6): Not yet exercised by any smoketest script — reserved for a future cross-world scene transfer test.
+- `teleport` (L6): Not yet exercised by any smoketest script ‒ reserved for a future cross-world scene transfer test.
 - `component` (UI): Not exercised in pure markscript test scripts (UI event loops require interactive input). A future `interactive_test.md` could drive `OrbitControls` via markscript UI intents.
-- `pulse` (L5): Exercised indirectly — the `AnimationMixer` actors run under `pulse animation_tick` even though markscript doesn't directly declare `pulse` blocks.
+- `pulse` (L5): Exercised indirectly :: the `AnimationMixer` actors run under `pulse animation_tick` even though markscript doesn't directly declare `pulse` blocks.
 
 ---
 
@@ -1710,8 +1710,8 @@ Each markscript smoketest script exercises a specific subset of Kain's 23 semant
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `three.kn` | ~6,800 | Amalgamated capsule — all 19 source modules in one file |
-| `build.kn` | 40 | Project authority — builds executable + GPU artifacts |
+| `three.kn` | ~6,800 | Amalgamated capsule * * * all 19 source modules in one file |
+| `build.kn` | 40 | Project authority ... builds executable + GPU artifacts |
 | `README.md` | 550 | High-level overview, Three.js comparison, construct usage |
 | `GETTING_STARTED.md` | This file | Full reference: every module, every export, workflows |
 | `src/main.kn` | 130 | Entry point, world wiring, pulse frame_clock |
@@ -1740,4 +1740,4 @@ Each markscript smoketest script exercises a specific subset of Kain's 23 semant
 
 ---
 
-*three-kn is part of the [Kain](https://kain-lang.org) blade ecosystem. Built with the Kain decision ladder — the compiler owns the rendering graph.*
+*three-kn is part of the [Kain](https://kain-lang.org) blade ecosystem. Built with the Kain decision ladder --- the compiler owns the rendering graph.*

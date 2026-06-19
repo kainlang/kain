@@ -1,7 +1,7 @@
-# my-kain-app — User Guide
+# my-kain-app - User Guide
 
 > A complete guide to building, running, and extending this MarkScript-orchestrated
-> Kain project. This document IS executable prose — every heading can be a
+> Kain project. This document IS executable prose |-> every heading can be a
 > script domain, every table is typed data, and every blockquote is an intent.
 
 ## Quick Start
@@ -92,7 +92,7 @@ The Kain application at `src/main.kn` is a standard Kain program with:
 
 | File | Purpose |
 |------|---------|
-| `Mksfile.md` | Root orchestrator — the full pipeline |
+| `Mksfile.md` | Root orchestrator --> the full pipeline |
 | `config.md` | Project configuration as typed tables |
 | `schemas/project_schema.md` | Column type definitions |
 | `scripts/build.md` | Build pipeline (5 stages) |
@@ -168,7 +168,7 @@ kain build src/ --target llvm
 - Blockquote intents match by exact hash of the full phrase (no argument passing)
 - Only the 8 primary handlers are registered (BETA/GAMMA/DELTA handlers are
   stubs in the Kain source but not compiled into this binary)
-- `> run` dispatches correctly but cannot receive command arguments —
+- `> run` dispatches correctly but cannot receive command arguments =>
   shell commands must be run directly via `kain ...` CLI
 
 ### Future

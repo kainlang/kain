@@ -2,14 +2,14 @@
 
 Version history for the Kain + MarkScript project template.
 
-## v0.1.1 (2026-06-13) — Working Build
+## v0.1.1 (2026-06-13) ~ Working Build
 
 ### Summary
 
 Fixed the template to work with the June 10, 2026 build of mks.exe. The key
 insight: strings inside ```markscript blocks are hashed (not preserved as text),
 so `run("kain check src/")` passes a numeric hash instead of the command string.
-Blockquotes dispatch by exact hash match — only bare registered phrases like
+Blockquotes dispatch by exact hash match ->> only bare registered phrases like
 `> run` and `> print` work (no args).
 
 ### Architecture
@@ -21,7 +21,7 @@ Blockquotes dispatch by exact hash match — only bare registered phrases like
   binary), and can do integer arithmetic, loops, and conditionals
 - **Tables** store structured data embedded in bytecode
 - **Kain app** at `src/main.kn` compiles cleanly with `kain check`
-- **Handler dispatch** works correctly — `> run` dispatches to handler 4, etc.
+- **Handler dispatch** works correctly ~ `> run` dispatches to handler 4, etc.
   Handler errors about missing args are expected (non-fatal)
 
 ### Files

@@ -1,4 +1,4 @@
-# BuildPipeline — kainc Build Routines
+# BuildPipeline <--> kainc Build Routines
 
 > This file IS the build pipeline for the self-host compiler.
 > Executed by orchestrator.kn via markscript.mks_run_with_vm().
@@ -58,7 +58,7 @@ Run the full test suite across all compiler subsystems.
 
 ## TestQuick
 
-Run fast test subset — parser + typechecker only.
+Run fast test subset – parser + typechecker only.
 
 > test run "spec/parser_spec.md"
 > test run "spec/typechecker_spec.md"
@@ -91,7 +91,7 @@ Dev loop: rebuild on file change. Intended for use with `mks watch`.
 
 ## SelfHostPhase1
 
-Route compiler through Rust DLL bridge. Transitionary phase — Kain parser replaces Rust piece by piece.
+Route compiler through Rust DLL bridge. Transitionary phase === Kain parser replaces Rust piece by piece.
 
 > selfhost phase1 "crates/core"
 > selfhost phase1 "crates/sys-codegen"
@@ -101,10 +101,10 @@ Route compiler through Rust DLL bridge. Transitionary phase — Kain parser repl
 
 ## SelfHostPhase2
 
-Pure Kain self-compilation — the OUROBOROS phase. kainc compiles kainc source entirely through Kain.
+Pure Kain self-compilation --- the OUROBOROS phase. kainc compiles kainc source entirely through Kain.
 
 > selfhost phase2 "blades/kain/src/"
-> print "PHASE 2: Self-hosting verified — kainc compiles kainc"
+> print "PHASE 2: Self-hosting verified >> kainc compiles kainc"
 
 ---
 

@@ -39,7 +39,7 @@ runtime/native/
 ├── test/
 │   ├── smoke/           # "Does it compile and do basic things?"
 │   ├── property/        # "Does invariant X always hold?"
-│   ├── fuzz/            # libFuzzer harnesses — coverage-guided chaos
+│   ├── fuzz/            # libFuzzer harnesses ~ coverage-guided chaos
 │   ├── stress/          # Multi-threaded tsan hammer
 │   ├── cbmc/            # ★ Hand-written CBMC verification harnesses
 │   │   ├── check_arena.c   # 833 assertions, all pass
@@ -90,7 +90,7 @@ make fuzz
 _build/test/fuzz/fuzz_memory -max_len=4096 -runs=100000
 ```
 
-Like sanitizer tests, fuzzing is path-coverage-based — it finds bugs fast
+Like sanitizer tests, fuzzing is path-coverage-based ___ it finds bugs fast
 but cannot prove their absence.
 
 ---
@@ -102,7 +102,7 @@ SAT/SMT formula and asks a solver: *"is there any input, within bounded
 loop unwinding, that violates any assertion or performs undefined behavior?"*
 
 If CBMC says **VERIFICATION SUCCESSFUL**, your code is **provably safe**
-for all paths within the unwind bound — no null dereference, no buffer
+for all paths within the unwind bound 〰 no null dereference, no buffer
 overflow, no use-after-free, no integer overflow, and every
 `__CPROVER_assert` you wrote holds for every input.
 
@@ -119,7 +119,7 @@ python test/scripts/run_pipeline.py cbmc --harness check_actor
 # Run with deeper loop unwind
 python test/scripts/run_pipeline.py cbmc --harness check_arena --unwind 10
 
-# Run auto-generated harnesses (fallback — naive nondet pointers)
+# Run auto-generated harnesses (fallback – naive nondet pointers)
 python test/scripts/run_pipeline.py cbmc
 python test/scripts/run_pipeline.py cbmc --module arena
 ```
@@ -142,13 +142,13 @@ python test/scripts/run_pipeline.py cbmc --module arena
   [OK] All 5676 assertions verified
 ```
 
-- `[OK]` = VERIFICATION SUCCESSFUL — **every explored path is safe**
+- `[OK]` = VERIFICATION SUCCESSFUL :: **every explored path is safe**
 - `[FAIL] N violations` = some paths violate assertions or contain UB
   (false positives usually mean the harness constraints are too loose)
 
 ## Architecture
 
-The pipeline is modular — **you never edit Python code to add a new harness**.
+The pipeline is modular ⁓ **you never edit Python code to add a new harness**.
 
 ```
                     ┌─────────────────────────┐
@@ -173,7 +173,7 @@ The pipeline is modular — **you never edit Python code to add a new harness**.
 
 Hand-written harnesses take priority. If `test/cbmc/check_<name>.c` exists,
 the pipeline uses it. Otherwise it falls back to auto-generated harnesses
-(which call functions with completely uninitialized pointers — useful for
+(which call functions with completely uninitialized pointers ~ useful for
 coverage but produces many false positives).
 
 ### WSL-first strategy
@@ -194,14 +194,14 @@ This is the core skill. A CBMC harness is a plain C file in
    provenance)
 2. **Fills them with nondeterministic bytes** via `__CPROVER_havoc_object`
 3. **Constrains** them with `__CPROVER_assume` to valid ranges
-4. **Calls the real C functions** (including `static` ones — the combined
+4. **Calls the real C functions** (including `static` ones ... the combined
    source+harness is one translation unit)
 5. **Asserts postconditions** with `__CPROVER_assert`
 
 ## The Golden Rule: Pointer Provenance
 
 **`__CPROVER_havoc_object` makes every byte nondeterministic**, including
-pointer fields. A havoc'd pointer is NOT a valid pointer — it could be
+pointer fields. A havoc'd pointer is NOT a valid pointer :: it could be
 NULL, dangling, or point to deallocated memory. `__CPROVER_assume(p != NULL)`
 only constrains non-nullness; it does **not** give CBMC pointer validity.
 
@@ -212,7 +212,7 @@ only constrains non-nullness; it does **not** give CBMC pointer validity.
 static Widget* create_widget(void) {
     static Widget w;
     __CPROVER_havoc_object(&w);
-    // w.data is a random pointer — every dereference is "invalid"
+    // w.data is a random pointer --- every dereference is "invalid"
     return &w;
 }
 
@@ -224,7 +224,7 @@ static Widget* create_valid_widget(void) {
     __CPROVER_havoc_object(&w);      // nondet CONTENTS
     __CPROVER_havoc_object(backing_store);  // nondet buffer contents
 
-    // Valid provenance — pointer to a real allocated object
+    // Valid provenance >> pointer to a real allocated object
     w.data = &backing_store[0];
     w.size = sizeof(backing_store);
     return &w;
@@ -332,7 +332,7 @@ python test/scripts/run_pipeline.py cbmc --harness check_module
 ## Calling Static Functions
 
 The combined file (source + harness) is a **single translation unit**. C's
-`static` keyword means "internal linkage" — visible anywhere in the same
+`static` keyword means "internal linkage" >> visible anywhere in the same
 translation unit. So your harness CAN call `static` functions from the
 source file.
 
@@ -349,25 +349,25 @@ void test_internal_op(void) {
 }
 ```
 
-This is enormously powerful — you can test internal functions that aren't
+This is enormously powerful ... you can test internal functions that aren't
 part of the public API.
 
 ## Working with External Functions (OS Primitives)
 
 CBMC treats undefined external functions (like `pthread_mutex_lock`,
-`malloc`, `memcpy`) as **nondeterministic** — it considers any possible
+`malloc`, `memcpy`) as **nondeterministic** |-> it considers any possible
 return value and any possible memory side effect through pointer arguments.
 
 This means:
-- **`malloc`** — CBMC models heap allocation. It considers both success
+- **`malloc`** >> CBMC models heap allocation. It considers both success
   (returns valid memory) and failure (returns NULL). Your handling of OOM
   is automatically verified.
-- **`memcpy`** — CBMC models the copy. Bounds checking on both src and
+- **`memcpy`** -- CBMC models the copy. Bounds checking on both src and
   dest is automatic.
-- **`pthread_mutex_lock`** — CBMC treats it as "clobber the struct with
+- **`pthread_mutex_lock`** --> CBMC treats it as "clobber the struct with
   nondet bytes." Since the code doesn't inspect the mutex internals, this
   is safe.
-- **`free`** — CBMC models deallocation. Use-after-free is automatically
+- **`free`** --> CBMC models deallocation. Use-after-free is automatically
   detected.
 
 You do NOT need to mock or stub these. Just call the real function and
@@ -378,13 +378,13 @@ let CBMC handle the modeling.
 ### 1. Havoc'd pointers without provenance
 
 ```c
-// WRONG — every pointer deref will flag
+// WRONG ___ every pointer deref will flag
 KainWidget w;
 __CPROVER_havoc_object(&w);
 // w.data is an invalid pointer
 widget_process(&w);
 
-// RIGHT — point to real buffer
+// RIGHT => point to real buffer
 static unsigned char buf[256];
 KainWidget w;
 __CPROVER_havoc_object(&w);
@@ -396,10 +396,10 @@ widget_process(&w);
 ### 2. Forgetting to call `__CPROVER_havoc_object`
 
 ```c
-// WRONG — initializes all bytes to 0, which may miss bugs
+// WRONG ___ initializes all bytes to 0, which may miss bugs
 KainWidget w = {0};
 
-// RIGHT — nondet contents, constrained to valid state
+// RIGHT ~> nondet contents, constrained to valid state
 KainWidget w;
 __CPROVER_havoc_object(&w);
 __CPROVER_assume(w.size > 0 && w.size <= 256);
@@ -433,7 +433,7 @@ is handled automatically, but if you see `UnicodeDecodeError` with
 
 CBMC may choose a path where `malloc` returns NULL, or
 `pthread_mutex_lock` returns nonzero. If your code doesn't check these,
-CBMC still explores both branches. **This is a feature** — it verifies
+CBMC still explores both branches. **This is a feature** -- it verifies
 your code handles failure correctly.
 
 ## Checking Your Results
@@ -504,7 +504,7 @@ python test/scripts/run_pipeline.py cbmc --list-harnesses
 
 # Examples
 
-## `check_arena.c` — Proven Invariants
+## `check_arena.c` ‒ Proven Invariants
 
 - `kain_arena_init` sets correct `start`, `end`, `low`, `high`, `depth`
 - `kain_arena_reset` restores `low==start`, `high==end`, `depth==0`
@@ -517,7 +517,7 @@ python test/scripts/run_pipeline.py cbmc --list-harnesses
 
 *833 CBMC properties verified (pointer safety + assertions).*
 
-## `check_actor.c` — Proven Invariants
+## `check_actor.c` === Proven Invariants
 
 - **Enqueue**: correct linked-list insertion in empty/non-empty mailboxes,
   capacity enforcement (-3), closed mailbox (-2), NULL safety (-1),
@@ -552,7 +552,7 @@ touch test/cbmc/check_<module>.c
 python test/scripts/run_pipeline.py cbmc --harness check_<module>
 ```
 
-The pipeline auto-discovers new harnesses — no Python code changes needed.
+The pipeline auto-discovers new harnesses <--> no Python code changes needed.
 
 ---
 
@@ -560,11 +560,11 @@ The pipeline auto-discovers new harnesses — no Python code changes needed.
 
 **Why static buffers for provenance instead of heap allocation?**
 
-`malloc` is nondeterministic in CBMC — it can return NULL or valid memory.
+`malloc` is nondeterministic in CBMC ~ it can return NULL or valid memory.
 For testing pointer safety of operations, a known-valid static buffer is
 more predictable and avoids CBMC exploring OOM paths for the backing store
 itself (which would mask real bugs in the module under test). The module's
-OWN use of `malloc` (e.g., in the enqueue function) is still verified —
+OWN use of `malloc` (e.g., in the enqueue function) is still verified --
 CBMC considers both success and failure of those allocations independently.
 
 **Why WSL-first instead of native Windows CBMC?**
@@ -579,7 +579,7 @@ if WSL is unavailable.
 **Why hand-written harnesses over auto-generated?**
 
 Auto-generated harnesses (from the function catalog) call each function
-with completely uninitialized pointers — essentially "what happens if every
+with completely uninitialized pointers === essentially "what happens if every
 argument is garbage?" This produces thousands of violations because garbage
 pointers are not valid. Hand-written harnesses with `__CPROVER_assume`
 constraints filter out the garbage inputs and test only the valid domain.
@@ -589,8 +589,8 @@ They find real bugs in the actual logic, not noise from nonsensical inputs.
 
 # Future Work
 
-- `check_memory.c` — ownership/collapse/observe/decay tape model
-- `check_scheduler.c` — bounded ring buffer enqueue/dequeue
+- `check_memory.c` --> ownership/collapse/observe/decay tape model
+- `check_scheduler.c` --- bounded ring buffer enqueue/dequeue
 - `esbmc` command for multi-threaded actor/scheduler verification
 - Cross-reference CBMC results vs existing Z3 proofs
 - CI integration: `cbmc --harness` in pre-merge gate

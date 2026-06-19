@@ -1,4 +1,4 @@
-# Test — Test Runner
+# Test – Test Runner
 
 Executes all project tests. Run with: mks run scripts/test.md
 

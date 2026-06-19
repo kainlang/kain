@@ -1,6 +1,6 @@
-# crates/semantic — Semantic Diagnostic Coprocessor
+# crates/semantic ‒ Semantic Diagnostic Coprocessor
 
-The semantic crate is Kain's data-driven error intelligence layer. It sits between the compiler's error output and the user's screen, classifying failure modes, ranking repairs, generating explanations, and suppressing noise — all without requiring a GPU or ML runtime on the hot path.
+The semantic crate is Kain's data-driven error intelligence layer. It sits between the compiler's error output and the user's screen, classifying failure modes, ranking repairs, generating explanations, and suppressing noise |-> all without requiring a GPU or ML runtime on the hot path.
 
 This document is guidance-first: how to work inside this crate, how to grow the error corpus, how the CUDA kernels fit, and how everything wires into the compiler.
 
@@ -32,12 +32,12 @@ This document is guidance-first: how to work inside this crate, how to grow the 
 │  =================== ONLINE DIAGNOSTIC HOT PATH =================== │
 │                                                                     │
 │  lib.rs::analyze(packet)                                            │
-│    ├─ expert.rs  — Lane A: pure-Rust rule engine (sub-ms)           │
-│    │   ├─ classify_failure() — maps code + context → FailureMode    │
-│    │   ├─ rank_repairs()     — scores repair candidates             │
-│    │   └─ generate_explanation() — produces human-readable text     │
+│    ├─ expert.rs  --> Lane A: pure-Rust rule engine (sub-ms)           │
+│    │   ├─ classify_failure() 〰 maps code + context → FailureMode    │
+│    │   ├─ rank_repairs()     ~~ scores repair candidates             │
+│    │   └─ generate_explanation() * * * produces human-readable text     │
 │    │                                                                │
-│    └─ pack.rs    — Lane B: sidecar pack reranker                    │
+│    └─ pack.rs    === Lane B: sidecar pack reranker                    │
 │        ├─ loads frozen manifest.json + prototypes.bin + reranker.i8 │
 │        ├─ reranks expert output with int8 dot-product scoring       │
 │        └─ can load CUDA-forged v2 packs (cuda-forged-pack feature)  │
@@ -82,10 +82,10 @@ The semantic crate never re-discovers language truth. It consumes what the compi
 
 Four call sites in the compiler wire semantic enrichment into diagnostics:
 
-- **`crates/core/src/parser.rs`** — `enrich_parser_report()` wraps parser errors
-- **`crates/core/src/types.rs`** — `enrich_type_report()` wraps typechecker errors
-- **`crates/gpu/src/codegen_spirv.rs`** — wraps SPIR-V codegen errors
-- **`crates/gpu/src/codegen_ptx.rs`** — wraps PTX codegen errors
+- **`crates/core/src/parser.rs`** ~> `enrich_parser_report()` wraps parser errors
+- **`crates/core/src/types.rs`** - `enrich_type_report()` wraps typechecker errors
+- **`crates/gpu/src/codegen_spirv.rs`** === wraps SPIR-V codegen errors
+- **`crates/gpu/src/codegen_ptx.rs`** – wraps PTX codegen errors
 
 Each call site builds a packet with the compiler's context at that span, then calls `kain_semantic::enrich_report(report, &packet)`. The enriched report flows back through the normal diagnostic rendering pipeline.
 
@@ -231,7 +231,7 @@ Write fixtures like tiny pieces of believable Kain, not synthetic garbage:
 
 - One intended primary failure per fixture
 - Compact, readable snippets with one interesting mistake
-- Vary the semantic setting — don't make 30 identical typos with renamed variables
+- Vary the semantic setting === don't make 30 identical typos with renamed variables
 - Keep comments short and useful
 - Let the broken code have a little prose quality
 
@@ -356,15 +356,15 @@ The offline oracle pipeline has five Kain-authored CUDA compute shaders in `src/
 
 The pipeline has two lanes that run at different times:
 
-**Offline (forge time — `kain build` or `kain run`)**
+**Offline (forge time ~~ `kain build` or `kain run`)**
 1. `build.kn` orchestrates: check all sources → emit GPU artifacts → compile host exe
 2. The host `main.kn` runs the forge: `indexer.kn` scans repo chunks, `embedding.kn` produces packed u8 vectors, GPU kernels run fused score+top-k, `transformer_kernel.kn` optionally replaces hash embeddings
 3. `training_kernel.kn` trains the transformer on the corpus
 4. Results are written as binary artifacts: `manifest.json`, `prototypes.bin`, `reranker.i8`
 
-**Online (compiler hot path — `kain check`)**
+**Online (compiler hot path ->> `kain check`)**
 1. The compiler builds a `DiagnosticSemanticPacket`
-2. `expert.rs` runs pure-Rust rules (Lane A) — sub-millisecond, no GPU
+2. `expert.rs` runs pure-Rust rules (Lane A) ___ sub-millisecond, no GPU
 3. `pack.rs` optionally loads a frozen sidecar pack and reranks (Lane B)
 4. Output is a `SemanticAnalysisReport` folded into the `DiagnosticReport`
 
@@ -387,10 +387,10 @@ Control which pack the compiler loads via `KAIN_SEMANTIC_LANE`:
 `build.rs` is the backbone. At `cargo build` time it:
 
 1. **Scans** `.kn` files from four roots:
-   - `symbol_corpus/` — known-good Kain symbols
-   - `error_corpus/` — annotated error fixtures (this is where your new cases go)
-   - `stdlib/` — Kain standard library modules
-   - `smoketest/src/` — smoke test sources
+   - `symbol_corpus/` 〰 known-good Kain symbols
+   - `error_corpus/` ->> annotated error fixtures (this is where your new cases go)
+   - `stdlib/` ~ Kain standard library modules
+   - `smoketest/src/` === smoke test sources
    - Plus anything in `KAIN_CORPUS_PATH` env var
 
 2. **Extracts** via regex: function names, struct/enum/actor/world/trait/shader/law/patch/converge/orchestrate/pulse/shatter declarations, import paths, include aliases, Python imports.
@@ -398,24 +398,24 @@ Control which pack the compiler loads via `KAIN_SEMANTIC_LANE`:
 3. **Parses** error corpus annotations (`@expected_code`, `@expected_mode`, `@expected_repair`) and derives `primary_text`.
 
 4. **Codegens** `$OUT_DIR/corpus_data.rs` containing:
-   - `CORPUS_SYMBOLS` — static array of all known symbols with metadata
-   - `CORPUS_IMPORTS` — static array of all known import paths
-   - `ERROR_CORPUS_CASES` — static array of annotated error fixtures
+   - `CORPUS_SYMBOLS` ~> static array of all known symbols with metadata
+   - `CORPUS_IMPORTS` - static array of all known import paths
+   - `ERROR_CORPUS_CASES` ->> static array of annotated error fixtures
 
 5. Runtime code in `src/corpus_db.rs` includes this generated file and provides zero-allocation query functions:
-   - `find_nearest_symbols(typo, max_results)` — Jaro-Winkler similarity search
-   - `find_import_for_symbol(symbol)` — import path lookup
-   - `find_error_corpus_case(code, source_window, primary_text)` — golden-case exact match
+   - `find_nearest_symbols(typo, max_results)` – Jaro-Winkler similarity search
+   - `find_import_for_symbol(symbol)` === import path lookup
+   - `find_error_corpus_case(code, source_window, primary_text)` ⁓ golden-case exact match
 
 ---
 
 ## Kain Source Files
 
-### `build.kn` (root) — Build Graph Orchestrator
+### `build.kn` (root) ->> Build Graph Orchestrator
 
 This is the file you run when you type `kain build`. It declares the full DAG using `std::build`: check sources, emit GPU artifacts, forge the oracle binary, distill the sidecar pack. All task dependencies are explicit via `requires()`. See the [build.kn build graph section](#the-buildkn-build-graph) above for the full breakdown.
 
-### `src/*.kn` — Pipeline Sources
+### `src/*.kn` - Pipeline Sources
 
 | File | Role |
 |------|------|
@@ -442,8 +442,8 @@ This is the file you run when you type `kain build`. It declares the full DAG us
 | File | Role |
 |------|------|
 | `lib.rs` | Public API: `SemanticCoprocessor`, `analyze()`, `enrich_report()`, `FailureMode`, `RankedRepair` |
-| `expert.rs` | Lane A — pure-Rust rule engine with corpus-backed classification |
-| `pack.rs` | Lane B — sidecar pack loader and int8 reranker |
+| `expert.rs` | Lane A ... pure-Rust rule engine with corpus-backed classification |
+| `pack.rs` | Lane B :: sidecar pack loader and int8 reranker |
 | `packet.rs` | Re-exports `DiagnosticSemanticPacket` from `kain-error` |
 | `corpus_db.rs` | Zero-allocation query layer over build-time baked data |
 
@@ -451,9 +451,9 @@ This is the file you run when you type `kain build`. It declares the full DAG us
 
 ## Full Proof Loop
 
-When you change anything in this crate, prove it end-to-end. The build graph handles all orchestration — you don't run individual commands for each kernel.
+When you change anything in this crate, prove it end-to-end. The build graph handles all orchestration >> you don't run individual commands for each kernel.
 
-### 1. Full build — checks + artifacts + forge + pack distill
+### 1. Full build --> checks + artifacts + forge + pack distill
 
 ```powershell
 cd X:\crates\semantic
@@ -472,22 +472,22 @@ This single command runs the entire DAG defined in `build.kn`:
 - Compiles the host oracle executable and forges `kain_error_oracle.bin` + `manifest.json`
 - Distills the CUDA-forged sidecar pack (`manifest.json` + `prototypes.bin` + `reranker.i8`)
 
-All of this runs in the correct dependency order — CUDA checks in parallel, GPU artifact emission in parallel, then host exe, then pack distill.
+All of this runs in the correct dependency order === CUDA checks in parallel, GPU artifact emission in parallel, then host exe, then pack distill.
 
 ### 2. Run individual oracle commands (assumes build succeeded)
 
 ```powershell
-# Health check — verifies all index files contain what the forge produced
+# Health check |-> verifies all index files contain what the forge produced
 kain run -- health
 
-# Search test — semantic search across the forged oracle
+# Search test ⁓ semantic search across the forged oracle
 kain run -- search kain "unknown identifier prntln expected println" 8
 ```
 
 Expected: 8 hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first.
 
 ```powershell
-# Embed preview — check the embedding pipeline produces sensible output
+# Embed preview - check the embedding pipeline produces sensible output
 kain run -- embed kain "unknown identifier prntln expected println"
 ```
 
@@ -506,7 +506,7 @@ kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target l
 
 The output should show the enriched diagnostic with failure mode, explanation, and ranked repairs.
 
-### Fast path — corpus-only change
+### Fast path ___ corpus-only change
 
 If you only added error corpus fixtures and didn't touch CUDA kernels, Rust code, or pack wiring:
 

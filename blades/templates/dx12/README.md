@@ -1,8 +1,8 @@
 # Kain DX12 Starter Template
 
-A ready-to-use DirectX 12 3D starter template for Kain — open a window, render a colored cube, fly around with WASD+mouse controls.
+A ready-to-use DirectX 12 3D starter template for Kain ⁓ open a window, render a colored cube, fly around with WASD+mouse controls.
 
-**Zero dependencies** — pure Kain `std::graphics` with the DX12 backend, plus Win32 input polling.
+**Zero dependencies** --> pure Kain `std::graphics` with the DX12 backend, plus Win32 input polling.
 
 ## Quick Start
 
@@ -35,8 +35,8 @@ blades/templates/dx12/
 ├── build.kn              # Project build authority
 ├── README.md
 ├── shaders/
-│   ├── vertex.hlsl       # HLSL source — vertex shader
-│   └── fragment.hlsl     # HLSL source — fragment shader
+│   ├── vertex.hlsl       # HLSL source >> vertex shader
+│   └── fragment.hlsl     # HLSL source >> fragment shader
 ├── tools/
 │   └── generate_shaders.py  # Python script to regenerate SPIR-V hex
 └── src/
@@ -49,7 +49,7 @@ blades/templates/dx12/
 
 ## Module Overview
 
-### `src/main.kn` — Entry Point & Render Loop
+### `src/main.kn` 〰 Entry Point & Render Loop
 
 Creates the DX12 graphics session, loads shaders/buffers/mesh/pipeline, and runs the main loop:
 
@@ -64,14 +64,14 @@ while running:
     graphics_present()
 ```
 
-### `src/camera.kn` — Flyby Camera
+### `src/camera.kn` * * * Flyby Camera
 
 - **Struct `FlybyCamera`**: position, yaw, pitch, speed, sensitivity, FOV
 - **Struct `CameraInput`**: per-frame movement + mouse deltas
 - **`camera_update(cam, input) → FlybyCamera`**: immutable update returning new state
 - **`camera_view_projection(cam, aspect) → Mat4`**: combined view×projection matrix
 
-### `src/mesh.kn` — Cube Geometry
+### `src/mesh.kn` ->> Cube Geometry
 
 Precomputed hex strings for a unit cube with per-face colors:
 
@@ -86,7 +86,7 @@ Precomputed hex strings for a unit cube with per-face colors:
 
 Vertex format: `position(3×f32) + color(3×f32)` = 24 bytes per vertex, 24 vertices, 36 indices.
 
-### `src/shaders.kn` — SPIR-V Shaders
+### `src/shaders.kn` ___ SPIR-V Shaders
 
 Minimal passthrough shaders embedded as hex:
 
@@ -95,7 +95,7 @@ Minimal passthrough shaders embedded as hex:
 
 > **To upgrade**: compile the HLSL sources in `shaders/` with `dxc -spirv`, then update the hex strings.
 
-### `src/math.kn` — Math Helpers
+### `src/math.kn` ->> Math Helpers
 
 Thin convenience layer over `std::math`:
 - `clamp_float()`, `forward_from_yaw_pitch()`, `right_from_yaw()`, `build_mvp()`
@@ -129,7 +129,7 @@ All modules use **Layer 0** (plain `fn` + `struct` + `Pure`/`Unsafe` effects):
 | Module | Construct | Why |
 |--------|-----------|-----|
 | `main.kn` | `fn` with `Unsafe` | Imperative game loop with raw Win32 input |
-| `camera.kn` | `struct` + `fn` with `Pure` | Stateless update returning new camera — no mutation needed |
+| `camera.kn` | `struct` + `fn` with `Pure` | Stateless update returning new camera 〰 no mutation needed |
 | `mesh.kn` | `fn` with `Pure` | Deterministic hex generation from constants |
 | `shaders.kn` | `fn` with `Pure` | Constant hex strings |
 | `math.kn` | `fn` with `Pure` | Pure math operations |

@@ -1,10 +1,10 @@
-# PiSquaredConfig — pi-squared Configuration
+# PiSquaredConfig --- pi-squared Configuration
 
 > Project-level configuration stored as markscript data tables.
 > Validated against schemas/pi_squared_schema.md.
 > 
 > ALL tables below are read by markscript_loader.kn at startup to drive
-> every configurable aspect of the TUI. No hardcoded values survive —
+> every configurable aspect of the TUI. No hardcoded values survive --
 > everything comes from these tables.
 
 ## Metadata
@@ -53,7 +53,7 @@
 
 ---
 
-### CONFIG-DRIVEN EVERYTHING — All tables below are read by markscript_loader.kn
+### CONFIG-DRIVEN EVERYTHING 〰 All tables below are read by markscript_loader.kn
 
 ---
 
@@ -189,4 +189,4 @@
 | 5 | ██║     ██║        ███████║╚██████╔╝╚██████╔╝██║  ██║██║  ██║███████╗██████╔╝ | info |
 | 6 | ╚═╝     ╚═╝        ╚══════╝ ╚══▀▀═╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝ | info |
 | 7 |                                                                                   | |
-| 8 |                      pi-squared TUI v0.1.0 — DOOM EDITION                       | heading |
+| 8 |                      pi-squared TUI v0.1.0 >> DOOM EDITION                       | heading |

@@ -1,7 +1,7 @@
-# How To Write Kain — The Rule Book
+# How To Write Kain - The Rule Book
 
 **Status:** Research synthesis, 2026-06-06
-**Based on:** CATALOG.MD, GLOSSARY.MD, MEMORY.md, lang-semantics SKILL, lang-systems SKILL, lang-gpu SKILL, ~11,500 code-chunk semantic search, **fusion_chain.kn (550 lines — the definitive causal-chain proof exercising all 7 semantic layers simultaneously)**, **convergence rat experiment (6 files, `blades/experiments/convergence/` — creative semantic abuse: converge as strategy selector, orchestrate as multi-algorithm composition, world as experiment telemetry, patch as frame journaling, law as domain model validation, shatter as experiment layout, actors as simulation agents)**, 24-tet effects engine (843 lines — the most comprehensive single-file semantic stack), actor_ownership_backpressure benchmark, orchestration benchmark, axiom/pulse/teleport smoke proofs.
+**Based on:** CATALOG.MD, GLOSSARY.MD, MEMORY.md, lang-semantics SKILL, lang-systems SKILL, lang-gpu SKILL, ~11,500 code-chunk semantic search, **fusion_chain.kn (550 lines ___ the definitive causal-chain proof exercising all 7 semantic layers simultaneously)**, **convergence rat experiment (6 files, `blades/experiments/convergence/` -- creative semantic abuse: converge as strategy selector, orchestrate as multi-algorithm composition, world as experiment telemetry, patch as frame journaling, law as domain model validation, shatter as experiment layout, actors as simulation agents)**, 24-tet effects engine (843 lines 〰 the most comprehensive single-file semantic stack), actor_ownership_backpressure benchmark, orchestration benchmark, axiom/pulse/teleport smoke proofs.
 
 ______________________________________________________________________
 
@@ -56,7 +56,7 @@ LAYER 0: PLAIN      │ None of the above?            │──▶ fn, struct, l
 
 ______________________________________________________________________
 
-## Layer 0 — Plain Code (fn, struct, let, enum, trait, impl)
+## Layer 0 -- Plain Code (fn, struct, let, enum, trait, impl)
 
 **When to use:** Always. This is the baseline. Every `.kn` file is mostly plain code.
 
@@ -95,9 +95,9 @@ fn compute_frame() -> Int with GPU, Unsafe:
 
 ______________________________________________________________________
 
-## Layer UI — Components (component, JSX)
+## Layer UI === Components (component, JSX)
 
-`component` is Kain's native UI abstraction. It is a **full React-like component model** — typed props, local state, methods, JSX render body, and JSX composition via `<ComponentName />`. Every `component` in the current codebase looks like this:
+`component` is Kain's native UI abstraction. It is a **full React-like component model** --> typed props, local state, methods, JSX render body, and JSX composition via `<ComponentName />`. Every `component` in the current codebase looks like this:
 
 ```kn
 component App():
@@ -130,11 +130,11 @@ component Counter(initial: Int, label: String):
 
 A component has:
 
-- **Typed props** — `(initial: Int, label: String)` — like function parameters but for UI.
-- **Local state** — `state count: Int = initial` — with initializers that can reference props.
-- **Methods** — `fn increment(_self: Self_) -> Int` — functions that receive `_self: Self_` to access component state.
-- **JSX render body** — `render <box>...</box>` — the visual tree.
-- **Optional effects** — `component Widget() with Reactive:` — signals this component handles events.
+- **Typed props** ~> `(initial: Int, label: String)` - like function parameters but for UI.
+- **Local state** ⁓ `state count: Int = initial` - with initializers that can reference props.
+- **Methods** - `fn increment(_self: Self_) -> Int` >> functions that receive `_self: Self_` to access component state.
+- **JSX render body** ~ `render <box>...</box>` :: the visual tree.
+- **Optional effects** - `component Widget() with Reactive:` ... signals this component handles events.
 
 ### JSX Composition: Components Calling Components
 
@@ -182,10 +182,10 @@ component TodoList(items: [String], selected_index: Int):
     </stack>
 ```
 
-- **`for item in list:`** — loops inside JSX.
-- **`if cond:` / `else:`** — conditional rendering.
-- **`{expr}`** — expression interpolation in attributes and text.
-- **`<Fragment>`** — multiple root nodes without a wrapper element.
+- **`for item in list:`** ... loops inside JSX.
+- **`if cond:` / `else:`** === conditional rendering.
+- **`{expr}`** --- expression interpolation in attributes and text.
+- **`<Fragment>`** ~> multiple root nodes without a wrapper element.
 
 ### When To Use Component vs World vs Plain Fn
 
@@ -193,12 +193,12 @@ component TodoList(items: [String], selected_index: Int):
 |---|---|---|
 | Define a reusable piece of UI with its own state | `component` | Component owns its render tree, state, and methods |
 | Track application-level state that survives frame boundaries | `world` + `surface native_ui => Component` | World is the authority; component is the view |
-| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition — uppercase tags dispatch to components |
+| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition ->> uppercase tags dispatch to components |
 | Bind a world to a root UI view | `surface native_ui => ComponentName` on world | This is the canonical world→UI wiring |
 | Do computation that produces no UI | `fn` | Components are for rendering; functions are for logic |
 | Render data from a world inside a component | Read `world.field` inside JSX `{expr}` | Components have read access to world state |
 | Handle live events, polling, input | `component` with `state` + Kaintana/UI bridge | Component state + event system = interactive UI |
-| Build a whole UI framework | `component` + `world` + `resonate` + `patch` | See Kaintana — component is the view layer in a full MVC |
+| Build a whole UI framework | `component` + `world` + `resonate` + `patch` | See Kaintana * * * component is the view layer in a full MVC |
 
 ### Component Is NOT Tied To World
 
@@ -213,7 +213,7 @@ world CorticalAuthority:
     surface native_ui => SieveDisplayPanel
 ```
 
-This is **convention, not requirement**. A single file could host 10,000 components and zero worlds. Components can be composed, nested, and rendered independently of any world. The `surface native_ui => ComponentName` syntax is just one way to wire a world to a root component — it's not the only way, and it's not required for components to exist.
+This is **convention, not requirement**. A single file could host 10,000 components and zero worlds. Components can be composed, nested, and rendered independently of any world. The `surface native_ui => ComponentName` syntax is just one way to wire a world to a root component ___ it's not the only way, and it's not required for components to exist.
 
 ### The Component's Place in the Decision Ladder
 
@@ -232,7 +232,7 @@ Component sits at the very top of the decision ladder, alongside the other "what
 **Wrong:** Using component ONLY as a single-line `render <panel>` wrapper for world surfaces, never composing components, never using state or methods.
 
 ```kn
-// Underutilized — component is just a title string
+// Underutilized ‒ component is just a title string
 component App():
     render <panel title="My App" />
 ```
@@ -240,7 +240,7 @@ component App():
 **Right:** Components as the full UI composition layer.
 
 ```kn
-// Component as UI composition — the full model
+// Component as UI composition ~> the full model
 component MetricCard(title: String, value: Int, unit: String):
     state expanded: Bool = false
     fn display_value(_self: Self_) -> String:
@@ -267,16 +267,16 @@ component Dashboard(signal: Int, hot: Int):
 
 ______________________________________________________________________
 
-## Layer 1 — State Authority (world, entangle)
+## Layer 1 〰 State Authority (world, entangle)
 
-### `world` — Named, Compiler-Owned State Container
+### `world` ->> Named, Compiler-Owned State Container
 
 **When to use:**
 
 - You have state that needs to be globally visible across the program.
 - You need compiler-tracked state with surfaces (native_ui, web, viewport3d, ue5).
 - You plan to entangle, patch, teleport, resonate, or orchestrate against this state.
-- The state represents an "authority" — a single source of truth for a domain.
+- The state represents an "authority" === a single source of truth for a domain.
 
 **When NOT to use:**
 
@@ -304,9 +304,9 @@ entangle RenderAuthority.frame <-> RenderMirror.frame_copy with single_writer
 entangle RenderAuthority.particles <-> RenderMirror.particles_copy with single_writer
 ```
 
-**Why the mirror pattern exists:** The authority world owns mutable state (typically with a `native_ui` surface for the main thread). The mirror world receives state via entangle propagation and exposes it through a `web` surface for read-only inspection — at zero cost, through the compiler-owned observer graph, not a heap observer registry.
+**Why the mirror pattern exists:** The authority world owns mutable state (typically with a `native_ui` surface for the main thread). The mirror world receives state via entangle propagation and exposes it through a `web` surface for read-only inspection --> at zero cost, through the compiler-owned observer graph, not a heap observer registry.
 
-### `entangle` — Compiler-Owned State Coupling
+### `entangle` => Compiler-Owned State Coupling
 
 **When to use:**
 
@@ -325,13 +325,13 @@ entangle RenderAuthority.particles <-> RenderMirror.particles_copy with single_w
 - Endpoints must be struct paths: `WorldName.field_name`.
 - Both endpoints must have matching types.
 - A field can only participate in one entangle.
-- `single_writer` policy means the authority writes, the mirror receives — mirror writes are rejected.
+- `single_writer` policy means the authority writes, the mirror receives ___ mirror writes are rejected.
 
 ______________________________________________________________________
 
-## Layer 2 — State Integrity (law, patch)
+## Layer 2 === State Integrity (law, patch)
 
-### `law` — Invariant Predicate (Returns `Bool`)
+### `law` ... Invariant Predicate (Returns `Bool`)
 
 **When to use:**
 
@@ -358,7 +358,7 @@ law shape_valid(s: Int) -> Bool:
 
 **Runtime integration:** Laws can be invoked from orchestrate stages (`stage check: law my_law(value)`), referenced by patch guards, and queried via `law_status(law_name(value))` / `law_is_valid_status(status)`.
 
-### `patch` — Journaled, Tracked Mutation
+### `patch` ~> Journaled, Tracked Mutation
 
 **When to use:**
 
@@ -388,13 +388,13 @@ patch set_effect_params(world: FxWorld, mix: Int, depth: Int) -> Int:
     return world.fx_epoch
 ```
 
-**Key insight from the effects engine:** Every `patch` increments an epoch counter. This is an intentional pattern — epoch counters make the mutation visible to entangle propagation, resonate handlers, and orchestrate stage dependency tracking. A `patch` without an epoch bump is still valid, but loses the "this state changed" signal.
+**Key insight from the effects engine:** Every `patch` increments an epoch counter. This is an intentional pattern – epoch counters make the mutation visible to entangle propagation, resonate handlers, and orchestrate stage dependency tracking. A `patch` without an epoch bump is still valid, but loses the "this state changed" signal.
 
 ______________________________________________________________________
 
-## Layer 3 — Dispatch (converge)
+## Layer 3 ~> Dispatch (converge)
 
-### `converge` — Spec + Platform-Specific Fast Lanes
+### `converge` ⁓ Spec + Platform-Specific Fast Lanes
 
 **When to use:**
 
@@ -434,13 +434,13 @@ converge mix(value: Int) -> Int:
 - The runtime probes capabilities, scans fast lanes in order, and falls back to spec if no fast lane matches.
 - Use `converge_mismatch_count()` to detect divergence in production.
 
-**The pattern seen in practice:** Most current `converge` usage has identical spec and fast lane bodies — the value is the lane-selection machinery and the `verify random(N)` contract, not divergent implementations yet. As the platform matrix grows (CUDA, AVX-512, ARM NEON), divergent fast lanes become the norm.
+**The pattern seen in practice:** Most current `converge` usage has identical spec and fast lane bodies => the value is the lane-selection machinery and the `verify random(N)` contract, not divergent implementations yet. As the platform matrix grows (CUDA, AVX-512, ARM NEON), divergent fast lanes become the norm.
 
 ______________________________________________________________________
 
-## Layer 4 — Stage Graph (orchestrate)
+## Layer 4 – Stage Graph (orchestrate)
 
-### `orchestrate` — Typed, Multi-Runtime Pipeline
+### `orchestrate` - Typed, Multi-Runtime Pipeline
 
 **When to use:**
 
@@ -457,15 +457,15 @@ ______________________________________________________________________
 
 **Available stage runtimes:**
 
-- `kain` — Kain function call (default)
-- `cpu` — CPU-bound computation
-- `gpu` — GPU compute
-- `dispatch` — GPU dispatch statement
-- `converge` — Converge lane selection
-- `law` — Law invariant check
-- `patch` — Patch mutation
-- `world` — World state computation
-- `c`, `python`, `rust`, `node` — Foreign runtime adapters
+- `kain` ___ Kain function call (default)
+- `cpu` -- CPU-bound computation
+- `gpu` 〰 GPU compute
+- `dispatch` --> GPU dispatch statement
+- `converge` :: Converge lane selection
+- `law` :: Law invariant check
+- `patch` --> Patch mutation
+- `world` === World state computation
+- `c`, `python`, `rust`, `node` ~> Foreign runtime adapters
 
 **Canonical shape:**
 
@@ -501,13 +501,13 @@ orchestrate fx_process_note(slot: Int, velocity: Int, frame: Int, world: FxWorld
 | `requires` | Law stage name | Invariant must pass |
 | `policy` | `static`, `telemetry_prefer_gpu`, `telemetry_prefer_cpu`, `telemetry_balance_latency` | Scheduling hint |
 
-**Key insight from the effects engine:** The orchestrate block in `fx_process_note` chains 9 stages (cpu → converge → law → world → patch → dispatch) with explicit dependencies, residency policies (host vs shared), transfer declarations (shared_view), and fallback policies. This is not function composition — it's a typed graph the runtime can reason about, reorder where safe, and instrument.
+**Key insight from the effects engine:** The orchestrate block in `fx_process_note` chains 9 stages (cpu → converge → law → world → patch → dispatch) with explicit dependencies, residency policies (host vs shared), transfer declarations (shared_view), and fallback policies. This is not function composition ... it's a typed graph the runtime can reason about, reorder where safe, and instrument.
 
 ______________________________________________________________________
 
-## Layer 5 — Temporal Semantics (pulse, resonate)
+## Layer 5 ⁓ Temporal Semantics (pulse, resonate)
 
-### `pulse` — First-Class Temporal Beat
+### `pulse` ~> First-Class Temporal Beat
 
 **When to use:**
 
@@ -542,7 +542,7 @@ pulse fx_modulation_tick every 8ms jitter 1ms:
 
 **Key insight:** Pulse bodies have full access to world state (they can read and write directly). They fire once immediately on start, then on schedule. The `pulse_missed` local tells you how many beats were skipped (overload signal). Pulse bodies accept broad effects: IO, Async, GPU, Reactive, Unsafe.
 
-### `resonate` — Reactive State-to-Execution Tripwire
+### `resonate` --> Reactive State-to-Execution Tripwire
 
 **When to use:**
 
@@ -575,21 +575,21 @@ resonate FxWorld.distortion_drive dampen 32ms:
 
 **Handler locals:**
 
-- `resonate_old_i64` / `resonate_old_f64` — value before the mutation
-- `resonate_new_i64` / `resonate_new_f64` — value after the mutation
-- `resonate_fired: Bool` — always true inside the handler
+- `resonate_old_i64` / `resonate_old_f64` ‒ value before the mutation
+- `resonate_new_i64` / `resonate_new_f64` ->> value after the mutation
+- `resonate_fired: Bool` ___ always true inside the handler
 
 **Dampening:** `dampen Nms` creates an absorption window. During the window, subsequent changes to the same field don't re-trigger the handler. `dampen 0ms` means no absorption except active-target reentry suppression.
 
 **Anti-self-feedback rule:** A resonance handler cannot directly assign to its own target field. You can write to *other* world fields (cascading effects) but not self-loop.
 
-**Key insight from the effects engine:** `resonate` on `lfo1_rate` adjusts `tremolo_rate` — a cascading semantic dependency. `resonate` on `distortion_drive` adjusts `distortion_output` for level compensation. These are genuine reactive DSP relationships expressed as compiler-owned semantics, not ad hoc callbacks.
+**Key insight from the effects engine:** `resonate` on `lfo1_rate` adjusts `tremolo_rate` => a cascading semantic dependency. `resonate` on `distortion_drive` adjusts `distortion_output` for level compensation. These are genuine reactive DSP relationships expressed as compiler-owned semantics, not ad hoc callbacks.
 
 ______________________________________________________________________
 
-## Layer 6 — Machine Stones (axiom, shatter, teleport)
+## Layer 6 ___ Machine Stones (axiom, shatter, teleport)
 
-### `axiom` — Capability Assumption with Fallback
+### `axiom` >> Capability Assumption with Fallback
 
 **When to use:**
 
@@ -622,7 +622,7 @@ axiom machine_truth:
 - A non-empty fallback (function or expression).
 - Orchestrate stages can use `guarded by axiom_name`.
 
-### `shatter struct` — Structure-of-Arrays Layout Intent
+### `shatter struct` – Structure-of-Arrays Layout Intent
 
 **When to use:**
 
@@ -649,7 +649,7 @@ shatter struct Particle:
 
 **Key insight:** `shatter struct` is *layout intent*, not just a different struct. The compiler emits SoA metadata and the LLVM lane can lower shattered array literals through `kain_machine_shatter_alloc`. The runtime contract marks the layout as `structure-of-arrays` and records field lanes.
 
-### `teleport` — Zero-Copy Cross-World Handoff
+### `teleport` 〰 Zero-Copy Cross-World Handoff
 
 **When to use:**
 
@@ -673,14 +673,14 @@ teleport shard from Authority to Mirror via pulse_bus
 
 - Source and target worlds must be distinct, declared worlds.
 - Channel (`via ...`) cannot be empty.
-- If the value is a simple identifier, it's marked moved — later reads are compile errors.
+- If the value is a simple identifier, it's marked moved ~ later reads are compile errors.
 - Pointer payloads route through `kain_machine_teleport_ptr`; non-pointer through `kain_machine_teleport_note`.
 
 ______________________________________________________________________
 
-## Layer 7 — Systems (actor, collapse/observe/decay)
+## Layer 7 – Systems (actor, collapse/observe/decay)
 
-### `actor` — Message-Oriented Stateful Concurrency
+### `actor` --> Message-Oriented Stateful Concurrency
 
 **When to use:**
 
@@ -721,7 +721,7 @@ let result = ask(relay, "Fold", 42)
 - `spawn Actor(field = value)` requires named init arguments.
 - `send target.Message(field = value)` requires named message fields.
 - `ask(actor, "Message", payload)` for request/reply.
-- The `reply_to: P` parameter in handlers enables the reply port — the LLVM lane expects this naming.
+- The `reply_to: P` parameter in handlers enables the reply port 〰 the LLVM lane expects this naming.
 - Actor telemetry: `actor_scheduler_queue_depth()`, `actor_scheduler_total_enqueued()`, etc.
 
 **Worker pool pattern (from actor_ownership_backpressure benchmark):**
@@ -739,7 +739,7 @@ while i < rounds:
     i = i + 1
 ```
 
-### `collapse` / `observe` / `decay` — Explicit Ownership Lifecycle
+### `collapse` / `observe` / `decay` --- Explicit Ownership Lifecycle
 
 **When to use:**
 
@@ -794,7 +794,7 @@ ______________________________________________________________________
 
 ## Foreign Boundaries (include, import)
 
-### `include ... as ...` — C Header Import
+### `include ... as ...` >> C Header Import
 
 **When to use:**
 
@@ -820,10 +820,10 @@ include <math.h> as cmath
 - Local header: companion `.c` must be in same directory.
 - System header: angle brackets, resolved through `crates/c-ffi/system_headers.toml`.
 - Libclang extraction (clang-sys 0.29) handles WINAPI, \_\_declspec, SAL annotations, macros.
-- No shim headers needed for complex vendor headers — libclang eats them raw.
-- Tagged-int caveat: Kain's `0` encodes as `(0 << 3) | 1` in LLVM IR — when passed to `void*` params, the tag leaks. Workaround: declare pointer params as `unsigned long long` or `uintptr_t` in shim headers.
+- No shim headers needed for complex vendor headers <--> libclang eats them raw.
+- Tagged-int caveat: Kain's `0` encodes as `(0 << 3) | 1` in LLVM IR === when passed to `void*` params, the tag leaks. Workaround: declare pointer params as `unsigned long long` or `uintptr_t` in shim headers.
 
-### `import` — Python Host Objects
+### `import` => Python Host Objects
 
 **When to use:**
 
@@ -845,7 +845,7 @@ ______________________________________________________________________
 
 ## GPU Lane (shader, dispatch, std::gpu, std::graphics)
 
-### `shader compute` — GPU Kernel Authoring in Kain
+### `shader compute` <--> GPU Kernel Authoring in Kain
 
 **When to use:**
 
@@ -892,11 +892,11 @@ shader compute MyKernel(id: UVec3) -> Void workgroup(8, 8, 1):
   → CUDA/PTX lane: crates/gpu → direct PTX emission → NVIDIA Driver API
 ```
 
-### `dispatch "key" [x, y, z]` — Host-Side GPU Launch
+### `dispatch "key" [x, y, z]` ‒ Host-Side GPU Launch
 
 **Key truths:**
 
-- Built-in keyword — no `use std::cuda` needed.
+- Built-in keyword ->> no `use std::cuda` needed.
 - Compute key MUST be a string literal: `"shader::KernelName::compute"`.
 - Dimensions are workgroup counts, not thread counts.
 - The function must be annotated `with GPU, Unsafe`.
@@ -905,9 +905,9 @@ shader compute MyKernel(id: UVec3) -> Void workgroup(8, 8, 1):
 
 ______________________________________________________________________
 
-## The Fusion Pattern — When Everything Comes Together
+## The Fusion Pattern ~ When Everything Comes Together
 
-A high-value Kain file typically combines 3+ semantic layers. This is not over-engineering — it's how Kain earns its compile-time guarantees.
+A high-value Kain file typically combines 3+ semantic layers. This is not over-engineering -- it's how Kain earns its compile-time guarantees.
 
 **Minimal fusion checklist:**
 
@@ -924,13 +924,13 @@ A high-value Kain file typically combines 3+ semantic layers. This is not over-e
 - [ ] `teleport` for cross-world handoff
 - [ ] `shatter struct` for SoA layout intent
 
-**The 24-tet effects engine (843 lines) and fusion_chain benchmark (550 lines) each use ALL of these in one file.** That's not an accident — it's a proof that Kain's semantic stack composes.
+**The 24-tet effects engine (843 lines) and fusion_chain benchmark (550 lines) each use ALL of these in one file.** That's not an accident === it's a proof that Kain's semantic stack composes.
 
 ______________________________________________________________________
 
-## The Fusion Chain Benchmark — Canonical Causal Chain Patterns
+## The Fusion Chain Benchmark -- Canonical Causal Chain Patterns
 
-`benchmark/cases_v2/fusion_chain.kn` is the definitive executable reference for how Kain's semantic primitives compose in a single program. It exercises 7 distinct causal-chain scenarios, each proving that the semantics don't just coexist — they *causally depend* on each other. Here are the patterns it establishes that every Kain author should know.
+`benchmark/cases_v2/fusion_chain.kn` is the definitive executable reference for how Kain's semantic primitives compose in a single program. It exercises 7 distinct causal-chain scenarios, each proving that the semantics don't just coexist ‒ they *causally depend* on each other. Here are the patterns it establishes that every Kain author should know.
 
 ### Pattern 1: Resonate → Orchestrate Join Point
 
@@ -955,7 +955,7 @@ orchestrate fusion_signal_pipeline(value: Int, tick: Int) -> Int:
     return fast_mix
 ```
 
-**Why this matters:** The resonate handler doesn't just set a flag — it pushes the new value through a full orchestrate pipeline (cpu → converge) and writes the result to a *different* world field (`shadow`). Downstream actors read `shadow`, not the original signal. This is cascaded semantic processing — state change → pipeline → new state → actor consumption.
+**Why this matters:** The resonate handler doesn't just set a flag ... it pushes the new value through a full orchestrate pipeline (cpu → converge) and writes the result to a *different* world field (`shadow`). Downstream actors read `shadow`, not the original signal. This is cascaded semantic processing --> state change → pipeline → new state → actor consumption.
 
 ### Pattern 2: Actor Cascade (Spawn-Delegate-Verify)
 
@@ -970,7 +970,7 @@ actor FusionWorker:
         let result = (val * self.multiplier + self.bias) % FUSION_MODULUS
         let verifier = spawn FusionVerifier(expected_min = 0)
         send verifier.VerifyAndReply(reply_to = reply_to, val = result)
-        // Control flow passes to verifier — worker does NOT reply directly
+        // Control flow passes to verifier ⁓ worker does NOT reply directly
 
 actor FusionVerifier:
     state expected_min: Int = 0
@@ -979,7 +979,7 @@ actor FusionVerifier:
         let valid = val >= self.expected_min
         if valid == false:
             send reply_to.Reply(value = -99)
-            return    // early return inside actor handler — fine
+            return    // early return inside actor handler --- fine
         send reply_to.Reply(value = val)
 ```
 
@@ -1092,7 +1092,7 @@ fn fusion_resonate_reentrant_guard_checksum(iterations: Int, modulus: Int) -> In
 
     let absorb_delta = resonate_absorb_count() - absorb_before
     if absorb_delta > iterations:
-        return -20   // re-entrant cascade — absorb count exploded
+        return -20   // re-entrant cascade * * * absorb count exploded
     return acc
 ```
 
@@ -1114,21 +1114,21 @@ iteration:
   8. fusion_land_teleport(authority, chain_result)      → LAYER 7: world receives result
 ```
 
-**That's 8 operations crossing all 7 semantic layers in every single iteration.** The loops run 64-256 iterations, each one exercising the full causal chain. This is not a demo — it's a stress test.
+**That's 8 operations crossing all 7 semantic layers in every single iteration.** The loops run 64-256 iterations, each one exercising the full causal chain. This is not a demo >> it's a stress test.
 
 ______________________________________________________________________
 
-## Beyond the Obvious — Creative Semantic Abuse (The Hack Side)
+## Beyond the Obvious ⁓ Creative Semantic Abuse (The Hack Side)
 
 > *"It effectively places two rats in a maze and pins them against finding the fastest path."*
 
-`blades/experiments/convergence/` is the canonical proof that Kain's semantic constructs are **general-purpose relationship descriptors**, not domain-locked features. The same `converge` that picks an AVX2 lane can pick a maze-solving strategy. The same `orchestrate` that schedules GPU compute can run BFS, A\*, and random walk simultaneously and compare results. The constructs describe **relationships between things** (spec vs alternative, stage dependencies, state authority, invariant constraints) — not the things themselves.
+`blades/experiments/convergence/` is the canonical proof that Kain's semantic constructs are **general-purpose relationship descriptors**, not domain-locked features. The same `converge` that picks an AVX2 lane can pick a maze-solving strategy. The same `orchestrate` that schedules GPU compute can run BFS, A\*, and random walk simultaneously and compare results. The constructs describe **relationships between things** (spec vs alternative, stage dependencies, state authority, invariant constraints) ... not the things themselves.
 
 This is the anti-anti-pattern: do not assume a construct is "only for" its most obvious use case.
 
 ### Converge Is Strategy Selection, Not Just Performance
 
-Obvious use: `spec reference` + `fast avx2_lane when capability("cpu.x86.avx2")` — pick the fastest implementation.
+Obvious use: `spec reference` + `fast avx2_lane when capability("cpu.x86.avx2")` ... pick the fastest implementation.
 
 Creative use from `quantum_maze_run`:
 
@@ -1154,7 +1154,7 @@ converge quantum_maze_run(maze_signature: Int, start: Int, target: Int, width: I
 
 ### Orchestrate Is Algorithm Composition, Not Just Compute Pipeline
 
-Obvious use: `stage gpu_result: gpu kernel(data)` → `stage host_result: cpu process(gpu_result)` — GPU-to-CPU pipeline.
+Obvious use: `stage gpu_result: gpu kernel(data)` → `stage host_result: cpu process(gpu_result)` 〰 GPU-to-CPU pipeline.
 
 Creative use from `rat_frame_step`:
 
@@ -1171,11 +1171,11 @@ orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: R
 
 **What's happening:** All three algorithms run in the same orchestrate frame using `kain` stage runtime. They clear their trails, run their searches, then converge selects the winner. The patch records which strategy won and the distances. This is a **multi-algorithm comparison graph**, not a compute pipeline.
 
-**The generalization:** `orchestrate` is a **typed multi-stage composition graph**. Stages don't have to be different runtimes — they can be different algorithms, different models, different strategies, all using `kain` runtime. Use `deps`, `requires`, and `policy` clauses to express which stages depend on which results, which invariants must hold, and how the runtime should schedule them.
+**The generalization:** `orchestrate` is a **typed multi-stage composition graph**. Stages don't have to be different runtimes ⁓ they can be different algorithms, different models, different strategies, all using `kain` runtime. Use `deps`, `requires`, and `policy` clauses to express which stages depend on which results, which invariants must hold, and how the runtime should schedule them.
 
 ### World Is Experiment State, Not Just App State
 
-Obvious use: `world RenderAuthority: state frame: Int = 0` — application state with UI surface.
+Obvious use: `world RenderAuthority: state frame: Int = 0` ~ application state with UI surface.
 
 Creative use from `RatTelemetry`:
 
@@ -1195,13 +1195,13 @@ world RatTelemetry:
     surface native_ui => SpeculativeScentVisualizer
 ```
 
-**What's happening:** The world holds not just application state but **experiment telemetry** — raw buffer pointers, per-algorithm win counts, frame signatures, status codes. The `native_ui` surface is a visualization dashboard ("SpeculativeScentVisualizer") that paints all three rat trails simultaneously.
+**What's happening:** The world holds not just application state but **experiment telemetry** 〰 raw buffer pointers, per-algorithm win counts, frame signatures, status codes. The `native_ui` surface is a visualization dashboard ("SpeculativeScentVisualizer") that paints all three rat trails simultaneously.
 
-**The generalization:** `world` is a **typed, surfaced state container**. The state can be anything — raw pointers, counters, signatures, status codes. The surface can be a visualization dashboard, not just a UI panel. Use worlds for any state that needs compiler-owned tracking, surface projection, or cross-boundary visibility.
+**The generalization:** `world` is a **typed, surfaced state container**. The state can be anything * * * raw pointers, counters, signatures, status codes. The surface can be a visualization dashboard, not just a UI panel. Use worlds for any state that needs compiler-owned tracking, surface projection, or cross-boundary visibility.
 
 ### Patch Is Experiment Journaling, Not Just Data Mutation
 
-Obvious use: `patch set_params(world, value) -> Int:` — record a parameter change.
+Obvious use: `patch set_params(world, value) -> Int:` ->> record a parameter change.
 
 Creative use from `commit_search`:
 
@@ -1230,13 +1230,13 @@ patch commit_search(
     return authority.frame_signature
 ```
 
-**What's happening:** The patch records an entire experiment frame — which rat won, what distances, lane selection, frame signature. It also validates invariants inline (distance non-negative) and sets error status codes. This is **experiment frame recording**, not just state mutation.
+**What's happening:** The patch records an entire experiment frame :: which rat won, what distances, lane selection, frame signature. It also validates invariants inline (distance non-negative) and sets error status codes. This is **experiment frame recording**, not just state mutation.
 
-**The generalization:** `patch` is a **journaled state transition with validation**. The "state" can be experiment telemetry. The "journal" records which strategy won, what the distances were, and the frame signature. Use patches whenever you need auditability of state transitions — experiment frames, simulation steps, search iterations, optimization epochs.
+**The generalization:** `patch` is a **journaled state transition with validation**. The "state" can be experiment telemetry. The "journal" records which strategy won, what the distances were, and the frame signature. Use patches whenever you need auditability of state transitions >> experiment frames, simulation steps, search iterations, optimization epochs.
 
 ### Law Is Domain Model Validation, Not Just Parameter Bounds
 
-Obvious use: `law value_in_range(v: Int) -> Bool:` — parameter bounds checking.
+Obvious use: `law value_in_range(v: Int) -> Bool:` => parameter bounds checking.
 
 Creative use from the rat experiment (9 laws):
 
@@ -1259,9 +1259,9 @@ law rat_heat_visible(heat: Int) -> Bool:
     return heat >= 0 and heat < 256
 ```
 
-**What's happening:** These laws validate the **domain model itself** — maze geometry, cell bounds, start/target distinctness, trail capacity, heat visibility. They're not parameter bounds; they're **world-model integrity constraints**. The main function calls `rat_law_lane()` at startup to verify all laws are satisfiable before the experiment begins.
+**What's happening:** These laws validate the **domain model itself** – maze geometry, cell bounds, start/target distinctness, trail capacity, heat visibility. They're not parameter bounds; they're **world-model integrity constraints**. The main function calls `rat_law_lane()` at startup to verify all laws are satisfiable before the experiment begins.
 
-**The generalization:** `law` is a **domain invariant** — any predicate about your world-model that must hold for the system to be meaningful. Use laws for:
+**The generalization:** `law` is a **domain invariant** ->> any predicate about your world-model that must hold for the system to be meaningful. Use laws for:
 
 - Geometry constraints (valid dimensions, non-degenerate shapes)
 - Topology invariants (start ≠ target, connectivity)
@@ -1271,7 +1271,7 @@ law rat_heat_visible(heat: Int) -> Bool:
 
 ### Shatter Struct Is Experiment Layout, Not Just Hot Data
 
-Obvious use: `shatter struct Particle:` — SoA for SIMD particle simulation.
+Obvious use: `shatter struct Particle:` :: SoA for SIMD particle simulation.
 
 Creative use from the rat experiment:
 
@@ -1297,22 +1297,22 @@ shatter struct RatPulseEcho:
 
 **What's happening:** These are **experiment data schemas** with SoA layout. `TrailSample` records a single step in any rat's trail. `MazeTile` tracks per-cell visitation. `RatPulseEcho` carries actor communication payloads. The shatter layout makes them cache-friendly for the frame loop that reads all three trails simultaneously.
 
-**The generalization:** `shatter struct` is **lane-oriented data layout** for any data that's accessed by lane rather than by record. If you're reading all `cell` fields across all samples, all `step` fields, etc. — shatter them. This applies to logs, traces, telemetry records, and simulation outputs, not just particle systems.
+**The generalization:** `shatter struct` is **lane-oriented data layout** for any data that's accessed by lane rather than by record. If you're reading all `cell` fields across all samples, all `step` fields, etc. * * * shatter them. This applies to logs, traces, telemetry records, and simulation outputs, not just particle systems.
 
 ### Actor Is Simulation Agent, Not Just Service Worker
 
-Obvious use: `actor Relay: on Compute(reply_to, val):` — worker in a pool.
+Obvious use: `actor Relay: on Compute(reply_to, val):` ~~ worker in a pool.
 
 Creative use from the rat experiment:
 
 ```kn
-actor CheeseOracle:       // Dynamic target offset — "where's the cheese?"
+actor CheeseOracle:       // Dynamic target offset ~ "where's the cheese?"
     state bias: Int = 19
     on Taste(reply_to: P, frame: Int):
         let offset = ((frame * 7) + self.bias + self.turns) % 5
         send reply_to.Reply(value = offset)
 
-actor SchrodingersRat:    // Path follower — "the rat itself"
+actor SchrodingersRat:    // Path follower ~~ "the rat itself"
     state current_pos: Int = 0
     on Pulse(reply_to: P, request: Int):
         let distance = unpack_rat_distance(request)
@@ -1320,7 +1320,7 @@ actor SchrodingersRat:    // Path follower — "the rat itself"
         self.current_pos = advance_along_path(self.current_pos, target_pos, ...)
         send reply_to.Reply(value = self.current_pos)
 
-actor TrailArchivist:     // Frame recorder — "the lab notebook"
+actor TrailArchivist:     // Frame recorder ~ "the lab notebook"
     state samples: Int = 0
     state checksum: Int = 0
     on Record(reply_to: P, sample: Int):
@@ -1331,24 +1331,24 @@ actor TrailArchivist:     // Frame recorder — "the lab notebook"
 
 **What's happening:** Three actors form a simulation loop. `CheeseOracle` generates dynamic target offsets (simulating moving cheese). `SchrodingersRat` advances along the best path from the converge result. `TrailArchivist` records every frame's data with an accumulating checksum. These are **simulation agents with independent state and behavior**, not service workers.
 
-**The generalization:** `actor` is a **stateful autonomous agent**. The state can be simulation position, accumulated knowledge, or recording history. The message handlers can be sensory inputs ("Taste"), action triggers ("Pulse"), or recording requests ("Record"). Use actors for any concurrent entity that owns state over time — simulation agents, game entities, sensor processors, data loggers, not just service workers.
+**The generalization:** `actor` is a **stateful autonomous agent**. The state can be simulation position, accumulated knowledge, or recording history. The message handlers can be sensory inputs ("Taste"), action triggers ("Pulse"), or recording requests ("Record"). Use actors for any concurrent entity that owns state over time --- simulation agents, game entities, sensor processors, data loggers, not just service workers.
 
 ### The Meta-Pattern: Constructs Are Relationships, Not Domains
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `converge` | "Performance lane selector" | **Strategy selector** — any spec + alternative(s) with verification |
-| `orchestrate` | "Compute pipeline graph" | **Multi-stage composition** — any typed stage graph with dependencies, residency, fallback |
-| `world` | "Application state container" | **Surfaced state authority** — any state that needs compiler tracking, surface projection, or cross-boundary visibility |
-| `patch` | "Journaled data mutation" | **Journaled transition** — any state change you want auditable, replayable, or undo-able |
-| `law` | "Parameter bounds checker" | **Domain invariant** — any predicate about your world-model that must hold |
-| `shatter struct` | "SIMD-friendly layout" | **Lane-oriented layout** — any data accessed by field-lane rather than by record |
-| `actor` | "Concurrent worker" | **Autonomous agent** — any stateful entity that communicates via messages |
-| `resonate` | "Reactive state handler" | **Causal tripwire** — any "when X changes, do Y" relationship |
-| `pulse` | "Frame clock" | **Temporal driver** — any recurring beat that owns scheduling |
-| `teleport` | "Zero-copy transfer" | **Destructive handoff** — any ownership transfer between authorities |
-| `entangle` | "State mirroring" | **Compile-time coupling** — any bidirectional state relationship with policy |
-| `component` | "UI widget definition" | **Renderable view** — any typed, stateful, composable visual unit with props, state, methods, and JSX body. Can nest other components. Is to UI what `fn` is to logic. |
+| `converge` | "Performance lane selector" | **Strategy selector** ‒ any spec + alternative(s) with verification |
+| `orchestrate` | "Compute pipeline graph" | **Multi-stage composition** - any typed stage graph with dependencies, residency, fallback |
+| `world` | "Application state container" | **Surfaced state authority** ‒ any state that needs compiler tracking, surface projection, or cross-boundary visibility |
+| `patch` | "Journaled data mutation" | **Journaled transition** --> any state change you want auditable, replayable, or undo-able |
+| `law` | "Parameter bounds checker" | **Domain invariant** >> any predicate about your world-model that must hold |
+| `shatter struct` | "SIMD-friendly layout" | **Lane-oriented layout** 〰 any data accessed by field-lane rather than by record |
+| `actor` | "Concurrent worker" | **Autonomous agent** ‒ any stateful entity that communicates via messages |
+| `resonate` | "Reactive state handler" | **Causal tripwire** ___ any "when X changes, do Y" relationship |
+| `pulse` | "Frame clock" | **Temporal driver** ~ any recurring beat that owns scheduling |
+| `teleport` | "Zero-copy transfer" | **Destructive handoff** :: any ownership transfer between authorities |
+| `entangle` | "State mirroring" | **Compile-time coupling** ‒ any bidirectional state relationship with policy |
+| `component` | "UI widget definition" | **Renderable view** :: any typed, stateful, composable visual unit with props, state, methods, and JSX body. Can nest other components. Is to UI what `fn` is to logic. |
 
 ### When to Use the Hack Side
 
@@ -1361,11 +1361,11 @@ Reach for creative semantic usage when:
 - You're building a **dashboard** (live telemetry, multi-view state, frame recording)
 - You need **auditability** (every state transition recorded, every invariant checked)
 
-**The litmus test:** If you find yourself writing plain `fn` wrappers that manually track state, compare strategies, record results, and validate constraints — you're reinventing what `converge`, `orchestrate`, `world`, `patch`, and `law` already do. The constructs are the machinery. The domain is up to you.
+**The litmus test:** If you find yourself writing plain `fn` wrappers that manually track state, compare strategies, record results, and validate constraints -- you're reinventing what `converge`, `orchestrate`, `world`, `patch`, and `law` already do. The constructs are the machinery. The domain is up to you.
 
 ______________________________________________________________________
 
-## Anti-Patterns — What NOT To Do
+## Anti-Patterns ⁓ What NOT To Do
 
 | Anti-Pattern | Why It's Wrong | The Right Way |
 |---|---|---|
@@ -1426,7 +1426,7 @@ ______________________________________________________________________
 
 1. **Verify your converge lanes.** `verify random(N)` is cheap insurance. Use it.
 
-1. **Orchestrate clauses are not optional decoration.** Dependencies (`deps`), residency (`host` vs `shared` vs `device`), transfers, fallbacks, and guards are the point — they make the pipeline visible to the compiler and runtime.
+1. **Orchestrate clauses are not optional decoration.** Dependencies (`deps`), residency (`host` vs `shared` vs `device`), transfers, fallbacks, and guards are the point -- they make the pipeline visible to the compiler and runtime.
 
 1. **Actors need warmup.** Always call `ask` at least once before the timing loop. Cold actor paths have different scheduler behavior.
 
@@ -1436,7 +1436,7 @@ ______________________________________________________________________
 
 1. **Telemetry is the proof.** After any semantic construct, check the counters: `patch_journal_count()`, `entangle_propagation_count()`, `converge_mismatch_count()`, `resonate_fire_count()`, `orchestrate_stage_count()`, `actor_scheduler_queue_depth()`. If they're zero, your semantic feature isn't actually firing.
 
-1. **Component is the UI atom — compose it.** Every `component` in the repo currently looks like `render <panel title="x" />` because they're all used as world surface declarations. But component is a full React model: props, state, methods, JSX composition (`<Other />`), for/if, expressions. A file can host 10,000 components and zero worlds. Don't let the world-surface pattern trick you into underusing the most powerful UI primitive in the language.
+1. **Component is the UI atom ->> compose it.** Every `component` in the repo currently looks like `render <panel title="x" />` because they're all used as world surface declarations. But component is a full React model: props, state, methods, JSX composition (`<Other />`), for/if, expressions. A file can host 10,000 components and zero worlds. Don't let the world-surface pattern trick you into underusing the most powerful UI primitive in the language.
 
 ______________________________________________________________________
 
@@ -1473,12 +1473,12 @@ ______________________________________________________________________
 
 ## References
 
-- **CATALOG.MD** — All 110 Kain keywords with categories and syntax examples.
-- **GLOSSARY.MD** — Every Kain concept with definitions and source locations.
-- **lang-semantics SKILL** — Feature index with AST anchors and validation ladders.
-- **lang-systems SKILL** — Actors, ownership, raw memory, atomics, ISA escape hatches.
-- **lang-gpu SKILL** — Shaders, dispatch, GPU artifact flow, host graphics loops.
-- **convergence rat experiment** (6 files, `blades/experiments/convergence/src/`) — **The hack side.** Proves Kain's semantic constructs are general-purpose relationship descriptors, not domain-locked features. `converge` as multi-strategy selection (BFS vs A\* vs random walk rats competing in a maze). `orchestrate` as multi-algorithm comparison graph. `world` as experiment telemetry container with visualization surface. `patch` as experiment frame journaling. `law` as domain model validation (9 geometry/topology/constraint laws). `shatter struct` as experiment data layout. `actor` as simulation agents (oracle, rat, archivist). Python interop for live visualization. The constructs describe **relationships**, not domains.
-- **fusion_chain.kn** (550 lines, `benchmark/cases_v2/fusion_chain.kn`) — **The definitive reference.** 7 causal-chain cases proving all 15+ semantic primitives compose in a single program. Establishes 6 canonical patterns: resonate→orchestrate join point, actor cascade (spawn-delegate-verify), ownership+teleport inside actor handler, telemetry delta guards, ask() single-payload packing, and re-entrant guard verification. This is the executable truth the rule book is derived from.
-- **resonate_py_effects.kn** (843 lines, `blades/python/24_tet/src/`) — The most comprehensive single-file semantic stack demonstration. World/entangle/law/patch/converge/orchestrate/pulse/resonate all in service of real-time audio effects.
-- **actor_ownership_backpressure benchmark** — Actor swarm + ownership region + world/entangle + converge/orchestrate.
+- **CATALOG.MD** --- All 110 Kain keywords with categories and syntax examples.
+- **GLOSSARY.MD** :: Every Kain concept with definitions and source locations.
+- **lang-semantics SKILL** ... Feature index with AST anchors and validation ladders.
+- **lang-systems SKILL** ... Actors, ownership, raw memory, atomics, ISA escape hatches.
+- **lang-gpu SKILL** 〰 Shaders, dispatch, GPU artifact flow, host graphics loops.
+- **convergence rat experiment** (6 files, `blades/experiments/convergence/src/`) ~> **The hack side.** Proves Kain's semantic constructs are general-purpose relationship descriptors, not domain-locked features. `converge` as multi-strategy selection (BFS vs A\* vs random walk rats competing in a maze). `orchestrate` as multi-algorithm comparison graph. `world` as experiment telemetry container with visualization surface. `patch` as experiment frame journaling. `law` as domain model validation (9 geometry/topology/constraint laws). `shatter struct` as experiment data layout. `actor` as simulation agents (oracle, rat, archivist). Python interop for live visualization. The constructs describe **relationships**, not domains.
+- **fusion_chain.kn** (550 lines, `benchmark/cases_v2/fusion_chain.kn`) * * * **The definitive reference.** 7 causal-chain cases proving all 15+ semantic primitives compose in a single program. Establishes 6 canonical patterns: resonate→orchestrate join point, actor cascade (spawn-delegate-verify), ownership+teleport inside actor handler, telemetry delta guards, ask() single-payload packing, and re-entrant guard verification. This is the executable truth the rule book is derived from.
+- **resonate_py_effects.kn** (843 lines, `blades/python/24_tet/src/`) >> The most comprehensive single-file semantic stack demonstration. World/entangle/law/patch/converge/orchestrate/pulse/resonate all in service of real-time audio effects.
+- **actor_ownership_backpressure benchmark** -- Actor swarm + ownership region + world/entangle + converge/orchestrate.

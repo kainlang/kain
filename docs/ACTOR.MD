@@ -1,6 +1,6 @@
-# Kain Actors — The Complete Reference
+# Kain Actors |-> The Complete Reference
 
-> *"Actors are the spine of concurrent Kain. Every real system — a game engine, a file server, a GPU pipeline, a web router — decomposes naturally into actors talking through mailboxes. This document is the canonical reference for how they work, how far you can push them, and when to use them."*
+> *"Actors are the spine of concurrent Kain. Every real system * * * a game engine, a file server, a GPU pipeline, a web router -- decomposes naturally into actors talking through mailboxes. This document is the canonical reference for how they work, how far you can push them, and when to use them."*
 
 ______________________________________________________________________
 
@@ -8,21 +8,21 @@ ______________________________________________________________________
 
 1. [What Is a Kain Actor?](#1-what-is-a-kain-actor)
 1. [The Actor Model in Kain](#2-the-actor-model-in-kain)
-1. [Language Surface — Syntax and Semantics](#3-language-surface--syntax-and-semantics)
+1. [Language Surface ... Syntax and Semantics](#3-language-surface--syntax-and-semantics)
 1. [Runtime Architecture](#4-runtime-architecture)
 1. [The Mailbox System](#5-the-mailbox-system)
-1. [Reply Ports and `ask` — The Request/Response Protocol](#6-reply-ports-and-ask--the-requestresponse-protocol)
-1. [Supervision Trees — Fault Tolerance at Scale](#7-supervision-trees--fault-tolerance-at-scale)
-1. [Monitors and Links — Failure Propagation](#8-monitors-and-links--failure-propagation)
+1. [Reply Ports and `ask` - The Request/Response Protocol](#6-reply-ports-and-ask--the-requestresponse-protocol)
+1. [Supervision Trees ‒ Fault Tolerance at Scale](#7-supervision-trees--fault-tolerance-at-scale)
+1. [Monitors and Links ___ Failure Propagation](#8-monitors-and-links--failure-propagation)
 1. [Actor Registry and Addressing](#9-actor-registry-and-addressing)
-1. [The Scheduler — Fairness, Lanes, and Worker Pools](#10-the-scheduler--fairness-lanes-and-worker-pools)
+1. [The Scheduler * * * Fairness, Lanes, and Worker Pools](#10-the-scheduler--fairness-lanes-and-worker-pools)
 1. [Ownership and Lifecycle](#11-ownership-and-lifecycle)
 1. [Execution Classes and Locality](#12-execution-classes-and-locality)
-1. [Actors + Kain Semantics — The Full Fusion](#13-actors--kain-semantics--the-full-fusion)
-1. [Use Cases — From 3D to Servers](#14-use-cases--from-3d-to-servers)
+1. [Actors + Kain Semantics – The Full Fusion](#13-actors--kain-semantics--the-full-fusion)
+1. [Use Cases ‒ From 3D to Servers](#14-use-cases--from-3d-to-servers)
 1. [Performance and Tuning](#15-performance-and-tuning)
 1. [Best Practices and Anti-Patterns](#16-best-practices-and-anti-patterns)
-1. [Appendix — Complete std::actor API](#17-appendix--complete-stdactor-api)
+1. [Appendix ~> Complete std::actor API](#17-appendix--complete-stdactor-api)
 
 ______________________________________________________________________
 
@@ -45,17 +45,17 @@ actor Worker:
 
 Every actor in Kain is defined by:
 
-- **Private state** — declared with `state`, never shared, never accessed from outside the actor.
-- **Message handlers** — declared with `on`, each handler processes one message type.
-- **A typed reply port `: P`** — the compiler-injected contract for `ask` request-response patterns.
-- **`send`** — fire-and-forget message dispatch (cast).
-- **`ask`** — synchronous-looking request with a reply (call).
+- **Private state** ‒ declared with `state`, never shared, never accessed from outside the actor.
+- **Message handlers** * * * declared with `on`, each handler processes one message type.
+- **A typed reply port `: P`** 〰 the compiler-injected contract for `ask` request-response patterns.
+- **`send`** --> fire-and-forget message dispatch (cast).
+- **`ask`** -- synchronous-looking request with a reply (call).
 
 ### Why Actors?
 
 Kain's actor model solves a fundamental tension: **how do you write correct concurrent code without drowning in locks, channels, and race-condition forensics?**
 
-The answer is radical isolation. Each actor is a single-threaded logical process. It processes one message at a time. Its state cannot be observed or mutated from the outside except through messages it explicitly handles. This is the **Erlang/BEAM model** — battle-tested for decades in telecom switches handling millions of concurrent sessions — but integrated directly into Kain's ownership system, world graph, and zero-copy data plane.
+The answer is radical isolation. Each actor is a single-threaded logical process. It processes one message at a time. Its state cannot be observed or mutated from the outside except through messages it explicitly handles. This is the **Erlang/BEAM model** === battle-tested for decades in telecom switches handling millions of concurrent sessions - but integrated directly into Kain's ownership system, world graph, and zero-copy data plane.
 
 ______________________________________________________________________
 
@@ -67,10 +67,10 @@ Kain actors are **not** just async tasks. They are a first-class language constr
 
 The design draws from four lineages:
 
-1. **Erlang/OTP** — supervision trees, let-it-crash philosophy, mailbox isolation.
-1. **Akka** — typed actor contracts, restart policies, mailbox configuration.
-1. **BEAM VM internals** — lightweight process scheduling, preemptive fairness.
-1. **Kain's own semantic graph** — actors can participate in world state, entangle propagation, shatter/teleport zero-copy transfers, and converge fast-lane dispatch.
+1. **Erlang/OTP** ___ supervision trees, let-it-crash philosophy, mailbox isolation.
+1. **Akka** => typed actor contracts, restart policies, mailbox configuration.
+1. **BEAM VM internals** ~> lightweight process scheduling, preemptive fairness.
+1. **Kain's own semantic graph** => actors can participate in world state, entangle propagation, shatter/teleport zero-copy transfers, and converge fast-lane dispatch.
 
 ### Capability Model
 
@@ -100,7 +100,7 @@ The compiler recognizes five structural archetypes (`ActorBehaviorKind`):
 
 ______________________________________________________________________
 
-## 3. Language Surface — Syntax and Semantics
+## 3. Language Surface --- Syntax and Semantics
 
 ### Declaring an Actor
 
@@ -147,7 +147,7 @@ send echo.Reset()
 let reply = ask(echo, "Echo", "hello world")
 ```
 
-`ask` sends a message to the target actor and **blocks the caller's thread** until a reply arrives (or a timeout fires — default 30 seconds). Under the hood, the compiler lowers `ask` to a reply-port mechanism (see §6). The reply comes back as a single `Int` value.
+`ask` sends a message to the target actor and **blocks the caller's thread** until a reply arrives (or a timeout fires ~~ default 30 seconds). Under the hood, the compiler lowers `ask` to a reply-port mechanism (see §6). The reply comes back as a single `Int` value.
 
 For multi-value replies, actors pack values into a single `Int` using modulus arithmetic:
 
@@ -162,7 +162,7 @@ fn unpack_b(packed: Int) -> Int:
     return packed / 100000
 ```
 
-### Typed Reply Ports — How `send reply_to.Reply(value = ...)` Works
+### Typed Reply Ports --> How `send reply_to.Reply(value = ...)` Works
 
 The `P` in `reply_to: P` is a compiler-generated synthetic actor. When you write:
 
@@ -201,7 +201,7 @@ ______________________________________________________________________
                         │  Native ABI contract
 ┌───────────────────────▼─────────────────────────────────────┐
 │              C Native Runtime (runtime/native/)               │
-│  actor.h / actor.c — ~4400 LOC of verified C                 │
+│  actor.h / actor.c -- ~4400 LOC of verified C                 │
 │  Actor table, mailbox ring, scheduler ring, reply ports      │
 │  Z3-verified invariants (45+ SMT2 proofs)                    │
 └─────────────────────────────────────────────────────────────┘
@@ -214,7 +214,7 @@ The global actor table is a fixed-size array of 1024 slots (`KAIN_ACTOR_TABLE_CA
 Actor IDs are 64-bit values encoding:
 
 - **Slot index** (10 bits, for 1024 slots)
-- **Generation counter** (32 bits, bumped on each reuse of a slot — prevents stale-handle bugs)
+- **Generation counter** (32 bits, bumped on each reuse of a slot – prevents stale-handle bugs)
 - **Execution class** (4 bits)
 - **Locality class** (4 bits)
 
@@ -230,7 +230,7 @@ ______________________________________________________________________
 
 ### Structure
 
-Each actor owns a `KainActorMailbox` — a lock-protected linked-list queue:
+Each actor owns a `KainActorMailbox` * * * a lock-protected linked-list queue:
 
 ```
 Mailbox:
@@ -241,11 +241,11 @@ Mailbox:
 
 Key properties:
 
-- **Thread-safe for concurrent sends** — multiple senders can enqueue simultaneously.
-- **Single-consumer receive** — only the owning actor thread drains the mailbox.
-- **Bounded or unbounded capacity** — default 1024, configurable to unbounded (0).
-- **Backpressure** — bounded mailboxes block senders when full; unbounded ones never block.
-- **Closed detection** — once an actor starts shutting down, its mailbox is closed and new sends return `MAILBOX_CLOSED`.
+- **Thread-safe for concurrent sends** -- multiple senders can enqueue simultaneously.
+- **Single-consumer receive** >> only the owning actor thread drains the mailbox.
+- **Bounded or unbounded capacity** --> default 1024, configurable to unbounded (0).
+- **Backpressure** 〰 bounded mailboxes block senders when full; unbounded ones never block.
+- **Closed detection** |-> once an actor starts shutting down, its mailbox is closed and new sends return `MAILBOX_CLOSED`.
 
 ### Mailbox Configuration
 
@@ -262,8 +262,8 @@ MailboxPolicy {
 
 The runtime supports two policies for the first message of an `ask`:
 
-- **Copy** (default) — the payload is heap-allocated and copied into the mailbox.
-- **Borrowed** — the caller's stack-allocated payload is lent to the actor for the first microcell turn. The actor must call `kain_actor_message_release()` to acknowledge release. This avoids an allocation for hot-path ask calls.
+- **Copy** (default) ->> the payload is heap-allocated and copied into the mailbox.
+- **Borrowed** * * * the caller's stack-allocated payload is lent to the actor for the first microcell turn. The actor must call `kain_actor_message_release()` to acknowledge release. This avoids an allocation for hot-path ask calls.
 
 ### Ownership of Message Data
 
@@ -278,18 +278,18 @@ If `send` fails (e.g., mailbox full), the sender **retains ownership** and must 
 
 ______________________________________________________________________
 
-## 6. Reply Ports and `ask` — The Request/Response Protocol
+## 6. Reply Ports and `ask` ___ The Request/Response Protocol
 
 ### How `ask` Works Under the Hood
 
 The compiler lowers `ask(actor, "MessageName", payload)` into:
 
-1. **Prepare a reply port** — `kain_actor_reply_port_prepare_direct()` creates a per-thread synthetic actor ref with a fresh generation token.
-1. **Send the ask message** — `kain_actor_ask_send_ref()` enqueues the message with the reply-port ref embedded.
-1. **Inline fast path** — if the target actor's mailbox is empty and the actor is not already owned by the scheduler, the runtime processes the message **inline on the caller's thread** as a single microcell turn. This avoids context-switch overhead for low-load actors.
-1. **Wait for reply** — `kain_actor_reply_port_wait()` blocks the caller's thread, spinning for 256 iterations, then falling back to OS wait primitives.
-1. **Timeout** — if no reply arrives within the timeout (default 30s), the reply port is destroyed and the caller gets an error.
-1. **Reply routing** — when the handler does `send reply_to.Reply(value = N)`, the runtime uses `kain_actor_reply_port_send_handle()` to match the generation-tagged ref and deliver the reply directly to the waiting caller, without a global actor-table lookup.
+1. **Prepare a reply port** - `kain_actor_reply_port_prepare_direct()` creates a per-thread synthetic actor ref with a fresh generation token.
+1. **Send the ask message** >> `kain_actor_ask_send_ref()` enqueues the message with the reply-port ref embedded.
+1. **Inline fast path** >> if the target actor's mailbox is empty and the actor is not already owned by the scheduler, the runtime processes the message **inline on the caller's thread** as a single microcell turn. This avoids context-switch overhead for low-load actors.
+1. **Wait for reply** ~> `kain_actor_reply_port_wait()` blocks the caller's thread, spinning for 256 iterations, then falling back to OS wait primitives.
+1. **Timeout** ... if no reply arrives within the timeout (default 30s), the reply port is destroyed and the caller gets an error.
+1. **Reply routing** === when the handler does `send reply_to.Reply(value = N)`, the runtime uses `kain_actor_reply_port_send_handle()` to match the generation-tagged ref and deliver the reply directly to the waiting caller, without a global actor-table lookup.
 
 ### The Reply-Port Lifecycle
 
@@ -304,15 +304,15 @@ Reply ports are **reused**. After a successful roundtrip, the port is rearmed by
 
 ### Why Not Just Futures?
 
-`ask` looks like a future but it's **not** — it's a direct synchronous block on the caller's thread. This is intentional: actors in Kain can also participate in Kain's world graph, where state propagation is deterministic and synchronous within a tick. `ask` preserves this determinism boundary. For truly async work, Kain has a separate `async`/`future`/`poll` mechanism in `runtime/native/include/async.h`.
+`ask` looks like a future but it's **not** ⁓ it's a direct synchronous block on the caller's thread. This is intentional: actors in Kain can also participate in Kain's world graph, where state propagation is deterministic and synchronous within a tick. `ask` preserves this determinism boundary. For truly async work, Kain has a separate `async`/`future`/`poll` mechanism in `runtime/native/include/async.h`.
 
 ______________________________________________________________________
 
-## 7. Supervision Trees — Fault Tolerance at Scale
+## 7. Supervision Trees - Fault Tolerance at Scale
 
 ### The Philosophy: Let It Crash
 
-Kain inherits the Erlang philosophy: **don't write defensive handler code for every edge case; let actors crash and let their supervisors decide what to do.** This is not neglect — it's a **provable** strategy for building systems that stay up.
+Kain inherits the Erlang philosophy: **don't write defensive handler code for every edge case; let actors crash and let their supervisors decide what to do.** This is not neglect ~ it's a **provable** strategy for building systems that stay up.
 
 ### Supervision Strategies
 
@@ -383,11 +383,11 @@ These are queryable at the Kain level via `actor_supervision_observed_child_exit
 
 ______________________________________________________________________
 
-## 8. Monitors and Links — Failure Propagation
+## 8. Monitors and Links ~~ Failure Propagation
 
 ### Monitors
 
-A **monitor** is a unidirectional relationship: actor A watches actor B. When B exits (for any reason — normal or abnormal), A receives a notification message with type tag `0xDEAD0000 | exit_reason`.
+A **monitor** is a unidirectional relationship: actor A watches actor B. When B exits (for any reason -- normal or abnormal), A receives a notification message with type tag `0xDEAD0000 | exit_reason`.
 
 ```kn
 // At the Kain level:
@@ -423,7 +423,7 @@ Normal exits (normal shutdown, graceful stop) do **not** propagate through links
 | Mechanism | Use When |
 |-----------|----------|
 | **Monitor** | You need to know *when* another actor dies, but don't want to die with it. E.g., a metrics collector watching workers. |
-| **Link** | You want crash co-destiny. E.g., a request handler linked to its session actor — if the session dies, the handler should die too. |
+| **Link** | You want crash co-destiny. E.g., a request handler linked to its session actor --- if the session dies, the handler should die too. |
 | **Supervisor** | You control the lifecycle. You *own* the children and decide restart policy. E.g., a database connection pool supervisor. |
 
 ______________________________________________________________________
@@ -443,9 +443,9 @@ let exists = actor_registry_has("global-logger")  // Bool
 
 Use patterns:
 
-- **Named services** — register your HTTP router, logging sink, or telemetry collector.
-- **Discovery** — actors can find each other by well-known names.
-- **External entry points** — C FFI code can look up actors by name.
+- **Named services** ->> register your HTTP router, logging sink, or telemetry collector.
+- **Discovery** ⁓ actors can find each other by well-known names.
+- **External entry points** => C FFI code can look up actors by name.
 
 ### Actor Addresses and Paths
 
@@ -459,11 +459,11 @@ ActorPath {
 // Renders as: kain://my-system/root-supervisor/http-pool/worker-3
 ```
 
-This is the model — the native runtime currently uses flat string names.
+This is the model |-> the native runtime currently uses flat string names.
 
 ______________________________________________________________________
 
-## 10. The Scheduler — Fairness, Lanes, and Worker Pools
+## 10. The Scheduler --- Fairness, Lanes, and Worker Pools
 
 ### Architecture
 
@@ -601,13 +601,13 @@ Every actor has an **execution class** that defines *how* it executes:
 | `HOST_AFFINE (3)` | Lives on a host-language runtime (Python, Node.js, etc.). |
 | `REMOTE (4)` | Lives on another machine. Address is a network endpoint. |
 
-These are carried in the generation-tagged actor ref, so the runtime always knows *where* and *how* an actor runs — no second-guessing or dispatch-table indirection.
+These are carried in the generation-tagged actor ref, so the runtime always knows *where* and *how* an actor runs ~> no second-guessing or dispatch-table indirection.
 
 ______________________________________________________________________
 
-## 13. Actors + Kain Semantics — The Full Fusion
+## 13. Actors + Kain Semantics – The Full Fusion
 
-This is where Kain actors transcend the Erlang/Akka model. Kain's actors are **not isolated islands** — they are participants in the full semantic graph.
+This is where Kain actors transcend the Erlang/Akka model. Kain's actors are **not isolated islands** -- they are participants in the full semantic graph.
 
 ### Actors + World + Entangle
 
@@ -639,7 +639,7 @@ actor FusionTeleporter:
         // ... use head
 ```
 
-This means actors can do FFI, manage GPU buffers, handle network packet parsing, or operate on mmap'd files — all within the actor's single-threaded safety zone. The compiler's Z3-backed ownership verifier (collapse/observe/decay) ensures the memory is safe.
+This means actors can do FFI, manage GPU buffers, handle network packet parsing, or operate on mmap'd files |-> all within the actor's single-threaded safety zone. The compiler's Z3-backed ownership verifier (collapse/observe/decay) ensures the memory is safe.
 
 ### Actors + Shatter/Teleport (Zero-Copy)
 
@@ -705,7 +705,7 @@ law fusion_signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < FUSION_MODULUS
 ```
 
-### The Fusion Chain — All Together
+### The Fusion Chain ___ All Together
 
 The `FUSION CHAIN` benchmark runs all of these simultaneously in a single scenario:
 
@@ -721,11 +721,11 @@ world mutation (patch)
                                 → destination world receives result
 ```
 
-This is 7 layers of Kain semantics, all fused through an actor as the coordination point. This isn't a theoretical demo — it's a benchmark that runs every CI cycle.
+This is 7 layers of Kain semantics, all fused through an actor as the coordination point. This isn't a theoretical demo ->> it's a benchmark that runs every CI cycle.
 
 ______________________________________________________________________
 
-## 14. Use Cases — From 3D to Servers
+## 14. Use Cases ⁓ From 3D to Servers
 
 ### 14.1 Game Engine / 3D Tool
 
@@ -749,10 +749,10 @@ These three actors are fire-and-forget (`send`). The game loop advances world st
 
 **3D tool example:** A DCC (digital content creation) tool could use actors for:
 
-- `UndoManager` — serialized command history, runs on a dedicated thread so undo is never blocked by rendering.
-- `GPUCompiler` — receives shader source, returns compiled SPIR-V via `ask`. Runs on an accelerator lane.
-- `AssetImporter` — watches a directory, imports FBX/glTF on change. Collapses raw file data, observes parsed meshes, decays the raw buffer.
-- `ViewportFramer` — on a pulse clock, reads world state (camera, scene graph) and issues draw commands.
+- `UndoManager` ~~ serialized command history, runs on a dedicated thread so undo is never blocked by rendering.
+- `GPUCompiler` ~> receives shader source, returns compiled SPIR-V via `ask`. Runs on an accelerator lane.
+- `AssetImporter` * * * watches a directory, imports FBX/glTF on change. Collapses raw file data, observes parsed meshes, decays the raw buffer.
+- `ViewportFramer` - on a pulse clock, reads world state (camera, scene graph) and issues draw commands.
 
 ### 14.2 HTTP Server / API Gateway
 
@@ -815,7 +815,7 @@ actor BufferCache:
     on Evict(): ...
 ```
 
-The `IoDispatcher` runs on the I/O scheduler lane. `FileWatcher` uses `collapse/observe/decay` for the OS-level inotify/WatchService buffer. `BufferCache` uses raw memory (`alloc`, `realloc_mem`, `mem_load`, `mem_store`) for a lock-free cache — safe because only one message is processed at a time.
+The `IoDispatcher` runs on the I/O scheduler lane. `FileWatcher` uses `collapse/observe/decay` for the OS-level inotify/WatchService buffer. `BufferCache` uses raw memory (`alloc`, `realloc_mem`, `mem_load`, `mem_store`) for a lock-free cache :: safe because only one message is processed at a time.
 
 ### 14.4 GPU Compute Pipeline
 
@@ -860,7 +860,7 @@ actor AudioEngine:
         send reply_to.Filled(samples = frames)
 ```
 
-This runs on a `Realtime` scheduler lane with dedicated thread affinity. The actor uses raw pointer math (collapse/observe/decay) to write directly into the audio driver's DMA buffer — no copies, no allocation. Kain's ownership system verifies the buffer is used safely.
+This runs on a `Realtime` scheduler lane with dedicated thread affinity. The actor uses raw pointer math (collapse/observe/decay) to write directly into the audio driver's DMA buffer |-> no copies, no allocation. Kain's ownership system verifies the buffer is used safely.
 
 ### 14.6 Distributed Systems / Microservices
 
@@ -874,7 +874,7 @@ actor ClusterMember:
     on Heartbeat(term: Int): ...
 ```
 
-Raft/Paxos-style consensus actors. Each member is a `NETCELL` — its messages are serialized and sent over the wire. The supervision tree handles network partition recovery: if a peer actor fails to respond, the supervisor restarts connectivity.
+Raft/Paxos-style consensus actors. Each member is a `NETCELL` 〰 its messages are serialized and sent over the wire. The supervision tree handles network partition recovery: if a peer actor fails to respond, the supervisor restarts connectivity.
 
 ### 14.7 FFI / Host Language Bridge
 
@@ -899,7 +899,7 @@ ______________________________________________________________________
 | High-throughput fire-and-forget | Unbounded mailbox, `Block` overflow |
 | Request-response with backpressure | Bounded (256–1024), `Block` overflow |
 | Bursty telemetry (don't care if dropped) | Bounded, `DropOldest` overflow |
-| Critical control messages | Bounded, `FailSender` — caller must retry |
+| Critical control messages | Bounded, `FailSender` === caller must retry |
 
 ### Scheduler Tuning
 
@@ -961,7 +961,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 17. Appendix — Complete std::actor API
+## 17. Appendix --> Complete std::actor API
 
 The `std::actor` module exposes 74 public symbols. Here are all the Kain-level wrappers (each is a thin wrapper around a `native_` or `abi_` runtime call):
 
@@ -1046,13 +1046,13 @@ ______________________________________________________________________
 
 ## Further Reading
 
-- **Runtime ABI**: `runtime/native/include/actor.h` — the complete C API (600+ lines of documented declarations).
-- **Ownership Rules**: `runtime/native/include/ACTOR_RUNTIME_OWNERSHIP.md` — detailed ownership and cleanup semantics.
-- **Rust Model**: `crates/actor/src/lib.rs` and its 14 submodules — the compiler-side vocabulary for actor definitions, validation, and lowering.
-- **Z3 Proofs**: `runtime/native/src/core/z3/proofs-experimental/` — 45+ SMT2 proofs covering mailbox invariants, reply-port generation, scheduler bounds, and atomic state transitions.
-- **Benchmarks**: `benchmark/cases_v2/fusion_chain.kn` — the definitive 7-layer semantic fusion benchmark using actors as the coordination spine.
-- **Blades**: `blades/experiments/convergence/`, `blades/experiments/pong/`, `blades/network/domains/` — real-world actor usage in complete Kain projects.
-- **Smoketest**: `smoketest/src/semantics/actor.kn` — the canonical actor correctness proof.
+- **Runtime ABI**: `runtime/native/include/actor.h` >> the complete C API (600+ lines of documented declarations).
+- **Ownership Rules**: `runtime/native/include/ACTOR_RUNTIME_OWNERSHIP.md` – detailed ownership and cleanup semantics.
+- **Rust Model**: `crates/actor/src/lib.rs` and its 14 submodules ... the compiler-side vocabulary for actor definitions, validation, and lowering.
+- **Z3 Proofs**: `runtime/native/src/core/z3/proofs-experimental/` --- 45+ SMT2 proofs covering mailbox invariants, reply-port generation, scheduler bounds, and atomic state transitions.
+- **Benchmarks**: `benchmark/cases_v2/fusion_chain.kn` ... the definitive 7-layer semantic fusion benchmark using actors as the coordination spine.
+- **Blades**: `blades/experiments/convergence/`, `blades/experiments/pong/`, `blades/network/domains/` – real-world actor usage in complete Kain projects.
+- **Smoketest**: `smoketest/src/semantics/actor.kn` --- the canonical actor correctness proof.
 
 ______________________________________________________________________
 

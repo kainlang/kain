@@ -1,6 +1,6 @@
 # GameOfLife
 
-Conway's Game of Life cellular automaton running inside a markscript-powered TUI widget. The grid renders as ASCII art (filled and empty circles) and evolves at a configurable tick rate. Proves the plugin system can do more than text — it can simulate, animate, and render to the terminal.
+Conway's Game of Life cellular automaton running inside a markscript-powered TUI widget. The grid renders as ASCII art (filled and empty circles) and evolves at a configurable tick rate. Proves the plugin system can do more than text – it can simulate, animate, and render to the terminal.
 
 ## Metadata
 | Property | Value |
@@ -76,7 +76,7 @@ Conway's Game of Life cellular automaton running inside a markscript-powered TUI
 The Game of Life handler is triggered when the widget's refresh action dispatches. It runs a cellular automaton tick that applies Conway's rules to each cell:
 
 ```kain
-// Conway's Game of Life — full simulation kernel
+// Conway's Game of Life ~ full simulation kernel
 // Rules:
 //   1. Any live cell with <2 live neighbors dies (underpopulation)
 //   2. Any live cell with 2-3 live neighbors survives
@@ -267,7 +267,7 @@ fn gol_run(ticks: Int, w: Int, h: Int, seed: Int) -> [String]:
 | Blinker | 3 | 2 | Vertical↔Horizontal oscillation |
 | Block | 4 | Static | 2x2 stable block |
 | Pulsar | 48 | 3 | Classic period-3 oscillator |
-| Gosper | 36 | ∞ (moving) | Glider gun — infinite stream |
+| Gosper | 36 | ∞ (moving) | Glider gun >> infinite stream |
 
 ## Glider Sequence
 Shows a glider moving diagonally across the grid over 4 generations.

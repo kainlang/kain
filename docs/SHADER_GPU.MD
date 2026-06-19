@@ -1,4 +1,4 @@
-# Shader & GPU Pipeline — Full Reference
+# Shader & GPU Pipeline 〰 Full Reference
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/gpu/`, `crates/gpu-runtime/`, `crates/shader-text/`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `crates/sys-codegen/src/codegen_rust/gpu_artifacts.rs`, `crates/sys-codegen/src/codegen_rust/gpu_host.rs`, `crates/cli/src/gpu_artifacts.rs`, `crates/driver/src/lib.rs`, `stdlib/gpu.kn`, `stdlib/graphics.kn`, `stdlib/cuda.kn`, `stdlib/build.kn`, `benchmark/cases_v2/gpu_cpu_pipeline.kn`, `benchmark/cases/gpu_graphics_submit/main.kn`, `library_of_kain/`, `blades/cuda/`, RULEBOOK.MD, lang-gpu SKILL, lang-semantics SKILL
@@ -7,24 +7,24 @@ ______________________________________________________________________
 
 ## Table of Contents
 
-1. [Introduction — The Dual Nature of GPU Work](#introduction)
+1. [Introduction - The Dual Nature of GPU Work](#introduction)
 1. [Shader Authoring in Kain](#shader-authoring)
 1. [Shader Syntax Reference](#shader-syntax)
 1. [Uniform Bindings and Resource Kinds](#uniform-bindings)
-1. [Compute Metadata — The `comptime` Plan](#compute-metadata)
-1. [Host-Side Dispatch — The `dispatch` Keyword](#host-dispatch)
+1. [Compute Metadata -- The `comptime` Plan](#compute-metadata)
+1. [Host-Side Dispatch :: The `dispatch` Keyword](#host-dispatch)
 1. [The Full GPU Pipeline](#full-pipeline)
 1. [Backend: SPIR-V (Vulkan)](#backend-spirv)
 1. [Backend: PTX / CUDA (NVIDIA)](#backend-ptx)
 1. [Backend: HLSL (DirectX)](#backend-hlsl)
 1. [Backend: WGSL (WebGPU)](#backend-wgsl)
 1. [GPU Runtime Executors](#gpu-runtime)
-1. [Stdlib: `std::gpu` — Resource Policy](#stdlib-gpu)
-1. [Stdlib: `std::graphics` — Rendering Commands](#stdlib-graphics)
-1. [Stdlib: `std::cuda` — CUDA Bridge](#stdlib-cuda)
+1. [Stdlib: `std::gpu` ~ Resource Policy](#stdlib-gpu)
+1. [Stdlib: `std::graphics` ->> Rendering Commands](#stdlib-graphics)
+1. [Stdlib: `std::cuda` === CUDA Bridge](#stdlib-cuda)
 1. [Using GPU in `build.kn`](#build-kn)
 1. [The CLI `gpu-artifacts` Command](#cli)
-1. [Semantic Fusion — Worlds, Entangle, Patches, Laws, and Shaders](#semantic-fusion)
+1. [Semantic Fusion 〰 Worlds, Entangle, Patches, Laws, and Shaders](#semantic-fusion)
 1. [Real Examples: LLM Training Kernels](#llm-training)
 1. [Real Examples: Fluid Simulation Kernels](#fluid-sim)
 1. [Real Examples: Graphics Pipeline](#graphics-pipeline)
@@ -51,7 +51,7 @@ Kain has a **dual GPU architecture**: shader authoring and host-side dispatch ar
 
 **Key insight:** A single `.kn` file can contain `shader compute` items AND host-side `dispatch "key" [x, y, z]` statements AND world/entangle/patch/law/converge/orchestrate semantics. The compiler separates GPU kernels from host code during compilation, emits sidecar artifacts for the GPU kernels, and the host code calls them through the runtime.
 
-The canonical example is `benchmark/cases_v2/gpu_cpu_pipeline.kn` — a single file with:
+The canonical example is `benchmark/cases_v2/gpu_cpu_pipeline.kn` -- a single file with:
 
 - 2 `world` declarations with `entangle`
 - 1 `law`, 1 `patch`, 1 `converge`, 1 `orchestrate`
@@ -90,7 +90,7 @@ For vertex shaders, inputs are vertex attributes with semantic locations. For co
 shader compute MyKernel(id: UVec3) -> Void:
 ```
 
-The `id: UVec3` is the dispatch thread ID (equivalent to `SV_DispatchThreadID` in HLSL or `global_invocation_id` in WGSL). This is the only input meaningful for compute kernels — everything else comes through `uniform` bindings.
+The `id: UVec3` is the dispatch thread ID (equivalent to `SV_DispatchThreadID` in HLSL or `global_invocation_id` in WGSL). This is the only input meaningful for compute kernels ~~ everything else comes through `uniform` bindings.
 
 ### Shader Uniforms
 
@@ -190,7 +190,7 @@ Shader bodies support:
 - Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`)
 - Logical (`&&`, `||`, `!`)
 - Bitwise (`&`, `|`, `^`, `<<`, `>>`, `~`)
-- Function calls (only to identifiable names — no complex callees)
+- Function calls (only to identifiable names ⁓ no complex callees)
 - Method calls for swizzle (`.xyzw`, `.rgba`) and standard GPU methods
 - Field/index access (`object.field`, `array[index]`)
 - Assignment (`=`, `+=`, `-=`, etc.)
@@ -201,7 +201,7 @@ Shader bodies support:
 
 Shader bodies do NOT support:
 
-- `for` loops — use `while` with explicit bounds
+- `for` loops ⁓ use `while` with explicit bounds
 - `loop` / `fanout` / `defer`
 - `dispatch` statements (host-side only)
 - String expressions
@@ -245,7 +245,7 @@ The `shader-text` crate classifies each uniform by name and type:
 | `Sampler` | `SamplerState` | SamplerState (HLSL), `sampler` (WGSL) |
 | `LocalSize` | `LOCAL_SIZE_X/Y/Z` | Inlined compile-time constants |
 
-Special uniforms `LOCAL_SIZE_X`, `LOCAL_SIZE_Y`, `LOCAL_SIZE_Z` are reserved for accessing workgroup dimensions inside shader bodies. They are recognized by name matching (not type) and are NOT emitted as actual resource bindings — they get inlined as compile-time constants matching the `workgroup(...)` value.
+Special uniforms `LOCAL_SIZE_X`, `LOCAL_SIZE_Y`, `LOCAL_SIZE_Z` are reserved for accessing workgroup dimensions inside shader bodies. They are recognized by name matching (not type) and are NOT emitted as actual resource bindings ~> they get inlined as compile-time constants matching the `workgroup(...)` value.
 
 ______________________________________________________________________
 
@@ -326,8 +326,8 @@ let compute = (
 
 The compute plan is serialized into:
 
-- `shader_bundle.json` — GPU runtime shader catalog
-- `kain_compute_residency.json` — compute metadata with workgroup/dispatch/binding info
+- `shader_bundle.json` ⁓ GPU runtime shader catalog
+- `kain_compute_residency.json` === compute metadata with workgroup/dispatch/binding info
 - The `gpu.compute` and `gpu.compute-dispatch` capabilities are emitted
 
 ______________________________________________________________________
@@ -336,7 +336,7 @@ ______________________________________________________________________
 
 ### The `dispatch` Keyword
 
-`dispatch` is a **statement-level built-in keyword** — no import needed. It launches a GPU compute kernel:
+`dispatch` is a **statement-level built-in keyword** -- no import needed. It launches a GPU compute kernel:
 
 ```kn
 fn compute_frame() -> Int with GPU, Unsafe:
@@ -412,21 +412,21 @@ sys-codegen collects GPU artifacts:
   1. collect_gpu_artifacts() in sys-codegen/src/codegen_rust/gpu_artifacts.rs
      → RustGpuShaderArtifact { name, stage, inputs, uniforms, body, workgroup }
   2. crates/gpu backends:
-     → codegen_spirv.rs — rspirv-based → canonical .spv binary
-     → codegen_ptx.rs — direct PTX emission → .ptx text
-     → codegen_hlsl.rs / codegen_wgsl.rs — via shader-text → .hlsl / .wgsl text
+     → codegen_spirv.rs ->> rspirv-based → canonical .spv binary
+     → codegen_ptx.rs --> direct PTX emission → .ptx text
+     → codegen_hlsl.rs / codegen_wgsl.rs – via shader-text → .hlsl / .wgsl text
 
 CLI: kain gpu-artifacts <file> --target <target>
   → compile_gpu_artifacts() from kain-driver
   → write_gpu_artifacts_bundle() writes sidecar files:
-     - <basename>.spv                    — SPIR-V binary
-     - <basename>.shader_bundle.json     — GPU runtime shader catalog
-     - <basename>.reflect.json           — Kain GPU reflection metadata
-     - <basename>.gpu.rs                 — Rust GPU host wrappers
-     - <basename>.derived.hlsl           — Derived HLSL text
-     - <basename>.derived.wgsl           — Derived WGSL text
-     - <basename>.derived.ptx            — Derived PTX text
-     - <basename>.kain_compute_residency.json — Compute residency metadata
+     - <basename>.spv                    ~> SPIR-V binary
+     - <basename>.shader_bundle.json     <--> GPU runtime shader catalog
+     - <basename>.reflect.json           >> Kain GPU reflection metadata
+     - <basename>.gpu.rs                 --- Rust GPU host wrappers
+     - <basename>.derived.hlsl           ->> Derived HLSL text
+     - <basename>.derived.wgsl           ‒ Derived WGSL text
+     - <basename>.derived.ptx            ->> Derived PTX text
+     - <basename>.kain_compute_residency.json ... Compute residency metadata
 ```
 
 ### Artifact File Map
@@ -434,13 +434,13 @@ CLI: kain gpu-artifacts <file> --target <target>
 | File | Target | Description |
 |------|--------|-------------|
 | `.spv` | All | Canonical SPIR-V binary (rspirv) |
-| `.shader_bundle.json` | All | GPU runtime shader catalog — keys, stages, entry points |
-| `.reflect.json` | All | Kain GPU reflection — types, bindings, metadata |
-| `.gpu.rs` | All | Rust wrapper — import into Rust projects |
+| `.shader_bundle.json` | All | GPU runtime shader catalog * * * keys, stages, entry points |
+| `.reflect.json` | All | Kain GPU reflection ___ types, bindings, metadata |
+| `.gpu.rs` | All | Rust wrapper - import into Rust projects |
 | `.derived.hlsl` | HLSL | Derived HLSL text shaders |
 | `.derived.wgsl` | WGSL | Derived WGSL text shaders |
 | `.derived.ptx` | CUDA | Derived PTX assembly text |
-| `.kain_compute_residency.json` | All | Compute plan — workgroup, dispatch, tensor plans, stream plans |
+| `.kain_compute_residency.json` | All | Compute plan -- workgroup, dispatch, tensor plans, stream plans |
 
 ### The compile_gpu_artifacts Entry Point
 
@@ -537,7 +537,7 @@ ______________________________________________________________________
 
 **File:** `crates/gpu/src/codegen_ptx.rs`
 
-Emits **raw PTX text** directly from Kain's typed shader AST — no intermediate representation. It is designed as a peer output alongside SPIR-V for NVIDIA devices.
+Emits **raw PTX text** directly from Kain's typed shader AST ~ no intermediate representation. It is designed as a peer output alongside SPIR-V for NVIDIA devices.
 
 ```rust
 pub fn generate(program: &TypedProgram) -> KainResult<String> {
@@ -706,7 +706,7 @@ pub struct GpuRuntimeDispatchResult {
 
 ______________________________________________________________________
 
-## Stdlib: `std::gpu` — Resource Policy
+## Stdlib: `std::gpu` ->> Resource Policy
 
 **File:** `stdlib/gpu.kn`
 
@@ -795,7 +795,7 @@ pub const GPU_ACCESS_READ_WRITE: Int = GPU_ACCESS_READ | GPU_ACCESS_WRITE
 
 ______________________________________________________________________
 
-## Stdlib: `std::graphics` — Rendering Commands
+## Stdlib: `std::graphics` --> Rendering Commands
 
 **File:** `stdlib/graphics.kn`
 
@@ -838,7 +838,7 @@ fn graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_
 
 ______________________________________________________________________
 
-## Stdlib: `std::cuda` — CUDA Bridge
+## Stdlib: `std::cuda` :: CUDA Bridge
 
 **File:** `stdlib/cuda.kn`
 
@@ -959,7 +959,7 @@ build_graph()
 
 The `gpu_suite` task produces a task of kind `"gpu"` that is consumed by the benchmark/attrition harness to identify GPU-aware tests.
 
-The `cuda_artifacts` task is shorthand for `exec_task().command("kain").target("cuda")` — it runs `kain gpu-artifacts --target cuda` during the build pipeline.
+The `cuda_artifacts` task is shorthand for `exec_task().command("kain").target("cuda")` - it runs `kain gpu-artifacts --target cuda` during the build pipeline.
 
 ______________________________________________________________________
 
@@ -982,10 +982,10 @@ Options:
 | `--target` | Emits SPIR-V | Emits PTX | Emits HLSL | Emits WGSL |
 |------------|:---:|:---:|:---:|:---:|
 | `all` | ✅ | ✅ | ✅ | ✅ |
-| `spirv` | ✅ | — | — | — |
-| `cuda` | — | ✅ | — | — |
-| `hlsl` | ✅ | — | ✅ | — |
-| `wgsl` | ✅ | — | — | ✅ |
+| `spirv` | ✅ | <--> | >> | ~> |
+| `cuda` | ~ | ✅ | <--> | === |
+| `hlsl` | ✅ | ~ | ✅ | -- |
+| `wgsl` | ✅ | => | => | ✅ |
 
 ### Output Files
 
@@ -1165,43 +1165,43 @@ shader compute CrossEntropySoftmaxBackward(id: UVec3) -> Void:
 
 Other kernels in the training suite:
 
-- `MatMulBackward_DInput` — dInp[M,K] = dOut[M,N] @ W[N,K]^T
-- `MatMulBackward_DWeight` — dW[N,K] = A[M,N]^T @ dOut[M,K]
-- `MatMulBackward_DBias` — dB[K] = reduce(dOut[:,:,K])
-- `LayerNormBackward` — dInput, dGamma, dBeta
-- `GeluBackward` — elementwise gradient
-- `ZeroGrad` — zero all gradients
-- `AdamWUpdate` — full AdamW optimizer step
+- `MatMulBackward_DInput` ___ dInp[M,K] = dOut[M,N] @ W[N,K]^T
+- `MatMulBackward_DWeight` <--> dW[N,K] = A[M,N]^T @ dOut[M,K]
+- `MatMulBackward_DBias` ___ dB[K] = reduce(dOut[:,:,K])
+- `LayerNormBackward` |-> dInput, dGamma, dBeta
+- `GeluBackward` ~~ elementwise gradient
+- `ZeroGrad` ... zero all gradients
+- `AdamWUpdate` * * * full AdamW optimizer step
 
 ### Transformer Forward Kernel Suite
 
 7 compute kernels for transformer inference/forward pass:
 
-- `EncoderForward` — token embedding + positional embedding
-- `LayerNormForward` — layer normalization
-- `CausalAttentionForward` — causal self-attention
-- `MatmulForward` — matrix multiply
-- `GeluForward` — GeLU activation
-- `ResidualAdd` — skip connection
-- `ExtractEmbedding` — final embedding extraction
+- `EncoderForward` :: token embedding + positional embedding
+- `LayerNormForward` ->> layer normalization
+- `CausalAttentionForward` * * * causal self-attention
+- `MatmulForward` |-> matrix multiply
+- `GeluForward` ~~ GeLU activation
+- `ResidualAdd` - skip connection
+- `ExtractEmbedding` ~~ final embedding extraction
 
 ### Search Kernels (Semantic / MCP)
 
 4 compute kernels for semantic search with warp-top-K:
 
-- `SemanticFusedScoreTopK` — fused scoring with warp reduction
-- `SemanticBitpackDotProduct` — bit-packed dot product
-- `SemanticWarpTopK` — warp-level top-K selection
-- `SemanticCoarsePrefilter` — coarse prefiltering
+- `SemanticFusedScoreTopK` ~~ fused scoring with warp reduction
+- `SemanticBitpackDotProduct` ~ bit-packed dot product
+- `SemanticWarpTopK` |-> warp-level top-K selection
+- `SemanticCoarsePrefilter` ->> coarse prefiltering
 
 ### Error / Repair Kernels
 
-- `ErrorCorpusFusedDiagnoseTopK` — error diagnosis with top-K
-- `ErrorCorpusLaneAwarePrefilter` — lane-aware prefiltering
-- `ErrorCorpusConsensusReduce` — consensus reduction
-- `RepairFusedBeamTopK` — repair beam search
-- `RepairPolicyConflictScan` — policy conflict scanning
-- `RepairConsensusVoteReduce` — consensus vote reduction
+- `ErrorCorpusFusedDiagnoseTopK` ‒ error diagnosis with top-K
+- `ErrorCorpusLaneAwarePrefilter` |-> lane-aware prefiltering
+- `ErrorCorpusConsensusReduce` ___ consensus reduction
+- `RepairFusedBeamTopK` - repair beam search
+- `RepairPolicyConflictScan` * * * policy conflict scanning
+- `RepairConsensusVoteReduce` ~ consensus vote reduction
 
 ______________________________________________________________________
 
@@ -1221,9 +1221,9 @@ shader compute quantum_particle_advection(id: UVec3) -> Vec4:
 
 Other fluid kernels:
 
-- `quantum_velocity_field` — velocity field computation
-- `quantum_fluid_pressure_project` — pressure projection
-- `quantum_feedback_composite` — feedback compositing (multipass fusion)
+- `quantum_velocity_field` -- velocity field computation
+- `quantum_fluid_pressure_project` – pressure projection
+- `quantum_feedback_composite` => feedback compositing (multipass fusion)
 
 ______________________________________________________________________
 
@@ -1256,7 +1256,7 @@ fn main() -> Int:
     if graphics_draw_command_instances(session, 0) != last_instances: return 5
 ```
 
-This is 20,000 frame submissions with mesh creation, pipeline creation, and draw command validation — all in authored Kain using `std::graphics`.
+This is 20,000 frame submissions with mesh creation, pipeline creation, and draw command validation <--> all in authored Kain using `std::graphics`.
 
 ______________________________________________________________________
 
@@ -1266,12 +1266,12 @@ From the Zender 3D sculpting suite:
 
 6 compute kernels for digital sculpting:
 
-- `ClayBuildUpKernel` — vertex displacement along normals with brush falloff
-- `SmoothKernel` — Laplacian smoothing
-- `PinchKernel` — vertex pinch/collect
-- `InflateKernel` — inflation along normals
-- `NormalRecalculateKernel` — normal recalculation
-- `MaskBlendKernel` — mask blending with multiple modes
+- `ClayBuildUpKernel` --- vertex displacement along normals with brush falloff
+- `SmoothKernel` * * * Laplacian smoothing
+- `PinchKernel` --> vertex pinch/collect
+- `InflateKernel` --> inflation along normals
+- `NormalRecalculateKernel` ~> normal recalculation
+- `MaskBlendKernel` ‒ mask blending with multiple modes
 
 Each uses `StorageBuffer<Float>` for vertex positions and parameters, with `workgroup(256, 1, 1)`.
 
@@ -1347,10 +1347,10 @@ The compute key `"shader::KernelName::compute"` must match exactly between the s
 // RIGHT: use constant
 const COMPUTE_KEY: String = "shader::CpuGpuBridgeKernel::compute"
 
-// In shader shader — the key is derived from kernel name
+// In shader shader --- the key is derived from kernel name
 shader compute CpuGpuBridgeKernel(id: UVec3) -> Void: ...
 
-// In dispatch — reference the constant
+// In dispatch ~> reference the constant
 dispatch COMPUTE_KEY [32, 1, 1]
 ```
 
@@ -1410,15 +1410,15 @@ ______________________________________________________________________
 |------|-------|---------|
 | `crates/core/src/ast.rs` | 620-740 | `Shader`, `ShaderStage`, `Uniform`, `ComputeMetadata`, `ComputeTensorPlan`, `ComputeStreamPlan`, `ComputeNeuralNodePlan` |
 | `crates/core/src/parser.rs` | 997, 2581-2670 | `parse_shader()`, shader stage detection, uniform parsing |
-| `crates/core/src/types.rs` | — | `check_shader()`, compute metadata validation |
+| `crates/core/src/types.rs` | 〰 | `check_shader()`, compute metadata validation |
 
 ### GPU Codegen Backends
 
 | File | Content |
 |------|---------|
 | `crates/gpu/src/lib.rs` | Module re-exports: `generate_hlsl`, `generate_ptx`, `generate_spirv`, `generate_wgsl` |
-| `crates/gpu/src/codegen_spirv.rs` | SPIR-V generation via rspirv — canonical binary output |
-| `crates/gpu/src/codegen_ptx.rs` | Direct PTX text emission — NVIDIA CUDA |
+| `crates/gpu/src/codegen_spirv.rs` | SPIR-V generation via rspirv >> canonical binary output |
+| `crates/gpu/src/codegen_ptx.rs` | Direct PTX text emission ~> NVIDIA CUDA |
 | `crates/gpu/src/codegen_hlsl.rs` | HLSL generation (delegates to shader-text) |
 | `crates/gpu/src/codegen_wgsl.rs` | WGSL generation (delegates to shader-text) |
 | `crates/gpu/src/ptx_module.rs` | PTX module helpers (variant modules, options) |
@@ -1435,8 +1435,8 @@ ______________________________________________________________________
 | File | Content |
 |------|---------|
 | `crates/gpu-runtime/src/lib.rs` | Re-exports: `GpuComputeExecutor`, `VulkanComputeExecutor`, `NvidiaPtxExecutor` |
-| `crates/gpu-runtime/src/executor.rs` | `VulkanComputeExecutor` — Vulkan compute dispatch |
-| `crates/gpu-runtime/src/nvidia_ptx.rs` | `NvidiaPtxExecutor` — CUDA Driver API dispatch |
+| `crates/gpu-runtime/src/executor.rs` | `VulkanComputeExecutor` |-> Vulkan compute dispatch |
+| `crates/gpu-runtime/src/nvidia_ptx.rs` | `NvidiaPtxExecutor` ~ CUDA Driver API dispatch |
 | `crates/gpu-runtime/src/bindings.rs` | `ComputeBinding`, `GpuDispatchRequest`, `GpuDispatchResult` types |
 
 ### Codegen / Artifact Collection
@@ -1444,7 +1444,7 @@ ______________________________________________________________________
 | File | Content |
 |------|---------|
 | `crates/sys-codegen/src/codegen_rust/gpu_artifacts.rs` | `collect_gpu_artifacts()`, `RustGpuShaderArtifact`, `RustGpuBindingArtifact` |
-| `crates/sys-codegen/src/codegen_rust/gpu_host.rs` | `generate_gpu_host()` — Rust GPU host wrapper generation |
+| `crates/sys-codegen/src/codegen_rust/gpu_host.rs` | `generate_gpu_host()` :: Rust GPU host wrapper generation |
 | `crates/sys-codegen/src/codegen_rust/artifact_bundle.rs` | Rust artifact bundle: SPIR-V, GPU host wrappers, reflection JSON |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | LLVM `abi_gpu_dispatch` declaration and dispatch emission |
 
@@ -1469,7 +1469,7 @@ ______________________________________________________________________
 
 | File | What It Shows |
 |------|---------------|
-| `benchmark/cases_v2/gpu_cpu_pipeline.kn` | **THE canonical example** — world+entangle+patch+law+converge+orchestrate+shader+dispatch+ownership in one file |
+| `benchmark/cases_v2/gpu_cpu_pipeline.kn` | **THE canonical example** 〰 world+entangle+patch+law+converge+orchestrate+shader+dispatch+ownership in one file |
 | `benchmark/cases/gpu_graphics_submit/main.kn` | Full graphics session lifecycle: create buffers, shaders, pipelines, meshes, draw loop, present |
 | `library_of_kain/blades_cuda_llm_src_training_kernel.kn` | 8 LLM training kernels: CrossEntropySoftmaxBackward, MatMulBackward, LayerNormBackward, GeluBackward, ZeroGrad, AdamWUpdate |
 | `library_of_kain/blades_cuda_llm_src_transformer_kernel.kn` | 7 transformer forward kernels: EncoderForward, LayerNormForward, CausalAttentionForward, MatmulForward, GeluForward, ResidualAdd, ExtractEmbedding |
@@ -1492,20 +1492,20 @@ ______________________________________________________________________
 | **Uniform binding** | `uniform name: Type @N` |
 | **Workgroup size** | `workgroup(X, Y, Z)` on compute shader return type |
 | **Compute metadata** | `comptime: let compute = (...)` with dispatch + tensors + streams + nodes |
-| **Host dispatch** | `dispatch "shader::Name::compute" [x, y, z]` — requires `with GPU, Unsafe` |
+| **Host dispatch** | `dispatch "shader::Name::compute" [x, y, z]` :: requires `with GPU, Unsafe` |
 | **Compute key convention** | `"shader::KernelName::compute"` |
 | **Standard GPU types** | `Float`, `Int`, `UInt`, `Bool`, `Vec2/3/4`, `IVec2/3/4`, `UVec2/3`, `Mat4`, `StorageBuffer<T>`, `Sampler2D/3D/Cube` |
 | **Text backends** | HLSL via `crates/shader-text` (hlsl), WGSL via `crates/shader-text` (wgsl), USF for UE5 |
 | **Binary backends** | SPIR-V via `crates/gpu/codegen_spirv.rs` (rspirv), PTX via `crates/gpu/codegen_ptx.rs` (direct text) |
 | **GPU runtime** | `VulkanComputeExecutor` + `NvidiaPtxExecutor` through `GpuComputeExecutor` trait |
-| **Stdlib GPU module** | `std::gpu` — resource policies, binding plans, shared buffer/image interop |
-| **Stdlib graphics module** | `std::graphics` — session lifecycle, buffers, SPIR-V shaders, pipelines, meshes, draws |
-| **Stdlib CUDA module** | `std::cuda` — runtime state, warp primitives, dispatch, manifest inspection |
+| **Stdlib GPU module** | `std::gpu` :: resource policies, binding plans, shared buffer/image interop |
+| **Stdlib graphics module** | `std::graphics` ... session lifecycle, buffers, SPIR-V shaders, pipelines, meshes, draws |
+| **Stdlib CUDA module** | `std::cuda` |-> runtime state, warp primitives, dispatch, manifest inspection |
 | **CLI command** | `kain gpu-artifacts <file> --target <all/spirv/cuda/hlsl/wgsl>` |
 | **Build task** | `gpu_suite(id)` and `cuda_artifacts(id)` in `build.kn` |
 | **Artifact files** | `.spv`, `.shader_bundle.json`, `.reflect.json`, `.gpu.rs`, `.derived.hlsl`, `.derived.wgsl`, `.derived.ptx`, `.kain_compute_residency.json` |
-| **Canonical example** | `benchmark/cases_v2/gpu_cpu_pipeline.kn` — full semantic fusion benchmark |
-| **Canonical graphics** | `benchmark/cases/gpu_graphics_submit/main.kn` — graphics session lifecycle |
-| **LLM training kernels** | `library_of_kain/blades_cuda_llm_src_training_kernel.kn` — 8 kernels |
-| **LLM transformer kernels** | `library_of_kain/blades_cuda_llm_src_transformer_kernel.kn` — 7 kernels |
-| **LLM search kernels** | `library_of_kain/blades_cuda_llm_src_search_kernel.kn` — 4 kernels with warp-reduce |
+| **Canonical example** | `benchmark/cases_v2/gpu_cpu_pipeline.kn` --> full semantic fusion benchmark |
+| **Canonical graphics** | `benchmark/cases/gpu_graphics_submit/main.kn` --> graphics session lifecycle |
+| **LLM training kernels** | `library_of_kain/blades_cuda_llm_src_training_kernel.kn` ~ 8 kernels |
+| **LLM transformer kernels** | `library_of_kain/blades_cuda_llm_src_transformer_kernel.kn` ->> 7 kernels |
+| **LLM search kernels** | `library_of_kain/blades_cuda_llm_src_search_kernel.kn` --- 4 kernels with warp-reduce |

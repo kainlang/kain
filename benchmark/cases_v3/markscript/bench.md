@@ -1,4 +1,4 @@
-# V3 Benchmarks — MarkScript Edition
+# V3 Benchmarks => MarkScript Edition
 
 ## scalar_mix
 

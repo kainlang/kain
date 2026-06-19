@@ -1,6 +1,6 @@
-# Component — React-like UI with Typed Props and JSX
+# Component :: React-like UI with Typed Props and JSX
 
-> *"Components are the UI layer of Kain. They own their render tree, their state, and their composition graph — independently of worlds, functions, or any other language construct. Every interactive surface in Kain ultimately flows through a component."*
+> *"Components are the UI layer of Kain. They own their render tree, their state, and their composition graph ~~ independently of worlds, functions, or any other language construct. Every interactive surface in Kain ultimately flows through a component."*
 
 **Last updated:** 2026-06-08
 **Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/kain/component_minimal/src/app.kn`, `blades/kain/component_fuzz/src/components.kn`, `RULEBOOK.md` (lines 90–295)
@@ -13,7 +13,7 @@ ______________________________________________________________________
 1. [The Core Idea](#2-the-core-idea)
 1. [Component Anatomy](#3-component-anatomy)
 1. [JSX Syntax Reference](#4-jsx-syntax-reference)
-1. [Tag Dispatch — Uppercase vs Lowercase](#5-tag-dispatch--uppercase-vs-lowercase)
+1. [Tag Dispatch ~ Uppercase vs Lowercase](#5-tag-dispatch--uppercase-vs-lowercase)
 1. [World + Component Wiring](#6-world--component-wiring)
 1. [Component vs World vs Fn](#7-component-vs-world-vs-fn)
 1. [Component vs Kaintana](#8-component-vs-kaintana)
@@ -30,7 +30,7 @@ ______________________________________________________________________
 
 ## 1. What Is a Kain Component?
 
-A **component** is a top-level declaration that defines a reusable UI widget with typed props, local state, methods, and a JSX render body. It is Kain's native answer to React components — the language-level primitive for building user interfaces.
+A **component** is a top-level declaration that defines a reusable UI widget with typed props, local state, methods, and a JSX render body. It is Kain's native answer to React components - the language-level primitive for building user interfaces.
 
 ```kn
 component Counter(initial: Int, label: String):
@@ -46,10 +46,10 @@ component Counter(initial: Int, label: String):
 
 Every component is:
 
-- **Self-contained** — owns its state, methods, and render tree
-- **Composable** — calls other components via uppercase JSX tags
-- **Renderable** — produces a JSX visual tree lowered to `std::ui` native nodes
-- **Free-standing** — does NOT require a world to exist
+- **Self-contained** ~> owns its state, methods, and render tree
+- **Composable** |-> calls other components via uppercase JSX tags
+- **Renderable** * * * produces a JSX visual tree lowered to `std::ui` native nodes
+- **Free-standing** --- does NOT require a world to exist
 
 ### The Core Contract
 
@@ -74,25 +74,25 @@ ______________________________________________________________________
 
 ### What Component IS
 
-- A **reusable UI widget** — `component Button`, `component Toolbar`, `component Dashboard`
-- A **typed props receiver** — `component Card(title: String, body: String)`
-- A **state holder** — `state expanded: Bool = false`
-- A **composition unit** — `<Button />` calls another component
-- A **render tree factory** — `render <box>...</box>`
-- A **world surface** — `surface native_ui => Component` wires world to component
-- A **first-class language declaration** — parsed as `ast::Component`, not a struct wrapper
-- An **effect-capable** declaration — `with Reactive`, `with Unsafe`
-- A **recursive structure** — components can call themselves via conditional rendering
-- A **pointer-aware container** — components manage raw memory, GPU buffers, shared resources
+- A **reusable UI widget** ~~ `component Button`, `component Toolbar`, `component Dashboard`
+- A **typed props receiver** --> `component Card(title: String, body: String)`
+- A **state holder** ->> `state expanded: Bool = false`
+- A **composition unit** ... `<Button />` calls another component
+- A **render tree factory** |-> `render <box>...</box>`
+- A **world surface** :: `surface native_ui => Component` wires world to component
+- A **first-class language declaration** ___ parsed as `ast::Component`, not a struct wrapper
+- An **effect-capable** declaration ⁓ `with Reactive`, `with Unsafe`
+- A **recursive structure** 〰 components can call themselves via conditional rendering
+- A **pointer-aware container** <--> components manage raw memory, GPU buffers, shared resources
 
 ### What Component IS NOT
 
-- **NOT a world** — components have no surfaces, no entangle, no patch, no law
-- **NOT an actor** — components have no mailbox, no `on` handlers, no `send`/`spawn`
-- **NOT a struct** — you cannot `let x = ComponentName(...)`, only `<ComponentName />` in JSX
-- **NOT tied to a function** — `render` is declarative, not imperative
-- **NOT a framework** — component is the primitive; Kaintana is the framework
-- **NOT bound to one surface** — the same component can appear on `native_ui`, `web`, and `viewport3d`
+- **NOT a world** -- components have no surfaces, no entangle, no patch, no law
+- **NOT an actor** === components have no mailbox, no `on` handlers, no `send`/`spawn`
+- **NOT a struct** ... you cannot `let x = ComponentName(...)`, only `<ComponentName />` in JSX
+- **NOT tied to a function** ‒ `render` is declarative, not imperative
+- **NOT a framework** ->> component is the primitive; Kaintana is the framework
+- **NOT bound to one surface** ~~ the same component can appear on `native_ui`, `web`, and `viewport3d`
 
 ### Relationship View
 
@@ -123,9 +123,9 @@ ______________________________________________________________________
 
 ## 3. Component Anatomy
 
-### 3.1 Props — Typed Parameters
+### 3.1 Props |-> Typed Parameters
 
-Props are declared as a parenthesized parameter list after the component name. They are read-only inside the component — only the caller provides values via JSX attributes.
+Props are declared as a parenthesized parameter list after the component name. They are read-only inside the component ~> only the caller provides values via JSX attributes.
 
 ```kn
 component Button(label: String, kind: String, disabled: Bool):
@@ -142,14 +142,14 @@ Callers pass props as JSX attributes:
 
 **Prop rules:**
 
-- Props are typed — `String`, `Int`, `Bool`, `[Int]`, etc.
+- Props are typed |-> `String`, `Int`, `Bool`, `[Int]`, etc.
 - Props are read-only inside the component body
 - Props can be referenced in state initializers and methods
 - Props with `{expr}` syntax support arbitrary expressions
 - Props with literal values (no braces) are treated as strings: `kind="primary"` → `kind: String = "primary"`
 - Props with `{true}` / `{false}` are boolean: `disabled={true}`
 
-### 3.2 State — Local Mutable Fields
+### 3.2 State ⁓ Local Mutable Fields
 
 State is declared with the `state` keyword inside the component body. Initializers can reference props.
 
@@ -192,10 +192,10 @@ component BoundedCounter(limit: Int):
 - Initializers can reference props: `state display_temp: Int = temp`
 - State is mutable only through `_self` in methods (never directly in JSX)
 - State is NOT visible from outside the component
-- `weak` state (from actors) is NOT available in components — it is actor-only
+- `weak` state (from actors) is NOT available in components -- it is actor-only
 - State persists for the component's lifetime
 
-### 3.3 Methods — Functions with `_self: Self_`
+### 3.3 Methods ___ Functions with `_self: Self_`
 
 Methods are regular `fn` declarations that receive `_self: Self_` as their first parameter. `_self` gives access to both props and state.
 
@@ -253,7 +253,7 @@ fn format_sequence(_self: Self_) -> String:
 
 Then call `{format_sequence()}` in JSX.
 
-### 3.4 Effects — Behavior Annotations
+### 3.4 Effects ~ Behavior Annotations
 
 Components can declare effects with `with`:
 
@@ -274,10 +274,10 @@ component MemoryView(cell_count: Int) with Unsafe:
 |--------|---------|
 | `Reactive` | Component subscribes to event handling / reactive updates |
 | `Unsafe` | Component manages raw memory, pointers, FFI handles |
-| `Pure` | Component is deterministic — same props → same render |
+| `Pure` | Component is deterministic ~> same props → same render |
 | `GPU` | Component interfaces with GPU resources |
 
-### 3.5 Render Body — The JSX Tree
+### 3.5 Render Body :: The JSX Tree
 
 Every component **MUST** have exactly one `render` body containing JSX markup:
 
@@ -338,7 +338,7 @@ render <stack direction="horizontal">
 - Expressions: `initial={0}`, `items={my_array}`
 - Boolean shorthand: treat `{true}` as `enabled={true}`
 
-### 4.3 Expressions — `{expr}` Interpolation
+### 4.3 Expressions |-> `{expr}` Interpolation
 
 Curly braces interpolate arbitrary Kain expressions into JSX attributes and text nodes:
 
@@ -361,11 +361,11 @@ component Calc(a: Int, b: Int):
 **Limitations** (from fuzz testing):
 
 - `{expr}` can reference: prop names, method calls, literals, operators
-- `_self` is NOT in scope inside JSX — use getter methods instead
-- JSX `if` conditions can only use method calls returning `Bool` or simple identifiers — not `>`, `<`, `==` operators inline
+- `_self` is NOT in scope inside JSX - use getter methods instead
+- JSX `if` conditions can only use method calls returning `Bool` or simple identifiers ~~ not `>`, `<`, `==` operators inline
 - Complex logic belongs in methods called from `{expr}`, not inline
 
-### 4.4 Control Flow — `for` and `if` Inside JSX
+### 4.4 Control Flow ->> `for` and `if` Inside JSX
 
 JSX supports native control flow with `for` and `if`/`else`:
 
@@ -385,7 +385,7 @@ render <stack direction="vertical">
 
 - `item` binds to each element of `list`
 - The loop body is a single JSX node (use `<Fragment>` for multiples)
-- Loop variables have LIMITED scope in the body — pre-compute in methods when needed
+- Loop variables have LIMITED scope in the body - pre-compute in methods when needed
 
 **`if cond:` / `elif cond:` / `else:` rules:**
 
@@ -404,7 +404,7 @@ render <box>
 </box>
 ```
 
-### 4.5 Fragments — Multiple Root Nodes
+### 4.5 Fragments ~~ Multiple Root Nodes
 
 `<Fragment>` wraps multiple sibling nodes without creating a parent element in the DOM:
 
@@ -478,7 +478,7 @@ The component fuzz blade (`blades/kain/component_fuzz/`) discovered these compil
 
 ______________________________________________________________________
 
-## 5. Tag Dispatch — Uppercase vs Lowercase
+## 5. Tag Dispatch => Uppercase vs Lowercase
 
 The **first letter** of a JSX tag determines the dispatch target:
 
@@ -502,7 +502,7 @@ The **first letter** of a JSX tag determines the dispatch target:
 ╚═══════════════╧══════════════════════════════════════════════════╝
 ```
 
-**This is the entire dispatch mechanism.** There is no import statement for components — they are resolved by name at the file/module scope. Modules imported with `use module::*` bring their components into scope for JSX tag resolution.
+**This is the entire dispatch mechanism.** There is no import statement for components |-> they are resolved by name at the file/module scope. Modules imported with `use module::*` bring their components into scope for JSX tag resolution.
 
 ```kn
 use components::*   // brings all component names into JSX scope
@@ -523,7 +523,7 @@ The uppercase/lowercase distinction gives the reader immediate visual feedback:
 - **Uppercase** = I am calling another component. I am composing UI.
 - **Lowercase** = I am using a native primitive. I am at the leaf of the render tree.
 
-This is familiar from React/JSX, but in Kain it is the ONLY resolution mechanism — there is no separate component registry or string-based lookup.
+This is familiar from React/JSX, but in Kain it is the ONLY resolution mechanism |-> there is no separate component registry or string-based lookup.
 
 ______________________________________________________________________
 
@@ -596,7 +596,7 @@ component Dashboard():
     </box>
 ```
 
-Components are **first-class UI declarations**, not world accessories. The `surface native_ui => ComponentName` syntax is ONE way to wire a world to a root component — it's not required for components to exist, and it's not the only way components get rendered (see Kaintana).
+Components are **first-class UI declarations**, not world accessories. The `surface native_ui => ComponentName` syntax is ONE way to wire a world to a root component – it's not required for components to exist, and it's not the only way components get rendered (see Kaintana).
 
 ### 6.4 Multi-Surface Worlds
 
@@ -620,12 +620,12 @@ ______________________________________________________________________
 |---|---|---|
 | Define a reusable UI widget with its own state | `component` | Owns render tree, state, methods |
 | Track app-level state across frames | `world` + `surface native_ui => Component` | World is authority; component is view |
-| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition — uppercase tags dispatch to components |
+| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition ___ uppercase tags dispatch to components |
 | Bind a world to a root UI view | `surface native_ui => ComponentName` on world | Canonical world→UI wiring |
 | Do computation with no UI output | `fn` | Components are for rendering; functions are for logic |
 | Render data from a world inside a component | Read `world.field` inside JSX `{expr}` | Components have read access to world state (via surface projection) |
 | Handle live events, polling, input | `component` with `state` + Kaintana/UI bridge | Component state + event system = interactive UI |
-| Build a whole UI framework | `component` + `world` + `resonate` + `patch` | See Kaintana — component is the view layer |
+| Build a whole UI framework | `component` + `world` + `resonate` + `patch` | See Kaintana * * * component is the view layer |
 | Share UI state between distant parts of the tree | `world` + `entangle` | Pass world state through surfaces, not prop drilling |
 | Animate over time | `pulse` + `component` | Pulse updates world fields; component re-renders |
 | Talk to a GPU from a UI | `component` with `with GPU` + `shader` | Components can manage GPU resources |
@@ -650,11 +650,11 @@ ______________________________________________________________________
 | What it is | Built-in keyword producing a UI declaration | Authored blade package at `blades/kaintana/` |
 | Analogy | Kain's `<div>` | Kaintana = Kain's React |
 | Scope | Single widget definition | Themes, layout helpers, widget reconciliation, event routing, input handling, desktop adapters |
-| Dependencies | None — pure language surface | Built on `component`, `world`, `std::ui`, `entangle`, `resonate`, `patch`, `law`, desktop bridge |
+| Dependencies | None >> pure language surface | Built on `component`, `world`, `std::ui`, `entangle`, `resonate`, `patch`, `law`, desktop bridge |
 | Surface backends | `native_ui`, `web`, `viewport3d`, `ue5` | Vulkan/winit desktop adapter via Vulkain |
 | State management | Local `state` only | Full world + entangle + patch system |
 | Reconciliation | Compiler-owned JSX tree lowering | `ui_reconcile_node()`, stable keys, dirty tracking |
-| When to use | Always — even inside Kaintana | When you need themes, layout, and interactive widgets |
+| When to use | Always --> even inside Kaintana | When you need themes, layout, and interactive widgets |
 
 You can use `component` without Kaintana (via `std::ui` directly). Kaintana gives you the full retained-mode widget framework on top of components.
 
@@ -662,7 +662,7 @@ ______________________________________________________________________
 
 ## 9. Component Patterns
 
-### 9.1 Simple Widget — Leaf Component
+### 9.1 Simple Widget <--> Leaf Component
 
 ```kn
 component Atom():
@@ -675,7 +675,7 @@ component ExprOnly(value: Int):
     render <text value={value} />
 ```
 
-### 9.2 Stateful Widget — Interactive Component
+### 9.2 Stateful Widget <--> Interactive Component
 
 ```kn
 component TrafficLight():
@@ -698,7 +698,7 @@ component TrafficLight():
     </box>
 ```
 
-### 9.3 Computational Component — Logic in Methods
+### 9.3 Computational Component - Logic in Methods
 
 ```kn
 component Factorial(n: Int):
@@ -723,7 +723,7 @@ component Factorial(n: Int):
     </box>
 ```
 
-### 9.4 Composed Dashboard — Multi-Level Composition
+### 9.4 Composed Dashboard >> Multi-Level Composition
 
 ```kn
 component Card(title: String, body: String):
@@ -749,7 +749,7 @@ component Dashboard():
     </panel>
 ```
 
-### 9.5 Recursive Component — Self-Referencing Tree
+### 9.5 Recursive Component <--> Self-Referencing Tree
 
 ```kn
 component RecursiveTree(depth: Int, label: String):
@@ -780,7 +780,7 @@ component RecursiveTree(depth: Int, label: String):
     </stack>
 ```
 
-### 9.6 Pointer-Laden Component — Raw Memory Management
+### 9.6 Pointer-Laden Component --- Raw Memory Management
 
 Components with `with Unsafe` can manage raw buffers:
 
@@ -815,7 +815,7 @@ component MemoryWidget(cell_count: Int) with Unsafe:
     </box>
 ```
 
-### 9.7 World-Bound Component — Full Authority + View
+### 9.7 World-Bound Component ___ Full Authority + View
 
 ```kn
 // ── State Authority ──
@@ -879,7 +879,7 @@ component Nest_L10():
 
 ### 9.9 Full Win32 GDI App (Real code from `component_minimal`)
 
-From `blades/kain/component_minimal/src/app.kn` — a complete Windows application using components, Win32 GDI via `include <windows.h> as win`, and manual memory management:
+From `blades/kain/component_minimal/src/app.kn` :: a complete Windows application using components, Win32 GDI via `include <windows.h> as win`, and manual memory management:
 
 ```kn
 component Counter(label: String):
@@ -902,7 +902,7 @@ component Dashboard():
     </panel>
 ```
 
-The full file also includes `fill_rect()`, `draw_text()`, `fast_invsqrt()`, `create_window()`, and a Win32 message pump with `PeekMessageA`/`TranslateMessage`/`DispatchMessageA` via `@extern` — all in one file with components as the UI layer.
+The full file also includes `fill_rect()`, `draw_text()`, `fast_invsqrt()`, `create_window()`, and a Win32 message pump with `PeekMessageA`/`TranslateMessage`/`DispatchMessageA` via `@extern` ___ all in one file with components as the UI layer.
 
 ______________________________________________________________________
 
@@ -926,7 +926,7 @@ world MultiSurfaceWorld:
     surface viewport3d => "HUD"       // 3D viewport (string key)
 ```
 
-The **same component** can be rendered through multiple surface kinds — the component author doesn't need to know which backend renders it.
+The **same component** can be rendered through multiple surface kinds – the component author doesn't need to know which backend renders it.
 
 ______________________________________________________________________
 
@@ -939,7 +939,7 @@ Components are used far below their potential in most examples. Here are pattern
 Most examples pair one component with one world. But components are free-standing declarations. A library module can export 50 components with zero worlds:
 
 ```kn
-// ui_kit.kn — pure component library, no worlds
+// ui_kit.kn ... pure component library, no worlds
 pub component Button(label: String, kind: String):
     render <box><text value={label} /></box>
 
@@ -950,12 +950,12 @@ pub component Card(title: String, body: String):
     </box>
 
 pub component Divider():
-    render <box><text value="—" /></box>
+    render <box><text value="~~" /></box>
 ```
 
 ### 11.2 Computational Components
 
-Components can do real work in their methods — sieves, factorials, sequence generation — and render the result:
+Components can do real work in their methods * * * sieves, factorials, sequence generation ___ and render the result:
 
 ```kn
 component PrimeSieve(limit: Int):
@@ -1020,7 +1020,7 @@ component MemoryWidget(cell_count: Int) with Unsafe:
 
 ### 11.5 Fragment-Only Components
 
-Components that return only `<Fragment>` nodes — useful for composition factories:
+Components that return only `<Fragment>` nodes >> useful for composition factories:
 
 ```kn
 component PureComposition():
@@ -1080,7 +1080,7 @@ Resonate reacts to world state changes and can trigger component re-renders:
 
 ```kn
 resonate World.counter on_counter_change dampen 16ms:
-    // counter changed — component re-renders via surface
+    // counter changed 〰 component re-renders via surface
 ```
 
 ### Component + Pulse
@@ -1204,7 +1204,7 @@ ______________________________________________________________________
 
 ## 14. Source Anchors
 
-### Language Truth — Parser and AST
+### Language Truth ~ Parser and AST
 
 | File | Line(s) | What |
 |------|---------|------|
@@ -1234,7 +1234,7 @@ ______________________________________________________________________
 
 | File | What |
 |------|------|
-| `stdlib/ui.kn` | `std::ui` module — 340+ public symbols, native UI session, node, resource, event, accessibility, DPI, drag/drop, IME, menu, dialog, hot-reload API |
+| `stdlib/ui.kn` | `std::ui` module ‒ 340+ public symbols, native UI session, node, resource, event, accessibility, DPI, drag/drop, IME, menu, dialog, hot-reload API |
 | `runtime/native/include/ui.h` | Native ABI for UI rendering (session management, node tree, draw commands) |
 | `runtime/native/src/core/ui_system.c` | Native UI system implementation |
 
@@ -1243,8 +1243,8 @@ ______________________________________________________________________
 | File | What |
 |------|------|
 | `blades/kain/component_minimal/src/app.kn` | **GOLD MINE**: 280+ line Win32 GDI app with components, `include <windows.h> as win`, manual memory, `@extern`, full message pump |
-| `blades/kain/component_fuzz/src/components.kn` | Component fuzz test — 40+ components across 10 categories (naked, stateful, computational, recursive, fragments, pointer-laden, actor-aware, deeply nested, world-surface, singularity) |
-| `blades/kain/component_fuzz/src/main.kn` | Fuzz main entry — demonstrates that components live in JSX only |
+| `blades/kain/component_fuzz/src/components.kn` | Component fuzz test 〰 40+ components across 10 categories (naked, stateful, computational, recursive, fragments, pointer-laden, actor-aware, deeply nested, world-surface, singularity) |
+| `blades/kain/component_fuzz/src/main.kn` | Fuzz main entry - demonstrates that components live in JSX only |
 | `blades/kain/component_shader/` | Component + shader integration example |
 | `blades/kaintana/` | Kaintana framework built on top of components |
 | `blades/templates/python/pygame/src/world.kn` | Template using world + component + Python interop |
@@ -1255,7 +1255,7 @@ ______________________________________________________________________
 | File | What |
 |------|------|
 | `smoketest/src/semantics/teleport.kn` | Component in smoke test context: `SmokeTeleportPanel` with world surfaces |
-| `benchmark/cases_v2/keyword_crucible.kn` | Component keyword exercised alongside 108 others — `CrucibleView` component |
+| `benchmark/cases_v2/keyword_crucible.kn` | Component keyword exercised alongside 108 others >> `CrucibleView` component |
 
 ### Documentation
 
@@ -1277,7 +1277,7 @@ ______________________________________________________________________
 **Wrong:** Using component ONLY as a single-line `render <panel>` wrapper for world surfaces, never composing components, never using state or methods.
 
 ```kn
-// Underutilized — component is just a title string
+// Underutilized >> component is just a title string
 component App():
     render <panel title="My App" />
 ```
@@ -1285,7 +1285,7 @@ component App():
 **Right:** Components as the full UI composition layer.
 
 ```kn
-// Component as UI composition — the full model
+// Component as UI composition >> the full model
 component MetricCard(title: String, value: Int, unit: String):
     state expanded: Bool = false
     fn display_value(_self: Self_) -> String:
@@ -1309,7 +1309,7 @@ component Dashboard(signal: Int, hot: Int):
 **Wrong:** Every file has exactly one component. No nesting, no reuse.
 
 ```kn
-// Each component is a silo — no composition
+// Each component is a silo === no composition
 component App():
     render <panel title="Tiny App"><text value="hello" /></panel>
 ```
@@ -1352,7 +1352,7 @@ component MyComponent():
 **Right:** Components exist independently. Only add a world when you need entangle/patch/law/cross-frame state.
 
 ```kn
-// Free-standing component — no world needed
+// Free-standing component – no world needed
 component MyComponent():
     render <text value="I exist on my own" />
 ```
@@ -1383,7 +1383,7 @@ render <text value={comparison()} />
 **Wrong:** Trying to call state-mutating functions in JSX.
 
 ```kn
-// ❌ Side effects in render — undefined behavior
+// ❌ Side effects in render => undefined behavior
 render <box>
     <text value={increment()} />
 </box>
@@ -1468,4 +1468,4 @@ kain native src/app.kn --emit exe  # Produce native executable
 
 ______________________________________________________________________
 
-*Component is the UI layer of Kain. It is the language's answer to "how do I build a screen?" — a first-class, compiler-owned, world-independent UI abstraction with typed props, local state, methods, JSX composition, and multiple surface backends. The more you compose, state-manage, and method-encapsulate in your components, the more the compiler can help you.*
+*Component is the UI layer of Kain. It is the language's answer to "how do I build a screen?" – a first-class, compiler-owned, world-independent UI abstraction with typed props, local state, methods, JSX composition, and multiple surface backends. The more you compose, state-manage, and method-encapsulate in your components, the more the compiler can help you.*

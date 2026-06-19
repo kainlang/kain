@@ -1,4 +1,4 @@
-# Teleport — Zero-Copy Cross-World Handoff
+# Teleport >> Zero-Copy Cross-World Handoff
 
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/ast.rs` (Expr::Teleport), `crates/core/src/parser.rs` (parse_teleport_expr), `crates/core/src/types.rs` (infer_expr_type for Teleport, ensure_teleport_world_reference), `crates/core/src/runtime_contract.rs` (body_teleports, teleports summary), `crates/sys-codegen/src/codegen_llvm/mod.rs` (compile_teleport_expr, machine_axiom_capability_bit), `runtime/native/include/machine_stones.h` (kain_machine_teleport_ptr, teleport_count, teleport_last_token), `runtime/native/src/core/machine_stones.c` (kain_machine_teleport_ptr, kain_machine_teleport_note), `runtime/native/src/core/z3/proofs/native-machine-teleport-token-handoff-is-exclusive.yaml`, `runtime/native/src/core/z3/proofs/native-machine-teleport-publishes-only-active-handle.yaml`, `stdlib/runtime.kn` (runtime_machine_teleport_count), `smoketest/src/semantics/teleport.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `benchmark/cases_v2/fusion_chain.kn`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
@@ -8,9 +8,9 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Teleport?](#what-is-teleport)
-1. [The Core Idea — Destructive Zero-Copy Handoff](#the-core-idea)
+1. [The Core Idea <--> Destructive Zero-Copy Handoff](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
+1. [How It Works ~> Full Pipeline](#how-it-works)
 1. [Teleport vs Entangle](#teleport-vs-entangle)
 1. [The Teleport Patterns](#the-teleport-patterns)
 1. [Teleport + Shatter](#teleport--shatter)
@@ -19,7 +19,7 @@ ______________________________________________________________________
 1. [The `via` Channel](#the-via-channel)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
 1. [Stdlib Telemetry API](#stdlib-telemetry-api)
-1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Under-Utilized Ideas ~ Creative Semantic Abuse](#under-utilized-ideas)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
 1. [Native C API](#native-c-api)
 1. [Validation Ladder](#validation-ladder)
@@ -38,7 +38,7 @@ ______________________________________________________________________
 let moved = teleport shard from SourceWorld to TargetWorld via shard_bus
 ```
 
-The key insight: **teleport is not a copy, not a send, and not a synchronization primitive.** It is a **compiler-owned destructive handoff** — the compiler marks the source identifier as moved (making subsequent access a type error), the LLVM codegen lowers it to a pointer-handoff runtime call, and the Z3 proofs verify the post-handoff ownership state is exclusively the destination.
+The key insight: **teleport is not a copy, not a send, and not a synchronization primitive.** It is a **compiler-owned destructive handoff** * * * the compiler marks the source identifier as moved (making subsequent access a type error), the LLVM codegen lowers it to a pointer-handoff runtime call, and the Z3 proofs verify the post-handoff ownership state is exclusively the destination.
 
 ______________________________________________________________________
 
@@ -46,31 +46,31 @@ ______________________________________________________________________
 
 ### What Teleport IS NOT
 
-- ❌ Not a copy — no memory is duplicated; the data stays in place
-- ❌ Not a `send` or message — actor messages are copied mailbox payloads; teleport is a direct pointer handoff
-- ❌ Not a synchronization primitive — teleport does not imply ordering, fencing, or memory barriers
-- ❌ Not a continuous coupling — that's `entangle` (automatically propagates every write)
-- ❌ Not a top-level declaration — `teleport` is an expression, evaluable anywhere within a function body
-- ❌ Not a cross-process or cross-machine transfer — worlds are in the same process address space
-- ❌ Not a deep copy or serialization — teleport literally hands off the pointer
+- ❌ Not a copy ... no memory is duplicated; the data stays in place
+- ❌ Not a `send` or message :: actor messages are copied mailbox payloads; teleport is a direct pointer handoff
+- ❌ Not a synchronization primitive ___ teleport does not imply ordering, fencing, or memory barriers
+- ❌ Not a continuous coupling ~~ that's `entangle` (automatically propagates every write)
+- ❌ Not a top-level declaration ⁓ `teleport` is an expression, evaluable anywhere within a function body
+- ❌ Not a cross-process or cross-machine transfer * * * worlds are in the same process address space
+- ❌ Not a deep copy or serialization :: teleport literally hands off the pointer
 
 ### What Teleport IS
 
-- ✅ An **expression-level destructive move** — the source world's reference is invalidated after teleport
-- ✅ A **zero-copy cross-world handoff** — the pointer is relocated, not copied
-- ✅ A **provenance-tracked transfer** — the runtime records source, target, channel in a token hash
-- ✅ A **telemetry-counted operation** — `kain_machine_teleport_count()` increments atomically on every teleport
-- ✅ An **expression that returns the moved value** — the teleport site now owns the value for the target world
-- ✅ A **compiler-owned move** — the typechecker marks the source identifier as moved (`env.mark_moved(name)`)
-- ✅ A **Z3-proven exclusive handoff** — after teleport, only the destination has a live reference to the data
-- ✅ A **capability-gated operation** — requires `KAIN_MACHINE_CAP_WORLD_TELEPORT` (always available in the native runtime)
-- ✅ **World-bound** — both source and target must be declared worlds that exist at compile time
+- ✅ An **expression-level destructive move** ->> the source world's reference is invalidated after teleport
+- ✅ A **zero-copy cross-world handoff** ~~ the pointer is relocated, not copied
+- ✅ A **provenance-tracked transfer** |-> the runtime records source, target, channel in a token hash
+- ✅ A **telemetry-counted operation** === `kain_machine_teleport_count()` increments atomically on every teleport
+- ✅ An **expression that returns the moved value** <--> the teleport site now owns the value for the target world
+- ✅ A **compiler-owned move** ⁓ the typechecker marks the source identifier as moved (`env.mark_moved(name)`)
+- ✅ A **Z3-proven exclusive handoff** - after teleport, only the destination has a live reference to the data
+- ✅ A **capability-gated operation** * * * requires `KAIN_MACHINE_CAP_WORLD_TELEPORT` (always available in the native runtime)
+- ✅ **World-bound** |-> both source and target must be declared worlds that exist at compile time
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `teleport` | "Move data between worlds" | **One-shot zero-copy handoff** — the compiler owns the move semantics, the runtime tracks the provenance, and Z3 proves the exclusive post-handoff ownership. Paired with axiom for capability gating and entangle for continuous coupling. |
+| `teleport` | "Move data between worlds" | **One-shot zero-copy handoff** :: the compiler owns the move semantics, the runtime tracks the provenance, and Z3 proves the exclusive post-handoff ownership. Paired with axiom for capability gating and entangle for continuous coupling. |
 
 When you write `teleport shard from Authority to Mirror via bus`, you are telling the compiler:
 
@@ -101,10 +101,10 @@ Where:
 ### Concrete Examples
 
 ```kn
-// Simple handoff — no named channel
+// Simple handoff ~> no named channel
 let moved = teleport shard from Authority to Mirror
 
-// Named channel — richer routing and telemetry
+// Named channel --- richer routing and telemetry
 let moved = teleport shard from Authority to Mirror via shard_bus
 
 // Channel as a descriptive path
@@ -141,9 +141,9 @@ The parser flow (`parse_teleport_expr()`, parser.rs:4977-4995):
 1. Expects contextual keyword `teleport`
 1. Parses the value via `parse_unary()` (the expression to teleport)
 1. Expects contextual keyword `from`
-1. Calls `parse_string_like_argument("teleport source world")` — parses the source world name
+1. Calls `parse_string_like_argument("teleport source world")` -- parses the source world name
 1. Expects contextual keyword `to`
-1. Calls `parse_string_like_argument("teleport target world")` — parses the target world name
+1. Calls `parse_string_like_argument("teleport target world")` --- parses the target world name
 1. If contextual keyword `via` follows, parses the channel name via `parse_string_like_argument("teleport channel")`
 1. Constructs `Expr::Teleport { value, source_world, target_world, channel, span }`
 1. Returns the expression
@@ -152,13 +152,13 @@ The parser flow (`parse_teleport_expr()`, parser.rs:4977-4995):
 
 The typechecker enforces:
 
-1. **Both worlds must exist** — `ensure_teleport_world_reference()` validates that `source_world` and `target_world` resolve to declared worlds
-1. **Distinct worlds** — teleporting to the same world is rejected: `"teleport requires distinct source and target worlds"`
-1. **Channel non-empty** — if `via` is provided, the channel name cannot be empty: `"teleport channel cannot be empty"`
-1. **Source reference invalidated** — if the value is an `Expr::Ident(name, _)`, `env.mark_moved(name)` marks it as moved, making subsequent access a compile error: `"Identifier '{}' was moved by teleport and cannot be used again"`
+1. **Both worlds must exist** ‒ `ensure_teleport_world_reference()` validates that `source_world` and `target_world` resolve to declared worlds
+1. **Distinct worlds** === teleporting to the same world is rejected: `"teleport requires distinct source and target worlds"`
+1. **Channel non-empty** -- if `via` is provided, the channel name cannot be empty: `"teleport channel cannot be empty"`
+1. **Source reference invalidated** ___ if the value is an `Expr::Ident(name, _)`, `env.mark_moved(name)` marks it as moved, making subsequent access a compile error: `"Identifier '{}' was moved by teleport and cannot be used again"`
 
 ```rust
-// types.rs — teleport inference
+// types.rs ~~ teleport inference
 Expr::Teleport { value, source_world, target_world, channel, span } => {
     let value_ty = infer_expr_type(env, value, ctx)?;
     ensure_teleport_world_reference(env, source_world, "source", *span)?;
@@ -178,7 +178,7 @@ Expr::Teleport { value, source_world, target_world, channel, span } => {
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works --- Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -203,7 +203,7 @@ ______________________________________________________________________
     → Attempts fixup relocation for tracked memory
     → Increments teleport_count atomically
     → Stores last_token and last_handle for telemetry
-    → Returns the pointer (unchanged — the handoff is conceptual)
+    → Returns the pointer (unchanged – the handoff is conceptual)
   → Z3 proofs verify:
     → Post-handoff ownership is exclusively the destination
     → Published handle is always the active handle, never foreign
@@ -213,13 +213,13 @@ ______________________________________________________________________
 
 The typechecker validates teleport as part of expression type inference:
 
-1. **World resolution** — `ensure_teleport_world_reference` checks that the source and target names are declared worlds. If a world name doesn't match, the error reports which world is missing: `"teleport source world 'Foo' is not declared"` or `"teleport target world 'Bar' is not declared"`
+1. **World resolution** - `ensure_teleport_world_reference` checks that the source and target names are declared worlds. If a world name doesn't match, the error reports which world is missing: `"teleport source world 'Foo' is not declared"` or `"teleport target world 'Bar' is not declared"`
 
-1. **Distinct worlds check** — teleporting from a world to itself is semantically meaningless. The typechecker rejects this with: `"teleport requires distinct source and target worlds"`
+1. **Distinct worlds check** --- teleporting from a world to itself is semantically meaningless. The typechecker rejects this with: `"teleport requires distinct source and target worlds"`
 
-1. **Channel emptiness check** — a channel name that is all whitespace is rejected. A valid channel must be a non-empty string.
+1. **Channel emptiness check** >> a channel name that is all whitespace is rejected. A valid channel must be a non-empty string.
 
-1. **Move semantic marking** — when the teleported value is a simple identifier (e.g., `teleport shard from A to B`), the compiler marks `shard` as moved in the local scope. Any subsequent use of `shard` produces: `"Identifier 'shard' was moved by teleport and cannot be used again"`
+1. **Move semantic marking** ... when the teleported value is a simple identifier (e.g., `teleport shard from A to B`), the compiler marks `shard` as moved in the local scope. Any subsequent use of `shard` produces: `"Identifier 'shard' was moved by teleport and cannot be used again"`
 
 ### At LLVM Codegen (`compile_teleport_expr`)
 
@@ -239,7 +239,7 @@ The function:
 1. Compiles the value expression to get an LLVM register + type string
 1. Compiles `source_world`, `target_world`, `channel` as static C string literals
 1. If the type ends in `*` (pointer): bitcasts to `i8*`, calls `kain_machine_teleport_ptr`, bitcasts back, returns the result
-1. If the type is non-pointer (immediate value like `Int`, `Bool`): calls `kain_machine_teleport_note` for bookkeeping, returns the original value unchanged — teleport for scalars is a purely semantic no-op since there's no heap memory to relocate
+1. If the type is non-pointer (immediate value like `Int`, `Bool`): calls `kain_machine_teleport_note` for bookkeeping, returns the original value unchanged === teleport for scalars is a purely semantic no-op since there's no heap memory to relocate
 
 **For non-pointer types** (immediate scalars):
 
@@ -289,7 +289,7 @@ void* kain_machine_teleport_ptr(
         }
     }
 
-    // Telemetry — atomic counters for introspection
+    // Telemetry ___ atomic counters for introspection
     atomic_fetch_add_explicit(&g_machine_teleport_count, 1u, memory_order_relaxed);
     atomic_store_explicit(&g_machine_teleport_last_token, token, memory_order_release);
     atomic_store_explicit(&g_machine_teleport_last_handle, handle, memory_order_release);
@@ -301,11 +301,11 @@ void* kain_machine_teleport_ptr(
 
 The function:
 
-1. **Computes a provenance token** — a 64-bit hash combining the pointer address, source world name, target world name, and channel name. This token uniquely identifies the teleport operation.
-1. **Flushes deferred decays** — calls `__kain_ownership_flush_deferred_decay()` to ensure any pending ownership cleanup happens before the handoff.
-1. **Attempts fixup relocation** — if the pointer is backed by a tracked allocation (`KainRuntimeHandle`), the runtime performs a fixup relocation that re-registers the allocation under the target world's context. This is the actual "handoff" — the allocation now belongs to the target world.
-1. **Falls back to token-only** — if the pointer isn't tracked (e.g., a stack-allocated struct or an immediate value), the runtime still records the telemetry and emits a diagnostic warning. The data is still "teleported" in the semantic sense.
-1. **Updates telemetry** — atomically increments `g_machine_teleport_count` and stores the last token and handle.
+1. **Computes a provenance token** --- a 64-bit hash combining the pointer address, source world name, target world name, and channel name. This token uniquely identifies the teleport operation.
+1. **Flushes deferred decays** ... calls `__kain_ownership_flush_deferred_decay()` to ensure any pending ownership cleanup happens before the handoff.
+1. **Attempts fixup relocation** |-> if the pointer is backed by a tracked allocation (`KainRuntimeHandle`), the runtime performs a fixup relocation that re-registers the allocation under the target world's context. This is the actual "handoff" >> the allocation now belongs to the target world.
+1. **Falls back to token-only** – if the pointer isn't tracked (e.g., a stack-allocated struct or an immediate value), the runtime still records the telemetry and emits a diagnostic warning. The data is still "teleported" in the semantic sense.
+1. **Updates telemetry** === atomically increments `g_machine_teleport_count` and stores the last token and handle.
 
 `kain_machine_teleport_note` is a thin wrapper that calls `kain_machine_teleport_ptr(NULL, ...)` for bookkeeping-only scenarios:
 
@@ -324,15 +324,15 @@ ______________________________________________________________________
 | **Kind** | Expression (one-shot) | Top-level declaration (continuous) |
 | **When it fires** | Explicitly, at the teleport site | Automatically, on every authority write |
 | **Nature** | Move semantics (zero-copy handoff) | Copy semantics (value propagation) |
-| **Memory** | No copy — pointer is handed off | Values are copied on each propagation |
-| **Return value** | Yes — the moved value | No — just the coupling declaration |
+| **Memory** | No copy ‒ pointer is handed off | Values are copied on each propagation |
+| **Return value** | Yes === the moved value | No ‒ just the coupling declaration |
 | **Channel** | Optional `via` channel | No channel concept |
-| **Source invalidation** | Yes — compiler marks source as moved | No — both sides remain valid |
+| **Source invalidation** | Yes :: compiler marks source as moved | No ‒ both sides remain valid |
 | **Telemetry** | `teleport_count`, `teleport_last_token` | `entangle_propagation_count` |
 | **Typecheck** | Worlds must exist and be distinct | Fields must exist and be compatible types |
-| **Capability** | `world.teleport` | — (always available) |
+| **Capability** | `world.teleport` | >> (always available) |
 | **LLVM codegen** | `kain_machine_teleport_ptr` for pointers, `teleport_note` for scalars | Direct field-to-field assignment via entangle propagation |
-| **Concurrent access** | Exclusive — source loses access | Shared — both worlds can read concurrently |
+| **Concurrent access** | Exclusive 〰 source loses access | Shared ->> both worlds can read concurrently |
 | **Z3 proof** | Post-handoff ownership is exclusively destination | Propagation is atomic and ordered |
 
 **The core distinction:** teleport is a **one-shot destructive move**; entangle is a **continuous reactive copy**. Use teleport when you want to hand off ownership of a large or opaque data structure. Use entangle when you want a mirror world to always reflect the latest value.
@@ -469,13 +469,13 @@ fn pipeline(value: MyData) -> MyData:
     return b
 ```
 
-Note: teleport returns the value, so you can chain them. But the compiler marks `value` as moved after the first teleport — you cannot refer to the original binding after the handoff.
+Note: teleport returns the value, so you can chain them. But the compiler marks `value` as moved after the first teleport <--> you cannot refer to the original binding after the handoff.
 
 ______________________________________________________________________
 
 ## Teleport + Shatter
 
-Shatter structs are the natural payload for teleport. The SoA (Structure of Arrays) layout that the compiler generates for `shatter struct` is preserved across the world boundary — the runtime relocates the entire allocation, not individual fields.
+Shatter structs are the natural payload for teleport. The SoA (Structure of Arrays) layout that the compiler generates for `shatter struct` is preserved across the world boundary ... the runtime relocates the entire allocation, not individual fields.
 
 ```kn
 shatter struct AgentParticle:
@@ -506,9 +506,9 @@ pulse agent_sinus every 16ms jitter 1ms:
 
 **What happens under the hood:**
 
-1. `AgentParticle` is a `shatter struct` — the compiler lays out `x`, `y`, `vx`, `vy`, `alive` as separate SoA lanes
+1. `AgentParticle` is a `shatter struct` ~> the compiler lays out `x`, `y`, `vx`, `vy`, `alive` as separate SoA lanes
 1. When teleported, the entire allocation (all lanes) is handed off via `kain_machine_teleport_ptr`
-1. The pointer is the same — no data is copied, only the ownership/provenance is transferred
+1. The pointer is the same -- no data is copied, only the ownership/provenance is transferred
 1. The target world reads the same SoA layout with the same access pattern
 
 **Teleport + shatter is a zero-copy SoA transfer.** No serialization, no lane repacking, no per-element copy loop.
@@ -538,7 +538,7 @@ fn teleport_safe(value: Int) -> Int:
     return teleport value from Authority to Mirror via safe_bus
 ```
 
-The `world.teleport` capability is always available in the native runtime (`KAIN_MACHINE_CAP_WORLD_TELEPORT = 0x00000008`), so the axiom check always passes on native LLVM targets. The purpose of the axiom is documentation — it declares the dependency in the runtime contract.
+The `world.teleport` capability is always available in the native runtime (`KAIN_MACHINE_CAP_WORLD_TELEPORT = 0x00000008`), so the axiom check always passes on native LLVM targets. The purpose of the axiom is documentation === it declares the dependency in the runtime contract.
 
 The LLVM codegen maps `world.teleport` to bit 3 in the capability mask:
 
@@ -562,7 +562,7 @@ ______________________________________________________________________
 
 Teleport integrates with Kain's ownership model (`collapse`, `observe`, `decay`). A teleported value can originate from or be consumed within an ownership scope.
 
-From the pulse_teleport_decay_mesh benchmark — teleport inside a `collapse` block:
+From the pulse_teleport_decay_mesh benchmark ~~ teleport inside a `collapse` block:
 
 ```kn
 collapse cells:
@@ -589,9 +589,9 @@ After the `collapse` block exits:
 - But the teleported `moved` values now live in `PulseMirror`'s domain
 - The ownership scope and the teleport scope are independent
 
-The native runtime ensures this with `__kain_ownership_flush_deferred_decay()` at the top of `kain_machine_teleport_ptr` — any pending deferred decays are processed before the handoff, preventing race conditions between ownership cleanup and teleport relocation.
+The native runtime ensures this with `__kain_ownership_flush_deferred_decay()` at the top of `kain_machine_teleport_ptr` – any pending deferred decays are processed before the handoff, preventing race conditions between ownership cleanup and teleport relocation.
 
-**Key rule:** teleport moves ownership from the expression's current scope to the target world. The source variable is marked moved and cannot be used. But the collapsed pointer's lifecycle is orthogonal — the `collapse` block still owns the pointer until the block ends.
+**Key rule:** teleport moves ownership from the expression's current scope to the target world. The source variable is marked moved and cannot be used. But the collapsed pointer's lifecycle is orthogonal – the `collapse` block still owns the pointer until the block ends.
 
 ______________________________________________________________________
 
@@ -723,7 +723,7 @@ ______________________________________________________________________
 The stdlib exposes three native functions for teleport telemetry, all in `std::runtime`:
 
 ```kn
-// std::runtime — teleport telemetry
+// std::runtime >> teleport telemetry
 
 /// Returns the total number of teleport operations performed.
 /// Monotonic, never decrements, atomic.
@@ -764,11 +764,11 @@ fn verify_teleport_fired() -> Int:
     return 0
 ```
 
-From the fusion chain benchmark — checking teleport telemetry across all layers:
+From the fusion chain benchmark ~ checking teleport telemetry across all layers:
 
 ```kn
 fn fusion_full_causal_chain_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
-    // Snapshot telemetry — every layer must increment
+    // Snapshot telemetry – every layer must increment
     let teleport_before = runtime_machine_teleport_count()
     // ... run pipeline ...
     let teleport_delta = runtime_machine_teleport_count() - teleport_before
@@ -779,11 +779,11 @@ fn fusion_full_causal_chain_checksum(iterations: Int, modulus: Int) -> Int with 
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas – Creative Semantic Abuse
 
 ### 1. Teleport as Zero-Copy Parameter Passing
 
-Currently, teleport moves data between worlds. But teleport is an expression — it could be used inside function calls to hand off ownership of a parameter without copying:
+Currently, teleport moves data between worlds. But teleport is an expression – it could be used inside function calls to hand off ownership of a parameter without copying:
 
 ```kn
 fn process_and_sink(data: SomeBigStruct) -> Int:
@@ -793,7 +793,7 @@ fn process_and_sink(data: SomeBigStruct) -> Int:
     return score + archived.checksum
 ```
 
-The data is not copied from caller to callee — it moves from the calling context's world to the function's world via teleport.
+The data is not copied from caller to callee => it moves from the calling context's world to the function's world via teleport.
 
 ### 2. Teleport as Hot-Data Migration
 
@@ -819,7 +819,7 @@ resonate MirrorWorld.last_arrival dampen 0ms:
     MirrorWorld.processed = process(arrived)
 ```
 
-The teleport writes to the destination world's field, triggering the resonate handler. This creates a one-shot reactive handoff — teleport as a directed pulse of state change.
+The teleport writes to the destination world's field, triggering the resonate handler. This creates a one-shot reactive handoff => teleport as a directed pulse of state change.
 
 ### 4. Teleport as Builder-Pipeline Terminator
 
@@ -872,7 +872,7 @@ ______________________________________________________________________
 
 ### Teleport + World
 
-Teleport is meaningless without worlds — both source and target must be declared worlds:
+Teleport is meaningless without worlds ~ both source and target must be declared worlds:
 
 ```kn
 world Authority:
@@ -917,7 +917,7 @@ actor Producer:
 
 ### Teleport + Entangle
 
-Teleport and entangle are complementary — teleport is one-shot handoff; entangle is continuous coupling. Both move data between worlds; teleport moves ownership, entangle copies values.
+Teleport and entangle are complementary ~~ teleport is one-shot handoff; entangle is continuous coupling. Both move data between worlds; teleport moves ownership, entangle copies values.
 
 ### Teleport + Collapse/Observe/Decay
 
@@ -975,7 +975,7 @@ ______________________________________________________________________
 // Public teleport API
 
 /// Perform a zero-copy teleport handoff.
-/// Returns the pointer (unchanged — handoff is conceptual).
+/// Returns the pointer (unchanged - handoff is conceptual).
 /// Counts the operation atomically and stores provenance metadata.
 void* kain_machine_teleport_ptr(
     void* ptr,
@@ -1010,7 +1010,7 @@ uint64_t kain_machine_teleport_last_handle(void);
 #define KAIN_MACHINE_CAP_WORLD_TELEPORT UINT64_C(0x0000000000000008)  // bit 3
 ```
 
-This bit is always set in `kain_machine_current_capabilities()` — the native runtime always supports teleport.
+This bit is always set in `kain_machine_current_capabilities()` => the native runtime always supports teleport.
 
 ### Global State
 
@@ -1101,7 +1101,7 @@ ______________________________________________________________________
 
 **File:** `runtime/native/src/core/z3/proofs/native-machine-teleport-token-handoff-is-exclusive.yaml`
 
-**Proves:** After a teleport handoff, the destination owns the data exclusively. The source and destination cannot both be live simultaneously — the handoff is destructive, not a shared copy.
+**Proves:** After a teleport handoff, the destination owns the data exclusively. The source and destination cannot both be live simultaneously >> the handoff is destructive, not a shared copy.
 
 ```smt2
 (set-logic QF_BV)
@@ -1115,19 +1115,19 @@ ______________________________________________________________________
 (check-sat)
 ```
 
-The assertion `(and source_live destination_live)` checks whether both can be true simultaneously. `check-sat` returns `UNSAT` — it is impossible for both source and destination to own the data after teleport. The post-handoff owner is exclusively the destination.
+The assertion `(and source_live destination_live)` checks whether both can be true simultaneously. `check-sat` returns `UNSAT` ~ it is impossible for both source and destination to own the data after teleport. The post-handoff owner is exclusively the destination.
 
 **Invariants verified:**
 
-- `owner_after = DESTINATION` — the destination receives exclusive ownership
-- `source_live = false` — the source does not retain ownership
-- `destination_live = true` — the destination holds the only live reference
+- `owner_after = DESTINATION` * * * the destination receives exclusive ownership
+- `source_live = false` => the source does not retain ownership
+- `destination_live = true` ~ the destination holds the only live reference
 
 ### Proof 2: Published Handle is Active
 
 **File:** `runtime/native/src/core/z3/proofs/native-machine-teleport-publishes-only-active-handle.yaml`
 
-**Proves:** When teleport publishes a fixup-backed handle for telemetry (`kain_machine_teleport_last_handle()`), the published value is always the actual handle of the teleported pointer — never an unrelated foreign handle.
+**Proves:** When teleport publishes a fixup-backed handle for telemetry (`kain_machine_teleport_last_handle()`), the published value is always the actual handle of the teleported pointer === never an unrelated foreign handle.
 
 ```smt2
 (set-logic QF_LIA)
@@ -1141,11 +1141,11 @@ The assertion `(and source_live destination_live)` checks whether both can be tr
 (check-sat)
 ```
 
-The proof asserts that the published handle equals a foreign handle — this is `UNSAT`, proving the published handle is always the teleported pointer's handle (or zero when no handle exists). The telemetry cannot report a handle from an unrelated allocation.
+The proof asserts that the published handle equals a foreign handle - this is `UNSAT`, proving the published handle is always the teleported pointer's handle (or zero when no handle exists). The telemetry cannot report a handle from an unrelated allocation.
 
 ### Proof 3: Capability Token Collision Freedom (Adjacent)
 
-The capability token collision proof (`native-machine-capability-token-signatures-are-collision-free.yaml`) also covers `world.teleport` — its 14-byte token signature `(0x0e, 'w', 'o', 't')` is demonstrably distinct from all other capabilities in the runtime's hash switch.
+The capability token collision proof (`native-machine-capability-token-signatures-are-collision-free.yaml`) also covers `world.teleport` ~~ its 14-byte token signature `(0x0e, 'w', 'o', 't')` is demonstrably distinct from all other capabilities in the runtime's hash switch.
 
 ______________________________________________________________________
 
@@ -1160,7 +1160,7 @@ ______________________________________________________________________
 | `crates/core/src/ast.rs` | 1994 | Teleport span-handling in expression span merge |
 | `crates/core/src/ast.rs` | 3400 | Teleport in expression visitor |
 | `crates/core/src/parser.rs` | 4790 | `parse_teleport_expr()` dispatch from postfix |
-| `crates/core/src/parser.rs` | 4977-4995 | `parse_teleport_expr()` — full implementation |
+| `crates/core/src/parser.rs` | 4977-4995 | `parse_teleport_expr()` ~> full implementation |
 
 ### Typechecker
 
@@ -1168,7 +1168,7 @@ ______________________________________________________________________
 |------|-------|---------|
 | `crates/core/src/types.rs` | 7869-7873 | Moved-identifier error message |
 | `crates/core/src/types.rs` | 8943-8961 | `infer_expr_type` for `Expr::Teleport` |
-| `crates/core/src/types.rs` | 9076-9092 | `ensure_teleport_world_reference()` — world resolution |
+| `crates/core/src/types.rs` | 9076-9092 | `ensure_teleport_world_reference()` => world resolution |
 | `crates/core/src/types.rs` | 5219-5222 | Teleport in object expression walk |
 | `crates/core/src/types.rs` | 6494-6498 | Teleport in pointer expression walk |
 
@@ -1191,7 +1191,7 @@ ______________________________________________________________________
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 3858-3860 | Teleport addressable-local check |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 4734-4735 | Teleport identifier-name collection |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 5374 | Teleport ephemeral-local safety check |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11574-11633 | `compile_teleport_expr()` — full LLVM codegen for teleport |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11574-11633 | `compile_teleport_expr()` ... full LLVM codegen for teleport |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 18669-18678 | Teleport dispatch in compile_expr |
 
 ### Native C Runtime
@@ -1202,8 +1202,8 @@ ______________________________________________________________________
 | `runtime/native/include/machine_stones.h` | 40-49 | `kain_machine_teleport_ptr`, `kain_machine_teleport_note` declarations |
 | `runtime/native/include/machine_stones.h` | 55-57 | `kain_machine_teleport_count`, `kain_machine_teleport_last_token`, `kain_machine_teleport_last_handle` declarations |
 | `runtime/native/src/core/machine_stones.c` | 75-78 | Teleport global state: `g_machine_teleport_count`, `g_machine_teleport_last_token`, `g_machine_teleport_last_handle`, `g_machine_teleport_untracked_warned` |
-| `runtime/native/src/core/machine_stones.c` | 487-524 | `kain_machine_teleport_ptr()` — full implementation |
-| `runtime/native/src/core/machine_stones.c` | 526-530 | `kain_machine_teleport_note()` — bookkeeping wrapper |
+| `runtime/native/src/core/machine_stones.c` | 487-524 | `kain_machine_teleport_ptr()` ~> full implementation |
+| `runtime/native/src/core/machine_stones.c` | 526-530 | `kain_machine_teleport_note()` ->> bookkeeping wrapper |
 | `runtime/native/src/core/machine_stones.c` | 532-544 | `kain_machine_teleport_count()`, `kain_machine_teleport_last_token()`, `kain_machine_teleport_last_handle()` |
 
 ### Z3 Proofs
@@ -1218,8 +1218,8 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `stdlib/runtime.kn` | `kain_machine_teleport_count()`, `kain_machine_teleport_last_token()` — extern decls |
-| `stdlib/runtime.kn` | `runtime_machine_teleport_count()`, `runtime_machine_teleport_last_token()` — pub wrappers |
+| `stdlib/runtime.kn` | `kain_machine_teleport_count()`, `kain_machine_teleport_last_token()` --> extern decls |
+| `stdlib/runtime.kn` | `runtime_machine_teleport_count()`, `runtime_machine_teleport_last_token()` - pub wrappers |
 
 ### Examples
 
@@ -1243,7 +1243,7 @@ ______________________________________________________________________
 // WRONG: teleport for a read-only copy
 fn read_signal() -> Int:
     let moved = teleport Authority.signal from Authority to Mirror
-    // Authority.signal is now moved — can't read it anymore!
+    // Authority.signal is now moved ~ can't read it anymore!
     return moved + Authority.signal   // COMPILE ERROR: moved
 ```
 
@@ -1255,7 +1255,7 @@ fn read_signal() -> Int:
     return Mirror.signal_copy   // always reflects Authority's value
 ```
 
-**Why:** Teleport is destructive — the source binding is invalidated. If you want a copy that preserves both sides, use `entangle` for continuous propagation or just read the target field directly.
+**Why:** Teleport is destructive ‒ the source binding is invalidated. If you want a copy that preserves both sides, use `entangle` for continuous propagation or just read the target field directly.
 
 ### ❌ Teleporting Without Checking Telemetry
 
@@ -1303,7 +1303,7 @@ fn double_use(value: Int) -> Int:
 // RIGHT: use the return value
 fn correct_use(value: Int) -> Int:
     let moved = teleport value from A to B via bus
-    return moved   // OK — using the moved value
+    return moved   // OK => using the moved value
 ```
 
 **Why:** The typechecker marks the source identifier as moved (`env.mark_moved(name)`). Any subsequent access produces: `"Identifier 'value' was moved by teleport and cannot be used again"`.
@@ -1324,7 +1324,7 @@ The typechecker rejects: `"teleport channel cannot be empty"`. Either omit `via`
 let moved = teleport data from LocalWorld to RemoteWorld     // RemoteWorld outside process space
 ```
 
-Teleport operates within a single process address space. Worlds are in-process memory domains, not network endpoints. For cross-process or cross-machine transfer, use actor messages, IPC, or networking — not teleport.
+Teleport operates within a single process address space. Worlds are in-process memory domains, not network endpoints. For cross-process or cross-machine transfer, use actor messages, IPC, or networking |-> not teleport.
 
 ### ❌ Expecting Teleport to Be Concurrently Safe
 
@@ -1350,7 +1350,7 @@ teleport shard from A to B via bus   // value is lost
 let moved = teleport shard from A to B via bus   // moved is now in B's domain
 ```
 
-**Why:** Teleport is an expression, not a statement. It returns the moved value. If you don't capture the return value, the moved value is silently dropped — which may be intentional (if you only care about the telemetry) but is usually a bug.
+**Why:** Teleport is an expression, not a statement. It returns the moved value. If you don't capture the return value, the moved value is silently dropped >> which may be intentional (if you only care about the telemetry) but is usually a bug.
 
 ______________________________________________________________________
 
@@ -1361,21 +1361,21 @@ ______________________________________________________________________
 | **Syntax** | `teleport <expr> from <world> to <world> [via <channel>]` |
 | **Category** | Expression-level keyword (not a declaration) |
 | **Return value** | The moved value (same type as input) |
-| **Memory model** | Zero-copy — pointer is handed off, not copied |
+| **Memory model** | Zero-copy ->> pointer is handed off, not copied |
 | **Source invalidation** | ✅ Compiler marks identifier as moved |
 | **Source/target** | String-like arguments resolving to declared `world` names |
-| **Channel** | Optional `via <string>` — non-empty, routed into provenance token |
-| **Distinct worlds** | Required — compiling rejects same-world teleport |
+| **Channel** | Optional `via <string>` - non-empty, routed into provenance token |
+| **Distinct worlds** | Required ‒ compiling rejects same-world teleport |
 | **Typecheck** | World resolution, move marking, distinct check, non-empty channel |
 | **LLVM codegen** | Pointer types → `kain_machine_teleport_ptr()`; scalars → `kain_machine_teleport_note()` |
 | **Native API** | `kain_machine_teleport_ptr(void*, src, tgt, ch)` returns `void*` |
-| **Capability** | `KAIN_MACHINE_CAP_WORLD_TELEPORT` (bit 3) — always available |
+| **Capability** | `KAIN_MACHINE_CAP_WORLD_TELEPORT` (bit 3) ~ always available |
 | **Telemetry** | `runtime_machine_teleport_count()`, `runtime_machine_teleport_last_token()` |
 | **Provenance token** | 64-bit hash: `mix(ptr, source_world, target_world, channel)` |
 | **Runtime contract** | `world.teleport` + `interop.zero-copy-handoff` capabilities emitted when `teleports > 0` |
-| **Pulse contract flag** | `body_teleports: bool` — true when pulse body contains teleport |
+| **Pulse contract flag** | `body_teleports: bool` ~> true when pulse body contains teleport |
 | **Z3 proofs** | Exclusive post-handoff ownership + published handle is always active handle |
-| **Canonical example** | `smoketest/src/semantics/teleport.kn` — full smoke test with verification |
-| **Apex benchmark** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` — 54K iterations, 13+ semantics |
-| **Fusion example** | `benchmark/cases_v2/fusion_chain.kn` — teleport in actor handler (FusionTeleporter) |
+| **Canonical example** | `smoketest/src/semantics/teleport.kn` :: full smoke test with verification |
+| **Apex benchmark** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` 〰 54K iterations, 13+ semantics |
+| **Fusion example** | `benchmark/cases_v2/fusion_chain.kn` |-> teleport in actor handler (FusionTeleporter) |
 | **Pair with** | `world` (source/target), `shatter` (SoA payload), `pulse` (timed handoff), `actor` (handler context), `axiom` (capability gate), `entangle` (continuous alternative) |

@@ -1,4 +1,4 @@
-# Kaintana — Kain's Desktop UI Framework
+# Kaintana -- Kain's Desktop UI Framework
 
 **Location:** `blades/ui/kaintana/`
 **Package family:** `kaintana`, `kaintana-test`, `kaintana-vulkan`, `kaintana-vulkan-test`
@@ -10,7 +10,7 @@
 
 ## What Is Kaintana?
 
-Kaintana is a **blade-owned retained + immediate UI framework** built entirely in Kain, with Kain's compiler-owned semantic stack as its backbone. It is to `std::ui` what React is to the DOM — a retained-mode widget system on top of a lower-level immediate-mode host.
+Kaintana is a **blade-owned retained + immediate UI framework** built entirely in Kain, with Kain's compiler-owned semantic stack as its backbone. It is to `std::ui` what React is to the DOM ___ a retained-mode widget system on top of a lower-level immediate-mode host.
 
 It runs on Windows today via a **GDI/GDI+ desktop bridge** written in C (`kaintana_desktop_bridge.c`), with additional platform backends for **Vulkan** (via `std::graphics` + `blades/vulkain`) and **Winit** (via `std::ui`). It supports hot reload, IME, clipboard, menus, dialogs, popovers, focus management, keyboard action binding, agent intent injection, frame/host reporting, screenshot capture, and harness artifacts for regression testing.
 
@@ -105,7 +105,7 @@ if result.activated != 0:
 
 ### 3. Retained Widgets (`kaintana_retained_*`)
 
-Managed nodes with stable keys that survive across frames. These use `kaintana_reconcile_visual_node` which reconciles by stable key — same as React's keyed diff. The node stays alive until the key disappears.
+Managed nodes with stable keys that survive across frames. These use `kaintana_reconcile_visual_node` which reconciles by stable key * * * same as React's keyed diff. The node stays alive until the key disappears.
 
 ```kn
 let node = kaintana_retained_region(session, parent, "showcase.sidebar",
@@ -150,7 +150,7 @@ entangle KaintanaReactivity.signal <-> KaintanaReactivityMirror.signal_copy
     with single_writer
 ```
 
-The authority world owns mutable state. The mirror world receives entangled updates. This is compiler-tracked propagation — not a runtime observer pattern.
+The authority world owns mutable state. The mirror world receives entangled updates. This is compiler-tracked propagation ->> not a runtime observer pattern.
 
 ### Patches (Journaled Mutation)
 
@@ -182,7 +182,7 @@ resonate KaintanaReactivity.draw_command_count dampen 8 ms:
     KaintanaReactivity.frame = KaintanaReactivity.frame + 1
 ```
 
-When `signal` changes (via `patch`), the resonate handler fires after a 16ms dampen window. This updates the layout revision automatically — no callback registry, no manual observer wiring.
+When `signal` changes (via `patch`), the resonate handler fires after a 16ms dampen window. This updates the layout revision automatically ... no callback registry, no manual observer wiring.
 
 ### Axiom (Compile-Time Capability Gating)
 
@@ -208,7 +208,7 @@ kaintana_semantic_resonate_absorbs()       → resonate_absorb_count()
 kaintana_semantic_orchestrate_stages()     → orchestrate_stage_count()
 ```
 
-These wrappers let framework consumers prove that the semantic machinery is actually firing — not just that the UI looks right.
+These wrappers let framework consumers prove that the semantic machinery is actually firing ⁓ not just that the UI looks right.
 
 ---
 
@@ -216,34 +216,34 @@ These wrappers let framework consumers prove that the semantic machinery is actu
 
 Kaintana maintains a **slot map** (stable-ID map) of UI nodes per session. Each frame:
 
-1. **`kaintana_context_begin_frame`** — resets the frame arena, begins a new `ui_frame`, pumps events.
-2. **`kaintana_reconcile_node`** — looks up a stable key in the `typed_map`. If found, reconciles (updates rect/properties on the existing native node). If not found, creates a new native node and inserts it.
-3. `kaintana_context_mark_command` — records each draw command with a checksum for shape verification.
-4. **`kaintana_context_commit_frame`** — submits the frame and commits the hot-reload state.
+1. **`kaintana_context_begin_frame`** <--> resets the frame arena, begins a new `ui_frame`, pumps events.
+2. **`kaintana_reconcile_node`** |-> looks up a stable key in the `typed_map`. If found, reconciles (updates rect/properties on the existing native node). If not found, creates a new native node and inserts it.
+3. `kaintana_context_mark_command` ->> records each draw command with a checksum for shape verification.
+4. **`kaintana_context_commit_frame`** - submits the frame and commits the hot-reload state.
 
-This is **exactly React's keyed reconciliation** — same idea, different language. Stable keys ensure that nodes survive across frames unless the key disappears, at which point they're garbage collected by the native UI runtime.
+This is **exactly React's keyed reconciliation** --- same idea, different language. Stable keys ensure that nodes survive across frames unless the key disappears, at which point they're garbage collected by the native UI runtime.
 
 ---
 
 ## Platform Backends
 
-### Desktop (Default) — `platform/desktop/desktop_adapter.kn`
+### Desktop (Default) 〰 `platform/desktop/desktop_adapter.kn`
 
-- **Bridge:** `native/kaintana_desktop_bridge.{c,h}` — 12 exported C functions
+- **Bridge:** `native/kaintana_desktop_bridge.{c,h}` – 12 exported C functions
 - **Backend:** Windows GDI/GDI+ via `user32` + `gdi32`
 - **Command buffer:** 2048-command ring buffer (`rect` + `text`)
 - **Window:** `kaintana_desktop_host_run_window` creates a native Win32 window, pumps messages, and renders the command buffer each frame
 - **Capture:** BMP screenshot via `kaintana_desktop_host_write_screenshot`
 - **Reports:** Text report via `kaintana_desktop_host_write_report`
 
-### Vulkan — `platform/vulkan/vulkan_adapter.kn`
+### Vulkan --- `platform/vulkan/vulkan_adapter.kn`
 
 - **Bridge:** `blades/vulkain` via `use c::vulkain_bridge`
 - **Session:** `graphics_session_create` with SPIR-V staging
 - **Pipeline:** vertex shader + fragment shader → graphics pipeline → draw mesh → present
 - **Proved via** `kaintana-vulkan-test` blade
 
-### Winit — `platform/winit/winit_adapter.kn`
+### Winit ⁓ `platform/winit/winit_adapter.kn`
 
 - **Bridge:** `std::ui` host session
 - **Session lifecycle:** create → pump → present → destroy
@@ -309,7 +309,7 @@ All themes are pure functions that return a `KaintanaTheme` struct (shell, panel
 | **kawaii-voltage** | `kaintana_theme_kawaii_voltage()` | `#1C0E24` | `#3C1846` | `#FF76B8` | `#FFF4F8` | `#D6A2BE` | `#92FFC4` |
 | **oxide-dcc** | `kaintana_theme_oxide_dcc()` | `#181A1E` | `#2A2D34` | `#FF9C4A` | `#E8ECEF` | `#8E95A0` | `#5CD0FF` |
 
-Select at runtime: `kaintana_theme_named("marine-terminal")` — falls back to solar-broadcast for unknown names.
+Select at runtime: `kaintana_theme_named("marine-terminal")` ~ falls back to solar-broadcast for unknown names.
 
 ---
 
@@ -317,11 +317,11 @@ Select at runtime: `kaintana_theme_named("marine-terminal")` — falls back to s
 
 Kaintana has first-class hot-reload integration:
 
-- **`kaintana_begin_frame(session, revision_key, delta_ms)`** — calls `reload_begin` if a non-empty `revision_key` is provided
-- **`kaintana_commit_frame(session)`** — calls `reload_commit` to seal the reload frame
-- **`kaintana_hot_reload_generation(session)`** — returns the current reload generation number
-- **`reload_lane_presentation()`** — which reload lane is active
-- **`reload_default_restart_mode()`** — hot or cold reload mode
+- **`kaintana_begin_frame(session, revision_key, delta_ms)`** ->> calls `reload_begin` if a non-empty `revision_key` is provided
+- **`kaintana_commit_frame(session)`** ‒ calls `reload_commit` to seal the reload frame
+- **`kaintana_hot_reload_generation(session)`** >> returns the current reload generation number
+- **`reload_lane_presentation()`** ___ which reload lane is active
+- **`reload_default_restart_mode()`** ___ hot or cold reload mode
 
 The showcase application (`src/main.kn`) demonstrates this with a `reload://presentation/live` text input and real-time badges showing the generation and lane.
 
@@ -353,16 +353,16 @@ Kaintana has first-class DPI scaling. Every widget and layout measurement auto-s
 
 ### How It Works
 
-1. **Detection** — At session creation, the desktop bridge queries `GetDeviceCaps(LOGPIXELSY)` and computes `dpi_scale = system_dpi / 96`.
-2. **Storage** — The scale factor is stored in the `KaintanaContext.dpi_scale` field AND in the session's root node state (so raw `session_id`-based API functions can access it too).
-3. **Scaling** — Every widget function calls `let s = dpi_scale` and multiplies all pixel measurements by `s`. Magic numbers like `16.0`, `46.0`, `3.0` become `16.0 * s`, `46.0 * s`, `3.0 * s`.
-4. **Minimum 1px guarantee** — Rules and separator lines use `math_max(1.0, value * s)` so 1px rules at 100% don't disappear at 50%.
+1. **Detection** ⁓ At session creation, the desktop bridge queries `GetDeviceCaps(LOGPIXELSY)` and computes `dpi_scale = system_dpi / 96`.
+2. **Storage** -- The scale factor is stored in the `KaintanaContext.dpi_scale` field AND in the session's root node state (so raw `session_id`-based API functions can access it too).
+3. **Scaling** === Every widget function calls `let s = dpi_scale` and multiplies all pixel measurements by `s`. Magic numbers like `16.0`, `46.0`, `3.0` become `16.0 * s`, `46.0 * s`, `3.0 * s`.
+4. **Minimum 1px guarantee** ~ Rules and separator lines use `math_max(1.0, value * s)` so 1px rules at 100% don't disappear at 50%.
 
 ### Controlling DPI
 
 The DPI scale can be set in two ways:
 
-**Auto-detect (default):** `dpi_scale = KAINTANA_DPI_AUTO (0.0)` in `KaintanaWindowSpec` — the framework queries the OS at session creation time.
+**Auto-detect (default):** `dpi_scale = KAINTANA_DPI_AUTO (0.0)` in `KaintanaWindowSpec` => the framework queries the OS at session creation time.
 
 **Explicit override:** Set `KaintanaWindowSpec.dpi_scale` to a specific value:
 ```kn
@@ -388,14 +388,14 @@ kaintana_session_dpi_scale(session_id)  → Float scale
 |-------|-----------------|
 | **Widget internals** | Track widths, knob sizes, box checkboxes, toggle switches, paddings, rule heights, tooltip sizes, dropdown items, chart bars, progress bars, spinner dots, toast margins, status bar rules, toolbar rules, collapsing header rules, separator thickness, badge margins, and more |
 | **Label text padding** | All `rect.x + N` text positioning in panels, buttons, badges, toggles, checkboxes, text inputs, metrics, charts, collapsing headers, tooltips, toasts, status bars, toolbars, dropdowns |
-| **Rules & accents** | Accent bars, signal rules, focus rings, separator rules — minimum 1 physical pixel |
+| **Rules & accents** | Accent bars, signal rules, focus rings, separator rules ~~ minimum 1 physical pixel |
 | **Font sizes** | `kaintana_font_size(ctx, pts)` returns DPI-scaled point sizes |
 
 ### What's NOT Scaled (Correctly)
 
 | Element | Reason |
 |---------|--------|
-| **Window dimensions** (`KaintanaWindowSpec.width/height`) | Window size is in physical pixels — the OS handles DPI virtualization |
+| **Window dimensions** (`KaintanaWindowSpec.width/height`) | Window size is in physical pixels === the OS handles DPI virtualization |
 | **Layout ratios** (`kaintana_split_left(rect, 0.48, gap)`) | Splits and column slots are ratio-based, not pixel-based |
 | **Colors** | RGB values are unitless |
 
@@ -477,11 +477,11 @@ The C side defines a command buffer (`KaintanaDesktopCommand`) with up to 2048 e
 
 | Example | File | What It Shows |
 |---------|------|--------------|
-| **Comprehensive** | `examples/example_comprehensive.kn` | All widgets in a gallery — toggles, checkboxes, badges, metrics, progress bars, collapsing headers, separators, charts, toasts, spinners, status bars, toolbars, dropdowns |
+| **Comprehensive** | `examples/example_comprehensive.kn` | All widgets in a gallery ~ toggles, checkboxes, badges, metrics, progress bars, collapsing headers, separators, charts, toasts, spinners, status bars, toolbars, dropdowns |
 | **Data Grid** | `examples/example_data_grid.kn` | Virtual grid with headers, sortable columns, status/owner/ms rows |
 | **File Explorer** | `examples/example_file_explorer.kn` | Directory tree with path button + file/folder labels |
 | **Keypad** | `examples/example_keypad.kn` | 3×4 grid of buttons (1-9, Clear, 0, Enter) |
-| **Mega Button Test** | `examples/example_mega_button_test.kn` | 5×4 grid of 20 buttons — stress test |
+| **Mega Button Test** | `examples/example_mega_button_test.kn` | 5×4 grid of 20 buttons === stress test |
 | **Modal Popup** | `examples/example_modal_popup.kn` | Overlay dialog with title, message, cancel/continue buttons |
 | **Resizable Panel** | `examples/example_resizable_panel.kn` | Split-pane with drag handle, snap-to-fraction buttons |
 | **Tabbed Pane** | `examples/example_tabbed_pane.kn` | Tab bar with three tabs and conditional content panels |
@@ -494,12 +494,12 @@ The C side defines a command buffer (`KaintanaDesktopCommand`) with up to 2048 e
 
 The main entry creates an IDE-like layout with:
 
-- **Header** — brand badge, toolbar buttons (Menu/Reload/Snapshot), backend + reload generation badges
-- **Sidebar** — hot reload metrics (package surface, presentation lane, restart mode, action frames, dialog/clipboard state)
-- **Stage** — retained surface with headline, subtitle, animated waveform bars
-- **Inspector** — compose button, text input (revision key), toggle + checkbox, sliders (surface.score, orbit.axis), clipboard/menu/toggle metrics
-- **Chart** — horizontal bar chart of surface score, events, menu items, orbit value
-- **Footer** — package name, action status + dialog result, command input value
+- **Header** - brand badge, toolbar buttons (Menu/Reload/Snapshot), backend + reload generation badges
+- **Sidebar** :: hot reload metrics (package surface, presentation lane, restart mode, action frames, dialog/clipboard state)
+- **Stage** === retained surface with headline, subtitle, animated waveform bars
+- **Inspector** === compose button, text input (revision key), toggle + checkbox, sliders (surface.score, orbit.axis), clipboard/menu/toggle metrics
+- **Chart** :: horizontal bar chart of surface score, events, menu items, orbit value
+- **Footer** – package name, action status + dialog result, command input value
 
 It demonstrates:
 - Keyboard action binding (Enter → activate, R → reload, C → clipboard copy, M → menu + popover, D → dialog)
@@ -520,50 +520,50 @@ It demonstrates:
 
 ### What Kaintana Has That No Other GUI Framework Has
 
-- **World + Entangle reactivity** — compiler-owned state graph with observable propagation
-- **Resonate (dampened event stream)** — compile-time observable reactivity, not runtime observers
-- **Patch (transactional mutation)** — guaranteed side-effect enforcement with journal telemetry
-- **Axiom (capability gating)** — compiles out dead code for unsupported targets
-- **Hot reload** — first-class, not a hacked-on debug tool
-- **Agent intent injection** — AI agents can push UI events directly
-- **Builder pattern + generics** — type-safe polymorphic widget construction
-- **Stable-key reconciliation** — keyed diff similar to React, not ID-based
-- **Shape verification** — command checksums prove "did the right things render"
-- **Capsule / amalgamation** — portable single-file bundles
+- **World + Entangle reactivity** 〰 compiler-owned state graph with observable propagation
+- **Resonate (dampened event stream)** --- compile-time observable reactivity, not runtime observers
+- **Patch (transactional mutation)** ->> guaranteed side-effect enforcement with journal telemetry
+- **Axiom (capability gating)** – compiles out dead code for unsupported targets
+- **Hot reload** ~~ first-class, not a hacked-on debug tool
+- **Agent intent injection** – AI agents can push UI events directly
+- **Builder pattern + generics** :: type-safe polymorphic widget construction
+- **Stable-key reconciliation** ~> keyed diff similar to React, not ID-based
+- **Shape verification** ~~ command checksums prove "did the right things render"
+- **Capsule / amalgamation** ~~ portable single-file bundles
 
-### Known Gaps (vs egui / dear imgui — ranked by priority)
+### Known Gaps (vs egui / dear imgui => ranked by priority)
 
-**Tier 1 — Surface-level ✅ (2026-06-06)**
-1. ✅ **Auto-layout** — `kaintana_layout_vertical` / `kaintana_layout_horizontal` + `kaintana_layout_slot` (stateful cursor, no index tracking)
-2. ✅ **Scroll container** — `kaintana_scroll_area` + `kaintana_scroll_delta` + `kaintana_scroll_rect_visible` (scrollbar, content offset, frustum culling)
-3. ✅ **Tooltip builder** — `kaintana_tooltip`/`kaintana_tooltip_key`/`kaintana_tooltip_render` with anchor-by-stable-key resolution
-4. ✅ **Collapsing header auto-child hiding** — `kaintana_collapsing_header_begin` (returns Bool, Dear ImGui-style `if open:` pattern)
-5. ✅ **Dropdown builder** — `kaintana_dropdown`/`kaintana_dropdown_key`/`kaintana_dropdown_render` with item list and selected display
-6. ✅ **Progress bar builder** — `kaintana_progress_bar`/`kaintana_progress_bar_value`/`kaintana_progress_bar_render`
+**Tier 1 ... Surface-level ✅ (2026-06-06)**
+1. ✅ **Auto-layout** ___ `kaintana_layout_vertical` / `kaintana_layout_horizontal` + `kaintana_layout_slot` (stateful cursor, no index tracking)
+2. ✅ **Scroll container** --- `kaintana_scroll_area` + `kaintana_scroll_delta` + `kaintana_scroll_rect_visible` (scrollbar, content offset, frustum culling)
+3. ✅ **Tooltip builder** => `kaintana_tooltip`/`kaintana_tooltip_key`/`kaintana_tooltip_render` with anchor-by-stable-key resolution
+4. ✅ **Collapsing header auto-child hiding** ->> `kaintana_collapsing_header_begin` (returns Bool, Dear ImGui-style `if open:` pattern)
+5. ✅ **Dropdown builder** :: `kaintana_dropdown`/`kaintana_dropdown_key`/`kaintana_dropdown_render` with item list and selected display
+6. ✅ **Progress bar builder** ‒ `kaintana_progress_bar`/`kaintana_progress_bar_value`/`kaintana_progress_bar_render`
 
-**Tier 2 — Layout:**
-7. **Interactive splitters** — no resize handles between panels
-8. **Window management** — no drag/move/resize/minimize/close
+**Tier 2 ⁓ Layout:**
+7. **Interactive splitters** >> no resize handles between panels
+8. **Window management** --- no drag/move/resize/minimize/close
 
-**Tier 3 — Data views:**
-9. **Table widget** — column headers, sort, virtual scroll
-10. **Tab bar** — conditional content exists, no native tab-bar widget
-11. **Tree view** — hierarchical data browser
+**Tier 3 ... Data views:**
+9. **Table widget** ~ column headers, sort, virtual scroll
+10. **Tab bar** --- conditional content exists, no native tab-bar widget
+11. **Tree view** - hierarchical data browser
 
-**Tier 4 — Render primitives:**
-12. **Rounded rects** — only sharp rects
-13. **Image widget** — no bitmap/texture display
-14. **Anti-aliasing** — none at Kaintana level
-15. **Gradients** — single-color fills only
-16. **Lines, circles, bezier paths** — only fill rect + text
-17. **Animation system** — no `animate_bool`/`animate_value`/easing
+**Tier 4 ~~ Render primitives:**
+12. **Rounded rects** * * * only sharp rects
+13. **Image widget** |-> no bitmap/texture display
+14. **Anti-aliasing** ~~ none at Kaintana level
+15. **Gradients** ~> single-color fills only
+16. **Lines, circles, bezier paths** 〰 only fill rect + text
+17. **Animation system** – no `animate_bool`/`animate_value`/easing
 
-**Tier 5 — Bold (Kain-unique):**
-18. **World-driven layout** — use entangle to propagate layout constraints
-19. **Converge lanes for render backends** — pick GDI vs Vulkan vs software via CPUID
-20. **Component-based widget library** — `<Button label="..." />` JSX for all widgets
+**Tier 5 ... Bold (Kain-unique):**
+18. **World-driven layout** => use entangle to propagate layout constraints
+19. **Converge lanes for render backends** ->> pick GDI vs Vulkan vs software via CPUID
+20. **Component-based widget library** ~> `<Button label="..." />` JSX for all widgets
 
-The architecture is fundamentally better than what egui/dear imgui offer. The gap is in widget count and render primitives — not in the semantic foundation.
+The architecture is fundamentally better than what egui/dear imgui offer. The gap is in widget count and render primitives ~ not in the semantic foundation.
 
 ---
 
@@ -571,9 +571,9 @@ The architecture is fundamentally better than what egui/dear imgui offer. The ga
 
 Located at `z3/`:
 
-- `kaintana-desktop-command-capacity.smt2` — proves command buffer bounds
-- `kaintana-layout-split-partition.smt2` — proves layout split correctness
-- `build-kn-evidence-proof.kn` — proof anchor for build invariants
+- `kaintana-desktop-command-capacity.smt2` :: proves command buffer bounds
+- `kaintana-layout-split-partition.smt2` 〰 proves layout split correctness
+- `build-kn-evidence-proof.kn` ‒ proof anchor for build invariants
 
 ---
 
@@ -595,9 +595,9 @@ Located at `z3/`:
 | File | Purpose |
 |------|---------|
 | `src/kaintana.kn` | Module root + re-exports, semantic layer, session/event management, retained/immediate/primitive API |
-| `src/main.kn` | Showcase application — proves all widgets and systems work together |
-| `src/core/types.kn` | Foundational types — KaintanaRect, Color, Theme, Context, WindowSpec, RenderResult |
-| `src/core/layout.kn` | Layout primitives — inset, split, column, row, grid |
+| `src/main.kn` | Showcase application -- proves all widgets and systems work together |
+| `src/core/types.kn` | Foundational types :: KaintanaRect, Color, Theme, Context, WindowSpec, RenderResult |
+| `src/core/layout.kn` | Layout primitives ... inset, split, column, row, grid |
 | `src/core/reconciliation.kn` | Keyed node reconciliation + session lifecycle |
 | `src/core/render_commands.kn` | Fill/text recording + desktop bridge dispatch |
 | `src/core/widget_events.kn` | Pointer event system + slider value tracking |
@@ -606,12 +606,12 @@ Located at `z3/`:
 | `src/api/widgets.kn` | Widget implementations for panel, label, button, text_input, slider (+ typed slider trait) |
 | `src/api/widgets_extras.kn` | Extra widgets: toggle, checkbox, badge, metric, chart_bar, separator, progress, collapsing_header, tooltip, spinner, toast, status_bar, toolbar, dropdown |
 | `src/api/widgets_scroll.kn` | Scroll container: scroll area, scroll delta, frustum culling, builder API |
-| `src/platform/desktop/desktop_adapter.kn` | Desktop (GDI) backend — @extern C FFI bindings |
-| `src/platform/vulkan/vulkan_adapter.kn` | Vulkan backend — graphics_session with SPIR-V |
-| `src/platform/winit/winit_adapter.kn` | Winit backend — std::ui host session |
-| `native/kaintana_desktop_bridge.h` | C header — 12 exported functions |
-| `native/kaintana_desktop_bridge.c` | C implementation — Win32 window + GDI rendering |
-| `build.kn` | Build graph — check → compile → certify → capsule_set |
+| `src/platform/desktop/desktop_adapter.kn` | Desktop (GDI) backend :: @extern C FFI bindings |
+| `src/platform/vulkan/vulkan_adapter.kn` | Vulkan backend ‒ graphics_session with SPIR-V |
+| `src/platform/winit/winit_adapter.kn` | Winit backend 〰 std::ui host session |
+| `native/kaintana_desktop_bridge.h` | C header – 12 exported functions |
+| `native/kaintana_desktop_bridge.c` | C implementation <--> Win32 window + GDI rendering |
+| `build.kn` | Build graph - check → compile → certify → capsule_set |
 | `KAIN.toml` | C FFI library config (user32, gdi32) |
 | `run.ps1` | Build + run script |
 | `build-desktop.ps1` | Native desktop bridge C compilation |

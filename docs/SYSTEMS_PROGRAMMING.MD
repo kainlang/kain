@@ -1,4 +1,4 @@
-# Systems Programming in Kain — The Metal Guide
+# Systems Programming in Kain ~ The Metal Guide
 
 > **Status:** Research synthesis, 2026-06-08
 > **Based on:** `benchmark/cases_v2/metal.kn` (600 lines, 12 metal cases), `benchmark/cases_v2/core_os.kn` (550 lines, 11 OS cases + 16 verification tests), `benchmark/cases_v2/CRUSHER.kn` (430 lines, 4 semantic singularity cases), `benchmark/cases_v2/keyword_crucible.kn` (108 keywords exercised), `stdlib/machine.kn` (38 public symbols), `stdlib/os.kn` (127 public symbols), `stdlib/runtime.kn` (56 public symbols), `stdlib/intent.kn` (90 public symbols), `stdlib/atomic.kn` (44 public symbols), `stdlib/memory.kn` (19 public symbols), `stdlib/mmio.kn` (20 public symbols), `stdlib/sync.kn` (62 public symbols), `stdlib/simd.kn` (16 public symbols), `stdlib/thread.kn` (18 public symbols), `stdlib/alloc.kn` (33 public symbols), `stdlib/bits.kn` (17 public symbols), `stdlib/target.kn` (6 public symbols), OWNERSHIP.MD, RULEBOOK.MD
@@ -10,22 +10,22 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [The Systems Stack](#1-the-systems-stack)
-1. [The Metal Surface — Complete Reference](#2-the-metal-surface--complete-reference)
-1. [The OS Surface — std::os](#3-the-os-surface--stdos)
-1. [The Machine Surface — std::machine](#4-the-machine-surface--stdmachine)
-1. [The Runtime Surface — std::runtime](#5-the-runtime-surface--stdruntime)
+1. [The Metal Surface ->> Complete Reference](#2-the-metal-surface--complete-reference)
+1. [The OS Surface ‒ std::os](#3-the-os-surface--stdos)
+1. [The Machine Surface ~ std::machine](#4-the-machine-surface--stdmachine)
+1. [The Runtime Surface ~ std::runtime](#5-the-runtime-surface--stdruntime)
 1. [The Atomic & Memory Surface](#6-the-atomic--memory-surface)
-1. [The C/OS ABI Bridge — include ... as ...](#7-the-cos-abi-bridge--include--as-)
-1. [MMIO — Memory-Mapped I/O](#8-mmio--memory-mapped-io)
+1. [The C/OS ABI Bridge -- include ... as ...](#7-the-cos-abi-bridge--include--as-)
+1. [MMIO |-> Memory-Mapped I/O](#8-mmio--memory-mapped-io)
 1. [Raw Memory & Ownership on Metal](#9-raw-memory--ownership-on-metal)
-1. [Semantic Fusion on Metal — The CRUSHER Pattern](#10-semantic-fusion-on-metal--the-crusher-pattern)
-1. [Hidden Pipelines — 8 Discoveries](#11-hidden-pipelines--8-discoveries)
-1. [The CRUSHER Pattern — Full Walkthrough](#12-the-crusher-pattern--full-walkthrough)
+1. [Semantic Fusion on Metal ~ The CRUSHER Pattern](#10-semantic-fusion-on-metal--the-crusher-pattern)
+1. [Hidden Pipelines >> 8 Discoveries](#11-hidden-pipelines--8-discoveries)
+1. [The CRUSHER Pattern === Full Walkthrough](#12-the-crusher-pattern--full-walkthrough)
 1. [Effects on Metal](#13-effects-on-metal)
 1. [Building & Inspecting Metal Code](#14-building--inspecting-metal-code)
 1. [Validation & Proof](#15-validation--proof)
 1. [Anti-Patterns](#16-anti-patterns)
-1. [Quick Reference — Master Table of Every Metal Surface](#17-quick-reference--master-table-of-every-metal-surface)
+1. [Quick Reference ⁓ Master Table of Every Metal Surface](#17-quick-reference--master-table-of-every-metal-surface)
 
 ______________________________________________________________________
 
@@ -69,11 +69,11 @@ Kain's metal programming surfaces span from the rawest CPU instruction to the hi
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-Every line in this document references real, runnable, checksum-verified benchmark code from `metal.kn`, `core_os.kn`, or `CRUSHER.kn`. No theory — only proven metal surfaces.
+Every line in this document references real, runnable, checksum-verified benchmark code from `metal.kn`, `core_os.kn`, or `CRUSHER.kn`. No theory ~~ only proven metal surfaces.
 
 ______________________________________________________________________
 
-## 2. The Metal Surface — Complete Reference
+## 2. The Metal Surface ~~ Complete Reference
 
 This table catalogs **every low-level primitive Kain owns**, organized by category. Every row is exercised in `metal.kn` (12 cases, 600 lines) or directly available via `std::machine`.
 
@@ -162,13 +162,13 @@ fn fence_barrier_pressure_checksum(iterations: Int) -> Int with Unsafe:
 
 **When to use which fence:**
 
-- `lfence()` — before RDTSC to serialize instruction stream; between dependent loads.
-- `sfence()` — after stores that must be visible before subsequent stores (NT stores, page table updates).
-- `mfence()` — full memory barrier; use when you need a full acquire+release (prefer `atomic_fence_seqcst()` from `std::memory` for most cases).
+- `lfence()` >> before RDTSC to serialize instruction stream; between dependent loads.
+- `sfence()` => after stores that must be visible before subsequent stores (NT stores, page table updates).
+- `mfence()` === full memory barrier; use when you need a full acquire+release (prefer `atomic_fence_seqcst()` from `std::memory` for most cases).
 
 ### 2.3 Volatile Access
 
-Kain provides volatile memory access through `std::memory`. These emit LLVM `load volatile` / `store volatile` — they are never optimized out and are intended for hardware-observable MMIO.
+Kain provides volatile memory access through `std::memory`. These emit LLVM `load volatile` / `store volatile` |-> they are never optimized out and are intended for hardware-observable MMIO.
 
 | Primitive | Function | Purpose |
 |-----------|----------|---------|
@@ -191,7 +191,7 @@ fn write_mmio_register(reg: ptr<Int>, value: Int) with Unsafe:
 
 ### 2.4 CPU Intrinsics
 
-Kain exposes direct CPU-level intrinsics — no C runtime, no FFI, straight to LLVM.
+Kain exposes direct CPU-level intrinsics 〰 no C runtime, no FFI, straight to LLVM.
 
 | Primitive | Function | Purpose | Source |
 |-----------|----------|---------|--------|
@@ -238,7 +238,7 @@ fn cpu_cpuid_topology_checksum(iterations: Int) -> Int with Unsafe:
 
 ### 2.5 Virtual Memory (std::machine)
 
-Kain provides the **complete virtual memory lifecycle** — reserve, commit, protect, lock, decommit, release — all through `std::machine`. No C runtime involved.
+Kain provides the **complete virtual memory lifecycle** ->> reserve, commit, protect, lock, decommit, release ‒ all through `std::machine`. No C runtime involved.
 
 | Primitive | Function | Purpose |
 |-----------|----------|---------|
@@ -368,7 +368,7 @@ The LLVM backend emits the appropriate calling convention prefix. On x86 Windows
 | `@section("name")` | Place function in custom ELF/PE section | `@section(".text.kain.hotpath")` |
 | `@link_name("symbol")` | Override the emitted symbol name | `@link_name("__kain_my_fn")` |
 
-**Real code from `metal.kn` case 11 — the complete naked function trifecta:**
+**Real code from `metal.kn` case 11 :: the complete naked function trifecta:**
 
 ```kn
 @naked
@@ -392,13 +392,13 @@ fn naked_section_control_checksum(iterations: Int) -> Int with Unsafe:
 - Placing functions in custom ELF/PE sections for cache-line alignment or linker ordering.
 - Writing interrupt handlers, exception stubs, or syscall entry points without compiler-generated prologue.
 - Explicit symbol naming for linker scripts, dynamic linker interposition, or symbol versioning.
-- `@naked` means **no stack frame, no register saves, no return address setup** — you control everything.
+- `@naked` means **no stack frame, no register saves, no return address setup** |-> you control everything.
 
 ______________________________________________________________________
 
-## 3. The OS Surface — std::os
+## 3. The OS Surface --- std::os
 
-`std::os` exposes **127 public symbols** encompassing every OS interaction Kain can make. These all call the actual OS kernel — no C runtime intermediaries.
+`std::os` exposes **127 public symbols** encompassing every OS interaction Kain can make. These all call the actual OS kernel – no C runtime intermediaries.
 
 ### 3.1 System Information
 
@@ -538,7 +538,7 @@ ______________________________________________________________________
 | `os_io_uring_setup(entries)` | `Int` | Linux io_uring setup |
 | `os_io_uring_enter(ring_fd, to_submit, min_complete)` | `Int` | Linux io_uring enter |
 
-**Real verification from `core_os.kn` — proving every `std::os` function talks to the real kernel:**
+**Real verification from `core_os.kn` --- proving every `std::os` function talks to the real kernel:**
 
 The `core_os.kn` file contains **16 verification tests** that prove all OS functions are live:
 
@@ -624,9 +624,9 @@ fn simd_gather_example(base: ptr<Int>) -> Int with Unsafe:
 
 ### 3.13 Synchronization Primitives (std::sync)
 
-Kain's `std::sync` provides MCS locks, RwLocks, Semaphores, WaitGroups, Once, and CondVars — all implemented in the native runtime, callable from Kain directly.
+Kain's `std::sync` provides MCS locks, RwLocks, Semaphores, WaitGroups, Once, and CondVars >> all implemented in the native runtime, callable from Kain directly.
 
-**MCS Lock** — scalable NUMA-aware spinlock:
+**MCS Lock** ⁓ scalable NUMA-aware spinlock:
 
 ```kn
 use std::sync
@@ -640,7 +640,7 @@ mcs_node_destroy(node)
 mcs_mutex_destroy(lock)
 ```
 
-**RwLock** — reader-writer lock:
+**RwLock** --> reader-writer lock:
 
 ```kn
 let lock = rwlock_new()
@@ -678,7 +678,7 @@ wait_group_wait(wg)            // blocks until count=0
 wait_group_destroy(wg)
 ```
 
-**Once** — one-time initialization:
+**Once** - one-time initialization:
 
 ```kn
 let once = once_new()
@@ -710,16 +710,16 @@ once_destroy(once)
 use std::target
 
 let tgt = target_current()
-// tgt.arch — Arch::X86_64, Arch::Aarch64
-// tgt.os  — OS::Windows, OS::Linux, OS::Macos
-// tgt.env — Env::Gnu, Env::Msvc
+// tgt.arch => Arch::X86_64, Arch::Aarch64
+// tgt.os  --> OS::Windows, OS::Linux, OS::Macos
+// tgt.env <--> Env::Gnu, Env::Msvc
 
 let has_avx2 = target_has_feature("cpu.x86.avx2")
 ```
 
 ### 3.16 ELF Binary Introspection (std::elf)
 
-Kain can read and parse ELF headers directly — no external tools needed:
+Kain can read and parse ELF headers directly --- no external tools needed:
 
 ```kn
 use std::elf
@@ -733,7 +733,7 @@ fn probe_elf(buffer: ptr<Int>) with Unsafe:
         println("ELF64 x86_64")
 ```
 
-This is useful for JIT loaders, self-modifying code verification, and binary analysis — all without leaving Kain.
+This is useful for JIT loaders, self-modifying code verification, and binary analysis ~> all without leaving Kain.
 
 ### 3.17 Structured Diagnostics (std::diagnostics)
 
@@ -877,18 +877,18 @@ fn profile_hot_section(iterations: Int) -> Int with Unsafe:
     return acc
 ```
 
-### 3.20 Getting Started — Your First Metal Program
+### 3.20 Getting Started === Your First Metal Program
 
 Here's a complete, runnable Kain metal program you can write in 5 minutes:
 
 ```kn
-// first_metal.kn — Your first Kain systems program
+// first_metal.kn --- Your first Kain systems program
 use std::machine
 
 fn main() -> Int with Unsafe:
     println("=== Metal System Probe ===")
 
-    // CPU topology — zero C, direct from LLVM
+    // CPU topology => zero C, direct from LLVM
     println("Logical CPUs:  " + str(cpu_logical_count()))
     println("Physical cores: " + str(cpu_core_count()))
     println("Packages:       " + str(cpu_package_count()))
@@ -961,16 +961,16 @@ The compiler evaluates the entire `comptime` block during code generation. No ru
 
 ______________________________________________________________________
 
-## 4. The Machine Surface — std::machine
+## 4. The Machine Surface ... std::machine
 
-`std::machine` exposes **38 public symbols** — the curated kit of CPU-level operations that don't require `Unsafe` unless noted (most do).
+`std::machine` exposes **38 public symbols** <--> the curated kit of CPU-level operations that don't require `Unsafe` unless noted (most do).
 
 ### 4.1 Fences & Barriers
 
 ```kn
-fn load_fence() -> Unit           // lfence — serialize loads
-fn store_fence() -> Unit          // sfence — serialize stores
-fn full_fence() -> Unit           // mfence — full memory barrier
+fn load_fence() -> Unit           // lfence --- serialize loads
+fn store_fence() -> Unit          // sfence --- serialize stores
+fn full_fence() -> Unit           // mfence - full memory barrier
 ```
 
 ### 4.2 Cache & Hints
@@ -1035,7 +1035,7 @@ fn vm_protect_execute_read_write(address: ptr<Int>, byte_count: Int) -> Int
 
 ______________________________________________________________________
 
-## 5. The Runtime Surface — std::runtime
+## 5. The Runtime Surface - std::runtime
 
 `std::runtime` exposes **56 public symbols** for runtime lifecycle, telemetry, and hardware capability probing.
 
@@ -1095,7 +1095,7 @@ ______________________________________________________________________
 
 Kain provides a full atomics library through `std::atomic` and `std::memory`.
 
-### 6.1 std::memory — Low-Level Atomics
+### 6.1 std::memory >> Low-Level Atomics
 
 These operate directly on raw pointers and are suitable for lightweight synchronization:
 
@@ -1119,7 +1119,7 @@ These operate directly on raw pointers and are suitable for lightweight synchron
 | `atomic_fence_acqrel()` | Acquire+Release fence |
 | `atomic_fence_seqcst()` | Sequentially Consistent fence |
 
-### 6.2 std::atomic — Rich Atomics
+### 6.2 std::atomic ___ Rich Atomics
 
 Provides `AtomicInt`, `AtomicBool`, and `AtomicPtr` with wait/notify support:
 
@@ -1195,14 +1195,14 @@ fn atomic_notify_all(address: ptr<Int>) -> Int
 
 ______________________________________________________________________
 
-## 7. The C/OS ABI Bridge — include ... as ...
+## 7. The C/OS ABI Bridge --- include ... as ...
 
 When you need to reach outside Kain's stdlib into OS-specific C APIs, the `include ... as ...` statement imports C header declarations directly into Kain as typed function bindings. This is the **only** approved way to cross into C on the metal path.
 
 ### 7.1 Basic Import
 
 ```kn
-// Import Windows API — extracts 605 functions from the real Windows SDK
+// Import Windows API => extracts 605 functions from the real Windows SDK
 include <windows.h> as win
 
 // Now you can call Windows API functions:
@@ -1265,9 +1265,9 @@ fn read_virtual_memory(process_handle: ptr<Int>, address: Int) -> Int with Unsaf
     return result
 ```
 
-## 8. MMIO — Memory-Mapped I/O
+## 8. MMIO ... Memory-Mapped I/O
 
-Kain's `std::mmio` provides **20 symbols** for hardware register access — MMIO read/write, bit field manipulation, and endian conversion.
+Kain's `std::mmio` provides **20 symbols** for hardware register access * * * MMIO read/write, bit field manipulation, and endian conversion.
 
 ### 8.1 Access Constants
 
@@ -1314,7 +1314,7 @@ fn mmio_write_int(address: ptr<Int>, value: Int) -> Int  // Volatile MMIO write
 fn mmio_write_one_to_clear(address, bit_offset, width, clear_bits) -> Int
 ```
 
-All MMIO operations use `volatile` semantics — the compiler will never elide or reorder them.
+All MMIO operations use `volatile` semantics – the compiler will never elide or reorder them.
 
 ______________________________________________________________________
 
@@ -1372,18 +1372,18 @@ Kain tracks provenance for every raw pointer:
 Kain provides bump, arena, and pool allocators through `std::alloc`:
 
 ```kn
-// Bump allocator — fastest, no frees
+// Bump allocator * * * fastest, no frees
 let bump = bump_create(1024)        // 1024 cells
 let alloc = bump_alloc(bump, 64)    // 64-cell allocation
 // ... use alloc.ptr, alloc.cells ...
 bump_allocator_destroy(bump)
 
-// Arena allocator — same as bump but with arena semantics
+// Arena allocator >> same as bump but with arena semantics
 let arena = arena_create(2048)
 let block = arena_alloc(arena, 128)
 arena_allocator_destroy(arena)
 
-// Pool allocator — fixed-size blocks, free individual
+// Pool allocator --> fixed-size blocks, free individual
 let pool = pool_create(32, 64)      // 32 blocks of 64 cells each
 let block = pool_alloc(pool)
 pool_free_block(pool, block.index)
@@ -1403,7 +1403,7 @@ let ptr: ptr<Int> = int_to_ptr(addr)
 let byte_ptr: ptr<Byte> = bitcast(ptr)
 ```
 
-### 9.6 Real Code — Full Ownership Lifecycle (from `metal.kn` case 2)
+### 9.6 Real Code ___ Full Ownership Lifecycle (from `metal.kn` case 2)
 
 ```kn
 fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
@@ -1449,9 +1449,9 @@ The compiler sees that `mem_store` is the first operation inside `collapse` and 
 
 ______________________________________________________________________
 
-## 10. Semantic Fusion on Metal — The CRUSHER Pattern
+## 10. Semantic Fusion on Metal --> The CRUSHER Pattern
 
-The most important insight in this document: **you can use the entire Kain semantic stack at the metal level**. This is not "write semantic OR write metal" — it's both, simultaneously.
+The most important insight in this document: **you can use the entire Kain semantic stack at the metal level**. This is not "write semantic OR write metal" -- it's both, simultaneously.
 
 ### 10.1 World as OS Cache (from `core_os.kn`)
 
@@ -1486,7 +1486,7 @@ pub fn os_semantic_page() -> Int:
     return WorldOsMirror.page_size_copy
 ```
 
-The benchmark in `core_os.kn` proves the speedup is **substantial** — calling `os_getpagesize()` through the kernel vs reading from a world field. When you do 8 OS value reads per iteration at 10,000 iterations, the cache path wins by orders of magnitude.
+The benchmark in `core_os.kn` proves the speedup is **substantial** => calling `os_getpagesize()` through the kernel vs reading from a world field. When you do 8 OS value reads per iteration at 10,000 iterations, the cache path wins by orders of magnitude.
 
 ### 10.2 Patch as Journaled Metal Mutation
 
@@ -1533,7 +1533,7 @@ converge bench_converge_checksum(iterations: Int) -> Int:
     verify random(8)
 ```
 
-And from `metal.kn` case 10 — converge with inline asm in the fast lane:
+And from `metal.kn` case 10 ->> converge with inline asm in the fast lane:
 
 ```kn
 converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
@@ -1590,7 +1590,7 @@ shatter struct Particle:
     mass: Int
 ```
 
-The compiler lowers `shatter struct` to **Structure-of-Arrays** layout — fields are stored in parallel arrays for SIMD-friendly access. When used with ownership collapse, the stack backing is SoA.
+The compiler lowers `shatter struct` to **Structure-of-Arrays** layout --- fields are stored in parallel arrays for SIMD-friendly access. When used with ownership collapse, the stack backing is SoA.
 
 ### 10.8 Actor as Metal Pressure Vessel
 
@@ -1625,9 +1625,9 @@ axiom vm_page_is_4k:
     fallback vm_page_size()
 ```
 
-The compiler uses axioms for optimization decisions — if you declare AVX2 as axiomatic, the compiler may emit VEX-coded instructions without runtime checks.
+The compiler uses axioms for optimization decisions ~> if you declare AVX2 as axiomatic, the compiler may emit VEX-coded instructions without runtime checks.
 
-### 10.10 Share + Fanout — Parallel Metal Lanes
+### 10.10 Share + Fanout --- Parallel Metal Lanes
 
 `share` and `fanout` extend the ownership system for parallel write lanes. Inside a `share` scope, `fanout` launches N parallel writer lanes:
 
@@ -1655,13 +1655,13 @@ pulse metal_tick every 1ms jitter 0.1ms:
 
 ______________________________________________________________________
 
-## 11. Hidden Pipelines — 8 Discoveries
+## 11. Hidden Pipelines --- 8 Discoveries
 
 ### 10.1 Semantic OS Caching (from `core_os.kn`)
 
 **The pattern:** Seed OS values once into a world, entangle to a mirror, read from mirror at zero cost forever.
 
-**Why it's hidden:** People think of `std::os` as "call `os_getpagesize()`" — but the real power is caching OS metadata in compiler-owned state. The `WorldOsAuthority`/`WorldOsMirror` pattern in `core_os.kn` proves **17 OS values** can be cached with 17 entangle declarations.
+**Why it's hidden:** People think of `std::os` as "call `os_getpagesize()`" - but the real power is caching OS metadata in compiler-owned state. The `WorldOsAuthority`/`WorldOsMirror` pattern in `core_os.kn` proves **17 OS values** can be cached with 17 entangle declarations.
 
 ```kn
 // Seed once
@@ -1699,13 +1699,13 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 ### 10.5 Virtual Memory from Kain (from `metal.kn` case 5)
 
-**The pattern:** Full VM lifecycle — reserve → commit → protect_none → protect_rw → protect_rwx → lock → unlock → decommit → unmap — with `collapse` blocks inside mapped pages.
+**The pattern:** Full VM lifecycle ~~ reserve → commit → protect_none → protect_rw → protect_rwx → lock → unlock → decommit → unmap <--> with `collapse` blocks inside mapped pages.
 
 **Why it's hidden:** This is NOT a C wrapper. `vm_reserve`/`vm_commit`/etc. call the OS kernel directly through the Kain native runtime. You can write to mapped pages with `mem_store` inside `collapse` blocks.
 
 ### 10.6 Calling Convention Control (from `metal.kn` case 6)
 
-**The pattern:** `@callconv("win64")` and `@callconv("vectorcall")` — you control the ABI at function granularity.
+**The pattern:** `@callconv("win64")` and `@callconv("vectorcall")` ->> you control the ABI at function granularity.
 
 **Why it's hidden:** Most languages don't let you mix calling conventions in the same source file. Kain does, and the compiler emits the right LLVM CC prefix.
 
@@ -1719,11 +1719,11 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 **The pattern:** `teleport shard from WorldA to WorldB via bus` inside a hot loop with actor ask, converge, and patch.
 
-**Why it's hidden:** The compiler-owned handoff at metal speed. Teleport is not "serialization" — it's a zero-copy ownership transfer that the compiler tracks. Combined with entangle propagation counts (`entangle_propagation_count()`) and runtime teleport counts (`runtime_machine_teleport_count()`), you have full telemetry.
+**Why it's hidden:** The compiler-owned handoff at metal speed. Teleport is not "serialization" -- it's a zero-copy ownership transfer that the compiler tracks. Combined with entangle propagation counts (`entangle_propagation_count()`) and runtime teleport counts (`runtime_machine_teleport_count()`), you have full telemetry.
 
 ______________________________________________________________________
 
-## 12. The CRUSHER Pattern — Full Walkthrough
+## 12. The CRUSHER Pattern --- Full Walkthrough
 
 `CRUSHER.kn` case 1 (`crusher_actor_ownership_mesh_checksum`) is the **single most important systems programming example in Kain**. Let's walk through every line.
 
@@ -1770,7 +1770,7 @@ Spawns a CrusherRelay actor with initial bias. The actor will receive messages v
     let cpuid_sig = cpuid_eax(0, 0) + cpuid_ebx(7, 0) + cpuid_ecx(7, 0) + cpuid_edx(1, 0)
 ```
 
-These are all baseline reads — we capture them before the hot loop to compute deltas later. Note `cpuid_sig` uses CPUID to seed machine entropy directly into the checksum.
+These are all baseline reads ~ we capture them before the hot loop to compute deltas later. Note `cpuid_sig` uses CPUID to seed machine entropy directly into the checksum.
 
 ### 12.5 Raw Memory Allocation
 
@@ -1781,7 +1781,7 @@ These are all baseline reads — we capture them before the hot loop to compute 
 
 Two raw pointer buffers for the hot loop. Both will be used with collapse/observe/decay.
 
-### 12.6 The Hot Loop — Semantic Fusion
+### 12.6 The Hot Loop >> Semantic Fusion
 
 ```kn
     let acc = 0
@@ -1814,7 +1814,7 @@ Trait dispatch via `CrusherMetric` and `CrusherStable` on the packet. This prove
         }
 ```
 
-Shatter struct initialization — the compiler lowers this to SoA layout.
+Shatter struct initialization * * * the compiler lowers this to SoA layout.
 
 ```kn
         let moved = teleport shard from CrusherAuthority to CrusherMirror via crusher_bus
@@ -1858,7 +1858,7 @@ Hardware fences AND inline asm in the same loop iteration as actor/world/telepor
         round = round + 1
 ```
 
-Mirror reads via entangle propagation — `CrusherMirror.signal_copy` is automatically synced from `CrusherAuthority.signal` through the entangle.
+Mirror reads via entangle propagation ⁓ `CrusherMirror.signal_copy` is automatically synced from `CrusherAuthority.signal` through the entangle.
 
 ### 12.7 Final Fence and Memory Teardown
 
@@ -1899,7 +1899,7 @@ Every semantic operation is measurable. You can verify that patches fired, entan
         + CrusherMirror.scheduler_score_copy + cpuid_sig, modulus)
 ```
 
-The checksum includes EVERYTHING — data values, telemetry deltas, mirror states, and machine entropy. Determinism is verifiable across runs.
+The checksum includes EVERYTHING ->> data values, telemetry deltas, mirror states, and machine entropy. Determinism is verifiable across runs.
 
 ______________________________________________________________________
 
@@ -1968,12 +1968,12 @@ When calling a function with stricter effects from a function with weaker effect
 
 ```kn
 fn parent() with Unsafe:
-    child_with_pure()           // OK — Pure is weaker than Unsafe
-    child_with_io()             // OK — IO is weaker than Unsafe
-    child_with_unsafe()         // OK — same level
+    child_with_pure()           // OK ‒ Pure is weaker than Unsafe
+    child_with_io()             // OK ->> IO is weaker than Unsafe
+    child_with_unsafe()         // OK ‒ same level
 
 fn parent_with_pure():
-    child_with_unsafe()         // ERROR — Unsafe is stronger than Pure
+    child_with_unsafe()         // ERROR ___ Unsafe is stronger than Pure
 ```
 
 ### 13.6 Effect Inference for Inline Asm
@@ -2048,7 +2048,7 @@ kain_native target=my_metal.kn emit=llvm-ir
 ### 14.4 The full `build.kn` for Metal Projects
 
 ```kn
-// build.kn — metal project manifest
+// build.kn ~> metal project manifest
 project "metal-demo":
     version "0.1.0"
     description "Low-level metal surfaces demo"
@@ -2251,7 +2251,7 @@ kain_native target=my_metal.kn emit=llvm-ir
 ### 14.4 The full `build.kn` for Metal Projects
 
 ```kn
-// build.kn — metal project manifest
+// build.kn ‒ metal project manifest
 project "metal-demo":
     version "0.1.0"
     description "Low-level metal surfaces demo"
@@ -2273,7 +2273,7 @@ project "metal-demo":
 
 ______________________________________________________________________
 
-## 17. Quick Reference — Master Table of Every Metal Surface
+## 17. Quick Reference :: Master Table of Every Metal Surface
 
 ### 17.1 Inline Assembly
 
@@ -2448,9 +2448,9 @@ Kain's systems programming surface is **not** a thin C wrapper. It is not a Rust
 
 The three benchmark files that prove this:
 
-- **`metal.kn`** — 12 cases, 600 lines. Every raw surface: asm, fences, CPUID, VM, calling conventions, shatter, naked functions, converge+asm.
-- **`core_os.kn`** — 11 cases, 550 lines + 16 verification tests. Every `std::os` function proven against the real kernel. World/entangle OS caching. Converge with AVX2/AVX-512 lanes.
-- **`CRUSHER.kn`** — 4 cases, 430 lines. The semantic singularity: all 7 layers fused with all metal surfaces in deterministic, telemetry-verified hot loops.
+- **`metal.kn`** ... 12 cases, 600 lines. Every raw surface: asm, fences, CPUID, VM, calling conventions, shatter, naked functions, converge+asm.
+- **`core_os.kn`** -- 11 cases, 550 lines + 16 verification tests. Every `std::os` function proven against the real kernel. World/entangle OS caching. Converge with AVX2/AVX-512 lanes.
+- **`CRUSHER.kn`** – 4 cases, 430 lines. The semantic singularity: all 7 layers fused with all metal surfaces in deterministic, telemetry-verified hot loops.
 
 Run them yourself:
 
@@ -2474,20 +2474,20 @@ ______________________________________________________________________
 | Rule Book | `X:/docs/RULEBOOK.MD` | Decision ladder, idiom guide |
 | C ABI Guide | `X:/docs/C_GUIDE.MD` | include/as, FFI patterns |
 | GPU Guide | `X:/docs/SHADER_GPU.MD` | Shader compute, GPU metal |
-| std::machine | `X:/stdlib/machine.kn` | 38 symbols — fences, VM, CPUID, prefetch |
-| std::os | `X:/stdlib/os.kn` | 127 symbols — all OS surface functions |
-| std::runtime | `X:/stdlib/runtime.kn` | 56 symbols — telemetry, SIMD, converge |
-| std::atomic | `X:/stdlib/atomic.kn` | 44 symbols — atomic types, wait/notify |
-| std::memory | `X:/stdlib/memory.kn` | 19 symbols — volatile, fences, low-level atomics |
-| std::mmio | `X:/stdlib/mmio.kn` | 20 symbols — MMIO read/write, bit fields |
-| std::sync | `X:/stdlib/sync.kn` | 62 symbols — MCS locks, RwLock, semaphore, CV |
-| std::simd | `X:/stdlib/simd.kn` | 16 symbols — vector types, gather/scatter |
-| std::thread | `X:/stdlib/thread.kn` | 18 symbols — thread spawn/join/affinity |
-| std::alloc | `X:/stdlib/alloc.kn` | 33 symbols — bump, arena, pool allocators |
-| std::bits | `X:/stdlib/bits.kn` | 17 symbols — popcount, rotations, truncations |
-| std::target | `X:/stdlib/target.kn` | 6 symbols — arch/OS/env detection |
-| std::elf | `X:/stdlib/elf.kn` | 11 symbols — ELF header parsing |
-| std::diagnostics | `X:/stdlib/diagnostics.kn` | 25 symbols — logging, debug dump, status |
+| std::machine | `X:/stdlib/machine.kn` | 38 symbols ~> fences, VM, CPUID, prefetch |
+| std::os | `X:/stdlib/os.kn` | 127 symbols ⁓ all OS surface functions |
+| std::runtime | `X:/stdlib/runtime.kn` | 56 symbols - telemetry, SIMD, converge |
+| std::atomic | `X:/stdlib/atomic.kn` | 44 symbols --- atomic types, wait/notify |
+| std::memory | `X:/stdlib/memory.kn` | 19 symbols ~> volatile, fences, low-level atomics |
+| std::mmio | `X:/stdlib/mmio.kn` | 20 symbols ->> MMIO read/write, bit fields |
+| std::sync | `X:/stdlib/sync.kn` | 62 symbols |-> MCS locks, RwLock, semaphore, CV |
+| std::simd | `X:/stdlib/simd.kn` | 16 symbols => vector types, gather/scatter |
+| std::thread | `X:/stdlib/thread.kn` | 18 symbols 〰 thread spawn/join/affinity |
+| std::alloc | `X:/stdlib/alloc.kn` | 33 symbols ... bump, arena, pool allocators |
+| std::bits | `X:/stdlib/bits.kn` | 17 symbols ->> popcount, rotations, truncations |
+| std::target | `X:/stdlib/target.kn` | 6 symbols --> arch/OS/env detection |
+| std::elf | `X:/stdlib/elf.kn` | 11 symbols --- ELF header parsing |
+| std::diagnostics | `X:/stdlib/diagnostics.kn` | 25 symbols ->> logging, debug dump, status |
 
 ### Benchmark Source Files
 
@@ -2520,7 +2520,7 @@ ______________________________________________________________________
 
 ## Fundamentals Summary
 
-Kain's systems programming surface can be summarized in **seven fundamental patterns** — understand these, and you understand the entire metal stack:
+Kain's systems programming surface can be summarized in **seven fundamental patterns** ~> understand these, and you understand the entire metal stack:
 
 | # | Pattern | Key Constructs | Reference Code |
 |---|---------|---------------|----------------|

@@ -1,4 +1,4 @@
-# pi-squared — The Kain-Native Coding Agent
+# pi-squared 〰 The Kain-Native Coding Agent
 
 A complete rewrite of the pi coding-agent in Kain.
 30+ source files, 3 actors, 8 worlds, 3 pipelines, 3 converge blocks, 3 pulses.
@@ -74,7 +74,7 @@ Powered by MarkScript for build orchestration, configuration, and documentation.
 
 # Components
 
-## **Stream Alpha** — Framework Core
+## **Stream Alpha** ... Framework Core
 
 > run
 
@@ -85,7 +85,7 @@ print("Dependencies: Kain stdlib, llvm target, debug profile")
 print("Status: In flight")
 ```
 
-### **Stage 1** — Types and CLI
+### **Stage 1** |-> Types and CLI
 
 > run
 
@@ -95,7 +95,7 @@ print("typecheck: src/types.kn, src/cli.kn")
 print("action: verify CliArgs struct has all 15 flags and 5 subcommands")
 ```
 
-### **Stage 2** — Configuration Subsystem
+### **Stage 2** <--> Configuration Subsystem
 
 > run
 
@@ -105,7 +105,7 @@ print("files: src/config/defaults.kn, src/config/settings.kn, src/config/trust.k
 print("action: spawn PiSettingsManager, init TrustStore world, load markscript config tables")
 ```
 
-### **Stage 3** — Session Subsystem
+### **Stage 3** :: Session Subsystem
 
 > run
 
@@ -115,7 +115,7 @@ print("files: src/session/tree.kn, src/session/compaction.kn, src/session/migrat
 print("action: spawn SessionTree actor, wire compaction pipeline, register migration functions")
 ```
 
-### **Stage 4** — Agent Core
+### **Stage 4** ~~ Agent Core
 
 > run
 
@@ -125,7 +125,7 @@ print("files: src/agent/agent.kn, src/agent/events.kn, src/agent/queues.kn")
 print("action: spawn AgentActor, spawn AgentEventBus, wire QueueMode dispatch")
 ```
 
-### **Stage 5** — Resource Loading
+### **Stage 5** ⁓ Resource Loading
 
 > run
 
@@ -135,7 +135,7 @@ print("files: src/resources/loader.kn, src/resources/skills.kn, src/resources/pr
 print("action: spawn ResourceLoader, register skill/prompt/context providers, assemble system prompt")
 ```
 
-### **Stage 6** — Tool Registry
+### **Stage 6** --> Tool Registry
 
 > run
 
@@ -145,7 +145,7 @@ print("files: src/tools/trait.kn, src/tools/registry.kn, src/tools/read.kn, src/
 print("action: init ToolRegistry world, register all 9 tools, verify converge dispatch_tool")
 ```
 
-### **Stage 7** — Entry Point
+### **Stage 7** -- Entry Point
 
 > run
 
@@ -158,7 +158,7 @@ print("target: llvm, profile: debug")
 
 ---
 
-## **Stream Bravo** — Provider Layer
+## **Stream Bravo** === Provider Layer
 
 > run
 
@@ -169,7 +169,7 @@ print("Dependencies: Stream Alpha completion, HTTP client lib")
 print("Status: Planned")
 ```
 
-### **Stage 1** — Provider Trait and Models
+### **Stage 1** |-> Provider Trait and Models
 
 > run
 
@@ -179,7 +179,7 @@ print("files: src/providers/trait.kn, src/providers/models.kn")
 print("action: define LlmProvider trait with streaming interface, define Model struct with capabilities")
 ```
 
-### **Stage 2** — Provider Registry
+### **Stage 2** * * * Provider Registry
 
 > run
 
@@ -189,7 +189,7 @@ print("files: src/providers/registry.kn")
 print("action: init provider registry world, register built-in providers")
 ```
 
-### **Stage 3** — SSE Streaming
+### **Stage 3** ⁓ SSE Streaming
 
 > run
 
@@ -249,14 +249,14 @@ print("kain run src/main.kn --target llvm -- --help")
 
 ```markscript
 print("=== Install Prerequisites ===")
-print("Kain compiler (v0.1.0+) — build from root with: bazel build //:kain --config=dev")
-print("LLVM toolchain (clang, lld) — for native compilation")
-print("Python 3.11+ — for init and migration scripts")
+print("Kain compiler (v0.1.0+) === build from root with: bazel build //:kain --config=dev")
+print("LLVM toolchain (clang, lld) --> for native compilation")
+print("Python 3.11+ -- for init and migration scripts")
 ```
 
 ## Clone and Build
 
-### **Stage 1** — Repository Setup
+### **Stage 1** * * * Repository Setup
 
 > run
 
@@ -266,7 +266,7 @@ print("cd pi-squared")
 print("ls -la")
 ```
 
-### **Stage 2** — Build Compiler
+### **Stage 2** --> Build Compiler
 
 > run
 
@@ -276,7 +276,7 @@ print("bazel build //:kain --config=dev")
 print("kain_sync_binary")
 ```
 
-### **Stage 3** — Build Project
+### **Stage 3** – Build Project
 
 > run
 
@@ -389,16 +389,16 @@ print("  verify random(4)")
 
 | Test | Source | Type |
 |------|--------|------|
-| types_test.kn | src/types.kn | Unit — struct constructors, defaults, serialization |
-| cli_test.kn | src/cli.kn | Unit — all 15 flags, 5 subcommands, error cases |
-| settings_test.kn | src/config/settings.kn | Actor — PiSettingsManager handler coverage |
-| trust_test.kn | src/config/trust.kn | World — TrustStore add/check/clear |
-| session_test.kn | src/session/tree.kn | Actor — SessionTree append/branch/context |
-| compaction_test.kn | src/session/compaction.kn | Pipeline — full orchestrate run with pulse |
-| agent_test.kn | src/agent/agent.kn | Actor — Prompt→Continue→Steer→Abort cycle |
-| events_test.kn | src/agent/events.kn | Actor — EventBus subscribe/emit/unsubscribe |
-| tools_test.kn | src/tools/registry.kn | Converge — dispatch_tool across all 9 tools |
-| migration_test.kn | src/session/migrations.kn | Unit — v1→v2→v3 round-trip |
+| types_test.kn | src/types.kn | Unit :: struct constructors, defaults, serialization |
+| cli_test.kn | src/cli.kn | Unit ... all 15 flags, 5 subcommands, error cases |
+| settings_test.kn | src/config/settings.kn | Actor - PiSettingsManager handler coverage |
+| trust_test.kn | src/config/trust.kn | World – TrustStore add/check/clear |
+| session_test.kn | src/session/tree.kn | Actor >> SessionTree append/branch/context |
+| compaction_test.kn | src/session/compaction.kn | Pipeline <--> full orchestrate run with pulse |
+| agent_test.kn | src/agent/agent.kn | Actor ... Prompt→Continue→Steer→Abort cycle |
+| events_test.kn | src/agent/events.kn | Actor ... EventBus subscribe/emit/unsubscribe |
+| tools_test.kn | src/tools/registry.kn | Converge * * * dispatch_tool across all 9 tools |
+| migration_test.kn | src/session/migrations.kn | Unit 〰 v1→v2→v3 round-trip |
 
 ### **Run All Tests**
 
@@ -544,7 +544,7 @@ blades/pi-squared/
 
 ## Structural Laws
 
-### **Law 1** — Tool Names Are Unique
+### **Law 1** ___ Tool Names Are Unique
 
 > run
 
@@ -553,7 +553,7 @@ print("let name_table = ...")
 print("assert(len(unique_names) == len(all_tools))")
 ```
 
-### **Law 2** — Session Has Active Pane
+### **Law 2** <--> Session Has Active Pane
 
 > run
 
@@ -562,7 +562,7 @@ print("let session = ...")
 print("assert(session.active_pane != none)")
 ```
 
-### **Law 3** — Compaction Never Destroys Context
+### **Law 3** === Compaction Never Destroys Context
 
 > run
 
@@ -573,7 +573,7 @@ print("let after = session.context_size()")
 print("assert(before == 0 or after > 0)")
 ```
 
-### **Law 4** — Config Merge Preserves All Keys
+### **Law 4** :: Config Merge Preserves All Keys
 
 > run
 
@@ -585,7 +585,7 @@ print("assert(key_count <= max_keys)")
 print("assert(key_count >= len(defaults.keys()))")
 ```
 
-### **Law 5** — Provider Capability Subset
+### **Law 5** :: Provider Capability Subset
 
 > run
 
@@ -656,12 +656,12 @@ print("assert(is_subset(model.capabilities, provider_capabilities(provider_id)))
 
 ```markscript
 print("=== Startup Orchestrate Pipeline ===")
-print("stage: init — runtime_init(), init logging, init error handler")
-print("stage: parse — parse CliArgs from process args")
-print("stage: migrate — run session migrations if detected (v1→v2→v3)")
-print("stage: load — spawn config actor, load 4-layer config, init trust store")
-print("stage: resolve — resolve provider, resolve model, validate capabilities")
-print("stage: ready — dispatch to interactive or oneshot mode")
+print("stage: init ... runtime_init(), init logging, init error handler")
+print("stage: parse => parse CliArgs from process args")
+print("stage: migrate ~ run session migrations if detected (v1→v2→v3)")
+print("stage: load ⁓ spawn config actor, load 4-layer config, init trust store")
+print("stage: resolve <--> resolve provider, resolve model, validate capabilities")
+print("stage: ready --> dispatch to interactive or oneshot mode")
 ```
 
 > run
@@ -684,7 +684,7 @@ print("  stage ready: dispatch main_loop or oneshot after resolve requires law a
 
 ```markscript
 print("=== Compaction Pulse ===")
-print("Every 30s, jitter 5s — compact active session if over threshold")
+print("Every 30s, jitter 5s >> compact active session if over threshold")
 ```
 
 > run
@@ -701,7 +701,7 @@ print("    compaction_pipeline(session)")
 
 ```markscript
 print("=== Heartbeat Pulse ===")
-print("Every 10s, no jitter — emit Heartbeat event for keepalive")
+print("Every 10s, no jitter ⁓ emit Heartbeat event for keepalive")
 ```
 
 > run
@@ -715,7 +715,7 @@ print("  AgentEventBus.emit(Heartbeat(timestamp = runtime_now()))")
 
 ```markscript
 print("=== Idle Detection Pulse ===")
-print("Every 60s, jitter 10s — detect inactivity and auto-compact")
+print("Every 60s, jitter 10s ... detect inactivity and auto-compact")
 ```
 
 > run

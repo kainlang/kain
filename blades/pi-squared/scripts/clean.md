@@ -1,4 +1,4 @@
-# Clean — Workspace Cleanup
+# Clean – Workspace Cleanup
 
 Removes build artifacts, cached outputs, and compiled binaries.
 

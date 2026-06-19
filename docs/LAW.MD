@@ -1,4 +1,4 @@
-# Law — Compiler-Owned Invariant Predicate
+# Law - Compiler-Owned Invariant Predicate
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `crates/orchestrate/src/stage.rs`, `stdlib/intent.kn`, `smoketest/src/semantics/law.kn`, `smoketest/src/semantics/orchestrate.kn`, `crates/semantic/symbol_corpus/*.kn`, `blades/experiments/convergence/src/*.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, RULEBOOK.MD, CATALOG.MD, GLOSSARY.MD, PULSE.MD
@@ -8,11 +8,11 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What Is Law?](#what-is-law)
-1. [The Core Idea — Compiler-Owned Invariant Predicate](#the-core-idea)
+1. [The Core Idea ~ Compiler-Owned Invariant Predicate](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
-1. [The Law Patterns — How to Use It](#the-law-patterns)
-1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [How It Works ... Full Pipeline](#how-it-works)
+1. [The Law Patterns :: How to Use It](#the-law-patterns)
+1. [Under-Utilized Ideas - Creative Semantic Abuse](#under-utilized-ideas)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
 1. [Stdlib Telemetry API](#stdlib-telemetry-api)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
@@ -28,42 +28,42 @@ ______________________________________________________________________
 
 ## What Is Law?
 
-`law` is a **top-level declaration** in Kain that defines an **invariant predicate** — a function that returns `Bool` and represents a correctness constraint that the compiler, runtime, and orchestrate engine can all see and reason about.
+`law` is a **top-level declaration** in Kain that defines an **invariant predicate** ___ a function that returns `Bool` and represents a correctness constraint that the compiler, runtime, and orchestrate engine can all see and reason about.
 
 ```kn
 law value_in_range(v: Int) -> Bool:
     return v >= 0 and v < 1000000007
 ```
 
-A `law` is **not** a fancy `if` statement. It is a **compiler-owned invariant declaration**. When you write `law`, you're telling the compiler: "this is a constraint on my system that must hold for correctness." The compiler records it in the runtime contract, makes it visible to orchestrate stages, and emits it into telemetry metadata — without you writing any of that plumbing yourself.
+A `law` is **not** a fancy `if` statement. It is a **compiler-owned invariant declaration**. When you write `law`, you're telling the compiler: "this is a constraint on my system that must hold for correctness." The compiler records it in the runtime contract, makes it visible to orchestrate stages, and emits it into telemetry metadata ~ without you writing any of that plumbing yourself.
 
 Where a normal `fn` is "here's a computation," a `law` is "here's a truth about my system."
 
 ______________________________________________________________________
 
-## The Core Idea — Compiler-Owned Invariant Predicate
+## The Core Idea - Compiler-Owned Invariant Predicate
 
 ### What Law IS NOT
 
-- ❌ Not an assertion — `law` doesn't abort, crash, or halt. It returns `Bool`, and you decide what to do with the result.
-- ❌ Not a runtime guard — the compiler doesn't insert automatic checks before every world write. You call laws explicitly.
-- ❌ Not a `patch` — a law has no mutation, no journal, no undo mode. It's a pure predicate.
-- ❌ Not a `converge` — there's no spec/fast lane selection, no capability gating, no verification.
-- ❌ Not an `axiom` — there's no architecture/capability predicates, no guarantees, no fallback.
-- ❌ Not a Z3 proof — law returns `Bool` at runtime. It doesn't feed Z3 assertions (that's `std::proof` / `std::z3`).
-- ❌ Not a native C construct — there's zero `law.h`, `law.c`, or `abi_law_*` code in the entire native runtime.
+- ❌ Not an assertion - `law` doesn't abort, crash, or halt. It returns `Bool`, and you decide what to do with the result.
+- ❌ Not a runtime guard <--> the compiler doesn't insert automatic checks before every world write. You call laws explicitly.
+- ❌ Not a `patch` >> a law has no mutation, no journal, no undo mode. It's a pure predicate.
+- ❌ Not a `converge` ~~ there's no spec/fast lane selection, no capability gating, no verification.
+- ❌ Not an `axiom` => there's no architecture/capability predicates, no guarantees, no fallback.
+- ❌ Not a Z3 proof |-> law returns `Bool` at runtime. It doesn't feed Z3 assertions (that's `std::proof` / `std::z3`).
+- ❌ Not a native C construct <--> there's zero `law.h`, `law.c`, or `abi_law_*` code in the entire native runtime.
 
 ### What Law IS
 
-- ✅ A **compiler-owned invariant** — the typechecker enforces `-> Bool` at declaration time
-- ✅ A **runtime-visible contract** — laws appear in the runtime contract bundle alongside worlds, patches, entangles, orchestrates
-- ✅ An **orchestrate stage kind** — `stage name: law check_invoke(args)` is a first-class pipeline stage
-- ✅ A **pipeline guard** — `requires law_stage` makes other stages depend on the law passing
-- ✅ A **telemetry point** — `law_status(law_call())` converts `Bool` → `Int` (0 = valid, -1 = invalid)
-- ✅ A **world-aware predicate** — law bodies are typechecked with `in_patch = true`, giving them access to world state
-- ✅ **Pure by convention** — the typechecker allows effects (IO, Async, GPU) but the intent is a pure predicate
-- ✅ **Zero runtime overhead beyond a function call** — compiles to the same LLVM IR as `fn`
-- ✅ **Broader effect permissions than `fn`** — laws can read world state, call patches, and touch entangles
+- ✅ A **compiler-owned invariant** ... the typechecker enforces `-> Bool` at declaration time
+- ✅ A **runtime-visible contract** >> laws appear in the runtime contract bundle alongside worlds, patches, entangles, orchestrates
+- ✅ An **orchestrate stage kind** 〰 `stage name: law check_invoke(args)` is a first-class pipeline stage
+- ✅ A **pipeline guard** – `requires law_stage` makes other stages depend on the law passing
+- ✅ A **telemetry point** * * * `law_status(law_call())` converts `Bool` → `Int` (0 = valid, -1 = invalid)
+- ✅ A **world-aware predicate** ->> law bodies are typechecked with `in_patch = true`, giving them access to world state
+- ✅ **Pure by convention** ... the typechecker allows effects (IO, Async, GPU) but the intent is a pure predicate
+- ✅ **Zero runtime overhead beyond a function call** === compiles to the same LLVM IR as `fn`
+- ✅ **Broader effect permissions than `fn`** ... laws can read world state, call patches, and touch entangles
 
 ### Where Law Sits in the Decision Ladder
 
@@ -90,7 +90,7 @@ law <name>(<params>) -> Bool:
 ### Concrete Examples
 
 ```kn
-// Range check — the most common pattern
+// Range check => the most common pattern
 law signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < 1000000007
 
@@ -128,15 +128,15 @@ law world_invariant(authority: Authority) -> Bool:
 |------|----------|------------------------------|
 | Return type must be `Bool` | ✅ Typechecker | Compile error: `law 'foo' must return Bool, found Int` |
 | Parameters can be any type | ✅ Parser | Accepter |
-| Body can use world state | ✅ `in_patch = true` | Allowed — world reads/writes work in law bodies |
+| Body can use world state | ✅ `in_patch = true` | Allowed ->> world reads/writes work in law bodies |
 | Effects are tracked, not restricted | ✅ Typechecker | Your law can have IO, but shouldn't |
-| Generics are not supported | — | `law_function_view` hardcodes `generics: vec![]` |
+| Generics are not supported | => | `law_function_view` hardcodes `generics: vec![]` |
 | Visibility (pub, private) | ✅ Parser | Works as expected |
 | Attributes stable | ✅ Parser | Works |
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works ->> Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -155,16 +155,16 @@ ______________________________________________________________________
     → RealtimeLawBinding (same shape)
   → codegen_llvm/mod.rs: compile_law()
     → Delegates to compile_named_callable() (same as fn/patch)
-    → Emits normal LLVM IR — no special instrumentation
+    → Emits normal LLVM IR :: no special instrumentation
   → runtime.rs: register_law_value()
     → Registers in interpreter law table
 ```
 
 ### At Compile Time
 
-The typechecker wraps law into a function view (`law_function_view`) and runs it through the same `check_function` path used for `fn`. Then it enforces the Bool return. There's no special tracking for mutation paths, undo modes, or epoch counters — unlike `check_patch`, `check_law` is minimal.
+The typechecker wraps law into a function view (`law_function_view`) and runs it through the same `check_function` path used for `fn`. Then it enforces the Bool return. There's no special tracking for mutation paths, undo modes, or epoch counters ~> unlike `check_patch`, `check_law` is minimal.
 
-The key detail: **`env.in_patch = true`** is set during law typechecking. This means law bodies compile in the same context as patch bodies — they can read world state directly.
+The key detail: **`env.in_patch = true`** is set during law typechecking. This means law bodies compile in the same context as patch bodies --> they can read world state directly.
 
 ### At Runtime
 
@@ -174,7 +174,7 @@ The key detail: **`env.in_patch = true`** is set during law typechecking. This m
 
 ______________________________________________________________________
 
-## The Law Patterns — How to Use It
+## The Law Patterns - How to Use It
 
 ### Pattern 1: Bounds Guard (The Canonical Pattern)
 
@@ -186,7 +186,7 @@ law signal_in_bounds(value: Int) -> Bool:
 
 fn guarded_set(authority: Authority, value: Int) -> Int:
     if law_status(signal_in_bounds(value)) < 0:
-        return -1            // law violation — reject
+        return -1            // law violation 〰 reject
     authority.signal = value  // safe to write
     return 0
 ```
@@ -195,7 +195,7 @@ fn guarded_set(authority: Authority, value: Int) -> Int:
 
 ### Pattern 2: Domain Invariant (The Rat Experiment)
 
-From the convergence rat experiment in `blades/experiments/convergence/src/` — **9 laws that validate the simulation's domain model**:
+From the convergence rat experiment in `blades/experiments/convergence/src/` ___ **9 laws that validate the simulation's domain model**:
 
 ```kn
 law rat_cell_in_bounds(index: Int, cell_count: Int) -> Bool:
@@ -216,13 +216,13 @@ law rat_heat_visible(heat: Int) -> Bool:
     return heat >= 0 and heat < 256
 ```
 
-These laws describe the world model — valid maze dimensions, distinct start/target, heat in display range — not just parameter bounds. The main function calls a `rat_law_lane()` at startup to verify all laws are satisfiable before the simulation begins.
+These laws describe the world model -- valid maze dimensions, distinct start/target, heat in display range => not just parameter bounds. The main function calls a `rat_law_lane()` at startup to verify all laws are satisfiable before the simulation begins.
 
-**Why law not comments:** These 9 laws are machine-checkable documentation of the simulation's domain constraints. They're in the runtime contract. They can be queried by the orchestrate pipeline. They're not comments that rot — they're runnable predicates.
+**Why law not comments:** These 9 laws are machine-checkable documentation of the simulation's domain constraints. They're in the runtime contract. They can be queried by the orchestrate pipeline. They're not comments that rot 〰 they're runnable predicates.
 
 ### Pattern 3: Orchestrate Pipeline Guard (The Pipeline Pattern)
 
-From the fusion chain and 24-tet effects engine — laws as pipeline validation stages:
+From the fusion chain and 24-tet effects engine === laws as pipeline validation stages:
 
 ```kn
 orchestrate fx_process_note(slot: Int, velocity: Int, frame: Int, world: FxWorld) -> Int:
@@ -244,7 +244,7 @@ orchestrate fx_process_note(slot: Int, velocity: Int, frame: Int, world: FxWorld
 
 ### Pattern 4: Checksum-Folding (The Invisible Guard)
 
-From the semantic crucible corpus — fold `law_status` directly into a checksum so violations are observable without branching:
+From the semantic crucible corpus --- fold `law_status` directly into a checksum so violations are observable without branching:
 
 ```kn
 let law_status: Int = law_status(signal_in_bounds(patched))
@@ -253,7 +253,7 @@ let next_cell: Int = (reply + local_score + law_status) % MODULUS
 
 If the law passes, `law_status` returns `0` → contributes nothing to the checksum. If it fails, `-1` shifts the hash. **This proves the law was evaluated** without an explicit `if` check or early return.
 
-This pattern appears in **13 variants** across the semantic corpus. It's the most elegant standalone law usage — no control flow, just arithmetic.
+This pattern appears in **13 variants** across the semantic corpus. It's the most elegant standalone law usage >> no control flow, just arithmetic.
 
 **Why law not an assert:** This silently folds the inviolation into the program's observable output. A user or test can compare the expected checksum against the actual and detect law violations without any explicit error handling.
 
@@ -279,7 +279,7 @@ The chain: **law guards → patch writes → entangle propagates**. The mirror n
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas >> Creative Semantic Abuse
 
 ### 1. Law as a Z3-Feedable Constraint
 
@@ -299,7 +299,7 @@ law signal_in_bounds(value: Int) -> Bool:
 //     // i.e., the law implementation is correct
 ```
 
-A law that is also Z3-provable would be the highest expression of Kain's semantic stack — a compile-time verified invariant, not just a runtime predicate.
+A law that is also Z3-provable would be the highest expression of Kain's semantic stack <--> a compile-time verified invariant, not just a runtime predicate.
 
 ### 2. Law as an Entangle Pre-Propagation Filter
 
@@ -348,7 +348,7 @@ A resonate handler fires on state change. Law can validate the new state before 
 resonate Authority.signal validate_signal 4ms:
     let new_signal = resonate_new_i64
     if law_status(signal_in_bounds(new_signal)) == false:
-        return               // reject — don't propagate
+        return               // reject ->> don't propagate
     Mirror.validated_signal = new_signal
 ```
 
@@ -364,7 +364,7 @@ if law_before < 0 or law_after < 0:
     return -15    // law violation detected
 ```
 
-This works today with zero runtime changes — the law function call IS the telemetry point, and the status check IS the proof.
+This works today with zero runtime changes ->> the law function call IS the telemetry point, and the status check IS the proof.
 
 ### 6. Law as a Capability Gate (if capability emitted)
 
@@ -582,7 +582,7 @@ ______________________________________________________________________
 
 ## LLVM Codegen
 
-Law codegen is trivial — it's the **same path as `fn`**:
+Law codegen is trivial :: it's the **same path as `fn`**:
 
 ```rust
 fn compile_law(&mut self, law: &TypedLaw) -> KainResult<()> {
@@ -618,7 +618,7 @@ What does NOT exist:
 | `stdlib_abi.c` law section | Telemetry counter | **Does not exist** |
 | Z3 law proofs | Bounds/correctness proofs | **Do not exist** |
 
-This is the correct design. Law is a lightweight predicate — the entire stack is: Kain source → parser → typechecker → `compile_named_callable` → plain LLVM IR → native function. No runtime substrate needed.
+This is the correct design. Law is a lightweight predicate ~> the entire stack is: Kain source → parser → typechecker → `compile_named_callable` → plain LLVM IR → native function. No runtime substrate needed.
 
 ______________________________________________________________________
 
@@ -634,20 +634,20 @@ There are no Z3 proofs for law. Unlike:
 | Machine stones | Token collision, ownership ops |
 | **Law** | **None** |
 
-Law doesn't need proofs because it has no native runtime registry, no slot table, no counters, no arithmetic with edge cases. It's a function call. The Z3 proof for a law would be in the user's domain — e.g., "prove the law's Boolean logic is equivalent to its mathematical specification" — not in the runtime substrate.
+Law doesn't need proofs because it has no native runtime registry, no slot table, no counters, no arithmetic with edge cases. It's a function call. The Z3 proof for a law would be in the user's domain ~~ e.g., "prove the law's Boolean logic is equivalent to its mathematical specification" |-> not in the runtime substrate.
 
 ______________________________________________________________________
 
 ## Validation Ladder
 
 ```powershell
-# 1. Typecheck — catches non-Bool return type, type errors in body
+# 1. Typecheck <--> catches non-Bool return type, type errors in body
 kain check <file.kn> --target llvm
 
-# 2. Compile + run — law executes as a normal function
+# 2. Compile + run ->> law executes as a normal function
 kain run <file.kn> --target llvm
 
-# 3. Test law explicitly — create a test function that calls law_status
+# 3. Test law explicitly === create a test function that calls law_status
 #    and returns non-zero on failure
 fn test_law() -> Int:
     if law_status(signal_in_bounds(42)) < 0:
@@ -656,11 +656,11 @@ fn test_law() -> Int:
         return 2   // should fail
     return 0
 
-# 4. Check runtime contract — laws appear in the contract manifest
+# 4. Check runtime contract - laws appear in the contract manifest
 kain build <file.kn> --target llvm
 # Inspect output runtime_contract.json for law entries
 
-# 5. Orchestrate integration — verify law stage fires in pipeline
+# 5. Orchestrate integration => verify law stage fires in pipeline
 kain run <orchestrate_file.kn> --target llvm
 # Check orchestrate_stage_status for law stage
 
@@ -671,7 +671,7 @@ python benchmark/run.py --case fusion_chain --languages kain --runs 1 --warmups 
 ### Smoketest
 
 ```kn
-// smoketest/src/semantics/law.kn — the canonical test
+// smoketest/src/semantics/law.kn – the canonical test
 use std::runtime
 use std::intent
 
@@ -698,11 +698,11 @@ ______________________________________________________________________
 ### ❌ Using Law as a Regular Function
 
 ```kn
-// WRONG — law must return Bool
+// WRONG --> law must return Bool
 law compute_hash(value: Int) -> Int:      // compile error
     return ((value * 31) + 7) % MODULUS
 
-// RIGHT — use fn for computation
+// RIGHT ~ use fn for computation
 fn compute_hash(value: Int) -> Int:
     return ((value * 31) + 7) % MODULUS
 ```
@@ -710,12 +710,12 @@ fn compute_hash(value: Int) -> Int:
 ### ❌ Law With Side Effects
 
 ```kn
-// WRONG — law that logs
+// WRONG - law that logs
 law log_and_check(value: Int) -> Bool with IO:
     println("checking: " + str(value))     // side effect!
     return value >= 0
 
-// RIGHT — keep law as a pure predicate
+// RIGHT – keep law as a pure predicate
 law value_non_negative(value: Int) -> Bool:
     return value >= 0
 ```
@@ -723,12 +723,12 @@ law value_non_negative(value: Int) -> Bool:
 ### ❌ Law That Mutates World State
 
 ```kn
-// WRONG — law must not mutate
+// WRONG ->> law must not mutate
 law check_and_bump(authority: Authority, value: Int) -> Bool:
     authority.epoch = authority.epoch + 1    // mutation inside a law!
     return value >= 0 and value < MODULUS
 
-// RIGHT — keep laws read-only
+// RIGHT ~ keep laws read-only
 law value_in_bounds(authority: Authority) -> Bool:
     return authority.signal >= 0 and authority.signal < MODULUS
 ```
@@ -736,17 +736,17 @@ law value_in_bounds(authority: Authority) -> Bool:
 ### ❌ Declaring a Law and Never Calling It
 
 ```kn
-// WRONG — law declared but never used
+// WRONG -- law declared but never used
 law signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < MODULUS
 
 fn set_signal(authority: Authority, value: Int) -> Int:
-    if value < 0 or value >= MODULUS:    // inline check — law not used
+    if value < 0 or value >= MODULUS:    // inline check – law not used
         return -1
     authority.signal = value
     return 0
 
-// RIGHT — use the law
+// RIGHT – use the law
 fn set_signal(authority: Authority, value: Int) -> Int:
     if law_status(signal_in_bounds(value)) < 0:
         return -1
@@ -757,14 +757,14 @@ fn set_signal(authority: Authority, value: Int) -> Int:
 ### ❌ Inline Bounds Check Instead of Law
 
 ```kn
-// WRONG — invisible invariant
+// WRONG ~ invisible invariant
 fn set_signal(authority: Authority, value: Int) -> Int:
     if value < 0 or value >= MODULUS:
         return -1
     authority.signal = value
     return 0
 
-// RIGHT — compiler-owned invariant
+// RIGHT ->> compiler-owned invariant
 law signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < MODULUS
 
@@ -780,11 +780,11 @@ The inline check works but is invisible to the runtime contract, orchestrate sta
 ### ❌ Raw Bool Check Instead of `law_status`
 
 ```kn
-// WRONG — raw Bool breaks the standard vocabulary
+// WRONG ->> raw Bool breaks the standard vocabulary
 if signal_in_bounds(value) == false:
     return -1
 
-// RIGHT — use law_status for consistency
+// RIGHT ~ use law_status for consistency
 if law_status(signal_in_bounds(value)) < 0:
     return -1
 ```
@@ -797,7 +797,7 @@ The `law_status()` wrapper isn't required for correctness (the Bool check works 
 // If you never check law_status, you have no proof the law ran.
 // The compiler may even optimize it away if the result is unused.
 
-// RIGHT — prove the law ran:
+// RIGHT ... prove the law ran:
 let _proof = law_status(signal_in_bounds(value))   // silence "unused result" warnings
 ```
 
@@ -815,25 +815,25 @@ ______________________________________________________________________
 |--------|--------|
 | **Syntax** | `law <name>(<params>) -> Bool: <body>` |
 | **Return type** | Must be `Bool` (compile-time enforced) |
-| **`in_patch` context** | `true` — law bodies CAN read world state |
-| **Effect permissions** | All effects allowed (IO, Async, GPU, Unsafe — but shouldn't use them) |
+| **`in_patch` context** | `true` --> law bodies CAN read world state |
+| **Effect permissions** | All effects allowed (IO, Async, GPU, Unsafe --- but shouldn't use them) |
 | **Generics** | Not supported |
 | **Interpreter** | Full support (`Value::Law`, `HashMap` lookup) |
-| **LLVM codegen** | `compile_named_callable()` — same as `fn`, plain function IR |
+| **LLVM codegen** | `compile_named_callable()` ~> same as `fn`, plain function IR |
 | **Runtime contract** | `RuntimeLawContract { name, symbol, param_types, return_type }` |
-| **Native C runtime** | **Zero files** — no `law.h`, `law.c`, or `abi_law_*` functions |
+| **Native C runtime** | **Zero files** ⁓ no `law.h`, `law.c`, or `abi_law_*` functions |
 | **Capability emitted** | None |
 | **Z3 proofs** | None |
 | **Stdlib module** | `std::intent` |
 | **Telemetry functions** | `law_status(Bool) -> Int`, `law_is_valid_status(Int) -> Bool` |
-| **Telemetry counter** | None — no `law_evaluation_count()` exists |
-| **Orchestrate stage** | `stage <name>: law <fn_name>(args)` — kind `OrchestrateStageKind::Law` |
-| **Orchestrate guard** | `requires <stage_name>` — makes a stage depend on the law passing |
-| **Checksum-folding** | `let checksum = (a + b + law_status(law_call())) % MOD` — elegant evaluation proof |
+| **Telemetry counter** | None ... no `law_evaluation_count()` exists |
+| **Orchestrate stage** | `stage <name>: law <fn_name>(args)` ⁓ kind `OrchestrateStageKind::Law` |
+| **Orchestrate guard** | `requires <stage_name>` --> makes a stage depend on the law passing |
+| **Checksum-folding** | `let checksum = (a + b + law_status(law_call())) % MOD` ~> elegant evaluation proof |
 | **Canonical example** | `smoketest/src/semantics/law.kn` |
 | **Orchestrate example** | `smoketest/src/semantics/orchestrate.kn` |
 | **Fusion example** | `benchmark/cases_v2/fusion_chain.kn` |
-| **Domain-model example** | `blades/experiments/convergence/src/*.kn` — 9 laws for maze geometry |
+| **Domain-model example** | `blades/experiments/convergence/src/*.kn` ->> 9 laws for maze geometry |
 | **Checksum-folding example** | `crates/semantic/symbol_corpus/main.kn` (13 variants) |
 
 ______________________________________________________________________
@@ -845,8 +845,8 @@ ______________________________________________________________________
 | File | Content |
 |------|---------|
 | `crates/core/src/ast.rs` | `Item::Law`, `LawDef` struct |
-| `crates/core/src/parser.rs` | `parse_law()` — contextual keyword, params, return type, block |
-| `crates/core/src/types.rs` | `check_law()` — `in_patch=true`, function view, Bool enforcement |
+| `crates/core/src/parser.rs` | `parse_law()` --> contextual keyword, params, return type, block |
+| `crates/core/src/types.rs` | `check_law()` ‒ `in_patch=true`, function view, Bool enforcement |
 | `crates/core/src/runtime_contract.rs` | `RuntimeLawContract`, `collect_law_contracts()` |
 | `crates/core/src/realtime_app_bundle.rs` | `RealtimeLawBinding`, `collect_law_bindings()` |
 | `crates/core/src/runtime.rs` | `register_law_value()`, interpreter dispatch |
@@ -879,4 +879,4 @@ ______________________________________________________________________
 | `crates/semantic/symbol_corpus/main.kn` (13 variants) | Semantic crucible: checksum-folding pattern |
 | `blades/experiments/convergence/src/*.kn` | Rat experiment: 9 domain-model laws |
 | `blades/python/24_tet/src/resonate_py_effects.kn` | 24-tet effects: law in orchestrate with `requires` |
-| `docs/RULEBOOK.md` | "State Integrity" section — law + patch + orchestrate |
+| `docs/RULEBOOK.md` | "State Integrity" section ___ law + patch + orchestrate |

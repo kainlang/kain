@@ -1,4 +1,4 @@
-# Vulkan Template — Minimal 3D Starter for Kain
+# Vulkan Template >> Minimal 3D Starter for Kain
 
 A ready-to-use template for building Vulkan-rendered 3D applications in pure Kain. Opens a cross-platform native window, renders a colored cube, and provides WASD+Mouse flyby camera controls.
 
@@ -52,7 +52,7 @@ blades/templates/vulkan/
 
 | Construct | Why |
 |-----------|-----|
-| `fn` + `struct` | Template is Layer 0 — plain imperative render loop |
+| `fn` + `struct` | Template is Layer 0 ~> plain imperative render loop |
 | `include <windows.h> as win` | Win32 native window (no std::ui) |
 | `use std::graphics` | Vulkan GPU backend |
 | `@extern @link_name` | Manual Win32 API for pointer-taking functions |
@@ -73,10 +73,10 @@ Currently the MVP matrix is static (identity). To animate the camera view:
 - Draw multiple meshes in the render loop
 
 ### Vulkan Backends
-- `graphics_backend_select(session, "vulkan")` — Vulkan (default)
-- `graphics_backend_select(session, "dx12")` — DirectX 12
-- `graphics_backend_select(session, "metal")` — Metal (macOS)
-- `graphics_backend_select(session, "auto")` — auto-detect
+- `graphics_backend_select(session, "vulkan")` - Vulkan (default)
+- `graphics_backend_select(session, "dx12")` ~ DirectX 12
+- `graphics_backend_select(session, "metal")` * * * Metal (macOS)
+- `graphics_backend_select(session, "auto")` >> auto-detect
 
 ## Requirements
 
@@ -86,8 +86,8 @@ Currently the MVP matrix is static (identity). To animate the camera view:
 
 ## Troubleshooting
 
-**"Failed to load vertex shader"** — Run `python shaders/compile_shaders.py` to generate the .spv files.
+**"Failed to load vertex shader"** - Run `python shaders/compile_shaders.py` to generate the .spv files.
 
-**"No graphics backend available"** — Ensure Vulkan drivers are installed. Try `graphics_backend_select(session, "auto")`.
+**"No graphics backend available"** ~ Ensure Vulkan drivers are installed. Try `graphics_backend_select(session, "auto")`.
 
-**Window doesn't appear** — Check that `graphics_session_create` succeeds. The window is created by `win_CreateWindowExA`. If `include <windows.h>` fails, ensure the Windows SDK is available.
+**Window doesn't appear** ->> Check that `graphics_session_create` succeeds. The window is created by `win_CreateWindowExA`. If `include <windows.h>` fails, ensure the Windows SDK is available.

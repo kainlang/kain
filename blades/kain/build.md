@@ -1,4 +1,4 @@
-# KainSelfHost — Build Pipeline
+# KainSelfHost ... Build Pipeline
 
 View blades/markscript/readme.md for more information on markscript and how it works
 
@@ -10,7 +10,7 @@ View blades/markscript/readme.md for more information on markscript and how it w
 | Property | Value |
 |----------|-------|
 | Project | kainc |
-| Phase | 0 — CLI Shell |
+| Phase | 0 === CLI Shell |
 | Entry | src/main.kn |
 | Bootstrap | crates/cli/kain.exe (Rust) |
 | Target | llvm |
@@ -18,12 +18,12 @@ View blades/markscript/readme.md for more information on markscript and how it w
 ## PhaseMap
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 0 — CLI Shell | active | --help, --version, subcommand stubs |
-| 1 — DLL Bridge | planned | Rust DLL FFI, OrcJIT |
-| 2 — Parser | planned | Lexer + parser in Kain |
-| 3 — Typechecker | planned | 4-pass type system |
-| 4 — Codegen | planned | LLVM-C FFI emission |
-| 5 — Ouroboros | planned | Self-compiles itself |
+| 0 – CLI Shell | active | --help, --version, subcommand stubs |
+| 1 〰 DLL Bridge | planned | Rust DLL FFI, OrcJIT |
+| 2 => Parser | planned | Lexer + parser in Kain |
+| 3 ___ Typechecker | planned | 4-pass type system |
+| 4 --- Codegen | planned | LLVM-C FFI emission |
+| 5 --- Ouroboros | planned | Self-compiles itself |
 
 ---
 

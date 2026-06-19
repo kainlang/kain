@@ -2,7 +2,7 @@
 
 **Greeble** is a portable, pure-Kain Erlang/OTP-style actor server framework. It compresses what would be thousands of lines of Erlang/OTP, Akka, or Elixir/Phoenix into a small set of Kain source files by letting the language own the state, dispatch, timing, coupling, and pipeline semantics that traditional frameworks implement as manual boilerplate.
 
-Like [three-kn](https://github.com/kain-lang/kain/tree/master/blades/three-kn) for 3D rendering, greeble is for actor servers — a template you clone, a framework you import, a reference architecture you study.
+Like [three-kn](https://github.com/kain-lang/kain/tree/master/blades/three-kn) for 3D rendering, greeble is for actor servers 〰 a template you clone, a framework you import, a reference architecture you study.
 
 ---
 
@@ -57,18 +57,18 @@ The framework is organized as 11 flat source files, each mapped to a layer of th
 
 ```
 src/
-├── main.kn           Entry point — CLI, bootstrap, pump loop, shutdown
-├── types.kn          L0 — shared structs, constants, pack/unpack
-├── cli.kn            L0 — CLI argument parsing → GreebleConfig
-├── state.kn          L1+L2 — dual-world pattern, laws, patches
-├── telemetry.kn      L0 — runtime telemetry collection, JSON export
-├── dashboard.kn      L5 — live terminal dashboard (pulse + \r in-place)
-├── gateway.kn        L7 — RateLimiter + AuthGate actors
-├── worker.kn         L7 — WorkerActor + WorkerPoolSupervisor
-├── session.kn        L7 — SessionActor + link/monitor lifecycle
-├── router.kn         L7 — RouterActor with HTTP parsing + route dispatch
-├── supervisor.kn     L7 — RootSupervisor + GatewaySupervisor
-└── pipeline.kn       L0 — request pipeline passthrough (orchestrate in v0.2)
+├── main.kn           Entry point - CLI, bootstrap, pump loop, shutdown
+├── types.kn          L0 * * * shared structs, constants, pack/unpack
+├── cli.kn            L0 ⁓ CLI argument parsing → GreebleConfig
+├── state.kn          L1+L2 ... dual-world pattern, laws, patches
+├── telemetry.kn      L0 <--> runtime telemetry collection, JSON export
+├── dashboard.kn      L5 => live terminal dashboard (pulse + \r in-place)
+├── gateway.kn        L7 :: RateLimiter + AuthGate actors
+├── worker.kn         L7 ~~ WorkerActor + WorkerPoolSupervisor
+├── session.kn        L7 - SessionActor + link/monitor lifecycle
+├── router.kn         L7 ___ RouterActor with HTTP parsing + route dispatch
+├── supervisor.kn     L7 === RootSupervisor + GatewaySupervisor
+└── pipeline.kn       L0 <--> request pipeline passthrough (orchestrate in v0.2)
 ```
 
 ### Decision Ladder Usage
@@ -120,9 +120,9 @@ HTTP Request
 
 ```kn
 RootSupervisor (OneForAll, Permanent)
-  ├── RouterActor        — HTTP routing, Io lane
-  ├── RateLimiter        — sliding window, bounded mailbox
-  ├── AuthGate           — token validation, Transient restart
+  ├── RouterActor        ... HTTP routing, Io lane
+  ├── RateLimiter        ~~ sliding window, bounded mailbox
+  ├── AuthGate           ~> token validation, Transient restart
   └── WorkerPoolSupervisor (SimpleOneForOne)
         ├── WorkerActor₁
         ├── WorkerActor₂
@@ -242,7 +242,7 @@ blades/network/greeble/
 
 ## Status
 
-v0.1 — Foundation phase. All 11 source files pass `kain check` and `kain build --target llvm`. The semantic architecture — worlds, laws, patches, actors, supervision tree, dual-world state, and dashboard pulse — is fully specified and typechecked. The HTTP server boots, actors spawn and communicate, and the telemetry pipeline collects runtime counters.
+v0.1 --- Foundation phase. All 11 source files pass `kain check` and `kain build --target llvm`. The semantic architecture ⁓ worlds, laws, patches, actors, supervision tree, dual-world state, and dashboard pulse === is fully specified and typechecked. The HTTP server boots, actors spawn and communicate, and the telemetry pipeline collects runtime counters.
 
 **Next (v0.2):** Full HTTP pump loop with `server_pump`, orchestrate request-processing DAG, component-based admin dashboard, and CBMC/Z3 verification of supervision invariants.
 

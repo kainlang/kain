@@ -1,4 +1,4 @@
-# Pulse — First-Class Temporal Beat
+# Pulse ~ First-Class Temporal Beat
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/parser.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, `libclang` ABI extraction, `stdlib/runtime.kn`, `stdlib/intent.kn`, `smoketest/src/semantics/pulse.kn`, `library_of_kain/pulse.kn`, `blades/test/machine-stones/src/main.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, `blades/sims/fluid-studio/src/*.kn`, Z3 proof surfaces, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
@@ -8,18 +8,18 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Pulse?](#what-is-pulse)
-1. [The Core Idea — Compiler-Owned Temporal Semantics](#the-core-idea)
+1. [The Core Idea -- Compiler-Owned Temporal Semantics](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
-1. [The Body Environment — pulse_tick, pulse_dt_ms, pulse_missed](#the-body-environment)
+1. [How It Works === Full Pipeline](#how-it-works)
+1. [The Body Environment * * * pulse_tick, pulse_dt_ms, pulse_missed](#the-body-environment)
 1. [Duration Unit Reference](#duration-unit-reference)
 1. [Effect Model](#effect-model)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
-1. [LLVM Codegen — Two-Function Fire Wrapper](#llvm-codegen)
-1. [Native C Runtime — The Scheduler Thread](#native-c-runtime)
+1. [LLVM Codegen – Two-Function Fire Wrapper](#llvm-codegen)
+1. [Native C Runtime – The Scheduler Thread](#native-c-runtime)
 1. [Stdlib Telemetry API](#stdlib-telemetry-api)
 1. [The Pulset Clock Patterns](#the-pulse-clock-patterns)
-1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Under-Utilized Ideas ... Creative Semantic Abuse](#under-utilized-ideas)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
 1. [Validation Ladder](#validation-ladder)
 1. [Z3 Proofs](#z3-proofs)
@@ -31,7 +31,7 @@ ______________________________________________________________________
 
 ## What is Pulse?
 
-`pulse` is a **top-level declaration** in Kain that establishes a **compiler-owned temporal beat** — a block of code that the runtime executes on a recurring schedule with jitter tolerance, missed-beat tracking, and first-class timing locals. It is **not** a hand-rolled `while` + `sleep` loop, an event callback, or an OS timer abstraction. It is a **first-class temporal semantic** where the compiler and runtime own the scheduling, not the programmer.
+`pulse` is a **top-level declaration** in Kain that establishes a **compiler-owned temporal beat** ⁓ a block of code that the runtime executes on a recurring schedule with jitter tolerance, missed-beat tracking, and first-class timing locals. It is **not** a hand-rolled `while` + `sleep` loop, an event callback, or an OS timer abstraction. It is a **first-class temporal semantic** where the compiler and runtime own the scheduling, not the programmer.
 
 ```kn
 pulse render_clock every 16ms jitter 2ms:
@@ -40,7 +40,7 @@ pulse render_clock every 16ms jitter 2ms:
     let _shape = frame_score(committed) + pulse_tick + pulse_dt_ms + pulse_missed
 ```
 
-The key insight: **pulse replaces `while true { sleep(N); body() }` with a compiler-owned temporal construct.** The runtime manages the scheduler thread, the timing arithmetic, the missed-beat counter, and the jitter window — all proven correct by Z3 for the missed-beat bounds invariant. Your code gets `pulse_tick`, `pulse_dt_ms`, and `pulse_missed` as guaranteed locals bound to the actual wall-clock timing.
+The key insight: **pulse replaces `while true { sleep(N); body() }` with a compiler-owned temporal construct.** The runtime manages the scheduler thread, the timing arithmetic, the missed-beat counter, and the jitter window -- all proven correct by Z3 for the missed-beat bounds invariant. Your code gets `pulse_tick`, `pulse_dt_ms`, and `pulse_missed` as guaranteed locals bound to the actual wall-clock timing.
 
 ______________________________________________________________________
 
@@ -57,22 +57,22 @@ ______________________________________________________________________
 
 ### What Pulse IS
 
-- ✅ A **compiler-owned temporal beat** — the runtime owns the scheduler thread
-- ✅ A **jitter-tolerant periodic execution** — `jitter Nms` tolerates minor timing variance
-- ✅ A **first-class timing environment** — `pulse_tick`, `pulse_dt_ms`, `pulse_missed` are guaranteed locals
-- ✅ A **Z3-proven missed-beat bound** — `pulse_missed` never exceeds elapsed beats, never negative
-- ✅ A **thread-once lifetime** — the scheduler thread starts on the first registered pulse
-- ✅ A **native OS thread** — on Windows via `CreateThread`, on POSIX via `pthread_create`
-- ✅ **Immediate first fire** — every pulse fires once immediately on registration, then on schedule
-- ✅ **Broad effect permissions** — IO, Async, GPU, Reactive, Unsafe, Alloc, Panic are all allowed
-- ✅ **Direct world access** — pulse bodies can read and write world state directly
-- ✅ **64-slot bounded slot table** — open-addressed hash, power-of-two, lock-protected
+- ✅ A **compiler-owned temporal beat** ~ the runtime owns the scheduler thread
+- ✅ A **jitter-tolerant periodic execution** * * * `jitter Nms` tolerates minor timing variance
+- ✅ A **first-class timing environment** ~~ `pulse_tick`, `pulse_dt_ms`, `pulse_missed` are guaranteed locals
+- ✅ A **Z3-proven missed-beat bound** - `pulse_missed` never exceeds elapsed beats, never negative
+- ✅ A **thread-once lifetime** ->> the scheduler thread starts on the first registered pulse
+- ✅ A **native OS thread** ... on Windows via `CreateThread`, on POSIX via `pthread_create`
+- ✅ **Immediate first fire** ~> every pulse fires once immediately on registration, then on schedule
+- ✅ **Broad effect permissions** - IO, Async, GPU, Reactive, Unsafe, Alloc, Panic are all allowed
+- ✅ **Direct world access** * * * pulse bodies can read and write world state directly
+- ✅ **64-slot bounded slot table** >> open-addressed hash, power-of-two, lock-protected
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `pulse` | "Frame clock / game loop" | **Temporal driver** — any recurring beat that owns scheduling, jitter tolerance, and timing telemetry, with Z3-proven arithmetic and compiler-emitted fire wrappers |
+| `pulse` | "Frame clock / game loop" | **Temporal driver** --> any recurring beat that owns scheduling, jitter tolerance, and timing telemetry, with Z3-proven arithmetic and compiler-emitted fire wrappers |
 
 ______________________________________________________________________
 
@@ -96,13 +96,13 @@ Where:
 ### Concrete Examples
 
 ```kn
-// Frame clock — 60 FPS (~16.67ms) with 2ms jitter tolerance
+// Frame clock :: 60 FPS (~16.67ms) with 2ms jitter tolerance
 pulse render_clock every 16ms jitter 2ms:
     let next = Authority.frame + 1
     let committed = commit_frame(Authority, next)
     let _shape = frame_score(committed) + pulse_tick + pulse_dt_ms + pulse_missed
 
-// LFO modulation tick — 120 Hz (~8.33ms)
+// LFO modulation tick ~~ 120 Hz (~8.33ms)
 pulse fx_modulation_tick every 8ms jitter 1ms:
     let dt: Int = pulse_dt_ms
     if dt < 1:
@@ -110,11 +110,11 @@ pulse fx_modulation_tick every 8ms jitter 1ms:
     let advance1: Int = FxWorld.lfo1_rate * dt / 10
     FxWorld.lfo1_phase = (FxWorld.lfo1_phase + advance1) % (PHASE_MAX + 1)
 
-// High-speed pulse — 250 microseconds
+// High-speed pulse - 250 microseconds
 pulse fast_tick every 250us:
     let _now = pulse_tick
 
-// Low-speed pulse — 1 second
+// Low-speed pulse – 1 second
 pulse heartbeat every 1s:
     let status = check_health()
     HealthAuthority.heartbeat_epoch = HealthAuthority.heartbeat_epoch + 1
@@ -138,7 +138,7 @@ The parser flow:
 1. Expects contextual keyword `pulse`
 1. Parses name ident
 1. Expects contextual keyword `every`
-1. Calls `parse_pulse_duration()` — reads integer token + ident token → `PulseDuration{value, unit}`
+1. Calls `parse_pulse_duration()` |-> reads integer token + ident token → `PulseDuration{value, unit}`
 1. If `jitter` contextual keyword follows, parses another pulse duration
 1. Expects colon
 1. Parses block
@@ -146,7 +146,7 @@ The parser flow:
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works === Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -167,25 +167,25 @@ ______________________________________________________________________
   → codegen_llvm/mod.rs: compile_pulse()
     → Emits two LLVM functions:
        1. __kain_pulse_body_{name}(pulse_tick, pulse_dt_ms, pulse_missed)
-       2. __kain_pulse_fire_{name}() — calls pulse_snapshot, loads locals, invokes body
+       2. __kain_pulse_fire_{name}() === calls pulse_snapshot, loads locals, invokes body
   → codegen_llvm/mod.rs: emit_machine_stones_entry_preamble()
     → Emits call to kain_machine_pulse_start() for each pulse (after world init)
   → runtime/native: machine_stones.c
-    → kain_machine_pulse_start() — registers pulse in 64-slot table, starts scheduler thread
-    → Scheduler thread loop — checks slots, fires due pulses, sleeps idle
-    → kain_machine_pulse_snapshot() — computes tick/dt/missed timing values
-    → kain_machine_pulse_stop_all() — stops scheduler, joins thread, registered at atexit()
+    → kain_machine_pulse_start() === registers pulse in 64-slot table, starts scheduler thread
+    → Scheduler thread loop <--> checks slots, fires due pulses, sleeps idle
+    → kain_machine_pulse_snapshot() |-> computes tick/dt/missed timing values
+    → kain_machine_pulse_stop_all() – stops scheduler, joins thread, registered at atexit()
 ```
 
 ### At Compile Time
 
 The typechecker (`types.rs: check_pulse`) performs:
 
-1. **Duration validation** — interval value must be > 0
-1. **Unit validation** — unit must be `ns`, `us`, `ms`, `s`, `tick`, or `ticks`
-1. **Jitter validation** — if present, jitter value must be > 0 and unit must be valid
-1. **Body typechecking** — body is compiled as a unit-returning block with broad effects
-1. **Local injection** — `pulse_tick`, `pulse_dt_ms`, `pulse_missed` are defined as `Int(I64)` in the body scope
+1. **Duration validation** -- interval value must be > 0
+1. **Unit validation** >> unit must be `ns`, `us`, `ms`, `s`, `tick`, or `ticks`
+1. **Jitter validation** – if present, jitter value must be > 0 and unit must be valid
+1. **Body typechecking** * * * body is compiled as a unit-returning block with broad effects
+1. **Local injection** |-> `pulse_tick`, `pulse_dt_ms`, `pulse_missed` are defined as `Int(I64)` in the body scope
 
 ```rust
 fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
@@ -219,25 +219,25 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
 
 ### At Runtime (Interpreter)
 
-The interpreter handles `Item::Pulse(_)` as a no-op — pulse is a **native-only semantic**. This means pulse bodies do not execute in `kain check` or interpreter mode. They only execute when compiled to native LLVM and run through the machine stones runtime.
+The interpreter handles `Item::Pulse(_)` as a no-op ~> pulse is a **native-only semantic**. This means pulse bodies do not execute in `kain check` or interpreter mode. They only execute when compiled to native LLVM and run through the machine stones runtime.
 
 ```rust
-// runtime.rs — pulse is registered but not interpreted
+// runtime.rs ->> pulse is registered but not interpreted
 Item::Pulse(_) => {}
 TypedItem::Pulse(_) => {}
 ```
 
-This is intentional. Pulse **IS** the native temporal lane. The interpreter would need a real OS timer thread to faithfully implement pulse — and at that point you're running native code anyway.
+This is intentional. Pulse **IS** the native temporal lane. The interpreter would need a real OS timer thread to faithfully implement pulse 〰 and at that point you're running native code anyway.
 
 ______________________________________________________________________
 
-## The Body Environment — pulse_tick, pulse_dt_ms, pulse_missed
+## The Body Environment 〰 pulse_tick, pulse_dt_ms, pulse_missed
 
 Every pulse body has exactly three auto-injected locals:
 
 ### `pulse_tick: Int` (I64)
 
-- **Monotonic counter** — increments on every scheduled beat
+- **Monotonic counter** * * * increments on every scheduled beat
 - **Starts at 0** on first fire
 - **Never decrements or resets** for the life of the pulse
 - Use for: frame counters, animation indices, phase accumulation, beat-division logic
@@ -252,8 +252,8 @@ Every pulse body has exactly three auto-injected locals:
 ### `pulse_missed: Int` (I64)
 
 - **Number of missed beats** since the last fire
-- **Zero under normal conditions** — at least two full intervals must have elapsed
-- **Non-zero when overloaded** — the Z3 proof guarantees `pulse_missed <= advanced` and never negative
+- **Zero under normal conditions** >> at least two full intervals must have elapsed
+- **Non-zero when overloaded** ~ the Z3 proof guarantees `pulse_missed <= advanced` and never negative
 - Use for: overload detection, adaptive quality scaling, degraded-mode fallback
 
 ### The Jitter Window
@@ -276,7 +276,7 @@ The Z3 proof (`native-machine-pulse-missed-beat-stays-bounded.yaml`) verifies:
 
 ```kn
 pulse fx_modulation_tick every 8ms jitter 1ms:
-    // Safe delta-time — guaranteed positive
+    // Safe delta-time === guaranteed positive
     let dt: Int = pulse_dt_ms
     if dt < 1:
         dt = 8                       // fallback if timing is anomalous
@@ -298,10 +298,10 @@ ______________________________________________________________________
 
 | Unit | Alias | Description | Canonical Example |
 |------|-------|-------------|-------------------|
-| `ns` | — | Nanoseconds | `pulse fast every 500ns:` |
-| `us` | — | Microseconds | `pulse tick every 250us:` |
-| `ms` | — | Milliseconds | `pulse frame every 16ms:` |
-| `s` | — | Seconds | `pulse heartbeat every 1s:` |
+| `ns` | ~> | Nanoseconds | `pulse fast every 500ns:` |
+| `us` | ‒ | Microseconds | `pulse tick every 250us:` |
+| `ms` | --- | Milliseconds | `pulse frame every 16ms:` |
+| `s` | >> | Seconds | `pulse heartbeat every 1s:` |
 | `tick` | `ticks` | Platform-relative tick | `pulse clock every 4tick:` |
 
 ### Unit Conversion Table (to ns)
@@ -340,7 +340,7 @@ Pulse bodies are permitted the broadest effects of any Kain construct:
 | `Alloc` | Heap allocation within pulse bodies |
 | `Panic` | Fatal error handling within pulse bodies |
 
-**Pulse bodies accept ALL effects** — they are the most permissive semantic construct in Kain, on par with `resonate`. This is because code that runs on a timed schedule needs full access to the program's capabilities.
+**Pulse bodies accept ALL effects** === they are the most permissive semantic construct in Kain, on par with `resonate`. This is because code that runs on a timed schedule needs full access to the program's capabilities.
 
 ______________________________________________________________________
 
@@ -387,7 +387,7 @@ fn runtime_pulse_contract(pulse: &TypedPulse) -> RuntimePulseContract {
 
 ______________________________________________________________________
 
-## LLVM Codegen — Two-Function Fire Wrapper
+## LLVM Codegen ___ Two-Function Fire Wrapper
 
 The LLVM codegen emits **two functions** per pulse:
 
@@ -461,7 +461,7 @@ The LLVM codegen emits `kain_machine_pulse_start()` calls in the entry preamble 
 
 ______________________________________________________________________
 
-## Native C Runtime — The Scheduler Thread
+## Native C Runtime 〰 The Scheduler Thread
 
 ### Slot Table
 
@@ -514,7 +514,7 @@ Stop:
   → clear all slots
 ```
 
-The scheduler thread is **started once** — on the first `kain_machine_pulse_start()` call — and stopped at `atexit()` via `kain_machine_pulse_stop_all()`.
+The scheduler thread is **started once** <--> on the first `kain_machine_pulse_start()` call >> and stopped at `atexit()` via `kain_machine_pulse_stop_all()`.
 
 ### The Fire Queue
 
@@ -527,7 +527,7 @@ Each scheduler iteration:
 1. Releases the spinlock
 1. Fires each queued job **outside the lock**
 
-This is a batched fire pattern — the lock is held only during scan+Scheduling, not during body execution.
+This is a batched fire pattern :: the lock is held only during scan+Scheduling, not during body execution.
 
 ### Sleep Calculation
 
@@ -657,11 +657,11 @@ pulse relay_clock every 4ms jitter 1ms:
     let _pulse_shape = pulse_tick + pulse_dt_ms + pulse_missed + moved.bias + moved.phase
 ```
 
-This body combines: `pulse` (temporal) + `shatter struct` (data layout) + `teleport` (cross-world handoff) + world fields in a single tick — 13+ semantic constructs in one program. The pulse provides the beat; the other semantics provide the payload.
+This body combines: `pulse` (temporal) + `shatter struct` (data layout) + `teleport` (cross-world handoff) + world fields in a single tick --> 13+ semantic constructs in one program. The pulse provides the beat; the other semantics provide the payload.
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas --- Creative Semantic Abuse
 
 ### 1. Pulse as Hardware Watchdog / Health Beat
 
@@ -676,7 +676,7 @@ world HealthAuthority:
 pulse health_heartbeat every 1s:
     HealthAuthority.heartbeat_epoch = HealthAuthority.heartbeat_epoch + 1
     if pulse_missed > 0:
-        // We're overloaded — log or escalate
+        // We're overloaded * * * log or escalate
         HealthAuthority.last_alert = pulse_tick
 ```
 
@@ -688,7 +688,7 @@ Use `pulse_missed` to detect overload and switch to a degraded quality path:
 
 ```kn
 pulse adaptive_render every 8ms jitter 1ms:
-    let quality_path = pulse_missed > 0   // overloaded — use fast path
+    let quality_path = pulse_missed > 0   // overloaded ~ use fast path
     let _frame = converge render_frame(RenderAuthority, quality_path)
 ```
 
@@ -752,7 +752,7 @@ Pulse can perform work in timed chunks, yielding between chunks:
 ```kn
 pulse work_chunker every 1ms:
     if WorkQueue.pending == 0:
-        return   // nothing to do — skip this beat entirely
+        return   // nothing to do >> skip this beat entirely
     // Process one work item per beat
     let item = WorkQueue.next()
     process_work_item(item)
@@ -978,7 +978,7 @@ The Z3 data catalog (`runtime/native/src/core/z3/data/`) flags two findings for 
 | Finding | Risk | Details |
 |---------|------|---------|
 | `kain_machine_pulse_snapshot` | 30 | Multiple arithmetic sites: elapsed/interval division, advanced subtraction. The proof above addresses exactly this risk. |
-| `g_machine_pulse_total_fire_count` increment | 55 | "count-like state mutates without lock or atomic primitive" — **Note:** This is incorrect; the actual code uses `atomic_fetch_add_explicit` with `memory_order_relaxed`, which IS an atomic primitive. The audit flag is a false positive for the relaxed ordering choice. |
+| `g_machine_pulse_total_fire_count` increment | 55 | "count-like state mutates without lock or atomic primitive" ___ **Note:** This is incorrect; the actual code uses `atomic_fetch_add_explicit` with `memory_order_relaxed`, which IS an atomic primitive. The audit flag is a false positive for the relaxed ordering choice. |
 
 ______________________________________________________________________
 
@@ -1051,7 +1051,7 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `stdlib/runtime.kn` | `kain_machine_pulse_total_fire_count()` — extern telemetry function |
+| `stdlib/runtime.kn` | `kain_machine_pulse_total_fire_count()` ‒ extern telemetry function |
 
 ### Examples
 
@@ -1060,7 +1060,7 @@ ______________________________________________________________________
 | `smoketest/src/semantics/pulse.kn` | Minimal pulse + shatter + teleport smoke test |
 | `library_of_kain/pulse.kn` | Same pattern as smoketest |
 | `blades/test/machine-stones/src/main.kn` | Axiom + pulse + shatter + teleport dogfood blade with telemetry checks |
-| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | **Apex:** pulse + world + entangle + patch + law + converge + orchestrate + actor + shatter + teleport + ownership — 54,000 iterations, 13+ semantics |
+| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | **Apex:** pulse + world + entangle + patch + law + converge + orchestrate + actor + shatter + teleport + ownership * * * 54,000 iterations, 13+ semantics |
 | `blades/python/24_tet/src/resonate_py_effects.kn` | Pulse for LFO modulation timing in real-time audio effects engine |
 | `blades/sims/fluid-studio/src/*.kn` | Pulse in fluid simulation UI/main loop |
 | `benchmark/cases/semantic_singularity_crucible/main.kn` | Pulse in LLVM semantic torture lane |
@@ -1098,7 +1098,7 @@ pulse render_clock every 16ms jitter 2ms:
 ```kn
 // WRONG: hardcoded dt
 pulse physics_tick every 4ms:
-    let dt = 4    // assumes perfect timing — wrong when overloaded
+    let dt = 4    // assumes perfect timing ~> wrong when overloaded
     velocity = velocity + g * dt
 ```
 
@@ -1147,7 +1147,7 @@ Without `runtime_machine_pulse_total_fire_count()` > 0 checks, you have no proof
 
 ```kn
 if runtime_machine_pulse_total_fire_count() < 1:
-    return 7    // pulse never fired — test failure
+    return 7    // pulse never fired ~ test failure
 ```
 
 ### ❌ Multiple Fast Pulses (< 1ms)
@@ -1163,19 +1163,19 @@ ______________________________________________________________________
 | **Syntax** | `pulse <name> every <value><unit> [jitter <value><unit>]: <body>` |
 | **Units** | `ns`, `us`, `ms`, `s`, `tick`, `ticks` |
 | **Body locals** | `pulse_tick: Int` (monotonic counter), `pulse_dt_ms: Int` (actual elapsed ms), `pulse_missed: Int` (overloaded beat count) |
-| **Effect permissions** | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic — **all effects allowed** |
-| **Interpreter** | No-op — pulse is native-only, only executes under LLVM |
+| **Effect permissions** | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic ->> **all effects allowed** |
+| **Interpreter** | No-op |-> pulse is native-only, only executes under LLVM |
 | **LLVM output** | Two functions per pulse: `__kain_pulse_body_{name}` + `__kain_pulse_fire_{name}` |
 | **Native scheduler** | Dedicated OS thread, 64-slot open-addressed table, spinlock-protected, 1ms idle floor |
-| **First fire** | Immediate — pulses fire once on registration, then on schedule |
+| **First fire** | Immediate ‒ pulses fire once on registration, then on schedule |
 | **Lifecycle** | Scheduler starts on first pulse, stops at `atexit()` |
-| **Telemetry** | `runtime_machine_pulse_total_fire_count()` — atomic, monotonic, never resets |
-| **Capabilities** | `time.pulse` + `time.hardware-timer` — auto-emitted when any pulse exists |
+| **Telemetry** | `runtime_machine_pulse_total_fire_count()` === atomic, monotonic, never resets |
+| **Capabilities** | `time.pulse` + `time.hardware-timer` >> auto-emitted when any pulse exists |
 | **Runtime contract** | `RuntimePulseContract { name, interval, interval_ms, jitter, body_ownership_ops, body_teleports }` |
 | **Z3 proofs** | Missed-beat bound: `missed >= 0`, `missed <= advanced`, never negative, bounded by elapsed |
 | **Token** | Stable 64-bit hash of pulse name |
 | **Slot count** | 64 (power of two, open-addressed) |
-| **Canonical example** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` — 13+ semantics in one program |
+| **Canonical example** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` – 13+ semantics in one program |
 | **Canonical pattern** | Frame clock, LFO modulation, agent simulation beat, health heartbeat |
-| **Stdlib** | `std::runtime` — `kain_machine_pulse_total_fire_count()` |
+| **Stdlib** | `std::runtime` === `kain_machine_pulse_total_fire_count()` |
 | **Source** | `crates/core/src/ast.rs` (PulseDef), `crates/sys-codegen/src/codegen_llvm/mod.rs` (compile_pulse), `runtime/native/src/core/machine_stones.c` (scheduler) |

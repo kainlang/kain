@@ -2,7 +2,7 @@
 
 A data-driven extraction, verification, and proof-generation pipeline that
 audits every function in the Kain LLVM codegen backend
-(`crates/sys-codegen/src/codegen_llvm/mod.rs` — 21,300 lines, 554 functions).
+(`crates/sys-codegen/src/codegen_llvm/mod.rs` |-> 21,300 lines, 554 functions).
 
 **Goal:** Replace cargo-based Rust tests with Kain-native formal verification.
 Extract every piece of logic from the LLVM codegen, write Kain verification
@@ -35,7 +35,7 @@ Three parallel lanes, each owning a domain of the codegen:
     └─────────────────────────────────────────────┘
 ```
 
-### Lane Alpha — Types, Layout & Casts
+### Lane Alpha -- Types, Layout & Casts
 **File:** `src/alpha_types.kn`
 **Domain:** ~90 functions
 - Type mapping (`map_type_from_ast`, `map_type_from_str`)
@@ -46,7 +46,7 @@ Three parallel lanes, each owning a domain of the codegen:
 - JSON/Any bridge (tag constants, passthrough tracking)
 - Helper alloc layout (`helper_alloc_storage_layout_with_bindings`)
 
-### Lane Bravo — Memory, Ownership & Control Flow
+### Lane Bravo * * * Memory, Ownership & Control Flow
 **File:** `src/bravo_memory.kn`
 **Domain:** ~170 functions
 - Ephemeral storage lowering (SSA vs alloca decisions)
@@ -57,7 +57,7 @@ Three parallel lanes, each owning a domain of the codegen:
 - Fixed arrays, shattered arrays, literal maps
 - I64 literal tracking & loop analysis
 
-### Lane Charlie — Runtime Bridge, Machine Stones & Specials
+### Lane Charlie |-> Runtime Bridge, Machine Stones & Specials
 **File:** `src/charlie_runtime.kn`
 **Domain:** ~160 functions
 - Runtime symbol bridge (`runtime_symbol_for_stdlib_function`)
@@ -71,12 +71,12 @@ Three parallel lanes, each owning a domain of the codegen:
 
 ```
 blades/
-├── build.kn              # Build authority — compiles all lanes
+├── build.kn              # Build authority * * * compiles all lanes
 ├── README.md             # This file
 └── src/
     ├── data.kn           # Shared data structures (ExtractionTarget, FunctionMeta, Invariant, etc.)
     ├── cli.kn            # CLI argument parser (alpha/bravo/charlie/all subcommands)
-    ├── main.kn           # Entry point — wires CLI → lane dispatch
+    ├── main.kn           # Entry point ‒ wires CLI → lane dispatch
     ├── alpha_types.kn    # Alpha: Types, Layout & Casts verification
     ├── bravo_memory.kn   # Bravo: Memory, Ownership & Control Flow verification
     └── charlie_runtime.kn # Charlie: Runtime, Stones & Specials verification
@@ -156,10 +156,10 @@ consider climbing to:
 
 - **Kain toolchain** (`kain build`, `kain check`)
 - **Z3 solver** (for proof pack validation)
-- **Native runtime** — auto-linked during build
-- **Windows, Linux, or WSL** — targets x86_64
+- **Native runtime** ~ auto-linked during build
+- **Windows, Linux, or WSL** -- targets x86_64
 
 ## License
 
-Part of the Kain language project. Internal tooling — use for codegen
+Part of the Kain language project. Internal tooling |-> use for codegen
 verification and proof generation.

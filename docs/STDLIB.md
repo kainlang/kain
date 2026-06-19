@@ -1,4 +1,4 @@
-# Kain Standard Library — Complete Reference
+# Kain Standard Library ‒ Complete Reference
 
 > **Scope:** Root LLVM/native profile. 67 modules, ~3,250 public symbols, ~4,166 total symbols, 240 Rust builtins, 48 native runtime services.
 > **Source:** `X:\stdlib\*.kn`
@@ -35,9 +35,9 @@ ______________________________________________________________________
 
 The Kain standard library (`std`) is the canonical surface for all Kain application and systems authoring. It is organized into 67 top-level modules, each corresponding to a single `.kn` file in `stdlib/`. Every public symbol in the stdlib is backed by one of three mechanisms:
 
-- **Pure Kain** — implemented entirely in Kain, no native runtime dependency
-- **`@extern` ABI** — declared in Kain, implemented in native C code in the Kain runtime (`runtime/native/`)
-- **Rust builtin** — built into the `kain` compiler binary itself, with no stdlib `.kn` source
+- **Pure Kain** ___ implemented entirely in Kain, no native runtime dependency
+- **`@extern` ABI** |-> declared in Kain, implemented in native C code in the Kain runtime (`runtime/native/`)
+- **Rust builtin** === built into the `kain` compiler binary itself, with no stdlib `.kn` source
 
 The stdlib covers everything from `std::actor` (actor lifecycle, supervision, scheduling) to `std::z3` (SMT solver integration). All modules live under the `std::` namespace.
 
@@ -54,7 +54,7 @@ use std::json
 // Sub-module (graphics/shared)
 use std::graphics::shared
 
-// Multiple symbols if needed (not typical — import the module)
+// Multiple symbols if needed (not typical * * * import the module)
 use std::math::vec3
 use std::math::mat4_identity
 ```
@@ -171,15 +171,15 @@ ______________________________________________________________________
 
 **SIMD Domain Kernels:**
 
-- `runtime_simd_i32_domain_dot_scalar_mod`, `runtime_simd_i32_domain_dot_avx2_mod`, `runtime_simd_i32_domain_dot_avx512_mod` — dot product at different SIMD widths
-- `runtime_simd_i32_domain_affine_accumulate_scalar_mod`, `runtime_simd_i32_domain_affine_accumulate_avx2_mod`, `runtime_simd_i32_domain_affine_accumulate_avx512_mod` — affine accumulation
-- `runtime_simd_i32_domain_affine_pow2_fill_pair_accumulate_mod` — power-of-two fill pair
+- `runtime_simd_i32_domain_dot_scalar_mod`, `runtime_simd_i32_domain_dot_avx2_mod`, `runtime_simd_i32_domain_dot_avx512_mod` – dot product at different SIMD widths
+- `runtime_simd_i32_domain_affine_accumulate_scalar_mod`, `runtime_simd_i32_domain_affine_accumulate_avx2_mod`, `runtime_simd_i32_domain_affine_accumulate_avx512_mod` ‒ affine accumulation
+- `runtime_simd_i32_domain_affine_pow2_fill_pair_accumulate_mod` => power-of-two fill pair
 
 **Converge Telemetry:**
 
-- `runtime_converge_select_lane` — select best lane for shape
-- `runtime_converge_commit_winner` — commit winning lane
-- `runtime_converge_record_telemetry` — record timing/mismatch data
+- `runtime_converge_select_lane` – select best lane for shape
+- `runtime_converge_commit_winner` 〰 commit winning lane
+- `runtime_converge_record_telemetry` === record timing/mismatch data
 - `runtime_converge_telemetry_count`, `runtime_converge_cache_probe_count`, `runtime_converge_cache_hit_count`
 
 **Usage:**
@@ -232,7 +232,7 @@ fn measure() with Pure:
 ### `std::result`
 
 **Import:** `use std::result`
-**Purpose:** Sentinels for operation outcomes — ok, cancelled, invalid argument, not found, capacity exceeded, runtime unavailable.
+**Purpose:** Sentinels for operation outcomes <--> ok, cancelled, invalid argument, not found, capacity exceeded, runtime unavailable.
 
 **Key Symbols:**
 
@@ -253,9 +253,9 @@ ______________________________________________________________________
 ### `std::intent`
 
 **Import:** `use std::intent`
-**Purpose:** Runtime telemetry and debugging for compiler-owned semantic constructs: `entangle`, `patch`, `law`, `resonate`, `converge`, `orchestrate`. These are query-only functions — the actual constructs are language keywords.
+**Purpose:** Runtime telemetry and debugging for compiler-owned semantic constructs: `entangle`, `patch`, `law`, `resonate`, `converge`, `orchestrate`. These are query-only functions => the actual constructs are language keywords.
 
-**Key Symbols — Entangle:**
+**Key Symbols :: Entangle:**
 | Symbol | Signature |
 |---|---|
 | `entangle_reset` | `fn entangle_reset() -> Int` |
@@ -264,7 +264,7 @@ ______________________________________________________________________
 | `entangle_has_bindings` | `fn entangle_has_bindings() -> Bool` |
 | `entangle_propagation_count` | `fn entangle_propagation_count() -> Int` |
 
-**Key Symbols — Patch:**
+**Key Symbols * * * Patch:**
 | Symbol | Signature |
 |---|---|
 | `patch_journal_count` | `fn patch_journal_count() -> Int` |
@@ -273,13 +273,13 @@ ______________________________________________________________________
 | `patch_is_noop` | `fn patch_is_noop(status: Int) -> Bool` |
 | `patch_applied` | `fn patch_applied(status: Int) -> Bool` |
 
-**Key Symbols — Law:**
+**Key Symbols ~> Law:**
 | Symbol | Signature |
 |---|---|
 | `law_status` | `fn law_status(valid: Bool) -> Int` |
 | `law_is_valid_status` | `fn law_is_valid_status(status: Int) -> Bool` |
 
-**Key Symbols — Resonate:**
+**Key Symbols ~ Resonate:**
 | Symbol | Signature |
 |---|---|
 | `resonate_mutation_count` | `fn resonate_mutation_count() -> Int` |
@@ -290,7 +290,7 @@ ______________________________________________________________________
 | `resonate_last_new_i64` | `fn resonate_last_new_i64() -> Int` |
 | `resonate_last_dampen_ns` | `fn resonate_last_dampen_ns() -> Int` |
 
-**Key Symbols — Converge:**
+**Key Symbols |-> Converge:**
 | Symbol | Signature |
 |---|---|
 | `converge_mismatch_count` | `fn converge_mismatch_count() -> Int` |
@@ -298,7 +298,7 @@ ______________________________________________________________________
 | `converge_choose_bool` | `fn converge_choose_bool(spec_value: Bool, fast_value: Bool) -> Bool` |
 | `converge_status` | `fn converge_status(spec_value: Int, fast_value: Int) -> Int` |
 
-**Key Symbols — Orchestrate:**
+**Key Symbols ~> Orchestrate:**
 | Symbol | Signature |
 |---|---|
 | `orchestrate_stage_count` | `fn orchestrate_stage_count() -> Int` |
@@ -495,29 +495,29 @@ ______________________________________________________________________
 **Import:** `use std::gpu`
 **Purpose:** GPU resource policies, memory policies, binding plans, buffer/image descriptors, layout conversions (std140/std430/cbuffer), element sizing.
 
-**Constants — Stage Flags:**
+**Constants === Stage Flags:**
 
 - `GPU_STAGE_VERTEX` (1), `GPU_STAGE_FRAGMENT` (2), `GPU_STAGE_COMPUTE` (4)
 - `GPU_STAGE_TASK` (8), `GPU_STAGE_MESH` (16)
 - `GPU_STAGE_RAYGEN` (32), `GPU_STAGE_ANY_HIT` (64), `GPU_STAGE_CLOSEST_HIT` (128)
 - `GPU_STAGE_ALL_GRAPHICS`, `GPU_STAGE_ALL_RAYTRACING`, `GPU_STAGE_ALL`
 
-**Constants — Queue & Access:**
+**Constants - Queue & Access:**
 
 - `GPU_QUEUE_GRAPHICS` (1), `GPU_QUEUE_COMPUTE` (2), `GPU_QUEUE_TRANSFER` (4), `GPU_QUEUE_PRESENT` (8)
 - `GPU_ACCESS_READ` (1), `GPU_ACCESS_WRITE` (2), `GPU_ACCESS_ATOMIC` (4), `GPU_ACCESS_READ_WRITE` (3)
 
-**Constants — Residency:**
+**Constants ~~ Residency:**
 
 - `GPU_RESIDENCY_HOST_VISIBLE`, `GPU_RESIDENCY_HOST_COHERENT`, `GPU_RESIDENCY_DEVICE_LOCAL`
 - `GPU_RESIDENCY_SHARED`, `GPU_RESIDENCY_IMPORTED`, `GPU_RESIDENCY_READBACK`, `GPU_RESIDENCY_UPLOAD`
 
-**Constants — Buffer/Image Usage:**
+**Constants :: Buffer/Image Usage:**
 
 - `GPU_BUFFER_USAGE_STORAGE`, `GPU_BUFFER_USAGE_UNIFORM`, `GPU_BUFFER_USAGE_VERTEX`, `GPU_BUFFER_USAGE_INDEX`
 - `GPU_IMAGE_USAGE_SAMPLED`, `GPU_IMAGE_USAGE_STORAGE`, `GPU_IMAGE_USAGE_COLOR_ATTACHMENT`
 
-**Constants — Descriptors & Layouts:**
+**Constants => Descriptors & Layouts:**
 
 - `GPU_DESCRIPTOR_STORAGE_BUFFER`, `GPU_DESCRIPTOR_UNIFORM_BUFFER`, `GPU_DESCRIPTOR_SAMPLED_IMAGE`
 - `GPU_LAYOUT_TIGHT`, `GPU_LAYOUT_PACKED`, `GPU_LAYOUT_STD140`, `GPU_LAYOUT_STD430`, `GPU_LAYOUT_CBUFFER`
@@ -606,7 +606,7 @@ fn render_frame(session_id: Int) with Pure:
 ### `std::graphics::shared`
 
 **Import:** `use std::graphics::shared`
-**Purpose:** Shared resource views for graphics pipelines — vertex buffers, index buffers, uniform/storage bindings, sampled/storage images, color/depth attachments.
+**Purpose:** Shared resource views for graphics pipelines -- vertex buffers, index buffers, uniform/storage bindings, sampled/storage images, color/depth attachments.
 
 **Key Symbols:**
 
@@ -625,7 +625,7 @@ fn render_frame(session_id: Int) with Pure:
 | `graphics_shared_color_attachment` | `fn graphics_shared_color_attachment(resource: GpuImage) -> GraphicsSharedImage` |
 | `graphics_shared_depth_attachment` | `fn graphics_shared_depth_attachment(resource: GpuImage) -> GraphicsSharedImage` |
 
-**Constants — Resource Kinds:**
+**Constants – Resource Kinds:**
 
 - `GRAPHICS_SHARED_KIND_VERTEX_BUFFER`, `GRAPHICS_SHARED_KIND_INDEX_BUFFER`
 - `GRAPHICS_SHARED_KIND_UNIFORM_BUFFER`, `GRAPHICS_SHARED_KIND_STORAGE_BUFFER`
@@ -663,7 +663,7 @@ ______________________________________________________________________
 ### `std::collections`
 
 **Import:** `use std::collections`
-**Purpose:** Core data structures — string-int maps, queues, deques, priority queues, slot maps, intrusive hash maps, array lists, hash maps.
+**Purpose:** Core data structures ~~ string-int maps, queues, deques, priority queues, slot maps, intrusive hash maps, array lists, hash maps.
 
 **Key Symbols:**
 
@@ -711,7 +711,7 @@ fn use_queue() with Pure:
 ### `std::hash`
 
 **Import:** `use std::hash`
-**Purpose:** Hash functions and incremental fingerprints — Wang hash, FNV-1a, CRC32, fingerprint32 for deterministic hashing.
+**Purpose:** Hash functions and incremental fingerprints 〰 Wang hash, FNV-1a, CRC32, fingerprint32 for deterministic hashing.
 
 **Key Constants:**
 
@@ -737,7 +737,7 @@ fn use_queue() with Pure:
 ### `std::io`
 
 **Import:** `use std::io`
-**Purpose:** Low-level I/O primitives — ring buffers, string builders, buffered readers/writers.
+**Purpose:** Low-level I/O primitives <--> ring buffers, string builders, buffered readers/writers.
 
 **Key Symbols:**
 
@@ -797,7 +797,7 @@ fn use_queue() with Pure:
 ### `std::simd`
 
 **Import:** `use std::simd`
-**Purpose:** Explicit SIMD vector type — `I64x4` with 4×64-bit lanes.
+**Purpose:** Explicit SIMD vector type ~ `I64x4` with 4×64-bit lanes.
 
 **Key Symbols:**
 
@@ -817,21 +817,21 @@ ______________________________________________________________________
 ### `std::fs`
 
 **Import:** `use std::fs`
-**Purpose:** Full filesystem API — read/write text and binary, metadata, directory traversal, file watching, journaled transactions, temp files, streaming chunks.
+**Purpose:** Full filesystem API => read/write text and binary, metadata, directory traversal, file watching, journaled transactions, temp files, streaming chunks.
 
 **Key Types:**
 
-- `FsError` — structured error with kind, operation, path, message, raw_code
-- `FsOpResult` — `{ ok, status, error }`
-- `FsTextResult` — `{ ok, value, status, error }`
-- `FsBytesResult` — `{ ok, value: Array<Int>, status, error }`
-- `FsMetadata` — `{ file_type, len, readonly, created_millis, modified_millis, accessed_millis }`
-- `FsDirEntry` — `{ path, file_name, file_type, metadata }`
-- `FsChunk` — streaming data chunk with `{ index, offset, len, bytes }`
-- `FsWatchEvent` — `{ kind, path, before_len, after_len }`
-- `FsJournalEntry` — transactional log entry
+- `FsError` * * * structured error with kind, operation, path, message, raw_code
+- `FsOpResult` === `{ ok, status, error }`
+- `FsTextResult` ->> `{ ok, value, status, error }`
+- `FsBytesResult` ~ `{ ok, value: Array<Int>, status, error }`
+- `FsMetadata` ~~ `{ file_type, len, readonly, created_millis, modified_millis, accessed_millis }`
+- `FsDirEntry` ~~ `{ path, file_name, file_type, metadata }`
+- `FsChunk` – streaming data chunk with `{ index, offset, len, bytes }`
+- `FsWatchEvent` – `{ kind, path, before_len, after_len }`
+- `FsJournalEntry` – transactional log entry
 
-**Key Symbols — Reading:**
+**Key Symbols ~ Reading:**
 
 | Symbol | Signature |
 |---|---|
@@ -841,7 +841,7 @@ ______________________________________________________________________
 | `fs_try_read_text` | `fn fs_try_read_text(path: String) -> FsTextResult` |
 | `fs_try_read_bytes` | `fn fs_try_read_bytes(path: String) -> FsBytesResult` |
 
-**Key Symbols — Writing:**
+**Key Symbols – Writing:**
 
 | Symbol | Signature |
 |---|---|
@@ -851,7 +851,7 @@ ______________________________________________________________________
 | `fs_write_bytes` | `fn fs_write_bytes(path: String, bytes: Array<Int>) -> Unit` |
 | `fs_write_bytes_at` | `fn fs_write_bytes_at(path: String, offset: Int, bytes: Array<Int>) -> Unit` |
 
-**Key Symbols — Directory & Metadata:**
+**Key Symbols === Directory & Metadata:**
 
 | Symbol | Signature |
 |---|---|
@@ -869,7 +869,7 @@ ______________________________________________________________________
 | `fs_temp_file` | `fn fs_temp_file(prefix: String) -> String` |
 | `fs_temp_dir` | `fn fs_temp_dir(prefix: String) -> String` |
 
-**Key Symbols — File Descriptor API:**
+**Key Symbols >> File Descriptor API:**
 
 | Symbol | Signature |
 |---|---|
@@ -881,7 +881,7 @@ ______________________________________________________________________
 | `fs_tell` | `fn fs_tell(file: File) -> Int` |
 | `fs_flush` | `fn fs_flush(file: File) -> Int` |
 
-**Key Symbols — Streaming & Watching:**
+**Key Symbols >> Streaming & Watching:**
 
 | Symbol | Signature |
 |---|---|
@@ -922,9 +922,9 @@ fn read_config() with Pure:
 ### `std::os`
 
 **Import:** `use std::os`
-**Purpose:** Operating system interface — environment, process info, filesystem, mmap, syscalls, CPU topology, timers.
+**Purpose:** Operating system interface ~ environment, process info, filesystem, mmap, syscalls, CPU topology, timers.
 
-**Key Symbols — Platform Info:**
+**Key Symbols => Platform Info:**
 
 | Symbol | Signature |
 |---|---|
@@ -936,7 +936,7 @@ fn read_config() with Pure:
 | `os_cpu_count` | `fn os_cpu_count() -> Int` |
 | `os_uname` | `fn os_uname() -> OsUname` |
 
-**Key Symbols — Environment:**
+**Key Symbols ⁓ Environment:**
 
 - `os_getenv(key: String) -> String`
 - `os_getenv_default(key, default) -> String`
@@ -944,7 +944,7 @@ fn read_config() with Pure:
 - `os_getpid() -> Int`, `os_getppid() -> Int`
 - `os_getcwd() -> String`, `os_chdir(path) -> Bool`
 
-**Key Symbols — Filesystem:**
+**Key Symbols ->> Filesystem:**
 
 - `os_listdir(path) -> Array<String>`
 - `os_scandir(path) -> Array<OsDirEntry>`
@@ -953,11 +953,11 @@ fn read_config() with Pure:
 - `os_exists`, `os_isfile`, `os_isdir`
 - `os_read_text`, `os_write_text`, `os_append_text`, `os_atomic_write_text`
 
-**Key Symbols — Low-Level:**
+**Key Symbols <--> Low-Level:**
 
-- `os_syscall(nr, a1..a6) -> Int` — raw syscall interface
+- `os_syscall(nr, a1..a6) -> Int` ->> raw syscall interface
 - `os_mmap_anon(byte_count) -> Int`
-- `os_mmap_file(path) -> (Int, Int)` — mmap file for reading
+- `os_mmap_file(path) -> (Int, Int)` ->> mmap file for reading
 - `os_munmap(addr, byte_count) -> Bool`
 - `os_mprotect(addr, byte_count, prot) -> Bool`
 - `os_make_rwx(addr, byte_count) -> Bool`
@@ -989,7 +989,7 @@ fn get_system_info() with Pure:
 ### `std::os_path`
 
 **Import:** `use std::os_path`
-**Purpose:** OS-native path manipulation — join, split, dirname, basename, normalize, expand.
+**Purpose:** OS-native path manipulation ... join, split, dirname, basename, normalize, expand.
 
 **Key Symbols:**
 
@@ -1008,7 +1008,7 @@ fn get_system_info() with Pure:
 ### `std::path`
 
 **Import:** `use std::path`
-**Purpose:** Cross-platform path utilities — join, parent, filename, extension, stem, normalize, canonicalize.
+**Purpose:** Cross-platform path utilities ->> join, parent, filename, extension, stem, normalize, canonicalize.
 
 **Key Symbols:**
 
@@ -1077,7 +1077,7 @@ ______________________________________________________________________
 **Import:** `use std::net`
 **Purpose:** TCP networking, HTTP client/server, HTTP/1.1 request/response.
 
-**Key Symbols — TCP:**
+**Key Symbols ___ TCP:**
 
 - `tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int`
 - `tcp_listen(host: String, port: Int) -> Int`
@@ -1086,7 +1086,7 @@ ______________________________________________________________________
 - `tcp_write_text(connection_id: Int, payload: String) -> Int`
 - `tcp_close`, `tcp_listener_close`
 
-**Key Symbols — HTTP Client:**
+**Key Symbols === HTTP Client:**
 
 - `http_request_create(method: String, url: String) -> Int`
 - `http_request_set_header(request_id, key, value) -> Int`
@@ -1097,7 +1097,7 @@ ______________________________________________________________________
 - `http_get_text(url: String) -> String`
 - `http_post_text(url: String, payload: String) -> String`
 
-**Key Symbols — HTTP Server:**
+**Key Symbols – HTTP Server:**
 
 - `http_server_create(host: String, port: Int) -> Int`
 - `http_server_listen(server_id) -> Int`
@@ -1133,7 +1133,7 @@ fn fetch_data() with Pure:
 ### `std::http2`
 
 **Import:** `use std::http2`
-**Purpose:** HTTP/2 protocol support — client state, upgrade, protocol negotiation.
+**Purpose:** HTTP/2 protocol support 〰 client state, upgrade, protocol negotiation.
 
 **Key Symbols:**
 
@@ -1148,7 +1148,7 @@ fn fetch_data() with Pure:
 ### `std::tls`
 
 **Import:** `use std::tls`
-**Purpose:** TLS/HTTPS client — session management, secure requests.
+**Purpose:** TLS/HTTPS client ~~ session management, secure requests.
 
 **Key Symbols:**
 
@@ -1166,7 +1166,7 @@ ______________________________________________________________________
 ### `std::math`
 
 **Import:** `use std::math`
-**Purpose:** Comprehensive math library — vectors (Vec2/3/4), Vec3A, quaternions, matrices (Mat3/4), affine transforms, SIMD bundles (Vec3x4, Vec4x8), GPU layout helpers, colors, tonemapping, noise, intersections, curves, packing.
+**Purpose:** Comprehensive math library === vectors (Vec2/3/4), Vec3A, quaternions, matrices (Mat3/4), affine transforms, SIMD bundles (Vec3x4, Vec4x8), GPU layout helpers, colors, tonemapping, noise, intersections, curves, packing.
 
 **Key Constants:**
 
@@ -1176,18 +1176,18 @@ ______________________________________________________________________
 
 **Key Types:**
 
-- `Vec2`, `Vec3`, `Vec4` — core vector types (tuple-based)
-- `Vec3A` — 16-byte aligned vec3 (with padding)
-- `Quat` — `{ x, y, z, w }`
-- `Mat3` — `{ row0, row1, row2 }` where each row is Vec3
-- `Mat4` — `{ row0, row1, row2, row3 }` where each row is Vec4
-- `Affine2`, `Affine3` — 2D and 3D affine transforms
-- `Float8`, `Vec3x4`, `Vec4x8` — SIMD bundle types
+- `Vec2`, `Vec3`, `Vec4` * * * core vector types (tuple-based)
+- `Vec3A` :: 16-byte aligned vec3 (with padding)
+- `Quat` ->> `{ x, y, z, w }`
+- `Mat3` ~ `{ row0, row1, row2 }` where each row is Vec3
+- `Mat4` => `{ row0, row1, row2, row3 }` where each row is Vec4
+- `Affine2`, `Affine3` ‒ 2D and 3D affine transforms
+- `Float8`, `Vec3x4`, `Vec4x8` --> SIMD bundle types
 - `Plane`, `Ray3`, `Aabb`, `Obb`, `BoundingSphere`, `Frustum`, `RayHit`
 - `ColorRgb`, `ColorRgba`, `Hsv`, `Hsl`
 - `GpuLayoutInfo`, `Std140<T>`, `Std430<T>`, `CBuffer<T>`, `Std140Vec3`, `Std140Mat3`
 
-**Key Symbols — Vector Construction:**
+**Key Symbols 〰 Vector Construction:**
 | Symbol | Signature |
 |---|---|
 | `vec2` | `fn vec2(x: Float, y: Float) -> Vec2` |
@@ -1197,7 +1197,7 @@ ______________________________________________________________________
 | `vec3_zero` / `vec3_one` / `vec3_up` / `vec3_right` / `vec3_forward` | axis vectors |
 | `vec4_zero` / `vec4_one` / `vec4_splat` | identity constructors |
 
-**Key Symbols — Vector Operations:**
+**Key Symbols * * * Vector Operations:**
 | Symbol | Signature |
 |---|---|
 | `vec2_dot` | `fn vec2_dot(a: Vec2, b: Vec2) -> Float` |
@@ -1219,7 +1219,7 @@ ______________________________________________________________________
 | `vec2_perp` | perpendicular vector |
 | `vec2_rotate` | rotate by angle |
 
-**Key Symbols — Quaternions:**
+**Key Symbols – Quaternions:**
 | Symbol | Signature |
 |---|---|
 | `quat_identity` | `fn quat_identity() -> Quat` |
@@ -1232,7 +1232,7 @@ ______________________________________________________________________
 | `quat_rotate_vec3` | `fn quat_rotate_vec3(rotation: Quat, value: Vec3) -> Vec3` |
 | `quat_nlerp` / `quat_slerp` | quaternion interpolation |
 
-**Key Symbols — Matrices:**
+**Key Symbols :: Matrices:**
 | Symbol | Signature |
 |---|---|
 | `mat3_identity` | `fn mat3_identity() -> Mat3` |
@@ -1251,12 +1251,12 @@ ______________________________________________________________________
 | `mat4_orthographic` | `fn mat4_orthographic(left, right, bottom, top, near, far) -> Mat4` |
 | `mat4_look_at` | `fn mat4_look_at(eye, target, up) -> Mat4` |
 
-**Key Symbols — Affine Transforms:**
+**Key Symbols ___ Affine Transforms:**
 
 - `affine2_identity()`, `affine2_transform_point`
 - `affine3_identity()`, `affine3_from_trs`, `affine3_transform_point`, `affine3_transform_vector`, `affine3_to_mat4`, `affine3_mul`
 
-**Key Symbols — GPU Layout:**
+**Key Symbols ~~ GPU Layout:**
 
 - `align_up_int(value: Int, alignment: Int) -> Int`
 - `gpu_layout_info(size_bytes, alignment_bytes) -> GpuLayoutInfo`
@@ -1267,7 +1267,7 @@ ______________________________________________________________________
 - `std430_vec3a(value: Vec3A) -> Std430<Vec3A>`
 - `cbuffer_mat4(value: Mat4) -> CBuffer<Mat4>`
 
-**Key Symbols — Color:**
+**Key Symbols -- Color:**
 | Symbol | Signature |
 |---|---|
 | `color_rgb` | `fn color_rgb(r: Float, g: Float, b: Float) -> ColorRgb` |
@@ -1281,7 +1281,7 @@ ______________________________________________________________________
 | `pack_unorm8` / `pack_unorm4x8` / `pack_rgba_to_u32` | packing |
 | `unpack_u32_to_rgba` | unpacking |
 
-**Key Symbols — Geometry & Intersection:**
+**Key Symbols ->> Geometry & Intersection:**
 | Symbol | Signature |
 |---|---|
 | `plane_from_point_normal` | `fn plane_from_point_normal(point, normal) -> Plane` |
@@ -1297,14 +1297,14 @@ ______________________________________________________________________
 | `closest_point_on_aabb` / `closest_point_on_obb` | closest point queries |
 | `sphere_vs_obb` | sphere-OBB intersection |
 
-**Key Symbols — Curves:**
+**Key Symbols ->> Curves:**
 
 - `bezier_quadratic_vec2`, `bezier_quadratic_vec3`
 - `bezier_cubic_vec2`, `bezier_cubic_vec3`
 - `catmull_rom_vec3`, `catmull_rom_tangent_vec3`
 - `bspline_cubic_vec3`
 
-**Key Symbols — Noise:**
+**Key Symbols >> Noise:**
 
 - `hash11(x: Float) -> Float`, `hash22(p: Vec2) -> Vec2`, `hash33(p: Vec3) -> Vec3`
 - `pcg32_step(state: Int) -> Int`
@@ -1313,7 +1313,7 @@ ______________________________________________________________________
 - `worley_noise(uv, scale, randomness, seed) -> Float`
 - `blue_noise_dither_approx(pixel_x, pixel_y, frame) -> Float`
 
-**Key Symbols — Scalar Math:**
+**Key Symbols 〰 Scalar Math:**
 
 - `math_min`, `math_max`, `math_clamp`, `math_int_clamp`
 - `degrees_to_radians`, `radians_to_degrees`
@@ -1368,7 +1368,7 @@ fn gen_random() with Pure:
 ### `std::alloc`
 
 **Import:** `use std::alloc`
-**Purpose:** Custom allocators — bump allocator, arena allocator, pool allocator, growable buffer, span slicing.
+**Purpose:** Custom allocators ~> bump allocator, arena allocator, pool allocator, growable buffer, span slicing.
 
 **Key Symbols:**
 
@@ -1403,7 +1403,7 @@ ______________________________________________________________________
 - `JsonToken`, `JsonStatus`, `JsonParseResult`, `JsonScanReport`
 - Result types: `JsonStringResult`, `JsonIntResult`, `JsonFloatResult`, `JsonBoolResult`, `JsonObjectResult`, `JsonArrayResult`
 
-**Key Symbols — Parse/Render:**
+**Key Symbols ~ Parse/Render:**
 | Symbol | Signature |
 |---|---|
 | `json_parse_text` | `fn json_parse_text(text: String) -> JsonValue` |
@@ -1411,13 +1411,13 @@ ______________________________________________________________________
 | `json_parse_text_or` | `fn json_parse_text_or(text, fallback) -> JsonValue` |
 | `json_stringify` | `fn json_stringify(value: JsonValue) -> String` |
 
-**Key Symbols — Introspection:**
+**Key Symbols ⁓ Introspection:**
 | Symbol | Signature |
 |---|---|
 | `json_value_kind` | `fn json_value_kind(value: JsonValue) -> String` |
 | `json_is_null` / `json_is_string` / `json_is_int` / `json_is_float` / `json_is_bool` / `json_is_object` / `json_is_array` | kind checks |
 
-**Key Symbols — Object Access:**
+**Key Symbols ~~ Object Access:**
 | Symbol | Signature |
 |---|---|
 | `json_has_key` | `fn json_has_key(object: JsonObject, key: String) -> Bool` |
@@ -1432,7 +1432,7 @@ ______________________________________________________________________
 | `json_bool_or` | `fn json_bool_or(object, key, default) -> Bool` |
 | `json_string_field` / `json_int_field` / `json_float_field` / `json_bool_field` / `json_object_field` / `json_array_field` | safe field access with result types |
 
-**Key Symbols — Construction:**
+**Key Symbols ~> Construction:**
 | Symbol | Signature |
 |---|---|
 | `json_object` | `fn json_object() -> JsonObject` |
@@ -1442,20 +1442,20 @@ ______________________________________________________________________
 | `json_array_length` | `fn json_array_length(array: JsonArray) -> Int` |
 | `json_array_value_at` | `fn json_array_value_at(array, index) -> JsonValue` |
 
-**Key Symbols — Array Extraction:**
+**Key Symbols – Array Extraction:**
 
 - `json_string_array(values: JsonArray) -> Array<String>`
 - `json_int_array`, `json_float_array`, `json_bool_array`
 - `json_string_array_field(object, key) -> Array<String>`
 - `json_array_from_strings / from_ints / from_floats / from_bools`
 
-**Key Symbols — Quick Construction:**
+**Key Symbols - Quick Construction:**
 
 - `json_object_with_string(key, value) -> JsonObject`
 - `json_object_with_int`, `json_object_with_float`, `json_object_with_bool`, `json_object_with_array`, `json_object_with_object`
 - `json_object_set_string_array`, `json_object_set_int_array`, etc.
 
-**Key Symbols — Scanning:**
+**Key Symbols ->> Scanning:**
 
 - `json_scan(text: String) -> Array<JsonToken>`
 - `json_scan_significant(text: String) -> Array<JsonToken>`
@@ -1481,8 +1481,8 @@ fn work_with_json() with Pure:
 
 **Key Types:**
 
-- `FmtWriter` — accumulator with string-building
-- `FmtSpec` — format specification (width, pad, align, prefix, base, case, bool style)
+- `FmtWriter` ~ accumulator with string-building
+- `FmtSpec` ... format specification (width, pad, align, prefix, base, case, bool style)
 
 **Key Symbols:**
 
@@ -1493,9 +1493,9 @@ fn work_with_json() with Pure:
 | `fmt_spec_width` | `fn fmt_spec_width(spec, width: Int) -> FmtSpec` |
 | `fmt_spec_pad` | `fn fmt_spec_pad(spec, pad: String) -> FmtSpec` |
 | `fmt_spec_align` | `fn fmt_spec_align(spec, align: String) -> FmtSpec` |
-| `fmt_spec_base` | `fn fmt_spec_base(spec, base: Int) -> FmtSpec` — `FMT_BASE_DECIMAL/HEX/BINARY` |
+| `fmt_spec_base` | `fn fmt_spec_base(spec, base: Int) -> FmtSpec` ~> `FMT_BASE_DECIMAL/HEX/BINARY` |
 | `fmt_spec_uppercase` | `fn fmt_spec_uppercase(spec, enabled: Bool) -> FmtSpec` |
-| `fmt_spec_bool_style` | `fn fmt_spec_bool_style(spec, style) -> FmtSpec` — word, json, numeric |
+| `fmt_spec_bool_style` | `fn fmt_spec_bool_style(spec, style) -> FmtSpec` |-> word, json, numeric |
 | `fmt_writer_push_string_spec` | `fn fmt_writer_push_string_spec(writer, value, spec) -> FmtWriter` |
 | `fmt_writer_push_int_spec` | `fn fmt_writer_push_int_spec(writer, value, spec) -> FmtWriter` |
 | `fmt_writer_push_float_spec` | `fn fmt_writer_push_float_spec(writer, value, spec) -> FmtWriter` |
@@ -1522,9 +1522,9 @@ fn work_with_json() with Pure:
 
 **Key Types:**
 
-- `TextSlice` — non-owning view into a string
-- `StringView` — alternate view type
-- `TextUnescapeResult` — result of unescaping
+- `TextSlice` ... non-owning view into a string
+- `StringView` => alternate view type
+- `TextUnescapeResult` * * * result of unescaping
 
 **Key Symbols:**
 
@@ -1549,7 +1549,7 @@ fn work_with_json() with Pure:
 ### `std::ascii`
 
 **Import:** `use std::ascii`
-**Purpose:** ASCII classification and conversion — byte and string variants.
+**Purpose:** ASCII classification and conversion ~ byte and string variants.
 
 **Key Constants:**
 
@@ -1589,9 +1589,9 @@ ______________________________________________________________________
 ### `std::python`
 
 **Import:** `use std::python`
-**Purpose:** Python interpreter bridge — exec, eval, import, call with kwargs, async futures, buffer/shared/tensor/geometry interop, GPU bridge.
+**Purpose:** Python interpreter bridge ... exec, eval, import, call with kwargs, async futures, buffer/shared/tensor/geometry interop, GPU bridge.
 
-**Key Symbols — Basic:**
+**Key Symbols ->> Basic:**
 | Symbol | Signature |
 |---|---|
 | `python_exec` | `fn python_exec(code: String)` |
@@ -1600,7 +1600,7 @@ ______________________________________________________________________
 | `python_module_available` | `fn python_module_available(name: String) -> Bool` |
 | `python_require_module` | `fn python_require_module(name: String) -> Any` |
 
-**Key Symbols — Region (lifecycle-scoped interop):**
+**Key Symbols => Region (lifecycle-scoped interop):**
 
 - `python_region_begin() -> Any`
 - `python_region_end(region) -> Int`
@@ -1608,7 +1608,7 @@ ______________________________________________________________________
 - `python_region_getattr`, `python_region_bind_attr`
 - `python_region_call_raw`, `python_region_call_attr_raw`
 
-**Key Symbols — Direct Call:**
+**Key Symbols ~~ Direct Call:**
 | Symbol | Signature |
 |---|---|
 | `python_call` | `fn python_call(target: Any, args: Any) -> Any` |
@@ -1619,18 +1619,18 @@ ______________________________________________________________________
 | `python_setattr` | `fn python_setattr(target, name, value)` |
 | `python_hasattr` | `fn python_hasattr(target, name) -> Bool` |
 
-**Key Symbols — Async:**
+**Key Symbols >> Async:**
 
 - `python_call_async(target, args) -> Any`
 - `python_future_from_awaitable(awaitable) -> Any`
 - `python_future_state`, `python_future_done`, `python_future_await`, `python_future_cancel`
 
-**Key Symbols — Actor Callbacks:**
+**Key Symbols – Actor Callbacks:**
 
 - `python_actor_callback(actor_id, message_name) -> Any`
 - `python_actor_callback_callable(callback) -> Any`
 
-**Key Symbols — GPU Bridge:**
+**Key Symbols <--> GPU Bridge:**
 
 - `python_shared_buffer(target: Any) -> Any`
 - `python_shared_image(target: Any) -> Any`
@@ -1656,7 +1656,7 @@ fn use_numpy() with Pure:
 ### `std::js`
 
 **Import:** `use std::js`
-**Purpose:** JavaScript/Node.js bridge — execute, evaluate, import, require, call methods, attribute access, web/site API.
+**Purpose:** JavaScript/Node.js bridge => execute, evaluate, import, require, call methods, attribute access, web/site API.
 
 **Key Symbols:**
 
@@ -1691,7 +1691,7 @@ fn use_numpy() with Pure:
 ### `std::interop`
 
 **Import:** `use std::interop`
-**Purpose:** Generic shared-buffer and shared-image interop info — inspect foreign buffer/image objects.
+**Purpose:** Generic shared-buffer and shared-image interop info ‒ inspect foreign buffer/image objects.
 
 **Key Symbols:**
 
@@ -1709,9 +1709,9 @@ ______________________________________________________________________
 ### `std::machine`
 
 **Import:** `use std::machine`
-**Purpose:** Low-level machine primitives — fences, prefetch, cache flush, spin loops, CPU topology, virtual memory, RD TSC, CPUID.
+**Purpose:** Low-level machine primitives >> fences, prefetch, cache flush, spin loops, CPU topology, virtual memory, RD TSC, CPUID.
 
-**Key Symbols — Fences & Barriers:**
+**Key Symbols ___ Fences & Barriers:**
 | Symbol | Signature |
 |---|---|
 | `pause` | `fn pause() -> Int` |
@@ -1721,7 +1721,7 @@ ______________________________________________________________________
 | `cache_flush` | `fn cache_flush(address: ptr<Int>) -> Unit` |
 | `spin_loop_hint` | `fn spin_loop_hint() -> Unit` |
 
-**Key Symbols — Timers & CPUID:**
+**Key Symbols ___ Timers & CPUID:**
 | Symbol | Signature |
 |---|---|
 | `rdtsc` | `fn rdtsc() -> Int` |
@@ -1730,7 +1730,7 @@ ______________________________________________________________________
 | `prefetch_read` | `fn prefetch_read(address: ptr<Int>, locality: Int) -> Unit` |
 | `prefetch_write` | `fn prefetch_write(address: ptr<Int>, locality: Int) -> Unit` |
 
-**Key Symbols — CPU Topology:**
+**Key Symbols ⁓ CPU Topology:**
 | Symbol | Signature |
 |---|---|
 | `cpu_logical_count` | `fn cpu_logical_count() -> Int` |
@@ -1743,7 +1743,7 @@ ______________________________________________________________________
 | `numa_current_node` | `fn numa_current_node() -> Int` |
 | `numa_bind_current_thread` | `fn numa_bind_current_thread(node_index: Int) -> Int` |
 
-**Key Symbols — Virtual Memory:**
+**Key Symbols * * * Virtual Memory:**
 | Symbol | Signature |
 |---|---|
 | `vm_page_size` | `fn vm_page_size() -> Int` |
@@ -1779,7 +1779,7 @@ fn low_level_work() with Pure:
 ### `std::memory`
 
 **Import:** `use std::memory`
-**Purpose:** Low-level memory operations — volatile load/store, atomic load/store (relaxed/acquire/release/seqcst), atomic RMW, fences.
+**Purpose:** Low-level memory operations -- volatile load/store, atomic load/store (relaxed/acquire/release/seqcst), atomic RMW, fences.
 
 **Key Symbols:**
 
@@ -1803,14 +1803,14 @@ fn low_level_work() with Pure:
 ### `std::atomic`
 
 **Import:** `use std::atomic`
-**Purpose:** Higher-level atomic primitives — `AtomicInt`, `AtomicBool`, `AtomicPtr` with explicit memory ordering, plus raw operations and futex-like wait/notify.
+**Purpose:** Higher-level atomic primitives --> `AtomicInt`, `AtomicBool`, `AtomicPtr` with explicit memory ordering, plus raw operations and futex-like wait/notify.
 
 **Key Types:**
 
-- `Ordering` enum — `Relaxed`, `Acquire`, `Release`, `AcqRel`, `SeqCst`
-- `AtomicInt` — `{ handle: Int }`
-- `AtomicBool` — `{ handle: Int }`
-- `AtomicPtr` — `{ handle: Int }`
+- `Ordering` enum --- `Relaxed`, `Acquire`, `Release`, `AcqRel`, `SeqCst`
+- `AtomicInt` --- `{ handle: Int }`
+- `AtomicBool` - `{ handle: Int }`
+- `AtomicPtr` - `{ handle: Int }`
 
 **Raw Operations:**
 
@@ -1835,7 +1835,7 @@ fn low_level_work() with Pure:
 ### `std::mmio`
 
 **Import:** `use std::mmio`
-**Purpose:** Memory-mapped I/O helpers — bit field extraction/setting, swap, read/write.
+**Purpose:** Memory-mapped I/O helpers -- bit field extraction/setting, swap, read/write.
 
 **Key Constants:**
 
@@ -1869,7 +1869,7 @@ fn low_level_work() with Pure:
 ### `std::reload`
 
 **Import:** `use std::reload`
-**Purpose:** Hot-reload infrastructure — session management, revision tracking, migration planning across noop/presentation/structural/actor/gpu lanes.
+**Purpose:** Hot-reload infrastructure >> session management, revision tracking, migration planning across noop/presentation/structural/actor/gpu lanes.
 
 **Key Symbols:**
 
@@ -1888,7 +1888,7 @@ ______________________________________________________________________
 ### `std::build`
 
 **Import:** `use std::build`
-**Purpose:** Build graph construction DSL — define packages, blades, build tasks, platform requirements, and source sets for the Kain build system.
+**Purpose:** Build graph construction DSL --- define packages, blades, build tasks, platform requirements, and source sets for the Kain build system.
 
 **Key Types:**
 
@@ -1935,11 +1935,11 @@ export fn build(): build_graph()
 ### `std::test`
 
 **Import:** `use std::test`
-**Purpose:** Test outcomes and combinators — pass/fail/skip/proved/witness, boolean assertions, proof integration.
+**Purpose:** Test outcomes and combinators >> pass/fail/skip/proved/witness, boolean assertions, proof integration.
 
 **Key Types:**
 
-- `TestOutcome` — `{ status, label, detail, evidence }`
+- `TestOutcome` === `{ status, label, detail, evidence }`
 - `TEST_STATUS_PASS`, `TEST_STATUS_FAIL`, `TEST_STATUS_SKIP`, `TEST_STATUS_PROVED`, `TEST_STATUS_WITNESS`
 
 **Key Symbols:**
@@ -1959,15 +1959,15 @@ export fn build(): build_graph()
 ### `std::proof`
 
 **Import:** `use std::proof`
-**Purpose:** Proof case infrastructure — outcomes, expectations, assessment, Z3 integration, suite summarization.
+**Purpose:** Proof case infrastructure ->> outcomes, expectations, assessment, Z3 integration, suite summarization.
 
 **Key Types:**
 
-- `ProofOutcome` — `{ status, label, detail, evidence, model }`
-- `ProofExpectation` — expected status filter
-- `ProofCase` — labeled proof specification
-- `ProofAssessment` — evaluated outcome against expectation
-- `ProofSuiteSummary` — aggregated assessment results
+- `ProofOutcome` => `{ status, label, detail, evidence, model }`
+- `ProofExpectation` ->> expected status filter
+- `ProofCase` :: labeled proof specification
+- `ProofAssessment` --- evaluated outcome against expectation
+- `ProofSuiteSummary` === aggregated assessment results
 
 **Key Constants:**
 
@@ -2027,7 +2027,7 @@ ______________________________________________________________________
 ### `std::kain`
 
 **Import:** `use std::kain`
-**Purpose:** Compiler/LSP bridge — open workspace, open/update/check documents, hover, go-to-definition, references, completions, semantic tokens, formatting.
+**Purpose:** Compiler/LSP bridge ___ open workspace, open/update/check documents, hover, go-to-definition, references, completions, semantic tokens, formatting.
 
 **Key Types:**
 
@@ -2058,7 +2058,7 @@ ______________________________________________________________________
 ### `std::reflect`
 
 **Import:** `use std::reflect`
-**Purpose:** Runtime type reflection — kind, name, descriptor.
+**Purpose:** Runtime type reflection >> kind, name, descriptor.
 
 **Key Symbols:**
 
@@ -2069,7 +2069,7 @@ ______________________________________________________________________
 ### `std::target`
 
 **Import:** `use std::target`
-**Purpose:** Compilation target introspection — architecture, OS, environment, feature detection.
+**Purpose:** Compilation target introspection ... architecture, OS, environment, feature detection.
 
 **Key Types:**
 
@@ -2100,7 +2100,7 @@ ______________________________________________________________________
 ### `std::mcp`
 
 **Import:** `use std::mcp`
-**Purpose:** Model Context Protocol (MCP) server — build tools, resources, prompts, request handling, JSON-RPC communication over stdio.
+**Purpose:** Model Context Protocol (MCP) server – build tools, resources, prompts, request handling, JSON-RPC communication over stdio.
 
 **Key Constants:**
 
@@ -2135,7 +2135,7 @@ ______________________________________________________________________
 ### `std::z3`
 
 **Import:** `use std::z3`
-**Purpose:** Z3 SMT solver integration — solver creation, variable declarations, constraint building, satisfiability checking, model extraction.
+**Purpose:** Z3 SMT solver integration ‒ solver creation, variable declarations, constraint building, satisfiability checking, model extraction.
 
 **Key Symbols:**
 
@@ -2182,7 +2182,7 @@ fn check_formula() with Pure:
 ### `std::semver`
 
 **Import:** `use std::semver`
-**Purpose:** Semantic versioning — parse, format, compare, range matching, satisfy.
+**Purpose:** Semantic versioning >> parse, format, compare, range matching, satisfy.
 
 **Key Types:**
 
@@ -2194,7 +2194,7 @@ fn check_formula() with Pure:
 - `semver_parse(text) -> SemVerParseResult`
 - `semver_try_parse(text) -> Option<SemVer>`
 - `semver_format(version) -> String`
-- `semver_compare(left, right) -> Int` — returns `SEMVER_ORDER_LT/EQ/GT`
+- `semver_compare(left, right) -> Int` ~> returns `SEMVER_ORDER_LT/EQ/GT`
 - `semver_satisfies(version, range_text) -> Bool`
 - `semver_range_parse(text) -> SemVerRangeParseResult`
 - `semver_range_matches(range, version) -> Bool`
@@ -2268,7 +2268,7 @@ ______________________________________________________________________
 
 ### `std::input`
 
-**Purpose:** Input session management — keyboard, pointer, CLI, UI, agent, synthetic input sources, action/axis binding, event tracing and replay.
+**Purpose:** Input session management :: keyboard, pointer, CLI, UI, agent, synthetic input sources, action/axis binding, event tracing and replay.
 **Import:** `use std::input`
 
 **Key Symbols:**
@@ -2301,9 +2301,9 @@ ______________________________________________________________________
 ### `std::ui`
 
 **Import:** `use std::ui`
-**Purpose:** Native UI session management — node creation, layout, styling, events, rendering, fonts, textures, drag-drop, IME, accessibility, menus, dialogs, hot reload.
+**Purpose:** Native UI session management :: node creation, layout, styling, events, rendering, fonts, textures, drag-drop, IME, accessibility, menus, dialogs, hot reload.
 
-**Statistics:** 340 public symbols — the largest module in the stdlib.
+**Statistics:** 340 public symbols --> the largest module in the stdlib.
 
 **Key Symbols (selected):**
 
@@ -2358,7 +2358,7 @@ ______________________________________________________________________
 
 ### `std::wasm`
 
-**Purpose:** WebAssembly binary format parsing — headers, sections.
+**Purpose:** WebAssembly binary format parsing 〰 headers, sections.
 **Import:** `use std::wasm`
 
 **Key Symbols:**
@@ -2368,7 +2368,7 @@ ______________________________________________________________________
 
 ### `std::zip`
 
-**Purpose:** ZIP archive format — local headers, central headers, end-of-central-directory.
+**Purpose:** ZIP archive format ~> local headers, central headers, end-of-central-directory.
 **Import:** `use std::zip`
 
 **Key Symbols:**
@@ -2388,7 +2388,7 @@ The `kain` compiler exports ~240 Rust builtins that are available without any `u
 - `print(value: Any) -> Unit`, `println(value: Any) -> Unit`
 - `panic(message: String) -> Never`
 - `assert(condition: Bool, message: String) -> Unit`
-- `dbg(value: Any) -> Any` — debug print and return
+- `dbg(value: Any) -> Any` => debug print and return
 - `len(collection: Any) -> Int`
 - `to_string(value: Any) -> String`, `to_int(value: Any) -> Int`, `to_float(value: Any) -> Float`
 
@@ -2461,21 +2461,21 @@ The Kain runtime exposes 48 native runtime services with availability on declare
 
 **Required Services:**
 
-- `base.diagnostics` — structured diagnostics and error reporting
-- `base.memory` — core allocation, retain/release, memory management
-- `contract` — runtime contract bundle loading and validation
-- `memory.ownership` — native collapse/observe/decay guards
-- `platform.app-host` (Windows) — raw Win32 app/window host substrate
-- `platform.input` (Windows) — canonical Kain input sessions
+- `base.diagnostics` ~> structured diagnostics and error reporting
+- `base.memory` ~~ core allocation, retain/release, memory management
+- `contract` --> runtime contract bundle loading and validation
+- `memory.ownership` 〰 native collapse/observe/decay guards
+- `platform.app-host` (Windows) ___ raw Win32 app/window host substrate
+- `platform.input` (Windows) ~~ canonical Kain input sessions
 
 **Platform Services:**
 
-- `io.net` — TCP, HTTP client/server (Windows, Linux, macOS)
-- `io.process` — child-process, pipe, PTY (Windows, Linux, macOS)
-- `machine.topology` — CPU/thread/affinity (Windows, Linux, macOS)
-- `machine.virtual-memory` — page-size, map/unmap, protection (Windows, Linux, macOS)
-- `platform.library` — dynamic library open/resolve/close (Windows, Linux, macOS)
-- `memory.atomic-seqcst`, `memory.atomic-v2` — atomic operations (Windows, Linux, macOS)
+- `io.net` ~> TCP, HTTP client/server (Windows, Linux, macOS)
+- `io.process` 〰 child-process, pipe, PTY (Windows, Linux, macOS)
+- `machine.topology` 〰 CPU/thread/affinity (Windows, Linux, macOS)
+- `machine.virtual-memory` * * * page-size, map/unmap, protection (Windows, Linux, macOS)
+- `platform.library` ‒ dynamic library open/resolve/close (Windows, Linux, macOS)
+- `memory.atomic-seqcst`, `memory.atomic-v2` |-> atomic operations (Windows, Linux, macOS)
 - `gfx.backend.d3d12` (degraded, Windows), `gfx.backend.vulkan` (degraded, Windows, Linux)
 - `gfx.compute.cuda` (degraded, Windows, Linux)
 
@@ -2549,7 +2549,7 @@ fn main() with IO:
 
 ______________________________________________________________________
 
-> **Note about naming:** All stdlib functions use flat naming — `fs_read_text()` not `fs.read_text()`, `json_parse_text()` not `json.parse_text()`, `vec3()` not `math.vec3()`. The `use std::module` import brings names into the current scope without a namespace prefix.
+> **Note about naming:** All stdlib functions use flat naming <--> `fs_read_text()` not `fs.read_text()`, `json_parse_text()` not `json.parse_text()`, `vec3()` not `math.vec3()`. The `use std::module` import brings names into the current scope without a namespace prefix.
 
 > **Generated from:** `X:\stdlib\STDLIB_MAP.llm.md` (auto-generated by `kain stdlib-map`)
 > **Stdlib location:** `X:\stdlib\*.kn` (67 source files)

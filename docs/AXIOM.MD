@@ -1,4 +1,4 @@
-# Axiom — Machine Truth with Fallback
+# Axiom --> Machine Truth with Fallback
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/parser.rs` (parse_axiom, parse_axiom_predicate), `crates/core/src/ast.rs` (AxiomDef, AxiomPredicate), `crates/core/src/types.rs` (check_axiom), `crates/core/src/runtime_contract.rs` (RuntimeAxiomContract, RuntimeAxiomPredicateContract), `crates/sys-codegen/src/codegen_llvm/mod.rs` (compile_axiom), `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c` (kain_machine_axiom_accept), `smoketest/src/semantics/axiom.kn`, `blades/test/machine-stones/src/main.kn`, `benchmark/cases/semantic_singularity/main.kn`, `benchmark/cases_v2/orchestrate_god.kn`, `crates/core/z3/proofs/keywords-axiom-predicate-fallback-is-exclusive.yaml`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
@@ -8,19 +8,19 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Axiom?](#what-is-axiom)
-1. [The Core Idea — Declared Machine Truth](#the-core-idea)
+1. [The Core Idea --- Declared Machine Truth](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
-1. [The Predicate Layer — `when`](#the-predicate-layer)
-1. [Guarantees — `guarantee`](#guarantees)
-1. [Fallback — The Safety Net](#fallback)
+1. [How It Works ~> Full Pipeline](#how-it-works)
+1. [The Predicate Layer --- `when`](#the-predicate-layer)
+1. [Guarantees ~> `guarantee`](#guarantees)
+1. [Fallback >> The Safety Net](#fallback)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
-1. [LLVM Codegen — `kain_machine_axiom_accept`](#llvm-codegen)
-1. [Native C Runtime — Capability Mask](#native-c-runtime)
+1. [LLVM Codegen ... `kain_machine_axiom_accept`](#llvm-codegen)
+1. [Native C Runtime * * * Capability Mask](#native-c-runtime)
 1. [The Z3 Proof: Exclusivity](#the-z3-proof)
-1. [Fusion Patterns — Axiom + Other Constructs](#fusion-patterns)
+1. [Fusion Patterns - Axiom + Other Constructs](#fusion-patterns)
 1. [The Orchestrate `guarded by` Clause](#the-orchestrate-guarded-by-clause)
-1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Under-Utilized Ideas ~> Creative Semantic Abuse](#under-utilized-ideas)
 1. [Compilation and Validation Ladder](#validation-ladder)
 1. [Source Anchors](#source-anchors)
 1. [Anti-Patterns](#anti-patterns)
@@ -30,7 +30,7 @@ ______________________________________________________________________
 
 ## What is Axiom?
 
-`axiom` is a **top-level machine truth declaration** in Kain. It expresses assumptions about the target environment — compilation target, CPU architecture, and available capabilities — together with a **fallback** function that takes over when those assumptions fail. It is the only construct in Kain that bridges **compile-time semantics** with **runtime hardware reality**.
+`axiom` is a **top-level machine truth declaration** in Kain. It expresses assumptions about the target environment - compilation target, CPU architecture, and available capabilities ->> together with a **fallback** function that takes over when those assumptions fail. It is the only construct in Kain that bridges **compile-time semantics** with **runtime hardware reality**.
 
 ```kn
 axiom machine_truth:
@@ -43,7 +43,7 @@ axiom machine_truth:
     fallback scalar_fallback
 ```
 
-The key insight: **axiom is not an `#ifdef` and not a feature flag.** It is a **compiler-owned duality**: the unsafe/fast/specialized lane runs only when every predicate holds; otherwise, the fallback guarantees a safe, portable execution path. The Z3 proof (`keywords-axiom-predicate-fallback-is-exclusive.yaml`) proves these two lanes are **mutually exclusive** — they can never both execute.
+The key insight: **axiom is not an `#ifdef` and not a feature flag.** It is a **compiler-owned duality**: the unsafe/fast/specialized lane runs only when every predicate holds; otherwise, the fallback guarantees a safe, portable execution path. The Z3 proof (`keywords-axiom-predicate-fallback-is-exclusive.yaml`) proves these two lanes are **mutually exclusive** * * * they can never both execute.
 
 ______________________________________________________________________
 
@@ -61,21 +61,21 @@ ______________________________________________________________________
 
 - ✅ A **top-level machine truth contract** declaring what the code assumes about its environment
 - ✅ A **predicate bundle** (`target`, `arch`, `capability`) that defines when the fast/unsafe lane is valid
-- ✅ A **fallback guarantee** — a function name that replaces all axiom-guarded code when predicates fail
+- ✅ A **fallback guarantee** === a function name that replaces all axiom-guarded code when predicates fail
 - ✅ A **runtime gate** compiled into LLVM IR that calls `kain_machine_axiom_accept()` at startup
 - ✅ A **Z3-proven exclusive-or** between the unsafe lane and the fallback lane
-- ✅ An **orchestrate guard** — `guarded by <axiom_name>` in `orchestrate` stage declarations
-- ✅ A **capability contract** — emits `machine.axiom` in the runtime contract bundle
+- ✅ An **orchestrate guard** – `guarded by <axiom_name>` in `orchestrate` stage declarations
+- ✅ A **capability contract** --- emits `machine.axiom` in the runtime contract bundle
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `axiom` | "Machine capability check" | **Declared duality** — this machine runs the fast lane; other machines run the fallback. The compiler owns the exclusivity. |
+| `axiom` | "Machine capability check" | **Declared duality** <--> this machine runs the fast lane; other machines run the fallback. The compiler owns the exclusivity. |
 
 When you write `axiom name: when target("llvm"), fallback fn`, you are telling the compiler:
 
-> "On machines that match the target, arch, and capability predicates, the code can assume these properties and execute specialized paths. On machines that don't match, the named fallback function takes over. These two paths are mutually exclusive — proven by Z3. There is no machine state where both paths execute."
+> "On machines that match the target, arch, and capability predicates, the code can assume these properties and execute specialized paths. On machines that don't match, the named fallback function takes over. These two paths are mutually exclusive :: proven by Z3. There is no machine state where both paths execute."
 
 ______________________________________________________________________
 
@@ -172,7 +172,7 @@ The parser:
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works * * * Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -205,10 +205,10 @@ ______________________________________________________________________
 
 The typechecker (`types.rs: check_axiom`) performs these checks:
 
-1. **Predicates required** — must declare at least one `when` predicate
-1. **Guarantees required** — must declare at least one `guarantee`
-1. **Fallback required** — must declare a non-empty `fallback` function name
-1. **No duplicate predicates** — a (kind, value) pair can only appear once
+1. **Predicates required** ->> must declare at least one `when` predicate
+1. **Guarantees required** => must declare at least one `guarantee`
+1. **Fallback required** :: must declare a non-empty `fallback` function name
+1. **No duplicate predicates** -- a (kind, value) pair can only appear once
 
 ```rust
 fn check_axiom(env: &mut TypeEnv, axiom: &AxiomDef) -> KainResult<TypedAxiom> {
@@ -270,13 +270,13 @@ int64_t kain_machine_axiom_accept(const char* target, const char* arch, uint64_t
 }
 ```
 
-1. **Target match** — `target` must be `"llvm"`, `"native"`, empty, or NULL (all match)
-1. **Arch match** — `arch` must match the compiled architecture (`"x86_64"`, `"amd64"`, `"aarch64"`, `"arm64"`)
-1. **Capability match** — all bits in `required_caps` must be present in `available` (derived from CPUID)
+1. **Target match** ~ `target` must be `"llvm"`, `"native"`, empty, or NULL (all match)
+1. **Arch match** :: `arch` must match the compiled architecture (`"x86_64"`, `"amd64"`, `"aarch64"`, `"arm64"`)
+1. **Capability match** ~> all bits in `required_caps` must be present in `available` (derived from CPUID)
 
 ______________________________________________________________________
 
-## The Predicate Layer — `when`
+## The Predicate Layer |-> `when`
 
 ### Available Predicates
 
@@ -314,7 +314,7 @@ The `kain_machine_arch_matches` function checks the compiled architecture:
 #endif
 ```
 
-This is a **compile-time** check — the arch constant is baked into the compiled binary. Different binaries for different architectures will have different truth values for the same arch string.
+This is a **compile-time** check => the arch constant is baked into the compiled binary. Different binaries for different architectures will have different truth values for the same arch string.
 
 ### Capability Values
 
@@ -357,7 +357,7 @@ The LLVM codegen ORs all bits into a single `capability_mask` that is passed to 
 
 ______________________________________________________________________
 
-## Guarantees — `guarantee`
+## Guarantees ... `guarantee`
 
 ### What They Are
 
@@ -401,11 +401,11 @@ if axiom.guarantees.is_empty() {
 
 ______________________________________________________________________
 
-## Fallback — The Safety Net
+## Fallback >> The Safety Net
 
 ### What It Is
 
-`fallback <function_name>` declares a **plain function** that replaces axiom-guarded code when predicates fail. This is a **required field** — the typechecker rejects axioms without a fallback.
+`fallback <function_name>` declares a **plain function** that replaces axiom-guarded code when predicates fail. This is a **required field** ~~ the typechecker rejects axioms without a fallback.
 
 ### Why It's Required
 
@@ -487,11 +487,11 @@ if summary.axioms > 0 {
 
 ### Realtime App Bundle
 
-Axiom does NOT have a specific realtime bundle binding — unlike entangle, it does not appear in `realtime_app_bundle.rs`. This is because axioms are compile-time machine truth declarations that translate to startup guard functions, not runtime state that needs to be reflected in the realtime app manifest.
+Axiom does NOT have a specific realtime bundle binding <--> unlike entangle, it does not appear in `realtime_app_bundle.rs`. This is because axioms are compile-time machine truth declarations that translate to startup guard functions, not runtime state that needs to be reflected in the realtime app manifest.
 
 ______________________________________________________________________
 
-## LLVM Codegen — `kain_machine_axiom_accept`
+## LLVM Codegen ->> `kain_machine_axiom_accept`
 
 ### The LLVM Function
 
@@ -540,7 +540,7 @@ The resulting mask is emitted as an i64 constant literal:
 
 ______________________________________________________________________
 
-## Native C Runtime — Capability Mask
+## Native C Runtime |-> Capability Mask
 
 ### Machine Capabilities
 
@@ -564,8 +564,8 @@ The native runtime in `machine_stones.c` defines capability constants:
 
 Runtime capabilities are assembled from:
 
-1. **Always available** — `ATOMIC_BITMASK`, `TIME_HARDWARE_TIMER`, `MEMORY_SHATTER`, `WORLD_TELEPORT`
-1. **CPUID-gated** — SSE2, AVX, AVX2, AVX512F (only set when the corresponding CPU feature bit is present)
+1. **Always available** ->> `ATOMIC_BITMASK`, `TIME_HARDWARE_TIMER`, `MEMORY_SHATTER`, `WORLD_TELEPORT`
+1. **CPUID-gated** ~> SSE2, AVX, AVX2, AVX512F (only set when the corresponding CPU feature bit is present)
 
 ```c
 static uint64_t kain_machine_current_capabilities(void) {
@@ -584,7 +584,7 @@ static uint64_t kain_machine_current_capabilities(void) {
 
 ______________________________________________________________________
 
-## The Z3 Proof — Exclusivity
+## The Z3 Proof :: Exclusivity
 
 **File:** `crates/core/z3/proofs/keywords-axiom-predicate-fallback-is-exclusive.yaml`
 
@@ -606,14 +606,14 @@ The SMT2 proof defines:
   (and unsafe_lane_selected fallback_selected)         ; can't use both simultaneously
   (and (not unsafe_lane_selected) (not fallback_selected)))) ; can't use neither
 
-(check-sat)  ; → UNSAT — the illegal states are impossible
+(check-sat)  ; → UNSAT |-> the illegal states are impossible
 ```
 
 The result is `UNSAT`, proving the axiom-predicate-fallback system is **exhaustively exclusive**.
 
 ______________________________________________________________________
 
-## Fusion Patterns — Axiom + Other Constructs
+## Fusion Patterns – Axiom + Other Constructs
 
 ### Pattern 1: Axiom + Orchestrate (`guarded by`)
 
@@ -643,7 +643,7 @@ orchestrate pipeline(value: Int) -> Int:
 
 1. At runtime, `__kain_axiom_accept_orchestrate_silicon_truth()` is called
 1. If it returns 1 (accepts): `gpu_stage` runs on the GPU with residency `device`
-1. If it returns 0 (rejects): `fallback degrade host` kicks in — the stage degrades to the `host` stage
+1. If it returns 0 (rejects): `fallback degrade host` kicks in |-> the stage degrades to the `host` stage
 
 This is how axiom gates multi-runtime orchestrate pipelines on hardware reality.
 
@@ -743,7 +743,7 @@ patch set_params(world: RenderAuthority, value: Int) -> Int:
     return world.signal
 ```
 
-The patch itself doesn't directly reference the axiom — the orchestrate stage that calls the patch is gated by `guarded by`. This keeps patches generic and gate logic separate from mutation logic.
+The patch itself doesn't directly reference the axiom --- the orchestrate stage that calls the patch is gated by `guarded by`. This keeps patches generic and gate logic separate from mutation logic.
 
 ______________________________________________________________________
 
@@ -767,7 +767,7 @@ The orchestrate runtime:
 
 ### Available Guard Targets
 
-The `guarded by` clause MUST reference an `axiom` name. This is validated at typecheck in `types.rs` orchestrate checking — unknown axiom names, non-axiom guards, and missing axioms are all rejections.
+The `guarded by` clause MUST reference an `axiom` name. This is validated at typecheck in `types.rs` orchestrate checking ‒ unknown axiom names, non-axiom guards, and missing axioms are all rejections.
 
 ### Guard + Fallback in Orchestrate
 
@@ -789,11 +789,11 @@ axiom declares "this machine has gpu.compute"
     → if axiom rejects: fallback degrade to CPU
 ```
 
-This complete chain — from compile-time declaration to runtime behavior — makes axiom the **single source of truth** for machine-dependent code.
+This complete chain === from compile-time declaration to runtime behavior ... makes axiom the **single source of truth** for machine-dependent code.
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas === Creative Semantic Abuse
 
 ### 1. Axiom as Platform Family Discriminator
 
@@ -820,7 +820,7 @@ axiom web_profile:
     fallback js_polyfill
 ```
 
-**Under-explored:** Multi-axiom profile matrices. Different orchestrate pipelines select different axioms for different stages. The `verified_singularity` orchestrate in semantic_singularity demonstrates this — different stages use different axioms for residency and transfer decisions.
+**Under-explored:** Multi-axiom profile matrices. Different orchestrate pipelines select different axioms for different stages. The `verified_singularity` orchestrate in semantic_singularity demonstrates this === different stages use different axioms for residency and transfer decisions.
 
 ### 2. Axiom as Deployment Gate
 
@@ -842,7 +842,7 @@ fn main() -> Int:
     return start_cli()
 ```
 
-**Under-explored:** Using axiom as a **deployment topology discriminator** — different axioms for different deployment targets (server, client, embedded, web).
+**Under-explored:** Using axiom as a **deployment topology discriminator** * * * different axioms for different deployment targets (server, client, embedded, web).
 
 ### 3. Axiom + Law: Validated Machine Profiles
 
@@ -863,7 +863,7 @@ fn verify_axiom() -> Int:
     return 0
 ```
 
-**Under-explored:** Laws that validate axiom guarantees at runtime — not just "the capability bit is set" but "the capability actually works."
+**Under-explored:** Laws that validate axiom guarantees at runtime ⁓ not just "the capability bit is set" but "the capability actually works."
 
 ### 4. Axiom as Dependency Contract for Imported Packages
 
@@ -877,7 +877,7 @@ axiom numpy_profile:
     fallback no_numpy_fallback
 ```
 
-**Under-explored:** Axioms as dependency manifests — "this code requires these packages/environments/capabilities."
+**Under-explored:** Axioms as dependency manifests – "this code requires these packages/environments/capabilities."
 
 ### 5. Multi-Target Axiom with Per-Target Fallbacks
 
@@ -1027,7 +1027,7 @@ ______________________________________________________________________
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13185 | `compile_axiom` dispatch |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13250-13252 | `collect_machine_stone_metadata` for axioms |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 14295 | `kain_machine_axiom_accept` declaration |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15101-15160 | `compile_axiom()` — full implementation |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15101-15160 | `compile_axiom()` * * * full implementation |
 
 ### Native C Runtime
 
@@ -1060,7 +1060,7 @@ ______________________________________________________________________
 ### ❌ Axiom Without a Fallback
 
 ```kn
-// WRONG: no fallback — typechecker rejects this
+// WRONG: no fallback ~> typechecker rejects this
 axiom broken:
     when target("llvm")
     guarantee "something"
@@ -1071,7 +1071,7 @@ The typechecker requires: `"axiom '{}' must declare a portable fallback so unsup
 ### ❌ Axiom With Empty Guarantees
 
 ```kn
-// WRONG: no guarantees — typechecker rejects this
+// WRONG: no guarantees -- typechecker rejects this
 axiom empty:
     when target("llvm")
     fallback fn
@@ -1114,7 +1114,7 @@ axiom narrow:
     when arch("x86_64")
     when capability("cpu.x86.avx2")
     guarantee "AVX2"
-    fallback crash    // no real fallback — just crashes
+    fallback crash    // no real fallback ... just crashes
 ```
 
 The fallback should always provide a working path. If the fallback is the correct answer on other platforms, it should be a real function:
@@ -1153,14 +1153,14 @@ ______________________________________________________________________
 | **Valid predicates** | `target`, `arch`, `capability` |
 | **Predicate syntax** | `when <kind>("<value>")` |
 | **Required fields** | At least 1 predicate, at least 1 guarantee, exactly 1 fallback |
-| **Fallback** | Plain function name — NOT called automatically, resolved by callers |
+| **Fallback** | Plain function name ~ NOT called automatically, resolved by callers |
 | **LLVM emission** | `__kain_axiom_accept_<name>()` → calls `kain_machine_axiom_accept()` |
 | **Native runtime** | `kain_machine_axiom_accept()` checks target, arch, capabilities |
 | **Capability check** | `(available_caps & required_caps) == required_caps ? 1 : 0` |
 | **Runtime contract** | `RuntimeAxiomContract { name, predicates[], guarantees[], fallback }` |
-| **Capability** | `machine.axiom` — auto-emitted when any axiom exists |
+| **Capability** | `machine.axiom` => auto-emitted when any axiom exists |
 | **Z3 proof** | Predicate-fallback exclusivity: unsafe lane and fallback are mutually exclusive |
 | **Orchestrate** | `guarded by <axiom_name>` gates stages on axiom acceptance |
 | **Interpreted runtime** | Axiom names participate in module inlining (name aliasing) |
-| **Canonical example** | `blades/test/machine-stones/src/main.kn` — full 4-stone fusion |
+| **Canonical example** | `blades/test/machine-stones/src/main.kn` 〰 full 4-stone fusion |
 | **Canonical pattern** | Axiom + orchestrate `guarded by` for stage gating |

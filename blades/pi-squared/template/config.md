@@ -1,4 +1,4 @@
-# ProjectConfig — my-kain-app Configuration
+# ProjectConfig -- my-kain-app Configuration
 
 > Project-level configuration stored as markscript data tables.
 > Validated against schemas/project_schema.md.

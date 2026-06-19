@@ -1,4 +1,4 @@
-# PiSquaredSchema — Configuration Schema
+# PiSquaredSchema ___ Configuration Schema
 
 > Column type and constraint definitions for config.md tables.
 > Each table below mirrors a table in config.md with type annotations.
@@ -64,7 +64,7 @@
 
 ---
 
-### CONFIG-DRIVEN EVERYTHING — Schema for all DOOM-mode config tables
+### CONFIG-DRIVEN EVERYTHING |-> Schema for all DOOM-mode config tables
 
 ## Keybindings Columns
 

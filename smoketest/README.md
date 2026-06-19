@@ -1,9 +1,9 @@
-# Smoketest — The Kain Album-Edition Proving Ground
+# Smoketest => The Kain Album-Edition Proving Ground
 
 > **Last updated:** 2026-06-08
 > **What this is:** The **single most comprehensive Kain feature surface in the entire repo**. Every semantic layer, every effect, every compile target, and every interop lane is exercised here in one unified proof surface. This is the definitive teaching ground for LLMs, agents, and new contributors learning how Kain works end-to-end.
 > **Entry point:** `src/main.kn` (40.7 KB, 741 lines)
-> **Build authority:** `build.kn` (103 lines) — defines 9 module roots, 3 compile targets, GPU artifact generation, WASM check, telemetry runner, benchmark, attrition, and capsule certification.
+> **Build authority:** `build.kn` (103 lines) <--> defines 9 module roots, 3 compile targets, GPU artifact generation, WASM check, telemetry runner, benchmark, attrition, and capsule certification.
 
 ______________________________________________________________________
 
@@ -14,7 +14,7 @@ ______________________________________________________________________
 1. [How Smoketest Is Structured (The Source Lanes)](#3-how-smoketest-is-structured)
 1. [How Smoketest Is Executed](#4-how-smoketest-is-executed)
 1. [The Import System in Smoketest](#5-the-import-system-in-smoketest)
-1. [build.kn — The Build Authority](#6-buildkn--the-build-authority)
+1. [build.kn === The Build Authority](#6-buildkn--the-build-authority)
 1. [C Interop in Smoketest](#7-c-interop-in-smoketest)
 1. [GPU Shader Artifacts](#8-gpu-shader-artifacts)
 1. [WASM Target](#9-wasm-target)
@@ -29,7 +29,7 @@ ______________________________________________________________________
 
 ## 1. What Smoketest Proves
 
-The smoketest is an **album-edition workspace**: it collects every Kain feature into a single compiled executable that exercises them all sequentially and produces telemetry evidence. It is not a unit test suite — it is an **integrated semantic proof surface** that proves:
+The smoketest is an **album-edition workspace**: it collects every Kain feature into a single compiled executable that exercises them all sequentially and produces telemetry evidence. It is not a unit test suite |-> it is an **integrated semantic proof surface** that proves:
 
 | Category | What It Proves | Files |
 |----------|---------------|-------|
@@ -43,7 +43,7 @@ The smoketest is an **album-edition workspace**: it collects every Kain feature 
 | **WASM target** | Cross-compilation to WebAssembly with `wasm_add`, `wasm_factorial`, `wasm_fibonacci` | `src/wasm/wasm_main.kn` |
 | **UI components & graphics** | Component composition, JSX rendering, graphics sessions, OpenGL window presentation | `src/ui/` (2 files) |
 | **Actor system** | `spawn`, `send`, `ask`, typed message handlers with reply ports | `src/semantics/actor.kn` |
-| **Cross-file composition** | Every lane imports from other lanes — types from `types.kn`, mix functions from `converge.kn`, law validators from `law.kn`, shard scoring from `shatter.kn` | All files |
+| **Cross-file composition** | Every lane imports from other lanes ~ types from `types.kn`, mix functions from `converge.kn`, law validators from `law.kn`, shard scoring from `shatter.kn` | All files |
 | **Telemetry evidence** | Track-level JSON reports, composition checksums, patch journal counts, converge mismatch detection | `src/telemetry/` (3 files) |
 
 **Reference docs for understanding each feature:**
@@ -78,7 +78,7 @@ smoketest/
 ├── KAIN.toml                            ← Compatibility metadata (C FFI config)
 │
 ├── src/                                 ← Source root (7 categories)
-│   ├── main.kn                          ← Entry point (741 lines) — imports all lanes, runs them
+│   ├── main.kn                          ← Entry point (741 lines) ~ imports all lanes, runs them
 │   ├── os_basics.kn                     ← std::os probe (platform, PID, CWD, env, paths)
 │   ├── rc_underflow_probe.kn            ← Reference count stress probe
 │   ├── tmp_extern_probe.kn              ← Minimal @extern function probe
@@ -174,7 +174,7 @@ smoketest/
 ├── smoketest.evidence.kn                ← Evidence capsule (113.5 KB)
 │
 ├── manual-smoketest.exp/.lib            ← Export/lib lists
-├── manual-smoketest.runtime_contract.json ← Full runtime contract (522.6 KB) — required capabilities, resource bindings
+├── manual-smoketest.runtime_contract.json ← Full runtime contract (522.6 KB) => required capabilities, resource bindings
 ├── manual-smoketest.realtime_app.json   ← Realtime application descriptor (10.7 KB)
 │
 ├── generated/
@@ -215,7 +215,7 @@ Every semantic layer from Kain's 8-layer decision ladder (`docs/RULEBOOK.md`) is
 
 | File | What It Tests |
 |------|-------------|
-| `memory.kn` | `alloc_zeroed`, `realloc_mem`, `mem_store`, `mem_load` — raw pointer allocation/read/write |
+| `memory.kn` | `alloc_zeroed`, `realloc_mem`, `mem_store`, `mem_load` * * * raw pointer allocation/read/write |
 | `ownership.kn` | Full `collapse`/`observe`/`decay` lifecycle on heap-allocated AND stack-imported pointers. Cross-calls to `memory.kn` (alloc) and `converge.kn` (mix) |
 | `share_fanout.kn` | `share` + `fanout` with 4 parallel workers, `atomic_store`, cross-calls to `keyword_mesh.kn`, `law.kn`, `types.kn` |
 | `abi_control.kn` | `@thread_local` + `@section` TLS constants, `@link_name` + `@callconv` custom ABI symbols, `asm()` with constraints/clobbers, SIMD `i64x4` vectors |
@@ -244,9 +244,9 @@ For GPU semantics, see `docs/SHADER_GPU.MD` and the compute residency JSON at `k
 
 | File | Role | How It Works |
 |------|------|-------------|
-| `sqlite_rally.kn` | **Physical include site** — the ONLY file that contains `include` directives | `include "../../native/sqlite3.h" as sql` + `include "../../native/smoketest_sqlite_pingpong.h" as ping` — produces `sql_*` and `ping_*` extern surfaces |
-| `c_bridge.kn` | **Low-level pressure lane** — `use`-imports from `sqlite_rally` | Calls `sql_*`/`ping_*` functions directly, builds `SmokePacket` from results |
-| `c_abi_album.kn` | **High-level album composition** — wraps C calls in Kain semantics | Combines C results with `converge::smoke_mix_pair`, `law` validation, `SmokePacket` construction |
+| `sqlite_rally.kn` | **Physical include site** ~> the ONLY file that contains `include` directives | `include "../../native/sqlite3.h" as sql` + `include "../../native/smoketest_sqlite_pingpong.h" as ping` ~~ produces `sql_*` and `ping_*` extern surfaces |
+| `c_bridge.kn` | **Low-level pressure lane** >> `use`-imports from `sqlite_rally` | Calls `sql_*`/`ping_*` functions directly, builds `SmokePacket` from results |
+| `c_abi_album.kn` | **High-level album composition** :: wraps C calls in Kain semantics | Combines C results with `converge::smoke_mix_pair`, `law` validation, `SmokePacket` construction |
 
 **C companion files in `native/`:**
 
@@ -254,14 +254,14 @@ For GPU semantics, see `docs/SHADER_GPU.MD` and the compute residency JSON at `k
 |------|------|-------------|
 | `sqlite3.c` | 9.1 MB | Auto-discovered as sibling of `sqlite3.h` (see `docs/C_GUIDE.MD` § Strategy 4) |
 | `smoketest_sqlite_pingpong.c` | 10.4 KB | Auto-discovered via the `[c_ffi.libraries]` entry in `KAIN.toml:29-32` |
-| `smoketest_visualizer_bridge.c` | 32.9 KB | Auto-discovered via `KAIN.toml:34-38` — compiled separately via `build-smoketest-visualizer-bridge.ps1` |
+| `smoketest_visualizer_bridge.c` | 32.9 KB | Auto-discovered via `KAIN.toml:34-38` -- compiled separately via `build-smoketest-visualizer-bridge.ps1` |
 
-For the full C interop architecture, see `docs/C.MD` (1912 lines — 4-layer stack: parser → libclang extraction → runtime bridge → codegen backends). For the usage guide, see `docs/C_GUIDE.MD` (13 strategies from eliminate-the-bridge to full Win32 GDI apps).
+For the full C interop architecture, see `docs/C.MD` (1912 lines --> 4-layer stack: parser → libclang extraction → runtime bridge → codegen backends). For the usage guide, see `docs/C_GUIDE.MD` (13 strategies from eliminate-the-bridge to full Win32 GDI apps).
 
 **Python interop** is handled in `telemetry/python_bridge.kn`:
 
 - Uses `use std::python` and `std::collections`
-- Installs a Python runner via `python_exec("import os\nimport pathlib\n...")` — see line 18 of `python_bridge.kn`
+- Installs a Python runner via `python_exec("import os\nimport pathlib\n...")` ~ see line 18 of `python_bridge.kn`
 - The Python runner spawns `smoketest.exe` as a subprocess with env vars (`KAIN_SMOKETEST_MODE`, `KAIN_SMOKETEST_OUTPUT_DIR`)
 - Calls `python_call_raw()` and `python_call_attr_raw()` for Python object manipulation
 - See `docs/PYTHON.MD` and `docs/PYTHON_GUIDE.MD` for the full Python interop reference
@@ -284,7 +284,7 @@ For the full C interop architecture, see `docs/C.MD` (1912 lines — 4-layer sta
 - `wasm_add(17, 25) == 42`
 - `wasm_factorial(5) == 120`
 - `wasm_fibonacci(10) == 55`
-- No imports from the rest of the album — pure computation
+- No imports from the rest of the album * * * pure computation
 
 ### 3.8 Telemetry Lanes
 
@@ -434,7 +434,7 @@ These are passed as `.module_roots(ALBUM_ROOTS)` to both the `project()` spec an
 
 ### 5.2 Import Categories
 
-**A. Stdlib imports** — `use std::<module>`:
+**A. Stdlib imports** >> `use std::<module>`:
 
 ```kn
 use std::runtime      // → resolved from $KAIN_STDLIB_PATH/runtime.kn
@@ -447,7 +447,7 @@ use std::cuda         // → resolved from $KAIN_STDLIB_PATH/cuda.kn
 use std::python       // → resolved from $KAIN_STDLIB_PATH/python.kn
 ```
 
-**B. Cross-lane imports** — `use <lane_dir>::<symbol>`:
+**B. Cross-lane imports** ___ `use <lane_dir>::<symbol>`:
 
 ```kn
 use types::SmokePacket           // resolves to src/semantics/types.kn (module root: src/semantics)
@@ -470,7 +470,7 @@ So `use types::SmokePacket` from `src/main.kn` resolves:
 
 1. `<project>/src/semantics/types.kn` ← **found here** (via module root "src/semantics")
 
-**C. C interop imports** — `include ... as ...`:
+**C. C interop imports** ___ `include ... as ...`:
 
 ```kn
 include "../../native/sqlite3.h" as sql           // → sql_libversion_number(), sql_threadsafe(), etc.
@@ -478,7 +478,7 @@ include "../../native/smoketest_sqlite_pingpong.h" as ping  // → ping_score(),
 include "../../native/smoketest_visualizer_bridge.h" as viz // → viz_probe(), viz_run_window(), etc.
 ```
 
-These are declared ONLY in `sqlite_rally.kn:8-9` and `presenter.kn:1` — all other files import the Kain wrappers via `use`:
+These are declared ONLY in `sqlite_rally.kn:8-9` and `presenter.kn:1` === all other files import the Kain wrappers via `use`:
 
 ```kn
 // c_bridge.kn imports from sqlite_rally.kn (the Kain facade)
@@ -503,7 +503,7 @@ Layer 2: c_bridge.kn / c_abi_album.kn  ← Kain semantic wrappers
 
 The `smoketest_sqlite_pingpong.h` companion C (10.4 KB) provides:
 
-- `ping_score()`, `ping_signature()`, `ping_row_count()`, `ping_text_bytes()`, `ping_bounce()`, `ping_hot()` — SQLite-backed ping-pong operations
+- `ping_score()`, `ping_signature()`, `ping_row_count()`, `ping_text_bytes()`, `ping_bounce()`, `ping_hot()` <--> SQLite-backed ping-pong operations
 
 For the full C interop pattern reference, see `docs/C_GUIDE.MD` § Strategy 5 (The Kain Facade Pattern) and `docs/C.MD` § 3.2-3.4 (include syntax forms).
 
@@ -538,11 +538,11 @@ src/main.kn
 
 ______________________________________________________________________
 
-## 6. build.kn — The Build Authority
+## 6. build.kn -- The Build Authority
 
 ### 6.1 Overview
 
-`build.kn` (103 lines) is the **sole build authority** for the smoketest. It exports a `fn build(ctx: BuildContext) -> BuildGraph` that defines every task in the build DAG. The `KAIN.toml` file is vestigial — it carries only C FFI compatibility metadata (`docs/BUILD_PROJECTS.MD` § 1).
+`build.kn` (103 lines) is the **sole build authority** for the smoketest. It exports a `fn build(ctx: BuildContext) -> BuildGraph` that defines every task in the build DAG. The `KAIN.toml` file is vestigial - it carries only C FFI compatibility metadata (`docs/BUILD_PROJECTS.MD` § 1).
 
 ### 6.2 Project Configuration
 
@@ -574,7 +574,7 @@ let sources = source_set("album-sources")
     .file("run-visual-smoketest.ps1")
 ```
 
-Note: `.glob("native/**/*.{h,c}")` puts C sources in the build edge for change detection, but C files are NOT compiled by Kain — they are discovered by the C-FFI pipeline and linked into the final binary.
+Note: `.glob("native/**/*.{h,c}")` puts C sources in the build edge for change detection, but C files are NOT compiled by Kain ~~ they are discovered by the C-FFI pipeline and linked into the final binary.
 
 ### 6.4 Task: LLVM Check
 
@@ -662,7 +662,7 @@ let bench = smoke_mode("benchmark", ["--bench-rounds", "256", "--bench-passes", 
 let abuse = smoke_mode("attrition", ["--attrition-ops", "20", "--attrition-rounds", "96"])
 ```
 
-This is a **custom task factory function** — a Kain function that returns a `BuildTask`. This keeps the build graph DRY: all three smoke modes share the same runner, executable, and inputs, differing only in mode name and CLI args.
+This is a **custom task factory function** ~> a Kain function that returns a `BuildTask`. This keeps the build graph DRY: all three smoke modes share the same runner, executable, and inputs, differing only in mode name and CLI args.
 
 ### 6.11 Certification
 
@@ -698,9 +698,9 @@ After certification passes, the entire project is packed into three portable cap
 
 ### 6.14 build_alt.kn (Alternative Build Graph)
 
-`build_alt.kn` (85 tasks, 500+ lines) is the **pre-DSL-era build graph** — it spells out every `.input()` explicitly instead of using `source_set()` + `.inputs()`. Every source file is listed individually. It exists as a reference for the explicit build manifest pattern but is **not the active build authority**. The active build authority is `build.kn`.
+`build_alt.kn` (85 tasks, 500+ lines) is the **pre-DSL-era build graph** ~> it spells out every `.input()` explicitly instead of using `source_set()` + `.inputs()`. Every source file is listed individually. It exists as a reference for the explicit build manifest pattern but is **not the active build authority**. The active build authority is `build.kn`.
 
-For the full build system reference, see `docs/BUILD_PROJECTS.MD` (1694 lines — complete build.kn DSL, all task types, all CLI commands, module resolution rules, path prefixes).
+For the full build system reference, see `docs/BUILD_PROJECTS.MD` (1694 lines --> complete build.kn DSL, all task types, all CLI commands, module resolution rules, path prefixes).
 
 ______________________________________________________________________
 
@@ -721,7 +721,7 @@ The smoketest exercises all three forms of C interop:
 When `sqlite_rally.kn` declares `include "../../native/sqlite3.h" as sql`, the compiler:
 
 1. **Resolves the header** at `native/sqlite3.h` (675 KB)
-1. **Discovers the companion** `native/sqlite3.c` (9.1 MB) — by checking if a `.c` file with the same stem exists at the same path
+1. **Discovers the companion** `native/sqlite3.c` (9.1 MB) ~> by checking if a `.c` file with the same stem exists at the same path
 1. **Extracts function bindings** via libclang (Tier 1): `sqlite3_libversion_number()`, `sqlite3_threadsafe()`, `sqlite3_complete()`, `sqlite3_keyword_count()`, and all ~200+ SQLite API functions
 1. **Generates alias externs** with `sql_` prefix: `sql_libversion_number()`, `sql_threadsafe()`, etc.
 1. **Compiles `sqlite3.c`** into the native link
@@ -729,7 +729,7 @@ When `sqlite_rally.kn` declares `include "../../native/sqlite3.h" as sql`, the c
 
 The same process applies to `smoketest_sqlite_pingpong.h` → `smoketest_sqlite_pingpong.c` (10.4 KB), producing `ping_score()`, `ping_signature()`, etc.
 
-For the visualizer bridge, `smoketest_visualizer_bridge.c` (32.9 KB) is compiled **separately** via `build-smoketest-visualizer-bridge.ps1` using clang, producing `smoketest_visualizer_bridge.obj` — then linked into the final binary.
+For the visualizer bridge, `smoketest_visualizer_bridge.c` (32.9 KB) is compiled **separately** via `build-smoketest-visualizer-bridge.ps1` using clang, producing `smoketest_visualizer_bridge.obj` => then linked into the final binary.
 
 ### 7.3 CFFI Config in KAIN.toml
 
@@ -783,8 +783,8 @@ The smoketest exercises these C→Kain type mappings (from `docs/C.MD` § 10):
 
 ### 7.6 Full C Interop Reading
 
-- **Architecture reference:** `docs/C.MD` — 4-layer stack: parser → libclang extraction → runtime bridge → codegen backends. 1912 lines covering all 605 Win32 functions, 755 Vulkan functions, C type mapping, runtime contract emission, inline assembly, and the `@extern`/`@link_name` path.
-- **Usage guide:** `docs/C_GUIDE.MD` — 13 strategies from "eliminate the bridge entirely" to the full Win32 GDI app pattern. See § 4 for the SQLite zero-manifest amalgamation pattern used here.
+- **Architecture reference:** `docs/C.MD` :: 4-layer stack: parser → libclang extraction → runtime bridge → codegen backends. 1912 lines covering all 605 Win32 functions, 755 Vulkan functions, C type mapping, runtime contract emission, inline assembly, and the `@extern`/`@link_name` path.
+- **Usage guide:** `docs/C_GUIDE.MD` ~> 13 strategies from "eliminate the bridge entirely" to the full Win32 GDI app pattern. See § 4 for the SQLite zero-manifest amalgamation pattern used here.
 
 ______________________________________________________________________
 
@@ -794,15 +794,15 @@ ______________________________________________________________________
 
 **`src/gpu/fragment.kn`** defines:
 
-- `SmokeVertex` — `shader vertex` with `position: Vec3`, `uv: Vec2`, `uniform offset: Vec3 @0`
-- `SmokeGradient` — `shader fragment` with `uv: Vec2`, `uniform accent: Vec3 @0`
-- `SmokeVignette` — `shader fragment` with `uv: Vec2`, `uniform tint: Vec3 @0`
+- `SmokeVertex` – `shader vertex` with `position: Vec3`, `uv: Vec2`, `uniform offset: Vec3 @0`
+- `SmokeGradient` ~~ `shader fragment` with `uv: Vec2`, `uniform accent: Vec3 @0`
+- `SmokeVignette` ‒ `shader fragment` with `uv: Vec2`, `uniform tint: Vec3 @0`
 
 **`src/gpu/compute.kn`** defines:
 
-- `SmokeParticleStep` — `shader compute` with `StorageBuffer<Vec4>` particles + field
-- `SmokeReductionKernel` — `shader compute` with `StorageBuffer<Float>` src + dst
-- `SmokeOrchestrateKernel` — `shader compute` with `StorageBuffer<UInt>` src + dst, `workgroup(8, 1, 1)`
+- `SmokeParticleStep` ‒ `shader compute` with `StorageBuffer<Vec4>` particles + field
+- `SmokeReductionKernel` :: `shader compute` with `StorageBuffer<Float>` src + dst
+- `SmokeOrchestrateKernel` ~ `shader compute` with `StorageBuffer<UInt>` src + dst, `workgroup(8, 1, 1)`
 
 ### 8.2 Generated Artifacts
 
@@ -835,13 +835,13 @@ ______________________________________________________________________
 
 ## 9. WASM Target
 
-`src/wasm/wasm_main.kn` is the standalone WASM entry point — it does NOT import from the rest of the album. It proves:
+`src/wasm/wasm_main.kn` is the standalone WASM entry point => it does NOT import from the rest of the album. It proves:
 
 - Simple arithmetic (`wasm_add`)
 - Recursive functions (`wasm_factorial`)
 - Iterative computation with `var` and `while` (`wasm_fibonacci`)
 
-The build graph defines a separate `check-wasm` task for this file with `target("wasm")`. It is a check-only task — no `.wasm` binary is produced in the default build graph (the task verifies the WASM target typechecks correctly).
+The build graph defines a separate `check-wasm` task for this file with `target("wasm")`. It is a check-only task >> no `.wasm` binary is produced in the default build graph (the task verifies the WASM target typechecks correctly).
 
 ______________________________________________________________________
 
@@ -872,7 +872,7 @@ Every lane emits a per-track JSON file to `<output_root>/tracks/<track_name>.jso
 }
 ```
 
-Each track includes runtime telemetry: `patch_journal_count()`, `entangle_propagation_count()`, and `converge_mismatch_count()` — compiler-owned metrics that verify the semantic stack is operating correctly.
+Each track includes runtime telemetry: `patch_journal_count()`, `entangle_propagation_count()`, and `converge_mismatch_count()` ___ compiler-owned metrics that verify the semantic stack is operating correctly.
 
 ### 10.2 Summary Report
 
@@ -885,7 +885,7 @@ After all lanes complete, `smoke_write_summary_report()` in `report.kn` writes a
 
 ### 10.3 Notes
 
-Arbitrary structured notes can be written via `smoke_write_note_report()` — used by:
+Arbitrary structured notes can be written via `smoke_write_note_report()` --- used by:
 
 - `dashboard.kn` → `ui_dashboard.json` (UI snapshot)
 - `presenter.kn` → `opengl_album.json` + `opengl_window_report.txt`
@@ -1009,10 +1009,10 @@ Every system exercised by the smoketest has a corresponding deep-dive document i
 
 **Additional reading:**
 
-- `GLOSSARY.MD` — Maps every Kain term to its physical repo location (crates, runtime, stdlib)
-- `AGENTS.md` — Agent doctrine, tool map, Bazel guide, Kain CLI quick reference
-- `benchmark/cases_v2/fusion_chain.kn` — The definitive 550-line causal-chain proof exercising all 7 layers
-- `benchmark/cases_v2/keyword_crucible.kn` — 108/110 keywords exercised in context
+- `GLOSSARY.MD` ~ Maps every Kain term to its physical repo location (crates, runtime, stdlib)
+- `AGENTS.md` - Agent doctrine, tool map, Bazel guide, Kain CLI quick reference
+- `benchmark/cases_v2/fusion_chain.kn` --> The definitive 550-line causal-chain proof exercising all 7 layers
+- `benchmark/cases_v2/keyword_crucible.kn` --- 108/110 keywords exercised in context
 
 ______________________________________________________________________
 

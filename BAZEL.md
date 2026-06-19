@@ -1,4 +1,4 @@
-# BAZEL — Build System Survival Guide
+# BAZEL -- Build System Survival Guide
 
 This document is your reference when the Kain build system breaks,
 binaries are stale, or you need to understand how Bazel fits into

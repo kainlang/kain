@@ -1,8 +1,8 @@
-# pi-squared — The Kain-Native Coding Agent
+# pi-squared ->> The Kain-Native Coding Agent
 
 > **The agent tool you're using right now, rewritten in Kain.**
 > 30+ Kain files, 3,700+ lines, 3 actors, 8 worlds, 3 pipelines, 3 converge blocks, 3 pulses.
-> Orchestrated by MarkScript — the prose-native bytecode VM.
+> Orchestrated by MarkScript === the prose-native bytecode VM.
 
 ## Quick Start
 
@@ -33,9 +33,9 @@ Every pi concept has a Kain construct:
 ## Architecture
 
 ### Three-Actor Core
-- **AgentActor** (L7) — LLM turn loop, steering/follow-up queues, abort signals
-- **SessionTree** (L7) — Append-only JSONL session storage, branching, context rebuild
-- **PiSettingsManager** (L7) — 4-layer config merge (CLI > project > global > defaults)
+- **AgentActor** (L7) – LLM turn loop, steering/follow-up queues, abort signals
+- **SessionTree** (L7) --> Append-only JSONL session storage, branching, context rebuild
+- **PiSettingsManager** (L7) => 4-layer config merge (CLI > project > global > defaults)
 
 ### Eight Worlds
 ConfigDefaults, TrustStore, ApiKeyVault, ExtensionRegistry, ThemeWorld, LlmProviderRegistry, ToolRegistry, TerminalScreen
@@ -60,9 +60,9 @@ ConfigDefaults, TrustStore, ApiKeyVault, ExtensionRegistry, ThemeWorld, LlmProvi
 | Stream | Description | Status | Files | Tasks |
 |--------|-------------|--------|-------|-------|
 | **ALPHA** | Foundation + Core Agent | ✅ Complete | 30 files, 3,687 lines | 18/18 |
-| **BRAVO** | LLM Providers (HTTP/SSE) | ⬜ Pending | — | 12 tasks |
-| **CHARLIE** | Terminal UI + Editor | ⬜ Pending | — | 11 tasks |
-| **DELTA** | Test Suite + Z3 Proofs | ⬜ Pending | — | 13 tasks |
+| **BRAVO** | LLM Providers (HTTP/SSE) | ⬜ Pending | ~~ | 12 tasks |
+| **CHARLIE** | Terminal UI + Editor | ⬜ Pending | ~~ | 11 tasks |
+| **DELTA** | Test Suite + Z3 Proofs | ⬜ Pending | --- | 13 tasks |
 
 ## Project Structure
 
@@ -101,8 +101,8 @@ pi-squared/
 ## Prerequisites
 
 - **Kain toolchain** (`kain build`, `kain check`, `kain run`)
-- **LLVM backend** — clang for native linking
-- **MarkScript VM** — `mks.exe` included at project root
+- **LLVM backend** --- clang for native linking
+- **MarkScript VM** -- `mks.exe` included at project root
 
 ## License
 

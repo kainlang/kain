@@ -1,4 +1,4 @@
-# Dev — Development Workflow
+# Dev - Development Workflow
 
 Interactive development loop with watch, compile, test, and iteration.
 

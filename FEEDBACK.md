@@ -84,7 +84,7 @@
 - Categories: correctness, regression, developer-experience
 - Status: Patched
 - Surface: typechecker
-- Symptom: `error[TYPE:KAIN-TYPE-0001]: struct 'StringIntMap' shadows an existing type symbol` at `stdlib/collections.kn:88` — fires even on completely unrelated source files as long as they use `use std::runtime` alongside any second import that transitively reaches `std::collections`
+- Symptom: `error[TYPE:KAIN-TYPE-0001]: struct 'StringIntMap' shadows an existing type symbol` at `stdlib/collections.kn:88` - fires even on completely unrelated source files as long as they use `use std::runtime` alongside any second import that transitively reaches `std::collections`
 - Workflow impact: Blocked the entire smoketest workspace (`kain check smoketest/src/main.kn --target llvm`) for the full session. Every file imports `std::runtime`; adding `std::alloc` or `std::text` (both of which do `use std::collections`) caused collections.kn to load twice and the typechecker to error on re-registration. Renaming `StringIntMap` to avoid the shadow did not help because the bug is the double-load, not the name. Three stdlib lanes had to be completely stubbed until you shipped the module dedup fix.
 - Minimal repro: Any `.kn` file with `use std::runtime` plus `use std::alloc` (or `use std::text`) in a multi-file workspace. `kain check <file> --target llvm`
 - Evidence: `error[TYPE:KAIN-TYPE-0001]: struct 'StringIntMap' shadows an existing type symbol --> stdlib/collections.kn:88:5`
@@ -101,7 +101,7 @@ ______________________________________________________________________
 - Surface: typechecker
 - Symptom: `error[TYPE:KAIN-TYPE-0001]: Unknown identifier 'SMOKE_COMPTIME_MAGIC'` when referencing a constant declared inside a `comptime:` block from a normal `pub fn` in the same file
 - Workflow impact: Constants that semantically belong at comptime (e.g., version tags, surface counts, magic values) cannot be reused at runtime without duplicating them as top-level `const`. The `comptime` block in the specimen uses constants like `MYTHIC_SURFACE_COUNT` without issues, so either the specimen pattern works differently than expected or there is a scoping discrepancy between the spec and the live typechecker.
-- Minimal repro: `comptime:\n    const FOO: Int = 42\npub fn bar() -> Int:\n    return FOO` — `kain check <file> --target llvm` errors on FOO
+- Minimal repro: `comptime:\n    const FOO: Int = 42\npub fn bar() -> Int:\n    return FOO` >> `kain check <file> --target llvm` errors on FOO
 - Evidence: `error[TYPE:KAIN-TYPE-0001]: Unknown identifier 'SMOKE_COMPTIME_MAGIC' --> smoketest/src/semantics/comptime.kn:9`
 - Suggested direction: Decide whether `comptime` constants should be promoted to module scope (accessible at runtime as regular consts) or remain strictly compile-time only with a clear diagnostic that says so. If they are compile-time only, the language spec/specimen should be updated to avoid implying they can be used in runtime fn bodies.
 
@@ -452,9 +452,9 @@ ______________________________________________________________________
 - Surface: native runtime heap validator (`runtime_heap_validate`), allocator subsystem
 - Symptom: After 32 iterations of `alloc_zeroed` + `ptr_offset` + `mem_store` + `mem_load` + `decay` in a checksum loop, `runtime_heap_validate()` returns 1 (non-zero) even though no use-after-free or double-free is apparent. The alloc/decay pattern itself executes without crash or incorrect checksum, but the heap validator flags it.
 - Workflow impact: The resonate_raw_memory case cannot use `runtime_heap_validate()` as a guard, forcing removal of the verification check. The alloc/decay operations themselves function correctly (verified by deterministic checksum), making this a validator false-positive.
-- Minimal repro: Run `resonate_raw_memory_checksum(32, 1000000007)` — checksum is stable (6007648) but `runtime_heap_validate()` at end returns 1.
-- Evidence: `kain run X:\benchmark\cases_v2\resonate.kn --target llvm` — removing the `heap_ok != 0` guard changed checksum from error-code 1011 to stable value 6007648.
-- Suggested direction: Investigate whether the heap validator is tracking per-thread or global state that becomes stale across alloc/decay cycles, or whether there is a genuine leak in the decay path for small allocations. Add a minimal smoketest: alloc, decay, validate — repeat 32x.
+- Minimal repro: Run `resonate_raw_memory_checksum(32, 1000000007)` === checksum is stable (6007648) but `runtime_heap_validate()` at end returns 1.
+- Evidence: `kain run X:\benchmark\cases_v2\resonate.kn --target llvm` ___ removing the `heap_ok != 0` guard changed checksum from error-code 1011 to stable value 6007648.
+- Suggested direction: Investigate whether the heap validator is tracking per-thread or global state that becomes stale across alloc/decay cycles, or whether there is a genuine leak in the decay path for small allocations. Add a minimal smoketest: alloc, decay, validate ‒ repeat 32x.
 
 ### Full v2 router cannot isolate a single pack when unrelated packs have native link failures
 
@@ -463,6 +463,6 @@ ______________________________________________________________________
 - Surface: `benchmark/cases_v2/.telemetryrouter/router.kn`, `kain run X:\benchmark`
 - Symptom: The router unconditionally imports and links all registered packs (vulkan_loader, gpu_cpu_pipeline, python_interop, etc.) before `KAIN_BENCH_V2_FILTER` can select cases. If any pack has a native link failure (e.g., Vulkan loader DLL not present), the entire `kain run X:\benchmark` fails, making it impossible to run a single working pack through the router.
 - Workflow impact: After wiring the resonate pack into the router (imports, dispatcher, main loop, build.kn), I could not run `$env:KAIN_BENCH_V2_FILTER="resonate"; kain run X:\benchmark` because the vulkan_loader pack's native link failure blocked the entire compilation. This forced reliance on standalone `kain run X:\benchmark\cases_v2\resonate.kn` for verification.
-- Minimal repro: `$env:KAIN_BENCH_V2_FILTER="resonate"; kain run X:\benchmark --target llvm` — hangs/timeouts on compilation of unrelated packs.
+- Minimal repro: `$env:KAIN_BENCH_V2_FILTER="resonate"; kain run X:\benchmark --target llvm` 〰 hangs/timeouts on compilation of unrelated packs.
 - Evidence: `kain build X:\benchmark --target llvm` returns "Build failed" with no case-specific output; the router check also times out at 300s.
-- Suggested direction: Implement lazy pack loading in the router: only import/link pack modules whose case IDs or group IDs match the active filter. The focused router pattern (`gpu_router.kn`, `orchestrate_god_router.kn`) already exists as a workaround — consider making it the default behavior or providing a `--pack-filter` mechanism.
+- Suggested direction: Implement lazy pack loading in the router: only import/link pack modules whose case IDs or group IDs match the active filter. The focused router pattern (`gpu_router.kn`, `orchestrate_god_router.kn`) already exists as a workaround => consider making it the default behavior or providing a `--pack-filter` mechanism.

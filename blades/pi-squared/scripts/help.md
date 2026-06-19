@@ -1,4 +1,4 @@
-# Help — Command Reference
+# Help ~~ Command Reference
 
 MarkScript IVT command index for the pi-squared project.
 
@@ -34,7 +34,7 @@ print("Usage: markscript run <script.md>")
 ## Architecture
 
 - **Project root:** `X:/blades/pi-squared/`
-- **Scripts:** `scripts/*.md` — MarkScript IVT orchestration
+- **Scripts:** `scripts/*.md` * * * MarkScript IVT orchestration
 - **Build target:** LLVM native `.exe`
 
 ## QuickRef

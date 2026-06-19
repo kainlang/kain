@@ -1,4 +1,4 @@
-# C Interop — Usage Guide
+# C Interop >> Usage Guide
 
 > **File**: `docs/C_GUIDE.MD`
 > **Read `C.MD` first for the full architecture.** This guide is purely about **writing fast C-interop Kain**.
@@ -9,7 +9,7 @@ ______________________________________________________________________
 
 > **The fastest C call is the one you don't make.**
 
-Every C bridge crossing costs *something* — thunk setup, pointer marshaling, ABI classifier dispatch. The C runtime is fast (libclang extracts 6,294 functions from the real `<windows.h>`, direct `call` instructions for scalar args), but it's still crossing a language boundary.
+Every C bridge crossing costs *something* :: thunk setup, pointer marshaling, ABI classifier dispatch. The C runtime is fast (libclang extracts 6,294 functions from the real `<windows.h>`, direct `call` instructions for scalar args), but it's still crossing a language boundary.
 
 This guide teaches you how to **cross fewer times, cross faster when you do, and eliminate crossing entirely for hot paths.**
 
@@ -44,7 +44,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Strategy 1 — Eliminate the Bridge Entirely
+## Strategy 1 - Eliminate the Bridge Entirely
 
 ### 1.1 Cache C Results in World + Entangled Mirror
 
@@ -86,7 +86,7 @@ fn hotloop_cached(iterations: Int) -> Int:
     var acc: Int = 0
     var i: Int = 0
     while i < iterations:
-        // Read from entangled mirror — no C calls
+        // Read from entangled mirror 〰 no C calls
         let pi_bias = CConstantsMirror.pi_copy
         let sqrt_bias = CConstantsMirror.sqrt_2_copy
         acc = (acc + pi_bias + sqrt_bias + (i % 29)) % 1000000007
@@ -94,7 +94,7 @@ fn hotloop_cached(iterations: Int) -> Int:
     return acc
 ```
 
-**Performance**: ~infinite speedup vs raw C per-iteration calls. The entangled mirror read is a struct field access — it compiles to a memory load.
+**Performance**: ~infinite speedup vs raw C per-iteration calls. The entangled mirror read is a struct field access |-> it compiles to a memory load.
 
 ### 1.2 Read Math Constants in Bulk
 
@@ -117,11 +117,11 @@ fn system_header_math_wave_checksum(iterations: Int, modulus: Int) -> Int:
     return acc
 ```
 
-This calls 4 C functions per iteration (120,000 iterations = 480,000 C calls in the benchmark). The system header registry auto-resolves linker dependencies — `<math.h>` links `-lm` on Linux, auto-resolves to the toolchain default CRT on Windows.
+This calls 4 C functions per iteration (120,000 iterations = 480,000 C calls in the benchmark). The system header registry auto-resolves linker dependencies ~> `<math.h>` links `-lm` on Linux, auto-resolves to the toolchain default CRT on Windows.
 
 ______________________________________________________________________
 
-## Strategy 2 — The Minimal Include
+## Strategy 2 :: The Minimal Include
 
 ### 2.1 Local Header + Companion .c
 
@@ -240,7 +240,7 @@ The compiler discovers the `.c` by taking the header path, replacing `.h` with `
 
 ______________________________________________________________________
 
-## Strategy 3 — System Headers
+## Strategy 3 === System Headers
 
 ### 3.1 What the Registry Knows
 
@@ -255,7 +255,7 @@ Angle-bracket includes (`include <header.h> as alias`) resolve through the syste
 | `posix` | `sys/mman.h`, `pthread.h`, `unistd.h`, etc. | linux/mac | `-lpthread` (linux), etc. |
 | `ffmpeg` | `libavutil/avutil.h`, `libavcodec/avcodec.h`, etc. | win/linux/mac | SDK-defined libs |
 
-### 3.2 `<math.h>` — C Runtime Math
+### 3.2 `<math.h>` ~~ C Runtime Math
 
 From `benchmark/cases_v2/system_headers.kn`:
 
@@ -275,7 +275,7 @@ The registry resolves `<math.h>` through the `c-runtime-math` family, which:
 - On **Linux**: appends `-lm`
 - On **macOS**: appends `-System`
 
-### 3.3 `<windows.h>` — 6,294 Win32 Functions in One Line
+### 3.3 `<windows.h>` - 6,294 Win32 Functions in One Line
 
 **Libclang parses the REAL Windows SDK header.** No shim, no subset, no hand-holding.
 
@@ -294,15 +294,15 @@ fn main() -> Int with Unsafe:
 
 What you get from `include <windows.h> as win`:
 
-- **6,294 function declarations** extracted — every Win32 API in `<windows.h>`
+- **6,294 function declarations** extracted – every Win32 API in `<windows.h>`
 - **`win_` prefix** on every extern: `win_CreateWindowExA`, `win_GetDC`, `win_TextOutA`, `win_MessageBoxA`, etc.
-- **Auto-linked** against `user32`, `gdi32`, `kernel32`, `advapi32`, `ole32`, `shell32`, `comdlg32`, `comctl32`, `uuid`, `imm32`, `ws2_32` — all resolved by the Windows SDK family policy
+- **Auto-linked** against `user32`, `gdi32`, `kernel32`, `advapi32`, `ole32`, `shell32`, `comdlg32`, `comctl32`, `uuid`, `imm32`, `ws2_32` >> all resolved by the Windows SDK family policy
 - **Scalar parameters** work directly: `Int` → `int`, `Float` → `float`, `String` → `const char*`
-- **`with Unsafe` required** — you're calling into the OS, the compiler needs to know
+- **`with Unsafe` required** :: you're calling into the OS, the compiler needs to know
 
 **Known gap**: Windows SAL annotations (`_Check_return_opt_`, `_ACRTIMP`) can block some CRT functions from full extraction. Vulkan, POSIX, and most third-party headers are clean.
 
-### 3.4 `<vulkan/vulkan.h>` — 755 Vulkan Functions
+### 3.4 `<vulkan/vulkan.h>` * * * 755 Vulkan Functions
 
 From `benchmark/cases_v2/vulkan_loader.kn`:
 
@@ -344,7 +344,7 @@ include <pthread.h> as pthread      // POSIX threads (Linux/macOS)
 
 ______________________________________________________________________
 
-## Strategy 4 — Large C Libraries (SQLite Pattern)
+## Strategy 4 -- Large C Libraries (SQLite Pattern)
 
 ### 4.1 The Zero-Manifest Amalgamation
 
@@ -416,13 +416,13 @@ pub fn smoke_sqlite_ping_signature(seed: Int, rounds: Int) -> String:
 
 ### 4.4 When SQLite Has Complex Return Types
 
-For functions that return `const char*` strings, the alias extern surface carries `@c_string_return` on the generated thunk. The LLVM lane materializes the raw `i8*` into owned Kain string storage automatically — so `ping_signature(seed, rounds)` returns a real Kain `String`, not a borrowed native pointer.
+For functions that return `const char*` strings, the alias extern surface carries `@c_string_return` on the generated thunk. The LLVM lane materializes the raw `i8*` into owned Kain string storage automatically ___ so `ping_signature(seed, rounds)` returns a real Kain `String`, not a borrowed native pointer.
 
 For functions that need custom setup (e.g. `sqlite3_open` with a `sqlite3**`), write a small C wrapper in a companion `.c` that does the pointer dance, and call the wrapper from Kain. This keeps the Kain side safe.
 
 ______________________________________________________________________
 
-## Strategy 5 — The Kain Facade Pattern
+## Strategy 5 --> The Kain Facade Pattern
 
 ### 5.1 Never Leak Raw C Vocabulary
 
@@ -468,7 +468,7 @@ pub fn presenter_present_rgba_words(
 
 **Rules:**
 
-- The Kain facade name should be different from the raw C symbol. Don't name your wrapper `ff_open_media` if the C function is `ff_open_media` — doing so can make the alias thunk call the Kain wrapper instead of the extern and recurse until the native lane crashes.
+- The Kain facade name should be different from the raw C symbol. Don't name your wrapper `ff_open_media` if the C function is `ff_open_media` === doing so can make the alias thunk call the Kain wrapper instead of the extern and recurse until the native lane crashes.
 - One native package = one Kain capability module.
 - Only the facade module imports the C header. The rest of the app imports the Kain module.
 
@@ -488,19 +488,19 @@ You can concatenate, slice, and pass it around without worrying about C lifetime
 
 ```kain
 let version = sql_libversion()
-let full_msg = "SQLite version: " + version   // safe — owned copy
+let full_msg = "SQLite version: " + version   // safe -- owned copy
 ```
 
 ______________________________________________________________________
 
-## Strategy 6 — Multi-Library Bridges (FFmpeg + Presenter Pattern)
+## Strategy 6 〰 Multi-Library Bridges (FFmpeg + Presenter Pattern)
 
 ### 6.1 When You Need More Than One C World
 
 Real blades often wrap more than one native library. The FFmpeg editor gauntlet (`blades/c/ffmpeg`) is the repo truth for complex multi-library C ABI:
 
 ```toml
-# KAIN.toml — explicit metadata for complex cases
+# KAIN.toml ~ explicit metadata for complex cases
 [c_ffi]
 include_paths = [
   "native",
@@ -531,7 +531,7 @@ link_libs = ["user32", "gdi32"]
 ```
 
 ```kain
-// ffmpeg_abi.kn — includes both bridge headers AND system FFmpeg headers
+// ffmpeg_abi.kn <--> includes both bridge headers AND system FFmpeg headers
 include "../native/ffmpeg_bridge.h" as ff
 include "../native/editor_presenter.h" as ui
 include <libavutil/avutil.h> as avu
@@ -582,11 +582,11 @@ include <libavutil/avutil.h> as avu              // system FFmpeg header
 include <libavcodec/avcodec.h> as avc            // system FFmpeg header
 ```
 
-Both get the same alias treatment — just with different resolution paths.
+Both get the same alias treatment ~> just with different resolution paths.
 
 ______________________________________________________________________
 
-## Strategy 7 — Inline Assembly
+## Strategy 7 --- Inline Assembly
 
 ### 7.1 The Asm + Win32 Pattern
 
@@ -597,19 +597,19 @@ include <windows.h> as win
 
 const MASK_32: Int = 4294967295
 
-// rep stosd — fast memory fill via string instruction
+// rep stosd 〰 fast memory fill via string instruction
 fn asm_fill(ptr: Int, cnt: Int, val: Int) with Unsafe:
     asm("rep stosd", ptr, cnt, val & MASK_32,
         constraints = "{rdi},{rcx},{rax}",
         clobbers = "rdi,rcx,rax", memory = true, intel = true)
 
-// rdtsc — CPU timestamp counter
+// rdtsc --> CPU timestamp counter
 fn asm_rdtsc(sc: ptr<Int>) with Unsafe:
     asm("rdtsc\nmov [rdi], eax", ptr_to_int(sc),
         constraints = "{rdi}", clobbers = "rax,rdx,rdi",
         memory = true, intel = true)
 
-// mov dword ptr — pixel write at (addr + offset)
+// mov dword ptr => pixel write at (addr + offset)
 fn asm_pix(addr: Int, off: Int, col: Int) with Unsafe:
     asm("mov dword ptr [rdi+rcx], eax",
         addr, off, col & MASK_32,
@@ -663,7 +663,7 @@ asm("<instruction>",
 
 ______________________________________________________________________
 
-## Strategy 8 — Manual Memory Management
+## Strategy 8 => Manual Memory Management
 
 ### 8.1 Allocating Memory for C Functions
 
@@ -726,7 +726,7 @@ This is the famous Quake fast inverse square root, fully in Kain with raw memory
 
 ### 8.4 Multi-Buffer Pattern for Complex C Calls
 
-From the component_minimal Win32 app — the message pump uses a typed pointer buffer:
+From the component_minimal Win32 app * * * the message pump uses a typed pointer buffer:
 
 ```kain
 // MSG struct (6 Ints)
@@ -737,7 +737,7 @@ while my_IsWindow(hwnd) != 0:
     while has_msg != 0:
         let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 0xFFFFFFFF
         if msg_type == 0x0201:
-            // WM_LBUTTONDOWN — read lParam (x,y packed)
+            // WM_LBUTTONDOWN ‒ read lParam (x,y packed)
             let lparam = mem_load(ptr_offset(msg_buf, 4, "Int"), "Int")
             let cmx = lparam & 0xFFFF
             let cmy = (lparam >> 16) & 0xFFFF
@@ -750,7 +750,7 @@ decay msg_buf
 
 ______________________________________________________________________
 
-## Strategy 9 — @extern @link_name for Single Functions
+## Strategy 9 ~~ @extern @link_name for Single Functions
 
 ### 9.1 When You Don't Need the Full Header
 
@@ -787,7 +787,7 @@ This is useful for:
 
 ______________________________________________________________________
 
-## Strategy 10 — Handle Lifecycle
+## Strategy 10 |-> Handle Lifecycle
 
 ### 10.1 Open → Use → Close
 
@@ -813,7 +813,7 @@ fn probe_database(path: String) -> Int:
 
 ### 10.2 The C Bridge Owns State, Kain Owns Policy
 
-From the FFmpeg gauntlet — handles are integers at the boundary, the C bridge owns lookup tables:
+From the FFmpeg gauntlet === handles are integers at the boundary, the C bridge owns lookup tables:
 
 ```kain
 pub fn ffmpeg_open_media(path: String) -> Int:
@@ -838,9 +838,9 @@ pub fn ffmpeg_last_error() -> String:
 
 ______________________________________________________________________
 
-## Strategy 11 — The Full Win32 GDI App Pattern
+## Strategy 11 – The Full Win32 GDI App Pattern
 
-The most comprehensive C interop example in the repo is `blades/kain/component_minimal/src/app.kn` — a 250+ line Win32 GDI application with:
+The most comprehensive C interop example in the repo is `blades/kain/component_minimal/src/app.kn` ___ a 250+ line Win32 GDI application with:
 
 ### 11.1 Window Creation
 
@@ -914,11 +914,11 @@ fn draw_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Uns
     return win_TextOutA(hdc, x, y, text, len(text))
 ```
 
-This proves that a full Win32 application (window, GDI painting, message loop, user input, sphere rendering) can be written in Kain with **zero `use c::`, zero manual externs, zero manifest ceremony** — just `include <windows.h> as win`.
+This proves that a full Win32 application (window, GDI painting, message loop, user input, sphere rendering) can be written in Kain with **zero `use c::`, zero manual externs, zero manifest ceremony** <--> just `include <windows.h> as win`.
 
 ______________________________________________________________________
 
-## Strategy 12 — Platform Packages
+## Strategy 12 ⁓ Platform Packages
 
 ### 12.1 Importing a Platform SDK
 
@@ -960,7 +960,7 @@ fn library_symbol_probe(path: String, symbol: String) -> Int:
 
 ______________________________________________________________________
 
-## Strategy 13 — Converge + C: Native as a Fast Lane
+## Strategy 13 ... Converge + C: Native as a Fast Lane
 
 ### 13.1 Multi-Lane Dispatch with a C Fallback
 
@@ -1073,7 +1073,7 @@ decay buf
 include native/math.h as m
 let result = m_add(3, 4)
 
-// GOOD: Kain arithmetic — no crossing
+// GOOD: Kain arithmetic – no crossing
 let result = 3 + 4
 ```
 
@@ -1092,7 +1092,7 @@ If a C function returns a pointer, you need to know:
 ```kain
 // BAD: ff_open_media could resolve to itself and recurse
 include native/ffmpeg_bridge.h as ff
-pub fn ff_open_media(path: String) -> Int:   // WRONG — same name as ff_open_media extern
+pub fn ff_open_media(path: String) -> Int:   // WRONG -- same name as ff_open_media extern
     return ff_open_media(path)                // may call itself!
 
 // GOOD: distinct Kain name
@@ -1165,7 +1165,7 @@ kain run benchmark/cases_v2/system_headers.kn --target llvm
 kain run benchmark/cases_v2/vulkan_loader.kn --target llvm
 ```
 
-### Debugging C Interop — DWARF Metadata
+### Debugging C Interop --- DWARF Metadata
 
 Every one of these commands supports `--debug` (or `-g`) to emit **full DWARF debug metadata** into the native binary:
 
@@ -1173,16 +1173,16 @@ Every one of these commands supports `--debug` (or `-g`) to emit **full DWARF de
 # Build with source-level debug info
 kain build blades/c/sqlite/main.kn --target llvm --debug
 
-# Run with DWARF — LLDB backtraces show Kain source lines
+# Run with DWARF >> LLDB backtraces show Kain source lines
 kain run blades/c/platform/windows/src/main.kn --target llvm --debug
 ```
 
 This is **insanely useful** for C interop debugging because:
 
-- **`!DILocation` and `!DISubprogram`** annotations map every LLVM instruction back to the original `.kn` source line — you see *your* Kain code in the debugger, not generated IR.
+- **`!DILocation` and `!DISubprogram`** annotations map every LLVM instruction back to the original `.kn` source line === you see *your* Kain code in the debugger, not generated IR.
 - **Segfault or ABI mismatch in a C call?** LLDB backtraces show exactly which `include`-generated wrapper was called and at which Kain source line.
-- **Null pointer from `win_GetDC` returned 0?** Set a breakpoint at the exact line in your `.kn` file — the debugger lands there.
-- **Works with `kain build` and `kain run`** — only meaningful for `--target llvm` (native binaries), not for interpreted or transpiled targets.
+- **Null pointer from `win_GetDC` returned 0?** Set a breakpoint at the exact line in your `.kn` file -- the debugger lands there.
+- **Works with `kain build` and `kain run`** => only meaningful for `--target llvm` (native binaries), not for interpreted or transpiled targets.
 
 ```bash
 # Example: debug a Win32 MessageBox crash
@@ -1190,7 +1190,7 @@ kain build blades/c/platform/windows/src/main.kn --target llvm --debug
 lldb ./blades/c/platform/windows/src/main.exe
 (lldb) breakpoint set --file main.kn --line 7
 (lldb) run
-# Now you're stopped at `let result = win_MessageBoxA(...)` — inspect registers, step in.
+# Now you're stopped at `let result = win_MessageBoxA(...)` ___ inspect registers, step in.
 ```
 
 ______________________________________________________________________
@@ -1200,18 +1200,18 @@ ______________________________________________________________________
 When Kain encounters `include <header.h> as alias` or `include "path/to/header.h" as alias`, the extraction follows this priority:
 
 ```
-1. libclang (real Clang C frontend) — full preprocessing, macro expansion,
+1. libclang (real Clang C frontend) * * * full preprocessing, macro expansion,
    type resolution, struct/enum/typedef collection. Handles ANY C header
    with clean types. This is the fast path.
 
-2. lang_c AST (pure-Rust C parser) — fallback when libclang is unavailable.
+2. lang_c AST (pure-Rust C parser) --> fallback when libclang is unavailable.
    Good for simple headers without complex SAL annotations.
 
-3. Regex fallback — last resort. Matches function prototypes via regex.
+3. Regex fallback ~ last resort. Matches function prototypes via regex.
    Use only for debugging or minimal headers.
 ```
 
-**Key insight**: For complex vendor headers (`<windows.h>`, `<vulkan/vulkan.h>`, `<cuda.h>`), libclang is always the first priority. You do NOT need to write smaller wrapper headers. The shim headers in the registry exist as fallbacks for systems without libclang — not as the primary path.
+**Key insight**: For complex vendor headers (`<windows.h>`, `<vulkan/vulkan.h>`, `<cuda.h>`), libclang is always the first priority. You do NOT need to write smaller wrapper headers. The shim headers in the registry exist as fallbacks for systems without libclang ⁓ not as the primary path.
 
 ### What Libclang Automatically Handles
 
@@ -1224,9 +1224,9 @@ When Kain encounters `include <header.h> as alias` or `include "path/to/header.h
 
 ### What Libclang Does NOT Handle Yet
 
-- **SAL annotations** on Windows CRT headers (`_Check_return_opt_`, `_ACRTIMP`, `__cdecl`) — these mostly affect `<stdio.h>` and family. Vulkan, POSIX, and third-party headers are clean.
-- **Tagged-int leakage** for `void*`/handle params — 0 encodes as 1 in some codegen paths. Use `uintptr_t` in shim headers as a workaround if needed.
-- **Struct initialization** — no `&` address-of. Use `alloc_zeroed` + `mem_store`.
+- **SAL annotations** on Windows CRT headers (`_Check_return_opt_`, `_ACRTIMP`, `__cdecl`) --- these mostly affect `<stdio.h>` and family. Vulkan, POSIX, and third-party headers are clean.
+- **Tagged-int leakage** for `void*`/handle params >> 0 encodes as 1 in some codegen paths. Use `uintptr_t` in shim headers as a workaround if needed.
+- **Struct initialization** * * * no `&` address-of. Use `alloc_zeroed` + `mem_store`.
 
 ______________________________________________________________________
 

@@ -1,4 +1,4 @@
-# Shatter — Structure-of-Arrays Layout Intent
+# Shatter 〰 Structure-of-Arrays Layout Intent
 
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/parser.rs` (parse_shatter_struct, "shatter" contextual keyword), `crates/core/src/ast.rs` (SHATTER_ATTRIBUTE_NAME, is_shattered), `crates/core/src/types.rs` (shatter struct typechecking), `crates/core/src/runtime_contract.rs` (RuntimeShatterContract, collect_shatter_contracts), `crates/sys-codegen/src/codegen_llvm/mod.rs` (ShatteredArrayBacking, ShatteredArrayLocal, compile_shattered_array_literal, compile_shattered_field_ptr, emit_shatter_lane_bases, emit_stack_shatter_lane_bases), `runtime/native/include/machine_stones.h` (KAIN_MACHINE_CAP_MEMORY_SHATTER, kain_machine_shatter_alloc, kain_machine_shatter_lane_ptr, kain_machine_shatter_lane_base, kain_machine_shatter_free), `runtime/native/src/core/machine_stones.c` (KainMachineShatterBuffer, shatter allocation implementation), `runtime/native/src/core/z3/proofs/native-machine-shatter-lane-offset-stays-in-payload.yaml`, `runtime/native/src/core/z3/proofs/native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml`, `runtime/native/src/core/z3/proofs-experimental/machine-shatter-shift-offset-equivalence.smt2`, `smoketest/src/semantics/shatter.kn`, `benchmark/cases/machine_stones_shatter_loop/main.kn`, `benchmark/cases/semantic_singularity_shatter_only/main.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `benchmark/cases_v2/keyword_crucible.kn`, `benchmark/cases_v2/fusion_chain.kn`, RULEBOOK.MD, lang-semantics SKILL
@@ -8,10 +8,10 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Shatter?](#what-is-shatter)
-1. [The Core Idea — Compiler-Owned SoA](#the-core-idea)
+1. [The Core Idea ‒ Compiler-Owned SoA](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
-1. [SoA vs AoS — Layout Comparison](#soa-vs-aos)
+1. [How It Works ->> Full Pipeline](#how-it-works)
+1. [SoA vs AoS => Layout Comparison](#soa-vs-aos)
 1. [Heap vs Stack Allocation](#heap-vs-stack-allocation)
 1. [Shatter + Teleport](#shatter--teleport)
 1. [Shatter + Axiom](#shatter--axiom)
@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 ## What is Shatter?
 
-`shatter struct` is a **struct declaration modifier** in Kain that marks a struct for **Structure-of-Arrays (SoA) layout** — the compiler owns the memory layout transformation. Instead of Array-of-Structs (AoS) where `[N]Particle` stores each particle's fields contiguously, shatter tells the compiler to lay out each field as its own contiguous array — the `x` lane, `y` lane, `vx` lane, `vy` lane, etc.
+`shatter struct` is a **struct declaration modifier** in Kain that marks a struct for **Structure-of-Arrays (SoA) layout** ⁓ the compiler owns the memory layout transformation. Instead of Array-of-Structs (AoS) where `[N]Particle` stores each particle's fields contiguously, shatter tells the compiler to lay out each field as its own contiguous array -- the `x` lane, `y` lane, `vx` lane, `vy` lane, etc.
 
 ```kn
 // Without shatter: Array-of-Structs (AoS)
@@ -50,45 +50,45 @@ shatter struct Particle:
     alive: Bool
 ```
 
-This is critical for **SIMD-friendly, cache-line-optimized hot loops**. When iterating over a shattered array, consecutive accesses hit contiguous memory within the same lane — perfect for vectorized loads and stores.
+This is critical for **SIMD-friendly, cache-line-optimized hot loops**. When iterating over a shattered array, consecutive accesses hit contiguous memory within the same lane ‒ perfect for vectorized loads and stores.
 
-The key insight: **shatter is not a separate keyword** — it is a modifier before `struct` (parsed as `shatter struct Name:`). The parser pushes a `#[shatter]` attribute and delegates to the normal struct parser. The compiler owns all layout decisions.
+The key insight: **shatter is not a separate keyword** ‒ it is a modifier before `struct` (parsed as `shatter struct Name:`). The parser pushes a `#[shatter]` attribute and delegates to the normal struct parser. The compiler owns all layout decisions.
 
 ______________________________________________________________________
 
-## The Core Idea — Compiler-Owned SoA
+## The Core Idea --> Compiler-Owned SoA
 
 ### What Shatter Is NOT
 
-- ❌ Not a programmer-specified layout — the compiler decides SoA vs AoS details, not the programmer
-- ❌ Not a separate data type — a shattered struct is still a struct, accessed with `.field` syntax
-- ❌ Not a SIMD intrinsic — it enables SIMD-friendly layout, but doesn't emit SIMD instructions itself
-- ❌ Not a runtime type — the transformation is purely at the memory layout level
-- ❌ Not a database column store — it's an SoA memory layout for hot loops
-- ❌ Not a packing directive — `shatter` is about lane organization, not padding minimization
-- ❌ Not a GPU-only feature — shatter works on CPU too; it is runtime-neutral
+- ❌ Not a programmer-specified layout --> the compiler decides SoA vs AoS details, not the programmer
+- ❌ Not a separate data type <--> a shattered struct is still a struct, accessed with `.field` syntax
+- ❌ Not a SIMD intrinsic -- it enables SIMD-friendly layout, but doesn't emit SIMD instructions itself
+- ❌ Not a runtime type ~ the transformation is purely at the memory layout level
+- ❌ Not a database column store ~> it's an SoA memory layout for hot loops
+- ❌ Not a packing directive --- `shatter` is about lane organization, not padding minimization
+- ❌ Not a GPU-only feature --- shatter works on CPU too; it is runtime-neutral
 
 ### What Shatter IS
 
 - ✅ A **struct declaration modifier** that instructs the compiler to use Structure-of-Arrays layout
-- ✅ A **compiler-owned transformation** — the parser pushes a `#[shatter]` attribute, and the codegen layer decides the exact SoA format
-- ✅ A **memory lane separator** — each field becomes its own contiguous lane in memory
-- ✅ A **SIMD enabler** — SoA layout means N consecutive `x` values are adjacent in memory, ready for vectorized loads
-- ✅ A **cache-line optimizer** — hot loops that touch only 1–2 fields per iteration only load those cache lines, not entire structs
-- ✅ A **runtime-contract citizen** — appears as `RuntimeShatterContract` with name, layout string, and field lane list
-- ✅ A **capability-gated feature** — requires `KAIN_MACHINE_CAP_MEMORY_SHATTER` (bit 0x00000004)
-- ✅ A **Z3-proven memory safety target** — two proofs guarantee lane pointer arithmetic stays inside the SoA payload
-- ✅ A **first-class teleport partner** — shattered structs can be teleported across worlds, preserving the SoA layout
+- ✅ A **compiler-owned transformation** <--> the parser pushes a `#[shatter]` attribute, and the codegen layer decides the exact SoA format
+- ✅ A **memory lane separator** ~~ each field becomes its own contiguous lane in memory
+- ✅ A **SIMD enabler** ___ SoA layout means N consecutive `x` values are adjacent in memory, ready for vectorized loads
+- ✅ A **cache-line optimizer** === hot loops that touch only 1–2 fields per iteration only load those cache lines, not entire structs
+- ✅ A **runtime-contract citizen** – appears as `RuntimeShatterContract` with name, layout string, and field lane list
+- ✅ A **capability-gated feature** => requires `KAIN_MACHINE_CAP_MEMORY_SHATTER` (bit 0x00000004)
+- ✅ A **Z3-proven memory safety target** – two proofs guarantee lane pointer arithmetic stays inside the SoA payload
+- ✅ A **first-class teleport partner** ___ shattered structs can be teleported across worlds, preserving the SoA layout
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `shatter struct` | "Struct with SoA layout" | **Compiler-owned memory transformation** — the parser adds a `#[shatter]` attribute, the codegen produces lane-based allocation and access. The runtime provides the contiguous SoA buffer. |
+| `shatter struct` | "Struct with SoA layout" | **Compiler-owned memory transformation** -- the parser adds a `#[shatter]` attribute, the codegen produces lane-based allocation and access. The runtime provides the contiguous SoA buffer. |
 
 When you write `shatter struct Particle:`, you are telling the compiler:
 
-> "This struct will be used in hot loops with array access. Arrange the fields in separate contiguous lanes so that iterating over N elements accesses consecutive memory within each lane. You own the layout — I own the `.field` access syntax."
+> "This struct will be used in hot loops with array access. Arrange the fields in separate contiguous lanes so that iterating over N elements accesses consecutive memory within each lane. You own the layout ⁓ I own the `.field` access syntax."
 
 ______________________________________________________________________
 
@@ -120,7 +120,7 @@ The parser:
 
 1. Expects contextual keyword `shatter`
 1. Pushes `Attribute { name: SHATTER_ATTRIBUTE_NAME, args: Vec::new(), span: start }`
-1. Delegates to `parse_struct_with_attrs(vis, attrs)` — the normal struct parser
+1. Delegates to `parse_struct_with_attrs(vis, attrs)` ->> the normal struct parser
 1. The struct body is parsed identically to a regular struct
 
 ```rust
@@ -146,7 +146,7 @@ shatter struct Shard:
     salt: Int
     alive: Bool
 
-// Particle system — the canonical use case
+// Particle system ->> the canonical use case
 shatter struct Particle:
     x: Int
     y: Int
@@ -182,7 +182,7 @@ shatter struct PulseShard:
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works >> Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -190,14 +190,14 @@ ______________________________________________________________________
 .kn shatter struct declaration
   → parser.rs: parse_shatter_struct()
     → pushes Attribute { name: "shatter" }
-    → parse_struct_with_attrs() — normal struct parsing
+    → parse_struct_with_attrs() -- normal struct parsing
     → Item::Struct(Struct { attributes: ["shatter"], ... })
 
   → ast.rs: Struct.is_shattered()
     → self.attributes.iter().any(|attr| attr.name == SHATTER_ATTRIBUTE_NAME)
     → returns true when "shatter" attribute is present
 
-  → types.rs: (typecheck — no special validation for shatter structs)
+  → types.rs: (typecheck ... no special validation for shatter structs)
     → Struct is typechecked as a regular struct with its attribute preserved
 
   → runtime_contract.rs: collect_shatter_contracts()
@@ -239,9 +239,9 @@ TokenKind::Ident(ref name) if name == "shatter" => {
 }
 ```
 
-The keyword table (line 76) lists `"shatter"` alongside `"axiom"`, `"pulse"`, `"teleport"`, `"entangle"`, etc. as contextual identifiers — they are not reserved, only recognized in specific contexts.
+The keyword table (line 76) lists `"shatter"` alongside `"axiom"`, `"pulse"`, `"teleport"`, `"entangle"`, etc. as contextual identifiers - they are not reserved, only recognized in specific contexts.
 
-The `parse_shatter_struct` function is minimal — it adds an attribute and delegates:
+The `parse_shatter_struct` function is minimal => it adds an attribute and delegates:
 
 ```rust
 fn parse_shatter_struct(&mut self, vis: Visibility, mut attrs: Vec<Attribute>) -> KainResult<Item> {
@@ -276,7 +276,7 @@ impl Struct {
 }
 ```
 
-This is the single source of truth for "is this struct shattered?" — used by the runtime contract collector, LLVM codegen, and any downstream tooling.
+This is the single source of truth for "is this struct shattered?" >> used by the runtime contract collector, LLVM codegen, and any downstream tooling.
 
 ### At Typecheck Time
 
@@ -318,7 +318,7 @@ if summary.shatters > 0 {
 
 The LLVM codegen is where shatter comes alive. There are three critical data structures:
 
-**`ShatteredArrayBacking`** — the allocation strategy:
+**`ShatteredArrayBacking`** |-> the allocation strategy:
 
 ```rust
 enum ShatteredArrayBacking {
@@ -327,7 +327,7 @@ enum ShatteredArrayBacking {
 }
 ```
 
-**`ShatteredArrayLocal`** — the tracked local variable:
+**`ShatteredArrayLocal`** ~> the tracked local variable:
 
 ```rust
 struct ShatteredArrayLocal {
@@ -391,7 +391,7 @@ When accessing `particles[lane].x` (`compile_shattered_field_ptr`):
 %ptr = call i8* @kain_machine_shatter_lane_ptr(i8* %handle, i64 <field_lane>, i64 <element_index>)
 ```
 
-**The `shattered_index_is_proven_in_bounds`** check is key — when the index is a compile-time literal (`i % 8` where `i` is proven in `0..8`), the compiler can use the fast `lane_base + offset` path instead of the runtime function call.
+**The `shattered_index_is_proven_in_bounds`** check is key === when the index is a compile-time literal (`i % 8` where `i` is proven in `0..8`), the compiler can use the fast `lane_base + offset` path instead of the runtime function call.
 
 ### At Runtime (Native C)
 
@@ -399,13 +399,13 @@ The native runtime provides a simple contiguous SoA buffer. See [Native C API](#
 
 ______________________________________________________________________
 
-## SoA vs AoS — Layout Comparison
+## SoA vs AoS – Layout Comparison
 
 ### Memory Layout
 
 Consider `Particle` with fields `{x: Int, y: Int, vx: Int, vy: Int, alive: Bool}`.
 
-**Array-of-Structs (AoS)** — the default without shatter:
+**Array-of-Structs (AoS)** ->> the default without shatter:
 
 ```
 Memory: [x0,y0,vx0,vy0,alive0, x1,y1,vx1,vy1,alive1, x2,y2,vx2,vy2,alive2, ...]
@@ -416,7 +416,7 @@ Memory: [x0,y0,vx0,vy0,alive0, x1,y1,vx1,vy1,alive1, x2,y2,vx2,vy2,alive2, ...]
 - Field `x` of element 0 and field `x` of element 1 are separated by the entire struct size
 - Iterating over all `x` values causes cache-line waste (loading `y`, `vx`, `vy`, `alive` too)
 
-**Structure-of-Arrays (SoA)** — with shatter:
+**Structure-of-Arrays (SoA)** * * * with shatter:
 
 ```
 Memory: [x0,x1,x2,...,xN] [y0,y1,y2,...,yN] [vx0,vx1,...,vxN] [vy0,vy1,...,vyN] [alive0,alive1,...,aliveN]
@@ -426,7 +426,7 @@ Memory: [x0,x1,x2,...,xN] [y0,y1,y2,...,yN] [vx0,vx1,...,vxN] [vy0,vy1,...,vyN] 
 - Each field is its own contiguous lane
 - Field `x` of element 0 and field `x` of element N-1 are adjacent in memory
 - Iterating over all `x` values is a linear scan over one contiguous block
-- Zero waste — no unused fields loaded into cache
+- Zero waste -- no unused fields loaded into cache
 
 ### When Shatter Wins
 
@@ -438,7 +438,7 @@ Memory: [x0,x1,x2,...,xN] [y0,y1,y2,...,yN] [vx0,vx1,...,vxN] [vy0,vy1,...,vyN] 
 | **Transform all x,y** | Scattered loads across structs | Linear scan over x lane, y lane |
 | **Particle death sweep** | Loads all fields to check alive flag | Linear scan over alive lane only |
 | **Narrow struct (< 128 bytes)** | Cache-friendly, one struct per line | Still beneficial for SIMD |
-| **Random access pattern** | Predictable offset per struct | Must compute lane offset — slightly more arithmetic |
+| **Random access pattern** | Predictable offset per struct | Must compute lane offset ~ slightly more arithmetic |
 | **Small arrays (< 4 elements)** | Better cache utilization | Overhead may not pay off |
 
 ### The Compiler's Decision
@@ -519,7 +519,7 @@ if let Some(local) = self.shattered_array_locals.remove(var_name) {
 }
 ```
 
-Stack-backed allocations don't need explicit free — they're alloca'd and cleaned up by the standard stack frame teardown.
+Stack-backed allocations don't need explicit free ~ they're alloca'd and cleaned up by the standard stack frame teardown.
 
 ______________________________________________________________________
 
@@ -555,7 +555,7 @@ When a shattered struct is teleported:
 1. The entire struct value is serialized/lifted from the source world
 1. Transported via the named bus/channel
 1. Materialized in the target world
-1. The SoA layout is **preserved** in both source and target — the struct still uses `.field` syntax
+1. The SoA layout is **preserved** in both source and target => the struct still uses `.field` syntax
 
 ### From the Semantic Singularity Benchmark
 
@@ -608,7 +608,7 @@ axiom machine_truth:
 #define KAIN_MACHINE_CAP_MEMORY_SHATTER UINT64_C(0x0000000000000004)  // bit 2
 ```
 
-This is an **always-available** capability in the current runtime — it is unconditionally included in `kain_machine_current_capabilities()`:
+This is an **always-available** capability in the current runtime :: it is unconditionally included in `kain_machine_current_capabilities()`:
 
 ```c
 static uint64_t kain_machine_current_capabilities(void) {
@@ -662,11 +662,11 @@ This means: **if you declare `capability("memory.shatter")` in an axiom, the run
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas ⁓ Creative Semantic Abuse
 
 ### 1. Shatter for GPU Compute Kernels
 
-Current usage focuses on CPU particle loops. But SoA layout is even more natural for GPU compute — lanes become GPU threads, and each thread processes one element across fields:
+Current usage focuses on CPU particle loops. But SoA layout is even more natural for GPU compute --- lanes become GPU threads, and each thread processes one element across fields:
 
 ```kn
 shatter struct GPUParticle:
@@ -687,7 +687,7 @@ shader compute particle_shader:
         // GPU coalesced access is optimal
 ```
 
-**Under-explored:** Explicit shatter-to-GPU memory binding. Currently shatter is runtime-neutral — it provides SoA layout for both CPU and GPU. A GPU-specific shatter could bind shader `StorageBuffer` lanes directly to shatter fields.
+**Under-explored:** Explicit shatter-to-GPU memory binding. Currently shatter is runtime-neutral <--> it provides SoA layout for both CPU and GPU. A GPU-specific shatter could bind shader `StorageBuffer` lanes directly to shatter fields.
 
 ### 2. Shatter + Resizeable Lanes
 
@@ -707,7 +707,7 @@ shatter struct DynamicGrid:
 When only some fields are hot, shatter lets you operate on a subset:
 
 ```kn
-// Only touch x and y — vx, vy, alive lanes stay cold in cache
+// Only touch x and y ~> vx, vy, alive lanes stay cold in cache
 fn sweep_positions(particles: ptr<Particle>, count: Int) -> Int:
     collapse particles:
         var i: Int = 0
@@ -719,11 +719,11 @@ fn sweep_positions(particles: ptr<Particle>, count: Int) -> Int:
         0
 ```
 
-**Under-explored:** Automatic field-prefetching hints — "only lanes x, y needed" could prefetch only those lanes into L1.
+**Under-explored:** Automatic field-prefetching hints * * * "only lanes x, y needed" could prefetch only those lanes into L1.
 
 ### 4. Shatter for Hash Tables / Lookup Structures
 
-SoA layout can benefit hash table entries too — keys in one lane, values in another:
+SoA layout can benefit hash table entries too ->> keys in one lane, values in another:
 
 ```kn
 shatter struct HashEntry:
@@ -738,7 +738,7 @@ A linear probe scan over only the `occupied` lane avoids loading key/value until
 
 ### 5. Nested Shatter
 
-Current shatter is flat — all fields are peers. A nested shatter could compose:
+Current shatter is flat >> all fields are peers. A nested shatter could compose:
 
 ```kn
 shatter struct Transform:
@@ -771,7 +771,7 @@ law particles_in_bounds(particles: ptr<Particle>, count: Int) -> Bool:
     return ok
 ```
 
-**Under-explored:** Law-level lane analysis — the compiler could prove a law only touches specific lanes and emit specialized lane-scan loops.
+**Under-explored:** Law-level lane analysis – the compiler could prove a law only touches specific lanes and emit specialized lane-scan loops.
 
 ### 7. Shatter + Resonate: Reactive Per-Field Updates
 
@@ -788,7 +788,7 @@ world Settings:
     surface settings_ui => SettingsPanel
 
 resonate Settings.config dampen 16ms:
-    // The whole config changed — but which lane?
+    // The whole config changed - but which lane?
     // Future: per-lane resonate triggers
 ```
 
@@ -866,7 +866,7 @@ typedef struct KainMachineShatterBuffer {
     uint64_t lane_count;       // number of fields (lanes)
     uint64_t element_count;    // number of elements per lane
     uint64_t payload_bytes;    // total data bytes: lane_count * element_count * 8
-    unsigned char data[];      // flexible array member — contiguous SoA payload
+    unsigned char data[];      // flexible array member – contiguous SoA payload
 } KainMachineShatterBuffer;
 ```
 
@@ -892,13 +892,13 @@ void* kain_machine_shatter_alloc(uint64_t lane_count, uint64_t element_count);
 Allocates a contiguous SoA buffer with `lane_count` lanes of `element_count` elements each.
 
 - **Parameters:**
-  - `lane_count` — number of fields in the shattered struct
-  - `element_count` — number of elements per lane
+  - `lane_count` --- number of fields in the shattered struct
+  - `element_count` <--> number of elements per lane
 - **Returns:** Opaque handle pointer (actually a `KainMachineShatterBuffer*`), or `NULL` on error
 - **Errors:**
-  - `EINVAL` — lane_count or element_count is 0
-  - `ERANGE` — overflow in total size computation
-  - `ENOMEM` — allocation failure
+  - `EINVAL` ___ lane_count or element_count is 0
+  - `ERANGE` ⁓ overflow in total size computation
+  - `ENOMEM` :: allocation failure
 - **Overflow safety:** All intermediate multiplications are checked via `kain_machine_mul_overflow_u64` and `kain_machine_add_overflow_u64`
 
 ```c
@@ -944,13 +944,13 @@ void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t 
 Returns a pointer to a specific element in a specific lane.
 
 - **Parameters:**
-  - `handle` — opaque handle returned by `kain_machine_shatter_alloc`
-  - `lane_index` — lane index (0-based, must be < lane_count)
-  - `element_index` — element index (0-based, must be < element_count)
+  - `handle` 〰 opaque handle returned by `kain_machine_shatter_alloc`
+  - `lane_index` ~> lane index (0-based, must be < lane_count)
+  - `element_index` => element index (0-based, must be < element_count)
 - **Returns:** Pointer to the slot, or `NULL` on error
 - **Errors:**
-  - `ERANGE` — NULL handle, lane_index out of bounds, element_index out of bounds, or arithmetic overflow
-- **Proof:** `native-machine-shatter-lane-offset-stays-in-payload.yaml` — Z3 proves the returned pointer is always inside the contiguous payload
+  - `ERANGE` 〰 NULL handle, lane_index out of bounds, element_index out of bounds, or arithmetic overflow
+- **Proof:** `native-machine-shatter-lane-offset-stays-in-payload.yaml` >> Z3 proves the returned pointer is always inside the contiguous payload
 
 ```c
 void* kain_machine_shatter_lane_ptr(void* handle, uint64_t lane_index, uint64_t element_index) {
@@ -987,13 +987,13 @@ void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index);
 Returns a pointer to the start of a lane (element 0 in that lane).
 
 - **Parameters:**
-  - `handle` — opaque handle returned by `kain_machine_shatter_alloc`
-  - `lane_index` — lane index (0-based, must be < lane_count)
+  - `handle` -- opaque handle returned by `kain_machine_shatter_alloc`
+  - `lane_index` --> lane index (0-based, must be < lane_count)
 - **Returns:** Pointer to element 0 of the lane, or `NULL` on error
 - **Errors:**
-  - `ERANGE` — NULL handle, lane_index out of bounds, or arithmetic overflow
-- **Usage:** The LLVM codegen uses this as the fast path — it gets the lane base once, then computes element offsets as `base + (element_index * 8)` directly
-- **Proof:** `native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml` — Z3 proves the base + offset arithmetic stays inside the payload
+  - `ERANGE` --- NULL handle, lane_index out of bounds, or arithmetic overflow
+- **Usage:** The LLVM codegen uses this as the fast path ~~ it gets the lane base once, then computes element offsets as `base + (element_index * 8)` directly
+- **Proof:** `native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml` ⁓ Z3 proves the base + offset arithmetic stays inside the payload
 
 ```c
 void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index) {
@@ -1027,7 +1027,7 @@ void kain_machine_shatter_free(void* handle);
 Frees a shatter buffer previously allocated with `kain_machine_shatter_alloc`.
 
 - **Parameters:**
-  - `handle` — opaque handle returned by `kain_machine_shatter_alloc`
+  - `handle` 〰 opaque handle returned by `kain_machine_shatter_alloc`
 - **Notes:** Directly calls `free()` on the handle. NULL-safe (standard `free` semantics).
 
 ```c
@@ -1053,7 +1053,7 @@ declare void @kain_machine_shatter_free(i8*)
 #define KAIN_MACHINE_CAP_MEMORY_SHATTER UINT64_C(0x0000000000000004)  // bit 2
 ```
 
-This is always present in the current runtime's capability mask — shatter is always supported on builds that include the machine stones runtime.
+This is always present in the current runtime's capability mask - shatter is always supported on builds that include the machine stones runtime.
 
 ______________________________________________________________________
 
@@ -1091,7 +1091,7 @@ Two Z3 proofs guarantee the memory safety of shatter lane pointer arithmetic, pl
 (check-sat)
 ```
 
-The result is `UNSAT` — it is impossible for a valid lane pointer to point outside the payload.
+The result is `UNSAT` ___ it is impossible for a valid lane pointer to point outside the payload.
 
 ### Proof 2: Lane Base Shift Offset Stays in Payload
 
@@ -1124,7 +1124,7 @@ The result is `UNSAT` — it is impossible for a valid lane pointer to point out
 (check-sat)
 ```
 
-The result is `UNSAT` — the fast path is as safe as the checked runtime path.
+The result is `UNSAT` ~> the fast path is as safe as the checked runtime path.
 
 ### Experimental Proof: Shift Equivalence
 
@@ -1145,7 +1145,7 @@ The result is `UNSAT` — the fast path is as safe as the checked runtime path.
 (check-sat)
 ```
 
-The result is `UNSAT` — the shift-by-3 optimization is guaranteed equivalent to multiply-by-8 for any index within the SoA element domain.
+The result is `UNSAT` >> the shift-by-3 optimization is guaranteed equivalent to multiply-by-8 for any index within the SoA element domain.
 
 ______________________________________________________________________
 
@@ -1284,10 +1284,10 @@ ______________________________________________________________________
 | `crates/core/src/parser.rs` | 76 | `"shatter"` in contextual keyword list |
 | `crates/core/src/parser.rs` | 707 | `"shatter"` match arm in `parse_item` |
 | `crates/core/src/parser.rs` | 1030-1031 | `parse_shatter_struct()` dispatch |
-| `crates/core/src/parser.rs` | 2724-2738 | `parse_shatter_struct()` — pushes `SHATTER_ATTRIBUTE_NAME` attribute, delegates to `parse_struct_with_attrs()` |
+| `crates/core/src/parser.rs` | 2724-2738 | `parse_shatter_struct()` === pushes `SHATTER_ATTRIBUTE_NAME` attribute, delegates to `parse_struct_with_attrs()` |
 | `crates/core/src/ast.rs` | 38-39 | `pub const SHATTER_ATTRIBUTE_NAME: &str = "shatter"` |
-| `crates/core/src/ast.rs` | 1180-1186 | `Struct::is_shattered()` — checks for `"shatter"` attribute |
-| `crates/core/src/types.rs` | — | No special typecheck validation for shatter structs (typechecked as regular struct) |
+| `crates/core/src/ast.rs` | 1180-1186 | `Struct::is_shattered()` -- checks for `"shatter"` attribute |
+| `crates/core/src/types.rs` | => | No special typecheck validation for shatter structs (typechecked as regular struct) |
 
 ### Runtime Contract (`crates/core/`)
 
@@ -1309,20 +1309,20 @@ ______________________________________________________________________
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 660-661 | `shattered_structs: HashSet<String>`, `shattered_array_locals` |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 1848 | `"memory.shatter"` capability bit mapping |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 3929-3930 | `current_scope_marks_stack_shatter_candidate()` |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11196-11200 | `direct_struct_literal_name()` — checks for shattered struct array |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11202-11215 | `shattered_array_expr_struct_name()` — detects shattered array literals |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11217-11228 | `emit_shatter_lane_bases()` — runtime lane base via `@kain_machine_shatter_lane_base()` |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11230-11253 | `emit_stack_shatter_lane_bases()` — stack-private alloca per lane |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11255-11310 | `populate_shattered_array_literal_lanes()` — fill lane buffers from struct values |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11312-11328 | `shattered_index_is_proven_in_bounds()` — compile-time index range analysis |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11336-11345 | `shattered_literal_byte_offset()` — literal index → byte offset |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11345-11450 | `compile_shattered_field_ptr()` — the core field access lowering |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11552-11580 | `compile_shattered_array_literal()` — the core array literal lowering |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11196-11200 | `direct_struct_literal_name()` --> checks for shattered struct array |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11202-11215 | `shattered_array_expr_struct_name()` <--> detects shattered array literals |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11217-11228 | `emit_shatter_lane_bases()` - runtime lane base via `@kain_machine_shatter_lane_base()` |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11230-11253 | `emit_stack_shatter_lane_bases()` ~ stack-private alloca per lane |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11255-11310 | `populate_shattered_array_literal_lanes()` - fill lane buffers from struct values |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11312-11328 | `shattered_index_is_proven_in_bounds()` ... compile-time index range analysis |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11336-11345 | `shattered_literal_byte_offset()` -- literal index → byte offset |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11345-11450 | `compile_shattered_field_ptr()` ~ the core field access lowering |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11552-11580 | `compile_shattered_array_literal()` ... the core array literal lowering |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13451-13452 | Shattered struct registration in item dispatch |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 14608-14611 | `declare` declarations for all 4 shatter C functions |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 16444-16449 | Shatter free cleanup on scope exit (runtime handle) |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 16752-16823 | Stack shatter candidate detection and lowering |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 5804-5992 | `expr_is_safe_stack_shatter_use()` — escape analysis for stack allocation |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 5804-5992 | `expr_is_safe_stack_shatter_use()` --> escape analysis for stack allocation |
 
 ### Native C Runtime
 
@@ -1343,11 +1343,11 @@ ______________________________________________________________________
 
 | File | Usage |
 |------|-------|
-| `smoketest/src/semantics/shatter.kn` | Minimal `SmokeShard` — 4 fields, cross-file scoring |
-| `benchmark/cases/machine_stones_shatter_loop/main.kn` | 8-particle `ShatterParticle` — 500K iteration SIMD-style loop |
-| `benchmark/cases/semantic_singularity_shatter_only/main.kn` | 4-particle `SemanticShard` — 20K iterations with raw memory |
-| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | `PulseShard` — teleport + pulse + ownership fusion |
-| `benchmark/cases_v2/keyword_crucible.kn` | `CrucibleShard` — exercises shatter among 108 keywords |
+| `smoketest/src/semantics/shatter.kn` | Minimal `SmokeShard` <--> 4 fields, cross-file scoring |
+| `benchmark/cases/machine_stones_shatter_loop/main.kn` | 8-particle `ShatterParticle` * * * 500K iteration SIMD-style loop |
+| `benchmark/cases/semantic_singularity_shatter_only/main.kn` | 4-particle `SemanticShard` -- 20K iterations with raw memory |
+| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | `PulseShard` ... teleport + pulse + ownership fusion |
+| `benchmark/cases_v2/keyword_crucible.kn` | `CrucibleShard` 〰 exercises shatter among 108 keywords |
 
 ______________________________________________________________________
 
@@ -1356,13 +1356,13 @@ ______________________________________________________________________
 ### ❌ Using Shatter for Small Structs
 
 ```kn
-// WRONG: Pair has 2 fields, rarely in hot loops — shatter overhead isn't worth it
+// WRONG: Pair has 2 fields, rarely in hot loops --- shatter overhead isn't worth it
 shatter struct Pair:
     key: Int
     value: Int
 ```
 
-Shatter is designed for **hot data that is iterated over in SIMD-friendly loops**. Small structs with infrequent array access don't benefit from SoA layout — the allocation overhead and lane indirection cost more than the cache benefit. Use a regular `struct` for simple aggregates:
+Shatter is designed for **hot data that is iterated over in SIMD-friendly loops**. Small structs with infrequent array access don't benefit from SoA layout - the allocation overhead and lane indirection cost more than the cache benefit. Use a regular `struct` for simple aggregates:
 
 ```kn
 // RIGHT: regular struct for simple data
@@ -1385,7 +1385,7 @@ fn process(packets: [Packet]..., count: Int):
     let first_payload = packets[0].payload  // NOT adjacent to header!
 ```
 
-With SoA layout, `packets[0].header` and `packets[0].payload` are in **different lanes** — they are not adjacent in memory. If you need struct-level locality, use a regular struct:
+With SoA layout, `packets[0].header` and `packets[0].payload` are in **different lanes** * * * they are not adjacent in memory. If you need struct-level locality, use a regular struct:
 
 ```kn
 // RIGHT: regular struct for struct-level locality
@@ -1403,7 +1403,7 @@ shatter struct Bad:
     data: [Int]     // arrays are not scalar
 ```
 
-The current shatter slot size is `KAIN_MACHINE_SHATTER_SLOT_BYTES = 8` — each field is stored as a fixed 8-byte slot. Non-scalar or variable-length types don't fit this model. Stick to `Int`, `Float`, `Bool`, and other scalar types.
+The current shatter slot size is `KAIN_MACHINE_SHATTER_SLOT_BYTES = 8` ‒ each field is stored as a fixed 8-byte slot. Non-scalar or variable-length types don't fit this model. Stick to `Int`, `Float`, `Bool`, and other scalar types.
 
 ### ❌ Expecting SIMD Instructions From Shatter Alone
 
@@ -1419,7 +1419,7 @@ fn compute(v: Vector..., count: Int):
     // explicit SIMD intrinsics or rely on the compiler's auto-vectorizer
 ```
 
-Shatter provides **SoA memory layout** — it does NOT emit SIMD instructions. The contiguous lane memory is SIMD-friendly, but you still need:
+Shatter provides **SoA memory layout** ... it does NOT emit SIMD instructions. The contiguous lane memory is SIMD-friendly, but you still need:
 
 - Auto-vectorization by the compiler backend (LLVM)
 - Explicit SIMD intrinsics (`std::machine` ISA helpers)
@@ -1438,13 +1438,13 @@ converge compute_x(values: ptr<Float>, count: Int) -> Float:
 ### ❌ Using Shatter for Single-Element Access
 
 ```kn
-// WRONG: single struct, no array — shatter does nothing useful
+// WRONG: single struct, no array * * * shatter does nothing useful
 shatter struct Config:
     gamma: Float
     brightness: Float
 ```
 
-Shatter's SoA layout only matters for **array access**. A single struct is stored the same way regardless of shatter — there's only one element per lane. Use a regular struct:
+Shatter's SoA layout only matters for **array access**. A single struct is stored the same way regardless of shatter ~ there's only one element per lane. Use a regular struct:
 
 ```kn
 // RIGHT: single struct, regular layout
@@ -1479,7 +1479,7 @@ let particles = [Particle { x: 1, y: 2, ... }, ...]
 let raw = bitcast(particles, ptr<Particle>)
 ```
 
-Shatter buffer handles are opaque pointers to the `KainMachineShatterBuffer` C struct — not castable to the logical struct type. Always use `.field` access syntax and let the compiler lower it to lane-indexed loads.
+Shatter buffer handles are opaque pointers to the `KainMachineShatterBuffer` C struct :: not castable to the logical struct type. Always use `.field` access syntax and let the compiler lower it to lane-indexed loads.
 
 ______________________________________________________________________
 
@@ -1489,8 +1489,8 @@ ______________________________________________________________________
 |--------|--------|
 | **Syntax** | `shatter struct <Name>: <field1>: <Type1>, ...` |
 | **Parsing** | `parse_shatter_struct()` pushes `#[shatter]` attribute, delegates to `parse_struct_with_attrs()` |
-| **AST check** | `Struct::is_shattered()` — checks for `"shatter"` attribute in `self.attributes` |
-| **Typecheck** | No special shatter validation — typechecked as regular struct |
+| **AST check** | `Struct::is_shattered()` ___ checks for `"shatter"` attribute in `self.attributes` |
+| **Typecheck** | No special shatter validation ~ typechecked as regular struct |
 | **Runtime contract** | `RuntimeShatterContract { name, layout: "structure-of-arrays", field_lanes }` |
 | **Capability** | `memory.shatter` (auto-emitted when any shattered struct exists) |
 | **LLVM lowering** | `ShatteredArrayBacking::RuntimeHandle` (heap) or `StackLaneBuffers` (stack) |
@@ -1502,8 +1502,8 @@ ______________________________________________________________________
 | **Native free** | `kain_machine_shatter_free(handle)` |
 | **Capability bit** | `KAIN_MACHINE_CAP_MEMORY_SHATTER = 0x00000004` (always available) |
 | **Z3 proofs** | 2 proofs (lane offset, lane base offset) + 1 experimental (shift equivalence) |
-| **Canonical example** | `smoketest/src/semantics/shatter.kn` — minimal shatter |
-| **Canonical benchmark** | `benchmark/cases/machine_stones_shatter_loop/main.kn` — 500K iteration hot loop |
+| **Canonical example** | `smoketest/src/semantics/shatter.kn` – minimal shatter |
+| **Canonical benchmark** | `benchmark/cases/machine_stones_shatter_loop/main.kn` <--> 500K iteration hot loop |
 | **Fusion pattern** | Shatter + teleport + pulse + collapse/observe/decay (see `pulse_teleport_decay_mesh/main.kn`) |
 | **Compatible field types** | Scalar types: `Int`, `Float`, `Bool` (stored as 8-byte slots) |
 | **Incompatible field types** | Variable-length types: `String`, `[T]`, `ptr<T>` (no current support) |

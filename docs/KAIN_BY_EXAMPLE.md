@@ -1,13 +1,13 @@
-# KAIN BY EXAMPLE — Part 1: Plain Code → State Integrity (L0–L2)
+# KAIN BY EXAMPLE 〰 Part 1: Plain Code → State Integrity (L0–L2)
 
-> **One compilable snippet per feature. No prose, no theory — just proof that it compiles.**
+> **One compilable snippet per feature. No prose, no theory |-> just proof that it compiles.**
 > Part 1 covers LAYER 0 (plain code, effects), LAYER UI (components), LAYER 1 (world, entangle), LAYER 2 (patch, law).
 
 ______________________________________________________________________
 
-## LAYER 0 — PLAIN CODE
+## LAYER 0 --- PLAIN CODE
 
-### fn — Function Declaration
+### fn ->> Function Declaration
 
 ```kn
 fn add(a: Int, b: Int) -> Int with Pure:
@@ -25,7 +25,7 @@ fn maze_snapshot(maze: ptr<Int>, cell_count: Int) -> [Int] with Unsafe:
     return snapshot
 ```
 
-### let / mut / var — Variable Binding
+### let / mut / var --- Variable Binding
 
 ```kn
 let x: Int = 42                 // immutable
@@ -34,14 +34,14 @@ counter = counter + 1
 var acc: Int = 0                // rebindable (older style)
 ```
 
-### const — Compile-Time Constant
+### const => Compile-Time Constant
 
 ```kn
 const MODULUS: Int = 1000000007
 const CELL_COUNT: Int = 8
 ```
 
-### if / elif / else — Conditional (Expression)
+### if / elif / else ⁓ Conditional (Expression)
 
 ```kn
 let mode = if val == 0: "zero" elif val == 1: "one" else: "many"
@@ -49,7 +49,7 @@ let mode = if val == 0: "zero" elif val == 1: "one" else: "many"
 let score = if v < 0: 0 else: v
 ```
 
-### match — Pattern Matching
+### match :: Pattern Matching
 
 ```kn
 enum NativeSubsystem:
@@ -71,7 +71,7 @@ fn subsystem_label(s: NativeSubsystem) -> String:
         _ => "unknown"
 ```
 
-### for — Iteration
+### for -- Iteration
 
 ```kn
 for lane in [1, 2, 3, 4]:
@@ -84,7 +84,7 @@ for range_value in range(0, 4):
     range_sum = range_sum + range_value
 ```
 
-### while — Conditional Loop
+### while ->> Conditional Loop
 
 ```kn
 var i: Int = 0
@@ -93,7 +93,7 @@ while i < iterations:
     i = i + 1
 ```
 
-### loop / break / continue — Loop with Break Value
+### loop / break / continue <--> Loop with Break Value
 
 ```kn
 var odd_sum = 0
@@ -112,7 +112,7 @@ let result: Int = loop:
     step()
 ```
 
-### return — Early Exit
+### return <--> Early Exit
 
 ```kn
 fn clamp(v: Int, lo: Int, hi: Int) -> Int:
@@ -121,7 +121,7 @@ fn clamp(v: Int, lo: Int, hi: Int) -> Int:
     return v
 ```
 
-### defer — Block-Scoped LIFO Cleanup
+### defer ... Block-Scoped LIFO Cleanup
 
 ```kn
 fn process() -> Int:
@@ -135,7 +135,7 @@ fn process() -> Int:
     return v  // decay buf runs here
 ```
 
-### struct / impl — Product Type with Methods
+### struct / impl ... Product Type with Methods
 
 ```kn
 struct Packet:
@@ -147,7 +147,7 @@ impl Packet:
         return (_self.id * 13) + (_self.payload * 7)
 ```
 
-### enum — Sum Type
+### enum ‒ Sum Type
 
 ```kn
 enum Option<T>:
@@ -159,7 +159,7 @@ enum Result<T, E>:
     Err(error: E)
 ```
 
-### trait — Interface
+### trait – Interface
 
 ```kn
 trait Metric:
@@ -171,14 +171,14 @@ impl Metric for Packet:
         return ((_self.id * 11) + _self.payload + 17) % 1000000007
 ```
 
-### type — Type Alias
+### type --> Type Alias
 
 ```kn
 type Checksum = Int
 type Distance = Float
 ```
 
-### mod / pub / use — Modules and Visibility
+### mod / pub / use 〰 Modules and Visibility
 
 ```kn
 pub mod util:
@@ -192,7 +192,7 @@ use std::actor
 use std::intent
 ```
 
-### true / false / none — Literals
+### true / false / none -- Literals
 
 ```kn
 let flag: Bool = true
@@ -200,7 +200,7 @@ let done: Bool = false
 let nullable: Option<Int> = none
 ```
 
-### where — Generic Constraints
+### where >> Generic Constraints
 
 ```kn
 fn summary<T: Metric>(p: T, salt: Int) -> Int with Pure where T: Stable:
@@ -209,7 +209,7 @@ fn summary<T: Metric>(p: T, salt: Int) -> Int with Pure where T: Stable:
     return (s * b + salt) % 1000000007
 ```
 
-### as — Type Cast / Import Alias
+### as * * * Type Cast / Import Alias
 
 ```kn
 let clamped: Int = val as Int
@@ -221,7 +221,7 @@ ______________________________________________________________________
 
 ## EFFECTS
 
-### Effects Chained — All 5 in One Expression
+### Effects Chained --- All 5 in One Expression
 
 ```kn
 fn pure_effect_score(value: Int) -> Int with Pure:
@@ -244,7 +244,7 @@ let chained = unsafe_effect_score(reactive_effect_score(
     gpu_effect_score(io_effect_score(pure_effect_score(0)))))
 ```
 
-### Async / async / await — Futures
+### Async / async / await ->> Futures
 
 ```kn
 async fn fetch(id: Int) -> Int with Async:
@@ -255,7 +255,7 @@ fn resolve(v: Int) -> Int:
     return await fut
 ```
 
-### GPU — GPU Dispatch Access
+### GPU ‒ GPU Dispatch Access
 
 ```kn
 fn run_kernel(data: ptr<Float>) -> Int with GPU, Unsafe:
@@ -263,14 +263,14 @@ fn run_kernel(data: ptr<Float>) -> Int with GPU, Unsafe:
     return 0
 ```
 
-### Unsafe — Raw Memory / ASM / ABI Escape Hatch
+### Unsafe --> Raw Memory / ASM / ABI Escape Hatch
 
 ```kn
 fn read_raw(cells: ptr<Int>) -> Int with Unsafe:
     return mem_load(ptr_offset(cells, 0, "Int"), "Int")
 ```
 
-### and / or — Boolean Operators
+### and / or – Boolean Operators
 
 ```kn
 if v >= 0 and v < MODULUS:
@@ -281,9 +281,9 @@ let flag: Bool = a == none or a == 0
 
 ______________________________________________________________________
 
-## LAYER UI — COMPONENTS
+## LAYER UI --- COMPONENTS
 
-### component — Full Widget with Raw Memory
+### component ‒ Full Widget with Raw Memory
 
 ```kn
 component MemoryWidget(cell_count: Int) with Unsafe:
@@ -321,7 +321,7 @@ component MemoryWidget(cell_count: Int) with Unsafe:
     </box>
 ```
 
-### JSX Composition — Components Calling Components
+### JSX Composition ->> Components Calling Components
 
 ```kn
 component Button(label: String, kind: String):
@@ -356,7 +356,7 @@ component RecursiveTree(depth: Int, label: String):
     </stack>
 ```
 
-### world + surface — Wiring World to Component
+### world + surface --> Wiring World to Component
 
 ```kn
 component App():
@@ -369,9 +369,9 @@ world MyWorld:
 
 ______________________________________________________________________
 
-## LAYER 1 — STATE AUTHORITY
+## LAYER 1 〰 STATE AUTHORITY
 
-### world — Full Game State (18 fields)
+### world ... Full Game State (18 fields)
 
 ```kn
 world PongAuthority:
@@ -417,7 +417,7 @@ world PongMirror:
     surface web => App
 ```
 
-### entangle — 18 Couplings
+### entangle ->> 18 Couplings
 
 ```kn
 entangle PongAuthority.left_paddle_y <-> PongMirror.mirrored_left_paddle_y with single_writer
@@ -435,7 +435,7 @@ entangle PongAuthority.swarm_energy <-> PongMirror.mirrored_swarm_energy with si
 entangle PongAuthority.drift_total <-> PongMirror.mirrored_drift_total with single_writer
 ```
 
-### surface targets — native_ui / web / viewport3d / ue5
+### surface targets ___ native_ui / web / viewport3d / ue5
 
 ```kn
 world RenderWorld:
@@ -457,9 +457,9 @@ world UnrealWorld:
 
 ______________________________________________________________________
 
-## LAYER 2 — STATE INTEGRITY
+## LAYER 2 ‒ STATE INTEGRITY
 
-### patch — 18-Field Journaled Mutation
+### patch :: 18-Field Journaled Mutation
 
 ```kn
 patch apply_frame(
@@ -492,7 +492,7 @@ patch apply_frame(
     return authority.frame_clock
 ```
 
-### law — Compound Invariants (Laws Calling Laws)
+### law ... Compound Invariants (Laws Calling Laws)
 
 ```kn
 law cell_in_bounds(index: Int, cell_count: Int) -> Bool:
@@ -506,14 +506,14 @@ law start_target_distinct(start: Int, target: Int, cell_count: Int) -> Bool:
        and cell_in_bounds(target, cell_count)
        and start != target
 ```
-> **One compilable snippet per feature. No prose, no theory — just proof that it compiles.**
+> **One compilable snippet per feature. No prose, no theory - just proof that it compiles.**
 > Part 2 covers LAYER 3 (converge), LAYER 4 (orchestrate), LAYER 5 (pulse, resonate), LAYER 6 (axiom, shatter, teleport).
 
 ______________________________________________________________________
 
-## LAYER 3 — DISPATCH
+## LAYER 3 ... DISPATCH
 
-### converge — Hardware Capability Dispatch (Real SIMD)
+### converge ~~ Hardware Capability Dispatch (Real SIMD)
 
 ```kn
 fn scalar_dot(left: ptr<Int>, right: ptr<Int>, cells: Int, bias: Int, mod: Int) -> Int with Unsafe:
@@ -538,9 +538,9 @@ converge fast_dot(left: ptr<Int>, right: ptr<Int>, cells: Int, bias: Int, mod: I
 
 ______________________________________________________________________
 
-## LAYER 4 — STAGE GRAPH
+## LAYER 4 --> STAGE GRAPH
 
-### orchestrate — 7-Stage Full Pipeline (All Stage Kinds)
+### orchestrate – 7-Stage Full Pipeline (All Stage Kinds)
 
 ```kn
 orchestrate signal_pipeline(value: Int, epoch: Int) -> Int:
@@ -562,7 +562,7 @@ orchestrate signal_pipeline(value: Int, epoch: Int) -> Int:
     return world_score + patch_step + final_out
 ```
 
-### orchestrate — Multi-Language (C + Python + GPU)
+### orchestrate * * * Multi-Language (C + Python + GPU)
 
 ```kn
 orchestrate preflight_pipeline(seed: Int, authority: Authority) -> Int:
@@ -590,9 +590,9 @@ orchestrate preflight_pipeline(seed: Int, authority: Authority) -> Int:
 
 ______________________________________________________________________
 
-## LAYER 5 — TEMPORAL
+## LAYER 5 ->> TEMPORAL
 
-### pulse — Teleport Inside a Timed Beat
+### pulse ... Teleport Inside a Timed Beat
 
 ```kn
 pulse clock_driver every 8ms jitter 1ms:
@@ -604,7 +604,7 @@ pulse clock_driver every 8ms jitter 1ms:
 > **Duration units:** `ns`, `us`, `ms`, `s`, `tick`, `ticks`
 > **Body locals:** `pulse_tick`, `pulse_dt_ms`, `pulse_missed`
 
-### resonate — Calls Orchestrate Pipeline on State Change
+### resonate * * * Calls Orchestrate Pipeline on State Change
 
 ```kn
 resonate Authority.signal dampen 0 ms:
@@ -617,14 +617,14 @@ resonate Authority.signal dampen 0 ms:
 ```
 
 > **Handler locals:** `resonate_new_i64`, `resonate_old_i64`, `resonate_fired`
-> **Key pattern:** Resonate calls an orchestrate pipeline — the compiler-owned causal chain: patch → resonate → orchestrate → world update.
+> **Key pattern:** Resonate calls an orchestrate pipeline ___ the compiler-owned causal chain: patch → resonate → orchestrate → world update.
 > **Anti-self-feedback:** cannot write to own trigger field.
 
 ______________________________________________________________________
 
-## LAYER 6 — MACHINE STONES
+## LAYER 6 – MACHINE STONES
 
-### axiom — Capability Assumption with Fallback
+### axiom - Capability Assumption with Fallback
 
 ```kn
 axiom machine_truth:
@@ -636,7 +636,7 @@ axiom machine_truth:
     fallback scalar_fallback
 ```
 
-### shatter struct — Structure-of-Arrays Layout
+### shatter struct |-> Structure-of-Arrays Layout
 
 ```kn
 shatter struct Particle:
@@ -651,7 +651,7 @@ fn use_shattered(particles: [Particle]) -> Int:
     return (p.position_x + p.velocity_x) as Int
 ```
 
-### teleport — Zero-Copy with Integrity Proof
+### teleport ~~ Zero-Copy with Integrity Proof
 
 ```kn
 shatter struct Shard:
@@ -670,14 +670,14 @@ let score_after = shard_score(moved)
 // score_before == score_after: zero-copy integrity preserved
 ```
 
-> **One compilable snippet per feature. No prose, no theory — just proof that it compiles.**
+> **One compilable snippet per feature. No prose, no theory ___ just proof that it compiles.**
 > Part 3 covers LAYER 7 (actors, ownership), Foreign & Import, GPU & Shaders, Raw Memory, Atomics, Inline ASM, Virtual Memory, CPU Intrinsics, Testing, Runtime Telemetry, and Full Fusion.
 
 ______________________________________________________________________
 
-## LAYER 7 — SYSTEMS
+## LAYER 7 |-> SYSTEMS
 
-### actor — Message-Oriented Concurrency with Converge + Cascade
+### actor ‒ Message-Oriented Concurrency with Converge + Cascade
 
 ```kn
 actor CrucibleRelayActor:
@@ -697,7 +697,7 @@ actor CrucibleRelayActor:
             send reply_to.Reply(value = 0)
 ```
 
-### spawn / ask — Multi-Actor + Async Fusion
+### spawn / ask * * * Multi-Actor + Async Fusion
 
 ```kn
 fn actor_cascade_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
@@ -721,7 +721,7 @@ fn actor_cascade_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
     return acc
 ```
 
-### Actor Cascade — Spawn + Delegate Reply (Converge Inside)
+### Actor Cascade ~> Spawn + Delegate Reply (Converge Inside)
 
 ```kn
 actor CrucibleRelayActor:
@@ -749,7 +749,7 @@ actor CrucibleVerifier:
         send reply_to.Reply(value = val)
 ```
 
-### Actor Telemetry — 7 Counters in Hot Loop
+### Actor Telemetry >> 7 Counters in Hot Loop
 
 ```kn
 fn actor_telemetry_hot(count: Int) -> Int:
@@ -768,7 +768,7 @@ fn actor_telemetry_hot(count: Int) -> Int:
     return checksum
 ```
 
-### collapse / observe / decay — Ownership Inside Actor + Teleport
+### collapse / observe / decay ⁓ Ownership Inside Actor + Teleport
 
 ```kn
 actor CrucibleTeleporter:
@@ -803,7 +803,7 @@ actor CrucibleTeleporter:
         send reply_to.Reply(value = pack(shard_score(shard), shard_score(moved)))
 ```
 
-### share / fanout — Contention Wall with 32 Workers
+### share / fanout ‒ Contention Wall with 32 Workers
 
 ```kn
 fn contention_wall_checksum(iterations: Int) -> Int:
@@ -832,7 +832,7 @@ ______________________________________________________________________
 
 ## FOREIGN & IMPORT
 
-### include — C Header Import (Natural + System)
+### include ⁓ C Header Import (Natural + System)
 
 ```kn
 include native/native_math.h as nm
@@ -843,7 +843,7 @@ include <vulkan/vulkan.h> as vk     // 755 functions from real SDK
 
 > Companion `.c` file auto-discovered. System headers use libclang extraction.
 
-### import — Python Host Object Import
+### import :: Python Host Object Import
 
 ```kn
 import json as py_json
@@ -859,7 +859,7 @@ fn linspace() -> Any:
 
 > Named Kain args lower to Python kwargs automatically.
 
-### @naked / @section / @link_name / @callconv — Full ABI Control
+### @naked / @section / @link_name / @callconv * * * Full ABI Control
 
 ```kn
 @naked
@@ -891,7 +891,7 @@ ______________________________________________________________________
 
 ## GPU & SHADERS
 
-### shader compute — UInt Kernel + Vertex + Fragment
+### shader compute :: UInt Kernel + Vertex + Fragment
 
 ```kn
 shader compute OrchestrateGodKernel(id: UVec3) -> Void workgroup(8, 1, 1):
@@ -924,7 +924,7 @@ shader fragment CrucibleFragment(uv: Vec2) -> Vec4:
     return vec4(tint.x * wave, tint.y * wave, tint.z * (0.5 + wave), 1.0)
 ```
 
-### dispatch — Host-Side GPU Launch with ABI Telemetry
+### dispatch |-> Host-Side GPU Launch with ABI Telemetry
 
 ```kn
 fn dispatch_pipeline_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
@@ -942,9 +942,9 @@ fn dispatch_pipeline_checksum(iterations: Int, modulus: Int) -> Int with GPU, Un
     return acc
 ```
 
-> `dispatch "shader::KernelName::compute" [X, Y, Z]` — workgroup counts, NOT thread counts. Compute key MUST be a string literal.
+> `dispatch "shader::KernelName::compute" [X, Y, Z]` 〰 workgroup counts, NOT thread counts. Compute key MUST be a string literal.
 
-### std::graphics — Host Graphics Command Recording
+### std::graphics <--> Host Graphics Command Recording
 
 ```kn
 use std::graphics
@@ -962,7 +962,7 @@ fn graphics_probe() -> Int:
     return present
 ```
 
-### std::gpu — Resource Policy
+### std::gpu >> Resource Policy
 
 ```kn
 use std::gpu
@@ -1005,7 +1005,7 @@ fn raw_memory(count: Int) -> Int with Unsafe:
     return result
 ```
 
-### volatile_load / volatile_store — MMIO Access
+### volatile_load / volatile_store |-> MMIO Access
 
 ```kn
 fn mmio_probe(slot: ptr<Int>) -> Int with Unsafe:
@@ -1028,7 +1028,7 @@ ______________________________________________________________________
 
 ## ATOMICS & FENCES
 
-### atomic_add / atomic_store / atomic_fence — 32-Worker Contention
+### atomic_add / atomic_store / atomic_fence 〰 32-Worker Contention
 
 ```kn
 fn contention_wall_checksum(iterations: Int) -> Int:
@@ -1053,7 +1053,7 @@ fn contention_wall_checksum(iterations: Int) -> Int:
     return final_value
 ```
 
-### lfence / sfence / mfence — Tight Loop Barrier Pressure
+### lfence / sfence / mfence ⁓ Tight Loop Barrier Pressure
 
 ```kn
 fn fence_barrier_pressure_checksum(iterations: Int) -> Int with Unsafe:
@@ -1072,7 +1072,7 @@ fn fence_barrier_pressure_checksum(iterations: Int) -> Int with Unsafe:
     return acc
 ```
 
-### clflush — Cache Line Flush with Operand Binding
+### clflush :: Cache Line Flush with Operand Binding
 
 ```kn
 fn asm_cache_flush_checksum(iterations: Int) -> Int with Unsafe:
@@ -1107,7 +1107,7 @@ ______________________________________________________________________
 
 ## INLINE ASM
 
-### asm — Basic (No Operands)
+### asm * * * Basic (No Operands)
 
 ```kn
 fn pause_loop(iterations: Int) -> Int with Unsafe:
@@ -1121,7 +1121,7 @@ fn pause_loop(iterations: Int) -> Int with Unsafe:
     return acc
 ```
 
-### asm — With Operands (memory clobber) — Stress Test
+### asm – With Operands (memory clobber) --> Stress Test
 
 ```kn
 fn clflush_hammer(iterations: Int) -> Int with Unsafe:
@@ -1150,7 +1150,7 @@ ______________________________________________________________________
 
 ## VIRTUAL MEMORY
 
-### vm_reserve / vm_commit / vm_protect — Full Page Torture Loop
+### vm_reserve / vm_commit / vm_protect ~> Full Page Torture Loop
 
 ```kn
 fn vm_page_torture_checksum(iterations: Int) -> Int with Unsafe:
@@ -1187,7 +1187,7 @@ ______________________________________________________________________
 
 ## CPU INTRINSICS
 
-### cpuid — All 4 Registers, Both Leaves, in Loop
+### cpuid ‒ All 4 Registers, Both Leaves, in Loop
 
 ```kn
 fn cpu_cpuid_topology_checksum(iterations: Int) -> Int with Unsafe:
@@ -1220,7 +1220,7 @@ ______________________________________________________________________
 
 ## COMPILE-TIME
 
-### comptime — Shader Metadata Block
+### comptime - Shader Metadata Block
 
 ```kn
 comptime:
@@ -1234,7 +1234,7 @@ comptime:
     )
 ```
 
-### macro! — Syntactic Macro
+### macro! >> Syntactic Macro
 
 ```kn
 macro fold!(x: expr):
@@ -1249,7 +1249,7 @@ ______________________________________________________________________
 
 ## TESTING
 
-### test — Compiletest-Style (Including Unsafe Systems)
+### test ⁓ Compiletest-Style (Including Unsafe Systems)
 
 ```kn
 test fn test_addition():
@@ -1288,7 +1288,7 @@ fn main() -> Int:
     return result
 ```
 
-### Semantic Telemetry — All Layers with Delta Guards
+### Semantic Telemetry ‒ All Layers with Delta Guards
 
 ```kn
 use std::intent
@@ -1312,7 +1312,7 @@ fn verify_semantics_fired() -> Int:
     return 0
 ```
 
-### std::machine — Curated Machine Helpers
+### std::machine ‒ Curated Machine Helpers
 
 ```kn
 use std::machine
@@ -1328,13 +1328,13 @@ fn machine_probe(ptr: ptr<Int>) -> Int with Unsafe:
 
 ______________________________________________________________________
 
-## PUTTING IT ALL TOGETHER — FULL FUSION
+## PUTTING IT ALL TOGETHER ~> FULL FUSION
 
 ### All 7 Layers + Telemetry Validation in One Loop
 
 ```kn
 // Each iteration crosses all 7 layers with telemetry guards proving every layer fired.
-// From benchmark/cases_v2/fusion_chain.kn case 3 — real, compilable, benchmarked code.
+// From benchmark/cases_v2/fusion_chain.kn case 3 ~> real, compilable, benchmarked code.
 use std::runtime
 use std::actor
 use std::intent
@@ -1343,7 +1343,7 @@ fn fusion_full_causal_chain_checksum(iterations: Int, modulus: Int) -> Int with 
     let relay = spawn FusionRelay(turns = 0, bias = 3, checksum = 0)
     let teleporter = spawn FusionTeleporter(teleports_done = 0, last_score = 0)
 
-    // Snapshot telemetry — every layer must increment
+    // Snapshot telemetry --- every layer must increment
     let resonate_fire_before = resonate_fire_count()
     let entangle_before = entangle_propagation_count()
     let teleport_before = runtime_machine_teleport_count()
@@ -1379,7 +1379,7 @@ fn fusion_full_causal_chain_checksum(iterations: Int, modulus: Int) -> Int with 
         acc = (acc + shadow + mirror_signal + chain_result + landed + ack_val) % modulus
         index = index + 1
 
-    // Telemetry delta guard — all layers MUST have fired
+    // Telemetry delta guard ~~ all layers MUST have fired
     let resonate_delta = resonate_fire_count() - resonate_fire_before
     let entangle_delta = entangle_propagation_count() - entangle_before
     let teleport_delta = runtime_machine_teleport_count() - teleport_before
@@ -1397,7 +1397,7 @@ fn fusion_full_causal_chain_checksum(iterations: Int, modulus: Int) -> Int with 
 
 ______________________________________________________________________
 
-## QUICK REFERENCE — DECISION LADDER
+## QUICK REFERENCE :: DECISION LADDER
 
 ```
 "Am I crossing into C/OS?"  → include ... as ...

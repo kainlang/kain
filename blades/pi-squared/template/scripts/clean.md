@@ -1,4 +1,4 @@
-# Clean — Artifact Cleanup
+# Clean --- Artifact Cleanup
 
 Removes all build artifacts and caches.
 Run with: mks run scripts/clean.md

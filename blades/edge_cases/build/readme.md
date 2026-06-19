@@ -2,9 +2,9 @@
 
 **Purpose:** A comprehensive stress-testing framework for Kain's `build.kn` evidence DAG system, focused on finding every crack in build determinism before users do. Every edge case has a clear pass/fail for whether the build is deterministic under that condition.
 
-**Status:** Specification & Execution Plan — `src/` files are spec'd below, not yet implemented.
+**Status:** Specification & Execution Plan ⁓ `src/` files are spec'd below, not yet implemented.
 
-**Mode:** Guide — this README is the canonical map for agents entering this workspace.
+**Mode:** Guide ⁓ this README is the canonical map for agents entering this workspace.
 
 ---
 
@@ -17,7 +17,7 @@
 5. [Pass/Fail Criteria](#passfail-criteria)
 6. [Interpretation Guide for Non-Deterministic Results](#interpretation-guide-for-non-deterministic-results)
 7. [How to Add a New Edge Case](#how-to-add-a-new-edge-case)
-8. [Edge Case Catalog — Full `src/` File Spec](#edge-case-catalog--full-src-file-spec)
+8. [Edge Case Catalog ___ Full `src/` File Spec](#edge-case-catalog--full-src-file-spec)
 9. [Design Principles](#design-principles)
 10. [Related Blades](#related-blades)
 
@@ -29,14 +29,14 @@ The `build.kn` evidence DAG is the backbone of every Kain project. It resolves p
 
 | Concern | Impact of Non-Determinism |
 |---------|--------------------------|
-| **CI Repeatability** | Two CI runs on the same commit produce different artifacts — impossible to bisect regressions |
+| **CI Repeatability** | Two CI runs on the same commit produce different artifacts ~> impossible to bisect regressions |
 | **Cache Correctness** | A cached build artifact from a "same" input that actually differs silently corrupts downstream builds |
-| **Artifact Reproducibility** | Two developers on the same checkout get different `.exe` files — debugging becomes horror |
+| **Artifact Reproducibility** | Two developers on the same checkout get different `.exe` files === debugging becomes horror |
 | **Incremental Build Soundness** | The compiler thinks nothing changed when it did, or rebuilds the world when nothing changed |
 | **Evidence DAG Integrity** | If task dependency edges shift non-deterministically, the `certify` gate certifies a different pipeline than the one that ran |
 | **Blade Discovery** | `workspace_defaults()` with `blade_pattern` finding different blades on different runs breaks multi-blade workspaces |
 
-This suite exists to find every source of non-determinism in the build system, categorize it, reproduce it reliably, and eventually fix it — so that running this suite is **boring**.
+This suite exists to find every source of non-determinism in the build system, categorize it, reproduce it reliably, and eventually fix it === so that running this suite is **boring**.
 
 ---
 
@@ -73,24 +73,24 @@ What happens with task dependency declarations?
 - Tasks referencing projects not attached to the graph
 - Task declared with `.requires()` on a non-existent task ID
 - Multiple tasks claiming the same `.output()` path (output collisions)
-- Tasks with `.requires_capability()` on a missing capability — should skip, not fail
+- Tasks with `.requires_capability()` on a missing capability :: should skip, not fail
 
 ### 4. Target Edges
 What happens with `--target` and `.target()` configuration?
 
 - Invalid target strings (typos, unsupported targets)
-- Mixed targets across tasks (check task targets `llvm`, exe targets `wasm` — does it resolve?)
+- Mixed targets across tasks (check task targets `llvm`, exe targets `wasm` ~ does it resolve?)
 - Missing artifact root for a target
-- Multi-target projects (`.targets("llvm", "wasm")`) — do all targets build deterministically?
-- Target-specific output paths — do they collide?
+- Multi-target projects (`.targets("llvm", "wasm")`) ~~ do all targets build deterministically?
+- Target-specific output paths >> do they collide?
 
 ### 5. Profile Edges
 What happens with `debug` vs `release` vs custom profiles?
 
 - Invalid profile names
 - Profile inheritance / fallback (does missing profile silently use debug?)
-- Release vs debug artifact consistency — same source, different profiles, should be independently deterministic
-- Cross-profile caching — does a debug build poison the release cache?
+- Release vs debug artifact consistency ___ same source, different profiles, should be independently deterministic
+- Cross-profile caching -- does a debug build poison the release cache?
 - Profile-specific behavior in `.always_run()` tasks
 
 ### 6. Cache & Output Edges
@@ -99,14 +99,14 @@ What happens with `.kain/cache/` and `.kain/out/`?
 - Concurrent builds on the same workspace
 - Cache corruption (truncated files, wrong permissions)
 - Divergent outputs from identical inputs (the core determinism check)
-- `.always_run()` vs cached tasks — does the cache key include everything it should?
+- `.always_run()` vs cached tasks * * * does the cache key include everything it should?
 - Path interpolation (`$root`, `$blade`, `$task`) across different environments
 - Build with and without `--clean` producing identical artifacts
 
 ### 7. Comptime / Macro Edges
 What happens when `build.kn` itself uses metaprogramming?
 
-- `comptime` blocks in `build.kn` — are they evaluated deterministically?
+- `comptime` blocks in `build.kn` * * * are they evaluated deterministically?
 - Conditional task creation based on `BuildContext` fields
 - Macro expansion in source set globs
 - `const` array iteration for task factories (like `smoke_mode()` pattern in smoketest)
@@ -117,7 +117,7 @@ What happens with `use` statements and module discovery?
 
 - Circular module imports between build modules
 - Shadowed module names (local `build.kn` helper module shadows stdlib)
-- Missing module roots — does the error message identify the root cause?
+- Missing module roots >> does the error message identify the root cause?
 - Module resolution order sensitivity (local vs stdlib vs installed packages)
 - `KAIN.toml` metadata affecting module resolution non-deterministically
 
@@ -127,7 +127,7 @@ What happens with `use` statements and module discovery?
 
 ```
 edge_cases/build/
-├── readme.md                          ← THIS FILE — canonical map
+├── readme.md                          ← THIS FILE --- canonical map
 ├── build.kn                           ← Build authority for the suite
 ├── KAIN.toml                          ← Compatibility metadata
 ├── spec/                              ← Internal planning (gitignored)
@@ -251,7 +251,7 @@ kain run -- --mode verify --verbose
 ### Quick Sanity (Fastest)
 
 ```powershell
-kain check                                  # typecheck only — ~1 second
+kain check                                  # typecheck only >> ~1 second
 kain build --task check-llvm                # full typecheck with dependency validation
 ```
 
@@ -279,7 +279,7 @@ kain build --task check-llvm                # full typecheck with dependency val
 | **ALL PASS** | Every edge case produces deterministic results. The suite is boring. Ship it. |
 | **PARTIAL PASS** | Some edge cases pass, some fail. The failures are known and tracked. See report for details. |
 | **FAIL** | One or more edge cases produce non-deterministic results. See the interpretation guide. |
-| **CRASH** | The suite itself crashes — this is itself a bug in the harness. |
+| **CRASH** | The suite itself crashes --> this is itself a bug in the harness. |
 
 ---
 
@@ -289,7 +289,7 @@ When an edge case fails, the report will identify:
 
 ### 1. What Changed
 ```
-FAIL: repeat_build_diff — artifact checksums differ between pass 1 and pass 2
+FAIL: repeat_build_diff 〰 artifact checksums differ between pass 1 and pass 2
   File: .kain/out/build_determinism_suite.exe
   Pass 1 SHA256: a1b2c3d4...
   Pass 2 SHA256: e5f6a7b8...
@@ -381,9 +381,9 @@ Add an entry to the Edge Case Catalog below.
 
 ---
 
-## Edge Case Catalog — Full `src/` File Spec
+## Edge Case Catalog ~ Full `src/` File Spec
 
-Each entry below specs a source file to be created. Files marked `[P]` test for deterministic PASS behavior. Files marked `[F]` test for deterministic FAIL behavior (the build system should FAIL — and do so consistently).
+Each entry below specs a source file to be created. Files marked `[P]` test for deterministic PASS behavior. Files marked `[F]` test for deterministic FAIL behavior (the build system should FAIL :: and do so consistently).
 
 ---
 
@@ -449,7 +449,7 @@ Each entry below specs a source file to be created. Files marked `[P]` test for 
 
 #### `src/source_set_edges/exclude_all.kn` [P]
 **What it tests:** That exclude patterns can cancel all included files without crashing.
-**How:** `.glob("src/**/*.kn").exclude("**/*.kn")` — exclude everything.
+**How:** `.glob("src/**/*.kn").exclude("**/*.kn")` |-> exclude everything.
 **Expected:** Source set is empty. No crash, no error.
 **Determinism check:** Empty set behavior is consistent.
 
@@ -522,7 +522,7 @@ Each entry below specs a source file to be created. Files marked `[P]` test for 
 #### `src/profile_edges/invalid_profile.kn` [F]
 **What it tests:** That `.profile("not_a_profile")` produces consistent fallback behavior.
 **How:** Sets an invalid profile string.
-**Expected:** Consistent fallback (either error or silent fallback to debug — but same every time).
+**Expected:** Consistent fallback (either error or silent fallback to debug ___ but same every time).
 **Determinism check:** Behavior is identical across runs.
 
 #### `src/profile_edges/cross_profile_cache.kn` [P]
@@ -594,7 +594,7 @@ Each entry below specs a source file to be created. Files marked `[P]` test for 
 #### `src/import_edges/shadowed_modules.kn` [P]
 **What it tests:** That when a local module shadows a stdlib module, resolution is deterministic.
 **How:** Creates a local `src/build.kn` helper that shadows `std::build`. Tests which one resolves.
-**Expected:** Consistent resolution (either local wins or error — but same every time).
+**Expected:** Consistent resolution (either local wins or error => but same every time).
 **Determinism check:** Resolution result does not vary between runs.
 
 #### `src/import_edges/missing_module_root.kn` [F]
@@ -607,7 +607,7 @@ Each entry below specs a source file to be created. Files marked `[P]` test for 
 
 ## Design Principles
 
-1. **Determinism-first.** Every edge case has a clear pass/fail for whether the build is deterministic under that condition. "It works" is not enough — it must work the same way every time.
+1. **Determinism-first.** Every edge case has a clear pass/fail for whether the build is deterministic under that condition. "It works" is not enough >> it must work the same way every time.
 
 2. **Boring reliability.** The goal is for this suite to eventually be so solid that running it is boring. Zero surprises. Zero flakes. A green run should mean nothing interesting happened.
 
@@ -627,7 +627,7 @@ Each entry below specs a source file to be created. Files marked `[P]` test for 
 
 | Blade | Relationship |
 |-------|-------------|
-| `blades/test/build-kn-system-smoke/` | The sibling integration test — stresses the evidence DAG with real tasks (cargo, GPU, Z3, fabric). Complements this suite's edge-case focus. |
+| `blades/test/build-kn-system-smoke/` | The sibling integration test --- stresses the evidence DAG with real tasks (cargo, GPU, Z3, fabric). Complements this suite's edge-case focus. |
 | `blades/edge_cases/codegen_edge_gaps/` | LLVM codegen edge cases. Shares the harness pattern (cause/effect/spookymagic/diagnostics) and `spawn.kn` self-replicating cloner. |
 | `blades/edge_cases/runtime/` | Debug template for rapid edge-case testing. Source of the 4-layer architecture pattern used by the harness. |
 | `smoketest/` | Album-edition workspace. Reference for complex multi-root build.kn patterns and the `smoke_mode()` task factory idiom. |

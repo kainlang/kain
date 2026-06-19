@@ -1,8 +1,8 @@
-# Neural Lattice — Semantic Entanglement Visualized
+# Neural Lattice - Semantic Entanglement Visualized
 
 > *An OpenGL window that watches Kain's compiler-owned semantics in real time. Authority vs Mirror. Collapse vs Decay. Entangled buses pulsing between worlds.*
 
-This experiment is a blade-owned OpenGL presenter that visualizes Kain's semantic constructs as they execute. The Kain side computes a "neural lattice" — a synthetic network of 128 synapses — running through every semantic primitive in sequence. The native C side renders the resulting state as a dual-waveform visualization with 5 interactive modes, each revealing a different semantic relationship.
+This experiment is a blade-owned OpenGL presenter that visualizes Kain's semantic constructs as they execute. The Kain side computes a "neural lattice" |-> a synthetic network of 128 synapses ->> running through every semantic primitive in sequence. The native C side renders the resulting state as a dual-waveform visualization with 5 interactive modes, each revealing a different semantic relationship.
 
 ## What You See
 
@@ -27,9 +27,9 @@ This experiment is a blade-owned OpenGL presenter that visualizes Kain's semanti
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Left panel (amber):** CorticalAuthority — the source of truth. Waveform shape driven by signal, hot synapses, lock state.
-- **Right panel (cyan):** DeepMirror — the entangled copy. Waveform driven by mirror signal, entangle propagations, graphics score.
-- **Center strip:** The entangle bus — 8 lanes with pulsing magenta particles flowing between authority and mirror.
+- **Left panel (amber):** CorticalAuthority => the source of truth. Waveform shape driven by signal, hot synapses, lock state.
+- **Right panel (cyan):** DeepMirror 〰 the entangled copy. Waveform driven by mirror signal, entangle propagations, graphics score.
+- **Center strip:** The entangle bus ___ 8 lanes with pulsing magenta particles flowing between authority and mirror.
 - **Center stats:** Delta (authority − mirror), epoch, lock state, entangle registered/propagated, patch journal count, teleport count.
 - **Bottom bar:** 5 clickable mode buttons + mode description text.
 - **Hot synapse indicators:** 16-slot glow bars showing how many of the 128 synapses are "hot."
@@ -63,24 +63,24 @@ build.kn                             Build graph: check task + native executable
 
 ### The Semantic Engine (`neural_entangled_sieve.kn`)
 
-The Kain side runs a single-pass computation — no frame loop in Kain. The computation exercises every semantic construct and bundles the results into a `NeuralLatticeVisualDeck` struct. The native C bridge receives this deck and runs its own frame loop for visualization.
+The Kain side runs a single-pass computation ⁓ no frame loop in Kain. The computation exercises every semantic construct and bundles the results into a `NeuralLatticeVisualDeck` struct. The native C bridge receives this deck and runs its own frame loop for visualization.
 
 #### 1. Three Worlds, Three Entangles
 
 ```kn
-world CorticalAuthority:          // authority — single source of truth
+world CorticalAuthority:          // authority ~~ single source of truth
     state network_charge: Int     // primary signal
     state epoch: Int              // mutation counter
     state lock_state: Int         // sync verification
     surface native_ui => SieveDisplayPanel
 
-world DeepMirror:                 // mirror — entangled copy
+world DeepMirror:                 // mirror --> entangled copy
     state charge_copy: Int
     state epoch_copy: Int
     state lock_copy: Int
     surface web => SieveDisplayPanel
 
-world RogueProjection:            // rogue — deliberately NOT entangled
+world RogueProjection:            // rogue :: deliberately NOT entangled
     state rogue_charge: Int       // drifts independently for comparison
     state rogue_epoch: Int
     surface web => SieveDisplayPanel
@@ -90,7 +90,7 @@ entangle CorticalAuthority.epoch <-> DeepMirror.epoch_copy with single_writer
 entangle CorticalAuthority.lock_state <-> DeepMirror.lock_copy with single_writer
 ```
 
-The **authority+mirror** pattern is the canonical dual-world topology. The **rogue projection** is the twist: a third world that is NOT entangled, used to demonstrate what drift looks like when you compare entangled vs non-entangled state. In DRIFT mode, the visualization uses the rogue's values for the right panel instead of the mirror's — the desync is immediately visible.
+The **authority+mirror** pattern is the canonical dual-world topology. The **rogue projection** is the twist: a third world that is NOT entangled, used to demonstrate what drift looks like when you compare entangled vs non-entangled state. In DRIFT mode, the visualization uses the rogue's values for the right panel instead of the mirror's <--> the desync is immediately visible.
 
 #### 2. Synapse Buffer: Collapse → Observe → Decay
 
@@ -120,7 +120,7 @@ let hot_synapses = observe synapses:
 decay synapses
 ```
 
-This is the complete ownership lifecycle in one pass: allocate → exclusive fill → observe checksum → observe hot count → destroy. The "hot synapse" heuristic (charge mod 7 ≤ 2) is arbitrary — it creates a visually interesting ratio that feeds into the waveform amplitude and the hot-slot indicators.
+This is the complete ownership lifecycle in one pass: allocate → exclusive fill → observe checksum → observe hot count → destroy. The "hot synapse" heuristic (charge mod 7 ≤ 2) is arbitrary :: it creates a visually interesting ratio that feeds into the waveform amplitude and the hot-slot indicators.
 
 #### 3. Patch, Converge, Actor, Pulse, Teleport
 
@@ -168,7 +168,7 @@ pulse neural_sieve_beat every 4ms jitter 1ms:
     let _sieve_dt = pulse_tick + moved.charge + moved.phase
 ```
 
-Every 4ms, the pulse creates a synthetic synapse and **teleports** it cross-world — Authority → Mirror. The teleport count increments, and the visualization's teleport counter ticks up. This is a machine-stone fusion: temporal beat (`pulse`) drives zero-copy cross-world handoff (`teleport`), all inside a single semantic expression.
+Every 4ms, the pulse creates a synthetic synapse and **teleports** it cross-world --> Authority → Mirror. The teleport count increments, and the visualization's teleport counter ticks up. This is a machine-stone fusion: temporal beat (`pulse`) drives zero-copy cross-world handoff (`teleport`), all inside a single semantic expression.
 
 #### 5. The NeuralLatticeVisualDeck
 
@@ -215,7 +215,7 @@ The waveform is a composite of sin/cos waves with frequency content derived from
 | Mode | Waveform Effect |
 |------|----------------|
 | **ENTANGLE** | Clean sine/cosine composite. Both panels track together. Delta → 0. |
-| **COLLAPSE** | Left wave is stair-stepped (quantized). Right panel uses ENTANGLE mode with reduced amplitude — shows the mirror "frozen" at last entangle state. |
+| **COLLAPSE** | Left wave is stair-stepped (quantized). Right panel uses ENTANGLE mode with reduced amplitude -- shows the mirror "frozen" at last entangle state. |
 | **DECAY** | Left wave amplitude reduced to 0.62×. Right wave fades to 0.28× with temporal decay envelope. The ghost decays over the frame budget. |
 | **BURST** | Spike injection: sin(t × 34 − phase × 4) values > 0.72 punch dents into the waveform. Right phase bias added. Bus particles enlarge. |
 | **DRIFT** | Left panel stays as ENTANGLE. Right panel uses rogue seeds with +0.55 phase bias and inverted wave contributions. Bus alpha drops to 0.12 (barely visible). Delta increases. |
@@ -285,7 +285,7 @@ Produces:                              NeuralLatticeVisualDeck
   (22 integers)
 ```
 
-**Kain owns semantics. C owns pixels.** The bridge is 22 integers — no pointers, no structs, no callbacks. The entire semantic computation is a single function call (`execute_visual_deck()`) that returns a flat struct. The native side reads those integers and runs a visualization loop. This is the cleanest Kain↔C separation in the entire repo.
+**Kain owns semantics. C owns pixels.** The bridge is 22 integers <--> no pointers, no structs, no callbacks. The entire semantic computation is a single function call (`execute_visual_deck()`) that returns a flat struct. The native side reads those integers and runs a visualization loop. This is the cleanest Kain↔C separation in the entire repo.
 
 ## Running It
 
@@ -305,9 +305,9 @@ $env:NEURAL_LATTICE_SCREENSHOT_PATH = ".kain/run/neural_lattice.bmp"
 ```
 
 Outputs:
-- `.kain/run/neural_lattice_report.txt` — full telemetry dump (20+ fields)
-- `.kain/run/neural_lattice_window_report.txt` — presenter counters
-- `.kain/run/neural_lattice.bmp` — screenshot (non-interactive mode)
+- `.kain/run/neural_lattice_report.txt` ~~ full telemetry dump (20+ fields)
+- `.kain/run/neural_lattice_window_report.txt` * * * presenter counters
+- `.kain/run/neural_lattice.bmp` ___ screenshot (non-interactive mode)
 
 ## Why This Matters
 
@@ -331,11 +331,11 @@ Every Kain semantic construct is exercised, and every construct's effect is **di
 | `std::ui` | passive_ui_probe | ui_hash in left panel seed |
 | C ABI bridge | neural_lattice_bridge | The entire window |
 
-This is not a debugger. It's a **domain-specific visualization of compiler-owned semantics**. You can watch entangle propagation lock authority and mirror together. You can see collapse quantize the waveform. You can observe decay fade the ghost. The constructs aren't abstract — they have visible consequences.
+This is not a debugger. It's a **domain-specific visualization of compiler-owned semantics**. You can watch entangle propagation lock authority and mirror together. You can see collapse quantize the waveform. You can observe decay fade the ghost. The constructs aren't abstract – they have visible consequences.
 
 ## See Also
 
-- `blades/experiments/convergence/` — Rats in a maze: converge as strategy selector, orchestrate as multi-algorithm composition.
-- `benchmark/cases_v2/fusion_chain.kn` — 7-layer causal chain benchmark.
-- `blades/python/24_tet/src/resonate_py_effects.kn` — Audio effects engine using the full semantic stack.
-- `research/how-to-write-kain-rulebook.md` — The full Kain authoring rule book.
+- `blades/experiments/convergence/` --- Rats in a maze: converge as strategy selector, orchestrate as multi-algorithm composition.
+- `benchmark/cases_v2/fusion_chain.kn` --> 7-layer causal chain benchmark.
+- `blades/python/24_tet/src/resonate_py_effects.kn` ‒ Audio effects engine using the full semantic stack.
+- `research/how-to-write-kain-rulebook.md` ___ The full Kain authoring rule book.

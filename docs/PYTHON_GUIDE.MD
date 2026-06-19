@@ -1,4 +1,4 @@
-# Python Interop — Performance Guide
+# Python Interop <--> Performance Guide
 
 > **File**: `docs/PYTHON_GUIDE.MD`
 > **Read `PYTHON.MD` first for the full architecture.** This guide is purely about **writing fast Python-interop Kain**.
@@ -9,7 +9,7 @@ ______________________________________________________________________
 
 > **The fastest Python call is the one you don't make.**
 
-Every Python bridge crossing costs *something* — GIL acquire, value materialization, object refcounts. The C runtime is fast (50+ CPython function pointers, `PyObject_Vectorcall`, fast `f64→i64` truncation), but it's still crossing a language boundary.
+Every Python bridge crossing costs *something* - GIL acquire, value materialization, object refcounts. The C runtime is fast (50+ CPython function pointers, `PyObject_Vectorcall`, fast `f64→i64` truncation), but it's still crossing a language boundary.
 
 This guide teaches you how to **cross fewer times, cross faster when you do, and eliminate crossing entirely for hot paths.**
 
@@ -49,7 +49,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Strategy 1 — Eliminate the Bridge Entirely
+## Strategy 1 ___ Eliminate the Bridge Entirely
 
 ### 1.1 Entangled Semantic Cache
 
@@ -99,7 +99,7 @@ fn hotloop_cached(iterations: Int) -> Int:
     var acc: Int = 0
     var i: Int = 0
     while i < iterations:
-        // Read from entangled mirror — no Python calls
+        // Read from entangled mirror ‒ no Python calls
         let tau_bias = PyCacheMirror.tau_copy
         let pi_bias = PyCacheMirror.pi_copy
         let sqrt_val = PyCacheMirror.sqrt_4_copy
@@ -109,7 +109,7 @@ fn hotloop_cached(iterations: Int) -> Int:
     return acc
 ```
 
-**Performance**: ~infinite speedup vs raw Python per-iteration calls. The entangled mirror read is a struct field access in Kain — it compiles to a memory load.
+**Performance**: ~infinite speedup vs raw Python per-iteration calls. The entangled mirror read is a struct field access in Kain – it compiles to a memory load.
 
 **Real benchmark evidence** (from `python_semantic.kn`):
 
@@ -121,7 +121,7 @@ fn hotloop_cached(iterations: Int) -> Int:
 
 ### 1.2 The Fused Checksum37
 
-For buffer validation without data access, use the fused checksum37 operation. It borrows the buffer **once** and uses a closed-form mathematical formula — **zero Python calls per iteration**.
+For buffer validation without data access, use the fused checksum37 operation. It borrows the buffer **once** and uses a closed-form mathematical formula ~~ **zero Python calls per iteration**.
 
 ```kain
 import numpy as np
@@ -130,7 +130,7 @@ fn main() -> Int:
     let source = python_call_attr_raw(np, "arange", [512])
     let region = python_region_begin()
 
-    // ONE buffer borrow — the checksum uses O(1) math for all iterations
+    // ONE buffer borrow 〰 the checksum uses O(1) math for all iterations
     let checksum = python_region_buffer_view_checksum37(
         region, source, 10_000_000, 1000000007
     )
@@ -149,11 +149,11 @@ No Python calls. No GIL re-entry. No per-iteration overhead.
 
 ______________________________________________________________________
 
-## Strategy 2 — The Region: Batched Operations
+## Strategy 2 〰 The Region: Batched Operations
 
 ### 2.1 What a Region Does
 
-A region acquires the GIL **once** at `python_region_begin()` and releases it **once** at `python_region_end()`. Everything inside — imports, attribute accesses, calls, buffer views — happens within that single GIL scope.
+A region acquires the GIL **once** at `python_region_begin()` and releases it **once** at `python_region_end()`. Everything inside ... imports, attribute accesses, calls, buffer views ->> happens within that single GIL scope.
 
 ```kain
 // Slow: GIL acquired and released every iteration
@@ -225,9 +225,9 @@ let a = python_region_getattr_raw(region, np, "linspace")  // miss → real geta
 let b = python_region_getattr_raw(region, np, "linspace")  // hit → cached
 ```
 
-### 2.5 Buffer View Tracking — Auto-Release
+### 2.5 Buffer View Tracking ~~ Auto-Release
 
-Buffer views opened within a region are tracked and **released automatically** when the region ends. No more manual `python_buffer_view_release` — and no leaks.
+Buffer views opened within a region are tracked and **released automatically** when the region ends. No more manual `python_buffer_view_release` ~> and no leaks.
 
 ```kain
 let region = python_region_begin()
@@ -244,7 +244,7 @@ println("auto_released=" + str(auto_released))  // should be ITERATIONS
 
 ______________________________________________________________________
 
-## Strategy 3 — Pre-Bind Callables + Fast Call Lane
+## Strategy 3 ⁓ Pre-Bind Callables + Fast Call Lane
 
 ### 3.1 The Pattern
 
@@ -253,16 +253,16 @@ Import the module **once**, bind the function reference **once**, then call it t
 ```kain
 let region = python_region_begin()
 
-// 1. Import module — cached
+// 1. Import module ... cached
 let math_mod = python_region_import(region, "math")
 
-// 2. Bind sqrt function — lookup once
+// 2. Bind sqrt function ~ lookup once
 let sqrt_fn = python_region_bind_attr(region, math_mod, "sqrt")
 
-// 3. Read constant — lookup once
+// 3. Read constant * * * lookup once
 let tau_bias = to_int(python_region_getattr_raw(region, math_mod, "tau"))
 
-// 4. Hot loop — fast numeric lane: zero generic calls, zero attr lookups
+// 4. Hot loop ... fast numeric lane: zero generic calls, zero attr lookups
 var i = 0
 while i < 150_000:                          // ← 150K calls
     let lane_value = ((i * 17) % 4096) + 1
@@ -279,9 +279,9 @@ let _ = python_region_end(region)
 
 `python_region_call_raw_f64_trunc_i64` uses:
 
-1. **`PyObject_Vectorcall`** (Python 3.10+) or **`PyObject_CallOneArg`** (Python 3.11+) — the fastest CPython calling conventions, bypassing tuple creation
-1. **`PyLong_AsLongLong`** or **`kain_py_try_trunc_f64_to_i64`** — direct C numeric extraction, no materialization to Kain's tagged value system
-1. **Cached attr** — the function reference was bound at region start, so there's no per-call `PyObject_GetAttrString`
+1. **`PyObject_Vectorcall`** (Python 3.10+) or **`PyObject_CallOneArg`** (Python 3.11+) ~ the fastest CPython calling conventions, bypassing tuple creation
+1. **`PyLong_AsLongLong`** or **`kain_py_try_trunc_f64_to_i64`** |-> direct C numeric extraction, no materialization to Kain's tagged value system
+1. **Cached attr** === the function reference was bound at region start, so there's no per-call `PyObject_GetAttrString`
 
 ### 3.3 Benchmark Evidence
 
@@ -302,14 +302,14 @@ At 150,000 iterations, same profile: **150,000 fast calls, 0 generic calls**.
 
 ______________________________________________________________________
 
-## Strategy 4 — Shared Backing Over Owned
+## Strategy 4 |-> Shared Backing Over Owned
 
 ### 4.1 The Cost Difference
 
 ```kain
 // Fast: shared (zero-copy)
 let shared = kain_tensor_from_py_shared(raw_numpy_array)
-// Mutations write through to Python — no bytes copied
+// Mutations write through to Python ~~ no bytes copied
 kain_tensor_set(shared, [row, col], 42.5)
 // Python sees the change instantly
 let after = to_int(py_tensor_signature(raw_numpy_array))  // includes 42.5
@@ -317,7 +317,7 @@ let after = to_int(py_tensor_signature(raw_numpy_array))  // includes 42.5
 // Slow: owned (bytes copied)
 let owned = kain_tensor_from_py_owned(raw_numpy_array)
 kain_tensor_set(owned, [0, 0], 999.0)
-// Python does NOT see the change — owned is a .copy()
+// Python does NOT see the change === owned is a .copy()
 let isolated = to_int(py_tensor_signature(raw_numpy_array))  // unchanged
 ```
 
@@ -335,9 +335,9 @@ case "uint8":
 
 Shared backing requires:
 
-1. **C-contiguous** buffer — no strides
-1. **Writable** — `flags.writeable == true`
-1. **CPU backend** — CUDA tensors are `host_accessible=false`, so shared mode doesn't apply
+1. **C-contiguous** buffer === no strides
+1. **Writable** <--> `flags.writeable == true`
+1. **CPU backend** >> CUDA tensors are `host_accessible=false`, so shared mode doesn't apply
 
 ```kain
 // FAILS: stride slice is not contiguous
@@ -349,14 +349,14 @@ let strided = python_call_attr_raw(sliced, "__getitem__", [slice(None, None, 2)]
 let fixed = python_call_attr_raw(np, "ascontiguousarray", [strided])
 let shared = kain_tensor_from_py_shared(fixed)  // OK
 
-// CUDA tensor — shared backing means device metadata, not byte sync
+// CUDA tensor 〰 shared backing means device metadata, not byte sync
 let cuda_tensor = make_cuda_tensor()
 let info = python_tensor_interop_info(cuda_tensor)
 // info.host_accessible == false
 // info.ownership == "shared" (metadata shared, data stays on device)
 ```
 
-### 4.3 Auto Mode — The Right Default
+### 4.3 Auto Mode === The Right Default
 
 `kain_tensor_from_py(target)` (no suffix) tries shared first, falls back to owned:
 
@@ -371,17 +371,17 @@ else:
 
 ______________________________________________________________________
 
-## Strategy 5 — Buffer Views: Open Once, Measure Free
+## Strategy 5 --- Buffer Views: Open Once, Measure Free
 
 ### 5.1 The Pattern
 
-Opening a buffer view borrows a `Py_buffer`. Once borrowed, reading **metadata** (`byte_length`, `element_count`, `element_size`, `c_contiguous`, `writable`) is pure C struct field access — zero Python overhead.
+Opening a buffer view borrows a `Py_buffer`. Once borrowed, reading **metadata** (`byte_length`, `element_count`, `element_size`, `c_contiguous`, `writable`) is pure C struct field access => zero Python overhead.
 
 ```kain
 // Borrow once
 let view = python_buffer_view(source)
 
-// Read metadata — zero Python calls
+// Read metadata >> zero Python calls
 let bytes = python_buffer_view_byte_length(view)       // struct field
 let count = python_buffer_view_element_count(view)     // struct field
 let size = python_buffer_view_element_size(view)       // struct field
@@ -426,7 +426,7 @@ From `benchmark_cases_python_buffer_view_region_probe_main.kn`:
 
 ______________________________________________________________________
 
-## Strategy 6 — Direct C FFI + Shared Backing
+## Strategy 6 <--> Direct C FFI + Shared Backing
 
 ### 6.1 The Ultimate Hot Path
 
@@ -469,7 +469,7 @@ The `kain_shared_buffer_from_py` call in the C runtime tries:
 
 ______________________________________________________________________
 
-## Strategy 7 — The `_raw` Variant: Avoid Unnecessary Conversion
+## Strategy 7 〰 The `_raw` Variant: Avoid Unnecessary Conversion
 
 ### 7.1 The Cost of Auto-Conversion
 
@@ -499,14 +499,14 @@ let sum = python_call_attr_raw(np, "sum", [arr])  // convert back → 100 Python
 let raw = py_call_raw(np, "linspace", [0.0, 1.0, 100])
 let sum = python_call_attr_raw(np, "sum", [raw])   // stays Python
 
-// Use typed views when you need pixel/element access — they index the Python object directly
+// Use typed views when you need pixel/element access ... they index the Python object directly
 let view = py_tensor_view(raw)
 let element = py_tensor_get(view, [5])              // single element, no full conversion
 ```
 
 ______________________________________________________________________
 
-## Strategy 8 — GPU Promotion: Skip the Host
+## Strategy 8 => GPU Promotion: Skip the Host
 
 ### 8.1 CPU → GPU Path
 
@@ -518,9 +518,9 @@ let gpu_buffer = python_gpu_storage_buffer(raw_tensor, "input_matrix")
 
 The promotion path:
 
-1. `python_tensor_shared(raw_tensor)` — zero-copy adoption (buffer protocol)
-1. `python_tensor_interop_info_from_tensor` — extracts shape, dtype, strides
-1. `gpu_import_shared_buffer` — GPU upload, sets residency flags
+1. `python_tensor_shared(raw_tensor)` --> zero-copy adoption (buffer protocol)
+1. `python_tensor_interop_info_from_tensor` ⁓ extracts shape, dtype, strides
+1. `gpu_import_shared_buffer` ‒ GPU upload, sets residency flags
 
 ### 8.2 CUDA → GPU Path (No Host Trip)
 
@@ -529,7 +529,7 @@ The promotion path:
 let cuda_tensor = python_call_attr_raw(torch, "ones", [[1024, 1024]])
 cuda_tensor = python_call_attr_raw(cuda_tensor, "cuda", [0])
 
-// Promote directly — device pointer preserved
+// Promote directly 〰 device pointer preserved
 let gpu_buffer = python_gpu_storage_buffer(cuda_tensor, "cuda_matrix")
 let info = gpu_buffer_descriptor_info(gpu_buffer)
 // info.host_accessible == false
@@ -561,7 +561,7 @@ let value = kain_tensor_get(result, [0])
 
 ______________________________________________________________________
 
-## Strategy 9 — Orchestrate: Python as a First-Class Stage
+## Strategy 9 >> Orchestrate: Python as a First-Class Stage
 
 ### 9.1 The Stage Kind System
 
@@ -616,14 +616,14 @@ stage py_ui: python               // stage kind: python
 **Residency** (where data lives):
 | Value | Meaning |
 |-------|--------|
-| `host` | Data stays on host (CPU memory) — default for Python |
+| `host` | Data stays on host (CPU memory) --> default for Python |
 | `shared` | Data is shared across stages without copies |
 | `device` | Data lives on GPU |
 
 **Transfer** (how data moves):
 | Value | Meaning |
 |-------|--------|
-| `none` | No transfer needed — default for `residency host` |
+| `none` | No transfer needed ___ default for `residency host` |
 | `host_to_device` | Move from CPU to GPU |
 | `device_to_host` | Move from GPU to CPU |
 | `shared_view` | Zero-copy view across stages |
@@ -633,7 +633,7 @@ stage py_ui: python               // stage kind: python
 |-------|--------|
 | `fallback stage_name` | If Python stage fails, use `stage_name`'s result |
 | `fallback degrade stage_name` | If Python fails, degrade to `stage_name` |
-| `fallback abort` | Fatal — pipeline dies |
+| `fallback abort` | Fatal <--> pipeline dies |
 
 **Guards and requirements**:
 | Property | Meaning |
@@ -651,7 +651,7 @@ stage py_ui: python               // stage kind: python
 
 ### 9.3 The Complete Pipeline (Resonate/Py)
 
-From `resonate_py.kn` — the most comprehensive Python orchestrate pipeline in the benchmark suite:
+From `resonate_py.kn` === the most comprehensive Python orchestrate pipeline in the benchmark suite:
 
 ```kain
 orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority) -> Int:
@@ -722,7 +722,7 @@ orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority)
 
 ### 9.4 Orchestrate God-Mode: Python + GPU + C + World All Fused
 
-From `orchestrate_god.kn` — exercises all 12 stage kinds in a single pipeline:
+From `orchestrate_god.kn` * * * exercises all 12 stage kinds in a single pipeline:
 
 ```kain
 orchestrate orchestrate_god_preflight(seed: Int, authority: OrchestrateGodAuthority) -> Int:
@@ -818,7 +818,7 @@ json_object_set_string(payload, "declared_stage_kinds",
 
 ______________________________________________________________________
 
-## Strategy 10 — The PyObject Call Contraction
+## Strategy 10 〰 The PyObject Call Contraction
 
 ### 10.1 Call Shape
 
@@ -832,7 +832,7 @@ let sum = python_call_attr_raw(arr, "sum", [])
 let mul = python_call_attr_raw(arr, "__mul__", [2.0])
 let final = python_call_attr_raw(arr, "sum", [])
 
-// GOOD: 1 round trip — batch the work in Python
+// GOOD: 1 round trip <--> batch the work in Python
 python_exec("""
 import numpy as _np
 def kain_fast_process(n):
@@ -857,7 +857,7 @@ def kain_make_sqrt_bias(bias_val):
 """)
 
 let sqrt_bias_fn = python_call_raw("kain_make_sqrt_bias", [42])
-// All subsequent calls go through the closure — no module re-import
+// All subsequent calls go through the closure – no module re-import
 
 let result = to_int(python_call_raw(sqrt_bias_fn, [16.0]))  // sqrt(16) + tau + 42
 ```

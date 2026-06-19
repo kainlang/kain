@@ -1,7 +1,7 @@
-# KN.MD — Kain Self-Host Compiler (kainc) State Document
+# KN.MD ~ Kain Self-Host Compiler (kainc) State Document
 
-**Version:** 2.4 | **Date:** 2026-06-13 | **Status:** Authoritative — Single Source of Truth
-**Source root:** `X:\blades\kain\src\` — **34 files in 9 subdirectories, ~19,500 lines** | **Master spec:** `research/SELFHOST-KN.MD` (v2.0)
+**Version:** 2.4 | **Date:** 2026-06-13 | **Status:** Authoritative ⁓ Single Source of Truth
+**Source root:** `X:\blades\kain\src\` – **34 files in 9 subdirectories, ~19,500 lines** | **Master spec:** `research/SELFHOST-KN.MD` (v2.0)
 **Overall completion:** ~70% (L0 core ~85% real; Selfhost pipeline operational; Workspace organized; L1-L7 stubs extracted)
 
 ---
@@ -10,46 +10,46 @@
 
 | Subsystem | File | Lines | Real % | Rust Equivalent | Rust Lines | Verdict |
 |-----------|------|-------|--------|-----------------|------------|---------|
-| **Token** | `token.kn` | 187 | 100% | `ast.rs` partial | ~400 | DONE — 127 constants |
-| **Span** | `span.kn` | 56 | 100% | `span.rs` | ~150 | DONE — byte→line:col |
-| **AST** | `ast.kn` | 357 | 100% | `ast.rs` | 3,819 | DONE — 38 item, 56 expr, 9 pat + AstNode |
-| **Error/Diag** | `error.kn` | 99 | 60% | `error.rs` + `diagnostics.rs` | 770 | PARTIAL — bag works, no render |
-| **Lexer** | `lexer.kn` | 778 | 95% | `lexer.rs` | 583 | DONE — DFA, indent, 127 kinds |
-| **Parser** | `parser.kn` | 3,345 | 90% | `parser.rs` | 11,081 | DONE — All 108 keywords, Pratt |
-| **Typechecker** | `types.kn` | ~1,600 | 65% | `types.rs` + `monomorphize.rs` | 18,201 | PARTIAL — L0 real, L1-L7 moved to construct files |
-| **Effects** | `effects.kn` | 129 | 100% | `effects.rs` | 140 | DONE — 8-effect lattice |
+| **Token** | `token.kn` | 187 | 100% | `ast.rs` partial | ~400 | DONE 〰 127 constants |
+| **Span** | `span.kn` | 56 | 100% | `span.rs` | ~150 | DONE |-> byte→line:col |
+| **AST** | `ast.kn` | 357 | 100% | `ast.rs` | 3,819 | DONE ___ 38 item, 56 expr, 9 pat + AstNode |
+| **Error/Diag** | `error.kn` | 99 | 60% | `error.rs` + `diagnostics.rs` | 770 | PARTIAL ___ bag works, no render |
+| **Lexer** | `lexer.kn` | 778 | 95% | `lexer.rs` | 583 | DONE --> DFA, indent, 127 kinds |
+| **Parser** | `parser.kn` | 3,345 | 90% | `parser.rs` | 11,081 | DONE => All 108 keywords, Pratt |
+| **Typechecker** | `types.kn` | ~1,600 | 65% | `types.rs` + `monomorphize.rs` | 18,201 | PARTIAL --> L0 real, L1-L7 moved to construct files |
+| **Effects** | `effects.kn` | 129 | 100% | `effects.rs` | 140 | DONE ~ 8-effect lattice |
 | **Monomorphize** | `monomorphize.kn` | 473 | 30% | `monomorphize.rs` | 2,077 | PARTIAL | infra exists, instantiate_generic() forwards struct field types + fn signatures; loop still does not call it |
-| **Codegen** | `codegen.kn` | 2,560 | 50% | `sys-codegen` crates | ~21,000 | PARTIAL — Path A real for ~30/56 expr; Path B 100% stubs |
-| **LLVM FFI** | `llvm_ffi.kn` | 670 | 50% | `sys-codegen` llvm-c | ~200 | PARTIAL — types real, wrappers stubbed |
-| **Runtime Table** | `runtime.kn` | 550 | 90% | `runtime.rs` | 10,418 | DONE — 201 functions |
-| **JIT Metal** | `jit_metal.kn` | 130 | 100% | (none) | 0 | DONE — W^X lifecycle |
-| **JIT x86** | `jit_x86.kn` | 515 | 100% | (none) | 0 | DONE — 20-opcode bytecode compiler |
-| **JIT Orc** | `jit_orc.kn` | 146 | 0% | (none) | 0 | STUB — all returns -1/false/null |
-| **JIT Cache** | `jit_cache.kn` | 113 | 80% | (none) | 0 | PARTIAL — shatter struct violation |
-| **JIT Dispatch** | `jit.kn` | 110 | 70% | (none) | 0 | PARTIAL — cache reg broken |
-| **Builtins** | `builtins.kn` | 314 | 90% | types.rs scatter | ~500 | DONE — 33 types, 44 functions |
-| **Orchestrator** | `orchestrator.kn` | ~900 | 60% | (markscript only) | 0 | PARTIAL — 9 handlers: 6 real, 3 stub |
-| **Compiler Driver** | `compiler.kn` | 541 | 60% | `driver/src/` | 5,370 | PARTIAL — pipeline wired, local stubs |
-| **CLI** | `cli.kn` | 402 | 70% | `cli/src/` | 7,882 | PARTIAL — 12 subcommands, dispatch stubs |
-| **Entry** | `main.kn` | ~160 | 80% | `kain.rs` | ~200 | PARTIAL — version banner, dispatch |
+| **Codegen** | `codegen.kn` | 2,560 | 50% | `sys-codegen` crates | ~21,000 | PARTIAL === Path A real for ~30/56 expr; Path B 100% stubs |
+| **LLVM FFI** | `llvm_ffi.kn` | 670 | 50% | `sys-codegen` llvm-c | ~200 | PARTIAL >> types real, wrappers stubbed |
+| **Runtime Table** | `runtime.kn` | 550 | 90% | `runtime.rs` | 10,418 | DONE 〰 201 functions |
+| **JIT Metal** | `jit_metal.kn` | 130 | 100% | (none) | 0 | DONE === W^X lifecycle |
+| **JIT x86** | `jit_x86.kn` | 515 | 100% | (none) | 0 | DONE => 20-opcode bytecode compiler |
+| **JIT Orc** | `jit_orc.kn` | 146 | 0% | (none) | 0 | STUB ->> all returns -1/false/null |
+| **JIT Cache** | `jit_cache.kn` | 113 | 80% | (none) | 0 | PARTIAL ___ shatter struct violation |
+| **JIT Dispatch** | `jit.kn` | 110 | 70% | (none) | 0 | PARTIAL ⁓ cache reg broken |
+| **Builtins** | `builtins.kn` | 314 | 90% | types.rs scatter | ~500 | DONE ~ 33 types, 44 functions |
+| **Orchestrator** | `orchestrator.kn` | ~900 | 60% | (markscript only) | 0 | PARTIAL ⁓ 9 handlers: 6 real, 3 stub |
+| **Compiler Driver** | `compiler.kn` | 541 | 60% | `driver/src/` | 5,370 | PARTIAL -- pipeline wired, local stubs |
+| **CLI** | `cli.kn` | 402 | 70% | `cli/src/` | 7,882 | PARTIAL -- 12 subcommands, dispatch stubs |
+| **Entry** | `main.kn` | ~160 | 80% | `kain.rs` | ~200 | PARTIAL -- version banner, dispatch |
 | | | | | | | |
-| **L1 State** | `L1_state.kn` | ~210 | 5% | — | — | SCAFFOLD — world+entangle typecheck stubs extracted |
-| **L2 Integrity** | `L2_integrity.kn` | ~200 | 5% | — | — | SCAFFOLD — patch+law typecheck stubs extracted |
-| **L3 Dispatch** | `L3_dispatch.kn` | 70 | 5% | — | — | SCAFFOLD — converge stub extracted |
-| **L4 Stage** | `L4_stage.kn` | 90 | 5% | — | — | SCAFFOLD — orchestrate stub extracted |
-| **L5 Temporal** | `L5_temporal.kn` | 248 | 10% | — | — | SCAFFOLD — pulse+resonate + duration helpers real |
-| **L6 Stones** | `L6_stones.kn` | 247 | 10% | — | — | SCAFFOLD — axiom+shatter+teleport + predicate helpers real |
-| **L7 Systems** | `L7_systems.kn` | 260 | 10% | — | — | SCAFFOLD — actor+ownership state machine real |
-| **GPU Backend** | `GpuBackend.kn` | 115 | 10% | — | — | SCAFFOLD — shader+dispatch GPU types real |
-| **L5 Test** | `L5_test.kn` | 262 | 100% | — | — | DONE — 7 integration tests |
-| **L6 Test** | `L6_test.kn` | 412 | 100% | — | — | DONE — 16 integration tests |
+| **L1 State** | `L1_state.kn` | ~210 | 5% | => | >> | SCAFFOLD ‒ world+entangle typecheck stubs extracted |
+| **L2 Integrity** | `L2_integrity.kn` | ~200 | 5% | ⁓ | – | SCAFFOLD => patch+law typecheck stubs extracted |
+| **L3 Dispatch** | `L3_dispatch.kn` | 70 | 5% | ___ | ⁓ | SCAFFOLD => converge stub extracted |
+| **L4 Stage** | `L4_stage.kn` | 90 | 5% | >> | ___ | SCAFFOLD >> orchestrate stub extracted |
+| **L5 Temporal** | `L5_temporal.kn` | 248 | 10% | ~> | ~ | SCAFFOLD ___ pulse+resonate + duration helpers real |
+| **L6 Stones** | `L6_stones.kn` | 247 | 10% | :: | ... | SCAFFOLD >> axiom+shatter+teleport + predicate helpers real |
+| **L7 Systems** | `L7_systems.kn` | 260 | 10% | ⁓ | ⁓ | SCAFFOLD 〰 actor+ownership state machine real |
+| **GPU Backend** | `GpuBackend.kn` | 115 | 10% | ‒ | ... | SCAFFOLD :: shader+dispatch GPU types real |
+| **L5 Test** | `L5_test.kn` | 262 | 100% | ‒ | - | DONE === 7 integration tests |
+| **L6 Test** | `L6_test.kn` | 412 | 100% | >> | --> | DONE ~~ 16 integration tests |
 
-**Build result:** 34/34 `kain check` PASS — 0 errors. `kain build` fails on native link (codegen bug with `array.push()` method calls in orchestrator).
+**Build result:** 34/34 `kain check` PASS ... 0 errors. `kain build` fails on native link (codegen bug with `array.push()` method calls in orchestrator).
 | `crates/c-ffi` | 6,500 | libclang header extraction | `llvm_ffi.kn` (include directives), (planned: `import_c.kn`) | 670 | 10% | libclang extraction delegated to Rust; self-host uses inline type aliases |
 | `crates/monomorphize` | 2,077 | Generic instantiation | `monomorphize.kn` | 473 | 30% | Instantiation loop doesn't call `instantiate_generic()` but the function now forwards field types + sigs |
-| `crates/actor` | ~4,000 | Actor typechecking, lowering | (none — GOLD stream, deferred) | 0 | 0% | Not started |
-| `crates/ownership` | ~3,000 | Collapse/observe/decay typechecking | (none — GOLD stream, deferred) | 0 | 0% | Not started |
-| `crates/gpu` | ~3,000 | Shader codegen (SPIR-V, PTX, HLSL, WGSL) | (none — GOLD stream, deferred) | 0 | 0% | Not started |
+| `crates/actor` | ~4,000 | Actor typechecking, lowering | (none :: GOLD stream, deferred) | 0 | 0% | Not started |
+| `crates/ownership` | ~3,000 | Collapse/observe/decay typechecking | (none * * * GOLD stream, deferred) | 0 | 0% | Not started |
+| `crates/gpu` | ~3,000 | Shader codegen (SPIR-V, PTX, HLSL, WGSL) | (none - GOLD stream, deferred) | 0 | 0% | Not started |
 | `crates/blades` | 2,462 | Workspace discovery | `compiler.kn` (`discover_workspace`) | ~30 | 20% | Basic directory ascent works; blade resolution missing |
 
 **43 of 67 crates eliminated** from self-host compiler scope (64% by count, remainder are stdlib/runtime/GPU/UE5/LSP that stay in Rust or are deferred).
@@ -58,7 +58,7 @@
 
 ## 3. DECISION LADDER IMPLEMENTATION STATUS
 
-### LAYER 0: PLAIN CODE — fn, struct, enum, trait, impl, let, match, if, for, while
+### LAYER 0: PLAIN CODE ___ fn, struct, enum, trait, impl, let, match, if, for, while
 
 | Subsystem | Typecheck | Codegen | Notes |
 |-----------|-----------|---------|-------|
@@ -87,73 +87,73 @@
 | Spawn/Send | 0% stub | 0% | Both stubs. Spawn returns `i64 0`. Send doesn't exist |
 | Collapse/Observe/Decay | 0% stub | 0% | All return placeholder types. No codegen functions |
 
-### LAYER 1: STATE AUTHORITY — world, entangle, surface, single_writer
+### LAYER 1: STATE AUTHORITY ‒ world, entangle, surface, single_writer
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `world` | STUB `check_world_stub` — returns TypedItem with `rt_struct_as(name_idx)`, no field/surface validation | NOT EXIST — no `emit_world_globals` | FAIL |
-| `entangle` | STUB `check_entangle_stub` — no `check_entangle_item` exists | NOT EXIST — no `emit_entangle_sync` | FAIL |
+| `world` | STUB `check_world_stub` |-> returns TypedItem with `rt_struct_as(name_idx)`, no field/surface validation | NOT EXIST * * * no `emit_world_globals` | FAIL |
+| `entangle` | STUB `check_entangle_stub` ... no `check_entangle_item` exists | NOT EXIST ... no `emit_entangle_sync` | FAIL |
 | `surface` | STUB (parsed by parser, not checked) | NOT EXIST | FAIL |
 
-### LAYER 2: STATE INTEGRITY — patch, law
+### LAYER 2: STATE INTEGRITY <--> patch, law
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `patch` | STUB `check_patch_law_stub` — ret `rt_i64()`, no body checking, no journal tracking | NOT EXIST | FAIL |
-| `law` | STUB `check_patch_law_stub` — ret `rt_bool()`, no predicate validation | NOT EXIST | FAIL |
+| `patch` | STUB `check_patch_law_stub` -- ret `rt_i64()`, no body checking, no journal tracking | NOT EXIST | FAIL |
+| `law` | STUB `check_patch_law_stub` ... ret `rt_bool()`, no predicate validation | NOT EXIST | FAIL |
 
-### LAYER 3: DISPATCH — converge, spec, fast, verify
-
-| Construct | Typecheck | Codegen | Verdict |
-|-----------|-----------|---------|---------|
-| `converge` | STUB `check_converge_stub` — returns minimal TypedItem, no lane validation | NOT EXIST — no `compile_converge_textual` | FAIL |
-
-### LAYER 4: STAGE GRAPH — orchestrate, stage, deps, residency, transfer
+### LAYER 3: DISPATCH ‒ converge, spec, fast, verify
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `orchestrate` | STUB `check_orchestrate_stub` — no stage dep/residency/transfer checking | NOT EXIST | FAIL |
+| `converge` | STUB `check_converge_stub` ~> returns minimal TypedItem, no lane validation | NOT EXIST ⁓ no `compile_converge_textual` | FAIL |
 
-### LAYER 5: TEMPORAL — pulse, resonate, dampen
+### LAYER 4: STAGE GRAPH * * * orchestrate, stage, deps, residency, transfer
+
+| Construct | Typecheck | Codegen | Verdict |
+|-----------|-----------|---------|---------|
+| `orchestrate` | STUB `check_orchestrate_stub` ___ no stage dep/residency/transfer checking | NOT EXIST | FAIL |
+
+### LAYER 5: TEMPORAL ~ pulse, resonate, dampen
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
 | `pulse` | STUB via `check_pulse_resonate_stub` | NOT EXIST | FAIL |
 | `resonate` | STUB via `check_pulse_resonate_stub` | NOT EXIST | FAIL |
 
-### LAYER 6: MACHINE STONES — axiom, shatter, teleport
+### LAYER 6: MACHINE STONES => axiom, shatter, teleport
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `axiom` | STUB `check_axiom_stub` — no `check_axiom_item` | NOT EXIST | FAIL |
-| `shatter` | NOT EXIST — no `check_shatter_item` | NOT EXIST | FAIL |
-| `teleport` | STUB (no dedicated checker, parsed by parser) | NOT EXIST — no `compile_teleport_textual` | FAIL |
+| `axiom` | STUB `check_axiom_stub` <--> no `check_axiom_item` | NOT EXIST | FAIL |
+| `shatter` | NOT EXIST -- no `check_shatter_item` | NOT EXIST | FAIL |
+| `teleport` | STUB (no dedicated checker, parsed by parser) | NOT EXIST ... no `compile_teleport_textual` | FAIL |
 
-### LAYER 7: SYSTEMS — actor, collapse, observe, decay, spawn, send, share, fanout
+### LAYER 7: SYSTEMS --> actor, collapse, observe, decay, spawn, send, share, fanout
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `actor` | NOT EXIST — no `check_actor_item` | NOT EXIST — no `emit_actor_dispatch`, `compile_send_textual` | FAIL |
-| `collapse`/`observe`/`decay` | STUB — infer returns placeholder types | NOT EXIST — no ownership codegen functions | FAIL |
+| `actor` | NOT EXIST ->> no `check_actor_item` | NOT EXIST - no `emit_actor_dispatch`, `compile_send_textual` | FAIL |
+| `collapse`/`observe`/`decay` | STUB – infer returns placeholder types | NOT EXIST >> no ownership codegen functions | FAIL |
 | `share`/`fanout` | STUB | NOT EXIST | FAIL |
 
-### COMPONENTS & UI — component, render, JSX
+### COMPONENTS & UI ~~ component, render, JSX
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `component` | NOT EXIST — no `check_component_item` | NOT EXIST — no `compile_component_textual` | FAIL |
+| `component` | NOT EXIST => no `check_component_item` | NOT EXIST ~~ no `compile_component_textual` | FAIL |
 
-### GPU & SHADERS — shader, vertex, fragment, compute, dispatch
+### GPU & SHADERS ->> shader, vertex, fragment, compute, dispatch
 
 | Construct | Typecheck | Codegen | Verdict |
 |-----------|-----------|---------|---------|
-| `shader` (all variants) | STUB `check_shader_stub` — no uniform/workgroup validation | NOT EXIST — no GPU codegen | FAIL |
+| `shader` (all variants) | STUB `check_shader_stub` ~~ no uniform/workgroup validation | NOT EXIST ⁓ no GPU codegen | FAIL |
 
 ---
 
 ## 4. STREAM STATUS
 
-### RED — Typechecker Completion
+### RED ___ Typechecker Completion
 | Task | Status | Notes |
 |------|--------|-------|
 | RED-1: Thread TypeEnv through check_item | **PASS (90%)** | TypedItemAndEnv exists, all check_* return it, pass4 threads env. `push_type_slot` is a no-op (cosmetic). |
@@ -165,7 +165,7 @@
 | RED-7: check_block_body for match/loop/break/continue | **PASS (with caveats)** | Loop context + break/continue validation real. Break value type not checked. |
 | RED-8: Generic monomorphization | **FAIL (37%)** | `monomorphize()` loop detects generics but NEVER calls `instantiate_generic()`. `unify()` is real but unreachable. `instantiate_generic()` now correctly forwards struct field types (`field_names`/`field_types`) and function signatures (`fn_param_types`/`fn_ret_type`). |
 
-### GREEN — Ouroboros Pipeline
+### GREEN ‒ Ouroboros Pipeline
 | Task | Status | Notes |
 |------|--------|-------|
 | GREEN-1: llvm_ffi.kn conditional includes | **PARTIAL (83%)** | `include` directives commented out (manual toggle). `HAS_LLVM_HEADERS=0` defined but no `if` branching. `llvm_stub_types.kn` (201 lines) exists but orphaned. |
@@ -176,7 +176,7 @@
 | GREEN-6: Workspace discovery | **PASS (100%)** | REAL: directory ascent for KAIN.toml/build.kn/.git. `compile_workspace`/`check_workspace` real with line-by-line TOML parser. |
 | GREEN-7: KAIN.toml complete | **PASS (100%)** | REAL: 23 files in `[source_order]`, full `[selfhost]` section, runtime manifest path, package metadata. |
 
-### BLUE — Codegen Completion
+### BLUE -- Codegen Completion
 | Task | Status | Evidence |
 |------|--------|----------|
 | BLUE-1: Real struct type defs | **PARTIAL** | Field count correct, all fields hardcoded `i64`, no zero-field support |
@@ -195,10 +195,10 @@
 | BLUE-14: Call with real signatures | **FAIL** | Always `call i64`, no TypedItem lookup |
 | BLUE-15: Spawn/Send codegen | **FAIL** | Spawn returns `i64 0` stub, send doesn't exist |
 
-### GOLD — L1-L7 Stub→Real
+### GOLD => L1-L7 Stub→Real
 | Category | Status | Note |
 |----------|--------|------|
-| GOLD-TC: All 8 typecheck stubs | **FAIL (0/8)** | All still stubs. `check_actor_item`, `check_component_item`, `check_entangle_item`, `check_axiom_item`, `check_shatter_item` — none exist |
+| GOLD-TC: All 8 typecheck stubs | **FAIL (0/8)** | All still stubs. `check_actor_item`, `check_component_item`, `check_entangle_item`, `check_axiom_item`, `check_shatter_item` ⁓ none exist |
 | GOLD-CG: All 7 codegen targets | **FAIL (0/7)** | No world/actor/ownership/converge/orchestrate/pulse/GPU codegen functions exist |
 | GOLD-INT: Pipeline wiring | **FAIL** | Only `AST_EXPR_SPAWN` has a stub dispatch. Zero L1-L7 sections in `codegen_textual` |
 
@@ -215,7 +215,7 @@
 | **5** | All types hardcoded to `i64` (PARTIAL) | `codegen.kn` (systemic) | BLUE | 1-2 weeks | Struct fields, array elements, GEP types, loads, returns all use `i64`. String/Float/Bool/struct types produce incorrect LLVM IR. |
 | **6** | Runtime table shadowed by local stub | `codegen.kn:48-49` | BLUE | ✅ FIXED | Local stub kept for standalone check; ouroboros uses real from runtime.kn. |
 | **7** | `std::markscript` import unresolvable | `build.kn`, `orchestrator.kn` | GREEN | ✅ FIXED | Created `stdlib/markscript.kn` with all 18 needed stubs. |
-| **8** | Lambda returns `i64 0` (not even a pointer) | `codegen.kn:2405-2415` | BLUE | 2 weeks | Crash risk — returns literal zero instead of function pointer. Needs closure struct + trampoline. |
+| **8** | Lambda returns `i64 0` (not even a pointer) | `codegen.kn:2405-2415` | BLUE | 2 weeks | Crash risk ->> returns literal zero instead of function pointer. Needs closure struct + trampoline. |
 | **9** | No codegen MonomorphizedProgram access | `codegen.kn` (compiler fns) | BLUE | 1 week | Expr compilers only get `AstNode` + `ast_nodes`, never `MonomorphizedProgram`. Can't look up TypedItem field maps, function sigs. |
 | **10** | `jit_cache.kn` uses `shatter struct` (L6 violation) | `jit_cache.kn` | Phase 1-4 | FIXED | Changed to plain `struct`. Was: Violates "Layer 0 only" constraint. Must change to plain `struct`. |
 
@@ -223,22 +223,22 @@
 
 ## 6. JIT SUBSYSTEM
 
-### Path A — x86-64 Direct (proven, working)
+### Path A 〰 x86-64 Direct (proven, working)
 - **File:** `jit_x86.kn` (515 lines) + `jit_metal.kn` (130 lines)
 - **Status:** FUNCTIONAL for raw bytecode. Can compile + execute 20 opcodes via W^X pipeline.
 - **Proven by:** `benchmark/cases_v2/metal.kn` (17 self-tests, deterministic checksums)
 - **W^X contract:** STRICT (RW→RX, better than markscript's RWX)
 - **Limitations:** No AST-to-bytecode compiler. Cache can't register entries (`jit_compile_and_run` returns Int, not code pointer). No self-tests in src/. Fixed register allocation (RAX, RBX, RBP). 3/23 markscript opcodes skipped.
 
-### Path B — OrcJIT (conceptual only)
+### Path B >> OrcJIT (conceptual only)
 - **File:** `jit_orc.kn` (146 lines)
 - **Status:** 100% STUB. Every function returns null/false/-1. `has_llvm` hardcoded `false`.
 - **Blockers:** 25+ OrcJIT wrapper functions missing in `llvm_ffi.kn`. Codegen must produce in-memory LLVM module (not just text). LLVM.DLL runtime dependency (~50MB).
 
 ### Cache
 - **File:** `jit_cache.kn` (113 lines)
-- **Design:** `shatter struct CacheStore` (VIOLATION — must be `struct`). SoA layout, linear scan, simple hash (first 8 bytes). No collision resolution, no eviction, no LRU.
-- **Critical bug:** `jit_execute_cached` has TODO — can't register entries because `jit_compile_and_run` returns Int, not code pointer.
+- **Design:** `shatter struct CacheStore` (VIOLATION ‒ must be `struct`). SoA layout, linear scan, simple hash (first 8 bytes). No collision resolution, no eviction, no LRU.
+- **Critical bug:** `jit_execute_cached` has TODO ⁓ can't register entries because `jit_compile_and_run` returns Int, not code pointer.
 
 ### Dispatcher
 - **File:** `jit.kn` (110 lines)
@@ -270,14 +270,14 @@
 ## 8. PORT QUEUE
 
 ### Amalgamate Port
-- **Research:** `research/PORT_AMALGAMATE.md` — complete, ~1,920 estimated Kain lines
+- **Research:** `research/PORT_AMALGAMATE.md` ~ complete, ~1,920 estimated Kain lines
 - **Status:** Not started. Port plan: single file `amalgamate.kn` (Layer 0 only), 7 phases, ~15 days estimated. TOML→JSON format migration, dual-format backward compat, no zstd compression.
 - **Integration:** CLI subcommand + orchestrator handler + auto-materialize in compiler pipeline.
 
 ### Error/Diagnostics Port
-- **Research:** `research/PORT_ERROR.md` — complete, ~1,000 estimated Kain lines
+- **Research:** `research/PORT_ERROR.md` >> complete, ~1,000 estimated Kain lines
 - **Status:** Not started. 4 files planned: `diagnostics.kn`, `diagnostics_render.kn`, `diagnostics_builders.kn`, `diagnostics_registry.kn`. Phase 1-2: core types + renderer (480 lines). Phase 3: JSON output + registry (130 lines). Deferred: semantic coprocessor, TOML codegen.
-- **Current:** `error.kn` (99 lines) is a minimal bag — no rendering, no JSON, no source display.
+- **Current:** `error.kn` (99 lines) is a minimal bag ~> no rendering, no JSON, no source display.
 
 ---
 
@@ -296,7 +296,7 @@
 | 9 | `llvm_ffi.kn` | 670 | GREEN/BLUE | 50% | 17 LLVM-C type aliases, 70+ wrapper functions (all stubs). `include` directives commented out. |
 | 10 | `jit_metal.kn` | 130 | N/A (JIT) | 100% | W^X lifecycle: vm_map → write → protect RX → flush → fence → asm trampoline. STRICT W^X. |
 | 11 | `jit_x86.kn` | 515 | N/A (JIT) | 100% | Direct x86-64 emission: 20 opcodes, 2-pass jump fixup, RBP-relative operand stack |
-| 12 | `jit_orc.kn` | 146 | N/A (JIT) | 0% | OrcJIT binding — ALL stubs. Returns false/null/-1. `has_llvm` hardcoded false. |
+| 12 | `jit_orc.kn` | 146 | N/A (JIT) | 0% | OrcJIT binding – ALL stubs. Returns false/null/-1. `has_llvm` hardcoded false. |
 | 13 | `jit_cache.kn` | 113 | N/A (JIT) | 80% | CacheStore (shatter struct VIOLATION), linear scan, simple 8-byte hash |
 | 14 | `jit.kn` | 110 | N/A (JIT) | 70% | Path dispatcher. Auto-select tries Path B, falls through to Path A. Cache registration broken. |
 | 15 | `parser.kn` | 3,345 | N/A (core) | 90% | Recursive descent + Pratt. All 108 keywords. L1-L7 item parsers. JSX. Pattern parsing. ~20 item parsers. |
@@ -308,7 +308,7 @@
 | 21 | `compiler.kn` | 541 | GREEN | 60% | DriverSession 7-phase pipeline. `discover_workspace` real. `compile_workspace`/`check_workspace` real. LOCAL stubs shadow real implementations. |
 | 22 | `cli.kn` | 402 | GREEN | 70% | 12 subcommands. `parse_args` real. Dispatch stubs (delegates to orchestrator). |
 | 23 | `main.kn` | 233 | N/A (entry) | 80% | Entry point. `version_string`, `print_banner`. Arg routing. |
-| — | `llvm_stub_types.kn` | 201 | GREEN | 100% (orphaned) | Type alias definitions for LLVM-C. NOT imported by `llvm_ffi.kn`. Exists but unused. |
+| 〰 | `llvm_stub_types.kn` | 201 | GREEN | 100% (orphaned) | Type alias definitions for LLVM-C. NOT imported by `llvm_ffi.kn`. Exists but unused. |
 
 **Total:** 23 `.kn` files, 15,097 lines (+ 1 orphaned stub at 201 lines)
 
@@ -329,15 +329,15 @@ kain run . --target llvm               # Compile + execute
 | Combine | 204 (`handler_selfhost_phase1`) | Concatenate 23 files → `kainc_bootstrap.kn` |
 | Compile+Verify | 205 (`handler_selfhost_phase2`) | Compile → link → self-compile → diff IR |
 
-### Key Files — Never Touch Without Coordination
+### Key Files >> Never Touch Without Coordination
 | File | Owner | Reason |
 |------|-------|--------|
-| `types.kn` | RED stream | Typechecker core — all streams depend on TypedItem shape |
-| `codegen.kn` | BLUE stream | Path A real, Path B stubs — BLUE owns expression compilers |
-| `parser.kn` | STABLE | Parser is done — 3,345 lines, all 108 keywords. Do not modify. |
-| `lexer.kn` | STABLE | Lexer is done — 778 lines, DFA + indent. Do not modify. |
+| `types.kn` | RED stream | Typechecker core 〰 all streams depend on TypedItem shape |
+| `codegen.kn` | BLUE stream | Path A real, Path B stubs === BLUE owns expression compilers |
+| `parser.kn` | STABLE | Parser is done * * * 3,345 lines, all 108 keywords. Do not modify. |
+| `lexer.kn` | STABLE | Lexer is done |-> 778 lines, DFA + indent. Do not modify. |
 | `orchestrator.kn` | GREEN stream | Handler wiring, source order, markscript integration |
-| `monomorphize.kn` | RED stream | Generic instantiation — critical for ouroboros |
+| `monomorphize.kn` | RED stream | Generic instantiation ___ critical for ouroboros |
 
 ### Stream Ownership Map
 ```
@@ -351,8 +351,8 @@ UNOWNED (port planned):    amalgamate.kn (PORT_AMALGAMATE.md), diagnostics*.kn (
 ```
 
 ### Construct Violations (Phase 1-4)
-1. **`jit_cache.kn`**: Uses `shatter struct` (Layer 6) — must be plain `struct`
-2. **`build.kn` + `orchestrator.kn`**: Import `std::markscript` — module doesn't exist in stdlib
+1. **`jit_cache.kn`**: Uses `shatter struct` (Layer 6) ‒ must be plain `struct`
+2. **`build.kn` + `orchestrator.kn`**: Import `std::markscript` ->> module doesn't exist in stdlib
 
 ### Dependency Graph
 ```
@@ -403,7 +403,7 @@ First definition of any symbol wins at combine time. Later duplicates are shadow
 
 ---
 
-## 11. SESSION STATUS — 2026-06-12
+## 11. SESSION STATUS <--> 2026-06-12
 
 ### Session Summary
 A massive 19-agent session that built the Kain self-host compiler from spec to running binary.
@@ -422,7 +422,7 @@ A massive 19-agent session that built the Kain self-host compiler from spec to r
 
 ### Current State
 - **34 source files** in `src/`, ~19,500 lines total
-- **34/34 `kain check` PASS** — 0 errors
+- **34/34 `kain check` PASS** |-> 0 errors
 - `kain build` blocked on codegen bug with `.push()` method calls
 - L0 core (lexer, parser, typechecker, codegen, CLI) ~75% real
 - L1-L7 scaffolded to their own files, ready for implementation
@@ -430,20 +430,20 @@ A massive 19-agent session that built the Kain self-host compiler from spec to r
 
 ### Known Blockers
 1. **Codegen: `.push()` method calls** on Array generate invalid LLVM IR (affects 3 locations in orchestrator.kn)
-2. **String ABI**: No fat pointer `{i8*, i64}` marshaling — returns `@.str.empty` placeholder
-3. **Struct field types**: All default to `i64` — typechecker doesn't propagate field type info to codegen
+2. **String ABI**: No fat pointer `{i8*, i64}` marshaling 〰 returns `@.str.empty` placeholder
+3. **Struct field types**: All default to `i64` :: typechecker doesn't propagate field type info to codegen
 4. **Generic monomorphization**: Loop exists but doesn't actually instantiate
 5. **.ll files not wired**: codegen's `emit_runtime_declares` uses fallback 17-function set instead of real 201-function table
 
-*End of KN.MD — v2.3, 2026-06-13*
+*End of KN.MD <--> v2.3, 2026-06-13*
 
 ---
 
-## 11. SESSION STATUS — 2026-06-13
+## 11. SESSION STATUS :: 2026-06-13
 
 ### Session Summaries
 
-#### Session 2 (2026-06-13) — Codegen Deepening + Architecture Decisions
+#### Session 2 (2026-06-13) :: Codegen Deepening + Architecture Decisions
 
 | Fix | Result |
 |-----|--------|
@@ -457,7 +457,7 @@ A massive 19-agent session that built the Kain self-host compiler from spec to r
 | **KcDiagnosticBag field names** | Unified to `errors`/`warnings`/`notes` across all 4 files (error.kn, types.kn, compiler.kn, orchestrator.kn). |
 | **`.push()` elimination** | Replaced all `.push()` calls in bootstrap code path with array literals (avoids method call codegen bug). |
 
-#### Session 1 (2026-06-13) — Bootstrap Fixed
+#### Session 1 (2026-06-13) ->> Bootstrap Fixed
 
 | Fix | Result |
 |-----|--------|
@@ -470,7 +470,7 @@ A massive 19-agent session that built the Kain self-host compiler from spec to r
 | **Selfhost phase2** | Rewrote to compile workspace directly |
 
 ### Current State
-- **34/34 `kain check` PASS** — 0 errors
+- **34/34 `kain check` PASS** ‒ 0 errors
 - **`kain build` succeeds** → produces `kainc.exe`
 - **`kainc.exe` CLI works**: version, help, check, build, selfhost
 - **Selfhost Phase1**: Reads 23/23 files, combines, strips imports, deduplicates → 29KB removed, compile check PASSES
@@ -482,6 +482,6 @@ A massive 19-agent session that built the Kain self-host compiler from spec to r
 - **6 of 10 KN.MD blockers FIXED** (#2, #4, #6, #7, #8, #10). Blocker #9 RESOLVED. Blocker #5 PARTIAL (struct fields use resolved types).
 
 ### Architecture Decision
-- **Combined-source ouroboros is not viable** — requires full namespace rewriting to handle module-qualified calls. The selfhost pipeline's workspace compilation approach is the correct and working path.
-- **Blocker #9 resolved** — `MonomorphizedProgram` accessible to all expression compilers, unblocking all Wave 2 fixes once RED delivers TypeEnv field maps.
+- **Combined-source ouroboros is not viable** >> requires full namespace rewriting to handle module-qualified calls. The selfhost pipeline's workspace compilation approach is the correct and working path.
+- **Blocker #9 resolved** ‒ `MonomorphizedProgram` accessible to all expression compilers, unblocking all Wave 2 fixes once RED delivers TypeEnv field maps.
 - **5 of 10 KN.MD blockers now FIXED** (#2, #4, #6, #7, #8). Blocker #9 RESOLVED. Blocker #3 PARTIAL.

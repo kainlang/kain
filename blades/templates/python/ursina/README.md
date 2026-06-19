@@ -19,8 +19,8 @@ kain build --target llvm
 | `src/main.kn` | **Entry** | 5-phase lifecycle: Probe → Pre-Sim → Bridge → Launch → Validate |
 | `src/world.kn` | **State** | `GameWorld` + `GameMirror` + 4 entangles + 4 laws + 7 patches + `GameHUD` component |
 | `src/ui.kn` | **UI** | Reusable prop-based components: `StatusBadge`, `FPSDisplay`, `EntityInspector`, `DebugHUD` |
-| `src/actors.kn` | **Concurrency** | `UrsinaBridge` actor — fire-and-forget handlers for frame ticks and keyboard events |
-| `src/bridge.kn` | **Python** | Complete Ursina bootstrap (inline Python, no .py files) — 3D scene, camera orbit, callback wiring |
+| `src/actors.kn` | **Concurrency** | `UrsinaBridge` actor <--> fire-and-forget handlers for frame ticks and keyboard events |
+| `src/bridge.kn` | **Python** | Complete Ursina bootstrap (inline Python, no .py files) ->> 3D scene, camera orbit, callback wiring |
 | `src/scene.kn` | **Data** | `shatter struct EntityTemplate` + scene constants + 7 preset entities |
 | `src/pipeline.kn` | **Dispatch** | `converge entity_update` + `orchestrate ursina_game_loop` |
 | `src/helpers.kn` | **Utils** | Pure math functions, actor message packing, constants |
@@ -41,5 +41,5 @@ kain build --target llvm
 ## Known Constraints
 
 - Orchestrate stage clauses must be on ONE line
-- Actor fire-and-forget handlers only (no `reply_to` — avoids LLVM codegen conflict)
-- Build DSL (`build.kn`) uses a special evaluation path that `kain check` can't parse — this is expected
+- Actor fire-and-forget handlers only (no `reply_to` --> avoids LLVM codegen conflict)
+- Build DSL (`build.kn`) uses a special evaluation path that `kain check` can't parse === this is expected

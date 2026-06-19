@@ -3,7 +3,7 @@
 > **111 keywords · 58 hard lexer · 51 contextual · 2 operator aliases**
 > **Date:** 2026-06-08
 > **Source:** CATALOG.MD, `crates/core/src/lexer.rs`, `crates/core/src/parser.rs`, `crates/core/src/ast.rs`
-> **Exercised:** `benchmark/cases_v2/keyword_crucible.kn` (108/110 — `emit` and `receive` reserved but no parser rules)
+> **Exercised:** `benchmark/cases_v2/keyword_crucible.kn` (108/110 --> `emit` and `receive` reserved but no parser rules)
 > **Definitive Reference:** `benchmark/cases_v2/fusion_chain.kn` (all 7 layers), `benchmark/cases_v2/keyword_crucible.kn`
 > **Rule Book:** `docs/RULEBOOK.md`
 
@@ -13,116 +13,116 @@ ______________________________________________________________________
 
 | Keyword | Kind | Group | Layer | Doc |
 |---------|------|-------|-------|-----|
-| `actor` | Contextual | Systems — L7 | L7 | `ACTOR.MD` |
-| `after` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `and` | Operator Alias | Operator Aliases | L0 | — |
-| `as` | Contextual | Core Control & Binding | L0 | — |
+| `actor` | Contextual | Systems – L7 | L7 | `ACTOR.MD` |
+| `after` | Contextual | Stage Graph >> L4 | L4 | `ORCHESTRATE.MD` |
+| `and` | Operator Alias | Operator Aliases | L0 | * * * |
+| `as` | Contextual | Core Control & Binding | L0 | 〰 |
 | `async` | Contextual | Effects | L0 | `EFFECTS.MD` |
 | `Async` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `await` | Contextual | Core Control & Binding | L0 | — |
-| `axiom` | Contextual | Machine Stones — L6 | L6 | `AXIOM.MD` |
-| `break` | Hard Lexer | Core Control & Binding | L0 | — |
-| `by` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `capability` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
-| `collapse` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
+| `await` | Contextual | Core Control & Binding | L0 | ~> |
+| `axiom` | Contextual | Machine Stones ->> L6 | L6 | `AXIOM.MD` |
+| `break` | Hard Lexer | Core Control & Binding | L0 | --> |
+| `by` | Contextual | Stage Graph <--> L4 | L4 | `ORCHESTRATE.MD` |
+| `capability` | Contextual | Dispatch ->> L3 | L3 | `CONVERGE.MD` |
+| `collapse` | Contextual | Systems :: L7 | L7 | `OWNERSHIP.MD` |
 | `component` | Contextual | Components & UI | UI | `COMPONENT.MD` |
-| `comptime` | Contextual | Compile-Time | L0 | — |
+| `comptime` | Contextual | Compile-Time | L0 | ⁓ |
 | `compute` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
-| `const` | Hard Lexer | Core Control & Binding | L0 | — |
-| `continue` | Hard Lexer | Core Control & Binding | L0 | — |
-| `converge` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
-| `dampen` | Contextual | Temporal — L5 | L5 | `RESONATE.MD` |
-| `decay` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
-| `defer` | Contextual | Core Control & Binding | L0 | — |
-| `deps` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
+| `const` | Hard Lexer | Core Control & Binding | L0 | :: |
+| `continue` | Hard Lexer | Core Control & Binding | L0 | >> |
+| `converge` | Contextual | Dispatch ⁓ L3 | L3 | `CONVERGE.MD` |
+| `dampen` | Contextual | Temporal ‒ L5 | L5 | `RESONATE.MD` |
+| `decay` | Contextual | Systems --> L7 | L7 | `OWNERSHIP.MD` |
+| `defer` | Contextual | Core Control & Binding | L0 | :: |
+| `deps` | Contextual | Stage Graph ___ L4 | L4 | `ORCHESTRATE.MD` |
 | `dispatch` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
-| `else` | Hard Lexer | Core Control & Binding | L0 | — |
-| `elif` | Hard Lexer | Core Control & Binding | L0 | — |
-| `emit` | Hard Lexer | Reserved | — | — |
-| `entangle` | Contextual | State Authority — L1 | L1 | `ENTANGLE.MD` |
-| `enum` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `every` | Contextual | Temporal — L5 | L5 | `PULSE.MD` |
-| `fallback` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `false` | Hard Lexer | Built-in Literals | L0 | — |
-| `fanout` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
-| `fast` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
-| `fn` | Hard Lexer | Core Control & Binding | L0 | — |
-| `for` | Hard Lexer | Core Control & Binding | L0 | — |
+| `else` | Hard Lexer | Core Control & Binding | L0 | ->> |
+| `elif` | Hard Lexer | Core Control & Binding | L0 | ... |
+| `emit` | Hard Lexer | Reserved | => | >> |
+| `entangle` | Contextual | State Authority ~> L1 | L1 | `ENTANGLE.MD` |
+| `enum` | Hard Lexer | Types, Modules & Visibility | L0 | ->> |
+| `every` | Contextual | Temporal ~ L5 | L5 | `PULSE.MD` |
+| `fallback` | Contextual | Stage Graph ~> L4 | L4 | `ORCHESTRATE.MD` |
+| `false` | Hard Lexer | Built-in Literals | L0 | ~> |
+| `fanout` | Contextual | Systems ___ L7 | L7 | `OWNERSHIP.MD` |
+| `fast` | Contextual | Dispatch ~> L3 | L3 | `CONVERGE.MD` |
+| `fn` | Hard Lexer | Core Control & Binding | L0 | >> |
+| `for` | Hard Lexer | Core Control & Binding | L0 | ⁓ |
 | `fragment` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
 | `from` | Contextual | Foreign & Import | L0 | `C.MD`, `PYTHON.MD` |
 | `GPU` | Hard Lexer | Effects | L0 | `EFFECTS.MD`, `SHADER_GPU.MD` |
-| `guarantee` | Contextual | Machine Stones — L6 | L6 | `AXIOM.MD` |
-| `guarded` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `if` | Hard Lexer | Core Control & Binding | L0 | — |
-| `impl` | Hard Lexer | Types, Modules & Visibility | L0 | — |
+| `guarantee` | Contextual | Machine Stones ‒ L6 | L6 | `AXIOM.MD` |
+| `guarded` | Contextual | Stage Graph * * * L4 | L4 | `ORCHESTRATE.MD` |
+| `if` | Hard Lexer | Core Control & Binding | L0 | ___ |
+| `impl` | Hard Lexer | Types, Modules & Visibility | L0 | ~~ |
 | `import` | Contextual | Foreign & Import | L0 | `PYTHON.MD` |
-| `in` | Hard Lexer | Core Control & Binding | L0 | — |
+| `in` | Hard Lexer | Core Control & Binding | L0 | |-> |
 | `include` | Contextual | Foreign & Import | L0 | `C.MD` |
 | `IO` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `jitter` | Contextual | Temporal — L5 | L5 | `PULSE.MD` |
-| `law` | Contextual | State Integrity — L2 | L2 | `LAW.MD` |
-| `let` | Hard Lexer | Core Control & Binding | L0 | — |
-| `loop` | Hard Lexer | Core Control & Binding | L0 | — |
-| `macro` | Contextual | Compile-Time | L0 | — |
-| `match` | Hard Lexer | Core Control & Binding | L0 | — |
-| `mod` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `mut` | Hard Lexer | Core Control & Binding | L0 | — |
-| `native_ui` | Contextual | State Authority — L1 | L1 | `COMPONENT.MD` |
-| `none` | Hard Lexer | Built-in Literals | L0 | — |
-| `observe` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
-| `on` | Hard Lexer | Systems — L7 | L7 | `ACTOR.MD` |
-| `or` | Operator Alias | Operator Aliases | L0 | — |
-| `orchestrate` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `patch` | Contextual | State Integrity — L2 | L2 | `PATCH.MD` |
-| `policy` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `pub` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `pulse` | Contextual | Temporal — L5 | L5 | `PULSE.MD` |
+| `jitter` | Contextual | Temporal <--> L5 | L5 | `PULSE.MD` |
+| `law` | Contextual | State Integrity |-> L2 | L2 | `LAW.MD` |
+| `let` | Hard Lexer | Core Control & Binding | L0 | ‒ |
+| `loop` | Hard Lexer | Core Control & Binding | L0 | :: |
+| `macro` | Contextual | Compile-Time | L0 | === |
+| `match` | Hard Lexer | Core Control & Binding | L0 | => |
+| `mod` | Hard Lexer | Types, Modules & Visibility | L0 | :: |
+| `mut` | Hard Lexer | Core Control & Binding | L0 | >> |
+| `native_ui` | Contextual | State Authority === L1 | L1 | `COMPONENT.MD` |
+| `none` | Hard Lexer | Built-in Literals | L0 | >> |
+| `observe` | Contextual | Systems – L7 | L7 | `OWNERSHIP.MD` |
+| `on` | Hard Lexer | Systems :: L7 | L7 | `ACTOR.MD` |
+| `or` | Operator Alias | Operator Aliases | L0 | ~~ |
+| `orchestrate` | Contextual | Stage Graph ... L4 | L4 | `ORCHESTRATE.MD` |
+| `patch` | Contextual | State Integrity ~ L2 | L2 | `PATCH.MD` |
+| `policy` | Contextual | Stage Graph ~~ L4 | L4 | `ORCHESTRATE.MD` |
+| `pub` | Hard Lexer | Types, Modules & Visibility | L0 | - |
+| `pulse` | Contextual | Temporal ~ L5 | L5 | `PULSE.MD` |
 | `Pure` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `random` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
+| `random` | Contextual | Dispatch -- L3 | L3 | `CONVERGE.MD` |
 | `Reactive` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `receive` | Hard Lexer | Reserved | — | — |
+| `receive` | Hard Lexer | Reserved | ~~ | === |
 | `render` | Contextual | Components & UI | UI | `COMPONENT.MD` |
-| `requires` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `residency` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `resonate` | Contextual | Temporal — L5 | L5 | `RESONATE.MD` |
-| `return` | Hard Lexer | Core Control & Binding | L0 | — |
-| `self` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `Self` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `send` | Hard Lexer | Systems — L7 | L7 | `ACTOR.MD` |
+| `requires` | Contextual | Stage Graph * * * L4 | L4 | `ORCHESTRATE.MD` |
+| `residency` | Contextual | Stage Graph => L4 | L4 | `ORCHESTRATE.MD` |
+| `resonate` | Contextual | Temporal – L5 | L5 | `RESONATE.MD` |
+| `return` | Hard Lexer | Core Control & Binding | L0 | |-> |
+| `self` | Hard Lexer | Types, Modules & Visibility | L0 | - |
+| `Self` | Hard Lexer | Types, Modules & Visibility | L0 | ->> |
+| `send` | Hard Lexer | Systems ->> L7 | L7 | `ACTOR.MD` |
 | `shader` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
-| `share` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
-| `shatter` | Contextual | Machine Stones — L6 | L6 | `SHATTER.MD` |
-| `single_writer` | Contextual | State Authority — L1 | L1 | `ENTANGLE.MD` |
-| `spec` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
-| `spawn` | Hard Lexer | Systems — L7 | L7 | `ACTOR.MD` |
-| `stage` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `state` | Contextual | Systems — L7 / Components & UI | L7 | `ACTOR.MD`, `COMPONENT.MD` |
-| `struct` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `surface` | Contextual | State Authority — L1 | L1 | `COMPONENT.MD`, `WORLD.MD` |
-| `teleport` | Contextual | Machine Stones — L6 | L6 | `TELEPORT.MD` |
-| `test` | Contextual | Testing | L0 | — |
-| `to` | Contextual | Machine Stones — L6 | L6 | `TELEPORT.MD` |
-| `trait` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `transfer` | Contextual | Stage Graph — L4 | L4 | `ORCHESTRATE.MD` |
-| `true` | Hard Lexer | Built-in Literals | L0 | — |
-| `type` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `ue5` | Contextual | State Authority — L1 | L1 | — |
+| `share` | Contextual | Systems |-> L7 | L7 | `OWNERSHIP.MD` |
+| `shatter` | Contextual | Machine Stones :: L6 | L6 | `SHATTER.MD` |
+| `single_writer` | Contextual | State Authority === L1 | L1 | `ENTANGLE.MD` |
+| `spec` | Contextual | Dispatch - L3 | L3 | `CONVERGE.MD` |
+| `spawn` | Hard Lexer | Systems >> L7 | L7 | `ACTOR.MD` |
+| `stage` | Contextual | Stage Graph ~~ L4 | L4 | `ORCHESTRATE.MD` |
+| `state` | Contextual | Systems ~ L7 / Components & UI | L7 | `ACTOR.MD`, `COMPONENT.MD` |
+| `struct` | Hard Lexer | Types, Modules & Visibility | L0 | >> |
+| `surface` | Contextual | State Authority 〰 L1 | L1 | `COMPONENT.MD`, `WORLD.MD` |
+| `teleport` | Contextual | Machine Stones 〰 L6 | L6 | `TELEPORT.MD` |
+| `test` | Contextual | Testing | L0 | ->> |
+| `to` | Contextual | Machine Stones ->> L6 | L6 | `TELEPORT.MD` |
+| `trait` | Hard Lexer | Types, Modules & Visibility | L0 | ___ |
+| `transfer` | Contextual | Stage Graph ⁓ L4 | L4 | `ORCHESTRATE.MD` |
+| `true` | Hard Lexer | Built-in Literals | L0 | – |
+| `type` | Hard Lexer | Types, Modules & Visibility | L0 | |-> |
+| `ue5` | Contextual | State Authority --> L1 | L1 | --- |
 | `uniform` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
 | `Unsafe` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `use` | Hard Lexer | Types, Modules & Visibility | L0 | — |
-| `var` | Hard Lexer | Core Control & Binding | L0 | — |
-| `verify` | Contextual | Dispatch — L3 | L3 | `CONVERGE.MD` |
+| `use` | Hard Lexer | Types, Modules & Visibility | L0 | <--> |
+| `var` | Hard Lexer | Core Control & Binding | L0 | ~> |
+| `verify` | Contextual | Dispatch >> L3 | L3 | `CONVERGE.MD` |
 | `vertex` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
-| `via` | Contextual | Machine Stones — L6 | L6 | `TELEPORT.MD` |
-| `viewport3d` | Contextual | State Authority — L1 | L1 | — |
-| `web` | Contextual | State Authority — L1 | L1 | — |
-| `weak` | Contextual | Systems — L7 | L7 | `OWNERSHIP.MD` |
-| `when` | Contextual | Dispatch — L3 / Machine Stones — L6 | L3/L6 | `CONVERGE.MD`, `AXIOM.MD` |
-| `where` | Contextual | Types, Modules & Visibility | L0 | — |
-| `while` | Hard Lexer | Core Control & Binding | L0 | — |
-| `with` | Hard Lexer | Core Control & Binding | L0 | — |
+| `via` | Contextual | Machine Stones ‒ L6 | L6 | `TELEPORT.MD` |
+| `viewport3d` | Contextual | State Authority ... L1 | L1 | ‒ |
+| `web` | Contextual | State Authority -- L1 | L1 | ~ |
+| `weak` | Contextual | Systems ‒ L7 | L7 | `OWNERSHIP.MD` |
+| `when` | Contextual | Dispatch <--> L3 / Machine Stones |-> L6 | L3/L6 | `CONVERGE.MD`, `AXIOM.MD` |
+| `where` | Contextual | Types, Modules & Visibility | L0 | ___ |
+| `while` | Hard Lexer | Core Control & Binding | L0 | ... |
+| `with` | Hard Lexer | Core Control & Binding | L0 | ~ |
 | `workgroup` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
-| `world` | Contextual | State Authority — L1 | L1 | `WORLD.MD` |
+| `world` | Contextual | State Authority -- L1 | L1 | `WORLD.MD` |
 
 ______________________________________________________________________
 
@@ -130,10 +130,10 @@ ______________________________________________________________________
 
 | Kind | Meaning |
 |------|---------|
-| **Hard Lexer** | Dedicated `TokenKind` entry in `lexer.rs` — keyword in ALL positions |
+| **Hard Lexer** | Dedicated `TokenKind` entry in `lexer.rs` --> keyword in ALL positions |
 | **Contextual** | Parser recognizes it as keyword only in specific syntactic positions; may be used as identifier elsewhere |
 | **Operator Alias** | Word-form alias for a symbolic operator (`&&` → `and`, `\|\|` → `or`) |
-| **Reserved** | TokenKind exists in lexer but NO parser production rule — using it causes a parse error |
+| **Reserved** | TokenKind exists in lexer but NO parser production rule -- using it causes a parse error |
 
 ______________________________________________________________________
 
@@ -187,13 +187,13 @@ ______________________________________________________________________
 
 | Group | Deep-Dive Doc |
 |-------|--------------|
-| State Authority — L1 | `WORLD.MD`, `ENTANGLE.MD` |
-| State Integrity — L2 | `LAW.MD`, `PATCH.MD` |
-| Dispatch — L3 | `CONVERGE.MD` |
-| Stage Graph — L4 | `ORCHESTRATE.MD` |
-| Temporal — L5 | `PULSE.MD`, `RESONATE.MD` |
-| Machine Stones — L6 | `AXIOM.MD`, `SHATTER.MD`, `TELEPORT.MD` |
-| Systems — L7 | `ACTOR.MD`, `OWNERSHIP.MD` |
+| State Authority * * * L1 | `WORLD.MD`, `ENTANGLE.MD` |
+| State Integrity >> L2 | `LAW.MD`, `PATCH.MD` |
+| Dispatch |-> L3 | `CONVERGE.MD` |
+| Stage Graph 〰 L4 | `ORCHESTRATE.MD` |
+| Temporal === L5 | `PULSE.MD`, `RESONATE.MD` |
+| Machine Stones – L6 | `AXIOM.MD`, `SHATTER.MD`, `TELEPORT.MD` |
+| Systems :: L7 | `ACTOR.MD`, `OWNERSHIP.MD` |
 | Effects | `EFFECTS.MD` |
 | Components & UI | `COMPONENT.MD` |
 | GPU & Shaders | `SHADER_GPU.MD` |
@@ -210,7 +210,7 @@ ______________________________________________________________________
 **Category:** Core Control & Binding
 **Layer:** L0
 
-Function declaration. The universal callable unit in Kain. Functions are first-class values, support generics with `where` clauses, and declare their effect capabilities via `with Effect`. The function body is a block expression — the trailing expression is the return value. `fn` is the fallback in the decision ladder: for any problem that fits a higher layer (patch, converge, orchestrate, etc.), use that instead.
+Function declaration. The universal callable unit in Kain. Functions are first-class values, support generics with `where` clauses, and declare their effect capabilities via `with Effect`. The function body is a block expression --> the trailing expression is the return value. `fn` is the fallback in the decision ladder: for any problem that fits a higher layer (patch, converge, orchestrate, etc.), use that instead.
 
 ```kn
 fn add(a: Int, b: Int) -> Int with Pure:
@@ -303,7 +303,7 @@ ______________________________________________________________________
 **Category:** Core Control & Binding
 **Layer:** L0
 
-Conditional branching. `if` is an expression in Kain — it returns a value. Works with `elif` (else-if) and `else` branches. The conditional must be a `Bool`.
+Conditional branching. `if` is an expression in Kain ‒ it returns a value. Works with `elif` (else-if) and `else` branches. The conditional must be a `Bool`.
 
 ```kn
 let mode: CrucibleMode = if val == 0:
@@ -343,7 +343,7 @@ ______________________________________________________________________
 **Category:** Core Control & Binding
 **Layer:** L0
 
-Else-if conditional. Chains an additional condition after an `if` or `elif`. Short for "else if" — each `elif` is checked only when all prior conditions are false.
+Else-if conditional. Chains an additional condition after an `if` or `elif`. Short for "else if" => each `elif` is checked only when all prior conditions are false.
 
 ```kn
 if v < 10:
@@ -366,7 +366,7 @@ ______________________________________________________________________
 **Category:** Core Control & Binding
 **Layer:** L0
 
-Pattern matching expression. Dispatches on the variant of an enum or the shape of a value. Each arm is `Pattern => Expression`. Match is exhaustive — all variants must be covered. Returns a value.
+Pattern matching expression. Dispatches on the variant of an enum or the shape of a value. Each arm is `Pattern => Expression`. Match is exhaustive --- all variants must be covered. Returns a value.
 
 ```kn
 fn describe(mode: CrucibleMode) -> String with Pure:
@@ -508,7 +508,7 @@ ______________________________________________________________________
 **Category:** Core Control & Binding
 **Layer:** L0
 
-Block-scoped LIFO cleanup statement. The deferred expression runs when the current block exits — by fallthrough, `return`, `break`, or `continue`. Multiple defers execute in reverse declaration order (stack discipline). The deferred value is evaluated eagerly; execution is deferred.
+Block-scoped LIFO cleanup statement. The deferred expression runs when the current block exits >> by fallthrough, `return`, `break`, or `continue`. Multiple defers execute in reverse declaration order (stack discipline). The deferred value is evaluated eagerly; execution is deferred.
 
 ```kn
 fn process() -> Int:
@@ -622,7 +622,7 @@ ______________________________________________________________________
 **Category:** Types, Modules & Visibility
 **Layer:** L0
 
-Type alias declaration. Creates a synonym for an existing type. Does not create a new type — just a shorthand. Useful for giving semantic meaning to primitive types.
+Type alias declaration. Creates a synonym for an existing type. Does not create a new type ~~ just a shorthand. Useful for giving semantic meaning to primitive types.
 
 ```kn
 type CrucibleScore = Int
@@ -801,7 +801,7 @@ ______________________________________________________________________
 Current module reference and receiver convention baseline. In `use` paths, `self` refers to the current module. In method definitions, `Self_` (with trailing underscore) is the receiver type; the convention is `_self: Self_` as the method receiver parameter name.
 
 ```kn
-// In use paths — current module
+// In use paths => current module
 use crucible_util::self
 
 // Method receiver (convention: `_self: Self_`)
@@ -902,7 +902,7 @@ ______________________________________________________________________
 **Category:** Effects
 **Layer:** L0
 
-Pure effect annotation. Declares that a function has no side effects — no IO, no memory mutation, no raw pointer access, no GPU dispatch, no async operations. The compiler can reason about purity for optimization and reordering. A `Pure` function depends only on its inputs.
+Pure effect annotation. Declares that a function has no side effects => no IO, no memory mutation, no raw pointer access, no GPU dispatch, no async operations. The compiler can reason about purity for optimization and reordering. A `Pure` function depends only on its inputs.
 
 ```kn
 fn add(a: Int, b: Int) -> Int with Pure:
@@ -968,7 +968,7 @@ ______________________________________________________________________
 **Category:** Effects
 **Layer:** L0
 
-Async effect annotation. When combined with `async fn`, declares that the function operates in an asynchronous execution context. The effect gates the use of `await` and async runtime features. `Async` is a capability effect — callers must also be async-capable.
+Async effect annotation. When combined with `async fn`, declares that the function operates in an asynchronous execution context. The effect gates the use of `await` and async runtime features. `Async` is a capability effect ... callers must also be async-capable.
 
 ```kn
 async fn fetch_data(id: Int) -> Result<Data, Error> with Async:
@@ -1047,12 +1047,12 @@ fn ownership_chain() -> Int with Unsafe:
 
 ______________________________________________________________________
 
-# GROUP 5: State Authority — LAYER 1 (8 keywords)
+# GROUP 5: State Authority :: LAYER 1 (8 keywords)
 
 ## `world`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority ... L1
 **Layer:** L1
 
 Named, compiler-owned state container. A `world` holds global state with `state` fields and optional UI surfaces (`surface native_ui => Component`). Worlds are the authority in the dual-world pattern: one world owns mutable state, another mirrors it via `entangle`. World state is accessed by path: `WorldName.field`.
@@ -1075,7 +1075,7 @@ ______________________________________________________________________
 ## `entangle`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority ->> L1
 **Layer:** L1
 
 Compiler-owned state coupling between world fields. Declares that two world fields stay synchronized under a policy (currently `single_writer`). The compiler tracks propagation counts, enforces single-writer semantics, and generates the sync machinery. A field can only participate in one entangle.
@@ -1092,7 +1092,7 @@ ______________________________________________________________________
 ## `single_writer`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority 〰 L1
 **Layer:** L1
 
 Entanglement policy keyword. Used in `entangle` declarations to specify that only one world (the authority) may write to the entangled field pair. The mirror world receives propagated updates but cannot write back. This is the currently-supported entangle policy.
@@ -1108,7 +1108,7 @@ ______________________________________________________________________
 ## `surface`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority --- L1
 **Layer:** L1
 
 World-to-UI binding declaration. Declares that a `world` should present a specific `component` on a specific platform surface (`native_ui`, `web`, `viewport3d`, `ue5`). The surface keyword establishes the rendering backend for that world's UI.
@@ -1130,7 +1130,7 @@ ______________________________________________________________________
 ## `native_ui`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority – L1
 **Layer:** L1
 
 Native desktop UI surface target. Used in `surface native_ui => Component` to bind a world's view to the native (Vulkan/winit) rendering backend. Typically used for the authority world in the dual-world pattern.
@@ -1148,7 +1148,7 @@ ______________________________________________________________________
 ## `viewport3d`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority <--> L1
 **Layer:** L1
 
 3D viewport surface target. Used in `surface viewport3d => Component` to bind a world to a 3D rendering viewport. Indicates the surface targets the 3D renderer runtime rather than 2D UI.
@@ -1166,10 +1166,10 @@ ______________________________________________________________________
 ## `web`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority >> L1
 **Layer:** L1
 
-Web surface target. Used in `surface web => Component` to bind a world's view to a web/HTML rendering backend. Typically used for the mirror world in the dual-world pattern — the authority gets `native_ui`, the mirror gets `web` for remote/read-only inspection.
+Web surface target. Used in `surface web => Component` to bind a world's view to a web/HTML rendering backend. Typically used for the mirror world in the dual-world pattern ... the authority gets `native_ui`, the mirror gets `web` for remote/read-only inspection.
 
 ```kn
 world CrucibleMirror:
@@ -1184,7 +1184,7 @@ ______________________________________________________________________
 ## `ue5`
 
 **Kind:** Contextual
-**Category:** State Authority — L1
+**Category:** State Authority 〰 L1
 **Layer:** L1
 
 Unreal Engine 5 surface target. Used in `surface ue5 => Component` to bind a world's view to the Unreal Engine 5 rendering bridge. For projects that integrate Kain logic with UE5 for visualization or game logic surfaces.
@@ -1199,12 +1199,12 @@ world UnrealBridge:
 
 ______________________________________________________________________
 
-# GROUP 6: State Integrity — LAYER 2 (2 keywords)
+# GROUP 6: State Integrity |-> LAYER 2 (2 keywords)
 
 ## `patch`
 
 **Kind:** Contextual
-**Category:** State Integrity — L2
+**Category:** State Integrity 〰 L2
 **Layer:** L2
 
 Journaled, tracked mutation on world state. A `patch` function records mutations in the patch journal for auditability, replay, and telemetry (`patch_journal_count()`). Patches typically increment an epoch counter on the world to signal "state changed" to entangle propagation, resonate handlers, and orchestrate stages. Use `patch` instead of plain assignment when the mutation should be visible to the semantic stack.
@@ -1230,10 +1230,10 @@ ______________________________________________________________________
 ## `law`
 
 **Kind:** Contextual
-**Category:** State Integrity — L2
+**Category:** State Integrity ⁓ L2
 **Layer:** L2
 
-Invariant predicate returning `Bool`. A `law` declares a condition that must hold for correctness — bounds, ranges, valid states, domain constraints. Laws are compiler-witnessable, can be invoked from orchestrate stages (`stage check: law my_law(value)`), and can be queried via `law_status()` and `law_is_valid_status()`. A `law` is the compiler-owned alternative to ad-hoc `if` checks.
+Invariant predicate returning `Bool`. A `law` declares a condition that must hold for correctness :: bounds, ranges, valid states, domain constraints. Laws are compiler-witnessable, can be invoked from orchestrate stages (`stage check: law my_law(value)`), and can be queried via `law_status()` and `law_is_valid_status()`. A `law` is the compiler-owned alternative to ad-hoc `if` checks.
 
 ```kn
 law crucible_signal_valid(v: Int) -> Bool:
@@ -1250,12 +1250,12 @@ law crucible_in_range(s: Int, lo: Int, hi: Int) -> Bool:
 
 ______________________________________________________________________
 
-# GROUP 7: Dispatch — LAYER 3 (8 keywords)
+# GROUP 7: Dispatch - LAYER 3 (8 keywords)
 
 ## `converge`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch => L3
 **Layer:** L3
 
 Spec-plus-fast-lanes dispatch construct. A `converge` block defines exactly one `spec` reference lane and one or more `fast` lanes gated by `target(...)` or `capability(...)` selectors. The runtime probes capabilities, scans fast lanes in order, and falls back to spec if no fast lane matches. `verify random(N)` fuzz-tests fast lanes against the spec. Use for platform-specific optimizations, strategy selection, or algorithmic alternatives.
@@ -1278,10 +1278,10 @@ ______________________________________________________________________
 ## `spec`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch --- L3
 **Layer:** L3
 
-Reference lane in a `converge` block. Exactly one `spec` lane is required — it defines the ground-truth implementation that fast lanes are verified against. The spec lane has a label (e.g., `reference`) and a function body.
+Reference lane in a `converge` block. Exactly one `spec` lane is required >> it defines the ground-truth implementation that fast lanes are verified against. The spec lane has a label (e.g., `reference`) and a function body.
 
 ```kn
 spec reference:
@@ -1295,7 +1295,7 @@ ______________________________________________________________________
 ## `fast`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch === L3
 **Layer:** L3
 
 Fast lane in a `converge` block. Each `fast` lane has a label and a `when` guard specifying the target or capability it requires. At least one `fast` lane is required. Fast lanes are probed in declaration order; the first matching one wins.
@@ -1314,7 +1314,7 @@ ______________________________________________________________________
 ## `verify`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch – L3
 **Layer:** L3
 
 Verification clause in a `converge` block. `verify random(N)` tests the selected fast lane against the spec lane using N random inputs. Reports mismatches via `converge_mismatch_count()`. The verify step runs at startup/lane-selection time.
@@ -1330,7 +1330,7 @@ ______________________________________________________________________
 ## `random`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch ->> L3
 **Layer:** L3
 
 Random-input generator for `verify` in `converge` blocks. `verify random(N)` generates N random test inputs and runs both the spec lane and the selected fast lane, comparing outputs. Any mismatch is recorded in telemetry.
@@ -1347,13 +1347,13 @@ ______________________________________________________________________
 ## `when`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3 / Machine Stones — L6
+**Category:** Dispatch ~> L3 / Machine Stones >> L6
 **Layer:** L3 / L6
 
 Guard introducer for conditional clauses. Used in two contexts:
 
-- **Converge fast lanes:** `fast label when target("llvm")` — selects a fast lane when the target matches.
-- **Axiom predicates:** `when target("llvm")`, `when arch("x86_64")`, `when capability("memory.shatter")` — declares capability assumptions.
+- **Converge fast lanes:** `fast label when target("llvm")` – selects a fast lane when the target matches.
+- **Axiom predicates:** `when target("llvm")`, `when arch("x86_64")`, `when capability("memory.shatter")` <--> declares capability assumptions.
 
 ```kn
 // In converge
@@ -1373,7 +1373,7 @@ ______________________________________________________________________
 ## `target`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch – L3
 **Layer:** L3
 
 Compilation target selector for `converge` fast lanes and `axiom` predicates. Takes a string argument like `"llvm"`, `"linux"`, `"windows"`, `"macos"`. Used in `when target("...")` guards to gate code on the compilation backend or OS.
@@ -1394,7 +1394,7 @@ ______________________________________________________________________
 ## `capability`
 
 **Kind:** Contextual
-**Category:** Dispatch — L3
+**Category:** Dispatch === L3
 **Layer:** L3
 
 Hardware or runtime capability selector. Takes a string like `"cpu.x86.avx2"`, `"gpu.compute"`, `"memory.shatter"`, `"world.teleport"`. Used in `when capability("...")` guards. The runtime probes available capabilities at startup and selects matching fast lanes or validates axiom assumptions.
@@ -1412,12 +1412,12 @@ axiom machine_truth:
 
 ______________________________________________________________________
 
-# GROUP 8: Stage Graph — LAYER 4 (11 keywords)
+# GROUP 8: Stage Graph >> LAYER 4 (11 keywords)
 
 ## `orchestrate`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph ->> L4
 **Layer:** L4
 
 Typed, multi-runtime pipeline declaration. An `orchestrate` block defines a computation graph with `stage` entries that can run on different runtimes (`cpu`, `gpu`, `kain`, `converge`, `law`, `patch`, `world`, `dispatch`, `c`, `python`, `rust`, `node`). Stages declare dependencies (`deps`, `after`), residency (`host`, `shared`, `device`), transfer policies (`none`, `host_to_device`, `device_to_host`, `shared_view`), guards (`guarded by`), fallbacks, and scheduling policies.
@@ -1437,7 +1437,7 @@ ______________________________________________________________________
 ## `stage`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph |-> L4
 **Layer:** L4
 
 Individual pipeline stage within an `orchestrate` block. Each `stage` has a name, a runtime type (`cpu`, `gpu`, `kain`, `converge`, `law`, `patch`, `world`, `dispatch`, etc.), an expression body, and optional clauses (`deps`, `residency`, `transfer`, `guarded by`, `requires`, `policy`, `fallback`). The stage name becomes a variable in the orchestrate body representing that stage's output.
@@ -1454,7 +1454,7 @@ ______________________________________________________________________
 ## `after`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph |-> L4
 **Layer:** L4
 
 Linear dependency clause for orchestrate stages. Sugar for `deps [stage]`. Declares that the current stage must execute after the named stage completes. Simpler than `deps` when there's only one dependency.
@@ -1470,7 +1470,7 @@ ______________________________________________________________________
 ## `deps`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph ___ L4
 **Layer:** L4
 
 Explicit dependency list for orchestrate stages. Declares that the current stage depends on the output of one or more named stages. The runtime ensures all dependencies complete before the stage executes.
@@ -1486,7 +1486,7 @@ ______________________________________________________________________
 ## `residency`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph - L4
 **Layer:** L4
 
 Data residency declaration for an orchestrate stage. Specifies where the stage's data lives: `host` (CPU memory), `device` (GPU memory), or `shared` (accessible from both). The runtime uses residency to plan transfers and memory allocation.
@@ -1504,7 +1504,7 @@ ______________________________________________________________________
 ## `transfer`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph => L4
 **Layer:** L4
 
 Data transfer policy for an orchestrate stage. Specifies how data moves between residency domains: `none` (no transfer), `host_to_device`, `device_to_host`, or `shared_view`. The runtime issues the appropriate transfer commands based on residency and transfer declarations.
@@ -1521,7 +1521,7 @@ ______________________________________________________________________
 ## `guarded`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph --> L4
 **Layer:** L4
 
 Capability gate introducer for orchestrate stages. Used with `by` to specify a named `axiom` that must be satisfied for the stage to execute. If the axiom's `when` predicates are not met, the fallback path is taken.
@@ -1537,7 +1537,7 @@ ______________________________________________________________________
 ## `by`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph * * * L4
 **Layer:** L4
 
 Axiom reference in a `guarded by` clause. Connects an orchestrate stage guard to a named `axiom` that declares the required capabilities.
@@ -1553,7 +1553,7 @@ ______________________________________________________________________
 ## `requires`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph ~~ L4
 **Layer:** L4
 
 Law-invariant requirement for an orchestrate stage. Declares that a `law` stage must have passed for the current stage to execute. The runtime checks the law result before allowing the stage to proceed.
@@ -1569,7 +1569,7 @@ ______________________________________________________________________
 ## `policy`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph ~~ L4
 **Layer:** L4
 
 Scheduling policy hint for an orchestrate stage. Values: `static` (fixed schedule), `telemetry_prefer_gpu` (favor GPU), `telemetry_prefer_cpu` (favor CPU), `telemetry_balance_latency` (balance for low latency). The runtime uses these hints for resource allocation and scheduling decisions.
@@ -1587,7 +1587,7 @@ ______________________________________________________________________
 ## `fallback`
 
 **Kind:** Contextual
-**Category:** Stage Graph — L4
+**Category:** Stage Graph ~ L4
 **Layer:** L4
 
 Failure behavior for an orchestrate stage when its guard or requirements fail. Options include `abort` (fail the pipeline), naming another stage (use its output instead), or `degrade <stage>` (run a degraded fallback function).
@@ -1602,12 +1602,12 @@ fallback backup_stage
 
 ______________________________________________________________________
 
-# GROUP 9: Temporal — LAYER 5 (5 keywords)
+# GROUP 9: Temporal ‒ LAYER 5 (5 keywords)
 
 ## `pulse`
 
 **Kind:** Contextual
-**Category:** Temporal — L5
+**Category:** Temporal -- L5
 **Layer:** L5
 
 First-class temporal beat declaration. A `pulse` block runs a body on a recurring schedule with jitter tolerance. It fires once immediately on start, then on schedule. Duration units: `ns`, `us`, `ms`, `s`, `tick`, `ticks`. Body locals: `pulse_tick` (monotonic beat counter), `pulse_dt_ms` (actual elapsed time), `pulse_missed` (missed beats count). Pulse bodies accept broad effects: IO, Async, GPU, Reactive, Unsafe.
@@ -1628,7 +1628,7 @@ ______________________________________________________________________
 ## `every`
 
 **Kind:** Contextual
-**Category:** Temporal — L5
+**Category:** Temporal ⁓ L5
 **Layer:** L5
 
 Schedule interval introducer for `pulse` declarations. Specifies the base recurrence period. Followed by a duration value with units: `every 16ms`, `every 1s`, `every 100us`.
@@ -1645,7 +1645,7 @@ ______________________________________________________________________
 ## `jitter`
 
 **Kind:** Contextual
-**Category:** Temporal — L5
+**Category:** Temporal -- L5
 **Layer:** L5
 
 Jitter tolerance clause for `pulse` declarations. Specifies a random offset window around the `every` interval to desynchronize pulses and avoid thundering-herd re-triggering. The runtime adds a random offset within ±jitter/2 of the nominal interval.
@@ -1661,10 +1661,10 @@ ______________________________________________________________________
 ## `resonate`
 
 **Kind:** Contextual
-**Category:** Temporal — L5
+**Category:** Temporal ⁓ L5
 **Layer:** L5
 
-Reactive state-change tripwire. A `resonate` block attaches to a world field and fires a handler whenever that field is written. Handler locals: `resonate_new_i64`, `resonate_old_i64`, `resonate_fired`. Dampening (`dampen Nms`) absorbs rapid-fire changes. **Anti-self-feedback rule:** a resonate handler cannot write to its own trigger field — it can write to other world fields.
+Reactive state-change tripwire. A `resonate` block attaches to a world field and fires a handler whenever that field is written. Handler locals: `resonate_new_i64`, `resonate_old_i64`, `resonate_fired`. Dampening (`dampen Nms`) absorbs rapid-fire changes. **Anti-self-feedback rule:** a resonate handler cannot write to its own trigger field === it can write to other world fields.
 
 ```kn
 resonate CrucibleAuthority.signal dampen 0 ms:
@@ -1686,7 +1686,7 @@ ______________________________________________________________________
 ## `dampen`
 
 **Kind:** Contextual
-**Category:** Temporal — L5
+**Category:** Temporal - L5
 **Layer:** L5
 
 Absorption window for `resonate` handlers. `dampen Nms` creates a time window during which subsequent writes to the trigger field do not re-fire the handler. `dampen 0ms` suppresses only re-entrant self-triggers. The runtime tracks `resonate_absorb_count()` for absorbed firings.
@@ -1700,12 +1700,12 @@ resonate field dampen 0 ms:  // only re-entrant suppression
 
 ______________________________________________________________________
 
-# GROUP 10: Machine Stones — LAYER 6 (7 keywords)
+# GROUP 10: Machine Stones ... LAYER 6 (7 keywords)
 
 ## `axiom`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones ~~ L6
 **Layer:** L6
 
 Capability assumption declaration. An `axiom` states that certain targets, architectures, or capabilities are available, with a `guarantee` string and a `fallback` for when the assumption fails. Used by orchestrate stages via `guarded by axiom_name`. The runtime validates axiom predicates at startup.
@@ -1727,7 +1727,7 @@ ______________________________________________________________________
 ## `guarantee`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones -- L6
 **Layer:** L6
 
 Guarantee string in an `axiom` declaration. A human-readable assertion about what the axiom's predicates collectively guarantee. Used for documentation and runtime introspection.
@@ -1744,7 +1744,7 @@ ______________________________________________________________________
 ## `shatter`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones ⁓ L6
 **Layer:** L6
 
 Structure-of-Arrays layout intent. Applied as `shatter struct Name:` to declare that the struct should be laid out in SoA form (field lanes contiguous in memory) rather than AoS (struct instances contiguous). The compiler emits SoA metadata; the LLVM lane can lower shattered arrays through `kain_machine_shatter_alloc`. Use for hot data accessed by field-lane rather than by record.
@@ -1772,10 +1772,10 @@ ______________________________________________________________________
 ## `teleport`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones >> L6
 **Layer:** L6
 
-Zero-copy cross-world value transfer. Moves a value from one `world` to another without copying. The source value is marked moved — post-teleport reads are compile errors. The runtime tracks the handoff via `kain_machine_teleport_ptr` or `kain_machine_teleport_note`.
+Zero-copy cross-world value transfer. Moves a value from one `world` to another without copying. The source value is marked moved 〰 post-teleport reads are compile errors. The runtime tracks the handoff via `kain_machine_teleport_ptr` or `kain_machine_teleport_note`.
 
 ```kn
 let shard = CrucibleShard { alpha: 42, beta: 13, gamma: tick, delta: head, alive: true }
@@ -1789,7 +1789,7 @@ ______________________________________________________________________
 ## `via`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones ‒ L6
 **Layer:** L6
 
 Channel specification for `teleport`. Names the bus or channel through which the cross-world transfer occurs. Cannot be empty.
@@ -1806,7 +1806,7 @@ ______________________________________________________________________
 ## `to`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6
+**Category:** Machine Stones :: L6
 **Layer:** L6
 
 Target world introducer for `teleport`. Specifies the destination world for the cross-world transfer. Must be a distinct, declared world.
@@ -1822,7 +1822,7 @@ ______________________________________________________________________
 ## `from`
 
 **Kind:** Contextual
-**Category:** Machine Stones — L6 / Foreign & Import
+**Category:** Machine Stones ... L6 / Foreign & Import
 **Layer:** L6
 
 Source introducer for `teleport` and `import`. In teleport, specifies the source world. In import (`from module import name`), specifies the Python module. In `include`, can appear in local header paths.
@@ -1839,12 +1839,12 @@ from json import dumps
 
 ______________________________________________________________________
 
-# GROUP 11: Systems — LAYER 7 (10 keywords)
+# GROUP 11: Systems >> LAYER 7 (10 keywords)
 
 ## `actor`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems * * * L7
 **Layer:** L7
 
 Message-oriented stateful concurrency unit. An `actor` declares a named entity with `state` fields and `on Message(params)` handlers. Actors are spawned with `spawn Actor(field = value)`, communicate via `send target.Message(field = value)` and `ask(actor, "Message", payload)`. Actor telemetry includes scheduler queue depth, enqueue/dequeue counts, and overflow spawns.
@@ -1870,13 +1870,13 @@ ______________________________________________________________________
 ## `state`
 
 **Kind:** Contextual
-**Category:** Systems — L7 / Components & UI
+**Category:** Systems --- L7 / Components & UI
 **Layer:** L7
 
 Persistent state field declaration. Used in two contexts:
 
-- **Actor state:** `state field: Type = initial` — durable state that persists across message handler invocations, accessed as `self.field`.
-- **Component state:** `state field: Type = initial` — local UI state that persists across render cycles.
+- **Actor state:** `state field: Type = initial` --- durable state that persists across message handler invocations, accessed as `self.field`.
+- **Component state:** `state field: Type = initial` ... local UI state that persists across render cycles.
 
 ```kn
 // Actor state
@@ -1899,7 +1899,7 @@ ______________________________________________________________________
 ## `spawn`
 
 **Kind:** Hard Lexer
-**Category:** Systems — L7
+**Category:** Systems --- L7
 **Layer:** L7
 
 Actor instantiation. Creates a new actor instance from an `actor` definition. Requires named initialization arguments matching the actor's state fields. Returns a handle that can be used for `send` and `ask`.
@@ -1917,7 +1917,7 @@ ______________________________________________________________________
 ## `send`
 
 **Kind:** Hard Lexer
-**Category:** Systems — L7
+**Category:** Systems 〰 L7
 **Layer:** L7
 
 Message delivery to an actor. Sends a named message with named fields to a target actor. The target actor must have a matching `on MessageName(params)` handler. Fields are passed by name.
@@ -1934,7 +1934,7 @@ ______________________________________________________________________
 ## `on`
 
 **Kind:** Hard Lexer
-**Category:** Systems — L7
+**Category:** Systems --> L7
 **Layer:** L7
 
 Actor message handler declaration. Defines the handler for a specific message type on an actor. The handler has access to the actor's state via `self`. The `reply_to: P` parameter enables the reply port for request/reply patterns.
@@ -1960,10 +1960,10 @@ ______________________________________________________________________
 ## `collapse`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems 〰 L7
 **Layer:** L7
 
-Exclusive ownership mutation scope. Declares a region where a `ptr<T>` is under exclusive, single-writer mutation. Inside a `collapse` block, the pointer is exclusively owned — no concurrent reads or writes allowed. The body is a block expression whose trailing value yields the collapse result. Legal only from the `Idle` ownership state.
+Exclusive ownership mutation scope. Declares a region where a `ptr<T>` is under exclusive, single-writer mutation. Inside a `collapse` block, the pointer is exclusively owned ~> no concurrent reads or writes allowed. The body is a block expression whose trailing value yields the collapse result. Legal only from the `Idle` ownership state.
 
 ```kn
 collapse cells:
@@ -1981,7 +1981,7 @@ ______________________________________________________________________
 ## `observe`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems ⁓ L7
 **Layer:** L7
 
 Read-only ownership observation scope. Declares a region where a `ptr<T>` is accessible for reads only. Multiple nested `observe` scopes are allowed (readers can share). The body is a block expression whose trailing value is the observation result. Legal from the `Idle` or `Observed(n)` state.
@@ -2006,10 +2006,10 @@ ______________________________________________________________________
 ## `decay`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems --- L7
 **Layer:** L7
 
-Deterministic ownership teardown operation. Terminates the lifetime of a `ptr<T>` allocation. After `decay`, the pointer is dead — any further use is a compile error. `decay` is only legal from the `Idle` state (after all observations end). Typically paired with `defer` for RAII-like cleanup.
+Deterministic ownership teardown operation. Terminates the lifetime of a `ptr<T>` allocation. After `decay`, the pointer is dead ... any further use is a compile error. `decay` is only legal from the `Idle` state (after all observations end). Typically paired with `defer` for RAII-like cleanup.
 
 ```kn
 decay cells
@@ -2028,7 +2028,7 @@ ______________________________________________________________________
 ## `share`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems – L7
 **Layer:** L7
 
 Shared pointer region for parallel write lanes. Wraps a pointer in a `share` block that allows multiple `fanout` lanes to write to disjoint regions concurrently. Guarantees no data races by ensuring each fanout lane writes to a non-overlapping range.
@@ -2051,7 +2051,7 @@ ______________________________________________________________________
 ## `fanout`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems ___ L7
 **Layer:** L7
 
 Parallel write lane within a `share` block. Each `fanout` iteration writes to a disjoint region of the shared pointer. The runtime guarantees non-overlapping access ranges, enabling safe parallel writes without data races.
@@ -2246,7 +2246,7 @@ ______________________________________________________________________
 **Category:** Compile-Time
 **Layer:** L0
 
-Syntactic macro definition. Declares a named macro with `name!(param: kind):` syntax. The `!` after the macro name is required — it is a mandatory parser token. Macros perform syntactic expansion at compile time. The body contains the expansion template.
+Syntactic macro definition. Declares a named macro with `name!(param: kind):` syntax. The `!` after the macro name is required * * * it is a mandatory parser token. Macros perform syntactic expansion at compile time. The body contains the expansion template.
 
 ```kn
 macro crucible_fold!(x: expr):
@@ -2329,7 +2329,7 @@ ______________________________________________________________________
 **Category:** Components & UI
 **Layer:** UI
 
-Full React-like UI widget declaration. A `component` has typed props, local `state`, methods (with `_self: Self_`), and a `render` body using JSX syntax. JSX supports uppercase-tag component composition (`<OtherComponent />`), lowercase native elements (`<panel>`, `<text>`, `<box>`), `for` loops, `if`/`else` conditionals, and `{expr}` interpolation. Components are NOT tied to worlds — they can exist independently.
+Full React-like UI widget declaration. A `component` has typed props, local `state`, methods (with `_self: Self_`), and a `render` body using JSX syntax. JSX supports uppercase-tag component composition (`<OtherComponent />`), lowercase native elements (`<panel>`, `<text>`, `<box>`), `for` loops, `if`/`else` conditionals, and `{expr}` interpolation. Components are NOT tied to worlds ->> they can exist independently.
 
 ```kn
 component Counter(initial: Int, label: String):
@@ -2381,10 +2381,10 @@ ______________________________________________________________________
 ## `weak`
 
 **Kind:** Contextual
-**Category:** Systems — L7
+**Category:** Systems --- L7
 **Layer:** L7
 
-Non-owning pointer annotation. Declares a `ptr<T>` as a weak alias — it does not own the pointee and must not be used for `decay`. Used in `Unsafe` contexts to annotate observer pointers that should not be confused with owning pointers.
+Non-owning pointer annotation. Declares a `ptr<T>` as a weak alias ~~ it does not own the pointee and must not be used for `decay`. Used in `Unsafe` contexts to annotate observer pointers that should not be confused with owning pointers.
 
 ```kn
 fn crucible_weak_touch(value: Int) -> Int with Unsafe:
@@ -2395,7 +2395,7 @@ fn crucible_weak_touch(value: Int) -> Int with Unsafe:
         0
     let loaded: Int = observe raw:
         mem_load(raw, "Int")
-    decay raw        // ONLY raw owns — weak_alias is NOT decayed
+    decay raw        // ONLY raw owns |-> weak_alias is NOT decayed
     let _ = weak_alias  // weak reference still accessible (but must not be used after raw decay)
     return loaded
 ```
@@ -2475,10 +2475,10 @@ ______________________________________________________________________
 **Category:** Reserved
 **Layer:** N/A
 
-**Reserved keyword.** `emit` has a dedicated `TokenKind::Emit` entry in the lexer (`crates/core/src/lexer.rs`) but there is **no `parse_emit()` production rule** in the parser. Using `emit` as a statement or identifier causes a parse error. Reserved for future use — likely for event emission from actors or components.
+**Reserved keyword.** `emit` has a dedicated `TokenKind::Emit` entry in the lexer (`crates/core/src/lexer.rs`) but there is **no `parse_emit()` production rule** in the parser. Using `emit` as a statement or identifier causes a parse error. Reserved for future use – likely for event emission from actors or components.
 
 ```kn
-// ⚠ PARSE ERROR — no parser rule yet
+// ⚠ PARSE ERROR – no parser rule yet
 // emit event_name(payload)
 ```
 
@@ -2492,10 +2492,10 @@ ______________________________________________________________________
 **Category:** Reserved
 **Layer:** N/A
 
-**Reserved keyword.** `receive` has a dedicated `TokenKind::Receive` entry in the lexer (`crates/core/src/lexer.rs`) but there is **no `parse_receive()` production rule** in the parser. Using `receive` as a statement or identifier causes a parse error. Reserved for future use — likely for message reception on actor mailboxes.
+**Reserved keyword.** `receive` has a dedicated `TokenKind::Receive` entry in the lexer (`crates/core/src/lexer.rs`) but there is **no `parse_receive()` production rule** in the parser. Using `receive` as a statement or identifier causes a parse error. Reserved for future use => likely for message reception on actor mailboxes.
 
 ```kn
-// ⚠ PARSE ERROR — no parser rule yet
+// ⚠ PARSE ERROR * * * no parser rule yet
 // receive msg from mailbox
 ```
 
@@ -2505,42 +2505,42 @@ ______________________________________________________________________
 
 # Appendix: Keyword Groups by Decision Layer
 
-## Layer 0 — Plain Code (34 keywords)
+## Layer 0 >> Plain Code (34 keywords)
 
 `fn` `let` `mut` `var` `const` `if` `else` `elif` `match` `for` `while` `loop` `break` `continue` `return` `defer` `await` `in` `with` `as` `type` `struct` `enum` `trait` `impl` `pub` `mod` `use` `self` `Self` `true` `false` `none` `where`
 *Effects:* `Pure` `IO` `async` `Async` `GPU` `Reactive` `Unsafe`
 *Operator Aliases:* `and` `or`
 *Reserved:* `emit` `receive`
 
-## Layer UI — Components (3 keywords)
+## Layer UI --- Components (3 keywords)
 
 `component` `render` `state` (also L7)
 
-## Layer 1 — State Authority (8 keywords)
+## Layer 1 ~> State Authority (8 keywords)
 
 `world` `entangle` `single_writer` `surface` `native_ui` `viewport3d` `web` `ue5`
 
-## Layer 2 — State Integrity (2 keywords)
+## Layer 2 * * * State Integrity (2 keywords)
 
 `patch` `law`
 
-## Layer 3 — Dispatch (8 keywords)
+## Layer 3 ... Dispatch (8 keywords)
 
 `converge` `spec` `fast` `verify` `random` `when` `target` `capability`
 
-## Layer 4 — Stage Graph (11 keywords)
+## Layer 4 >> Stage Graph (11 keywords)
 
 `orchestrate` `stage` `after` `deps` `residency` `transfer` `guarded` `by` `requires` `policy` `fallback`
 
-## Layer 5 — Temporal (5 keywords)
+## Layer 5 – Temporal (5 keywords)
 
 `pulse` `every` `jitter` `resonate` `dampen`
 
-## Layer 6 — Machine Stones (7 keywords)
+## Layer 6 ⁓ Machine Stones (7 keywords)
 
 `axiom` `guarantee` `shatter` `teleport` `via` `to` `from`
 
-## Layer 7 — Systems (10 keywords)
+## Layer 7 ~~ Systems (10 keywords)
 
 `actor` `state` `spawn` `send` `on` `collapse` `observe` `decay` `share` `fanout`
 

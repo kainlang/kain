@@ -1,6 +1,6 @@
-# three-kn — A Kain-Native 3D Rendering Engine
+# three-kn ~~ A Kain-Native 3D Rendering Engine
 
-**three-kn** is a portable, pure-Kain reimagining of [Three.js](https://threejs.org/) — the popular 3D library for the browser — rewritten from the ground up using Kain's full semantic stack. It compresses the **~220,000 lines of JavaScript + GLSL** that power Three.js into roughly **~2,500 lines of Kain** by letting the language own the state, dispatch, timing, coupling, layout, and pipeline semantics that Three.js implements as manual boilerplate.
+**three-kn** is a portable, pure-Kain reimagining of [Three.js](https://threejs.org/) -- the popular 3D library for the browser --> rewritten from the ground up using Kain's full semantic stack. It compresses the **~220,000 lines of JavaScript + GLSL** that power Three.js into roughly **~2,500 lines of Kain** by letting the language own the state, dispatch, timing, coupling, layout, and pipeline semantics that Three.js implements as manual boilerplate.
 
 This is not a port. It is what a 3D engine looks like when the compiler understands your rendering graph.
 
@@ -24,12 +24,12 @@ kain run src/main.kn
 
 ## Architecture
 
-The engine is organized as **19 flat source files** in a single `src/` directory. Each file maps to a layer of the [Kain decision ladder](https://github.com/kain-lang/kain/blob/master/docs/RULEBOOK.md) — from basic math (`Layer 0`) through systems programming constructs like actors, ownership scopes, and GPU compute (`Layer 7`).
+The engine is organized as **19 flat source files** in a single `src/` directory. Each file maps to a layer of the [Kain decision ladder](https://github.com/kain-lang/kain/blob/master/docs/RULEBOOK.md) ~ from basic math (`Layer 0`) through systems programming constructs like actors, ownership scopes, and GPU compute (`Layer 7`).
 
 ```
 src/
 ├── main.kn          ← Entry point: world init, pulse loop, surface dispatch
-├── math.kn          ← Vec2/3/4, Mat3/4, Quat, Euler, Color — Three.js method syntax
+├── math.kn          ← Vec2/3/4, Mat3/4, Quat, Euler, Color ... Three.js method syntax
 ├── math_types.kn    ← Box2/3, Sphere, Ray, Plane, Frustum, Triangle, interpolation
 ├── scene_graph.kn   ← world SceneGraphWorld + entangle + patch + law + resonate
 ├── buffers.kn       ← shatter struct GeometryBuffer + BufferAttribute + collapse/observe/decay
@@ -53,14 +53,14 @@ src/
 
 | Level | Files | Constructs |
 |-------|-------|------------|
-| 0 — Math | `math.kn`, `math_types.kn` | `struct`, `impl`, `enum`, `fn Pure` |
-| 1 — State Authority | `scene_graph.kn`, `renderer.kn` | `world`, `entangle`, `patch`, `law`, `resonate`, `pulse`, `orchestrate`, `axiom` |
-| 2 — GPU Data | `buffers.kn` | `shatter struct`, `collapse`/`observe`/`decay` |
-| 3 — Material + Light + Camera + Texture | `material.kn`, `light.kn`, `texture.kn`, `camera.kn` | `world`, `law`, `patch`, `converge`, `shatter struct`, `shader compute` |
-| 4 — GPU Shaders | `vertex.kn`, `fragment.kn`, `compute.kn` | `shader vertex`, `shader fragment`, `shader compute`, `converge` |
-| 5 — Animation + Controls + Audio | `animation.kn`, `control.kn`, `audio.kn` | `actor`, `component`, `pulse`, `converge` |
-| 6 — Helpers + Backend + Extras | `helpers.kn`, `backend.kn`, `extra.kn` | `component`, `axiom`, `converge`, `trait`, `impl`, `orchestrate` |
-| 7 — Entry | `main.kn` | `world`, `pulse`, `fn IO` |
+| 0 ~> Math | `math.kn`, `math_types.kn` | `struct`, `impl`, `enum`, `fn Pure` |
+| 1 ->> State Authority | `scene_graph.kn`, `renderer.kn` | `world`, `entangle`, `patch`, `law`, `resonate`, `pulse`, `orchestrate`, `axiom` |
+| 2 ~~ GPU Data | `buffers.kn` | `shatter struct`, `collapse`/`observe`/`decay` |
+| 3 |-> Material + Light + Camera + Texture | `material.kn`, `light.kn`, `texture.kn`, `camera.kn` | `world`, `law`, `patch`, `converge`, `shatter struct`, `shader compute` |
+| 4 === GPU Shaders | `vertex.kn`, `fragment.kn`, `compute.kn` | `shader vertex`, `shader fragment`, `shader compute`, `converge` |
+| 5 ⁓ Animation + Controls + Audio | `animation.kn`, `control.kn`, `audio.kn` | `actor`, `component`, `pulse`, `converge` |
+| 6 ‒ Helpers + Backend + Extras | `helpers.kn`, `backend.kn`, `extra.kn` | `component`, `axiom`, `converge`, `trait`, `impl`, `orchestrate` |
+| 7 * * * Entry | `main.kn` | `world`, `pulse`, `fn IO` |
 
 ---
 
@@ -68,12 +68,12 @@ src/
 
 Every piece of the engine maps to a specific Kain construct from the decision ladder. Here is what each construct does and where it appears:
 
-### Layer 0 — Data & Functions (`struct`, `impl`, `enum`, `fn`)
+### Layer 0 === Data & Functions (`struct`, `impl`, `enum`, `fn`)
 
 Pure functions for math, geometry, and BRDF evaluation. Immutable data types with method-call syntax matching Three.js conventions.
 
 ```kn
-// math.kn — Three.js-compatible Vec3 with std::math under the hood
+// math.kn -- Three.js-compatible Vec3 with std::math under the hood
 pub struct Vec3Wrapper:
     x: Float = 0.0
     y: Float = 0.0
@@ -87,12 +87,12 @@ pub impl Vec3Wrapper:
 
 The math module wraps `std::math` (35+ operations per type) with Three.js method syntax. `math_types.kn` provides compound types not in the stdlib: Box2, Box3 (AABB), Sphere (bounding sphere), Ray, Plane, Frustum (6-plane culling), Triangle (barycentric), Line3, Cylindrical, Spherical coordinates.
 
-### Layer 1 — Compiler-Owned State (`world`, `entangle`)
+### Layer 1 * * * Compiler-Owned State (`world`, `entangle`)
 
 Global state that the compiler tracks, validates, and propagates. The authority/mirror pattern separates mutation rights from read access.
 
 ```kn
-// scene_graph.kn — Authority owns epoch, Mirror reads via entangle
+// scene_graph.kn ~ Authority owns epoch, Mirror reads via entangle
 pub world SceneGraphWorld:
     state epoch: Int = 0
     state fog_type: Int = 0
@@ -111,12 +111,12 @@ entangle SceneGraphWorld.fog_type <-> SceneGraphMirror.fog_type with single_writ
 
 Worlds are used for: `SceneGraphWorld` (transform hierarchy), `MaterialState` (material properties), `LightState` (light definitions), `TextureRegistry` (GPU texture descriptors), `GPURenderState` (renderer state), `CameraState` (projection/view), `EngineState` (frame management), `AudioListenerState` (audio position).
 
-### Layer 2 — Invariants & Journaled Mutation (`law`, `patch`)
+### Layer 2 ~~ Invariants & Journaled Mutation (`law`, `patch`)
 
-Every world has at least one `law` invariant — a predicate the compiler can witness and enforce. All mutations go through `patch`, which bumps an epoch counter to signal change.
+Every world has at least one `law` invariant <--> a predicate the compiler can witness and enforce. All mutations go through `patch`, which bumps an epoch counter to signal change.
 
 ```kn
-// camera.kn — laws guarantee camera parameters are valid
+// camera.kn <--> laws guarantee camera parameters are valid
 pub law camera_near_positive(near: Float) -> Bool:
     return near > 0.0
 
@@ -138,12 +138,12 @@ pub patch set_perspective(cam: CameraState, fov: Float, aspect: Float, near: Flo
 
 Laws appear in: `scene_graph.kn` (epoch non-negative, fog valid range), `material.kn` (color/opacity/roughness ranges), `light.kn` (intensity non-negative, decay valid), `camera.kn` (near > 0, far > near, aspect > 0), `texture.kn` (dimensions ≤ 16384, mips ≥ 1), `animation.kn` (time in range, weight 0-1), `audio.kn` (volume 0-1, forward normalized), `extra.kn` (env map completeness).
 
-### Layer 3 — Strategy Dispatch (`converge`)
+### Layer 3 ‒ Strategy Dispatch (`converge`)
 
 Multi-lane dispatch selects the optimal algorithm at compile time. Each `converge` has one `spec reference` lane (the correct reference implementation) and one or more `fast` lanes gated by capability predicates. Every converge includes `verify random(N)` to prove fast lanes match the spec.
 
 ```kn
-// material.kn — 9+ shading models dispatched at compile time
+// material.kn -- 9+ shading models dispatched at compile time
 converge shade_color_transform(r: Float, g: Float, b: Float, brightness: Float) -> Int:
     spec scalar:
         let result_r = r * brightness
@@ -159,21 +159,21 @@ converge shade_color_transform(r: Float, g: Float, b: Float, brightness: Float) 
 ```
 
 Converge lanes in three-kn:
-- `shade_color_transform` in `material.kn` — scalar vs SIMD color transform
-- `projection_point_hash` in `camera.kn` — perspective vs orthographic projection
-- `transform_vertex` in `vertex.kn` — 7 vertex shader variants (standard, instanced, skinned, batched, point, line, sprite)
-- `shade_fragment` in `fragment.kn` — 10+ fragment shader variants (basic, lambert, phong, standard, physical, toon, matcap, normal, depth, shadow)
-- `interpolate_value` in `animation.kn` — scalar linear vs step vs cubic interpolation
-- `cull_instances` in `renderer.kn` — CPU scalar vs SIMD vs GPU compute frustum culling
-- `sort_draws` in `renderer.kn` — CPU sort vs GPU bitonic vs GPU radix sort
-- `select_backend` in `backend.kn` — auto vs vulkan vs dx12 vs metal vs webgpu
+- `shade_color_transform` in `material.kn` === scalar vs SIMD color transform
+- `projection_point_hash` in `camera.kn` * * * perspective vs orthographic projection
+- `transform_vertex` in `vertex.kn` - 7 vertex shader variants (standard, instanced, skinned, batched, point, line, sprite)
+- `shade_fragment` in `fragment.kn` * * * 10+ fragment shader variants (basic, lambert, phong, standard, physical, toon, matcap, normal, depth, shadow)
+- `interpolate_value` in `animation.kn` => scalar linear vs step vs cubic interpolation
+- `cull_instances` in `renderer.kn` |-> CPU scalar vs SIMD vs GPU compute frustum culling
+- `sort_draws` in `renderer.kn` ___ CPU sort vs GPU bitonic vs GPU radix sort
+- `select_backend` in `backend.kn` – auto vs vulkan vs dx12 vs metal vs webgpu
 
-### Layer 4 — Pipeline Graphs (`orchestrate`)
+### Layer 4 => Pipeline Graphs (`orchestrate`)
 
 Multi-stage pipeline DAGs with typed stage definitions, residency policies, transfer modes, capability guards, and fallback degradation paths.
 
 ```kn
-// renderer.kn — the master render loop as a compile-time DAG
+// renderer.kn |-> the master render loop as a compile-time DAG
 orchestrate render_frame(
     scene: SceneGraphWorld,
     camera: CameraState,
@@ -205,12 +205,12 @@ orchestrate render_frame(
 
 Orchestrate pipelines: `render_frame` (8-stage render DAG), `shadow_render_pipeline` (5-stage shadow map generation), `pmrem_pipeline` (3-stage environment map generation).
 
-### Layer 5 — Temporal Recurrence (`pulse`, `resonate`)
+### Layer 5 <--> Temporal Recurrence (`pulse`, `resonate`)
 
 Compiler-owned timed beat for frame timing and reactive trips on state change.
 
 ```kn
-// main.kn — 60 FPS frame clock
+// main.kn ___ 60 FPS frame clock
 pulse frame_clock every 16ms jitter 2ms:
     let dt: Int = pulse_dt_ms
     let session: Int = EngineState.render_session
@@ -218,7 +218,7 @@ pulse frame_clock every 16ms jitter 2ms:
         let _p: Int = render_frame(session)
         EngineState.frame_count = EngineState.frame_count + 1
 
-// scene_graph.kn — reactive transform propagation
+// scene_graph.kn ... reactive transform propagation
 resonate SceneGraphWorld.epoch dampen 16ms:
     let old_val: Int = resonate_old_i64
     let new_val: Int = resonate_new_i64
@@ -226,12 +226,12 @@ resonate SceneGraphWorld.epoch dampen 16ms:
 
 Pulses: `frame_clock` (60 FPS main loop), `animation_tick` (actor animation updates). Resonates: `SceneGraphWorld.epoch` (transform propagation), `GPURenderState.frame_count` (frame metrics tracking).
 
-### Layer 6 — Machine Stones (`axiom`, `shatter struct`)
+### Layer 6 ~> Machine Stones (`axiom`, `shatter struct`)
 
 Capability declarations for platform-specific features and Structure-of-Arrays layout for GPU data.
 
 ```kn
-// backend.kn — axiom declares platform capability
+// backend.kn - axiom declares platform capability
 axiom vulkan_supported:
     when target("llvm")
     when capability("gfx.vulkan")
@@ -239,7 +239,7 @@ axiom vulkan_supported:
     guarantee "Vulkan 1.3: push constants, descriptor indexing, compute dispatch"
     fallback check_dx12
 
-// light.kn — SoA layout for GPU-resident light data
+// light.kn --> SoA layout for GPU-resident light data
 pub shatter struct LightData:
     kind: Int
     color_r: Float
@@ -256,12 +256,12 @@ Shatter structs: `GeometryBuffer` (SoA vertex data), `LightData` (GPU light buff
 
 Axioms: `has_compute_shaders`, `has_float_textures`, `has_indirect_draw`, `has_anisotropic_filtering`, `vulkan_supported`, `dx12_supported`, `metal_supported`, `webgpu_supported`, `axiom_shadows_supported`.
 
-### Layer 7 — Systems Programming (`actor`, `collapse`/`observe`/`decay`)
+### Layer 7 --- Systems Programming (`actor`, `collapse`/`observe`/`decay`)
 
 Concurrent state machines for animation and audio, plus explicit ownership scopes for raw GPU memory.
 
 ```kn
-// animation.kn — typed message contract actor
+// animation.kn * * * typed message contract actor
 actor AnimationMixer:
     state actions: [AnimationActionState] = []
     state clip_database: [AnimationClip] = []
@@ -280,10 +280,10 @@ actor AnimationMixer:
         ...
         send reply_to.Reply(value = len(self.actions))
 
-// buffers.kn — explicit ownership for GPU memory
+// buffers.kn ~ explicit ownership for GPU memory
 pub fn upload_geometry_buffer(buffer: GeometryBuffer) -> Int with Unsafe:
     let gpu_ptr: ptr<Int> = alloc_zeroed(cells_needed, "Int")
-    collapse gpu_ptr:          // enter ownership scope — exclusive write
+    collapse gpu_ptr:          // enter ownership scope ~ exclusive write
         mem_store(gpu_ptr, byte_count, "Int")
         0
     let result: Int = observe gpu_ptr:  // read-only access
@@ -294,12 +294,12 @@ pub fn upload_geometry_buffer(buffer: GeometryBuffer) -> Int with Unsafe:
 
 Actors: `AnimationMixer` (5 typed messages: PlayClip, Crossfade, StopAll, GetStats, Update), `AudioPlayer` (7 typed messages: Play, Pause, Stop, Seek, SetBuffer, SetVolume, Advance).
 
-### Layer UI — Components (`component`)
+### Layer UI ... Components (`component`)
 
 JSX-renderable components with state, methods, and props. Used for debug visualization, camera controls, and world surface wiring.
 
 ```kn
-// control.kn — interactive camera controls
+// control.kn --- interactive camera controls
 component OrbitControls(camera: CameraState, target: Vec3,
     enable_damping: Bool = true,
     damping_factor: Float = 0.05,
@@ -338,7 +338,7 @@ Components: `OrbitControls`, `TrackballControls`, `FlyControls`, `FirstPersonCon
 
 ## GPU Pipeline
 
-The rendering pipeline is GPU-first. The CPU owns only scene graph construction, I/O, and dispatching — all culling, sorting, shading, and post-processing runs on the GPU.
+The rendering pipeline is GPU-first. The CPU owns only scene graph construction, I/O, and dispatching ⁓ all culling, sorting, shading, and post-processing runs on the GPU.
 
 ### Binding Convention
 
@@ -368,14 +368,14 @@ The engine defines **7 vertex shaders** and **10+ fragment shaders**, dispatched
 
 The `orchestrate render_frame` pipeline in `renderer.kn` stages 8 phases:
 
-1. **begin** — begin frame, clear targets
-2. **frustum_cull** — 6-plane AABB test per instance (GPU compute → SIMD → CPU fallback)
-3. **sort_opaque** — front-to-back sort, bitonic merge (GPU)
-4. **shadow_maps** — directional/point/spot shadow map rendering (GPU)
-5. **opaque_pass** — render opaque geometry with PBR shading
-6. **sort_transparent** — back-to-front sort, radix sort (GPU)
-7. **transparent_pass** — render transparent geometry
-8. **postprocess** — bloom, SSAO, tonemap, composite → present
+1. **begin** ->> begin frame, clear targets
+2. **frustum_cull** ~~ 6-plane AABB test per instance (GPU compute → SIMD → CPU fallback)
+3. **sort_opaque** ~> front-to-back sort, bitonic merge (GPU)
+4. **shadow_maps** ~~ directional/point/spot shadow map rendering (GPU)
+5. **opaque_pass** |-> render opaque geometry with PBR shading
+6. **sort_transparent** :: back-to-front sort, radix sort (GPU)
+7. **transparent_pass** ⁓ render transparent geometry
+8. **postprocess** 〰 bloom, SSAO, tonemap, composite → present
 
 ---
 
@@ -395,7 +395,7 @@ The `orchestrate render_frame` pipeline in `renderer.kn` stages 8 phases:
 | Scene loaders (glTF/OBJ) | 100+ KB external | MarkScript `.md` scene files | In-tree format |
 | **Total** | **~220,000 lines** | **~2,500 lines** | **~99%** |
 
-> **Why such a reduction?** Three.js implements in JavaScript what Kain provides as language primitives. A `world` with `entangle` + `patch` + `law` + `resonate` replaces what Three.js needs: a class with manual getters/setters, an EventDispatcher mixin, a UUID generator, a WeakMap cache, a manual dirty flag system, a JSON serializer, and a listener registry — about 200 lines per class. Kain gives you all of that for free with one `world` declaration.
+> **Why such a reduction?** Three.js implements in JavaScript what Kain provides as language primitives. A `world` with `entangle` + `patch` + `law` + `resonate` replaces what Three.js needs: a class with manual getters/setters, an EventDispatcher mixin, a UUID generator, a WeakMap cache, a manual dirty flag system, a JSON serializer, and a listener registry ~ about 200 lines per class. Kain gives you all of that for free with one `world` declaration.
 
 ---
 
@@ -450,7 +450,7 @@ kain gpu-artifacts src/compute.kn --targets spirv,hlsl --out .kain/out/gpu
 
 ## Status
 
-This is an active foundation-phase codebase. The semantic architecture — worlds, laws, patches, converge lanes, orchestrate pipelines, actors, and shatter structs — is fully specified and implemented as typecheckable Kain source. The project builds successfully with `kain check` and the build graph compiles GPU artifacts. The math layer is complete (1,400+ lines across 70+ methods), and every source file passes `kain check` validation.
+This is an active foundation-phase codebase. The semantic architecture ... worlds, laws, patches, converge lanes, orchestrate pipelines, actors, and shatter structs :: is fully specified and implemented as typecheckable Kain source. The project builds successfully with `kain check` and the build graph compiles GPU artifacts. The math layer is complete (1,400+ lines across 70+ methods), and every source file passes `kain check` validation.
 
 ---
 

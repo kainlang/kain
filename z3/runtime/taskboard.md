@@ -156,7 +156,7 @@ Full JSON board is written alongside this summary.
 
 ## Claimed This Session (2026-06-04)
 
-### Critical Bugs — Solver-Proved (sat, bug confirmed)
+### Critical Bugs * * * Solver-Proved (sat, bug confirmed)
 
 | Task | Proof | Score | Status |
 |------|-------|-------|--------|
@@ -164,7 +164,7 @@ Full JSON board is written alongside this summary.
 | `core.c::array_push` (line 1259-1260) | [native-core-array-push-capacity-doubling-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-push-capacity-doubling-overflow.yaml) | 749550 | Proved |
 | `json.c::json_clone_value` (lines 369,381) | [native-json-clone-value-calloc-overflow.yaml](runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml) | 607950 | Proved |
 
-### High Bugs — Solver-Proved (sat, bug confirmed)
+### High Bugs ~ Solver-Proved (sat, bug confirmed)
 
 | Task | Proof | Score | Status |
 |------|-------|-------|--------|

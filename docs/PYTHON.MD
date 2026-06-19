@@ -1,62 +1,62 @@
-# Kain Python Interop — Full Research
+# Kain Python Interop ~> Full Research
 
 > **Date**: 2026-06-06
 > **Files inspected**:
 >
-> - `crates/python/src/lib.rs` (5896 lines) — Rust PyO3 stdlib bridge
-> - `crates/interop/src/lib.rs` — Neutral shared contracts
-> - `runtime/native/src/core/python_runtime.c` (3336 lines) — **Native C CPython bridge**
-> - `runtime/native/src/core/python_runtime_region.c` — Cached region operations
-> - `runtime/native/src/core/python_runtime_async.c` — Async future engine
-> - `runtime/native/src/core/python_runtime_buffers.c` — Buffer protocol adoption
-> - `runtime/native/src/core/python_runtime_gpu.c` — GPU tensor interop
-> - `stdlib/python.kn` — Kain stdlib Python surface
-> - `crates/core/src/parser.rs` — First-class `import`/`from` syntax
-> - `benchmark/cases_v2/python_interop.kn` — 15-case benchmark suite
-> - `blades/python/py_c/` — Canonical interop proof
-> - `blades/python/audio/kainbleton/` — DAW workbench (Pyglet window + Python bridge)
+> - `crates/python/src/lib.rs` (5896 lines) ~> Rust PyO3 stdlib bridge
+> - `crates/interop/src/lib.rs` >> Neutral shared contracts
+> - `runtime/native/src/core/python_runtime.c` (3336 lines) - **Native C CPython bridge**
+> - `runtime/native/src/core/python_runtime_region.c` --> Cached region operations
+> - `runtime/native/src/core/python_runtime_async.c` ->> Async future engine
+> - `runtime/native/src/core/python_runtime_buffers.c` ... Buffer protocol adoption
+> - `runtime/native/src/core/python_runtime_gpu.c` :: GPU tensor interop
+> - `stdlib/python.kn` ⁓ Kain stdlib Python surface
+> - `crates/core/src/parser.rs` * * * First-class `import`/`from` syntax
+> - `benchmark/cases_v2/python_interop.kn` 〰 15-case benchmark suite
+> - `blades/python/py_c/` :: Canonical interop proof
+> - `blades/python/audio/kainbleton/` 〰 DAW workbench (Pyglet window + Python bridge)
 
 ______________________________________________________________________
 
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-1. [Architecture — Three-Layer Stack](#2-architecture--three-layer-stack)
+1. [Architecture 〰 Three-Layer Stack](#2-architecture--three-layer-stack)
 1. [Layer 1: C Native Runtime](#3-layer-1-c-native-runtime)
 1. [Layer 2: Rust PyO3 Bridge](#4-layer-2-rust-pyo3-bridge)
 1. [Layer 3: Kain Stdlib Surface](#5-layer-3-kain-stdlib-surface)
 1. [First-Class Python Import Syntax](#6-first-class-python-import-syntax)
-1. [Value System — Tagged Any Encoding](#7-value-system--tagged-any-encoding)
+1. [Value System ~> Tagged Any Encoding](#7-value-system--tagged-any-encoding)
 1. [CPython Discovery and Loading](#8-cpython-discovery-and-loading)
 1. [GIL Management](#9-gil-management)
-1. [Buffer Protocol — Zero-Copy Adoption](#10-buffer-protocol--zero-copy-adoption)
-1. [GPU Integration — CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
+1. [Buffer Protocol ~ Zero-Copy Adoption](#10-buffer-protocol--zero-copy-adoption)
+1. [GPU Integration ___ CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
 1. [Async Future Engine](#12-async-future-engine)
 1. [Actor Callback Integration](#13-actor-callback-integration)
-1. [Region API — Cached Batched Operations](#14-region-api--cached-batched-operations)
-1. [Shared Contracts — Cross-Runtime Data Exchange](#15-shared-contracts--cross-runtime-data-exchange)
-1. [Typed Views — Python Image, Tensor, Geometry](#16-typed-views--python-image-tensor-geometry)
-1. [Materialization — Ownership Modes](#17-materialization--ownership-modes)
+1. [Region API --- Cached Batched Operations](#14-region-api--cached-batched-operations)
+1. [Shared Contracts ->> Cross-Runtime Data Exchange](#15-shared-contracts--cross-runtime-data-exchange)
+1. [Typed Views --- Python Image, Tensor, Geometry](#16-typed-views--python-image-tensor-geometry)
+1. [Materialization --- Ownership Modes](#17-materialization--ownership-modes)
 1. [Bidirectional Export](#18-bidirectional-export)
 1. [Benchmarks and Performance Characteristics](#19-benchmarks-and-performance-characteristics)
 1. [GPU with Python](#20-gpu-with-python)
 1. [Native C Speed with Python](#21-native-c-speed-with-python)
 1. [Python for Window Management](#22-python-for-window-management)
 1. [Full API Reference](#23-full-api-reference)
-1. [Orchestrate Integration — Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
+1. [Orchestrate Integration ___ Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
 1. [When to Use Python](#25-when-to-use-python)
 
 ______________________________________________________________________
 
 ## 1. Executive Summary
 
-Kain's Python interop is a **three-layer, runtime-integrated bridge** — not a subprocess, not a JSON pipe, not a single PyO3 binding. It is:
+Kain's Python interop is a **three-layer, runtime-integrated bridge** ~ not a subprocess, not a JSON pipe, not a single PyO3 binding. It is:
 
-1. **A native C runtime** — `python_runtime.c` dynamically loads the CPython shared library, resolves 50+ Python C API functions via `dlsym`/`GetProcAddress`, manages GIL state, and implements the full buffer protocol, CUDA array interface, DLPack, async futures, and actor callbacks **entirely in C**.
-1. **A Rust PyO3 bridge** — `crates/python/src/lib.rs` registers 60+ builtins into Kain's standard library for interpreter-mode use (eval, exec, call, tensor views, image views, materialization).
-1. **A Kain stdlib surface** — `stdlib/python.kn` provides ergonomic wrappers (`python_call`, `python_tensor`, `python_gpu_buffer`, etc.) and first-class `import` syntax.
+1. **A native C runtime** |-> `python_runtime.c` dynamically loads the CPython shared library, resolves 50+ Python C API functions via `dlsym`/`GetProcAddress`, manages GIL state, and implements the full buffer protocol, CUDA array interface, DLPack, async futures, and actor callbacks **entirely in C**.
+1. **A Rust PyO3 bridge** => `crates/python/src/lib.rs` registers 60+ builtins into Kain's standard library for interpreter-mode use (eval, exec, call, tensor views, image views, materialization).
+1. **A Kain stdlib surface** >> `stdlib/python.kn` provides ergonomic wrappers (`python_call`, `python_tensor`, `python_gpu_buffer`, etc.) and first-class `import` syntax.
 
-**The C layer is the hot path.** The Rust/PyO3 layer is the cold path used for interpreted mode and `use std::python` surface functions. When running compiled (LLVM native) Kain, the **C runtime handles every Python call directly** — no Rust code touched, no PyO3 involved.
+**The C layer is the hot path.** The Rust/PyO3 layer is the cold path used for interpreted mode and `use std::python` surface functions. When running compiled (LLVM native) Kain, the **C runtime handles every Python call directly** 〰 no Rust code touched, no PyO3 involved.
 
 ### Architecture Overview
 
@@ -85,7 +85,7 @@ Kain's Python interop is a **three-layer, runtime-integrated bridge** — not a 
 
 ______________________________________________________________________
 
-## 2. Architecture — Three-Layer Stack
+## 2. Architecture === Three-Layer Stack
 
 ### Layer 0: The Values
 
@@ -123,7 +123,7 @@ All RC types have magic constants:
 
 ### Layer 1: C Native Runtime (`runtime/native/src/core/python_runtime*.c`)
 
-**This is the primary layer for compiled Kain.** Every `py_call`, `py_eval`, `py_exec`, `py_import`, `py_getattr`, `py_buffer_view`, `kain_tensor_*`, `kain_image_*`, `python_region_*`, etc. — when compiled to native LLVM — goes through the C runtime. There is NO Rust/PyO3 involvement in the hot path.
+**This is the primary layer for compiled Kain.** Every `py_call`, `py_eval`, `py_exec`, `py_import`, `py_getattr`, `py_buffer_view`, `kain_tensor_*`, `kain_image_*`, `python_region_*`, etc. ~ when compiled to native LLVM => goes through the C runtime. There is NO Rust/PyO3 involvement in the hot path.
 
 Files (3336 + 1557 + 1696 + 1525 + ~500 = ~8600 lines of C):
 
@@ -427,7 +427,7 @@ static void kain_py_prepare_import_context(const char* importer_file) {
 
 ______________________________________________________________________
 
-## 7. Value System — Tagged Any Encoding
+## 7. Value System ~ Tagged Any Encoding
 
 The C runtime uses a compact tagged-value system to represent Kain `Any` values. This is the backbone of all Python ↔ Kain data transfer.
 
@@ -582,7 +582,7 @@ static void kain_py_tensor_destructor(void* payload) {
 
 ______________________________________________________________________
 
-## 10. Buffer Protocol — Zero-Copy Adoption
+## 10. Buffer Protocol --> Zero-Copy Adoption
 
 ### 10.1 `Py_buffer` Adoption
 
@@ -650,7 +650,7 @@ typedef struct {
 } KainPythonBufferViewHandle;
 ```
 
-### 10.5 Checksum37 — Fused Buffer Operation
+### 10.5 Checksum37 :: Fused Buffer Operation
 
 A fused operation that computes a checksum entirely in C without materializing data:
 
@@ -674,11 +674,11 @@ static long long kain_py_residue_sum37_mod(long long iterations, long long modul
 }
 ```
 
-This avoids `iterations` Python calls — it's a single buffer borrow + O(1) math.
+This avoids `iterations` Python calls ___ it's a single buffer borrow + O(1) math.
 
 ______________________________________________________________________
 
-## 11. GPU Integration — CUDA Array Interface and DLPack
+## 11. GPU Integration ... CUDA Array Interface and DLPack
 
 ### 11.1 CUDA Array Interface
 
@@ -798,7 +798,7 @@ The async future engine (`python_runtime_async.c`) provides **true non-blocking 
 
 1. A **dedicated OS thread** running the Python awaitable with a fresh asyncio event loop
 1. A **Kain task** (`KainTaskId`) that polls the settlement status
-1. **Atomic settlement** — only one thread can settle the future
+1. **Atomic settlement** --- only one thread can settle the future
 
 ### 12.2 Lifecycle
 
@@ -921,7 +921,7 @@ The callback is a Python callable that, when invoked, pushes args to a Python li
 
 ______________________________________________________________________
 
-## 14. Region API — Cached Batched Operations
+## 14. Region API >> Cached Batched Operations
 
 ### 14.1 Architecture
 
@@ -1031,7 +1031,7 @@ python_region_fast_call_count(region)         // Fast path calls (f64→i64)
 
 ______________________________________________________________________
 
-## 15. Shared Contracts — Cross-Runtime Data Exchange
+## 15. Shared Contracts <--> Cross-Runtime Data Exchange
 
 ### 15.1 KainSharedBuffer
 
@@ -1086,7 +1086,7 @@ let info = interop_shared_image_info(shared_image)
 
 ______________________________________________________________________
 
-## 16. Typed Views — Python Image, Tensor, Geometry
+## 16. Typed Views – Python Image, Tensor, Geometry
 
 ### 16.1 Image Views
 
@@ -1109,7 +1109,7 @@ if (ndim == 4 && channels is shape[3] in [1..4]) → "NHWC"
 if (ndim == 4 && channels is shape[1] in [1..4]) → "NCHW"
 ```
 
-**Pixel read/write** goes through `PyObject_GetItem`/`PyObject_SetItem` on the Python object directly — zero-copy through Python's indexing.
+**Pixel read/write** goes through `PyObject_GetItem`/`PyObject_SetItem` on the Python object directly -- zero-copy through Python's indexing.
 
 ### 16.2 Tensor Views
 
@@ -1165,7 +1165,7 @@ Resolution logic (Rust layer): if the target has `.vertices` and `.faces` attrs,
 
 ______________________________________________________________________
 
-## 17. Materialization — Ownership Modes
+## 17. Materialization <--> Ownership Modes
 
 ### 17.1 Three Modes (Rust Layer)
 
@@ -1250,7 +1250,7 @@ let back_to_numpy = kain_tensor_to_py(native, "numpy")
 let back_to_torch = kain_tensor_to_py(native, "torch")
 ```
 
-The C runtime **increfs the original Python object** and returns it if the backend matches the source. This is effectively free — just a reference count bump + handle wrap.
+The C runtime **increfs the original Python object** and returns it if the backend matches the source. This is effectively free 〰 just a reference count bump + handle wrap.
 
 ```c
 long long kain_tensor_to_py(long long tensor, char* backend) {
@@ -1300,7 +1300,7 @@ The `benchmark/cases_v2/python_interop.kn` contains **15 benchmark cases** with 
 
 Two additional benchmark suites complement the main interop pack:
 
-**`python_semantic.kn`** — World/Entangle-accelerated interop. Crosses the Python bridge **once** to seed entangled world state, then reads from entangled mirrors at zero cost:
+**`python_semantic.kn`** => World/Entangle-accelerated interop. Crosses the Python bridge **once** to seed entangled world state, then reads from entangled mirrors at zero cost:
 
 ```kain
 entangle PyAuthority.tau <-> PyMirror.tau_copy with single_writer
@@ -1317,7 +1317,7 @@ fn bench_tau_read(iterations: Int) -> TauResult:
 
 Reports `~infinite` speedup for constant-value reads (entangled mirror is a struct field access, not a function call).
 
-**`python_stdlib_fused.kn`** — Cross-platform stdlib breadth. Exercises 4 Python stdlib modules (`sys`, `os`, `json`, `asyncio`) in a fused pack:
+**`python_stdlib_fused.kn`** |-> Cross-platform stdlib breadth. Exercises 4 Python stdlib modules (`sys`, `os`, `json`, `asyncio`) in a fused pack:
 
 | Case | Iterations | Ops per Iteration | Modules |
 |------|-----------|-------------------|---------|
@@ -1326,7 +1326,7 @@ Reports `~infinite` speedup for constant-value reads (entangled mirror is a stru
 | `python_stdlib_asyncio_future` | 8,000 | 5 calls + future lifecycle | asyncio |
 | `python_stdlib_ceiling_fused` | 10,000 | 5 getattr + 15 calls | All 4 fused |
 
-The asyncio-future case is notable — it creates real asyncio `Future` objects, sets results, and checks `.done()`, `.cancelled()`, `.result()` **entirely through the C runtime** with no PyO3 involvement.
+The asyncio-future case is notable - it creates real asyncio `Future` objects, sets results, and checks `.done()`, `.cancelled()`, `.result()` **entirely through the C runtime** with no PyO3 involvement.
 
 ### 19.2 Performance Characteristics
 
@@ -1366,7 +1366,7 @@ The telemetry metadata in the benchmark provides exact expectations:
 }
 ```
 
-This proves that **all 30,000 calls in a 30,000-iteration region-sqrt run go through the fast numeric lane** — zero generic calls, zero GIL re-entries.
+This proves that **all 30,000 calls in a 30,000-iteration region-sqrt run go through the fast numeric lane** ‒ zero generic calls, zero GIL re-entries.
 
 ______________________________________________________________________
 
@@ -1495,7 +1495,7 @@ fn main():
 
 ### 21.3 Performance Benefit
 
-The C functions run at **native CPU speed** — no Python interpreter involved, no GIL contention. The data stays in shared memory (Py_buffer backed). This is the ideal pattern for:
+The C functions run at **native CPU speed** <--> no Python interpreter involved, no GIL contention. The data stays in shared memory (Py_buffer backed). This is the ideal pattern for:
 
 - Hot numerical loops
 - Signal processing
@@ -1707,7 +1707,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 24. Orchestrate Integration — Python as a First-Class Stage
+## 24. Orchestrate Integration <--> Python as a First-Class Stage
 
 ### 24.1 The Orchestrate Stage System
 
@@ -1762,7 +1762,7 @@ Every Python stage in an orchestrate pipeline supports the full set of stage met
 
 ### 24.3 Canonical Example: Resonate/Py
 
-From `benchmark/cases_v2/resonate_py.kn` — Python stages interleaved with Kain, C, GPU, converge, law, world, and patch:
+From `benchmark/cases_v2/resonate_py.kn` <--> Python stages interleaved with Kain, C, GPU, converge, law, world, and patch:
 
 ```kain
 orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority) -> Int:
@@ -1798,7 +1798,7 @@ orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority)
 
 ### 24.4 Cross-Runtime Pipeline: Python → C → Converge → GPU
 
-From `benchmark/cases_v2/orchestrate_god.kn` — a fused pipeline exercising all stage kinds including Python:
+From `benchmark/cases_v2/orchestrate_god.kn` <--> a fused pipeline exercising all stage kinds including Python:
 
 ```kain
 orchestrate orchestrate_god_preflight(seed: Int, authority: OrchestrateGodAuthority) -> Int:
@@ -1863,7 +1863,7 @@ ______________________________________________________________________
 | **Pygame/Pyglet/Flet windows** | Native window management from Kain |
 | **Rapid prototyping** | `py_eval` for quick experimentation |
 | **Existing Python libraries** | FastMCP, trimesh, audio backends |
-| **Data loading** | pandas, h5py, PIL — buffer protocol based |
+| **Data loading** | pandas, h5py, PIL – buffer protocol based |
 | **Z3 constraint solving** | Solver integration via Python bindings |
 | **MCP server integration** | FastMCP for tool-server patterns |
 | **GPU computation (Kain shaders)** | Import Python tensor, process on GPU, export back |
@@ -1882,17 +1882,17 @@ ______________________________________________________________________
 
 ### Performance Guidelines
 
-1. **Use regions** for any hot loop calling Python — they amortize GIL cost, cache imports and attrs, and provide fast numeric call lanes.
+1. **Use regions** for any hot loop calling Python * * * they amortize GIL cost, cache imports and attrs, and provide fast numeric call lanes.
 
-1. **Prefer shared backing** over owned — it's free and syncs bidirectionally.
+1. **Prefer shared backing** over owned ->> it's free and syncs bidirectionally.
 
-1. **Use the fused checksum37 operation** when you need to prove data integrity across iterations — it's O(1) and avoids any per-iteration Python calls.
+1. **Use the fused checksum37 operation** when you need to prove data integrity across iterations => it's O(1) and avoids any per-iteration Python calls.
 
-1. **Pre-import and pre-bind** callables before hot loops — bind `math.sqrt` once at region start, then call it directly.
+1. **Pre-import and pre-bind** callables before hot loops - bind `math.sqrt` once at region start, then call it directly.
 
 1. **Use `python_gpu_storage_buffer`** for CUDA tensors to avoid host round-trips.
 
-1. **Use the C FFI bridge** for genuinely hot numerical work — `include` a `.c` file, call it from Kain, pass Python data via shared buffer.
+1. **Use the C FFI bridge** for genuinely hot numerical work :: `include` a `.c` file, call it from Kain, pass Python data via shared buffer.
 
 ______________________________________________________________________
 

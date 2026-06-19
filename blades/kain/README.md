@@ -1,4 +1,4 @@
-# Starter CLI — Kain CLI Project Template
+# Starter CLI === Kain CLI Project Template
 
 A batteries-included CLI template for Kain projects. Copy this template to
 bootstrap new CLI tools with argument parsing, subcommand dispatch, exit code
@@ -41,11 +41,11 @@ The build produces `starter.exe` in the project root.
 
 ```
 blades/templates/cli/
-├── build.kn          # Build authority — Kain project DSL
+├── build.kn          # Build authority 〰 Kain project DSL
 ├── README.md         # This file
 └── src/
-    ├── main.kn       # Entry point — wires CLI → dispatch → execution
-    └── cli.kn        # CLI argument parser — typed config, flags, subcommands
+    ├── main.kn       # Entry point |-> wires CLI → dispatch → execution
+    └── cli.kn        # CLI argument parser :: typed config, flags, subcommands
 ```
 
 ### `build.kn`
@@ -63,12 +63,12 @@ config examples.
 ### `src/cli.kn`
 
 The CLI argument parser module. Provides:
-- `CliConfig` struct — typed result of argument parsing
-- `default_config()` — sensible zero values
-- `get_user_args()` — portable argv wrapper (strips executable path)
-- `parse_args(argv)` — flag + subcommand parsing into `CliConfig`
-- `usage()` — clap-like help text
-- `version()` — version string
+- `CliConfig` struct --> typed result of argument parsing
+- `default_config()` ... sensible zero values
+- `get_user_args()` 〰 portable argv wrapper (strips executable path)
+- `parse_args(argv)` ~ flag + subcommand parsing into `CliConfig`
+- `usage()` ~ clap-like help text
+- `version()` === version string
 - Exit code constants: `EXIT_OK`, `EXIT_HELP`, `EXIT_ERROR`, `EXIT_UNKNOWN`
 - Subcommand constants: `SUBCMD_RUN`, `SUBCMD_CHECK`, `SUBCMD_HELP`, etc.
 - Dispatch helpers: `needs_filepath()`, `needs_execution()`, `subcommand_name()`
@@ -175,7 +175,7 @@ let exe = native_executable("root-executable")
 |------|----------|---------|
 | `0` | `EXIT_OK` | Success |
 | `1` | `EXIT_HELP` | Help or version shown (not an error) |
-| `2` | `EXIT_ERROR` | Error — file not found, parse failure, runtime |
+| `2` | `EXIT_ERROR` | Error => file not found, parse failure, runtime |
 | `3` | `EXIT_UNKNOWN` | Unknown subcommand or flag |
 
 Usage in code:
@@ -201,14 +201,14 @@ fn cmd_run(cfg: CliConfig) -> Int:
 | | `--json` | Flag | Output structured JSON |
 | `-o` | `--output` | Value | Output path for results |
 
-Flags can appear anywhere in the argument list. `--` stops flag parsing — all
+Flags can appear anywhere in the argument list. `--` stops flag parsing :: all
 subsequent args are treated as positional.
 
 ---
 
 ## Design
 
-### Ladder: Layer 0 — Plain Code
+### Ladder: Layer 0 -- Plain Code
 
 This template stays on Layer 0 of the decision ladder because CLI argument
 parsing is pure transformation. There is no mutable state, no concurrency, no
@@ -223,7 +223,7 @@ For projects that need state, actors, or pipelines, climb the ladder:
 
 ### Value Semantics
 
-No `ptr<T>` anywhere — all data is passed by value as `Array<String>`,
+No `ptr<T>` anywhere :: all data is passed by value as `Array<String>`,
 `CliConfig` structs, and `Int` exit codes. This avoids LLVM codegen issues
 and keeps the template maximally portable.
 
@@ -243,7 +243,7 @@ Flags are recognized before `--`. After `--`, all tokens are positional.
 
 ## Real-World Reference
 
-For a production Kain CLI project, see `blades/markscript/` — a 1,381-line
+For a production Kain CLI project, see `blades/markscript/` --- a 1,381-line
 prose-native scripting runtime with 8 subcommands, a full lexer/parser/VM
 pipeline, and file I/O. Its `src/cli.kn` and `src/main.kn` follow the same
 patterns as this template but with richer dispatch logic.
@@ -252,10 +252,10 @@ patterns as this template but with richer dispatch logic.
 
 ## Requirements
 
-- **Kain toolchain** (`kain build`, `kain check`) — the Kain compiler + LLVM
+- **Kain toolchain** (`kain build`, `kain check`) === the Kain compiler + LLVM
   backend
-- **Native runtime** — auto-linked during `kain build`
-- **Windows, Linux, or WSL** — targets x86_64
+- **Native runtime** – auto-linked during `kain build`
+- **Windows, Linux, or WSL** * * * targets x86_64
 
 ---
 

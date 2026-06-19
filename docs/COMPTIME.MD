@@ -1,7 +1,7 @@
-# Comptime — Zig-Style Compile-Time Execution (and the GPU Metadata DSL)
+# Comptime ‒ Zig-Style Compile-Time Execution (and the GPU Metadata DSL)
 
 **Status:** Research synthesis, 2026-06-08
-**Based on:** `crates/core/src/comptime.rs` (compile-time evaluator — 201 lines, full interpreter integration), `crates/core/src/parser.rs` (parse_comptime_block, expression comptime), `crates/core/src/ast.rs` (ComptimeBlock, ComputeMetadata, shader metadata extraction), `crates/core/src/types.rs` (TypedComptime, in_comptime flag), `crates/driver/src/lib.rs` (CompilerPhase::Comptime — runs BEFORE typecheck), `crates/sys-codegen/` (all backends treat Expr::Comptime as transparent), `crates/semantic/symbol_corpus/comptime.kn` (only non-GPU comptime example), `blades/c/vulkan_v2/src/fluid.comp.kn` (GPU compute metadata), `blades/cuda/mcp/src/search_kernel.kn` (GPU compute metadata with streams), `blades/three-d/zender/src/sculpt/kernels/brush_kernels.kn` (sculpt kernel with 12 tensors + 12 streams), `blades/example/src/main.kn` (comptime const declaration), ~55 GPU shader files using comptime metadata blocks, RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
+**Based on:** `crates/core/src/comptime.rs` (compile-time evaluator ->> 201 lines, full interpreter integration), `crates/core/src/parser.rs` (parse_comptime_block, expression comptime), `crates/core/src/ast.rs` (ComptimeBlock, ComputeMetadata, shader metadata extraction), `crates/core/src/types.rs` (TypedComptime, in_comptime flag), `crates/driver/src/lib.rs` (CompilerPhase::Comptime 〰 runs BEFORE typecheck), `crates/sys-codegen/` (all backends treat Expr::Comptime as transparent), `crates/semantic/symbol_corpus/comptime.kn` (only non-GPU comptime example), `blades/c/vulkan_v2/src/fluid.comp.kn` (GPU compute metadata), `blades/cuda/mcp/src/search_kernel.kn` (GPU compute metadata with streams), `blades/three-d/zender/src/sculpt/kernels/brush_kernels.kn` (sculpt kernel with 12 tensors + 12 streams), `blades/example/src/main.kn` (comptime const declaration), ~55 GPU shader files using comptime metadata blocks, RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
 
 ______________________________________________________________________
 
@@ -9,13 +9,13 @@ ______________________________________________________________________
 
 1. [What Is Comptime?](#what-is-comptime)
 1. [The Two Faces of Comptime](#the-two-faces-of-comptime)
-1. [The Compile-Time Evaluator — How It Actually Works](#the-compile-time-evaluator)
-1. [The GPU Metadata DSL — What Everyone Actually Uses](#the-gpu-metadata-dsl)
+1. [The Compile-Time Evaluator ~> How It Actually Works](#the-compile-time-evaluator)
+1. [The GPU Metadata DSL ~ What Everyone Actually Uses](#the-gpu-metadata-dsl)
 1. [Syntax Reference](#syntax-reference)
 1. [What Comptime CAN Do](#what-comptime-can-do)
 1. [What Comptime CANNOT Do](#what-comptime-cannot-do)
-1. [What Comptime COULD Do — The Unexplored Territory](#what-comptime-could-do)
-1. [The Zig Comparison — What's Missing](#the-zig-comparison)
+1. [What Comptime COULD Do |-> The Unexplored Territory](#what-comptime-could-do)
+1. [The Zig Comparison ~ What's Missing](#the-zig-comparison)
 1. [Comptime vs Const vs Macro](#comptime-vs-const-vs-macro)
 1. [Real-World Usage Survey](#real-world-usage-survey)
 1. [Validation Ladder](#validation-ladder)
@@ -27,43 +27,43 @@ ______________________________________________________________________
 
 ## What Is Comptime?
 
-`comptime` is Kain's **compile-time execution** keyword — a Zig-inspired construct that runs code during compilation rather than at runtime. It has two forms:
+`comptime` is Kain's **compile-time execution** keyword -- a Zig-inspired construct that runs code during compilation rather than at runtime. It has two forms:
 
 ```kn
-// Top-level — runs code at compile time
+// Top-level ... runs code at compile time
 comptime:
     const LUT_SIZE: Int = 256
 
-// Expression — evaluates and replaces with the result
+// Expression --- evaluates and replaces with the result
 let value = comptime: 40 + 2   // becomes let value = 42
 ```
 
-The key insight: **comptime runs the actual Kain runtime interpreter at compile time.** It can call functions, allocate memory, run loops, compute lookup tables — then bake the results into the compiled binary. After evaluation, the comptime wrapper is erased and the result becomes a literal.
+The key insight: **comptime runs the actual Kain runtime interpreter at compile time.** It can call functions, allocate memory, run loops, compute lookup tables * * * then bake the results into the compiled binary. After evaluation, the comptime wrapper is erased and the result becomes a literal.
 
-But here's the reality: **comptime is almost completely unused for its intended purpose.** The compile-time evaluator works — it can do everything described above — but there is exactly ONE non-GPU usage in the entire repo (a smoke test). Instead, comptime serves as a GPU metadata DSL inside shader compute kernels, where it's NOT evaluated at all but pattern-matched at the AST level for dispatch manifests.
+But here's the reality: **comptime is almost completely unused for its intended purpose.** The compile-time evaluator works ‒ it can do everything described above 〰 but there is exactly ONE non-GPU usage in the entire repo (a smoke test). Instead, comptime serves as a GPU metadata DSL inside shader compute kernels, where it's NOT evaluated at all but pattern-matched at the AST level for dispatch manifests.
 
 ### What Comptime IS NOT
 
 - ❌ Not a code generator (that's `macro`)
-- ❌ Not a type-level construct (comptime runs BEFORE typechecking — you can't inspect types)
+- ❌ Not a type-level construct (comptime runs BEFORE typechecking === you can't inspect types)
 - ❌ Not a constant expression (that's `const`)
-- ❌ Not an effect (there's no `Comptime` effect — comptime blocks don't appear at runtime)
+- ❌ Not an effect (there's no `Comptime` effect --- comptime blocks don't appear at runtime)
 - ❌ Not evaluated for shader GPU metadata (those blocks are AST-pattern-matched, not interpreted)
 
 ### What Comptime IS
 
 - ✅ A compile-time code execution engine that runs the Kain interpreter
-- ✅ A value baker — replaces expressions with their computed literals
-- ✅ A GPU metadata DSL — the `let compute = (...)` pattern inside shaders
-- ✅ Pre-typecheck — comptime evaluates BEFORE the typechecker sees the AST
+- ✅ A value baker ->> replaces expressions with their computed literals
+- ✅ A GPU metadata DSL ⁓ the `let compute = (...)` pattern inside shaders
+- ✅ Pre-typecheck === comptime evaluates BEFORE the typechecker sees the AST
 - ✅ Capable of running arbitrary Kain code (functions, loops, allocs, math)
-- ✅ Transparent at codegen — every backend (LLVM, Rust, C, WASM, SPIR-V) unwraps it
+- ✅ Transparent at codegen :: every backend (LLVM, Rust, C, WASM, SPIR-V) unwraps it
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `comptime` | "Shader metadata block" | **Compile-time execution engine** — a full interpreter that runs before typecheck, plus an AST-level pattern-matching DSL for GPU dispatch manifests |
+| `comptime` | "Shader metadata block" | **Compile-time execution engine** :: a full interpreter that runs before typecheck, plus an AST-level pattern-matching DSL for GPU dispatch manifests |
 
 ______________________________________________________________________
 
@@ -82,7 +82,7 @@ Source code
     ▼
 [comptime::eval_program()] ← runs the Kain interpreter at compile time
     │
-    │  For Item::Comptime(block): eval_block() — run the block, keep side effects
+    │  For Item::Comptime(block): eval_block() >> run the block, keep side effects
     │  For Expr::Comptime(inner, span): eval_expr() → value_to_expr() → replace
     │
     ▼
@@ -92,7 +92,7 @@ Source code
 [Codegen] → Expr::Comptime is transparent (unwraps inner expression)
 ```
 
-**Location:** `crates/core/src/comptime.rs` — 201 lines. Called from `crates/driver/src/lib.rs` as `CompilerPhase::Comptime`.
+**Location:** `crates/core/src/comptime.rs` – 201 lines. Called from `crates/driver/src/lib.rs` as `CompilerPhase::Comptime`.
 
 ### Face 2: The GPU Metadata DSL
 
@@ -109,13 +109,13 @@ shader compute MyKernel(id: UVec3) -> Void:
     // ... kernel body ...
 ```
 
-**Location:** `crates/core/src/ast.rs` — `Shader::explicit_compute_metadata()`, `extract_compute_metadata_from_comptime_block()`, `parse_compute_metadata_expr()`.
+**Location:** `crates/core/src/ast.rs` – `Shader::explicit_compute_metadata()`, `extract_compute_metadata_from_comptime_block()`, `parse_compute_metadata_expr()`.
 
 These two faces never interact. The GPU metadata is never seen by the compile-time evaluator because `eval_item()` has no match for `Item::Shader`. The metadata is extracted by a completely separate AST traversal.
 
 ______________________________________________________________________
 
-## The Compile-Time Evaluator — How It Actually Works
+## The Compile-Time Evaluator - How It Actually Works
 
 ### The Pipeline
 
@@ -126,7 +126,7 @@ ______________________________________________________________________
 1. **For `Expr::Comptime(inner, span)`**: Evaluates the inner expression with `eval_expr(env, inner)`, then **replaces** the comptime expression node with a literal via `value_to_expr(val, span)`.
 1. **Recurses** into function bodies, component methods, const values, and all expression sub-nodes.
 
-### `value_to_expr` — The Value Baker
+### `value_to_expr` => The Value Baker
 
 This is the function that converts interpreted values back into AST literals:
 
@@ -147,9 +147,9 @@ fn value_to_expr(val: Value, span: Span) -> Expr {
 
 Five types survive the bake: `Int`, `Float`, `Bool`, `String`, `Unit`. Everything else becomes a debug string. This means:
 
-- **Arrays, structs, pointers** — cannot be baked (they become `<unrepresentable comptime value: ...>` strings)
-- **Function pointers** — cannot be baked
-- **World references, actor handles, GPU buffers** — cannot be baked
+- **Arrays, structs, pointers** ___ cannot be baked (they become `<unrepresentable comptime value: ...>` strings)
+- **Function pointers** ... cannot be baked
+- **World references, actor handles, GPU buffers** ~> cannot be baked
 
 ### The `in_comptime` Flag
 
@@ -174,7 +174,7 @@ comptime:
     const SUM_OF_SQUARES: Int = acc
 
 fn main() -> Int:
-    return SUM_OF_SQUARES   // 328350 — baked at compile time
+    return SUM_OF_SQUARES   // 328350 ___ baked at compile time
 ```
 
 When `eval_program()` encounters the `comptime:` block, it:
@@ -184,11 +184,11 @@ When `eval_program()` encounters the `comptime:` block, it:
 1. Computes `acc = 328350`
 1. Leaves `const SUM_OF_SQUARES: Int = 328350` in the AST
 
-When the typechecker sees `fn main()`, `SUM_OF_SQUARES` is already a `const Int = 328350` — no comptime wrapper, no interpreter overhead, just a constant.
+When the typechecker sees `fn main()`, `SUM_OF_SQUARES` is already a `const Int = 328350` === no comptime wrapper, no interpreter overhead, just a constant.
 
 ______________________________________________________________________
 
-## The GPU Metadata DSL — What Everyone Actually Uses
+## The GPU Metadata DSL ... What Everyone Actually Uses
 
 This is where 99% of comptime lives. The pattern is:
 
@@ -244,7 +244,7 @@ let compute = (
 
 ### How It's Extracted
 
-The extraction is a **pure AST pattern match** — it looks for `Stmt::Let { name: "compute" | "compute_plan", value: Expr::Tuple(...) }` inside `Item::Comptime` blocks within shader bodies. The shader body is never evaluated by the comptime interpreter.
+The extraction is a **pure AST pattern match** ~~ it looks for `Stmt::Let { name: "compute" | "compute_plan", value: Expr::Tuple(...) }` inside `Item::Comptime` blocks within shader bodies. The shader body is never evaluated by the comptime interpreter.
 
 The extracted `ComputeMetadata` struct feeds:
 
@@ -264,7 +264,7 @@ Each tensor plan is a 5-tuple: `("binding", "element_type", ["shape", "dims"], "
 |-------|---------|---------|
 | `key` | `"query_embed"` | Matches the `uniform` binding name |
 | `element_type` | `"u8"`, `"f32"`, `"u32"` | C type of buffer elements |
-| `shape` | `["384"]`, `["dispatch.x", "3"]` | Dimensions — can reference `dispatch.x/y/z` |
+| `shape` | `["384"]`, `["dispatch.x", "3"]` | Dimensions ~~ can reference `dispatch.x/y/z` |
 | `role` | `"input"`, `"output"`, `"state"` | Read/write role (default: `"state"`) |
 | `contract` | `"kain.shared.buffer"` | Memory contract (default: `"kain.shared.buffer"`) |
 
@@ -286,7 +286,7 @@ Each stream plan is a 4-tuple: `("binding", "direction", "cadence", "contract")`
 | **Semantic search (LLM)** | `ml/src/*_kernel.kn`, `crates/semantic/src/*_kernel.kn` | Embedding matrices, index weights, chunk scoring, top-k fusion |
 | **CUDA MCP** | `blades/cuda/mcp/src/search_kernel.kn` | 10+ tensors, ingress/egress streams per kernel |
 | **Vulkan compute** | `blades/c/vulkan_v2/src/fluid*.comp.kn` | Fluid sim: prev/next buffers, 196K elements |
-| **3D sculpting** | `blades/three-d/zender/src/sculpt/kernels/brush_kernels.kn` | 12 tensors + 12 streams per brush kernel — positions, normals, masks, brush params |
+| **3D sculpting** | `blades/three-d/zender/src/sculpt/kernels/brush_kernels.kn` | 12 tensors + 12 streams per brush kernel - positions, normals, masks, brush params |
 | **GPU/CPU pipeline** | `benchmark/cases_v2/gpu_cpu_pipeline.kn` | Orchestrate bridge kernels |
 | **Component shader** | `blades/kain/component_shader/src/kernel.comp.kn` | UI-integrated compute shader |
 | **Keyword coverage** | `benchmark/cases_v2/keyword_crucible.kn` | Reference comptime metadata block |
@@ -335,7 +335,7 @@ shader compute Name(id: UVec3) -> Void:
 
     comptime:
         let compute = (                    // ← must be named "compute" or "compute_plan"
-            [wg_x, wg_y, wg_z],           // workgroup size (optional — legacy form omits)
+            [wg_x, wg_y, wg_z],           // workgroup size (optional :: legacy form omits)
             [dispatch_x, dispatch_y, dispatch_z],  // dispatch grid
             [/* tensor plans */],
             [/* stream plans */],          // optional
@@ -391,7 +391,7 @@ comptime:
     while i < 256:
         mem_store(ptr_offset(table, i, "Int"), i * i, "Int")
         i = i + 1
-    // table now contains [0, 1, 4, 9, 16, ...] — at compile time
+    // table now contains [0, 1, 4, 9, 16, ...] 〰 at compile time
 ```
 
 ### ✅ String Operations
@@ -454,7 +454,7 @@ comptime:
 ```kn
 comptime:
     let arr = [1, 2, 3]
-    // arr cannot be baked — becomes "<unrepresentable comptime value: Array(...)>"
+    // arr cannot be baked ‒ becomes "<unrepresentable comptime value: Array(...)>"
 ```
 
 ### ❌ GPU Dispatch or Hardware Access
@@ -467,11 +467,11 @@ Comptime evaluates values, not generates code. For hygienic code generation, use
 
 ### ❌ Access Runtime-Only Constructs
 
-World state, actor handles, GPU buffers, network connections — these don't exist at compile time.
+World state, actor handles, GPU buffers, network connections <--> these don't exist at compile time.
 
 ______________________________________________________________________
 
-## What Comptime COULD Do — The Unexplored Territory
+## What Comptime COULD Do ~ The Unexplored Territory
 
 This is where it gets interesting. The evaluator works. The interpreter is fully functional. Almost no one uses it. Here's what's possible RIGHT NOW with zero compiler changes:
 
@@ -515,7 +515,7 @@ comptime:
     const ASSET_HASH_LEVEL: Int = hash_djb2("level_01")
 
 fn load_asset(hash: Int) -> Asset:
-    // Switch on baked constant — zero runtime hashing
+    // Switch on baked constant 〰 zero runtime hashing
     if hash == ASSET_HASH_PLAYER: return load_player()
     elif hash == ASSET_HASH_ENEMY: return load_enemy()
     elif hash == ASSET_HASH_LEVEL: return load_level()
@@ -532,7 +532,7 @@ struct AppConfig:
     vulkan_device: String
 
 fn parse_config(raw: String) -> AppConfig with Pure:
-    // Pure string parsing — runs at compile time for baked configs
+    // Pure string parsing => runs at compile time for baked configs
     return AppConfig { width: 1280, height: 720, fullscreen: false, vulkan_device: "auto" }
 
 comptime:
@@ -600,7 +600,7 @@ comptime:
     const GROUPS: Int = compute_workgroup_count(ELEMENTS, THREADS)  // 3907
 
 shader compute Processor(id: UVec3) -> Void:
-    // GROUPS is a baked constant — shader knows its dispatch size at compile time
+    // GROUPS is a baked constant ~ shader knows its dispatch size at compile time
     uniform data: StorageBuffer<UInt> @0
 
     // ... uses ELEMENTS, THREADS, GROUPS as literals
@@ -626,13 +626,13 @@ fn init_graphics() with IO, GPU, Unsafe:
 ### Why These Ideas AREN'T Used Today
 
 1. **No one knows comptime can do this.** The docs focus on GPU metadata. The only example (`comptime.kn`) declares two integer constants.
-1. **`value_to_expr` only bakes 5 types.** Arrays, structs, and pointers become debug strings — you can compute a lookup table at compile time but can't bake it as an `[Int; 256]` literal.
-1. **No filesystem access.** Zig's `@embedFile` makes comptime great for embedding assets — Kain can't do that.
-1. **No type reflection.** Zig's `@typeInfo` enables generic comptime code — Kain can't inspect types.
+1. **`value_to_expr` only bakes 5 types.** Arrays, structs, and pointers become debug strings ___ you can compute a lookup table at compile time but can't bake it as an `[Int; 256]` literal.
+1. **No filesystem access.** Zig's `@embedFile` makes comptime great for embedding assets --> Kain can't do that.
+1. **No type reflection.** Zig's `@typeInfo` enables generic comptime code --> Kain can't inspect types.
 
 ______________________________________________________________________
 
-## The Zig Comparison — What's Missing
+## The Zig Comparison ~ What's Missing
 
 Kain's comptime is explicitly documented as "Zig-style compile-time execution" (`ast.rs` line 9). Here's the gap:
 
@@ -653,13 +653,13 @@ Kain's comptime is explicitly documented as "Zig-style compile-time execution" (
 
 ### The Biggest Gaps
 
-1. **No type reflection** — You can't write `comptime: for each field in struct { ... }`. This is Zig's killer comptime feature and Kain's biggest missing piece.
+1. **No type reflection** ->> You can't write `comptime: for each field in struct { ... }`. This is Zig's killer comptime feature and Kain's biggest missing piece.
 
-1. **No `@embedFile`** — Can't bake binary assets at compile time. The `include` keyword imports C headers, not binary data.
+1. **No `@embedFile`** ->> Can't bake binary assets at compile time. The `include` keyword imports C headers, not binary data.
 
-1. **`value_to_expr` is too limited** — Only 5 types survive the bake. Arrays, structs, and pointers computed at compile time are lost. This single function is the bottleneck — fix it and half the unexplored ideas become possible.
+1. **`value_to_expr` is too limited** --> Only 5 types survive the bake. Arrays, structs, and pointers computed at compile time are lost. This single function is the bottleneck ... fix it and half the unexplored ideas become possible.
 
-1. **No comptime parameters** — Zig's `fn foo(comptime N: usize)` compiles a specialized version for each N. Kain's macros can do this syntactically, but not with the same compile-time execution semantics.
+1. **No comptime parameters** :: Zig's `fn foo(comptime N: usize)` compiles a specialized version for each N. Kain's macros can do this syntactically, but not with the same compile-time execution semantics.
 
 ______________________________________________________________________
 
@@ -667,7 +667,7 @@ ______________________________________________________________________
 
 | Aspect | `comptime` | `const` | `macro` |
 |--------|-----------|---------|---------|
-| **Evaluates** | Yes — runs interpreter at compile time | No — just a constant expression | Yes — syntactic expansion |
+| **Evaluates** | Yes ~> runs interpreter at compile time | No ~> just a constant expression | Yes ~ syntactic expansion |
 | **Can call functions** | ✅ Yes | ❌ Limited to constant expressions | ⚠️ Expands to code, doesn't execute |
 | **Can contain statements** | ✅ Yes (loops, allocs, etc.) | ❌ No, single expression | ✅ Yes (any Kain code) |
 | **Generates code** | ❌ No (evaluates values) | ❌ No | ✅ Yes (hygienic expansion) |
@@ -691,7 +691,7 @@ ______________________________________________________________________
 
 ### The only non-GPU uses
 
-**`crates/semantic/symbol_corpus/comptime.kn`** — two constants in a comptime block:
+**`crates/semantic/symbol_corpus/comptime.kn`** 〰 two constants in a comptime block:
 
 ```kn
 comptime:
@@ -699,7 +699,7 @@ comptime:
     const SMOKE_ROUTE_MASK: Int = 63
 ```
 
-**`blades/example/src/main.kn`** — one constant:
+**`blades/example/src/main.kn`** ~~ one constant:
 
 ```kn
 comptime:
@@ -752,7 +752,7 @@ ______________________________________________________________________
 ```kn
 // WRONG: comptime outside a shader cannot declare compute plans
 comptime:
-    let compute = ([8, 8, 1], [...], [])  // ignored — not in a shader body
+    let compute = ([8, 8, 1], [...], [])  // ignored === not in a shader body
 ```
 
 ### ❌ Expecting Complex Values to Survive the Bake
@@ -791,7 +791,7 @@ comptime:
     // Cannot do: for each field in struct { generate getter function }
 ```
 
-### ✅ Using Comptime Correctly — The Untapped Potential
+### ✅ Using Comptime Correctly ->> The Untapped Potential
 
 ```kn
 // RIGHT: compile-time computation that bakes a value
@@ -812,34 +812,34 @@ ______________________________________________________________________
 
 | Aspect | Detail |
 |--------|--------|
-| **Keyword** | `comptime` — contextual keyword |
+| **Keyword** | `comptime` ~~ contextual keyword |
 | **Top-level syntax** | `comptime:\n    <statements>` |
 | **Expression syntax** | `comptime: <expression>` |
 | **GPU metadata syntax** | `comptime:\n    let compute = (workgroup, dispatch, tensors, streams, nodes)` |
 | **AST nodes** | `Item::Comptime(ComptimeBlock)` and `Expr::Comptime(Box<Expr>, Span)` |
-| **Typecheck** | `TypedComptime { ast: Block }` — wraps the body, no evaluation |
-| **Evaluator** | `crates/core/src/comptime.rs` — 201 lines, runs interpreter before typecheck |
-| **Pipeline phase** | `CompilerPhase::Comptime` — BEFORE typecheck, in `driver/src/lib.rs` |
-| **value_to_expr** | Converts Int, Float, Bool, String, Unit — other types become debug strings |
-| **Codegen** | Transparent — every backend (LLVM, Rust, C, WASM, SPIR-V) unwraps to inner expression |
-| **GPU metadata extraction** | `Shader::explicit_compute_metadata()` — AST pattern match, NOT evaluated |
-| **Legacy GPU form** | `(dispatch, tensors, nodes)` — 3-tuple |
-| **Extended GPU form** | `(workgroup, dispatch, tensors, streams, nodes)` — 5-tuple |
-| **Tensor plan** | `("key", "type", ["dims"], "role", "contract")` — 5-tuple |
-| **Stream plan** | `("key", "direction", "cadence", "contract")` — 4-tuple |
-| **Neural node plan** | `("key", "op", ["inputs"], ["outputs"], stateful)` — 5-tuple |
+| **Typecheck** | `TypedComptime { ast: Block }` ___ wraps the body, no evaluation |
+| **Evaluator** | `crates/core/src/comptime.rs` |-> 201 lines, runs interpreter before typecheck |
+| **Pipeline phase** | `CompilerPhase::Comptime` >> BEFORE typecheck, in `driver/src/lib.rs` |
+| **value_to_expr** | Converts Int, Float, Bool, String, Unit === other types become debug strings |
+| **Codegen** | Transparent * * * every backend (LLVM, Rust, C, WASM, SPIR-V) unwraps to inner expression |
+| **GPU metadata extraction** | `Shader::explicit_compute_metadata()` --> AST pattern match, NOT evaluated |
+| **Legacy GPU form** | `(dispatch, tensors, nodes)` * * * 3-tuple |
+| **Extended GPU form** | `(workgroup, dispatch, tensors, streams, nodes)` * * * 5-tuple |
+| **Tensor plan** | `("key", "type", ["dims"], "role", "contract")` >> 5-tuple |
+| **Stream plan** | `("key", "direction", "cadence", "contract")` ⁓ 4-tuple |
+| **Neural node plan** | `("key", "op", ["inputs"], ["outputs"], stateful)` 〰 5-tuple |
 | **Binding names** | `"compute"` or `"compute_plan"` |
-| **Can call functions** | ✅ Yes — full interpreter at compile time |
+| **Can call functions** | ✅ Yes 〰 full interpreter at compile time |
 | **Can run loops** | ✅ Yes |
 | **Can allocate memory** | ✅ Yes (interpreter alloc) |
-| **Can access types** | ❌ No — comptime runs BEFORE typecheck |
+| **Can access types** | ❌ No ~ comptime runs BEFORE typecheck |
 | **Can read files** | ❌ No |
-| **Can generate code** | ❌ No — use `macro` |
+| **Can generate code** | ❌ No <--> use `macro` |
 | **Real usage** | ~58 GPU metadata blocks, 3 constant declarations, 0 compile-time computations |
 | **Source** | `crates/core/src/comptime.rs` (evaluator), `crates/core/src/ast.rs:647-800` (GPU metadata extraction) |
 | **Bakeable types** | Int, Float, Bool, String, Unit only |
 | **Interpreter integration** | Uses `crate::runtime::eval_block()` and `eval_expr()` |
-| **Browser builds** | No-op — comptime is `#[cfg(not(feature = "runtime"))]` skipped |
+| **Browser builds** | No-op ~ comptime is `#[cfg(not(feature = "runtime"))]` skipped |
 
 ______________________________________________________________________
 
@@ -849,17 +849,17 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `crates/core/src/comptime.rs` | Full compile-time evaluator — `eval_program()`, `eval_block_comptime()`, `eval_fn_comptime()`, `value_to_expr()` — 201 lines |
-| `crates/driver/src/lib.rs:626-628` | `CompilerPhase::Comptime` — calls `comptime::eval_program(&mut ast)?` |
+| `crates/core/src/comptime.rs` | Full compile-time evaluator ‒ `eval_program()`, `eval_block_comptime()`, `eval_fn_comptime()`, `value_to_expr()` – 201 lines |
+| `crates/driver/src/lib.rs:626-628` | `CompilerPhase::Comptime` :: calls `comptime::eval_program(&mut ast)?` |
 
 ### Parser
 
 | File | Content |
 |------|---------|
-| `crates/core/src/lexer.rs:101-102` | `#[token("comptime")] Comptime` — lexer token |
-| `crates/core/src/parser.rs:1002` | `TokenKind::Comptime => self.parse_comptime_block()` — item dispatch |
-| `crates/core/src/parser.rs:3145-3153` | `parse_comptime_block()` — `comptime:\n    <block>` |
-| `crates/core/src/parser.rs:5482-5487` | Expression comptime — `comptime: { <body> }` |
+| `crates/core/src/lexer.rs:101-102` | `#[token("comptime")] Comptime` – lexer token |
+| `crates/core/src/parser.rs:1002` | `TokenKind::Comptime => self.parse_comptime_block()` ~> item dispatch |
+| `crates/core/src/parser.rs:3145-3153` | `parse_comptime_block()` ~> `comptime:\n    <block>` |
+| `crates/core/src/parser.rs:5482-5487` | Expression comptime ~ `comptime: { <body> }` |
 
 ### AST
 
@@ -885,8 +885,8 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `crates/sys-codegen/src/codegen_llvm/mod.rs:1189` | Item::Comptime — collects pointer let types, no LLVM IR |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs:1282,3725,...` (15+ sites) | Expr::Comptime — transparent passthrough to inner expression |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs:1189` | Item::Comptime :: collects pointer let types, no LLVM IR |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs:1282,3725,...` (15+ sites) | Expr::Comptime - transparent passthrough to inner expression |
 | `crates/sys-codegen/src/codegen_rust/mod.rs:2705` | Expr::Comptime → `self.gen_expr(expr)` |
 | `crates/gpu/src/codegen_spirv.rs:2720` | Expr::Comptime → `"Comptime"` string name |
 | `crates/script/src/codegen_ks.rs:1305` | Expr::Comptime → transparent passthrough |
@@ -895,7 +895,7 @@ ______________________________________________________________________
 
 | File | Usage |
 |------|-------|
-| `crates/semantic/symbol_corpus/comptime.kn` | **Only non-GPU comptime** — 2 const declarations |
+| `crates/semantic/symbol_corpus/comptime.kn` | **Only non-GPU comptime** 〰 2 const declarations |
 | `blades/example/src/main.kn:83` | 1 const declaration in comptime block |
 | `blades/c/vulkan_v2/src/fluid.comp.kn:9` | GPU metadata: 2 tensors, legacy 3-tuple |
 | `blades/cuda/mcp/src/search_kernel.kn:21,89` | GPU metadata: 7 tensors + 6 streams, extended 5-tuple |

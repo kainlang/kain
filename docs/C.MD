@@ -1,62 +1,62 @@
-# Kain C Interop — Full Research
+# Kain C Interop :: Full Research
 
 > **Date**: 2026-06-08
 > **Files inspected**:
 >
-> - `crates/core/src/parser.rs` (11056 lines) — `parse_include()`, `parse_c_include_target()`, `parse_c_system_include_target()`, parser tests
-> - `crates/core/src/ast.rs` (3806 lines) — `UseOrigin::CInclude`, `PointerProvenance::ImportedC`, `InlineAsmOptions`
-> - `crates/core/src/low_level_abi.rs` (400 lines) — `CAbiPolicy`, `CAbiKind`, `CCompilerFlavor`, LP64 vs LLP64
-> - `crates/core/src/runtime_contract.rs` — `"include"` kind emission for C includes in runtime contract JSON
-> - `crates/core/src/types.rs` — `ATTR_LINK_NAME`, `ATTR_CALLCONV` attribute validation
-> - `crates/c-ffi/src/lib.rs` (3360 lines) — **Primary entry point**: detection, resolution, caching, bridge loading
-> - `crates/c-ffi/src/extract.rs` (1179 lines) — Three-tier extraction: libclang → lang-c → regex
-> - `crates/c-ffi/src/libclang_extract.rs` (551 lines) — Full C AST walking via clang-sys (605 Win32, 755 Vulkan functions)
-> - `crates/c-ffi/src/generate.rs` (952 lines) — Writes `.kn` module, `_prelude.kn`, bridge `.rs`, manifests
-> - `crates/c-ffi/src/model.rs` (402 lines) — `ResolvedCLibrary`, `CFunctionBinding`, `BridgeType`, `BindingReport`
-> - `crates/c-ffi/src/config.rs` (78 lines) — `CFfiConfig`, `CInteropTier` (Dynamic/Static/Inline), `CLibraryConfig`
-> - `crates/c-ffi/src/platform.rs` (961 lines) — Platform package import (Vulkan SDK, Windows SDK)
-> - `crates/c-ffi/src/system_registry.rs` (387 lines) — System header registry loader
-> - `crates/c-ffi/system_headers.toml` — 6 families: vulkan, c-runtime-math, c-runtime, ffmpeg, posix, windows-sdk
-> - `crates/import/src/c/parser.rs` (983 lines) — C11 parsing via `lang-c` crate
-> - `crates/import/src/c/transformer.rs` (4070 lines) — C AST → Kain AST (~4000 lines)
-> - `crates/import/src/c/types.rs` (95 lines) — C type → Kain type mapping
-> - `crates/import/src/common/c_registry.rs` (341 lines) — Type aliases: int→Int, float→Float, char→Char, void→Unit
-> - `crates/foreign-abi/src/lib.rs` (904 lines) — `ForeignBaseKind`, `ForeignDirection`, `ForeignOwnershipPolicy`, `ForeignCallingConvention`
-> - `crates/sys-codegen/src/codegen_llvm/mod.rs` — LLVM extern symbol resolution, `@extern` + `@link_name` FFI declarations, inline asm emission
-> - `crates/sys-codegen/src/codegen_rust/mod.rs` — `unsafe extern "C" { ... }` emission
-> - `crates/sys-codegen/src/codegen_c.rs` (1235 lines) — C `#include <std*.h>` preamble generation
-> - `runtime/native/include/host_bridge.h` (128 lines) — `KainHostBridgeRegistry`, `KainHostBridgeModuleDescriptor`, `KainForeignRuntimeLane`
-> - `runtime/native/src/core/host_bridge.c` (437 lines) — Module/service registration, bridge DLL loading
-> - `runtime/native/include/c_runtime_math_subset.h` — Math shim header
-> - `runtime/native/include/vulkan_loader_subset.h` — Vulkan loader shim header
-> - `runtime/native/include/ffmpeg_version_subset.h` — FFmpeg version shim header
-> - `blades/c/vulkan_v2/src/main.kn` — Canonical `@extern` + `@link_name` example
-> - `blades/kain/component_minimal/src/app.kn` — `include <windows.h> as win` usage example
-> - `benchmark/cases_v2/keyword_crucible.kn` — `include ... as ...` keyword coverage
+> - `crates/core/src/parser.rs` (11056 lines) -- `parse_include()`, `parse_c_include_target()`, `parse_c_system_include_target()`, parser tests
+> - `crates/core/src/ast.rs` (3806 lines) <--> `UseOrigin::CInclude`, `PointerProvenance::ImportedC`, `InlineAsmOptions`
+> - `crates/core/src/low_level_abi.rs` (400 lines) ⁓ `CAbiPolicy`, `CAbiKind`, `CCompilerFlavor`, LP64 vs LLP64
+> - `crates/core/src/runtime_contract.rs` --> `"include"` kind emission for C includes in runtime contract JSON
+> - `crates/core/src/types.rs` ~~ `ATTR_LINK_NAME`, `ATTR_CALLCONV` attribute validation
+> - `crates/c-ffi/src/lib.rs` (3360 lines) ~~ **Primary entry point**: detection, resolution, caching, bridge loading
+> - `crates/c-ffi/src/extract.rs` (1179 lines) |-> Three-tier extraction: libclang → lang-c → regex
+> - `crates/c-ffi/src/libclang_extract.rs` (551 lines) ... Full C AST walking via clang-sys (605 Win32, 755 Vulkan functions)
+> - `crates/c-ffi/src/generate.rs` (952 lines) ~ Writes `.kn` module, `_prelude.kn`, bridge `.rs`, manifests
+> - `crates/c-ffi/src/model.rs` (402 lines) ... `ResolvedCLibrary`, `CFunctionBinding`, `BridgeType`, `BindingReport`
+> - `crates/c-ffi/src/config.rs` (78 lines) - `CFfiConfig`, `CInteropTier` (Dynamic/Static/Inline), `CLibraryConfig`
+> - `crates/c-ffi/src/platform.rs` (961 lines) ~> Platform package import (Vulkan SDK, Windows SDK)
+> - `crates/c-ffi/src/system_registry.rs` (387 lines) ⁓ System header registry loader
+> - `crates/c-ffi/system_headers.toml` ~> 6 families: vulkan, c-runtime-math, c-runtime, ffmpeg, posix, windows-sdk
+> - `crates/import/src/c/parser.rs` (983 lines) :: C11 parsing via `lang-c` crate
+> - `crates/import/src/c/transformer.rs` (4070 lines) ___ C AST → Kain AST (~4000 lines)
+> - `crates/import/src/c/types.rs` (95 lines) ⁓ C type → Kain type mapping
+> - `crates/import/src/common/c_registry.rs` (341 lines) ->> Type aliases: int→Int, float→Float, char→Char, void→Unit
+> - `crates/foreign-abi/src/lib.rs` (904 lines) ... `ForeignBaseKind`, `ForeignDirection`, `ForeignOwnershipPolicy`, `ForeignCallingConvention`
+> - `crates/sys-codegen/src/codegen_llvm/mod.rs` => LLVM extern symbol resolution, `@extern` + `@link_name` FFI declarations, inline asm emission
+> - `crates/sys-codegen/src/codegen_rust/mod.rs` => `unsafe extern "C" { ... }` emission
+> - `crates/sys-codegen/src/codegen_c.rs` (1235 lines) >> C `#include <std*.h>` preamble generation
+> - `runtime/native/include/host_bridge.h` (128 lines) -- `KainHostBridgeRegistry`, `KainHostBridgeModuleDescriptor`, `KainForeignRuntimeLane`
+> - `runtime/native/src/core/host_bridge.c` (437 lines) --- Module/service registration, bridge DLL loading
+> - `runtime/native/include/c_runtime_math_subset.h` :: Math shim header
+> - `runtime/native/include/vulkan_loader_subset.h` => Vulkan loader shim header
+> - `runtime/native/include/ffmpeg_version_subset.h` === FFmpeg version shim header
+> - `blades/c/vulkan_v2/src/main.kn` – Canonical `@extern` + `@link_name` example
+> - `blades/kain/component_minimal/src/app.kn` ~ `include <windows.h> as win` usage example
+> - `benchmark/cases_v2/keyword_crucible.kn` ~> `include ... as ...` keyword coverage
 
 ______________________________________________________________________
 
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-1. [Architecture — Four-Layer Stack](#2-architecture--four-layer-stack)
+1. [Architecture – Four-Layer Stack](#2-architecture--four-layer-stack)
 1. [Layer 0: Surface Syntax](#3-layer-0-surface-syntax)
 1. [Layer 1: C Header Extraction](#4-layer-1-c-header-extraction)
 1. [Layer 2: Runtime Bridge](#5-layer-2-runtime-bridge)
 1. [Layer 3: Codegen Backends](#6-layer-3-codegen-backends)
 1. [Layer 4: Low-Level ABI Policy](#7-layer-4-low-level-abi-policy)
-1. [The Extraction Pipeline — End to End](#8-the-extraction-pipeline--end-to-end)
+1. [The Extraction Pipeline - End to End](#8-the-extraction-pipeline--end-to-end)
 1. [Generated Output Anatomy](#9-generated-output-anatomy)
 1. [C Type System Mapping](#10-c-type-system-mapping)
 1. [System Headers Registry](#11-system-headers-registry)
 1. [Companion .c Discovery and Compilation](#12-companion-c-discovery-and-compilation)
 1. [Caching Model](#13-caching-model)
-1. [CInteropTier — Dynamic vs Static vs Inline](#14-cinteroptier--dynamic-vs-static-vs-inline)
+1. [CInteropTier => Dynamic vs Static vs Inline](#14-cinteroptier--dynamic-vs-static-vs-inline)
 1. [Calling Conventions](#15-calling-conventions)
 1. [Pointer Provenance](#16-pointer-provenance)
 1. [Inline Assembly](#17-inline-assembly)
 1. [Runtime Contract Emission](#18-runtime-contract-emission)
-1. [@extern and @link_name — Direct FFI Declarations](#19-extern-and-link_name--direct-ffi-declarations)
+1. [@extern and @link_name ->> Direct FFI Declarations](#19-extern-and-link_name--direct-ffi-declarations)
 1. [CLI Commands](#20-cli-commands)
 1. [Legacy use c:: Path](#21-legacy-use-c-path)
 1. [Full Source Reference](#22-full-source-reference)
@@ -66,16 +66,16 @@ ______________________________________________________________________
 
 ## 1. Executive Summary
 
-Kain's C interop is a **four-layer, compiler-owned pipeline** — not a thin `extern "C"` wrapper, not a manual binding generator, not a subprocess. It is:
+Kain's C interop is a **four-layer, compiler-owned pipeline** ~> not a thin `extern "C"` wrapper, not a manual binding generator, not a subprocess. It is:
 
-1. **A surface syntax** — `include <windows.h> as win`, `include "sqlite3.h" as sql`, `include native/nuklear.h as nk` — three forms parsed at `crates/core/src/parser.rs:1379`.
-1. **A C header extraction engine** — `crates/c-ffi/` (~6500 lines total) with three-tier extraction: **libclang** (full C AST via `clang-sys`), **lang-c** (C11 parser crate), and **regex fallback**. Extracts 605 Win32 functions, 755 Vulkan functions, and all C standard library functions through the `system_headers.toml` registry.
-1. **A native runtime bridge** — `runtime/native/src/core/host_bridge.c` registers bridge DLLs, manages `KainHostBridgeRegistry` with module/service descriptors, and supports five foreign runtime lanes (Rust, Python, Node, C, Zig).
-1. **Three codegen backends** — LLVM IR (extern symbol resolution + `@extern` `@link_name` FFI), Rust ( `unsafe extern "C" { ... }`), and C ( `#include <std*.h>` preamble).
+1. **A surface syntax** :: `include <windows.h> as win`, `include "sqlite3.h" as sql`, `include native/nuklear.h as nk` :: three forms parsed at `crates/core/src/parser.rs:1379`.
+1. **A C header extraction engine** --- `crates/c-ffi/` (~6500 lines total) with three-tier extraction: **libclang** (full C AST via `clang-sys`), **lang-c** (C11 parser crate), and **regex fallback**. Extracts 605 Win32 functions, 755 Vulkan functions, and all C standard library functions through the `system_headers.toml` registry.
+1. **A native runtime bridge** ~> `runtime/native/src/core/host_bridge.c` registers bridge DLLs, manages `KainHostBridgeRegistry` with module/service descriptors, and supports five foreign runtime lanes (Rust, Python, Node, C, Zig).
+1. **Three codegen backends** <--> LLVM IR (extern symbol resolution + `@extern` `@link_name` FFI), Rust ( `unsafe extern "C" { ... }`), and C ( `#include <std*.h>` preamble).
 
 **The libclang path is the hot path for rich headers.** When you `include <windows.h> as win`, libclang walks the full C AST, extracts 6,294 function declarations with full type resolution, and generates a `.kn` module with `@extern` functions. The `lang-c` path handles simpler C11 headers, and the regex path is the last-resort fallback.
 
-Every `include` statement lowers to a `Use { path: ["c", "import_name"], alias, origin: CInclude }` in the AST — it is a **compiler-resolved import**, not a preprocessor directive. The compiler handles header location, extraction, caching, code generation, and linking automatically.
+Every `include` statement lowers to a `Use { path: ["c", "import_name"], alias, origin: CInclude }` in the AST ->> it is a **compiler-resolved import**, not a preprocessor directive. The compiler handles header location, extraction, caching, code generation, and linking automatically.
 
 ### Architecture Overview
 
@@ -107,9 +107,9 @@ Every `include` statement lowers to a `Use { path: ["c", "import_name"], alias, 
 │       ├─[Local]   natural local header + companion .c discovery          │
 │       └─[Runtime] runtime/native/include/ shim headers                   │
 │                                                                          │
-│  extract_binding_bundle() — THREE-TIER EXTRACTION:                       │
-│       ├─Tier 1: libclang (clang-sys) — full C AST walk                  │
-│       ├─Tier 2: lang-c crate — C11 parser                               │
+│  extract_binding_bundle() ~~ THREE-TIER EXTRACTION:                       │
+│       ├─Tier 1: libclang (clang-sys) --- full C AST walk                  │
+│       ├─Tier 2: lang-c crate <--> C11 parser                               │
 │       └─Tier 3: regex fallback                                          │
 │                                                                          │
 │  write_generated_artifacts() → .kn, _prelude.kn, bridge/ -> .rs         │
@@ -119,9 +119,9 @@ Every `include` statement lowers to a `Use { path: ["c", "import_name"], alias, 
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  Layer 2: Runtime Bridge (runtime/native/)                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐ │
-│  │ host_bridge.h — KainHostBridgeRegistry, KainForeignRuntimeLane (C)  │ │
-│  │ host_bridge.c — Bridge DLL loading via libloading, module reg.      │ │
-│  │ Shim headers — c_runtime_math_subset.h, vulkan_loader_subset.h, ...  │ │
+│  │ host_bridge.h => KainHostBridgeRegistry, KainForeignRuntimeLane (C)  │ │
+│  │ host_bridge.c 〰 Bridge DLL loading via libloading, module reg.      │ │
+│  │ Shim headers === c_runtime_math_subset.h, vulkan_loader_subset.h, ...  │ │
 │  └─────────────────────────────────────────────────────────────────────┘ │
 └───────────────────────┬──────────────────────────────────────────────────┘
                         │
@@ -148,7 +148,7 @@ Every `include` statement lowers to a `Use { path: ["c", "import_name"], alias, 
 
 ______________________________________________________________________
 
-## 2. Architecture — Four-Layer Stack
+## 2. Architecture - Four-Layer Stack
 
 ### Layer 0: The Syntax
 
@@ -162,11 +162,11 @@ include bare_name as alias           # Bare import name (resolved automatically)
 
 These are parsed at `crates/core/src/parser.rs:1379-1406` and produce `Use { path: ["c", "import_name"], alias: Some("alias"), origin: UseOrigin::CInclude }` in the AST.
 
-The `import_name` is derived from the file stem via `c_include_import_name()` at parser.rs:228-234 — `windows.h` → `"windows"`, `vulkan/vulkan.h` → `"vulkan"`.
+The `import_name` is derived from the file stem via `c_include_import_name()` at parser.rs:228-234 ‒ `windows.h` → `"windows"`, `vulkan/vulkan.h` → `"vulkan"`.
 
 ### Layer 1: C Header Extraction (`crates/c-ffi/`)
 
-**This is the primary engine for compiled Kain.** Every `include` directive — when compiled to native LLVM — goes through the full resolution + extraction + generation pipeline. There is NO manual binding step.
+**This is the primary engine for compiled Kain.** Every `include` directive ~> when compiled to native LLVM === goes through the full resolution + extraction + generation pipeline. There is NO manual binding step.
 
 Files (~6500 lines total):
 
@@ -220,17 +220,17 @@ ______________________________________________________________________
 
 ### 3.1 The `include` Keyword
 
-The `include` keyword is parsed as a **contextual identifier** — it is not a hard keyword. At `parser.rs:1007`, the main dispatch loop matches:
+The `include` keyword is parsed as a **contextual identifier** --> it is not a hard keyword. At `parser.rs:1007`, the main dispatch loop matches:
 
 ```rust
 TokenKind::Ident(ref name) if name == "include" => self.parse_include(),
 ```
 
-This means `include` only has special meaning at the top of a statement. It is not reserved — you can still use `include` as a variable name inside functions.
+This means `include` only has special meaning at the top of a statement. It is not reserved ‒ you can still use `include` as a variable name inside functions.
 
 ### 3.2 Three Syntax Forms
 
-#### Form 1: System Header — Angle Brackets
+#### Form 1: System Header 〰 Angle Brackets
 
 ```kain
 include <vulkan/vulkan.h> as vk
@@ -240,7 +240,7 @@ include <math.h> as cmath
 
 Parsed by `parse_c_system_include_target()` at `parser.rs:1410-1441`. The parser collects path segments separated by `/`, `.`, and `-` tokens inside `<...>` brackets. Produces a raw target string like `"vulkan/vulkan.h"`.
 
-The `CIncludeSearch::System` flag is set based on the angle bracket form, which controls later resolution — system headers are searched through the `system_headers.toml` registry rather than local filesystem paths.
+The `CIncludeSearch::System` flag is set based on the angle bracket form, which controls later resolution ~ system headers are searched through the `system_headers.toml` registry rather than local filesystem paths.
 
 #### Form 2: Quoted Local Header
 
@@ -249,7 +249,7 @@ include "sqlite3.h" as sql
 include "../native/nuklear.h" as nk
 ```
 
-Parsed at `parser.rs:1398` — if `peek_kind()` returns `TokenKind::String`, the string value is used directly as the target. The `CIncludeSearch::Local` flag routes resolution to the local filesystem: the compiler searches relative to the source file, then in `src/`, `native/`, `include/` subdirectories.
+Parsed at `parser.rs:1398` ->> if `peek_kind()` returns `TokenKind::String`, the string value is used directly as the target. The `CIncludeSearch::Local` flag routes resolution to the local filesystem: the compiler searches relative to the source file, then in `src/`, `native/`, `include/` subdirectories.
 
 #### Form 3: Bare Import Name
 
@@ -258,7 +258,7 @@ include native/nuklear as nk
 include sqlite3 as sql
 ```
 
-Parsed as a sequence of `parse_use_path_segment()` calls separated by `/` or `.` tokens. If the target has no extension, the compiler appends `.h` during resolution. This form is equivalent to `include "native/nuklear.h"` — it triggers the same local header resolution.
+Parsed as a sequence of `parse_use_path_segment()` calls separated by `/` or `.` tokens. If the target has no extension, the compiler appends `.h` during resolution. This form is equivalent to `include "native/nuklear.h"` ‒ it triggers the same local header resolution.
 
 ### 3.3 AST Lowering
 
@@ -275,7 +275,7 @@ Item::Use(Use {
 })
 ```
 
-The `path` always starts with `"c"` — this is the module root for all C FFI bindings. The second element is the derived import name (file stem). The `UseOrigin::CInclude` discriminant (defined at `ast.rs:1382-1384`) distinguishes C includes from normal `use` imports at every stage of the pipeline.
+The `path` always starts with `"c"` ~ this is the module root for all C FFI bindings. The second element is the derived import name (file stem). The `UseOrigin::CInclude` discriminant (defined at `ast.rs:1382-1384`) distinguishes C includes from normal `use` imports at every stage of the pipeline.
 
 ### 3.4 Import Name Derivation
 
@@ -347,10 +347,10 @@ static INCLUDE_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 This regex captures:
 
-1. **Group 1** — Quoted path: `"sqlite3.h"`
-1. **Group 2** — System path: `<vulkan/vulkan.h>`
-1. **Group 3** — Bare name: `native/nuklear`
-1. **Group 4** — Alias: `as nk`
+1. **Group 1** – Quoted path: `"sqlite3.h"`
+1. **Group 2** <--> System path: `<vulkan/vulkan.h>`
+1. **Group 3** --> Bare name: `native/nuklear`
+1. **Group 4** ~ Alias: `as nk`
 
 The function returns `Vec<CLibraryImportSpec>` ordered by position in source, with deduplication (later `include` forms override earlier `use c::` forms for the same import name).
 
@@ -400,7 +400,7 @@ pub struct ResolvedCLibrary {
 `resolve_natural_local_include()` at `lib.rs:871` handles `include "sqlite3.h"` and `include native/nuklear` forms. It:
 
 1. Searches `start_dir`, `src/`, `native/`, `include/` for the header file
-1. **Discovers sibling `.c` files** with the same stem — this is how `include sqlite3.h as sql` automatically finds `sqlite3.c`
+1. **Discovers sibling `.c` files** with the same stem => this is how `include sqlite3.h as sql` automatically finds `sqlite3.c`
 1. Sets `CInteropTier::Inline` for local includes (LLVM bitcode embedding)
 1. Requires at least one `.c` source to link
 
@@ -477,7 +477,7 @@ CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_SkipFunctionBo
 
 | CXCursorKind | What it extracts |
 |-------------|-----------------|
-| `CXCursor_FunctionDecl` | Function name, return type, parameter types — builds `CFunctionBinding` |
+| `CXCursor_FunctionDecl` | Function name, return type, parameter types >> builds `CFunctionBinding` |
 | `CXCursor_StructDecl` / `CXCursor_UnionDecl` | Struct/union names for binding report |
 | `CXCursor_TypedefDecl` | Typedef name → underlying type mapping |
 | `CXCursor_EnumDecl` | Enum constants (name + signed value) via `visit_enum_child()` |
@@ -523,11 +523,11 @@ Two supporting crates handle C parsing type mapping:
 
 **`crates/import/src/c/`**:
 
-- `parser.rs` (983 lines) — C11 parsing via `lang-c` with `CImportOptions` (include paths, defines, C++ options)
-- `transformer.rs` (4070 lines) — Converts C AST → Kain AST with full struct/enum/typedef/function support
-- `types.rs` (95 lines) — `CTypeTransformer`: C type → Kain type mapping
+- `parser.rs` (983 lines) => C11 parsing via `lang-c` with `CImportOptions` (include paths, defines, C++ options)
+- `transformer.rs` (4070 lines) ~ Converts C AST → Kain AST with full struct/enum/typedef/function support
+- `types.rs` (95 lines) >> `CTypeTransformer`: C type → Kain type mapping
 
-**`crates/import/src/common/c_registry.rs`** (341 lines) — Type registry mapping C fundamental types to Kain types:
+**`crates/import/src/common/c_registry.rs`** (341 lines) :: Type registry mapping C fundamental types to Kain types:
 
 - `int` → `Int`
 - `float` → `Float`
@@ -538,7 +538,7 @@ Two supporting crates handle C parsing type mapping:
 - `size_t` → `Int`
 - `int8_t`/`uint8_t`/etc → `Int`
 
-**`crates/foreign-abi/src/lib.rs`** (904 lines) — The foreign ABI type model:
+**`crates/foreign-abi/src/lib.rs`** (904 lines) ~~ The foreign ABI type model:
 
 ```rust
 pub enum ForeignAbiType {
@@ -554,10 +554,10 @@ pub enum ForeignAbiType {
 
 Key enums:
 
-- `ForeignBaseKind` — `Scalar`, `Typedef`, `Struct`, `Enum`
-- `ForeignDirection` — `In`, `Out`, `InOut`, `Return`, `Unknown`
-- `ForeignOwnershipPolicy` — `Borrowed`, `Owned`, `Shared`, `Pinned`, `External`, `Unknown`
-- `ForeignCallingConvention` — `C`, `Stdcall`, `Fastcall`, `Thiscall`, `Vectorcall`, `Unknown`
+- `ForeignBaseKind` ___ `Scalar`, `Typedef`, `Struct`, `Enum`
+- `ForeignDirection` ~ `In`, `Out`, `InOut`, `Return`, `Unknown`
+- `ForeignOwnershipPolicy` 〰 `Borrowed`, `Owned`, `Shared`, `Pinned`, `External`, `Unknown`
+- `ForeignCallingConvention` --- `C`, `Stdcall`, `Fastcall`, `Thiscall`, `Vectorcall`, `Unknown`
 
 ### 4.6 The `generate.rs` Artifact Writer
 
@@ -577,7 +577,7 @@ At `generate.rs:63`, `write_generated_artifacts()` produces the full set of outp
 The canonical `.kn` module source is rendered by `render_canonical_module_source()` which:
 
 1. Opens with `# Generated by kain-c-ffi for library {name}`
-1. Wraps everything in `mod c: mod {import_name}:` — matching the `["c", "import_name"]` path
+1. Wraps everything in `mod c: mod {import_name}:` === matching the `["c", "import_name"]` path
 1. Emits each function as `@extern` with `@link_name("raw_name")` attribute and the aliased function name
 1. Emits constants, type aliases, struct definitions
 
@@ -591,19 +591,19 @@ The bridge Rust source is rendered by `render_bridge_source()` which:
 
 For complex platform SDKs like Vulkan and Windows SDK, `platform.rs` provides:
 
-- `import_platform_package()` — Full platform package resolution with lock file
-- `PlatformPackageLock` — Serialized lock file (`kain-platform-lock-v1`)
+- `import_platform_package()` ‒ Full platform package resolution with lock file
+- `PlatformPackageLock` ... Serialized lock file (`kain-platform-lock-v1`)
 - SDK root discovery (environment variables, well-known paths, version scanners)
 - Shim header compilation
 - Binding generation with full SDK layout
 
 The `ImportPlatformOptions` struct controls:
 
-- `package_name` / `provider` — Which platform package
-- `sdk_root` — Override SDK installation path
-- `target_triple` — Cross-compilation target
-- `dry_run` — Discovery without generation
-- `header_path` — Specific header override
+- `package_name` / `provider` - Which platform package
+- `sdk_root` <--> Override SDK installation path
+- `target_triple` ___ Cross-compilation target
+- `dry_run` ~> Discovery without generation
+- `header_path` <--> Specific header override
 
 ______________________________________________________________________
 
@@ -690,7 +690,7 @@ Three runtime-owned shim headers in `runtime/native/include/` provide targeted C
 
 | File | Purpose |
 |------|---------|
-| `c_runtime_math_subset.h` | `sqrt`, `sin`, `cos`, `floor` — small, targeted math subset |
+| `c_runtime_math_subset.h` | `sqrt`, `sin`, `cos`, `floor` === small, targeted math subset |
 | `vulkan_loader_subset.h` | Vulkan loader entry points for dynamic dispatch |
 | `ffmpeg_version_subset.h` | FFmpeg version compatibility stubs |
 
@@ -718,7 +718,7 @@ Functions with `@extern` and `@link_name` attributes get exported with their raw
 
 **Tagged Integer Untagging** (line 18001-18004):
 
-Kain tags `Int` values as `(v << 3) | 1`. When passed to C functions, the tag leaks — C receives 1 instead of 0 for NULL handle params. The codegen post-processes all i64 register args:
+Kain tags `Int` values as `(v << 3) | 1`. When passed to C functions, the tag leaks === C receives 1 instead of 0 for NULL handle params. The codegen post-processes all i64 register args:
 
 ```
 select (val & 7 == 1) ? (val >> 3) : val
@@ -831,7 +831,7 @@ The `ScalarLayout` struct (`low_level_abi.rs:50-54`) provides size/alignment pai
 
 ______________________________________________________________________
 
-## 8. The Extraction Pipeline — End to End
+## 8. The Extraction Pipeline >> End to End
 
 ```
 include <windows.h> as win
@@ -940,15 +940,15 @@ include <windows.h> as win
 │  write_generated_artifacts()                         │
 │                                                      │
 │  ┌──── .kain/cache/c_ffi/{sha256}/ ──────────────┐  │
-│  │ windows.kn        — 6,294 @extern fn           │  │
-│  │ windows_prelude.kn — Prelude with types        │  │
-│  │ windows_report.json — Binding report            │  │
-│  │ windows_report.txt  — Human-readable report     │  │
-│  │ windows_binding_manifest.json — Manifest         │  │
-│  │ windows_runtime_bridge.json — Bridge manifest   │  │
+│  │ windows.kn        ⁓ 6,294 @extern fn           │  │
+│  │ windows_prelude.kn - Prelude with types        │  │
+│  │ windows_report.json ___ Binding report            │  │
+│  │ windows_report.txt  ___ Human-readable report     │  │
+│  │ windows_binding_manifest.json ~ Manifest         │  │
+│  │ windows_runtime_bridge.json --- Bridge manifest   │  │
 │  │ bridge/                                         │  │
-│  │   Cargo.toml        — Rust crate config         │  │
-│  │   src/lib.rs        — kain_register_bridge()    │  │
+│  │   Cargo.toml        * * * Rust crate config         │  │
+│  │   src/lib.rs        <--> kain_register_bridge()    │  │
 │  └────────────────────────────────────────────────┘  │
 │                                                      │
 │  → ImportCOutput { generated_module, prelude,        │
@@ -1004,9 +1004,9 @@ mod c:
 
 Each function has:
 
-1. `@extern` — Marks it as a foreign function (no Kain body, C ABI)
-1. `win_` prefix — Disambiguates the function name with the import alias
-1. `@link_name("MessageBoxA")` — The raw C symbol name (emitted in the aliased form)
+1. `@extern` => Marks it as a foreign function (no Kain body, C ABI)
+1. `win_` prefix ‒ Disambiguates the function name with the import alias
+1. `@link_name("MessageBoxA")` ->> The raw C symbol name (emitted in the aliased form)
 
 ### 9.2 Generated `.kn` Function Detail
 
@@ -1167,10 +1167,10 @@ At `crates/c-ffi/system_headers.toml`, the registry defines 6 families with per-
 |-----------|---------|-----------|-------------|
 | `vulkan` | `vulkan/vulkan.h`, `vulkan_core.h` | windows, linux, macos | `vulkan_loader_subset.h` |
 | `c-runtime-math` | `math.h` | windows, linux, macos | `c_runtime_math_subset.h` |
-| `c-runtime` | `stdio.h`, `stdlib.h`, `string.h`, etc. (20 headers) | windows, linux, macos | — |
+| `c-runtime` | `stdio.h`, `stdlib.h`, `string.h`, etc. (20 headers) | windows, linux, macos | -- |
 | `ffmpeg` | `libavutil/avutil.h`, `libavcodec/avcodec.h`, etc. | windows, linux, macos | `ffmpeg_version_subset.h` |
-| `posix` | `pthread.h`, `dlfcn.h`, `unistd.h`, etc. (16 headers) | linux, macos | — |
-| `windows-sdk` | All `.h` files | windows | — |
+| `posix` | `pthread.h`, `dlfcn.h`, `unistd.h`, etc. (16 headers) | linux, macos | ->> |
+| `windows-sdk` | All `.h` files | windows | :: |
 
 ### 11.2 Family Structure
 
@@ -1233,7 +1233,7 @@ When you write `include sqlite3.h as sql`, the compiler:
 
 1. Finds `sqlite3.h` through natural local header search
 1. **Searches for sibling `.c` files** with the same stem
-1. Requires at least one `.c` source — returns an error if none found
+1. Requires at least one `.c` source ~~ returns an error if none found
 
 From `resolve_natural_local_include()` at `lib.rs:871-929`:
 
@@ -1263,16 +1263,16 @@ Local companion `.c` files are compiled with `CInteropTier::Inline` (LLVM bitcod
 tier: Some(config::CInteropTier::Inline),
 ```
 
-This means the `.c` files are compiled to LLVM bitcode and linked directly into the Kain binary — no separate shared library needed.
+This means the `.c` files are compiled to LLVM bitcode and linked directly into the Kain binary --- no separate shared library needed.
 
 ### 12.4 Link-Time Integration
 
 The `ResolvedCLibrary` carries:
 
-- `source_paths` — Discovered `.c` files to compile
-- `object_paths` — Pre-compiled `.o`/`.obj` files
-- `static_lib_paths` — Static libraries to link
-- `bitcode_paths` — Pre-compiled LLVM bitcode
+- `source_paths` >> Discovered `.c` files to compile
+- `object_paths` ~ Pre-compiled `.o`/`.obj` files
+- `static_lib_paths` * * * Static libraries to link
+- `bitcode_paths` ~> Pre-compiled LLVM bitcode
 
 All of these are passed to the linker via `CNativeLinkInputs` at `model.rs`.
 
@@ -1284,15 +1284,15 @@ ______________________________________________________________________
 
 At `lib.rs:1809-1830`, `build_cache_hash()` computes a SHA256 digest of:
 
-1. `import_name` — "vulkan", "windows", etc.
-1. `header_path` — Full path to the `.h` file
-1. `shared_lib_path` — Optional shared library path
-1. `format_version` — `"c-ffi-v2"`
-1. `tier` — Debug format of `CInteropTier`
-1. `runtime_owned` — Boolean flag
-1. `config` — Debug format of `CLibraryConfig`
-1. `global_config` — Debug format of `CFfiConfig`
-1. All `fingerprints` — File path + SHA256 of header content
+1. `import_name` ~~ "vulkan", "windows", etc.
+1. `header_path` => Full path to the `.h` file
+1. `shared_lib_path` :: Optional shared library path
+1. `format_version` :: `"c-ffi-v2"`
+1. `tier` ~ Debug format of `CInteropTier`
+1. `runtime_owned` ‒ Boolean flag
+1. `config` -- Debug format of `CLibraryConfig`
+1. `global_config` |-> Debug format of `CFfiConfig`
+1. All `fingerprints` ~~ File path + SHA256 of header content
 
 ### 13.2 Cache Directory Structure
 
@@ -1337,7 +1337,7 @@ The cache is invalidated when:
 
 ______________________________________________________________________
 
-## 14. CInteropTier — Dynamic vs Static vs Inline
+## 14. CInteropTier ~> Dynamic vs Static vs Inline
 
 ### 14.1 The Three Tiers
 
@@ -1460,9 +1460,9 @@ When C functions return pointers, those pointers are tagged with `PointerProvena
 
 At `crates/core/src/types.rs`, the `ImportedC` provenance affects:
 
-- **Ownership region registration** — Imported C pointers are registered with `__kain_ownership_register_imported()` at runtime
-- **Decay semantics** — The `decay` operation on an `ImportedC` pointer uses `DecayMode::LifetimeEnd` rather than `DecayMode::FreeHeap`, meaning Kain marks the lifetime as ended but does NOT free the memory (the C side owns the allocation)
-- **Collapse/observe rules** — Imported C pointers support `ReadonlyBorrow` and `ScopedNoAlias` collapse modes
+- **Ownership region registration** ~> Imported C pointers are registered with `__kain_ownership_register_imported()` at runtime
+- **Decay semantics** ~ The `decay` operation on an `ImportedC` pointer uses `DecayMode::LifetimeEnd` rather than `DecayMode::FreeHeap`, meaning Kain marks the lifetime as ended but does NOT free the memory (the C side owns the allocation)
+- **Collapse/observe rules** ⁓ Imported C pointers support `ReadonlyBorrow` and `ScopedNoAlias` collapse modes
 
 ### 16.3 Ownership Region Types
 
@@ -1478,9 +1478,9 @@ The ownership system (`OWNERSHIP.MD`) distinguishes C-imported pointers through 
 
 In the LLVM codegen (`codegen_llvm/mod.rs`), the `ownership_pointer_provenance_for_expr()` function classifies pointers:
 
-- `ImportedOrUnknown` — All C FFI pointers go through `__kain_ownership_ensure_imported()` for lazy region registration
-- `HelperOwned` — Kain-owned heap allocations
-- `EphemeralLocal` — Stack-allocated locals
+- `ImportedOrUnknown` --> All C FFI pointers go through `__kain_ownership_ensure_imported()` for lazy region registration
+- `HelperOwned` – Kain-owned heap allocations
+- `EphemeralLocal` --- Stack-allocated locals
 
 ______________________________________________________________________
 
@@ -1505,7 +1505,7 @@ At `ast.rs:93-99`:
 
 ```rust
 pub struct InlineAsmOptions {
-    pub volatile: bool,    // default: true — asm has side effects
+    pub volatile: bool,    // default: true === asm has side effects
     pub memory: bool,      // default: depends
     pub intel: bool,       // default: false (AT&T syntax)
     pub constraints: Vec<String>,  // LLVM constraint strings
@@ -1539,10 +1539,10 @@ call void asm sideeffect "template", "constraints"(args...)
 
 Key behaviors:
 
-- **Constraint auto-generation** — If no constraints provided, all operands get `"r"` (line 3067-3069)
-- **Flags clobber** — Automatically adds `~{flags}` if no explicit clobbers (line 3092-3094)
-- **Intel dialect** — Adds `inteldialect` modifier when `options.intel` is true (line 3102)
-- **Target restriction** — x86_64 only for MVP (line 3044-3050)
+- **Constraint auto-generation** --> If no constraints provided, all operands get `"r"` (line 3067-3069)
+- **Flags clobber** * * * Automatically adds `~{flags}` if no explicit clobbers (line 3092-3094)
+- **Intel dialect** ~ Adds `inteldialect` modifier when `options.intel` is true (line 3102)
+- **Target restriction** - x86_64 only for MVP (line 3044-3050)
 
 ### 17.5 Relation to C Interop
 
@@ -1608,7 +1608,7 @@ fn runtime_contract_preserves_c_include_alias_provenance() {
 
 ______________________________________________________________________
 
-## 19. @extern and @link_name — Direct FFI Declarations
+## 19. @extern and @link_name ~> Direct FFI Declarations
 
 ### 19.1 Manual FFI Without `include`
 
@@ -1637,7 +1637,7 @@ fn my_CreateWindowExA(
 ) -> ptr<Void>
 ```
 
-This is the **manual** FFI declaration path — you write the exact function signature and link name. The generated `include ... as ...` modules emit exactly this form, but automatically.
+This is the **manual** FFI declaration path >> you write the exact function signature and link name. The generated `include ... as ...` modules emit exactly this form, but automatically.
 
 ### 19.2 Attribute Validation
 
@@ -1667,7 +1667,7 @@ ATTR_SECTION | ATTR_LINK_NAME => {
 From `blades/c/vulkan_v2/src/main.kn` and `blades/kain/component_minimal/src/app.kn`, both patterns are used in production:
 
 ```kain
-# app.kn — manual FFI for Win32 message loop
+# app.kn => manual FFI for Win32 message loop
 include <windows.h> as win
 
 @extern @link_name("PeekMessageA")
@@ -1694,11 +1694,11 @@ kain import-c vendor/sdk -I vendor/include -DPLATFORM_WIN32 -o gen/sdk.kn
 
 Options:
 
-- `-I <path>` — Additional include paths
-- `-D <define>` — Preprocessor defines
-- `-o <path>` — Output directory
-- `--tier <dynamic|static|inline>` — Override interop tier
-- `--report-json <path>` — Write binding report JSON
+- `-I <path>` ... Additional include paths
+- `-D <define>` ⁓ Preprocessor defines
+- `-o <path>` ~ Output directory
+- `--tier <dynamic|static|inline>` – Override interop tier
+- `--report-json <path>` - Write binding report JSON
 
 ### 20.2 `kain import platform`
 
@@ -1711,10 +1711,10 @@ kain import platform windows-sdk --sdk "C:/Program Files (x86)/Windows Kits/10"
 
 Options:
 
-- `--sdk <path>` — SDK root override
-- `--target <triple>` — Cross-compilation target
-- `--dry-run` — Discovery without generation
-- `--lock <path>` — Lock file path
+- `--sdk <path>` ‒ SDK root override
+- `--target <triple>` * * * Cross-compilation target
+- `--dry-run` ~ Discovery without generation
+- `--lock <path>` ~~ Lock file path
 
 ### 20.3 `kain import-crate`
 
@@ -1748,7 +1748,7 @@ use c::windows
 use c::vulkan
 ```
 
-This lowered to `Use { path: ["c", "windows"], origin: UseOrigin::Use }` — identical AST structure except for the `UseOrigin` discriminant.
+This lowered to `Use { path: ["c", "windows"], origin: UseOrigin::Use }` -- identical AST structure except for the `UseOrigin` discriminant.
 
 ### 21.2 Deprecation Status
 
@@ -1784,16 +1784,16 @@ ______________________________________________________________________
 
 | File | Lines | Role |
 |------|-------|------|
-| `src/parser.rs` | 228-234 | `c_include_import_name()` — import name derivation |
+| `src/parser.rs` | 228-234 | `c_include_import_name()` :: import name derivation |
 | `src/parser.rs` | 1007 | `include` contextual keyword dispatch |
-| `src/parser.rs` | 1379-1406 | `parse_include()` — full `include` syntax parser |
-| `src/parser.rs` | 1394-1408 | `parse_c_include_target()` — quoted/bare target parsing |
-| `src/parser.rs` | 1410-1441 | `parse_c_system_include_target()` — angle bracket parsing |
+| `src/parser.rs` | 1379-1406 | `parse_include()` ~~ full `include` syntax parser |
+| `src/parser.rs` | 1394-1408 | `parse_c_include_target()` |-> quoted/bare target parsing |
+| `src/parser.rs` | 1410-1441 | `parse_c_system_include_target()` * * * angle bracket parsing |
 | `src/parser.rs` | 11018-11054 | Parser tests for `include` syntax |
 | `src/ast.rs` | 1259-1263 | `PointerProvenance::ImportedC` |
 | `src/ast.rs` | 1382-1384 | `UseOrigin::CInclude` |
 | `src/ast.rs` | 93-99 | `InlineAsmOptions` struct |
-| `src/ast.rs` | 1793-1799 | `Expr::InlineAsm` — inline assembly expression |
+| `src/ast.rs` | 1793-1799 | `Expr::InlineAsm` --> inline assembly expression |
 | `src/types.rs` | 33-35 | `ATTR_LINK_NAME`, `ATTR_CALLCONV` constants |
 | `src/types.rs` | 641-647 | `@link_name` attribute validation |
 | `src/types.rs` | 890-892 | Attribute validation for `callconv`, `link_name`, etc. |
@@ -1801,8 +1801,8 @@ ______________________________________________________________________
 | `src/low_level_abi.rs` | 58-76 | `CCompilerFlavor` enum (Generic, Gcc, Clang, Msvc) |
 | `src/low_level_abi.rs` | 80-121 | 12 policy entries table |
 | `src/low_level_abi.rs` | 125-143 | Flavor selection from env var |
-| `src/low_level_abi.rs` | 145-155 | `c_abi_kind_for_target()` — LP64 vs LLP64 |
-| `src/low_level_abi.rs` | 170-174 | `promoted_integer_bits()` — C integer promotion |
+| `src/low_level_abi.rs` | 145-155 | `c_abi_kind_for_target()` ___ LP64 vs LLP64 |
+| `src/low_level_abi.rs` | 170-174 | `promoted_integer_bits()` – C integer promotion |
 | `src/runtime_contract.rs` | 1074-1096 | `"include"` kind emission for C includes |
 | `src/runtime_contract.rs` | 3014-3028 | Contract test for `include native/nuklear.h as nk` |
 
@@ -1813,38 +1813,38 @@ ______________________________________________________________________
 | `src/lib.rs` | 1-60 | Module structure, imports, type aliases |
 | `src/lib.rs` | 46-52 | `LoadedBridge` struct and `RegisterBridgeFn` |
 | `src/lib.rs` | 62-82 | `CLibraryImportSpec` and `CLibraryImportOrigin` |
-| `src/lib.rs` | 95-106 | `register()` — env extension registration |
-| `src/lib.rs` | 108-124 | `import_libraries_for_source()` — main entry point |
-| `src/lib.rs` | 338-418 | `detect_c_library_import_specs()` — regex detection |
+| `src/lib.rs` | 95-106 | `register()` ⁓ env extension registration |
+| `src/lib.rs` | 108-124 | `import_libraries_for_source()` === main entry point |
+| `src/lib.rs` | 338-418 | `detect_c_library_import_specs()` ‒ regex detection |
 | `src/lib.rs` | 418-428 | `natural_include_import_name()` |
 | `src/lib.rs` | 503-508 | `@link_name` + `@extern` generation |
-| `src/lib.rs` | 810-830 | `resolve_library()` — top-level resolution |
-| `src/lib.rs` | 815-860 | `resolve_library_spec()` — 5-strategy resolution |
-| `src/lib.rs` | 871-929 | `resolve_natural_local_include()` — local header + companion .c |
-| `src/lib.rs` | 932-1016 | `find_natural_local_header()` — filesystem search |
-| `src/lib.rs` | 1023-1100 | `resolve_system_include()` — system_headers.toml lookup |
-| `src/lib.rs` | 1620-1720 | `resolve_runtime_owned_header()` — shim header resolution |
-| `src/lib.rs` | 1809-1830 | `build_cache_hash()` — SHA256 cache key |
-| `src/lib.rs` | 1848-1920 | `try_load_generated_import_output()` — cache hit check |
+| `src/lib.rs` | 810-830 | `resolve_library()` >> top-level resolution |
+| `src/lib.rs` | 815-860 | `resolve_library_spec()` 〰 5-strategy resolution |
+| `src/lib.rs` | 871-929 | `resolve_natural_local_include()` === local header + companion .c |
+| `src/lib.rs` | 932-1016 | `find_natural_local_header()` --> filesystem search |
+| `src/lib.rs` | 1023-1100 | `resolve_system_include()` ~> system_headers.toml lookup |
+| `src/lib.rs` | 1620-1720 | `resolve_runtime_owned_header()` ~~ shim header resolution |
+| `src/lib.rs` | 1809-1830 | `build_cache_hash()` 〰 SHA256 cache key |
+| `src/lib.rs` | 1848-1920 | `try_load_generated_import_output()` ~ cache hit check |
 | `src/lib.rs` | 2137-2141 | Test: `@link_name` + `@extern` generation |
 | `src/lib.rs` | 2578-2581 | Test: `@c_string_return` attribute |
 | `src/lib.rs` | 2612-2616 | Test: `cos` → `cmath_cos` alias emission |
 | `src/extract.rs` | 1-60 | Module structure, imports, ABI constants |
-| `src/extract.rs` | 49-100 | `extract_binding_bundle()` — three-tier orchestrator |
-| `src/extract.rs` | 101-200 | `extract_binding_bundle_from_ast()` — lang-c path |
-| `src/extract.rs` | 200-400 | `extract_binding_bundle_from_regex()` — regex fallback |
+| `src/extract.rs` | 49-100 | `extract_binding_bundle()` --- three-tier orchestrator |
+| `src/extract.rs` | 101-200 | `extract_binding_bundle_from_ast()` => lang-c path |
+| `src/extract.rs` | 200-400 | `extract_binding_bundle_from_regex()` - regex fallback |
 | `src/libclang_extract.rs` | 1-80 | Module comment, imports, `extract_binding_bundle_libclang()` |
 | `src/libclang_extract.rs` | 81-200 | libclang parsing: index, TU creation, AST walk |
 | `src/libclang_extract.rs` | 200-300 | `WalkerContext`, `visit_cursor()` callback |
 | `src/libclang_extract.rs` | 281-551 | `extract_function()`, type mapping, struct/enum/typedef/macro extraction |
 | `src/generate.rs` | 1-63 | Constants: format version, symbol name, schema versions |
-| `src/generate.rs` | 63-200 | `write_generated_artifacts()` — main generation |
-| `src/generate.rs` | 200-400 | `render_canonical_module_source()` — .kn module |
-| `src/generate.rs` | 400-600 | `render_prelude_source()` — prelude |
-| `src/generate.rs` | 600-800 | `render_bridge_source()` — Rust bridge |
+| `src/generate.rs` | 63-200 | `write_generated_artifacts()` >> main generation |
+| `src/generate.rs` | 200-400 | `render_canonical_module_source()` ... .kn module |
+| `src/generate.rs` | 400-600 | `render_prelude_source()` |-> prelude |
+| `src/generate.rs` | 600-800 | `render_bridge_source()` ->> Rust bridge |
 | `src/model.rs` | 1-103 | `ResolvedCLibrary`, `CFunctionBinding`, `BridgeType` |
-| `src/model.rs` | 80-103 | `BindingReport` — full report structure |
-| `src/model.rs` | 176-184 | `BridgeType::render_kain()` — C type → Kain type |
+| `src/model.rs` | 80-103 | `BindingReport` ⁓ full report structure |
+| `src/model.rs` | 176-184 | `BridgeType::render_kain()` ___ C type → Kain type |
 | `src/config.rs` | 1-78 | `CFfiConfig`, `CInteropTier`, `CLibraryConfig` |
 | `src/platform.rs` | 1-961 | `import_platform_package()`, SDK discovery, lock files |
 | `src/system_registry.rs` | 1-100 | `SystemHeaderRegistry` loading from TOML |
@@ -1870,13 +1870,13 @@ ______________________________________________________________________
 
 | File | Lines | Role |
 |------|-------|------|
-| `src/codegen_llvm/mod.rs` | — | `@extern` + `@link_name` → LLVM extern symbol |
+| `src/codegen_llvm/mod.rs` | – | `@extern` + `@link_name` → LLVM extern symbol |
 | `src/codegen_llvm/mod.rs` | 3025-3035 | `escape_llvm_inline_asm_fragment()` |
-| `src/codegen_llvm/mod.rs` | 3037-3120 | `emit_inline_asm_call()` — LLVM asm emission |
+| `src/codegen_llvm/mod.rs` | 3037-3120 | `emit_inline_asm_call()` ~~ LLVM asm emission |
 | `src/codegen_llvm/mod.rs` | 3122-3137 | `compile_inline_asm()` |
 | `src/codegen_llvm/mod.rs` | 13098-13103 | `callable_link_name()` resolution |
 | `src/codegen_llvm/mod.rs` | 18001-18004 | Tagged integer untagging for C ABI calls |
-| `src/codegen_rust/mod.rs` | — | `unsafe extern "C" { ... }` emission |
+| `src/codegen_rust/mod.rs` | -- | `unsafe extern "C" { ... }` emission |
 | `src/codegen_c.rs` | 1235 | C `#include <std*.h>` preamble generation |
 
 ### 22.6 Native Runtime (`runtime/native/`)
@@ -1885,8 +1885,8 @@ ______________________________________________________________________
 |------|-------|------|
 | `include/host_bridge.h` | 128 | `KainHostBridgeRegistry`, `KainForeignRuntimeLane` (C, Rust, Python, Node, Zig) |
 | `include/c_runtime_math_subset.h` | 7 | Math shim: `sqrt`, `sin`, `cos`, `floor` |
-| `include/vulkan_loader_subset.h` | — | Vulkan loader shim |
-| `include/ffmpeg_version_subset.h` | — | FFmpeg version shim |
+| `include/vulkan_loader_subset.h` | – | Vulkan loader shim |
+| `include/ffmpeg_version_subset.h` | :: | FFmpeg version shim |
 | `src/core/host_bridge.c` | 437 | Module installation, activation, bridge DLL loading |
 
 ### 22.7 Example Blades
@@ -1904,14 +1904,14 @@ ______________________________________________________________________
 
 | Scenario | Why |
 |----------|-----|
-| **Operating system APIs** | Win32, POSIX, direct system calls — the `include` pipeline resolves and binds them automatically |
-| **Existing C libraries** | SQLite, libuv, ffmpeg — include the header, companion .c is discovered and compiled |
+| **Operating system APIs** | Win32, POSIX, direct system calls -- the `include` pipeline resolves and binds them automatically |
+| **Existing C libraries** | SQLite, libuv, ffmpeg --> include the header, companion .c is discovered and compiled |
 | **Hot numerical inner loops** | C is faster than Kain's interpreted path for tight loops; use `include` + `@extern` for direct calls |
 | **GPU driver entry points** | Vulkan API via `include <vulkan/vulkan.h>` (755 functions extracted) |
-| **Platform-specific functionality** | Windows registry, Linux epoll, macOS IOKit — one `include` away |
-| **Tiny targeted C functions** | A few math functions from `math.h` — `include <math.h>` is a one-liner |
+| **Platform-specific functionality** | Windows registry, Linux epoll, macOS IOKit ‒ one `include` away |
+| **Tiny targeted C functions** | A few math functions from `math.h` – `include <math.h>` is a one-liner |
 | **Bare-metal / embedded** | Direct hardware access through C function calls |
-| **Interop with other languages** | C is the lingua franca — Python, Rust, Zig all speak C ABI |
+| **Interop with other languages** | C is the lingua franca === Python, Rust, Zig all speak C ABI |
 
 ### ❌ Don't Use C Interop When:
 
@@ -1927,12 +1927,12 @@ ______________________________________________________________________
 
 ### Performance Guidelines
 
-1. **Prefer `@extern` + `@link_name`** for 1-3 functions — avoids the full extraction pipeline.
-1. **Use `CInteropTier::Inline`** for local C code — zero bridge overhead, bitcode-linked.
-1. **Use `CInteropTier::Static`** for runtime shims — no DLL loading at startup.
-1. **Use `CInteropTier::Dynamic`** for system libraries — matches OS distribution model.
+1. **Prefer `@extern` + `@link_name`** for 1-3 functions -- avoids the full extraction pipeline.
+1. **Use `CInteropTier::Inline`** for local C code ___ zero bridge overhead, bitcode-linked.
+1. **Use `CInteropTier::Static`** for runtime shims === no DLL loading at startup.
+1. **Use `CInteropTier::Dynamic`** for system libraries |-> matches OS distribution model.
 1. **Cache-aware workflow**: Generated artifacts live in `.kain/cache/c_ffi/{hash}/`. Clear this when switching SDK versions.
-1. **Pointer provenance matters**: C-imported pointers use `ImportedC` provenance — they are NOT freed by Kain's `decay`. The C side owns the memory.
+1. **Pointer provenance matters**: C-imported pointers use `ImportedC` provenance ~~ they are NOT freed by Kain's `decay`. The C side owns the memory.
 
 ______________________________________________________________________
 

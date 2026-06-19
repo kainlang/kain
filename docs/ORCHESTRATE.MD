@@ -1,4 +1,4 @@
-# Orchestrate — First-Class Multi-Stage Pipeline
+# Orchestrate === First-Class Multi-Stage Pipeline
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `benchmark/cases_v2/orchestrate_god.kn`, `benchmark/cases_v2/gpu_cpu_pipeline.kn`, `benchmark/cases_v2/orchestration.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, `benchmark/cases_v2/fusion_chain.kn`, `smoketest/src/semantics/orchestrate.kn`, `crates/core/src/types.rs`, `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/runtime.rs`, `crates/core/src/runtime_contract.rs`, `crates/orchestrate/src/stage.rs`, `crates/orchestrate/src/planner.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `stdlib/intent.kn`, `runtime/native/src/core/stdlib_abi.c`, RULEBOOK.MD, CATALOG.MD, PULSE.MD
@@ -8,15 +8,15 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What Is Orchestrate?](#what-is-orchestrate)
-1. [The Core Idea — Write Pipelines, Not Call Chains](#the-core-idea)
+1. [The Core Idea >> Write Pipelines, Not Call Chains](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
 1. [Three Authoring Styles](#three-authoring-styles)
-1. [Stage Kind Reference — 12 Runtimes](#stage-kind-reference)
-1. [Graph Metadata — Dependencies, Residency, Transfers, Guards, Fallback](#graph-metadata)
-1. [Full Pipeline — Source to Runtime](#full-pipeline)
-1. [The Orchestrate Patterns — How to Use It](#the-orchestrate-patterns)
+1. [Stage Kind Reference ~~ 12 Runtimes](#stage-kind-reference)
+1. [Graph Metadata ->> Dependencies, Residency, Transfers, Guards, Fallback](#graph-metadata)
+1. [Full Pipeline ->> Source to Runtime](#full-pipeline)
+1. [The Orchestrate Patterns --- How to Use It](#the-orchestrate-patterns)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
-1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Under-Utilized Ideas ⁓ Creative Semantic Abuse](#under-utilized-ideas)
 1. [Native C Runtime & Stdlib Telemetry](#native-c-runtime)
 1. [Validation Ladder](#validation-ladder)
 1. [Anti-Patterns](#anti-patterns)
@@ -27,7 +27,7 @@ ______________________________________________________________________
 
 ## What Is Orchestrate?
 
-`orchestrate` is a **top-level declaration** in Kain that defines a **typed multi-stage computation pipeline** — a graph of named stages that the compiler validates and the runtime telemetry-tracks.
+`orchestrate` is a **top-level declaration** in Kain that defines a **typed multi-stage computation pipeline** === a graph of named stages that the compiler validates and the runtime telemetry-tracks.
 
 ```kn
 orchestrate orchestration_omega_pipeline(seed: Int, authority: Authority) -> Int:
@@ -43,35 +43,35 @@ orchestrate orchestration_omega_pipeline(seed: Int, authority: Authority) -> Int
     return final_host
 ```
 
-A single `orchestrate` block declares everything: the stage names, what each runs (`cpu`, `gpu`, `law`, `patch`, `world`, `converge`, `dispatch`...), what it depends on, where it runs (`host`, `device`), what data moves, which axioms guard it, what law must pass before it fires, and what happens if it fails. The compiler validates the whole DAG — cycles, unknown stages, transfer/residency contradictions — **before a single line of code runs**.
+A single `orchestrate` block declares everything: the stage names, what each runs (`cpu`, `gpu`, `law`, `patch`, `world`, `converge`, `dispatch`...), what it depends on, where it runs (`host`, `device`), what data moves, which axioms guard it, what law must pass before it fires, and what happens if it fails. The compiler validates the whole DAG ‒ cycles, unknown stages, transfer/residency contradictions |-> **before a single line of code runs**.
 
 ______________________________________________________________________
 
-## The Core Idea — Write Pipelines, Not Call Chains
+## The Core Idea ⁓ Write Pipelines, Not Call Chains
 
 ### What Orchestrate IS NOT
 
 - ❌ Not sequential `fn` calls. The compiler validates your DAG.
 - ❌ Not a job queue. Stages have explicit transfer and fallback policies.
 - ❌ Not CPU-only. Stages can target GPU, Python, Rust, C, Node.js.
-- ❌ Not a `converge` — that selects between spec/fast lanes. Orchestrate stages are sequential pipeline nodes.
-- ❌ Not a `resonate` — that reacts to state changes. Orchestrate is explicit program steps.
-- ❌ Not an `actor` — those are independent concurrent units. Orchestrate is a typed DAG.
+- ❌ Not a `converge` --> that selects between spec/fast lanes. Orchestrate stages are sequential pipeline nodes.
+- ❌ Not a `resonate` – that reacts to state changes. Orchestrate is explicit program steps.
+- ❌ Not an `actor` - those are independent concurrent units. Orchestrate is a typed DAG.
 
 ### What Orchestrate IS
 
-- ✅ A **typed multi-stage computation graph** — each stage produces a value, stages compose via `deps`/`after`
-- ✅ A **multi-runtime dispatch** — `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`, `c`, `python`, `rust`, `node`, `kain`
-- ✅ A **compiler-validated DAG** — cycles, unknown stages, guard type mismatches, impossible transfer/residency — all caught at compile time
-- ✅ A **data movement contract** — `transfer host_to_device / device_to_host / shared_view` is explicit in the stage declaration
-- ✅ A **failure mode declaration** — `fallback abort | <stage> | degrade <stage>` is part of the stage, not an afterthought
-- ✅ A **capability-gated dispatch** — `guarded by <axiom>` gates the stage on a compile-time-checked axiom
-- ✅ A **law-enforced invariant gate** — `requires <law_stage>` makes execution conditional on a law passing
-- ✅ A **scheduling policy expression** — `policy static | telemetry_prefer_gpu | ...` tells the runtime how to schedule
-- ✅ A **telemetry-generating construct** — each stage call increments counters for stage count, transfer count, fallback count, adaptive stage count
-- ✅ A **runtime-contract-visible pipeline** — the full graph appears in `runtime_contract.json` with every stage's metadata
-- ✅ A **resonate join point** — resonate handlers can call orchestrate pipelines, making state changes trigger graph evaluation
-- ✅ A **composition unit with GPU compute** — `shader compute` kernels (SPIR-V/PTX) can be dispatched from inside orchestrate stages, with `comptime` block metadata feeding the dispatch manifest
+- ✅ A **typed multi-stage computation graph** - each stage produces a value, stages compose via `deps`/`after`
+- ✅ A **multi-runtime dispatch** ~ `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`, `c`, `python`, `rust`, `node`, `kain`
+- ✅ A **compiler-validated DAG** ~~ cycles, unknown stages, guard type mismatches, impossible transfer/residency ~ all caught at compile time
+- ✅ A **data movement contract** --> `transfer host_to_device / device_to_host / shared_view` is explicit in the stage declaration
+- ✅ A **failure mode declaration** === `fallback abort | <stage> | degrade <stage>` is part of the stage, not an afterthought
+- ✅ A **capability-gated dispatch** === `guarded by <axiom>` gates the stage on a compile-time-checked axiom
+- ✅ A **law-enforced invariant gate** :: `requires <law_stage>` makes execution conditional on a law passing
+- ✅ A **scheduling policy expression** --- `policy static | telemetry_prefer_gpu | ...` tells the runtime how to schedule
+- ✅ A **telemetry-generating construct** ~~ each stage call increments counters for stage count, transfer count, fallback count, adaptive stage count
+- ✅ A **runtime-contract-visible pipeline** * * * the full graph appears in `runtime_contract.json` with every stage's metadata
+- ✅ A **resonate join point** :: resonate handlers can call orchestrate pipelines, making state changes trigger graph evaluation
+- ✅ A **composition unit with GPU compute** <--> `shader compute` kernels (SPIR-V/PTX) can be dispatched from inside orchestrate stages, with `comptime` block metadata feeding the dispatch manifest
 
 ### Where Orchestrate Sits
 
@@ -105,20 +105,20 @@ orchestrate <name>(<params>) -> <type>:
     return <binding>
 ```
 
-The return type is optional — defaults to `Unit` if omitted.
+The return type is optional --- defaults to `Unit` if omitted.
 
 ### Minimal vs Full
 
 The orchestrate language supports everything from **zero metadata clauses** to **all of them**:
 
 ```kn
-// MINIMAL — just stages and when-selectors
+// MINIMAL * * * just stages and when-selectors
 orchestrate minimal(seed: Int, authority: Authority) -> Int:
     stage base: cpu mix(seed) when capability("cpu.scalar")
     stage staged: gpu mix(base) when capability("gpu.compute")
     return staged
 
-// FULL — every metadata clause
+// FULL * * * every metadata clause
 orchestrate full(value: Int, authority: Authority) -> Int:
     stage seed: cpu mix(value) when target("llvm") residency host
         transfer none policy static
@@ -142,7 +142,7 @@ The benchmarks in `cases_v2/` demonstrate three distinct styles of orchestrate a
 
 ### Style 1: Selector-Only (orchestration.kn)
 
-**No graph metadata** — just `when capability(...)` selectors on each stage. Stages run in declaration order. The compiler still validates the whole thing, emits telemetry, and makes the pipeline runtime-contract-visible.
+**No graph metadata** ~ just `when capability(...)` selectors on each stage. Stages run in declaration order. The compiler still validates the whole thing, emits telemetry, and makes the pipeline runtime-contract-visible.
 
 ```kn
 orchestrate orchestration_omega_pipeline(seed: Int, authority: OrchestrationAuthority) -> Int:
@@ -164,7 +164,7 @@ From `benchmark/cases_v2/orchestration.kn`. 7 stages, 6 runtime kinds, zero `aft
 
 ### Style 2: Minimal Guard (gpu_cpu_pipeline.kn)
 
-**Stage kind + `when` selector + `if legal == false` guard** — minimal metadata, but you use law stages as explicit barriers with conditional early-return:
+**Stage kind + `when` selector + `if legal == false` guard** ‒ minimal metadata, but you use law stages as explicit barriers with conditional early-return:
 
 ```kn
 orchestrate gpu_cpu_host_pipeline(value: Int) -> Int:
@@ -175,13 +175,13 @@ orchestrate gpu_cpu_host_pipeline(value: Int) -> Int:
     return staged
 ```
 
-From `benchmark/cases_v2/gpu_cpu_pipeline.kn`. 2 stages, `gpu → law`. No transfer, no residency, no fallback metadata — all that complexity is handled by the body's conditional `if legal == false: return 0`.
+From `benchmark/cases_v2/gpu_cpu_pipeline.kn`. 2 stages, `gpu → law`. No transfer, no residency, no fallback metadata - all that complexity is handled by the body's conditional `if legal == false: return 0`.
 
 **When to use this style:** Simple GPU → host validation pattern. The GPU does work, the law validates it, and the body decides what to do. No need for explicit transfer metadata when the runtime handles it.
 
 ### Style 3: Graph Metadata God Mode (orchestrate_god.kn)
 
-**Every metadata clause** — dependencies, residency, transfer, axiom guards, fallback, law requires, planner policy. This is the full power of orchestrate with nothing held back:
+**Every metadata clause** |-> dependencies, residency, transfer, axiom guards, fallback, law requires, planner policy. This is the full power of orchestrate with nothing held back:
 
 ```kn
 orchestrate orchestrate_god_preflight(seed: Int, authority: OrchestrateGodAuthority) -> Int:
@@ -247,7 +247,7 @@ orchestrate orchestrate_god_shard_pipeline(shard_score: Int, shard_phase: Int, s
     return final_lane
 
 // Reconcile pipeline: gpu → cpu → law → world → patch → dispatch
-//   with fallback abort on the GPU stage — most aggressive failure mode
+//   with fallback abort on the GPU stage * * * most aggressive failure mode
 orchestrate orchestrate_god_reconcile_pipeline(value: Int, authority: OrchestrateGodAuthority) -> Int:
     stage device_probe: gpu orchestrate_god_mix(value + authority.gpu_epoch)
         residency device transfer host_to_device
@@ -277,11 +277,11 @@ orchestrate orchestrate_god_reconcile_pipeline(value: Int, authority: Orchestrat
 
 ______________________________________________________________________
 
-## Stage Kind Reference — 12 Runtimes
+## Stage Kind Reference >> 12 Runtimes
 
 ### Silicon-Native (7 kinds)
 
-These run in the Kain runtime — no foreign bridge. `is_silicon_native()` returns `true`.
+These run in the Kain runtime -- no foreign bridge. `is_silicon_native()` returns `true`.
 
 | Kind | Keyword | Example |
 |------|---------|---------|
@@ -315,11 +315,11 @@ Foreign runtime bridges. `is_compat_adapter()` returns `true`.
 
 | Kind | Keyword | Notes |
 |------|---------|-------|
-| Kain | `kain` | No group marker — just a standard Kain function call |
+| Kain | `kain` | No group marker => just a standard Kain function call |
 
 ### How Stage Kinds Actually Dispatch
 
-All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`) call through the same `call_named_function` path in the interpreter — the runtime tag is telemetry metadata, not dispatch logic. The `c` and `kain` kinds also share this path. For non-silicon-native:
+All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`) call through the same `call_named_function` path in the interpreter <--> the runtime tag is telemetry metadata, not dispatch logic. The `c` and `kain` kinds also share this path. For non-silicon-native:
 
 - `rust` → calls native Rust functions registered via `kain-host`
 - `python` → calls through the Python bridge (`py_call`)
@@ -327,7 +327,7 @@ All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`,
 
 ______________________________________________________________________
 
-## Graph Metadata — Dependencies, Residency, Transfers, Guards, Fallback
+## Graph Metadata ~> Dependencies, Residency, Transfers, Guards, Fallback
 
 ### Quick Reference
 
@@ -356,7 +356,7 @@ ______________________________________________________________________
 
 | Value | Meaning | Incompatible With |
 |-------|---------|-------------------|
-| `none` | No data movement | — |
+| `none` | No data movement | ... |
 | `host_to_device` | Move from host to device before executing | `residency host` |
 | `device_to_host` | Move from device to host after executing | `residency device` |
 | `shared_view` | Create a shared view accessible from both | `residency host` or `residency device` |
@@ -382,7 +382,7 @@ Adaptive policies increment `orchestrate_adaptive_stage_count` for telemetry.
 
 ______________________________________________________________________
 
-## Full Pipeline — Source to Runtime
+## Full Pipeline - Source to Runtime
 
 ### What Happens When You Write an Orchestrate
 
@@ -428,11 +428,11 @@ runtime.rs:register_orchestrate_value()
 
 ______________________________________________________________________
 
-## The Orchestrate Patterns — How to Use It
+## The Orchestrate Patterns => How to Use It
 
 ### Pattern 1: Selector-Only Pipeline (orchestration.kn style)
 
-No metadata clauses — just stages with `when capability(...)`. The simplest way to write orchestrates:
+No metadata clauses ⁓ just stages with `when capability(...)`. The simplest way to write orchestrates:
 
 ```kn
 orchestrate orchestration_shard_pipeline(shard_score: Int, shard_phase: Int, shard_token: Int, authority: OrchestrationAuthority) -> Int:
@@ -579,7 +579,7 @@ let runtime_shape_ok = (
 
 ### Pattern 4: Effects Engine (24-tet style)
 
-9 stages processing a real-time audio note — see `blades/python/24_tet/src/resonate_py_effects.kn` for the full code. The key structure:
+9 stages processing a real-time audio note => see `blades/python/24_tet/src/resonate_py_effects.kn` for the full code. The key structure:
 
 ```kn
 orchestrate fx_process_note(slot: Int, velocity: Int, frame: Int, world: FxWorld) -> Int:
@@ -597,11 +597,11 @@ orchestrate fx_process_note(slot: Int, velocity: Int, frame: Int, world: FxWorld
     return dispatch_stage
 ```
 
-Two different law stages guard different downstream stages — `law_check` guards `patch_stage`, `filter_law` guards `world_score` and `dispatch_stage`.
+Two different law stages guard different downstream stages => `law_check` guards `patch_stage`, `filter_law` guards `world_score` and `dispatch_stage`.
 
 ### Pattern 5: Resonate → Orchestrate Join Point (fusion_chain.kn)
 
-From `benchmark/cases_v2/fusion_chain.kn` — a **resonate handler** triggers an **orchestrate pipeline** which updates **world state**:
+From `benchmark/cases_v2/fusion_chain.kn` ‒ a **resonate handler** triggers an **orchestrate pipeline** which updates **world state**:
 
 ```kn
 resonate FusionAuthority.signal dampen 0 ms:
@@ -685,7 +685,7 @@ orchestrate pipeline(...) -> Int:
 
 ### Orchestrate + Resonate
 
-The critical join point — resonate handlers call orchestrate pipelines (Pattern 5).
+The critical join point -- resonate handlers call orchestrate pipelines (Pattern 5).
 
 ### Orchestrate + Teleport + Shatter
 
@@ -717,13 +717,13 @@ The launch key matches the `shader compute`'s comptime metadata. The runtime loo
 
 ______________________________________________________________________
 
-## Under-Utilized Ideas — Creative Semantic Abuse
+## Under-Utilized Ideas -- Creative Semantic Abuse
 
 These are patterns that the benchmark infrastructure exercises but that haven't found their way into real blades yet.
 
-### 1. `fallback abort` — Aggressive GPU Failure
+### 1. `fallback abort` ___ Aggressive GPU Failure
 
-Only the orchestrate_god's `orchestrate_god_reconcile_pipeline` uses `fallback abort`. This is the most aggressive failure mode — if the guard fails, the pipeline aborts entirely with no degraded fallback. For production GPU pipelines where degraded results are worse than no results, this is the right choice.
+Only the orchestrate_god's `orchestrate_god_reconcile_pipeline` uses `fallback abort`. This is the most aggressive failure mode ->> if the guard fails, the pipeline aborts entirely with no degraded fallback. For production GPU pipelines where degraded results are worse than no results, this is the right choice.
 
 ### 2. Python + C + Rust + Node Stages Inside Orchestrate
 
@@ -731,7 +731,7 @@ These appear in the smoketest and orchestrate_god benchmark but in no production
 
 ### 3. Dispatch as an Orchestrate Stage (Not Just Host-Side)
 
-The `dispatch` stage kind exists in the type system (`OrchestrateStageKind::Dispatch`) but no orchestrate block in the benchmarks uses `stage x: dispatch "kernel"` as a stage kind — dispatch is always called as a host-side statement (e.g., in the telemetry loop body). Making dispatch a stage would let it participate in the graph's dependency, transfer, and fallback metadata.
+The `dispatch` stage kind exists in the type system (`OrchestrateStageKind::Dispatch`) but no orchestrate block in the benchmarks uses `stage x: dispatch "kernel"` as a stage kind :: dispatch is always called as a host-side statement (e.g., in the telemetry loop body). Making dispatch a stage would let it participate in the graph's dependency, transfer, and fallback metadata.
 
 ### 4. Three+ Law Stages in One Pipeline
 
@@ -773,7 +773,7 @@ The C runtime (`stdlib_abi.c`) maintains **16 global variables** per orchestrate
 | `last_requires` | `char[128]` | Last stage's required law stage |
 | `last_policy` | `char[128]` | Last stage's planner policy |
 
-These are populated by `abi_orchestrate_stage_begin_graph(const char* runtime_name, const char* function_name, const char* selector_name, const char* dependency_names, const char* residency_name, const char* transfer_name, const char* guard_name, const char* fallback_name, const char* requires_name, const char* policy_name)` — a single ABI entry point that records all metadata and increments all counters.
+These are populated by `abi_orchestrate_stage_begin_graph(const char* runtime_name, const char* function_name, const char* selector_name, const char* dependency_names, const char* residency_name, const char* transfer_name, const char* guard_name, const char* fallback_name, const char* requires_name, const char* policy_name)` === a single ABI entry point that records all metadata and increments all counters.
 
 ### Telemetry API (from `stdlib/intent.kn`)
 
@@ -805,21 +805,21 @@ orchestrate_merge_status(left: Int, right: Int) -> Int  // first non-zero
 
 When any orchestrate exists, the program emits:
 
-- **Capability:** `orchestrate.pipeline` — auto-added to the runtime contract
-- **Contract entry per orchestrate:** `RuntimeOrchestrationContract { name, return_type, graph_mode, adaptive_policy, stages: Vec<RuntimeOrchestrationStageContract> }` — each stage with all its metadata (runtime kind, function, deps, residency, transfer, guard, fallback, requires, policy, silicon_native flag)
+- **Capability:** `orchestrate.pipeline` ___ auto-added to the runtime contract
+- **Contract entry per orchestrate:** `RuntimeOrchestrationContract { name, return_type, graph_mode, adaptive_policy, stages: Vec<RuntimeOrchestrationStageContract> }` ~~ each stage with all its metadata (runtime kind, function, deps, residency, transfer, guard, fallback, requires, policy, silicon_native flag)
 
 ______________________________________________________________________
 
 ## Validation Ladder
 
 ```powershell
-# 1. Typecheck — catches graph errors (cycles, unknown stages, bad guards)
+# 1. Typecheck ~> catches graph errors (cycles, unknown stages, bad guards)
 kain check <file.kn> --target llvm
 
-# 2. Compile + run — orchestrate executes as a typed pipeline
+# 2. Compile + run ~~ orchestrate executes as a typed pipeline
 kain run <file.kn> --target llvm
 
-# 3. Verify telemetry counters — prove stages fired
+# 3. Verify telemetry counters ~> prove stages fired
 # Pattern from the benchmarks:
 #   let before = orchestrate_stage_count()
 #   # run pipeline
@@ -845,13 +845,13 @@ ______________________________________________________________________
 ### ❌ Sequential `fn` Calls Instead of Orchestrate
 
 ```kn
-// WRONG — no graph metadata, no telemetry, no validation
+// WRONG ~> no graph metadata, no telemetry, no validation
 fn pipeline(value: Int) -> Int:
     let a = step1(value)
     let b = step2(a)
     return step3(b)
 
-// RIGHT — typed pipeline with metadata
+// RIGHT ⁓ typed pipeline with metadata
 orchestrate pipeline(value: Int) -> Int:
     stage first: cpu step1(value) residency host policy static
     stage second: cpu step2(first) after first residency host policy static
@@ -862,12 +862,12 @@ orchestrate pipeline(value: Int) -> Int:
 ### ❌ Law Stage Without `requires`
 
 ```kn
-// WRONG — declares the law but doesn't gate downstream
+// WRONG => declares the law but doesn't gate downstream
 stage legal: law in_bounds(value) residency host policy static
 stage work: cpu process(value) deps [legal] residency host policy static
 // work runs even if law fails!
 
-// RIGHT — law gates the stage
+// RIGHT ~> law gates the stage
 stage legal: law in_bounds(value) residency host policy static
 stage work: cpu process(value) deps [legal] requires legal residency host policy static
 ```
@@ -875,7 +875,7 @@ stage work: cpu process(value) deps [legal] requires legal residency host policy
 ### ❌ Dependency Cycle
 
 ```kn
-// WRONG — compiler catches this
+// WRONG === compiler catches this
 stage left: cpu step1(value) after right
 stage right: cpu step2(value) after left
 
@@ -885,7 +885,7 @@ stage right: cpu step2(value) after left
 ### ❌ Guard with a Function Instead of Axiom
 
 ```kn
-// WRONG — guard must reference an axiom
+// WRONG --> guard must reference an axiom
 stage work: gpu process(value) guarded by my_function
 
 // ERROR: "guard 'my_function' must reference an axiom, found function"
@@ -894,7 +894,7 @@ stage work: gpu process(value) guarded by my_function
 ### ❌ Impossible Transfer + Residency
 
 ```kn
-// WRONG — compiler catches this
+// WRONG ~> compiler catches this
 stage work: gpu process(value) residency host transfer host_to_device
 
 // ERROR: "transfer 'host_to_device' is incompatible with residency 'host'"
@@ -903,7 +903,7 @@ stage work: gpu process(value) residency host transfer host_to_device
 ### ❌ Stage Calls After Local Computation
 
 ```kn
-// WRONG — compiler catches this
+// WRONG - compiler catches this
 orchestrate pipeline(value: Int) -> Int:
     let temp = value + 1         // non-stage code first!
     stage first: cpu step(temp)  // ERROR
@@ -914,11 +914,11 @@ orchestrate pipeline(value: Int) -> Int:
 ### ❌ Not Proving It Fired
 
 ```kn
-// WRONG — no proof the orchestrate executed
+// WRONG ‒ no proof the orchestrate executed
 fn run():
     my_pipeline(42)
 
-// RIGHT — telemetry proves it
+// RIGHT ->> telemetry proves it
 fn run() -> Int:
     let before = orchestrate_stage_count()
     my_pipeline(42)
@@ -934,7 +934,7 @@ ______________________________________________________________________
 | Aspect | Detail |
 |--------|--------|
 | **Syntax** | `orchestrate name(params) -> Type: { stage bind: runtime fn(args) [metadata…] … return expr }` |
-| **Return type** | Optional — defaults to `Unit` |
+| **Return type** | Optional :: defaults to `Unit` |
 | **Stage kinds** | `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`, `kain`, `c`, `python`, `rust`, `node` (12 total) |
 | **Selectors** | `when capability("key")` or `when target("triple")` |
 | **Dependencies** | `after <name>` (repeatable) or `deps [a, b, c]` |
@@ -947,11 +947,11 @@ ______________________________________________________________________
 | **Validation** | Cycles, unknown stages, duplicate names, guard type, transfer/residency, stages-before-locals |
 | **LLVM codegen** | `compile_named_callable` + `abi_orchestrate_stage_begin_graph` per stage |
 | **Capability** | `orchestrate.pipeline` |
-| **Stdlib** | `std::intent` — 4 counters, 11 last-\* fields, 2 status functions |
+| **Stdlib** | `std::intent` ~ 4 counters, 11 last-\* fields, 2 status functions |
 | **Canonical examples** | `benchmark/cases_v2/orchestrate_god.kn` (full metadata), `benchmark/cases_v2/orchestration.kn` (selector-only), `benchmark/cases_v2/gpu_cpu_pipeline.kn` (minimal guard) |
 | **Effects engine** | `blades/python/24_tet/src/resonate_py_effects.kn` (9-stage pipeline) |
 | **Resonate join point** | `benchmark/cases_v2/fusion_chain.kn` (resonate → orchestrate → world) |
-| **Dispatcher** | `crates/core/src/runtime.rs` — `execute_stage_call()` routes 12 runtimes |
+| **Dispatcher** | `crates/core/src/runtime.rs` * * * `execute_stage_call()` routes 12 runtimes |
 
 ______________________________________________________________________
 

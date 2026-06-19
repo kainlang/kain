@@ -1,4 +1,4 @@
-# Dev — Interactive Development Loop
+# Dev --- Interactive Development Loop
 
 Hot-reload dev pipeline. Run with: mks run scripts/dev.md
 For live reload: mks watch scripts/dev.md

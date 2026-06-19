@@ -97,7 +97,7 @@ LANGUAGE_CONFIG: dict[str, dict[str, Any]] = {
     "kain": {
         "label": "Kain LLVM",
         "source": CASES_V3 / "kain" / "bench.kn",
-        "binary": CASES_V3 / "kain" / "bench.exe",
+        "binary": REPO_ROOT / ".kain" / "out" / "x86_64-windows" / "dev" / "ll" / "bench" / "compile" / "bench.exe",
         "build_cmd": None,
         "extension": ".kn",
     },

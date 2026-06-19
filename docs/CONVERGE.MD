@@ -1,4 +1,4 @@
-# Converge — Multi-Strategy Selection with Verification
+# Converge >> Multi-Strategy Selection with Verification
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/parser.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/converge.h`, `runtime/native/src/core/converge.c`, `stdlib/intent.kn`, `stdlib/runtime.kn`, `smoketest/src/semantics/converge.kn`, `blades/experiments/convergence/src/` (6 files, the canonical hack-side proof), `blades/test/converge-autotune-probe/src/main.kn`, `benchmark/cases_v2/fusion_chain.kn`, `benchmark/cases/scalar_mix/main.kn`, `benchmark/cases/semantic_singularity_converge_only/main.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, `stdlib/random.kn` (stdlib `xoshiro_scramble` converge), CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
@@ -8,19 +8,19 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Converge?](#what-is-converge)
-1. [The Core Idea — Spec + Alternatives + Verification](#the-core-idea)
+1. [The Core Idea – Spec + Alternatives + Verification](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
-1. [How It Works — Full Pipeline](#how-it-works)
+1. [How It Works * * * Full Pipeline](#how-it-works)
 1. [The Two-Level Architecture](#two-level-architecture)
-1. [Selectors — Target and Capability](#selectors)
-1. [Verify Random — The Arbitration Mechanism](#verify-random)
+1. [Selectors ~> Target and Capability](#selectors)
+1. [Verify Random --> The Arbitration Mechanism](#verify-random)
 1. [The Interpreter Lane Selection Algorithm](#interpreter-lane-selection)
-1. [LLVM Codegen — Static and Dynamic Dispatch](#llvm-codegen)
+1. [LLVM Codegen ~ Static and Dynamic Dispatch](#llvm-codegen)
 1. [Native C Autotune Cache](#native-c-autotune-cache)
 1. [Stdlib Telemetry and Runtime API](#stdlib-telemetry)
-1. [The Obvious Use Case — Performance Lane Selection](#obvious-use-case)
-1. [The Hack Side — The Convergence Rat Experiment](#the-rat-experiment)
-1. [Creative Semantic Abuse — New Under-Utilized Ideas](#creative-abuse)
+1. [The Obvious Use Case ... Performance Lane Selection](#obvious-use-case)
+1. [The Hack Side * * * The Convergence Rat Experiment](#the-rat-experiment)
+1. [Creative Semantic Abuse ~~ New Under-Utilized Ideas](#creative-abuse)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
 1. [Real-World Usage Across the Repo](#real-world-usage)
 1. [Z3 Proofs](#z3-proofs)
@@ -33,7 +33,7 @@ ______________________________________________________________________
 
 ## What is Converge?
 
-`converge` is a **top-level declaration** in Kain that establishes a **specification with one or more alternative implementations** — a reference (spec) lane plus platform-selected fast lanes — with **verification** that the alternatives produce equivalent results.
+`converge` is a **top-level declaration** in Kain that establishes a **specification with one or more alternative implementations** ~~ a reference (spec) lane plus platform-selected fast lanes ~~ with **verification** that the alternatives produce equivalent results.
 
 ```kn
 converge mix(value: Int) -> Int:
@@ -62,18 +62,18 @@ ______________________________________________________________________
 
 ### What Converge IS
 
-- ✅ A **specification-plus-alternatives** declaration — one `spec`, one or more `fast` lanes
-- ✅ A **compile-time and runtime selector** — `target("...")` is compile-time, `capability("...")` can be runtime
-- ✅ A **verification contract** — `verify random(N)` tests all lanes against the spec
-- ✅ An **autotune cache** — the native C runtime caches lane selections per `(converge_key, shape_key, cpu_fingerprint)`
-- ✅ A **telemetry surface** — `converge_mismatch_count()` reports lane divergence
-- ✅ A **semantic dispatch layer** — spec is truth, fast lanes are optimizations, verify is the proof
+- ✅ A **specification-plus-alternatives** declaration ->> one `spec`, one or more `fast` lanes
+- ✅ A **compile-time and runtime selector** * * * `target("...")` is compile-time, `capability("...")` can be runtime
+- ✅ A **verification contract** - `verify random(N)` tests all lanes against the spec
+- ✅ An **autotune cache** ___ the native C runtime caches lane selections per `(converge_key, shape_key, cpu_fingerprint)`
+- ✅ A **telemetry surface** <--> `converge_mismatch_count()` reports lane divergence
+- ✅ A **semantic dispatch layer** => spec is truth, fast lanes are optimizations, verify is the proof
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `converge` | "Performance lane selector (SIMD)" | **Strategy selector** — any spec + alternative(s) with verification. Maze-solving strategy picker. Algorithm selector. Quality-of-service lane. A/B test framework. |
+| `converge` | "Performance lane selector (SIMD)" | **Strategy selector** ___ any spec + alternative(s) with verification. Maze-solving strategy picker. Algorithm selector. Quality-of-service lane. A/B test framework. |
 
 ______________________________________________________________________
 
@@ -164,7 +164,7 @@ Parser rules:
 
 ______________________________________________________________________
 
-## How It Works — Full Pipeline
+## How It Works ___ Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -194,20 +194,20 @@ ______________________________________________________________________
     → Emits dispatch function that probes capabilities at runtime
     → Caches chosen lane for the process lifetime
   → runtime/native: converge.c
-    → abi_converge_select_lane_for_key() — probes autotune cache
-    → abi_converge_commit_winner() — stores selection in cache
-    → abi_converge_record_telemetry() — records timing/lane telemetry
+    → abi_converge_select_lane_for_key() ⁓ probes autotune cache
+    → abi_converge_commit_winner() --- stores selection in cache
+    → abi_converge_record_telemetry() ___ records timing/lane telemetry
 ```
 
 ### At Compile Time
 
 The typechecker (`types.rs: check_converge`) performs:
 
-1. **Signature derivation** — derives a function signature from the converge declaration (name, params, return_type)
-1. **Spec checking** — type-checks the spec lane body as a function with that signature
-1. **Fast lane checking** — type-checks each fast lane body
-1. **Signature matching** — verifies each fast lane's signature matches the dispatcher signature
-1. **Verify type support** — if `verify random(N)` is present, ensures the return type supports equality comparison
+1. **Signature derivation** ... derives a function signature from the converge declaration (name, params, return_type)
+1. **Spec checking** ~~ type-checks the spec lane body as a function with that signature
+1. **Fast lane checking** - type-checks each fast lane body
+1. **Signature matching** >> verifies each fast lane's signature matches the dispatcher signature
+1. **Verify type support** ___ if `verify random(N)` is present, ensures the return type supports equality comparison
 
 ```rust
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
@@ -230,7 +230,7 @@ ______________________________________________________________________
 
 ## The Two-Level Architecture
 
-Converge has a **two-level architecture** — an interpreter/runtime path for the Kain interpreter and a native LLVM path for compiled code.
+Converge has a **two-level architecture** <--> an interpreter/runtime path for the Kain interpreter and a native LLVM path for compiled code.
 
 ### Level 1: Interpreter Lane Selection
 
@@ -249,9 +249,9 @@ After selection, `verify_converge_selected_against_spec()` calls both the spec l
 
 In native LLVM (`codegen_llvm/mod.rs`), `compile_converge()` emits:
 
-1. **Spec function** — compiled as a normal callable
-1. **Fast lane functions** — each compiled as a separate callable
-1. **Dispatch function** — the converge name becomes a function that:
+1. **Spec function** ~> compiled as a normal callable
+1. **Fast lane functions** ... each compiled as a separate callable
+1. **Dispatch function** * * * the converge name becomes a function that:
    - Statically resolves `target("...")` selectors at compile time
    - Emits runtime CPU capability probes for `capability("...")` selectors
    - Caches the chosen lane in a static variable (once per process)
@@ -261,7 +261,7 @@ The LLVM dispatch function caches the lane selection using `kain_converge_cache_
 
 ______________________________________________________________________
 
-## Selectors — Target and Capability
+## Selectors ‒ Target and Capability
 
 ### Target Selector
 
@@ -274,7 +274,7 @@ fast c_lane when target("cpp")
 fast wasm_lane when target("wasm")
 ```
 
-The parser resolves `target("...")` to `ConvergeSelector::Target(value)`. At the LLVM level, target selectors are resolved statically at compile time — only the matching target's lane is included. At the interpreter level, the current target is checked dynamically.
+The parser resolves `target("...")` to `ConvergeSelector::Target(value)`. At the LLVM level, target selectors are resolved statically at compile time --- only the matching target's lane is included. At the interpreter level, the current target is checked dynamically.
 
 ### Capability Selector
 
@@ -302,7 +302,7 @@ No-selector lanes are selected first (they're scanned in declaration order), so 
 
 ______________________________________________________________________
 
-## Verify Random — The Arbitration Mechanism
+## Verify Random === The Arbitration Mechanism
 
 ### What It Does
 
@@ -377,7 +377,7 @@ fn select_converge_lane<'a>(env: &Env, converge: &'a ConvergeDef) -> &'a Converg
 
 ______________________________________________________________________
 
-## LLVM Codegen — Static and Dynamic Dispatch
+## LLVM Codegen - Static and Dynamic Dispatch
 
 ### compile_converge()
 
@@ -525,7 +525,7 @@ ______________________________________________________________________
 ### Stdlib Example: `xoshiro_scramble` in `std::random`
 
 ```kn
-// stdlib/random.kn — converge in the standard library!
+// stdlib/random.kn ___ converge in the standard library!
 fn xoshiro_scramble_scalar(s1: Int) -> Int:
     return rotl(s1 * 17, 13) + (s1 >> 17) * 7
 
@@ -538,7 +538,7 @@ converge xoshiro_scramble(s1: Int) -> Int:
 
 ______________________________________________________________________
 
-## The Obvious Use Case — Performance Lane Selection
+## The Obvious Use Case * * * Performance Lane Selection
 
 ### SIMD Dot Product
 
@@ -575,11 +575,11 @@ converge render_frame(authority: RenderAuth, mode: Bool) -> Int:
         return render_low_quality(authority)
 ```
 
-The `mode` parameter is a `Bool` selector — when `true`, the `degraded_path` lane activates (no `when` clause means always eligible). This is converge as **quality-of-service dispatch** — the calling code controls which lane runs.
+The `mode` parameter is a `Bool` selector ~ when `true`, the `degraded_path` lane activates (no `when` clause means always eligible). This is converge as **quality-of-service dispatch** 〰 the calling code controls which lane runs.
 
 ______________________________________________________________________
 
-## The Hack Side — The Convergence Rat Experiment
+## The Hack Side ⁓ The Convergence Rat Experiment
 
 > *"It effectively places two rats in a maze and pins them against finding the fastest path."*
 
@@ -602,7 +602,7 @@ converge quantum_maze_run(maze_signature: Int, start: Int, target: Int, width: I
 
 Three pathfinding strategies compete. The `spec` lane is a conservative Manhattan-based heuristic. `greedy_rat` is an optimistic biased heuristic that activates when target is "llvm". `chaos_rat` is a random-walk distance estimate that activates on a custom capability key `sim.rat.random_walk`.
 
-The `verify random(8)` clause ensures the winning strategy is consistent across random inputs — if the greedy rat returns a distance that doesn't match the spec, the mismatch is recorded.
+The `verify random(8)` clause ensures the winning strategy is consistent across random inputs ->> if the greedy rat returns a distance that doesn't match the spec, the mismatch is recorded.
 
 ### The Strategy Functions
 
@@ -623,7 +623,7 @@ fn chaos_maze_distance(sig: Int, start: Int, target: Int, w: Int, h: Int) -> Int
     return base + ((sig * 3) % 7) + ((start + target) % 3)
 ```
 
-Each returns a distance estimate. Converge picks which estimate is the "winner" for this frame. The actual pathfinding (BFS, A\*, random walk) runs separately in the `orchestrate` block — converge is only choosing the **strategy outcome**, not the path itself.
+Each returns a distance estimate. Converge picks which estimate is the "winner" for this frame. The actual pathfinding (BFS, A\*, random walk) runs separately in the `orchestrate` block ~> converge is only choosing the **strategy outcome**, not the path itself.
 
 ### The Orchestrate Frame
 
@@ -643,8 +643,8 @@ orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: R
 
 | Aspect | Proof |
 |--------|-------|
-| `converge` selects strategies, not instructions | Greedy vs chaos vs reference — three pathfinding heuristics competing |
-| `converge` works with custom capabilities | `capability("sim.rat.random_walk")` — a domain-specific capability |
+| `converge` selects strategies, not instructions | Greedy vs chaos vs reference – three pathfinding heuristics competing |
+| `converge` works with custom capabilities | `capability("sim.rat.random_walk")` === a domain-specific capability |
 | `converge` integrates with `orchestrate` | `quantum_maze_run` is called inside `rat_frame_step` |
 | `converge` integrates with `patch` | The winner distance is committed via `commit_search` (a `patch`) |
 | `converge` is verified | `verify random(8)` checks the winner against spec |
@@ -652,7 +652,7 @@ orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: R
 
 ______________________________________________________________________
 
-## Creative Semantic Abuse — Under-Utilized Ideas
+## Creative Semantic Abuse <--> Under-Utilized Ideas
 
 ### 1. Converge as A/B Test Framework
 
@@ -704,7 +704,7 @@ converge predict_click_rate(features: [Float]) -> Float:
 
 ### 4. Converge as Numeric Stability Checker
 
-Use a high-precision spec and a fast approximate lane — the verify clause tells you how much error the approximation introduces:
+Use a high-precision spec and a fast approximate lane ~> the verify clause tells you how much error the approximation introduces:
 
 ```kn
 converge fast_sin(angle: Float) -> Float:
@@ -841,7 +841,7 @@ ______________________________________________________________________
 
 ## Real-World Usage Across the Repo
 
-### stdlib/random.kn — The Only Stdlib Converge
+### stdlib/random.kn ‒ The Only Stdlib Converge
 
 ```kn
 fn xoshiro_scramble_scalar(s1: Int) -> Int:
@@ -896,7 +896,7 @@ fn selector_probe() -> Int:
     // ... verify cache, telemetry all work ...
 ```
 
-This blade directly probes the native autotune cache — `selected_lane`, cache counts, telemetry counts — to prove the C runtime's converge infrastructure works.
+This blade directly probes the native autotune cache ->> `selected_lane`, cache counts, telemetry counts >> to prove the C runtime's converge infrastructure works.
 
 ### benchmark/cases_v2/fusion_chain.kn
 
@@ -910,15 +910,15 @@ converge fusion_fast_mix(value: Int, tick: Int) -> Int:
         return ((value + tick) * 17 + 31) % FUSION_MODULUS
 ```
 
-Called inside the `fusion_signal_pipeline` orchestrate, which is called from a resonate handler triggered by a patch to an entangled world — **converge as one node in a 7-layer causal chain**.
+Called inside the `fusion_signal_pipeline` orchestrate, which is called from a resonate handler triggered by a patch to an entangled world => **converge as one node in a 7-layer causal chain**.
 
 ### benchmark/cases/semantic_singularity_converge_only/main.kn
 
-A dedicated benchmark that stresses converge as a standalone semantic — multiple converge dispatches in tight loops, measuring lane selection overhead and verify clause execution time.
+A dedicated benchmark that stresses converge as a standalone semantic :: multiple converge dispatches in tight loops, measuring lane selection overhead and verify clause execution time.
 
 ### benchmark/cases/scalar_mix/main.kn
 
-The simplest converge — a scalar mix with spec + one LLVM fast lane, used as a baseline benchmark for converge dispatch overhead.
+The simplest converge --- a scalar mix with spec + one LLVM fast lane, used as a baseline benchmark for converge dispatch overhead.
 
 ### blades/python/24_tet/src/resonate_py_effects.kn
 
@@ -1010,7 +1010,7 @@ ______________________________________________________________________
 | File | Lines | Content |
 |------|-------|---------|
 | `crates/core/src/ast.rs` | 356-387 | `ConvergeDef`, `ConvergeLaneKind`, `ConvergeSelector`, `ConvergeLane` |
-| `crates/core/src/parser.rs` | 1017, 1954-2034 | `parse_converge()` — full function |
+| `crates/core/src/parser.rs` | 1017, 1954-2034 | `parse_converge()` - full function |
 | `crates/core/src/parser.rs` | 2079-2130 | `parse_converge_lane()`, `parse_converge_selector()`, `parse_converge_verify_random_count()` |
 
 ### Typechecker
@@ -1019,7 +1019,7 @@ ______________________________________________________________________
 |------|-------|---------|
 | `crates/core/src/types.rs` | 198-202 | `TypedConverge` |
 | `crates/core/src/types.rs` | 4659 | `check_converge()` dispatch |
-| `crates/core/src/types.rs` | 5912-5944 | `check_converge()` — type checks spec and all fast lanes, validates matching signatures |
+| `crates/core/src/types.rs` | 5912-5944 | `check_converge()` ->> type checks spec and all fast lanes, validates matching signatures |
 | `crates/core/src/types.rs` | 5888-5910 | `validate_pulse_duration()` (shared with pulse/resonate) |
 
 ### Runtime Contract
@@ -1042,7 +1042,7 @@ ______________________________________________________________________
 | File | Lines | Content |
 |------|-------|---------|
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13186 | `compile_converge()` dispatch |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15278+ | `compile_converge()` — emits spec, fast lanes, and dispatch function |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15278+ | `compile_converge()` ... emits spec, fast lanes, and dispatch function |
 
 ### Native C Runtime
 
@@ -1057,7 +1057,7 @@ ______________________________________________________________________
 |------|-------|---------|
 | `stdlib/intent.kn` | 59, 163-164, 227-237, 311-312, 371-378 | `converge_mismatch_count()`, `converge_choose_*()`, `converge_status()` |
 | `stdlib/runtime.kn` | 130-145 | `native_converge_select_lane()`, `native_converge_commit_winner()`, `native_converge_record_telemetry()`, etc. |
-| `stdlib/random.kn` | 37 | `converge xoshiro_scramble()` — the only stdlib converge |
+| `stdlib/random.kn` | 37 | `converge xoshiro_scramble()` – the only stdlib converge |
 
 ### Convergence Rat Experiment
 
@@ -1066,8 +1066,8 @@ ______________________________________________________________________
 | `blades/experiments/convergence/README.md` | Full experiment documentation |
 | `blades/experiments/convergence/src/orchestrate.kn` | `quantum_maze_run` converge + `rat_frame_step` orchestrate |
 | `blades/experiments/convergence/src/main.kn` | Main loop: oracle → orchestrate → converge → archivist → visualize |
-| `blades/experiments/convergence/src/patch.kn` | `commit_search` — records converge winner in journal |
-| `blades/experiments/convergence/src/world.kn` | `RatTelemetry` — best_lane telemetry |
+| `blades/experiments/convergence/src/patch.kn` | `commit_search` – records converge winner in journal |
+| `blades/experiments/convergence/src/world.kn` | `RatTelemetry` <--> best_lane telemetry |
 | `blades/experiments/convergence/src/actors.kn` | Simulation agents that consume converge results |
 | `blades/experiments/convergence/src/shatter.kn` | TrailSample struct (SoA) |
 | `blades/experiments/convergence/src/laws.kn` | 9 domain laws including `rat_lane_kind_valid` (0,1,2) |
@@ -1162,7 +1162,7 @@ After running converge, check `converge_mismatch_count()`. If it's non-zero, lan
 ```kn
 let result = converge_mismatch_count()
 if result != 0:
-    // lanes diverged — log, alert, or fall back to spec
+    // lanes diverged ___ log, alert, or fall back to spec
 ```
 
 ### ❌ Assuming Lane Order Doesn't Matter
@@ -1185,19 +1185,19 @@ ______________________________________________________________________
 | **Syntax** | `converge name(params) -> Type: spec lane: body [fast lane when selector: body]... [verify random(N)]` |
 | **Spec lanes** | Exactly 1 required |
 | **Fast lanes** | At least 1 required |
-| **Selectors** | `target("llvm"|"interpret"|"cpp"|"wasm")` — compile-time; `capability("...")` — runtime |
+| **Selectors** | `target("llvm"|"interpret"|"cpp"|"wasm")` – compile-time; `capability("...")` <--> runtime |
 | **No selector** | Lane is always eligible |
 | **Selection order** | Fast lanes scanned in declaration order, first match wins |
 | **Fallback** | Spec lane is always eligible (fallback) |
 | **Verify** | `verify random(N)` generates N random arg sets, compares all lanes against spec |
-| **Mismatch telemetry** | `converge_mismatch_count()` — increments on spec-vs-fast divergence |
+| **Mismatch telemetry** | `converge_mismatch_count()` ~> increments on spec-vs-fast divergence |
 | **Interpreter** | Linear scan of lanes, direct body execution |
 | **LLVM** | Static target resolution, runtime capability probes, cached lane selection |
 | **Autotune cache** | 64-slot open-addressed hash table keyed by `hash(converge_key ^ shape_key ^ cpu)` |
 | **Telemetry ring** | 64-slot circular buffer for lane selection timing data |
-| **Capabilities** | `converge.dispatch` — auto-emitted when any converge exists |
+| **Capabilities** | `converge.dispatch` – auto-emitted when any converge exists |
 | **Max lanes** | `KAIN_CONVERGE_LANE_MAX = 8` |
-| **Stdlib** | `std::random::xoshiro_scramble` — the only stdlib converge |
-| **Canonical example** | `blades/experiments/convergence/src/orchestrate.kn` — maze strategy selection |
-| **Canonical perf example** | `benchmark/cases/scalar_mix/main.kn` — SIMD lane selection |
+| **Stdlib** | `std::random::xoshiro_scramble` ⁓ the only stdlib converge |
+| **Canonical example** | `blades/experiments/convergence/src/orchestrate.kn` * * * maze strategy selection |
+| **Canonical perf example** | `benchmark/cases/scalar_mix/main.kn` --> SIMD lane selection |
 | **Source** | `crates/core/src/parser.rs` (parse), `crates/core/src/types.rs` (check), `runtime/native/src/core/converge.c` (autotune) |

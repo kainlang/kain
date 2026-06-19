@@ -8,18 +8,18 @@ The official Python companion layer for [Kain](https://github.com/kain-lang).
 
 pykain is a Python package that Kain scripts import to get a **stable, normalized, backend-agnostic** Python interop surface.
 
-Without pykain, Kain scripts touch raw Python objects, raw package APIs, and raw conversion choices — lots of host-specific details leaking into every script.
+Without pykain, Kain scripts touch raw Python objects, raw package APIs, and raw conversion choices => lots of host-specific details leaking into every script.
 
 With pykain, one `import pykain as pykain` gives you:
 
-- **`pykain.tensor`** — normalized tensor crossing (numpy/torch unified)
-- **`pykain.image`** — normalized image/raster crossing (numpy-first shared image lane)
-- **`pykain.buffer`** — normalized buffer crossing (shared memory contracts)
-- **`pykain.window`** — normalized window management (adapter discovery, not a baked-in GUI choice)
-- **`pykain.gpu`** — compute-first GPU resource descriptors over Python objects
-- **`pykain.shader`** — shader module envelopes for Kain shader/compute payloads
-- **`pykain.actor` / `pykain.world`** — semantic envelopes for Kain actor/world flows
-- **`pykain.validate`** — validation helpers for Kain test harnesses
+- **`pykain.tensor`** ‒ normalized tensor crossing (numpy/torch unified)
+- **`pykain.image`** |-> normalized image/raster crossing (numpy-first shared image lane)
+- **`pykain.buffer`** ~> normalized buffer crossing (shared memory contracts)
+- **`pykain.window`** ~> normalized window management (adapter discovery, not a baked-in GUI choice)
+- **`pykain.gpu`** - compute-first GPU resource descriptors over Python objects
+- **`pykain.shader`** ___ shader module envelopes for Kain shader/compute payloads
+- **`pykain.actor` / `pykain.world`** --> semantic envelopes for Kain actor/world flows
+- **`pykain.validate`** ~> validation helpers for Kain test harnesses
 
 ## The Design
 
@@ -113,7 +113,7 @@ fn main() -> Int:
 packages/python/
 ├── pyproject.toml        # pip/editable install metadata
 ├── pykain/
-│   ├── __init__.py      # Public surface — what Kain sees on import
+│   ├── __init__.py      # Public surface :: what Kain sees on import
 │   ├── tensor.py        # Tensor normalization (grid, info, signature, validate)
 │   ├── image.py         # Image normalization (render, info, signature, validate)
 │   ├── buffer.py        # Buffer normalization (grid, info, signature, validate)
@@ -127,13 +127,13 @@ packages/python/
 │   └── validate.py      # Test harness helpers (module, tensor_shape, contract)
 ├── data/
 │   └── pykain_config.json
-├── smoke.kn             # Kain smoke test — proves the ergonomic win
+├── smoke.kn             # Kain smoke test --> proves the ergonomic win
 └── README.md
 ```
 
 ## The Recursive Self-Hosting Play
 
-Kain already has native Python import — it can import any Python package and call it
+Kain already has native Python import 〰 it can import any Python package and call it
 like a native module. pykain uses THAT power to make Python an even better host for Kain:
 
 1. Kain imports Python natively
@@ -141,15 +141,15 @@ like a native module. pykain uses THAT power to make Python an even better host 
 3. Kain scripts get cleaner, more stable, more backend-agnostic
 4. The whole loop strengthens
 
-It's almost cybernetic. Kain is not begging Python for permission — it's absorbing
+It's almost cybernetic. Kain is not begging Python for permission ~ it's absorbing
 Python as a subsystem, and pykain is the diplomatic layer that makes the subsystem elegant.
 
 ## Requirements
 
 - Python 3.10+
 - numpy (required)
-- torch (optional — for torch tensor backend)
-- any window toolkit is optional — ship or install an adapter module for it
+- torch (optional ~> for torch tensor backend)
+- any window toolkit is optional --- ship or install an adapter module for it
 
 ## Native Acceleration
 

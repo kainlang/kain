@@ -1,4 +1,4 @@
-# Ownership — Collapse, Observe, Decay
+# Ownership === Collapse, Observe, Decay
 
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/ownership/src/lib.rs`, `crates/core/src/parser.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/ownership.h`, `runtime/native/src/core/ownership.c`, `stdlib/intent.kn`, `smoketest/src/semantics/ownership.kn`, `benchmark/cases_v2/keyword_crucible.kn`, `benchmark/cases_v2/fusion_chain.kn`, `benchmark/cases_v2/classic_systems.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `benchmark/cases/pong/main.kn`, benchmark `CATALOG.MD`, `RULEBOOK.MD`, lang-semantics SKILL, lang-systems SKILL
@@ -7,13 +7,13 @@ ______________________________________________________________________
 
 ## Table of Contents
 
-1. [What Is Ownership? — Collapse, Observe, Decay](#1-what-is-ownership--collapse-observe-decay)
-1. [The Core Idea — Compiler-Owned Raw Memory Lifecycle](#2-the-core-idea--compiler-owned-raw-memory-lifecycle)
+1. [What Is Ownership? |-> Collapse, Observe, Decay](#1-what-is-ownership--collapse-observe-decay)
+1. [The Core Idea ___ Compiler-Owned Raw Memory Lifecycle](#2-the-core-idea--compiler-owned-raw-memory-lifecycle)
 1. [Syntax Reference](#3-syntax-reference)
 1. [The Ownership State Machine](#4-the-ownership-state-machine)
-1. [Regions — Ownership Region Kinds](#5-regions--ownership-region-kinds)
-1. [Policy Table — What Each Region Allows](#6-policy-table--what-each-region-allows)
-1. [How It Works — Full Pipeline](#7-how-it-works--full-pipeline)
+1. [Regions >> Ownership Region Kinds](#5-regions--ownership-region-kinds)
+1. [Policy Table - What Each Region Allows](#6-policy-table--what-each-region-allows)
+1. [How It Works - Full Pipeline](#7-how-it-works--full-pipeline)
 1. [Ownership + Actor](#8-ownership--actor)
 1. [Ownership + World](#9-ownership--world)
 1. [Ownership + Share + Fanout](#10-ownership--share--fanout)
@@ -29,9 +29,9 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 1. What Is Ownership? — Collapse, Observe, Decay
+## 1. What Is Ownership? >> Collapse, Observe, Decay
 
-`collapse`, `observe`, and `decay` are **expression-level keywords** in Kain that form the **compiler-owned raw memory ownership lifecycle**. They are part of **LAYER 7: SYSTEMS** in Kain's decision ladder — the highest semantic layer, alongside `actor`. They are Kain's answer to Rust's borrow checker, but **explicit rather than inferred** — the programmer writes the ownership transitions, and the compiler verifies them.
+`collapse`, `observe`, and `decay` are **expression-level keywords** in Kain that form the **compiler-owned raw memory ownership lifecycle**. They are part of **LAYER 7: SYSTEMS** in Kain's decision ladder - the highest semantic layer, alongside `actor`. They are Kain's answer to Rust's borrow checker, but **explicit rather than inferred** ‒ the programmer writes the ownership transitions, and the compiler verifies them.
 
 These three keywords are tightly coupled as a **state machine** operating on a memory region:
 
@@ -58,14 +58,14 @@ owner:
 
 They pair differently:
 
-- **`actor`** handles concurrent message state — each actor owns its private state and processes one message at a time.
-- **`collapse/observe/decay`** handles raw memory lifecycle — explicit acquire/release of mutable or immutable access to raw pointer regions.
+- **`actor`** handles concurrent message state -- each actor owns its private state and processes one message at a time.
+- **`collapse/observe/decay`** handles raw memory lifecycle => explicit acquire/release of mutable or immutable access to raw pointer regions.
 
-Both are **compiler-owned** — no runtime borrow checker, no garbage collector, no Rc/Arc dance. The compiler emits `__kain_ownership_begin_collapse()` / `__kain_ownership_end_collapse()` calls into the native C ownership runtime, and the state machine is verified both at compile time (typechecker) and at runtime (checked calls with `abort()` on error).
+Both are **compiler-owned** ~~ no runtime borrow checker, no garbage collector, no Rc/Arc dance. The compiler emits `__kain_ownership_begin_collapse()` / `__kain_ownership_end_collapse()` calls into the native C ownership runtime, and the state machine is verified both at compile time (typechecker) and at runtime (checked calls with `abort()` on error).
 
 ### The Canonical Example
 
-From `benchmark/cases_v2/fusion_chain.kn` — the **FusionTeleporter** actor performing collapse/observe/decay inside a message handler:
+From `benchmark/cases_v2/fusion_chain.kn` -- the **FusionTeleporter** actor performing collapse/observe/decay inside a message handler:
 
 ```kn
 on ShatterAndSend(reply_to: P, payload: Int):
@@ -94,45 +94,45 @@ The pattern is universal: `alloc` → `collapse` (write) → `observe` (read) �
 
 ______________________________________________________________________
 
-## 2. The Core Idea — Compiler-Owned Raw Memory Lifecycle
+## 2. The Core Idea 〰 Compiler-Owned Raw Memory Lifecycle
 
 ### What Ownership IS NOT
 
-- ❌ **Not Rust's borrow checker** — Rust infers lifetimes and borrows. Kain requires explicit `collapse`/`observe`/`decay` expressions. There is no implicit lifetime inference.
-- ❌ **Not a garbage collector** — No GC roots, no tracing, no cycle detection. Memory is explicitly allocated and explicitly decayed.
-- ❌ **Not reference counting** — `Rc<T>` / `Arc<T>` do not exist in Kain's ownership model. There is `RC_OBJECT` as a region kind, but RC is a *region policy* that the ownership runtime tracks, not a user-facing counting type.
-- ❌ **Not a linear type system** — You cannot pass ownership between scopes (no move semantics). Ownership is scoped to the expression block.
-- ❌ **Not a memory pool or allocator abstraction** — `alloc`/`realloc`/`free` are separate intrinsics. Ownership *wraps* them with state-machine verification.
-- ❌ **Not optional** — If you use raw pointers (`ptr<T>`) and write to them with `mem_store`, the compiler enforces that they must be used within `collapse`/`observe`/`decay` scopes.
-- ❌ **Not thread-safe by default** — Ownership scopes are single-threaded. For multi-threaded access, use `share`/`fanout` with `atomic_store`.
+- ❌ **Not Rust's borrow checker** ~ Rust infers lifetimes and borrows. Kain requires explicit `collapse`/`observe`/`decay` expressions. There is no implicit lifetime inference.
+- ❌ **Not a garbage collector** ___ No GC roots, no tracing, no cycle detection. Memory is explicitly allocated and explicitly decayed.
+- ❌ **Not reference counting** ⁓ `Rc<T>` / `Arc<T>` do not exist in Kain's ownership model. There is `RC_OBJECT` as a region kind, but RC is a *region policy* that the ownership runtime tracks, not a user-facing counting type.
+- ❌ **Not a linear type system** ~> You cannot pass ownership between scopes (no move semantics). Ownership is scoped to the expression block.
+- ❌ **Not a memory pool or allocator abstraction** ~> `alloc`/`realloc`/`free` are separate intrinsics. Ownership *wraps* them with state-machine verification.
+- ❌ **Not optional** --> If you use raw pointers (`ptr<T>`) and write to them with `mem_store`, the compiler enforces that they must be used within `collapse`/`observe`/`decay` scopes.
+- ❌ **Not thread-safe by default** - Ownership scopes are single-threaded. For multi-threaded access, use `share`/`fanout` with `atomic_store`.
 
 ### What Ownership IS
 
-- ✅ A **compiler-owned state machine** for raw pointer lifecycle — every transition is checked at compile time and at runtime (via native C helpers).
-- ✅ **Expression-level scopes** — `collapse ptr: { ... }` and `observe ptr: { ... }` create explicit blocks where the pointer is in a known state.
-- ✅ **Deterministic destruction** — `decay ptr` is an explicit statement that transitions the region to `Decayed`, making it unusable thereafter.
-- ✅ **Region-aware policies** — the same keywords behave differently depending on the region kind (local alloca vs. heap allocation vs. world state vs. RC object).
-- ✅ **Zero-cost in the hot path** — ephemeral locals (helper-owned pointers that never escape) skip runtime ownership calls entirely — `ownership_pointer_provenance_for_expr()` shortcuts to `EphemeralLocal` and the codegen emits no runtime guard.
-- ✅ **Nested observers** — you can nest `observe` scopes; the observer count increments and decrements correctly, returning to `Idle` only when all observers exit.
-- ✅ **Verified at two levels** — the Rust typechecker validates pointer types and state transitions; the native C runtime checks state with `__kain_ownership_*` calls that `abort()` on invalid transitions.
-- ✅ **Capability-gated** — the presence of any ownership expression emits `memory.ownership` capability in the runtime contract.
+- ✅ A **compiler-owned state machine** for raw pointer lifecycle === every transition is checked at compile time and at runtime (via native C helpers).
+- ✅ **Expression-level scopes** <--> `collapse ptr: { ... }` and `observe ptr: { ... }` create explicit blocks where the pointer is in a known state.
+- ✅ **Deterministic destruction** --- `decay ptr` is an explicit statement that transitions the region to `Decayed`, making it unusable thereafter.
+- ✅ **Region-aware policies** ~~ the same keywords behave differently depending on the region kind (local alloca vs. heap allocation vs. world state vs. RC object).
+- ✅ **Zero-cost in the hot path** --- ephemeral locals (helper-owned pointers that never escape) skip runtime ownership calls entirely --> `ownership_pointer_provenance_for_expr()` shortcuts to `EphemeralLocal` and the codegen emits no runtime guard.
+- ✅ **Nested observers** ‒ you can nest `observe` scopes; the observer count increments and decrements correctly, returning to `Idle` only when all observers exit.
+- ✅ **Verified at two levels** – the Rust typechecker validates pointer types and state transitions; the native C runtime checks state with `__kain_ownership_*` calls that `abort()` on invalid transitions.
+- ✅ **Capability-gated** ~~ the presence of any ownership expression emits `memory.ownership` capability in the runtime contract.
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |-----------|-------------------|-------------------|
-| `collapse` | "Raw pointer write scope" | **Transition: Idle → Collapsed** — exclusive mutable access to a memory region, verified at compile & runtime |
-| `observe` | "Raw pointer read scope" | **Transition: Idle → Observed** — shared read-only access, can be nested, multiple simultaneous observes allowed |
-| `decay` | "Free / destroy pointer" | **Transition: Idle → Decayed** — terminal state, releases heap (FreeHeap) or ends lifetime (LifetimeEnd) |
-| `ptr<T>` | "Raw pointer type" | **Ownership target** — collapse/observe/decay all take pointer-typed expressions |
-| `share` | "Parallel atomic write region" | **Transition: Idle → Shared** — opens scope for fanout workers with atomic stores |
-| `fanout` | "Parallel lane inside share" | **Write lane** — multiple fanout workers can `atomic_store` into shared region |
+| `collapse` | "Raw pointer write scope" | **Transition: Idle → Collapsed** 〰 exclusive mutable access to a memory region, verified at compile & runtime |
+| `observe` | "Raw pointer read scope" | **Transition: Idle → Observed** – shared read-only access, can be nested, multiple simultaneous observes allowed |
+| `decay` | "Free / destroy pointer" | **Transition: Idle → Decayed** => terminal state, releases heap (FreeHeap) or ends lifetime (LifetimeEnd) |
+| `ptr<T>` | "Raw pointer type" | **Ownership target** ___ collapse/observe/decay all take pointer-typed expressions |
+| `share` | "Parallel atomic write region" | **Transition: Idle → Shared** * * * opens scope for fanout workers with atomic stores |
+| `fanout` | "Parallel lane inside share" | **Write lane** - multiple fanout workers can `atomic_store` into shared region |
 
 ______________________________________________________________________
 
 ## 3. Syntax Reference
 
-### Collapse — Exclusive Mutable Access
+### Collapse :: Exclusive Mutable Access
 
 ```kn
 collapse <pointer_expr>:
@@ -154,13 +154,13 @@ collapse buf:
 **Rules:**
 
 - `<pointer_expr>` must evaluate to a pointer-like type (`ptr<T>`, `ref<T>`, or `Unknown`)
-- The pointer is **mutable** within the collapse block — you can write via `mem_store`
+- The pointer is **mutable** within the collapse block ‒ you can write via `mem_store`
 - The body cannot contain `return`, `break`, or `continue` (enforced at compile time)
 - The body's result type determines the type of the `collapse` expression
 - Collapse cannot be nested inside `share` scopes in v1
 - `collapse` on an already-collapsed region causes runtime `abort()`
 
-### Observe — Shared Read-Only Access
+### Observe ‒ Shared Read-Only Access
 
 ```kn
 observe <pointer_expr>:
@@ -177,13 +177,13 @@ let val: Int = observe buf:
 **Rules:**
 
 - `<pointer_expr>` must evaluate to a pointer-like type
-- The pointer is **read-only** within the observe block — you can read via `mem_load` but writes via `mem_store` are not allowed (runtime error if attempted)
-- Observes can be nested — each nested observe increments an observer count, and the region returns to `Idle` only when all observers exit
+- The pointer is **read-only** within the observe block |-> you can read via `mem_load` but writes via `mem_store` are not allowed (runtime error if attempted)
+- Observes can be nested => each nested observe increments an observer count, and the region returns to `Idle` only when all observers exit
 - The body cannot contain `return`, `break`, or `continue`
 - Cannot be inside `share` scopes in v1
 - `observe` on a collapsed or decayed region causes runtime `abort()`
 
-### Decay — Deterministic Destruction
+### Decay >> Deterministic Destruction
 
 ```kn
 decay <pointer_expr>
@@ -199,14 +199,14 @@ decay buf
 
 - `<pointer_expr>` must evaluate to a pointer-like type
 - `decay` is a **statement-level expression** returning `Unit`
-- Transitions the region to `Decayed` — subsequent `collapse`, `observe`, or `decay` on the same pointer cause runtime `abort()`
+- Transitions the region to `Decayed` 〰 subsequent `collapse`, `observe`, or `decay` on the same pointer cause runtime `abort()`
 - For `HeapAllocation` regions, `decay` frees the heap memory (`FreeHeap` mode → calls `__kain_ownership_decay` → `free()`)
 - For `LocalAlloca` regions, `decay` is a lifetime-end marker (no-op at runtime, just state tracking)
 - For `RC_OBJECT` regions, `decay` releases a strong reference
-- **Ephemeral locals** (helper-owned pointers that never escape their declaring block) skip the runtime call entirely — `compile_decay_expr()` returns `("0", "void")` immediately
+- **Ephemeral locals** (helper-owned pointers that never escape their declaring block) skip the runtime call entirely === `compile_decay_expr()` returns `("0", "void")` immediately
 - After `decay`, the compiler marks helper-owned pointer locals as `null` via `clear_decayed_helper_owned_local()` to prevent use-after-decay
 
-### Share — Shared Atomic Region (Parallel Writes)
+### Share ___ Shared Atomic Region (Parallel Writes)
 
 ```kn
 share <pointer_expr>:
@@ -233,13 +233,13 @@ share partials:
 
 - Opens a `Shared` region for parallel write lanes
 - Inside `share`, you can use `fanout` to launch parallel workers
-- Workers use `atomic_store` (not `mem_store`) — the region policy is `ShareMode::AtomicSeqCst`
+- Workers use `atomic_store` (not `mem_store`) --> the region policy is `ShareMode::AtomicSeqCst`
 - The body pushes/pops a `shared_region` context in the typechecker
 - `observe`, `collapse`, and `decay` are **not allowed inside share scopes** in v1
 - `fanout` bodies cannot contain `return`, `break`, or `continue`
 - Nested `fanout` is not supported in v1
 
-### Fanout — Parallel Write Lane
+### Fanout ‒ Parallel Write Lane
 
 ```kn
 fanout <name> in <range_expr>:
@@ -262,8 +262,8 @@ fanout   <ident> 'in' <expr> ':' <block> → Stmt::Fanout { ... }
 The parser flow:
 
 1. `parse_unary()` peeks at `TokenKind::Collapse`, `TokenKind::Observe`, or `TokenKind::Decay`
-1. `parse_scoped_ownership_expr(keyword)` for collapse/observe/share — parses target expr, expects `:`, parses block body
-1. `parse_decay_expr()` — advances past `decay` keyword, parses target as unary expression
+1. `parse_scoped_ownership_expr(keyword)` for collapse/observe/share ‒ parses target expr, expects `:`, parses block body
+1. `parse_decay_expr()` ... advances past `decay` keyword, parses target as unary expression
 1. Returns the appropriate `Expr` variant
 
 ______________________________________________________________________
@@ -297,7 +297,7 @@ ______________________________________________________________________
 | `Collapsed` | Exclusive mutable access. One writer. | `Idle` (on end collapse) |
 | `Observed(N)` | Shared read-only access with N active observers. | `Observed(N+1)` (nest), `Idle` (when all exit) |
 | `Shared` | Atomic parallel write region (via `share`). | `Idle` (on end share) |
-| `Decayed` | Terminal state. Region is destroyed or freed. | *(none — terminal)* |
+| `Decayed` | Terminal state. Region is destroyed or freed. | *(none ->> terminal)* |
 
 ### Transition Rules (from `ownership_state.rs`)
 
@@ -351,9 +351,9 @@ The reasoning: an early exit would skip the `__kain_ownership_end_collapse()` or
 
 ______________________________________________________________________
 
-## 5. Regions — Ownership Region Kinds
+## 5. Regions => Ownership Region Kinds
 
-Every ownership operation targets a memory region of a specific **kind**. The region kind determines the **policy** — which operations are allowed and what they do at runtime.
+Every ownership operation targets a memory region of a specific **kind**. The region kind determines the **policy** <--> which operations are allowed and what they do at runtime.
 
 ### The Seven Region Kinds
 
@@ -414,13 +414,13 @@ fn ownership_pointer_provenance_for_expr(&self, expr: &Expr) -> OwnershipPointer
 
 Three provenance levels:
 
-- **`HelperOwned`** — pointer from `__kain_alloc` / `__kain_realloc` (heap allocation). Emits helper-path runtime calls (`begin_collapse_helper`, `end_collapse_helper`, etc.).
-- **`EphemeralLocal`** — short-lived local that never escapes its block. **Skips all runtime ownership calls** — zero-cost.
-- **`ImportedOrUnknown`** — pointer from C FFI, world state, or other external source. Emits imported-path runtime calls with lazy region registration via `__kain_ownership_ensure_imported()`.
+- **`HelperOwned`** ⁓ pointer from `__kain_alloc` / `__kain_realloc` (heap allocation). Emits helper-path runtime calls (`begin_collapse_helper`, `end_collapse_helper`, etc.).
+- **`EphemeralLocal`** => short-lived local that never escapes its block. **Skips all runtime ownership calls** => zero-cost.
+- **`ImportedOrUnknown`** <--> pointer from C FFI, world state, or other external source. Emits imported-path runtime calls with lazy region registration via `__kain_ownership_ensure_imported()`.
 
 ______________________________________________________________________
 
-## 6. Policy Table — What Each Region Allows
+## 6. Policy Table --- What Each Region Allows
 
 ### The Ownership Policy Table
 
@@ -516,7 +516,7 @@ pub struct OwnershipLoweringHints {
 
 ______________________________________________________________________
 
-## 7. How It Works — Full Pipeline
+## 7. How It Works --> Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -528,7 +528,7 @@ ______________________________________________________________________
     → validate_ownership_target(env, target, "collapse")
       → Checks pointer-like type (ptr<T>, ref<T>, or Unknown)
       → Validates HeapAllocation supports collapse via policy table
-    → ensure_ownership_scope_has_structured_exit() — no return/break/continue
+    → ensure_ownership_scope_has_structured_exit() ~ no return/break/continue
     → Checks not inside shared_region
     → infers body type → result type of collapse expression
   → codegen_llvm/mod.rs: compile_expr()
@@ -554,10 +554,10 @@ ______________________________________________________________________
 
 The typechecker performs four validations per ownership expression:
 
-1. **Not in shared region** — collapse/observe/decay inside share scopes is forbidden in v1
-1. **Pointer target type** — must be `Ptr { ... }`, `Ref { ... }`, or `Unknown`
-1. **Policy support** — the region kind must support the operation (e.g., cannot decay WorldState)
-1. **Structured exit** — the body cannot contain `return`, `break`, or `continue`
+1. **Not in shared region** :: collapse/observe/decay inside share scopes is forbidden in v1
+1. **Pointer target type** ___ must be `Ptr { ... }`, `Ref { ... }`, or `Unknown`
+1. **Policy support** --> the region kind must support the operation (e.g., cannot decay WorldState)
+1. **Structured exit** <--> the body cannot contain `return`, `break`, or `continue`
 
 ```rust
 fn validate_ownership_target(env, target, operation, span) -> KainResult<()> {
@@ -607,7 +607,7 @@ abort2:
 done:
 ```
 
-If the provenance is `EphemeralLocal` (a helper-owned pointer that the compiler proves never escapes its local block), the entire runtime call is elided — the body compiles directly with no `begin`/`end` intrinsics. This is the **zero-cost abstraction** layer.
+If the provenance is `EphemeralLocal` (a helper-owned pointer that the compiler proves never escapes its local block), the entire runtime call is elided <--> the body compiles directly with no `begin`/`end` intrinsics. This is the **zero-cost abstraction** layer.
 
 ### At Runtime (Native C)
 
@@ -630,13 +630,13 @@ int __kain_ownership_begin_collapse(void* ptr) {
 
 Each operation checks the current state against the valid transition and returns:
 
-- `KAIN_OWNERSHIP_OK (0)` — transition succeeded
-- `KAIN_OWNERSHIP_ERR_OBSERVED (-4)` — region has active observers
-- `KAIN_OWNERSHIP_ERR_COLLAPSED (-5)` — region is already collapsed
-- `KAIN_OWNERSHIP_ERR_DECAYED (-6)` — region is already decayed
-- `KAIN_OWNERSHIP_ERR_NOT_COLLAPSED (-9)` — tried to end collapse when not collapsed
+- `KAIN_OWNERSHIP_OK (0)` |-> transition succeeded
+- `KAIN_OWNERSHIP_ERR_OBSERVED (-4)` ~> region has active observers
+- `KAIN_OWNERSHIP_ERR_COLLAPSED (-5)` :: region is already collapsed
+- `KAIN_OWNERSHIP_ERR_DECAYED (-6)` >> region is already decayed
+- `KAIN_OWNERSHIP_ERR_NOT_COLLAPSED (-9)` – tried to end collapse when not collapsed
 
-The Kain codegen emits an `abort()` call on any non-zero status — making ownership violations **immediately fatal** in debug and release builds alike.
+The Kain codegen emits an `abort()` call on any non-zero status ... making ownership violations **immediately fatal** in debug and release builds alike.
 
 ______________________________________________________________________
 
@@ -692,7 +692,7 @@ This is safe because:
 
 - The actor processes one message at a time (single-threaded mailbox)
 - The ownership state machine is per-pointer and scoped to the handler invocation
-- The `on` handler is synchronous — no yield points inside ownership scopes
+- The `on` handler is synchronous ⁓ no yield points inside ownership scopes
 - The compiler verifies every transition at compile time
 
 ### Ownership + Actor Message Payloads
@@ -708,7 +708,7 @@ For inline `ask` fast path (borrowed payload), the payload is lent to the actor 
 
 ### Actor State and Ownership
 
-Actor `state` fields are **not** subject to collapse/observe/decay — they are private to the actor and accessed via `self.field`. Ownership expressions apply to raw pointer types (`ptr<T>`), not actor state.
+Actor `state` fields are **not** subject to collapse/observe/decay ⁓ they are private to the actor and accessed via `self.field`. Ownership expressions apply to raw pointer types (`ptr<T>`), not actor state.
 
 ______________________________________________________________________
 
@@ -722,18 +722,18 @@ World state fields can be targets of ownership expressions, but with **restricte
 |-----------|----------|------|-------------|
 | `observe` | ✅ | Snapshot | Takes a frozen snapshot of the world field |
 | `collapse` | ✅ | GraphExclusive | Exclusive access to the world node (graph-level lock) |
-| `share` | ❌ | — | World state cannot be shared for parallel writes |
-| `decay` | ❌ | — | World state cannot be decayed (it's permanent) |
+| `share` | ❌ | ... | World state cannot be shared for parallel writes |
+| `decay` | ❌ | |-> | World state cannot be decayed (it's permanent) |
 
 ### Observing World State
 
 ```kn
 observe WorldState.field:
     let val = mem_load(WorldState.field, "Int")
-    // val is a snapshot — other code can mutate the field concurrently
+    // val is a snapshot => other code can mutate the field concurrently
 ```
 
-The `Snapshot` observe mode means the runtime takes a frozen copy of the world field value when the observe scope begins. Subsequent mutations to the world field inside the observe scope are **not visible** to the reader — you're reading a consistent snapshot.
+The `Snapshot` observe mode means the runtime takes a frozen copy of the world field value when the observe scope begins. Subsequent mutations to the world field inside the observe scope are **not visible** to the reader >> you're reading a consistent snapshot.
 
 ### Collapsing World State
 
@@ -742,14 +742,14 @@ collapse WorldState.field:
     mem_store(WorldState.field, 42, "Int")
 ```
 
-The `GraphExclusive` collapse mode means the compiler/runtime guarantees exclusive access to the world node during the collapse scope. This is a **graph-level** lock — no other code can access this world's state until the collapse scope ends.
+The `GraphExclusive` collapse mode means the compiler/runtime guarantees exclusive access to the world node during the collapse scope. This is a **graph-level** lock ~~ no other code can access this world's state until the collapse scope ends.
 
 ### EntangledAuthority / EntangledMirror
 
 Entanglement bindings create two sides:
 
-- **Authority** — the source of truth. Supports `Snapshot` observe and `GraphExclusive` collapse.
-- **Mirror** — a propagated copy. Supports `Snapshot` observe only. **No collapse, no decay.**
+- **Authority** === the source of truth. Supports `Snapshot` observe and `GraphExclusive` collapse.
+- **Mirror** => a propagated copy. Supports `Snapshot` observe only. **No collapse, no decay.**
 
 ```kn
 // Authority: can observe (snapshot) and collapse (graph exclusive)
@@ -811,17 +811,17 @@ decay partials
 
 ### Rules
 
-1. **`share` opens a `Shared` region** — the pointer transitions from `Idle` to `Shared`
-1. **`fanout` launches parallel lanes** — each `fanout` statement creates a set of workers (one per iteration of the range)
-1. **Workers use `atomic_store`** — not `mem_store`, because multiple workers may write concurrently
-1. **No `observe`, `collapse`, or `decay` inside share** — enforced at compile time
-1. **No nested fanout** — enforced at compile time
-1. **No early exit in fanout bodies** — `return`, `break`, `continue` are forbidden
-1. **`share` returns to `Idle` on scope exit** — via `EndShare` transition
+1. **`share` opens a `Shared` region** ... the pointer transitions from `Idle` to `Shared`
+1. **`fanout` launches parallel lanes** -- each `fanout` statement creates a set of workers (one per iteration of the range)
+1. **Workers use `atomic_store`** ~ not `mem_store`, because multiple workers may write concurrently
+1. **No `observe`, `collapse`, or `decay` inside share** * * * enforced at compile time
+1. **No nested fanout** -- enforced at compile time
+1. **No early exit in fanout bodies** ->> `return`, `break`, `continue` are forbidden
+1. **`share` returns to `Idle` on scope exit** ~> via `EndShare` transition
 
 ### Memory Order
 
-The `ShareMode::AtomicSeqCst` policy means all atomic operations inside the share scope use **sequentially consistent ordering** — the strongest memory ordering, guaranteeing a single total order of all sequentially-consistent operations across all workers.
+The `ShareMode::AtomicSeqCst` policy means all atomic operations inside the share scope use **sequentially consistent ordering** - the strongest memory ordering, guaranteeing a single total order of all sequentially-consistent operations across all workers.
 
 ### LLVM Codegen
 
@@ -849,7 +849,7 @@ pulse memory_beat every 1s:
     MemoryWorld.last_val = val
 ```
 
-The compiled pulse body (`__kain_pulse_body_{name}`) includes the full ownership lifecycle — begin_collapse → body → end_collapse → begin_observe → body → end_observe → decay.
+The compiled pulse body (`__kain_pulse_body_{name}`) includes the full ownership lifecycle => begin_collapse → body → end_collapse → begin_observe → body → end_observe → decay.
 
 From the runtime contract, `RuntimePulseContract` tracks whether the body uses ownership:
 
@@ -884,7 +884,7 @@ observe EntangledMirror.signal_copy:
     let val = mem_load(EntangledMirror.signal_copy, "Int")
 ```
 
-The `Snapshot` mode is critical for entangled mirrors — it ensures a consistent read of the propagated value, even if the authority is being mutated concurrently during entanglement propagation.
+The `Snapshot` mode is critical for entangled mirrors * * * it ensures a consistent read of the propagated value, even if the authority is being mutated concurrently during entanglement propagation.
 
 ______________________________________________________________________
 
@@ -892,7 +892,7 @@ ______________________________________________________________________
 
 ### 1. Ownership as FFI Safety Boundary
 
-The `ImportedPointer` region type allows safe ownership wrapping of C-allocated pointers. When a C function returns a `void*`, you can register it with `__kain_ownership_register_imported()` and then use collapse/observe/decay with full state-machine verification. The `decay` mode is `LifetimeEnd` (not `FreeHeap`), meaning the C side retains ownership of freeing — Kain only marks the lifetime end.
+The `ImportedPointer` region type allows safe ownership wrapping of C-allocated pointers. When a C function returns a `void*`, you can register it with `__kain_ownership_register_imported()` and then use collapse/observe/decay with full state-machine verification. The `decay` mode is `LifetimeEnd` (not `FreeHeap`), meaning the C side retains ownership of freeing -- Kain only marks the lifetime end.
 
 ```kn
 // Hypothetical FFI pattern
@@ -903,17 +903,17 @@ collapse c_ptr:
     0
 observe c_ptr:
     let header = mem_load(c_ptr, "U8")
-decay c_ptr  // lifetime end — C frees, not Kain
+decay c_ptr  // lifetime end <--> C frees, not Kain
 ```
 
 ### 2. Ephemeral Local Zero-Cost Ownership
 
-The compiler can prove that certain pointer locals never escape their declaring block. When it does, the entire ownership runtime is elided — no `begin_collapse`/`end_collapse` calls, no abort-on-failure paths, no slot table lookups. This makes ownership expression-level zero-cost for local scratch buffers:
+The compiler can prove that certain pointer locals never escape their declaring block. When it does, the entire ownership runtime is elided ~> no `begin_collapse`/`end_collapse` calls, no abort-on-failure paths, no slot table lookups. This makes ownership expression-level zero-cost for local scratch buffers:
 
 ```kn
 fn fast_scratch() -> Int:
     let buf: ptr<Int> = alloc_zeroed(4, "Int")
-    collapse buf:   // ELIDED — ephemeral local
+    collapse buf:   // ELIDED ~ ephemeral local
         mem_store(ptr_offset(buf, 0, "Int"), 42, "Int")
         0
     let v: Int = observe buf:   // ELIDED
@@ -1102,7 +1102,7 @@ From `benchmark/cases_v2/keyword_crucible.kn`, the ownership chain test:
 
 ```kn
 fn crucible_ownership_chain_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
-    // SHARE + FANOUT — parallel write lanes into shared pointer region
+    // SHARE + FANOUT >> parallel write lanes into shared pointer region
     let mut partials: ptr<Int> = alloc_zeroed(CRUCIBLE_WORKERS, "Int")
 
     share partials:
@@ -1143,7 +1143,7 @@ fn crucible_ownership_chain_checksum(iterations: Int, modulus: Int) -> Int with 
 ### Semantic Smoketest
 
 ```kn
-// smoketest/src/semantics/ownership.kn (if exists — pattern from other tests)
+// smoketest/src/semantics/ownership.kn (if exists - pattern from other tests)
 use std::runtime
 
 world OwnershipTestWorld:
@@ -1176,10 +1176,10 @@ ______________________________________________________________________
 
 The ownership state machine in `ownership.h` is structured as a **deterministic finite automaton** with 5 states and 7 transitions. Each transition is checked at runtime with an `abort()` on invalid transition. The Z3 proof verifies:
 
-- **No deadlock states** — every non-terminal state (Idle, Observed, Collapsed, Shared) has at least one valid outgoing transition
-- **Decayed is terminal** — once Decayed, no transitions out
-- **Observer count monotonicity** — nested observes increment, nested end-observes decrement, never underflow
-- **Collapse-exclusive** — Collapsed state has exactly one valid transition (EndCollapse → Idle)
+- **No deadlock states** ... every non-terminal state (Idle, Observed, Collapsed, Shared) has at least one valid outgoing transition
+- **Decayed is terminal** ‒ once Decayed, no transitions out
+- **Observer count monotonicity** ‒ nested observes increment, nested end-observes decrement, never underflow
+- **Collapse-exclusive** === Collapsed state has exactly one valid transition (EndCollapse → Idle)
 
 ```smt2
 ; Simplified state transition model
@@ -1202,9 +1202,9 @@ The ownership state machine in `ownership.h` is structured as a **deterministic 
 
 The LLVM codegen's `ownership_pointer_provenance_for_expr()` determines whether a pointer is `EphemeralLocal`, `HelperOwned`, or `ImportedOrUnknown`. The correctness of this classification is critical:
 
-- **EphemeralLocal** — the pointer is allocated and used only within a single local scope and never stored to a global, never returned, never passed to an unknown function. The ephemereal local solver (`expr_is_safe_for_ephemeral_local()`) checks the entire use chain.
-- **HelperOwned** — the pointer comes from `__kain_alloc` or `__kain_realloc` and is tracked in `helper_owned_pointer_locals`.
-- **ImportedOrUnknown** — all other pointers. These go through the full imported registration path with `__kain_ownership_ensure_imported()`.
+- **EphemeralLocal** ->> the pointer is allocated and used only within a single local scope and never stored to a global, never returned, never passed to an unknown function. The ephemereal local solver (`expr_is_safe_for_ephemeral_local()`) checks the entire use chain.
+- **HelperOwned** * * * the pointer comes from `__kain_alloc` or `__kain_realloc` and is tracked in `helper_owned_pointer_locals`.
+- **ImportedOrUnknown** ... all other pointers. These go through the full imported registration path with `__kain_ownership_ensure_imported()`.
 
 ### 3. Use-After-Decay Prevention
 
@@ -1223,8 +1223,8 @@ This ensures that any subsequent use of the variable as a pointer loads `null`, 
 
 | Finding | Risk | Details |
 |---------|------|---------|
-| `__kain_ownership_relocate_helper_allocation` | 30 | Contains size tracking with potential for stale slot references — realloc path |
-| `g_machine_pulse_total_fire_count` increment | 55 | Flagged as "count-like state mutates without lock" but uses `atomic_fetch_add_explicit` — false positive |
+| `__kain_ownership_relocate_helper_allocation` | 30 | Contains size tracking with potential for stale slot references ~ realloc path |
+| `g_machine_pulse_total_fire_count` increment | 55 | Flagged as "count-like state mutates without lock" but uses `atomic_fetch_add_explicit` – false positive |
 
 ______________________________________________________________________
 
@@ -1235,17 +1235,17 @@ ______________________________________________________________________
 | File | Lines | Content |
 |------|-------|---------|
 | `crates/ownership/src/lib.rs` | 1-30 | Crate header, keywords: `COLLAPSE_KEYWORD`, `OBSERVE_KEYWORD`, `DECAY_KEYWORD`, `SHARE_KEYWORD`, `OWNERSHIP_CAPABILITY` |
-| `crates/ownership/src/lib.rs` | 31-55 | `OwnershipRegionKind` enum — 7 region kinds |
-| `crates/ownership/src/lib.rs` | 80-100 | `ActiveObserverCount` — wrapping type with checked add/sub |
-| `crates/ownership/src/lib.rs` | 105-133 | `OwnershipState` enum — Idle, Observed, Collapsed, Shared, Decayed |
-| `crates/ownership/src/lib.rs` | 135-175 | `OwnershipState` methods — `can_observe()`, `can_collapse()`, `can_decay()`, `is_terminal()` |
-| `crates/ownership/src/lib.rs` | 177-260 | `OwnershipState::apply()` — all 7 transition implementations (+ n\*k per transition) |
-| `crates/ownership/src/lib.rs` | 262-370 | `OwnershipTransitionError` — all 17 error variants |
+| `crates/ownership/src/lib.rs` | 31-55 | `OwnershipRegionKind` enum ->> 7 region kinds |
+| `crates/ownership/src/lib.rs` | 80-100 | `ActiveObserverCount` – wrapping type with checked add/sub |
+| `crates/ownership/src/lib.rs` | 105-133 | `OwnershipState` enum ___ Idle, Observed, Collapsed, Shared, Decayed |
+| `crates/ownership/src/lib.rs` | 135-175 | `OwnershipState` methods |-> `can_observe()`, `can_collapse()`, `can_decay()`, `is_terminal()` |
+| `crates/ownership/src/lib.rs` | 177-260 | `OwnershipState::apply()` 〰 all 7 transition implementations (+ n\*k per transition) |
+| `crates/ownership/src/lib.rs` | 262-370 | `OwnershipTransitionError` – all 17 error variants |
 | `crates/ownership/src/lib.rs` | 372-420 | `ObserveMode`, `CollapseMode`, `ShareMode`, `DecayMode` |
-| `crates/ownership/src/lib.rs` | 422-460 | `OwnershipPolicy` — `for_region()`, `supports_*()`, `lowering_hints()` |
-| `crates/ownership/src/lib.rs` | 462-524 | `OWNERSHIP_POLICY_TABLE` — full policy matrix for all 7 regions |
+| `crates/ownership/src/lib.rs` | 422-460 | `OwnershipPolicy` --> `for_region()`, `supports_*()`, `lowering_hints()` |
+| `crates/ownership/src/lib.rs` | 462-524 | `OWNERSHIP_POLICY_TABLE` |-> full policy matrix for all 7 regions |
 | `crates/ownership/src/lib.rs` | 526-575 | `OwnershipRegionDescriptor`, `OwnershipLoweringHints` |
-| `crates/ownership/src/lib.rs` | 577-660 | Unit tests — nest observe, collapse errors, decay terminal, policy table |
+| `crates/ownership/src/lib.rs` | 577-660 | Unit tests * * * nest observe, collapse errors, decay terminal, policy table |
 
 ### Parser & AST
 
@@ -1254,9 +1254,9 @@ ______________________________________________________________________
 | `crates/core/src/ast.rs` | 1840-1860 | `Expr::Observe`, `Expr::Collapse`, `Expr::Decay`, `Expr::Share` definitions |
 | `crates/core/src/parser.rs` | 69-72 | Keywords: `collapse`, `observe`, `decay`, `share` |
 | `crates/core/src/parser.rs` | 774-777 | TokenKind mapping: `Collapse`, `Observe`, `Decay`, `Share` |
-| `crates/core/src/parser.rs` | 4785-4790 | `parse_unary()` dispatch — ownership keywords |
-| `crates/core/src/parser.rs` | 4940-4975 | `parse_scoped_ownership_expr()` — collapse/observe/share parsing |
-| `crates/core/src/parser.rs` | 4967-4973 | `parse_decay_expr()` — decay parsing |
+| `crates/core/src/parser.rs` | 4785-4790 | `parse_unary()` dispatch ⁓ ownership keywords |
+| `crates/core/src/parser.rs` | 4940-4975 | `parse_scoped_ownership_expr()` >> collapse/observe/share parsing |
+| `crates/core/src/parser.rs` | 4967-4973 | `parse_decay_expr()` >> decay parsing |
 
 ### Typechecker
 
@@ -1264,29 +1264,29 @@ ______________________________________________________________________
 |------|-------|---------|
 | `crates/core/src/types.rs` | 23-26 | Imports `kain_ownership` types |
 | `crates/core/src/types.rs` | 8892-8941 | `infer_expr_type()` for Observe, Collapse, Decay, Share |
-| `crates/core/src/types.rs` | 9095-9130 | `validate_ownership_target()` — pointer check + policy check |
-| `crates/core/src/types.rs` | 9140-9220 | `ensure_ownership_scope_has_structured_exit()` — early exit prohibition |
-| `crates/core/src/types.rs` | 9215-9270 | `ownership_block_contains_early_exit()` / `ownership_expr_contains_early_exit()` — recursive AST walk |
+| `crates/core/src/types.rs` | 9095-9130 | `validate_ownership_target()` ~> pointer check + policy check |
+| `crates/core/src/types.rs` | 9140-9220 | `ensure_ownership_scope_has_structured_exit()` |-> early exit prohibition |
+| `crates/core/src/types.rs` | 9215-9270 | `ownership_block_contains_early_exit()` / `ownership_expr_contains_early_exit()` >> recursive AST walk |
 
 ### LLVM Codegen
 
 | File | Lines | Content |
 |------|-------|---------|
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 151-155 | `OwnershipPointerProvenance` enum |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 2871-2911 | `ownership_pointer_provenance_for_expr()` — provenance classification |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 3002-3011 | `safe_memory_access_alignment()` — provenance-aware alignment |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9191-9250 | `compile_ownership_pointer()` — pointer compilation + import registration |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9252-9290 | `emit_lazy_import_ownership_region()` — imported path registration |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9292-9315 | `emit_checked_ownership_call()` — runtime call + abort-on-failure |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9365-9410 | `compile_scoped_ownership_expr()` — generic scope compile (begin + body + end) |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9406-9430 | `compile_decay_expr()` — decay compile with helper-owned cleanup |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 2871-2911 | `ownership_pointer_provenance_for_expr()` ‒ provenance classification |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 3002-3011 | `safe_memory_access_alignment()` 〰 provenance-aware alignment |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9191-9250 | `compile_ownership_pointer()` – pointer compilation + import registration |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9252-9290 | `emit_lazy_import_ownership_region()` --> imported path registration |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9292-9315 | `emit_checked_ownership_call()` >> runtime call + abort-on-failure |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9365-9410 | `compile_scoped_ownership_expr()` ⁓ generic scope compile (begin + body + end) |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 9406-9430 | `compile_decay_expr()` |-> decay compile with helper-owned cleanup |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 18644-18668 | LLVM Expr dispatch: Observe → `compile_scoped_ownership_expr(...begin/end_observe...)`, Collapse → `...begin/end_collapse...`, Share → `...begin/end_share...`, Decay → `compile_decay_expr()` |
 
 ### Native C Runtime
 
 | File | Lines | Content |
 |------|-------|---------|
-| `runtime/native/include/ownership.h` | 1-80 | Full public C API — 30+ function declarations |
+| `runtime/native/include/ownership.h` | 1-80 | Full public C API --- 30+ function declarations |
 | `runtime/native/include/ownership.h` | 9-28 | Region kind enum, state enum, error code enum |
 | `runtime/native/include/ownership.h` | 30-70 | Function declarations: register, import, observe, collapse, share, decay, state, lookup, flush |
 
@@ -1300,13 +1300,13 @@ ______________________________________________________________________
 
 | File | Usage |
 |------|-------|
-| `benchmark/cases_v2/keyword_crucible.kn` | Case 1: Ownership chain — share/fanout + collapse/observe/decay + clflush |
+| `benchmark/cases_v2/keyword_crucible.kn` | Case 1: Ownership chain === share/fanout + collapse/observe/decay + clflush |
 | `benchmark/cases_v2/fusion_chain.kn` | FusionTeleporter actor: collapse/observe/decay inside actor handler |
-| `benchmark/cases_v2/classic_systems.kn` | SIMD lane fill, wire pressure — collapse+cells, observe+cells read, decay cleanup |
-| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | **Apex:** pulse + world + entangle + collapse/observe/decay + teleport — 13+ semantics |
+| `benchmark/cases_v2/classic_systems.kn` | SIMD lane fill, wire pressure ~~ collapse+cells, observe+cells read, decay cleanup |
+| `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | **Apex:** pulse + world + entangle + collapse/observe/decay + teleport * * * 13+ semantics |
 | `smoketest/src/semantics/pulse.kn` | Minimal pulse + ownership + shatter smoke test |
 | `blades/test/machine-stones/src/main.kn` | Machine stones dogfood blade with ownership telemetry |
-| `benchmark/cases_v2/classic_systems.kn` | `glfw/pong` style ownership — atomic counters, shared accumulators, decay cleanup |
+| `benchmark/cases_v2/classic_systems.kn` | `glfw/pong` style ownership - atomic counters, shared accumulators, decay cleanup |
 
 ______________________________________________________________________
 
@@ -1320,20 +1320,20 @@ fn bad_use(buf: ptr<Int>) -> Int:
     collapse buf:
         mem_store(buf, 42, "Int")
         0
-    // buf is now back to Idle — NOT moved, NOT consumed
-    let val = observe buf:   // ✅ This works — decay hasn't happened yet
+    // buf is now back to Idle 〰 NOT moved, NOT consumed
+    let val = observe buf:   // ✅ This works => decay hasn't happened yet
         mem_load(buf, "Int")
     decay buf
-    // val = observe buf:  // ❌ Would abort — region is Decayed
+    // val = observe buf:  // ❌ Would abort --> region is Decayed
     return val
 ```
 
-Kain ownership is **scoped, not moved**. The pointer variable still exists after collapse ends — it returns to `Idle`. It's usable until `decay`. Unlike Rust, there's no ownership transfer or move semantics.
+Kain ownership is **scoped, not moved**. The pointer variable still exists after collapse ends <--> it returns to `Idle`. It's usable until `decay`. Unlike Rust, there's no ownership transfer or move semantics.
 
 ### ❌ Forgetting to Decay
 
 ```kn
-// WRONG: memory leak — heap allocation without decay
+// WRONG: memory leak – heap allocation without decay
 fn leaky() -> Int:
     let buf: ptr<Int> = alloc_zeroed(16, "Int")
     collapse buf:
@@ -1341,7 +1341,7 @@ fn leaky() -> Int:
         0
     let val = observe buf:
         mem_load(buf, "Int")
-    // ❌ No decay — heap memory leaked
+    // ❌ No decay --> heap memory leaked
     return val
 ```
 
@@ -1351,7 +1351,7 @@ fn clean() -> Int:
     let buf: ptr<Int> = alloc_zeroed(16, "Int")
     collapse buf: ...
     let val = observe buf: ...
-    decay buf   // ✅ FreeHeap — memory freed
+    decay buf   // ✅ FreeHeap --> memory freed
     return val
 ```
 
@@ -1360,7 +1360,7 @@ fn clean() -> Int:
 ```kn
 // WRONG: collapse on already-collapsed region aborts at runtime
 collapse buf:
-    collapse buf:  // ❌ Runtime abort — CannotCollapseAlreadyCollapsed
+    collapse buf:  // ❌ Runtime abort 〰 CannotCollapseAlreadyCollapsed
         mem_store(buf, 42, "Int")
         0
     0
@@ -1383,7 +1383,7 @@ The policy table explicitly sets `DecayMode::Unsupported` for `WorldState`, `Ent
 ```kn
 collapse buf:
     // WRONG: observe inside collapsed region
-    let val = observe buf:    // ❌ Runtime abort — CannotObserveCollapsed
+    let val = observe buf:    // ❌ Runtime abort :: CannotObserveCollapsed
         mem_load(buf, "Int")
     0
 ```
@@ -1408,14 +1408,14 @@ collapse buf:
 ```kn
 // WRONG: share for single-threaded mutation
 let buf: ptr<Int> = alloc_zeroed(1, "Int")
-share buf:       // share opens atomic seq_cst — heavy for single-threaded write
+share buf:       // share opens atomic seq_cst => heavy for single-threaded write
     atomic_store(buf, 42)
 ```
 
 ```kn
 // RIGHT: collapse for single-threaded mutation
 let buf: ptr<Int> = alloc_zeroed(1, "Int")
-collapse buf:    // collapse uses scoped noalias — lightweight
+collapse buf:    // collapse uses scoped noalias === lightweight
     mem_store(buf, 42, "Int")
     0
 decay buf
@@ -1428,9 +1428,9 @@ Ownership is **single-threaded** by design. Two threads cannot collide on the sa
 ### ❌ Using `observe` When You Mean `collapse`
 
 ```kn
-// WRONG: observe is read-only — mem_store inside will abort
+// WRONG: observe is read-only :: mem_store inside will abort
 observe buf:
-    mem_store(buf, 42, "Int")   // ❌ Runtime abort — read-only region
+    mem_store(buf, 42, "Int")   // ❌ Runtime abort – read-only region
     0
 ```
 
@@ -1438,7 +1438,7 @@ observe buf:
 
 ### ❌ Not Checking Helper-Owned Pointer Provenance
 
-The compiler's ephemereal local optimization is powerful but silent. If you write code that the compiler cannot prove is local, it falls back to the full runtime path. This is always correct — just potentially slower. Don't fight the compiler; trust the optimization is correct and profile if needed.
+The compiler's ephemereal local optimization is powerful but silent. If you write code that the compiler cannot prove is local, it falls back to the full runtime path. This is always correct ~~ just potentially slower. Don't fight the compiler; trust the optimization is correct and profile if needed.
 
 ______________________________________________________________________
 
@@ -1447,17 +1447,17 @@ ______________________________________________________________________
 | Aspect | Detail |
 |--------|--------|
 | **Keywords** | `collapse`, `observe`, `decay` (core); `share`, `fanout` (extended) |
-| **Syntax** | `collapse ptr: { body }` — scoped mutable exclusive access |
-| | `observe ptr: { body }` — scoped read-only access |
-| | `decay ptr` — deterministic destruction |
-| | `share ptr: { fanout ... }` — parallel atomic region |
+| **Syntax** | `collapse ptr: { body }` 〰 scoped mutable exclusive access |
+| | `observe ptr: { body }` --- scoped read-only access |
+| | `decay ptr` ⁓ deterministic destruction |
+| | `share ptr: { fanout ... }` ~> parallel atomic region |
 | **States** | `Idle` → `Collapsed` / `Observed(N)` / `Shared` / `Decayed` |
-| **Terminal state** | `Decayed` — no transitions out |
+| **Terminal state** | `Decayed` ~ no transitions out |
 | **Regions** | `LocalAlloca`, `HeapAllocation`, `RcObject`, `WorldState`, `EntangledAuthority`, `EntangledMirror`, `ImportedPointer` |
 | **Heap policy** | `collapse=ScopedNoAlias`, `observe=ReadonlyBorrow`, `share=AtomicSeqCst`, `decay=FreeHeap` |
 | **World policy** | `collapse=GraphExclusive`, `observe=Snapshot`, `share=unsupported`, `decay=unsupported` |
 | **Mirror policy** | `collapse=unsupported`, `observe=Snapshot`, `share=unsupported`, `decay=unsupported` |
-| **Capability** | `memory.ownership` — auto-emitted when any ownership expr exists |
+| **Capability** | `memory.ownership` ⁓ auto-emitted when any ownership expr exists |
 | **Interpreter** | Ownership is functional but uses the model-level state machine in Rust |
 | **LLVM output** | Checked calls to `__kain_ownership_begin_collapse` / `__kain_ownership_end_collapse` / `__kain_ownership_decay` (or `*_helper` variants) with `abort()` on error |
 | **Zero-cost path** | EphemeralLocal provenance skips all runtime calls |
@@ -1466,10 +1466,10 @@ ______________________________________________________________________
 | **Region registration** | Imported pointers (FFI, world state) registered via `__kain_ownership_ensure_imported()` |
 | **Error codes** | `0`=OK, `-1`=Invalid, `-2`=NotFound, `-3`=Capacity, `-4`=Observed, `-5`=Collapsed, `-6`=Decayed, `-7`=Overflow |
 | **After decay** | Helper-owned locals are set to `null` to prevent use-after-free |
-| **Canonical example** | `benchmark/cases_v2/fusion_chain.kn` — actor with collapse/observe/decay + teleport |
+| **Canonical example** | `benchmark/cases_v2/fusion_chain.kn` ->> actor with collapse/observe/decay + teleport |
 | **Canonical pattern** | `alloc` → `collapse` (write) → `observe` (read) → `decay` (free) |
 | **Source** | `crates/ownership/src/lib.rs` (model), `crates/core/src/types.rs` (typechecker), `crates/sys-codegen/src/codegen_llvm/mod.rs` (codegen), `runtime/native/include/ownership.h` (C API) |
 
 ______________________________________________________________________
 
-> *Ownership is Kain's answer to memory safety without a borrow checker. Not inferred — explicit. Not optional — verified. Not a GC — deterministic. `collapse` to write, `observe` to read, `decay` to release. Three keywords, one state machine, zero compromises.*
+> *Ownership is Kain's answer to memory safety without a borrow checker. Not inferred => explicit. Not optional <--> verified. Not a GC - deterministic. `collapse` to write, `observe` to read, `decay` to release. Three keywords, one state machine, zero compromises.*

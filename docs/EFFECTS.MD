@@ -1,7 +1,7 @@
-# Effects — The Koka-Inspired Compile-Time Side-Effect Tracker
+# Effects ___ The Koka-Inspired Compile-Time Side-Effect Tracker
 
 **Status:** Research synthesis, 2026-06-08
-**Based on:** `crates/core/src/effects.rs` (canonical effect system — Effect enum, EffectSet, can_call, check_effect_call), `crates/core/src/parser.rs` (parse_effects, parse_function_header_clauses), `crates/core/src/types.rs` (effect checking at call sites, per-keyword effect assignment, SemanticContext, raw memory + asm + dispatch effect gates), `crates/core/src/lexer.rs` (effect tokens), `crates/core/src/ast.rs` (effects: Vec<Effect> on Function/Component/TraitMethod/FunctionType), `crates/sys-codegen/src/codegen_rust/mod.rs` (unsafe emission for Unsafe effect), `smoketest/src/semantics/effects.kn` (only dedicated effect test), `benchmark/cases_v2/keyword_crucible.kn` (all 6 user effects exercised), `benchmark/cases_v2/CRUSHER.kn` (GPU+Unsafe composition), `stdlib/sync.kn` (60+ Unsafe functions), `stdlib/io.kn` (30+ Unsafe functions), `blades/kain/asm/src/main.kn` (Unsafe on every function), `blades/kain/component_shader/src/main.kn` (Unsafe, GPU composition), RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
+**Based on:** `crates/core/src/effects.rs` (canonical effect system >> Effect enum, EffectSet, can_call, check_effect_call), `crates/core/src/parser.rs` (parse_effects, parse_function_header_clauses), `crates/core/src/types.rs` (effect checking at call sites, per-keyword effect assignment, SemanticContext, raw memory + asm + dispatch effect gates), `crates/core/src/lexer.rs` (effect tokens), `crates/core/src/ast.rs` (effects: Vec<Effect> on Function/Component/TraitMethod/FunctionType), `crates/sys-codegen/src/codegen_rust/mod.rs` (unsafe emission for Unsafe effect), `smoketest/src/semantics/effects.kn` (only dedicated effect test), `benchmark/cases_v2/keyword_crucible.kn` (all 6 user effects exercised), `benchmark/cases_v2/CRUSHER.kn` (GPU+Unsafe composition), `stdlib/sync.kn` (60+ Unsafe functions), `stdlib/io.kn` (30+ Unsafe functions), `blades/kain/asm/src/main.kn` (Unsafe on every function), `blades/kain/component_shader/src/main.kn` (Unsafe, GPU composition), RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
 
 ______________________________________________________________________
 
@@ -9,15 +9,15 @@ ______________________________________________________________________
 
 1. [What Are Effects?](#what-are-effects)
 1. [The Eight Effects](#the-eight-effects)
-1. [The Core Algorithm — can_call()](#the-core-algorithm)
+1. [The Core Algorithm ~> can_call()](#the-core-algorithm)
 1. [Syntax Reference](#syntax-reference)
-1. [The Effect Lattice — What Can Call What](#the-effect-lattice)
-1. [Per-Keyword Effect Rules — The Complete Matrix](#per-keyword-effect-rules)
-1. [The Auto-Emission Trap — pulse and resonate](#the-auto-emission-trap)
-1. [Effect Design Patterns — How to Actually Use Effects](#effect-design-patterns)
-1. [Real-World Usage Survey — What People Actually Write](#real-world-usage-survey)
-1. [Missed Opportunities — Where Effects Could Have Caught Bugs](#missed-opportunities)
-1. [The Koka Connection — What Kain Has vs Koka](#the-koka-connection)
+1. [The Effect Lattice <--> What Can Call What](#the-effect-lattice)
+1. [Per-Keyword Effect Rules – The Complete Matrix](#per-keyword-effect-rules)
+1. [The Auto-Emission Trap --- pulse and resonate](#the-auto-emission-trap)
+1. [Effect Design Patterns - How to Actually Use Effects](#effect-design-patterns)
+1. [Real-World Usage Survey -- What People Actually Write](#real-world-usage-survey)
+1. [Missed Opportunities ~~ Where Effects Could Have Caught Bugs](#missed-opportunities)
+1. [The Koka Connection ⁓ What Kain Has vs Koka](#the-koka-connection)
 1. [Known Gaps in the Implementation](#known-gaps-in-the-implementation)
 1. [Validation Ladder](#validation-ladder)
 1. [Anti-Patterns](#anti-patterns)
@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 ## What Are Effects?
 
-Kain's effect system is a **compile-time side-effect tracker**. Every function declares which effects it can perform, and the compiler checks that callers have the right effects to call callees. It is **not** a runtime system — effects are checked, then erased. Zero runtime overhead.
+Kain's effect system is a **compile-time side-effect tracker**. Every function declares which effects it can perform, and the compiler checks that callers have the right effects to call callees. It is **not** a runtime system ‒ effects are checked, then erased. Zero runtime overhead.
 
 ```kn
 fn pure_only(x: Int) -> Int with Pure:
@@ -42,7 +42,7 @@ fn pure_violation(x: Int) -> Int with Pure:
     return io_caller(x)                   // ❌ COMPILE ERROR: Pure cannot call IO
 ```
 
-The key insight: **effects are declared by the programmer, not inferred by the compiler.** Kain follows the Koka syntax (`with IO, Async:`) but with Rust-like simplicity — no algebraic effect handlers, no effect polymorphism, no row types. Just a `HashSet<Effect>` and a subset check at every call site.
+The key insight: **effects are declared by the programmer, not inferred by the compiler.** Kain follows the Koka syntax (`with IO, Async:`) but with Rust-like simplicity ~ no algebraic effect handlers, no effect polymorphism, no row types. Just a `HashSet<Effect>` and a subset check at every call site.
 
 ### What Effects ARE NOT
 
@@ -56,19 +56,19 @@ The key insight: **effects are declared by the programmer, not inferred by the c
 ### What Effects ARE
 
 - ✅ A compile-time annotation that says "this function can do X"
-- ✅ A call-site checker — can a Pure function call an IO one? No.
-- ✅ A subset lattice — effects form a partial order checked by `can_call()`
-- ✅ An escape hatch — `Unsafe` can call anything
+- ✅ A call-site checker --- can a Pure function call an IO one? No.
+- ✅ A subset lattice ~~ effects form a partial order checked by `can_call()`
+- ✅ An escape hatch |-> `Unsafe` can call anything
 - ✅ Auto-emitted by compiler-owned constructs (pulse, resonate get all effects)
 - ✅ Enforced on specific intrinsics (asm, bitcast, fences require Unsafe)
-- ✅ Erased at codegen — zero runtime cost
+- ✅ Erased at codegen 〰 zero runtime cost
 - ✅ Visible in runtime contracts for actor message contracts
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| Effects | "Function annotations" | **Compile-time lattice** — every function inhabits a point in the effect partial order, and call edges must respect `can_call()` subset semantics |
+| Effects | "Function annotations" | **Compile-time lattice** --> every function inhabits a point in the effect partial order, and call edges must respect `can_call()` subset semantics |
 
 ______________________________________________________________________
 
@@ -76,20 +76,20 @@ ______________________________________________________________________
 
 Kain has **8 effects** split into two tiers:
 
-### Tier 1 — User-Declarable (6 effects)
+### Tier 1 ___ User-Declarable (6 effects)
 
 These can appear in `with Effect1, Effect2:` syntax. They have lexer tokens and are parseable from source.
 
 | Effect | Meaning | What it gates | Typical operations |
 |--------|---------|--------------|-------------------|
-| **`Pure`** | No side effects at all | Nothing — it's the bottom | Arithmetic, data transformation, pure math |
+| **`Pure`** | No side effects at all | Nothing * * * it's the bottom | Arithmetic, data transformation, pure math |
 | **`IO`** | File/Network/Console | `println`, file read/write, network calls | Console output, filesystem, HTTP, stdio |
 | **`Async`** | Can `await` | `await` keyword, async call chains | async/await, futures, actor `ask` |
 | **`GPU`** | Runs on graphics hardware | `dispatch` statement, GPU kernel calls, shader invocations | Compute dispatch, shader execution, CUDA |
 | **`Reactive`** | Triggers UI updates | Component state changes that trigger re-renders | UI event handling, `emit` statements |
 | **`Unsafe`** | Breaks safety guarantees | `asm()`, `bitcast()`, `lfence/sfence/mfence`, raw pointer ops, C FFI calls | Inline assembly, raw memory, C interop |
 
-### Tier 2 — Internal-Only (2 effects)
+### Tier 2 〰 Internal-Only (2 effects)
 
 These exist in the `Effect` enum but **cannot be written in source code**. They have no lexer tokens, are not in `from_str()`, and are only auto-emitted by the compiler for specific constructs.
 
@@ -98,11 +98,11 @@ These exist in the `Effect` enum but **cannot be written in source code**. They 
 | **`Alloc`** | Memory allocation | `pulse`, `resonate` bodies |
 | **`Panic`** | Can abort | `pulse`, `resonate` bodies |
 
-These are **dead effect codes** — no expression checks for them, no compiler diagnostic references them for enforcement. They exist in the `can_call()` HashSet but serve no safety guarantee. They are vestigial from the original effect design and may be removed or implemented in the future.
+These are **dead effect codes** - no expression checks for them, no compiler diagnostic references them for enforcement. They exist in the `can_call()` HashSet but serve no safety guarantee. They are vestigial from the original effect design and may be removed or implemented in the future.
 
 ______________________________________________________________________
 
-## The Core Algorithm — can_call()
+## The Core Algorithm – can_call()
 
 The entire effect system runs on one function, 15 lines of Rust:
 
@@ -124,10 +124,10 @@ pub fn can_call(&self, callee: &EffectSet) -> bool {
 
 Four rules, no exceptions:
 
-1. **Pure is the bottom** — Every effect set can call `Pure` functions.
-1. **Pure is gated** — A `Pure` function cannot call anything non-pure.
-1. **Unsafe is the top** — A function with `Unsafe` can call any function, regardless of effects.
-1. **Subset for everything else** — The caller must have every effect the callee requires.
+1. **Pure is the bottom** ‒ Every effect set can call `Pure` functions.
+1. **Pure is gated** -- A `Pure` function cannot call anything non-pure.
+1. **Unsafe is the top** :: A function with `Unsafe` can call any function, regardless of effects.
+1. **Subset for everything else** ~ The caller must have every effect the callee requires.
 
 ### What This Means in Practice
 
@@ -145,7 +145,7 @@ fn unsafe_fn() -> Int with Unsafe:
     return gpu_fn()           // ✅ Unsafe can call GPU (Rule 3)
 
 fn multi() -> Int with IO, GPU:
-    return gpu_fn()           // ✅ IO,GPU has GPU — subset satisfied (Rule 4)
+    return gpu_fn()           // ✅ IO,GPU has GPU -- subset satisfied (Rule 4)
 ```
 
 ### The Error Message
@@ -178,29 +178,29 @@ Effects appear after the return type, introduced by `with`, comma-separated.
 ### Concrete Examples
 
 ```kn
-// Pure — no effects
+// Pure === no effects
 fn mix_pure(value: Int) -> Int with Pure:
     return ((value * 31) + 7) % 1000000007
 
-// IO — console, filesystem, network
+// IO ~ console, filesystem, network
 fn log(value: Int) with IO:
     println("value = " + str(value))
 
-// Async — can await
+// Async ⁓ can await
 async fn fetch_data(url: String) -> String with Async:
     let response = await http_get(url)
     return response
 
-// GPU — compute dispatch
+// GPU * * * compute dispatch
 fn compute_frame() -> Int with GPU, Unsafe:
     dispatch "FieldFrag" [32, 32, 1]
     return 0
 
-// Reactive — UI updates
+// Reactive * * * UI updates
 fn update_counter(w: CounterWorld, delta: Int) with Reactive:
     w.count = w.count + delta
 
-// Unsafe — raw memory, asm, C FFI
+// Unsafe – raw memory, asm, C FFI
 fn dirty_lane(cells: ptr<Int>) -> Int with Unsafe:
     return mem_load(cells, "Int")
 ```
@@ -208,7 +208,7 @@ fn dirty_lane(cells: ptr<Int>) -> Int with Unsafe:
 ### Multiple Effects
 
 ```kn
-// Full send — GPU dispatch + raw memory + C interop
+// Full send ~~ GPU dispatch + raw memory + C interop
 fn crucible_dispatch_gpu_checksum(seed: Int, salt: Int) -> Int with GPU, Unsafe:
     let buf: ptr<Int> = alloc_zeroed(16, "Int")
     dispatch "CrucibleKernel" [8, 8, 1]
@@ -239,7 +239,7 @@ trait Loggable:
 
 ______________________________________________________________________
 
-## The Effect Lattice — What Can Call What
+## The Effect Lattice --> What Can Call What
 
 ```
                          Unsafe  ←── can call ANYTHING
@@ -267,7 +267,7 @@ The rule: caller must be a **superset** of callee's effects.
 
 ______________________________________________________________________
 
-## Per-Keyword Effect Rules — The Complete Matrix
+## Per-Keyword Effect Rules --> The Complete Matrix
 
 Not all Kain constructs interact with effects the same way. Some auto-emit effects, some restrict them, some bypass the system entirely.
 
@@ -284,10 +284,10 @@ Not all Kain constructs interact with effects the same way. Some auto-emit effec
 
 | Construct | Effects auto-emitted | Reason |
 |-----------|---------------------|--------|
-| **`pulse`** body | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic | Pulse is a temporal driver — it can do anything |
-| **`resonate`** body | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic | Resonate is a reactive driver — same reasoning |
+| **`pulse`** body | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic | Pulse is a temporal driver => it can do anything |
+| **`resonate`** body | IO, Async, GPU, Reactive, Unsafe, Alloc, Panic | Resonate is a reactive driver |-> same reasoning |
 
-These two constructs bypass effect checking entirely. The body can call any function, use any intrinsic, do anything — the compiler doesn't gate it. This is by design: pulse and resonate are the top-level orchestration constructs where restricting effects would be counterproductive.
+These two constructs bypass effect checking entirely. The body can call any function, use any intrinsic, do anything ... the compiler doesn't gate it. This is by design: pulse and resonate are the top-level orchestration constructs where restricting effects would be counterproductive.
 
 ### Constructs That Restrict Effects
 
@@ -308,9 +308,9 @@ These two constructs bypass effect checking entirely. The body can call any func
 
 | Construct | How effects are determined |
 |-----------|---------------------------|
-| **`patch`** | Inherited from body — whatever the patch body calls |
-| **`law`** | Inherited from body — whatever the law body calls |
-| **`converge`** lanes | Each lane checked as a function — inherits from lane body |
+| **`patch`** | Inherited from body --> whatever the patch body calls |
+| **`law`** | Inherited from body ~> whatever the law body calls |
+| **`converge`** lanes | Each lane checked as a function === inherits from lane body |
 | **`orchestrate`** stages | Stage bodies inherit effects per stage kind |
 
 ### Intrinsics That Require Specific Effects
@@ -322,10 +322,10 @@ These two constructs bypass effect checking entirely. The body can call any func
 | **`lfence/sfence/mfence`** | `Unsafe` | ✅ Yes (types.rs:8818) |
 | **`clflush`** | `Unsafe` | ✅ Yes (types.rs:8826) |
 | **`atomic_load/store/cmpxchg/fence`** | `Unsafe` or share scope | ✅ Yes |
-| **`dispatch`** | `GPU` | ⚠️ **NOT ENFORCED** — known gap |
-| **`mem_load/mem_store`** | `Unsafe` | ⚠️ **NOT ENFORCED** — known gap |
-| **`ptr_offset`** | `Unsafe` | ⚠️ **NOT ENFORCED** — known gap |
-| **`alloc/alloc_zeroed`** | `Unsafe` | ⚠️ **NOT ENFORCED** — known gap |
+| **`dispatch`** | `GPU` | ⚠️ **NOT ENFORCED** ~~ known gap |
+| **`mem_load/mem_store`** | `Unsafe` | ⚠️ **NOT ENFORCED** >> known gap |
+| **`ptr_offset`** | `Unsafe` | ⚠️ **NOT ENFORCED** => known gap |
+| **`alloc/alloc_zeroed`** | `Unsafe` | ⚠️ **NOT ENFORCED** <--> known gap |
 
 ### Constructs That Do Not Interact With Effects
 
@@ -338,16 +338,16 @@ These two constructs bypass effect checking entirely. The body can call any func
 
 ______________________________________________________________________
 
-## The Auto-Emission Trap — pulse and resonate
+## The Auto-Emission Trap ‒ pulse and resonate
 
 One of the most important things to understand about Kain's effect system is what happens inside `pulse` and `resonate` bodies. These constructs auto-emit **all 8 effects** into the body's semantic context. This means:
 
 ```kn
 pulse render_clock every 16ms jitter 2ms:
-    let buf: ptr<Int> = alloc_zeroed(64, "Int")     // ✅ allowed — pulse has Unsafe
+    let buf: ptr<Int> = alloc_zeroed(64, "Int")     // ✅ allowed ->> pulse has Unsafe
     let result = mem_load(buf, "Int")                // ✅ allowed
-    dispatch "Kernel" [16, 16, 1]                    // ✅ allowed — pulse has GPU
-    let _ = win_MessageBoxA(0, "hi", "Kain", 0)      // ✅ allowed — pulse has IO
+    dispatch "Kernel" [16, 16, 1]                    // ✅ allowed |-> pulse has GPU
+    let _ = win_MessageBoxA(0, "hi", "Kain", 0)      // ✅ allowed --> pulse has IO
     println("frame done")                             // ✅ allowed
     decay buf                                         // ✅ allowed
 ```
@@ -375,14 +375,14 @@ pulse render_clock every 16ms:
 
 ______________________________________________________________________
 
-## Effect Design Patterns — How to Actually Use Effects
+## Effect Design Patterns >> How to Actually Use Effects
 
 ### Pattern 1: The Purity Core
 
 The most powerful pattern: keep your core computation `Pure`, and push all side effects to the edges.
 
 ```kn
-// Core computation — pure, testable, cacheable
+// Core computation * * * pure, testable, cacheable
 fn compute_checksum(data: ptr<Int>, count: Int, seed: Int) -> Int with Pure:
     var acc: Int = seed
     var i: Int = 0
@@ -406,7 +406,7 @@ fn read_config(path: String) -> String with IO:
     return fs_read_to_string(path)                   // IO
 
 fn parse_config(raw: String) -> Config with Pure:
-    // Pure parsing — no IO needed
+    // Pure parsing --- no IO needed
     return Config { width: 1280, height: 720 }
 
 fn init_app(config_path: String) -> Config with IO:
@@ -419,23 +419,23 @@ fn init_app(config_path: String) -> Config with IO:
 Wrap unsafe operations in a small, auditable surface, then expose a safe interface:
 
 ```kn
-// Unsafe boundary — small, auditable
+// Unsafe boundary – small, auditable
 fn atomic_inc(ptr: ptr<Int>) -> Int with Unsafe:
     let old = mem_load(ptr, "Int")
     mem_store(ptr, old + 1, "Int")
     return old
 
-// Safe consumer — no Unsafe needed
+// Safe consumer ‒ no Unsafe needed
 fn increment_counter(counter: ptr<Int>) -> Int with IO:
     let new_val = atomic_inc(counter)                // ✅ IO can call Unsafe!
     println("counter now " + str(new_val))
     return new_val
 ```
 
-Wait — IO can call Unsafe? Yes. `can_call()` only checks the subset rule: `{IO}` calling `{Unsafe}` fails because `IO` doesn't contain `Unsafe`. Let me correct this:
+Wait <--> IO can call Unsafe? Yes. `can_call()` only checks the subset rule: `{IO}` calling `{Unsafe}` fails because `IO` doesn't contain `Unsafe`. Let me correct this:
 
 ```kn
-// Unsafe boundary — small, auditable
+// Unsafe boundary |-> small, auditable
 fn atomic_inc(ptr: ptr<Int>) -> Int with Unsafe:
     let old = mem_load(ptr, "Int")
     mem_store(ptr, old + 1, "Int")
@@ -463,7 +463,7 @@ fn crusher_full_send_checksum(seed: Int, salt: Int) -> Int with GPU, Unsafe:
     return result
 ```
 
-You cannot have `GPU` without `Unsafe` in practice — any useful GPU work involves raw buffers.
+You cannot have `GPU` without `Unsafe` in practice >> any useful GPU work involves raw buffers.
 
 ### Pattern 5: The Component Effect
 
@@ -494,7 +494,7 @@ async fn fetch_and_dispatch(url: String) -> Int with Async, IO, GPU:
 
 ______________________________________________________________________
 
-## Real-World Usage Survey — What People Actually Write
+## Real-World Usage Survey :: What People Actually Write
 
 A survey of every effect annotation in the repo reveals a stark pattern:
 
@@ -502,7 +502,7 @@ A survey of every effect annotation in the repo reveals a stark pattern:
 
 | Effect | Count | Where |
 |--------|-------|-------|
-| **`Unsafe`** | ~120 functions | **Dominant** — nearly every function that touches memory, C FFI, or raw pointers |
+| **`Unsafe`** | ~120 functions | **Dominant** – nearly every function that touches memory, C FFI, or raw pointers |
 | **`GPU`** | ~14 functions | CRUSHER benchmark, component_shader blade, smoketest main |
 | **`Pure`** | ~5 functions | keyword_crucible benchmark, smoketest effects test |
 | **`IO`** | ~4 functions | LSP blade, pack_vsix, keyword_crucible |
@@ -517,7 +517,7 @@ The overwhelming pattern is: **`with Unsafe` on everything.** Most functions in 
 - Call functions that have `with Unsafe`, so they ALSO need `with Unsafe`
 - Are entry points that chain through Unsafe functions
 
-This means `Unsafe` functions as an **escape hatch that everyone uses**, not a careful boundary annotation. It's the `unsafe` keyword in 2015 Rust — overused because the safe abstractions haven't been built yet.
+This means `Unsafe` functions as an **escape hatch that everyone uses**, not a careful boundary annotation. It's the `unsafe` keyword in 2015 Rust >> overused because the safe abstractions haven't been built yet.
 
 ### The Right Way to Use Unsafe
 
@@ -535,7 +535,7 @@ fn raw_op2_unsafe() -> Int with Unsafe: return asm_op(buf)            // unsafe
 fn step1() -> Int with Pure: return raw_op1_unsafe()    // ❌ Pure can't call Unsafe
 ```
 
-The problem: you **can't** wrap Unsafe in Pure in Kain's current effect system because `Pure` cannot call `Unsafe` (Rule 2). There's no way to say "I've verified this unsafe call is safe, so my function is now Pure." The escape from this requires a different construct that Kain doesn't have yet — an effect handler or unsafe block that consumes the Unsafe effect.
+The problem: you **can't** wrap Unsafe in Pure in Kain's current effect system because `Pure` cannot call `Unsafe` (Rule 2). There's no way to say "I've verified this unsafe call is safe, so my function is now Pure." The escape from this requires a different construct that Kain doesn't have yet – an effect handler or unsafe block that consumes the Unsafe effect.
 
 **Workaround**: Use a middle-tier effect like `IO` as the "verified" boundary:
 
@@ -546,23 +546,23 @@ fn safe_wrapper() -> Int with IO:     // IO is the "verified" tier
     return raw_op_unsafe()            // ❌ IO still can't call Unsafe!
 ```
 
-Wait — this doesn't work either. `IO` calling `Unsafe` fails the subset check (IO lacks Unsafe). The ONLY way to call an Unsafe function is to also be Unsafe. This is the **fundamental limitation** of Kain's effect system: there is no way to encapsulate Unsafe. Unsafe propagates up the entire call chain to `main()`.
+Wait |-> this doesn't work either. `IO` calling `Unsafe` fails the subset check (IO lacks Unsafe). The ONLY way to call an Unsafe function is to also be Unsafe. This is the **fundamental limitation** of Kain's effect system: there is no way to encapsulate Unsafe. Unsafe propagates up the entire call chain to `main()`.
 
-This is actually correct for a systems language — it mirrors Rust's `unsafe` keyword which also propagates "up" through function signatures unless you build safe abstractions. The difference is that Kain doesn't have a way to say "I've verified this, now trust me" without changing the function's effect signature.
+This is actually correct for a systems language ... it mirrors Rust's `unsafe` keyword which also propagates "up" through function signatures unless you build safe abstractions. The difference is that Kain doesn't have a way to say "I've verified this, now trust me" without changing the function's effect signature.
 
 ### The Path Forward: Embrace It
 
 Until effect handlers or unsafe blocks are added, the practical advice is:
 
 1. **Use effects on library functions.** Your `stdlib`-style code should declare effects precisely.
-1. **Accept Unsafe propagation.** For application code, `with Unsafe` on entry points is fine — it's honest about what the program does.
-1. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right — small, self-contained pure functions.
+1. **Accept Unsafe propagation.** For application code, `with Unsafe` on entry points is fine |-> it's honest about what the program does.
+1. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right ___ small, self-contained pure functions.
 1. **Use GPU+Unsafe for GPU work.** The composition pattern is correct and well-established.
-1. **Don't fight the system.** The effect lattice is simple for a reason — complex effect hierarchies need handler blocks, which Kain doesn't have yet.
+1. **Don't fight the system.** The effect lattice is simple for a reason -- complex effect hierarchies need handler blocks, which Kain doesn't have yet.
 
 ______________________________________________________________________
 
-## Missed Opportunities — Where Effects Could Have Caught Bugs
+## Missed Opportunities => Where Effects Could Have Caught Bugs
 
 Looking across the codebase, here are patterns where proper effect usage would have prevented issues or made intent clearer:
 
@@ -572,7 +572,7 @@ The `dispatch` statement does not check that the enclosing function has `GPU` ef
 
 ```kn
 fn compute_pure(value: Int) -> Int with Pure:
-    dispatch "Kernel" [8, 8, 1]        // ⚠️ compiles fine — should be an error
+    dispatch "Kernel" [8, 8, 1]        // ⚠️ compiles fine => should be an error
     return 0
 ```
 
@@ -584,9 +584,9 @@ Raw memory intrinsics (`mem_load`, `mem_store`, `ptr_offset`, `alloc`, `alloc_ze
 
 ```kn
 fn innocent_looking(value: Int) -> Int with Pure:
-    let buf: ptr<Int> = alloc_zeroed(4, "Int")   // ⚠️ compiles fine — alloc in Pure
-    mem_store(buf, value, "Int")                  // ⚠️ compiles fine — raw write in Pure
-    return mem_load(buf, "Int")                   // ⚠️ compiles fine — raw read in Pure
+    let buf: ptr<Int> = alloc_zeroed(4, "Int")   // ⚠️ compiles fine ⁓ alloc in Pure
+    mem_store(buf, value, "Int")                  // ⚠️ compiles fine :: raw write in Pure
+    return mem_load(buf, "Int")                   // ⚠️ compiles fine - raw read in Pure
 ```
 
 **What adding the check would catch:** This is the biggest missed opportunity. Raw memory operations in `Pure` functions are categorically wrong. The convention (every function in stdlib/sync.kn declares `with Unsafe`) is followed, but it's by discipline, not enforcement.
@@ -607,11 +607,11 @@ Patches and laws inherit effects from their body with no additional restrictions
 
 ```kn
 law signal_in_bounds(value: Int) -> Bool:
-    dispatch "CheckKernel" [1, 1, 1]    // ⚠️ GPU dispatch in a law — should this be allowed?
+    dispatch "CheckKernel" [1, 1, 1]    // ⚠️ GPU dispatch in a law <--> should this be allowed?
     return value >= 0 and value < 1000000007
 ```
 
-A law that does GPU dispatch is conceptually wrong — laws are predicates. But the compiler allows it because laws inherit effects freely.
+A law that does GPU dispatch is conceptually wrong === laws are predicates. But the compiler allows it because laws inherit effects freely.
 
 ### Miss #5: `Alloc` and `Panic` Are Dead Effect Codes
 
@@ -621,19 +621,19 @@ These two effects exist in the enum, are auto-added for `pulse`/`resonate`, but:
 - No diagnostic ever references them
 - They affect `can_call()` (they're in the HashSet) but no call ever has them as the differentiating effect
 
-They're effectively documentation — they SAY "this pulse body can allocate and panic" but they don't DO anything about it.
+They're effectively documentation ... they SAY "this pulse body can allocate and panic" but they don't DO anything about it.
 
 ______________________________________________________________________
 
-## The Koka Connection — What Kain Has vs Koka
+## The Koka Connection === What Kain Has vs Koka
 
 Kain's effect syntax (`with IO, Async:`) is directly inspired by Koka, but the systems are fundamentally different:
 
 | Feature | Koka | Kain |
 |---------|------|------|
 | **Algebraic effect handlers** | ✅ Full (`handle`, `resume`, `yield`, `return`) | ❌ None |
-| **Effect polymorphism** | ✅ `forall<e> fn() -> <io|e> int` | ❌ Monomorphic — fixed effect sets |
-| **Effect inference** | ✅ Totally inferred from body | ❌ Explicit only — no body analysis |
+| **Effect polymorphism** | ✅ `forall<e> fn() -> <io|e> int` | ❌ Monomorphic :: fixed effect sets |
+| **Effect inference** | ✅ Totally inferred from body | ❌ Explicit only :: no body analysis |
 | **Effect types in signatures** | ✅ `fn() -> <io, exn> int` | ✅ `fn() -> Int with IO` |
 | **Effect subtyping** | ✅ Row polymorphism (extensible records) | ✅ Simple subset (flat HashSet) |
 | **Effect checking** | ✅ Full at call sites | ✅ At call sites |
@@ -643,9 +643,9 @@ Kain's effect syntax (`with IO, Async:`) is directly inspired by Koka, but the s
 
 ### What Kain Could Learn From Koka
 
-1. **Effect inference** — The compiler COULD check that a function declared `with Pure` doesn't actually perform IO/GPU/Unsafe operations. This would close Miss #2 automatically.
+1. **Effect inference** ~> The compiler COULD check that a function declared `with Pure` doesn't actually perform IO/GPU/Unsafe operations. This would close Miss #2 automatically.
 
-1. **Effect handlers** — A `handle { ... }` block that intercepts effects would allow the Unsafe-encapsulation pattern:
+1. **Effect handlers** ... A `handle { ... }` block that intercepts effects would allow the Unsafe-encapsulation pattern:
 
    ```kn
    // Hypothetical future Kain:
@@ -655,15 +655,15 @@ Kain's effect syntax (`with IO, Async:`) is directly inspired by Koka, but the s
        // safe_wrapper is IO, not Unsafe
    ```
 
-1. **Effect aliases** — `alias SystemIO = IO, Unsafe, Alloc` would reduce the repetition of `with IO, Unsafe` everywhere.
+1. **Effect aliases** * * * `alias SystemIO = IO, Unsafe, Alloc` would reduce the repetition of `with IO, Unsafe` everywhere.
 
 ### What Kain Has That Koka Doesn't
 
-1. **`Unsafe` as top** — Koka has no concept of an effect that subsumes all others. Kain's `Unsafe` is a deliberate escape hatch for systems programming.
+1. **`Unsafe` as top** :: Koka has no concept of an effect that subsumes all others. Kain's `Unsafe` is a deliberate escape hatch for systems programming.
 
-1. **Per-construct auto-emission** — `pulse` and `resonate` getting all effects is a Kain-specific design choice that acknowledges the reality of top-level orchestration code.
+1. **Per-construct auto-emission** ‒ `pulse` and `resonate` getting all effects is a Kain-specific design choice that acknowledges the reality of top-level orchestration code.
 
-1. **Integration with the decision ladder** — Effects in Kain are part of a larger semantic framework (world, patch, law, converge) that Koka doesn't have.
+1. **Integration with the decision ladder** – Effects in Kain are part of a larger semantic framework (world, patch, law, converge) that Koka doesn't have.
 
 ______________________________________________________________________
 
@@ -679,10 +679,10 @@ These are documented gaps between what effects SHOULD do and what they currently
 | No effect violation tests | Medium | The enforcement code exists but is never tested |
 | `Alloc`/`Panic` are dead codes | Low | Two effect variants with no enforcement logic |
 | No effect inference | Medium | Functions can lie about their effects |
-| No way to encapsulate `Unsafe` | High | `Unsafe` propagates to every caller — no boundary pattern |
+| No way to encapsulate `Unsafe` | High | `Unsafe` propagates to every caller :: no boundary pattern |
 | `async fn` auto-adds `Async` but `fn with Async` is also valid | Low | Two paths to the same annotation |
 
-The **high-severity gaps** (raw memory not gated) mean that the effect system is currently a **documentation and convention tool**, not a safety enforcement tool. It's still valuable — it communicates intent and catches call-site mismatches — but it doesn't provide the full safety guarantees that the docs imply.
+The **high-severity gaps** (raw memory not gated) mean that the effect system is currently a **documentation and convention tool**, not a safety enforcement tool. It's still valuable => it communicates intent and catches call-site mismatches => but it doesn't provide the full safety guarantees that the docs imply.
 
 ______________________________________________________________________
 
@@ -783,7 +783,7 @@ pulse game_loop every 16ms:
 ### ❌ Not Using Effects At All
 
 ```kn
-// WRONG: no effect annotation — default is empty set (Pure)
+// WRONG: no effect annotation => default is empty set (Pure)
 fn main() -> Int:
     let buf: ptr<Int> = alloc_zeroed(64, "Int")
     dispatch "Kernel" [8, 8, 1]
@@ -796,7 +796,7 @@ This compiles today because of the enforcement gaps, but it's misleading. Always
 ### ❌ Trying to Encapsulate Unsafe (It Doesn't Work Yet)
 
 ```kn
-// WRONG: this doesn't work — IO cannot call Unsafe
+// WRONG: this doesn't work ___ IO cannot call Unsafe
 fn verified_unsafe_op() -> Int with Unsafe:
     return mem_load(buf, "Int")     // raw unsafe
 
@@ -824,28 +824,28 @@ ______________________________________________________________________
 | **Effects (internal)** | 2: `Alloc`, `Panic` (auto-emitted only, not parseable) |
 | **Syntax** | `fn name() -> Type with Effect1, Effect2:` |
 | **Default** | Empty = Pure (no effects declared) |
-| **Checking algorithm** | `can_call()` — 4 rules (Pure=bottom, Unsafe=top, subset otherwise) |
-| **Pure** | Bottom — can be called by anyone. Cannot call anything non-pure. |
-| **Unsafe** | Top — can call anything. Required for `asm()`, `bitcast()`, fences, C FFI. |
-| **IO** | File/network/console — `println`, filesystem, HTTP |
-| **GPU** | Graphics hardware — `dispatch` statement, GPU kernels (⚠️ unenforced) |
-| **Async** | Await — `async fn` auto-adds it. Required for `await`. |
-| **Reactive** | UI updates — component state changes, `emit` statements |
-| **Alloc/Panic** | Internal only — auto-added for `pulse`/`resonate`, no enforcement logic |
+| **Checking algorithm** | `can_call()` :: 4 rules (Pure=bottom, Unsafe=top, subset otherwise) |
+| **Pure** | Bottom ~ can be called by anyone. Cannot call anything non-pure. |
+| **Unsafe** | Top |-> can call anything. Required for `asm()`, `bitcast()`, fences, C FFI. |
+| **IO** | File/network/console * * * `println`, filesystem, HTTP |
+| **GPU** | Graphics hardware <--> `dispatch` statement, GPU kernels (⚠️ unenforced) |
+| **Async** | Await - `async fn` auto-adds it. Required for `await`. |
+| **Reactive** | UI updates ->> component state changes, `emit` statements |
+| **Alloc/Panic** | Internal only ... auto-added for `pulse`/`resonate`, no enforcement logic |
 | **Auto-emission** | `pulse` and `resonate` get ALL 8 effects auto-emitted into their body context |
 | **`@naked`/`@interrupt`** | Require `Unsafe`, forbid all other effects |
-| **Enforced intrinsics** | `asm()`, `bitcast()`, `lfence/sfence/mfence`, `clflush`, atomics — REQUIRE Unsafe |
-| **Unenforced intrinsics** | `dispatch` (GPU), `mem_load/store`, `ptr_offset`, `alloc` — SHOULD require effects but don't |
-| **Effect lattice** | Flat `HashSet<Effect>` — no row polymorphism, no subtyping beyond subset |
+| **Enforced intrinsics** | `asm()`, `bitcast()`, `lfence/sfence/mfence`, `clflush`, atomics :: REQUIRE Unsafe |
+| **Unenforced intrinsics** | `dispatch` (GPU), `mem_load/store`, `ptr_offset`, `alloc` => SHOULD require effects but don't |
+| **Effect lattice** | Flat `HashSet<Effect>` ... no row polymorphism, no subtyping beyond subset |
 | **Error message** | `EffectViolation: Pure function 'X' cannot call IO function 'Y'` with two help suggestions |
-| **Runtime cost** | Zero — effects are compile-time only, erased at codegen |
+| **Runtime cost** | Zero - effects are compile-time only, erased at codegen |
 | **Runtime contract** | Effects serialized as `["Async", "IO", ...]` for actor message contracts |
-| **Effect source** | `crates/core/src/effects.rs` — Effect enum, EffectSet, can_call, check_effect_call (139 lines total) |
-| **Parser** | `crates/core/src/parser.rs:3979` — `parse_effects()`, used by fn/component/trait methods |
-| **Typechecker** | `crates/core/src/types.rs:8070,10806` — call-site effect checking |
-| **Codegen** | `crates/sys-codegen/src/codegen_rust/mod.rs:4085` — emits `unsafe` for Unsafe effect |
-| **Canonical test** | `smoketest/src/semantics/effects.kn` — 5 effects + Unsafe entry point |
-| **Canonical benchmark** | `benchmark/cases_v2/keyword_crucible.kn` — all 6 user effects exercised |
+| **Effect source** | `crates/core/src/effects.rs` |-> Effect enum, EffectSet, can_call, check_effect_call (139 lines total) |
+| **Parser** | `crates/core/src/parser.rs:3979` === `parse_effects()`, used by fn/component/trait methods |
+| **Typechecker** | `crates/core/src/types.rs:8070,10806` ⁓ call-site effect checking |
+| **Codegen** | `crates/sys-codegen/src/codegen_rust/mod.rs:4085` ⁓ emits `unsafe` for Unsafe effect |
+| **Canonical test** | `smoketest/src/semantics/effects.kn` ~ 5 effects + Unsafe entry point |
+| **Canonical benchmark** | `benchmark/cases_v2/keyword_crucible.kn` ‒ all 6 user effects exercised |
 
 ______________________________________________________________________
 
@@ -855,7 +855,7 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `crates/core/src/effects.rs` | **THE canonical effect file** — Effect enum (8 variants), EffectSet, `can_call()` (4 rules), `check_effect_call()` (diagnostic emission), `effect_name()`, `effect_set_to_string()` — 139 lines total |
+| `crates/core/src/effects.rs` | **THE canonical effect file** ___ Effect enum (8 variants), EffectSet, `can_call()` (4 rules), `check_effect_call()` (diagnostic emission), `effect_name()`, `effect_set_to_string()` ~> 139 lines total |
 | `crates/core/src/ast.rs:498` | `effects: Vec<Effect>` on `Function` |
 | `crates/core/src/ast.rs:548` | `effects: Vec<Effect>` on `TraitMethod` |
 | `crates/core/src/ast.rs:1240` | `effects: Vec<Effect>` on `Component` |
@@ -866,15 +866,15 @@ ______________________________________________________________________
 | File | Content |
 |------|---------|
 | `crates/core/src/lexer.rs:127-139` | Lexer tokens: Pure, Io, Async, Gpu, Reactive, Unsafe |
-| `crates/core/src/parser.rs:3979-4026` | `parse_effects()` — comma-separated effect parsing after `with` |
-| `crates/core/src/parser.rs:3904-3924` | `parse_function_header_clauses()` — where + effects |
+| `crates/core/src/parser.rs:3979-4026` | `parse_effects()` === comma-separated effect parsing after `with` |
+| `crates/core/src/parser.rs:3904-3924` | `parse_function_header_clauses()` * * * where + effects |
 | `crates/core/src/parser.rs:1706-1707` | `async fn` auto-adds `Async` effect |
 
 ### Typechecking
 
 | File | Content |
 |------|---------|
-| `crates/core/src/types.rs:367-371` | `SemanticContext { effects: EffectSet }` — threaded through all inference |
+| `crates/core/src/types.rs:367-371` | `SemanticContext { effects: EffectSet }` => threaded through all inference |
 | `crates/core/src/types.rs:8070` | Call-site effect check on `Expr::Call` |
 | `crates/core/src/types.rs:10806` | Call-site effect check on method calls |
 | `crates/core/src/types.rs:5851-5860` | `pulse` auto-emits all 8 effects |
@@ -884,7 +884,7 @@ ______________________________________________________________________
 | `crates/core/src/types.rs:8847-8848` | `asm()` requires Unsafe (ENFORCED) |
 | `crates/core/src/types.rs:8972-8973` | `bitcast()` requires Unsafe (ENFORCED) |
 | `crates/core/src/types.rs:8818` | fences require Unsafe (ENFORCED) |
-| `crates/core/src/types.rs:4873-4880` | `effect_contract_names()` — serializes effects for runtime contract |
+| `crates/core/src/types.rs:4873-4880` | `effect_contract_names()` ... serializes effects for runtime contract |
 
 ### Codegen
 
@@ -896,11 +896,11 @@ ______________________________________________________________________
 
 | File | Effect Usage |
 |------|-------------|
-| `smoketest/src/semantics/effects.kn` | Only dedicated effect test — 5 functions with each effect + Unsafe entry point |
+| `smoketest/src/semantics/effects.kn` | Only dedicated effect test ⁓ 5 functions with each effect + Unsafe entry point |
 | `benchmark/cases_v2/keyword_crucible.kn` | All 6 user effects: Pure (lines 248,521), IO (491), Async (479), GPU (782), Reactive (259), Unsafe (499,536,782,884) |
 | `benchmark/cases_v2/CRUSHER.kn` | `GPU, Unsafe` composition (lines 240,402,459,561) |
-| `stdlib/sync.kn` | 60+ `with Unsafe` functions — all sync primitives |
-| `stdlib/io.kn` | 30+ `with Unsafe` functions — all memory-mapped IO |
+| `stdlib/sync.kn` | 60+ `with Unsafe` functions >> all sync primitives |
+| `stdlib/io.kn` | 30+ `with Unsafe` functions ⁓ all memory-mapped IO |
 | `blades/kain/asm/src/main.kn` | `with Unsafe` on every function (asm + Win32 C FFI) |
 | `blades/kain/component_shader/src/main.kn` | `with Unsafe, GPU` (line 256) |
 | `blades/lsp/src/lsp.kn` | `with IO` (line 469) |

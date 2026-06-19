@@ -1,7 +1,7 @@
 # pi-squared Architecture Guide
 
 > **Mapping the pi coding-agent onto Kain's compiler-owned semantic stack.**
-> 8 layers, 30+ files, 3,687 lines — every pi subsystem in its correct ladder rung.
+> 8 layers, 30+ files, 3,687 lines ~ every pi subsystem in its correct ladder rung.
 
 ---
 
@@ -11,14 +11,14 @@ The defining design decision of pi-squared is that **every subsystem sits at the
 
 | Layer | Construct | pi Concept | Kain Equivalent |
 |-------|-----------|------------|-----------------|
-| L7 | `actor` | LLM turn loop | `AgentActor` — mailbox, steering/follow-up, abort |
-| L7 | `actor` | Session persistence | `SessionTree` — append-only JSONL, branching, rebuild |
-| L7 | `actor` | Settings manager | `PiSettingsManager` — 4-layer merge, watch, apply |
+| L7 | `actor` | LLM turn loop | `AgentActor` => mailbox, steering/follow-up, abort |
+| L7 | `actor` | Session persistence | `SessionTree` ⁓ append-only JSONL, branching, rebuild |
+| L7 | `actor` | Settings manager | `PiSettingsManager` 〰 4-layer merge, watch, apply |
 | L7 | `collapse/observe/decay` | File buffer lifecycle | Raw ptr<T> for editor buffers, clipboard, pipe IO |
-| L6 | `axiom` | Platform capabilities | `axiom platform_truth` — OS, arch, terminal features |
+| L6 | `axiom` | Platform capabilities | `axiom platform_truth` :: OS, arch, terminal features |
 | L6 | `shatter struct` | Hot-path dispatch tables | Tool registry, keybinding maps, provider index |
 | L6 | `teleport` | Cross-world state handoff | Session export, extension bridge, provider handover |
-| L5 | `pulse` | TUI render loop | `pulse tui_render every 16ms` — frame clock |
+| L5 | `pulse` | TUI render loop | `pulse tui_render every 16ms` ->> frame clock |
 | L5 | `pulse` | Compaction check | `pulse compaction_check every 30s` |
 | L5 | `pulse` | Session auto-save | `pulse session_save every 60s` |
 | L5 | `resonate` | Config watcher | Rebuild settings tree on world field change |
@@ -42,11 +42,11 @@ The defining design decision of pi-squared is that **every subsystem sits at the
 ```
 src/
 ├── main.kn                  # Entry: init worlds, spawn actors, start pulse
-├── cli.kn                   # CLI parser — converge dispatch on subcommands
+├── cli.kn                   # CLI parser --- converge dispatch on subcommands
 ├── types.kn                 # Core struct/enum data models (L0)
 
 src/agent/
-├── agent_actor.kn           # AgentActor — mailbox-driven LLM turn loop (L7)
+├── agent_actor.kn           # AgentActor ⁓ mailbox-driven LLM turn loop (L7)
 ├── agent_events.kn          # Event bus structs and converge dispatch (L3)
 ├── turn_queue.kn            # Steering/follow-up message queue (L7 state)
 ├── abort_signal.kn          # Abort signal world + entangle (L1)
@@ -58,7 +58,7 @@ src/config/
 ├── markscript_loader.kn     # MarkScript → bytecode loader (fn)
 
 src/session/
-├── session_tree.kn          # SessionTree actor — JSONL append-only (L7)
+├── session_tree.kn          # SessionTree actor 〰 JSONL append-only (L7)
 ├── session_compactor.kn     # Compaction orchestrate pipeline (L4)
 ├── migrations.kn            # Schema migration helpers (fn)
 
@@ -97,9 +97,9 @@ src/pipeline/
 
 The original pi uses a single `Agent` class (1,200 lines) that handles everything. pi-squared splits this into three actors:
 
-- **AgentActor** (L7) — owns the LLM conversation loop. Messages drive turns. Steering/follow-up queues are mailbox priorities. Abort is a separate signal world entangled into the actor.
-- **SessionTree** (L7) — owns persistence. Append-only JSONL means no locking. Branches are cheap (copy the tree pointer, write new frames). Context rebuild is a `to_vector` of ancestor frames.
-- **PiSettingsManager** (L7) — owns the config cascade. CLI > project > global > defaults, each level a world field with `entangle` propagation.
+- **AgentActor** (L7) :: owns the LLM conversation loop. Messages drive turns. Steering/follow-up queues are mailbox priorities. Abort is a separate signal world entangled into the actor.
+- **SessionTree** (L7) ⁓ owns persistence. Append-only JSONL means no locking. Branches are cheap (copy the tree pointer, write new frames). Context rebuild is a `to_vector` of ancestor frames.
+- **PiSettingsManager** (L7) >> owns the config cascade. CLI > project > global > defaults, each level a world field with `entangle` propagation.
 
 This split means each actor has bounded state and a clear message contract. The runtime schedules them independently.
 
@@ -107,7 +107,7 @@ This split means each actor has bounded state and a clear message contract. The 
 
 Eight worlds. The original pi had 20+ global variables, module-level singletons, and object instances. Each world in pi-squared is a named state container with fields, patches for journaled mutation, laws for invariants, and entangles for cross-world coupling.
 
-The ApiKeyVault ↔ ProviderRegistry entangle is a concrete example: when the vault patches a new key, the registry automatically learns about it — no manual `notify()` call needed.
+The ApiKeyVault ↔ ProviderRegistry entangle is a concrete example: when the vault patches a new key, the registry automatically learns about it * * * no manual `notify()` call needed.
 
 ### 3.3 Orchestrate Pipelines for Every Multi-Step Flow
 
@@ -138,7 +138,7 @@ The `verify random(N)` clause fuzz-tests fast lanes against the spec at first-ru
 
 ### 3.5 Pulse Loops Replace setTimeout/setInterval
 
-Three pulse loops at different cadences. Each is a compiler-owned recurrent block with jitter tolerance. The 16ms TUI render pulse is the heartbeat of the UI layer — everything that touches the screen flows through it.
+Three pulse loops at different cadences. Each is a compiler-owned recurrent block with jitter tolerance. The 16ms TUI render pulse is the heartbeat of the UI layer ~> everything that touches the screen flows through it.
 
 ---
 
@@ -153,8 +153,8 @@ Three pulse loops at different cadences. Each is a compiler-owned recurrent bloc
 
 ### 4.1 Known Gaps (ALPHA)
 
-- `build.kn` — the Kain build authority is a placeholder; needs runtime manifest wiring
-- `pi-squared.md` — MarkScript orchestrator references mks.exe which is a separate binary
+- `build.kn` - the Kain build authority is a placeholder; needs runtime manifest wiring
+- `pi-squared.md` - MarkScript orchestrator references mks.exe which is a separate binary
 - Provider implementations (BRAVO) are stubbed as pure trait definitions
 - TUI substrate (CHARLIE) is not wired; pulse loop exists but frame buffer is internal
 - No Z3 proof packs yet for the ownership lattice (collapse/observe/decay in editor buffers)

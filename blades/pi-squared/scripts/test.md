@@ -1,4 +1,4 @@
-# Test — Full Test Suite
+# Test * * * Full Test Suite
 
 Runs all test tiers: unit, integration, e2e, and Z3 proof verification.
 
