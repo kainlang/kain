@@ -1,554 +1,310 @@
-# V3 Benchmark Runner — MarkScript Edition
+# CASES_V3 Benchmark Runner
 
 > Dogfooding MarkScript as the CASES_V3 benchmark orchestration engine.
-> `mks run README.md` executes the full pipeline: build → calibrate → run → report.
+> `mks run README.md` executes the pipeline: build → calibrate → run → report.
 > All configuration is tables. All dispatch is blockquote intents. All logic is markscript.
-> The Python runner in .bak/(`bench.py`) still exists for statistical timing when needed.
 
-## Metadata
+## Status: SCAFFOLDED ~> Not Yet Calibrated
 
-| Property | Value |
-|----------|-------|
-| Pipeline | CASES_V3 Benchmark Runner |
-| Version | 1.0.0 |
-| Engine | MarkScript VM (mks.exe) |
-| Contract | research/v3_contract.md |
-| Roots | cases_v3/kain, cases_v3/rust, cases_v3/cpp, cases_v3/zig, cases_v3/go, cases_v3/markscript |
+**All language god files compile and run, but EXPECTED checksum constants are set to 0.** Run `--compute-all` on each binary to calibrate, then copy values into the EXPECTED constants. Until then, all benchmarks pass trivially (0 == 0 on some languages) or fail trivially (got N, expected 0 on others).
 
 ---
 
-# ─── CONFIGURATION ────────────────────────────────────────────────────────
+## Quick Start
 
-## Benchmarks
-
-| id | tier | title | kain | rust | cpp | zig | go | mks |
-|----|------|-------|------|------|-----|-----|----|-----|
-| binary_trees | 1 | Binary Trees | yes | yes | yes | yes | yes | - |
-| nbody | 1 | N-Body Simulation | yes | yes | yes | yes | - | - |
-| spectral_norm | 1 | Spectral Norm | yes | yes | yes | yes | - | - |
-| mandelbrot | 1 | Mandelbrot Set | yes | yes | yes | yes | yes | yes |
-| fasta | 1 | FASTA DNA | yes | yes | yes | yes | yes | yes |
-| regex_redux | 1 | Regex Redux | yes | yes | yes | - | yes | yes |
-| pidigits | 1 | Pi Digits | yes | yes | yes | yes | yes | - |
-| hashmap_heavy | 2 | HashMap Heavy | yes | yes | yes | yes | yes | - |
-| btree_scan | 2 | BTree Scan | yes | yes | yes | yes | yes | - |
-| sort_gauntlet | 2 | Sort Gauntlet | yes | yes | yes | yes | yes | - |
-| vector_growth | 2 | Vector Growth | yes | yes | yes | yes | yes | - |
-| graph_bfs | 2 | Graph BFS | yes | yes | yes | - | yes | - |
-| alloc_small_churn | 3 | Alloc Small Churn | yes | yes | yes | yes | - | - |
-| alloc_large_objects | 3 | Alloc Large Objects | yes | yes | yes | yes | - | - |
-| arena_vs_malloc | 3 | Arena vs Malloc | yes | yes | yes | yes | yes | - |
-| cache_march | 3 | Cache March | yes | yes | yes | yes | yes | - |
-| rc_vs_gc_trace | 3 | RC vs GC Trace | yes | yes | yes | - | - | - |
-| parallel_reduce | 4 | Parallel Reduce | yes | yes | yes | yes | yes | - |
-| mutex_contention | 4 | Mutex Contention | yes | yes | yes | yes | yes | - |
-| spsc_queue | 4 | SPSC Queue | yes | yes | yes | yes | yes | - |
-| mpmc_queue | 4 | MPMC Queue | yes | yes | yes | yes | yes | - |
-| actor_spam | 4 | Actor Spam | yes | yes | yes | - | yes | - |
-| async_ready_pipeline | 4 | Async Ready Pipeline | yes | yes | yes | - | yes | - |
-| file_read_streaming | 5 | File Read Streaming | yes | yes | yes | yes | yes | - |
-| file_write_streaming | 5 | File Write Streaming | yes | yes | yes | yes | yes | - |
-| tcp_echo_throughput | 5 | TCP Echo Throughput | yes | yes | yes | - | yes | - |
-| process_spawn_chain | 5 | Process Spawn Chain | yes | yes | yes | - | yes | - |
-| c_ffi_call_hotloop | 6 | C FFI Call Hotloop | yes | yes | yes | yes | - | - |
-| c_buffer_handoff | 6 | C Buffer Handoff | yes | yes | yes | - | - | - |
-| build_self_stress | 7 | Build Self Stress | yes | yes | yes | yes | yes | - |
-| scalar_mix | 1 | Scalar Mix (MKS) | - | - | - | - | - | yes |
-| recursive_sum | 1 | Recursive Sum (MKS) | - | - | - | - | - | yes |
-| branch_dispatch | 1 | Branch Dispatch (MKS) | - | - | - | - | - | yes |
-| string_ops | 1 | String Ops (MKS) | - | - | - | - | - | yes |
-| fizzbuzz_bomb | 1 | FizzBuzz Bomb (MKS) | - | - | - | - | - | yes |
-| prime_sieve | 1 | Prime Sieve (MKS) | - | - | - | - | - | yes |
-| fibonacci_mod | 1 | Fibonacci Mod (MKS) | - | - | - | - | - | yes |
-
-## BinaryPaths
-
-| language | binary | source |
-|----------|--------|--------|
-| kain | cases_v3/out/build/kain/bench.exe | cases_v3/kain/bench.kn |
-| rust | cases_v3/out/build/rust/bench.exe | cases_v3/rust/bench.rs |
-| cpp | cases_v3/out/build/cpp/bench.exe | cases_v3/cpp/bench.cpp |
-| zig | cases_v3/out/build/zig/bench.exe | cases_v3/zig/bench.zig |
-| go | cases_v3/out/build/go/bench.exe | cases_v3/go/bench.go |
-| mks | blades/markscript/mks.exe | cases_v3/markscript/bench.md |
-
----
-
-# ─── STAGE 1: BUILD ───────────────────────────────────────────────────────
-
-## BuildIntro
-
-> Build stage — compile all language god files.
-> Each language builds from its source to a native binary.
-> Skip languages where the binary is already up-to-date.
-
-```markscript
-print("========================================")
-print("  CASES_V3 — Build Stage")
-print("========================================")
-print("")
 ```
+# 1. Build all language god files
+mks run cases_v3/README.md --section Build
 
-## BuildKain
+# 2. Calibrate checksums (run each once, capture values)
+mks run cases_v3/README.md --section Calibrate
 
-> Compile the Kain god file to native via `kain build --target llvm`.
+# 3. Smoke test (one run each)
+mks run cases_v3/README.md --section Smoke
 
-```markscript
-print("--- kain: bench.kn → bench.exe ---")
-```
+# 4. Full statistical suite with Python
+python cases_v3/bench.py suite full
 
-> run "kain build cases_v3/kain/bench.kn --target llvm -o cases_v3/out/build/kain/bench"
-
-```markscript
-print("  kain build dispatched")
-```
-
-## BuildRust
-
-```markscript
-print("--- rust: bench.rs → bench.exe ---")
-```
-
-> run "rustc -C opt-level=3 -C target-cpu=native -C debuginfo=0 -C panic=abort -C overflow-checks=off -o cases_v3/out/build/rust/bench.exe cases_v3/rust/bench.rs"
-
-```markscript
-print("  rustc dispatched")
-```
-
-## BuildCpp
-
-```markscript
-print("--- cpp: bench.cpp → bench.exe ---")
-```
-
-> run "clang++ -std=c++20 -O3 -march=native -DNDEBUG -o cases_v3/out/build/cpp/bench.exe cases_v3/cpp/bench.cpp"
-
-```markscript
-print("  clang++ dispatched")
-```
-
-## BuildZig
-
-```markscript
-print("--- zig: bench.zig → bench.exe ---")
-```
-
-> run "zig build-exe -O ReleaseFast -femit-bin=cases_v3/out/build/zig/bench.exe cases_v3/zig/bench.zig"
-
-```markscript
-print("  zig build-exe dispatched")
-```
-
-## BuildGo
-
-```markscript
-print("--- go: bench.go → bench.exe ---")
-```
-
-> run "go build -ldflags=-s -w -o cases_v3/out/build/go/bench.exe cases_v3/go/bench.go"
-
-```markscript
-print("  go build dispatched")
-```
-
-## BuildComplete
-
-```markscript
-print("")
-print("--- Build stage complete ---")
-print("")
+# 5. Run a single benchmark directly
+./cases_v3/cpp/bench.exe binary_trees
+./cases_v3/rust/bench.exe nbody
+./cases_v3/zig/bench.exe mandelbrot
+./cases_v3/go/bench.exe fasta
 ```
 
 ---
 
-# ─── STAGE 2: CALIBRATE ──────────────────────────────────────────────────
+## Architecture
 
-## CalibrateIntro
-
-> Calibration stage — run each benchmark once per language to capture expected checksums.
-> Results are written to `cases_v3/expected/` as one checksum file per language.
-
-```markscript
-print("========================================")
-print("  CASES_V3 — Calibration Stage")
-print("========================================")
-print("")
+```
+cases_v3/
+├── README.md              ← This file (also the MKS runner)
+├── bench.py               ← Python statistical timing runner
+├── kain/
+│   └── bench.kn           ← ONE god file, 30 functions (check-passed, not compiled)
+├── rust/
+│   └── bench.rs           ← ONE god file (compiled: bench.exe, 437 KB)
+├── cpp/
+│   └── bench.cpp          ← ONE god file (compiled: bench.exe, 460 KB)
+├── zig/
+│   └── bench.zig          ← ONE god file (compiled: bench.exe, 913 KB)
+├── go/
+│   └── bench.go           ← ONE god file (compiled: bench.exe, 2.9 MB)
+└── markscript/
+    └── bench.md           ← 12 mini-language benchmarks (runs via mks.exe)
 ```
 
-## CalibrateCpp
+### Execution Model
 
-> C++ is the reference implementation — calibrate all 30 benchmarks.
-
-```markscript
-print("--- cpp: calibrating 30 benchmarks ---")
 ```
+COMPILE (once, parallel):
+  rustc bench.rs -O3 -C target-cpu=native     → bench_rust.exe
+  clang++ bench.cpp -O3 -march=native          → bench_cpp.exe
+  zig build-exe bench.zig -O ReleaseFast       → bench_zig.exe
+  go build -ldflags="-s -w" bench.go           → bench_go.exe
+  kain build bench.kn --target llvm            → bench_kain.exe (NOT YET BUILT)
 
-> run "cases_v3/out/build/cpp/bench.exe --compute-all"
-
-```markscript
-print("  cpp calibration complete")
-```
-
-## CalibrateRust
-
-```markscript
-print("--- rust: calibrating 30 benchmarks ---")
-```
-
-> run "cases_v3/out/build/rust/bench.exe --compute-all"
-
-```markscript
-print("  rust calibration complete")
-```
-
-## CalibrateZig
-
-```markscript
-print("--- zig: calibrating 24 benchmarks ---")
-```
-
-> run "cases_v3/out/build/zig/bench.exe --compute-all"
-
-```markscript
-print("  zig calibration complete")
-```
-
-## CalibrateGo
-
-```markscript
-print("--- go: calibrating 24 benchmarks ---")
-```
-
-> run "cases_v3/out/build/go/bench.exe --compute-all"
-
-```markscript
-print("  go calibration complete")
-```
-
-## CalibrateComplete
-
-```markscript
-print("")
-print("--- Calibration stage complete ---")
-print("  Run `mks run runner.md` again to execute benchmarks with verified checksums.")
-print("")
+RUN (parallel across languages):
+  bench_cpp.exe binary_trees    # 30 benches
+  bench_rust.exe binary_trees   # 30 benches
+  bench_zig.exe binary_trees    # 24 benches (6 skipped)
+  bench_go.exe binary_trees     # 24 benches (7 skipped)
+  mks run bench.md              # 12 MKS mini-language benches
 ```
 
 ---
 
-# ─── STAGE 3: SMOKE TEST ──────────────────────────────────────────────────
+## Benchmark Table
 
-## SmokeIntro
+30 benchmarks across 7 tiers. Each language god file implements a subset:
 
-> Smoke test — one run of every benchmark per language. Exit code 0 = pass.
-> This catches crashes, miscompiles, and checksum mismatches.
+| # | ID | Tier | C++ | Rust | Zig | Go | Kain | MKS |
+|---|-----|------|-----|------|-----|-----|------|-----|
+| 1 | binary_trees | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 2 | nbody | 1 | ✅ | ✅ | ✅ | - | ✅ | - |
+| 3 | spectral_norm | 1 | ✅ | ✅ | ✅ | - | ✅ | - |
+| 4 | mandelbrot | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 5 | fasta | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 6 | regex_redux | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 7 | pidigits | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 8 | hashmap_heavy | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 9 | btree_scan | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 10 | sort_gauntlet | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 11 | vector_growth | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 12 | graph_bfs | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 13 | alloc_small_churn | 3 | ✅ | ✅ | ✅ | - | ✅ | - |
+| 14 | alloc_large_objects | 3 | ✅ | ✅ | ✅ | - | ✅ | - |
+| 15 | arena_vs_malloc | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 16 | cache_march | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 17 | rc_vs_gc_trace | 3 | ✅ | ✅ | SKIP | - | ✅ | - |
+| 18 | parallel_reduce | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 19 | mutex_contention | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 20 | spsc_queue | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 21 | mpmc_queue | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 22 | actor_spam | 4 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
+| 23 | async_ready_pipeline | 4 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
+| 24 | file_read_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 25 | file_write_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 26 | tcp_echo_throughput | 5 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
+| 27 | process_spawn_chain | 5 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
+| 28 | c_ffi_call_hotloop | 6 | ✅ | ✅ | ✅ | - | ✅ | - |
+| 29 | c_buffer_handoff | 6 | ✅ | ✅ | SKIP | - | ✅ | - |
+| 30 | build_self_stress | 7 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 31 | scalar_mix | MKS | - | - | - | - | - | ✅ |
+| 32 | recursive_sum | MKS | - | - | - | - | - | ✅ |
+| 33 | branch_dispatch | MKS | - | - | - | - | - | ✅ |
+| 34 | call_chain | MKS | - | - | - | - | - | ✅ |
+| 35 | fizzbuzz_bomb | MKS | - | - | - | - | - | ✅ |
+| 36 | prime_sieve | MKS | - | - | - | - | - | ✅ |
+| 37 | collatz_conjecture | MKS | - | - | - | - | - | ✅ |
+| 38 | fibonacci_mod | MKS | - | - | - | - | - | ✅ |
+| 39 | pi_approx | MKS | - | - | - | - | - | ✅ |
+| 40 | vm_bytecode_stress | MKS | - | - | - | - | - | ✅ |
+| 41 | checksum_ladder | MKS | - | - | - | - | - | ✅ |
+| 42 | array_scan | MKS | - | - | - | - | - | ✅ |
+| 43 | string_ops | MKS | - | - | - | - | - | ✅ |
 
-```markscript
-print("========================================")
-print("  CASES_V3 — Smoke Test")
-print("========================================")
-print("")
+✅ = implemented, SKIP = deliberately skipped (no runtime support), - = not applicable
+
+---
+
+## Running Each Language
+
+### C++ (Reference Implementation)
+```
+clang++ -std=c++20 -O3 -march=native -DNDEBUG bench.cpp -o bench -lws2_32
+./bench binary_trees           # single benchmark
+./bench --compute-all          # print all checksums for calibration
 ```
 
-## SmokeCpp
+All 30 benchmarks implemented. EXPECTED constants set to 0 (uncalibrated).
 
-```markscript
-print("--- cpp smoke test ---")
+### Rust
+```
+rustc -C opt-level=3 -C target-cpu=native -C debuginfo=0 bench.rs -o bench
+./bench binary_trees           # single benchmark
 ```
 
-> run "cases_v3/out/build/cpp/bench.exe binary_trees"
-> run "cases_v3/out/build/cpp/bench.exe nbody"
-> run "cases_v3/out/build/cpp/bench.exe spectral_norm"
-> run "cases_v3/out/build/cpp/bench.exe mandelbrot"
-> run "cases_v3/out/build/cpp/bench.exe fasta"
-> run "cases_v3/out/build/cpp/bench.exe regex_redux"
-> run "cases_v3/out/build/cpp/bench.exe pidigits"
-> run "cases_v3/out/build/cpp/bench.exe hashmap_heavy"
-> run "cases_v3/out/build/cpp/bench.exe btree_scan"
-> run "cases_v3/out/build/cpp/bench.exe sort_gauntlet"
-> run "cases_v3/out/build/cpp/bench.exe vector_growth"
-> run "cases_v3/out/build/cpp/bench.exe graph_bfs"
-> run "cases_v3/out/build/cpp/bench.exe alloc_small_churn"
-> run "cases_v3/out/build/cpp/bench.exe alloc_large_objects"
-> run "cases_v3/out/build/cpp/bench.exe arena_vs_malloc"
-> run "cases_v3/out/build/cpp/bench.exe cache_march"
-> run "cases_v3/out/build/cpp/bench.exe rc_vs_gc_trace"
-> run "cases_v3/out/build/cpp/bench.exe parallel_reduce"
-> run "cases_v3/out/build/cpp/bench.exe mutex_contention"
-> run "cases_v3/out/build/cpp/bench.exe spsc_queue"
-> run "cases_v3/out/build/cpp/bench.exe mpmc_queue"
-> run "cases_v3/out/build/cpp/bench.exe actor_spam"
-> run "cases_v3/out/build/cpp/bench.exe async_ready_pipeline"
-> run "cases_v3/out/build/cpp/bench.exe file_read_streaming"
-> run "cases_v3/out/build/cpp/bench.exe file_write_streaming"
-> run "cases_v3/out/build/cpp/bench.exe tcp_echo_throughput"
-> run "cases_v3/out/build/cpp/bench.exe process_spawn_chain"
-> run "cases_v3/out/build/cpp/bench.exe c_ffi_call_hotloop"
-> run "cases_v3/out/build/cpp/bench.exe c_buffer_handoff"
-> run "cases_v3/out/build/cpp/bench.exe build_self_stress"
+All 30 benchmarks implemented. Prints `[FAIL]` when checksum != expected (all expected=0). Does not support `--compute-all` yet.
 
-```markscript
-print("  cpp smoke complete")
+### Zig
+```
+zig build-exe bench.zig -O ReleaseFast --name bench
+./bench binary_trees           # single benchmark
 ```
 
-## SmokeRust
+24 benchmarks implemented (6 skipped: rc_vs_gc_trace, actor_spam, async_ready_pipeline, tcp_echo_throughput, process_spawn_chain, c_buffer_handoff). Prints raw checksum.
 
-```markscript
-print("--- rust smoke test ---")
+### Go
+```
+go build -ldflags="-s -w"
+./bench binary_trees           # single benchmark
 ```
 
-> run "cases_v3/out/build/rust/bench.exe binary_trees"
-> run "cases_v3/out/build/rust/bench.exe nbody"
-> run "cases_v3/out/build/rust/bench.exe spectral_norm"
-> run "cases_v3/out/build/rust/bench.exe mandelbrot"
-> run "cases_v3/out/build/rust/bench.exe fasta"
-> run "cases_v3/out/build/rust/bench.exe regex_redux"
-> run "cases_v3/out/build/rust/bench.exe pidigits"
-> run "cases_v3/out/build/rust/bench.exe hashmap_heavy"
-> run "cases_v3/out/build/rust/bench.exe btree_scan"
-> run "cases_v3/out/build/rust/bench.exe sort_gauntlet"
-> run "cases_v3/out/build/rust/bench.exe vector_growth"
-> run "cases_v3/out/build/rust/bench.exe graph_bfs"
-> run "cases_v3/out/build/rust/bench.exe alloc_small_churn"
-> run "cases_v3/out/build/rust/bench.exe alloc_large_objects"
-> run "cases_v3/out/build/rust/bench.exe arena_vs_malloc"
-> run "cases_v3/out/build/rust/bench.exe cache_march"
-> run "cases_v3/out/build/rust/bench.exe rc_vs_gc_trace"
-> run "cases_v3/out/build/rust/bench.exe parallel_reduce"
-> run "cases_v3/out/build/rust/bench.exe mutex_contention"
-> run "cases_v3/out/build/rust/bench.exe spsc_queue"
-> run "cases_v3/out/build/rust/bench.exe mpmc_queue"
-> run "cases_v3/out/build/rust/bench.exe actor_spam"
-> run "cases_v3/out/build/rust/bench.exe async_ready_pipeline"
-> run "cases_v3/out/build/rust/bench.exe file_read_streaming"
-> run "cases_v3/out/build/rust/bench.exe file_write_streaming"
-> run "cases_v3/out/build/rust/bench.exe tcp_echo_throughput"
-> run "cases_v3/out/build/rust/bench.exe process_spawn_chain"
-> run "cases_v3/out/build/rust/bench.exe c_ffi_call_hotloop"
-> run "cases_v3/out/build/rust/bench.exe c_buffer_handoff"
-> run "cases_v3/out/build/rust/bench.exe build_self_stress"
+24 benchmarks implemented (7 skipped: nbody, spectral_norm, alloc_small_churn, alloc_large_objects, rc_vs_gc_trace, c_ffi_call_hotloop, c_buffer_handoff). Prints raw checksum, exits 0.
 
-```markscript
-print("  rust smoke complete")
+### Kain
+```
+kain build bench.kn --target llvm    # NOT YET COMPILED
 ```
 
-## SmokeZig
+`kain check bench.kn` passes with 1880 items. Uses advanced features (world, Unsafe, alloc/decay, ptr_offset, mem_store/mem_load). Requires LLVM build, not yet done.
 
-```markscript
-print("--- zig smoke test ---")
+### MarkScript
+```
+mks run cases_v3/markscript/bench.md
 ```
 
-> run "cases_v3/out/build/zig/bench.exe binary_trees"
-> run "cases_v3/out/build/zig/bench.exe nbody"
-> run "cases_v3/out/build/zig/bench.exe spectral_norm"
-> run "cases_v3/out/build/zig/bench.exe mandelbrot"
-> run "cases_v3/out/build/zig/bench.exe fasta"
-> run "cases_v3/out/build/zig/bench.exe pidigits"
-> run "cases_v3/out/build/zig/bench.exe hashmap_heavy"
-> run "cases_v3/out/build/zig/bench.exe btree_scan"
-> run "cases_v3/out/build/zig/bench.exe sort_gauntlet"
-> run "cases_v3/out/build/zig/bench.exe vector_growth"
-> run "cases_v3/out/build/zig/bench.exe graph_bfs"
-> run "cases_v3/out/build/zig/bench.exe alloc_small_churn"
-> run "cases_v3/out/build/zig/bench.exe alloc_large_objects"
-> run "cases_v3/out/build/zig/bench.exe arena_vs_malloc"
-> run "cases_v3/out/build/zig/bench.exe cache_march"
-> run "cases_v3/out/build/zig/bench.exe parallel_reduce"
-> run "cases_v3/out/build/zig/bench.exe mutex_contention"
-> run "cases_v3/out/build/zig/bench.exe spsc_queue"
-> run "cases_v3/out/build/zig/bench.exe mpmc_queue"
-> run "cases_v3/out/build/zig/bench.exe file_read_streaming"
-> run "cases_v3/out/build/zig/bench.exe file_write_streaming"
-> run "cases_v3/out/build/zig/bench.exe c_ffi_call_hotloop"
-> run "cases_v3/out/build/zig/bench.exe build_self_stress"
+12 mini-language benchmarks inside markscript blocks. Runs directly in the MKS VM. No compilation step needed. Outputs checksums via `print(str(cs))`.
 
-```markscript
-print("  zig smoke complete")
+---
+
+## MKS Benchmark Commands
+
 ```
+# Full MKS pipeline (build + calibrate + smoke)
+mks run cases_v3/README.md
 
-## SmokeGo
+# Run specific stages
+mks run cases_v3/README.md --section Build
+mks run cases_v3/README.md --section Calibrate
+mks run cases_v3/README.md --section Smoke
 
-```markscript
-print("--- go smoke test ---")
-```
+# Run only MKS mini-language benchmarks
+mks run cases_v3/markscript/bench.md
 
-> run "cases_v3/out/build/go/bench.exe binary_trees"
-> run "cases_v3/out/build/go/bench.exe mandelbrot"
-> run "cases_v3/out/build/go/bench.exe fasta"
-> run "cases_v3/out/build/go/bench.exe regex_redux"
-> run "cases_v3/out/build/go/bench.exe pidigits"
-> run "cases_v3/out/build/go/bench.exe hashmap_heavy"
-> run "cases_v3/out/build/go/bench.exe btree_scan"
-> run "cases_v3/out/build/go/bench.exe sort_gauntlet"
-> run "cases_v3/out/build/go/bench.exe vector_growth"
-> run "cases_v3/out/build/go/bench.exe graph_bfs"
-> run "cases_v3/out/build/go/bench.exe arena_vs_malloc"
-> run "cases_v3/out/build/go/bench.exe cache_march"
-> run "cases_v3/out/build/go/bench.exe parallel_reduce"
-> run "cases_v3/out/build/go/bench.exe mutex_contention"
-> run "cases_v3/out/build/go/bench.exe spsc_queue"
-> run "cases_v3/out/build/go/bench.exe mpmc_queue"
-> run "cases_v3/out/build/go/bench.exe actor_spam"
-> run "cases_v3/out/build/go/bench.exe async_ready_pipeline"
-> run "cases_v3/out/build/go/bench.exe file_read_streaming"
-> run "cases_v3/out/build/go/bench.exe file_write_streaming"
-> run "cases_v3/out/build/go/bench.exe tcp_echo_throughput"
-> run "cases_v3/out/build/go/bench.exe process_spawn_chain"
-> run "cases_v3/out/build/go/bench.exe build_self_stress"
+# Check for errors without running
+mks check cases_v3/markscript/bench.md
 
-```markscript
-print("  go smoke complete")
-```
-
-## SmokeMarkScript
-
-> MKS benchmarks run in-process — execute the bench.md directly.
-
-```markscript
-print("--- markscript smoke test ---")
-```
-
-> run "mks run cases_v3/markscript/bench.md"
-
-```markscript
-print("  markscript smoke complete")
-```
-
-## SmokeComplete
-
-```markscript
-print("")
-print("--- Smoke test complete ---")
-print("  All benchmarks executed. Check output above for PASS/FAIL.")
-print("")
+# Statistical timing with Python
+python cases_v3/bench.py suite full
+python cases_v3/bench.py suite dev      # Kain-only fast iteration
 ```
 
 ---
 
-# ─── STAGE 4: FULL SUITE ──────────────────────────────────────────────────
+## Current Binary Sizes
 
-## FullSuiteIntro
-
-> Full benchmark suite with warmup + timed runs.
-> Each benchmark runs 3 warmup iterations + 5 timed runs.
-> Results written to `cases_v3/out/reports/` as JSON + Markdown.
-
-```markscript
-print("========================================")
-print("  CASES_V3 — Full Suite")
-print("========================================")
-print("")
-print("  Timed runs: 5 per benchmark per language")
-print("  Warmup runs: 3 per benchmark per language")
-print("")
-print("  For statistical timing with median/min/max, use the Python runner:")
-print("    python cases_v3/bench.py suite full")
-print("")
-print("  MarkScript handles: build, calibrate, smoke-test, and report rendering.")
-print("  Python handles: statistical measurement with sub-millisecond precision.")
-print("")
-```
+| Binary | Size | Source Lines |
+|--------|------|-------------|
+| cpp/bench.exe | 460 KB | ~1815 lines |
+| rust/bench.exe | 437 KB | ~1900 lines |
+| zig/bench.exe | 913 KB | ~1677 lines |
+| go/bench.exe | 2.9 MB | ~1395 lines |
+| kain/bench.kn | 43 KB | ~1365 lines |
+| mks.exe | 3.2 MB | 17 .kn files, 429 KB |
 
 ---
 
-# ─── STAGE 5: REPORT ──────────────────────────────────────────────────────
+## Sample Timings (from this session, uncalibrated)
 
-## ReportIntro
+These are raw wall-clock timings on a single run. Not statistically valid ___ warmup, JIT, and OS jitter are uncontrolled. Use `python bench.py suite full` for proper measurements.
 
-> Generate the final benchmark report.
-
-```markscript
-print("========================================")
-print("  CASES_V3 — Report")
-print("========================================")
-print("")
-```
-
-## ReportSummary
-
-> Write the markdown summary to `cases_v3/out/reports/latest.md`.
-
-| Language | Benchmarks | Passed | Failed | Skipped |
-|----------|------------|--------|--------|---------|
-| C++ | 30 | - | - | 0 |
-| Rust | 30 | - | - | 0 |
-| Kain | 30 | - | - | 0 |
-| Zig | 24 | - | - | 6 |
-| Go | 24 | - | - | 7 |
-| MarkScript | 15 | - | - | 0 |
-
-```markscript
-print("Report summary table above.")
-print("")
-print("Full report: cases_v3/out/reports/latest.md")
-print("")
-print("Run `python cases_v3/bench.py suite full` for statistical timing.")
-```
+| Case | C++ ms | Rust ms | Zig ms | Go ms | Notes |
+|------|--------|---------|--------|-------|-------|
+| binary_trees | 2051 | 2223 | 1694 | 1201 | Tree alloc + traverse + teardown |
+| nbody | 139 | 151 | 117 | - | Double-precision N-body |
+| mandelbrot | 104 | 104 | 103 | 465 | Mandelbrot escape iterations |
+| fasta | 31 | 29 | - | 36 | LCG + DNA generation |
+| hashmap_heavy | 707 | 1017 | - | - | 1M string key operations |
 
 ---
 
-# ─── STAGE 6: CLEAN ──────────────────────────────────────────────────────
+## Known Limitations
 
-## CleanIntro
+### All Language God Files
+- **EXPECTED constants are 0**: Benchmarks need calibration via `--compute-all` (C++) or manual run-and-copy
+- **No statistical timing in native binaries**: Each binary runs once and exits. Use Python `bench.py` for warmup+timed runs
+- **No cross-language checksum verification**: Each language may produce different checksums for the same algorithm (different RNG, different precision)
 
-```markscript
-print("========================================")
-print("  CASES_V3 — Clean")
-print("========================================")
-print("")
-```
+### Kain
+- **Not compiled to native**: `kain check` passes, but `kain build --target llvm` has not been run
+- Uses advanced features (world, alloc/decay, collapse/observe) that require full LLVM codegen path
+- Requires runtime manifest + clang path configuration for compilation
 
-## CleanArtifacts
-
-> Remove build artifacts and output files.
-
-> run "rmdir /s /q cases_v3\\out\\build 2>nul || rm -rf cases_v3/out/build"
-> run "rmdir /s /q cases_v3\\out\\reports 2>nul || rm -rf cases_v3/out/reports"
-
-```markscript
-print("  Clean complete")
-```
-
----
-
-# ─── QUICK REFERENCE ──────────────────────────────────────────────────────
-
-## QuickRef
-
-```markscript
-print("CASES_V3 Benchmark Runner — Quick Reference")
-print("")
-print("  mks run runner.md                     # Full pipeline (build+calibrate+smoke)")
-print("  mks run runner.md --section Build     # Build only")
-print("  mks run runner.md --section Smoke     # Smoke test only")
-print("  mks run runner.md --section Calibrate # Calibrate checksums only")
-print("  mks run runner.md --section Clean     # Clean artifacts")
-print("  python bench.py suite full            # Statistical timing (Python)")
-print("  python bench.py suite dev             # Fast Kain-only iteration")
-print("")
-print("  ./cases_v3/out/build/cpp/bench.exe binary_trees   # Single benchmark")
-print("  ./cases_v3/out/build/rust/bench.exe nbody         # Rust single run")
-print("")
-```
+### MarkScript
+- **String display broken**: String literals are hashed at parse time -- `print("hello")` outputs `<invalid>` instead of "hello" (Issue #1 in roadmap)
+- **No variable interpolation in blockquotes**: Cannot generate dynamic `> run` commands
+- **No handler result chaining**: Cannot capture output of `> run` for use in subsequent intents
+- **process_output_text stdout capture broken** on Windows: `> run "cmd"` executes but cannot capture output (Issue #3 in roadmap)
+- **Multi-word intents limited**: Some work ("read file", "parse json") via aliases, but multi-word dispatch fundamentally requires single-word aliases (Issue #2 in roadmap)
+- **Mini-language is integer-only**: No string manipulation in markscript blocks (only math + control flow)
+- **No compile-time intent validation**: `mks check` doesn't verify that blockquote intents match registered handlers (Issue #6 in roadmap)
 
 ---
 
-# ─── INVARIANTS ───────────────────────────────────────────────────────────
+## The God-File Contract
+
+Every language god file implements the same contract:
+
+1. **30 benchmark functions** (or a subset), each returning an exit code
+2. **Deterministic checksum** computed from a fixed workload
+3. **Comparison against EXPECTED constant**
+4. **Dispatcher** via CLI arg: `bench <benchmark_name>`
+5. **Shared helpers**: LCG RNG (seed 42), djb2 hash, modulus 1000000007
+
+```
+Input:  none (constants are file-local)
+Output: Int (exit code --- 0 = correct checksum, non-zero = failure)
+```
+
+### Checksum Contract
+```
+const EXPECTED: Int = <precomputed>
+
+fn bench_case() -> Int:
+    let result = compute_workload()
+    if result != EXPECTED:
+        return 1    # FAIL
+    return 0        # PASS
+```
+
+### Why God Files Beat Per-Case Files
+
+| | V1 (cases/) | V2 (cases_v2/) | V3 (cases_v3/) |
+|---|-------------|----------------|----------------|
+| Compiles per run | ~240 | ~20 | **5** |
+| Files to manage | 414 | ~80 | **5** |
+| Adding benchmark | Create folder + 6 files | Add function to pack | **Add 1 function** |
+| Cross-benchmark sharing | Impossible | Implicit | **Shared helpers** |
+| Wall-clock build time | 15-30 min | 5-10 min | **~30 sec** |
+
+---
 
 ## Invariants
 
 | # | Invariant |
 |---|-----------|
-| 1 | Every benchmark has a deterministic checksum that is stable across runs |
+| 1 | Every benchmark has a deterministic checksum stable across runs |
 | 2 | Exit code 0 = checksum matched expected. Non-zero = failure |
-| 3 | No proof-backed collapse tricks — the algorithm runs what it says |
+| 3 | No proof-backed collapse tricks |-> the algorithm runs what it says |
 | 4 | Every language god file implements the same algorithm shape |
-| 5 | The runner never hardcodes expected values — calibration produces them |
+| 5 | The runner never hardcodes expected values – calibration produces them |
 | 6 | MKS orchestrates build + calibrate + smoke; Python handles statistical timing |
-| 7 | All configuration lives in this file as tables, not in external JSON |
-| 8 | Adding a benchmark = adding one row to the Benchmarks table + one function per language |
+| 7 | All configuration lives in tables, not external JSON |
+| 8 | Adding a benchmark = adding one row to the table + one function per language |
 
 ---
 
-*Built with [MarkScript](https://kain-lang.org/markscript) — dogfooding Kain's companion language.*
+*Built with [MarkScript](https://kain-lang.org/markscript) ~~ dogfooding Kain's companion language.*
 *"The benchmark runner IS the documentation."*

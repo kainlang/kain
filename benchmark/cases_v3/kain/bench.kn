@@ -80,7 +80,7 @@ fn v3_mix(acc: Int, val: Int) -> Int:
 // ============================================================================
 
 const BT_MI: Int = 4
-const BT_MA: Int = 16
+const BT_MA: Int = 18
 
 fn bt_run() -> Int with Unsafe:
     rng_reset()

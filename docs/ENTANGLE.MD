@@ -1,4 +1,4 @@
-# Entangle === Compiler-Owned State Coupling
+# Entangle <-> Compiler-Owned State Coupling
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/entangle/src/lib.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/entangle.h`, `runtime/native/src/core/entangle.c`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`, `smoketest/src/semantics/entangle.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/cortical_sieve/`, `blades/python/24_tet/src/resonate_py_effects.kn`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
