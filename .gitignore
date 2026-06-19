@@ -8,6 +8,10 @@ private/
 *.rar
 .pi/
 .agents/
+AGENTS.md
+ARCHITECTURE.md
+MEMORY.md
+PIP.md
 **/*target*/**
 *.json
 *.img
