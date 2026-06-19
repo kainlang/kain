@@ -1,0 +1,10 @@
+// enum_variant_on_struct.kn
+// BRAVO-6b: enum variant access on a non-enum type.
+struct Point:
+    x: Int
+    y: Int
+
+fn main() -> Int:
+    let p = Point { x: 1, y: 2 }
+    let v = p::North
+    return v

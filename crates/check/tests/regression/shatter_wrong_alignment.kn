@@ -1,0 +1,9 @@
+// shatter_wrong_alignment.kn
+// BRAVO-6g: shatter struct fields should be aligned for SIMD.
+shatter struct Misaligned:
+    a: Int
+    b: Int8
+    c: Int
+
+fn main() -> Int:
+    return 0

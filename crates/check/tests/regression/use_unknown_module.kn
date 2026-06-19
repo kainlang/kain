@@ -1,0 +1,6 @@
+// use_unknown_module.kn
+// `use` for a module that the resolver cannot find.
+use std::no_such_module_abc
+
+fn main() -> Int:
+    return 0

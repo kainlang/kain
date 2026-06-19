@@ -1,0 +1,8 @@
+// ownership_double_decay.kn
+// ALPHA-4: ownership transitions — a pointer that has been decayed
+// cannot be decayed a second time.
+fn main() -> Int with Unsafe:
+    let p: ptr<Int> = alloc_zeroed(1, "Int")
+    decay p
+    decay p
+    return 0

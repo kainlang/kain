@@ -1,0 +1,15 @@
+// monomorphize_trait_bound.kn
+// E0277-style error: trait bound not satisfied at monomorphization.
+trait Debug:
+    fn debug_str(_self: Self_) -> String
+
+struct Foo:
+    x: Int
+
+fn print_it<T: Debug>(val: T) -> String:
+    return val.debug_str()
+
+fn main() -> Int:
+    let f = Foo { x: 42 }
+    let _ = print_it(f)
+    return 0

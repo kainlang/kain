@@ -1,0 +1,5 @@
+// break_outside_loop.kn
+// BRAVO-6a: `break` outside any loop should be a control-flow error.
+fn main() -> Int:
+    break
+    return 0

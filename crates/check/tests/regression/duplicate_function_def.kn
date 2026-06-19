@@ -1,0 +1,10 @@
+// duplicate_function_def.kn
+// Two functions with the same name in the same scope.
+fn helper() -> Int:
+    return 1
+
+fn helper() -> Int:
+    return 2
+
+fn main() -> Int:
+    return helper()

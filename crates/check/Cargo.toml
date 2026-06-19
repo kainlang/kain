@@ -16,4 +16,7 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 kain-actor = { path = "../actor" }
+kain-core = { path = "../core" }
+serde = { workspace = true }
 tempfile = "3.8"
+toml = "0.8"

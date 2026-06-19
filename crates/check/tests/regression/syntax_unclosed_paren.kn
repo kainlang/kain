@@ -1,0 +1,4 @@
+// syntax_unclosed_paren.kn
+// Parser error: unclosed parenthesis in function signature.
+fn main( -> Int:
+    return 1

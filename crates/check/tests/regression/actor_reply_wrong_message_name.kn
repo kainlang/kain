@@ -1,0 +1,9 @@
+// actor_reply_wrong_message_name.kn
+// Reply-port validator: the synthetic reply message must be named "Reply".
+actor Echo:
+    state n: Int = 0
+    on Ping(reply_to: P):
+        send reply_to.Result(value = 1)
+
+fn main() -> Int:
+    return 0

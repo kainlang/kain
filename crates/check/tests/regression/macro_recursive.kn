@@ -1,0 +1,7 @@
+// macro_recursive.kn
+// A macro that expands into itself (no termination guard).
+macro recurse!(x: expr):
+    recurse!(x + 1)
+
+fn main() -> Int:
+    return 0

@@ -1,0 +1,9 @@
+// actor_unhandled_message.kn
+// ETA-A-2: sending a message to an actor that has no handler for it.
+actor Logger:
+    state count: Int = 0
+    on Write(data: String):
+        self.count = self.count + 1
+
+fn main() -> Int:
+    return 0

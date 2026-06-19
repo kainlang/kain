@@ -1,0 +1,8 @@
+// atomic_store_relaxed.kn
+// BRAVO-3: atomic_store with stronger than relaxed success ordering is
+// a codegen-time error. This fixture should fail at check time once the
+// ordering validator lands.
+fn main() -> Int with Unsafe:
+    let p: ptr<Int> = alloc_zeroed(1, "Int")
+    atomic_store(p, 42, "seq_cst")
+    return 0

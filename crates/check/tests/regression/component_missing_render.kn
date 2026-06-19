@@ -1,0 +1,7 @@
+// component_missing_render.kn
+// Every Kain component must include a `render` call.
+component Panel():
+    state frame_count: Int = 0
+
+fn main() -> Int:
+    return 0

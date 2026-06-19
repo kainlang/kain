@@ -1,0 +1,10 @@
+// pulse_every_zero.kn
+// ETA-A-6b: a pulse with `every 0 ms` is an instant loop — likely a bug.
+world Heartbeat:
+    state ticks: Int = 0
+
+pulse heartbeat every 0 ms:
+    Heartbeat.ticks = Heartbeat.ticks + 1
+
+fn main() -> Int:
+    return 0

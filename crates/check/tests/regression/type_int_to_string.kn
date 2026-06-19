@@ -1,0 +1,5 @@
+// type_int_to_string.kn
+// Type error: Int literal assigned to String variable.
+fn main() -> Int:
+    let s: String = 42
+    return 0

@@ -12,6 +12,7 @@ use kain_core::ast::{
 };
 use kain_core::effects::EffectSet;
 use kain_core::error::{KainError, KainResult};
+use kain_core::error::{DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind, CompilerPhase};
 use kain_core::types::{
     IntSize, ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport,
     TypedItem, TypedProgram, TypedResonate,
@@ -20,6 +21,7 @@ use kain_core::Span;
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
+use kain_semantic::enrich_codegen_error;
 use std::collections::{HashMap, HashSet};
 
 const ATTR_SECTION: &str = "section";
@@ -793,6 +795,21 @@ struct LlvmFunctionState {
     line_starts: Vec<usize>,
 
     crash_table: Vec<CrashTableEntry>,
+}
+
+/// Create a codegen error with semantic enrichment.
+fn codegen_error(message: String, span: Span) -> KainError {
+    let mut report = DiagnosticReport::new(
+        ErrorKind::Codegen,
+        DiagnosticCode::CodegenGeneric,
+        message.clone(),
+    )
+    .severity(DiagnosticSeverity::Error)
+    .phase(CompilerPhase::Codegen)
+    .primary_label(span, "codegen error");
+
+    enrich_codegen_error(&mut report, &message);
+    KainError::rich(report)
 }
 
 impl LlvmGenerator {

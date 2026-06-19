@@ -1,0 +1,7 @@
+// generic_no_bound.kn
+// Generic function that uses T's methods but declares no trait bound.
+fn use_t<T>(val: T) -> Int:
+    return val.unknown_method()
+
+fn main() -> Int:
+    return 0

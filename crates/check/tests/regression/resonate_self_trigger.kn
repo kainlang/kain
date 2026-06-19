@@ -1,0 +1,11 @@
+// resonate_self_trigger.kn
+// ETA-A-3: resonate handler that writes to its own trigger field
+// (creates an infinite feedback loop).
+world Signal:
+    state value: Int = 0
+
+resonate Signal.value dampen 0 ms:
+    Signal.value = Signal.value + 1
+
+fn main() -> Int:
+    return 0

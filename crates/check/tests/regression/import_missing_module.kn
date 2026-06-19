@@ -1,0 +1,6 @@
+// import_missing_module.kn
+// Reference to a module that doesn't exist on disk.
+use std::no_such_module_xyz
+
+fn main() -> Int:
+    return 0

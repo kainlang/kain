@@ -1,0 +1,16 @@
+// orchestrate_dead_stage.kn
+// ETA-A-6a: orchestrate stage whose output is never consumed by a
+// downstream stage or the return value is dead code.
+fn host_base(x: Int) -> Int:
+    return x + 1
+
+fn dead_stage(x: Int) -> Int:
+    return x * 100
+
+orchestrate pipeline(value: Int) -> Int:
+    stage a: cpu host_base(value)
+    stage b: cpu dead_stage(value)
+    return a
+
+fn main() -> Int:
+    return pipeline(1)

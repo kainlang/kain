@@ -1,0 +1,8 @@
+// shader_wrong_stage.kn
+// A compute shader should not declare vertex inputs.
+shader compute WrongStage(position: Vec3) -> Void workgroup(8, 1, 1):
+    uniform dst: StorageBuffer<UInt> @0
+    return
+
+fn main() -> Int:
+    return 0

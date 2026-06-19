@@ -1,0 +1,4 @@
+// type_undefined_symbol.kn
+// Reference to a name that hasn't been declared.
+fn main() -> Int:
+    return nonexistent_symbol + 1

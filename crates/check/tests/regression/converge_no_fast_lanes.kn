@@ -1,0 +1,10 @@
+// converge_no_fast_lanes.kn
+// BRAVO: converge must declare at least one spec lane + at least one
+// fast lane. Missing fast lane is a known ALPHA-level check.
+converge math_op(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    verify random(4)
+
+fn main() -> Int:
+    return math_op(1)

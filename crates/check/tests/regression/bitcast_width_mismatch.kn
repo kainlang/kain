@@ -1,0 +1,6 @@
+// bitcast_width_mismatch.kn
+// BRAVO-6e: bitcast between two types of different total bit widths.
+fn main() -> Int with Unsafe:
+    let wide: Int = 0
+    let narrow = bitcast(wide, "Int8")
+    return 0

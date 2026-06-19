@@ -1,0 +1,15 @@
+// orchestrate_cycle.kn
+// ALPHA-3: orchestrate graph contains a cycle (A deps B, B deps A).
+fn stage_a(x: Int) -> Int:
+    return x + 1
+
+fn stage_b(x: Int) -> Int:
+    return x * 2
+
+orchestrate cyclic(value: Int) -> Int:
+    stage a: cpu stage_a(value) deps [b]
+    stage b: cpu stage_b(value) deps [a]
+    return a
+
+fn main() -> Int:
+    return cyclic(1)

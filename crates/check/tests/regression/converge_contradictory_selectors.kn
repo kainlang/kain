@@ -1,0 +1,11 @@
+// converge_contradictory_selectors.kn
+// ETA-A-5: fast lane with contradictory selectors (WASM + x86 CPU feature).
+converge math_op(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    fast wasm_lane when target("wasm") when capability("cpu.x86.avx2"):
+        return value * 2
+    verify random(4)
+
+fn main() -> Int:
+    return math_op(1)

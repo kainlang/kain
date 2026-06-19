@@ -20,14 +20,6 @@ use kain_error::{
     CompilerPhase, DiagnosticCode, DiagnosticReport, DiagnosticSeverity, ErrorKind,
 };
 
-/// Wrap an expression in a single-statement block for functions that walk blocks.
-fn expr_in_block(expr: &Expr) -> Block {
-    Block {
-        stmts: vec![Stmt::Expr(expr.clone())],
-        span: expr.span(),
-    }
-}
-
 /// Run all semantic contract validators against a typed program.
 pub fn validate_semantic_contracts(
     program: &TypedProgram,

@@ -1,0 +1,7 @@
+// law_always_false.kn
+// ETA-A-6e: a law whose body is `return false` is trivially unsatisfiable.
+law never_holds(x: Int) -> Bool:
+    return false
+
+fn main() -> Int:
+    return 0

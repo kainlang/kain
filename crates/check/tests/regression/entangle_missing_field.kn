@@ -1,0 +1,13 @@
+// entangle_missing_field.kn
+// ETA-A-4: entanglement referencing a state field that doesn't exist
+// on one of the worlds.
+world A:
+    state x: Int = 0
+
+world B:
+    state y: Int = 0
+
+entangle A.x <-> B.does_not_exist
+
+fn main() -> Int:
+    return 0

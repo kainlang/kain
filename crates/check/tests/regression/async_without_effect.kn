@@ -1,0 +1,7 @@
+// async_without_effect.kn
+// An async function should declare the Async effect.
+async fn background(x: Int) -> Int:
+    return x * 2
+
+fn main() -> Int:
+    return 0

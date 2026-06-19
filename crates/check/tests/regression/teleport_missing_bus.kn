@@ -1,0 +1,15 @@
+// teleport_missing_bus.kn
+// ETA-A-6c: teleport's `via bus` must reference a known teleport bus.
+world Source:
+    state payload: Int = 0
+
+world Dest:
+    state payload: Int = 0
+
+shatter struct Ghost:
+    val: Int
+
+fn main() -> Int with Unsafe:
+    let g = Ghost { val: 7 }
+    let moved = teleport g from Source to Dest via no_such_bus
+    return moved.val

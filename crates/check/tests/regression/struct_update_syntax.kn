@@ -1,0 +1,10 @@
+// struct_update_syntax.kn
+// BRAVO-5: Kain does not yet support Rust-style `..base` struct updates.
+struct Point:
+    x: Int
+    y: Int
+
+fn main() -> Int:
+    let base = Point { x: 1, y: 2 }
+    let p = Point { x: 10, ..base }
+    return p.x

@@ -1,0 +1,10 @@
+// pure_fn_calls_io.kn
+// A `with Pure` function should not call an `IO`-effect function.
+fn print_to_stderr() -> Int with IO:
+    return 0
+
+fn strictly_pure() -> Int with Pure:
+    return print_to_stderr()
+
+fn main() -> Int:
+    return 0

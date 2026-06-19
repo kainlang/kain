@@ -1,0 +1,9 @@
+// converge_missing_spec.kn
+// A converge must declare a `spec reference:` lane.
+converge math_op(value: Int) -> Int:
+    fast cpu_lane:
+        return value * 2
+    verify random(4)
+
+fn main() -> Int:
+    return math_op(1)

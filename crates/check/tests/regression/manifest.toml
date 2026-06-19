@@ -1,0 +1,317 @@
+# Error regression test manifest (ETA-C).
+#
+# Each case maps a minimal .kn file to the error code/message that
+# `kain check` is expected to surface. The harness in
+# tests/regression_test.rs iterates this file and verifies behavior.
+#
+# Conventions:
+#   - file          — relative path to the .kn fixture (under tests/regression/)
+#   - expected_error_code — short code (Rust style, Kain style, or descriptive)
+#   - expected_message_contains — fuzzy substring match against the rendered
+#                                 error message
+#   - should_fail   — true if check should error out (default: true)
+#   - known_bug     — true if the check currently passes but should fail;
+#                     the test records the regression but does not fail
+#   - known_bug_reason — why the bug is currently latent
+#
+# The harness is intentionally lenient: a case that should_fail but
+# currently passes is recorded as a known_bug rather than a hard fail.
+# This lets us ship the test surface now and tighten it as validators
+# land across ETA-A, BRAVO, and CHARLIE.
+
+[[cases]]
+file = "syntax_unclosed_paren.kn"
+expected_error_code = "E0001"
+expected_message_contains = ""
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "type_int_to_string.kn"
+expected_error_code = "type-mismatch"
+expected_message_contains = "Int"
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "type_undefined_symbol.kn"
+expected_error_code = "E0425"
+expected_message_contains = ""
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "break_outside_loop.kn"
+expected_error_code = "break-outside-loop"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "control-flow validator (BRAVO-6a) not yet wired into check pipeline"
+
+[[cases]]
+file = "continue_outside_loop.kn"
+expected_error_code = "continue-outside-loop"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "control-flow validator (BRAVO-6a) not yet wired into check pipeline"
+
+[[cases]]
+file = "enum_variant_on_struct.kn"
+expected_error_code = "pattern-non-enum"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "pattern scrutinee validator (BRAVO-6b) not yet wired"
+
+[[cases]]
+file = "monomorphize_trait_bound.kn"
+expected_error_code = "E0277"
+expected_message_contains = "Debug"
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "actor_unhandled_message.kn"
+expected_error_code = "semantic-actor-message"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "actor message completeness (ETA-A-2) gated behind --pedantic"
+
+[[cases]]
+file = "resonate_self_trigger.kn"
+expected_error_code = "semantic-resonate-feedback"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "resonate anti-feedback (ETA-A-3) gated behind --pedantic"
+
+[[cases]]
+file = "entangle_missing_field.kn"
+expected_error_code = "semantic-entangle"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "entangle completeness (ETA-A-4) gated behind --pedantic"
+
+[[cases]]
+file = "converge_no_fast_lanes.kn"
+expected_error_code = "converge-no-fast"
+expected_message_contains = ""
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "converge_contradictory_selectors.kn"
+expected_error_code = "semantic-converge"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "converge lane coverage (ETA-A-5) gated behind --pedantic"
+
+[[cases]]
+file = "struct_update_syntax.kn"
+expected_error_code = "codegen-struct-update"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "struct update validator (BRAVO-5) not yet wired"
+
+[[cases]]
+file = "bitcast_width_mismatch.kn"
+expected_error_code = "codegen-bitcast"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "bitcast width validator (BRAVO-6e) not yet wired"
+
+[[cases]]
+file = "asm_non_x86.kn"
+expected_error_code = "codegen-target"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "inline asm target validator (BRAVO-4) not yet wired"
+
+[[cases]]
+file = "atomic_store_relaxed.kn"
+expected_error_code = "codegen-atomic-ordering"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "atomic ordering validator (BRAVO-3) not yet wired"
+
+[[cases]]
+file = "ownership_double_decay.kn"
+expected_error_code = "ownership-double-decay"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "ownership transitions (ALPHA-4) not yet wired"
+
+[[cases]]
+file = "actor_reply_wrong_message_name.kn"
+expected_error_code = "actor-reply-port"
+expected_message_contains = "Reply"
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "converge_missing_spec.kn"
+expected_error_code = "converge-missing-spec"
+expected_message_contains = "spec"
+should_fail = true
+known_bug = false
+
+[[cases]]
+file = "world_duplicate_state.kn"
+expected_error_code = "world-duplicate-state"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "world dead-state validator (ETA-A-7) not yet wired"
+
+[[cases]]
+file = "pulse_every_zero.kn"
+expected_error_code = "pulse-zero-cadence"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "pulse cadence validator (ETA-A-6b) gated behind --pedantic"
+
+[[cases]]
+file = "law_always_false.kn"
+expected_error_code = "law-unsatisfiable"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "law satisfiability validator (ETA-A-6e) gated behind --pedantic"
+
+[[cases]]
+file = "teleport_missing_bus.kn"
+expected_error_code = "teleport-missing-bus"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "teleport bus type-match validator (ETA-A-6c) gated behind --pedantic"
+
+[[cases]]
+file = "patch_wrong_world.kn"
+expected_error_code = "patch-wrong-world"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "patch world binding validator (ETA-A-6d) gated behind --pedantic"
+
+[[cases]]
+file = "orchestrate_dead_stage.kn"
+expected_error_code = "orchestrate-dead-stage"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "orchestrate stage liveness (ETA-A-6a) gated behind --pedantic"
+
+[[cases]]
+file = "component_missing_render.kn"
+expected_error_code = "component-no-render"
+expected_message_contains = "render"
+should_fail = true
+known_bug = true
+known_bug_reason = "component render guard not yet implemented"
+
+[[cases]]
+file = "import_missing_module.kn"
+expected_error_code = "E0432"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "use-of-unknown-module guard relies on resolver; interpret mode may resolve lazily"
+
+[[cases]]
+file = "duplicate_function_def.kn"
+expected_error_code = "duplicate-def"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "duplicate definition guard is loose; depends on parsing order"
+
+[[cases]]
+file = "return_outside_fn.kn"
+expected_error_code = "return-outside-fn"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "return-outside-fn guard not yet implemented"
+
+[[cases]]
+file = "async_without_effect.kn"
+expected_error_code = "async-effect-missing"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "async effect validator not yet implemented"
+
+[[cases]]
+file = "shader_wrong_stage.kn"
+expected_error_code = "shader-wrong-stage"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "shader stage guard not yet implemented"
+
+[[cases]]
+file = "macro_recursive.kn"
+expected_error_code = "macro-recursion"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "macro recursion guard not yet implemented"
+
+[[cases]]
+file = "generic_no_bound.kn"
+expected_error_code = "generic-missing-bound"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "missing bound detection relies on monomorphize; coverage varies"
+
+[[cases]]
+file = "shatter_wrong_alignment.kn"
+expected_error_code = "shatter-alignment"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "shatter layout validator (BRAVO-6g) not yet wired"
+
+[[cases]]
+file = "entangle_type_mismatch.kn"
+expected_error_code = "entangle-type-mismatch"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "entangle type-match (ALPHA-2) not yet wired"
+
+[[cases]]
+file = "orchestrate_cycle.kn"
+expected_error_code = "orchestrate-cycle"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "orchestrate graph cycle detection (ALPHA-3) not yet wired"
+
+[[cases]]
+file = "pure_fn_calls_io.kn"
+expected_error_code = "effect-violation"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "effect system cross-violation not yet enforced"
+
+[[cases]]
+file = "use_unknown_module.kn"
+expected_error_code = "E0432"
+expected_message_contains = ""
+should_fail = true
+known_bug = true
+known_bug_reason = "use-of-unknown-module guard relies on resolver; interpret mode may resolve lazily"

@@ -1,0 +1,5 @@
+// continue_outside_loop.kn
+// BRAVO-6a: `continue` outside any loop should be a control-flow error.
+fn main() -> Int:
+    continue
+    return 0

@@ -37,7 +37,7 @@ pub struct ValidatorRun {
 }
 
 /// Telemetry snapshot from a single `kain check` run.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct CheckTelemetry {
     /// All validators that were considered (across all categories).
     pub validators: Vec<ValidatorRun>,
@@ -177,7 +177,7 @@ pub fn compute_telemetry(
 ) -> CheckTelemetry {
     let ran_set: HashSet<&str> = ran_validators.iter().copied().collect();
 
-    let mut validators: Vec<ValidatorRun> = all_validators()
+    let validators: Vec<ValidatorRun> = all_validators()
         .into_iter()
         .map(|mut validator| {
             let actually_ran = ran_set.contains(validator.name.as_str()) || validator.ran;

@@ -1,0 +1,5 @@
+// asm_non_x86.kn
+// BRAVO-4: inline asm is x86_64-only. Targeting wasm should fail check.
+fn main() -> Int with Unsafe:
+    asm("nop")
+    return 0

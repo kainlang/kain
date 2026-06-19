@@ -1,0 +1,15 @@
+// patch_wrong_world.kn
+// ETA-A-6d: a patch's body must mutate fields of its declared world
+// parameter — not a different world.
+world Counter:
+    state count: Int = 0
+
+world Other:
+    state count: Int = 0
+
+patch wrong(c: Counter) -> Int:
+    Other.count = Other.count + 1
+    return 0
+
+fn main() -> Int:
+    return 0

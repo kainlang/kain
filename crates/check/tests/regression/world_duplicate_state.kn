@@ -1,0 +1,8 @@
+// world_duplicate_state.kn
+// ETA-A-7: worlds should not declare the same state field twice.
+world Counter:
+    state count: Int = 0
+    state count: Int = 1
+
+fn main() -> Int:
+    return Counter.count

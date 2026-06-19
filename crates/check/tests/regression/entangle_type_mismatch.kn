@@ -1,0 +1,12 @@
+// entangle_type_mismatch.kn
+// ALPHA-2: entangle two fields of different types.
+world A:
+    state x: Int = 0
+
+world B:
+    state y: String = ""
+
+entangle A.x <-> B.y
+
+fn main() -> Int:
+    return 0
