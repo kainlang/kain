@@ -16,7 +16,7 @@ mks                              # no args → opens REPL
 
 ## Subcommands
 
-### `run` — Compile and Execute
+### `run` --- Compile and Execute
 
 **Default subcommand.** Compiles a `.md` file to bytecode and executes it through the VM.
 
@@ -31,7 +31,7 @@ mks RUN examples/pong.md         # case-sensitive, must be lowercase
 - Dispatches intents through the IVT handler loop
 - Reports execution stats: op count, data tables, code blocks
 
-### `check` — Compile-Only Validation
+### `check` --- Compile-Only Validation
 
 Validates a `.md` file without executing it. Faster than `run` for CI and iteration.
 
@@ -45,7 +45,7 @@ mks check examples/data_pipeline.md
 - Reports bytecode operation count
 - Exit code 0 = valid, 2 = error
 
-### `disasm` — Disassemble Bytecode
+### `disasm` --- Disassemble Bytecode
 
 Compiles and dumps human-readable bytecode. No VM execution.
 
@@ -64,7 +64,7 @@ Output:
   ...
 ```
 
-### `repl` — Interactive REPL
+### `repl` -- Interactive REPL
 
 Starts an interactive MarkScript session.
 
@@ -74,7 +74,7 @@ mks repl
 
 Type intents and markdown. Each line is compiled and executed immediately through the full pipeline. Empty line exits.
 
-### `eval` — One-Shot Intent
+### `eval` - One-Shot Intent
 
 Compile and dispatch a single intent string. No file needed.
 
@@ -85,7 +85,7 @@ mks eval '> assert 42 42'
 
 Quotes the entire intent to preserve it as one argument.
 
-### `init` — Scaffold a Project
+### `init` -- Scaffold a Project
 
 Creates a new MarkScript project directory structure.
 
@@ -101,7 +101,7 @@ my-pipeline/
 └── examples/
 ```
 
-### `handlers` — List IVT Handlers
+### `handlers` --- List IVT Handlers
 
 Prints all registered IVT handlers with their hash and ID.
 
@@ -112,7 +112,7 @@ mks handlers
 # →   2: hash=...
 ```
 
-### `doc` — Render Clean Documentation
+### `doc` -- Render Clean Documentation
 
 Renders the source markdown without VM execution artifacts.
 
@@ -132,7 +132,7 @@ Outputs: `--- file.md ---` + raw source + `--- end file.md ---`
 | `-v, --version` | Print version string and exit |
 | `-q, --quiet` | Suppress runtime logging and telemetry |
 | `--json` | Output structured JSON (future, planned for check output) |
-| `--` | Stop flag parsing — everything after is positional |
+| `--` | Stop flag parsing - everything after is positional |
 
 Flags can appear anywhere before `--`. After `--`, all arguments are positional.
 

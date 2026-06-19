@@ -1,6 +1,6 @@
 # Wc
 
-MarkScript word count — count lines, words, characters, bytes in files.
+MarkScript word count -- count lines, words, characters, bytes in files.
 Wraps `wc` via the IVT for file statistics.
 
 ---

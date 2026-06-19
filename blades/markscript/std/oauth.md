@@ -1,6 +1,6 @@
 # OAuth
 
-Markscript OAuth 2.0 — authorization flows, token management.
+Markscript OAuth 2.0 --- authorization flows, token management.
 Dispatches to curl for HTTP requests and openssl for PKCE.
 
 ---

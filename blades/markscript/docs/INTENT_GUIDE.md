@@ -1,7 +1,7 @@
 # 📖 MKS Intent Authoring Guide
 
 > How to add new blockquote intent keywords to the Markscript runtime.
-> Scale to hundreds or thousands — the architecture is designed for it.
+> Scale to hundreds or thousands -- the architecture is designed for it.
 
 ---
 
@@ -17,14 +17,14 @@ std/intents.md   ← YOU EDIT THIS FILE to add a new keyword
              └─▶ dispatch_fn() (routes intent → handler function)
 ```
 
-**The parser never changes.** `bridge.kn` changes only for new handler logic — if your
+**The parser never changes.** `bridge.kn` changes only for new handler logic -- if your
 new intent reuses an existing handler, you only touch `intents.md`.
 
 ---
 
 ## Quick Recipe: Adding a New Intent
 
-### Step 1 — Add Keyword to `std/intents.md`
+### Step 1 -- Add Keyword to `std/intents.md`
 
 Add one row to the table. Choose a **single lowercase word** as the keyword.
 
@@ -37,9 +37,9 @@ Add one row to the table. Choose a **single lowercase word** as the keyword.
 - Single word, lowercase, no spaces (e.g., `encrypt` not `encrypt string`)
 - Must NOT collide with any word in the prose-starter list (see Appendix)
 - Must NOT be a Kain reserved keyword
-- Handler ID must be unique — use the next available integer
+- Handler ID must be unique - use the next available integer
 
-### Step 2 — Register Handler in `bridge.kn`
+### Step 2 - Register Handler in `bridge.kn`
 
 Every handler requires **5 touchpoints** in `bridge.kn`. Walk through each:
 
@@ -117,7 +117,7 @@ pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> Hand
     ...
 ```
 
-### Step 3 — Rebuild and Verify
+### Step 3 -- Rebuild and Verify
 
 ```bash
 # Build
@@ -170,7 +170,7 @@ Therefore, However, Meanwhile, Nevertheless,
 Furthermore, Moreover, Thus, Hence
 ```
 
-To check: after adding your keyword, run `mks eval '> YourKeyword test'` — if it dispatches, you're clear.
+To check: after adding your keyword, run `mks eval '> YourKeyword test'` - if it dispatches, you're clear.
 
 ---
 
@@ -222,9 +222,9 @@ When adding a category (e.g., `encrypt`, `decrypt`, `sign`, `verify`, `hash`):
 |------|-----------------|-------------|
 | **`std/intents.md`** | ALWAYS | One table row per keyword |
 | **`src/bridge.kn`** | New handler logic needed | FN_* const, BUILTIN_NAMES row, BUILTIN_IDS row, REGISTRY_SIZE bump, IVT registration, handler fn, dispatch branch |
-| **`src/parser.kn`** | **NEVER** | Nothing — data-driven, not code-driven |
-| **`src/registry.kn`** | **NEVER** | Nothing — loads whatever is in `intents.md` |
-| **`src/main.kn`** | **NEVER** | Nothing — registry loading is automatic |
+| **`src/parser.kn`** | **NEVER** | Nothing - data-driven, not code-driven |
+| **`src/registry.kn`** | **NEVER** | Nothing -- loads whatever is in `intents.md` |
+| **`src/main.kn`** | **NEVER** | Nothing - registry loading is automatic |
 
 ---
 

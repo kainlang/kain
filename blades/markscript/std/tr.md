@@ -1,6 +1,6 @@
 # Tr
 
-MarkScript character translation — translate, delete, squeeze characters.
+MarkScript character translation --- translate, delete, squeeze characters.
 Wraps `tr` via the IVT for character-level transformations.
 
 ---

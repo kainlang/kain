@@ -1,6 +1,6 @@
 # SCP
 
-Markscript SCP integration — secure file transfer over SSH through
+Markscript SCP integration -- secure file transfer over SSH through
 shell dispatch.
 
 ---

@@ -1,6 +1,6 @@
 # Interpolate
 
-MarkScript interpolation — construct functions that fit known data points
+MarkScript interpolation -- construct functions that fit known data points
 for estimating intermediate values. Dispatches to Python's `scipy.interpolate`.
 
 ---

@@ -1,6 +1,6 @@
 # Cut
 
-MarkScript column extraction — select bytes, characters, or fields from each line.
+MarkScript column extraction -- select bytes, characters, or fields from each line.
 Wraps `cut` via the IVT for text slicing operations.
 
 ---

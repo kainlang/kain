@@ -20,7 +20,7 @@ Last updated: 2026-06-11
 
 | Opcode | Positive Test | Edge Case | Error Path | Test File |
 |--------|-------------|-----------|------------|-----------|
-| 0 HALT | ✅ | — | — | edge_cases |
+| 0 HALT | ✅ | -- | -- | edge_cases |
 | 1 ENTER_DOMAIN | ✅ | ❌ | ❌ | e2e_pipeline |
 | 2 ROUTINE_HEADER | ✅ | ❌ | ❌ | e2e_pipeline |
 | 3 PUSH_PARAM | ✅ | ❌ | ✅ | e2e_pipeline, combinatorial |
@@ -70,7 +70,7 @@ Last updated: 2026-06-11
 |-----------|------|-------|------|
 | Registration | IVT lookup | ✅ | bridge_handlers |
 | Registration | IVT miss | ✅ | bridge_handlers |
-| Multiple registrations | — | ✅ | bridge_handlers |
+| Multiple registrations | - | ✅ | bridge_handlers |
 | VM dispatch | EXECUTE_CALL | ✅ | bridge_handlers |
 
 ## Token Coverage
@@ -85,15 +85,15 @@ Last updated: 2026-06-11
 | TOK_EOF | 5 | ✅ | test_lexer |
 | TOK_HEADER3-6 | 6-9 | ✅ | test_lexer |
 | TOK_FENCE | 10 | ✅ | test_lexer |
-| TOK_LANG_TAG | 11 | ❌ | — |
-| TOK_FENCED_CODE | 12 | ❌ | — |
-| TOK_BOLD | 13 | ❌ | — |
-| TOK_ITALIC | 14 | ❌ | — |
-| TOK_CODE_SPAN | 15 | ❌ | — |
+| TOK_LANG_TAG | 11 | ❌ | --- |
+| TOK_FENCED_CODE | 12 | ❌ | -- |
+| TOK_BOLD | 13 | ❌ | --- |
+| TOK_ITALIC | 14 | ❌ | --- |
+| TOK_CODE_SPAN | 15 | ❌ | --- |
 | TOK_LIST_UNORDERED | 16 | ✅ | test_lexer |
 | TOK_LIST_ORDERED | 17 | ✅ | test_lexer |
-| TOK_LINK_TEXT | 18 | ❌ | — |
-| TOK_LINK_URL | 19 | ❌ | — |
+| TOK_LINK_TEXT | 18 | ❌ | - |
+| TOK_LINK_URL | 19 | ❌ | --- |
 | TOK_HR | 20 | ✅ | test_lexer |
 | TOK_NEWLINE | 21 | ✅ | test_lexer |
 

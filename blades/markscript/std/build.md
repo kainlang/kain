@@ -2,7 +2,7 @@
 
 Canonical build definition format for MarkScript projects.
 Adopted by `mks build`, `mks test`, and `mks clean`.
-This markdown IS the build script — compiled and executed by the MarkScript VM.
+This markdown IS the build script -- compiled and executed by the MarkScript VM.
 
 ---
 
@@ -19,13 +19,13 @@ This markdown IS the build script — compiled and executed by the MarkScript VM
 ## Stages
 | Stage | Command | DependsOn | TimeoutSec |
 |-------|---------|-----------|------------|
-| clean | cargo clean | — | 30 |
-| check | cargo check | — | 60 |
+| clean | cargo clean | -- | 30 |
+| check | cargo check | - | 60 |
 | build | cargo build | check | 120 |
 | test | cargo test | build | 180 |
 | bench | cargo bench | build | 300 |
 | lint | cargo clippy | check | 60 |
-| fmt | cargo fmt --check | — | 30 |
+| fmt | cargo fmt --check | - | 30 |
 | doc | cargo doc | build | 60 |
 | package | cargo package | test | 120 |
 

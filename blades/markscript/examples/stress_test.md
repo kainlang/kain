@@ -1,4 +1,4 @@
-# StressTest — MarkScript Maximum-Load Certification
+# StressTest --- MarkScript Maximum-Load Certification
 
 > This file pushes every part of the MarkScript pipeline to its documented limits.
 > Maximum domains, maximum routines, deeply nested structures, every construct in play.
@@ -6,7 +6,7 @@
 
 ---
 
-## LexerStress — All 22 token types, high density
+## LexerStress -- All 22 token types, high density
 
 ### headers_1
 ### headers_2
@@ -48,7 +48,7 @@ let f = e / 3
 
 ---
 
-## RoutineCount — Exercise many routines
+## RoutineCount -- Exercise many routines
 
 > print "routine 1"
 > print "routine 2"
@@ -88,7 +88,7 @@ let f = e / 3
 
 ---
 
-## DeepIfElse — Maximum nesting
+## DeepIfElse --- Maximum nesting
 
 ```markscript
 let depth = 0
@@ -97,7 +97,7 @@ let x = 100
 let y = 50
 let z = 25
 
-# Build deep nesting manually — exercises parser's indentation tracking
+# Build deep nesting manually --- exercises parser's indentation tracking
 while max_depth > depth:
     # Check x > y > z hierarchy
     if x > y:
@@ -129,7 +129,7 @@ while max_depth > depth:
 
 ---
 
-## MiniLanguageStress — All VM opcodes in play
+## MiniLanguageStress -- All VM opcodes in play
 
 ```markscript
 # Exercises: LOAD_VAR, STORE_VAR, PUSH_STACK, POP_STACK, DUP (via sequence),
@@ -164,7 +164,7 @@ print("Product 1.." + str(limit) + " = " + str(product))
 
 ---
 
-## TableStress — Many large tables
+## TableStress -- Many large tables
 
 | Index | ValueA | ValueB | ValueC | ValueD | ValueE |
 |-------|--------|--------|--------|--------|--------|
@@ -184,7 +184,7 @@ print("Product 1.." + str(limit) + " = " + str(product))
 
 ---
 
-## TableStress2 — Type mixing
+## TableStress2 --- Type mixing
 
 > Tables with mixed types exercise the column widening logic.
 
@@ -198,7 +198,7 @@ print("Product 1.." + str(limit) + " = " + str(product))
 
 ---
 
-## TableStress3 — Pure strings
+## TableStress3 -- Pure strings
 
 | Command | Description | Example |
 |---------|-------------|---------|
@@ -215,7 +215,7 @@ print("Product 1.." + str(limit) + " = " + str(product))
 
 ---
 
-## IVTStress — Every registered intent
+## IVTStress - Every registered intent
 
 > This routine calls every registered intent handler at least once.
 
@@ -232,7 +232,7 @@ print("Product 1.." + str(limit) + " = " + str(product))
 
 ---
 
-## FenceStress — Multiple code languages
+## FenceStress - Multiple code languages
 
 ```kain
 fn stress_test_kain(x: Int) -> Int:
@@ -270,7 +270,7 @@ print("Processed " + str(fence_count) + " fenced code blocks")
 
 ---
 
-## WrapUp — Final statistics
+## WrapUp - Final statistics
 
 > The stress test exercises the following VM components:
 > print "Lexer: all 22 token types"

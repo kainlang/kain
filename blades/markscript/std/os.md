@@ -1,6 +1,6 @@
 # OS
 
-Markscript operating system identification and runtime information — query
+Markscript operating system identification and runtime information -- query
 the platform name, architecture, version, hostname, user identity, and
 current working directory. Dispatches through the IVT to Kain's system bridge.
 

@@ -8,18 +8,18 @@
 
 | Markdown | Becomes | Bytecode |
 |----------|---------|----------|
-| `# Title` | **Domain** — named scope | `OP_ENTER_DOMAIN` |
-| `## Title` | **Routine** — executable block | `OP_ROUTINE_HEADER` |
-| `> phrase` | **Intent** — natural-language command | `OP_PUSH_PARAM` + `OP_EXECUTE_CALL` |
-| `\| a \| b \|` | **Matrix** — typed data table | `OP_PUSH_MATRIX` |
-| `` ```lang `` | **Fenced code** — stored by lang+content | `OP_FENCED_CODE` |
-| Plain text | Documentation — silently skipped | None |
+| `# Title` | **Domain** --- named scope | `OP_ENTER_DOMAIN` |
+| `## Title` | **Routine** --- executable block | `OP_ROUTINE_HEADER` |
+| `> phrase` | **Intent** - natural-language command | `OP_PUSH_PARAM` + `OP_EXECUTE_CALL` |
+| `\| a \| b \|` | **Matrix** --- typed data table | `OP_PUSH_MATRIX` |
+| `` ```lang `` | **Fenced code** -- stored by lang+content | `OP_FENCED_CODE` |
+| Plain text | Documentation - silently skipped | None |
 
 ---
 
 ## Domains (`#`)
 
-Top-level headings are **domains** — the top-level namespace.
+Top-level headings are **domains** - the top-level namespace.
 
 ```markdown
 # PhysicsSim
@@ -31,7 +31,7 @@ A file should have at least one domain. Domains contain routines.
 
 ## Routines (`##`)
 
-Second-level headings are **routines** — executable blocks containing intents, tables, and code.
+Second-level headings are **routines** - executable blocks containing intents, tables, and code.
 
 ```markdown
 ## compute_forces
@@ -39,7 +39,7 @@ Second-level headings are **routines** — executable blocks containing intents,
 ## validate_output
 ```
 
-Use descriptive, intent-friendly names — they become the context in error messages.
+Use descriptive, intent-friendly names - they become the context in error messages.
 
 ## Intents (`>`)
 
@@ -72,7 +72,7 @@ The IVT matches by hash of the entire phrase.
 
 ## Data Tables (`|`)
 
-Tables become contiguous bytecode matrices — zero-copy, zero-indirection data:
+Tables become contiguous bytecode matrices - zero-copy, zero-indirection data:
 
 ```markdown
 | Object | Mass | Velocity |
@@ -175,9 +175,9 @@ The sentences between are consumed and produce no bytecode. This means you can (
 
 ## Best Practices
 
-1. **One domain per concern** — `# Config`, `# Physics`, `# Rendering`
-2. **Routines as transactions** — each `##` does one thing
-3. **Intent names are API design** — choose clear, unique, discoverable phrases
-4. **Tables are schemas** — the header row is your type definition
-5. **Use `mks check` early** — catch import and compilation issues fast
-6. **Use `mks disasm` to debug** — see exactly what bytecode your markdown produces
+1. **One domain per concern** --- `# Config`, `# Physics`, `# Rendering`
+2. **Routines as transactions** --- each `##` does one thing
+3. **Intent names are API design** - choose clear, unique, discoverable phrases
+4. **Tables are schemas** --- the header row is your type definition
+5. **Use `mks check` early** - catch import and compilation issues fast
+6. **Use `mks disasm` to debug** --- see exactly what bytecode your markdown produces

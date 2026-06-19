@@ -117,8 +117,8 @@ fn bench_binary_trees() -> Int with Unsafe:
 //  BENCH 2: nbody
 // ============================================================================
 
-const NB_N: Int = 200
-const NB_STEPS: Int = 50
+const NB_N: Int = 500
+const NB_STEPS: Int = 100
 const NB_DT: Float = 0.01
 const NB_SOFT: Float = 0.000000001
 
@@ -196,7 +196,7 @@ fn bench_nbody() -> Int with Unsafe:
 //  BENCH 3: spectral_norm
 // ============================================================================
 
-const SN_N: Int = 200
+const SN_N: Int = 2000
 
 fn sn_run() -> Int with Unsafe:
     let n: Int = SN_N
@@ -250,9 +250,9 @@ fn bench_spectral_norm() -> Int with Unsafe:
 //  BENCH 4: mandelbrot
 // ============================================================================
 
-const MB_W: Int = 200
-const MB_H: Int = 200
-const MB_MI: Int = 100
+const MB_W: Int = 800
+const MB_H: Int = 800
+const MB_MI: Int = 200
 const MB_X0: Float = -2.0
 const MB_X1: Float = 1.0
 const MB_Y0: Float = -1.5
@@ -292,7 +292,7 @@ fn bench_mandelbrot() -> Int:
 //  BENCH 5: fasta
 // ============================================================================
 
-const FA_N: Int = 100000
+const FA_N: Int = 250000
 const FA_ALU: String = "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACCTGAGGTCAGGAGTTCGAGACCAGCCTGGCCAACATGGTGAAACCCCGTCTCTACTAAAAATACAAAAATTAGCCGGGCGTGGTGGCGCGCGCCTGTAATCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATCGCTTGAACCCGGGAGGCGGAGGTTGCAGTGAGCCGAGATCGCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAA"
 
 fn fa_run() -> Int:
@@ -381,7 +381,7 @@ fn bench_regex_redux() -> Int:
 //  BENCH 7: pidigits
 // ============================================================================
 
-const PD_N: Int = 500
+const PD_N: Int = 5000
 
 fn pd_run() -> Int:
     rng_reset()
@@ -437,8 +437,8 @@ fn bench_pidigits() -> Int:
 //  BENCH 8: hashmap_heavy
 // ============================================================================
 
-const HM_NK: Int = 1000
-const HM_NL: Int = 2000
+const HM_NK: Int = 50000
+const HM_NL: Int = 500000
 
 fn rng_str(l: Int) -> String:
     var s: String = ""

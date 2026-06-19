@@ -1,7 +1,7 @@
 # Fibonacci
 
 > Compute the Fibonacci sequence using the Markscript mini-language.
-> Variables, while loops, arithmetic, and string formatting — all inside a ```markscript block.
+> Variables, while loops, arithmetic, and string formatting --- all inside a ```markscript block.
 
 ## compute_fib
 

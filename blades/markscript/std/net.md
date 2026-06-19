@@ -1,6 +1,6 @@
 # Net
 
-Markscript networking — HTTP requests, file downloads, basic web operations.
+Markscript networking - HTTP requests, file downloads, basic web operations.
 Dispatches through the IVT to Kain's process bridge for curl/wget.
 
 ---

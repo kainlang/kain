@@ -1,6 +1,6 @@
 # Time Series
 
-MarkScript time series analysis — decomposition, forecasting, trend detection,
+MarkScript time series analysis --- decomposition, forecasting, trend detection,
 and moving window operations. Dispatches to Python's `statsmodels` and `pandas`.
 
 ---

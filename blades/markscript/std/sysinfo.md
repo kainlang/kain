@@ -1,6 +1,6 @@
 # Sysinfo
 
-Markscript comprehensive system information — kernel release, machine type,
+Markscript comprehensive system information --- kernel release, machine type,
 boot time, load averages, sensor readings, and system-wide resource state.
 Dispatches through the IVT to Kain's `std::machine` bridge.
 
@@ -71,7 +71,7 @@ Get system load averages split into 1, 5, and 15 minute values.
 ```markscript
 # Query system load averages
 call("sysinfo_loadavg")
-# Result: three integers — load1, load5, load15
+# Result: three integers -- load1, load5, load15
 ```
 
 ---

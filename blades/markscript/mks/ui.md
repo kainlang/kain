@@ -1,6 +1,6 @@
-# HexColorMixer — Interactive Color Tool
+# HexColorMixer - Interactive Color Tool
 
-> Pure Kain std::ui — real text input, live color preview, preset swatches.
+> Pure Kain std::ui -- real text input, live color preview, preset swatches.
 > Type hex codes (e.g. "FF8040") to see the color update in real time.
 > Click preset swatches to pick common colors.
 > No C interop. No blade dependencies. Just Kain.
@@ -11,7 +11,7 @@
 
 | Property | Value |
 |----------|-------|
-| Title | Kain UI Template — Hex Color Mixer |
+| Title | Kain UI Template - Hex Color Mixer |
 | Width | 820 |
 | Height | 620 |
 | Backend | winit |
@@ -36,7 +36,7 @@
 
 ---
 
-## Presets — Default Color Swatches
+## Presets -- Default Color Swatches
 
 | Index | Label | R | G | B | Hex |
 |-------|-------|---|---|---|-----|
@@ -59,13 +59,13 @@
 
 | Event | KeyCode | Action |
 |-------|---------|--------|
-| MousePress | — | Focus hex input field |
-| MousePress | — | Click preset swatch → apply color |
-| MousePress | — | Click Apply button → parse hex |
-| MousePress | — | Click Random button → generate color |
-| KeyPress | 8 / 259 | Backspace — delete last hex digit |
-| KeyPress | 13 | Enter — apply current hex |
-| KeyPress | 27 | Escape — reset to default gray |
+| MousePress | -- | Focus hex input field |
+| MousePress | - | Click preset swatch → apply color |
+| MousePress | - | Click Apply button → parse hex |
+| MousePress | -- | Click Random button → generate color |
+| KeyPress | 8 / 259 | Backspace --- delete last hex digit |
+| KeyPress | 13 | Enter - apply current hex |
+| KeyPress | 27 | Escape - reset to default gray |
 | KeyPress | 0-9 A-F a-f | Insert hex digit at cursor |
 
 ---
@@ -109,10 +109,10 @@ let status = "Type a hex code (e.g. FF8040) or click a preset"
 
 | # | Invariant |
 |---|----------|
-| 1 | All rendering is pure Kain std::ui — no C, no interop, no blade deps |
+| 1 | All rendering is pure Kain std::ui --- no C, no interop, no blade deps |
 | 2 | Hex input is always exactly 6 characters (or fewer during editing) |
-| 3 | History ring is FIFO — newest color pushes oldest out |
-| 4 | Presets are immutable — loaded from a compile-time const table |
+| 3 | History ring is FIFO --- newest color pushes oldest out |
+| 4 | Presets are immutable - loaded from a compile-time const table |
 | 5 | Every frame: pump → begin frame → render → poll events → present |
 | 6 | Color preview always matches hex_input after Apply/Enter |
 | 7 | Status bar always reflects the last user action |

@@ -24,7 +24,7 @@ print(quot)
 ## Comments
 
 ```markscript
-# This is a comment — it should not affect execution
+# This is a comment - it should not affect execution
 let r = 42
 # Another comment line
 print(r)

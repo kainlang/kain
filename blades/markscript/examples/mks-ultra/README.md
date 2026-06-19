@@ -1,4 +1,4 @@
-# mks-ultra — Markscript-Embedded Kain Physics Engine
+# mks-ultra - Markscript-Embedded Kain Physics Engine
 
 A rigid body physics engine written in Kain with orchestration through the [Markscript](https://github.com/kain-lang/markscript) intent engine.
 
@@ -84,4 +84,4 @@ mks-ultra/
 
 ## License
 
-MIT — see root `LICENSE`.
+MIT - see root `LICENSE`.

@@ -1,6 +1,6 @@
 # Process Manager
 
-Markscript process management — list, inspect, kill, reprioritize, and query
+Markscript process management - list, inspect, kill, reprioritize, and query
 process trees. Dispatches through the IVT to Kain's `std::process` bridge.
 
 ---

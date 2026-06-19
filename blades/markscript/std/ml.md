@@ -1,6 +1,6 @@
 # ML
 
-MarkScript machine learning — training, prediction, evaluation, and model
+MarkScript machine learning - training, prediction, evaluation, and model
 selection. Dispatches to Python's `scikit-learn` through the IVT `run` handler.
 
 ---

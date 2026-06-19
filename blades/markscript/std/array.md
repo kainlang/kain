@@ -1,6 +1,6 @@
 # Array
 
-Markscript array operations — creation, access, iteration.
+Markscript array operations --- creation, access, iteration.
 Data flows through the VM operand stack and variable store.
 
 ---

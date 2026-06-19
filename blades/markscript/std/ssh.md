@@ -1,6 +1,6 @@
 # SSH
 
-Markscript SSH integration — remote connections, key management, tunnels,
+Markscript SSH integration -- remote connections, key management, tunnels,
 and configuration through shell dispatch.
 
 ---

@@ -1,6 +1,6 @@
 # Npm
 
-Markscript npm integration — package management, scripts, and lifecycle
+Markscript npm integration - package management, scripts, and lifecycle
 commands for Node.js projects.
 
 ---

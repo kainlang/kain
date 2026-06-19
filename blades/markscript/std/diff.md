@@ -1,6 +1,6 @@
 # Diff
 
-MarkScript file comparison — find differences between files.
+MarkScript file comparison - find differences between files.
 Wraps `diff` via the IVT for line-by-line comparison.
 
 ---

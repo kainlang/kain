@@ -1,6 +1,6 @@
 # Template
 
-MarkScript template rendering — fill variables, loops, conditionals, includes.
+MarkScript template rendering -- fill variables, loops, conditionals, includes.
 Wraps `sed`, `awk`, and shell tools via the IVT for text templating.
 
 ---

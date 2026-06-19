@@ -1,6 +1,6 @@
 # Head
 
-MarkScript file prefix — read the beginning of files.
+MarkScript file prefix - read the beginning of files.
 Wraps `head` via the IVT for top-of-file extraction.
 
 ---

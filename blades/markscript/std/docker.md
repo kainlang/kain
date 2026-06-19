@@ -1,6 +1,6 @@
 # Docker
 
-Markscript Docker integration — container lifecycle, image management,
+Markscript Docker integration - container lifecycle, image management,
 and Compose orchestration through shell dispatch.
 
 ---

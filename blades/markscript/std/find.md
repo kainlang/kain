@@ -1,6 +1,6 @@
 # Find
 
-MarkScript file location — search files by name, type, size, time, and execute actions.
+MarkScript file location --- search files by name, type, size, time, and execute actions.
 Wraps `find` via the IVT for filesystem traversal.
 
 ---

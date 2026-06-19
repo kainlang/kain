@@ -1,6 +1,6 @@
 # Git
 
-Markscript Git integration — full VCS lifecycle through shell dispatch.
+Markscript Git integration --- full VCS lifecycle through shell dispatch.
 Every intent runs a `git` command and captures its output.
 
 ---

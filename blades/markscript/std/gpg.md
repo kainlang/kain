@@ -1,6 +1,6 @@
 # Gpg
 
-Markscript GPG — GNU Privacy Guard encryption, signing, key management.
+Markscript GPG - GNU Privacy Guard encryption, signing, key management.
 Dispatches through the IVT to gpg for all cryptographic operations.
 
 ---

@@ -1,6 +1,6 @@
 # CI
 
-Markscript CI/CD integration — pipeline orchestration, stage management,
+Markscript CI/CD integration -- pipeline orchestration, stage management,
 artifact handling, and webhook triggers through shell dispatch.
 
 ---

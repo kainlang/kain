@@ -97,9 +97,9 @@ let _ = play_action(action_state)
 ```kain
 # Convergence dispatch for interpolation mode selection
 # three-kn's interpolate_value converge has 3 lanes:
-#   reference  — lerp-based (spec, default)
-#   step_lane  — snap to nearest keyframe (fast when anim.step)
-#   cubic_lane — Catmull-Rom cubic (fast when anim.cubic)
+#   reference  -- lerp-based (spec, default)
+#   step_lane  -- snap to nearest keyframe (fast when anim.step)
+#   cubic_lane - Catmull-Rom cubic (fast when anim.cubic)
 fn sample_value(t: Float, times: [Float], values: [Float], mode: InterpolationMode) -> Float:
     let result = converge interpolate_value(t, times, values, mode)
     return result
@@ -219,7 +219,7 @@ send mixer.StopAll(reply_to = self)
 
 # Query stats
 send mixer.GetStats(reply_to = self)
-# Expect Reply(value = 0) — zero active clips after stop
+# Expect Reply(value = 0) - zero active clips after stop
 ```
 
 > assert equals final_active_count 0

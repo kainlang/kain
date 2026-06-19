@@ -1,7 +1,7 @@
 # RenderEngine
 
 The render domain owns the frame pipeline. Each routine maps to a phase
-in the render loop — setup, draw, present.
+in the render loop - setup, draw, present.
 
 ## setup_frame
 

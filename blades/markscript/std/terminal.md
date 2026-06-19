@@ -1,6 +1,6 @@
 # Terminal
 
-Markscript terminal and console management — query size, clear screen,
+Markscript terminal and console management - query size, clear screen,
 apply colors, manage cursor, and control terminal modes. Dispatches through
 the IVT to Kain's `std::ui` bridge and console APIs.
 
@@ -15,7 +15,7 @@ Get the terminal window dimensions (columns and rows).
 ```markscript
 # Query terminal size
 call("term_size")
-# Result: two integers — columns, rows
+# Result: two integers --- columns, rows
 ```
 
 ---
@@ -91,7 +91,7 @@ call("term_cursor_show")
 
 ## raw_mode
 
-Enable raw mode on the terminal — disable line buffering, echo, and
+Enable raw mode on the terminal -- disable line buffering, echo, and
 cooked-mode processing. Use for interactive single-key input.
 
 ```markscript

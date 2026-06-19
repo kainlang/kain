@@ -1,4 +1,4 @@
-# PrimalityMaster — Prime Computation Suite
+# PrimalityMaster - Prime Computation Suite
 
 > Sieve of Eratosthenes, prime factorization, Goldbach pair verification.
 > Pure markscript mini-language. No Kain code. No C. No external dependencies.
@@ -15,7 +15,7 @@
 
 ---
 
-## is_prime — Pure markscript primality test
+## is_prime --- Pure markscript primality test
 
 ```markscript
 # is_prime(n): return 1 if prime, 0 if not
@@ -62,7 +62,7 @@ print("Primes found up to " + str(max_n) + ": " + str(prime_count))
 
 ---
 
-## factorize — Prime factorization by trial division
+## factorize -- Prime factorization by trial division
 
 ```markscript
 let target = 84
@@ -88,7 +88,7 @@ while remainder > 1:
         else:
             print("× " + str(factor))
         remainder = q
-        # Don't increment factor — it might divide again (e.g. 2², 3³)
+        # Don't increment factor --- it might divide again (e.g. 2², 3³)
 
 print("= " + str(target))
 print("")
@@ -96,7 +96,7 @@ print("")
 
 ---
 
-## goldbach — Verify Goldbach's conjecture
+## goldbach - Verify Goldbach's conjecture
 
 ```markscript
 # Goldbach: every even number > 2 is the sum of two primes
@@ -163,7 +163,7 @@ print("Goldbach verified up to " + str(limit) + ": " + str(failures) + " failure
 
 ---
 
-## Verify — Self-check via assert
+## Verify -- Self-check via assert
 
 ```markscript
 let one_three = 13
@@ -188,8 +188,8 @@ print("All primality assertions passed")
 
 ## Notes
 
-**Equality workaround:** The mini-language has no `==` operator — only `>` and `<`. The pattern `if n > d * (n / d): else:` works because integer division truncates: `d * (n / d)` ≤ `n`, with equality iff `d` divides `n`. Since `d * (n / d)` can never be greater than `n`, the `else` branch fires exactly when `d | n`.
+**Equality workaround:** The mini-language has no `==` operator --- only `>` and `<`. The pattern `if n > d * (n / d): else:` works because integer division truncates: `d * (n / d)` ≤ `n`, with equality iff `d` divides `n`. Since `d * (n / d)` can never be greater than `n`, the `else` branch fires exactly when `d | n`.
 
 **Division granularity:** OP_DIV truncates towards zero for MARK_INT values, making this pattern safe.
 
-**Nested loop depth:** The Goldbach search reaches 4 levels of nested while/if — testing the parser's indentation-based block tracking.
+**Nested loop depth:** The Goldbach search reaches 4 levels of nested while/if --- testing the parser's indentation-based block tracking.

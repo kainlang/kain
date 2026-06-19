@@ -1,6 +1,6 @@
 # Keygen
 
-Markscript key generation — RSA, ECDSA, Ed25519, Diffie-Hellman keys and passphrase management.
+Markscript key generation --- RSA, ECDSA, Ed25519, Diffie-Hellman keys and passphrase management.
 Dispatches through the IVT to OpenSSL for all key generation operations.
 
 ---

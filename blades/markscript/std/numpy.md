@@ -1,6 +1,6 @@
 # NumPy
 
-MarkScript array computing — NumPy-powered ndarray creation, manipulation,
+MarkScript array computing - NumPy-powered ndarray creation, manipulation,
 and linear algebra. All routines dispatch through `> run "python ..."`.
 
 ---

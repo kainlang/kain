@@ -1,6 +1,6 @@
 # Path
 
-Markscript path manipulation — join, split, resolve, normalize, and query
+Markscript path manipulation - join, split, resolve, normalize, and query
 filesystem paths. Pure string manipulation combined with filesystem checks
 through the IVT.
 

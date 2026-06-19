@@ -1,6 +1,6 @@
 # JWT
 
-Markscript JWT (JSON Web Token) — encode, decode, verify.
+Markscript JWT (JSON Web Token) --- encode, decode, verify.
 Dispatches to openssl for HMAC signing and verification.
 
 ---

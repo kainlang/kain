@@ -1,6 +1,6 @@
 # String
 
-Markscript string utilities — manipulation, search, formatting.
+Markscript string utilities -- manipulation, search, formatting.
 Uses the markscript mini-language for character operations and the IVT
 for printing and conversion.
 
@@ -95,7 +95,7 @@ let found = 0
 
 ## upper
 
-Convert a string to uppercase (placeholder — needs char-by-char).
+Convert a string to uppercase (placeholder --- needs char-by-char).
 
 > print "UPPERCASE"
 

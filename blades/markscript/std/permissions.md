@@ -1,6 +1,6 @@
 # Permissions
 
-Markscript file permission and access control — check, grant, revoke,
+Markscript file permission and access control --- check, grant, revoke,
 inspect octal modes, and manage ACL entries. Dispatches through the IVT
 to Kain's `std::fs` bridge and OS security APIs.
 

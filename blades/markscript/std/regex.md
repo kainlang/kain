@@ -1,6 +1,6 @@
 # Regex
 
-MarkScript regular expressions — match, search, replace, split, groups.
+MarkScript regular expressions - match, search, replace, split, groups.
 Wraps standard regex tools via the IVT for pattern operations.
 
 ---

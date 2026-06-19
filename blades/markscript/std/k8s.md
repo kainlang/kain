@@ -1,6 +1,6 @@
 # K8s
 
-Markscript Kubernetes integration — cluster management, deployments,
+Markscript Kubernetes integration - cluster management, deployments,
 services, pods, and observability through kubectl shell dispatch.
 
 ---

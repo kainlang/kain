@@ -1,4 +1,4 @@
-# CalculatorSuite — Expression Engine & Self-Testing Harness
+# CalculatorSuite --- Expression Engine & Self-Testing Harness
 
 > A fully self-testing arithmetic calculator written in markscript.
 > Every operation is verified by assert. Every edge case is tested.
@@ -16,10 +16,10 @@
 
 ---
 
-## arithmetic_core — Pure markscript computation
+## arithmetic_core - Pure markscript computation
 
 ```markscript
-print("=== CalculatorSuite 1.0 — Self-Testing Arithmetic ===")
+print("=== CalculatorSuite 1.0 --- Self-Testing Arithmetic ===")
 print("")
 ```
 
@@ -137,7 +137,7 @@ print("All division tests passed")
 
 ---
 
-## ExpressionTests — Compound arithmetic
+## ExpressionTests --- Compound arithmetic
 
 ```markscript
 print("--- Compound Expressions ---")
@@ -158,7 +158,7 @@ let expr4 = 50 / 5 * 2
 > assert expr4 20
 
 let nested = (1 + 2) * (3 + 4)
-# 3 * 7 = 21 — but we have no parens parsing!
+# 3 * 7 = 21 - but we have no parens parsing!
 # Let's use our own decomposition
 let paren_a = 1 + 2
 let paren_b = 3 + 4
@@ -206,7 +206,7 @@ print("All edge case tests passed")
 
 ---
 
-## StressTests — Calculator at maximum capacity
+## StressTests - Calculator at maximum capacity
 
 ```markscript
 print("--- Stress Tests ---")
@@ -232,7 +232,7 @@ print("")
 print("=== CalculatorSuite Test Results ===")
 print("All test domains executed successfully")
 print("Assertions: all passed")
-print("CalculatorSuite 1.0 — VERIFIED")
+print("CalculatorSuite 1.0 -- VERIFIED")
 ```
 
 ---

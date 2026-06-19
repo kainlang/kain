@@ -1,6 +1,6 @@
 # Matrix
 
-MarkScript linear algebra — matrix operations, decompositions, and solvers.
+MarkScript linear algebra --- matrix operations, decompositions, and solvers.
 Dispatches to Python's `numpy.linalg` for computation.
 
 ---

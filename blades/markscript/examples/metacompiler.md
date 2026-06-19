@@ -1,4 +1,4 @@
-# MetaCompiler — A Tiny DSL That Compiles to MarkScript Bytecode
+# MetaCompiler --- A Tiny DSL That Compiles to MarkScript Bytecode
 
 > A domain-specific language parser and code generator written IN markscript.
 > The DSL defines simple state machines. The markscript code compiles them
@@ -11,8 +11,8 @@
 
 The MINI-SM DSL (Mini State Machine) defines:
 ```
-state <name>        — a named state
-on <event> -> <next> — transition rule
+state <name>        -- a named state
+on <event> -> <next> --- transition rule
 ```
 
 Example MINI-SM program:
@@ -34,7 +34,7 @@ This compiles to a MarkScript program with:
 
 ---
 
-## meta_config — Compiler configuration
+## meta_config --- Compiler configuration
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -44,7 +44,7 @@ This compiles to a MarkScript program with:
 
 ---
 
-## compiler_tables — DSL syntax mapping
+## compiler_tables -- DSL syntax mapping
 
 > The compile-time lookup tables that drive the meta-compiler.
 
@@ -57,7 +57,7 @@ This compiles to a MarkScript program with:
 
 ---
 
-## parse_input — Tokenize the DSL source
+## parse_input --- Tokenize the DSL source
 
 > The DSL source is embedded in a fenced code block below.
 > This routine parses it into markscript variables for processing.
@@ -78,7 +78,7 @@ print("")
 
 ---
 
-## state_machine_table — The compiled state machine
+## state_machine_table -- The compiled state machine
 
 > This table IS the compiled state machine.
 > Each row: state_id | state_name_hash | transition_count | behavior
@@ -92,7 +92,7 @@ print("")
 
 ---
 
-## transition_table — Edge definitions
+## transition_table -- Edge definitions
 
 | FromState | Event | NextState |
 |-----------|-------|-----------|
@@ -105,7 +105,7 @@ print("")
 
 ---
 
-## codegen — Emit MarkScript bytecode from tables
+## codegen - Emit MarkScript bytecode from tables
 
 ```markscript
 # Generate the output MarkScript program
@@ -161,7 +161,7 @@ while state_count > si:
 
 ---
 
-## verify_output — Self-check the codegen
+## verify_output - Self-check the codegen
 
 ```markscript
 # Verify the generated program structure
@@ -186,7 +186,7 @@ print("Codegen verification: all assertions passed")
 
 ---
 
-## simulate_state_machine — Run the state machine in markscript
+## simulate_state_machine --- Run the state machine in markscript
 
 ```markscript
 print("=== State Machine Simulation ===")
@@ -296,7 +296,7 @@ state DONE
 
 > Readability note: the MINI-SM language lives in the ` ```minism ` fenced block.
 > The compiler (written in ` ```markscript ` blocks) reads from the tables,
-> not from the fenced block directly — because the mini-language has no
+> not from the fenced block directly -- because the mini-language has no
 > runtime string parsing. The tables ARE the parsed representation.
 > This demonstrates the MarkScript philosophy: data tables are the universal
 > interchange format between domains.

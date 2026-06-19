@@ -6,7 +6,7 @@ Domain: End-to-end 3D engine pipeline combining scene setup, animation, GPU comp
 
 ## Layer1_StateAuthority
 
-Domain: Layer 1 — world + entangle. Compiler-owned state authority with mirrored sync.
+Domain: Layer 1 --- world + entangle. Compiler-owned state authority with mirrored sync.
 
 ```kain
 # World state authority pattern used throughout three-kn:
@@ -59,7 +59,7 @@ _assert(engine.running == true)
 
 ## Layer2_StateIntegrity
 
-Domain: Layer 2 — law + patch. Invariant predicates and journaled mutations.
+Domain: Layer 2 - law + patch. Invariant predicates and journaled mutations.
 
 ```kain
 # Laws: compiler-witnessable invariant predicates
@@ -135,7 +135,7 @@ patch update_view(cam: CameraState) -> Int:
 
 ## Layer3_Dispatch
 
-Domain: Layer 3 — converge. Spec-plus-fast-lanes dispatch with verify random fuzzing.
+Domain: Layer 3 - converge. Spec-plus-fast-lanes dispatch with verify random fuzzing.
 
 ```kain
 # Convergence dispatch: one spec lane + platform-gated fast lanes
@@ -182,7 +182,7 @@ converge shade_material(kind: MaterialKind, albedo: Vec3Wrapper, roughness: Floa
 
 ## Layer4_StageGraph
 
-Domain: Layer 4 — orchestrate. Typed multi-runtime pipeline DAG with residency, transfer, and fallback.
+Domain: Layer 4 --- orchestrate. Typed multi-runtime pipeline DAG with residency, transfer, and fallback.
 
 ```kain
 # Orchestrate: typed stage graph with runtime dispatch
@@ -214,21 +214,21 @@ orchestrate render_frame(session: Int, frame: Int, lights: Int) -> Int:
 
 | Stage | Runtime | Deps | Residency | Transfer | Fallback |
 |-------|---------|------|-----------|----------|----------|
-| frame_begin | patch | — | host | none | — |
-| frustum_cull | converge | frame_begin | shared | none | — |
-| sort_opaque | converge | frustum_cull | shared | none | — |
+| frame_begin | patch | - | host | none | --- |
+| frustum_cull | converge | frame_begin | shared | none | -- |
+| sort_opaque | converge | frustum_cull | shared | none | - |
 | shadow_maps | cpu | sort_opaque | device | host_to_device | shadow_disable |
-| opaque_pass | cpu | shadow_maps, sort_opaque | device | none | — |
-| sort_transparent | converge | opaque_pass | shared | none | — |
-| transparent_pass | cpu | sort_transparent | device | none | — |
-| postprocess | cpu | transparent_pass | device | device_to_host | — |
-| present | patch | postprocess | host | none | — |
+| opaque_pass | cpu | shadow_maps, sort_opaque | device | none | -- |
+| sort_transparent | converge | opaque_pass | shared | none | - |
+| transparent_pass | cpu | sort_transparent | device | none | - |
+| postprocess | cpu | transparent_pass | device | device_to_host | -- |
+| present | patch | postprocess | host | none | -- |
 
 ---
 
 ## Layer5_Temporal
 
-Domain: Layer 5 — pulse + resonate. Timed recurrence and reactive state-change tripwires.
+Domain: Layer 5 - pulse + resonate. Timed recurrence and reactive state-change tripwires.
 
 ```kain
 # Pulse: jitter-tolerant timed heartbeat
@@ -272,7 +272,7 @@ resonate EngineState.epoch dampen 16ms:
 
 ## Layer6_MachineStones
 
-Domain: Layer 6 — axiom + shatter + teleport. Capability assumptions, SoA layout, zero-copy cross-world handoff.
+Domain: Layer 6 -- axiom + shatter + teleport. Capability assumptions, SoA layout, zero-copy cross-world handoff.
 
 ```kain
 # Axiom: capability assumptions with fallback chains
@@ -344,9 +344,9 @@ let moved: DrawCommand = teleport draw_cmd from EngineState to EngineMirror via 
 | Axiom | Capability | Guarantee | Fallback | Verified |
 |-------|-----------|-----------|----------|----------|
 | has_vulkan | gfx.vulkan + gpu.compute | Vulkan 1.3 | has_dx12 | true |
-| has_dx12 | gfx.dx12 | DX12 Ultimate | has_metal | — |
-| has_metal | gfx.metal | Metal 3 | has_webgpu | — |
-| has_webgpu | gfx.webgpu | WebGPU | cpu_fallback | — |
+| has_dx12 | gfx.dx12 | DX12 Ultimate | has_metal | --- |
+| has_metal | gfx.metal | Metal 3 | has_webgpu | --- |
+| has_webgpu | gfx.webgpu | WebGPU | cpu_fallback | -- |
 | has_compute_shaders | gpu.compute | Compute support | none | true |
 
 > shatter struct DrawCommand
@@ -368,7 +368,7 @@ let moved: DrawCommand = teleport draw_cmd from EngineState to EngineMirror via 
 
 ## Layer7_Systems
 
-Domain: Layer 7 — actor + collapse/observe/decay. Mailbox-driven concurrency and explicit ownership lifecycle.
+Domain: Layer 7 --- actor + collapse/observe/decay. Mailbox-driven concurrency and explicit ownership lifecycle.
 
 ```kain
 # Actor: message-driven concurrent unit with typed message contracts
@@ -465,7 +465,7 @@ _assert(value == 42)
 
 ## GPULayer_Shaders
 
-Domain: GPU shader items — vertex, fragment, compute. Uniform bindings and workgroup dispatch.
+Domain: GPU shader items --- vertex, fragment, compute. Uniform bindings and workgroup dispatch.
 
 ```kain
 # Shader items: first-class GPU kernels with uniform binding slots
@@ -516,8 +516,8 @@ dispatch "shader::AudioFFT::compute" [256, 1, 1]
 
 | Shader | Kind | Uniforms | BindingSlots | Workgroup |
 |--------|------|----------|-------------|-----------|
-| StandardVertex | vertex | mvp, model_matrix, normal_matrix | @0, @1, @2 | — |
-| StandardFragment | fragment | albedo_tex, params | @5, @6 | — |
+| StandardVertex | vertex | mvp, model_matrix, normal_matrix | @0, @1, @2 | --- |
+| StandardFragment | fragment | albedo_tex, params | @5, @6 | - |
 | AudioFFT | compute | audio_buffer, fft_output, sample_count | @0, @1, @2 | 256×1×1 |
 
 > dispatch compute "AudioFFT" 256 1 1
@@ -640,7 +640,7 @@ fn run_full_pipeline() -> Int with IO:
 
 | PipelinePhase | Layers | Ops | Status |
 |--------------|--------|-----|--------|
-| Runtime init | — | runtime_init | PASS |
+| Runtime init | --- | runtime_init | PASS |
 | World creation | L1 | EngineState, CameraState | PASS |
 | Law validation | L2 | camera_state_valid, fog_range_valid | PASS |
 | Converge dispatch | L3 | cull_instances, sort_draws | PASS |
@@ -649,7 +649,7 @@ fn run_full_pipeline() -> Int with IO:
 | Shatter + axiom | L6 | DrawCommand, has_vulkan | PASS |
 | Actor messaging | L7 | AnimationMixer, PlayClip | PASS |
 | GPU shaders | GPU | StandardVertex, AudioFFT | PASS |
-| Runtime shutdown | — | runtime_shutdown | PASS |
+| Runtime shutdown | --- | runtime_shutdown | PASS |
 
 > assert equals final_score 0
 

@@ -1,4 +1,4 @@
-# ProjectSchema — Configuration Schema
+# ProjectSchema - Configuration Schema
 
 > Column type and constraint definitions for config.md tables.
 > Each table below mirrors a table in config.md with type annotations.

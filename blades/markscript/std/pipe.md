@@ -1,6 +1,6 @@
 # Pipe
 
-Markscript pipe and descriptor operations — create FIFO pipes, redirect
+Markscript pipe and descriptor operations -- create FIFO pipes, redirect
 standard streams, duplicate file descriptors. Dispatches through the IVT
 to Kain's `std::process` and `std::io` bridges.
 
@@ -14,9 +14,9 @@ reading, one for writing.
 > run "echo test | findstr test"
 
 ```markscript
-# Create a pipe — returns two handles
+# Create a pipe - returns two handles
 call("pipe_create")
-# Result: two integers — read_fd, write_fd
+# Result: two integers -- read_fd, write_fd
 ```
 
 ---

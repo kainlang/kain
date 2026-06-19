@@ -1,6 +1,6 @@
 # IO
 
-Markscript file I/O — read, write, check existence, list directories.
+Markscript file I/O - read, write, check existence, list directories.
 Every intent dispatches through the IVT to Kain's `std::fs` bridge.
 
 ---

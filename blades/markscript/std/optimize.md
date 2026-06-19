@@ -1,6 +1,6 @@
 # Optimize
 
-MarkScript optimization — finding minima and maxima of functions, gradient-based
+MarkScript optimization -- finding minima and maxima of functions, gradient-based
 methods, and constrained optimization. Dispatches to Python's `scipy.optimize`.
 
 ---

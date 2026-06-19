@@ -1,4 +1,4 @@
-# my-kain-app — Kain + MarkScript Template
+# my-kain-app --- Kain + MarkScript Template
 
 A Kain application built and orchestrated by MarkScript.
 Running `mks run Mksfile.md` compiles this file and executes it.
@@ -20,7 +20,7 @@ Running `mks run Mksfile.md` compiles this file and executes it.
 
 ```markscript
 print("========================================")
-print("  my-kain-app — MarkScript Orchestrated")
+print("  my-kain-app --- MarkScript Orchestrated")
 print("========================================")
 print("")
 print("Prerequisites: Kain toolchain in PATH")

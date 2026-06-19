@@ -1,6 +1,6 @@
 # Password
 
-Markscript password management — hashing, verification, and generation.
+Markscript password management - hashing, verification, and generation.
 Dispatches to openssl and Python bcrypt/argon2 through the IVT.
 
 ---

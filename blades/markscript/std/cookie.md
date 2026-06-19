@@ -119,7 +119,7 @@ let parsed = cookie.parse_set_cookie(header)
 
 ## jar
 
-Maintain a cookie jar — a dict of cookies that accumulates across responses.
+Maintain a cookie jar --- a dict of cookies that accumulates across responses.
 
 > print "Cookie jar state"
 

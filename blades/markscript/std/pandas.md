@@ -1,6 +1,6 @@
 # Pandas
 
-MarkScript data frame operations — reading, transforming, and summarizing
+MarkScript data frame operations --- reading, transforming, and summarizing
 tabular data through Python's pandas library.
 
 ---

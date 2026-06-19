@@ -1,6 +1,6 @@
 # Pipeline
 
-MarkScript ML pipelines — composing preprocessing and model steps into
+MarkScript ML pipelines - composing preprocessing and model steps into
 reproducible workflows. Dispatches to Python's `scikit-learn` `Pipeline`.
 
 ---

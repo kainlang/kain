@@ -1,6 +1,6 @@
 # Metrics
 
-MarkScript evaluation metrics — quantifying model performance through
+MarkScript evaluation metrics - quantifying model performance through
 classification, regression, and clustering metrics. Dispatches to
 Python's `scikit-learn` metrics module.
 

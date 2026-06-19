@@ -1,6 +1,6 @@
 # Ssh
 
-Markscript SSH key management — generate, fingerprint, convert, and manage SSH keys.
+Markscript SSH key management -- generate, fingerprint, convert, and manage SSH keys.
 Dispatches through the IVT to ssh-keygen and OpenSSL.
 
 ---

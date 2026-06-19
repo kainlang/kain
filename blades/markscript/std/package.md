@@ -1,6 +1,6 @@
 # Package
 
-Markscript system package manager integration — install, remove, update,
+Markscript system package manager integration --- install, remove, update,
 and search across apt, yum, dnf, and brew.
 
 ---

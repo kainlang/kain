@@ -1,6 +1,6 @@
 # CSRF
 
-Markscript CSRF protection — token generation, validation, embedding.
+Markscript CSRF protection --- token generation, validation, embedding.
 Dispatches to openssl for random token generation.
 
 ---

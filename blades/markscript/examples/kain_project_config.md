@@ -1,4 +1,4 @@
-# KainProject — markscript config for Kain projects
+# KainProject --- markscript config for Kain projects
 
 @schema "schemas/kain_project_schema.md"
 
@@ -15,8 +15,8 @@
 ## Dependencies
 | Name | Version | Path |
 |------|---------|------|
-| std | * | — |
-| serde | 1.0 | — |
+| std | * | -- |
+| serde | 1.0 | - |
 | blades.markscript | 1.0 | blades/markscript |
 
 ## Build

@@ -42,7 +42,7 @@ Base64 URL-safe encoding: replaces `+` with `-`, `/` with `_`, and strips paddin
 let data = "Hello + World / 2026"
 
 let encoded = base64.url_encode(data)
-# "SGVsbG8gKyBXb3JsZCAvIDIwMjY"  — no padding, safe chars
+# "SGVsbG8gKyBXb3JsZCAvIDIwMjY"  -- no padding, safe chars
 
 > assert base64.url_encode(">?") match "^[A-Za-z0-9_-]+$"
 ```
@@ -70,7 +70,7 @@ Check if a string is valid Base64. Returns `true` or `false`.
 
 ```markscript
 let valid = base64.validate("SGVsbG8=")
-let no_padding = base64.validate("SGVsbG8")   # valid — padding optional
+let no_padding = base64.validate("SGVsbG8")   # valid --- padding optional
 let invalid = base64.validate("!!!invalid!!!")
 
 > assert valid true

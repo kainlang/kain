@@ -1,6 +1,6 @@
 # Environment
 
-Markscript environment variable management — get, set, list, delete, persist
+Markscript environment variable management - get, set, list, delete, persist
 dotenv files. Dispatches through the IVT to Kain's `std::env` bridge and OS
 environment block.
 

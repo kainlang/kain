@@ -1,4 +1,4 @@
-# PipelinePalooza — Multi-Stage File Pipeline
+# PipelinePalooza - Multi-Stage File Pipeline
 
 > An ETL pipeline that reads, transforms, validates, and reports on data files.
 > Exercises ALL 8 registered IVT handlers: read file, write file, run, assert, print,
@@ -33,7 +33,7 @@ let stage = 0
 
 ---
 
-## StageIngest — Read source data
+## StageIngest - Read source data
 
 > The intake stage: read the raw input file and log its contents.
 
@@ -45,7 +45,7 @@ let stage = 0
 
 ```markscript
 stage = 1
-print("Stage " + str(stage) + ": Ingest — reading input data")
+print("Stage " + str(stage) + ": Ingest --- reading input data")
 ```
 
 > Spawn a directory listing to verify the input exists
@@ -57,7 +57,7 @@ print("Stage " + str(stage) + ": Ingest — reading input data")
 
 ---
 
-## StageTransform — Process data and write artifacts
+## StageTransform - Process data and write artifacts
 
 > The transform stage: process, enrich, and write.
 
@@ -69,7 +69,7 @@ print("Stage " + str(stage) + ": Ingest — reading input data")
 
 ```markscript
 stage = 2
-print("Stage " + str(stage) + ": Transform — processing data")
+print("Stage " + str(stage) + ": Transform --- processing data")
 ```
 
 > Write the enrichment output
@@ -83,13 +83,13 @@ print("Stage " + str(stage) + ": Transform — processing data")
 
 ---
 
-## StageValidate — Assert data integrity
+## StageValidate -- Assert data integrity
 
 > The validation stage: check every assertion.
 
 ```markscript
 stage = 3
-print("Stage " + str(stage) + ": Validate — running integrity checks")
+print("Stage " + str(stage) + ": Validate --- running integrity checks")
 ```
 
 > Verify the pipeline state with assertions
@@ -101,11 +101,11 @@ print("Stage " + str(stage) + ": Validate — running integrity checks")
 > file exists "pipeline_output/enriched_data.txt"
 > file exists "pipeline_output/stage_transform.log"
 
-> print "Validation passed — all assertions held"
+> print "Validation passed - all assertions held"
 
 ---
 
-## StageReport — Write the final report
+## StageReport -- Write the final report
 
 > The report stage: summarize everything.
 
@@ -113,7 +113,7 @@ print("Stage " + str(stage) + ": Validate — running integrity checks")
 
 ```markscript
 stage = 4
-print("Stage " + str(stage) + ": Report — generating summary")
+print("Stage " + str(stage) + ": Report -- generating summary")
 ```
 
 > Write the final pipeline report
@@ -130,7 +130,7 @@ print("Stage " + str(stage) + ": Report — generating summary")
 
 ---
 
-## StageCleanup — Verify and remove artifacts
+## StageCleanup --- Verify and remove artifacts
 
 > Post-pipeline verification and cleanup.
 
@@ -141,7 +141,7 @@ print("Stage " + str(stage) + ": Report — generating summary")
 
 > print "Pipeline verification: all 3 artifacts confirmed"
 
-> Clean up — remove temporary artifacts
+> Clean up -- remove temporary artifacts
 > run "del /f pipeline_output\\stage_transform.log 2>nul"
 > run "del /f pipeline_output\\enriched_data.txt 2>nul"
 > run "del /f pipeline_output\\pipeline_report.txt 2>nul"

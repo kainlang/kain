@@ -1,4 +1,4 @@
-# PongGame — The Prose-Native Arcade
+# PongGame --- The Prose-Native Arcade
 
 > A Pong implementation described entirely in MarkScript.
 > Your documentation is the game. Your README is the executable.
@@ -6,7 +6,7 @@
 
 The classic two-player paddle game reimagined as a prose-native orchestration.
 Eight domains, 24 routines, 30+ intents, 9 data tables, and 8 embedded code blocks
-— all valid markdown, all a single compilable program.
+-- all valid markdown, all a single compilable program.
 
 ---
 
@@ -21,7 +21,7 @@ that compiles to `OP_ENTER_DOMAIN` and `OP_ROUTINE_HEADER` ops.
 ## The Vision
 
 Markscript proves that **markdown has no syntax errors**. Every structural construct
-is valid. The only errors are runtime errors — name not found, arity mismatch,
+is valid. The only errors are runtime errors --- name not found, arity mismatch,
 bounds violation. PongGame is the proof: a complete game architecture that compiles
 from prose.
 
@@ -38,7 +38,7 @@ The bytecode is the game. The markdown is the documentation. They are the same f
 # GameConfig
 
 The configuration domain holds all game constants in a single typed matrix.
-Every value is compile-time data embedded in the bytecode stream — zero parsing,
+Every value is compile-time data embedded in the bytecode stream - zero parsing,
 zero configuration files, zero indirection.
 
 ## window_settings
@@ -47,7 +47,7 @@ zero configuration files, zero indirection.
 |----------|-------|
 | WindowWidth | 1024 |
 | WindowHeight | 768 |
-| Title | "Pong — The Prose-Native Arcade" |
+| Title | "Pong --- The Prose-Native Arcade" |
 | TargetFPS | 60 |
 | FrameBudget | 16.667 |
 
@@ -55,7 +55,7 @@ zero configuration files, zero indirection.
 
 The window is 1024×768 at 60 frames per second. Each frame has 16.667ms
 to complete physics, input, AI, rendering, and presentation. The config
-table lives in the VM's contiguous data store — accessible by handle,
+table lives in the VM's contiguous data store --- accessible by handle,
 zero copy, zero allocation.
 
 ## paddle_config
@@ -72,7 +72,7 @@ zero copy, zero allocation.
 
 > apply paddle parameters
 
-The paddles are 16×120 pixels — wide enough to be forgiving, narrow enough
+The paddles are 16×120 pixels - wide enough to be forgiving, narrow enough
 to demand skill. The CPU has an 8-frame reaction delay and a 15-pixel error
 margin so it feels human, not omniscient.
 
@@ -91,7 +91,7 @@ margin so it feels human, not omniscient.
 > configure ball physics
 
 The ball starts at 5,3 and accelerates by 0.5 per paddle hit up to a maximum
-of 12 pixels per frame. The max reflection angle is 60 degrees — the further
+of 12 pixels per frame. The max reflection angle is 60 degrees --- the further
 from center the ball hits, the steeper the return. Spin decays by 5% per frame.
 
 ## scoring_config
@@ -113,12 +113,12 @@ before sudden death.
 
 The game state domain tracks all runtime data. In production, these tables
 would be updated each frame by the physics routines. Here they represent
-a captured session — frame 0 through frame 240 of a real match.
+a captured session --- frame 0 through frame 240 of a real match.
 
 ## ball_trajectory
 
 The trajectory of the ball over the first 240 frames of a match, sampled
-every 30 frames. This is a typed matrix — Int columns for frames and positions,
+every 30 frames. This is a typed matrix -- Int columns for frames and positions,
 Float columns for velocities, inferred by the parser.
 
 | Frame | PosX | PosY | VelX | VelY | Speed | Angle | Spin |
@@ -137,7 +137,7 @@ Float columns for velocities, inferred by the parser.
 
 Frame 0: Ball serves from center. Frame 60: Ball bounces off the right wall
 and reverses X velocity. Frame 90: Ball hits top wall, reverses Y velocity.
-Frame 180: Ball hits a paddle — speed increases from 5.83 to 7.21.
+Frame 180: Ball hits a paddle --- speed increases from 5.83 to 7.21.
 Spin accumulates on paddle hits and decays naturally.
 
 ## paddle_states
@@ -158,7 +158,7 @@ Spin accumulates on paddle hits and decays naturally.
 
 Player paddle starts centered and tracks user input. CPU paddle follows
 the ball with a 15-pixel error margin to feel natural. At frame 180,
-the CPU misses — Player scores.
+the CPU misses -- Player scores.
 
 ## score_history
 
@@ -184,7 +184,7 @@ was 26 volleys in round 9 (17.8 seconds). Player is winning 6-3.
 # Physics
 
 The physics domain owns ball movement, collision detection, and response.
-Each routine is a discrete physics stage — move, check, bounce, score.
+Each routine is a discrete physics stage - move, check, bounce, score.
 
 ## move_ball
 > apply velocity to position
@@ -262,7 +262,7 @@ Each bounce fires a wall hit event consumed by the audio domain.
 > emit paddle hit event
 
 ```kain
-// Paddle collision — the core mechanic
+// Paddle collision -- the core mechanic
 // Reflection angle depends on where the ball hits the paddle:
 //   center → flat return (horizontal)
 //   edge  → steep return (up to MaxAngle degrees)
@@ -302,7 +302,7 @@ fn check_paddle(ball: Ball, paddle: Paddle, margin: Int) -> Ball:
 ```
 
 This is the heart of the game. The reflection angle depends on where the ball
-hits the paddle — center returns flat, edges return at up to 60 degrees.
+hits the paddle -- center returns flat, edges return at up to 60 degrees.
 Each hit increases ball speed by 0.5 and imparts spin based on hit position.
 
 ## check_scoring
@@ -353,7 +353,7 @@ Each key maps to one action through a typed matrix.
 > poll keyboard
 
 W and S for paddle control. Space to serve. Escape to pause.
-The remaining keys are convenience — fullscreen toggle, mute, debug overlay.
+The remaining keys are convenience - fullscreen toggle, mute, debug overlay.
 The scan codes are USB HID values for direct hardware polling.
 
 ## handle_input
@@ -385,14 +385,14 @@ fn poll_input(paddle: Paddle, keystate: Keystate) -> Paddle:
 ```
 
 Player paddle moves at 6 pixels per frame in response to W and S keys.
-The paddle is clamped to the window — it cannot go off-screen.
+The paddle is clamped to the window -- it cannot go off-screen.
 
 ---
 
 # AI
 
 The AI domain controls the CPU paddle. The goal is to feel like a human
-opponent — good enough to be challenging, flawed enough to be beatable.
+opponent - good enough to be challenging, flawed enough to be beatable.
 
 ## cpu_config
 
@@ -406,7 +406,7 @@ opponent — good enough to be challenging, flawed enough to be beatable.
 
 > configure AI parameters
 
-The CPU has an 8-frame reaction delay — it doesn't start tracking the ball
+The CPU has an 8-frame reaction delay --- it doesn't start tracking the ball
 until 8 frames after the ball changes direction. The 15-pixel error margin
 means the CPU aims for a point 15 pixels from where the ball will actually be.
 
@@ -483,15 +483,15 @@ fn scale_difficulty(difficulty: Float) -> AIConfig:
     }
 ```
 
-Difficulty 0.0: 16-frame delay, 40-pixel error, 3 px/frame speed — a baby.
-Difficulty 1.0: instant reaction, 2-pixel error, 6 px/frame — nearly unbeatable.
+Difficulty 0.0: 16-frame delay, 40-pixel error, 3 px/frame speed --- a baby.
+Difficulty 1.0: instant reaction, 2-pixel error, 6 px/frame -- nearly unbeatable.
 
 ---
 
 # Rendering
 
 The rendering domain draws every frame. Each routine maps to a phase in the
-render loop — clear, draw geometry, draw UI, present.
+render loop --- clear, draw geometry, draw UI, present.
 
 ## render_timings
 
@@ -514,7 +514,7 @@ All values in milliseconds. The budget is 16.667ms per frame.
 > profile rendering pipeline
 
 Pong is lightweight. At 2.8ms total per frame (16.7% of budget), there's
-plenty of headroom for more. The rendering pipeline is trivial — one ball,
+plenty of headroom for more. The rendering pipeline is trivial - one ball,
 two rectangles, a score string.
 
 ## draw_background
@@ -531,7 +531,7 @@ fn draw_background(renderer: Renderer, w: Int, h: Int):
 ```
 
 A deep navy blue background (`#1a1a2e`). A dashed white center line.
-No sprites, no textures — just two primitives.
+No sprites, no textures --- just two primitives.
 
 ## draw_ball
 
@@ -549,7 +549,7 @@ fn draw_ball(renderer: Renderer, ball: Ball):
 
 The ball interpolates from green (slow) to red (fast) based on current speed.
 At initial speed it's green. After 10 paddle hits, it's a dangerous orange.
-At max speed, it's red — a visual cue that the rally is intense.
+At max speed, it's red - a visual cue that the rally is intense.
 
 ## draw_paddles
 
@@ -614,7 +614,7 @@ Buffer swap + VSync wait. Target: 60 FPS. Budget: 16.667ms. Reality: 2.8ms.
 # Audio
 
 The audio domain manages sound effects. Each effect is a simple frequency
-with an envelope. No wav files, no streaming — just direct frequency synthesis.
+with an envelope. No wav files, no streaming --- just direct frequency synthesis.
 
 ## sound_effects
 
@@ -633,8 +633,8 @@ with an envelope. No wav files, no streaming — just direct frequency synthesis
 > register sound effects
 
 PaddleHit at 440Hz (concert A) for 80ms at 60% volume. WallHit at 220Hz
-(half frequency — deeper, shorter). Victory at C5 (523.25Hz) for 800ms.
-Each sound is synthesized directly — no audio files, no streaming, no decoding.
+(half frequency -- deeper, shorter). Victory at C5 (523.25Hz) for 800ms.
+Each sound is synthesized directly --- no audio files, no streaming, no decoding.
 
 ## play_paddle_hit
 
@@ -660,7 +660,7 @@ fn play_wall_hit(audio: AudioDevice):
     audio.play_sine(220.0, 50, 0.3)
 ```
 
-220Hz sine wave, 50ms, 30% volume. Subtle — just enough to register.
+220Hz sine wave, 50ms, 30% volume. Subtle --- just enough to register.
 
 ## play_score_event
 
@@ -673,7 +673,7 @@ fn play_score_event(audio: AudioDevice):
     audio.play_sawtooth(880.0, 400, 0.7)
 ```
 
-880Hz sawtooth, 400ms, 70% volume. Ascending — the sound of success.
+880Hz sawtooth, 400ms, 70% volume. Ascending --- the sound of success.
 
 ## play_game_over
 
@@ -681,16 +681,16 @@ fn play_score_event(audio: AudioDevice):
 > play victory or defeat sound
 
 ```kain
-// Game over sound — varies by winner
+// Game over sound - varies by winner
 fn play_game_over(audio: AudioDevice, winner: PlayerId):
     if winner == PLAYER:
-        audio.play_triangle(523.25, 800, 0.8)  // C5 — triumphant
+        audio.play_triangle(523.25, 800, 0.8)  // C5 - triumphant
     else:
-        audio.play_sawtooth(261.63, 600, 0.5)  // C4 — mournful
+        audio.play_sawtooth(261.63, 600, 0.5)  // C4 -- mournful
 ```
 
 Victory: C5 triangle wave, 800ms. Defeat: C4 sawtooth, 600ms.
-The same note, one octave apart, different waveforms — completely different emotion.
+The same note, one octave apart, different waveforms - completely different emotion.
 
 ---
 
@@ -717,8 +717,8 @@ win conditions. It is the least visible domain and the most important.
 > track round statistics
 
 10 rounds captured from a real match. Player leads 7-3. The longest rally
-was round 9 at 25 volleys and 17.2 seconds — an intense exchange that ended
-with a CPU misread. The shortest was round 3 at 4 volleys — a serve error.
+was round 9 at 25 volleys and 17.2 seconds --- an intense exchange that ended
+with a CPU misread. The shortest was round 3 at 4 volleys --- a serve error.
 
 ## increment_score
 
@@ -727,7 +727,7 @@ with a CPU misread. The shortest was round 3 at 4 volleys — a serve error.
 > reset ball position
 
 ```kain
-// Score increment — called when ball exits left or right edge
+// Score increment - called when ball exits left or right edge
 fn add_point(state: GameState, scorer: PlayerId) -> GameState:
     var s = state
 
@@ -765,7 +765,7 @@ score after the point. This turns the scoreboard into a match history.
 > declare winner
 
 ```kain
-// Win condition — first to WinScore with a 2-point lead
+// Win condition --- first to WinScore with a 2-point lead
 fn check_win(state: GameState) -> GameResult:
     let target = state.win_score
 
@@ -779,7 +779,7 @@ fn check_win(state: GameState) -> GameResult:
             return GameResult { winner: winner, reason: "standard" }
 
         if state.player_score + state.cpu_score > target * 2:
-            // Overtime — first to lead by 2 after combined threshold
+            // Overtime -- first to lead by 2 after combined threshold
             let winner = if state.player_score > state.cpu_score { PLAYER } else { CPU }
             return GameResult { winner: winner, reason: "overtime" }
 
@@ -787,7 +787,7 @@ fn check_win(state: GameState) -> GameResult:
 ```
 
 Standard win: first to 11 with a 2-point lead. Overtime: triggered when
-the combined score exceeds 22 — first to lead by 2 at any point after.
+the combined score exceeds 22 -- first to lead by 2 at any point after.
 This prevents infinite deuce games.
 
 ## reset_round
@@ -797,7 +797,7 @@ This prevents infinite deuce games.
 > set state to serving
 
 ```kain
-// Round reset — ball goes to center, random serve direction
+// Round reset - ball goes to center, random serve direction
 fn reset_round(ball: Ball, rng: RNG) -> Ball:
     var b = ball
     b.pos_x = window_width / 2
@@ -814,7 +814,7 @@ fn reset_round(ball: Ball, rng: RNG) -> Ball:
 ```
 
 Ball resets to center. Serve direction is randomized. Initial velocity
-is restored — the ball resets to base speed regardless of how fast it was
+is restored - the ball resets to base speed regardless of how fast it was
 before the point.
 
 ---
@@ -842,7 +842,7 @@ The game loop runs at 60 FPS. Each frame executes exactly six stages:
 > orchestrate frame pipeline
 
 Six stages, 10ms total, 60% of the 16.667ms budget. The remaining 6.667ms
-is idle — headroom for debug overlays, network sync, or recording replays.
+is idle -- headroom for debug overlays, network sync, or recording replays.
 
 ## init
 
@@ -853,7 +853,7 @@ is idle — headroom for debug overlays, network sync, or recording replays.
 > set initial game state
 
 ```kain
-// Game initialization — called once at startup
+// Game initialization -- called once at startup
 fn init_game(config: GameConfig) -> Game:
     let window = create_window(config.window_width, config.window_height, "Pong")
     let renderer = create_renderer(window)
@@ -908,7 +908,7 @@ center with initial velocity.
 >   sync to vsync
 
 ```kain
-// The main game loop — called every frame
+// The main game loop - called every frame
 // Returns when the game exits (window close or quit signal)
 
 fn game_loop(game: Game) -> Int:
@@ -988,7 +988,7 @@ fn transition_state(g: Game, new_state: GameState) -> Game:
         play_pause_sound(state.audio)
 
     elif old_state == PAUSED and new_state == PLAYING:
-        // Unpause — no sound, just resume
+        // Unpause - no sound, just resume
 
     elif old_state == PLAYING and new_state == GAME_OVER:
         play_game_over(state.audio, state.last_winner)
@@ -998,7 +998,7 @@ fn transition_state(g: Game, new_state: GameState) -> Game:
 ```
 
 Five states. Three transitions produce sound. The state machine is simple
-by design — Pong doesn't need a complex FSM.
+by design - Pong doesn't need a complex FSM.
 
 ## performance_budget
 
@@ -1031,7 +1031,7 @@ fn capture_timing(input_ms, ai_ms, physics_ms, audio_ms, scoring_ms,
 ```
 
 Each frame, the engine records timing telemetry. If headroom drops below
-zero, the frame rate stutters. In practice, Pong runs at 2.8ms total —
+zero, the frame rate stutters. In practice, Pong runs at 2.8ms total ---
 87% headroom. There is room to grow.
 
 ---
@@ -1044,7 +1044,7 @@ zero, the frame rate stutters. In practice, Pong runs at 2.8ms total —
 > print final stats
 
 ```kain
-// Shutdown — clean exit
+// Shutdown - clean exit
 fn shutdown_game(game: Game) -> Int:
     let final_scores = "Final Score: "
         + str(game.player_score) + " - " + str(game.cpu_score)
@@ -1064,8 +1064,8 @@ Clean shutdown. Window closes, resources free, final score prints to console.
 
 # Compilation Target
 
-This entire document — all 8 domains, 24 routines, 30+ intents, 9 data tables,
-8 embedded code blocks — is a valid MarkScript program. It compiles and executes
+This entire document - all 8 domains, 24 routines, 30+ intents, 9 data tables,
+8 embedded code blocks --- is a valid MarkScript program. It compiles and executes
 through the MarkScript VM pipeline:
 
 ```
@@ -1085,7 +1085,7 @@ pong.md → LEXER (22 token types) → PARSER (7 opcodes) → BYTECODE → VM �
 | Syntax Errors | 0 |
 
 **Markdown has no syntax errors.** Every heading, blockquote, table, and
-code block is valid. The only errors are runtime — an unregistered intent
+code block is valid. The only errors are runtime -- an unregistered intent
 phrase, a bounds violation, an import cycle. This document has none.
 
 ## known_limitation
@@ -1103,7 +1103,7 @@ The current MarkScript VM has 6 built-in handlers:
 | `handler_print` | `print` |
 
 Phrases like `apply velocity to position` and `poll keyboard` are not yet
-registered — the IVT returns name errors at runtime. In the production system,
+registered - the IVT returns name errors at runtime. In the production system,
 these phrases map to real Kain functions through the IVT bridge.
 
 **This is not a limitation of the language. It is a limitation of the handler registry.**
@@ -1114,6 +1114,6 @@ intent dispatch needs wiring.
 
 *Pong is a game of angles, timing, and prediction.*
 *MarkScript is a language where your documentation is your program.*
-*This file is both — a complete game architecture and a working MarkScript program.*
+*This file is both --- a complete game architecture and a working MarkScript program.*
 
-*Built with Kain — the non-Von Neumann systems language with a compiler-owned semantic stack.*
+*Built with Kain - the non-Von Neumann systems language with a compiler-owned semantic stack.*

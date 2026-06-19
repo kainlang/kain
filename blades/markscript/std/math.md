@@ -1,14 +1,14 @@
 # Math
 
-Markscript arithmetic — computation and numeric utilities.
+Markscript arithmetic --- computation and numeric utilities.
 Uses the markscript mini-language for direct bytecode operations (no IVT dispatch
-needed for basic arithmetic — it compiles to OP_ADD, OP_SUB, OP_MUL, OP_DIV).
+needed for basic arithmetic -- it compiles to OP_ADD, OP_SUB, OP_MUL, OP_DIV).
 
 ---
 
 ## add
 
-Add two numbers. Pure computation — no IVT dispatch needed.
+Add two numbers. Pure computation --- no IVT dispatch needed.
 
 ```markscript
 let a = 5

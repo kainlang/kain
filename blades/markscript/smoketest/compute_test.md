@@ -47,12 +47,12 @@ let geometry: GeometryBuffer = GeometryBuffer {
 ```kain
 # GPU upload via three-kn buffers.kn upload_geometry_buffer
 # Ownership lifecycle: alloc_zeroed → collapse (exclusive write) → observe (read) → decay (release)
-# No borrow checker — explicit collapse/observe/decay scope control
+# No borrow checker -- explicit collapse/observe/decay scope control
 let cube: GeometryBuffer = create_box_geometry(2.0, 2.0, 2.0)
 _assert(cube.vertex_count == 24)
 _assert(cube.index_count == 36)
 
-# Collapse: exclusive write scope — fill GPU buffer with vertex data
+# Collapse: exclusive write scope --- fill GPU buffer with vertex data
 defer release_geometry_buffer(cube)
 let gpu_handle: Int = upload_geometry_buffer(cube)
 _assert(gpu_handle > 0)

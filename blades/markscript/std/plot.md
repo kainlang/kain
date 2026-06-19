@@ -1,6 +1,6 @@
 # Plot
 
-MarkScript data visualization — plotting and charting through Python's
+MarkScript data visualization - plotting and charting through Python's
 Matplotlib. Dispatches through `> run "python ..."`.
 
 ---

@@ -1,4 +1,4 @@
-# Help — MarkScript CLI Reference
+# Help --- MarkScript CLI Reference
 
 All available commands for the my-kain-app project.
 Run with: mks run scripts/help.md
@@ -6,7 +6,7 @@ Run with: mks run scripts/help.md
 ## Banner
 
 ```markscript
-print("=== my-kain-app — HELP ===")
+print("=== my-kain-app -- HELP ===")
 print("MarkScript + Kain project template")
 print("")
 ```

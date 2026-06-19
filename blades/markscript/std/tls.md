@@ -1,6 +1,6 @@
 # Tls
 
-Markscript TLS — secure connection management, handshake inspection, cipher suite querying.
+Markscript TLS -- secure connection management, handshake inspection, cipher suite querying.
 Dispatches through the IVT to OpenSSL for all secure channel operations.
 
 ---
@@ -39,7 +39,7 @@ call("run")
 
 ## handshake
 
-Inspect the TLS handshake details — protocol version, cipher suite, key exchange.
+Inspect the TLS handshake details -- protocol version, cipher suite, key exchange.
 
 > run "openssl s_client -connect example.com:443 -msg < /dev/null"
 

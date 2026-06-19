@@ -1,6 +1,6 @@
 # Make
 
-Markscript Make integration — build system targets, variables, and
+Markscript Make integration -- build system targets, variables, and
 workflow commands through shell dispatch.
 
 ---

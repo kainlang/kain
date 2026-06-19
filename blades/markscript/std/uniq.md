@@ -1,6 +1,6 @@
 # Uniq
 
-MarkScript duplicate detection — filter, count, report repeated lines.
+MarkScript duplicate detection -- filter, count, report repeated lines.
 Wraps `uniq` via the IVT for adjacent duplicate operations.
 
 ---

@@ -1,11 +1,11 @@
 # MarkScript Changelog
 
 > All notable changes to the MarkScript prose-native scripting VM.
-> This file IS valid markscript — every heading is a domain, every table is data.
+> This file IS valid markscript --- every heading is a domain, every table is data.
 
 # Changelog
 
-## Version 2.0 — The Companion Strike (2026-06-11)
+## Version 2.0 - The Companion Strike (2026-06-11)
 
 ### Summary
 Four parallel lanes hardened markscript from a 1.0 core VM into a full companion scripting language for Kain: 78 handlers, 23 opcodes, 114 test cases, CLI build system, UI embedding, and config validation. The VM is now ready to be embedded in the self-hosted Kain compiler.
@@ -163,11 +163,11 @@ Four parallel lanes hardened markscript from a 1.0 core VM into a full companion
 ### `std::markscript` Module (NEW)
 
 Clean Kain embedding API for any Kain program to use the markscript VM:
-- `mks_new_vm()` — create VM with builtins
-- `mks_run_file(path)` / `mks_run_string(source)` — compile + execute
-- `mks_register(vm, phrase, handler_id)` — add custom handler
-- `mks_table_get_int/string/float(vm, handle, row, col)` — typed table access
-- `mks_tables(vm)` — iterate all parsed tables
+- `mks_new_vm()` - create VM with builtins
+- `mks_run_file(path)` / `mks_run_string(source)` --- compile + execute
+- `mks_register(vm, phrase, handler_id)` -- add custom handler
+- `mks_table_get_int/string/float(vm, handle, row, col)` - typed table access
+- `mks_tables(vm)` - iterate all parsed tables
 
 ### UI Event Binding (NEW)
 
@@ -188,12 +188,12 @@ Clean Kain embedding API for any Kain program to use the markscript VM:
 
 | File | LOC | Role | Status |
 |------|-----|------|--------|
-| `src/lexer.kn` | ~350 | Tokenizer — 22 token types | Stable |
+| `src/lexer.kn` | ~350 | Tokenizer - 22 token types | Stable |
 | `src/parser.kn` | ~500 | Single-pass token→bytecode compiler, @import, mini-language | Extended (opcodes 21-23) |
-| `src/vm.kn` | ~847 | Virtual Machine — 23 opcodes, stack, data table, IVT, processes, widgets, arrays, dicts, functions, modules | Extended |
+| `src/vm.kn` | ~847 | Virtual Machine --- 23 opcodes, stack, data table, IVT, processes, widgets, arrays, dicts, functions, modules | Extended |
 | `src/main.kn` | ~1,406 | CLI driver, subcommand dispatch, REPL, handler loop, pipe, watch, build, test, clean, --json | Extended |
 | `src/cli.kn` | ~664 | Argument parser, usage text, MksConfig, auto-detection, JSON output | Extended |
-| `src/bridge.kn` | ~1,331 | IVT handler registry — 78 built-in Kain stdlib bridges, dispatch, registration | Extended |
+| `src/bridge.kn` | ~1,331 | IVT handler registry - 78 built-in Kain stdlib bridges, dispatch, registration | Extended |
 | `src/bridge_stdlib.kn` | ~414 | BETA: 35 handler functions across 10 stdlib domains | NEW |
 | `src/types.kn` | ~436 | MarkValue (10 kinds), MatrixRecord, ProcessRecord, WidgetRecord, DictEntry, FnRecord, ImportedModule | Extended |
 | `src/error.kn` | ~150 | MarkError (6 kinds), formatting, did-you-mean | Stable |
@@ -215,7 +215,7 @@ Clean Kain embedding API for any Kain program to use the markscript VM:
 | `schema.kn` has 2 `default` reserved keyword uses | Low | DELTA | Needs renaming to `default_val` |
 | JIT coverage for new opcodes (21-23) not yet implemented | Medium | BETA | Tracked for jit.kn update |
 | `> import kain` dynamic module loading is infrastructure-complete but not end-to-end tested | Medium | BETA | Handler + type conversion exists; runtime loader TBD |
-| Workspace check: 14/16 files pass | — | All | Core infrastructure clean; DELTA config files need minor fixes |
+| Workspace check: 14/16 files pass | --- | All | Core infrastructure clean; DELTA config files need minor fixes |
 
 ---
 

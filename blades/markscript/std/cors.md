@@ -1,6 +1,6 @@
 # CORS
 
-Markscript CORS (Cross-Origin Resource Sharing) — policy configuration.
+Markscript CORS (Cross-Origin Resource Sharing) -- policy configuration.
 Generates and validates CORS headers for HTTP responses.
 
 ---

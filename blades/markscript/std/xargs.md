@@ -1,6 +1,6 @@
 # Xargs
 
-MarkScript command builder — build and execute command lines from stdin.
+MarkScript command builder - build and execute command lines from stdin.
 Wraps `xargs` via the IVT for batch and parallel execution.
 
 ---

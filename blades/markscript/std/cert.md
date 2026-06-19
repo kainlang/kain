@@ -1,6 +1,6 @@
 # Cert
 
-Markscript certificate management — X.509 certificate operations via OpenSSL.
+Markscript certificate management -- X.509 certificate operations via OpenSSL.
 Dispatches through the IVT to OpenSSL for all certificate operations.
 
 ---

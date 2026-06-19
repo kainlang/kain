@@ -1,6 +1,6 @@
 # Cluster
 
-MarkScript clustering — unsupervised grouping of data points. Dispatches
+MarkScript clustering - unsupervised grouping of data points. Dispatches
 to Python's `scikit-learn` cluster module through the IVT `run` handler.
 
 ---
@@ -62,7 +62,7 @@ Elbow method for determining optimal k in k-means (WCSS vs k).
 ```markscript
 let k_range = [1 2 3 4 5 6 7 8 9 10]
 # WCSS = [850 420 210 120 95 80 70 62 56 51]
-# elbow at k=3 — diminishing returns after 3 clusters
+# elbow at k=3 -- diminishing returns after 3 clusters
 ```
 
 ---

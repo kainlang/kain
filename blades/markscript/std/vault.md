@@ -1,6 +1,6 @@
 # Vault
 
-Markscript secret vault — encrypted storage for secrets, keys, and sensitive configuration.
+Markscript secret vault - encrypted storage for secrets, keys, and sensitive configuration.
 Dispatches through the IVT to filesystem operations with OpenSSL-based encryption.
 
 ---
@@ -78,7 +78,7 @@ call("run")
 
 ## seal
 
-Seal the vault — encrypt the vault index and flush all cached plaintext keys.
+Seal the vault -- encrypt the vault index and flush all cached plaintext keys.
 
 > run "openssl enc -aes-256-cbc -salt -in vault_index.json -out vault_index.enc -pass pass:sealkey"
 > run "del vault_index.json"
@@ -95,7 +95,7 @@ call("run")
 
 ## unseal
 
-Unseal the vault — decrypt the vault index and load keys into memory.
+Unseal the vault --- decrypt the vault index and load keys into memory.
 
 > run "openssl enc -aes-256-cbc -d -in vault_index.enc -out vault_index.json -pass pass:sealkey"
 

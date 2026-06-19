@@ -1,6 +1,6 @@
 # Sed
 
-MarkScript stream editor — search, replace, insert, delete lines.
+MarkScript stream editor -- search, replace, insert, delete lines.
 Wraps `sed` via the IVT for text transformations.
 
 ---

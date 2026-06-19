@@ -1,6 +1,6 @@
 # Random
 
-MarkScript random number generation — pseudorandom values, distributions,
+MarkScript random number generation - pseudorandom values, distributions,
 sampling, and seeding. Dispatches to Python's `random` and `numpy.random`.
 
 ---

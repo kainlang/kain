@@ -50,7 +50,7 @@ print(random(1, 100))
 
 ## Prose Blockquotes (NOT Dispatched)
 
-These start with prose-starter words — they produce zero bytecode:
+These start with prose-starter words -- they produce zero bytecode:
 
 > This is documentation about the registry system.
 > The intent keyword registry holds 57 single-word intents.

@@ -1,6 +1,6 @@
 # Stats
 
-MarkScript statistical computations — descriptive statistics, distributions,
+MarkScript statistical computations --- descriptive statistics, distributions,
 and inference routines. Dispatches to Python's `scipy.stats` and `numpy`
 through the IVT `run` handler.
 
@@ -44,7 +44,7 @@ Find the most frequent value(s) in a dataset.
 ```markscript
 let data = [2 3 3 4 5 3 2 1]
 let result = 3
-# 3 appears 3 times — most frequent
+# 3 appears 3 times --- most frequent
 ```
 
 ---

@@ -1,6 +1,6 @@
-# MARKSCRIPT 1.0 — Specification & Contract
+# MARKSCRIPT 1.0 - Specification & Contract
 
-**This document is the canonical specification.** It defines what Markscript is, what it is not, and the invariant boundaries that must hold in every version. It is not a README, tutorial, or marketing document. It does not track progress — it states truth.
+**This document is the canonical specification.** It defines what Markscript is, what it is not, and the invariant boundaries that must hold in every version. It is not a README, tutorial, or marketing document. It does not track progress --- it states truth.
 
 ---
 
@@ -8,7 +8,7 @@
 
 Markscript is a **markdown-native bytecode VM** that serves as Kain's companion language for configuration, orchestration, and executable documentation. It is implemented in Kain and compiles through Kain's LLVM backend to native code.
 
-**Core property:** Markdown has no syntax errors. Every `#`, `>`, `|`, and ` ``` ` is valid. The only errors are runtime errors — name not found, arity mismatch, bounds violation, import failure.
+**Core property:** Markdown has no syntax errors. Every `#`, `>`, `|`, and ` ``` ` is valid. The only errors are runtime errors - name not found, arity mismatch, bounds violation, import failure.
 
 ---
 
@@ -16,15 +16,15 @@ Markscript is a **markdown-native bytecode VM** that serves as Kain's companion 
 
 | Markdown Construct | Markscript Semantics | Bytecode |
 |-------------------|---------------------|----------|
-| `# Title` | **Domain** — named scope | `OP_ENTER_DOMAIN hash` |
-| `## Title` | **Routine** — named executable block | `OP_ROUTINE_HEADER hash` |
-| `> phrase` | **Intent** — natural-language command dispatched through IVT | `OP_PUSH_PARAM hash` + `OP_EXECUTE_CALL` |
-| `\| col \| col \|` | **Matrix** — typed data table stored in VM | `OP_PUSH_MATRIX handle cols rows data[]` |
-| ` ```lang ` | **Fenced block** — code or data stored by language tag | `OP_FENCED_CODE lang_hash content_hash` |
-| `- item` / `1. item` | List markers — parsed, reserved for iteration | Lexed, no bytecode |
-| `*italic*` / `**bold**` | Inline formatting — parsed, reserved | Lexed, no bytecode |
-| `[text](url)` | Link — parsed, reserved | Lexed, no bytecode |
-| Plain text | Documentation — consumed, not emitted | `TOK_TEXTSTR`, parser skips |
+| `# Title` | **Domain** - named scope | `OP_ENTER_DOMAIN hash` |
+| `## Title` | **Routine** - named executable block | `OP_ROUTINE_HEADER hash` |
+| `> phrase` | **Intent** --- natural-language command dispatched through IVT | `OP_PUSH_PARAM hash` + `OP_EXECUTE_CALL` |
+| `\| col \| col \|` | **Matrix** --- typed data table stored in VM | `OP_PUSH_MATRIX handle cols rows data[]` |
+| ` ```lang ` | **Fenced block** - code or data stored by language tag | `OP_FENCED_CODE lang_hash content_hash` |
+| `- item` / `1. item` | List markers - parsed, reserved for iteration | Lexed, no bytecode |
+| `*italic*` / `**bold**` | Inline formatting - parsed, reserved | Lexed, no bytecode |
+| `[text](url)` | Link - parsed, reserved | Lexed, no bytecode |
+| Plain text | Documentation -- consumed, not emitted | `TOK_TEXTSTR`, parser skips |
 
 ---
 
@@ -63,11 +63,11 @@ Markscript is a **markdown-native bytecode VM** that serves as Kain's companion 
 
 | Opcode | Value | Format |
 |--------|-------|--------|
-| `OP_HALT` | 0 | Single opcode — terminate execution |
+| `OP_HALT` | 0 | Single opcode - terminate execution |
 | `OP_ENTER_DOMAIN` | 1 | `OP, domain_name_hash` |
 | `OP_ROUTINE_HEADER` | 2 | `OP, routine_name_hash` |
 | `OP_PUSH_PARAM` | 3 | `OP, intent_phrase_hash` |
-| `OP_EXECUTE_CALL` | 4 | Single opcode — dispatch accumulated params |
+| `OP_EXECUTE_CALL` | 4 | Single opcode --- dispatch accumulated params |
 | `OP_PUSH_MATRIX` | 5 | `OP, handle_id, cols, rows, data_count, d0..dN` |
 | `OP_FENCED_CODE` | 6 | `OP, lang_hash, content_hash` |
 
@@ -108,7 +108,7 @@ fn register_handler(vm: MarkScriptVM, phrase: String, handler: HandlerFn) -> Mar
 type HandlerFn = fn(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult
 ```
 
-### MarkValue — Typed Runtime Data
+### MarkValue - Typed Runtime Data
 
 ```kain
 struct MarkValue:
@@ -118,7 +118,7 @@ struct MarkValue:
     str_val:    String
 ```
 
-### HandlerResult — Value-Semantic Return
+### HandlerResult -- Value-Semantic Return
 
 ```kain
 struct HandlerResult:
@@ -185,7 +185,7 @@ Rows containing only `|`, `-`, `:`, and spaces are separator rows. They are not 
 
 ---
 
-## `@import` — Multi-File Composition
+## `@import` --- Multi-File Composition
 
 ```markdown
 @import "path/to/other.md"
@@ -195,7 +195,7 @@ Rows containing only `|`, `-`, `:`, and spaces are separator rows. They are not 
 ### Rules
 
 1. Paths resolve relative to the importing file's directory
-2. `@import` is a compile-time directive — resolved before bytecode emission
+2. `@import` is a compile-time directive -- resolved before bytecode emission
 3. Imported domains and routines merge into the calling file's namespace
 4. Duplicate domain names: last import wins, warning emitted
 5. Circular imports: detected at compile time, hard error
@@ -223,7 +223,7 @@ Function parameter types determine how arguments are parsed from the intent. Ret
 
 ## Data-Driven Intent Keyword Registry (2.0)
 
-The intent keyword registry is **data-driven**. The single source of truth is `std/intents.md` — a markdown table with 57 single-word intent keywords. Adding a new intent requires editing ONLY that file and registering the handler in `bridge.kn`.
+The intent keyword registry is **data-driven**. The single source of truth is `std/intents.md` - a markdown table with 57 single-word intent keywords. Adding a new intent requires editing ONLY that file and registering the handler in `bridge.kn`.
 
 ### Architecture
 
@@ -294,7 +294,7 @@ struct MarkError:
 
 | Kind | Constant | Cause |
 |------|----------|-------|
-| Name Error | `ERROR_NAME` | IVT lookup miss — intent phrase not registered |
+| Name Error | `ERROR_NAME` | IVT lookup miss --- intent phrase not registered |
 | Arity Error | `ERROR_ARITY` | Wrong number of arguments passed to handler |
 | Bounds Error | `ERROR_BOUNDS` | Table row/column access out of range |
 | Type Error | `ERROR_TYPE` | Type mismatch in typed table cell |
@@ -323,15 +323,15 @@ Error: name error: unknown intent "apply graviti"
 
 ## The Markdown Stdlib
 
-Markscript's standard library is written in Markscript itself — markdown files that use intents to dispatch to Kain stdlib functions through the IVT. Each file is both documentation and a valid program.
+Markscript's standard library is written in Markscript itself - markdown files that use intents to dispatch to Kain stdlib functions through the IVT. Each file is both documentation and a valid program.
 
 ```
 std/
-├── io.md          — file read, write, list, exists
-├── math.md        — arithmetic, random, clamp, min, max
-├── build.md       — project check, build, run, test
-├── test.md        — assert, expect, benchmark
-└── process.md     — spawn, capture output, exit code
+├── io.md          --- file read, write, list, exists
+├── math.md        --- arithmetic, random, clamp, min, max
+├── build.md       --- project check, build, run, test
+├── test.md        -- assert, expect, benchmark
+└── process.md     - spawn, capture output, exit code
 ```
 
 ### Example: `io.md`
@@ -426,28 +426,28 @@ struct VarEntry:
 ```
 markscript/
 ├── MARKSCRIPT.MD               ← this file (the contract)
-├── build.kn                    — Kain project authority
-├── KAIN.toml                   — compatibility manifest
+├── build.kn                    -- Kain project authority
+├── KAIN.toml                   -- compatibility manifest
 │
 ├── src/
-│   ├── main.kn                 — CLI, disassembler, execution driver
-│   ├── lexer.kn                — 22 token types, value-semantics tokenizer
-│   ├── registry.kn             — data-driven intent keyword loader (std/intents.md)
-│   ├── parser.kn               — single-pass token→bytecode compiler, prose/intent disambiguation
-│   ├── vm.kn                   — 17-opcode stack VM, typed data, IVT dispatch
-│   ├── types.kn                — MarkValue, MatrixRecord, type inference
-│   ├── bridge.kn               — IVT handler registry, intent→Kain binding (81 handlers)
-│   ├── error.kn                — MarkError, formatting, did-you-mean
-│   ├── import.kn               — @import resolution, cycle detection, namespace merge
-│   ├── jit.kn                  — x86-64 JIT compiler
-│   ├── std_markscript.kn       — clean embedding API for Kain programs
-│   ├── markscript_ui.kn        — UI event binding bridge
-│   ├── schema.kn               — config schema validation
-│   ├── gen.kn                  — config → code generator
-│   └── config.kn               — layered config merging
+│   ├── main.kn                 - CLI, disassembler, execution driver
+│   ├── lexer.kn                - 22 token types, value-semantics tokenizer
+│   ├── registry.kn             - data-driven intent keyword loader (std/intents.md)
+│   ├── parser.kn               --- single-pass token→bytecode compiler, prose/intent disambiguation
+│   ├── vm.kn                   -- 17-opcode stack VM, typed data, IVT dispatch
+│   ├── types.kn                -- MarkValue, MatrixRecord, type inference
+│   ├── bridge.kn               -- IVT handler registry, intent→Kain binding (81 handlers)
+│   ├── error.kn                -- MarkError, formatting, did-you-mean
+│   ├── import.kn               -- @import resolution, cycle detection, namespace merge
+│   ├── jit.kn                  --- x86-64 JIT compiler
+│   ├── std_markscript.kn       - clean embedding API for Kain programs
+│   ├── markscript_ui.kn        --- UI event binding bridge
+│   ├── schema.kn               --- config schema validation
+│   ├── gen.kn                  --- config → code generator
+│   └── config.kn               - layered config merging
 │
-├── std/                        — Markscript stdlib (written in Markscript)
-│   ├── intents.md              — data-driven intent keyword registry (57 keywords)
+├── std/                        - Markscript stdlib (written in Markscript)
+│   ├── intents.md              -- data-driven intent keyword registry (57 keywords)
 │   ├── io.md
 │   ├── math.md
 │   ├── build.md
@@ -474,7 +474,7 @@ These hold in every version, including post-1.0 patches.
 | 2 | Value semantics throughout the compilation pipeline. No `ptr<T>` parameters in lexer, parser, compiler, or VM interface |
 | 3 | Tables are zero-copy embedded in bytecode as contiguous data. No indirection |
 | 4 | All data is handle-based. No raw pointers cross the bytecode boundary |
-| 5 | Deterministic output — identical `.md` input always produces identical bytecode |
+| 5 | Deterministic output --- identical `.md` input always produces identical bytecode |
 | 6 | The specification document itself is a valid Markscript program |
 | 7 | Markscript runs on the same Kain runtime as every other Kain program. No separate process |
 | 8 | IVT handlers are Kain functions. No handler logic is implemented in Markscript |
@@ -490,7 +490,7 @@ These hold in every version, including post-1.0 patches.
 | A compiler platform | Cannot express generics, typechecking, or code generation |
 | A build system | It dispatches TO Kain's build system through intents |
 | A package manager | Dependency management belongs to Kain |
-| Extensible through plugins | The IVT IS the extension mechanism — register a Kain function |
+| Extensible through plugins | The IVT IS the extension mechanism -- register a Kain function |
 
 ---
 

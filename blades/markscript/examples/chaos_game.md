@@ -1,9 +1,9 @@
-# ChaosGame — Barnsley Fern Iterated Function System
+# ChaosGame -- Barnsley Fern Iterated Function System
 
 > The chaos game: generate the Barnsley Fern fractal using an IFS.
 > Four affine transformations selected randomly by probability.
 > Each point is computed in markscript mini-language.
-> The fern emerges from chaos — documented in prose, computed in bytecode.
+> The fern emerges from chaos -- documented in prose, computed in bytecode.
 
 ---
 
@@ -20,7 +20,7 @@
 
 ---
 
-## fern_config — Simulation parameters
+## fern_config --- Simulation parameters
 
 | Parameter | Value |
 |-----------|-------|
@@ -31,7 +31,7 @@
 
 ---
 
-## run_simulation — The chaos game computation
+## run_simulation --- The chaos game computation
 
 ```markscript
 print("=== Chaos Game: Barnsley Fern ===")
@@ -121,10 +121,10 @@ while max_iter > iter:
     let mod_prod = mod_check * print_mod
     # If iter == mod_prod, then iter % print_mod == 0
     if iter > mod_prod:
-        # Not an output iteration — skip
+        # Not an output iteration --- skip
         skip_print = 0
     else:
-        # Output iteration — print the current point
+        # Output iteration - print the current point
         print("Fern point " + str(iter) + ": (" + str(x) + ", " + str(y) + ")")
 
     # Advance cycle
@@ -137,7 +137,7 @@ while max_iter > iter:
 
 ---
 
-## report — Transform statistics
+## report --- Transform statistics
 
 ```markscript
 print("")
@@ -167,14 +167,14 @@ print("=== Chaos Game Complete ===")
 | Step | What |
 |------|------|
 | 1 | Loaded 4 affine transformations from the table |
-| 2 | Started at (0, 0) — the fern origin |
+| 2 | Started at (0, 0) -- the fern origin |
 | 3 | For each iteration: select transform by probability band (cycle-based) |
 | 4 | Apply transform: (x', y') = (ax + by + e, cx + dy + f) |
 | 5 | Output coordinates every N iterations |
 | 6 | After 10,000 points, the fern structure emerges from the chaos |
 
-**Why this works:** The Barnsley Fern is an IFS (Iterated Function System). Each transform maps the whole fern to a smaller part of itself. Applying random transforms produces the attractor — the fern shape — regardless of starting point. The deterministic cycle distribution approximates the same statistical proportions, preserving the attractor structure.
+**Why this works:** The Barnsley Fern is an IFS (Iterated Function System). Each transform maps the whole fern to a smaller part of itself. Applying random transforms produces the attractor - the fern shape - regardless of starting point. The deterministic cycle distribution approximates the same statistical proportions, preserving the attractor structure.
 
 **No floating point:** The transform coefficients are scaled to integer arithmetic (a=85 means 0.85). Division is deferred to the end of each computation. This keeps all values as MARK_INT within the VM.
 
-**No randomness needed:** The deterministic cycle (1 stem, 85 small, 7 left, 7 right per 100 iterations) produces the same attractor as random selection because the IFS is ergodic — the statistical distribution is what matters, not the specific sequence.
+**No randomness needed:** The deterministic cycle (1 stem, 85 small, 7 left, 7 right per 100 iterations) produces the same attractor as random selection because the IFS is ergodic - the statistical distribution is what matters, not the specific sequence.

@@ -1,6 +1,6 @@
 # Virtualenv
 
-Markscript virtual environment management — create, activate, deactivate,
+Markscript virtual environment management - create, activate, deactivate,
 and manage isolated Python environments.
 
 ---

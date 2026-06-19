@@ -1,6 +1,6 @@
 # CPU
 
-Markscript CPU information and monitoring — core count, usage, load averages,
+Markscript CPU information and monitoring - core count, usage, load averages,
 frequency, model string, temperature, and governor. Dispatches through the
 IVT to Kain's `std::machine` bridge and OS performance counters.
 
@@ -44,7 +44,7 @@ CPU queue length and usage trends.
 ```markscript
 # Query load averages
 call("cpu_load")
-# Result: three values — load1, load5, load15
+# Result: three values --- load1, load5, load15
 ```
 
 ---

@@ -1,6 +1,6 @@
 # Signal
 
-Markscript signal handling — send, trap, ignore, and list operating system
+Markscript signal handling -- send, trap, ignore, and list operating system
 signals. Dispatches through the IVT to Kain's `std::process` bridge and OS
 signal APIs.
 

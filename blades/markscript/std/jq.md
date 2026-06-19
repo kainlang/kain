@@ -1,6 +1,6 @@
 # Jq
 
-MarkScript JSON query — filter, transform, and manipulate JSON data.
+MarkScript JSON query -- filter, transform, and manipulate JSON data.
 Wraps `jq` via the IVT for structured data processing.
 
 ---

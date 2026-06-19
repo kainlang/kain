@@ -1,6 +1,6 @@
 # Audit
 
-Markscript security auditing — logging, monitoring, compliance.
+Markscript security auditing -- logging, monitoring, compliance.
 Dispatches to system tools for log analysis and scanning.
 
 ---

@@ -1,6 +1,6 @@
 # Dataset
 
-MarkScript dataset utilities — loading, inspecting, splitting, and caching
+MarkScript dataset utilities --- loading, inspecting, splitting, and caching
 datasets for machine learning. Dispatches to Python's `sklearn.datasets`
 and `pandas`.
 

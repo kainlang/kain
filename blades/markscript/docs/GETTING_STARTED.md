@@ -1,4 +1,4 @@
-# MarkScript — Getting Started
+# MarkScript - Getting Started
 
 > Build, run, and write your first MarkScript program in 2 minutes.
 
@@ -45,7 +45,7 @@ mks run my_script.md
 
 ```bash
 mks check my_script.md
-# → CHECK PASSED — N bytecode ops, 0 errors
+# → CHECK PASSED --- N bytecode ops, 0 errors
 ```
 
 ## 5. Debug Bytecode

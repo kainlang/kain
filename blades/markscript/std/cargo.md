@@ -1,6 +1,6 @@
 # Cargo
 
-Markscript Cargo integration — Rust project management, builds, tests,
+Markscript Cargo integration --- Rust project management, builds, tests,
 and tooling through shell dispatch.
 
 ---

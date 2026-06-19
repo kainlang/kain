@@ -1,6 +1,6 @@
 # Disk
 
-Markscript disk and volume management — query usage, free space, mount
+Markscript disk and volume management - query usage, free space, mount
 points, volume types, and device info. Dispatches through the IVT to Kain's
 `std::fs` and system disk APIs.
 

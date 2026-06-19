@@ -1,6 +1,6 @@
 # Tail
 
-MarkScript file suffix — read the end of files, follow live logs.
+MarkScript file suffix - read the end of files, follow live logs.
 Wraps `tail` via the IVT for bottom-of-file extraction.
 
 ---

@@ -1,6 +1,6 @@
 # Encrypt
 
-Markscript encryption — symmetric and asymmetric ciphers via OpenSSL.
+Markscript encryption --- symmetric and asymmetric ciphers via OpenSSL.
 Dispatches through the IVT to OpenSSL for all cryptographic operations.
 
 ---

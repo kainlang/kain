@@ -1,6 +1,6 @@
 # Locale
 
-Markscript locale and internationalization — query and set the system locale,
+Markscript locale and internationalization - query and set the system locale,
 language, encoding, region, and character set. Dispatches through the IVT to
 Kain's `std::locale` bridge.
 

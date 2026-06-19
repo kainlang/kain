@@ -1,6 +1,6 @@
 # Time
 
-Markscript time utilities — timestamps, delays, measurement.
+Markscript time utilities - timestamps, delays, measurement.
 Dispatches through the IVT to Kain's process bridge for system time.
 
 ---

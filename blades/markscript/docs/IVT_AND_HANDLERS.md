@@ -1,4 +1,4 @@
-# IVT & Handlers — The Intent Dispatch System
+# IVT & Handlers -- The Intent Dispatch System
 
 > The Intent Vector Table is the bridge between MarkScript prose and Kain execution.
 
@@ -119,7 +119,7 @@ When an IVT lookup fails, the error engine searches all registered handler phras
 #   suggestion: did you mean "apply gravity"?
 ```
 
-This works automatically — no configuration needed. The error engine compares the failed hash against all registered phrase hashes.
+This works automatically -- no configuration needed. The error engine compares the failed hash against all registered phrase hashes.
 
 ## Handler Registration Flow
 

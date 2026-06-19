@@ -113,7 +113,7 @@ call("stderr")
 
 ## pipe
 
-Chain two commands — stdout of first feeds stdin of second.
+Chain two commands -- stdout of first feeds stdin of second.
 
 > pipe "cargo check 2>&1" "|" "grep error"
 
@@ -211,6 +211,6 @@ call("spawn")
 > assert 0 0
 
 ## Deploy (only if all passed)
-> print "All stages passed — deploying..."
+> print "All stages passed -- deploying..."
 > run "scp target/release/myapp server:/opt/"
 ```

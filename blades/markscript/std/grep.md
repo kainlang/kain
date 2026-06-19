@@ -1,6 +1,6 @@
 # Grep
 
-MarkScript text search — find lines matching a pattern.
+MarkScript text search -- find lines matching a pattern.
 Wraps `grep` via the IVT for actual search operations.
 
 ---

@@ -1,6 +1,6 @@
 # Test
 
-Markscript's test standard library — assert utilities, benchmarks, and test
+Markscript's test standard library - assert utilities, benchmarks, and test
 suite management routines. Each intent dispatches through the IVT to Kain's
 stdlib bridge.
 

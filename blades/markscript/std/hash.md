@@ -1,6 +1,6 @@
 # Hash
 
-Markscript hashing — cryptographic and checksum hashing via openssl CLI.
+Markscript hashing - cryptographic and checksum hashing via openssl CLI.
 All hashes are computed by dispatching to `openssl dgst` through the IVT.
 
 ---

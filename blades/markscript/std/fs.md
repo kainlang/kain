@@ -1,6 +1,6 @@
 # FS
 
-Markscript filesystem operations — create, delete, traverse, permissions,
+Markscript filesystem operations -- create, delete, traverse, permissions,
 symlinks, and file metadata. Dispatches through the IVT to Kain's
 `std::fs` bridge.
 
@@ -134,7 +134,7 @@ call("fs_hardlink")
 
 ## stat
 
-Get file metadata — size, modified time, created time, permissions, type.
+Get file metadata --- size, modified time, created time, permissions, type.
 
 > run "dir /path/to/file"
 

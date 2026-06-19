@@ -1,6 +1,6 @@
 # NLP
 
-MarkScript natural language processing — text analysis, tokenization,
+MarkScript natural language processing -- text analysis, tokenization,
 sentiment, and embeddings. Dispatches to Python's `nltk`, `spaCy`,
 and `transformers` through the IVT `run` handler.
 

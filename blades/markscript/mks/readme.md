@@ -1,4 +1,4 @@
-# UI-Template — Markscript Build Orchestrator
+# UI-Template - Markscript Build Orchestrator
 
 > Kicks off the full Kain build pipeline for the hex color mixer UI template.
 > Every domain is a build stage. Every operation is an intent.
@@ -19,7 +19,7 @@
 
 ---
 
-## StageCheck — Typecheck the project
+## StageCheck - Typecheck the project
 
 > Fast path: verify all .kn files typecheck before codegen.
 
@@ -35,7 +35,7 @@ print("Stage 1: Typecheck")
 
 ---
 
-## StageBuild — Compile to native
+## StageBuild - Compile to native
 
 > Full LLVM codegen path: .kn → .ll → clang → .exe
 
@@ -50,7 +50,7 @@ print("Stage 2: Compile to native")
 
 ---
 
-## StageVerify — Assert artifacts exist
+## StageVerify - Assert artifacts exist
 
 > Confirm the native executable was produced.
 
@@ -67,7 +67,7 @@ print("Stage 3: Verify artifacts")
 
 ---
 
-## StageRun — Execute the UI
+## StageRun --- Execute the UI
 
 > Launch the hex color mixer. This is the real thing.
 
@@ -84,7 +84,7 @@ print("(close the window to continue)")
 
 ---
 
-## StageReport — Final summary
+## StageReport -- Final summary
 
 ```markscript
 print("")

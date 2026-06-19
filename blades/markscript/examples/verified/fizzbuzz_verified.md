@@ -1,7 +1,7 @@
 # FizzBuzz
 
 The original cliche. Compute FizzBuzz from 1 to 100 using the Markscript mini-language.
-Variables, while loops, if/else, arithmetic, modulo, and println — all inside a ```markscript block.
+Variables, while loops, if/else, arithmetic, modulo, and println - all inside a ```markscript block.
 No Kain code written. Pure markdown. Pure bytecode. Pure execution.
 
 ## prove_it_works

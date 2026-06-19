@@ -1,6 +1,6 @@
 # Pip
 
-Markscript pip integration — Python package management through
+Markscript pip integration - Python package management through
 shell dispatch.
 
 ---

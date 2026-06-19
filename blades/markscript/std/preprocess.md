@@ -1,6 +1,6 @@
 # Preprocess
 
-MarkScript data preprocessing — transforming raw data into ML-ready features.
+MarkScript data preprocessing -- transforming raw data into ML-ready features.
 Dispatches to Python's `scikit-learn` preprocessing and `pandas`.
 
 ---

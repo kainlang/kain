@@ -32,7 +32,7 @@ These first words ARE in the intent keyword registry:
 
 ## Category 2: Prose-Starters (Documentation, NO dispatch)
 
-These first words are in PROSE_STARTERS — the parser recognizes
+These first words are in PROSE_STARTERS --- the parser recognizes
 them and skips bytecode emission entirely:
 
 ### Articles & Determiners

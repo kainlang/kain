@@ -1,6 +1,6 @@
 # User
 
-Markscript user identity and account management — query the current user,
+Markscript user identity and account management -- query the current user,
 list groups, inspect account metadata. Dispatches through the IVT to Kain's
 `std::user` bridge and OS account APIs.
 
@@ -29,7 +29,7 @@ Get the current user's unique identifier (UID on Unix, SID on Windows).
 ```markscript
 # Query the current user's ID
 call("user_id")
-# Result: identifier string — "1000" on Linux, "S-1-5-21-..." on Windows
+# Result: identifier string --- "1000" on Linux, "S-1-5-21-..." on Windows
 ```
 
 ---
@@ -117,5 +117,5 @@ Get full account metadata for a user.
 # Query full user account metadata
 push("alice")
 call("user_info")
-# Result: structured info — full name, sid/uid, groups, account status
+# Result: structured info --- full name, sid/uid, groups, account status
 ```

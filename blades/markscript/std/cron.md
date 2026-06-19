@@ -1,6 +1,6 @@
 # Cron
 
-Markscript cron integration — job scheduling, listing, editing, and
+Markscript cron integration -- job scheduling, listing, editing, and
 log inspection through shell dispatch.
 
 ---

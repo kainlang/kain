@@ -33,7 +33,7 @@ Floats widen to ints; strings dominate.
 
 ## Numeric Table
 
-All integer columns — useful for config matrices:
+All integer columns --- useful for config matrices:
 
 | X | Y | Z | W |
 |---|---|---|---|

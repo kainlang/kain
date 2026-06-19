@@ -1,6 +1,6 @@
 # Patch
 
-MarkScript patch management — apply, reverse, test, and create patches.
+MarkScript patch management -- apply, reverse, test, and create patches.
 Wraps `patch` via the IVT for applying diffs to files.
 
 ---

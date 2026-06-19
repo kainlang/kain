@@ -1,6 +1,6 @@
 # Classify
 
-MarkScript classification — supervised learning models for predicting
+MarkScript classification - supervised learning models for predicting
 categorical labels. Dispatches to Python's `scikit-learn`.
 
 ---

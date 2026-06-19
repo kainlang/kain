@@ -1,4 +1,4 @@
-# MarkScript JIT — Native Code Compilation in Kain
+# MarkScript JIT --- Native Code Compilation in Kain
 
 > How to write a JIT compiler for MarkScript's bytecode VM using Kain's own semantic stack.
 > Every construct needed exists today. No C required. No external JIT libraries.
@@ -33,12 +33,12 @@ Kain has every construct needed to build a JIT compiler IN Kain. Here's the mapp
 |---------------|---------------|-----|
 | **Fast-lane dispatch** | `converge` | Spec = interpreter, Fast = native code. `verify random(N)` fuzzes correctness |
 | **Code cache** | `world` + `patch` | Compiler-owned state, journaled cache updates, telemetry |
-| **Background compilation** | `actor` | `spawn JITWorker(...)`, `send worker.Compile(...)` — concurrent JIT jobs |
+| **Background compilation** | `actor` | `spawn JITWorker(...)`, `send worker.Compile(...)` -- concurrent JIT jobs |
 | **Hot function detection** | `resonate` | Tripwire on execution counter, dampen to batch compiles |
 | **Machine code emission** | `collapse`/`observe`/`decay` | Allocate RWX memory, write bytes, execute. Raw pointer safety with ownership state machine |
-| **Compilation pipeline** | `orchestrate` | Trace capture → emit → law check → cache commit — typed stage graph |
+| **Compilation pipeline** | `orchestrate` | Trace capture → emit → law check → cache commit - typed stage graph |
 | **Code cache layout** | `shatter struct` | SoA layout for hot-path vs cold-path separation |
-| **Tests** | `converge verify random(N)` | Fuzz JIT output against interpreter — guaranteed correctness |
+| **Tests** | `converge verify random(N)` | Fuzz JIT output against interpreter --- guaranteed correctness |
 | **Safety gates** | `law` | Invariant checks on emitted code (bounds, alignment, no relocations) |
 | **Startup timing** | `pulse` | Schedule JIT compilation budget across frame budgets |
 | **Cross-world handoff** | `teleport` | Transfer compiled code from JIT world to execution world |
@@ -82,9 +82,9 @@ Kain has every construct needed to build a JIT compiler IN Kain. Here's the mapp
 
 ---
 
-## Component 1: Converge Dispatch — Interpreter vs Native
+## Component 1: Converge Dispatch -- Interpreter vs Native
 
-The `converge` block is the JIT's dispatch mechanism. The interpreter is the `spec` reference lane. JIT-compiled native code is a `fast` lane. The `verify random(N)` clause fuzz-tests the JIT output against the interpreter — any mismatch is caught at verify-time.
+The `converge` block is the JIT's dispatch mechanism. The interpreter is the `spec` reference lane. JIT-compiled native code is a `fast` lane. The `verify random(N)` clause fuzz-tests the JIT output against the interpreter --- any mismatch is caught at verify-time.
 
 ```kain
 converge execute_block(vm: ptr<MarkScriptVM>, bc: Array<Int>, ip: Int) -> ExecResult:
@@ -97,13 +97,13 @@ converge execute_block(vm: ptr<MarkScriptVM>, bc: Array<Int>, ip: Int) -> ExecRe
         if cached.is_valid:
             let result = run_native(vm, cached.code_ptr, cached.stack_depth)
             return result
-        // Not compiled yet — fall through to interpreter
+        // Not compiled yet - fall through to interpreter
         return interpret_block(vm, bc, ip)
 
     verify random(64)
 ```
 
-**How `verify random(N)` works for JIT:** The runtime generates 64 random bytecode snippets, runs both the interpreter lane and the native-code lane, and compares results. Any mismatch increments `converge_mismatch_count()`. The operator or CI tooling alerts on non-zero mismatch counts — this is the canary that the JIT has a correctness bug.
+**How `verify random(N)` works for JIT:** The runtime generates 64 random bytecode snippets, runs both the interpreter lane and the native-code lane, and compares results. Any mismatch increments `converge_mismatch_count()`. The operator or CI tooling alerts on non-zero mismatch counts -- this is the canary that the JIT has a correctness bug.
 
 ---
 
@@ -122,7 +122,7 @@ world CodeAuthority:
 // picks up the compile job
 resonate CodeAuthority.counter_epoch dampen 16ms:
     // Scan counters, find hot blocks, spawn compilation
-    // The scan is batched — dampen 16ms prevents storming
+    // The scan is batched - dampen 16ms prevents storming
     let new_threshold = CodeAuthority.hot_threshold
     // ... spawn JITWorker for each hot block
 ```
@@ -224,7 +224,7 @@ fn emit_native_block(bytecode: Array<Int>, stack_depth: Int) -> EmitResult with 
                 emit_ip = emit_ip + epilogue_size
 
             else:
-                // Unsupported op — emit interpreter callout
+                // Unsupported op --- emit interpreter callout
                 emit_interp_fallback(code_buf, emit_ip, op)
                 bc_ip = bc_ip + bytecode_op_length(op)
                 emit_ip = emit_ip + interp_callout_size
@@ -251,7 +251,7 @@ fn emit_native_block(bytecode: Array<Int>, stack_depth: Int) -> EmitResult with 
 - `collapse code_buf:` ensures exclusive write access during code emission
 - `observe code_buf:` provides read-only verification after emission
 - `decay code_buf:` is the deterministic teardown path for failed compilations
-- If no error, the pointer escapes to the code cache — the ownership transfers to the cache world
+- If no error, the pointer escapes to the code cache -- the ownership transfers to the cache world
 - `platform_alloc_executable` and `platform_flush_icache` are FFI calls to `mmap`/`VirtualAlloc` and `__clear_cache`/`FlushInstructionCache`
 
 ---
@@ -295,10 +295,10 @@ orchestrate jit_compile(block_hash: Int, bytecode: Array<Int>, stack_depth: Int)
 ```
 
 **What the pipeline guarantees:**
-- `deps [analyze]` — analysis completes before emission starts
-- `law emitted_code_valid(...)` — the emitted code passes structural validation before it enters the cache
-- `requires validate` — the cache stage won't execute if validation fails
-- `residency host` — all stages run on CPU (machine code emission is a CPU task)
+- `deps [analyze]` --- analysis completes before emission starts
+- `law emitted_code_valid(...)` --- the emitted code passes structural validation before it enters the cache
+- `requires validate` -- the cache stage won't execute if validation fails
+- `residency host` --- all stages run on CPU (machine code emission is a CPU task)
 - The pipeline is self-documenting: any engineer can read the stages and understand the compilation flow
 
 ---
@@ -329,7 +329,7 @@ shatter struct CodeCacheEntry:
 patch patch_register_code(world: CodeAuthority, hash: Int, ptr: ptr<Byte>, size: Int) -> Int:
     // Evict if cache is full
     if world.cache_bytes + size > world.max_cache:
-        // Simple FIFO eviction — real version uses LRU/hotness
+        // Simple FIFO eviction - real version uses LRU/hotness
         let evicted = world.cache_entries[0]
         platform_free_executable(evicted.code_ptr, evicted.code_size)
         world.cache_bytes = world.cache_bytes - evicted.code_size
@@ -423,7 +423,7 @@ The `verify random(N)` clause in `execute_block` is the JIT's test harness. It w
 For the JIT, this means:
 - **Every `verify random(64)` tests 64 random bytecode sequences**
 - Any codegen bug in the x86-64 emitter produces a mismatch
-- `converge_mismatch_count()` is the health metric — zero means the JIT matches the interpreter
+- `converge_mismatch_count()` is the health metric --- zero means the JIT matches the interpreter
 - The random sequences exercise edge cases: loops with bound=0, deeply nested arithmetic, variable shadowing, overflow conditions
 
 ```kain
@@ -441,7 +441,7 @@ fn jit_correctness_test(iterations: Int) -> Int:
 
 ## What You'd Learn Building This
 
-1. **The `converge` construct is literally designed for this** — spec vs fast-lane dispatch with fuzz verification. The JIT is a textbook case of converge.
+1. **The `converge` construct is literally designed for this** - spec vs fast-lane dispatch with fuzz verification. The JIT is a textbook case of converge.
 
 2. **Raw memory management in Kain (`collapse`/`observe`/`decay`) is exactly what you need for machine code emission.** No C `malloc`/`free`, no manual error cleanup, no use-after-free. The ownership state machine catches OBOs and double-frees at compile time.
 
@@ -449,7 +449,7 @@ fn jit_correctness_test(iterations: Int) -> Int:
 
 4. **`actor` gives you concurrent compilation for free.** No thread pools, no mutexes, no channels. JIT workers are actors; the runtime handles scheduling.
 
-5. **`resonate` is the right way to detect hot functions.** Instead of polling counters, `resonate` fires the moment a counter hits the threshold — no polling overhead when the function isn't hot.
+5. **`resonate` is the right way to detect hot functions.** Instead of polling counters, `resonate` fires the moment a counter hits the threshold - no polling overhead when the function isn't hot.
 
 ---
 
@@ -460,7 +460,7 @@ fn jit_correctness_test(iterations: Int) -> Int:
 | No `mmap`/`VirtualAlloc` with `PAGE_EXECUTE_READWRITE` in stdlib | `include <sys/mman.h>` or `<windows.h>` via C FFI | Would need `std::mem::alloc_executable` |
 | No `memcpy` for code copying | `include <string.h>` via C FFI | Would need `std::mem::copy` |
 | JIT calling convention not standardized | Hand-rolled asm stub | Would need `fn` attribute for native ABI |
-| `ptr<fn()>` calling not fully tested | Verified in ownership + teleport benchmarks | Already proven in `fusion_chain.kn` — lowering exists |
+| `ptr<fn()>` calling not fully tested | Verified in ownership + teleport benchmarks | Already proven in `fusion_chain.kn` --- lowering exists |
 
 None of these are semantic blockers. The C FFI (`include <sys/mman.h> as mmap`) handles OS memory operations, and Kain's `collapse`/`observe`/`decay` handles the safety around the emitted code.
 

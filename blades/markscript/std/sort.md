@@ -1,6 +1,6 @@
 # Sort
 
-MarkScript file sorting — order, filter duplicates, randomize.
+MarkScript file sorting - order, filter duplicates, randomize.
 Wraps `sort` via the IVT for ordering operations.
 
 ---

@@ -73,9 +73,9 @@ _assert(byte_len > 0)
 
 | Geometry | Type | Width | Height | Depth | Radius | SegW | SegH | Vertices | Indices |
 |----------|------|-------|--------|-------|--------|------|------|----------|---------|
-| cube_main | Box | 2.0 | 2.0 | 2.0 | — | — | — | 24 | 36 |
-| sphere_smooth | Sphere | — | — | — | 1.5 | 32 | 24 | — | — |
-| plane_ground | Plane | 20.0 | 20.0 | — | — | — | — | — | — |
+| cube_main | Box | 2.0 | 2.0 | 2.0 | -- | --- | - | 24 | 36 |
+| sphere_smooth | Sphere | - | -- | - | 1.5 | 32 | 24 | - | --- |
+| plane_ground | Plane | 20.0 | 20.0 | --- | - | -- | -- | --- | - |
 
 > create plane geometry "plane_ground" 20.0 20.0
 

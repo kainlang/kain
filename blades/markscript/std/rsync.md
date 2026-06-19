@@ -1,6 +1,6 @@
 # Rsync
 
-Markscript rsync integration — high-performance file synchronization
+Markscript rsync integration --- high-performance file synchronization
 over SSH or local transport.
 
 ---
@@ -34,7 +34,7 @@ Create an exact mirror (delete files that don't exist on source).
 > run "rsync -avz --delete ./public/ user@hostname:/var/www/html/"
 
 ```markscript
-# Mirror with delete — remote matches source exactly
+# Mirror with delete - remote matches source exactly
 push("rsync -avz --delete ./public/ user@hostname:/var/www/html/")
 call("run")
 ```

@@ -1,10 +1,10 @@
-# MarkScript — The Prose-Native Scripting Runtime for Kain
+# MarkScript - The Prose-Native Scripting Runtime for Kain
 
 > **Your documentation is your program. Your README IS the executable.**
 
-MarkScript is a **markdown-native bytecode VM** that serves as Kain's companion language for configuration, orchestration, UI scripting, build systems, and executable documentation. It compiles through Kain's LLVM backend to native code — a standalone `.exe` with zero runtime dependencies beyond the Kain native runtime.
+MarkScript is a **markdown-native bytecode VM** that serves as Kain's companion language for configuration, orchestration, UI scripting, build systems, and executable documentation. It compiles through Kain's LLVM backend to native code - a standalone `.exe` with zero runtime dependencies beyond the Kain native runtime.
 
-**Core property:** Markdown has no syntax errors. Every `#`, `>`, `|`, and `` ``` `` is valid. The only errors are *runtime* errors — name not found, arity mismatch, bounds violation, import failure.
+**Core property:** Markdown has no syntax errors. Every `#`, `>`, `|`, and `` ``` `` is valid. The only errors are *runtime* errors - name not found, arity mismatch, bounds violation, import failure.
 
 ```
 mks run README.md                  → 625 bytecode ops, 21 data tables → EXECUTED
@@ -14,7 +14,7 @@ mks build Cargo.toml               → auto-detects Rust → cargo build  → EX
 mks pipe < build.md                → stdin → markscript → stdout      → EXECUTED
 ```
 
-**This README is a valid MarkScript program.** Running `mks run README.md` compiles itself — the headings are domains, sections are routines, tables are data matrices, and code blocks are extracted.
+**This README is a valid MarkScript program.** Running `mks run README.md` compiles itself -- the headings are domains, sections are routines, tables are data matrices, and code blocks are extracted.
 
 ---
 
@@ -49,8 +49,8 @@ echo '> print "hello"' | mks pipe
 ### Prerequisites
 
 - **Kain toolchain** (`kain build`, `kain check`)
-- **Native runtime** — auto-linked during `kain build`
-- **Windows, Linux, or WSL** — targets x86_64
+- **Native runtime** -- auto-linked during `kain build`
+- **Windows, Linux, or WSL** -- targets x86_64
 
 ---
 
@@ -80,7 +80,7 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md)
 | `run` | `mks run <file.md>` | Compile and execute (default subcommand) |
 | `check` | `mks check <file.md>` | Compile-only validation, no VM execution |
 | `disasm` | `mks disasm <file.md>` | Dump bytecode opcodes and exit |
-| `repl` | `mks repl` | Interactive REPL — type intents, see results |
+| `repl` | `mks repl` | Interactive REPL - type intents, see results |
 | `eval` | `mks eval '<intent>'` | One-shot intent compilation and dispatch |
 | `init` | `mks init <name>` | Scaffold a new markscript project directory |
 | `handlers` | `mks handlers` | List all registered IVT handlers |
@@ -117,11 +117,11 @@ Full details: [`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 
-## Writing MarkScript — Language Reference
+## Writing MarkScript -- Language Reference
 
-### Domains — `# Title`
+### Domains - `# Title`
 
-A top-level heading creates a **domain** — a named scope for routines and data.
+A top-level heading creates a **domain** - a named scope for routines and data.
 
 ```markdown
 # PhysicsSim
@@ -131,9 +131,9 @@ A top-level heading creates a **domain** — a named scope for routines and data
 
 Compiles to: `OP_ENTER_DOMAIN hash("PhysicsSim")`
 
-### Routines — `## Subtitle`
+### Routines -- `## Subtitle`
 
-A second-level heading creates a **routine** — a named executable block.
+A second-level heading creates a **routine** - a named executable block.
 
 ```markdown
 ## ComputeForces
@@ -143,9 +143,9 @@ A second-level heading creates a **routine** — a named executable block.
 
 Compiles to: `OP_ROUTINE_HEADER hash("ComputeForces")`
 
-### Intents — `> phrase`
+### Intents -- `> phrase`
 
-A blockquote is an **intent** — a natural language command dispatched through the Intent Vector Table (IVT).
+A blockquote is an **intent** -- a natural language command dispatched through the Intent Vector Table (IVT).
 
 ```markdown
 > apply gravity
@@ -159,11 +159,11 @@ OP_PUSH_PARAM hash("apply gravity")
 OP_EXECUTE_CALL
 ```
 
-The IVT maps phrase hashes to handler IDs at runtime. **81 built-in handlers** bridge to the Kain stdlib — filesystem, process management, math, string operations, JSON, networking, time, regex, templates, random, and UI events. See [`docs/IVT_AND_HANDLERS.md`](docs/IVT_AND_HANDLERS.md) for the full registry.
+The IVT maps phrase hashes to handler IDs at runtime. **81 built-in handlers** bridge to the Kain stdlib -- filesystem, process management, math, string operations, JSON, networking, time, regex, templates, random, and UI events. See [`docs/IVT_AND_HANDLERS.md`](docs/IVT_AND_HANDLERS.md) for the full registry.
 
 ### Data-Driven Intent Keyword Registry
 
-Intent keywords are **data-driven** — the single source of truth is [`std/intents.md`](std/intents.md), a markdown table with 57 single-word intent keywords. The module `src/registry.kn` reads this file at startup and populates an `IntentRegistry` world. The parser calls `is_keyword()` from this world instead of a hardcoded list.
+Intent keywords are **data-driven** -- the single source of truth is [`std/intents.md`](std/intents.md), a markdown table with 57 single-word intent keywords. The module `src/registry.kn` reads this file at startup and populates an `IntentRegistry` world. The parser calls `is_keyword()` from this world instead of a hardcoded list.
 
 **To add a new intent keyword:** edit `std/intents.md`, add a row to the table, register the handler in `bridge.kn`. No parser or compiler changes needed.
 
@@ -174,8 +174,8 @@ The parser classifies every blockquote (`> text`) into one of three categories:
 | Category | Detection | Action |
 |----------|-----------|--------|
 | **Known intent keyword** | First word in `std/intents.md` registry | Emit `OP_PUSH_PARAM` + `OP_EXECUTE_CALL` |
-| **Prose documentation** | First word in 57-word `PROSE_STARTERS` list (articles, prepositions, pronouns, conjunctions, interrogatives) | Skip — no bytecode emitted |
-| **Unknown word** | Not in registry, not a prose-starter | Skip — treated as prose (fallback) |
+| **Prose documentation** | First word in 57-word `PROSE_STARTERS` list (articles, prepositions, pronouns, conjunctions, interrogatives) | Skip -- no bytecode emitted |
+| **Unknown word** | Not in registry, not a prose-starter | Skip --- treated as prose (fallback) |
 
 This means standard markdown blockquotes like `> This is documentation` never trigger intent dispatch, while `> print "hello"` always will.
 
@@ -216,9 +216,9 @@ This means standard markdown blockquotes like `> This is documentation` never tr
 > get widget "input.hex" "text"
 ```
 
-### Data Tables — `| col1 | col2 |`
+### Data Tables --- `| col1 | col2 |`
 
-A markdown table is a **matrix** — parsed into a contiguous `Array<Int>` stored in the VM's data table. Tables support schema validation via `@schema`.
+A markdown table is a **matrix** --- parsed into a contiguous `Array<Int>` stored in the VM's data table. Tables support schema validation via `@schema`.
 
 ```markdown
 @schema "schemas/server_schema.md"
@@ -236,7 +236,7 @@ OP_PUSH_MATRIX handle=0 cols=4 rows=1 data_count=4
 **Properties:**
 - Separator rows (`|---|`) are detected and skipped
 - The row before the separator is the header (column names)
-- Values are stored contiguous in bytecode — zero copy, zero indirection
+- Values are stored contiguous in bytecode --- zero copy, zero indirection
 - Tables are accessible at runtime by handle ID via `mks_table_get_*()`
 - Schema validation catches type errors, missing required fields, and constraint violations
 
@@ -266,7 +266,7 @@ while n <= 100:
 
 Supports: variables, `while`/`for` loops, `if/elif/else`, arithmetic (`+`, `-`, `*`, `/`, `%`), `print()`, `str()`, `len()`, array literals `[1, 2, 3]`, dict literals `{key: value}`, function definitions `fn name():`, `return`.
 
-### `@import` — Multi-File Composition
+### `@import` --- Multi-File Composition
 
 The `@import` directive merges external markdown files at compile time. Paths resolve relative to the importing file, imported domains and routines merge into the calling namespace, and circular imports are detected at compile time (max depth: 16).
 
@@ -335,13 +335,13 @@ Imports are resolved at compile-time, before bytecode emission. Rules:
 
 | File | LOC | Role |
 |------|-----|------|
-| `src/lexer.kn` | ~350 | Tokenizer — 22 token types, value semantics |
+| `src/lexer.kn` | ~350 | Tokenizer -- 22 token types, value semantics |
 | `src/registry.kn` | ~250 | Data-driven intent keyword loader from std/intents.md |
 | `src/parser.kn` | ~500 | Single-pass bytecode compiler, @import, prose/intent disambiguation, mini-language |
-| `src/vm.kn` | ~847 | Virtual Machine — 23 opcodes, stack, IVT, processes, widgets, arrays |
+| `src/vm.kn` | ~847 | Virtual Machine - 23 opcodes, stack, IVT, processes, widgets, arrays |
 | `src/main.kn` | ~1,406 | CLI driver, 13 subcommands, --json, auto-discovery |
 | `src/cli.kn` | ~664 | Argument parser, build auto-detection, JSON output |
-| `src/bridge.kn` | ~1,331 | IVT handler registry — 78 handlers, dispatch, registration |
+| `src/bridge.kn` | ~1,331 | IVT handler registry - 78 handlers, dispatch, registration |
 | `src/bridge_stdlib.kn` | ~414 | BETA: 35 stdlib handler functions across 10 domains |
 | `src/types.kn` | ~436 | MarkValue (10 kinds), MatrixRecord, ProcessRecord, WidgetRecord |
 | `src/error.kn` | ~150 | MarkError (6 kinds), formatting, did-you-mean |
@@ -391,7 +391,7 @@ use std::markscript_ui
 
 let session = markscript_ui.mks_ui_create_from_file("ui.md")
 // ui.md tables define window, layout, presets, event bindings
-// Changing the UI means editing ui.md — not the Kain code
+// Changing the UI means editing ui.md -- not the Kain code
 markscript_ui.mks_ui_run(session)
 ```
 
@@ -416,59 +416,59 @@ markscript/
 │   ├── JIT_DESIGN.md
 │   └── TEST_MATRIX.md         ← complete opcode/error/handler coverage
 ├── src/                       ← Kain source (the VM implementation)
-│   ├── main.kn                — CLI (13 subcommands), handler loop, --json
-│   ├── cli.kn                 — argument parser, auto-detection, MksConfig
-│   ├── lexer.kn               — 22-token tokenizer
-│   ├── registry.kn            — data-driven intent keyword loader (std/intents.md)
-│   ├── parser.kn              — single-pass bytecode compiler, prose/intent disambiguation
-│   ├── vm.kn                  — 23-opcode stack VM, IVT, state management
-│   ├── types.kn               — MarkValue (10 kinds), MatrixRecord, WidgetRecord
-│   ├── bridge.kn              — 81-handler IVT registry + dispatch
-│   ├── bridge_stdlib.kn       — BETA: 35 stdlib handler functions
-│   ├── error.kn               — runtime error formatting, did-you-mean
-│   ├── import.kn              — @import resolution
-│   ├── jit.kn                 — x86-64 JIT compiler
-│   ├── std_markscript.kn      — clean embedding API for Kain programs
-│   ├── markscript_ui.kn       — UI event binding bridge
-│   ├── schema.kn              — config schema validation
-│   ├── gen.kn                 — config → code generator
-│   └── config.kn              — layered config merging
+│   ├── main.kn                - CLI (13 subcommands), handler loop, --json
+│   ├── cli.kn                 - argument parser, auto-detection, MksConfig
+│   ├── lexer.kn               --- 22-token tokenizer
+│   ├── registry.kn            --- data-driven intent keyword loader (std/intents.md)
+│   ├── parser.kn              --- single-pass bytecode compiler, prose/intent disambiguation
+│   ├── vm.kn                  - 23-opcode stack VM, IVT, state management
+│   ├── types.kn               --- MarkValue (10 kinds), MatrixRecord, WidgetRecord
+│   ├── bridge.kn              -- 81-handler IVT registry + dispatch
+│   ├── bridge_stdlib.kn       - BETA: 35 stdlib handler functions
+│   ├── error.kn               - runtime error formatting, did-you-mean
+│   ├── import.kn              --- @import resolution
+│   ├── jit.kn                 -- x86-64 JIT compiler
+│   ├── std_markscript.kn      --- clean embedding API for Kain programs
+│   ├── markscript_ui.kn       --- UI event binding bridge
+│   ├── schema.kn              - config schema validation
+│   ├── gen.kn                 - config → code generator
+│   └── config.kn              --- layered config merging
 ├── std/                       ← Markscript stdlib (93 markdown files)
-│   ├── build.md               — canonical build definition format
-│   ├── process.md             — full process lifecycle intents
+│   ├── build.md               - canonical build definition format
+│   ├── process.md             - full process lifecycle intents
 │   ├── math.md, string.md, fs.md, time.md, json.md
 │   ├── git.md, docker.md, k8s.md, ci.md
 │   └── ... (93 total, 10 wired to real IVT handlers)
 ├── test/                      ← Test suite (114 cases)
-│   ├── e2e_pipeline.kn        — 22-case end-to-end pipeline test
-│   ├── edge_cases.kn          — 20 boundary/error cases
-│   ├── bridge_handlers.kn     — 16 handler dispatch tests
-│   ├── combinatorial_matrix.kn — 39 combinatorial coverage tests
-│   ├── test_runner.kn         — unified test runner with filtering
-│   ├── jit_*.kn               — JIT integration tests
+│   ├── e2e_pipeline.kn        - 22-case end-to-end pipeline test
+│   ├── edge_cases.kn          --- 20 boundary/error cases
+│   ├── bridge_handlers.kn     - 16 handler dispatch tests
+│   ├── combinatorial_matrix.kn --- 39 combinatorial coverage tests
+│   ├── test_runner.kn         - unified test runner with filtering
+│   ├── jit_*.kn               -- JIT integration tests
 │   └── test_lexer.kn, test_markscript_parser.kn
 ├── z3/                        ← Z3 proof packs (6 files)
-│   ├── vm_invariants.z3       — stack + arithmetic safety
-│   ├── var_store_integrity.z3 — variable store correctness
-│   └── call_stack_integrity.z3 — call/ret pairing
+│   ├── vm_invariants.z3       - stack + arithmetic safety
+│   ├── var_store_integrity.z3 --- variable store correctness
+│   └── call_stack_integrity.z3 - call/ret pairing
 ├── benchmarks/                ← Benchmark suite (17 benchmarks)
 ├── attrition/                 ← Sabotage definitions (20 cases)
 ├── examples/                  ← executable example scripts
 │   ├── verified/              ★ Verified examples (all pass mks run)
-│   │   ├── intent_registry_demo.md    — 57-keyword registry + prose disambiguation
-│   │   ├── full_stdlib_exercise.md    — all 8 intent categories
-│   │   ├── markscript_mini_language_demo.md — mini-language: vars, if/else, functions
-│   │   ├── table_parser_demo.md       — pipe tables with type inference
-│   │   ├── import_directive_demo.md   — @import resolution
-│   │   └── prose_vs_intent_demo.md    — 3-way classification with 50+ prose-starters
-│   ├── pong.md                — complete Pong game (8 domains, 24 routines, 9 tables)
-│   ├── fizzbuzz.md            — mini-language: loops, if/else, vars
-│   ├── game_engine.md         — physics/AI/rendering loop
+│   │   ├── intent_registry_demo.md    --- 57-keyword registry + prose disambiguation
+│   │   ├── full_stdlib_exercise.md    --- all 8 intent categories
+│   │   ├── markscript_mini_language_demo.md - mini-language: vars, if/else, functions
+│   │   ├── table_parser_demo.md       --- pipe tables with type inference
+│   │   ├── import_directive_demo.md   - @import resolution
+│   │   └── prose_vs_intent_demo.md    -- 3-way classification with 50+ prose-starters
+│   ├── pong.md                --- complete Pong game (8 domains, 24 routines, 9 tables)
+│   ├── fizzbuzz.md            --- mini-language: loops, if/else, vars
+│   ├── game_engine.md         --- physics/AI/rendering loop
 │   └── ... (25+ total)
 ├── mks/                       ← Hex color mixer (markscript-driven Kain UI)
-│   ├── ui.md                  — UI spec in markscript tables
-│   ├── readme.md              — markscript build orchestrator
-│   └── src/                   — Kain UI implementation (loads ui.md at runtime)
+│   ├── ui.md                  --- UI spec in markscript tables
+│   ├── readme.md              -- markscript build orchestrator
+│   └── src/                   -- Kain UI implementation (loads ui.md at runtime)
 └── schemas/                   ← Config schema definitions
 ```
 
@@ -489,24 +489,24 @@ markscript/
 - ✅ A UI scripting engine embeddable in Kain apps
 - ✅ A CI/CD pipeline definition language
 - ✅ A process orchestrator with full lifecycle management
-- ✅ Executable documentation — your README is your test suite
+- ✅ Executable documentation - your README is your test suite
 
 ---
 
 ## Further Reading
 
-- **`CHANGELOG.md`** — Full version history (self-validating markscript)
-- **`MARKSCRIPT.MD`** — Canonical specification, invariants, 1.0 contract
-- **`docs/GETTING_STARTED.md`** — Build, run, first script in 2 minutes
-- **`docs/AUTHORING_GUIDE.md`** — Complete markdown→semantics mapping
-- **`docs/CLI_REFERENCE.md`** — Full subcommand and flag reference
-- **`docs/IVT_AND_HANDLERS.md`** — The 78-handler intent dispatch system
-- **`docs/POSSIBILITIES.md`** — What you can build with MarkScript
-- **`docs/JIT_DESIGN.md`** — x86-64 JIT architecture
-- **`docs/TEST_MATRIX.md`** — Complete coverage documentation
+- **`CHANGELOG.md`** --- Full version history (self-validating markscript)
+- **`MARKSCRIPT.MD`** --- Canonical specification, invariants, 1.0 contract
+- **`docs/GETTING_STARTED.md`** -- Build, run, first script in 2 minutes
+- **`docs/AUTHORING_GUIDE.md`** - Complete markdown→semantics mapping
+- **`docs/CLI_REFERENCE.md`** -- Full subcommand and flag reference
+- **`docs/IVT_AND_HANDLERS.md`** -- The 78-handler intent dispatch system
+- **`docs/POSSIBILITIES.md`** - What you can build with MarkScript
+- **`docs/JIT_DESIGN.md`** --- x86-64 JIT architecture
+- **`docs/TEST_MATRIX.md`** --- Complete coverage documentation
 
 ---
 
-*Built with [Kain](https://kain-lang.org) — the non-Von Neumann systems language with a compiler-owned semantic stack.*
+*Built with [Kain](https://kain-lang.org) -- the non-Von Neumann systems language with a compiler-owned semantic stack.*
 
 *"Your documentation is your program."*

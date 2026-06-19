@@ -103,7 +103,7 @@ let csv_text = `name,salary\nAlice,95000\nBob,120000\nCarol,72000`
 let rows = csv.read(csv_text)
 
 let sorted = csv.sort(rows, "salary", "desc")
-# Carol(72000), Alice(95000), Bob(120000) — ascending sort then reversed
+# Carol(72000), Alice(95000), Bob(120000) --- ascending sort then reversed
 
 > assert sorted[0]["name"] "Bob"
 > assert sorted[2]["name"] "Carol"

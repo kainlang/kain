@@ -1,4 +1,4 @@
-# MarkScript — Possibilities
+# MarkScript - Possibilities
 
 > What you can build with a markdown-native bytecode VM.
 
@@ -13,7 +13,7 @@ mks run README.md
 # → Your docs just ran. All tables parsed. All intents dispatched.
 ```
 
-**Who this is for:** Open-source projects, API docs, tutorials that need to stay in sync with code — because the docs ARE the code.
+**Who this is for:** Open-source projects, API docs, tutorials that need to stay in sync with code -- because the docs ARE the code.
 
 ## 2. Configuration as Executable Prose
 
@@ -37,7 +37,7 @@ Replace YAML/JSON/TOML configs with markdown files that do more:
 > write sink "gold_orders"
 ```
 
-**Who this is for:** Data pipelines, ETL jobs, infra config — places where configuration files should be self-verifying.
+**Who this is for:** Data pipelines, ETL jobs, infra config - places where configuration files should be self-verifying.
 
 ## 3. Game Design Documents That Run
 
@@ -57,7 +57,7 @@ Write game specs in prose. The designer writes the design doc. The same file run
 > update positions
 ```
 
-Check out `examples/pong.md` — 8 domains, 24 routines, 30 intents, 9 data tables, all prose.
+Check out `examples/pong.md` - 8 domains, 24 routines, 30 intents, 9 data tables, all prose.
 
 **Who this is for:** Game jams, rapid prototyping, design docs that should never go stale.
 
@@ -80,7 +80,7 @@ Drive physics simulations, agent-based models, or N-body systems from readable m
 > run simulation 1000 steps
 ```
 
-Check `projects/mks-ultra/` for a working example — a Kain physics engine orchestrated through MarkScript.
+Check `projects/mks-ultra/` for a working example - a Kain physics engine orchestrated through MarkScript.
 
 **Who this is for:** Scientists, engineers, anyone writing simulation scripts that non-experts should be able to read and modify.
 
@@ -109,7 +109,7 @@ Write pipeline definitions in prose that reads like docs:
 
 ## 6. Hardware Control Scripts
 
-Servo calibration, sensor readout, robot control — readable by both engineers and operators:
+Servo calibration, sensor readout, robot control -- readable by both engineers and operators:
 
 ```markdown
 # ServoController
@@ -128,13 +128,13 @@ Servo calibration, sensor readout, robot control — readable by both engineers 
 > set brake 1
 ```
 
-Check `examples/servo_controller.md` — includes inline C ISR handlers alongside the markdown orchestration.
+Check `examples/servo_controller.md` -- includes inline C ISR handlers alongside the markdown orchestration.
 
-**Who this is for:** Robotics, embedded systems, IoT — places where operator-readability matters as much as correctness.
+**Who this is for:** Robotics, embedded systems, IoT -- places where operator-readability matters as much as correctness.
 
 ## 7. Literate Programs
 
-The full literate programming vision — code and documentation in one file, compiled to one binary.
+The full literate programming vision --- code and documentation in one file, compiled to one binary.
 
 ```markdown
 # CompressionTool
@@ -166,7 +166,7 @@ fn rle_encode(data: Array<Byte>) -> Array<Byte>:
 
 ## 8. Domain-Specific Markdown Dialects
 
-Build custom mini-languages on top of MarkScript. The IVT is the extension point — register handlers for your domain's vocabulary.
+Build custom mini-languages on top of MarkScript. The IVT is the extension point -- register handlers for your domain's vocabulary.
 
 **Examples:**
 - **Music:** `> note C4 120bpm` → MIDI output
@@ -183,4 +183,4 @@ Since MarkScript is compiled through Kain's LLVM backend, no interpreter overhea
 
 MarkScript proves a thesis: **your README can be your executable**. The boundary between documentation and code is artificial. When you compile prose to native code, every design decision is self-documenting, every table is self-describing, and every pipeline is self-verifying.
 
-The future of MarkScript isn't adding features — it's showing that one file can be both the clearest explanation and the most correct implementation simultaneously.
+The future of MarkScript isn't adding features - it's showing that one file can be both the clearest explanation and the most correct implementation simultaneously.

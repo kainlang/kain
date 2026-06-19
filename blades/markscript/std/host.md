@@ -1,6 +1,6 @@
 # Host
 
-Markscript host machine information — hostname, IP addresses, network
+Markscript host machine information -- hostname, IP addresses, network
 interfaces, DNS resolution. Dispatches through the IVT to Kain's
 `std::net` and system bridge.
 

@@ -1,6 +1,6 @@
 # Awk
 
-MarkScript column processing — filter, sum, format, transform structured text.
+MarkScript column processing --- filter, sum, format, transform structured text.
 Wraps `awk` via the IVT for pattern-scanning and column operations.
 
 ---

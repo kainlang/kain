@@ -1,8 +1,8 @@
-# IterativePhysics — 2D Particle System with Euler Integration
+# IterativePhysics -- 2D Particle System with Euler Integration
 
 > N-body gravitational simulation computed entirely in markscript.
 > Bodies defined in tables. Timestep integration via while loops.
-> Forces, velocities, positions — all in the VM.
+> Forces, velocities, positions - all in the VM.
 
 ---
 
@@ -29,14 +29,14 @@
 
 ---
 
-## initialize — Load body counts into variables
+## initialize --- Load body counts into variables
 
 > The body table can be exported to the runtime via register handler.
 > For pure markscript computation, we hardcode the initial conditions.
 
 ---
 
-## simulate — Euler integration for N steps
+## simulate -- Euler integration for N steps
 
 ```markscript
 # Gravitational N-body simulation
@@ -270,7 +270,7 @@ print("Comet:  (" + str(x4) + ", " + str(y4) + ")  v=(" + str(vx4) + ", " + str(
 
 ---
 
-## verify_energy — Rough conservation check
+## verify_energy -- Rough conservation check
 
 ```markscript
 # Compute crude total energy (kinetic + gravitational potential)

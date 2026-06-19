@@ -1,6 +1,6 @@
 # CMake
 
-Markscript CMake integration — configure, build, install cycle for
+Markscript CMake integration - configure, build, install cycle for
 C/C++ projects using CMake.
 
 ---

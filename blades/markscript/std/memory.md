@@ -1,6 +1,6 @@
 # Memory
 
-Markscript memory and RAM querying — total, free, used, swap, and pressure
+Markscript memory and RAM querying - total, free, used, swap, and pressure
 indicators. Dispatches through the IVT to Kain's `std::machine` bridge and
 OS memory APIs.
 

@@ -1,8 +1,8 @@
-# LifeAndRules — Cellular Automata in Prose
+# LifeAndRules -- Cellular Automata in Prose
 
 > Rule 30 (1D CA) and Conway's Game of Life (2D CA)
 > computed in pure markscript mini-language.
-> No images, no GPU, no external libs — just arithmetic and comparison.
+> No images, no GPU, no external libs - just arithmetic and comparison.
 
 ---
 
@@ -17,7 +17,7 @@
 
 ---
 
-## Rule30 — Elementary cellular automaton
+## Rule30 - Elementary cellular automaton
 
 > Rule 30: new cell = left XOR (center OR right)
 > Computed in markscript using the pattern:
@@ -308,7 +308,7 @@ print("Rule 30 complete: " + str(rows) + " generations of " + str(cols) + " cell
 
 ---
 
-## GameOfLife — 2D cellular automaton (simplified grid)
+## GameOfLife --- 2D cellular automaton (simplified grid)
 
 > Conway's Game of Life on a 6×6 grid stored in discrete variables.
 > Each cell is either alive (1) or dead (0).
@@ -470,7 +470,7 @@ while gol_gens > gol_gen:
         else:
             ng2_1 = 0
 
-    # Cell (2,2): neighbors (1,1)-(3,3) — center of glider
+    # Cell (2,2): neighbors (1,1)-(3,3) --- center of glider
     let nn_2_2 = g1_1 + g1_2 + g1_3 + g2_1 + g2_3 + g3_1 + g3_2 + g3_3
 
     let ng2_2 = 0

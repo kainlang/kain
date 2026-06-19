@@ -83,7 +83,7 @@ let data = json.parse(`{"logging":{"level":"debug","file":"/var/log/app.log"}}`)
 
 let level = json.get_key(data, "logging.level")
 let db = json.get_key(data, "database.host")
-# db is null — key doesn't exist
+# db is null - key doesn't exist
 
 > assert level "debug"
 > assert db null

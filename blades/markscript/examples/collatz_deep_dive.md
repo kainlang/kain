@@ -1,4 +1,4 @@
-# CollatzDeepDive — Sequence Explorer & Conjecture Verifier
+# CollatzDeepDive -- Sequence Explorer & Conjecture Verifier
 
 > The Collatz conjecture: every positive integer eventually reaches 1 under
 > the map `n → n/2 (if even)` or `n → 3n+1 (if odd)`.
@@ -18,7 +18,7 @@
 
 ---
 
-## detect_even — Parity via repeated subtraction
+## detect_even -- Parity via repeated subtraction
 
 ```markscript
 # Even/odd detection without modulo operator:
@@ -28,7 +28,7 @@
 
 ---
 
-## verify_conjecture — Check every number up to MaxNumber
+## verify_conjecture -- Check every number up to MaxNumber
 
 ```markscript
 let max_n = 100
@@ -94,7 +94,7 @@ while max_n > start:
 
 ---
 
-## report — Summary statistics
+## report - Summary statistics
 
 ```markscript
 print("")
@@ -110,7 +110,7 @@ print("(Every sequence reached 1)")
 
 ---
 
-## heavy_hitters — Find numbers with most interesting behavior
+## heavy_hitters - Find numbers with most interesting behavior
 
 ```markscript
 # Verify specific known interesting Collatz numbers

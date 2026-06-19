@@ -1,6 +1,6 @@
 # Systemd
 
-Markscript systemd integration — service lifecycle, unit management,
+Markscript systemd integration - service lifecycle, unit management,
 and journal inspection through shell dispatch.
 
 ---

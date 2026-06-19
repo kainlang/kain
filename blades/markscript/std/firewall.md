@@ -1,6 +1,6 @@
 # Firewall
 
-Markscript firewall management — packet filtering rules, port management, and policy control.
+Markscript firewall management - packet filtering rules, port management, and policy control.
 Dispatches through the IVT to netsh (Windows) or iptables (Linux) for all operations.
 
 ---

@@ -1,6 +1,6 @@
 # Auth
 
-Markscript authentication — session management, token handling, MFA.
+Markscript authentication - session management, token handling, MFA.
 Dispatches to openssl for token generation and verification.
 
 ---
@@ -31,7 +31,7 @@ Validate that a token matches the expected value.
 
 ## login
 
-Process a login attempt — generate token on success.
+Process a login attempt --- generate token on success.
 
 > print "Login attempt for user"
 > run "openssl rand -hex 32"
