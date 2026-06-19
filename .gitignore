@@ -9,6 +9,7 @@ private/
 .pi/
 .agents/
 AGENTS.md
+spec/
 ARCHITECTURE.md
 MEMORY.md
 PIP.md
