@@ -1,0 +1,397 @@
+// ============================================================================
+//  DIAGNOSTICS.KN — COMPREHENSIVE DIAGNOSTICS ORCHESTRATOR
+//
+//  Reads and integrates all three test modules (cause, effect, spookymagic)
+//  and produces precision error reports. Designed to compile successfully
+//  even when only cause.kn contains active test logic.
+//
+//  ARCHITECTURE:
+//    cause.kn       → Primary test definitions (where agents write code)
+//    effect.kn      → Downstream effect computations
+//    spookymagic.kn → Black-box / spooky-magic behaviors
+//
+//  The diagnostics module discovers tests by querying each module's test
+//  table, then runs them with structured reporting. If a module has no
+//  registered tests, it's silently skipped — the template always compiles.
+// ============================================================================
+
+use std::diagnostics
+use std::io
+use cause
+use effect
+use spookymagic
+
+// ===========================================================================
+//  TEST RESULT — Structured per-test outcome
+// ===========================================================================
+
+pub struct TestResult:
+    module:      String     // "cause", "effect", "spookymagic"
+    test_name:   String
+    description: String
+    exit_code:   Int        // 0 = pass, >0 = failure
+    output:      String     // Captured output or summary
+    duration_ms: Int        // Placeholder for timing (0 = not measured)
+
+// ===========================================================================
+//  DIAGNOSTICS REPORT — Aggregate report for all tests
+// ===========================================================================
+
+pub struct DiagnosticsReport:
+    total_tests:    Int
+    passed:         Int
+    failed:         Int
+    warnings:       Int
+    results:        Array<TestResult>
+    errors:         Array<String>
+    timestamp:      String   // ISO-like timestamp string
+
+// ===========================================================================
+//  BUILD TEST RESULT — Create TestResult from exit code
+// ===========================================================================
+
+fn build_test_result(module: String, name: String, desc: String, exit_code: Int) -> TestResult:
+    let output = if exit_code == 0:
+        "PASS"
+    else:
+        "FAIL (exit code: " + str(exit_code) + ")"
+
+    return TestResult {
+        module: module,
+        test_name: name,
+        description: desc,
+        exit_code: exit_code,
+        output: output,
+        duration_ms: 0
+    }
+
+// ===========================================================================
+//  RUN ALL CAUSE TESTS
+// ===========================================================================
+
+fn run_cause_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    let tests = get_cause_tests()
+    var r = report
+
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let code = run_cause_test_by_tag(t.tag)
+        let result = build_test_result("cause", t.name, t.description, code)
+
+        r.total_tests = r.total_tests + 1
+        if result.exit_code == 0:
+            r.passed = r.passed + 1
+        else:
+            r.failed = r.failed + 1
+
+        push(r.results, result)
+        i = i + 1
+
+    return r
+
+// ===========================================================================
+//  RUN ALL EFFECT TESTS
+//  Effect doesn't have a test table by default, but we run its sanity check.
+// ===========================================================================
+
+fn run_effect_tests(report: DiagnosticsReport) -> DiagnosticsReport with Unsafe:
+    var r = report
+
+    // Run effect sanity check
+    let eff_result = TestResult {
+        module: "effect",
+        test_name: "effect_sanity",
+        description: "Verifies effect module integrity and imports",
+        exit_code: effect_sanity_check(),
+        output: "",
+        duration_ms: 0
+    }
+
+    r.total_tests = r.total_tests + 1
+    if eff_result.exit_code == 0:
+        r.passed = r.passed + 1
+        eff_result.output = "PASS"
+    else:
+        r.failed = r.failed + 1
+        eff_result.output = "FAIL (exit code: " + str(eff_result.exit_code) + ")"
+
+    push(r.results, eff_result)
+
+    // Verify compute_effect function works
+    let test_input: Int = 10
+    let computed = compute_effect(test_input)
+
+    let compute_result = TestResult {
+        module: "effect",
+        test_name: "effect_compute",
+        description: "compute_effect(" + str(test_input) + ") → " + str(computed),
+        exit_code: 0,  // Always passes — informational
+        output: "Result: " + str(computed),
+        duration_ms: 0
+    }
+
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, compute_result)
+
+    // Run new error-handling + budget-safety probes (categories 7-8)
+    let effect_tests = get_effect_tests()
+    var ei: Int = 0
+    while ei < len(effect_tests):
+        let t = effect_tests[ei]
+        let code = run_effect_test_by_tag(t.tag)
+        let probe_result = TestResult {
+            module: "effect",
+            test_name: t.name,
+            description: t.description,
+            exit_code: code,
+            output: "",
+            duration_ms: 0
+        }
+        r.total_tests = r.total_tests + 1
+        if probe_result.exit_code == 0:
+            r.passed = r.passed + 1
+            probe_result.output = "PASS"
+        else:
+            r.failed = r.failed + 1
+            probe_result.output = "FAIL (exit code: " + str(probe_result.exit_code) + ")"
+        push(r.results, probe_result)
+        ei = ei + 1
+
+    return r
+
+// ===========================================================================
+//  RUN ALL SPOOKYMAGIC TESTS
+// ===========================================================================
+
+fn run_spookymagic_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    var r = report
+
+    // Run spookymagic sanity check
+    let spooky_result = TestResult {
+        module: "spookymagic",
+        test_name: "spookymagic_sanity",
+        description: "Verifies spookymagic module integrity and imports",
+        exit_code: spookymagic_sanity_check(),
+        output: "",
+        duration_ms: 0
+    }
+
+    r.total_tests = r.total_tests + 1
+    if spooky_result.exit_code == 0:
+        r.passed = r.passed + 1
+        spooky_result.output = "PASS"
+    else:
+        r.failed = r.failed + 1
+        spooky_result.output = "FAIL (exit code: " + str(spooky_result.exit_code) + ")"
+
+    push(r.results, spooky_result)
+
+    // Test spooky factor
+    let factor = get_spooky_factor()
+
+    let factor_result = TestResult {
+        module: "spookymagic",
+        test_name: "spookymagic_factor",
+        description: "Spooky factor: " + str(factor),
+        exit_code: 0,  // Always passes — informational
+        output: "Factor: " + str(factor) + " (1 = no spooky effect)",
+        duration_ms: 0
+    }
+
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, factor_result)
+
+    // Run new buffer/view + data-marshaling probes (categories 5-6)
+    let spooky_tests = get_spooky_tests()
+    var si: Int = 0
+    while si < len(spooky_tests):
+        let t = spooky_tests[si]
+        let code = run_spooky_test_by_tag(t.tag)
+        let probe_result = TestResult {
+            module: "spookymagic",
+            test_name: t.name,
+            description: t.description,
+            exit_code: code,
+            output: "",
+            duration_ms: 0
+        }
+        r.total_tests = r.total_tests + 1
+        if probe_result.exit_code == 0:
+            r.passed = r.passed + 1
+            probe_result.output = "PASS"
+        else:
+            r.failed = r.failed + 1
+            probe_result.output = "FAIL (exit code: " + str(probe_result.exit_code) + ")"
+        push(r.results, probe_result)
+        si = si + 1
+
+    return r
+
+// ===========================================================================
+//  PRINT DIAGNOSTICS REPORT — Formatted output
+// ===========================================================================
+
+fn print_report(report: DiagnosticsReport, verbose: Bool):
+    println("")
+    println("═══════════════════════════════════════════════════════════")
+    println("  DIAGNOSTICS REPORT")
+    println("═══════════════════════════════════════════════════════════")
+    println("  Total:   " + str(report.total_tests))
+    println("  Passed:  " + str(report.passed))
+    println("  Failed:  " + str(report.failed))
+    println("  Warnings:" + str(report.warnings))
+
+    if len(report.errors) > 0:
+        println("  Errors:  " + str(len(report.errors)))
+
+    println("───────────────────────────────────────────────────────────")
+
+    var i: Int = 0
+    while i < len(report.results):
+        let r = report.results[i]
+
+        var status_icon = "[PASS]"
+        if r.exit_code != 0:
+            status_icon = "[FAIL]"
+
+        println("  " + status_icon + " " + r.module + "::" + r.test_name)
+
+        if verbose:
+            println("         " + r.description)
+            if r.output != "":
+                println("         " + r.output)
+
+        i = i + 1
+
+    // Print errors
+    if len(report.errors) > 0:
+        println("───────────────────────────────────────────────────────────")
+        println("  ERRORS:")
+        var ei: Int = 0
+        while ei < len(report.errors):
+            println("    ! " + report.errors[ei])
+            ei = ei + 1
+
+    println("═══════════════════════════════════════════════════════════")
+
+    // Overall verdict
+    if report.failed == 0:
+        println("  VERDICT: ALL TESTS PASSED")
+    else:
+        println("  VERDICT: " + str(report.failed) + " TEST(S) FAILED")
+
+    println("")
+
+// ===========================================================================
+//  RUN DIAGNOSTICS — Main entry point
+//
+//  Parameters:
+//    test_filter: String — "all", "cause", "effect", "spookymagic", or a
+//                          specific test name like "cause_sanity"
+//    verbose:     Bool   — Enable detailed output
+//
+//  Returns: Int — 0 if all tests pass, 1 if any fail
+// ===========================================================================
+
+pub fn run_diagnostics(test_filter: String, verbose: Bool) -> Int with Unsafe:
+    var report = DiagnosticsReport {
+        total_tests: 0,
+        passed: 0,
+        failed: 0,
+        warnings: 0,
+        results: [],
+        errors: [],
+        timestamp: "now"
+    }
+
+    println("")
+    println("╔══════════════════════════════════════════════════════════╗")
+    println("║  DEBUG TEMPLATE — DIAGNOSTICS SUITE                      ║")
+    println("║  Filter: " + test_filter)
+    if verbose:
+        println("║  Mode:   VERBOSE")
+    println("╚══════════════════════════════════════════════════════════╝")
+
+    // Run tests based on filter
+    if test_filter == "all" or test_filter == "cause":
+        println("")
+        println("─── CAUSE MODULE ─────────────────────────────────────────")
+        report = run_cause_tests(report)
+
+    if test_filter == "all" or test_filter == "effect":
+        println("")
+        println("─── EFFECT MODULE ────────────────────────────────────────")
+        report = run_effect_tests(report)
+
+    if test_filter == "all" or test_filter == "spookymagic":
+        println("")
+        println("─── SPOOKYMAGIC MODULE ───────────────────────────────────")
+        report = run_spookymagic_tests(report)
+
+    // Print report
+    print_report(report, verbose)
+
+    // Return exit code
+    if report.failed > 0:
+        return 1
+    return 0
+
+// ===========================================================================
+//  LIST TESTS — Enumerate all available tests
+// ===========================================================================
+
+pub fn list_tests(verbose: Bool):
+    println("")
+    println("AVAILABLE TESTS:")
+    println("")
+
+    // Cause tests
+    let cause_tests = get_cause_tests()
+    println("  cause.kn (" + str(len(cause_tests)) + " tests):")
+    var i: Int = 0
+    while i < len(cause_tests):
+        let t = cause_tests[i]
+        if verbose:
+            println("    - " + t.name + ": " + t.description)
+        else:
+            println("    - " + t.name)
+        i = i + 1
+
+    // Effect tests
+    let effect_tests = get_effect_tests()
+    println("")
+    println("  effect.kn (" + str(2 + len(effect_tests)) + " tests):")
+    println("    - effect_sanity")
+    println("    - effect_compute")
+    var ei: Int = 0
+    while ei < len(effect_tests):
+        let t = effect_tests[ei]
+        if verbose:
+            println("    - " + t.name + ": " + t.description)
+        else:
+            println("    - " + t.name)
+        ei = ei + 1
+
+    // Spookymagic tests
+    let spooky_tests = get_spooky_tests()
+    println("")
+    println("  spookymagic.kn (" + str(2 + len(spooky_tests)) + " tests):")
+    println("    - spookymagic_sanity")
+    println("    - spookymagic_factor")
+    var si: Int = 0
+    while si < len(spooky_tests):
+        let t = spooky_tests[si]
+        if verbose:
+            println("    - " + t.name + ": " + t.description)
+        else:
+            println("    - " + t.name)
+        si = si + 1
+
+    println("")
+    println("USAGE:")
+    println("  kain run -- --test <name>    Run a specific test")
+    println("  kain run -- --vm --test <name>  Run test in isolation")
+    println("")

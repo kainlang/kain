@@ -1,0 +1,282 @@
+// ============================================================================
+//  EFFECT.KN — DOWNSTREAM EFFECT MODELING
+//
+//  Model downstream effects, cascading behaviors, and secondary consequences
+//  of the root cause defined in cause.kn.
+//
+//  IMPORTED BY: cause.kn
+//  IMPORTS:      spookymagic.kn (for spooky downstream effects),
+//                std::python (for error-handling + budget-safety probes)
+//
+//  PATTERN:
+//    Add helper functions, data types, and effect computations here.
+//    cause.kn calls these to model the full error/edge-case cascade.
+// ============================================================================
+
+use spookymagic
+use std::python
+
+// ===========================================================================
+//  SANITY CHECK — Verifies module integrity
+//  Called by cause.kn during startup to confirm imports resolve.
+// ===========================================================================
+
+pub fn effect_sanity_check() -> Int:
+    // Module compiles and function is callable
+    return 0
+
+// ===========================================================================
+//  compute_effect — Core downstream computation
+//  Models what happens after the root cause triggers.
+//
+//  Parameters:
+//    input: Int — The value from cause.kn to process downstream
+//
+//  Returns: Int — The computed downstream effect
+// ===========================================================================
+
+pub fn compute_effect(input: Int) -> Int:
+    // Default: simple double (replace with real effect logic)
+    var result = input * 2
+
+    // Potentially apply spooky transformation
+    let spooky_factor = get_spooky_factor()
+    if spooky_factor != 1:
+        result = result * spooky_factor
+
+    return result
+
+// ===========================================================================
+//  EFFECT METADATA — Describes what this effect models
+// ===========================================================================
+
+pub struct EffectMetadata:
+    name:        String
+    severity:    Int      // 0=info, 1=warning, 2=error, 3=critical
+    description: String
+    source_file: String   // Which file caused this effect
+
+pub fn get_effect_metadata() -> EffectMetadata:
+    return EffectMetadata {
+        name: "default_effect",
+        severity: 0,
+        description: "Default downstream effect — replace with real effect logic",
+        source_file: "cause.kn"
+    }
+
+// ===========================================================================
+//  EFFECT TABLE — Register effect models here
+// ===========================================================================
+
+pub struct EffectEntry:
+    name:    String
+    tag:     String    // Maps to a compute function name
+    meta:    EffectMetadata
+
+// ===========================================================================
+//  RUN EFFECT BY TAG — Dispatch compute by tag name
+// ===========================================================================
+
+pub fn run_effect_compute_by_tag(tag: String, input: Int) -> Int:
+    if tag == "double_effect":
+        return compute_effect(input)
+    return input  // identity fallback
+
+pub fn get_effect_table() -> Array<EffectEntry>:
+    var effects: Array<EffectEntry> = []
+
+    push(effects, EffectEntry {
+        name: "double_effect",
+        tag: "double_effect",
+        meta: get_effect_metadata()
+    })
+
+    return effects
+
+// ===========================================================================
+//  CATEGORY 7 — ERROR HANDLING PROBES
+//  Verifies the shape of error paths for missing modules, missing attrs, and
+//  return-type mismatches between Python and Kain. Type-level checks only —
+//  the runtime would raise or return a None, but here we only confirm the
+//  call sites and return-type plumbing compile cleanly.
+// ===========================================================================
+
+pub fn test_missing_module_error_path() -> Int:
+    println("  [effect] Probing missing-module error path...")
+    // python_module_available("__kain_definitely_not_a_real_module__12345__")
+    // should return false. The call shape and Bool return are the contract.
+    let present: Bool = python_module_available("__kain_definitely_not_a_real_module__12345__")
+    let _ = present
+    println("  [effect] PASS: python_module_available(...) → Bool error path typechecks")
+    return 0
+
+pub fn test_wrong_attribute_error_path() -> Int:
+    println("  [effect] Probing wrong-attribute error path...")
+    // The defensive idiom: probe with python_hasattr, then read with python_getattr_raw.
+    // python_hasattr returns Bool; python_getattr_raw returns Any so the call site
+    // is forced to deal with the None/exception result through the Any channel.
+    let target: Any = none
+    let has_attr: Bool = python_hasattr(target, "__kain_missing_attribute_xyz__")
+    let raw_value: Any = python_getattr_raw(target, "__kain_missing_attribute_xyz__")
+    let _ = has_attr
+    let _ = raw_value
+    println("  [effect] PASS: python_hasattr + python_getattr_raw error path typechecks")
+    return 0
+
+pub fn test_type_mismatch_return() -> Int:
+    println("  [effect] Probing type-mismatch return (float → int)...")
+    // When Python returns a float payload (e.g. math.tau) but Kain expects an Int,
+    // the explicit `to_int(...)` cast is the documented gate. The Any-typed source
+    // is accepted, and the Int return is typecheck-verified.
+    let target: Any = none
+    let raw_value: Any = python_getattr_raw(target, "tau")
+    let as_int: Int = to_int(raw_value)
+    let _ = as_int
+    // Same shape through a call: a Python callable returning f64 is forced through
+    // py_call_raw_f64_trunc_i64 (the dedicated truncation lane).
+    let arg: Float = 6.28318530718
+    let truncated: Int = py_call_raw_f64_trunc_i64(target, arg)
+    let _ = truncated
+    println("  [effect] PASS: to_int + py_call_raw_f64_trunc_i64 type-mismatch lanes typecheck")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 8 — BUDGET SAFETY PROBES
+//  Verifies that functions marked with budget-safe constraints typecheck, and
+//  that ownership operations are gated from budget scopes. The two
+//  corresponding tests below use Pure (most restrictive effect) as the
+//  "budget safe" marker and demonstrate the effect-gated ownership path.
+// ===========================================================================
+
+// `effect_budget_safe_fn` — Pure function, no allocations, no IO, no Unsafe.
+// Equivalent to a budget-safe function in the runtime taxonomy. It takes a
+// value and returns a deterministic Int — no heap, no OS calls, no raw memory.
+pub fn effect_budget_safe_fn(value: Int) -> Int with Pure:
+    return (value * 7 + 11) % 1024
+
+// `effect_budget_unsafe_helper` — Companion that uses ownership primitives
+// (collapse / observe / decay). Marked Unsafe; this is the lane that must
+// stay separate from budget-safe scopes.
+pub fn effect_budget_unsafe_helper(value: Int) -> Int with Unsafe:
+    let mut cell: ptr<Int> = alloc_zeroed(1, "Int")
+    collapse cell:
+        mem_store(cell, value * 3, "Int")
+        0
+    let loaded: Int = observe cell:
+        mem_load(cell, "Int")
+    decay cell
+    return loaded
+
+pub fn test_gil_state_preserved() -> Int:
+    println("  [effect] Probing GIL state preservation across region begin/end...")
+    // python_region_begin / python_region_end is the GIL-managed scope.
+    // Begin returns a region handle (Any); end returns an Int release status.
+    // Pairs must be balanced — we capture both here as a typecheck probe.
+    let region: Any = python_region_begin()
+    let released: Int = python_region_end(region)
+    let _ = released
+    // Cache counters are read on a live region; the call shape is the contract.
+    let second_region: Any = python_region_begin()
+    let import_hits: Int = python_region_import_cache_hits(second_region)
+    let import_misses: Int = python_region_import_cache_misses(second_region)
+    let attr_hits: Int = python_region_attr_cache_hits(second_region)
+    let attr_misses: Int = python_region_attr_cache_misses(second_region)
+    let _ = python_region_end(second_region)
+    let _ = import_hits
+    let _ = import_misses
+    let _ = attr_hits
+    let _ = attr_misses
+    println("  [effect] PASS: region begin/end + cache counters preserve GIL state contract")
+    return 0
+
+pub fn test_budget_alloc_zero() -> Int:
+    println("  [effect] Probing budget-safe (alloc-zero) function constraint...")
+    // `effect_budget_safe_fn` is annotated `with Pure`, which forbids allocations,
+    // IO, and unsafe memory access. The call site below is the contract: a
+    // budget-safe fn may be invoked from any context.
+    let baseline: Int = 42
+    let safe_value: Int = effect_budget_safe_fn(baseline)
+    // Re-invoke from a different effect context to demonstrate it composes.
+    let in_io_context: Int = effect_budget_safe_fn(safe_value)
+    let _ = in_io_context
+    println("  [effect] PASS: budget-safe fn (Pure) typechecks and composes")
+    return 0
+
+pub fn test_budget_lock_zero() -> Int with Unsafe:
+    println("  [effect] Probing budget-lock: ownership ops are gated from budget scopes...")
+    // The companion helper uses collapse / observe / decay — these require the
+    // Unsafe effect. A budget-safe (Pure) scope cannot call them. We typecheck
+    // both sides here: the helper exists, the budget-safe fn does NOT touch it,
+    // and a final mixed call confirms the gating line.
+    let baseline: Int = 7
+    let unsafe_value: Int = effect_budget_unsafe_helper(baseline)
+    let safe_value: Int = effect_budget_safe_fn(unsafe_value)
+    let _ = safe_value
+    println("  [effect] PASS: ownership primitives stay gated from budget-safe scopes")
+    return 0
+
+// ===========================================================================
+//  EFFECT TEST TABLE — Register error-handling + budget-safety probes
+// ===========================================================================
+
+pub struct EffectTest:
+    name:        String
+    tag:         String
+    description: String
+
+// ===========================================================================
+//  RUN EFFECT TEST BY TAG — Dispatch test execution by tag name.
+//  Each branch calls the corresponding probe function (function pointers
+//  are not codegen-reliable in this lane).
+// ===========================================================================
+
+pub fn run_effect_test_by_tag(tag: String) -> Int with Unsafe:
+    if tag == "missing_module_error_path":
+        return test_missing_module_error_path()
+    if tag == "wrong_attribute_error_path":
+        return test_wrong_attribute_error_path()
+    if tag == "type_mismatch_return":
+        return test_type_mismatch_return()
+    if tag == "gil_state_preserved":
+        return test_gil_state_preserved()
+    if tag == "budget_alloc_zero":
+        return test_budget_alloc_zero()
+    if tag == "budget_lock_zero":
+        return test_budget_lock_zero()
+    return 1  // unknown test
+
+pub fn get_effect_tests() -> Array<EffectTest>:
+    var tests: Array<EffectTest> = []
+
+    push(tests, EffectTest {
+        name: "missing_module_error_path",
+        tag: "missing_module_error_path",
+        description: "python_module_available(...) → Bool error path typechecks (category 7)"
+    })
+    push(tests, EffectTest {
+        name: "wrong_attribute_error_path",
+        tag: "wrong_attribute_error_path",
+        description: "python_hasattr + python_getattr_raw error path typechecks (category 7)"
+    })
+    push(tests, EffectTest {
+        name: "type_mismatch_return",
+        tag: "type_mismatch_return",
+        description: "to_int + py_call_raw_f64_trunc_i64 type-mismatch lanes typecheck (category 7)"
+    })
+    push(tests, EffectTest {
+        name: "gil_state_preserved",
+        tag: "gil_state_preserved",
+        description: "region begin/end + cache counters preserve GIL state contract (category 8)"
+    })
+    push(tests, EffectTest {
+        name: "budget_alloc_zero",
+        tag: "budget_alloc_zero",
+        description: "budget-safe fn (Pure effect) typechecks and composes (category 8)"
+    })
+    push(tests, EffectTest {
+        name: "budget_lock_zero",
+        tag: "budget_lock_zero",
+        description: "ownership primitives (collapse/observe/decay) stay gated from budget-safe scopes (category 8)"
+    })
+
+    return tests

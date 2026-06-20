@@ -1,0 +1,293 @@
+// ============================================================================
+//  SPOOKYMAGIC.KN — BLACK-BOX / SPOOKY-MAGIC BEHAVIORS
+//
+//  For weird, multi-cause, or unexpected behaviors that produce "spooky magic"
+//  — results that appear to come from nowhere, Heisenbugs, timing-dependent
+//  failures, or behaviors that don't fit clean cause→effect modeling.
+//
+//  IMPORTED BY: cause.kn, effect.kn
+//  IMPORTS:      std::python (for buffer/view + data-marshaling probes)
+//
+//  PATTERN:
+//    Use this file when:
+//    - A bug only reproduces 20% of the time
+//    - The behavior changes based on seemingly unrelated code
+//    - You need a black-box that produces surprising outputs
+//    - Multiple causes converge to produce one "spooky" outcome
+// ============================================================================
+
+use std::python
+
+// ===========================================================================
+//  SANITY CHECK — Verifies module integrity
+// ===========================================================================
+
+pub fn spookymagic_sanity_check() -> Int:
+    return 0
+
+// ===========================================================================
+//  get_spooky_factor — Returns a spooky multiplier
+//  In the base template, returns 1 (identity). Replace with your own
+//  unpredictable logic: random seeds, environment-dependent values,
+//  timing-sensitive computations, etc.
+// ===========================================================================
+
+pub fn get_spooky_factor() -> Int:
+    // Base: identity (no spooky effect)
+    // Replace with: random(), os-dependent values, pointer hashes, etc.
+    return 1
+
+// ===========================================================================
+//  run_spooky_test — Black-box behavior test
+//  Takes an input and potentially transforms it in unpredictable ways.
+//
+//  Parameters:
+//    seed: Int — Input seed value
+//
+//  Returns: Int — Potentially surprising result
+// ===========================================================================
+
+pub fn run_spooky_test(seed: Int) -> Int:
+    // Base: pass-through (no transformation)
+    // Replace with your spooky logic
+    return seed
+
+// ===========================================================================
+//  SPOOKY ERROR — A structured error case for black-box failures
+// ===========================================================================
+
+pub struct SpookyError:
+    kind:        String    // e.g., "heisenbug", "race_window", "cache_coherence"
+    probability: Float     // 0.0 – 1.0 reproduction probability
+    trigger:     String    // What triggers it
+    evidence:    String    // How to detect it happened
+
+pub fn create_spooky_error(kind: String, probability: Float, trigger: String) -> SpookyError:
+    return SpookyError {
+        kind: kind,
+        probability: probability,
+        trigger: trigger,
+        evidence: ""
+    }
+
+// ===========================================================================
+//  SPOOKY TABLE — Register spooky behaviors here
+// ===========================================================================
+
+pub struct SpookyEntry:
+    name:        String
+    description: String
+    tag:         String    // Maps to a spooky behavior tag in dispatch logic
+
+pub fn get_spooky_table() -> Array<SpookyEntry>:
+    var entries: Array<SpookyEntry> = []
+
+    push(entries, SpookyEntry {
+        name: "identity",
+        description: "Base identity — no spooky effect (replace with real behavior)",
+        tag: "identity"
+    })
+
+    return entries
+
+// ===========================================================================
+//  CATEGORY 5 — BUFFER / VIEW PROBES
+//  Verifies std::python region-buffer APIs compile and typecheck. These are
+//  the zero-copy interop lanes between Python buffers and Kain-owned data.
+//  Type-level checks only — actual numeric values are runtime dependent.
+// ===========================================================================
+
+pub fn test_buffer_view_checksum37() -> Int:
+    println("  [spookymagic] Probing python_region_buffer_view_checksum37...")
+    let region: Any = python_region_begin()
+    let target: Any = none
+    let iterations: Int = 1024
+    let modulus: Int = 1000000007
+    let checksum: Int = python_region_buffer_view_checksum37(region, target, iterations, modulus)
+    let _ = python_region_end(region)
+    let _ = checksum
+    println("  [spookymagic] PASS: python_region_buffer_view_checksum37 typechecks")
+    return 0
+
+pub fn test_buffer_view_raw() -> Int:
+    println("  [spookymagic] Probing python_region_buffer_view...")
+    let region: Any = python_region_begin()
+    let target: Any = none
+    let view: Any = python_region_buffer_view(region, target)
+    let _ = python_region_end(region)
+    let _ = view
+    println("  [spookymagic] PASS: python_region_buffer_view typechecks")
+    return 0
+
+pub fn test_buffer_materialization() -> Int:
+    println("  [spookymagic] Probing buffer/materialization functions...")
+    let target: Any = none
+    // Materialize a Python object into Kain-owned typed images, tensors, shared buffers.
+    // Note: there is no `kain_buffer_from_py`; the canonical buffer materialization
+    // is `kain_shared_buffer_from_py` (or its stdlib wrapper `python_shared_buffer`).
+    let shared_buf: Any = python_shared_buffer(target)
+    let image: Any = python_image(target)
+    let tensor: Any = python_tensor(target)
+    let geometry: Any = python_geometry(target)
+    // Also probe the underlying `kain_*_from_py` runtime symbols directly.
+    let k_shared: Any = kain_shared_buffer_from_py(target)
+    let k_image: Any = kain_image_from_py(target)
+    let k_tensor: Any = kain_tensor_from_py(target)
+    let k_geometry: Any = kain_geometry_from_py(target)
+    let _ = shared_buf
+    let _ = image
+    let _ = tensor
+    let _ = geometry
+    let _ = k_shared
+    let _ = k_image
+    let _ = k_tensor
+    let _ = k_geometry
+    println("  [spookymagic] PASS: buffer materialization functions typecheck")
+    return 0
+
+pub fn test_float_to_int_truncation() -> Int:
+    println("  [spookymagic] Probing py_call_raw_f64_trunc_i64 return type...")
+    // The function signature is (target: Any, arg: Float) -> Int
+    // The return type is Int (truncated f64 → i64). Verifying the type signature
+    // is the goal — we don't need an actual Python target to compile.
+    let target: Any = none
+    let arg: Float = 3.14159
+    let result: Int = py_call_raw_f64_trunc_i64(target, arg)
+    let _ = result
+    println("  [spookymagic] PASS: py_call_raw_f64_trunc_i64 → Int return type compiles")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 6 — DATA MARSHALING PROBES
+//  Probes for buffer/tensor/image/geometry introspection symbols. These are
+//  runtime-only symbols registered through the python stdlib extension, so
+//  they are accessible from Kain code without explicit @extern declarations.
+// ===========================================================================
+
+pub fn test_ndarray_to_buffer_probe() -> Int:
+    println("  [spookymagic] Probing py_buffer_info / py_buffer_bytes...")
+    let target: Any = none
+    let info: Any = py_buffer_info(target)
+    let bytes: Any = py_buffer_bytes(target)
+    let _ = info
+    let _ = bytes
+    println("  [spookymagic] PASS: py_buffer_info + py_buffer_bytes typecheck")
+    return 0
+
+pub fn test_tensor_info_probe() -> Int:
+    println("  [spookymagic] Probing py_tensor_info / py_tensor_bytes / py_tensor_view...")
+    let target: Any = none
+    let info: Any = py_tensor_info(target)
+    let bytes: Any = py_tensor_bytes(target)
+    let view: Any = py_tensor_view(target)
+    let _ = info
+    let _ = bytes
+    let _ = view
+    println("  [spookymagic] PASS: py_tensor_info + py_tensor_bytes + py_tensor_view typecheck")
+    return 0
+
+pub fn test_image_probe() -> Int:
+    println("  [spookymagic] Probing py_image_info / py_image_view / py_image_pixel...")
+    let target: Any = none
+    let info: Any = py_image_info(target)
+    let view: Any = py_image_view(target)
+    let pixel: Any = py_image_pixel(target, 0, 0)
+    let _ = info
+    let _ = view
+    let _ = pixel
+    println("  [spookymagic] PASS: py_image_info + py_image_view + py_image_pixel typecheck")
+    return 0
+
+pub fn test_geometry_probe() -> Int:
+    println("  [spookymagic] Probing py_geometry_info / py_geometry_vertex / py_geometry_face...")
+    let target: Any = none
+    let info: Any = py_geometry_info(target)
+    // `vertex` is a reserved shader keyword; use `vertex_data` to avoid the collision.
+    let vertex_data: Any = py_geometry_vertex(target, 0)
+    let face: Any = py_geometry_face(target, 0)
+    let _ = info
+    let _ = vertex_data
+    let _ = face
+    println("  [spookymagic] PASS: py_geometry_info + py_geometry_vertex + py_geometry_face typecheck")
+    return 0
+
+// ===========================================================================
+//  SPOOKY TEST ENTRY — Register spooky test functions here
+//  Format mirrors cause.kn: name + tag + description; the dispatcher below
+//  does the if/elif chain (function pointers don't codegen reliably).
+// ===========================================================================
+
+pub struct SpookyTest:
+    name:        String
+    tag:         String
+    description: String
+
+// ===========================================================================
+//  RUN SPOOKY TEST BY TAG — Dispatch test execution by tag name.
+//  Each branch calls the corresponding probe function.
+// ===========================================================================
+
+pub fn run_spooky_test_by_tag(tag: String) -> Int:
+    if tag == "buffer_view_checksum37":
+        return test_buffer_view_checksum37()
+    if tag == "buffer_view_raw":
+        return test_buffer_view_raw()
+    if tag == "buffer_materialization":
+        return test_buffer_materialization()
+    if tag == "float_to_int_truncation":
+        return test_float_to_int_truncation()
+    if tag == "ndarray_to_buffer_probe":
+        return test_ndarray_to_buffer_probe()
+    if tag == "tensor_info_probe":
+        return test_tensor_info_probe()
+    if tag == "image_probe":
+        return test_image_probe()
+    if tag == "geometry_probe":
+        return test_geometry_probe()
+    return 1  // unknown test
+
+pub fn get_spooky_tests() -> Array<SpookyTest>:
+    var tests: Array<SpookyTest> = []
+
+    push(tests, SpookyTest {
+        name: "buffer_view_checksum37",
+        tag: "buffer_view_checksum37",
+        description: "python_region_buffer_view_checksum37 typechecks (category 5)"
+    })
+    push(tests, SpookyTest {
+        name: "buffer_view_raw",
+        tag: "buffer_view_raw",
+        description: "python_region_buffer_view typechecks (category 5)"
+    })
+    push(tests, SpookyTest {
+        name: "buffer_materialization",
+        tag: "buffer_materialization",
+        description: "kain_image_from_py / kain_tensor_from_py / kain_shared_buffer_from_py / kain_geometry_from_py typecheck (category 5)"
+    })
+    push(tests, SpookyTest {
+        name: "float_to_int_truncation",
+        tag: "float_to_int_truncation",
+        description: "py_call_raw_f64_trunc_i64 → Int return type compiles (category 6)"
+    })
+    push(tests, SpookyTest {
+        name: "ndarray_to_buffer_probe",
+        tag: "ndarray_to_buffer_probe",
+        description: "py_buffer_info + py_buffer_bytes typecheck (category 6)"
+    })
+    push(tests, SpookyTest {
+        name: "tensor_info_probe",
+        tag: "tensor_info_probe",
+        description: "py_tensor_info + py_tensor_bytes + py_tensor_view typecheck (category 6)"
+    })
+    push(tests, SpookyTest {
+        name: "image_probe",
+        tag: "image_probe",
+        description: "py_image_info + py_image_view + py_image_pixel typecheck (category 6)"
+    })
+    push(tests, SpookyTest {
+        name: "geometry_probe",
+        tag: "geometry_probe",
+        description: "py_geometry_info + py_geometry_vertex + py_geometry_face typecheck (category 6)"
+    })
+
+    return tests

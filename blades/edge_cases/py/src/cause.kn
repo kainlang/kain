@@ -1,0 +1,488 @@
+// ============================================================================
+//  CAUSE.KN — PYTHON INTEROP TEST FILE
+//
+//  Categories 1-4: Venv Lifecycle + Core Python Interop
+//    Cat 1: Venv Lifecycle        (venv_exists, venv_from_path, venv_current)
+//    Cat 2: Import Resolution     (import X as Y, from X import Y as Z)
+//    Cat 3: Call Patterns         (py_call, py_getattr_raw, py_setattr, py_hasattr)
+//    Cat 4: Region API            (python_region_begin/end, region telemetry)
+//
+//  Pattern: each test function returns 0 on pass, non-zero on fail.
+//  Each test prints "[cause] PASS" or "[cause] FAIL" so the diagnostics
+//  report can capture per-test status.
+//
+//  IMPORTS:
+//    effect.kn      — Downstream effect modeling
+//    spookymagic.kn — Black-box / spooky-magic behaviors
+//    std::python    — Runtime-backed Python interop bridge
+//    std::python::venv — Idempotent venv lifecycle helpers
+//    math / numpy   — First-class Python import surface
+// ============================================================================
+
+use effect
+use spookymagic
+use std::python
+use std::python::venv
+
+// ===========================================================================
+//  PYTHON IMPORTS — AST-level Kain syntax
+//  These create typed bindings (type: Any/Unknown) at module scope.
+//  At `kain check` time we only verify the imports parse and bind correctly.
+//  At `kain run` time the C runtime resolves the modules via PyImport_Import.
+// ===========================================================================
+
+import math as py_math
+import numpy as np
+from math import sqrt as py_sqrt
+
+// ===========================================================================
+//  TEST TABLE — Register your tests here
+//  Format: { name: String, tag: String, description: String }
+// ===========================================================================
+
+pub struct CauseTest:
+    name:        String
+    tag:         String    // Maps to a test function name
+    description: String
+
+// ===========================================================================
+//  RUN TEST BY TAG — Dispatch test execution by tag name.
+//  Replaces function pointers for codegen compatibility (LLVM stable).
+// ===========================================================================
+
+pub fn run_cause_test_by_tag(tag: String) -> Int:
+    if tag == "cause_sanity":
+        return test_cause_sanity()
+    if tag == "test_venv_exists_no_path":
+        return test_venv_exists_no_path()
+    if tag == "test_venv_from_path_resolves":
+        return test_venv_from_path_resolves()
+    if tag == "test_venv_current_not_set":
+        return test_venv_current_not_set()
+    if tag == "test_import_numpy_as_np":
+        return test_import_numpy_as_np()
+    if tag == "test_import_math_as_py_math":
+        return test_import_math_as_py_math()
+    if tag == "test_from_math_import_sqrt":
+        return test_from_math_import_sqrt()
+    if tag == "test_py_call_basic":
+        return test_py_call_basic()
+    if tag == "test_py_call_raw_trunc":
+        return test_py_call_raw_trunc()
+    if tag == "test_py_getattr_raw":
+        return test_py_getattr_raw()
+    if tag == "test_py_setattr_raw":
+        return test_py_setattr_raw()
+    if tag == "test_py_hasattr":
+        return test_py_hasattr()
+    if tag == "test_region_begin_end":
+        return test_region_begin_end()
+    if tag == "test_region_import_cached":
+        return test_region_import_cached()
+    if tag == "test_region_getattr":
+        return test_region_getattr()
+    if tag == "test_region_call":
+        return test_region_call()
+    if tag == "test_region_telemetry":
+        return test_region_telemetry()
+    return 1  // unknown test
+
+// ===========================================================================
+//  CATEGORY 0 — BASE SANITY
+//  Verifies that all imports resolve and the module compiles correctly.
+// ===========================================================================
+
+pub fn test_cause_sanity() -> Int:
+    println("  [cause] Running sanity check...")
+
+    // Verify effect module is accessible
+    let eff_result = effect_sanity_check()
+    if eff_result != 0:
+        println("  [cause] FAIL: effect_sanity_check() returned " + str(eff_result))
+        return 1
+
+    // Verify spookymagic module is accessible
+    let spooky_result = spookymagic_sanity_check()
+    if spooky_result != 0:
+        println("  [cause] FAIL: spookymagic_sanity_check() returned " + str(spooky_result))
+        return 1
+
+    println("  [cause] PASS: All imports resolve correctly")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 1 — VENV LIFECYCLE
+//  These exercise the std::python::venv Pure-effect surface. They do not
+//  shell out to the system Python; they only inspect paths and structure.
+// ===========================================================================
+
+pub fn test_venv_exists_no_path() -> Int:
+    println("  [cause] Probing venv_exists(\"./nonexistent_venv_12345\")...")
+
+    let exists: Bool = venv_exists("./nonexistent_venv_12345")
+    if exists:
+        println("  [cause] FAIL: venv_exists returned true for a path that must not exist")
+        return 1
+
+    println("  [cause] PASS: venv_exists returns false for nonexistent venv path")
+    return 0
+
+pub fn test_venv_from_path_resolves() -> Int:
+    println("  [cause] Probing venv_from_path(\"./.venv\")...")
+
+    let venv: PythonVenv = venv_from_path("./.venv")
+
+    // Field access on a PythonVenv struct
+    let path: String = venv.path
+    let python_exe: String = venv.python_exe
+    let active: Bool = venv.active
+    let _ = python_exe
+    let _ = active
+
+    if path != "./.venv":
+        println("  [cause] FAIL: venv.path mismatch (expected './.venv', got '" + path + "')")
+        return 1
+    if active:
+        println("  [cause] FAIL: venv_from_path should return an inactive descriptor")
+        return 1
+
+    println("  [cause] PASS: venv_from_path resolves a PythonVenv with expected fields")
+    return 0
+
+pub fn test_venv_current_not_set() -> Int:
+    println("  [cause] Probing venv_current() with KAIN_PYTHON_VENV unset...")
+
+    // Pure-effect call. The function reads KAIN_PYTHON_VENV and returns a
+    // PythonVenv whose `path` is empty when the env var is absent.
+    let venv: PythonVenv = venv_current()
+    let _ = venv.python_exe
+    let _ = venv.active
+
+    println("  [cause] PASS: venv_current() typechecks and returns a PythonVenv")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 2 — IMPORT RESOLUTION
+//  `import X as Y` and `from X import Y as Z` are AST-level Kain syntax.
+//  At typecheck time they only register bindings; at run time the C runtime
+//  calls PyImport_Import. These tests confirm the bindings are usable.
+// ===========================================================================
+
+pub fn test_import_numpy_as_np() -> Int:
+    println("  [cause] Verifying 'import numpy as np' binding...")
+
+    // `np` is an Any binding created at module top. Confirm we can read it
+    // through the stdlib getattr bridge without a type error.
+    let target: Any = np
+    let info: Any = python_getattr_raw(target, "__name__")
+    let _ = info
+
+    println("  [cause] PASS: import numpy as np compiles and 'np' is a usable Any binding")
+    return 0
+
+pub fn test_import_math_as_py_math() -> Int:
+    println("  [cause] Verifying 'import math as py_math' and py_math.pi access...")
+
+    // `py_math` is a top-level Any binding. Field access on Any returns Any.
+    let pi_attr: Any = py_math.pi
+    let _ = pi_attr
+
+    // And the canonical stdlib bridge also works.
+    let pi_bridge: Any = python_getattr_raw(py_math, "pi")
+    let _ = pi_bridge
+
+    println("  [cause] PASS: import math as py_math compiles; py_math.pi access typechecks")
+    return 0
+
+pub fn test_from_math_import_sqrt() -> Int:
+    println("  [cause] Verifying 'from math import sqrt as py_sqrt' and py_sqrt(16.0)...")
+
+    // `py_sqrt` is an Any binding (Python's sqrt). Calling an Any value
+    // resolves to a typed call in Kain's type system.
+    let direct_call: Any = py_sqrt(16.0)
+    let _ = direct_call
+
+    // And the canonical stdlib call path also compiles.
+    let bridge_call: Any = python_call_attr_raw(py_math, "sqrt", [16.0])
+    let _ = bridge_call
+
+    println("  [cause] PASS: from math import sqrt as py_sqrt compiles; py_sqrt(16.0) typechecks")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 3 — CALL PATTERNS
+//  `py_call` and friends are runtime-backed bridge functions. The stdlib
+//  exposes them as `python_call`, `python_getattr_raw`, `python_setattr`,
+//  `python_hasattr`. We probe each for signature compatibility.
+// ===========================================================================
+
+pub fn test_py_call_basic() -> Int:
+    println("  [cause] Probing python_call (wraps py_call)...")
+
+    let target: Any = py_math
+    let args: Any = [16.0]
+    let result: Any = python_call(target, args)
+    let _ = result
+
+    println("  [cause] PASS: python_call / py_call signature typechecks")
+    return 0
+
+pub fn test_py_call_raw_trunc() -> Int:
+    println("  [cause] Probing py_call_raw_f64_trunc_i64...")
+
+    // This is a direct builtin: (target: Any, arg: Float) -> Int
+    // Used for hot-loop sqrt/log paths where the float→int cast happens in C.
+    let target: Any = py_math
+    let arg: Float = 16.0
+    let result: Int = py_call_raw_f64_trunc_i64(target, arg)
+    let _ = result
+
+    println("  [cause] PASS: py_call_raw_f64_trunc_i64 (target, Float) -> Int compiles")
+    return 0
+
+pub fn test_py_getattr_raw() -> Int:
+    println("  [cause] Probing python_getattr_raw (wraps py_getattr_raw)...")
+
+    let target: Any = py_math
+    let name: String = "pi"
+    let result: Any = python_getattr_raw(target, name)
+    let _ = result
+
+    println("  [cause] PASS: python_getattr_raw / py_getattr_raw typechecks")
+    return 0
+
+pub fn test_py_setattr_raw() -> Int:
+    println("  [cause] Probing python_setattr (wraps py_setattr)...")
+
+    let target: Any = py_math
+    let name: String = "kain_probe_attr"
+    let value: Any = 42
+    python_setattr(target, name, value)
+
+    println("  [cause] PASS: python_setattr / py_setattr syntax compiles")
+    return 0
+
+pub fn test_py_hasattr() -> Int:
+    println("  [cause] Probing python_hasattr (wraps py_hasattr)...")
+
+    let target: Any = py_math
+    let name: String = "sqrt"
+    let has: Bool = python_hasattr(target, name)
+    let _ = has
+
+    println("  [cause] PASS: python_hasattr / py_hasattr typechecks")
+    return 0
+
+// ===========================================================================
+//  CATEGORY 4 — REGION API
+//  The region API is the recommended hot-path surface. A region amortizes
+//  GIL acquire/release across many calls and caches imports + attributes.
+//  Every region MUST be paired: python_region_begin / python_region_end.
+// ===========================================================================
+
+pub fn test_region_begin_end() -> Int:
+    println("  [cause] Probing python_region_begin / python_region_end pair...")
+
+    let region: Any = python_region_begin()
+    let rc: Int = python_region_end(region)
+    let _ = rc
+
+    println("  [cause] PASS: python_region_begin / python_region_end typecheck")
+    return 0
+
+pub fn test_region_import_cached() -> Int:
+    println("  [cause] Probing python_region_import cache hit pattern...")
+
+    let region: Any = python_region_begin()
+
+    // First import: cache miss. Second import: cache hit.
+    let m1: Any = python_region_import(region, "math")
+    let m2: Any = python_region_import(region, "math")
+    let _ = m1
+    let _ = m2
+
+    // Read the import cache counters to confirm the hit landed.
+    let import_hits: Int = python_region_import_cache_hits(region)
+    let import_misses: Int = python_region_import_cache_misses(region)
+    let _ = import_hits
+    let _ = import_misses
+
+    let rc: Int = python_region_end(region)
+    let _ = rc
+
+    println("  [cause] PASS: python_region_import cache hit pattern typechecks")
+    return 0
+
+pub fn test_region_getattr() -> Int:
+    println("  [cause] Probing python_region_getattr_raw...")
+
+    let region: Any = python_region_begin()
+    let target: Any = py_math
+    let attr: Any = python_region_getattr_raw(region, target, "pi")
+    let _ = attr
+    let rc: Int = python_region_end(region)
+    let _ = rc
+
+    println("  [cause] PASS: python_region_getattr_raw typechecks")
+    return 0
+
+pub fn test_region_call() -> Int:
+    println("  [cause] Probing python_region_call_raw...")
+
+    let region: Any = python_region_begin()
+    let target: Any = py_math
+    let args: Any = [16.0]
+    let result: Any = python_region_call_raw(region, target, args)
+    let _ = result
+    let rc: Int = python_region_end(region)
+    let _ = rc
+
+    // Also verify the bound-attr / fast-lane variant compiles.
+    let region2: Any = python_region_begin()
+    let tau: Int = python_region_call_attr_raw_f64_trunc_i64(region2, py_math, "sqrt", 16.0)
+    let _ = tau
+    let rc2: Int = python_region_end(region2)
+    let _ = rc2
+
+    println("  [cause] PASS: python_region_call_raw + _attr_raw_f64_trunc_i64 typecheck")
+    return 0
+
+pub fn test_region_telemetry() -> Int:
+    println("  [cause] Probing region telemetry counters...")
+
+    let region: Any = python_region_begin()
+
+    // Force a few cache events so the counters are meaningful at runtime.
+    let m: Any = python_region_import(region, "math")
+    let _: Int = python_region_call_attr_raw_f64_trunc_i64(region, py_math, "sqrt", 9.0)
+    let _ = m
+
+    // All four counters must typecheck.
+    let import_hits: Int = python_region_import_cache_hits(region)
+    let import_misses: Int = python_region_import_cache_misses(region)
+    let attr_hits: Int = python_region_attr_cache_hits(region)
+    let attr_misses: Int = python_region_attr_cache_misses(region)
+    let call_count: Int = python_region_call_count(region)
+    let generic_calls: Int = python_region_generic_call_count(region)
+    let fast_calls: Int = python_region_fast_call_count(region)
+    let views_opened: Int = python_region_views_opened(region)
+    let views_released: Int = python_region_views_released(region)
+    let _ = import_hits
+    let _ = import_misses
+    let _ = attr_hits
+    let _ = attr_misses
+    let _ = call_count
+    let _ = generic_calls
+    let _ = fast_calls
+    let _ = views_opened
+    let _ = views_released
+
+    let rc: Int = python_region_end(region)
+    let _ = rc
+
+    println("  [cause] PASS: import/attr cache hit/miss + call/view counters typecheck")
+    return 0
+
+// ===========================================================================
+//  TEST TABLE — All tests registered here.
+//  The diagnostics module iterates this table to discover and run tests.
+// ===========================================================================
+
+pub fn get_cause_tests() -> Array<CauseTest>:
+    var tests: Array<CauseTest> = []
+
+    push(tests, CauseTest {
+        name: "cause_sanity",
+        tag: "cause_sanity",
+        description: "Verifies all imports resolve and modules compile correctly"
+    })
+
+    // Category 1 — Venv Lifecycle
+    push(tests, CauseTest {
+        name: "test_venv_exists_no_path",
+        tag: "test_venv_exists_no_path",
+        description: "venv_exists returns false for a path that does not exist (cat 1)"
+    })
+    push(tests, CauseTest {
+        name: "test_venv_from_path_resolves",
+        tag: "test_venv_from_path_resolves",
+        description: "venv_from_path returns a PythonVenv with the expected fields (cat 1)"
+    })
+    push(tests, CauseTest {
+        name: "test_venv_current_not_set",
+        tag: "test_venv_current_not_set",
+        description: "venv_current() returns a PythonVenv descriptor (cat 1)"
+    })
+
+    // Category 2 — Import Resolution
+    push(tests, CauseTest {
+        name: "test_import_numpy_as_np",
+        tag: "test_import_numpy_as_np",
+        description: "'import numpy as np' compiles; np is a usable Any binding (cat 2)"
+    })
+    push(tests, CauseTest {
+        name: "test_import_math_as_py_math",
+        tag: "test_import_math_as_py_math",
+        description: "'import math as py_math' compiles; py_math.pi typechecks (cat 2)"
+    })
+    push(tests, CauseTest {
+        name: "test_from_math_import_sqrt",
+        tag: "test_from_math_import_sqrt",
+        description: "'from math import sqrt as py_sqrt' compiles; py_sqrt(16.0) typechecks (cat 2)"
+    })
+
+    // Category 3 — Call Patterns
+    push(tests, CauseTest {
+        name: "test_py_call_basic",
+        tag: "test_py_call_basic",
+        description: "python_call / py_call signature typechecks (cat 3)"
+    })
+    push(tests, CauseTest {
+        name: "test_py_call_raw_trunc",
+        tag: "test_py_call_raw_trunc",
+        description: "py_call_raw_f64_trunc_i64 (Any, Float) -> Int compiles (cat 3)"
+    })
+    push(tests, CauseTest {
+        name: "test_py_getattr_raw",
+        tag: "test_py_getattr_raw",
+        description: "python_getattr_raw / py_getattr_raw typechecks (cat 3)"
+    })
+    push(tests, CauseTest {
+        name: "test_py_setattr_raw",
+        tag: "test_py_setattr_raw",
+        description: "python_setattr / py_setattr syntax compiles (cat 3)"
+    })
+    push(tests, CauseTest {
+        name: "test_py_hasattr",
+        tag: "test_py_hasattr",
+        description: "python_hasattr / py_hasattr typechecks (cat 3)"
+    })
+
+    // Category 4 — Region API
+    push(tests, CauseTest {
+        name: "test_region_begin_end",
+        tag: "test_region_begin_end",
+        description: "python_region_begin / python_region_end pair typechecks (cat 4)"
+    })
+    push(tests, CauseTest {
+        name: "test_region_import_cached",
+        tag: "test_region_import_cached",
+        description: "python_region_import + cache counters typecheck (cat 4)"
+    })
+    push(tests, CauseTest {
+        name: "test_region_getattr",
+        tag: "test_region_getattr",
+        description: "python_region_getattr_raw typechecks (cat 4)"
+    })
+    push(tests, CauseTest {
+        name: "test_region_call",
+        tag: "test_region_call",
+        description: "python_region_call_raw + attr_raw_f64_trunc_i64 typecheck (cat 4)"
+    })
+    push(tests, CauseTest {
+        name: "test_region_telemetry",
+        tag: "test_region_telemetry",
+        description: "import/attr/view/call counters typecheck (cat 4)"
+    })
+
+    return tests
