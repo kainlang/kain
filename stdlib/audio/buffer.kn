@@ -1,0 +1,335 @@
+// buffer.kn — Audio Buffers, Views, and Ring Buffers (std::audio Phase 1)
+//
+// Layer: L0 (plain code — no semantic construct maps to buffer layout)
+//
+// AudioBuffer is the fundamental unit of audio data. It owns a contiguous
+// region of f32 samples with a known sample rate and channel count. AudioView
+// is a non-owning slice into an AudioBuffer. AudioRingBuffer is a lock-free
+// SPSC circular buffer for streaming audio between threads.
+//
+// All public structs in this file are the CANONICAL definitions. DELTA's
+// device.kn mirrors AudioView LOCALLY (with a comment that says "replace with
+// use std::audio::buffer when CHARLIE ships") so it typechecks without this
+// module. The field names match DELTA's local copy exactly so the swap is
+// drop-in: remove the local struct, add `use std::audio::buffer` at the top,
+// recompile.
+//
+// Real-time safety: buffer constructors and accessors are `with Unsafe` only
+// where they touch raw pointer offsets. Pure read-only accessors are
+// `with Pure`. The audio thread (pulse budget) may NOT call constructors.
+
+use std::math
+use std::memory
+use std::atomic
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+// Status codes
+pub const BUFFER_OK:                Int = 0
+pub const BUFFER_ERR_NULL_PTR:      Int = -1
+pub const BUFFER_ERR_INVALID_FRAMES: Int = -2
+pub const BUFFER_ERR_INVALID_CHANS:  Int = -3
+pub const BUFFER_ERR_OUT_OF_BOUNDS:  Int = -4
+pub const BUFFER_ERR_INVALID_FORMAT: Int = -5
+pub const BUFFER_ERR_RING_FULL:      Int = -6
+pub const BUFFER_ERR_RING_EMPTY:     Int = -7
+
+// Default alignment target (matches SSE requirement; SIMD lanes need this)
+pub const BUFFER_ALIGN_BYTES: Int = 16
+
+// Sentinel for "no ring buffer slot available right now"
+pub const BUFFER_RING_NONE: Int = 0
+
+// ============================================================================
+// T Y P E S  —  AudioFormat, AudioSampleFormat
+// ============================================================================
+
+pub enum AudioSampleFormat:
+    F32          # 32-bit float (native DSP format)
+    S16          # 16-bit signed integer (CD quality)
+    S24          # 24-bit signed integer (packed)
+    S32          # 32-bit signed integer
+
+pub struct AudioFormat:
+    sample_rate: Int
+    channels: Int
+    sample_format: AudioSampleFormat
+
+// Bytes per sample for each format (used for size calculations)
+fn audio_format_bytes_per_sample(fmt: AudioSampleFormat) -> Int with Pure:
+    match fmt:
+        AudioSampleFormat::F32 => return 4
+        AudioSampleFormat::S16 => return 2
+        AudioSampleFormat::S24 => return 3
+        AudioSampleFormat::S32 => return 4
+    return 0
+
+// ============================================================================
+// A U D I O   B U F F E R
+// ============================================================================
+
+// AudioBuffer — owns a contiguous region of f32 samples (always normalized
+// to f32 internally; other sample formats are converted on read/write).
+pub struct AudioBuffer:
+    data: ptr<Float>
+    frames: Int
+    format: AudioFormat
+
+// audio_buffer_new — allocates a zeroed f32 buffer. Total floats allocated =
+// frames * format.channels. The buffer is 16-byte aligned for SSE/AVX.
+pub fn audio_buffer_new(frames: Int, format: AudioFormat) -> AudioBuffer with Unsafe:
+    if frames < 0:
+        return AudioBuffer { data: alloc_zeroed(0, "Float"), frames: 0, format: format }
+    let channels: Int = format.channels
+    if channels < 1:
+        return AudioBuffer { data: alloc_zeroed(0, "Float"), frames: 0, format: format }
+    let total_floats: Int = frames * channels
+    let data: ptr<Float> = alloc_zeroed(total_floats, "Float")
+    return AudioBuffer { data: data, frames: frames, format: format }
+
+// audio_buffer_destroy — releases the underlying memory. Returns 0 on success.
+pub fn audio_buffer_destroy(buf: AudioBuffer) -> Int with Unsafe:
+    if ptr_to_int(buf.data) == 0:
+        return BUFFER_OK
+    decay buf.data
+    return BUFFER_OK
+
+// audio_buffer_frame_count — number of frames (samples per channel).
+pub fn audio_buffer_frame_count(buf: AudioBuffer) -> Int with Pure:
+    return buf.frames
+
+// audio_buffer_channel_count — number of interleaved channels.
+pub fn audio_buffer_channel_count(buf: AudioBuffer) -> Int with Pure:
+    return buf.format.channels
+
+// audio_buffer_sample_rate — sample rate in Hz (e.g., 44100, 48000).
+pub fn audio_buffer_sample_rate(buf: AudioBuffer) -> Int with Pure:
+    return buf.format.sample_rate
+
+// audio_buffer_duration_ms — duration in milliseconds.
+pub fn audio_buffer_duration_ms(buf: AudioBuffer) -> Int with Pure:
+    if buf.format.sample_rate <= 0:
+        return 0
+    return (buf.frames * 1000) / buf.format.sample_rate
+
+// audio_buffer_sample_ptr — pointer to the sample at (frame, channel).
+// Returns a pointer into the buffer's flat sample array. In debug, the
+// caller is responsible for bounds-checking the (frame, channel) pair.
+pub fn audio_buffer_sample_ptr(buf: AudioBuffer, frame: Int, channel: Int) -> ptr<Float> with Unsafe:
+    if frame < 0 or channel < 0:
+        return buf.data
+    if frame >= buf.frames or channel >= buf.format.channels:
+        return buf.data
+    let channels: Int = buf.format.channels
+    let offset: Int = (frame * channels) + channel
+    return ptr_offset(buf.data, offset, "Float")
+
+// audio_buffer_clear — zero every sample in the buffer.
+pub fn audio_buffer_clear(buf: AudioBuffer) -> Int with Unsafe:
+    let channels: Int = buf.format.channels
+    let total: Int = buf.frames * channels
+    if total <= 0:
+        return BUFFER_OK
+    var i: Int = 0
+    while i < total:
+        mem_store(ptr_offset(buf.data, i, "Float"), 0.0, "Float")
+        i = i + 1
+    return BUFFER_OK
+
+// audio_buffer_fill_sine — fill with sine wave at freq_hz and amplitude.
+// Useful for testing (oscilloscope verification, gain calibration).
+pub fn audio_buffer_fill_sine(buf: AudioBuffer, freq_hz: Float, amplitude: Float) -> Int with Unsafe:
+    let sr: Float = Float(buf.format.sample_rate)
+    if sr <= 0.0:
+        return BUFFER_ERR_INVALID_FORMAT
+    let channels: Int = buf.format.channels
+    if channels < 1:
+        return BUFFER_ERR_INVALID_CHANS
+    let two_pi: Float = 6.283185307179586
+    let phase_inc: Float = (two_pi * freq_hz) / sr
+    var frame: Int = 0
+    while frame < buf.frames:
+        let phase: Float = phase_inc * Float(frame)
+        let sample: Float = amplitude * sin(phase)
+        var ch: Int = 0
+        while ch < channels:
+            let offset: Int = (frame * channels) + ch
+            mem_store(ptr_offset(buf.data, offset, "Float"), sample, "Float")
+            ch = ch + 1
+        frame = frame + 1
+    return BUFFER_OK
+
+// ============================================================================
+// A U D I O   V I E W
+// ============================================================================
+
+// AudioView — non-owning slice into an AudioBuffer. Field names are FIXED to
+// match DELTA's local definition in device.kn so the drop-in swap works.
+pub struct AudioView:
+    data: ptr<Float>
+    frames: Int
+    channels: Int
+    sample_rate: Int
+    start_frame: Int
+
+// audio_view_from_buffer — create a non-owning view into buf from frame
+// `start` for `len` frames. Returns an empty view on out-of-bounds input.
+pub fn audio_view_from_buffer(buf: AudioBuffer, start: Int, len: Int) -> AudioView with Unsafe:
+    if start < 0 or len < 0:
+        return AudioView { data: buf.data, frames: 0, channels: buf.format.channels, sample_rate: buf.format.sample_rate, start_frame: 0 }
+    if start >= buf.frames:
+        return AudioView { data: buf.data, frames: 0, channels: buf.format.channels, sample_rate: buf.format.sample_rate, start_frame: buf.frames }
+    let available: Int = buf.frames - start
+    let view_frames: Int = if len > available: available else: len
+    let channels: Int = buf.format.channels
+    let view_data: ptr<Float> = ptr_offset(buf.data, start * channels, "Float")
+    return AudioView { data: view_data, frames: view_frames, channels: channels, sample_rate: buf.format.sample_rate, start_frame: start }
+
+// audio_view_sample_ptr — pointer to a specific sample within the view.
+pub fn audio_view_sample_ptr(view: AudioView, frame: Int, channel: Int) -> ptr<Float> with Unsafe:
+    if frame < 0 or channel < 0:
+        return view.data
+    if frame >= view.frames or channel >= view.channels:
+        return view.data
+    let offset: Int = (frame * view.channels) + channel
+    return ptr_offset(view.data, offset, "Float")
+
+// audio_view_frame_count — number of frames in the view.
+pub fn audio_view_frame_count(view: AudioView) -> Int with Pure:
+    return view.frames
+
+// ============================================================================
+// A U D I O   R I N G   B U F F E R
+// ============================================================================
+
+// AudioRingBuffer — lock-free SPSC ring buffer for streaming audio between
+// threads. Power-of-two capacity is enforced by the producer side; the
+// consumer only reads. Index cursors are Int counters (modulo capacity).
+pub struct AudioRingBuffer:
+    data: ptr<Float>
+    capacity_frames: Int
+    channels: Int
+    write_idx: ptr<Int>
+    read_idx: ptr<Int>
+
+// audio_ring_buffer_new — allocate a power-of-two capacity ring buffer.
+pub fn audio_ring_buffer_new(capacity_frames: Int, channels: Int) -> AudioRingBuffer with Unsafe:
+    if capacity_frames < 2:
+        return AudioRingBuffer { data: alloc_zeroed(0, "Float"), capacity_frames: 0, channels: channels, write_idx: alloc_zeroed(1, "Int"), read_idx: alloc_zeroed(1, "Int") }
+    if channels < 1:
+        return AudioRingBuffer { data: alloc_zeroed(0, "Float"), capacity_frames: 0, channels: channels, write_idx: alloc_zeroed(1, "Int"), read_idx: alloc_zeroed(1, "Int") }
+    # Round up to nearest power of two for cheap modulo via bitmask
+    var cap: Int = 1
+    while cap < capacity_frames:
+        cap = cap * 2
+    let total_floats: Int = cap * channels
+    let data: ptr<Float> = alloc_zeroed(total_floats, "Float")
+    let w_idx: ptr<Int> = alloc_zeroed(1, "Int")
+    let r_idx: ptr<Int> = alloc_zeroed(1, "Int")
+    return AudioRingBuffer { data: data, capacity_frames: cap, channels: channels, write_idx: w_idx, read_idx: r_idx }
+
+// audio_ring_buffer_destroy — release the ring buffer's memory and cursors.
+pub fn audio_ring_buffer_destroy(rb: AudioRingBuffer) -> Int with Unsafe:
+    if ptr_to_int(rb.data) != 0:
+        decay rb.data
+    if ptr_to_int(rb.write_idx) != 0:
+        decay rb.write_idx
+    if ptr_to_int(rb.read_idx) != 0:
+        decay rb.read_idx
+    return BUFFER_OK
+
+// audio_ring_buffer_write — non-blocking write of `src` into the ring.
+// Returns number of frames written (0 if full or invalid).
+pub fn audio_ring_buffer_write(rb: AudioRingBuffer, src: AudioView) -> Int with Unsafe:
+    if rb.capacity_frames <= 0 or rb.channels <= 0:
+        return 0
+    if src.frames <= 0:
+        return 0
+    let w: Int = atomic_load_acquire(rb.write_idx)
+    let r: Int = atomic_load_acquire(rb.read_idx)
+    let available: Int = rb.capacity_frames - (w - r)
+    if available <= 0:
+        return 0
+    let to_write: Int = if src.frames < available: src.frames else: available
+    let cap: Int = rb.capacity_frames
+    let chans: Int = rb.channels
+    let src_channels: Int = src.channels
+    var i: Int = 0
+    while i < to_write:
+        let write_pos: Int = (w + i) % cap
+        var ch: Int = 0
+        while ch < chans:
+            let sample_ch: Int = if ch < src_channels: ch else: 0
+            let src_offset: Int = (i * src_channels) + sample_ch
+            let dst_offset: Int = (write_pos * chans) + ch
+            let v: Float = mem_load(ptr_offset(src.data, src_offset, "Float"), "Float")
+            mem_store(ptr_offset(rb.data, dst_offset, "Float"), v, "Float")
+            ch = ch + 1
+        i = i + 1
+    atomic_store_release(rb.write_idx, w + to_write)
+    return to_write
+
+// audio_ring_buffer_read — non-blocking read of up to max_frames into `dst`.
+// Returns number of frames read (0 if empty).
+pub fn audio_ring_buffer_read(rb: AudioRingBuffer, dst: AudioView, max_frames: Int) -> Int with Unsafe:
+    if rb.capacity_frames <= 0 or rb.channels <= 0:
+        return 0
+    if max_frames <= 0:
+        return 0
+    let w: Int = atomic_load_acquire(rb.write_idx)
+    let r: Int = atomic_load_acquire(rb.read_idx)
+    let available: Int = w - r
+    if available <= 0:
+        return 0
+    let to_read: Int = if max_frames < available: max_frames else: available
+    if to_read > dst.frames:
+        return 0
+    let cap: Int = rb.capacity_frames
+    let chans: Int = rb.channels
+    let dst_channels: Int = dst.channels
+    var i: Int = 0
+    while i < to_read:
+        let read_pos: Int = (r + i) % cap
+        var ch: Int = 0
+        while ch < chans:
+            let dst_ch: Int = if ch < dst_channels: ch else: 0
+            let src_offset: Int = (read_pos * chans) + ch
+            let dst_offset: Int = (i * dst_channels) + dst_ch
+            let v: Float = mem_load(ptr_offset(rb.data, src_offset, "Float"), "Float")
+            mem_store(ptr_offset(dst.data, dst_offset, "Float"), v, "Float")
+            ch = ch + 1
+        i = i + 1
+    atomic_store_release(rb.read_idx, r + to_read)
+    return to_read
+
+// audio_ring_buffer_available_read — number of frames available to read.
+pub fn audio_ring_buffer_available_read(rb: AudioRingBuffer) -> Int with Unsafe:
+    if rb.capacity_frames <= 0:
+        return 0
+    let w: Int = atomic_load_acquire(rb.write_idx)
+    let r: Int = atomic_load_acquire(rb.read_idx)
+    let avail: Int = w - r
+    if avail < 0:
+        return 0
+    if avail > rb.capacity_frames:
+        return rb.capacity_frames
+    return avail
+
+// audio_ring_buffer_available_write — number of frames that can be written.
+pub fn audio_ring_buffer_available_write(rb: AudioRingBuffer) -> Int with Unsafe:
+    if rb.capacity_frames <= 0:
+        return 0
+    let w: Int = atomic_load_acquire(rb.write_idx)
+    let r: Int = atomic_load_acquire(rb.read_idx)
+    let avail: Int = rb.capacity_frames - (w - r)
+    if avail < 0:
+        return 0
+    if avail > rb.capacity_frames:
+        return rb.capacity_frames
+    return avail
+
+// ============================================================================
+// End of buffer.kn
+// ============================================================================

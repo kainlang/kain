@@ -1,0 +1,206 @@
+// world.kn — Audio State Authority (std::audio Phase 1)
+//
+// Layer: L1 (world — compiler-owned state authority)
+//
+// MixerWorld is the single authority for all audio state. Every parameter
+// the mixer exposes (master volume, transport position, tempo, meter
+// values) lives here. Mutations go through `patch` (see patch.kn). Reads
+// happen either directly on the world reference (from the audio thread)
+// or via `entangle` mirrors in the UI world (Phase 2 — entangle.kn).
+//
+// All numeric fields have sensible defaults so a freshly-initialized
+// world represents a stopped mixer at 48 kHz, 120 BPM, unity gain, no
+// loop region, and 256-frame buffer size. The UI surface declarations
+// (web / native_ui) wire the world to MixerPanel; the component itself
+// is defined in std::audio::device.kn's UI blade (Phase 1 keeps the
+// panel stub-local; the full mixer panel lands in Phase 2).
+
+use std::intent
+
+// ============================================================================
+// Constants — Transport State Encoding
+// ============================================================================
+//
+// The transport_state field is an Int so a single int load is enough to
+// dispatch in the audio thread. The encoding is fixed; do not reorder.
+
+pub const TRANSPORT_STOPPED:  Int = 0
+pub const TRANSPORT_PLAYING:  Int = 1
+pub const TRANSPORT_PAUSED:   Int = 2
+
+// Solo channel sentinel — "no channel soloed"
+pub const SOLO_NONE: Int = -1
+
+// Default session parameters (overridable at runtime via patch)
+pub const DEFAULT_SAMPLE_RATE:     Int   = 44100
+pub const DEFAULT_BUFFER_FRAMES:   Int   = 256
+pub const DEFAULT_TEMPO_BPM:       Float = 120.0
+pub const DEFAULT_TIME_SIG_NUM:    Int   = 4
+pub const DEFAULT_TIME_SIG_DEN:    Int   = 4
+pub const DEFAULT_MASTER_VOLUME:   Float = 1.0
+
+// ============================================================================
+// M I X E R   W O R L D
+// ============================================================================
+//
+// Single compiler-owned state authority for the audio mixer. Every state
+// field has a typed default. The surface wiring maps to MixerPanel which
+// is declared (as a stub) in std::audio::device.kn. The full meter panel
+// implementation lands in the UI blade in Phase 1.5.
+
+world MixerWorld:
+    # ── Master bus ──────────────────────────────────────────────────────────
+    state master_volume: Float = DEFAULT_MASTER_VOLUME  # 0.0..1.0 linear
+    state master_mute: Bool = false
+    state master_solo_channel: Int = SOLO_NONE         # -1 = no solo
+
+    # ── Transport ───────────────────────────────────────────────────────────
+    state transport_state: Int = TRANSPORT_STOPPED
+    state transport_position_frames: Int = 0
+    state transport_loop_start: Int = 0
+    state transport_loop_end: Int = 0
+    state transport_loop_enabled: Bool = false
+
+    # ── Session parameters ──────────────────────────────────────────────────
+    state sample_rate: Int = DEFAULT_SAMPLE_RATE
+    state buffer_size_frames: Int = DEFAULT_BUFFER_FRAMES
+    state tempo_bpm: Float = DEFAULT_TEMPO_BPM
+    state time_signature_numerator: Int = DEFAULT_TIME_SIG_NUM
+    state time_signature_denominator: Int = DEFAULT_TIME_SIG_DEN
+
+    # ── Telemetry (updated by audio thread, read by UI) ─────────────────────
+    # These are written via patch (update_meter_peaks, record_cpu_load) so
+    # the compiler can witness them in the journal. The UI mirror in
+    # Phase 2 entangle.kn will subscribe to these via single_writer sync.
+    state peak_left: Float = 0.0
+    state peak_right: Float = 0.0
+    state rms_left: Float = 0.0
+    state rms_right: Float = 0.0
+    state cpu_load_percent: Float = 0.0
+
+    # ── Surfaces ────────────────────────────────────────────────────────────
+    # The actual MixerPanel component is defined in device.kn's local UI
+    # stub block. The surface binding is resolved at link time.
+    surface web => MixerPanel
+    surface native_ui => MixerPanel
+
+// ============================================================================
+// T R A N S P O R T   W O R L D  (Phase 2 preview)
+// ============================================================================
+//
+// Phase 2 splits transport out of the mixer into its own world. For now
+// the type is declared so future patches can reference it without
+// breaking compilation. No patches target TransportWorld in Phase 1.
+
+pub world TransportWorld:
+    state position_frames: Int = 0
+    state position_samples: Int = 0
+    state tempo_bpm: Float = DEFAULT_TEMPO_BPM
+    state is_playing: Bool = false
+    state is_recording: Bool = false
+    state loop_active: Bool = false
+    state punch_in_frame: Int = -1
+    state punch_out_frame: Int = -1
+
+// ============================================================================
+// MixerPanel — UI Surface Component (Phase 1 stub)
+// ============================================================================
+//
+// Minimal component so the surface bindings in MixerWorld resolve. The
+// full transport bar, level meters, and master fader land in the UI
+// blade in Phase 1.5 (see blades/kaintana/transport/ for the
+// reference implementation that already exercises MixerWorld).
+
+pub component MixerPanel():
+    state frame_count: Int = 0
+
+    render <panel title="Kain Audio Mixer" />
+
+// ============================================================================
+// Helpers — pure read-only accessors
+// ============================================================================
+//
+// These are convenience functions the audio thread can call without
+// triggering the patch journal. They are `with Pure` so the compiler
+// can inline and constant-fold.
+
+pub fn mixer_master_volume() -> Float with Pure:
+    return MixerWorld.master_volume
+
+pub fn mixer_is_playing() -> Bool with Pure:
+    return MixerWorld.transport_state == TRANSPORT_PLAYING
+
+pub fn mixer_is_paused() -> Bool with Pure:
+    return MixerWorld.transport_state == TRANSPORT_PAUSED
+
+pub fn mixer_is_stopped() -> Bool with Pure:
+    return MixerWorld.transport_state == TRANSPORT_STOPPED
+
+pub fn mixer_position_frames() -> Int with Pure:
+    return MixerWorld.transport_position_frames
+
+pub fn mixer_sample_rate() -> Int with Pure:
+    return MixerWorld.sample_rate
+
+pub fn mixer_buffer_size_frames() -> Int with Pure:
+    return MixerWorld.buffer_size_frames
+
+pub fn mixer_tempo_bpm() -> Float with Pure:
+    return MixerWorld.tempo_bpm
+
+pub fn mixer_time_signature_num() -> Int with Pure:
+    return MixerWorld.time_signature_numerator
+
+pub fn mixer_time_signature_den() -> Int with Pure:
+    return MixerWorld.time_signature_denominator
+
+pub fn mixer_loop_active() -> Bool with Pure:
+    return MixerWorld.transport_loop_enabled and MixerWorld.transport_loop_end > MixerWorld.transport_loop_start
+
+pub fn mixer_peak_left() -> Float with Pure:
+    return MixerWorld.peak_left
+
+pub fn mixer_peak_right() -> Float with Pure:
+    return MixerWorld.peak_right
+
+pub fn mixer_rms_left() -> Float with Pure:
+    return MixerWorld.rms_left
+
+pub fn mixer_rms_right() -> Float with Pure:
+    return MixerWorld.rms_right
+
+pub fn mixer_cpu_load_percent() -> Float with Pure:
+    return MixerWorld.cpu_load_percent
+
+// ============================================================================
+// TransportWorld accessors (Phase 2 preview — kept here so the world
+// declaration passes dead-state analysis)
+// ============================================================================
+
+pub fn transport_position_frames() -> Int with Pure:
+    return TransportWorld.position_frames
+
+pub fn transport_position_samples() -> Int with Pure:
+    return TransportWorld.position_samples
+
+pub fn transport_tempo_bpm() -> Float with Pure:
+    return TransportWorld.tempo_bpm
+
+pub fn transport_is_playing() -> Bool with Pure:
+    return TransportWorld.is_playing
+
+pub fn transport_is_recording() -> Bool with Pure:
+    return TransportWorld.is_recording
+
+pub fn transport_loop_active() -> Bool with Pure:
+    return TransportWorld.loop_active
+
+pub fn transport_punch_in_frame() -> Int with Pure:
+    return TransportWorld.punch_in_frame
+
+pub fn transport_punch_out_frame() -> Int with Pure:
+    return TransportWorld.punch_out_frame
+
+// ============================================================================
+// End of world.kn
+// ============================================================================
