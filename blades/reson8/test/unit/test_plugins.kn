@@ -1,0 +1,278 @@
+// ============================================================================
+//  test_plugins.kn — Unit tests for reson8 plugin descriptor contracts
+//  Tests parameter counts, names, descriptors, and editor components
+//  for compressor and EQ plugins.
+//
+//  Self-contained: inlines plugin contract structs from the plugin sources.
+// ============================================================================
+
+use std::test
+use std::runtime
+
+// ============================================================================
+//  Plugin Descriptor Struct (from plugins/compressor/reson8_comp.kn
+//  and plugins/eq/reson8_eq.kn)
+// ============================================================================
+
+struct KainPluginDescriptor:
+    name:             String
+    vendor:           String
+    version:          String
+    category:         String
+    num_inputs:       Int
+    num_outputs:      Int
+    num_params:       Int
+    has_editor:       Bool
+    latency_samples:  Int
+    dll_path:         String
+
+// ============================================================================
+//  Compressor Plugin Contract (from reson8_comp.kn)
+// ============================================================================
+
+fn COMP_get_descriptor() -> KainPluginDescriptor:
+    return KainPluginDescriptor {
+        name: "reson8 Compressor",
+        vendor: "reson8 Studio",
+        version: "1.0.0",
+        category: "dynamics",
+        num_inputs: 2,
+        num_outputs: 2,
+        num_params: 7,
+        has_editor: true,
+        latency_samples: 0,
+        dll_path: "plugins/compressor/reson8_comp.kn",
+    }
+
+fn COMP_get_param_count() -> Int:
+    return 7
+
+fn COMP_get_param_name(id: Int) -> String:
+    if id == 0:
+        return "Threshold"
+    if id == 1:
+        return "Ratio"
+    if id == 2:
+        return "Attack"
+    if id == 3:
+        return "Release"
+    if id == 4:
+        return "Makeup"
+    if id == 5:
+        return "Knee"
+    return "Mix"
+
+fn COMP_get_editor_component() -> String:
+    return "CompressorEditor"
+
+// ============================================================================
+//  EQ Plugin Contract (from reson8_eq.kn)
+// ============================================================================
+
+fn EQ_get_descriptor() -> KainPluginDescriptor:
+    return KainPluginDescriptor {
+        name: "reson8 EQ",
+        vendor: "reson8 Studio",
+        version: "1.0.0",
+        category: "effect",
+        num_inputs: 2,
+        num_outputs: 2,
+        num_params: 16,
+        has_editor: true,
+        latency_samples: 0,
+        dll_path: "plugins/eq/reson8_eq.kn",
+    }
+
+fn EQ_get_param_count() -> Int:
+    return 16
+
+fn EQ_get_param_name(id: Int) -> String:
+    let band: Int = id / 4
+    let sub: Int  = id % 4
+    let band_label: String = "Band " + str(band + 1) + " "
+    if sub == 0:
+        return band_label + "Type"
+    if sub == 1:
+        return band_label + "Freq"
+    if sub == 2:
+        return band_label + "Q"
+    return band_label + "Gain"
+
+fn EQ_get_editor_component() -> String:
+    return "EQEditor"
+
+// ============================================================================
+//  TEST: Compressor Descriptor
+// ============================================================================
+
+fn test_comp_descriptor() -> TestOutcome:
+    let d = COMP_get_descriptor()
+
+    let r1 = test_bool("Comp name is 'reson8 Compressor'",
+        d.name == "reson8 Compressor")
+    let r2 = test_bool("Comp vendor is 'reson8 Studio'",
+        d.vendor == "reson8 Studio")
+    let r3 = test_bool("Comp version is '1.0.0'",
+        d.version == "1.0.0")
+    let r4 = test_bool("Comp category is 'dynamics'",
+        d.category == "dynamics")
+    let r5 = test_bool("Comp num_inputs == 2",
+        d.num_inputs == 2)
+    let r6 = test_bool("Comp num_outputs == 2",
+        d.num_outputs == 2)
+    let r7 = test_bool("Comp num_params == 7",
+        d.num_params == 7)
+    let r8 = test_bool("Comp has_editor == true",
+        d.has_editor == true)
+    let r9 = test_bool("Comp latency_samples == 0",
+        d.latency_samples == 0)
+    let r10 = test_bool("Comp dll_path correct",
+        d.dll_path == "plugins/compressor/reson8_comp.kn")
+
+    let c1 = test_combine(r1, r2)
+    let c2 = test_combine(r3, r4)
+    let c3 = test_combine(r5, r6)
+    let c4 = test_combine(r7, r8)
+    let c5 = test_combine(c1, c2)
+    let c6 = test_combine(c3, c4)
+    let c7 = test_combine(r9, r10)
+    let c8 = test_combine(c5, c6)
+    return test_combine(c7, c8)
+
+// ============================================================================
+//  TEST: EQ Descriptor
+// ============================================================================
+
+fn test_eq_descriptor() -> TestOutcome:
+    let d = EQ_get_descriptor()
+
+    let r1 = test_bool("EQ name is 'reson8 EQ'",
+        d.name == "reson8 EQ")
+    let r2 = test_bool("EQ vendor is 'reson8 Studio'",
+        d.vendor == "reson8 Studio")
+    let r3 = test_bool("EQ version is '1.0.0'",
+        d.version == "1.0.0")
+    let r4 = test_bool("EQ category is 'effect'",
+        d.category == "effect")
+    let r5 = test_bool("EQ num_inputs == 2",
+        d.num_inputs == 2)
+    let r6 = test_bool("EQ num_outputs == 2",
+        d.num_outputs == 2)
+    let r7 = test_bool("EQ num_params == 16",
+        d.num_params == 16)
+    let r8 = test_bool("EQ has_editor == true",
+        d.has_editor == true)
+    let r9 = test_bool("EQ latency_samples == 0",
+        d.latency_samples == 0)
+    let r10 = test_bool("EQ dll_path correct",
+        d.dll_path == "plugins/eq/reson8_eq.kn")
+
+    let c1 = test_combine(r1, r2)
+    let c2 = test_combine(r3, r4)
+    let c3 = test_combine(r5, r6)
+    let c4 = test_combine(r7, r8)
+    let c5 = test_combine(c1, c2)
+    let c6 = test_combine(c3, c4)
+    let c7 = test_combine(r9, r10)
+    let c8 = test_combine(c5, c6)
+    return test_combine(c7, c8)
+
+// ============================================================================
+//  TEST: Compressor Parameters
+// ============================================================================
+
+fn test_comp_params() -> TestOutcome:
+    let count = COMP_get_param_count()
+    let r1 = test_bool("Comp param count is 7", count == 7)
+
+    let n0 = COMP_get_param_name(0) == "Threshold"
+    let n1 = COMP_get_param_name(1) == "Ratio"
+    let n2 = COMP_get_param_name(2) == "Attack"
+    let n3 = COMP_get_param_name(3) == "Release"
+    let n4 = COMP_get_param_name(4) == "Makeup"
+    let n5 = COMP_get_param_name(5) == "Knee"
+    let n6 = COMP_get_param_name(6) == "Mix"
+    let all_ok = n0 and n1 and n2 and n3 and n4 and n5 and n6
+    let r2 = test_bool("Comp param names correct", all_ok)
+
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  TEST: EQ Parameters
+// ============================================================================
+
+fn test_eq_params() -> TestOutcome:
+    let count = EQ_get_param_count()
+    let r1 = test_bool("EQ param count is 16", count == 16)
+
+    let b0 = EQ_get_param_name(0) == "Band 1 Type"
+    let b1 = EQ_get_param_name(1) == "Band 1 Freq"
+    let b2 = EQ_get_param_name(2) == "Band 1 Q"
+    let b3 = EQ_get_param_name(3) == "Band 1 Gain"
+    let b1_ok = b0 and b1 and b2 and b3
+    let r2 = test_bool("EQ Band 1 names correct", b1_ok)
+
+    let c0 = EQ_get_param_name(4) == "Band 2 Type"
+    let c1 = EQ_get_param_name(5) == "Band 2 Freq"
+    let c2 = EQ_get_param_name(6) == "Band 2 Q"
+    let c3 = EQ_get_param_name(7) == "Band 2 Gain"
+    let b2_ok = c0 and c1 and c2 and c3
+    let r3 = test_bool("EQ Band 2 names correct", b2_ok)
+
+    let d0 = EQ_get_param_name(8) == "Band 3 Type"
+    let d1 = EQ_get_param_name(9) == "Band 3 Freq"
+    let d2 = EQ_get_param_name(10) == "Band 3 Q"
+    let d3 = EQ_get_param_name(11) == "Band 3 Gain"
+    let b3_ok = d0 and d1 and d2 and d3
+    let r4 = test_bool("EQ Band 3 names correct", b3_ok)
+
+    let e0 = EQ_get_param_name(12) == "Band 4 Type"
+    let e1 = EQ_get_param_name(13) == "Band 4 Freq"
+    let e2 = EQ_get_param_name(14) == "Band 4 Q"
+    let e3 = EQ_get_param_name(15) == "Band 4 Gain"
+    let b4_ok = e0 and e1 and e2 and e3
+    let r5 = test_bool("EQ Band 4 names correct", b4_ok)
+
+    let c1 = test_combine(r1, r2)
+    let c2 = test_combine(r3, r4)
+    return test_combine(test_combine(c1, c2), r5)
+
+// ============================================================================
+//  TEST: Editor Components
+// ============================================================================
+
+fn test_editor_components() -> TestOutcome:
+    let r1 = test_bool("Comp editor is 'CompressorEditor'",
+        COMP_get_editor_component() == "CompressorEditor")
+    let r2 = test_bool("EQ editor is 'EQEditor'",
+        EQ_get_editor_component() == "EQEditor")
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  MAIN — Run all plugin tests
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    var failures: Int = 0
+
+    let r_desc_comp = test_comp_descriptor()
+    failures = test_count_failure(r_desc_comp, failures)
+
+    let r_desc_eq = test_eq_descriptor()
+    failures = test_count_failure(r_desc_eq, failures)
+
+    let r_params_comp = test_comp_params()
+    failures = test_count_failure(r_params_comp, failures)
+
+    let r_params_eq = test_eq_params()
+    failures = test_count_failure(r_params_eq, failures)
+
+    let r_editors = test_editor_components()
+    failures = test_count_failure(r_editors, failures)
+
+    runtime_shutdown()
+    return failures

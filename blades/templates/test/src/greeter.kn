@@ -1,0 +1,58 @@
+// ============================================================================
+//  greeter.kn — String-ish library
+//
+//  Demonstrates Layer 0 (Plain Code) with string operations.
+//  Uses std::text for uppercase, std::fmt for formatting.
+// ============================================================================
+
+use std::text
+
+// greet — returns a personalised greeting
+pub fn greet(name: String) -> String with Pure:
+    return "Hello, " + name + "!"
+
+// shout — uppercases a string using std::text
+pub fn shout(s: String) -> String with Pure:
+    return text_upper(s)
+
+// str_len — returns the length of a string (wraps built-in len)
+pub fn str_len(s: String) -> Int with Pure:
+    return len(s)
+
+// is_empty — checks if string is empty
+pub fn is_empty(s: String) -> Bool with Pure:
+    return len(s) == 0
+
+// repeat — repeats a string n times (simple loop)
+pub fn repeat(s: String, count: Int) -> String with Pure:
+    if count <= 0:
+        return ""
+    var result: String = ""
+    var i: Int = 0
+    while i < count:
+        result = result + s
+        i = i + 1
+    return result
+
+// has_substring — checks if haystack contains needle (simple linear scan)
+pub fn has_substring(haystack: String, needle: String) -> Bool with Pure:
+    let h_len = len(haystack)
+    let n_len = len(needle)
+    if n_len == 0:
+        return true
+    if n_len > h_len:
+        return false
+    var i: Int = 0
+    while i <= h_len - n_len:
+        var j: Int = 0
+        var matched: Bool = true
+        while j < n_len:
+            // Kain strings support indexing via [i] syntax
+            if haystack[i + j] != needle[j]:
+                matched = false
+                j = n_len   // break inner loop
+            j = j + 1
+        if matched:
+            return true
+        i = i + 1
+    return false

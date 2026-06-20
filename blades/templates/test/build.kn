@@ -1,0 +1,51 @@
+// ============================================================================
+//  build.kn — Project authority for the Kain test pipeline template
+//
+//  This file is the testing bridge. It:
+//    1. Sets module_roots=["src"] so ALL files can import from src/
+//    2. Defines the main executable entry
+//    3. Wires source_tests() for test discovery
+//    4. Chains tasks with .requires() dependencies
+//
+//  Key concept: module_root("src") makes `use math_utils` work from ANY file
+//  in the project (including test/). Tests import real source — never copy-paste.
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+
+    // ---- Project: define the workspace -----------------------------------
+    let app = project("test-template")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("Canonical test pipeline template for Kain projects")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")        // ← THE BRIDGE: makes src/ importable by ALL files
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    // ---- Check task: typecheck the main project ---------------------------
+    let check = check_task("check-main")
+        .project(app)
+        .target("llvm")
+
+    // ---- Test tasks: wired into build graph -------------------------------
+    let unit_tests = source_tests("unit-tests")
+        .project(app)
+        .requires("check-main")
+
+    // ---- Executable: native binary ----------------------------------------
+    let exe = native_executable("test-template-exe")
+        .project(app)
+        .output("$blade/test_template.exe")
+        .requires("check-main")
+
+    // ---- Build graph ------------------------------------------------------
+    return build_graph(app)
+        .task(check)
+        .task(exe)
+        .task(unit_tests)

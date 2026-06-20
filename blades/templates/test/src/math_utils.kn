@@ -1,0 +1,46 @@
+// ============================================================================
+//  math_utils.kn — Real calculator-style library
+//
+//  Demonstrates Layer 0 (Plain Code): fn, if/else, Pure effect.
+//  Every function has real logic — no stubs, no "return 0" placeholders.
+// ============================================================================
+
+// add — simple addition
+pub fn add(a: Int, b: Int) -> Int with Pure:
+    return a + b
+
+// multiply — simple multiplication
+pub fn multiply(a: Int, b: Int) -> Int with Pure:
+    return a * b
+
+// is_even — parity check
+pub fn is_even(n: Int) -> Bool with Pure:
+    return n % 2 == 0
+
+// fact — recursive factorial with bounds guard
+pub fn fact(n: Int) -> Int with Pure:
+    if n < 0:
+        return -1          // signal error for negative input
+    if n <= 1:
+        return 1
+    return n * fact(n - 1)
+
+// limit — constrain value to [lo, hi] inclusive
+pub fn limit(value: Int, lo: Int, hi: Int) -> Int with Pure:
+    if value < lo:
+        return lo
+    if value > hi:
+        return hi
+    return value
+
+// gcd_euclid — greatest common divisor (Euclidean algorithm)
+pub fn gcd_euclid(a: Int, b: Int) -> Int with Pure:
+    var x = a
+    var y = b
+    while y != 0:
+        let t = y
+        y = x % y
+        x = t
+    if x < 0:
+        return -x
+    return x

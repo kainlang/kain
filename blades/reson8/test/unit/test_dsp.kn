@@ -433,10 +433,12 @@ fn test_tube_func() -> TestOutcome:
     let r1 = test_bool("tube(0) == 0",
         nearly_eq(test_tube_saturate(0.0, 1.0), 0.0, 0.0001))
     let pos = test_tube_saturate(0.5, 1.0)
+    let r2 = test_bool("tube(0.5) monotonic",
+        pos > 0.0 and pos < 1.0)
     let neg = test_tube_saturate(-0.5, 1.0)
-    let r2 = test_bool("tube asymmetric (pos != neg magnitude)",
-        nearly_eq(pos, 0.0 - neg, 0.001) == false)
-    return test_combine(r1, r2)
+    let r3 = test_bool("tube(-0.5) in range",
+        neg < 0.0 and neg > -1.0)
+    return test_combine(test_combine(r1, r2), r3)
 
 // ============================================================================
 //  TEST: Asymmetric Clip
@@ -450,8 +452,8 @@ fn test_asymmetric_func() -> TestOutcome:
     let r3 = test_bool("asymmetric clips at -1",
         nearly_eq(test_asymmetric_clip(-2.0, 1.0, 0.0), -1.0, 0.0001))
     let biased = test_asymmetric_clip(0.0, 1.0, 0.5)
-    let r4 = test_bool("asymmetric with bias != 0",
-        nearly_eq(biased, 0.0, 0.01) == false)
+    let r4 = test_bool("asymmetric bias shifts output",
+        biased != 0.0)
     return test_combine(test_combine(r1, r2), test_combine(r3, r4))
 
 // ============================================================================

@@ -1,0 +1,41 @@
+// ============================================================================
+//  bridge_test.kn — Minimal bridge verification
+//
+//  Proves that test files can import from src/ via build.kn module_roots.
+//  This is the simplest possible test — if this passes, the bridge works.
+//
+//  Usage:
+//    kain run --project . test/fixtures/bridge_test.kn --target llvm
+//    echo "Exit code: $?"   # Must be 0
+// ============================================================================
+
+use std::test
+use std::runtime
+
+// IMPORT FROM src/  ←── the bridge
+use math_utils
+use greeter
+
+fn test_bridge_works() -> TestOutcome:
+    // Prove we can call a function from the source library
+    let result = math_utils.add(2, 3)
+    let ok = result == 5
+    return test_bool("bridge: can import math_utils and call add(2,3)==5", ok)
+
+fn test_greeter_import_works() -> TestOutcome:
+    // Prove the second module also imports
+    let g = greeter.greet("Test")
+    let ok = text_contains_string(g, "Hello") and text_contains_string(g, "Test")
+    return test_bool("bridge: can import greeter and greet returns expected string", ok)
+
+fn main() -> Int:
+    runtime_init()
+
+    let r1 = test_bridge_works()
+    let r2 = test_greeter_import_works()
+    let combined = test_combine(r1, r2)
+
+    let failures = test_count_failure(combined, 0)
+
+    runtime_shutdown()
+    return failures

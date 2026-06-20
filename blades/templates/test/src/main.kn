@@ -1,0 +1,51 @@
+// ============================================================================
+//  main.kn — Entry point for the test-template project
+//
+//  A minimal program that exercises both library modules.
+//  Returns 0 on success, nonzero on failure.
+// ============================================================================
+
+use math_utils
+use greeter
+
+fn main() -> Int:
+    // Exercise math_utils
+    let sum = math_utils.add(10, 20)
+    let product = math_utils.multiply(7, 6)
+    let clamped = math_utils.limit(150, 0, 100)
+    let fact5 = math_utils.fact(5)
+
+    // Verify results (basic sanity)
+    if sum != 30:
+        return 1
+    if product != 42:
+        return 2
+    if clamped != 100:
+        return 3
+    if fact5 != 120:
+        return 4
+
+    // Exercise greeter
+    let greeting = greeter.greet("World")
+    let loud = greeter.shout("hello")
+    let name_len = greeter.str_len(greeting)
+
+    // Verify greeter results
+    if greeting != "Hello, World!":
+        return 5
+    if loud != "HELLO":
+        return 6
+    if name_len == 0:
+        return 7
+
+    // Exercise more math_utils
+    let even_check = math_utils.is_even(42)
+    if even_check != true:
+        return 8
+
+    let gcd_val = math_utils.gcd_euclid(48, 18)
+    if gcd_val != 6:
+        return 9
+
+    // All checks passed
+    return 0

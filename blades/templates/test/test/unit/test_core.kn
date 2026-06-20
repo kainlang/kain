@@ -1,0 +1,149 @@
+// ============================================================================
+//  test_core.kn — Unit tests importing from src/
+//
+//  Tests every public function in math_utils and greeter with real assertions.
+//  Uses std::test for structured TestOutcome chaining.
+//
+//  Usage:
+//    kain run --project . test/unit/test_core.kn --target llvm
+//    echo "Exit code: $?"   # Must be 0
+// ============================================================================
+
+use std::test
+use std::runtime
+use std::text
+
+// IMPORT FROM src/  ←── the bridge
+use math_utils
+use greeter
+
+// ============================================================================
+//  math_utils tests
+// ============================================================================
+
+fn test_add() -> TestOutcome:
+    let r1 = test_bool("add(2,3)==5", math_utils.add(2, 3) == 5)
+    let r2 = test_bool("add(-1,1)==0", math_utils.add(-1, 1) == 0)
+    let r3 = test_bool("add(0,0)==0", math_utils.add(0, 0) == 0)
+    let r4 = test_bool("add(1000,-1000)==0", math_utils.add(1000, -1000) == 0)
+    return test_combine(test_combine(test_combine(r1, r2), r3), r4)
+
+fn test_multiply() -> TestOutcome:
+    let r1 = test_bool("multiply(3,4)==12", math_utils.multiply(3, 4) == 12)
+    let r2 = test_bool("multiply(-2,5)==-10", math_utils.multiply(-2, 5) == -10)
+    let r3 = test_bool("multiply(0,100)==0", math_utils.multiply(0, 100) == 0)
+    let r4 = test_bool("multiply(7,1)==7", math_utils.multiply(7, 1) == 7)
+    return test_combine(test_combine(test_combine(r1, r2), r3), r4)
+
+fn test_is_even() -> TestOutcome:
+    let r1 = test_bool("is_even(0)==true", math_utils.is_even(0) == true)
+    let r2 = test_bool("is_even(2)==true", math_utils.is_even(2) == true)
+    let r3 = test_bool("is_even(1)==false", math_utils.is_even(1) == false)
+    let r4 = test_bool("is_even(-4)==true", math_utils.is_even(-4) == true)
+    let r5 = test_bool("is_even(-3)==false", math_utils.is_even(-3) == false)
+    return test_combine(test_combine(test_combine(test_combine(r1, r2), r3), r4), r5)
+
+fn test_factorial() -> TestOutcome:
+    let r1 = test_bool("fact(0)==1", math_utils.fact(0) == 1)
+    let r2 = test_bool("fact(1)==1", math_utils.fact(1) == 1)
+    let r3 = test_bool("fact(5)==120", math_utils.fact(5) == 120)
+    let r4 = test_bool("fact(10)==3628800", math_utils.fact(10) == 3628800)
+    let r5 = test_bool("fact(-1)==-1 (error)", math_utils.fact(-1) == -1)
+    return test_combine(test_combine(test_combine(test_combine(r1, r2), r3), r4), r5)
+
+fn test_limit() -> TestOutcome:
+    let r1 = test_bool("limit(50,0,100)==50 (in range)", math_utils.limit(50, 0, 100) == 50)
+    let r2 = test_bool("limit(-10,0,100)==0 (below)", math_utils.limit(-10, 0, 100) == 0)
+    let r3 = test_bool("limit(200,0,100)==100 (above)", math_utils.limit(200, 0, 100) == 100)
+    let r4 = test_bool("limit(0,0,100)==0 (at edge)", math_utils.limit(0, 0, 100) == 0)
+    let r5 = test_bool("limit(100,0,100)==100 (at edge)", math_utils.limit(100, 0, 100) == 100)
+    return test_combine(test_combine(test_combine(test_combine(r1, r2), r3), r4), r5)
+
+fn test_gcd() -> TestOutcome:
+    let r1 = test_bool("gcd_euclid(48,18)==6", math_utils.gcd_euclid(48, 18) == 6)
+    let r2 = test_bool("gcd_euclid(7,13)==1 (coprime)", math_utils.gcd_euclid(7, 13) == 1)
+    let r3 = test_bool("gcd_euclid(100,0)==100", math_utils.gcd_euclid(100, 0) == 100)
+    let r4 = test_bool("gcd_euclid(0,0)==0", math_utils.gcd_euclid(0, 0) == 0)
+    let r5 = test_bool("gcd_euclid(-48,18)==6 (negative)", math_utils.gcd_euclid(-48, 18) == 6)
+    return test_combine(test_combine(test_combine(test_combine(r1, r2), r3), r4), r5)
+
+// ============================================================================
+//  greeter tests
+// ============================================================================
+
+fn test_greet() -> TestOutcome:
+    let g = greeter.greet("World")
+    let r1 = test_bool("greet('World') contains Hello", text_contains_string(g, "Hello"))
+    let r2 = test_bool("greet('World') contains World", text_contains_string(g, "World"))
+    let r3 = test_bool("greet('World') ends with !", text_ends_with_string(g, "!"))
+    return test_combine(test_combine(r1, r2), r3)
+
+fn test_shout() -> TestOutcome:
+    let s = greeter.shout("hello")
+    let r1 = test_bool("shout('hello')=='HELLO'", s == "HELLO")
+    let r2 = test_bool("shout('')==''", greeter.shout("") == "")
+    return test_combine(r1, r2)
+
+fn test_greeter_len() -> TestOutcome:
+    let r1 = test_bool("str_len('abc')==3", greeter.str_len("abc") == 3)
+    let r2 = test_bool("str_len('')==0", greeter.str_len("") == 0)
+    let r3 = test_bool("str_len('hello')==5", greeter.str_len("hello") == 5)
+    return test_combine(test_combine(r1, r2), r3)
+
+fn test_is_empty() -> TestOutcome:
+    let r1 = test_bool("is_empty('')==true", greeter.is_empty("") == true)
+    let r2 = test_bool("is_empty('x')==false", greeter.is_empty("x") == false)
+    return test_combine(r1, r2)
+
+fn test_repeat() -> TestOutcome:
+    let r1 = test_bool("repeat('ab',3)=='ababab'", greeter.repeat("ab", 3) == "ababab")
+    let r2 = test_bool("repeat('x',0)==''", greeter.repeat("x", 0) == "")
+    let r3 = test_bool("repeat('hi',1)=='hi'", greeter.repeat("hi", 1) == "hi")
+    return test_combine(test_combine(r1, r2), r3)
+
+fn test_contains() -> TestOutcome:
+    let r1 = test_bool("has_substring('hello','ll')==true", greeter.has_substring("hello", "ll") == true)
+    let r2 = test_bool("has_substring('hello','xyz')==false", greeter.has_substring("hello", "xyz") == false)
+    let r3 = test_bool("has_substring('abc','')==true", greeter.has_substring("abc", "") == true)
+    let r4 = test_bool("has_substring('','x')==false", greeter.has_substring("", "x") == false)
+    return test_combine(test_combine(test_combine(r1, r2), r3), r4)
+
+// ============================================================================
+//  MAIN — run all tests, count failures → exit code
+// ============================================================================
+
+fn main() -> Int:
+    runtime_init()
+
+    // Run all test groups
+    let r1 = test_add()
+    let r2 = test_multiply()
+    let r3 = test_is_even()
+    let r4 = test_factorial()
+    let r5 = test_limit()
+    let r6 = test_gcd()
+    let r7 = test_greet()
+    let r8 = test_shout()
+    let r9 = test_greeter_len()
+    let r10 = test_is_empty()
+    let r11 = test_repeat()
+    let r12 = test_contains()
+
+    // Chain all outcomes sequentially (avoids parse issues with deep nesting)
+    var combined = r1
+    combined = test_combine(combined, r2)
+    combined = test_combine(combined, r3)
+    combined = test_combine(combined, r4)
+    combined = test_combine(combined, r5)
+    combined = test_combine(combined, r6)
+    combined = test_combine(combined, r7)
+    combined = test_combine(combined, r8)
+    combined = test_combine(combined, r9)
+    combined = test_combine(combined, r10)
+    combined = test_combine(combined, r11)
+    combined = test_combine(combined, r12)
+
+    let failures = test_count_failure(combined, 0)
+
+    runtime_shutdown()
+    return failures
