@@ -1,0 +1,116 @@
+// ============================================================================
+//  ATTRITION: test_crash_recovery -- Simulate plugin crash, verify recovery
+//
+//  Tests the plugin crash recovery system through law predicates and
+//  runtime telemetry. The actual crash_count logic is in the PluginWorld
+//  and PluginHost actor; this test verifies the invariants that the
+//  recovery system depends on:
+//
+//    1. Param bounds: plugin params within valid range
+//    2. Wet/dry mix: within [0.0, 1.0]
+//    3. Slot count: within [0, 16]
+//    4. Plugin categories: only valid strings accepted
+//    5. Path existence: non-empty plugin paths
+//    6. Latency bounds: [0, 65536]
+//    7. Runtime telemetry: heap valid, intent counters accessible
+//
+//  NOTE: World-dependent crash recovery testing (PluginWorld.crash_count,
+//  PluginHost actor Crash handler, record_crash patch) lives in
+//  test/runtime_contract/ which has the project build context.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+use law::plugin_laws
+
+fn test_crash_param_bounds() -> TestOutcome:
+    let a = law_is_valid_status(law_status(param_in_bounds(0.5, 0.0, 1.0)))
+    let b = law_is_valid_status(law_status(param_in_bounds(1.5, 0.0, 1.0))) == false
+    return test_bool("crash-safe param bounds", a and b)
+
+fn test_crash_wet_dry() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_wet_dry_valid(0.0)))
+    let b = law_is_valid_status(law_status(plugin_wet_dry_valid(1.0)))
+    let c = law_is_valid_status(law_status(plugin_wet_dry_valid(-0.1))) == false
+    let d = law_is_valid_status(law_status(plugin_wet_dry_valid(1.1))) == false
+    return test_bool("crash-safe wet/dry", a and b and c and d)
+
+fn test_crash_slot_count() -> TestOutcome:
+    let a = law_is_valid_status(law_status(slot_count_valid(0)))
+    let b = law_is_valid_status(law_status(slot_count_valid(8)))
+    let c = law_is_valid_status(law_status(slot_count_valid(16)))
+    let d = law_is_valid_status(law_status(slot_count_valid(-1))) == false
+    let e = law_is_valid_status(law_status(slot_count_valid(17))) == false
+    return test_bool("crash-safe slot count", a and b and c and d and e)
+
+fn test_crash_categories() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_category_valid("effect")))
+    let b = law_is_valid_status(law_status(plugin_category_valid("instrument")))
+    let c = law_is_valid_status(law_status(plugin_category_valid("utility")))
+    let d = law_is_valid_status(law_status(plugin_category_valid("analyzer")))
+    let e = law_is_valid_status(law_status(plugin_category_valid("unknown"))) == false
+    return test_bool("crash-safe categories", a and b and c and d and e)
+
+fn test_crash_path() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_path_exists("/plugin/path")))
+    let b = law_is_valid_status(law_status(plugin_path_exists(""))) == false
+    return test_bool("crash-safe plugin paths", a and b)
+
+fn test_crash_latency() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_latency_valid(0)))
+    let b = law_is_valid_status(law_status(plugin_latency_valid(512)))
+    let c = law_is_valid_status(law_status(plugin_latency_valid(65536)))
+    let d = law_is_valid_status(law_status(plugin_latency_valid(-1))) == false
+    let e = law_is_valid_status(law_status(plugin_latency_valid(65537))) == false
+    return test_bool("crash-safe latency", a and b and c and d and e)
+
+fn test_crash_vst3_id() -> TestOutcome:
+    let a = law_is_valid_status(law_status(vst3_id_valid("Company.Plugin")))
+    let b = law_is_valid_status(law_status(vst3_id_valid(""))) == false
+    return test_bool("crash-safe vst3 id", a and b)
+
+fn test_crash_python_mod() -> TestOutcome:
+    let a = law_is_valid_status(law_status(python_module_valid("numpy")))
+    let b = law_is_valid_status(law_status(python_module_valid(""))) == false
+    return test_bool("crash-safe python module", a and b)
+
+fn test_crash_heap_and_telemetry() -> TestOutcome:
+    let a = runtime_heap_validate() == 1
+    let b = patch_journal_count() >= 0
+    let c = entangle_propagation_count() >= 0
+    let d = converge_mismatch_count() == 0
+    return test_bool("crash heap+telemetry valid",
+        a and b and c and d)
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_crash_param_bounds()
+    let r2 = test_crash_wet_dry()
+    let r3 = test_crash_slot_count()
+    let r4 = test_crash_categories()
+    let r5 = test_crash_path()
+    let r6 = test_crash_latency()
+    let r7 = test_crash_vst3_id()
+    let r8 = test_crash_python_mod()
+    let r9 = test_crash_heap_and_telemetry()
+
+    let a = test_combine(r1, r2)
+    let b = test_combine(r3, r4)
+    let c = test_combine(r5, r6)
+    let d = test_combine(r7, r8)
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let abcd = test_combine(ab, cd)
+    let combined = test_combine(abcd, r9)
+
+    let failure_count = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failure_count

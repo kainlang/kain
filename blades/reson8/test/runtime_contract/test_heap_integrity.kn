@@ -1,0 +1,108 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Heap Integrity
+//  Verifies that the runtime heap is valid after initialization and
+//  after unsafe memory operations (alloc, mem_store, mem_load, decay).
+//
+//  Pattern: call runtime_heap_validate() after init, after alloc,
+//  after unsafe ops, and after shutdown. Assert == 1 (valid).
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_heap_valid_after_init() -> TestOutcome:
+    let heap_ok = runtime_heap_validate()
+    return test_bool("heap is valid after init", heap_ok == 1)
+
+fn test_heap_valid_after_alloc() -> TestOutcome with Unsafe:
+    let buf: ptr<Int> = alloc_zeroed(64, "Int")
+    let heap_ok = runtime_heap_validate()
+    decay buf
+    return test_bool("heap is valid after alloc_zeroed", heap_ok == 1)
+
+fn test_heap_valid_after_mem_ops() -> TestOutcome with Unsafe:
+    let buf: ptr<Int> = alloc_zeroed(16, "Int")
+
+    collapse buf:
+        var i: Int = 0
+        while i < 16:
+            mem_store(ptr_offset(buf, i, "Int"), i * 7, "Int")
+            i = i + 1
+        0
+
+    let loaded: Int = observe buf:
+        var sum: Int = 0
+        var j: Int = 0
+        while j < 16:
+            sum = sum + mem_load(ptr_offset(buf, j, "Int"), "Int")
+            j = j + 1
+        sum
+
+    let heap_ok = runtime_heap_validate()
+    decay buf
+    return test_bool("heap is valid after collapse/observe/mem_store/mem_load", heap_ok == 1)
+
+fn test_heap_valid_after_multiple_allocs() -> TestOutcome with Unsafe:
+    let a: ptr<Int> = alloc_zeroed(32, "Int")
+    let b: ptr<Float> = alloc_zeroed(64, "Float")
+    let c: ptr<Int> = alloc_zeroed(128, "Int")
+
+    mem_store(a, 42, "Int")
+    mem_store(ptr_offset(b, 0, "Float"), 3.14, "Float")
+    mem_store(ptr_offset(c, 0, "Int"), 99, "Int")
+
+    let heap_ok = runtime_heap_validate()
+
+    decay a
+    decay b
+    decay c
+    return test_bool("heap is valid after multiple allocs and stores", heap_ok == 1)
+
+fn test_heap_valid_after_realloc() -> TestOutcome with Unsafe:
+    let buf: ptr<Int> = alloc_zeroed(8, "Int")
+    mem_store(buf, 7, "Int")
+
+    let buf2: ptr<Int> = realloc_mem(buf, 16, "Int")
+    let heap_ok = runtime_heap_validate()
+
+    decay buf2
+    return test_bool("heap is valid after realloc_mem", heap_ok == 1)
+
+fn test_heap_validate_returns_one_or_zero() -> TestOutcome:
+    let heap_ok = runtime_heap_validate()
+    return test_bool("heap_validate returns 0 or 1", heap_ok == 0 or heap_ok == 1)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_heap_valid_after_init()
+    let r2 = test_heap_valid_after_alloc()
+    let r3 = test_heap_valid_after_mem_ops()
+    let r4 = test_heap_valid_after_multiple_allocs()
+    let r5 = test_heap_valid_after_realloc()
+    let r6 = test_heap_validate_returns_one_or_zero()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+    let combined = test_combine(combined, r6)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

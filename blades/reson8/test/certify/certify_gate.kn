@@ -1,0 +1,423 @@
+// ============================================================================
+//  CERTIFY GATE -- reson8 Release-Readiness Aggregator
+//
+//  Aggregates every test category into one release gate.
+//  FAILS if ANY category has failures. Uses std::test for outcome
+//  aggregation and std::certify for build-system task registration.
+//
+//  Categories:
+//    LAWS     -- All 31+ law predicates (mixer + plugin)
+//    ATTRITION -- Boundary condition stress tests
+//    RUNTIME  -- Telemetry counter availability
+// ============================================================================
+
+use std::test
+use std::certify
+use std::intent
+use std::runtime
+use law::mixer_laws
+use law::plugin_laws
+
+// ============================================================================
+//  HELPERS -- Single-line test_combine chains
+// ============================================================================
+
+fn combine4(a: TestOutcome, b: TestOutcome, c: TestOutcome, d: TestOutcome) -> TestOutcome:
+    return test_combine(test_combine(a, b), test_combine(c, d))
+
+fn combine6(a: TestOutcome, b: TestOutcome, c: TestOutcome, d: TestOutcome, e: TestOutcome, f: TestOutcome) -> TestOutcome:
+    return test_combine(combine4(a, b, c, d), test_combine(e, f))
+
+fn combine8(a: TestOutcome, b: TestOutcome, c: TestOutcome, d: TestOutcome, e: TestOutcome, f: TestOutcome, g: TestOutcome, h: TestOutcome) -> TestOutcome:
+    return test_combine(combine4(a, b, c, d), combine4(e, f, g, h))
+
+// ============================================================================
+//  CATEGORY 1 -- LAW PREDICATES
+// ============================================================================
+
+fn test_law_volume() -> TestOutcome:
+    let a = test_bool("volume 0.5 valid",
+        law_is_valid_status(law_status(master_volume_in_bounds(0.5))))
+    let b = test_bool("volume -0.1 invalid",
+        law_is_valid_status(law_status(master_volume_in_bounds(-0.1))) == false)
+    let c = test_bool("volume 1.5 invalid",
+        law_is_valid_status(law_status(master_volume_in_bounds(1.5))) == false)
+    let d = test_bool("volume 0.0 boundary",
+        law_is_valid_status(law_status(master_volume_in_bounds(0.0))))
+    let e = test_bool("volume 1.0 boundary",
+        law_is_valid_status(law_status(master_volume_in_bounds(1.0))))
+    return combine4(a, b, c, test_combine(d, e))
+
+fn test_law_transport() -> TestOutcome:
+    let a = test_bool("transport 0 valid",
+        law_is_valid_status(law_status(transport_state_valid(0))))
+    let b = test_bool("transport 3 valid",
+        law_is_valid_status(law_status(transport_state_valid(3))))
+    let c = test_bool("transport -1 invalid",
+        law_is_valid_status(law_status(transport_state_valid(-1))) == false)
+    let d = test_bool("transport 4 invalid",
+        law_is_valid_status(law_status(transport_state_valid(4))) == false)
+    return combine4(a, b, c, d)
+
+fn test_law_tempo() -> TestOutcome:
+    let a = test_bool("tempo 120 valid",
+        law_is_valid_status(law_status(tempo_valid(120.0))))
+    let b = test_bool("tempo 20 boundary",
+        law_is_valid_status(law_status(tempo_valid(20.0))))
+    let c = test_bool("tempo 400 boundary",
+        law_is_valid_status(law_status(tempo_valid(400.0))))
+    let d = test_bool("tempo 0 invalid",
+        law_is_valid_status(law_status(tempo_valid(0.0))) == false)
+    let e = test_bool("tempo 500 invalid",
+        law_is_valid_status(law_status(tempo_valid(500.0))) == false)
+    let f = test_bool("tempo 19.999 invalid",
+        law_is_valid_status(law_status(tempo_valid(19.999))) == false)
+    let g = test_bool("tempo 400.001 invalid",
+        law_is_valid_status(law_status(tempo_valid(400.001))) == false)
+    return test_combine(combine4(a, b, c, d), combine4(e, f, test_bool("tempo_done", true), test_bool("tempo_done2", true)))
+
+fn test_law_samplerate() -> TestOutcome:
+    let a = test_bool("sr 44100 valid",
+        law_is_valid_status(law_status(sample_rate_valid(44100))))
+    let b = test_bool("sr 48000 valid",
+        law_is_valid_status(law_status(sample_rate_valid(48000))))
+    let c = test_bool("sr 88200 valid",
+        law_is_valid_status(law_status(sample_rate_valid(88200))))
+    let d = test_bool("sr 96000 valid",
+        law_is_valid_status(law_status(sample_rate_valid(96000))))
+    let e = test_bool("sr 176400 valid",
+        law_is_valid_status(law_status(sample_rate_valid(176400))))
+    let f = test_bool("sr 192000 valid",
+        law_is_valid_status(law_status(sample_rate_valid(192000))))
+    let g = test_bool("sr 22050 invalid",
+        law_is_valid_status(law_status(sample_rate_valid(22050))) == false)
+    let h = test_bool("sr 0 invalid",
+        law_is_valid_status(law_status(sample_rate_valid(0))) == false)
+    return combine8(a, b, c, d, e, f, g, h)
+
+fn test_law_buffer() -> TestOutcome:
+    let a = test_bool("buf 256 valid",
+        law_is_valid_status(law_status(buffer_size_valid(256))))
+    let b = test_bool("buf 16 boundary",
+        law_is_valid_status(law_status(buffer_size_valid(16))))
+    let c = test_bool("buf 4096 boundary",
+        law_is_valid_status(law_status(buffer_size_valid(4096))))
+    let d = test_bool("buf 0 invalid",
+        law_is_valid_status(law_status(buffer_size_valid(0))) == false)
+    let e = test_bool("buf 15 invalid",
+        law_is_valid_status(law_status(buffer_size_valid(15))) == false)
+    let f = test_bool("buf 4097 invalid",
+        law_is_valid_status(law_status(buffer_size_valid(4097))) == false)
+    let g = test_bool("buf 100 (non-16) invalid",
+        law_is_valid_status(law_status(buffer_size_valid(100))) == false)
+    let h = test_bool("buf 17 (odd) invalid",
+        law_is_valid_status(law_status(buffer_size_valid(17))) == false)
+    return combine8(a, b, c, d, e, f, g, h)
+
+fn test_law_time_sig() -> TestOutcome:
+    let a = test_bool("time 4/4 valid",
+        law_is_valid_status(law_status(time_signature_valid(4, 4))))
+    let b = test_bool("time 3/8 valid",
+        law_is_valid_status(law_status(time_signature_valid(3, 8))))
+    let c = test_bool("time 0/4 invalid",
+        law_is_valid_status(law_status(time_signature_valid(0, 4))) == false)
+    let d = test_bool("time 4/3 invalid",
+        law_is_valid_status(law_status(time_signature_valid(4, 3))) == false)
+    let e = test_bool("time 1/1 valid",
+        law_is_valid_status(law_status(time_signature_valid(1, 1))))
+    let f = test_bool("time 32/16 valid",
+        law_is_valid_status(law_status(time_signature_valid(32, 16))))
+    return combine4(a, b, c, test_combine(d, test_combine(e, f)))
+
+fn test_law_meter_db() -> TestOutcome:
+    let a = test_bool("db 0 valid",
+        law_is_valid_status(law_status(meter_db_valid(0.0))))
+    let b = test_bool("db -60 valid",
+        law_is_valid_status(law_status(meter_db_valid(-60.0))))
+    let c = test_bool("db 12 boundary",
+        law_is_valid_status(law_status(meter_db_valid(12.0))))
+    let d = test_bool("db -120 boundary",
+        law_is_valid_status(law_status(meter_db_valid(-120.0))))
+    let e = test_bool("db -200 invalid",
+        law_is_valid_status(law_status(meter_db_valid(-200.0))) == false)
+    let f = test_bool("db 100 invalid",
+        law_is_valid_status(law_status(meter_db_valid(100.0))) == false)
+    return combine4(a, b, test_combine(c, d), test_combine(e, f))
+
+fn test_law_loop() -> TestOutcome:
+    let a = test_bool("loop 0,100,1000 valid",
+        law_is_valid_status(law_status(loop_region_valid(0, 100, 1000))))
+    let b = test_bool("loop equal start,end invalid",
+        law_is_valid_status(law_status(loop_region_valid(100, 100, 1000))) == false)
+    let c = test_bool("loop end>max invalid",
+        law_is_valid_status(law_status(loop_region_valid(0, 100, 50))) == false)
+    let d = test_bool("loop negative start invalid",
+        law_is_valid_status(law_status(loop_region_valid(-1, 100, 1000))) == false)
+    return combine4(a, b, c, d)
+
+fn test_law_pan() -> TestOutcome:
+    let a = test_bool("pan 0 valid",
+        law_is_valid_status(law_status(pan_valid(0.0))))
+    let b = test_bool("pan -1 valid",
+        law_is_valid_status(law_status(pan_valid(-1.0))))
+    let c = test_bool("pan 1 valid",
+        law_is_valid_status(law_status(pan_valid(1.0))))
+    let d = test_bool("pan -1.001 invalid",
+        law_is_valid_status(law_status(pan_valid(-1.001))) == false)
+    let e = test_bool("pan 1.001 invalid",
+        law_is_valid_status(law_status(pan_valid(1.001))) == false)
+    return combine4(a, b, c, test_combine(d, e))
+
+fn test_law_tracks() -> TestOutcome:
+    let a = test_bool("tracks 0 valid",
+        law_is_valid_status(law_status(track_count_valid(0))))
+    let b = test_bool("tracks 8 valid",
+        law_is_valid_status(law_status(track_count_valid(8))))
+    let c = test_bool("tracks 512 boundary",
+        law_is_valid_status(law_status(track_count_valid(512))))
+    let d = test_bool("tracks -1 invalid",
+        law_is_valid_status(law_status(track_count_valid(-1))) == false)
+    let e = test_bool("tracks 513 invalid",
+        law_is_valid_status(law_status(track_count_valid(513))) == false)
+    return combine4(a, b, c, test_combine(d, e))
+
+fn test_law_cpu() -> TestOutcome:
+    let a = test_bool("cpu 0 valid",
+        law_is_valid_status(law_status(cpu_load_valid(0.0))))
+    let b = test_bool("cpu 50 valid",
+        law_is_valid_status(law_status(cpu_load_valid(50.0))))
+    let c = test_bool("cpu 100 boundary",
+        law_is_valid_status(law_status(cpu_load_valid(100.0))))
+    let d = test_bool("cpu -0.001 invalid",
+        law_is_valid_status(law_status(cpu_load_valid(-0.001))) == false)
+    let e = test_bool("cpu 100.001 invalid",
+        law_is_valid_status(law_status(cpu_load_valid(100.001))) == false)
+    return combine4(a, b, c, test_combine(d, e))
+
+fn test_law_plugin_params() -> TestOutcome:
+    let a = test_bool("param 0.5 in [0,1] valid",
+        law_is_valid_status(law_status(param_in_bounds(0.5, 0.0, 1.0))))
+    let b = test_bool("param 1.5 in [0,1] invalid",
+        law_is_valid_status(law_status(param_in_bounds(1.5, 0.0, 1.0))) == false)
+    let c = test_bool("param -0.5 in [0,1] invalid",
+        law_is_valid_status(law_status(param_in_bounds(-0.5, 0.0, 1.0))) == false)
+    let d = test_bool("param 0 in [0,0] zero-range valid",
+        law_is_valid_status(law_status(param_in_bounds(0.0, 0.0, 0.0))))
+    return combine4(a, b, c, d)
+
+fn test_law_plugin_cats() -> TestOutcome:
+    let a = test_bool("cat effect valid",
+        law_is_valid_status(law_status(plugin_category_valid("effect"))))
+    let b = test_bool("cat instrument valid",
+        law_is_valid_status(law_status(plugin_category_valid("instrument"))))
+    let c = test_bool("cat utility valid",
+        law_is_valid_status(law_status(plugin_category_valid("utility"))))
+    let d = test_bool("cat analyzer valid",
+        law_is_valid_status(law_status(plugin_category_valid("analyzer"))))
+    let e = test_bool("cat unknown invalid",
+        law_is_valid_status(law_status(plugin_category_valid("unknown"))) == false)
+    let f = test_bool("cat empty invalid",
+        law_is_valid_status(law_status(plugin_category_valid(""))) == false)
+    let g = test_bool("cat_ext spatial valid",
+        law_is_valid_status(law_status(plugin_category_valid_extended("spatial"))))
+    let h = test_bool("cat_ext unknown invalid",
+        law_is_valid_status(law_status(plugin_category_valid_extended("unknown"))) == false)
+    return combine8(a, b, c, d, e, f, g, h)
+
+fn test_law_plugin_other() -> TestOutcome:
+    let a = test_bool("path /path valid",
+        law_is_valid_status(law_status(plugin_path_exists("/p"))))
+    let b = test_bool("path empty invalid",
+        law_is_valid_status(law_status(plugin_path_exists(""))) == false)
+    let c = test_bool("latency 0 valid",
+        law_is_valid_status(law_status(plugin_latency_valid(0))))
+    let d = test_bool("latency 256 valid",
+        law_is_valid_status(law_status(plugin_latency_valid(256))))
+    let e = test_bool("latency 65536 boundary",
+        law_is_valid_status(law_status(plugin_latency_valid(65536))))
+    let f = test_bool("latency -1 invalid",
+        law_is_valid_status(law_status(plugin_latency_valid(-1))) == false)
+    let g = test_bool("latency 65537 invalid",
+        law_is_valid_status(law_status(plugin_latency_valid(65537))) == false)
+    let h = test_bool("wetdry 0.5 valid",
+        law_is_valid_status(law_status(plugin_wet_dry_valid(0.5))))
+    let i = test_bool("wetdry -0.5 invalid",
+        law_is_valid_status(law_status(plugin_wet_dry_valid(-0.5))) == false)
+    let j = test_bool("wetdry 1.5 invalid",
+        law_is_valid_status(law_status(plugin_wet_dry_valid(1.5))) == false)
+    let k = test_bool("slot 8 valid",
+        law_is_valid_status(law_status(slot_count_valid(8))))
+    let l = test_bool("slot -1 invalid",
+        law_is_valid_status(law_status(slot_count_valid(-1))) == false)
+    let m = test_bool("slot 17 invalid",
+        law_is_valid_status(law_status(slot_count_valid(17))) == false)
+    let n = test_bool("vst3 id valid",
+        law_is_valid_status(law_status(vst3_id_valid("MyPlugin"))))
+    let o = test_bool("vst3 empty invalid",
+        law_is_valid_status(law_status(vst3_id_valid(""))) == false)
+    let p = test_bool("py numpy valid",
+        law_is_valid_status(law_status(python_module_valid("numpy"))))
+    let q = test_bool("py empty invalid",
+        law_is_valid_status(law_status(python_module_valid(""))) == false)
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let ef = test_combine(e, f)
+    let gh = test_combine(g, h)
+    let ij = test_combine(i, j)
+    let kl = test_combine(k, l)
+    let mn = test_combine(m, n)
+    let op = test_combine(o, p)
+    let q_end = test_combine(q, test_bool("plugin_other_done", true))
+    let g1 = test_combine(ab, cd)
+    let g2 = test_combine(ef, gh)
+    let g3 = test_combine(ij, kl)
+    let g4 = test_combine(mn, op)
+    let h1 = test_combine(g1, g2)
+    let h2 = test_combine(g3, g4)
+    return test_combine(h1, test_combine(h2, q_end))
+
+fn category_laws() -> TestOutcome:
+    let r1 = test_law_volume()
+    let r2 = test_law_transport()
+    let r3 = test_law_tempo()
+    let r4 = test_law_samplerate()
+    let r5 = test_law_buffer()
+    let r6 = test_law_time_sig()
+    let r7 = test_law_meter_db()
+    let r8 = test_law_loop()
+    let r9 = test_law_pan()
+    let r10 = test_law_tracks()
+    let r11 = test_law_cpu()
+    let r12 = test_law_plugin_params()
+    let r13 = test_law_plugin_cats()
+    let r14 = test_law_plugin_other()
+    let a = test_combine(r1, r2)
+    let b = test_combine(r3, r4)
+    let c = test_combine(r5, r6)
+    let d = test_combine(r7, r8)
+    let e = test_combine(r9, r10)
+    let f = test_combine(r11, r12)
+    let g = test_combine(r13, r14)
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let ef = test_combine(e, f)
+    let abcd = test_combine(ab, cd)
+    let efgg = test_combine(ef, g)
+    return test_combine(abcd, test_combine(efgg, test_bool("law_category_done", true)))
+
+// ============================================================================
+//  CATEGORY 2 -- ATTRITION: boundary condition stress tests
+// ============================================================================
+
+fn test_att_volume() -> TestOutcome:
+    let near_min = master_volume_in_bounds(0.001)
+    let near_max = master_volume_in_bounds(0.999)
+    let just_low = master_volume_in_bounds(-0.001) == false
+    let just_high = master_volume_in_bounds(1.001) == false
+    return test_bool("volume boundary stress",
+        near_min and near_max and just_low and just_high)
+
+fn test_att_tempo() -> TestOutcome:
+    let at_min = tempo_valid(20.0)
+    let at_max = tempo_valid(400.0)
+    let just_low = tempo_valid(19.999) == false
+    let just_high = tempo_valid(400.001) == false
+    return test_bool("tempo boundary stress",
+        at_min and at_max and just_low and just_high)
+
+fn test_att_buffer() -> TestOutcome:
+    let at_min = buffer_size_valid(16)
+    let at_max = buffer_size_valid(4096)
+    let just_low = buffer_size_valid(15) == false
+    let just_high = buffer_size_valid(4097) == false
+    let non_align = buffer_size_valid(17) == false
+    let zero = buffer_size_valid(0) == false
+    return test_bool("buffer boundary stress",
+        at_min and at_max and just_low and just_high and non_align and zero)
+
+fn test_att_pan() -> TestOutcome:
+    let at_min = pan_valid(-1.0)
+    let at_max = pan_valid(1.0)
+    let just_low = pan_valid(-1.001) == false
+    let just_high = pan_valid(1.001) == false
+    return test_bool("pan boundary stress",
+        at_min and at_max and just_low and just_high)
+
+fn test_att_cpu() -> TestOutcome:
+    let at_min = cpu_load_valid(0.0)
+    let at_max = cpu_load_valid(100.0)
+    let just_low = cpu_load_valid(-0.001) == false
+    let just_high = cpu_load_valid(100.001) == false
+    return test_bool("cpu boundary stress",
+        at_min and at_max and just_low and just_high)
+
+fn test_att_params() -> TestOutcome:
+    let v1 = law_is_valid_status(law_status(param_in_bounds(-0.1, 0.0, 1.0))) == false
+    let v2 = law_is_valid_status(law_status(slot_count_valid(-1))) == false
+    let v3 = law_is_valid_status(law_status(slot_count_valid(17))) == false
+    let v4 = law_is_valid_status(law_status(plugin_wet_dry_valid(-0.5))) == false
+    let v5 = law_is_valid_status(law_status(plugin_wet_dry_valid(1.5))) == false
+    return test_bool("plugin param stress",
+        v1 and v2 and v3 and v4 and v5)
+
+fn category_attrition() -> TestOutcome:
+    let r1 = test_att_volume()
+    let r2 = test_att_tempo()
+    let r3 = test_att_buffer()
+    let r4 = test_att_pan()
+    let r5 = test_att_cpu()
+    let r6 = test_att_params()
+    let a = test_combine(r1, r2)
+    let b = test_combine(r3, r4)
+    let c = test_combine(r5, r6)
+    let ab = test_combine(a, b)
+    return test_combine(ab, test_combine(c, test_bool("attrition_category_done", true)))
+
+// ============================================================================
+//  CATEGORY 3 -- RUNTIME CONTRACT: telemetry counters
+// ============================================================================
+
+fn category_runtime() -> TestOutcome:
+    let a = test_bool("heap valid", runtime_heap_validate() == 1)
+    let b = test_bool("converge_mismatch zero", converge_mismatch_count() == 0)
+    let c = test_bool("orchestrate >= 0", orchestrate_stage_count() >= 0)
+    let d = test_bool("resonate >= 0", resonate_fire_count() >= 0)
+    let e = test_bool("patch_journal >= 0", patch_journal_count() >= 0)
+    let f = test_bool("entangle >= 0", entangle_propagation_count() >= 0)
+    let g = test_bool("law check works",
+        law_is_valid_status(law_status(master_volume_in_bounds(0.5))))
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let ef = test_combine(e, f)
+    let abcd = test_combine(ab, cd)
+    let efg = test_combine(ef, g)
+    return test_combine(abcd, test_combine(efg, test_bool("runtime_category_done", true)))
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let law_out = category_laws()
+    let att_out = category_attrition()
+    let rt_out = category_runtime()
+
+    let all = test_combine(law_out, test_combine(att_out, rt_out))
+
+    let _utask = certify_task("reson8-unit")
+    let _rtask = certify_task("reson8-runtime-contract")
+    let _atask = certify_task("reson8-attrition")
+    let _plaw = certify_task("reson8-plugin-laws")
+    let _gate = certify_gate("reson8-release-gate")
+
+    let failure_count = test_count_failure(all, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failure_count

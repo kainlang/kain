@@ -1,0 +1,143 @@
+// ============================================================================
+//  ATTRITION: test_corrupt_world -- Test law predicates catch corruption
+//
+//  Tests that every mixer + plugin law correctly rejects corrupted values.
+//  Uses only law::mixer_laws and law::plugin_laws (pure functions, no
+//  world surface dependencies).
+//
+//  Laws tested:
+//    master_volume_in_bounds, transport_state_valid, tempo_valid,
+//    sample_rate_valid, buffer_size_valid, time_signature_valid,
+//    meter_db_valid, loop_region_valid, pan_valid, track_count_valid,
+//    cpu_load_valid, param_in_bounds, plugin_category_valid,
+//    plugin_category_valid_extended, plugin_wet_dry_valid,
+//    slot_count_valid, plugin_latency_valid, plugin_path_exists,
+//    vst3_id_valid, python_module_valid
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+use law::mixer_laws
+use law::plugin_laws
+
+fn test_corrupt_volume() -> TestOutcome:
+    let a = law_is_valid_status(law_status(master_volume_in_bounds(-0.001))) == false
+    let b = law_is_valid_status(law_status(master_volume_in_bounds(1.001))) == false
+    let c = law_is_valid_status(law_status(master_volume_in_bounds(-999.0))) == false
+    return test_bool("volume corruption caught", a and b and c)
+
+fn test_corrupt_transport() -> TestOutcome:
+    let a = law_is_valid_status(law_status(transport_state_valid(-1))) == false
+    let b = law_is_valid_status(law_status(transport_state_valid(4))) == false
+    let c = law_is_valid_status(law_status(transport_state_valid(999999))) == false
+    return test_bool("transport corruption caught", a and b and c)
+
+fn test_corrupt_tempo() -> TestOutcome:
+    let a = law_is_valid_status(law_status(tempo_valid(0.0))) == false
+    let b = law_is_valid_status(law_status(tempo_valid(10000.0))) == false
+    let c = law_is_valid_status(law_status(tempo_valid(-120.0))) == false
+    let d = law_is_valid_status(law_status(tempo_valid(19.999))) == false
+    let e = law_is_valid_status(law_status(tempo_valid(400.001))) == false
+    return test_bool("tempo corruption caught", a and b and c and d and e)
+
+fn test_corrupt_samplerate() -> TestOutcome:
+    let a = law_is_valid_status(law_status(sample_rate_valid(0))) == false
+    let b = law_is_valid_status(law_status(sample_rate_valid(12345))) == false
+    let c = law_is_valid_status(law_status(sample_rate_valid(-48000))) == false
+    return test_bool("sample rate corruption caught", a and b and c)
+
+fn test_corrupt_buffer() -> TestOutcome:
+    let a = law_is_valid_status(law_status(buffer_size_valid(17))) == false
+    let b = law_is_valid_status(law_status(buffer_size_valid(0))) == false
+    let c = law_is_valid_status(law_status(buffer_size_valid(5000))) == false
+    let d = law_is_valid_status(law_status(buffer_size_valid(-256))) == false
+    let e = law_is_valid_status(law_status(buffer_size_valid(1025))) == false
+    return test_bool("buffer corruption caught", a and b and c and d and e)
+
+fn test_corrupt_pan() -> TestOutcome:
+    let a = law_is_valid_status(law_status(pan_valid(-2.0))) == false
+    let b = law_is_valid_status(law_status(pan_valid(2.0))) == false
+    let c = law_is_valid_status(law_status(pan_valid(-100.0))) == false
+    return test_bool("pan corruption caught", a and b and c)
+
+fn test_corrupt_cpu() -> TestOutcome:
+    let a = law_is_valid_status(law_status(cpu_load_valid(-1.0))) == false
+    let b = law_is_valid_status(law_status(cpu_load_valid(200.0))) == false
+    let c = law_is_valid_status(law_status(cpu_load_valid(999.9))) == false
+    return test_bool("cpu load corruption caught", a and b and c)
+
+fn test_corrupt_meter_db() -> TestOutcome:
+    let a = law_is_valid_status(law_status(meter_db_valid(-200.0))) == false
+    let b = law_is_valid_status(law_status(meter_db_valid(100.0))) == false
+    return test_bool("meter db corruption caught", a and b)
+
+fn test_corrupt_tracks() -> TestOutcome:
+    let a = law_is_valid_status(law_status(track_count_valid(-1))) == false
+    let b = law_is_valid_status(law_status(track_count_valid(600))) == false
+    let c = law_is_valid_status(law_status(track_count_valid(9999))) == false
+    return test_bool("track count corruption caught", a and b and c)
+
+fn test_corrupt_plugin_params() -> TestOutcome:
+    let a = law_is_valid_status(law_status(param_in_bounds(2.0, 0.0, 1.0))) == false
+    let b = law_is_valid_status(law_status(param_in_bounds(-0.5, 0.0, 1.0))) == false
+    let c = law_is_valid_status(law_status(param_in_bounds(5.0, 0.0, 3.0))) == false
+    let d = law_is_valid_status(law_status(slot_count_valid(-1))) == false
+    let e = law_is_valid_status(law_status(plugin_category_valid("fake_cat"))) == false
+    return test_bool("plugin param corruption caught", a and b and c and d and e)
+
+fn test_corrupt_wetdry_and_latency() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_wet_dry_valid(-0.001))) == false
+    let b = law_is_valid_status(law_status(plugin_wet_dry_valid(1.001))) == false
+    let c = law_is_valid_status(law_status(plugin_wet_dry_valid(999.0))) == false
+    let d = law_is_valid_status(law_status(plugin_latency_valid(-1))) == false
+    let e = law_is_valid_status(law_status(plugin_latency_valid(65537))) == false
+    let f = law_is_valid_status(law_status(plugin_latency_valid(-999))) == false
+    return test_bool("wetdry/latency corruption caught",
+        a and b and c and d and e and f)
+
+fn test_corrupt_paths_and_ids() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_path_exists(""))) == false
+    let b = law_is_valid_status(law_status(vst3_id_valid(""))) == false
+    let c = law_is_valid_status(law_status(python_module_valid(""))) == false
+    let d = law_is_valid_status(law_status(plugin_path_exists("     ")))
+    return test_bool("path/id corruption caught",
+        a and b and c and d)
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_corrupt_volume()
+    let r2 = test_corrupt_transport()
+    let r3 = test_corrupt_tempo()
+    let r4 = test_corrupt_samplerate()
+    let r5 = test_corrupt_buffer()
+    let r6 = test_corrupt_pan()
+    let r7 = test_corrupt_cpu()
+    let r8 = test_corrupt_meter_db()
+    let r9 = test_corrupt_tracks()
+    let r10 = test_corrupt_plugin_params()
+    let r11 = test_corrupt_wetdry_and_latency()
+    let r12 = test_corrupt_paths_and_ids()
+
+    let a = test_combine(r1, r2)
+    let b = test_combine(r3, r4)
+    let c = test_combine(r5, r6)
+    let d = test_combine(r7, r8)
+    let e = test_combine(r9, r10)
+    let f = test_combine(r11, r12)
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let ef = test_combine(e, f)
+    let abcd = test_combine(ab, cd)
+    let combined = test_combine(abcd, ef)
+
+    let failure_count = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failure_count

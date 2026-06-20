@@ -1,0 +1,99 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Teleport Ownership Transfer
+//  Verifies that teleport increments the runtime teleport counter when
+//  a zero-copy ownership handoff occurs between worlds.
+//
+//  Pattern: snapshot runtime_machine_teleport_count() BEFORE teleport,
+//  execute teleport, snapshot AFTER, assert delta > 0.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L1: WORLDS
+// ────────────────────────────────────────────────────────────────────────────
+
+component DummyPanel():
+    render <panel />
+
+world Origin:
+    state landed: Int = 0
+    surface native_ui => DummyPanel
+
+world Destination:
+    state landed: Int = 0
+    surface web => DummyPanel
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L6: SHATTER STRUCT (teleport requires shatter for zero-copy handoff)
+// ────────────────────────────────────────────────────────────────────────────
+
+shatter struct Cargo:
+    value:   Int
+    label:   Int
+    checksum: Int
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_teleport_single_increments() -> TestOutcome:
+    let before = runtime_machine_teleport_count()
+    let cargo = Cargo { value: 42, label: 1, checksum: 99 }
+    let delivered = teleport cargo from Origin to Destination via test_channel
+    Origin.landed = delivered.checksum
+    let after = runtime_machine_teleport_count()
+    let delta = after - before
+    return test_bool("single teleport increments counter (delta > 0)", delta > 0)
+
+fn test_teleport_double_increments() -> TestOutcome:
+    let before = runtime_machine_teleport_count()
+    let c1 = Cargo { value: 10, label: 2, checksum: 50 }
+    let d1 = teleport c1 from Origin to Destination via test_channel
+    let c2 = Cargo { value: 20, label: 3, checksum: 150 }
+    let d2 = teleport c2 from Origin to Destination via test_channel
+    Origin.landed = d1.checksum + d2.checksum
+    let after = runtime_machine_teleport_count()
+    let delta = after - before
+    return test_bool("two teleports increment counter >= 2", delta >= 2)
+
+fn test_teleport_preserves_values() -> TestOutcome:
+    let cargo = Cargo { value: 777, label: 4, checksum: 888 }
+    let delivered = teleport cargo from Origin to Destination via test_channel
+    let value_ok = test_bool("teleport preserves value", delivered.value == 777)
+    let label_ok = test_bool("teleport preserves label", delivered.label == 4)
+    let checksum_ok = test_bool("teleport preserves checksum", delivered.checksum == 888)
+    let combined = test_combine(value_ok, label_ok)
+    return test_combine(combined, checksum_ok)
+
+fn test_teleport_initially_zero() -> TestOutcome:
+    let count = runtime_machine_teleport_count()
+    return test_bool("teleport count is non-negative at start", count >= 0)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_teleport_single_increments()
+    let r2 = test_teleport_double_increments()
+    let r3 = test_teleport_preserves_values()
+    let r4 = test_teleport_initially_zero()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

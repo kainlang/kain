@@ -1,0 +1,628 @@
+// ============================================================================
+//  test_dsp.kn — Unit tests for reson8 DSP functions
+//  Tests compressor, saturator, and utility math with known inputs/outputs.
+//
+//  Self-contained: inlines pure math from the DSP sources so it can be
+//  verified with `kain run` outside the project build graph.
+//  Uses std::math for E and tanh_scalar (present in current compiler).
+// ============================================================================
+
+use std::test
+use std::runtime
+use std::math
+
+// ============================================================================
+//  Inline from comp_reson8.kn — dB / Linear Conversion & helpers
+// ============================================================================
+
+const TEST_DB_FLOOR: Float = -120.0
+
+fn test_linear_to_db(linear: Float) -> Float with Unsafe:
+    if linear <= 0.000000000001:
+        return TEST_DB_FLOOR
+    return 20.0 * test_ln_approx(linear) / 2.302585092994046
+
+fn test_db_to_linear(db: Float) -> Float with Unsafe:
+    if db <= TEST_DB_FLOOR:
+        return 0.0
+    return pow(10.0, db / 20.0)
+
+fn test_ln_approx(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return -120.0
+    var b: Int = 0
+    var a: Float = x
+    while a >= 10.0:
+        a = a / 10.0
+        b = b + 1
+    while a < 1.0 and a > 0.0:
+        a = a * 10.0
+        b = b - 1
+    let y: Float = (a - 1.0) / (a + 1.0)
+    let y2: Float = y * y
+    var ln_a: Float = 0.0
+    var term: Float = y
+    var k: Int = 1
+    while k < 20:
+        ln_a = ln_a + term / (k as Float)
+        term = term * y2
+        k = k + 2
+    let ln10: Float = 2.302585092994046
+    return 2.0 * ln_a + (b as Float) * ln10
+
+fn test_comp_abs(v: Float) -> Float with Pure:
+    if v < 0.0:
+        return 0.0 - v
+    return v
+
+// ============================================================================
+//  Attack/Release Coefficients — uses std::math::E
+// ============================================================================
+
+fn test_compute_attack_coeff(attack_ms: Float, sr: Int) -> Float with Unsafe:
+    let tau: Float = attack_ms * 0.001 * (sr as Float)
+    if tau < 1.0:
+        return 0.0
+    return pow(E, -1.0 / tau)
+
+fn test_compute_release_coeff(release_ms: Float, sr: Int) -> Float with Unsafe:
+    let tau: Float = release_ms * 0.001 * (sr as Float)
+    if tau < 1.0:
+        return 0.0
+    return pow(E, -1.0 / tau)
+
+// ============================================================================
+//  Gain Reduction Computer — knee-based compression
+// ============================================================================
+
+fn test_compute_gain_reduction_db(level_db: Float, threshold_db: Float,
+                                  ratio: Float, knee_db: Float) -> Float with Unsafe:
+    if knee_db <= 0.0:
+        if level_db <= threshold_db:
+            return 0.0
+        let over: Float = level_db - threshold_db
+        return over * (1.0 - 1.0 / ratio)
+
+    let knee_half: Float = knee_db * 0.5
+    let knee_start: Float = threshold_db - knee_half
+    let knee_end: Float = threshold_db + knee_half
+
+    if level_db <= knee_start:
+        return 0.0
+    if level_db >= knee_end:
+        let over: Float = level_db - threshold_db
+        return over * (1.0 - 1.0 / ratio)
+    let delta: Float = level_db - knee_start
+    let over_hard: Float = knee_end - threshold_db
+    let gr_at_end: Float = over_hard * (1.0 - 1.0 / ratio)
+    let t: Float = delta / knee_db
+    return gr_at_end * t * t * 0.5
+
+// ============================================================================
+//  Inline from saturator.kn — Saturation Curves
+//  Uses std::math::tanh_scalar for tanh (avoids redefinition conflict)
+// ============================================================================
+
+fn test_soft_clip_drive(x: Float, drive: Float) -> Float with Pure:
+    return tanh_scalar(x * drive)
+
+fn test_hard_clip(x: Float, drive: Float) -> Float with Pure:
+    let y: Float = x * drive
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    return y
+
+fn test_waveshaper(x: Float, drive: Float) -> Float with Pure:
+    let y: Float = x * drive
+    if y < -1.0:
+        return -1.0
+    if y > 1.0:
+        return 1.0
+    return 1.5 * y - 0.5 * y * y * y
+
+fn test_tape_saturate(x: Float, drive: Float) -> Float with Pure:
+    let y: Float = x * drive
+    let ra: Float = if y < 0.0: 0.0 - y else: y
+    let denom: Float = 1.0 + ra
+    if denom <= 0.0:
+        return 0.0
+    return y / denom
+
+fn test_polynomial_clip(x: Float) -> Float with Pure:
+    let x2: Float = x * x
+    let x3: Float = x2 * x
+    let y: Float = x - (x3 * 0.3333333)
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    return y
+
+fn test_tube_saturate(x: Float, drive: Float) -> Float with Pure:
+    let y: Float = x * drive
+    if y > 0.0:
+        return tanh_scalar(y) * 0.8 + test_polynomial_clip(y * 0.7) * 0.2
+    return tanh_scalar(y) * 0.8 - test_polynomial_clip(-y * 0.7) * 0.2
+
+fn test_asymmetric_clip(x: Float, drive: Float, bias: Float) -> Float with Pure:
+    let y: Float = x * drive + bias
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    if y < 0.0:
+        return 0.0 - tanh_scalar(-y * 1.5) * 0.85
+    return tanh_scalar(y) * 0.9
+
+// ============================================================================
+//  Inline from utility.kn — Basic DSP Utilities
+// ============================================================================
+
+fn test_apply_gain(buffer: ptr<Float>, frames: Int, gain: Float) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        mem_store(ptr_offset(buffer, i, "Float"), val * gain, "Float")
+        i = i + 1
+    return 0
+
+fn test_silence_buffer(buffer: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        mem_store(ptr_offset(buffer, i, "Float"), 0.0, "Float")
+        i = i + 1
+    return 0
+
+fn test_copy_buffer(src: ptr<Float>, dst: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(src, i, "Float"), "Float")
+        mem_store(ptr_offset(dst, i, "Float"), val, "Float")
+        i = i + 1
+    return 0
+
+fn test_peak_amplitude(buffer: ptr<Float>, frames: Int) -> Float with Unsafe:
+    var peak: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        let ra: Float = if val < 0.0: 0.0 - val else: val
+        if ra > peak:
+            peak = ra
+        i = i + 1
+    return peak
+
+fn test_has_signal(buffer: ptr<Float>, frames: Int) -> Bool with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        if val != 0.0:
+            return true
+        i = i + 1
+    return false
+
+fn test_rms_amplitude(buffer: ptr<Float>, frames: Int) -> Float with Unsafe:
+    if frames <= 0:
+        return 0.0
+    var sum_sq: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        sum_sq = sum_sq + (val * val)
+        i = i + 1
+    return sqrt(sum_sq / (frames as Float))
+
+fn test_normalize_peak(buffer: ptr<Float>, frames: Int, target_peak: Float) -> Int with Unsafe:
+    if target_peak <= 0.0:
+        return -1
+    let current_peak = test_peak_amplitude(buffer, frames)
+    if current_peak <= 0.0:
+        return 0
+    let gain = target_peak / current_peak
+    return test_apply_gain(buffer, frames, gain)
+
+fn test_mix_add(dest: ptr<Float>, src: ptr<Float>, frames: Int, mix_gain: Float) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let d = mem_load(ptr_offset(dest, i, "Float"), "Float")
+        let s = mem_load(ptr_offset(src, i, "Float"), "Float")
+        mem_store(ptr_offset(dest, i, "Float"), d + (s * mix_gain), "Float")
+        i = i + 1
+    return 0
+
+fn test_dc_offset_remove(buffer: ptr<Float>, frames: Int) -> Int with Unsafe:
+    if frames <= 0:
+        return -1
+    var sum: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        sum = sum + mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        i = i + 1
+    let mean = sum / (frames as Float)
+    i = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        mem_store(ptr_offset(buffer, i, "Float"), val - mean, "Float")
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  Helper: nearly-equal for Float comparisons with tolerance
+// ============================================================================
+
+fn nearly_eq(a: Float, b: Float, tol: Float) -> Bool:
+    var diff: Float = a - b
+    if diff < 0.0:
+        diff = 0.0 - diff
+    return diff < tol
+
+// ============================================================================
+//  TEST: dB Conversion
+// ============================================================================
+
+fn test_dB_conversion() -> TestOutcome with Unsafe:
+    let db0 = test_linear_to_db(1.0)
+    let r1 = test_bool("linear 1.0 -> 0 dB", nearly_eq(db0, 0.0, 0.01))
+
+    let db20 = test_linear_to_db(10.0)
+    let r2 = test_bool("linear 10.0 -> 20 dB", nearly_eq(db20, 20.0, 0.1))
+
+    let lin0 = test_db_to_linear(0.0)
+    let r3 = test_bool("0 dB -> linear 1.0", nearly_eq(lin0, 1.0, 0.0001))
+
+    let lin20 = test_db_to_linear(20.0)
+    let r4 = test_bool("20 dB -> linear ~10.0", nearly_eq(lin20, 10.0, 0.001))
+
+    let lin_inf = test_db_to_linear(-120.0)
+    let r5 = test_bool("-120 dB -> linear 0.0", nearly_eq(lin_inf, 0.0, 0.0001))
+
+    let lin_6 = test_db_to_linear(-6.0)
+    let r6 = test_bool("-6 dB -> linear ~0.5", nearly_eq(lin_6, 0.5, 0.01))
+
+    let db_neg = test_linear_to_db(0.0)
+    let r7 = test_bool("linear 0.0 -> -120 dB floor", nearly_eq(db_neg, -120.0, 0.01))
+
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)),
+                        test_combine(test_combine(r5, r6), r7))
+
+// ============================================================================
+//  TEST: comp_abs
+// ============================================================================
+
+fn test_comp_abs_func() -> TestOutcome:
+    let r1 = test_bool("abs(-5) == 5", test_comp_abs(-5.0) == 5.0)
+    let r2 = test_bool("abs(3) == 3", test_comp_abs(3.0) == 3.0)
+    let r3 = test_bool("abs(0) == 0", test_comp_abs(0.0) == 0.0)
+    let r4 = test_bool("abs(-0.0) == 0.0", test_comp_abs(-0.0) == 0.0)
+    return test_combine(test_combine(r1, r2), test_combine(r3, r4))
+
+// ============================================================================
+//  TEST: Attack/Release Coefficients
+// ============================================================================
+
+fn test_attack_release_coeffs() -> TestOutcome with Unsafe:
+    let att_10ms_48k = test_compute_attack_coeff(10.0, 48000)
+    let r1 = test_bool("10ms attack coeff in (0,1)",
+        att_10ms_48k > 0.0 and att_10ms_48k < 1.0)
+
+    let att_0ms_48k = test_compute_attack_coeff(0.01, 48000)
+    let r2 = test_bool("near-zero attack coeff ~0",
+        att_0ms_48k >= 0.0 and att_0ms_48k < 0.01)
+
+    let rel_100ms_48k = test_compute_release_coeff(100.0, 48000)
+    let r3 = test_bool("100ms release coeff in (0,1)",
+        rel_100ms_48k > 0.0 and rel_100ms_48k < 1.0)
+
+    let rel_200ms_48k = test_compute_release_coeff(200.0, 48000)
+    let r4 = test_bool("200ms release > 100ms release coeff",
+        rel_200ms_48k > rel_100ms_48k)
+
+    let att_50ms_48k = test_compute_attack_coeff(50.0, 48000)
+    let r5 = test_bool("50ms attack > 10ms attack coeff",
+        att_50ms_48k > att_10ms_48k)
+
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)), r5)
+
+// ============================================================================
+//  TEST: Gain Reduction
+// ============================================================================
+
+fn test_gain_reduction() -> TestOutcome with Unsafe:
+    let gr_below = test_compute_gain_reduction_db(-30.0, -20.0, 4.0, 0.0)
+    let r1 = test_bool("below threshold, no knee -> 0 dB GR",
+        nearly_eq(gr_below, 0.0, 0.001))
+
+    let gr_above = test_compute_gain_reduction_db(-10.0, -20.0, 4.0, 0.0)
+    let r2 = test_bool("above threshold 4:1 -> 7.5 dB GR",
+        nearly_eq(gr_above, 7.5, 0.01))
+
+    let gr_2to1 = test_compute_gain_reduction_db(-10.0, -20.0, 2.0, 0.0)
+    let r3 = test_bool("above threshold 2:1 -> 5 dB GR",
+        nearly_eq(gr_2to1, 5.0, 0.01))
+
+    let gr_1to1 = test_compute_gain_reduction_db(-10.0, -20.0, 1.0, 0.0)
+    let r4 = test_bool("ratio 1:1 -> 0 dB GR",
+        nearly_eq(gr_1to1, 0.0, 0.001))
+
+    let gr_knee_below = test_compute_gain_reduction_db(-30.0, -20.0, 4.0, 6.0)
+    let r5 = test_bool("below knee region -> 0 dB GR",
+        nearly_eq(gr_knee_below, 0.0, 0.001))
+
+    let gr_knee_above = test_compute_gain_reduction_db(-10.0, -20.0, 4.0, 6.0)
+    let r6 = test_bool("above knee region -> 7.5 dB GR",
+        nearly_eq(gr_knee_above, 7.5, 0.01))
+
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)),
+                        test_combine(r5, r6))
+
+// ============================================================================
+//  TEST: Hard Clip
+// ============================================================================
+
+fn test_hard_clip_func() -> TestOutcome:
+    let r1 = test_bool("hard_clip(0.5, 1.0) == 0.5",
+        nearly_eq(test_hard_clip(0.5, 1.0), 0.5, 0.0001))
+    let r2 = test_bool("hard_clip(-0.3, 1.0) == -0.3",
+        nearly_eq(test_hard_clip(-0.3, 1.0), -0.3, 0.0001))
+    let r3 = test_bool("hard_clip(1.5, 1.0) == 1.0",
+        nearly_eq(test_hard_clip(1.5, 1.0), 1.0, 0.0001))
+    let r4 = test_bool("hard_clip(-2.0, 1.0) == -1.0",
+        nearly_eq(test_hard_clip(-2.0, 1.0), -1.0, 0.0001))
+    let r5 = test_bool("hard_clip(0.5, 2.0) == 1.0 (driven over)",
+        nearly_eq(test_hard_clip(0.5, 2.0), 1.0, 0.0001))
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)), r5)
+
+// ============================================================================
+//  TEST: Soft Clip / tanh (uses std::math::tanh_scalar)
+// ============================================================================
+
+fn test_soft_clip_func() -> TestOutcome:
+    let r1 = test_bool("tanh(0) == 0",
+        nearly_eq(tanh_scalar(0.0), 0.0, 0.0001))
+    let pos = tanh_scalar(0.5)
+    let neg = tanh_scalar(-0.5)
+    let r2 = test_bool("tanh is odd (symmetric)",
+        nearly_eq(pos, 0.0 - neg, 0.0001))
+    let r3 = test_bool("tanh(10) nearly 1",
+        tanh_scalar(10.0) > 0.999)
+    let r4 = test_bool("soft_clip_drive(0, any) == 0",
+        nearly_eq(test_soft_clip_drive(0.0, 5.0), 0.0, 0.0001))
+    return test_combine(test_combine(r1, r2), test_combine(r3, r4))
+
+// ============================================================================
+//  TEST: Waveshaper
+// ============================================================================
+
+fn test_waveshaper_func() -> TestOutcome:
+    let r1 = test_bool("waveshaper(0) == 0",
+        nearly_eq(test_waveshaper(0.0, 1.0), 0.0, 0.0001))
+    let r2 = test_bool("waveshaper(1.0) == 1.0",
+        nearly_eq(test_waveshaper(1.0, 1.0), 1.0, 0.0001))
+    let r3 = test_bool("waveshaper(-1.0) == -1.0",
+        nearly_eq(test_waveshaper(-1.0, 1.0), -1.0, 0.0001))
+    let r4 = test_bool("waveshaper(1.5) == 1.0 (clamp)",
+        nearly_eq(test_waveshaper(1.5, 1.0), 1.0, 0.0001))
+    let v1 = test_waveshaper(0.5, 1.0)
+    let v2 = test_waveshaper(0.25, 1.0)
+    let r5 = test_bool("waveshaper monotonic upward", v1 > v2)
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)), r5)
+
+// ============================================================================
+//  TEST: Tape Saturate
+// ============================================================================
+
+fn test_tape_func() -> TestOutcome:
+    let r1 = test_bool("tape(0) == 0",
+        nearly_eq(test_tape_saturate(0.0, 1.0), 0.0, 0.0001))
+    let v1 = test_tape_saturate(0.3, 1.0)
+    let v2 = test_tape_saturate(0.6, 1.0)
+    let r2 = test_bool("tape monotonic upward", v2 > v1)
+    let r3 = test_bool("tape(100) < 1.0",
+        test_tape_saturate(100.0, 1.0) < 1.0)
+    let r4 = test_bool("tape(-100) > -1.0",
+        test_tape_saturate(-100.0, 1.0) > -1.0)
+    return test_combine(test_combine(r1, r2), test_combine(r3, r4))
+
+// ============================================================================
+//  TEST: Tube Saturate
+// ============================================================================
+
+fn test_tube_func() -> TestOutcome:
+    let r1 = test_bool("tube(0) == 0",
+        nearly_eq(test_tube_saturate(0.0, 1.0), 0.0, 0.0001))
+    let pos = test_tube_saturate(0.5, 1.0)
+    let neg = test_tube_saturate(-0.5, 1.0)
+    let r2 = test_bool("tube asymmetric (pos != neg magnitude)",
+        nearly_eq(pos, 0.0 - neg, 0.001) == false)
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  TEST: Asymmetric Clip
+// ============================================================================
+
+fn test_asymmetric_func() -> TestOutcome:
+    let r1 = test_bool("asymmetric(0, bias=0) near 0",
+        nearly_eq(test_asymmetric_clip(0.0, 1.0, 0.0), 0.0, 0.01))
+    let r2 = test_bool("asymmetric clips at 1",
+        nearly_eq(test_asymmetric_clip(2.0, 1.0, 0.0), 1.0, 0.0001))
+    let r3 = test_bool("asymmetric clips at -1",
+        nearly_eq(test_asymmetric_clip(-2.0, 1.0, 0.0), -1.0, 0.0001))
+    let biased = test_asymmetric_clip(0.0, 1.0, 0.5)
+    let r4 = test_bool("asymmetric with bias != 0",
+        nearly_eq(biased, 0.0, 0.01) == false)
+    return test_combine(test_combine(r1, r2), test_combine(r3, r4))
+
+// ============================================================================
+//  TEST: Utility — Buffer Operations
+// ============================================================================
+
+fn test_utility_buffer_ops() -> TestOutcome with Unsafe:
+    let frames: Int = 8
+
+    let buf: ptr<Float> = alloc_zeroed(frames, "Float")
+    mem_store(ptr_offset(buf, 0, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf, 1, "Float"), 2.0, "Float")
+    mem_store(ptr_offset(buf, 2, "Float"), 3.0, "Float")
+    mem_store(ptr_offset(buf, 3, "Float"), 4.0, "Float")
+    mem_store(ptr_offset(buf, 4, "Float"), 5.0, "Float")
+    mem_store(ptr_offset(buf, 5, "Float"), 6.0, "Float")
+    mem_store(ptr_offset(buf, 6, "Float"), 7.0, "Float")
+    mem_store(ptr_offset(buf, 7, "Float"), -8.0, "Float")
+
+    let r1 = test_bool("has_signal detects non-zero",
+        test_has_signal(buf, frames))
+
+    let _ = test_silence_buffer(buf, frames)
+    let r2 = test_bool("after silence, has_signal false",
+        test_has_signal(buf, frames) == false)
+
+    mem_store(ptr_offset(buf, 0, "Float"), 0.5, "Float")
+    mem_store(ptr_offset(buf, 1, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf, 2, "Float"), 0.75, "Float")
+    mem_store(ptr_offset(buf, 3, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf, 4, "Float"), 0.25, "Float")
+    mem_store(ptr_offset(buf, 5, "Float"), 0.0, "Float")
+    mem_store(ptr_offset(buf, 6, "Float"), 0.5, "Float")
+    mem_store(ptr_offset(buf, 7, "Float"), 1.0, "Float")
+
+    let peak = test_peak_amplitude(buf, frames)
+    let r3 = test_bool("peak amplitude is 1.0",
+        nearly_eq(peak, 1.0, 0.0001))
+
+    let _ = test_apply_gain(buf, frames, 2.0)
+    let peak2 = test_peak_amplitude(buf, frames)
+    let r4 = test_bool("after gain 2x, peak is 2.0",
+        nearly_eq(peak2, 2.0, 0.0001))
+
+    let buf2: ptr<Float> = alloc_zeroed(frames, "Float")
+    let _ = test_copy_buffer(buf, buf2, frames)
+    let peak_copy = test_peak_amplitude(buf2, frames)
+    let r5 = test_bool("copy preserved peak",
+        nearly_eq(peak_copy, peak2, 0.0001))
+
+    let _ = test_normalize_peak(buf2, frames, 1.0)
+    let peak_norm = test_peak_amplitude(buf2, frames)
+    let r6 = test_bool("normalize to 1.0 gives peak ~1.0",
+        nearly_eq(peak_norm, 1.0, 0.001))
+
+    let buf3: ptr<Float> = alloc_zeroed(frames, "Float")
+    mem_store(ptr_offset(buf3, 0, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf3, 1, "Float"), -1.0, "Float")
+    mem_store(ptr_offset(buf3, 2, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf3, 3, "Float"), -1.0, "Float")
+    mem_store(ptr_offset(buf3, 4, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf3, 5, "Float"), -1.0, "Float")
+    mem_store(ptr_offset(buf3, 6, "Float"), 1.0, "Float")
+    mem_store(ptr_offset(buf3, 7, "Float"), -1.0, "Float")
+    let rms = test_rms_amplitude(buf3, frames)
+    let r7 = test_bool("RMS of 1/-1 square wave ~1.0",
+        nearly_eq(rms, 1.0, 0.001))
+
+    let dest: ptr<Float> = alloc_zeroed(frames, "Float")
+    let src: ptr<Float> = alloc_zeroed(frames, "Float")
+    var mi: Int = 0
+    while mi < frames:
+        mem_store(ptr_offset(dest, mi, "Float"), 1.0, "Float")
+        mem_store(ptr_offset(src, mi, "Float"), 0.5, "Float")
+        mi = mi + 1
+    let _ = test_mix_add(dest, src, frames, 1.0)
+    let val0 = mem_load(ptr_offset(dest, 0, "Float"), "Float")
+    let r8 = test_bool("mix_add: 1.0 + 0.5*1.0 == 1.5",
+        nearly_eq(val0, 1.5, 0.0001))
+
+    decay buf
+    decay buf2
+    decay buf3
+    decay dest
+    decay src
+
+    return test_combine(test_combine(test_combine(r1, r2), test_combine(r3, r4)),
+                        test_combine(test_combine(test_combine(r5, r6), test_combine(r7, r8))))
+
+// ============================================================================
+//  TEST: DC Offset Remove
+// ============================================================================
+
+fn test_dc_remove() -> TestOutcome with Unsafe:
+    let frames: Int = 4
+    let buf: ptr<Float> = alloc_zeroed(frames, "Float")
+    mem_store(ptr_offset(buf, 0, "Float"), 6.0, "Float")
+    mem_store(ptr_offset(buf, 1, "Float"), 5.0, "Float")
+    mem_store(ptr_offset(buf, 2, "Float"), 7.0, "Float")
+    mem_store(ptr_offset(buf, 3, "Float"), 6.0, "Float")
+
+    let _ = test_dc_offset_remove(buf, frames)
+
+    var sum: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        sum = sum + mem_load(ptr_offset(buf, i, "Float"), "Float")
+        i = i + 1
+    let mean = sum / (frames as Float)
+    let r1 = test_bool("DC remove: mean near 0",
+        nearly_eq(mean, 0.0, 0.001))
+
+    let v0 = mem_load(ptr_offset(buf, 0, "Float"), "Float")
+    let r2 = test_bool("DC remove: first sample ~0",
+        nearly_eq(v0, 0.0, 0.001))
+    let v1 = mem_load(ptr_offset(buf, 1, "Float"), "Float")
+    let r3 = test_bool("DC remove: second sample ~-1",
+        nearly_eq(v1, -1.0, 0.001))
+
+    decay buf
+    return test_combine(r1, test_combine(r2, r3))
+
+// ============================================================================
+//  MAIN — Aggregates all test categories, returns failure count
+// ============================================================================
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    var failures: Int = 0
+
+    // Compressor
+    let r_dB = test_dB_conversion()
+    failures = test_count_failure(r_dB, failures)
+
+    let r_abs = test_comp_abs_func()
+    failures = test_count_failure(r_abs, failures)
+
+    let r_att_rel = test_attack_release_coeffs()
+    failures = test_count_failure(r_att_rel, failures)
+
+    let r_gr = test_gain_reduction()
+    failures = test_count_failure(r_gr, failures)
+
+    // Saturator
+    let r_hard = test_hard_clip_func()
+    failures = test_count_failure(r_hard, failures)
+
+    let r_soft = test_soft_clip_func()
+    failures = test_count_failure(r_soft, failures)
+
+    let r_wave = test_waveshaper_func()
+    failures = test_count_failure(r_wave, failures)
+
+    let r_tape = test_tape_func()
+    failures = test_count_failure(r_tape, failures)
+
+    let r_tube = test_tube_func()
+    failures = test_count_failure(r_tube, failures)
+
+    let r_asym = test_asymmetric_func()
+    failures = test_count_failure(r_asym, failures)
+
+    // Utility
+    let r_buf = test_utility_buffer_ops()
+    failures = test_count_failure(r_buf, failures)
+
+    let r_dc = test_dc_remove()
+    failures = test_count_failure(r_dc, failures)
+
+    runtime_shutdown()
+    return failures

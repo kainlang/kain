@@ -1,0 +1,293 @@
+// ============================================================================
+//  CAUSAL CHAIN BENCHMARK — Full Semantic Stack Exercise
+//  Exercises all 7 layers of the Kain semantic ladder in one pipeline:
+//    L1: world + entangle (state authority + mirror propagation)
+//    L2: patch + law (journaled mutation + invariant check)
+//    L3: converge (spec + fast lane dispatch)
+//    L4: orchestrate (multi-stage pipeline)
+//    L5: resonate (reactive state tripwire)
+//    L6: shatter + teleport + axiom (zero-copy handoff, capability gate)
+//    L7: actor + ownership (message-driven processing, raw memory)
+//
+//  Uses telemetry delta guards to PROVE every layer actually fired.
+//  Returns negative if any layer failed to engage.
+// ============================================================================
+
+use std::runtime
+use std::test
+use std::intent
+use std::actor
+use std::machine
+
+const CHAIN_MODULUS: Int = 1000000007
+
+// ============================================================================
+//  L1: WORLDS + ENTANGLE — Compiler-owned state + mirror
+// ============================================================================
+
+world ChainAuthority:
+    state signal:        Int = 0
+    state epoch:         Int = 0
+    state shadow:        Int = 0
+    state teleport_land: Int = 0
+    state chain_feed:    Int = 0
+    surface native_ui => ChainPanel
+
+world ChainMirror:
+    state signal_copy:  Int = 0
+    state epoch_copy:   Int = 0
+    surface native_ui => ChainMirrorPanel
+
+component ChainPanel():
+    state label: String = "auth"
+    render <label text="{label}" />
+
+component ChainMirrorPanel():
+    state label: String = "mirror"
+    render <label text="{label}" />
+
+entangle ChainAuthority.signal <-> ChainMirror.signal_copy with single_writer
+entangle ChainAuthority.epoch  <-> ChainMirror.epoch_copy  with single_writer
+
+// ============================================================================
+//  L2: LAWS + PATCHES — Invariant predicates + journaled mutation
+// ============================================================================
+
+law signal_in_bounds(s: Int) -> Bool:
+    return s >= 0 and s < CHAIN_MODULUS
+
+law epoch_valid(e: Int) -> Bool:
+    return e >= 0
+
+patch advance_signal(auth: ChainAuthority, value: Int) -> Int:
+    if law_status(signal_in_bounds(value)) == false:
+        return -1
+    if law_is_valid_status(law_status(signal_in_bounds(value))) == false:
+        return -2
+    auth.signal = value
+    auth.epoch = auth.epoch + 1
+    return auth.epoch
+
+patch mark_teleport(auth: ChainAuthority, checksum: Int) -> Int:
+    auth.teleport_land = checksum
+    return auth.teleport_land
+
+patch reset_chain(auth: ChainAuthority) -> Int:
+    auth.signal = 0
+    auth.epoch = 0
+    auth.shadow = 0
+    auth.teleport_land = 0
+    return 0
+
+// ============================================================================
+//  L3: CONVERGE — Multi-lane dispatch
+// ============================================================================
+
+fn chain_ref(value: Int, seed: Int) -> Int:
+    return (value * 31 + seed * 7) % CHAIN_MODULUS
+
+fn chain_fast(value: Int, seed: Int) -> Int:
+    return ((value + seed) * 13 + 17) % CHAIN_MODULUS
+
+converge chain_mix(value: Int, seed: Int) -> Int:
+    spec reference:
+        return chain_ref(value, seed)
+    fast fast_lane when capability("cpu.scalar"):
+        return chain_fast(value, seed)
+    verify random(4)
+
+// ============================================================================
+//  L4: ORCHESTRATE — Multi-stage pipeline
+// ============================================================================
+
+fn stage_process(value: Int, tick: Int) -> Int:
+    return (value * 5 + tick * 3) % CHAIN_MODULUS
+
+orchestrate chain_pipeline(value: Int, tick: Int) -> Int:
+    stage mix: cpu stage_process(value, tick) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    stage converge_stage: converge chain_mix(value, tick) deps [mix] residency host policy static
+    return converge_stage
+
+// ============================================================================
+//  L5: RESONATE — Reactive tripwire on signal
+// ============================================================================
+
+resonate ChainAuthority.signal dampen 0 ms:
+    let new_val: Int = resonate_new_i64
+    let old_val: Int = resonate_old_i64
+    ChainAuthority.shadow = (new_val * 1000 + old_val) % CHAIN_MODULUS
+
+// ============================================================================
+//  L6: SHATTER + TELEPORT + AXIOM — Machine stones
+// ============================================================================
+
+shatter struct ChainPayload:
+    signal: Int
+    epoch:  Int
+    tick:   Int
+    checksum: Int
+    hot:    Bool
+
+axiom chain_daw_truth:
+    when target("llvm")
+    when capability("world.teleport")
+    when capability("memory.shatter")
+    guarantee "causal chain requires LLVM with teleport and shatter"
+    fallback chain_fallback
+
+fn chain_fallback() -> Int:
+    return 0
+
+// ============================================================================
+//  L7: ACTOR — Message-driven processing
+// ============================================================================
+
+actor ChainWorker:
+    state turns: Int = 0
+    state bias:  Int = 7
+
+    on Process(reply_to: P, frame: Int):
+        self.turns = self.turns + 1
+        let payload = ChainPayload {
+            signal:   (frame * 13) % CHAIN_MODULUS,
+            epoch:    self.turns,
+            tick:     frame,
+            checksum: (frame * 31 + self.turns * 17) % CHAIN_MODULUS,
+            hot:      (frame % 2) == 0,
+        }
+        let moved = teleport payload from ChainAuthority to ChainMirror via chain_feed
+        let score = (moved.signal + moved.epoch + moved.tick + moved.checksum) % CHAIN_MODULUS
+        send reply_to.Reply(value = score)
+
+// ============================================================================
+//  TEST: Full causal chain with telemetry delta guards
+// ============================================================================
+
+fn test_causal_chain_bench() -> TestOutcome:
+    // Telemetry snapshots BEFORE
+    let patch_before = patch_journal_count()
+    let entangle_before = entangle_propagation_count()
+    let teleport_before = runtime_machine_teleport_count()
+    let resonate_before = resonate_fire_count()
+    let orchestrate_before = orchestrate_stage_count()
+    let converge_before = converge_mismatch_count()
+
+    // Reset world
+    let _reset = reset_chain(ChainAuthority)
+
+    // Spawn actor
+    let worker = spawn ChainWorker(turns = 0, bias = 7)
+
+    // Run 8 iterations of the complete causal chain
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < 8:
+        // L2: Patch world via law-gated mutation
+        let ep = advance_signal(ChainAuthority, i * 42 + 17)
+
+        // L1: Read entangled mirror
+        let mirror_sig = ChainMirror.signal_copy
+
+        // L4: Run orchestrate pipeline
+        let orch = chain_pipeline(i, (i * 31) % 100)
+
+        // L3: Direct converge (for independent verification)
+        let cv = chain_mix(i, (i * 7) % 100)
+
+        // L6 + L7: Teleport via actor
+        let actor_score = ask(worker, "Process", i * 31 + 7)
+
+        // L5: Resonate already fired — read shadow
+        let shadow = ChainAuthority.shadow
+
+        // Accumulate checksum
+        checksum = (checksum + ep + mirror_sig + orch + cv + actor_score + shadow) % CHAIN_MODULUS
+
+        // Verify converge has no mismatches
+        let mismatches_before = converge_mismatch_count()
+        let _ = chain_mix(i * 3, (i * 5) % 100)
+        let mismatches_after = converge_mismatch_count()
+        if mismatches_after > mismatches_before:
+            checksum = (checksum + 1) % CHAIN_MODULUS  // flag mismatch
+
+        i = i + 1
+
+    // Telemetry snapshots AFTER
+    let patch_after = patch_journal_count()
+    let entangle_after = entangle_propagation_count()
+    let teleport_after = runtime_machine_teleport_count()
+    let resonate_after = resonate_fire_count()
+    let orchestrate_after = orchestrate_stage_count()
+    let converge_mismatch_after = converge_mismatch_count()
+
+    // Delta guards — prove every layer fired
+    let patch_delta = patch_after - patch_before
+    let entangle_delta = entangle_after - entangle_before
+    let teleport_delta = teleport_after - teleport_before
+    let resonate_delta = resonate_after - resonate_before
+    let orchestrate_delta = orchestrate_after - orchestrate_before
+
+    let r1 = test_bool("patch journal fired", patch_delta >= 8)
+    let r2 = test_bool("entangle propagated", entangle_delta >= 1)
+    let r3 = test_bool("teleport delivered", teleport_delta >= 8)
+    let r4 = test_bool("resonate fired", resonate_delta >= 1)
+    let r5 = test_bool("orchestrate stages ran", orchestrate_delta >= 1)
+    let r6 = test_bool("converge no mismatches", converge_mismatch_after == 0)
+    let r7 = test_bool("causal chain checksum nonzero", checksum != 0)
+
+    // Heap validation
+    let heap_ok = runtime_heap_validate()
+    let r8 = test_bool("heap valid", heap_ok == 1)
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+    let combined = test_combine(combined, r6)
+    let combined = test_combine(combined, r7)
+    let combined = test_combine(combined, r8)
+
+    return combined
+
+// ============================================================================
+//  BENCHMARK TASK REGISTRATION (std::bench task IDs)
+// ============================================================================
+
+// Register benchmark task for causal chain
+fn register_benchmarks() -> Int:
+    let _ = bench_case("reson8.causal-chain.throughput")
+    let _ = bench_case("reson8.causal-chain.world-entangle")
+    let _ = bench_case("reson8.causal-chain.patch-law")
+    let _ = bench_case("reson8.causal-chain.converge")
+    let _ = bench_case("reson8.causal-chain.orchestrate")
+    let _ = bench_case("reson8.causal-chain.resonate")
+    let _ = bench_case("reson8.causal-chain.teleport")
+    let _ = bench_case("reson8.causal-chain.actor")
+    return 0
+
+// ============================================================================
+//  MAIN — Run causal chain benchmark
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Register benchmark tasks
+    let _ = register_benchmarks()
+
+    // Run the causal chain
+    let outcome = test_causal_chain_bench()
+    let failures = test_count_failure(outcome, 0)
+
+    // Heap validation
+    let heap_ok = runtime_heap_validate()
+    if heap_ok != 1:
+        let _ = test_bool("final heap validation", false)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

@@ -1,0 +1,109 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Patch Journaling
+//  Verifies that patch blocks increment the runtime journal counter
+//  when they commit world mutations.
+//
+//  Pattern: snapshot patch_journal_count() BEFORE patch,
+//  execute patch, snapshot AFTER, assert delta > 0.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L1: WORLD
+// ────────────────────────────────────────────────────────────────────────────
+
+component DummyPanel():
+    render <panel />
+
+world TestWorld:
+    state value: Int = 0
+    state epoch: Int = 0
+    state label: String = "initial"
+    surface native_ui => DummyPanel
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L2: PATCHES
+// ────────────────────────────────────────────────────────────────────────────
+
+patch set_value(w: TestWorld, v: Int) -> Int:
+    w.value = v
+    w.epoch = w.epoch + 1
+    return w.epoch
+
+patch increment_value(w: TestWorld) -> Int:
+    w.value = w.value + 1
+    w.epoch = w.epoch + 1
+    return w.epoch
+
+patch set_label(w: TestWorld, lbl: String) -> Int:
+    w.label = lbl
+    w.epoch = w.epoch + 1
+    return w.epoch
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_patch_single_increments() -> TestOutcome:
+    let before = patch_journal_count()
+    let _ = set_value(TestWorld, 42)
+    let after = patch_journal_count()
+    let delta = after - before
+    return test_bool("single patch increments journal (delta > 0)", delta > 0)
+
+fn test_patch_chain_increments() -> TestOutcome:
+    let before = patch_journal_count()
+    let _ = set_value(TestWorld, 10)
+    let _ = increment_value(TestWorld)
+    let _ = increment_value(TestWorld)
+    let after = patch_journal_count()
+    let delta = after - before
+    return test_bool("three patches in chain increment journal >= 3", delta >= 3)
+
+fn test_patch_string_field() -> TestOutcome:
+    let before = patch_journal_count()
+    let _ = set_label(TestWorld, "patched")
+    let after = patch_journal_count()
+    let delta = after - before
+    return test_bool("string field patch increments journal (delta > 0)", delta > 0)
+
+fn test_patch_journal_initially_zero() -> TestOutcome:
+    let count = patch_journal_count()
+    return test_bool("patch journal count is non-negative at start", count >= 0)
+
+fn test_patch_returns_epoch() -> TestOutcome:
+    let _ = set_value(TestWorld, 0)  // reset
+    let e1 = set_value(TestWorld, 5)
+    let e2 = set_value(TestWorld, 10)
+    return test_bool("patch returns incremented epoch", e2 > e1)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_patch_single_increments()
+    let r2 = test_patch_chain_increments()
+    let r3 = test_patch_string_field()
+    let r4 = test_patch_journal_initially_zero()
+    let r5 = test_patch_returns_epoch()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

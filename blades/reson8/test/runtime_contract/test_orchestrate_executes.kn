@@ -1,0 +1,85 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Orchestrate Stage Execution
+//  Verifies that orchestrate pipeline stages execute and increment
+//  the runtime stage counter.
+//
+//  Pattern: snapshot orchestrate_stage_count() BEFORE pipeline call,
+//  call pipeline, snapshot AFTER, assert delta > 0.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  STAGE FUNCTIONS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn mul_stage(x: Int, y: Int) -> Int with Pure:
+    return x * y
+
+fn add_stage(x: Int, y: Int) -> Int with Pure:
+    return x + y
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L4: ORCHESTRATE — Two-stage pipeline with cpu stages
+// ────────────────────────────────────────────────────────────────────────────
+
+orchestrate test_pipeline(a: Int, b: Int) -> Int:
+    stage stage_mul: cpu mul_stage(a, b) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    stage stage_add: cpu add_stage(stage_mul, 7) after stage_mul residency host policy static
+    return stage_add
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_orchestrate_stages_increment() -> TestOutcome:
+    let before = orchestrate_stage_count()
+    let result = test_pipeline(3, 5)
+    let after = orchestrate_stage_count()
+    let delta = after - before
+    // (3 * 5) + 7 = 22
+    let result_ok = test_bool("orchestrate produces correct result", result == 22)
+    let stage_ok = test_bool("orchestrate stages increment counter (delta > 0)", delta > 0)
+    return test_combine(result_ok, stage_ok)
+
+fn test_orchestrate_multiple_calls() -> TestOutcome:
+    let before = orchestrate_stage_count()
+    let r1 = test_pipeline(4, 6)
+    let r2 = test_pipeline(10, 2)
+    let r3 = test_pipeline(1, 9)
+    let after = orchestrate_stage_count()
+    let delta = after - before
+    // Multiple invocations should each increment stages
+    let values_ok = test_bool("orchestrate multiple calls correct", r1 == 31 and r2 == 27 and r3 == 16)
+    let stage_ok = test_bool("orchestrate 3 calls increment counter (delta >= 3)", delta >= 3)
+    return test_combine(values_ok, stage_ok)
+
+fn test_orchestrate_initially_zero() -> TestOutcome:
+    let count = orchestrate_stage_count()
+    return test_bool("orchestrate stage count is non-negative at start", count >= 0)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_orchestrate_stages_increment()
+    let r2 = test_orchestrate_multiple_calls()
+    let r3 = test_orchestrate_initially_zero()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

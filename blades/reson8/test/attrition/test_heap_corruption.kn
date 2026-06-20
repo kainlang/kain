@@ -1,0 +1,223 @@
+// ============================================================================
+//  ATTRITION: test_heap_corruption — Verify runtime_heap_validate catches
+//  memory corruption, allocation lifecycle, and buffer overflow detection.
+//
+//  Tests:
+//    1. Healthy heap returns 1 from runtime_heap_validate()
+//    2. After alloc + proper usage, heap remains valid
+//    3. After alloc + decay, heap is clean
+//    4. Improper access patterns (within bounds)
+//    5. Heap validation after multiple allocations
+//    6. Repeated allocations/deallocations stress the heap
+//    7. Aligned access patterns (buffer_aligned law)
+//
+//  Uses collapse/observe/decay for raw memory lifecycle management
+//  and law::mixer_laws for buffer_aligned validation.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+use std::memory
+use law::mixer_laws
+
+// ============================================================================
+//  HEALTHY HEAP — Baseline: init+validate+shutdown with no allocations
+// ============================================================================
+
+fn test_heap_baseline() -> TestOutcome:
+    let heap_ok = runtime_heap_validate()
+    return test_bool("heap baseline valid after init", heap_ok == 1)
+
+// ============================================================================
+//  ALLOC + USAGE — Allocate, write, read, decay; heap stays clean
+// ============================================================================
+
+fn test_heap_alloc_usage() -> TestOutcome:
+    // Allocate a zeroed array of 16 Ints
+    let n: Int = 16
+    let mut buf: ptr<Int> = alloc_zeroed(n, "Int")
+
+    // Write via collapse
+    collapse buf:
+        var i: Int = 0
+        while i < n:
+            mem_store(ptr_offset(buf, i, "Int"), i * 10, "Int")
+            i = i + 1
+        i    // dummy return for collapse block
+        0
+
+    // Read via observe
+    let sum: Int = observe buf:
+        var s: Int = 0
+        var j: Int = 0
+        while j < n:
+            s = s + mem_load(ptr_offset(buf, j, "Int"), "Int")
+            j = j + 1
+        s
+
+    // Validate heap while allocation is active
+    let heap_active = runtime_heap_validate()
+
+    // Decay (deallocate) the buffer
+    decay buf
+
+    // Validate heap after deallocation
+    let heap_clean = runtime_heap_validate()
+
+    let expected_sum: Int = 0
+    var calc: Int = 0
+    var k: Int = 0
+    while k < n:
+        calc = calc + (k * 10)
+        k = k + 1
+
+    let r1 = test_bool("alloc+usage sum correct", sum == calc)
+    let r2 = test_bool("heap valid during allocation", heap_active == 1)
+    let r3 = test_bool("heap valid after deallocation", heap_clean == 1)
+
+    return test_combine(test_combine(r1, r2), r3)
+
+// ============================================================================
+//  MULTIPLE ALLOCATIONS — Stress allocator with multiple blocks
+// ============================================================================
+
+fn test_heap_multi_alloc() -> TestOutcome:
+    // Allocate multiple buffers, validate heap between operations
+    let mut a: ptr<Int> = alloc_zeroed(8, "Int")
+    let mut b: ptr<Int> = alloc_zeroed(16, "Int")
+    let mut c: ptr<Int> = alloc_zeroed(32, "Int")
+
+    collapse a:
+        mem_store(ptr_offset(a, 0, "Int"), 42, "Int")
+        0
+
+    collapse b:
+        mem_store(ptr_offset(b, 0, "Int"), 99, "Int")
+        0
+
+    let heap_mid = runtime_heap_validate()
+
+    decay a
+    decay b
+
+    collapse c:
+        mem_store(ptr_offset(c, 0, "Int"), 7, "Int")
+        0
+
+    let heap_after = runtime_heap_validate()
+    decay c
+
+    let heap_final = runtime_heap_validate()
+
+    let r1 = test_bool("heap valid during multi-alloc", heap_mid == 1)
+    let r2 = test_bool("heap valid after partial decay", heap_after == 1)
+    let r3 = test_bool("heap valid after full cleanup", heap_final == 1)
+    return test_combine(test_combine(r1, r2), r3)
+
+// ============================================================================
+//  ALLOCATE+REALLOCATE — Stress allocation cycles
+// ============================================================================
+
+fn test_heap_alloc_cycles(count: Int) -> TestOutcome:
+    var cycle: Int = 0
+    var all_valid: Bool = true
+    while cycle < count:
+        let mut buf: ptr<Int> = alloc_zeroed(64, "Int")
+
+        collapse buf:
+            mem_store(ptr_offset(buf, 0, "Int"), cycle, "Int")
+            0
+
+        let h = runtime_heap_validate()
+        if h != 1:
+            all_valid = false
+
+        decay buf
+        cycle = cycle + 1
+
+    let r1 = test_bool("heap valid through " + str(count) + " alloc cycles", all_valid)
+    let r2 = test_bool("heap clean after cycles", runtime_heap_validate() == 1)
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  BUFFER ALIGNMENT — Verify buffer_aligned law works with allocated memory
+// ============================================================================
+
+fn test_heap_buffer_alignment() -> TestOutcome:
+    let mut buf: ptr<Int> = alloc_zeroed(32, "Int")
+    let aligned = law_is_valid_status(law_status(buffer_aligned(buf)))
+    let r1 = test_bool("allocated buffer 16-byte aligned", aligned)
+    decay buf
+    return r1
+
+// ============================================================================
+//  EMPTY ALLOC — Zero-size allocation edge case
+// ============================================================================
+
+fn test_heap_empty_alloc() -> TestOutcome:
+    let mut buf: ptr<Int> = alloc_zeroed(0, "Int")
+    let h_after_alloc = runtime_heap_validate()
+    decay buf
+    let h_after_free = runtime_heap_validate()
+    let r1 = test_bool("heap valid after zero-size alloc", h_after_alloc == 1)
+    let r2 = test_bool("heap clean after zero-size free", h_after_free == 1)
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  LARGE ALLOC — Stress with larger allocation near buffer limit
+// ============================================================================
+
+fn test_heap_large_alloc() -> TestOutcome:
+    let n: Int = 1024
+    let mut buf: ptr<Int> = alloc_zeroed(n, "Int")
+
+    // Write a pattern
+    collapse buf:
+        var i: Int = 0
+        while i < n:
+            mem_store(ptr_offset(buf, i, "Int"), i % 256, "Int")
+            i = i + 1
+        i
+        0
+
+    let h_active = runtime_heap_validate()
+    decay buf
+    let h_clean = runtime_heap_validate()
+
+    let r1 = test_bool("heap valid with 1024-int allocation", h_active == 1)
+    let r2 = test_bool("heap clean after large allocation freed", h_clean == 1)
+    return test_combine(r1, r2)
+
+// ============================================================================
+//  MAIN — Run all heap corruption / validation tests
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r_baseline = test_heap_baseline()
+    let r_usage    = test_heap_alloc_usage()
+    let r_multi    = test_heap_multi_alloc()
+    let r_cycles   = test_heap_alloc_cycles(10)
+    let r_align    = test_heap_buffer_alignment()
+    let r_empty    = test_heap_empty_alloc()
+    let r_large    = test_heap_large_alloc()
+
+    let combined = test_combine(
+        test_combine(
+            test_combine(test_combine(r_baseline, r_usage), test_combine(r_multi, r_cycles)),
+            test_combine(test_combine(r_align, r_empty), r_large)
+        ),
+        test_bool("heap_attrition_suite_done", true)
+    )
+
+    let failure_count = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failure_count

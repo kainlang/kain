@@ -24,15 +24,8 @@ pub struct PluginInfo:
     loaded:      Bool
     crash_count: Int
 
-// ── Audio buffer view for plugin processing ──
-pub struct AudioView:
-    data:       ptr<Float>
-    frames:     Int
-    channels:   Int
-    peak_l:     Float
-    peak_r:     Float
-    rms_l:      Float
-    rms_r:      Float
+// AudioView is provided by converge::plugin_dispatch (imported above).
+// PluginSlot is also provided by the same module.
 
 // ============================================================================
 //  PluginHost ACTOR

@@ -1,0 +1,202 @@
+// ============================================================================
+//  OWNERSHIP LATTICE PROOF — Z3 Formal Verification
+//  Proves the collapse/observe/decay state machine is correct:
+//    IDLE(0) -> COLLAPSED(1): valid
+//    IDLE(0) -> OBSERVED(2): valid
+//    COLLAPSED(1) -> DECAYED(3): valid
+//    OBSERVED(2) -> COLLAPSED(1): valid (re-collapse after observe)
+//    COLLAPSED(1) -> OBSERVED(2): INVALID (cannot observe while collapsed)
+//    DECAYED(3) -> any other state: INVALID (decayed is terminal)
+//    COLLAPSED(1) -> IDLE(0): INVALID (must decay, can't go back to idle)
+//    OBSERVED(2) -> DECAYED(3): valid (can decay from observed)
+// ============================================================================
+
+use std::runtime
+use std::test
+use std::z3
+
+// Ownership state constants (mirrors runtime/kain ownership lattice)
+const OWN_IDLE:      Int = 0
+const OWN_COLLAPSED: Int = 1
+const OWN_OBSERVED:  Int = 2
+const OWN_DECAYED:   Int = 3
+
+// ============================================================================
+//  Ownership Transition Rule — returns a Z3 constraint clause
+//  Formalizes: valid_transition(from, to) iff the lattice allows it
+// ============================================================================
+
+fn z3_valid_transition(from: Any, to: Any) -> Any:
+    // Valid transitions:
+    //   IDLE -> COLLAPSED
+    //   IDLE -> OBSERVED
+    //   COLLAPSED -> DECAYED
+    //   OBSERVED -> COLLAPSED
+    //   OBSERVED -> DECAYED
+    //   OBSERVED -> IDLE (release observed)
+    return z3_or([
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_IDLE)), z3_expr_eq(to, z3_int_val(OWN_COLLAPSED))]),
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_IDLE)), z3_expr_eq(to, z3_int_val(OWN_OBSERVED))]),
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_COLLAPSED)), z3_expr_eq(to, z3_int_val(OWN_DECAYED))]),
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_OBSERVED)), z3_expr_eq(to, z3_int_val(OWN_COLLAPSED))]),
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_OBSERVED)), z3_expr_eq(to, z3_int_val(OWN_DECAYED))]),
+        z3_and([z3_expr_eq(from, z3_int_val(OWN_OBSERVED)), z3_expr_eq(to, z3_int_val(OWN_IDLE))]),
+    ])
+
+// ============================================================================
+//  Test: IDLE -> COLLAPSED is a valid transition (should be SAT)
+// ============================================================================
+
+fn test_idle_to_collapsed_valid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_IDLE)),
+        z3_expr_eq(n, z3_int_val(OWN_COLLAPSED)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_sat("idle_to_collapsed_valid", solver)
+
+// ============================================================================
+//  Test: IDLE -> OBSERVED is a valid transition (should be SAT)
+// ============================================================================
+
+fn test_idle_to_observed_valid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_IDLE)),
+        z3_expr_eq(n, z3_int_val(OWN_OBSERVED)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_sat("idle_to_observed_valid", solver)
+
+// ============================================================================
+//  Test: COLLAPSED -> DECAYED is a valid transition (should be SAT)
+// ============================================================================
+
+fn test_collapsed_to_decayed_valid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_COLLAPSED)),
+        z3_expr_eq(n, z3_int_val(OWN_DECAYED)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_sat("collapsed_to_decayed_valid", solver)
+
+// ============================================================================
+//  Test: OBSERVED -> DECAYED is a valid transition (should be SAT)
+// ============================================================================
+
+fn test_observed_to_decayed_valid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_OBSERVED)),
+        z3_expr_eq(n, z3_int_val(OWN_DECAYED)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_sat("observed_to_decayed_valid", solver)
+
+// ============================================================================
+//  Test: OBSERVED -> IDLE is a valid transition (should be SAT)
+// ============================================================================
+
+fn test_observed_to_idle_valid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_OBSERVED)),
+        z3_expr_eq(n, z3_int_val(OWN_IDLE)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_sat("observed_to_idle_valid", solver)
+
+// ============================================================================
+//  Test: COLLAPSED -> OBSERVED is INVALID (should be UNSAT)
+//  Once collapsed for write, you cannot observe — the pointer is exclusively
+//  held. You must decay first.
+// ============================================================================
+
+fn test_collapsed_to_observed_invalid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_COLLAPSED)),
+        z3_expr_eq(n, z3_int_val(OWN_OBSERVED)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_unsat("collapsed_to_observed_invalid", solver)
+
+// ============================================================================
+//  Test: COLLAPSED -> IDLE is INVALID (should be UNSAT)
+//  From collapsed you must go through decay. Cannot silently drop exclusive
+//  ownership back to idle.
+// ============================================================================
+
+fn test_collapsed_to_idle_invalid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_COLLAPSED)),
+        z3_expr_eq(n, z3_int_val(OWN_IDLE)),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_unsat("collapsed_to_idle_invalid", solver)
+
+// ============================================================================
+//  Test: DECAYED is terminal — no transitions out (should be UNSAT)
+//  Once a pointer is decayed, it's dead. No further operations allowed.
+// ============================================================================
+
+fn test_decayed_terminal_invalid() -> TestOutcome:
+    let solver = z3_solver()
+    let s = z3_int("state")
+    let n = z3_int("next")
+    z3_solver_add(solver, z3_and([
+        z3_expr_eq(s, z3_int_val(OWN_DECAYED)),
+        z3_expr_ne(n, s),
+        z3_valid_transition(s, n),
+    ]))
+    return test_assert_unsat("decayed_terminal_invalid", solver)
+
+// ============================================================================
+//  MAIN — Run all ownership lattice proofs
+// ============================================================================
+
+fn main() -> Int:
+    let _ = runtime_init()
+
+    // Valid transitions (should all be SAT / witness)
+    let r1 = test_idle_to_collapsed_valid()
+    let r2 = test_idle_to_observed_valid()
+    let r3 = test_collapsed_to_decayed_valid()
+    let r4 = test_observed_to_decayed_valid()
+    let r5 = test_observed_to_idle_valid()
+
+    // Invalid transitions (should all be UNSAT / proved)
+    let r6 = test_collapsed_to_observed_invalid()
+    let r7 = test_collapsed_to_idle_invalid()
+    let r8 = test_decayed_terminal_invalid()
+
+    // Combine all results
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+    let combined = test_combine(combined, r6)
+    let combined = test_combine(combined, r7)
+    let combined = test_combine(combined, r8)
+
+    let failures = test_count_failure(combined, 0)
+
+    let _ = runtime_shutdown()
+    return failures

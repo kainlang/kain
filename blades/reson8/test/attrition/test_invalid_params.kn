@@ -1,0 +1,127 @@
+// ============================================================================
+//  ATTRITION: test_invalid_params -- Invalid plugin params, verify law
+//  enforcement. No world surface dependencies.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+use law::plugin_laws
+
+fn test_param_range() -> TestOutcome:
+    let a = law_is_valid_status(law_status(param_in_bounds(-0.1, 0.0, 1.0))) == false
+    let b = law_is_valid_status(law_status(param_in_bounds(1.5, 0.0, 1.0))) == false
+    let c = law_is_valid_status(law_status(param_in_bounds(0.0, 0.0, 1.0)))
+    let d = law_is_valid_status(law_status(param_in_bounds(1.0, 0.0, 1.0)))
+    let e = law_is_valid_status(law_status(param_in_bounds(-5.0, 0.0, 100.0))) == false
+    return test_bool("param range bounds", a and b and c and d and e)
+
+fn test_param_zero_range() -> TestOutcome:
+    let a = law_is_valid_status(law_status(param_in_bounds(0.5, 0.5, 0.5)))
+    let b = law_is_valid_status(law_status(param_in_bounds(0.49, 0.5, 0.5))) == false
+    let c = law_is_valid_status(law_status(param_in_bounds(0.51, 0.5, 0.5))) == false
+    return test_bool("param zero-range bounds", a and b and c)
+
+fn test_param_neg_range() -> TestOutcome:
+    let a = law_is_valid_status(law_status(param_in_bounds(-5.0, -10.0, 0.0)))
+    let b = law_is_valid_status(law_status(param_in_bounds(-11.0, -10.0, 0.0))) == false
+    let c = law_is_valid_status(law_status(param_in_bounds(1.0, -10.0, 0.0))) == false
+    return test_bool("param negative range bounds", a and b and c)
+
+fn test_slot_counts() -> TestOutcome:
+    let a = law_is_valid_status(law_status(slot_count_valid(-1))) == false
+    let b = law_is_valid_status(law_status(slot_count_valid(17))) == false
+    let c = law_is_valid_status(law_status(slot_count_valid(999))) == false
+    let d = law_is_valid_status(law_status(slot_count_valid(0)))
+    let e = law_is_valid_status(law_status(slot_count_valid(8)))
+    let f = law_is_valid_status(law_status(slot_count_valid(16)))
+    return test_bool("slot count bounds", a and b and c and d and e and f)
+
+fn test_categories() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_category_valid(""))) == false
+    let b = law_is_valid_status(law_status(plugin_category_valid("nonsense"))) == false
+    let c = law_is_valid_status(law_status(plugin_category_valid("Effect"))) == false
+    let d = law_is_valid_status(law_status(plugin_category_valid("effct"))) == false
+    let e = law_is_valid_status(law_status(plugin_category_valid("effect")))
+    let f = law_is_valid_status(law_status(plugin_category_valid("instrument")))
+    let g = law_is_valid_status(law_status(plugin_category_valid("utility")))
+    let h = law_is_valid_status(law_status(plugin_category_valid("analyzer")))
+    return test_bool("category bounds", a and b and c and d and e and f and g and h)
+
+fn test_categories_ext() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_category_valid_extended("spatial")))
+    let b = law_is_valid_status(law_status(plugin_category_valid_extended("spectral")))
+    let c = law_is_valid_status(law_status(plugin_category_valid_extended("dynamics")))
+    let d = law_is_valid_status(law_status(plugin_category_valid_extended("modulation")))
+    let e = law_is_valid_status(law_status(plugin_category_valid_extended("unknown"))) == false
+    return test_bool("extended category bounds", a and b and c and d and e)
+
+fn test_wet_dry() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_wet_dry_valid(1.5))) == false
+    let b = law_is_valid_status(law_status(plugin_wet_dry_valid(-0.5))) == false
+    let c = law_is_valid_status(law_status(plugin_wet_dry_valid(-1.0))) == false
+    let d = law_is_valid_status(law_status(plugin_wet_dry_valid(999.0))) == false
+    let e = law_is_valid_status(law_status(plugin_wet_dry_valid(0.0)))
+    let f = law_is_valid_status(law_status(plugin_wet_dry_valid(1.0)))
+    let g = law_is_valid_status(law_status(plugin_wet_dry_valid(0.5)))
+    return test_bool("wet/dry bounds", a and b and c and d and e and f and g)
+
+fn test_paths() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_path_exists(""))) == false
+    let b = law_is_valid_status(law_status(plugin_path_exists("/usr/lib/vst/comp.so")))
+    let c = law_is_valid_status(law_status(plugin_path_exists("  ")))
+    return test_bool("plugin path bounds", a and b and c)
+
+fn test_vst3() -> TestOutcome:
+    let a = law_is_valid_status(law_status(vst3_id_valid(""))) == false
+    let b = law_is_valid_status(law_status(vst3_id_valid("Company.Plug")))
+    return test_bool("vst3 id bounds", a and b)
+
+fn test_python_mod() -> TestOutcome:
+    let a = law_is_valid_status(law_status(python_module_valid(""))) == false
+    let b = law_is_valid_status(law_status(python_module_valid("numpy")))
+    return test_bool("python module bounds", a and b)
+
+fn test_latency() -> TestOutcome:
+    let a = law_is_valid_status(law_status(plugin_latency_valid(-1))) == false
+    let b = law_is_valid_status(law_status(plugin_latency_valid(0)))
+    let c = law_is_valid_status(law_status(plugin_latency_valid(256)))
+    let d = law_is_valid_status(law_status(plugin_latency_valid(65536)))
+    let e = law_is_valid_status(law_status(plugin_latency_valid(65537))) == false
+    return test_bool("latency bounds", a and b and c and d and e)
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_param_range()
+    let r2 = test_param_zero_range()
+    let r3 = test_param_neg_range()
+    let r4 = test_slot_counts()
+    let r5 = test_categories()
+    let r6 = test_categories_ext()
+    let r7 = test_wet_dry()
+    let r8 = test_paths()
+    let r9 = test_vst3()
+    let r10 = test_python_mod()
+    let r11 = test_latency()
+
+    let a = test_combine(r1, r2)
+    let b = test_combine(r3, r4)
+    let c = test_combine(r5, r6)
+    let d = test_combine(r7, r8)
+    let e = test_combine(r9, r10)
+    let ab = test_combine(a, b)
+    let cd = test_combine(c, d)
+    let abc = test_combine(ab, cd)
+    let ef = test_combine(e, r11)
+    let combined = test_combine(abc, ef)
+
+    let failure_count = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failure_count

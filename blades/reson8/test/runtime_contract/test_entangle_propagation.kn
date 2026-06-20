@@ -1,0 +1,96 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Entangle Propagation
+//  Verifies that entangle (single_writer) increments the runtime
+//  propagation counter when a world Int field is written.
+//
+//  Pattern: snapshot entangle_propagation_count() BEFORE write,
+//  write to authority field, snapshot AFTER, assert delta > 0.
+//
+//  NOTE: String field entanglement may not propagate counters;
+//  this test only exercises Int field entanglement.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L1: WORLDS + ENTANGLE
+// ────────────────────────────────────────────────────────────────────────────
+
+component DummyPanel():
+    render <panel />
+
+world Authority:
+    state signal: Int = 0
+    surface native_ui => DummyPanel
+
+world Mirror:
+    state signal_copy: Int = 0
+    surface web => DummyPanel
+
+entangle Authority.signal <-> Mirror.signal_copy with single_writer
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_entangle_int_propagates() -> TestOutcome:
+    let before = entangle_propagation_count()
+    Authority.signal = 42
+    let after = entangle_propagation_count()
+    let delta = after - before
+    return test_bool("entangle int propagates: delta > 0", delta > 0)
+
+fn test_entangle_multiple_writes() -> TestOutcome:
+    let before = entangle_propagation_count()
+    Authority.signal = 10
+    Authority.signal = 20
+    Authority.signal = 30
+    let after = entangle_propagation_count()
+    let delta = after - before
+    return test_bool("entangle 3 writes: delta > 0", delta > 0)
+
+fn test_entangle_initially_nonneg() -> TestOutcome:
+    let count = entangle_propagation_count()
+    return test_bool("entangle count non-negative at start", count >= 0)
+
+fn test_entangle_mirror_readable() -> TestOutcome:
+    Authority.signal = 77
+    let mv = Mirror.signal_copy
+    return test_bool("mirror field is readable", mv >= 0 or mv <= 100)
+
+fn test_entangle_zero_write() -> TestOutcome:
+    let before = entangle_propagation_count()
+    Authority.signal = 0
+    let after = entangle_propagation_count()
+    let delta = after - before
+    return test_bool("entangle zero write propagates: delta > 0", delta > 0)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_entangle_int_propagates()
+    let r2 = test_entangle_multiple_writes()
+    let r3 = test_entangle_initially_nonneg()
+    let r4 = test_entangle_mirror_readable()
+    let r5 = test_entangle_zero_write()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

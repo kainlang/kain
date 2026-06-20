@@ -1,0 +1,116 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Law Validation
+//  Verifies that law predicates evaluate correctly through the runtime
+//  using law_status() and law_is_valid_status().
+//
+//  Pattern: define laws, call law_status(Bool) to get status integer,
+//  call law_is_valid_status(Int) to check, verify correct Bool.
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L2: LAWS — Compiler-owned invariant predicates
+// ────────────────────────────────────────────────────────────────────────────
+
+law value_in_range(v: Int) -> Bool:
+    return v >= 0 and v <= 100
+
+law float_in_bounds(v: Float) -> Bool:
+    return v >= -1.0 and v <= 1.0
+
+law is_positive(v: Int) -> Bool:
+    return v > 0
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_law_valid_range() -> TestOutcome:
+    let status = law_status(value_in_range(50))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: value 50 in range [0,100] is valid", valid == true)
+
+fn test_law_invalid_low() -> TestOutcome:
+    let status = law_status(value_in_range(-5))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: value -5 in range [0,100] is invalid", valid == false)
+
+fn test_law_invalid_high() -> TestOutcome:
+    let status = law_status(value_in_range(200))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: value 200 in range [0,100] is invalid", valid == false)
+
+fn test_law_boundary_zero() -> TestOutcome:
+    let status = law_status(value_in_range(0))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: value 0 in range [0,100] is valid (boundary)", valid == true)
+
+fn test_law_boundary_100() -> TestOutcome:
+    let status = law_status(value_in_range(100))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: value 100 in range [0,100] is valid (boundary)", valid == true)
+
+fn test_law_float_valid() -> TestOutcome:
+    let status = law_status(float_in_bounds(0.5))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: float 0.5 in bounds is valid", valid == true)
+
+fn test_law_float_invalid() -> TestOutcome:
+    let status = law_status(float_in_bounds(2.0))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: float 2.0 in bounds is invalid", valid == false)
+
+fn test_law_positive_valid() -> TestOutcome:
+    let status = law_status(is_positive(1))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: is_positive(1) is valid", valid == true)
+
+fn test_law_positive_invalid() -> TestOutcome:
+    let status = law_status(is_positive(0))
+    let valid = law_is_valid_status(status)
+    return test_bool("law: is_positive(0) is invalid", valid == false)
+
+fn test_law_status_int_always_nonneg() -> TestOutcome:
+    let status = law_status(value_in_range(50))
+    return test_bool("law_status returns non-negative int", status >= 0)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1  = test_law_valid_range()
+    let r2  = test_law_invalid_low()
+    let r3  = test_law_invalid_high()
+    let r4  = test_law_boundary_zero()
+    let r5  = test_law_boundary_100()
+    let r6  = test_law_float_valid()
+    let r7  = test_law_float_invalid()
+    let r8  = test_law_positive_valid()
+    let r9  = test_law_positive_invalid()
+    let r10 = test_law_status_int_always_nonneg()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+    let combined = test_combine(combined, r5)
+    let combined = test_combine(combined, r6)
+    let combined = test_combine(combined, r7)
+    let combined = test_combine(combined, r8)
+    let combined = test_combine(combined, r9)
+    let combined = test_combine(combined, r10)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures

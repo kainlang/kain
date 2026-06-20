@@ -1,0 +1,114 @@
+// ============================================================================
+//  RUNTIME CONTRACT: Converge Dispatch — No Mismatch
+//  Verifies that converge block dispatch does not produce lane mismatches
+//  when fast lanes match the spec reference.
+//
+//  Pattern: snapshot converge_mismatch_count(), call converge,
+//  snapshot again, assert delta == 0 (all lanes agree).
+// ============================================================================
+
+use std::test
+use std::intent
+use std::runtime
+
+// ────────────────────────────────────────────────────────────────────────────
+//  REFERENCE + FAST LANE FUNCTIONS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn dsp_ref(x: Int) -> Int with Pure:
+    return (x * 7 + 3) % 100
+
+fn dsp_avx2_fast(x: Int) -> Int with Pure:
+    return (x * 7 + 3) % 100   // same result as reference
+
+fn dsp_neon_fast(x: Int) -> Int with Pure:
+    return (x * 7 + 3) % 100   // same result as reference
+
+// ────────────────────────────────────────────────────────────────────────────
+//  L3: CONVERGE — Spec + fast lanes with verify random for safety
+// ────────────────────────────────────────────────────────────────────────────
+
+converge test_dsp_converge(x: Int) -> Int:
+    spec reference:
+        return dsp_ref(x)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return dsp_avx2_fast(x)
+    fast neon_lane when capability("cpu.arm.neon"):
+        return dsp_neon_fast(x)
+    verify random(4)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  CONVERGE without verify (simpler pattern)
+// ────────────────────────────────────────────────────────────────────────────
+
+converge test_simple_converge(x: Int) -> Int:
+    spec reference:
+        return (x * 3 + 1) % 100
+    fast scalar_lane when capability("cpu.scalar"):
+        return (x * 3 + 1) % 100
+
+// ────────────────────────────────────────────────────────────────────────────
+//  TESTS
+// ────────────────────────────────────────────────────────────────────────────
+
+fn test_converge_zero_mismatch() -> TestOutcome:
+    let before = converge_mismatch_count()
+    let result = test_dsp_converge(7)
+    let after = converge_mismatch_count()
+    let delta = after - before
+    // (7 * 7 + 3) % 100 = 52
+    let result_ok = test_bool("converge produces correct result", result == 52)
+    let mismatch_ok = test_bool("converge has zero mismatches (delta == 0)", delta == 0)
+    return test_combine(result_ok, mismatch_ok)
+
+fn test_converge_simple_no_mismatch() -> TestOutcome:
+    let before = converge_mismatch_count()
+    let result = test_simple_converge(10)
+    let after = converge_mismatch_count()
+    let delta = after - before
+    // (10 * 3 + 1) % 100 = 31
+    let result_ok = test_bool("simple converge produces correct result", result == 31)
+    let mismatch_ok = test_bool("simple converge has zero mismatches (delta == 0)", delta == 0)
+    return test_combine(result_ok, mismatch_ok)
+
+fn test_converge_multiple_calls_no_mismatch() -> TestOutcome:
+    let before = converge_mismatch_count()
+    let r1 = test_dsp_converge(1)
+    let r2 = test_dsp_converge(10)
+    let r3 = test_simple_converge(5)
+    let r4 = test_dsp_converge(20)
+    let after = converge_mismatch_count()
+    let delta = after - before
+    let values_ok = test_bool("all converge results correct", r1 == 10 and r2 == 73 and r3 == 16 and r4 == 43)
+    let mismatch_ok = test_bool("zero mismatches after 4 converge calls (delta == 0)", delta == 0)
+    return test_combine(values_ok, mismatch_ok)
+
+fn test_converge_initially_zero() -> TestOutcome:
+    let count = converge_mismatch_count()
+    return test_bool("converge mismatch count is non-negative at start", count >= 0)
+
+// ────────────────────────────────────────────────────────────────────────────
+//  MAIN
+// ────────────────────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r1 = test_converge_zero_mismatch()
+    let r2 = test_converge_simple_no_mismatch()
+    let r3 = test_converge_multiple_calls_no_mismatch()
+    let r4 = test_converge_initially_zero()
+
+    let combined = test_combine(r1, r2)
+    let combined = test_combine(combined, r3)
+    let combined = test_combine(combined, r4)
+
+    let failures = test_count_failure(combined, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return failures
