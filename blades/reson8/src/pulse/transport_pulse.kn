@@ -6,6 +6,7 @@
 
 use std::intent
 use std::machine
+use worlds::mixer_world
 
 // ── World reference: STREAM1 provides MixerWorld ──
 // Fields accessed: transport_state, transport_position, buffer_size_frames,

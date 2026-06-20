@@ -3,6 +3,7 @@
 
 use std::math
 use types::ActionDef
+use worlds::mixer_world
 use types::KeyBinding
 use types::MIDIMapping
 use types::Color
@@ -70,11 +71,7 @@ pub const CTX_ARRANGEMENT: String = "arrangement"
 pub const CTX_PIANO_ROLL: String = "piano_roll"
 pub const CTX_MIXER: String = "mixer"
 
-// Transport state constants for accessibility announcements
-pub const TRANSPORT_STOPPED: Int = 0
-pub const TRANSPORT_PLAYING: Int = 1
-pub const TRANSPORT_PAUSED: Int = 2
-pub const TRANSPORT_RECORDING: Int = 3
+// Transport state constants imported from worlds::mixer_world
 
 // ------ Action Registry World ------
 world ActionRegistry:
@@ -236,12 +233,13 @@ pub fn register_default_keybindings() -> Int:
 
 // ------ Accessibility announcements ------
 pub fn announce_transport_state(state: Int) -> Int:
-    let msg = match state:
-        TRANSPORT_PLAYING  => "Playing"
-        TRANSPORT_PAUSED   => "Paused"
-        TRANSPORT_RECORDING => "Recording"
-        _                  => "Stopped"
-    // ui_accessibility_announce(msg)
+    let msg: String = "Stopped"
+    if state == TRANSPORT_PLAYING:
+        msg = "Playing"
+    if state == TRANSPORT_PAUSED:
+        msg = "Paused"
+    if state == TRANSPORT_RECORDING:
+        msg = "Recording"
     return 0
 
 // ------ Transport action stubs (delegated to actual implementations) ------
@@ -272,25 +270,47 @@ fn transport_record_fn() -> Int:
 fn transport_loop_fn() -> Int:
     return 0
 
-fn nav_start_fn() -> Int: return 0
-fn nav_end_fn() -> Int: return 0
-fn edit_undo_fn() -> Int: return 0
-fn edit_redo_fn() -> Int: return 0
-fn edit_cut_fn() -> Int: return 0
-fn edit_copy_fn() -> Int: return 0
-fn edit_paste_fn() -> Int: return 0
-fn edit_delete_fn() -> Int: return 0
-fn file_save_fn() -> Int: return 0
-fn file_save_as_fn() -> Int: return 0
-fn file_new_fn() -> Int: return 0
-fn file_open_fn() -> Int: return 0
-fn view_mixer_fn() -> Int: return 0
-fn view_piano_roll_fn() -> Int: return 0
-fn view_browser_fn() -> Int: return 0
-fn view_zoom_in_fn() -> Int: return 0
-fn view_zoom_out_fn() -> Int: return 0
-fn track_insert_fn() -> Int: return 0
-fn track_duplicate_fn() -> Int: return 0
-fn track_delete_fn() -> Int: return 0
-fn nav_next_marker_fn() -> Int: return 0
-fn nav_prev_marker_fn() -> Int: return 0
+fn nav_start_fn() -> Int:
+    return 0
+fn nav_end_fn() -> Int:
+    return 0
+fn edit_undo_fn() -> Int:
+    return 0
+fn edit_redo_fn() -> Int:
+    return 0
+fn edit_cut_fn() -> Int:
+    return 0
+fn edit_copy_fn() -> Int:
+    return 0
+fn edit_paste_fn() -> Int:
+    return 0
+fn edit_delete_fn() -> Int:
+    return 0
+fn file_save_fn() -> Int:
+    return 0
+fn file_save_as_fn() -> Int:
+    return 0
+fn file_new_fn() -> Int:
+    return 0
+fn file_open_fn() -> Int:
+    return 0
+fn view_mixer_fn() -> Int:
+    return 0
+fn view_piano_roll_fn() -> Int:
+    return 0
+fn view_browser_fn() -> Int:
+    return 0
+fn view_zoom_in_fn() -> Int:
+    return 0
+fn view_zoom_out_fn() -> Int:
+    return 0
+fn track_insert_fn() -> Int:
+    return 0
+fn track_duplicate_fn() -> Int:
+    return 0
+fn track_delete_fn() -> Int:
+    return 0
+fn nav_next_marker_fn() -> Int:
+    return 0
+fn nav_prev_marker_fn() -> Int:
+    return 0

@@ -86,7 +86,7 @@ fn compute_lfo_phase_inc(rate_hz: Float, lfo_tick_hz: Float) -> Float with Pure:
 ///
 /// At 48kHz, this gives ~48 samples per LFO update — sufficient for smooth
 /// parameter modulation without per-sample overhead.
-pulse lfo_tick every 1 ms jitter 0 ms budget(alloc=0, lock=0, io=0):
+pulse lfo_tick every 1 ms jitter 1 ms budget(alloc=0, lock=0, io=0):
     advance_all_lfo_phases()
 
 // ============================================================================
