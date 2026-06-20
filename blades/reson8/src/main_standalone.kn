@@ -1,0 +1,248 @@
+// main_standalone.kn — reson8 Minimal Proof-of-Life Window
+//
+// Uses explicit @extern Win32 declarations (ptr<Void> types) 
+// to avoid Kain's tagged-null conversion for C NULL pointers.
+//
+// Run: kain build --target llvm src/main_standalone.kn
+//   (from the reson8 project root)
+
+use std::runtime
+
+// ── Win32 extern declarations (explicit ptr<Void> for proper C NULL) ──
+
+@extern @link_name("CreateWindowExA")
+fn c_CreateWindowExA(
+    dwExStyle: Int, lpClassName: String, lpWindowName: String,
+    dwStyle: Int, X: Int, Y: Int, nWidth: Int, nHeight: Int,
+    hWndParent: ptr<Void>, hMenu: ptr<Void>, hInstance: ptr<Void>, lpParam: ptr<Void>
+) -> ptr<Void>
+
+@extern @link_name("ShowWindow")
+fn c_ShowWindow(hWnd: ptr<Void>, nCmdShow: Int) -> Int
+
+@extern @link_name("UpdateWindow")
+fn c_UpdateWindow(hWnd: ptr<Void>) -> Int
+
+@extern @link_name("GetDC")
+fn c_GetDC(hWnd: ptr<Void>) -> ptr<Void>
+
+@extern @link_name("ReleaseDC")
+fn c_ReleaseDC(hWnd: ptr<Void>, hDC: ptr<Void>) -> Int
+
+@extern @link_name("CreateSolidBrush")
+fn c_CreateSolidBrush(color: Int) -> ptr<Void>
+
+@extern @link_name("DeleteObject")
+fn c_DeleteObject(obj: ptr<Void>) -> Int
+
+@extern @link_name("FillRect")
+fn c_FillRect(hDC: ptr<Void>, lprc: ptr<Void>, hbr: ptr<Void>) -> Int
+
+@extern @link_name("SetBkMode")
+fn c_SetBkMode(hDC: ptr<Void>, mode: Int) -> Int
+
+@extern @link_name("SetTextColor")
+fn c_SetTextColor(hDC: ptr<Void>, color: Int) -> Int
+
+@extern @link_name("TextOutA")
+fn c_TextOutA(hDC: ptr<Void>, x: Int, y: Int, lpString: String, c: Int) -> Int
+
+@extern @link_name("CreatePen")
+fn c_CreatePen(iStyle: Int, cWidth: Int, color: Int) -> ptr<Void>
+
+@extern @link_name("SelectObject")
+fn c_SelectObject(hDC: ptr<Void>, h: ptr<Void>) -> ptr<Void>
+
+@extern @link_name("MoveToEx")
+fn c_MoveToEx(hDC: ptr<Void>, x: Int, y: Int, lppt: ptr<Void>) -> Int
+
+@extern @link_name("LineTo")
+fn c_LineTo(hDC: ptr<Void>, x: Int, y: Int) -> Int
+
+@extern @link_name("PeekMessageA")
+fn c_PeekMessageA(lpMsg: ptr<Void>, hWnd: ptr<Void>, wMsgFilterMin: Int, wMsgFilterMax: Int, wRemoveMsg: Int) -> Int
+
+@extern @link_name("TranslateMessage")
+fn c_TranslateMessage(lpMsg: ptr<Void>) -> Int
+
+@extern @link_name("DispatchMessageA")
+fn c_DispatchMessageA(lpMsg: ptr<Void>) -> Int
+
+@extern @link_name("ValidateRect")
+fn c_ValidateRect(hWnd: ptr<Void>, lpRect: ptr<Void>) -> Int
+
+@extern @link_name("Sleep")
+fn c_Sleep(dwMilliseconds: Int)
+
+@extern @link_name("DestroyWindow")
+fn c_DestroyWindow(hWnd: ptr<Void>) -> Int
+
+@extern @link_name("IsWindow")
+fn c_IsWindow(hWnd: ptr<Void>) -> Int
+
+// ── C NULL helper (zero tagged pointer = raw 0 via ptr<Void>) ──
+fn null_ptr() -> ptr<Void> with Pure:
+    return int_to_ptr(0, "ptr<Void>")
+
+// ── Constants ──
+const WINDOW_WIDTH:  Int = 900
+const WINDOW_HEIGHT: Int = 600
+const TITLE: String = "reson8 — Kain DAW"
+
+// ── Color palette (reson8-dark) ──
+fn color_bg() -> Int:
+    return 0x2E1A1A   // #1a1a2e (BGR)
+
+fn color_accent() -> Int:
+    return 0x6045E9   // #e94560 (BGR)
+
+fn color_surface() -> Int:
+    return 0x37291F   // #1f2937 (BGR)
+
+fn color_text() -> Int:
+    return 0xE8E8E8   // #e8e8e8 (BGR)
+
+fn color_grid() -> Int:
+    return 0x48372D   // #2d3748 (BGR)
+
+fn color_green() -> Int:
+    return 0x81B910   // #10b981 (BGR)
+
+// ── GDI helpers ──
+
+fn gdi_fill_rect(hdc: ptr<Void>, x: Int, y: Int, w: Int, h: Int, brush: ptr<Void>) -> Int with Unsafe:
+    let rect: ptr<Int> = alloc_zeroed(4, "Int")
+    mem_store(ptr_offset(rect, 0, "Int"), x, "Int")
+    mem_store(ptr_offset(rect, 1, "Int"), y, "Int")
+    mem_store(ptr_offset(rect, 2, "Int"), x + w, "Int")
+    mem_store(ptr_offset(rect, 3, "Int"), y + h, "Int")
+    let result = c_FillRect(hdc, bitcast(rect, "ptr<Void>"), brush)
+    decay rect
+    return result
+
+fn gdi_draw_line(hdc: ptr<Void>, x1: Int, y1: Int, x2: Int, y2: Int) -> Int with Unsafe:
+    let _ = c_MoveToEx(hdc, x1, y1, null_ptr())
+    return c_LineTo(hdc, x2, y2)
+
+// ── Window creation ──
+
+fn create_reson8_window() -> ptr<Void> with Unsafe:
+    let style = 0x00CF0000 | 0x00080000 | 0x00040000   // WS_OVERLAPPEDWINDOW
+    let hwnd = c_CreateWindowExA(
+        0, "STATIC", TITLE, style,
+        100, 80, WINDOW_WIDTH, WINDOW_HEIGHT,
+        null_ptr(), null_ptr(), null_ptr(), null_ptr()
+    )
+    if ptr_to_int(hwnd) == 0:
+        return null_ptr()
+
+    let _ = c_ShowWindow(hwnd, 5)     // SW_SHOW
+    let _ = c_UpdateWindow(hwnd)
+    return hwnd
+
+// ============================================================================
+//  MAIN — reson8 DAW Proof-of-Life Window
+// ============================================================================
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let hwnd = create_reson8_window()
+    if ptr_to_int(hwnd) == 0:
+        let _ = runtime_shutdown()
+        return 1
+
+    let msg_buf: ptr<Int> = alloc_zeroed(6, "Int")
+    var frame: Int = 0
+    var running: Bool = true
+
+    while running:
+        // ── Message pump ──
+        var has_msg = c_PeekMessageA(
+            bitcast(msg_buf, "ptr<Void>"), null_ptr(),
+            0, 0, 1    // PM_REMOVE
+        )
+        while has_msg != 0:
+            let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 0xFFFFFFFF
+            if msg_type == 2:    // WM_DESTROY
+                running = false
+            if msg_type == 15:   // WM_PAINT
+                let _ = c_ValidateRect(hwnd, null_ptr())
+            let _ = c_TranslateMessage(bitcast(msg_buf, "ptr<Void>"))
+            let _ = c_DispatchMessageA(bitcast(msg_buf, "ptr<Void>"))
+            has_msg = c_PeekMessageA(
+                bitcast(msg_buf, "ptr<Void>"), null_ptr(),
+                0, 0, 1
+            )
+
+        // ── Render frame ──
+        let hdc = c_GetDC(hwnd)
+        if ptr_to_int(hdc) != 0:
+            // Background
+            let bg_brush = c_CreateSolidBrush(color_bg())
+            let _ = gdi_fill_rect(hdc, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, bg_brush)
+            let _ = c_DeleteObject(bg_brush)
+
+            // ── Transport bar background ──
+            let surf_brush = c_CreateSolidBrush(color_surface())
+            let _ = gdi_fill_rect(hdc, 0, 0, WINDOW_WIDTH, 48, surf_brush)
+            let _ = c_DeleteObject(surf_brush)
+
+            // ── Transport buttons (simulated) ──
+            let accent_brush = c_CreateSolidBrush(color_accent())
+            let _ = gdi_fill_rect(hdc, 12, 10, 28, 28, accent_brush)       // Stop
+            let play_brush = c_CreateSolidBrush(color_green())
+            let _ = gdi_fill_rect(hdc, 48, 10, 28, 28, play_brush)         // Play
+            let _ = c_DeleteObject(play_brush)
+            let _ = gdi_fill_rect(hdc, 84, 10, 28, 28, accent_brush)       // Record
+            let _ = gdi_fill_rect(hdc, 120, 10, 28, 28, accent_brush)      // Loop
+            let _ = c_DeleteObject(accent_brush)
+
+            // ── Title text ──
+            let _ = c_SetBkMode(hdc, 1)   // TRANSPARENT
+            let _ = c_SetTextColor(hdc, color_text())
+            let _ = c_TextOutA(hdc, 180, 14, "reson8 — Kain DAW v0.1.0", 26)
+
+            // ── Grid lines (mixer/arrangement area) ──
+            let grid_pen = c_CreatePen(0, 1, color_grid())
+            let old_pen = c_SelectObject(hdc, grid_pen)
+            var gy: Int = 48
+            while gy < WINDOW_HEIGHT:
+                let _ = gdi_draw_line(hdc, 0, gy, WINDOW_WIDTH, gy)
+                gy = gy + 32
+            var gx: Int = 200
+            while gx < WINDOW_WIDTH:
+                let _ = gdi_draw_line(hdc, gx, 48, gx, WINDOW_HEIGHT)
+                gx = gx + 160
+            let _ = c_SelectObject(hdc, old_pen)
+            let _ = c_DeleteObject(grid_pen)
+
+            // ── Mixer strips (left side) ──
+            let strip_brush = c_CreateSolidBrush(color_surface())
+            let _ = gdi_fill_rect(hdc, 8, 60, 184, WINDOW_HEIGHT - 68, strip_brush)
+            let _ = c_DeleteObject(strip_brush)
+
+            // ── Status bar ──
+            let status_brush = c_CreateSolidBrush(color_accent())
+            let _ = gdi_fill_rect(hdc, 0, WINDOW_HEIGHT - 24, WINDOW_WIDTH, 24, status_brush)
+            let _ = c_DeleteObject(status_brush)
+            let _ = c_SetTextColor(hdc, color_bg())
+            let _ = c_TextOutA(hdc, 10, WINDOW_HEIGHT - 20,
+                               "105 .kn files | 7 actors | 5 plugins | 3 plugin lanes | markscript VM | 50 icons", 73)
+
+            let _ = c_ReleaseDC(hwnd, hdc)
+
+        frame = frame + 1
+        if frame > 1800:
+            running = false    // auto-close after ~30 seconds at 60fps
+
+        let _ = c_Sleep(16)   // ~60fps cap
+
+    decay msg_buf
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

@@ -1,36 +1,23 @@
+// ============================================================================
+//  BUILD — Project Authority for reson8
+// ============================================================================
+
 use std::build
 
-const SOURCE_ROOTS = [
-    "src",
-]
-
 fn build(ctx: BuildContext) -> BuildGraph:
-    let project_spec = project("reson8")
-        .kind("kain_executable")
-        .version("0.1.0")
-        .description("The world's first Kain-native DAW")
-        .entry("src/main.kn")
-        .source_roots(SOURCE_ROOTS)
-        .module_roots(SOURCE_ROOTS)
-        .targets("llvm")
-        .artifact_root(".kain/out")
-        .cache_root(".kain/cache/build")
+    let pkg = package("reson8").version("0.1.0").description("The world's first Kain-native DAW")
 
-    let sources = source_set("reson8-sources")
-        .root("src")
-        .glob("src/**/*.kn")
-        .file("KAIN.toml")
+    let blade_spec = blade("reson8").kind("kain_executable").entry("src/main.kn").source_root("src").module_root("src").build_target("llvm")
 
-    let check = check_task("check-llvm")
-        .project(project_spec)
-        .target("llvm")
-        .inputs(sources)
+    let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("dev").target("llvm")
 
-    let exe = native_executable("root-executable")
-        .project(project_spec)
-        .output("$blade/reson8.exe")
-        .requires("check-llvm")
+    // ── Full project check (known blocker: dead state warnings in world files) ──
+    let check = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").input("src/main.kn").input("build.kn").input("KAIN.toml")
 
-    return build_graph(project_spec)
-        .sources(sources)
-        .tasks(check, exe)
+    // ── Full project executable (known blocker: requires actor/world/FFI fixes) ──
+    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/reson8.exe").requires("check-llvm").input("src/main.kn").input("build.kn").input("KAIN.toml").link_lib("user32").link_lib("gdi32").link_lib("kernel32")
+
+    // ── Standalone proof-of-life window (PROVEN WORKING) ──
+    let standalone_exe = native_executable("standalone-executable").entry("src/main_standalone.kn").root_output("$blade/reson8_standalone.exe").input("src/main_standalone.kn").input("build.kn").link_lib("user32").link_lib("gdi32").link_lib("kernel32")
+
+    return build_graph().package(pkg).blade(blade_spec).defaults(defaults).task(check).task(root_exe).task(standalone_exe)

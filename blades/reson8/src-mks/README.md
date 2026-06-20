@@ -66,7 +66,7 @@ if x > 0:
     print(x)
 ```
 
-@import "shared/handlers.md"     ← Compile-time file composition
+`@import "shared/handlers.md"`   ← Compile-time file composition (backtick-escaped in docs)
 ```
 
 Every blockquote starting with a registered intent keyword dispatches

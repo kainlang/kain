@@ -96,6 +96,26 @@ world MixerMirror:
     state tempo_bpm:          Float = 120.0
     state loop_enabled:       Bool  = false
     state is_clipping:        Bool  = false
+    state track_count:        Int   = 0
+    state time_sig_num:       Int   = 4
+    state time_sig_den:       Int   = 4
+    state loop_start:         Int   = 0
+    state loop_end:           Int   = 0
+    state audio_system:          String = "WASAPI"
+    state active_output_device:  String = "Default"
+    state active_input_device:   String = "Default"
+    state audio_thread_priority: String = "High"
+    state wasapi_exclusive:      Bool   = false
+    state active_midi_input:     String = "None"
+    state active_midi_output:    String = "None"
+    state midi_clock_source:     String = "Internal"
+    state send_midi_clock:       Bool   = false
+    state midi_thru_enabled:     Bool   = false
+    state render_mode:           String = "Standard"
+    state max_polyphony:         Int    = 128
+    state sample_rate:           Int    = DEFAULT_SAMPLE_RATE
+    state buffer_size_frames:    Int    = DEFAULT_BUFFER_FRAMES
+    state master_gain_coeff:     Float  = 1.0
     surface native_ui => MixerPanel
 
 // ============================================================================
@@ -116,6 +136,26 @@ entangle MixerWorld.master_pan         <-> MixerMirror.master_pan         with s
 entangle MixerWorld.tempo_bpm          <-> MixerMirror.tempo_bpm          with single_writer
 entangle MixerWorld.loop_enabled       <-> MixerMirror.loop_enabled       with single_writer
 entangle MixerWorld.is_clipping        <-> MixerMirror.is_clipping        with single_writer
+entangle MixerWorld.track_count        <-> MixerMirror.track_count        with single_writer
+entangle MixerWorld.time_sig_num       <-> MixerMirror.time_sig_num       with single_writer
+entangle MixerWorld.time_sig_den       <-> MixerMirror.time_sig_den       with single_writer
+entangle MixerWorld.loop_start         <-> MixerMirror.loop_start         with single_writer
+entangle MixerWorld.loop_end           <-> MixerMirror.loop_end           with single_writer
+entangle MixerWorld.audio_system          <-> MixerMirror.audio_system          with single_writer
+entangle MixerWorld.active_output_device  <-> MixerMirror.active_output_device  with single_writer
+entangle MixerWorld.active_input_device   <-> MixerMirror.active_input_device   with single_writer
+entangle MixerWorld.audio_thread_priority <-> MixerMirror.audio_thread_priority with single_writer
+entangle MixerWorld.wasapi_exclusive      <-> MixerMirror.wasapi_exclusive      with single_writer
+entangle MixerWorld.active_midi_input     <-> MixerMirror.active_midi_input     with single_writer
+entangle MixerWorld.active_midi_output    <-> MixerMirror.active_midi_output    with single_writer
+entangle MixerWorld.midi_clock_source     <-> MixerMirror.midi_clock_source     with single_writer
+entangle MixerWorld.send_midi_clock       <-> MixerMirror.send_midi_clock       with single_writer
+entangle MixerWorld.midi_thru_enabled     <-> MixerMirror.midi_thru_enabled     with single_writer
+entangle MixerWorld.render_mode           <-> MixerMirror.render_mode           with single_writer
+entangle MixerWorld.max_polyphony         <-> MixerMirror.max_polyphony         with single_writer
+entangle MixerWorld.sample_rate           <-> MixerMirror.sample_rate           with single_writer
+entangle MixerWorld.buffer_size_frames    <-> MixerMirror.buffer_size_frames    with single_writer
+entangle MixerWorld.master_gain_coeff     <-> MixerMirror.master_gain_coeff     with single_writer
 
 // ============================================================================
 //  ACCESSOR FUNCTIONS — Pure reads for UI and orchestrate

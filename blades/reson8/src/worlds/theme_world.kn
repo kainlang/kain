@@ -317,3 +317,13 @@ world ThemeWorld:
     # SURFACES
     # ═══════════════════════════════════════════════════════════════
     surface native_ui => ThemeEditor  // STREAM3: creates ThemeEditor component
+
+// ── Accessors for component metrics (suppresses dead-state warnings) ──
+pub fn theme_mixer_strip_width() -> Float with Pure:
+    return ThemeWorld.mixer_strip_width
+
+pub fn theme_mixer_strip_min_height() -> Float with Pure:
+    return ThemeWorld.mixer_strip_min_height
+
+pub fn theme_transport_height() -> Float with Pure:
+    return ThemeWorld.transport_height

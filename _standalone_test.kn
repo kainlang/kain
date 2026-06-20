@@ -1,0 +1,156 @@
+// main_standalone.kn — reson8 Minimal Proof-of-Life Window
+//
+// Uses include <windows.h> as win (6,294 Win32 functions via libclang)
+// to render a reson8-branded window. This is the proven pattern from
+// blades/kain/component_minimal/src/app.kn.
+//
+// Run: kain run main_standalone.kn --target llvm
+
+include <windows.h> as win
+
+const WINDOW_WIDTH:  Int = 900
+const WINDOW_HEIGHT: Int = 600
+const TITLE: String = "reson8 — Kain DAW"
+
+// ── Color palette (reson8-dark) ──
+fn color_bg() -> Int:
+    return 0x2E1A1A   // #1a1a2e (BGR)
+
+fn color_accent() -> Int:
+    return 0x6045E9   // #e94560 (BGR)
+
+fn color_surface() -> Int:
+    return 0x37291F   // #1f2937 (BGR)
+
+fn color_text() -> Int:
+    return 0xE8E8E8   // #e8e8e8 (BGR)
+
+fn color_grid() -> Int:
+    return 0x48372D   // #2d3748 (BGR)
+
+fn color_green() -> Int:
+    return 0x81B910   // #10b981 (BGR)
+
+fn main() -> Int with Unsafe:
+    let hinst = win_GetModuleHandleA("user32.dll")
+    let style = 0x00CF0000 | 0x00080000 | 0x00040000   // WS_OVERLAPPEDWINDOW
+    let hwnd = win_CreateWindowExA(
+        0, "STATIC", TITLE, style,
+        100, 80, WINDOW_WIDTH, WINDOW_HEIGHT,
+        0, 0, hinst, 0
+    )
+    if hwnd == 0:
+        return 1
+
+    let _ = win_ShowWindow(hwnd, 5)     // SW_SHOW
+    let _ = win_UpdateWindow(hwnd)
+
+    let msg_buf: ptr<Int> = alloc_zeroed(6, "Int")
+    var frame: Int = 0
+    var running: Bool = true
+
+    while running:
+        // ── Message pump ──
+        var has_msg = win_PeekMessageA(msg_buf, 0, 0, 0, 1)   // PM_REMOVE
+        while has_msg != 0:
+            let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 0xFFFFFFFF
+            if msg_type == 2:    // WM_DESTROY
+                running = false
+            if msg_type == 15:   // WM_PAINT
+                let _ = win_ValidateRect(hwnd, 0)
+            let _ = win_TranslateMessage(msg_buf)
+            let _ = win_DispatchMessageA(msg_buf)
+            has_msg = win_PeekMessageA(msg_buf, 0, 0, 0, 1)
+
+        // ── Render frame ──
+        let hdc = win_GetDC(hwnd)
+        if hdc != 0:
+            // Background
+            let bg_brush = win_CreateSolidBrush(color_bg())
+            let rect: ptr<Int> = alloc_zeroed(4, "Int")
+            mem_store(ptr_offset(rect, 0, "Int"), 0, "Int")
+            mem_store(ptr_offset(rect, 1, "Int"), 0, "Int")
+            mem_store(ptr_offset(rect, 2, "Int"), WINDOW_WIDTH, "Int")
+            mem_store(ptr_offset(rect, 3, "Int"), WINDOW_HEIGHT, "Int")
+            let _ = win_FillRect(hdc, rect, bg_brush)
+            decay rect
+            let _ = win_DeleteObject(bg_brush)
+
+            // ── Transport bar background ──
+            let surf_brush = win_CreateSolidBrush(color_surface())
+            let surf_rect: ptr<Int> = alloc_zeroed(4, "Int")
+            mem_store(ptr_offset(surf_rect, 0, "Int"), 0, "Int")
+            mem_store(ptr_offset(surf_rect, 1, "Int"), 0, "Int")
+            mem_store(ptr_offset(surf_rect, 2, "Int"), WINDOW_WIDTH, "Int")
+            mem_store(ptr_offset(surf_rect, 3, "Int"), 48, "Int")
+            let _ = win_FillRect(hdc, surf_rect, surf_brush)
+            decay surf_rect
+            let _ = win_DeleteObject(surf_brush)
+
+            // ── Transport buttons (simulated) ──
+            let accent_brush = win_CreateSolidBrush(color_accent())
+            let _ = draw_rect(hdc, 12, 10, 28, 28, accent_brush)       // Stop
+            let play_brush = win_CreateSolidBrush(color_green())
+            let _ = draw_rect(hdc, 48, 10, 28, 28, play_brush)         // Play
+            let _ = win_DeleteObject(play_brush)
+            let _ = draw_rect(hdc, 84, 10, 28, 28, accent_brush)       // Record
+            let _ = draw_rect(hdc, 120, 10, 28, 28, accent_brush)      // Loop
+            let _ = win_DeleteObject(accent_brush)
+
+            // ── Title text ──
+            let _ = win_SetBkMode(hdc, 1)   // TRANSPARENT
+            let _ = win_SetTextColor(hdc, color_text())
+            let _ = win_TextOutA(hdc, 180, 14, "reson8 — Kain DAW v0.1.0", 26)
+
+            // ── Grid lines (mixer/arrangement area) ──
+            let grid_pen = win_CreatePen(0, 1, color_grid())
+            let old_pen = win_SelectObject(hdc, grid_pen)
+            var gy: Int = 48
+            while gy < WINDOW_HEIGHT:
+                let _ = draw_line(hdc, 0, gy, WINDOW_WIDTH, gy)
+                gy = gy + 32
+            var gx: Int = 200
+            while gx < WINDOW_WIDTH:
+                let _ = draw_line(hdc, gx, 48, gx, WINDOW_HEIGHT)
+                gx = gx + 160
+            let _ = win_SelectObject(hdc, old_pen)
+            let _ = win_DeleteObject(grid_pen)
+
+            // ── Mixer strips (left side) ──
+            let strip_brush = win_CreateSolidBrush(color_surface())
+            let _ = draw_rect(hdc, 8, 60, 184, WINDOW_HEIGHT - 68, strip_brush)
+            let _ = win_DeleteObject(strip_brush)
+
+            // ── Status bar ──
+            let status_brush = win_CreateSolidBrush(color_accent())
+            let _ = draw_rect(hdc, 0, WINDOW_HEIGHT - 24, WINDOW_WIDTH, 24, status_brush)
+            let _ = win_DeleteObject(status_brush)
+            let _ = win_SetTextColor(hdc, color_bg())
+            let _ = win_TextOutA(hdc, 10, WINDOW_HEIGHT - 20,
+                                 "105 .kn files | 7 actors | 5 plugins | 3 plugin lanes | markscript VM | 50 icons", 73)
+
+            let _ = win_ReleaseDC(hwnd, hdc)
+
+        frame = frame + 1
+        if frame > 300:
+            running = false    // auto-close after ~5 seconds at 60fps
+
+    decay msg_buf
+    return 0
+
+
+// ── Helpers ──
+
+fn draw_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, brush: Int) -> Int with Unsafe:
+    let rect: ptr<Int> = alloc_zeroed(4, "Int")
+    mem_store(ptr_offset(rect, 0, "Int"), x, "Int")
+    mem_store(ptr_offset(rect, 1, "Int"), y, "Int")
+    mem_store(ptr_offset(rect, 2, "Int"), x + w, "Int")
+    mem_store(ptr_offset(rect, 3, "Int"), y + h, "Int")
+    let result = win_FillRect(hdc, rect, brush)
+    decay rect
+    return result
+
+fn draw_line(hdc: Int, x1: Int, y1: Int, x2: Int, y2: Int) -> Int with Unsafe:
+    let _ = win_MoveToEx(hdc, x1, y1, 0)
+    return win_LineTo(hdc, x2, y2)

@@ -3,12 +3,8 @@
 // STREAM4: T4-8 — This is the actor→C bridge wiring layer.
 // Imports the existing audio_device facade (src/bridge/audio_device.kn)
 // and exposes semantically named functions that the AudioEngine actor calls.
-//
-// The actual C bridge is at src/bridge/native/audio_device_bridge.c
-// The Kain facade is at src/bridge/audio_device.kn (include "native/audio_device_bridge.h" as ad)
 
-// ── Re-export audio_device facade as semantically named API ──
-// These are thin wrappers over the ad_* externs from audio_device.kn
+use audio_device  // imports from src/bridge/audio_device.kn (the Kain facade)
 
 pub fn ae_bridge_init(device_type: Int, sample_rate: Int, channels: Int,
                        buffer_size: Int, format: Int) -> Int:

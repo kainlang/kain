@@ -24,6 +24,7 @@ include_paths = [
   "3rdparty/vst3_sdk/pluginterfaces",
   "3rdparty/vst3_sdk/public.sdk",
   "3rdparty/clap/include",
+  "3rdparty/vulkan/include",
 ]
 
 # ── Bridge 1: Audio device I/O (miniaudio) ──

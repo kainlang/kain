@@ -1,6 +1,10 @@
 use std::runtime
 use std::intent
 use std::actor
+use worlds::theme_world
+use worlds::mixer_world
+use worlds::plugin_world
+use worlds::project_world
 
 // ============================================================================
 //  main.kn — reson8 DAW entry point
