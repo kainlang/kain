@@ -172,6 +172,24 @@ pub fn mixer_rms_right() -> Float with Pure:
 pub fn mixer_cpu_load_percent() -> Float with Pure:
     return MixerWorld.cpu_load_percent
 
+pub fn mixer_master_mute() -> Bool with Pure:
+    return MixerWorld.master_mute
+
+pub fn mixer_solo_channel() -> Int with Pure:
+    return MixerWorld.master_solo_channel
+
+pub fn mixer_loop_start() -> Int with Pure:
+    return MixerWorld.transport_loop_start
+
+pub fn mixer_loop_end() -> Int with Pure:
+    return MixerWorld.transport_loop_end
+
+pub fn mixer_loop_enabled() -> Bool with Pure:
+    return MixerWorld.transport_loop_enabled
+
+pub fn mixer_transport_state() -> Int with Pure:
+    return MixerWorld.transport_state
+
 // ============================================================================
 // TransportWorld accessors (Phase 2 preview — kept here so the world
 // declaration passes dead-state analysis)
