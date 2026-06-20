@@ -1,19 +1,23 @@
 // ============================================================================
 //  MIDIInput Actor — MIDI device input router
 //  STREAM4: T4-3 — Device enumeration, event routing to tracks.
+//
+//  CANONICAL: MidiEvent, MIDI constants from std::audio::midi.
 // ============================================================================
 
 use std::actor
+use std::audio::midi
 
-// ── MIDI event struct ──
-pub struct MidiEvent:
-    status:    Int
-    channel:   Int
-    data1:     Int
-    data2:     Int
-    timestamp: Int
+// Re-export canonical types for backward compatibility
+pub use midi::MidiEvent
+pub use midi::MidiEventType
+pub use midi::MIDI_NOTE_ON
+pub use midi::MIDI_NOTE_OFF
+pub use midi::MIDI_CONTROL_CHANGE
+pub use midi::MIDI_PROGRAM_CHANGE
+pub use midi::MIDI_PITCH_BEND
 
-// ── MIDI device info ──
+// ── MIDI device info (reson8-specific) ──
 pub struct MidiDeviceInfo:
     name:      String
     device_id: Int

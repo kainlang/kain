@@ -1,0 +1,40 @@
+// ============================================================================
+//  THEME REACT — Resonate handler for theme state changes
+//  Phase 3 (P1 High): Reactive theme switching without polling.
+//
+//  resonate ThemeWorld.active_theme_name dampen 0 ms:
+//    Fires instantly when the active theme changes.
+//    In a full UI build, this would trigger component re-rendering
+//    by signaling the component tree that theme colors changed.
+// ============================================================================
+
+use std::intent
+use std::math
+use worlds::theme_world
+
+// ============================================================================
+//  Resonate: Active Theme Name
+//  Fires instantly (dampen 0) when the theme name changes.
+//  This enables hot-reload of theme changes without restart.
+//
+//  Body locals:
+//    resonate_new_i64 — the new theme name bytes as an integer.
+//      String resonances encode the first 8 bytes as i64.
+//      For exact string matching, read ThemeWorld.active_theme_name
+//      directly in the handler body.
+// ============================================================================
+
+resonate ThemeWorld.active_theme_name dampen 0 ms:
+    let _new_name_sig: Int = resonate_new_i64
+    let _old_name_sig: Int = resonate_old_i64
+
+    # Read the actual theme name from the world
+    let current_theme: String = ThemeWorld.active_theme_name
+    let _ = current_theme
+
+    # In a full UI build, this would:
+    #   - Signal theme manager to reload color palette
+    #   - Trigger component re-render via world state read
+    #   - Push updated colors to UI component props
+
+    let _telemetry = resonate_fire_count()

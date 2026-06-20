@@ -1,7 +1,13 @@
 // ============================================================================
-//  reson8 UI Meter Pulse — Meter Display Update Clock
-//  STREAM2: T2-9 — UI update every 50ms, jitter 5ms, budget(alloc=1).
-//  STREAM4: UIMain registers this pulse for meter rendering.
+//  reson8 UI Meter Display — Reactive meter processing functions
+//  Phase 3 (P1 High): POLLING REMOVED — driven by resonate handlers.
+//
+//  This module no longer contains a polling pulse. Instead, the
+//  resonate handlers in src/resonate/mixer_react.kn fire when meter
+//  values change, calling update_meter_displays() reactively.
+//
+//  Kept in this file: MeterSnapshot struct, log10, display update,
+//  and meter decay — all pure functions used by resonate handlers.
 // ============================================================================
 
 use std::intent
@@ -52,38 +58,12 @@ fn ui_log10(x: Float) -> Float with Pure:
     return (2.0 * ln_a + (b as Float) * ln10) / ln10
 
 // ============================================================================
-//  UI Meter Pulse — 50ms Display Update
+//  Meter Display Update — called by resonate handlers on state change
 // ============================================================================
 
-pulse meter_ui_tick every 50 ms jitter 5 ms budget(alloc=1, lock=0, io=0):
-    let snapshot: MeterSnapshot = meter_teleport_poll()
-    update_meter_displays(snapshot)
-
-// ============================================================================
-//  Meter Teleport Poll
-// ============================================================================
-
-/// Read the latest meter values from the teleport mirror.
-fn meter_teleport_poll() -> MeterSnapshot with Pure:
-    # Read from MixerMirror (populated by teleport channel from MixerWorld)
-    # Field names match the MixerMirror definition in src/worlds/mixer_world.kn
-    return MeterSnapshot {
-        peak_left:      MixerMirror.peak_left,
-        peak_right:     MixerMirror.peak_right,
-        rms_left:       MixerMirror.rms_left,
-        rms_right:      MixerMirror.rms_right,
-        cpu_load:       MixerMirror.cpu_load,
-        transport_pos:  MixerWorld.transport_position,
-        tempo_bpm:      MixerWorld.tempo_bpm,
-        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
-        tick:           0,
-        timestamp_ms:   0,
-    }
-
-// ============================================================================
-//  Meter Display Update
-// ============================================================================
-
+/// Convert meter snapshot linear values to dB and update UI display.
+/// Called from resonate handlers in mixer_react.kn whenever peak/rms values
+/// change — no polling needed.
 fn update_meter_displays(snapshot: MeterSnapshot) -> Int with Pure:
     # Peak values: linear [0.0, 1.0] — convert to dB for display
     var peak_l_db: Float = -120.0
@@ -106,7 +86,7 @@ fn update_meter_displays(snapshot: MeterSnapshot) -> Int with Pure:
     return 0
 
 // ============================================================================
-//  Meter Decay
+//  Meter Decay — applied each time the UI renders a meter frame
 // ============================================================================
 
 fn apply_meter_decay(current_peak: Float, held_peak: Float,

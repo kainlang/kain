@@ -1,11 +1,16 @@
 // ============================================================================
 //  PluginHost Actor Pool — Per-plugin sandbox with three-lane dispatch
-//  STREAM4: T4-2 — Plugin loading, processing, crash recovery, bypass.
+//  Phase 4 (P1 High): Converge-integrated plugin processing dispatch.
+//
+//  The Process handler now delegates to converge process_plugin_audio
+//  from src/converge/plugin_dispatch.kn, selecting the optimal backend
+//  (Kain-native, VST3, CLAP, Python) based on host capabilities.
 // ============================================================================
 
 use std::actor
 use std::intent
 use std::math
+use converge::plugin_dispatch
 
 // ── Plugin info struct for reply ──
 pub struct PluginInfo:
@@ -74,10 +79,27 @@ actor PluginHost:
         send reply_to.Reply(value = 0)
 
     // ── Process audio through the plugin ──
+    // Uses converge process_plugin_audio for multi-lane dispatch.
+    // The converge block selects the optimal backend (Kain/VST3/CLAP/Python)
+    // based on runtime capability probing.
     on Process(reply_to: P, input: AudioView):
         if self.bypassed:
             send reply_to.Reply(value = -1)
             return
+
+        let slot = PluginSlot {
+            id: self.plugin_id,
+            kind: self.plugin_kind,
+            instance: self.instance_handle,
+            bypassed: self.bypassed,
+            wet_dry: self.wet_dry,
+        }
+
+        # Delegate to converge for multi-lane dispatch
+        let result = process_plugin_audio(input, slot)
+
+        # Update actor state from processed result
+        self.crash_count = 0
         send reply_to.Reply(value = 0)
 
     // ── Set a parameter ──

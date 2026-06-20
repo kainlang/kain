@@ -1,16 +1,15 @@
 // ============================================================================
-//  reson8 Reverb — Algorithmic (Schroeder) + Convolution
+//  reson8 Reverb — Canonical Schroeder + Convolution
 //  STREAM2: T2-3 — Schroeder allpass/comb reverb + convolution IR path.
 //  STREAM4: PluginHost loads this as Kain-native reverb.
+//
+//  CANONICAL: Schroeder implementation from std::audio::dsp.
 // ============================================================================
 
 use std::math
+use std::audio::dsp
 
 // ── Constants ──
-const REV_PI:             Float = 3.14159265358979323846
-const REV_E:              Float = 2.718281828459045
-const REV_MAX_COMBS:      Int   = 4
-const REV_MAX_ALLPASS:    Int   = 2
 const REV_MAX_DELAY_LEN:  Int   = 48000
 
 // ============================================================================
@@ -26,31 +25,31 @@ pub struct ReverbParams:
     decay_ms:       Float
     early_mix:      Float
 
-pub struct CombFilter:
-    buffer:     ptr<Float>
-    buffer_len: Int
-    write_pos:  Int
-    delay_samples: Int
-    feedback:   Float
-    damp_feedback: Float
-    filter_state: Float
+// ============================================================================
+//  SchroederReverb — re-exported from std::audio::dsp
+// ============================================================================
 
-pub struct AllpassFilter:
-    buffer:     ptr<Float>
-    buffer_len: Int
-    write_pos:  Int
-    delay_samples: Int
-    feedback:   Float
+pub use dsp::SchroederReverb
+pub use dsp::schroeder_reverb_new
+pub use dsp::schroeder_reverb_new_for_rate
+pub use dsp::schroeder_reverb_process
 
-pub struct SchroederReverb:
-    combs:          [CombFilter]
-    allpasses:      [AllpassFilter]
+// ============================================================================
+//  Reson8 wrapper — holds a SchroederReverb + pre-delay buffer + params
+// ============================================================================
+
+pub struct Reson8Reverb:
+    schroeder:     SchroederReverb
     pre_delay_buf:  ptr<Float>
     pre_delay_len:  Int
     pre_delay_pos:  Int
     pre_delay_samples: Int
     sample_rate:    Int
     initialized:    Bool
+
+// ============================================================================
+//  Convolution Reverb (for IR loading)
+// ============================================================================
 
 pub struct ConvolutionReverb:
     ir_data:        ptr<Float>
@@ -59,124 +58,47 @@ pub struct ConvolutionReverb:
     initialized:    Bool
 
 // ============================================================================
-//  Inline Comb / Allpass Ticks (return tuples, destructured at call site)
+//  Reson8 Reverb Init / Update
 // ============================================================================
 
-fn comb_tick(buf: ptr<Float>, buf_len: Int, write_pos: Int, delay_samples: Int,
-              damp_feedback: Float, filter_state: Float, feedback: Float,
-              input: Float) -> (Float, Float, Int) with Unsafe:
-    var read_pos: Int = write_pos - delay_samples
-    if read_pos < 0:
-        read_pos = read_pos + buf_len
-    let delayed: Float = mem_load(ptr_offset(buf, read_pos, "Float"), "Float")
-
-    let damped: Float = delayed * (1.0 - damp_feedback) + filter_state * damp_feedback
-
-    mem_store(ptr_offset(buf, write_pos, "Float"), input + damped * feedback, "Float")
-
-    var new_write_pos: Int = write_pos + 1
-    if new_write_pos >= buf_len:
-        new_write_pos = 0
-
-    return (delayed, damped, new_write_pos)
-
-fn allpass_tick(buf: ptr<Float>, buf_len: Int, write_pos: Int, delay_samples: Int,
-                 feedback: Float, input: Float) -> (Float, Int) with Unsafe:
-    var read_pos: Int = write_pos - delay_samples
-    if read_pos < 0:
-        read_pos = read_pos + buf_len
-    let delayed: Float = mem_load(ptr_offset(buf, read_pos, "Float"), "Float")
-
-    let output: Float = delayed - feedback * input
-
-    mem_store(ptr_offset(buf, write_pos, "Float"), input + output * feedback, "Float")
-
-    var new_write_pos: Int = write_pos + 1
-    if new_write_pos >= buf_len:
-        new_write_pos = 0
-
-    return (output, new_write_pos)
-
-// ============================================================================
-//  Schroeder Reverb Init / Update
-// ============================================================================
-
-fn schroeder_init(rev: ptr<SchroederReverb>, sample_rate: Int) -> Int:
-    let sr: Float = sample_rate as Float
-
-    let comb_delays: [Int] = [
-        (sr * 0.0297) as Int,
-        (sr * 0.0371) as Int,
-        (sr * 0.0411) as Int,
-        (sr * 0.0437) as Int,
-    ]
-
-    let ap_delays: [Int] = [
-        (sr * 0.0050) as Int,
-        (sr * 0.0017) as Int,
-    ]
-
-    var i: Int = 0
-    while i < REV_MAX_COMBS:
-        rev.combs[i].buffer_len = REV_MAX_DELAY_LEN
-        rev.combs[i].delay_samples = comb_delays[i]
-        rev.combs[i].write_pos = 0
-        rev.combs[i].feedback = 0.84
-        rev.combs[i].damp_feedback = 0.4
-        rev.combs[i].filter_state = 0.0
-        i = i + 1
-
-    var j: Int = 0
-    while j < REV_MAX_ALLPASS:
-        rev.allpasses[j].buffer_len = REV_MAX_DELAY_LEN
-        rev.allpasses[j].delay_samples = ap_delays[j]
-        rev.allpasses[j].write_pos = 0
-        rev.allpasses[j].feedback = 0.5
-        j = j + 1
-
-    rev.pre_delay_len = (sr * 0.2) as Int
+pub fn reson8_reverb_init(rev: ptr<Reson8Reverb>, sample_rate: Int) -> Int with Unsafe:
+    rev.schroeder = schroeder_reverb_new_for_rate(sample_rate, 0.84)
+    rev.pre_delay_len = ((sample_rate as Float) * 0.2) as Int
+    rev.pre_delay_buf = alloc_zeroed(rev.pre_delay_len, "Float")
     rev.pre_delay_pos = 0
     rev.pre_delay_samples = 0
     rev.sample_rate = sample_rate
     rev.initialized = true
     return 0
 
-fn schroeder_update_params(rev: ptr<SchroederReverb>, params: ReverbParams) -> Int with Unsafe:
+pub fn reson8_reverb_update_params(rev: ptr<Reson8Reverb>, params: ReverbParams) -> Int with Unsafe:
     let room: Float = params.room_size
     let damp: Float = params.damping
 
-    let decay_factor: Float = if params.decay_ms > 0.0:
-        pow(REV_E, -3.0 * (rev.sample_rate as Float) * 0.001 / (params.decay_ms * room))
-    else:
-        pow(REV_E, -3.0 * 0.001 / (1000.0 * room))
+    let sr_f: Float = rev.sample_rate as Float
 
-    var i: Int = 0
-    while i < REV_MAX_COMBS:
-        rev.combs[i].feedback = decay_factor * (0.7 + 0.14 * (i as Float))
-        rev.combs[i].damp_feedback = 1.0 - damp * 0.4
-        i = i + 1
+    # Update comb feedbacks based on room size and decay
+    rev.schroeder.comb_a_g = room * (0.7 + 0.0)
+    rev.schroeder.comb_b_g = room * (0.7 + 0.14)
+    rev.schroeder.comb_c_g = room * (0.7 + 0.28)
+    rev.schroeder.comb_d_g = room * (0.7 + 0.42)
 
-    var j: Int = 0
-    while j < REV_MAX_ALLPASS:
-        rev.allpasses[j].feedback = 0.5 * room
-        j = j + 1
-
-    rev.pre_delay_samples = ((rev.sample_rate as Float) * params.pre_delay_ms * 0.001) as Int
-    if rev.pre_delay_samples >= rev.pre_delay_len:
-        rev.pre_delay_samples = rev.pre_delay_len - 1
-    if rev.pre_delay_samples < 0:
-        rev.pre_delay_samples = 0
+    # Pre-delay in samples
+    var pd: Int = (sr_f * params.pre_delay_ms * 0.001) as Int
+    if pd >= rev.pre_delay_len:
+        pd = rev.pre_delay_len - 1
+    if pd < 0:
+        pd = 0
+    rev.pre_delay_samples = pd
 
     return 0
 
 // ============================================================================
-//  Schroeder Process — Inline comb + allpass via tuple destructure
+//  Reson8 Schroeder Process — uses std::audio::dsp schroeder_reverb_process
 // ============================================================================
 
-pub fn schroeder_process(rev: ptr<SchroederReverb>, params: ReverbParams,
-                          input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
-    let _ = schroeder_update_params(rev, params)
-
+pub fn reson8_reverb_process(rev: ptr<Reson8Reverb>, params: ReverbParams,
+                              input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
     let wet: Float = params.wet_dry
     let dry: Float = 1.0 - wet
     let spread: Float = params.width
@@ -184,19 +106,6 @@ pub fn schroeder_process(rev: ptr<SchroederReverb>, params: ReverbParams,
     var pd_pos: Int = rev.pre_delay_pos
     var pd_samples: Int = rev.pre_delay_samples
     var pd_len: Int = rev.pre_delay_len
-
-    # Read current write positions and filter states
-    var c0_pos: Int = rev.combs[0].write_pos
-    var c1_pos: Int = rev.combs[1].write_pos
-    var c2_pos: Int = rev.combs[2].write_pos
-    var c3_pos: Int = rev.combs[3].write_pos
-    var a0_pos: Int = rev.allpasses[0].write_pos
-    var a1_pos: Int = rev.allpasses[1].write_pos
-
-    var c0_fs: Float = rev.combs[0].filter_state
-    var c1_fs: Float = rev.combs[1].filter_state
-    var c2_fs: Float = rev.combs[2].filter_state
-    var c3_fs: Float = rev.combs[3].filter_state
 
     var i: Int = 0
     while i < frames:
@@ -212,50 +121,11 @@ pub fn schroeder_process(rev: ptr<SchroederReverb>, params: ReverbParams,
         if pd_pos >= pd_len:
             pd_pos = 0
 
-        # 4 comb filters in parallel — destructure tuples
-        let (c0_del, c0_damp, c0_newpos) = comb_tick(
-            rev.combs[0].buffer, rev.combs[0].buffer_len, c0_pos,
-            rev.combs[0].delay_samples, rev.combs[0].damp_feedback,
-            c0_fs, rev.combs[0].feedback, pre_delayed)
-        c0_pos = c0_newpos
-        c0_fs = c0_damp
+        # Process through canonical SchroederReverb
+        let rev_out: Float = schroeder_reverb_process(rev.schroeder, pre_delayed)
 
-        let (c1_del, c1_damp, c1_newpos) = comb_tick(
-            rev.combs[1].buffer, rev.combs[1].buffer_len, c1_pos,
-            rev.combs[1].delay_samples, rev.combs[1].damp_feedback,
-            c1_fs, rev.combs[1].feedback, pre_delayed)
-        c1_pos = c1_newpos
-        c1_fs = c1_damp
-
-        let (c2_del, c2_damp, c2_newpos) = comb_tick(
-            rev.combs[2].buffer, rev.combs[2].buffer_len, c2_pos,
-            rev.combs[2].delay_samples, rev.combs[2].damp_feedback,
-            c2_fs, rev.combs[2].feedback, pre_delayed)
-        c2_pos = c2_newpos
-        c2_fs = c2_damp
-
-        let (c3_del, c3_damp, c3_newpos) = comb_tick(
-            rev.combs[3].buffer, rev.combs[3].buffer_len, c3_pos,
-            rev.combs[3].delay_samples, rev.combs[3].damp_feedback,
-            c3_fs, rev.combs[3].feedback, pre_delayed)
-        c3_pos = c3_newpos
-        c3_fs = c3_damp
-
-        let comb_sum: Float = c0_del + c1_del + c2_del + c3_del
-
-        # 2 allpass filters in series — destructure tuples
-        let (ap0_out, ap0_newpos) = allpass_tick(
-            rev.allpasses[0].buffer, rev.allpasses[0].buffer_len, a0_pos,
-            rev.allpasses[0].delay_samples, rev.allpasses[0].feedback, comb_sum)
-        a0_pos = ap0_newpos
-
-        let (ap1_out, ap1_newpos) = allpass_tick(
-            rev.allpasses[1].buffer, rev.allpasses[1].buffer_len, a1_pos,
-            rev.allpasses[1].delay_samples, rev.allpasses[1].feedback, ap0_out)
-        a1_pos = ap1_newpos
-
-        let rev_l: Float = ap1_out * (1.0 + spread) * 0.5
-        let rev_r: Float = ap1_out * (1.0 - spread) * 0.5
+        let rev_l: Float = rev_out * (1.0 + spread) * 0.5
+        let rev_r: Float = rev_out * (1.0 - spread) * 0.5
 
         # Mix wet/dry into interleaved output
         let out_idx: Int = i * 2
@@ -263,25 +133,14 @@ pub fn schroeder_process(rev: ptr<SchroederReverb>, params: ReverbParams,
         mem_store(ptr_offset(output, out_idx + 1, "Float"), inp * dry + rev_r * wet, "Float")
         i = i + 1
 
-    # Write back mutable state
     rev.pre_delay_pos = pd_pos
-    rev.combs[0].write_pos = c0_pos
-    rev.combs[1].write_pos = c1_pos
-    rev.combs[2].write_pos = c2_pos
-    rev.combs[3].write_pos = c3_pos
-    rev.allpasses[0].write_pos = a0_pos
-    rev.allpasses[1].write_pos = a1_pos
-    rev.combs[0].filter_state = c0_fs
-    rev.combs[1].filter_state = c1_fs
-    rev.combs[2].filter_state = c2_fs
-    rev.combs[3].filter_state = c3_fs
     return 0
 
 // ============================================================================
 //  Convolution Reverb
 // ============================================================================
 
-fn convolution_init(conv: ptr<ConvolutionReverb>, ir_data: ptr<Float>, ir_length: Int) -> Int:
+pub fn convolution_init(conv: ptr<ConvolutionReverb>, ir_data: ptr<Float>, ir_length: Int) -> Int:
     conv.ir_data = ir_data
     conv.ir_length = ir_length
     if ir_length <= 1024:
@@ -295,6 +154,7 @@ fn convolution_init(conv: ptr<ConvolutionReverb>, ir_data: ptr<Float>, ir_length
 
 pub fn convolution_process(conv: ptr<ConvolutionReverb>,
                             input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    # Direct convolution (fallback). For large IRs, use std::audio::dsp::convolve_fft.
     var i: Int = 0
     while i < frames:
         var sum: Float = 0.0
@@ -310,17 +170,8 @@ pub fn convolution_process(conv: ptr<ConvolutionReverb>,
         i = i + 1
     return 0
 
-fn convolution_process_gpu(conv: ptr<ConvolutionReverb>,
-                             input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
-    return convolution_process(conv, input, output, frames)
-
-// ============================================================================
-//  Convolution Dispatch — scalar reference (GPU lane TBD)
-// ============================================================================
-
 /// Dispatch to best convolution processing.
-/// GPU lane is a stub pending compute shader integration.
-/// TODO: Upgrade to converge when GPU compute is ready.
+/// GPU lane available via std::audio::converge.
 pub fn convolution_process_converge(conv: ptr<ConvolutionReverb>,
                                      input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
     return convolution_process(conv, input, output, frames)

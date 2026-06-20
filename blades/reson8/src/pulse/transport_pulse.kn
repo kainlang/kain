@@ -8,9 +8,23 @@ use std::intent
 use std::machine
 use worlds::mixer_world
 
-// ── World reference: STREAM1 provides MixerWorld ──
+// ── World reference: STREAM1 provides MixerWorld + MixerMirror ──
 // Fields accessed: transport_state, transport_position, buffer_size_frames,
 //   peak_left, peak_right, rms_left, rms_right, cpu_load
+
+// ============================================================================
+//  Meter Payload — Shatter-Aware Telemetry Block
+// ============================================================================
+
+/// Zero-copy audio meter block teleported from MixerWorld to MixerMirror.
+/// Structure-of-Arrays layout ensures SIMD-friendly field lanes.
+shatter struct MeterPayload:
+    peak_l:     Float
+    peak_r:     Float
+    rms_l:      Float
+    rms_r:      Float
+    cpu_load:   Float
+    tick:       Int
 
 // ============================================================================
 //  Transport Pulse — 5ms Audio Tick
@@ -23,6 +37,8 @@ use worlds::mixer_world
 ///         lock=0  — no mutex in audio thread.
 ///         io=0    — no syscalls in audio thread.
 ///
+/// Teleport channel: meter_feed — zero-copy MixerWorld -> MixerMirror handoff.
+///
 /// Locals available:
 ///   pulse_tick   — monotonic counter, increments each fire
 ///   pulse_dt_ms  — actual elapsed time since last fire in ms
@@ -32,37 +48,31 @@ pulse transport_tick every 5 ms jitter 1 ms budget(alloc=0, lock=0, io=0):
     if MixerWorld.transport_state == TRANSPORT_PLAYING:
         MixerWorld.transport_position = MixerWorld.transport_position + MixerWorld.buffer_size_frames
 
-    # Process the mixer signal graph for one buffer
-    # STREAM4: AudioEngine fills input AudioView from track audio sources,
-    #          then calls mixer_graph_process() for each track.
-    # let rendered = mixer_graph_process(current_track_input, current_track_state)
+    # Build meter payload from latest buffer peaks
+    let meter = MeterPayload {
+        peak_l:   MixerWorld.peak_left,
+        peak_r:   MixerWorld.peak_right,
+        rms_l:    MixerWorld.rms_left,
+        rms_r:    MixerWorld.rms_right,
+        cpu_load: (pulse_dt_ms / 5.0) * 100.0,
+        tick:     pulse_tick,
+    }
 
-    # Update meter peaks via teleport channel (lock-free, dual-path)
-    # The meter stage in mixer_graph writes peaks, and the teleport channel
-    # auto-propagates to MixerMirror for UI consumption.
-    update_meter_peaks(pulse_tick, pulse_dt_ms)
+    # Zero-copy handoff to mirror world for UI consumption
+    # After teleport, `meter` is marked moved — cannot be accessed again
+    let delivered = teleport meter from MixerWorld to MixerMirror via meter_feed
 
-    # Deliver to audio device (WASAPI/ASIO callback in STREAM4 bridge)
+    # Deliver processed audio to output device
     audio_device_deliver_output()
 
-    # Track pulse telemetry
-    let tick_mono: Float = pulse_tick as Float
-    MixerWorld.cpu_load = (pulse_dt_ms / 5.0) * 100.0  # Rough CPU load estimate
-    MixerWorld.peak_left = tick_mono * 0.001  # Placeholder — real peaks from meter stage
-    MixerWorld.peak_right = tick_mono * 0.001
+    # Track telemetry — `delivered` now resides in MixerMirror's domain
+    MixerWorld.cpu_load = delivered.cpu_load
+    MixerWorld.peak_left = delivered.peak_l
+    MixerWorld.peak_right = delivered.peak_r
 
 // ============================================================================
 //  Helper Functions
 // ============================================================================
-
-/// Update meter peaks from the most recent audio buffer.
-/// Called from transport_tick pulse — budget must stay alloc=0.
-fn update_meter_peaks(tick: Int, dt_ms: Int) -> Int with Pure:
-    # STUB: In production, reads peak data from the meter stage output
-    # and writes to teleport channel for UI consumption.
-    # The teleport channel meter_data (to MixerMirror) auto-propagates.
-    let _ = tick + dt_ms
-    return 0
 
 /// Deliver processed audio to the output device.
 /// In production (STREAM4), this calls the WASAPI/ASIO bridge.
@@ -70,12 +80,7 @@ fn audio_device_deliver_output() -> Int with Pure:
     # STUB: AudioEngine in STREAM4 handles the actual device write.
     return 0
 
-/// Advance the transport position by N frames.
-/// Handles loop boundaries if loop is active.
-fn transport_advance_position(frames: Int) -> Int with Pure:
-    MixerWorld.transport_position = MixerWorld.transport_position + frames
-    # Loop handling (STREAM1 provides loop_start/loop_end)
-    if MixerWorld.loop_end > MixerWorld.loop_start:
-        if MixerWorld.transport_position >= MixerWorld.loop_end:
-            MixerWorld.transport_position = MixerWorld.loop_start
-    return MixerWorld.transport_position
+/// Telemetry proof: returns the total number of teleport handoffs performed.
+/// Used in delta guards to verify teleport actually fires each audio frame.
+fn teleport_delivery_count() -> Int with Pure:
+    return runtime_machine_teleport_count()

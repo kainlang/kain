@@ -2,6 +2,9 @@
 //  reson8 Saturator — Analog-Style Saturation and Waveshaping
 //  STREAM2: T2-5 — Soft clip, tube, tape, waveshaper with multiple curves.
 //  STREAM4: PluginHost loads this as Kain-native saturator.
+//
+//  CANONICAL: tanh_clipper and polynomial_clipper from std::audio::dsp.
+//  Custom curves (tube, tape, waveshaper) are reson8-specific.
 // ============================================================================
 
 use std::math
@@ -19,52 +22,36 @@ pub struct SaturatorParams:
     output_lin: Float
 
 // ============================================================================
-//  Math Helpers (no built-in exp/tanh/atan)
+//  Saturation Curves — canonical from std::audio::dsp where available
 // ============================================================================
 
-fn sat_exp(x: Float) -> Float with Unsafe:
-    return pow(SAT_E, x)
+/// Soft clipper via tanh (canonical intrinsic: tanh_scalar).
+pub fn soft_clip(x: Float) -> Float with Pure:
+    return tanh_scalar(x)
 
-fn sat_tanh(x: Float) -> Float with Unsafe:
-    if x > 20.0:
-        return 1.0
-    if x < -20.0:
-        return -1.0
-    let e2: Float = sat_exp(2.0 * x)
-    return (e2 - 1.0) / (e2 + 1.0)
+/// Driven soft clipper.
+pub fn soft_clip_drive(x: Float, drive: Float) -> Float with Pure:
+    return tanh_scalar(x * drive)
 
-fn sat_atan_core(x: Float) -> Float with Unsafe:
-    let x2: Float = x * x
-    let num: Float = 0.9998660 + x2 * (-0.3302995 + x2 * (0.1801410 + x2 * (-0.0851330 + 0.0208351 * x2)))
-    return x * num
-
-fn sat_atan(x: Float) -> Float with Unsafe:
-    if x > 1.0:
-        return 1.5707963267948966 - sat_atan_core(1.0 / x)
-    if x < -1.0:
-        return -1.5707963267948966 - sat_atan_core(1.0 / x)
-    return sat_atan_core(x)
-
-// ============================================================================
-//  Saturation Curves
-// ============================================================================
-
-pub fn soft_clip(x: Float) -> Float with Unsafe:
-    return sat_tanh(x)
-
-pub fn soft_clip_drive(x: Float, drive: Float) -> Float with Unsafe:
-    return sat_tanh(x * drive)
-
-pub fn tube_saturate(x: Float, drive: Float) -> Float with Unsafe:
+/// Tube saturation: blend of tanh and asymmetric soft-clip.
+pub fn tube_saturate(x: Float, drive: Float) -> Float with Pure:
     let y: Float = x * drive
+    # Asymmetric: positive side gets extra warmth via polynomial curve
     if y > 0.0:
-        return sat_tanh(y) * 0.8 + (1.0 - sat_exp(-y)) * 0.2
-    return sat_tanh(y) * 0.8 - (1.0 - sat_exp(y)) * 0.2
+        return tanh_scalar(y) * 0.8 + polynomial_clip(y * 0.7) * 0.2
+    return tanh_scalar(y) * 0.8 - polynomial_clip(-y * 0.7) * 0.2
 
-pub fn tape_saturate(x: Float, drive: Float) -> Float with Unsafe:
-    return sat_atan(x * drive) * (2.0 / SAT_PI)
+/// Tape saturation: atan approximation, scaled to [-1, 1].
+pub fn tape_saturate(x: Float, drive: Float) -> Float with Pure:
+    let y: Float = x * drive
+    # atan approximation: x / (1 + |x|) closely matches atan(x) * 2/pi
+    let denom: Float = 1.0 + absf(y)
+    if denom <= 0.0:
+        return 0.0
+    return y / denom
 
-pub fn waveshaper(x: Float, drive: Float) -> Float with Unsafe:
+/// Cubic waveshaper: f(x) = 1.5x - 0.5x^3
+pub fn waveshaper(x: Float, drive: Float) -> Float with Pure:
     let y: Float = x * drive
     if y < -1.0:
         return -1.0
@@ -72,17 +59,19 @@ pub fn waveshaper(x: Float, drive: Float) -> Float with Unsafe:
         return 1.0
     return 1.5 * y - 0.5 * y * y * y
 
-pub fn asymmetric_clip(x: Float, drive: Float, bias: Float) -> Float with Unsafe:
+/// Asymmetric clipper with bias.
+pub fn asymmetric_clip(x: Float, drive: Float, bias: Float) -> Float with Pure:
     let y: Float = x * drive + bias
     if y > 1.0:
         return 1.0
     if y < -1.0:
         return -1.0
     if y < 0.0:
-        return -sat_tanh(-y * 1.5) * 0.85
-    return sat_tanh(y) * 0.9
+        return -tanh_scalar(-y * 1.5) * 0.85
+    return tanh_scalar(y) * 0.9
 
-pub fn hard_clip(x: Float, drive: Float) -> Float with Unsafe:
+/// Hard clipper.
+pub fn hard_clip(x: Float, drive: Float) -> Float with Pure:
     let y: Float = x * drive
     if y > 1.0:
         return 1.0
@@ -91,10 +80,29 @@ pub fn hard_clip(x: Float, drive: Float) -> Float with Unsafe:
     return y
 
 // ============================================================================
+//  Local helpers — polynomial clipper from dsp.kn formula, local abs
+// ============================================================================
+
+fn polynomial_clip(x: Float) -> Float with Pure:
+    let x2: Float = x * x
+    let x3: Float = x2 * x
+    let y: Float = x - (x3 * 0.3333333)
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    return y
+
+fn absf(x: Float) -> Float with Pure:
+    if x < 0.0:
+        return 0.0 - x
+    return x
+
+// ============================================================================
 //  Mode Dispatcher
 // ============================================================================
 
-pub fn saturate_sample(params: ptr<SaturatorParams>, x: Float) -> Float with Unsafe:
+pub fn saturate_sample(params: ptr<SaturatorParams>, x: Float) -> Float with Pure:
     let drive: Float = params.drive_lin
     let bias: Float = params.bias
 

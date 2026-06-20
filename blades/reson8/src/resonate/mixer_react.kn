@@ -1,0 +1,141 @@
+// ============================================================================
+//  MIXER REACT — Resonate handlers for mixer state changes
+//  Phase 3 (P1 High): Reactive handlers replace polling patterns.
+//
+//  These resonate handlers fire when their target world fields change,
+//  enabling reactive UI updates without polling loops.
+//
+//  Resonate body locals:
+//    resonate_new_i64 — new value of the trigger field (as i64)
+//    resonate_old_i64 — old value before the change
+//    resonate_fired   — 1 on first fire, 0 on subsequent dampened fires
+// ============================================================================
+
+use std::intent
+use std::math
+use worlds::mixer_world
+use pulse::ui_pulse
+
+// ============================================================================
+//  Resonate: Transport State Change
+//  Fires instantly (dampen 0) when transport_state changes.
+//  Resets meter peaks on stop, primes buffers on play.
+// ============================================================================
+
+resonate MixerWorld.transport_state dampen 0 ms:
+    let new_state: Int = resonate_new_i64
+    let old_state: Int = resonate_old_i64
+
+    if new_state == TRANSPORT_PLAYING and old_state != TRANSPORT_PLAYING:
+        # Just started playing — reset meters for fresh display
+        MixerWorld.peak_left = -60.0
+        MixerWorld.peak_right = -60.0
+        MixerWorld.rms_left = -60.0
+        MixerWorld.rms_right = -60.0
+
+    if new_state == TRANSPORT_STOPPED and old_state != TRANSPORT_STOPPED:
+        # Just stopped — capture final meter readings
+        let snapshot = MeterSnapshot {
+            peak_left:      MixerWorld.peak_left,
+            peak_right:     MixerWorld.peak_right,
+            rms_left:       MixerWorld.rms_left,
+            rms_right:      MixerWorld.rms_right,
+            cpu_load:       MixerWorld.cpu_load,
+            transport_pos:  MixerWorld.transport_position,
+            tempo_bpm:      MixerWorld.tempo_bpm,
+            playing:        false,
+            tick:           resonate_fired,
+            timestamp_ms:   0,
+        }
+        update_meter_displays(snapshot)
+
+    # Telemetry: track that resonate fired
+    let _count = resonate_fire_count()
+
+// ============================================================================
+//  Resonate: Master Volume Change
+//  Fires instantly when master_volume changes.
+//  Updates UI meter display reactively.
+// ============================================================================
+
+resonate MixerWorld.master_volume dampen 0 ms:
+    let new_vol: Float = resonate_new_i64 as Float
+    let _old_vol: Float = resonate_old_i64 as Float
+
+    # Build meter snapshot from current world state and push to display
+    let snapshot = MeterSnapshot {
+        peak_left:      MixerWorld.peak_left,
+        peak_right:     MixerWorld.peak_right,
+        rms_left:       MixerWorld.rms_left,
+        rms_right:      MixerWorld.rms_right,
+        cpu_load:       MixerWorld.cpu_load,
+        transport_pos:  MixerWorld.transport_position,
+        tempo_bpm:      MixerWorld.tempo_bpm,
+        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
+        tick:           resonate_fired,
+        timestamp_ms:   0,
+    }
+    update_meter_displays(snapshot)
+
+// ============================================================================
+//  Resonate: Tempo Change
+//  Fires when tempo_bpm changes.
+//  Triggers LFO rate recalculation and transport timebase update.
+// ============================================================================
+
+resonate MixerWorld.tempo_bpm dampen 0 ms:
+    let new_bpm: Float = resonate_new_i64 as Float
+    let _old_bpm: Float = resonate_old_i64 as Float
+
+    # No direct UI update needed for tempo change alone
+    # (BPM display reads from world directly or via entangle propagation)
+    # The LFO state in audio engine reads tempo_bpm on next tick.
+
+    let _count = resonate_fire_count()
+
+// ============================================================================
+//  Resonate: Peak Meter Left Channel
+//  Dampened at 16ms to avoid excessive UI updates during fast meter changes.
+//  This replaces the 50ms polling pulse (meter_ui_tick).
+// ============================================================================
+
+resonate MixerWorld.peak_left dampen 16 ms:
+    let new_peak: Float = resonate_new_i64 as Float
+    let _old_peak: Float = resonate_old_i64 as Float
+
+    let snapshot = MeterSnapshot {
+        peak_left:      new_peak,
+        peak_right:     MixerWorld.peak_right,
+        rms_left:       MixerWorld.rms_left,
+        rms_right:      MixerWorld.rms_right,
+        cpu_load:       MixerWorld.cpu_load,
+        transport_pos:  MixerWorld.transport_position,
+        tempo_bpm:      MixerWorld.tempo_bpm,
+        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
+        tick:           resonate_fired,
+        timestamp_ms:   0,
+    }
+    update_meter_displays(snapshot)
+
+// ============================================================================
+//  Resonate: Peak Meter Right Channel
+//  Dampened at 16ms to match left channel update rate.
+// ============================================================================
+
+resonate MixerWorld.peak_right dampen 16 ms:
+    let new_peak: Float = resonate_new_i64 as Float
+    let _old_peak: Float = resonate_old_i64 as Float
+
+    let snapshot = MeterSnapshot {
+        peak_left:      MixerWorld.peak_left,
+        peak_right:     new_peak,
+        rms_left:       MixerWorld.rms_left,
+        rms_right:      MixerWorld.rms_right,
+        cpu_load:       MixerWorld.cpu_load,
+        transport_pos:  MixerWorld.transport_position,
+        tempo_bpm:      MixerWorld.tempo_bpm,
+        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
+        tick:           resonate_fired,
+        timestamp_ms:   0,
+    }
+    update_meter_displays(snapshot)

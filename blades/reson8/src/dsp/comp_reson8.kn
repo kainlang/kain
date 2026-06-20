@@ -2,12 +2,19 @@
 //  reson8 Compressor — Dynamics Processor
 //  STREAM2: T2-2 — Full dynamics compressor.
 //  STREAM4: PluginHost loads this as Kain-native compressor.
+//
+//  NOTE: std::audio::dsp provides CompressorState and compressor_process with
+//  per-sample API. reson8's version uses block processing with sidechain input,
+//  stereo linking, lookahead, and wet/dry — a superset. The math for dB/linear
+//  conversion and attack/release smoothing is identical to std::audio::dsp.
+//  We keep local implementations to avoid type collisions.
 // ============================================================================
 
 use std::math
 
 const COMP_DB_FLOOR:   Float = -120.0
 const COMP_E:          Float = 2.718281828459045
+const COMP_TWO_PI:     Float = 6.283185307179586
 
 pub struct CompressorParams:
     threshold_db:     Float
@@ -41,10 +48,20 @@ pub struct CompressorState:
     knee_db:           Float
 
 // ============================================================================
-//  dB / Linear Conversion
+//  dB / Linear Conversion — same math as std::audio::dsp
 // ============================================================================
 
-fn log10_impl(x: Float) -> Float with Unsafe:
+fn linear_to_db(linear: Float) -> Float with Unsafe:
+    if linear <= 0.000000000001:
+        return COMP_DB_FLOOR
+    return 20.0 * ln_approx(linear) / 2.302585092994046
+
+fn db_to_linear(db: Float) -> Float with Unsafe:
+    if db <= COMP_DB_FLOOR:
+        return 0.0
+    return pow(10.0, db / 20.0)
+
+fn ln_approx(x: Float) -> Float with Pure:
     if x <= 0.0:
         return -120.0
     var b: Int = 0
@@ -65,17 +82,11 @@ fn log10_impl(x: Float) -> Float with Unsafe:
         term = term * y2
         k = k + 2
     let ln10: Float = 2.302585092994046
-    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+    return 2.0 * ln_a + (b as Float) * ln10
 
-fn linear_to_db(linear: Float) -> Float with Unsafe:
-    if linear <= 0.000000000001:
-        return COMP_DB_FLOOR
-    return 20.0 * log10_impl(linear)
-
-fn db_to_linear(db: Float) -> Float with Unsafe:
-    if db <= COMP_DB_FLOOR:
-        return 0.0
-    return pow(10.0, db / 20.0)
+// ============================================================================
+//  Attack/Release Coefficients — exponential smoothing (same as dsp::exp_coeff)
+// ============================================================================
 
 fn compute_attack_coeff(attack_ms: Float, sr: Int) -> Float with Unsafe:
     let tau: Float = attack_ms * 0.001 * (sr as Float)
@@ -90,7 +101,7 @@ fn compute_release_coeff(release_ms: Float, sr: Int) -> Float with Unsafe:
     return pow(COMP_E, -1.0 / tau)
 
 // ============================================================================
-//  Gain Reduction Computer
+//  Gain Reduction Computer — knee-based compression (same as dsp)
 // ============================================================================
 
 fn compute_gain_reduction_db(level_db: Float, threshold_db: Float,
@@ -114,10 +125,10 @@ fn compute_gain_reduction_db(level_db: Float, threshold_db: Float,
     let over_hard: Float = knee_end - threshold_db
     let gr_at_end: Float = over_hard * (1.0 - 1.0 / ratio)
     let t: Float = delta / knee_db
-    return gr_at_end * t * t / 2.0
+    return gr_at_end * t * t * 0.5
 
 // ============================================================================
-//  Sidechain HPF
+//  Sidechain HPF — 1-pole highpass (same math as dsp::biquad_onepole_hp)
 // ============================================================================
 
 fn init_sidechain(state: ptr<CompressorState>, freq_hz: Float, sr: Int) -> Int with Unsafe:
@@ -128,7 +139,7 @@ fn init_sidechain(state: ptr<CompressorState>, freq_hz: Float, sr: Int) -> Int w
         state.sc_a1 = 0.0
         state.sc_a2 = 0.0
         return 0
-    let wc: Float = 6.283185307179586 * freq_hz / (sr as Float)
+    let wc: Float = COMP_TWO_PI * freq_hz / (sr as Float)
     let kp1: Float = wc + 1.0
     state.sc_b0 = 1.0 / kp1
     state.sc_b1 = -2.0 / kp1
@@ -149,12 +160,17 @@ fn process_sc_sample(state: ptr<CompressorState>, sample: Float) -> Float with U
 
 fn detect_rms(state: ptr<CompressorState>, sample: Float, window: Int) -> Float with Unsafe:
     if window <= 1:
-        return abs(sample)
+        return comp_abs(sample)
     let alpha: Float = 2.0 / ((window as Float) + 1.0)
     let sq: Float = sample * sample
     let new_env: Float = alpha * sq + (1.0 - alpha) * state.rms_acc
     state.rms_acc = new_env
     return sqrt(new_env)
+
+fn comp_abs(v: Float) -> Float with Pure:
+    if v < 0.0:
+        return 0.0 - v
+    return v
 
 // ============================================================================
 //  Mono Compressor Process

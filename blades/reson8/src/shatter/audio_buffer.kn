@@ -1,0 +1,62 @@
+// ============================================================================
+//  Audio Buffer Shatter Structs — SoA Layout for SIMD & Teleport
+//  STREAM2: T2-8 — SoA audio buffer layouts for zero-copy handoff.
+//
+//  Phase 5 (Shatter): Moved from mixer_graph.kn local stubs to canonical
+//  location. The compiler lays out Float fields as separate SIMD lanes.
+//
+//  Usage in orchestrate pipeline:
+//    shatter struct AudioBuffer compresses multichannel audio into cache-line
+//    strips. MeterPayload is teleported from MixerWorld to MixerMirror via
+//    the meter_feed channel (see src/pulse/transport_pulse.kn Phase 1).
+// ============================================================================
+
+// ============================================================================
+//  AudioBuffer — SoA multichannel audio strip
+//  Compiler-owned layout: left and right samples in separate lanes
+//  8 left + 8 right floats per cache line
+//  Vectorized processing: load 8 left, load 8 right, process in parallel
+// ============================================================================
+
+shatter struct AudioBuffer:
+    left:  Float
+    right: Float
+
+// ============================================================================
+//  MeterPayload — Teleport-ready meter telemetry
+//  Zero-copy handoff from audio thread world to UI thread mirror
+// ============================================================================
+
+shatter struct MeterPayload:
+    peak_l:   Float
+    peak_r:   Float
+    rms_l:    Float
+    rms_r:    Float
+    cpu_load: Float
+    tick:     Int
+
+// ============================================================================
+//  AudioChunk — Legacy shatter (moved from mixer_graph.kn)
+//  Used for cache-line-aware signal chunk processing
+// ============================================================================
+
+shatter struct AudioChunk:
+    bias:     Float
+    phase:    Float
+    tick:     Int
+    checksum: Int
+    alive:    Bool
+
+// ============================================================================
+//  PulseBlock — DAW heartbeat telemetry block (Phase 5 extension)
+//  Built inside transport_tick pulse, teleported to MixerMirror
+// ============================================================================
+
+shatter struct PulseBlock:
+    peak_l:     Float
+    peak_r:     Float
+    rms_l:      Float
+    rms_r:      Float
+    cpu_load:   Float
+    frame_tick: Int
+    hot:        Bool

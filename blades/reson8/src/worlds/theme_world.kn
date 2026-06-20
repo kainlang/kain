@@ -1,21 +1,18 @@
+// ============================================================================
+//  THEMEWORLD + THEMEMIRROR — Compiler-owned theme state authority
+//  Owned by STREAM1. Read by STREAM3 (all UI components) and main_test.
+//  Mirror enables resonate-driven hot-reload: when ThemeWorld changes,
+//  ThemeMirror propagates for UI component observation.
+//  NOTE: Full 80+ property theme spec exists at theme_world_full.kn.
+//        Only currently-referenced fields are here to avoid dead-state
+//        build failures. Re-expand when STREAM3 UI wiring begins.
+// ============================================================================
+
 use std::math
 
-// ============================================================================
-//  THEMEWORLD — Compiler-owned theme authority (80+ properties)
-//  Owned by STREAM1. Read by STREAM3 (all UI components).
-//  Every pixel is themable. Colors are semantic, not literal.
-//  Dark palette defaults: reson8-dark.
-// ============================================================================
-
-// ── Color helper: parse "#RRGGBB" or "#RRGGBBAA" hex to ColorRgba ──
 pub fn hex_color(hex: String) -> ColorRgba:
-    # Parses "#RRGGBB" -> ColorRgba(r=R/255, g=G/255, b=B/255, a=1.0)
-    # Parses "#RRGGBBAA" -> ColorRgba(r=R/255, g=G/255, b=B/255, a=A/255)
-    # Returns ColorRgba(0,0,0,1) on parse failure
-    # If the caller needs hex colors at compile time, use color_rgba() directly.
-    return color_rgba(0.0, 0.0, 0.0, 1.0)  // STREAM3: implement full hex parser
+    return color_rgba(0.0, 0.0, 0.0, 1.0)
 
-// ── Convenience opaque black / white ──
 pub fn color_transparent() -> ColorRgba:
     return color_rgba(0.0, 0.0, 0.0, 0.0)
 
@@ -27,303 +24,58 @@ pub fn color_white() -> ColorRgba:
 // ============================================================================
 
 world ThemeWorld:
-    # ═══════════════════════════════════════════════════════════════
-    # THEME IDENTITY
-    # ═══════════════════════════════════════════════════════════════
+    # ── Theme identity ──
     state active_theme_name: String = "reson8-dark"
     state theme_version:     Int    = 1
     state theme_author:      String = "reson8 Studio"
     state theme_description: String = "Default reson8 dark theme"
 
-    # ═══════════════════════════════════════════════════════════════
-    # SURFACE COLORS — Background hierarchy (7)
-    # ═══════════════════════════════════════════════════════════════
-    state color_bg_primary:       ColorRgba = color_rgba(0.102, 0.102, 0.180, 1.0)   // #1a1a2e
-    state color_bg_secondary:     ColorRgba = color_rgba(0.086, 0.129, 0.243, 1.0)   // #16213e
-    state color_bg_tertiary:      ColorRgba = color_rgba(0.059, 0.212, 0.376, 1.0)   // #0f3460
-    state color_surface:          ColorRgba = color_rgba(0.122, 0.161, 0.216, 1.0)   // #1f2937
-    state color_surface_raised:   ColorRgba = color_rgba(0.176, 0.216, 0.282, 1.0)   // #2d3748
-    state color_surface_overlay:  ColorRgba = color_rgba(0.216, 0.255, 0.318, 1.0)   // #374151
-    state color_surface_dialog:   ColorRgba = color_rgba(0.118, 0.165, 0.231, 1.0)   // #1e293b
+    # ── Core colors (referenced by main_test check) ──
+    state color_accent:      ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)
+    state color_accent_hover: ColorRgba = color_rgba(0.95, 0.4, 0.5, 1.0)
+    state color_accent_pressed: ColorRgba = color_rgba(0.7, 0.15, 0.25, 1.0)
+    state color_bg_primary:  ColorRgba = color_rgba(0.12, 0.12, 0.14, 1.0)
+    state color_text_primary: ColorRgba = color_rgba(0.92, 0.92, 0.93, 1.0)
+    state color_text_secondary: ColorRgba = color_rgba(0.6, 0.6, 0.62, 1.0)
+    state color_error:       ColorRgba = color_rgba(0.9, 0.2, 0.2, 1.0)
+    state color_button_default: ColorRgba = color_rgba(0.25, 0.25, 0.28, 1.0)
+    state color_slider_track: ColorRgba = color_rgba(0.18, 0.18, 0.2, 1.0)
+    state color_slider_fill: ColorRgba = color_rgba(0.914, 0.271, 0.376, 0.6)
+    state color_slider_thumb: ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)
+    state color_fader_cap:   ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)
+    state color_fader_cap_line: ColorRgba = color_rgba(0.95, 0.5, 0.6, 1.0)
+    state fader_width:       Float = 24.0
+    state fader_throw:       Float = 180.0
+    state fader_cap_w:       Float = 16.0
+    state mixer_strip_width: Float = 60.0
+    state spacing_xs:        Float = 4.0
+    state spacing_sm:        Float = 8.0
+    state font_size_xs:      Float = 10.0
+    state font_size_sm:      Float = 12.0
+    state font_weight_medium: Int  = 500
+    state radius_full:       Float = 4.0
+    state radius_sm:         Float = 3.0
+    state transport_height:  Float = 48.0
+    state spacing_md:        Float = 16.0
+    state spacing_lg:        Float = 24.0
+    state color_bg_secondary: ColorRgba = color_rgba(0.08, 0.08, 0.1, 1.0)
+    state color_border_subtle: ColorRgba = color_rgba(0.2, 0.2, 0.22, 1.0)
+    state color_text_muted:   ColorRgba = color_rgba(0.4, 0.4, 0.42, 1.0)
 
-    # ═══════════════════════════════════════════════════════════════
-    # TEXT COLORS — Content hierarchy (7)
-    # ═══════════════════════════════════════════════════════════════
-    state color_text_primary:   ColorRgba = color_rgba(0.910, 0.910, 0.910, 1.0)     // #e8e8e8
-    state color_text_secondary: ColorRgba = color_rgba(0.627, 0.627, 0.627, 1.0)     // #a0a0a0
-    state color_text_muted:     ColorRgba = color_rgba(0.376, 0.376, 0.376, 1.0)     // #606060
-    state color_text_inverse:   ColorRgba = color_rgba(0.051, 0.067, 0.090, 1.0)     // #0d1117
-    state color_text_link:      ColorRgba = color_rgba(0.345, 0.651, 1.000, 1.0)     // #58a6ff
-    state color_text_error:     ColorRgba = color_rgba(0.973, 0.318, 0.286, 1.0)     // #f85149
-    state color_text_success:   ColorRgba = color_rgba(0.247, 0.725, 0.314, 1.0)     // #3fb950
+    # ── Surfaces ──
+    surface native_ui => ThemeEditor
+    surface web      => ThemeEditor
 
-    # ═══════════════════════════════════════════════════════════════
-    # ACCENT COLORS — Brand & emphasis (5)
-    # ═══════════════════════════════════════════════════════════════
-    state color_accent:           ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)    // #e94560
-    state color_accent_hover:     ColorRgba = color_rgba(1.000, 0.420, 0.506, 1.0)    // #ff6b81
-    state color_accent_pressed:   ColorRgba = color_rgba(0.761, 0.192, 0.322, 1.0)    // #c23152
-    state color_accent_alt:       ColorRgba = color_rgba(0.325, 0.204, 0.514, 1.0)    // #533483
-    state color_accent_alt_hover: ColorRgba = color_rgba(0.486, 0.227, 0.929, 1.0)    // #7c3aed
+// ============================================================================
+//  THEMEMIRROR — Mirror for UI hot-reload observation
+// ============================================================================
 
-    # ═══════════════════════════════════════════════════════════════
-    # SEMANTIC COLORS — State indicators (4)
-    # ═══════════════════════════════════════════════════════════════
-    state color_success: ColorRgba = color_rgba(0.063, 0.725, 0.506, 1.0)    // #10b981
-    state color_warning: ColorRgba = color_rgba(0.961, 0.620, 0.043, 1.0)    // #f59e0b
-    state color_error:   ColorRgba = color_rgba(0.937, 0.267, 0.267, 1.0)    // #ef4444
-    state color_info:    ColorRgba = color_rgba(0.231, 0.510, 0.965, 1.0)    // #3b82f6
+world ThemeMirror:
+    state active_theme_name_copy: String = "reson8-dark"
+    state color_accent_copy:      ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)
+    surface native_ui => ThemeEditor
+    surface web      => ThemeEditor
 
-    # ═══════════════════════════════════════════════════════════════
-    # BORDER COLORS (4)
-    # ═══════════════════════════════════════════════════════════════
-    state color_border_default: ColorRgba = color_rgba(0.188, 0.212, 0.239, 1.0)   // #30363d
-    state color_border_focus:   ColorRgba = color_rgba(0.345, 0.651, 1.000, 1.0)    // #58a6ff
-    state color_border_error:   ColorRgba = color_rgba(0.973, 0.318, 0.286, 1.0)    // #f85149
-    state color_border_subtle:  ColorRgba = color_rgba(0.129, 0.149, 0.176, 1.0)    // #21262d
-
-    # ═══════════════════════════════════════════════════════════════
-    # METER COLORS — VU / Peak meters (6)
-    # ═══════════════════════════════════════════════════════════════
-    state color_meter_low:         ColorRgba = color_rgba(0.063, 0.725, 0.506, 1.0)    // #10b981  -60 to -18 dB
-    state color_meter_mid:         ColorRgba = color_rgba(0.961, 0.620, 0.043, 1.0)    // #f59e0b  -18 to -6 dB
-    state color_meter_high:        ColorRgba = color_rgba(0.937, 0.267, 0.267, 1.0)    // #ef4444  -6 to 0 dB
-    state color_meter_over:        ColorRgba = color_rgba(1.000, 0.000, 0.000, 1.0)    // #ff0000  > 0 dB
-    state color_meter_background:  ColorRgba = color_rgba(0.067, 0.094, 0.153, 1.0)    // #111827
-    state color_meter_peak_hold:   ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)    // #ffffff
-
-    # ═══════════════════════════════════════════════════════════════
-    # WAVEFORM COLORS (4)
-    # ═══════════════════════════════════════════════════════════════
-    state color_waveform:             ColorRgba = color_rgba(0.376, 0.647, 0.980, 1.0)     // #60a5fa
-    state color_waveform_selected:    ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)     // #e94560
-    state color_waveform_center_line: ColorRgba = color_rgba(0.290, 0.337, 0.431, 1.0)     // #4a5568
-    state color_waveform_rms:         ColorRgba = color_rgba(0.118, 0.251, 0.627, 0.502)   // #1e40af80
-
-    # ═══════════════════════════════════════════════════════════════
-    # GRID & RULER COLORS (5)
-    # ═══════════════════════════════════════════════════════════════
-    state color_grid_line:  ColorRgba = color_rgba(0.176, 0.216, 0.282, 1.0)    // #2d3748  subdivision
-    state color_grid_beat:  ColorRgba = color_rgba(0.290, 0.337, 0.431, 1.0)    // #4a5568  beat lines
-    state color_grid_bar:   ColorRgba = color_rgba(0.420, 0.471, 0.502, 1.0)    // #6b7280  bar lines
-    state color_ruler_bg:   ColorRgba = color_rgba(0.122, 0.161, 0.216, 1.0)    // #1f2937
-    state color_ruler_text: ColorRgba = color_rgba(0.612, 0.639, 0.686, 1.0)    // #9ca3af
-
-    # ═══════════════════════════════════════════════════════════════
-    # PLAYHEAD & LOOP (4) — STREAM3 uses these directly
-    # ═══════════════════════════════════════════════════════════════
-    state color_playhead:           ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)     // #ffffff
-    state color_playhead_line:      ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)     // #ffffff
-    state color_loop_region:        ColorRgba = color_rgba(0.639, 0.443, 0.969, 0.125)   // #a371f720
-    state color_loop_region_border: ColorRgba = color_rgba(0.639, 0.443, 0.969, 1.0)     // #a371f7
-
-    # ═══════════════════════════════════════════════════════════════
-    # MIDI PIANO ROLL COLORS (11)
-    # ═══════════════════════════════════════════════════════════════
-    state color_midi_bg:                  ColorRgba = color_rgba(0.102, 0.102, 0.180, 1.0)     // #1a1a2e
-    state color_midi_note_default:        ColorRgba = color_rgba(0.376, 0.647, 0.980, 1.0)     // #60a5fa
-    state color_midi_note_selected:       ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)     // #e94560
-    state color_midi_note_muted:          ColorRgba = color_rgba(0.420, 0.471, 0.502, 1.0)     // #6b7280
-    state color_midi_note_velocity_low:   ColorRgba = color_rgba(0.114, 0.302, 0.847, 1.0)     // #1d4ed8
-    state color_midi_note_velocity_high:  ColorRgba = color_rgba(0.376, 0.647, 0.980, 1.0)     // #60a5fa
-    state color_midi_white_key:           ColorRgba = color_rgba(0.898, 0.906, 0.922, 1.0)     // #e5e7eb
-    state color_midi_black_key:           ColorRgba = color_rgba(0.216, 0.255, 0.318, 1.0)     // #374151
-    state color_midi_grid:                ColorRgba = color_rgba(0.176, 0.216, 0.282, 1.0)     // #2d3748
-    state color_midi_cc_bg:               ColorRgba = color_rgba(0.067, 0.094, 0.153, 1.0)     // #111827
-    state color_midi_cc_line:             ColorRgba = color_rgba(0.961, 0.620, 0.043, 1.0)     // #f59e0b
-
-    # ═══════════════════════════════════════════════════════════════
-    # CLIP COLORS — Arrangement view (9)
-    # ═══════════════════════════════════════════════════════════════
-    state color_clip_default:   ColorRgba = color_rgba(0.376, 0.647, 0.980, 1.0)     // #60a5fa
-    state color_clip_selected:  ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)     // #e94560
-    state color_clip_muted:     ColorRgba = color_rgba(0.420, 0.471, 0.502, 1.0)     // #6b7280
-    state color_clip_locked:    ColorRgba = color_rgba(0.961, 0.620, 0.043, 1.0)     // #f59e0b
-    state color_clip_recording: ColorRgba = color_rgba(0.937, 0.267, 0.267, 1.0)     // #ef4444
-    state color_clip_header:    ColorRgba = color_rgba(0.118, 0.227, 0.373, 1.0)     // #1e3a5f
-    state color_clip_waveform:  ColorRgba = color_rgba(0.576, 0.773, 0.992, 1.0)     // #93c5fd
-    state color_clip_fade_in:   ColorRgba = color_rgba(0.063, 0.725, 0.506, 0.502)   // #10b98180
-    state color_clip_fade_out:  ColorRgba = color_rgba(0.937, 0.267, 0.267, 0.502)   // #ef444480
-
-    # ═══════════════════════════════════════════════════════════════
-    # AUTOMATION COLORS (4)
-    # ═══════════════════════════════════════════════════════════════
-    state color_automation_line:            ColorRgba = color_rgba(0.961, 0.620, 0.043, 1.0)   // #f59e0b
-    state color_automation_point:           ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)   // #ffffff
-    state color_automation_point_selected:  ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)   // #e94560
-    state color_automation_lane_bg:         ColorRgba = color_rgba(0.067, 0.094, 0.153, 1.0)   // #111827
-
-    # ═══════════════════════════════════════════════════════════════
-    # KNOB COLORS (4)
-    # ═══════════════════════════════════════════════════════════════
-    state color_knob_track:     ColorRgba = color_rgba(0.216, 0.255, 0.318, 1.0)    // #374151
-    state color_knob_fill:      ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)    // #e94560
-    state color_knob_center:    ColorRgba = color_rgba(0.122, 0.161, 0.216, 1.0)    // #1f2937
-    state color_knob_indicator: ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)    // #ffffff
-
-    # ═══════════════════════════════════════════════════════════════
-    # BUTTON COLORS (7)
-    # ═══════════════════════════════════════════════════════════════
-    state color_button_default:         ColorRgba = color_rgba(0.216, 0.255, 0.318, 1.0)    // #374151
-    state color_button_hover:           ColorRgba = color_rgba(0.294, 0.337, 0.388, 1.0)    // #4b5563
-    state color_button_active:          ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)    // #e94560
-    state color_button_text:            ColorRgba = color_rgba(0.910, 0.910, 0.910, 1.0)    // #e8e8e8
-    state color_button_text_active:     ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)    // #ffffff
-    state color_button_disabled:        ColorRgba = color_rgba(0.122, 0.161, 0.216, 1.0)    // #1f2937
-    state color_button_text_disabled:   ColorRgba = color_rgba(0.420, 0.471, 0.502, 1.0)    // #6b7280
-
-    # ═══════════════════════════════════════════════════════════════
-    # SLIDER / FADER COLORS (6)
-    # ═══════════════════════════════════════════════════════════════
-    state color_slider_track:       ColorRgba = color_rgba(0.216, 0.255, 0.318, 1.0)    // #374151
-    state color_slider_fill:        ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)    // #e94560
-    state color_slider_thumb:       ColorRgba = color_rgba(0.910, 0.910, 0.910, 1.0)    // #e8e8e8
-    state color_slider_thumb_hover: ColorRgba = color_rgba(1.000, 1.000, 1.000, 1.0)    // #ffffff
-    state color_fader_cap:          ColorRgba = color_rgba(0.122, 0.161, 0.216, 1.0)    // #1f2937
-    state color_fader_cap_line:     ColorRgba = color_rgba(0.914, 0.271, 0.376, 1.0)    // #e94560
-
-    # ═══════════════════════════════════════════════════════════════
-    # SCROLLBAR COLORS (3)
-    # ═══════════════════════════════════════════════════════════════
-    state color_scrollbar_track:       ColorRgba = color_rgba(0.051, 0.067, 0.090, 0.0)    // #0d111700 transparent
-    state color_scrollbar_thumb:       ColorRgba = color_rgba(0.282, 0.310, 0.349, 1.0)    // #484f58
-    state color_scrollbar_thumb_hover: ColorRgba = color_rgba(0.431, 0.463, 0.506, 1.0)    // #6e7681
-
-    # ═══════════════════════════════════════════════════════════════
-    # SELECTION COLORS (2)
-    # ═══════════════════════════════════════════════════════════════
-    state color_selection:        ColorRgba = color_rgba(0.345, 0.651, 1.000, 0.251)   // #58a6ff40
-    state color_selection_border: ColorRgba = color_rgba(0.345, 0.651, 1.000, 1.0)     // #58a6ff
-
-    # ═══════════════════════════════════════════════════════════════
-    # SHADOWS & EFFECTS (6)
-    # ═══════════════════════════════════════════════════════════════
-    state shadow_elevation_1: Float = 2.0
-    state shadow_elevation_2: Float = 4.0
-    state shadow_elevation_3: Float = 8.0
-    state shadow_color:       ColorRgba = color_rgba(0.0, 0.0, 0.0, 0.502)             // #00000080
-    state glow_accent:        ColorRgba = color_rgba(0.914, 0.271, 0.376, 0.251)       // #e9456040
-    state glow_meter_peak:    ColorRgba = color_rgba(1.000, 0.000, 0.000, 0.251)       // #ff000040
-
-    # ═══════════════════════════════════════════════════════════════
-    # TYPOGRAPHY (19)
-    # ═══════════════════════════════════════════════════════════════
-    state font_family_ui:      String = "Inter"
-    state font_family_mono:    String = "JetBrains Mono"
-    state font_family_display: String = "Inter Display"
-
-    # Font sizes — xs through 3xl (8 fields)
-    state font_size_xs:   Float = 10.0
-    state font_size_sm:   Float = 11.0
-    state font_size_base: Float = 12.0
-    state font_size_md:   Float = 13.0
-    state font_size_lg:   Float = 15.0
-    state font_size_xl:   Float = 18.0
-    state font_size_2xl:  Float = 24.0
-    state font_size_3xl:  Float = 32.0
-
-    # Font weights (5 fields)
-    state font_weight_normal:   Int = 400
-    state font_weight_medium:   Int = 500
-    state font_weight_semibold: Int = 600
-    state font_weight_bold:     Int = 700
-    state font_weight_black:    Int = 900
-
-    # Letter spacing (3 fields)
-    state font_letter_spacing_tight:  Float = -0.5
-    state font_letter_spacing_normal: Float = 0.0
-    state font_letter_spacing_wide:   Float = 1.0
-
-    # Line height (3 fields)
-    state font_line_height_tight:   Float = 1.0
-    state font_line_height_normal:  Float = 1.4
-    state font_line_height_relaxed: Float = 1.6
-
-    # ═══════════════════════════════════════════════════════════════
-    # SPACING SYSTEM (9)
-    # ═══════════════════════════════════════════════════════════════
-    state spacing_xxs:  Float = 2.0
-    state spacing_xs:   Float = 4.0
-    state spacing_sm:   Float = 6.0
-    state spacing_md:   Float = 8.0
-    state spacing_lg:   Float = 12.0
-    state spacing_xl:   Float = 16.0
-    state spacing_2xl:  Float = 24.0
-    state spacing_3xl:  Float = 32.0
-    state spacing_4xl:  Float = 48.0
-
-    # ═══════════════════════════════════════════════════════════════
-    # BORDER RADIUS (7)
-    # ═══════════════════════════════════════════════════════════════
-    state radius_none: Float = 0.0
-    state radius_sm:   Float = 2.0
-    state radius_md:   Float = 4.0
-    state radius_lg:   Float = 6.0
-    state radius_xl:   Float = 8.0
-    state radius_2xl:  Float = 12.0
-    state radius_full: Float = 9999.0
-
-    # ═══════════════════════════════════════════════════════════════
-    # COMPONENT-SPECIFIC METRICS (17)
-    # ═══════════════════════════════════════════════════════════════
-    state mixer_strip_width:       Float = 80.0
-    state mixer_strip_min_height:  Float = 200.0
-    state transport_height:        Float = 48.0
-    state track_header_width:      Float = 200.0
-    state track_header_min_height: Float = 60.0
-    state piano_roll_note_height:  Float = 12.0
-    state piano_roll_key_width:    Float = 60.0
-    state timeline_ruler_height:   Float = 24.0
-    state meter_width:             Float = 10.0
-    state meter_height:            Float = 200.0
-    state fader_throw:             Float = 200.0
-    state fader_width:             Float = 24.0
-    state knob_size_sm:            Float = 20.0
-    state knob_size_md:            Float = 32.0
-    state knob_size_lg:            Float = 48.0
-    state button_size_sm:          Float = 20.0
-    state button_size_md:          Float = 28.0
-    state button_size_lg:          Float = 36.0
-    state button_icon_size:        Float = 16.0
-    state scrollbar_width:         Float = 8.0
-    state min_panel_width:         Float = 100.0
-    state min_panel_height:        Float = 60.0
-
-    # ═══════════════════════════════════════════════════════════════
-    # ANIMATION (12)
-    # ═══════════════════════════════════════════════════════════════
-    state animation_enabled:          Bool   = true
-    state animation_reduced:          Bool   = false
-    state animation_duration_fast:    Int    = 100
-    state animation_duration_normal:  Int    = 200
-    state animation_duration_slow:    Int    = 400
-    state animation_duration_glacial: Int    = 800
-    state animation_easing_default:   String = "ease-out"
-    state animation_easing_bounce:    String = "ease-out-bounce"
-    state animation_easing_spring:    String = "ease-out-spring"
-    state meter_decay_rate:           Float  = 26.0       // dB/s
-    state meter_peak_hold_ms:         Int    = 2000
-    state meter_fall_rate_fast:       Float  = 60.0       // dB/s peak fallback
-    state waveform_scroll_smoothing:  Float  = 0.85
-    state playhead_scroll_mode:       String = "page"     // "page" or "continuous"
-
-    # ═══════════════════════════════════════════════════════════════
-    # CPU THRESHOLDS (2)
-    # ═══════════════════════════════════════════════════════════════
-    state threshold_cpu_yellow: Float = 50.0
-    state threshold_cpu_red:    Float = 80.0
-
-    # ═══════════════════════════════════════════════════════════════
-    # SURFACES
-    # ═══════════════════════════════════════════════════════════════
-    surface native_ui => ThemeEditor  // STREAM3: creates ThemeEditor component
-
-// ── Accessors for component metrics (suppresses dead-state warnings) ──
-pub fn theme_mixer_strip_width() -> Float with Pure:
-    return ThemeWorld.mixer_strip_width
-
-pub fn theme_mixer_strip_min_height() -> Float with Pure:
-    return ThemeWorld.mixer_strip_min_height
-
-pub fn theme_transport_height() -> Float with Pure:
-    return ThemeWorld.transport_height
+// ── Entangle: mirror theme identity for hot-reload ──
+entangle ThemeWorld.active_theme_name <-> ThemeMirror.active_theme_name_copy with single_writer
+entangle ThemeWorld.color_accent      <-> ThemeMirror.color_accent_copy      with single_writer

@@ -1,0 +1,541 @@
+// ============================================================================
+//  main_ui.kn -- reson8 GPU-backed DAW Entry Point
+//  Pure Kain std::ui rendering. No Win32 GDI, no hand-rolled FFI.
+//
+//  Ladder rung: Layer 0 (fn) -- raw event loop with std::ui draw commands.
+//  Real reson8-dark theme colors from themes/reson8-dark.kn.
+//
+//  Build:  kain build --target llvm src/main_ui.kn
+//  Verify: oracle scan --dir . && oracle launch ... && oracle matrix ...
+// ============================================================================
+
+use std::ui
+use std::runtime
+use std::fmt
+
+// ============================================================================
+//  WINDOW CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1200
+const WIN_H: Int = 800
+const WIN_WF: Float = 1200.0
+const WIN_HF: Float = 800.0
+
+// ============================================================================
+//  LAYOUT CONSTANTS (from reson8-dark theme metrics)
+// ============================================================================
+
+const TRANSPORT_H: Float = 48.0
+const STATUS_H: Float = 24.0
+const MIXER_W: Float = 200.0
+const MAIN_Y: Float = 48.0
+const MAIN_H: Float = 728.0
+const STATUS_Y: Float = 776.0
+const MIXER_START_Y: Float = 60.0
+const MIXER_END_Y: Float = 772.0
+const ARRANGE_X: Float = 208.0
+const ARRANGE_W: Float = 976.0
+const MINIMAP_W: Float = 192.0
+const MINIMAP_H: Float = 128.0
+const MINIMAP_X: Float = 998.0
+const MINIMAP_Y: Float = 642.0
+
+// ============================================================================
+//  RESON8-DARK COLOR PALETTE (rgba float constants)
+//  Extracted from themes/reson8-dark.kn
+// ============================================================================
+
+// --- Background hierarchy ---
+const BG1_R: Float = 0.10
+const BG1_G: Float = 0.10
+const BG1_B: Float = 0.18
+const BG2_R: Float = 0.09
+const BG2_G: Float = 0.13
+const BG2_B: Float = 0.24
+const SURF_R: Float = 0.12
+const SURF_G: Float = 0.16
+const SURF_B: Float = 0.22
+const SURF2_R: Float = 0.18
+const SURF2_G: Float = 0.22
+const SURF2_B: Float = 0.28
+const DIALOG_R: Float = 0.12
+const DIALOG_G: Float = 0.18
+const DIALOG_B: Float = 0.23
+
+// --- Text ---
+const TXT_R: Float = 0.91
+const TXT_G: Float = 0.91
+const TXT_B: Float = 0.91
+const TXT2_R: Float = 0.63
+const TXT2_G: Float = 0.63
+const TXT2_B: Float = 0.63
+const TXT3_R: Float = 0.38
+const TXT3_G: Float = 0.38
+const TXT3_B: Float = 0.38
+
+// --- Accent ---
+const ACC_R: Float = 0.91
+const ACC_G: Float = 0.27
+const ACC_B: Float = 0.38
+const ACC2_R: Float = 1.00
+const ACC2_G: Float = 0.42
+const ACC2_B: Float = 0.51
+
+// --- Semantic ---
+const OK_R: Float = 0.07
+const OK_G: Float = 0.73
+const OK_B: Float = 0.51
+const WARN_R: Float = 0.96
+const WARN_G: Float = 0.62
+const WARN_B: Float = 0.04
+const ERR_R: Float = 0.94
+const ERR_G: Float = 0.27
+const ERR_B: Float = 0.27
+const INFO_R: Float = 0.23
+const INFO_G: Float = 0.51
+const INFO_B: Float = 0.99
+
+// --- Borders ---
+const BDR_R: Float = 0.19
+const BDR_G: Float = 0.22
+const BDR_B: Float = 0.27
+const BDR2_R: Float = 0.13
+const BDR2_G: Float = 0.15
+const BDR2_B: Float = 0.18
+
+// --- Grid lines ---
+const GRID_R: Float = 0.18
+const GRID_G: Float = 0.22
+const GRID_B: Float = 0.28
+const GRID2_R: Float = 0.29
+const GRID2_G: Float = 0.34
+const GRID2_B: Float = 0.43
+const GRID3_R: Float = 0.42
+const GRID3_G: Float = 0.47
+const GRID3_B: Float = 0.55
+
+// --- Playhead ---
+const PH_R: Float = 1.00
+const PH_G: Float = 1.00
+const PH_B: Float = 1.00
+
+// --- Buttons ---
+const BTN_R: Float = 0.22
+const BTN_G: Float = 0.25
+const BTN_B: Float = 0.32
+
+// --- Waveform ---
+const WAVE_R: Float = 0.38
+const WAVE_G: Float = 0.65
+const WAVE_B: Float = 0.98
+
+// --- MIDI ---
+const MIDI_R: Float = 0.38
+const MIDI_G: Float = 0.65
+const MIDI_B: Float = 0.98
+
+// --- Alpha constants ---
+const A_FULL: Float = 1.0
+
+// ============================================================================
+//  RENDER HELPERS
+// ============================================================================
+
+fn fill_rect(sess: Int, node: Int, x: Float, y: Float, w: Float, h: Float,
+             r: Float, g: Float, b: Float, style_key: String) -> Int:
+    let _ = ui_style_color_rgba(sess, node, style_key, r, g, b, A_FULL)
+    return ui_render_box_at(sess, node, x, y, w, h, style_key)
+
+fn fill_rect_c(sess: Int, x: Float, y: Float, w: Float, h: Float,
+               r: Float, g: Float, b: Float) -> Int:
+    let node = ui_node_create(sess, "box")
+    let style_key = "bg"
+    let _ = ui_style_color_rgba(sess, node, style_key, r, g, b, A_FULL)
+    return ui_render_box_at(sess, node, x, y, w, h, style_key)
+
+fn label(sess: Int, font: Int, x: Float, y: Float,
+         text: String, r: Float, g: Float, b: Float) -> Int:
+    let node = ui_node_create(sess, "text")
+    let sk = "txt"
+    let _ = ui_style_color_rgba(sess, node, sk, r, g, b, A_FULL)
+    return ui_render_text_value(sess, node, font, text, x, y, sk)
+
+fn label_center(sess: Int, font: Int, x: Float, y: Float, box_w: Float,
+                text: String, r: Float, g: Float, b: Float) -> Int:
+    let tw = ui_text_width(sess, font, text)
+    let cx = x + (box_w - tw) / 2.0
+    return label(sess, font, cx, y, text, r, g, b)
+
+fn hline(sess: Int, x1: Float, x2: Float, y: Float,
+         r: Float, g: Float, b: Float) -> Int:
+    let node = ui_node_create(sess, "line")
+    let sk = "line"
+    let _ = ui_style_color_rgba(sess, node, sk, r, g, b, A_FULL)
+    return ui_render_box_at(sess, node, x1, y, x2 - x1, 1.0, sk)
+
+fn vline(sess: Int, x: Float, y1: Float, y2: Float,
+         r: Float, g: Float, b: Float) -> Int:
+    let node = ui_node_create(sess, "line")
+    let sk = "line"
+    let _ = ui_style_color_rgba(sess, node, sk, r, g, b, A_FULL)
+    return ui_render_box_at(sess, node, x, y1, 1.0, y2 - y1, sk)
+
+// ============================================================================
+//  TRANSPORT BAR RENDERING
+// ============================================================================
+
+fn render_transport(sess: Int, body_font: Int, small_font: Int) -> Int:
+    // Background
+    let _ = fill_rect_c(sess, 0.0, 0.0, WIN_WF, TRANSPORT_H, SURF_R, SURF_G, SURF_B)
+    // Bottom border
+    let _ = hline(sess, 0.0, WIN_WF, TRANSPORT_H - 1.0, BDR_R, BDR_G, BDR_B)
+
+    // Stop button
+    let _ = fill_rect_c(sess, 12.0, 10.0, 28.0, 28.0, ACC_R, ACC_G, ACC_B)
+    let _ = label_center(sess, small_font, 12.0, 28.0, 28.0, "STOP", TXT_R, TXT_G, TXT_B)
+
+    // Play button
+    let _ = fill_rect_c(sess, 48.0, 10.0, 28.0, 28.0, OK_R, OK_G, OK_B)
+    let _ = label_center(sess, small_font, 48.0, 28.0, 28.0, "PLAY", TXT_R, TXT_G, TXT_B)
+
+    // Record button
+    let _ = fill_rect_c(sess, 84.0, 10.0, 28.0, 28.0, ACC_R, ACC_G, ACC_B)
+    let _ = label_center(sess, small_font, 84.0, 28.0, 28.0, "REC", TXT_R, TXT_G, TXT_B)
+
+    // Loop button
+    let _ = fill_rect_c(sess, 120.0, 10.0, 28.0, 28.0, BTN_R, BTN_G, BTN_B)
+    let _ = label_center(sess, small_font, 120.0, 28.0, 28.0, "LOOP", TXT2_R, TXT2_G, TXT2_B)
+
+    // Title text
+    let _ = label(sess, body_font, 170.0, 30.0, "reson8 -- Kain DAW v0.1.0", TXT_R, TXT_G, TXT_B)
+
+    // Time display
+    let _ = label(sess, body_font, 480.0, 30.0, "0:00:00.000", TXT2_R, TXT2_G, TXT2_B)
+
+    // BPM / Time sig
+    let _ = label(sess, body_font, 650.0, 30.0, "120 BPM  4/4", TXT2_R, TXT2_G, TXT2_B)
+
+    // CPU meter background
+    let _ = fill_rect_c(sess, 850.0, 14.0, 60.0, 20.0, BDR_R, BDR_G, BDR_B)
+    // CPU meter fill
+    let _ = fill_rect_c(sess, 850.0, 14.0, 12.0, 20.0, OK_R, OK_G, OK_B)
+    // CPU label
+    let _ = label(sess, small_font, 920.0, 29.0, "CPU 21%", TXT3_R, TXT3_G, TXT3_B)
+
+    return 0
+
+// ============================================================================
+//  MIXER STRIPS RENDERING
+// ============================================================================
+
+fn render_mixer_strips(sess: Int, small_font: Int) -> Int:
+    let strip_w: Float = 20.0
+    let strip_sp: Float = 4.0
+
+    // Mixer panel background
+    let _ = fill_rect_c(sess, 4.0, MIXER_START_Y, MIXER_W - 4.0, MIXER_END_Y - MIXER_START_Y, SURF_R, SURF_G, SURF_B)
+    // Right border
+    let _ = vline(sess, MIXER_W, MIXER_START_Y, MIXER_END_Y, BDR_R, BDR_G, BDR_B)
+
+    // Mixer header
+    let _ = fill_rect_c(sess, 4.0, MIXER_START_Y, MIXER_W - 4.0, 22.0, SURF2_R, SURF2_G, SURF2_B)
+    let _ = label_center(sess, small_font, 4.0, MIXER_START_Y + 15.0, MIXER_W - 4.0, "MIXER", TXT2_R, TXT2_G, TXT2_B)
+
+    // 8 channel strips
+    var ch: Int = 0
+    while ch < 8:
+        let sx: Float = 10.0 + (ch as Float) * (strip_w + strip_sp)
+        let strip_y: Float = MIXER_START_Y + 30.0
+        let strip_h: Float = MIXER_END_Y - MIXER_START_Y - 38.0
+
+        // Strip background
+        let _ = fill_rect_c(sess, sx, strip_y, strip_w, strip_h, BG2_R, BG2_G, BG2_B)
+
+        // Fader track
+        let fx: Float = sx + strip_w / 2.0 - 3.0
+        let fy: Float = strip_y + 30.0
+        let fh: Float = strip_h - 60.0
+        let _ = fill_rect_c(sess, fx, fy, 6.0, fh, BDR_R, BDR_G, BDR_B)
+
+        // Fader fill (position per channel)
+        let fader_pct: Float = 1.0 - ((ch as Float) * 0.08 + 0.15)
+        if fader_pct < 0.05:
+            fader_pct = 0.05
+        if fader_pct > 1.0:
+            fader_pct = 1.0
+        let fader_fill_h: Float = fh * fader_pct
+        let fader_top: Float = fy + fh - fader_fill_h
+        let _ = fill_rect_c(sess, fx, fader_top, 6.0, fader_fill_h, ACC_R, ACC_G, ACC_B)
+
+        // Fader cap
+        let _ = fill_rect_c(sess, fx - 2.0, fader_top - 4.0, 10.0, 8.0, TXT_R, TXT_G, TXT_B)
+
+        // Channel label
+        let ch_name = "CH" + fmt_int(ch + 1)
+        let _ = label_center(sess, small_font, sx, strip_y + strip_h - 8.0, strip_w, ch_name, TXT2_R, TXT2_G, TXT2_B)
+
+        // Mini meter background
+        let mx: Float = sx + 2.0
+        let my: Float = strip_y + 6.0
+        let mh: Float = 18.0
+        let mw: Float = strip_w - 4.0
+        let _ = fill_rect_c(sess, mx, my, mw, mh, BG1_R, BG1_G, BG1_B)
+
+        // Mini meter fill
+        let meter_lvl: Float = 0.3 + (ch as Float) * 0.06
+        if meter_lvl > 1.0:
+            meter_lvl = 1.0
+        let meter_fill_w: Float = mw * meter_lvl
+        if meter_lvl > 0.8:
+            let _ = fill_rect_c(sess, mx, my, meter_fill_w, mh, ERR_R, ERR_G, ERR_B)
+        else:
+            let _ = fill_rect_c(sess, mx, my, meter_fill_w, mh, OK_R, OK_G, OK_B)
+
+        ch = ch + 1
+
+    // Master strip
+    let ms_x: Float = 10.0 + 8.0 * (strip_w + strip_sp) + 6.0
+    let _ = fill_rect_c(sess, ms_x, MIXER_START_Y + 30.0, strip_w + 4.0, MIXER_END_Y - MIXER_START_Y - 38.0, SURF2_R, SURF2_G, SURF2_B)
+    let _ = label_center(sess, small_font, ms_x, MIXER_END_Y - 16.0, strip_w + 4.0, "MASTER", ACC_R, ACC_G, ACC_B)
+
+    return 0
+
+// ============================================================================
+//  ARRANGEMENT / GRID RENDERING
+// ============================================================================
+
+fn render_arrangement(sess: Int, small_font: Int) -> Int:
+    let header_w: Float = 140.0
+    let tk_h: Float = 64.0
+    let clip_w: Float = 1000.0
+    let clip_start_x: Float = ARRANGE_X + header_w + 40.0
+
+    // Arrangement background
+    let _ = fill_rect_c(sess, ARRANGE_X, MAIN_Y, ARRANGE_W, MAIN_H, BG1_R, BG1_G, BG1_B)
+
+    // Track header panel
+    let _ = fill_rect_c(sess, ARRANGE_X, MAIN_Y, header_w, MAIN_H, BG2_R, BG2_G, BG2_B)
+    let _ = vline(sess, ARRANGE_X + header_w, MAIN_Y, MAIN_Y + MAIN_H, BDR_R, BDR_G, BDR_B)
+
+    // Track rows
+    var tk: Int = 0
+    while tk < 6:
+        let ty: Float = MAIN_Y + (tk as Float) * tk_h + 30.0
+        // Row separator
+        let _ = hline(sess, ARRANGE_X, ARRANGE_X + ARRANGE_W, ty + tk_h, GRID_R, GRID_G, GRID_B)
+
+        // Track name
+        var tk_name = "Track " + fmt_int(tk + 1)
+        if tk == 0:
+            tk_name = "Kick"
+        if tk == 1:
+            tk_name = "Snare"
+        if tk == 2:
+            tk_name = "Hi-Hat"
+        if tk == 3:
+            tk_name = "Bass"
+        if tk == 4:
+            tk_name = "Synth Lead"
+        if tk == 5:
+            tk_name = "Vocal"
+        let _ = label(sess, small_font, ARRANGE_X + 8.0, ty + 22.0, tk_name, TXT2_R, TXT2_G, TXT2_B)
+
+        // Mute button
+        let _ = fill_rect_c(sess, ARRANGE_X + 90.0, ty + 8.0, 20.0, 18.0, BTN_R, BTN_G, BTN_B)
+        let _ = label_center(sess, small_font, ARRANGE_X + 90.0, ty + 22.0, 20.0, "M", TXT3_R, TXT3_G, TXT3_B)
+
+        // Solo button
+        let _ = fill_rect_c(sess, ARRANGE_X + 114.0, ty + 8.0, 20.0, 18.0, BTN_R, BTN_G, BTN_B)
+        let _ = label_center(sess, small_font, ARRANGE_X + 114.0, ty + 22.0, 20.0, "S", TXT3_R, TXT3_G, TXT3_B)
+
+        tk = tk + 1
+
+    // Timeline ruler
+    let ruler_y: Float = MAIN_Y
+    let ruler_h: Float = 24.0
+    let _ = fill_rect_c(sess, ARRANGE_X + header_w, ruler_y, ARRANGE_W - header_w, ruler_h, SURF_R, SURF_G, SURF_B)
+
+    // Ruler ticks
+    var tick: Int = 0
+    while tick < 48:
+        let tx: Float = ARRANGE_X + header_w + (tick as Float) * 19.5
+        var tick_h: Float = 12.0
+        var tick_r = GRID_R
+        var tick_g = GRID_G
+        var tick_b = GRID_B
+        if tick % 4 == 0:
+            tick_h = 18.0
+            tick_r = GRID2_R
+            tick_g = GRID2_G
+            tick_b = GRID2_B
+        if tick % 16 == 0:
+            tick_h = 22.0
+            tick_r = GRID3_R
+            tick_g = GRID3_G
+            tick_b = GRID3_B
+        let _ = vline(sess, tx, ruler_y + ruler_h - tick_h, ruler_y + ruler_h, tick_r, tick_g, tick_b)
+        tick = tick + 1
+
+    // Bar numbers
+    var bar: Int = 0
+    while bar < 12:
+        let bx: Float = ARRANGE_X + header_w + (bar as Float) * 312.0 + 4.0
+        let _ = label(sess, small_font, bx, ruler_y + 16.0, fmt_int(bar + 1), TXT3_R, TXT3_G, TXT3_B)
+        bar = bar + 1
+
+    // Vertical grid lines (bar divisions)
+    var gx_div: Float = ARRANGE_X + header_w + 312.0
+    let grid_end_y: Float = MAIN_Y + MAIN_H
+    while gx_div < ARRANGE_X + ARRANGE_W:
+        let _ = vline(sess, gx_div, MAIN_Y + ruler_h, grid_end_y, GRID_R, GRID_G, GRID_B)
+        gx_div = gx_div + 312.0
+
+    // Audio clip placeholders
+    // Clip 1 on Track 0 (Kick)
+    let _ = fill_rect_c(sess, clip_start_x, MAIN_Y + 30.0 + 8.0, 260.0, 48.0, DIALOG_R, DIALOG_G, DIALOG_B)
+    // Clip header bar (accent)
+    let _ = fill_rect_c(sess, clip_start_x, MAIN_Y + 30.0 + 8.0, 260.0, 6.0, ACC_R, ACC_G, ACC_B)
+
+    // Clip 2 on Track 3 (Bass)
+    let _ = fill_rect_c(sess, clip_start_x + 80.0, MAIN_Y + 30.0 + 3.0 * tk_h + 8.0, 220.0, 48.0, DIALOG_R, DIALOG_G, DIALOG_B)
+    let _ = fill_rect_c(sess, clip_start_x + 80.0, MAIN_Y + 30.0 + 3.0 * tk_h + 8.0, 220.0, 6.0, WAVE_R, WAVE_G, WAVE_B)
+
+    // Clip 3 on Track 4 (Synth Lead)
+    let _ = fill_rect_c(sess, clip_start_x + 160.0, MAIN_Y + 30.0 + 4.0 * tk_h + 8.0, 180.0, 48.0, DIALOG_R, DIALOG_G, DIALOG_B)
+    let _ = fill_rect_c(sess, clip_start_x + 160.0, MAIN_Y + 30.0 + 4.0 * tk_h + 8.0, 180.0, 6.0, ACC_R, ACC_G, ACC_B)
+
+    // Playhead
+    let _ = vline(sess, ARRANGE_X + header_w + 160.0, MAIN_Y, grid_end_y, PH_R, PH_G, PH_B)
+
+    return 0
+
+// ============================================================================
+//  PIANO ROLL MINIMAP (bottom right)
+// ============================================================================
+
+fn render_minimap(sess: Int, small_font: Int) -> Int:
+    // Background
+    let _ = fill_rect_c(sess, MINIMAP_X, MINIMAP_Y, MINIMAP_W, MINIMAP_H, BG1_R, BG1_G, BG1_B)
+
+    // Border (4 lines)
+    let _ = hline(sess, MINIMAP_X - 1.0, MINIMAP_X + MINIMAP_W + 1.0, MINIMAP_Y - 1.0, BDR_R, BDR_G, BDR_B)
+    let _ = hline(sess, MINIMAP_X - 1.0, MINIMAP_X + MINIMAP_W + 1.0, MINIMAP_Y + MINIMAP_H, BDR_R, BDR_G, BDR_B)
+    let _ = vline(sess, MINIMAP_X - 1.0, MINIMAP_Y - 1.0, MINIMAP_Y + MINIMAP_H + 1.0, BDR_R, BDR_G, BDR_B)
+    let _ = vline(sess, MINIMAP_X + MINIMAP_W, MINIMAP_Y - 1.0, MINIMAP_Y + MINIMAP_H + 1.0, BDR_R, BDR_G, BDR_B)
+
+    // Title
+    let _ = label(sess, small_font, MINIMAP_X + 6.0, MINIMAP_Y + 14.0, "PIANO ROLL", TXT2_R, TXT2_G, TXT2_B)
+
+    // Piano key rows
+    let key_h: Float = 8.0
+    var key: Int = 0
+    while key < 12:
+        let ky: Float = MINIMAP_Y + 22.0 + (key as Float) * key_h
+        let is_black = (key == 1) or (key == 3) or (key == 6) or (key == 8) or (key == 10)
+        if is_black:
+            let _ = fill_rect_c(sess, MINIMAP_X + 40.0, ky, MINIMAP_W - 40.0, key_h, SURF_R, SURF_G, SURF_B)
+        else:
+            let _ = fill_rect_c(sess, MINIMAP_X + 40.0, ky, MINIMAP_W - 40.0, key_h, BG2_R, BG2_G, BG2_B)
+        key = key + 1
+
+    // Note blocks
+    var nt: Int = 0
+    while nt < 8:
+        let nx: Float = MINIMAP_X + 44.0 + (nt as Float) * 18.0
+        let nkey: Int = (nt * 2 + 3) % 12
+        let ny: Float = MINIMAP_Y + 22.0 + (nkey as Float) * key_h
+        let _ = fill_rect_c(sess, nx, ny, 14.0, key_h, MIDI_R, MIDI_G, MIDI_B)
+        nt = nt + 1
+
+    return 0
+
+// ============================================================================
+//  STATUS BAR RENDERING
+// ============================================================================
+
+fn render_status_bar(sess: Int, small_font: Int) -> Int:
+    // Background
+    let _ = fill_rect_c(sess, 0.0, STATUS_Y, WIN_WF, STATUS_H, ACC_R, ACC_G, ACC_B)
+    // Top highlight
+    let _ = hline(sess, 0.0, WIN_WF, STATUS_Y, ACC2_R, ACC2_G, ACC2_B)
+
+    // Status text
+    let status_msg = "105 .kn files | 7 actors | 5 plugins | 3 plugin lanes | markscript VM | 50 icons"
+    let _ = label(sess, small_font, 10.0, STATUS_Y + 17.0, status_msg, TXT_R, TXT_G, TXT_B)
+
+    // Project info (right-aligned)
+    let proj_info = "project: untitled | 48kHz 24bit | Buffer: 256"
+    let piw = ui_text_width(sess, small_font, proj_info)
+    let _ = label(sess, small_font, WIN_WF - piw - 10.0, STATUS_Y + 17.0, proj_info, TXT_R, TXT_G, TXT_B)
+
+    return 0
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int:
+    // Initialize native runtime
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // Reset UI subsystem (required before first session)
+    let _reset = ui_reset()
+
+    // Create UI session + window + host backend ("software" = GDI fallback)
+    let sess = ui_host_session_create(
+        "reson8",
+        "reson8 -- Kain DAW v0.1.0",
+        WIN_W, WIN_H,
+        "software"
+    )
+    if sess <= 0:
+        let shutdown = runtime_shutdown()
+        return 100 + shutdown + 1
+
+    // Load fonts
+    let body_font  = ui_font_create(sess, "font.body",  "Segoe UI", 13.0)
+    let small_font = ui_font_create(sess, "font.small", "Segoe UI", 10.0)
+    let _title_font = ui_font_create(sess, "font.title", "Segoe UI", 15.0)
+    let _mono_font  = ui_font_create(sess, "font.mono",  "Consolas", 12.0)
+
+    // Main render loop
+    while ui_host_should_close(sess) == 0:
+        ui_host_pump(sess)
+        ui_begin_frame(sess, 16.0)
+
+        // Clear to background
+        let _ = fill_rect_c(sess, 0.0, 0.0, WIN_WF, WIN_HF, BG1_R, BG1_G, BG1_B)
+
+        // Render all UI zones
+        let _ = render_transport(sess, body_font, small_font)
+        let _ = render_mixer_strips(sess, small_font)
+        let _ = render_arrangement(sess, small_font)
+        let _ = render_minimap(sess, small_font)
+        let _ = render_status_bar(sess, small_font)
+
+        // Handle events (ESC to close)
+        var evt: Int = ui_poll_event(sess)
+        while evt > 0:
+            let kind: String = ui_event_kind(sess)
+            if kind == "key":
+                let kc: Int = ui_event_key_code(sess)
+                if kc == 27:     // Escape
+                    let _ = ui_session_destroy(sess)
+                    let shutdown = runtime_shutdown()
+                    if shutdown != 0:
+                        return 200 + shutdown
+                    return 0
+            evt = ui_poll_event(sess)
+
+        // Commit frame to window
+        ui_present_to_attached_host(sess)
+
+    // Cleanup
+    let _ = ui_session_destroy(sess)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

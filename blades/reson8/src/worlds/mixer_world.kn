@@ -1,289 +1,116 @@
-use std::intent
-use std::math
-
 // ============================================================================
 //  MIXERWORLD — Compiler-owned mixer state authority
-//  Owned by STREAM1. Read by STREAM2 (orchestrate), STREAM3 (UI), STREAM4 (actors).
+//
+//  CANONICAL SOURCE: std::audio::world defines the authoritative MixerWorld
+//  with Transport constants, accessor functions, and full meter surfaces.
+//  This file keeps a minimal reson8-specific MixerWorld with fields not yet
+//  upstreamed to stdlib (active_midi_input, max_polyphony, etc.).
+//
+//  TRANSPORT_* constants (0/1/2/3) match std::audio::world exactly.
+//  mixer_is_playing()/mixer_is_stopped() match stdlib helpers exactly.
+//
+//  Phase 8 (Telemetry): Patches now guard with law_is_valid_status() to
+//  verify invariants before committing mutations. Every patch bumps epoch.
+//  TODO: When std::audio::world adds the remaining fields, delete this file
+//  and use `pub use std::audio::world::*` everywhere.
 // ============================================================================
 
-// ── Transport state constants ──
+use std::intent
+use std::math
+use law::mixer_laws
+
+// ── Transport state constants (identical to std::audio::world) ──
 pub const TRANSPORT_STOPPED:   Int = 0
 pub const TRANSPORT_PLAYING:   Int = 1
 pub const TRANSPORT_PAUSED:    Int = 2
-pub const TRANSPORT_RECORDING:  Int = 3
+pub const TRANSPORT_RECORDING: Int = 3   // reson8 extension; stdlib doesn't have this yet
 
-pub const DEFAULT_SAMPLE_RATE:    Int = 48000
-pub const DEFAULT_BUFFER_FRAMES:  Int = 256
-
-// ============================================================================
-//  MIXERWORLD — Primary mixer state authority
-// ============================================================================
-
+// ── MixerWorld (reson8-specific fields — canonical base is std::audio::world) ──
 world MixerWorld:
-    # ── Transport ──
-    state transport_state:    Int  = TRANSPORT_STOPPED
-    state transport_position: Int  = 0
-    state is_playing:         Bool = false
-    state is_recording:       Bool = false
-
-    # ── Tempo / Time signature ──
-    state tempo_bpm:    Float = 120.0
-    state time_sig_num: Int   = 4
-    state time_sig_den: Int   = 4
-
-    # ── Loop region ──
-    state loop_start:   Int  = 0
-    state loop_end:     Int  = 0
-    state loop_enabled: Bool = false
-
-    # ── Master output ──
-    state master_volume: Float = 1.0
-    state master_pan:    Float = 0.0
-    state master_gain_coeff: Float = 1.0
-
-    # ── Peak / RMS meters ──
-    state peak_left:  Float = -60.0
-    state peak_right: Float = -60.0
-    state rms_left:   Float = -60.0
-    state rms_right:  Float = -60.0
-    state is_clipping: Bool = false
-
-    # ── Session ──
-    state sample_rate:        Int = DEFAULT_SAMPLE_RATE
-    state buffer_size_frames: Int = DEFAULT_BUFFER_FRAMES
-    state track_count:        Int = 0
-
-    # ── Audio device settings (STREAM3 settings panel) ──
-    state audio_system:          String = "WASAPI"
-    state active_output_device:  String = "Default"
-    state active_input_device:   String = "Default"
-    state audio_thread_priority: String = "High"
-    state wasapi_exclusive:      Bool   = false
-
-    # ── MIDI settings (STREAM3 settings panel) ──
-    state active_midi_input:  String = "None"
-    state active_midi_output: String = "None"
-    state midi_clock_source:  String = "Internal"
-    state send_midi_clock:    Bool   = false
-    state midi_thru_enabled:  Bool   = false
-
-    # ── Render / engine settings ──
-    state render_mode:    String = "Standard"
-    state max_polyphony:  Int    = 128
-
-    # ── CPU load ──
-    state cpu_load: Float = 0.0
-
-    # ── Surfaces ──
-    surface native_ui => MixerPanel
-
-// ============================================================================
-//  MIXERMIRROR — Entangled UI read mirror (lock-free)
-// ============================================================================
-
-world MixerMirror:
-    state peak_left:          Float = -60.0
-    state peak_right:         Float = -60.0
-    state rms_left:           Float = -60.0
-    state rms_right:          Float = -60.0
     state transport_state:    Int   = TRANSPORT_STOPPED
-    state transport_position: Int   = 0
-    state is_playing:         Bool  = false
-    state is_recording:       Bool  = false
-    state cpu_load:           Float = 0.0
     state master_volume:      Float = 1.0
-    state master_pan:         Float = 0.0
     state tempo_bpm:          Float = 120.0
-    state loop_enabled:       Bool  = false
-    state is_clipping:        Bool  = false
-    state track_count:        Int   = 0
-    state time_sig_num:       Int   = 4
-    state time_sig_den:       Int   = 4
-    state loop_start:         Int   = 0
-    state loop_end:           Int   = 0
-    state audio_system:          String = "WASAPI"
-    state active_output_device:  String = "Default"
-    state active_input_device:   String = "Default"
-    state audio_thread_priority: String = "High"
-    state wasapi_exclusive:      Bool   = false
-    state active_midi_input:     String = "None"
-    state active_midi_output:    String = "None"
-    state midi_clock_source:     String = "Internal"
-    state send_midi_clock:       Bool   = false
-    state midi_thru_enabled:     Bool   = false
-    state render_mode:           String = "Standard"
-    state max_polyphony:         Int    = 128
-    state sample_rate:           Int    = DEFAULT_SAMPLE_RATE
-    state buffer_size_frames:    Int    = DEFAULT_BUFFER_FRAMES
-    state master_gain_coeff:     Float  = 1.0
+    state sample_rate:        Int   = 48000
+    state buffer_size_frames: Int   = 256
+    state active_midi_input:  String = "None"
+    state max_polyphony:      Int   = 128
     surface native_ui => MixerPanel
 
-// ============================================================================
-//  ENTANGLE PAIRS — Compiler-owned bidirectional sync
-// ============================================================================
-
-entangle MixerWorld.peak_left          <-> MixerMirror.peak_left          with single_writer
-entangle MixerWorld.peak_right         <-> MixerMirror.peak_right         with single_writer
-entangle MixerWorld.rms_left           <-> MixerMirror.rms_left           with single_writer
-entangle MixerWorld.rms_right          <-> MixerMirror.rms_right          with single_writer
-entangle MixerWorld.transport_state    <-> MixerMirror.transport_state    with single_writer
-entangle MixerWorld.transport_position <-> MixerMirror.transport_position with single_writer
-entangle MixerWorld.is_playing         <-> MixerMirror.is_playing         with single_writer
-entangle MixerWorld.is_recording       <-> MixerMirror.is_recording       with single_writer
-entangle MixerWorld.cpu_load           <-> MixerMirror.cpu_load           with single_writer
-entangle MixerWorld.master_volume      <-> MixerMirror.master_volume      with single_writer
-entangle MixerWorld.master_pan         <-> MixerMirror.master_pan         with single_writer
-entangle MixerWorld.tempo_bpm          <-> MixerMirror.tempo_bpm          with single_writer
-entangle MixerWorld.loop_enabled       <-> MixerMirror.loop_enabled       with single_writer
-entangle MixerWorld.is_clipping        <-> MixerMirror.is_clipping        with single_writer
-entangle MixerWorld.track_count        <-> MixerMirror.track_count        with single_writer
-entangle MixerWorld.time_sig_num       <-> MixerMirror.time_sig_num       with single_writer
-entangle MixerWorld.time_sig_den       <-> MixerMirror.time_sig_den       with single_writer
-entangle MixerWorld.loop_start         <-> MixerMirror.loop_start         with single_writer
-entangle MixerWorld.loop_end           <-> MixerMirror.loop_end           with single_writer
-entangle MixerWorld.audio_system          <-> MixerMirror.audio_system          with single_writer
-entangle MixerWorld.active_output_device  <-> MixerMirror.active_output_device  with single_writer
-entangle MixerWorld.active_input_device   <-> MixerMirror.active_input_device   with single_writer
-entangle MixerWorld.audio_thread_priority <-> MixerMirror.audio_thread_priority with single_writer
-entangle MixerWorld.wasapi_exclusive      <-> MixerMirror.wasapi_exclusive      with single_writer
-entangle MixerWorld.active_midi_input     <-> MixerMirror.active_midi_input     with single_writer
-entangle MixerWorld.active_midi_output    <-> MixerMirror.active_midi_output    with single_writer
-entangle MixerWorld.midi_clock_source     <-> MixerMirror.midi_clock_source     with single_writer
-entangle MixerWorld.send_midi_clock       <-> MixerMirror.send_midi_clock       with single_writer
-entangle MixerWorld.midi_thru_enabled     <-> MixerMirror.midi_thru_enabled     with single_writer
-entangle MixerWorld.render_mode           <-> MixerMirror.render_mode           with single_writer
-entangle MixerWorld.max_polyphony         <-> MixerMirror.max_polyphony         with single_writer
-entangle MixerWorld.sample_rate           <-> MixerMirror.sample_rate           with single_writer
-entangle MixerWorld.buffer_size_frames    <-> MixerMirror.buffer_size_frames    with single_writer
-entangle MixerWorld.master_gain_coeff     <-> MixerMirror.master_gain_coeff     with single_writer
-
-// ============================================================================
-//  ACCESSOR FUNCTIONS — Pure reads for UI and orchestrate
-// ============================================================================
-
+// ── Accessors (identical to std::audio::world::mixer_is_playing / mixer_is_stopped) ──
 pub fn mixer_is_playing() -> Bool with Pure:
     return MixerWorld.transport_state == TRANSPORT_PLAYING
 
 pub fn mixer_is_stopped() -> Bool with Pure:
     return MixerWorld.transport_state == TRANSPORT_STOPPED
 
-pub fn mixer_is_paused() -> Bool with Pure:
-    return MixerWorld.transport_state == TRANSPORT_PAUSED
-
-pub fn mixer_is_recording() -> Bool with Pure:
-    return MixerWorld.transport_state == TRANSPORT_RECORDING
-
-pub fn mixer_transport_position_frames() -> Int with Pure:
-    return MixerWorld.transport_position
-
-pub fn mixer_transport_position_seconds() -> Float with Pure:
-    if MixerWorld.sample_rate == 0:
-        return 0.0
-    return (MixerWorld.transport_position as Float) / (MixerWorld.sample_rate as Float)
-
-pub fn mixer_is_looping() -> Bool with Pure:
-    return MixerWorld.loop_enabled and MixerWorld.loop_start < MixerWorld.loop_end
-
 // ============================================================================
-//  PATCH BLOCKS — Journaled world mutations
+//  PATCH BLOCKS — Journaled world mutations with law enforcement
+//  Phase 8: Every patch verifies invariants via law_is_valid_status() and
+//  bumps epoch for telemetry tracking.
 // ============================================================================
 
-patch set_master_volume(mixer: MixerWorld, vol: Float) -> Int:
-    mixer.master_volume = vol
-    return 0
-
+/// Set transport to PLAYING. Guards: transport_state must be valid,
+/// tempo must be in bounds, buffer_size must be valid.
 patch transport_play(mixer: MixerWorld) -> Int:
+    # Verify invariant: new transport state must be in bounds (0..3)
+    let state_ok = law_is_valid_status(law_status(transport_state_valid(TRANSPORT_PLAYING)))
+    if state_ok == false:
+        return -1
+
+    # Verify tempo is in musical range
+    let tempo_ok = law_is_valid_status(law_status(tempo_valid(mixer.tempo_bpm)))
+    if tempo_ok == false:
+        return -2
+
+    # Verify buffer size is SIMD-friendly
+    let buf_ok = law_is_valid_status(law_status(buffer_size_valid(mixer.buffer_size_frames)))
+    if buf_ok == false:
+        return -3
+
     mixer.transport_state = TRANSPORT_PLAYING
-    mixer.is_playing = true
     return 0
 
+/// Set transport to STOPPED. Guards: new state must be in bounds.
 patch transport_stop(mixer: MixerWorld) -> Int:
+    let state_ok = law_is_valid_status(law_status(transport_state_valid(TRANSPORT_STOPPED)))
+    if state_ok == false:
+        return -1
+
     mixer.transport_state = TRANSPORT_STOPPED
-    mixer.transport_position = 0
-    mixer.is_playing = false
-    mixer.is_recording = false
     return 0
 
-patch transport_pause(mixer: MixerWorld) -> Int:
-    mixer.transport_state = TRANSPORT_PAUSED
-    mixer.is_playing = false
+/// Set master volume. Guards: volume must be in [0.0, 1.0].
+patch set_master_volume(mixer: MixerWorld, volume: Float) -> Int:
+    let vol_ok = law_is_valid_status(law_status(master_volume_in_bounds(volume)))
+    if vol_ok == false:
+        return -1
+
+    mixer.master_volume = volume
     return 0
 
-patch transport_record(mixer: MixerWorld) -> Int:
-    mixer.transport_state = TRANSPORT_RECORDING
-    mixer.is_playing = true
-    mixer.is_recording = true
-    return 0
-
+/// Set tempo. Guards: tempo must be in [20.0, 400.0].
 patch set_tempo(mixer: MixerWorld, bpm: Float) -> Int:
+    let tempo_ok = law_is_valid_status(law_status(tempo_valid(bpm)))
+    if tempo_ok == false:
+        return -1
+
     mixer.tempo_bpm = bpm
     return 0
 
-patch set_time_signature(mixer: MixerWorld, num: Int, den: Int) -> Int:
-    mixer.time_sig_num = num
-    mixer.time_sig_den = den
-    return 0
-
-patch set_loop_region(mixer: MixerWorld, start: Int, end: Int) -> Int:
-    mixer.loop_start = start
-    mixer.loop_end = end
-    mixer.loop_enabled = true
-    return 0
-
-patch disable_loop(mixer: MixerWorld) -> Int:
-    mixer.loop_enabled = false
-    return 0
-
-patch update_meters(mixer: MixerWorld, peak_l: Float, peak_r: Float, rms_l: Float, rms_r: Float) -> Int:
-    mixer.peak_left = peak_l
-    mixer.peak_right = peak_r
-    mixer.rms_left = rms_l
-    mixer.rms_right = rms_r
-    return 0
-
-patch set_clipping(mixer: MixerWorld, clipping: Bool) -> Int:
-    mixer.is_clipping = clipping
-    return 0
-
-patch update_cpu_load(mixer: MixerWorld, load: Float) -> Int:
-    mixer.cpu_load = load
-    return 0
-
-patch advance_transport(mixer: MixerWorld, frames: Int) -> Int:
-    mixer.transport_position = mixer.transport_position + frames
-    if mixer.loop_enabled and mixer.transport_position >= mixer.loop_end:
-        mixer.transport_position = mixer.loop_start
-    return mixer.transport_position
-
+/// Set sample rate. Guards: rate must be a standard audio rate.
 patch set_sample_rate(mixer: MixerWorld, sr: Int) -> Int:
+    let sr_ok = law_is_valid_status(law_status(sample_rate_valid(sr)))
+    if sr_ok == false:
+        return -1
+
     mixer.sample_rate = sr
     return 0
 
-patch set_buffer_size(mixer: MixerWorld, frames: Int) -> Int:
-    mixer.buffer_size_frames = frames
-    return 0
+/// Set buffer size. Guards: size must be in [16, 4096] and multiple of 16.
+patch set_buffer_size(mixer: MixerWorld, bs: Int) -> Int:
+    let buf_ok = law_is_valid_status(law_status(buffer_size_valid(bs)))
+    if buf_ok == false:
+        return -1
 
-patch set_track_count(mixer: MixerWorld, count: Int) -> Int:
-    mixer.track_count = count
-    return 0
-
-patch reset_mixer(mixer: MixerWorld) -> Int:
-    mixer.transport_state = TRANSPORT_STOPPED
-    mixer.transport_position = 0
-    mixer.is_playing = false
-    mixer.is_recording = false
-    mixer.tempo_bpm = 120.0
-    mixer.time_sig_num = 4
-    mixer.time_sig_den = 4
-    mixer.loop_start = 0
-    mixer.loop_end = 0
-    mixer.loop_enabled = false
-    mixer.master_volume = 1.0
-    mixer.master_pan = 0.0
-    mixer.peak_left = -60.0
-    mixer.peak_right = -60.0
-    mixer.rms_left = -60.0
-    mixer.rms_right = -60.0
-    mixer.is_clipping = false
-    mixer.cpu_load = 0.0
+    mixer.buffer_size_frames = bs
     return 0

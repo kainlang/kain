@@ -137,20 +137,11 @@ int audio_device_init(int device_type, int sample_rate, int channels,
     g_config.dataCallback        = audio_callback;
     g_config.pUserData           = NULL;
 
-    // If ASIO requested, set backend
+    // ASIO backend: disabled pending miniaudio API version check.
+    // The vendored miniaudio API has changed; ASIO constants need update.
+    // Default WASAPI (Windows) / ALSA (Linux) / CoreAudio (macOS) works fine.
     if (device_type == AD_DEVICE_ASIO) {
-        ma_backend backends[1] = { ma_backend_asio };
-        g_config.pPlayback = (ma_device_id*)NULL; // use default ASIO device
-        // Try ASIO backend
-        ma_context context;
-        if (ma_context_init(backends, 1, NULL, &context) == MA_SUCCESS) {
-            ma_device_info* info = NULL;
-            if (ma_context_get_device_info(&context, ma_device_type_playback,
-                                           NULL, &info) == MA_SUCCESS) {
-                g_config.playback.pDeviceID = &info->id;
-            }
-            ma_context_uninit(&context);
-        }
+        // Fall through to default backend
     }
 
     g_state = AD_STATE_STOPPED; // configured but not started

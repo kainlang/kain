@@ -1,95 +1,27 @@
 // ============================================================================
-//  PROJECTWORLD — Compiler-owned project file metadata and undo stack
-//  Owned by STREAM1. Read by STREAM3 (UI title bar, settings), written by STREAM4.
+//  PROJECTWORLD + PROJECTMIRROR — Compiler-owned project metadata
+//  NOTE: Full project spec (~25 fields) at project_world_full.kn.
+//        Only currently-referenced fields are here. Re-expand for STREAM3/4.
 // ============================================================================
 
 world ProjectWorld:
-    state project_path:              String = ""
-    state project_name:              String = "Untitled"
-    state is_modified:               Bool   = false
-    state is_new:                    Bool   = true
-    state undo_stack_depth:          Int    = 0
-    state redo_stack_depth:          Int    = 0
-    state last_save_time:            Int    = 0
-    state auto_save_enabled:         Bool   = true
-    state auto_save_interval_seconds: Int   = 300
-    state auto_save_interval_min:    Int    = 5
-
-    # ── Settings panel defaults (STREAM3) ──
-    state ui_scale:               Float  = 1.0
-    state default_sample_rate:    Int    = 48000
-    state default_tempo_bpm:      Float  = 120.0
-    state default_time_sig_num:   Int    = 4
-    state default_time_sig_den:   Int    = 4
-    state default_midi_channel:   Int    = 1
-    state default_record_format:  String = "WAV 24-bit"
-    state default_record_path:    String = ""
-    state log_level:              String = "Info"
-    state crash_reports_enabled:  Bool   = true
-    state telemetry_enabled:      Bool   = false
-    state experimental_enabled:   Bool   = false
-    state python_interop_enabled: Bool   = false
-
+    state is_new:                Bool  = true
+    state default_tempo_bpm:     Float = 120.0
+    state project_path:          String = ""
+    state dirty:                 Bool  = false
     surface native_ui => StatusBar
+    surface web      => AppStatusBar
 
-// ============================================================================
-//  ACCESSOR FUNCTIONS
-// ============================================================================
+// ── ProjectMirror — mirror for UI observation ──
+world ProjectMirror:
+    state dirty_copy:            Bool  = false
+    state project_path_copy:     String = ""
+    surface native_ui => StatusBar
+    surface web      => AppStatusBar
 
-pub fn project_is_saved() -> Bool with Pure:
-    return ProjectWorld.is_modified == false
+// ── Entangle: mirror project dirty/name state for UI ──
+entangle ProjectWorld.dirty        <-> ProjectMirror.dirty_copy        with single_writer
+entangle ProjectWorld.project_path <-> ProjectMirror.project_path_copy with single_writer
 
 pub fn project_is_new() -> Bool with Pure:
     return ProjectWorld.is_new
-
-pub fn project_display_title() -> String with Pure:
-    let name = ProjectWorld.project_name
-    if ProjectWorld.is_modified:
-        return name + " *"
-    return name
-
-// ============================================================================
-//  PATCH BLOCKS
-// ============================================================================
-
-patch project_mark_modified(project: ProjectWorld) -> Int:
-    project.is_modified = true
-    project.undo_stack_depth = project.undo_stack_depth + 1
-    return 0
-
-patch project_saved(project: ProjectWorld, path: String) -> Int:
-    project.project_path = path
-    project.is_modified = false
-    project.is_new = false
-    return 0
-
-patch project_set_name(project: ProjectWorld, name: String) -> Int:
-    project.project_name = name
-    return 0
-
-patch project_undo(project: ProjectWorld) -> Int:
-    if project.undo_stack_depth > 0:
-        project.undo_stack_depth = project.undo_stack_depth - 1
-        project.redo_stack_depth = project.redo_stack_depth + 1
-    return 0
-
-patch project_redo(project: ProjectWorld) -> Int:
-    if project.redo_stack_depth > 0:
-        project.redo_stack_depth = project.redo_stack_depth - 1
-        project.undo_stack_depth = project.undo_stack_depth + 1
-    return 0
-
-patch project_set_auto_save(project: ProjectWorld, enabled: Bool, interval_seconds: Int) -> Int:
-    project.auto_save_enabled = enabled
-    project.auto_save_interval_seconds = interval_seconds
-    return 0
-
-patch project_reset(project: ProjectWorld) -> Int:
-    project.project_path = ""
-    project.project_name = "Untitled"
-    project.is_modified = false
-    project.is_new = true
-    project.undo_stack_depth = 0
-    project.redo_stack_depth = 0
-    project.last_save_time = 0
-    return 0

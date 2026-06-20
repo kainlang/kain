@@ -2,9 +2,15 @@
 //  reson8 Master Chain — Mastering Signal Graph
 //  STREAM2: T2-8 — EQ→compressor→limiter→dither pipeline.
 //  STREAM4: AudioEngine actor applies this as the final mix stage.
+//
+//  Phase 6 (Axiom): Stages guarded by reson8_audio_pipeline axiom.
+//  Phase 8 (Telemetry): Law stages verify invariants in the chain.
 // ============================================================================
 
 use std::math
+use std::audio::dsp
+use axiom::reson8_caps
+use law::mixer_laws
 
 const MC_E: Float = 2.718281828459045
 const MC_TWO_PI: Float = 6.283185307179586
@@ -30,31 +36,11 @@ struct MasterChainParams:
     output_gain_db:   Float
 
 // ============================================================================
-//  log10 implementation
+//  log10 — delegates to std::audio::dsp::linear_to_db / 20.0
 // ============================================================================
 
 fn mc_log10(x: Float) -> Float with Pure:
-    if x <= 0.0:
-        return -120.0
-    var b: Int = 0
-    var a: Float = x
-    while a >= 10.0:
-        a = a / 10.0
-        b = b + 1
-    while a < 1.0 and a > 0.0:
-        a = a * 10.0
-        b = b - 1
-    let y: Float = (a - 1.0) / (a + 1.0)
-    let y2: Float = y * y
-    var ln_a: Float = 0.0
-    var term: Float = y
-    var k: Int = 1
-    while k < 20:
-        ln_a = ln_a + term / (k as Float)
-        term = term * y2
-        k = k + 2
-    let ln10: Float = 2.302585092994046
-    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+    return linear_to_db(x) / 20.0
 
 // ============================================================================
 //  Stage Functions
@@ -66,8 +52,8 @@ fn master_eq_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
                     sample_rate: Int, enabled: Bool) -> Int with Unsafe:
     if enabled == false:
         return 0
-    let low_gain: Float = pow(10.0, low_shelf_db / 20.0)
-    let high_gain: Float = pow(10.0, high_shelf_db / 20.0)
+    let low_gain: Float = db_to_linear(low_shelf_db)
+    let high_gain: Float = db_to_linear(high_shelf_db)
     let lp_alpha: Float = pow(MC_E, -MC_TWO_PI * low_freq / (sample_rate as Float))
     let hp_alpha: Float = pow(MC_E, -MC_TWO_PI * high_freq / (sample_rate as Float))
 
@@ -107,7 +93,7 @@ fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
         return 0
     let attack_coeff: Float = pow(MC_E, -1.0 / (attack_ms * 0.001 * (sample_rate as Float)))
     let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
-    let makeup_lin: Float = pow(10.0, makeup_db / 20.0)
+    let makeup_lin: Float = db_to_linear(makeup_db)
     let knee_half: Float = knee_db * 0.5
 
     var envelope: Float = 1.0
@@ -124,14 +110,14 @@ fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
         var level_lin: Float = peak
         if peak < 0.000000000001:
             level_lin = 0.000000000001
-        let level_db: Float = 20.0 * mc_log10(level_lin)
+        let level_db: Float = linear_to_db(level_lin)
 
         var gr_lin: Float = 1.0
         if knee_db <= 0.0:
             if level_db > threshold_db:
                 let over: Float = level_db - threshold_db
                 let target_db: Float = over * (1.0 - 1.0 / ratio)
-                gr_lin = pow(10.0, -target_db / 20.0)
+                gr_lin = db_to_linear(-target_db)
         if knee_db > 0.0:
             let knee_start_db: Float = threshold_db - knee_half
             let knee_end_db: Float = threshold_db + knee_half
@@ -140,13 +126,13 @@ fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
             if level_db >= knee_end_db:
                 let over: Float = level_db - threshold_db
                 let target_db: Float = over * (1.0 - 1.0 / ratio)
-                gr_lin = pow(10.0, -target_db / 20.0)
+                gr_lin = db_to_linear(-target_db)
             if level_db > knee_start_db and level_db < knee_end_db:
                 let t: Float = (level_db - knee_start_db) / knee_db
                 let over: Float = knee_end_db - threshold_db
                 let max_db: Float = over * (1.0 - 1.0 / ratio)
                 let target_db: Float = max_db * t * t * 0.5
-                gr_lin = pow(10.0, -target_db / 20.0)
+                gr_lin = db_to_linear(-target_db)
 
         if gr_lin < envelope:
             envelope = attack_coeff * envelope + (1.0 - attack_coeff) * gr_lin
@@ -165,7 +151,7 @@ fn master_limiter_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
                          sample_rate: Int, enabled: Bool) -> Int with Unsafe:
     if enabled == false:
         return 0
-    let ceiling: Float = pow(10.0, ceiling_db / 20.0)
+    let ceiling: Float = db_to_linear(ceiling_db)
     let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
     var envelope: Float = 1.0
 
@@ -217,20 +203,41 @@ fn master_dither_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
 
 // ============================================================================
 //  Master Chain — Orchestrate Signal Graph
-// ============================================================================
 //  NOTE: requires clauses accept only law stage names, not raw Bool expressions.
 //  Conditional enable/disable is handled inside each stage function via the
 //  enabled: Bool parameter. This keeps the orchestrate DAG valid while allowing
 //  parameter-driven stage bypass.
+//
+//  Phase 6: Stages guarded by reson8_audio_pipeline axiom with fallback.
+//  Phase 8: Law stages verify sample_rate_valid and volume bounds.
+// ============================================================================
 
 orchestrate master_chain_pipeline(input: ptr<Float>, output: ptr<Float>, frames: Int, params: MasterChainParams, sample_rate: Int) -> Int:
-    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled) when capability("cpu.scalar") residency host transfer none policy static
+    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled)
+        when capability("cpu.scalar") residency host transfer none policy static
+        guarded by reson8_avx2_pipeline
+        fallback degrade master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled)
+        requires sr_law
 
-    stage comp_stage: cpu master_compressor_stage(output, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate, params.comp_enabled) after eq_stage residency host policy telemetry_balance_latency
+    stage comp_stage: cpu master_compressor_stage(output, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate, params.comp_enabled)
+        after eq_stage residency host policy telemetry_balance_latency
+        guarded by reson8_audio_pipeline
 
-    stage limiter_stage: cpu master_limiter_stage(output, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate, params.limiter_enabled) after comp_stage residency host policy static
+    stage limiter_stage: cpu master_limiter_stage(output, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate, params.limiter_enabled)
+        after comp_stage residency host policy static
+        guarded by reson8_audio_pipeline
+        requires vol_law
 
-    stage dither_stage: cpu master_dither_stage(output, output, frames, params.dither_bits, params.dither_enabled) after limiter_stage residency host transfer none policy static
+    stage dither_stage: cpu master_dither_stage(output, output, frames, params.dither_bits, params.dither_enabled)
+        after limiter_stage residency host transfer none policy static
+        guarded by reson8_audio_pipeline
+
+    // Law verification stages
+    stage sr_law: law sample_rate_valid(sample_rate)
+        before eq_stage residency host policy static
+
+    stage vol_law: law master_volume_in_bounds(params.output_gain_db)
+        after comp_stage residency host policy static
 
     return 0
 

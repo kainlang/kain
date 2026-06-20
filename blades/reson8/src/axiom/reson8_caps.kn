@@ -1,0 +1,105 @@
+// ============================================================================
+//  Reson8 Capability Axioms — Platform Assumptions & Fallbacks
+//  STREAM2: T2-8 — Capability gating for audio pipeline stages.
+//
+//  Phase 6 (Axiom): Moved from mixer_graph.kn local stub to canonical
+//  location. Orchestrate stages use `guarded by reson8_audio_pipeline`
+//  to require these capabilities, with structured fallback paths.
+//
+//  The runtime probes capabilities at startup, matches axioms, and
+//  selects the optimal execution path. If no axiom predicate matches,
+//  the fallback function runs.
+// ============================================================================
+
+use std::runtime
+use std::intent
+
+// ============================================================================
+//  reson8_audio_pipeline — Core DAW audio processing requirements
+//  Gates orchestrate stages that process audio buffers.
+//
+//  Required: LLVM target, x86-64, teleport + shatter + WASAPI + scalar
+// ============================================================================
+
+axiom reson8_audio_pipeline:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("world.teleport")
+    when capability("memory.shatter")
+    when capability("audio.wasapi")
+    when capability("cpu.scalar")
+    guarantee "reson8 requires LLVM x86-64 with WASAPI audio, teleport, and shatter support"
+    fallback reson8_minimal_mode
+
+// ============================================================================
+//  reson8_avx2_pipeline — SIMD-accelerated audio processing
+//  Gates converge fast lanes that use AVX2 vector instructions.
+//  Falls back to scalar processing when AVX2 is unavailable.
+// ============================================================================
+
+axiom reson8_avx2_pipeline:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("simd.avx2")
+    when capability("world.teleport")
+    when capability("memory.shatter")
+    guarantee "reson8 SIMD audio pipeline requires x86-64 AVX2 with teleport and shatter"
+    fallback reson8_minimal_mode
+
+// ============================================================================
+//  reson8_gpu_ui — GPU-accelerated UI rendering
+//  Gates Vulkan stages in the orchestrate pipeline.
+//  Falls back to GDI software rendering when no Vulkan is available.
+// ============================================================================
+
+axiom reson8_gpu_ui:
+    when target("llvm")
+    when capability("gpu.vulkan")
+    when capability("world.teleport")
+    guarantee "reson8 GPU UI requires Vulkan with teleport for meter data"
+    fallback reson8_gdi_fallback
+
+// ============================================================================
+//  reson8_plugin_vst3 — VST3 plugin host support
+//  Gates VST3 converge fast lanes. Falls back to Kain-native processing.
+// ============================================================================
+
+axiom reson8_plugin_vst3:
+    when target("llvm")
+    when capability("plugin.vst3")
+    guarantee "reson8 VST3 plugin lane requires VST3 host capability"
+    fallback reson8_minimal_mode
+
+// ============================================================================
+//  reson8_plugin_clap — CLAP plugin host support
+//  Gates CLAP converge fast lanes. Falls back to Kain-native processing.
+// ============================================================================
+
+axiom reson8_plugin_clap:
+    when target("llvm")
+    when capability("plugin.clap")
+    guarantee "reson8 CLAP plugin lane requires CLAP host capability"
+    fallback reson8_minimal_mode
+
+// ============================================================================
+//  reson8_python_host — Python host bridge support
+//  Gates Python plugin converge fast lanes.
+// ============================================================================
+
+axiom reson8_python_host:
+    when target("llvm")
+    when capability("host.python")
+    guarantee "reson8 Python plugin lane requires Python host capability"
+    fallback reson8_minimal_mode
+
+// ============================================================================
+//  Fallback Functions
+// ============================================================================
+
+/// Minimal mode fallback — no audio, no UI, console operation only
+fn reson8_minimal_mode() -> Int:
+    return 0
+
+/// GDI fallback — software rendering when no Vulkan is available
+fn reson8_gdi_fallback() -> Int:
+    return 1

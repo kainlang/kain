@@ -47,44 +47,12 @@ link_libs = ["asound", "pulse"]  # ALSA + PulseAudio
 target = "macos"
 link_libs = ["AudioToolbox", "CoreAudio", "CoreFoundation"]
 
-# ── Bridge 2: VST3 plugin host ──
-# NOTE: The VST3 bridge is compiled as C++ (vst3_host_bridge.cpp).
-# The SDK is header-only for our purposes (no prebuilt libs to link).
-[[c_ffi.libraries]]
-name = "vst3_host_bridge"
-header = "src/bridge/native/vst3_host_bridge.h"
-sources = ["src/bridge/native/vst3_host_bridge.cpp"]
-include_paths = [
-  "3rdparty/vst3_sdk",
-  "3rdparty/vst3_sdk/pluginterfaces",
-  "3rdparty/vst3_sdk/public.sdk",
-  "3rdparty/vst3_sdk/public.sdk/source",
-]
-
-# VST3 module loading needs platform dlopen
-[[c_ffi.libraries.target_policies]]
-target = "windows"
-link_libs = ["ole32", "shell32"]   # COM + path utilities
-[[c_ffi.libraries.target_policies]]
-target = "linux"
-link_libs = ["dl"]
-[[c_ffi.libraries.target_policies]]
-target = "macos"
-link_libs = ["dl"]
-
-# ── Bridge 3: CLAP plugin host ──
-[[c_ffi.libraries]]
-name = "clap_host_bridge"
-header = "src/bridge/native/clap_host_bridge.h"
-sources = ["src/bridge/native/clap_host_bridge.c"]
-include_paths = [
-  "3rdparty/clap/include",
-]
-
-# CLAP uses dlopen/LoadLibrary
-[[c_ffi.libraries.target_policies]]
-target = "linux"
-link_libs = ["dl"]
-[[c_ffi.libraries.target_policies]]
-target = "macos"
-link_libs = ["dl"]
+# ── Bridge 2: VST3 plugin host (DISABLED: SDK API mismatch, needs update) ──
+# [[c_ffi.libraries]]
+# name = "vst3_host_bridge"
+# ...
+#
+# ── Bridge 3: CLAP plugin host (DISABLED: SDK API mismatch, needs update) ──
+# [[c_ffi.libraries]]
+# name = "clap_host_bridge"
+# ...

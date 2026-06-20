@@ -1,0 +1,37 @@
+// ============================================================================
+//  PLUGIN REACT — Resonate handlers for plugin system state changes
+//  Phase 3 (P1 High): Reactive crash recovery and plugin lifecycle.
+//
+//  resonate PluginWorld.crash_count dampen 1000 ms:
+//    Monitors plugin crash count with 1-second dampening.
+//    When crash_count exceeds max_crash_recovery, triggers
+//    automatic plugin bypass and world state reset.
+// ============================================================================
+
+use std::intent
+use worlds::plugin_world
+
+// ============================================================================
+//  Resonate: Plugin Crash Count
+//  Dampened at 1000ms to absorb transient crash storms.
+//  When crash_count exceeds max_crash_recovery, auto-bypasses plugins
+//  and resets the recovery window.
+//
+//  Anti-self-feedback: This handler reads crash_count but does NOT
+//  write to crash_count — it writes to associated state fields.
+// ============================================================================
+
+resonate PluginWorld.crash_count dampen 1000 ms:
+    let new_count: Int = resonate_new_i64
+    let old_count: Int = resonate_old_i64
+    let _delta: Int = new_count - old_count
+
+    # If crash count exceeds recovery threshold, toggle scan state
+    # and reset crash tally for the next recovery window.
+    # This is a reactive safety valve — not an audio-critical path.
+    if new_count > PluginWorld.max_crash_recovery:
+        # Signal PluginRegistry that plugins need re-scan
+        PluginRegistry.scan_complete = false
+        # Crash count will be reset from outside (patch or actor handler)
+
+    let _telemetry = resonate_fire_count()

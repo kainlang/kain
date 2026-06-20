@@ -1,0 +1,1321 @@
+// ============================================================================
+//  THE ULTIMATE BUILD.KN  —  SCARECROW SCAFFOLD + COPY-PASTE REFERENCE
+//  ============================================================================
+//  WHAT THIS IS
+//    Every single build.kn feature, builder method, task kind, and pattern
+//    that exists in std::build (stdlib/build.kn), plus the extended task
+//    helpers from std::proof, std::bench, std::attrition, and std::certify.
+//
+//    EVERY concrete line is COMMENTED OUT so you can uncomment exactly what
+//    your project needs.  Drop this file into a new blade, uncomment the
+//    sections you want, fill in your paths, and you're done.
+//
+//  HOW TO USE
+//    1. Copy this file to your blade root as build.kn
+//    2. Delete the sections you don't need (or leave them commented)
+//    3. Uncomment the sections you need, fill in your project details
+//    4. Run `kain build` or `kain run`
+//
+//  REFERENCE
+//    Docs:    docs/BUILD_PROJECTS.MD  (stdlib/build.kn for the raw structs)
+//    Stdal:   use std::build
+//    Extras:  use std::proof | std::bench | std::attrition | std::certify
+//    Example: smoketest/build.kn (full DAG), blades/kain/build.kn (canonical)
+//
+//  KEYWORD INDEX  (alphabetical across all builder methods)
+//    after, always_run, archive, arg, args, artifact, artifact_root,
+//    author, axis, blade, blade_output, blade_pattern, blade_root, blades,
+//    build_target, cache_root, capability, capsule_set, certifies,
+//    command, compression, compute_source, contents, cwd, defaults,
+//    dependency, depends_on, description, dir, editable, entry, env,
+//    exclude, executable, file, files, fragment_source, generated_root,
+//    glob, header, input, inputs, kind, manifest, matrix_axis, matrix_value,
+//    member, members, meta, mode, module_index, module_root, module_roots,
+//    name, note, option, output, output_dir, outputs, package, path,
+//    preview_symbols, produces, profile, project, proof_mode, provider,
+//    requires, requires_capability, requires_task, root, root_output,
+//    run, run_arg, runner, search_root, search_roots, source, source_root,
+//    source_roots, sources, stderr, stdout, stem, storage, tag, target,
+//    targets, task, tasks, telemetry, telemetry_channel, timeout_ms,
+//    version, watch, when_capability, workspace
+// ============================================================================
+
+// ============================================================================
+//  IMPORTS  —  uncomment what you need
+// ============================================================================
+// The build DSL lives in std::build — every build.kn needs this.
+use std::build
+
+// Optional extras for proof, benchmark, attrition, and certify helpers.
+// use std::proof       fn proof_task, proof_obligation, z3_proof, proof_smt2
+// use std::bench       fn bench_task, bench_case, benchmark_task, bench_case_named
+// use std::attrition   fn attrition_task, attrition_case, attrition_case_named
+// use std::certify     fn certify_task, certify_gate, release_gate
+// use std::test         (already available via source_tests in std::build)
+
+// ============================================================================
+//  MODULE ALIASES AND SHORTCUTS
+// ============================================================================
+// Uncomment and customise if your build.kn gets long and you want aliases
+// for frequently-used strings like target names or common paths.
+//
+// const TGT_LLVM:   String = "llvm"
+// const TGT_WASM:   String = "wasm"
+// const TGT_SPIRV:  String = "spirv"
+// const TGT_CUDA:   String = "cuda"
+// const TGT_HLSL:   String = "hlsl"
+// const TGT_WGSL:   String = "wgsl"
+// const TGT_JS:     String = "js"
+// const TGT_C:      String = "c"
+// const TGT_CPP:    String = "cpp"
+// const TGT_RUST:   String = "rust"
+// const TGT_UE5:    String = "ue5"
+//
+// const PROFILE_DEBUG:   String = "debug"
+// const PROFILE_RELEASE: String = "release"
+//
+// const ROOT_CACHE: String = ".kain/cache/build"
+// const ROOT_OUT:   String = ".kain/out"
+//
+// const SRC_ROOT:   String = "src"
+// const NATIVE_DIR: String = "native"
+
+// ============================================================================
+//  SECTION 0  —  CUSTOM TASK FACTORY
+// ============================================================================
+// For DRY build graphs: wrap repetitive task patterns in a Kain function.
+// See smoketest/build.kn for a production example.
+//
+// fn smoke_mode(name: String, args: Array<String>) -> BuildTask:
+//     return album_mode("album-" + name)
+//         .mode(name)
+//         .runner("telemetry/run_smoketest_mode.kn")
+//         .executable("$root/smoketest.exe")
+//         .output_dir("$root/telemetry/" + name)
+//         .inputs(VISUAL_RUNNER_INPUTS)
+//         .args(args)
+//         .requires("root-executable")
+//         .requires("check-telemetry-runner")
+//         .telemetry("smoketest." + name)
+
+// ============================================================================
+//  SECTION 1  —  BuildContext (read-only, injected by the compiler)
+// ============================================================================
+//  The `ctx` parameter is injected by the Kain compiler at build time.
+//  You can read its fields but should NOT modify them.
+//
+//  ctx.workspace_root    String    Root of the workspace (where build.kn lives)
+//  ctx.blade_root        String    Blade output root
+//  ctx.host              String    Host triple (e.g. "x86_64-pc-windows-msvc")
+//  ctx.target            String    Target triple
+//  ctx.lane              String    Build lane: "dev", "release", "bootstrap", etc.
+//  ctx.profile           String    Build profile: "debug" or "release"
+
+// ============================================================================
+//  SECTION 2  —  WORKSPACE DEFAULTS
+// ============================================================================
+//  Workspace-wide settings used when your blade lives inside a multi-blade
+//  workspace or when you want to override default resolution paths.
+//
+//     let ws = workspace_defaults()
+//         .search_root(".")                   // Where to search for build.kn files
+//         .search_root("src")                 // Repeatable — multiple search roots
+//         .generated_root(".kain/generated")  // Generated files root
+//         .stdlib_root("stdlib")              // Override stdlib path
+//         .manifest_root(".")                 // Manifest root for platform packages
+//         .blade_root("blades/")              // Where blades live (repeatable)
+//         .blade_pattern("blades/*/build.kn") // Auto-discover blade build files
+//         .member("blades/core")              // Workspace member (repeatable)
+//         .member("blades/tools")
+
+// ============================================================================
+//  SECTION 3  —  PACKAGE SPEC
+// ============================================================================
+//  Declare a named package with version and description.  Used alongside
+//  blade() when you want to distinguish the package identity from the blade
+//  definition.  For most projects, project() (Section 5) does both at once.
+//
+//     let pkg = package("my-project")
+//         .version("0.1.0")                    // Semver string
+//         .description("What this package does")
+
+// ============================================================================
+//  SECTION 4  —  BLADE SPEC
+// ============================================================================
+//  A blade is a buildable unit: entry point, source roots, module roots,
+//  build targets, and inter-blade dependencies.
+//
+//     let blade_spec = blade("my-blade")
+//         .kind("kain_executable")              // Blade kind:
+//         //                                    //   "kain_executable"  — native exe
+//         //                                    //   "kain_library"     — library
+//         //                                    //   "kain_application" — application
+//         //                                    //   "kain_binary"      — binary
+//         .entry("src/main.kn")                 // Entry point file
+//         .source_root("src")                   // Where to find .kn sources (repeatable)
+//         .source_root("src/lib")
+//         .source_root("native")
+//         .module_root("src")                   // Module resolution root (repeatable)
+//         .module_root("src/lib")
+//         .module_root("src/core")
+//         .build_target("llvm")                 // Build target (repeatable)
+//         .build_target("wasm")
+//         .build_target("spirv")
+//         .dependency("other-blade")            // Inter-blade dependency (repeatable)
+
+// ============================================================================
+//  SECTION 5  —  PROJECT SPEC  (shorthand for package + blade)
+// ============================================================================
+//  project() creates both a PackageSpec and a BladeSpec at once when you
+//  call build_graph().project(app).  This is the MOST COMMON pattern.
+//
+//     let app = project("my-project")
+//         // ── Identity ──
+//         .kind("kain_executable")              // Same values as BladeSpec.kind
+//         .version("0.1.0")
+//         .description("A Kain project that does X")
+//
+//         // ── Entry & roots ──
+//         .entry("src/main.kn")
+//         .source_root("src")                   // Repeatable
+//         .source_root("src/lib")
+//         .module_root("src")                   // Repeatable
+//         .module_root("src/lib")
+//         .module_root("src/core")
+//         .generated_root("generated")          // Generated sources root
+//
+//         // ── Targets & profile ──
+//         .target("llvm")                       // Repeatable  (.targets works too)
+//         .target("wasm")
+//         .profile("debug")                     // "debug" or "release"
+//
+//         // ── Paths ──
+//         .artifact_root(".kain/out")           // Where build artifacts go
+//         .cache_root(".kain/cache/build")      // Task cache directory
+//
+//         // ── Run & watch (used by kain run dev) ──
+//         .run_arg("--flag")                    // Default CLI args (repeatable)
+//         .watch("src")                         // Watch paths in dev mode (repeatable)
+//         .watch("native")
+
+// ============================================================================
+//  SECTION 6  —  BUILD DEFAULTS
+// ============================================================================
+//  Default settings for build tasks (check, exe, etc.).  These are hints
+//  that tasks inherit unless overridden.
+//
+//     let defaults = build_defaults()
+//         .entry("src/main.kn")                 // Default entry point
+//         .artifact_root(".kain/out")           // Default artifact root
+//         .cache_root(".kain/cache/build")      // Default cache root
+//         .profile("debug")                     // Default profile
+//         .target("llvm")                       // Default target
+
+// ============================================================================
+//  SECTION 7  —  RUN DEFAULTS
+// ============================================================================
+//  Settings for `kain run` execution, including watch mode paths.
+//
+//     let run = run_defaults()
+//         .entry("src/main.kn")                 // Default entry for run
+//         .target("llvm")                       // Default run target
+//         .arg("--flag")                        // Default CLI arg (repeatable)
+//         .watch("src")                         // Watch path (repeatable)
+//         .watch("build.kn")
+//         .watch("KAIN.toml")
+
+// ============================================================================
+//  SECTION 8  —  SOURCE SETS
+// ============================================================================
+//  Named collections of source files.  Used to group inputs for tasks
+//  without repeating file lists.  Supports globs, explicit files, and
+//  exclude patterns.
+//
+//     // ── Simple glob source set ──
+//     let all_sources = source_set("all-sources")
+//         .root("src")                          // Source root (repeatable)
+//         .glob("src/**/*.kn")                  // Glob pattern (repeatable)
+//         .file("build.kn")                     // Explicit file (repeatable)
+//         .file("KAIN.toml")
+//         .exclude("**/*_test.kn")              // Exclude pattern (repeatable)
+//         .exclude("**/*.old.kn")
+//
+//     // ── Per-category source sets for subset running ──
+//     let core_src = source_set("core-sources")
+//         .root("src/core")
+//         .glob("src/core/**/*.kn")
+//
+//     let gpu_src = source_set("gpu-sources")
+//         .root("src/gpu")
+//         .glob("src/gpu/**/*.kn")
+//         .file("src/gpu/compute.kn")
+//
+//     // ── Source set including non-Kain files ──
+//     //     C sources, Python scripts, config files are tracked so changes
+//     //     trigger recompilation.  The compiler does NOT compile them.
+//     let mixed_sources = source_set("mixed-sources")
+//         .glob("src/**/*.kn")
+//         .glob("native/**/*.{h,c}")            // C/C++ companion files
+//         .glob("scripts/**/*.{ps1,py,bat}")    // Build scripts
+//         .file("config.json")
+//         .file("build.kn")
+
+// ============================================================================
+//  SECTION 9  —  PLATFORM PACKAGES
+// ============================================================================
+//  External platform/SDK dependencies like Vulkan, CUDA, Win32, etc.
+//  These are resolved at build setup time, not at runtime.
+//
+//     let vk = platform_package("vulkan")
+//         .provider("system")                   // Provider label
+//
+//     let cuda_pkg = platform_requirement("cuda")
+//     //                                        // ^ alias for platform_package()
+//     // let cuda_also = requires_platform_package("cuda")
+//     // let cuda_too = build_platform_package("cuda")
+
+// ============================================================================
+//  SECTION 10  —  CHECK TASKS (typecheck only, no codegen)
+// ============================================================================
+//  build_check() / check_task() — typecheck one or more files.  Fastest
+//  task kind; produces no output files.  Ideal for CI gates.
+//
+//     // ── Simple: typecheck the project entry ──
+//     let check = check_task("check-llvm")
+//         .project(app)                          // Inherit entry, target, etc.
+//         .target("llvm")                        // Typecheck target profile
+//
+//     // ── Full: with explicit source set and metadata ──
+//     let check_full = build_check("check-full")
+//         .entry("src/main.kn")                  // Entry point
+//         .target("llvm")                        // Target
+//         .profile("debug")                      // Profile override
+//         .inputs(all_sources)                   // Source set input
+//         .input("src/config.kn")                // Additional inputs (repeatable)
+//         .input("build.kn")
+//         .axis("target", "llvm")                // Matrix axis for CI telemetry
+//         .telemetry("my-project.check")         // Evidence channel (repeatable)
+//         .requires(other_check)                 // Dependency on other task
+//
+//     // ── Per-category checks for subset running ──
+//     let check_core = check_task("check-core")
+//         .project(app)
+//         .target("llvm")
+//         .inputs(core_src)
+//
+//     let check_gpu = check_task("check-gpu")
+//         .project(app)
+//         .target("spirv")                       // Typecheck as SPIR-V
+//         .inputs(gpu_src)
+
+// ============================================================================
+//  SECTION 11  —  NATIVE EXECUTABLE TASKS
+// ============================================================================
+//  native_executable() / root_executable() / build_native_executable()
+//  Compile Kain sources to a native .exe via LLVM.
+//
+//     // ── Simple: build the project output ──
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/my-project.exe")       // Output at blade root
+//         .requires(check)
+//
+//     // ── Full: with all options ──
+//     let exe_full = build_native_executable("my-exe")
+//         .entry("src/main.kn")                  // Entry point
+//         .target("llvm")                        // Build target
+//         .profile("release")                    // Profile override
+//         .output("$root/dist/my-project.exe")   // $root = workspace root
+//         .root_output("$root/my-project.exe")   // Output at workspace root
+//         .blade_output("$blade/my-project.exe") // Output at blade root
+//         .artifact(".kain/out/exe/main.exe")    // Alias for .output()
+//         .produces(".kain/out/exe/main.pdb")    // Alias for .output()
+//         .input("src/main.kn")                  // Explicit input (repeatable)
+//         .inputs(all_sources)                   // Source set
+//         .requires("check-llvm")                // Dependency (string ID)
+//         .requires(check)                       // Dependency (task variable)
+//         .requires("check-gpu")
+//         .requires("source-tests")
+//         .arg("--no-verify-llvm")               // Default arg for exe (repeatable)
+//
+//     // ── Cross-target executables ──
+//     let exe_llvm = native_executable("exe-llvm")
+//         .project(app)
+//         .target("llvm")
+//         .output("$blade/project_llvm.exe")
+//
+//     let exe_wasm = native_executable("exe-wasm")
+//         .project(app)
+//         .target("wasm")
+//         .output("$blade/project.wasm")
+
+// ============================================================================
+//  SECTION 12  —  SOURCE TEST TASKS
+// ============================================================================
+//  source_tests() — run inline compiletest-style test annotations.
+//  Equivalent to `kain test`.  Tests must use //@ directives.
+//
+//     let tests = source_tests("source-tests")
+//         .project(app)
+//         .inputs(all_sources)                   // Files to test
+//         .requires("check-llvm")                // Must typecheck first
+//         .telemetry("my-project.tests")
+
+// ============================================================================
+//  SECTION 13  —  EXEC / COMMAND TASKS
+// ============================================================================
+//  exec_task() / command_task() — run an arbitrary external command as
+//  part of the build graph.  Supports env, stdout/stderr redirect, timeout,
+//  and always_run to bypass caching.
+//
+//     // ── Simple command runner ──
+//     let post_build = exec_task("post-process")
+//         .command("python")                     // Executable to run
+//         .arg("scripts/post_build.py")          // Arguments (repeatable)
+//         .arg("--out-dir")
+//         .arg("$root/dist")
+//         .cwd("$root")                          // Working directory
+//         .requires("root-executable")           // Dependency
+//         .always_run()                          // Skip caching; always execute
+//
+//     // ── Kain runner (run a kain script as subprocess) ──
+//     let runner = kain_runner("my-runner")       // = exec_task(id).command("kain")
+//         .entry("scripts/runner.kn")
+//         .target("interpret")
+//         .input("scripts/runner.kn")
+//         .telemetry("my-project.runner")
+//
+//     // ── PowerShell runner ──
+//     let ps_runner = exec_task("ps-task")
+//         .command("powershell")
+//         .arg("-NoProfile")
+//         .arg("-ExecutionPolicy").arg("Bypass")
+//         .arg("-File").arg("scripts/task.ps1")
+//         .cwd("$root")
+//         .env("MY_VAR", "value")                // Environment variable (repeatable)
+//         .env("ANOTHER_VAR", "1234")
+//         .stdout("$task/task.stdout.txt")        // Stdout redirect
+//         .stderr("$task/task.stderr.txt")        // Stderr redirect
+//         .output("$root/reports/result.json")    // Output artifact (repeatable)
+//         .timeout_ms(120000)                     // Timeout in milliseconds
+//         .always_run()                           // Never cache
+//
+//     // ── Determinism verification pipeline ──
+//     // Build twice with --clean and compare outputs.
+//     let det_pass_1 = exec_task("det-pass-1")
+//         .command("kain")
+//         .arg("build").arg("--clean")
+//         .cwd("$root")
+//         .requires("check-llvm")
+//         .always_run()
+//
+//     let det_pass_2 = exec_task("det-pass-2")
+//         .command("kain")
+//         .arg("build").arg("--clean")
+//         .cwd("$root")
+//         .requires("det-pass-1")
+//         .always_run()
+//
+//     let det_verify = exec_task("det-verify")
+//         .command("python")
+//         .arg("scripts/verify_determinism.py")
+//         .arg("--pass1-root").arg(".kain/out")
+//         .arg("--pass2-root").arg(".kain/out")
+//         .arg("--report").arg("$root/.kain/out/determinism_report.json")
+//         .cwd("$root")
+//         .requires(det_pass_1, det_pass_2)
+//         .always_run()
+//
+//     // ── album_mode shortcut (exec_task with powershell command) ──
+//     let album = album_mode("album-full")
+//         .mode("full")
+//         .runner("telemetry/run_mode.kn")
+//         .executable("$root/my-project.exe")
+//         .output_dir("$root/telemetry/full")
+//         .args(["--bench-rounds", "256"])
+//         .requires("root-executable")
+//         .requires("my-runner")
+//         .telemetry("my-project.album")
+
+// ============================================================================
+//  SECTION 14  —  GPU ARTIFACT TASKS
+// ============================================================================
+//  gpu_suite() — compile shader sources (SPIR-V, CUDA/PTX, HLSL).
+//  cuda_artifacts() — shortcut for exec_task() that runs `kain` targeting CUDA.
+//
+//     // ── GPU suite with fragment + compute shaders ──
+//     let gpu = gpu_suite("gpu-artifacts")
+//         .fragment("src/gpu/fragment.kn")        // Fragment shader source
+//         .compute("src/gpu/compute.kn")          // Compute shader source
+//         .targets("spirv", "cuda", "hlsl")       // GPU targets
+//         .artifact_root(".kain/out/gpu")          // GPU artifact output
+//         .requires("check-llvm")
+//
+//     // ── Separate per-target GPU tasks ──
+//     let gpu_spirv = build_task("gpu-artifacts-spirv")
+//         .kind("gpu")
+//         .entry("src/gpu/compute.kn")
+//         .target("spirv")
+//         .artifact_root(".kain/out/spirv")
+//         .requires("check-gpu-spirv")
+//         .input("src/gpu/compute.kn")
+//
+//     // ── CUDA artifacts via exec shortcut ──
+//     let cuda = cuda_artifacts("cuda-artifacts")
+//         //                                     // ^ built as exec_task().command("kain").target("cuda")
+//         .entry("src/gpu/compute.kn")
+//         .requires("check-gpu-cuda")
+
+// ============================================================================
+//  SECTION 15  —  PROOF TASKS  (from std::proof)
+// ============================================================================
+//  Import std::proof to use these.  Proof tasks run Z3 or other solver
+//  backends to verify formal properties.
+//
+//     // ── Generic proof task ──
+//     let proof = proof_task("my-proof")
+//         .target("z3")
+//         .input("proofs/my_proof.kn")
+//         .requires("check-llvm")
+//
+//     // ── Proof obligation (same as proof_task) ──
+//     let obligation = proof_obligation("safety-property")
+//         .input("proofs/safety.smt2")
+//
+//     // ── Z3-specific proof ──
+//     let z3 = z3_proof("ownership-lattice")
+//         .entry("proofs/ownership_proof.kn")
+//         .requires("check-llvm")
+//
+//     // ── SMT2 proof with explicit entry ──
+//     let smt = proof_smt2("bounds-check", "proofs/bounds.smt2")
+//         .requires("check-llvm")
+
+// ============================================================================
+//  SECTION 16  —  BENCHMARK TASKS  (from std::bench)
+// ============================================================================
+//  Import std::bench to use these.  Benchmark tasks run performance
+//  measurements.
+//
+//     // ── Benchmark task ──
+//     let bench = bench_task("perf-bench")
+//         .target("llvm")
+//         .input("benchmarks/perf_cases.kn")
+//         .requires("root-executable")
+//
+//     // ── Named benchmark case ──
+//     let case = bench_case_named("bench-fusion", "fusion_chain")
+//         .requires("root-executable")
+//         .telemetry("benchmark.fusion")
+
+// ============================================================================
+//  SECTION 17  —  ATTRITION TASKS  (from std::attrition)
+// ============================================================================
+//  Import std::attrition to use these.  Attrition tasks run sabotage /
+//  invariant-checking / teardown-verification campaigns.
+//
+//     let attrition = attrition_task("attrition-run")
+//         .target("llvm")
+//         .input("attrition/invariants.kn")
+//         .requires("root-executable")
+//         .telemetry("attrition.invariants")
+
+// ============================================================================
+//  SECTION 18  —  CERTIFY GATES
+// ============================================================================
+//  certify() / certify_gate() / release_gate() — meta-tasks that attest
+//  that all their dependencies passed.  They gate the pipeline: a certify
+//  task only succeeds if every dependency succeeded.
+//
+//     // ── certify() from std::build ──
+//     //     Creates a task with id "certify-<subject>"
+//     let cert = certify("my-project.local")
+//         .requires("check-llvm")                // Dependency (repeatable)
+//         .requires("source-tests")
+//         .requires("root-executable")
+//         .requires("gpu-artifacts")
+//     //   ^ certify() creates a task of kind BUILD_KIND_CERTIFY
+//     //     and calls .certifies("my-project.local") automatically
+//
+//     // ── certify_gate() from std::certify (import required) ──
+//     // let gate = certify_gate("release-gate")
+//     //     .requires("check-llvm")
+//     //     .requires("root-executable")
+//     //     .certifies("my-project.release")
+//
+//     // ── release_gate() from std::certify ──
+//     // let release = release_gate("v1.0-release")
+//     //     .requires("certify-my-project.local")
+//     //     .requires(all_tests)
+//     //     .telemetry("release.gate.v1.0")
+
+// ============================================================================
+//  SECTION 19  —  AMALGAMATE / CAPSULE TASKS
+// ============================================================================
+//  amalgamate_capsule() / capsule_set() — pack sources, artifacts, and
+//  evidence into a portable single-file Kain capsule.
+//
+//     // ── Simple capsule ──
+//     let capsule = amalgamate_capsule("my-package")
+//         .source("$root/src/main.kn")
+//         .output("$root/my-package.kn")
+//         .tag("portable")                       // Tag (repeatable)
+//         .telemetry("my-project.capsule")
+//         .after("certify-my-project.local")     // Only after certification
+//
+//     // ── Full capsule set ──
+//     let capsule_set = capsule_set("my-project")
+//         .after(cert)
+//         .source("$root/my-project.kn")          // Source capsule
+//         .artifacts("$root/my-project.artifacts.kn")  // Artifact manifest
+//         .evidence("$root/my-project.evidence.kn")    // Evidence report
+//         .name("my-project")                     // Display name
+//         .version("0.1.0")                       // Version
+//         .author("Your Name")                    // Author (repeatable)
+//         .header("rich")                         // Header mode: "minimal", "rich", or "off"
+//         .archive(true)                          // Store as compressed archive
+//         .compression("zstd")                    // Compression: "zstd" or "none"
+//         .storage("archive")                     // Storage: "archive" or "editable"
+//         .contents("source")                     // Content policy: "source", "snapshot", etc.
+//         .stem("lib")                            // Output stem
+//         .capsule_set("my-project")              // Sidecar set name
+//         .tag("portable")
+//         .tag("my-project")
+//         .note("Release v0.1.0 capsule")
+//         .preview_symbols(32)                    // Preview limit for symbols
+//         .api_index("api/index.json")            // API index path
+//         .module_index("api/modules.json")       // Module index path
+//         .meta("commit", "abc123def")            // Arbitrary metadata (repeatable)
+//         .telemetry("my-project.capsule")
+//
+//     // ── Editable capsule (not compressed) ──
+//     let editable = amalgamate_capsule("editable-pack")
+//         .editable()                             // Same as .storage("editable")
+//         .source("$root/src/main.kn")
+//         .output("$root/my-project-src.kn")
+
+// ============================================================================
+//  SECTION 20  —  GENERIC BUILD TASK (low-level)
+// ============================================================================
+//  build_task() / build_task_of_kind() — for any task kind not covered by
+//  the convenience builders above.  You can set an explicit kind string.
+//
+//     let custom = build_task_of_kind("custom-task", "my-custom-kind")
+//         .entry("src/custom.kn")
+//         .target("llvm")
+//         .requires("check-llvm")
+//         .option("my_option", "value")            // Arbitrary option (repeatable)
+//
+//     let generic = build_task("generic")
+//         .kind("some-kind")
+//         .entry("src/generic.kn")
+
+// ============================================================================
+//  SECTION 21  —  BUILD GRAPH ASSEMBLY
+// ============================================================================
+//  BuildGraphSpec methods for assembling everything.  The fn build() MUST
+//  return a BuildGraph (which is a type alias for BuildGraphSpec).
+//
+//  ─── METHOD REFERENCE (all BuildGraphSpec methods) ───
+//    .project(project_spec)      → Adds a package + blade from a ProjectSpec
+//    .package(package_spec)      → Adds a package
+//    .blade(blade_spec)          → Adds a blade
+//    .task(task_spec)            → Adds one task (repeatable)
+//    .tasks(task1, task2, ...)   → Adds multiple tasks at once
+//    .sources(source_set)        → Registers a source set (no-op storage)
+//    .require(platform_pkg)      → Requires a platform package
+//    .defaults(build_defaults)   → Registers build defaults
+//    .workspace(ws_defaults)     → Registers workspace defaults
+//    .run(run_defaults)          → Registers run defaults
+//
+//  ─── PATH INTERPOLATION ───
+//    $root   → Workspace root (where build.kn lives)
+//    $blade  → Blade output root (usually .kain/out/)
+//    $task   → Task cache root   (usually .kain/cache/build/<task-id>/)
+//
+//  ─── TASK KIND CONSTANTS (from std::build) ───
+//    BUILD_KIND_CHECK              "check"
+//    BUILD_KIND_NATIVE_EXECUTABLE   "native-executable"
+//    BUILD_KIND_TEST               "test"
+//    BUILD_KIND_PROOF              "proof"
+//    BUILD_KIND_BENCHMARK          "benchmark"
+//    BUILD_KIND_ATTRITION          "attrition"
+//    BUILD_KIND_CERTIFY            "certify"
+//    BUILD_KIND_EXEC               "exec"
+//    BUILD_KIND_AMALGAMATE         "amalgamate"
+//
+//  ─── ALL SUPPORTED TASK KIND STRINGS (for build_task_of_kind or explicit tasks) ───
+//    These strings work when passed to build_task_of_kind(id, kind).
+//    The ones with std::build factory functions are marked ★.
+//
+//    "check"                  ★ build_check / check_task          Typecheck only
+//    "kain-check" / "kain"                                        Alias for check
+//    "native-executable"      ★ native_executable / root_executable  Build native exe
+//    "executable" / "root-executable" / "exe"                     Aliases for native-executable
+//    "test"                  ★ source_tests                       Run inline tests
+//    "kain-test" / "std-test"                                      Alias for test
+//    "proof" / "prove" / "z3" / "smt"  ★ proof_task (from std::proof)  Run proofs
+//    "benchmark" / "bench"   ★ bench_task (from std::bench)       Run benchmarks
+//    "attrition" / "abuse"   ★ attrition_task (from std::attrition)  Run attrition
+//    "certify" / "certificate" / "evidence"  ★ certify / certify_gate / release_gate
+//    "exec" / "command"      ★ exec_task / command_task           Run external command
+//    "amalgamate" / "capsule" ★ amalgamate_capsule / capsule_set  Pack capsule
+//    "gpu" / "gpu-artifacts"  ★ gpu_suite                         GPU artifact compilation
+//    "cargo" / "rust" / "rust-crate"                              Cargo/Rust build
+//    "c" / "c-shared-library" / "c_ffi"                            C shared library build
+//    "fabric" / "fabric-run"                                       Run Fabric manifest
+//    "fabric-validate"                                              Validate Fabric manifest
+//    "node"                                                        Run Node.js script
+//    "bun"                                                         Run Bun script
+
+// ============================================================================
+//  SECTION 22  —  ADVANCED / UNDOCUMENTED FEATURES
+// ============================================================================
+//  These features are supported by the Rust build evaluator (crates/build/)
+//  but NOT exposed in the std::build public API (stdlib/build.kn).
+//
+//  Use them at your own risk: they WILL work during `kain build`/`kain run`
+//  but may produce type errors in `kain check` since the stdlib structs
+//  don't have the matching impl methods.
+//
+//  ─── build_defaults() hidden methods (Rust evaluator supports these) ───
+//    .entry_module("ModuleName")        Entry module (source module name, not path)
+//    .source_root("src")                 Default source root
+//    .source_order(["a.kn", "b.kn"])     Explicit source file order for compilation
+//    .module_search_path("path")          Additional module search paths (repeatable)
+//    .module_search_paths("path")
+//
+//  ─── run_defaults() hidden method ───
+//    .blade("blade-name")               Run a specific blade's entry
+//    .env("KEY", "value")               Environment variables for the run process
+//    .cwd("$root")                      Working directory for the run process
+//
+//  ─── Task kind aliases not wrapped by std::build factories ───
+//    These only work via build_task_of_kind(id, kind) or explicit tasks
+//    in KAIN.toml:
+//
+//    build_task_of_kind("cargo-build", "cargo")
+//        .command("cargo").arg("build")
+//        .cwd("$root/my-rust-crate")
+//        .output("$blade/rust-target/")
+//
+//    build_task_of_kind("c-shared-lib", "c")
+//        .entry("native/bridge.h")
+//        .input("native/bridge.c")
+//        .input("native/impl.c")
+//        .output("$blade/libbridge.dll")
+//        .arg("-O2")
+//        .arg("-DWIN32")
+//
+//    build_task_of_kind("fabric-validate", "fabric-validate")
+//        .input("fabric.toml")
+//
+//    build_task_of_kind("fabric-run", "fabric")
+//        .input("fabric.toml")
+//
+//    build_task_of_kind("node-check", "node")
+//        .entry("scripts/check.mjs")
+//        .cwd("$root")
+//
+//    build_task_of_kind("bun-build", "bun")
+//        .entry("scripts/build.ts")
+//        .cwd("$root")
+//
+//  ─── Task dependency scoping ───
+//    Cross-blade dependencies use "blade-name:task-id" syntax:
+//      .requires("other-blade:check-llvm")
+//      .depends_on("core-lib:build-lib")
+//
+//    This is how you reference a task that belongs to a different blade's
+//    build graph.  The first part is the blade name, the second is the
+//    task ID as declared in that blade's build.kn.
+
+// ============================================================================
+//  EXAMPLE 1  —  MINIMAL BUILD.KN  (starter template)
+// ============================================================================
+//  Uncomment this section ONLY (delete everything else) for a dead-simple
+//  single-blade project.
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let app = project("my-project")
+//         .kind("kain_executable")
+//         .version("0.1.0")
+//         .description("My Kain project")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .target("llvm")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//
+//     let check = check_task("check-llvm")
+//         .project(app)
+//         .target("llvm")
+//
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/my-project.exe")
+//         .requires(check)
+//
+//     return build_graph()
+//         .project(app)
+//         .task(check)
+//         .task(exe)
+
+// ============================================================================
+//  EXAMPLE 1  —  MINIMAL BUILD.KN  (starter template)
+// ============================================================================
+//  Uncomment this section ONLY (delete everything else) for a dead-simple
+//  single-blade project.
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let app = project("my-project")
+//         .kind("kain_executable")
+//         .version("0.1.0")
+//         .description("My Kain project")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .target("llvm")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//
+//     let check = check_task("check-llvm")
+//         .project(app)
+//         .target("llvm")
+//
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/my-project.exe")
+//         .requires(check)
+//
+//     return build_graph()
+//         .project(app)
+//         .task(check)
+//         .task(exe)
+
+// ============================================================================
+//  EXAMPLE 2  —  CANONICAL BUILD.KN  (package + blade + defaults + run)
+// ============================================================================
+//  The most common pattern in the repo: explicit package + blade + defaults
+//  + run + check + exe.
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let pkg = package("my-blade")
+//         .version("0.1.0")
+//         .description("My blade description")
+//
+//     let blade_spec = blade("my-blade")
+//         .kind("kain_executable")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .build_target("llvm")
+//
+//     let defaults = build_defaults()
+//         .entry("src/main.kn")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//         .target("llvm")
+//
+//     let run = run_defaults()
+//         .entry("src/main.kn")
+//         .target("llvm")
+//
+//     let check = build_check("check-llvm")
+//         .entry("src/main.kn")
+//         .target("llvm")
+//         .axis("target", "llvm")
+//         .telemetry("my-blade.check")
+//         .input("src/main.kn")
+//         .input("src/lib.kn")
+//         .input("build.kn")
+//         .input("KAIN.toml")
+//
+//     let root_exe = native_executable("root-executable")
+//         .entry("src/main.kn")
+//         .root_output("$blade/my-blade.exe")
+//         .requires("check-llvm")
+//         .input("src/main.kn")
+//         .input("src/lib.kn")
+//         .input("build.kn")
+//         .input("KAIN.toml")
+//
+//     return build_graph()
+//         .package(pkg)
+//         .blade(blade_spec)
+//         .defaults(defaults)
+//         .run(run)
+//         .task(check)
+//         .task(root_exe)
+
+// ============================================================================
+//  EXAMPLE 3  —  FULL DAG WITH ALL TASK KINDS
+// ============================================================================
+//  Everything: multi-source-roots, multi-target, GPU, tests, proof,
+//  benchmark, attrition, exec, cert, capsule.
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     // ── Constants ──
+//     let source_roots = [
+//         "src/core",
+//         "src/gpu",
+//         "src/interop",
+//         "src/ui",
+//     ]
+//
+//     // ── Project ──
+//     let app = project("mega-project")
+//         .kind("kain_executable")
+//         .version("0.1.0")
+//         .description("Everything-and-the-kitchen-sink project")
+//         .entry("src/core/main.kn")
+//         .source_roots(source_roots)
+//         .module_roots(source_roots)
+//         .targets("llvm", "spirv", "wasm")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//
+//     // ── Workspace ──
+//     let ws = workspace_defaults()
+//         .search_root(".")
+//         .generated_root(".kain/generated")
+//
+//     // ── Defaults ──
+//     let defaults = build_defaults()
+//         .entry("src/core/main.kn")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//         .target("llvm")
+//
+//     let run = run_defaults()
+//         .entry("src/core/main.kn")
+//         .target("llvm")
+//         .watch("src")
+//
+//     // ── Source sets ──
+//     let all_src = source_set("all-sources")
+//         .glob("src/**/*.kn")
+//         .glob("native/**/*.{h,c}")
+//         .file("build.kn")
+//         .file("KAIN.toml")
+//
+//     let gpu_src = source_set("gpu-sources")
+//         .glob("src/gpu/**/*.kn")
+//
+//     // ── Platform deps ──
+//     let vk = platform_requirement("vulkan")
+//         .provider("system")
+//
+//     // ── Check tasks ──
+//     let check = check_task("check-llvm")
+//         .project(app)
+//         .target("llvm")
+//         .inputs(all_src)
+//         .axis("target", "llvm")
+//         .telemetry("mega.check.llvm")
+//
+//     let check_gpu = check_task("check-gpu")
+//         .project(app)
+//         .target("spirv")
+//         .inputs(gpu_src)
+//
+//     // ── GPU artifacts ──
+//     let gpu = gpu_suite("gpu-artifacts")
+//         .fragment("src/gpu/fragment.kn")
+//         .compute("src/gpu/compute.kn")
+//         .targets("spirv", "cuda", "hlsl")
+//         .artifact_root(".kain/out/gpu")
+//         .requires(check)
+//
+//     // ── Source tests ──
+//     let tests = source_tests("source-tests")
+//         .project(app)
+//         .inputs(all_src)
+//         .requires(check)
+//         .telemetry("mega.tests.source")
+//
+//     // ── Native exe ──
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/mega-project.exe")
+//         .requires(check, gpu, tests)
+//
+//     // ── Exec / command tasks ──
+//     let post = exec_task("post-process")
+//         .command("python")
+//         .arg("scripts/post.py")
+//         .cwd("$root")
+//         .env("PROJECT_ROOT", "$root")
+//         .stdout("$task/post.stdout.txt")
+//         .timeout_ms(60000)
+//         .requires(exe)
+//         .always_run()
+//
+//     // ── Benchmarks ──
+//     let bench = bench_task("bench-run")
+//         .input("benchmarks/main.kn")
+//         .requires(exe)
+//         .telemetry("benchmark.mega")
+//
+//     // ── Proofs ──
+//     let proof = proof_task("ownership-proof")
+//         .input("proofs/ownership.smt2")
+//         .requires(check)
+//
+//     // ── Attrition ──
+//     let attrition = attrition_task("attrition-run")
+//         .input("attrition/invariants.kn")
+//         .requires(exe)
+//
+//     // ── Certify ──
+//     let cert = certify("mega-project.local")
+//         .requires(check, gpu, tests, exe, post, bench)
+//         .telemetry("mega.certify")
+//
+//     // ── Capsule ──
+//     let capsule = capsule_set("mega-project")
+//         .after(cert)
+//         .source("$root/src/main.kn")
+//         .artifacts("$root/.kain/out/artifacts.kn")
+//         .tag("portable")
+//         .tag("mega")
+//         .telemetry("mega.capsule")
+//
+//     // ── Assemble ──
+//     return build_graph()
+//         .workspace(ws)
+//         .project(app)
+//         .defaults(defaults)
+//         .run(run)
+//         .require(vk)
+//         .sources(all_src, gpu_src)
+//         .tasks(
+//             check,
+//             check_gpu,
+//             gpu,
+//             tests,
+//             exe,
+//             post,
+//             bench,
+//             proof,
+//             attrition,
+//             cert,
+//             capsule,
+//         )
+
+// ============================================================================
+//  EXAMPLE 4  —  C INTEROP BLADE  (project + source_set + C companion files)
+// ============================================================================
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let app = project("c-interop")
+//         .kind("kain_executable")
+//         .version("0.1.0")
+//         .description("C FFI interop project using natural include ... as ...")
+//         .entry("main.kn")
+//         .source_root(".")
+//         .module_root(".")
+//         .target("llvm")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//
+//     let sources = source_set("interop-sources")
+//         .glob("**/*.kn")
+//         .glob("**/*.{h,c}")
+//         .file("build.kn")
+//         .file("KAIN.toml")
+//
+//     let check = check_task("check-llvm")
+//         .project(app)
+//         .target("llvm")
+//         .inputs(sources)
+//
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/c-interop.exe")
+//         .requires(check)
+//         .inputs(sources)
+//
+//     return build_graph(app)
+//         .sources(sources)
+//         .tasks(check, exe)
+
+// ============================================================================
+//  EXAMPLE 5  —  MULTI-BLADE WORKSPACE WITH INTER-BLADE DEPS
+// ============================================================================
+//  When your project spans multiple blades that depend on each other.
+//  Each blade has its own build.kn; the workspace root has its own too.
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     // Root workspace only orchestrates members
+//     let ws = workspace_defaults()
+//         .search_root(".")
+//         .blade_root("blades/")
+//         .member("blades/core")
+//         .member("blades/app")
+//
+//     return build_graph()
+//         .workspace(ws)
+
+// ============================================================================
+//  EXAMPLE 6  —  PYTHON INTEROP BLADE
+// ============================================================================
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let pkg = package("python-interop")
+//         .version("0.1.0")
+//         .description("Kain + Python interop project")
+//
+//     let blade_spec = blade("python-interop")
+//         .kind("kain_application")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .build_target("llvm")
+//
+//     let defaults = build_defaults()
+//         .entry("src/main.kn")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//         .target("llvm")
+//
+//     let run = run_defaults()
+//         .entry("src/main.kn")
+//         .target("llvm")
+//
+//     let check = build_check("check-llvm")
+//         .entry("src/main.kn")
+//         .target("llvm")
+//         .input("src/main.kn")
+//         .input("src/bridge.py")
+//         .input("src/config.py")
+//         .input("build.kn")
+//
+//     let exe = native_executable("root-executable")
+//         .entry("src/main.kn")
+//         .root_output("$blade/python-interop.exe")
+//         .requires("check-llvm")
+//         .input("src/main.kn")
+//         .input("src/bridge.py")
+//         .input("src/config.py")
+//         .input("build.kn")
+//
+//     return build_graph()
+//         .package(pkg)
+//         .blade(blade_spec)
+//         .defaults(defaults)
+//         .run(run)
+//         .task(check)
+//         .task(exe)
+
+// ============================================================================
+//  EXAMPLE 7  —  GPU GPU GPU  (multi-shader, multi-target, separate checks)
+// ============================================================================
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let ws = workspace_defaults()
+//         .search_root(".")
+//         .generated_root(".kain/generated")
+//
+//     let pkg = package("gpu-blade")
+//         .version("0.1.0")
+//         .description("GPU compute + graphics blade")
+//
+//     let blade_spec = blade("gpu-blade")
+//         .kind("kain_executable")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .build_target("llvm")
+//
+//     let defaults = build_defaults()
+//         .entry("src/main.kn")
+//         .artifact_root(".kain/out/llvm")
+//         .cache_root(".kain/cache/build")
+//         .profile("release")
+//         .target("llvm")
+//
+//     let run = run_defaults()
+//         .entry("src/main.kn")
+//         .target("llvm")
+//
+//     // Separate typecheck per GPU target
+//     let check_llvm = build_check("check-llvm")
+//         .entry("src/main.kn").target("llvm").axis("target", "llvm")
+//         .input("src/main.kn")
+//         .input("src/gpu/compute.kn")
+//
+//     let check_spirv = build_check("check-gpu-spirv")
+//         .entry("src/gpu/compute.kn").target("spirv").axis("target", "spirv")
+//         .input("src/gpu/compute.kn")
+//
+//     let check_cuda = build_check("check-gpu-cuda")
+//         .entry("src/gpu/compute.kn").target("cuda").axis("target", "cuda")
+//         .input("src/gpu/compute.kn")
+//
+//     let check_hlsl = build_check("check-gpu-hlsl")
+//         .entry("src/gpu/compute.kn").target("hlsl").axis("target", "hlsl")
+//         .input("src/gpu/compute.kn")
+//
+//     // GPU artifact tasks per target
+//     let gpu_spirv = build_task("gpu-artifacts-spirv")
+//         .kind("gpu").entry("src/gpu/compute.kn").target("spirv")
+//         .artifact_root(".kain/out/spirv")
+//         .requires("check-gpu-spirv").input("src/gpu/compute.kn")
+//
+//     let gpu_cuda = build_task("gpu-artifacts-cuda")
+//         .kind("gpu").entry("src/gpu/compute.kn").target("cuda")
+//         .artifact_root(".kain/out/cuda")
+//         .requires("check-gpu-cuda").input("src/gpu/compute.kn")
+//
+//     let gpu_hlsl = build_task("gpu-artifacts-hlsl")
+//         .kind("gpu").entry("src/gpu/compute.kn").target("hlsl")
+//         .artifact_root(".kain/out/hlsl")
+//         .requires("check-gpu-hlsl").input("src/gpu/compute.kn")
+//
+//     let root_exe = native_executable("root-executable")
+//         .entry("src/main.kn").root_output("$blade/gpu-blade.exe")
+//         .requires("check-llvm", "gpu-artifacts-spirv", "gpu-artifacts-cuda")
+//
+//     let cert = certify_gate("certify")
+//         .requires("check-llvm", "check-gpu-spirv", "check-gpu-cuda", "root-executable")
+//         .certifies("gpu-blade.local")
+//
+//     return build_graph()
+//         .workspace(ws)
+//         .package(pkg).blade(blade_spec)
+//         .defaults(defaults).run(run)
+//         .task(check_llvm).task(check_spirv).task(check_cuda).task(check_hlsl)
+//         .task(gpu_spirv).task(gpu_cuda).task(gpu_hlsl)
+//         .task(root_exe).task(cert)
+
+// ============================================================================
+//  EXAMPLE 8  —  ADVANCED TASK KINDS: CARGO, C SHARED LIB, NODE, BUN, FABRIC
+// ============================================================================
+//  These task kinds use build_task_of_kind() since std::build doesn't have
+//  dedicated factory functions for them.  They exercise the extended kind
+//  strings parsed by crates/build/src/workspace.rs
+//
+// fn build(ctx: BuildContext) -> BuildGraph:
+//     let app = project("advanced-tasks")
+//         .kind("kain_executable")
+//         .version("0.1.0")
+//         .description("Demonstrates cargo, C, node, bun, and fabric task kinds")
+//         .entry("src/main.kn")
+//         .source_root("src")
+//         .module_root("src")
+//         .target("llvm")
+//         .artifact_root(".kain/out")
+//         .cache_root(".kain/cache/build")
+//         .profile("debug")
+//
+//     let check = check_task("check-llvm")
+//         .project(app)
+//         .target("llvm")
+//
+//     let exe = native_executable("root-executable")
+//         .project(app)
+//         .output("$blade/advanced-tasks.exe")
+//         .requires(check)
+//
+//     // ── Cargo / Rust build ──
+//     //     Kind "cargo" / "rust" / "rust-crate" builds a Rust crate
+//     let cargo_build = build_task_of_kind("build-rust-crate", "cargo")
+//         .command("cargo")
+//         .arg("build").arg("--release")
+//         .cwd("$root/native/rust-crate")
+//         .output("$root/native/rust-crate/target/release/")
+//         .requires(exe)
+//
+//     // ── C shared library build ──
+//     //     Kind "c" / "c-shared-library" / "c_ffi" compiles .c inputs
+//     //     into a shared library using the entry as header discovery.
+//     let c_lib = build_task_of_kind("build-c-shared", "c")
+//         .entry("native/bridge.h")               // Header for API discovery
+//         .input("native/bridge.c")                // C sources
+//         .input("native/impl.c")
+//         .input("native/helpers.c")
+//         .output("$blade/libbridge.dll")
+//         .arg("-O2")                              // cpp_options via task.args
+//         .arg("-DWIN32")
+//         .arg("-I$root/native/include")
+//         .requires(check)
+//
+//     // ── Node.js script runner ──
+//     //     Kind "node" runs scripts with node --check
+//     let node_check = build_task_of_kind("validate-js", "node")
+//         .entry("scripts/check.mjs")
+//         .cwd("$root")
+//         .arg("--experimental-vm-modules")
+//
+//     // ── Bun script runner ──
+//     //     Kind "bun" runs scripts directly with bun
+//     let bun_build = build_task_of_kind("bundle-ts", "bun")
+//         .entry("scripts/build.ts")
+//         .cwd("$root")
+//         .arg("--outdir=dist")
+//
+//     // ── Fabric manifest runner ──
+//     //     Kind "fabric" / "fabric-run" runs a Fabric manifest
+//     let fabric_run = build_task_of_kind("fabric-deploy", "fabric")
+//         .input("deploy/fabric.toml")
+//         .requires(exe)
+//
+//     let fabric_validate = build_task_of_kind("fabric-check", "fabric-validate")
+//         .input("deploy/fabric.toml")
+//
+//     // ── Cross-blade dependency scoping ──
+//     //     "blade-name:task-id" syntax references tasks from other blades
+//     // let cross_dept = exec_task("cross-task")
+//     //     .command("python")
+//     //     .arg("scripts/after_core.py")
+//     //     .requires("core-blade:check-llvm")   // Task from another blade
+//     //     .requires("ui-blade:build-exe")       // Another cross-blade ref
+//
+//     let cert = certify("advanced-tasks.local")
+//         .requires(check, exe, cargo_build, c_lib)
+//
+//     return build_graph()
+//         .project(app)
+//         .tasks(check, exe, cargo_build, c_lib, node_check, bun_build)
+//         .tasks(fabric_validate, fabric_run, cert)
+
+// ============================================================================
+//  END  —  THE ULTIMATE BUILD.KN
+// ============================================================================
+//  Remember: uncomment only what you need.  Every line is a working pattern
+//  drawn from real build.kn files across the Kain repo.
+//
+//  Quick reference:
+//    Project types:    project()    → package() + blade() shorthand
+//    Check:            check_task() / build_check()
+//    Executable:       native_executable() / root_executable()
+//    Tests:            source_tests()
+//    GPU:              gpu_suite()
+//    External command: exec_task() / command_task()
+//    Proof:            proof_task()        [from std::proof]
+//    Bench:            bench_task()        [from std::bench]
+//    Attrition:        attrition_task()    [from std::attrition]
+//    Certify:          certify()           [from std::build]
+//    Capsule:          capsule_set() / amalgamate_capsule()
+//    Platform dep:     platform_requirement()
+//    Cargo/Rust:       build_task_of_kind(id, "cargo")
+//    C shared lib:     build_task_of_kind(id, "c")
+//    Node.js:          build_task_of_kind(id, "node")
+//    Bun:              build_task_of_kind(id, "bun")
+//    Fabric:           build_task_of_kind(id, "fabric")
+//    Cross-blade dep:  .requires("blade-name:task-id")
+//
+//  Path interpolation:
+//    $root   → workspace root
+//    $blade  → blade output root
+//    $task   → task cache root
+// ============================================================================
