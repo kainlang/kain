@@ -1,3 +1,6 @@
+# This was an attempt to recreate the PI agent harness originally written in react and typescript [github.com/earendil-works/pi](https://github.com/earendil-works/pi) -- The current status of this is unfinished. The current focus of dogfooding has moved towards more complex and rewarding projects that really push this language such as 3D, animation, DAW`s etc 
+
+
 # pi-squared ->> The Kain-Native Coding Agent
 
 > **The agent tool you're using right now, rewritten in Kain.**
