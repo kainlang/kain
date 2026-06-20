@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <polygon points='256.01,42.67 448.01,256.01 256.01,469.34 64.01,256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linejoin='round' />
+  <text x='256.01' y='266.67' font-size='106.67' font-family='system-ui, sans-serif' text-anchor='middle' dominant-baseline='central' fill='#e94560'>FX</text>
+
+</svg>

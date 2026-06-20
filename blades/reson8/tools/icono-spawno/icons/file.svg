@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <path d='M 106.67 64.01 L 320.01 64.01 L 405.34 149.34 L 405.34 448.01 L 106.67 448.01 Z' fill='#e94560' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <path d='M 320.01 64.01 L 320.01 149.34 L 405.34 149.34' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+
+</svg>

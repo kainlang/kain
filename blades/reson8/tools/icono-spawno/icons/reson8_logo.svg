@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <path d='M 128.01 85.34 L 128.01 426.67 L 277.34 426.67 Q 384.01 426.67 384.01 320.01 Q 384.01 213.34 298.67 192.01 L 362.67 85.34 M 128.01 256.01 L 277.34 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <path d='M 85.34 490.67 Q 170.67 426.67 256.01 490.67 T 426.67 490.67' fill='none' stroke='#e94560' stroke-width='0.25' stroke-linecap='round' stroke-linejoin='round' />
+
+</svg>

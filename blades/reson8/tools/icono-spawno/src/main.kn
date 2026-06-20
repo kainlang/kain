@@ -1,0 +1,716 @@
+// icono-spawno -- reson8 procedural icon creator. 50 icons, 1 file.
+// Usage: kain build src/main.kn --target llvm && main.exe --all --size 512 --output icons/
+
+use std::process
+use std::fs
+use std::os_path
+
+const VERSION: String = "0.1.0"
+const DEFAULT_SIZE: Int = 256
+const DEFAULT_COLOR: String = "#e94560"
+const DEFAULT_STROKE: String = "#ffffff"
+const DEFAULT_STROKE_WIDTH: Float = 0.4
+const EXIT_OK: Int = 0
+const EXIT_HELP: Int = 1
+const EXIT_ERROR: Int = 2
+
+// ---- float/int helpers ----
+fn _itoa(v: Int) -> String: return str(v)
+fn _itof(v: Int) -> Float: return v * 1.0
+fn _ftoi(v: Float) -> Int: if v >= 0.0: return (v + 0.5) as Int else: return (v - 0.5) as Int
+
+fn _ff(v: Float) -> String:
+    let s = v * 100.0
+    let ip = _ftoi(s + 0.5)
+    let w = ip / 100
+    let fr = ip % 100
+    if fr == 0: return _itoa(w)
+    let pf = if fr < 0: (0 - fr) else: fr
+    let t = pf / 10
+    let o = pf % 10
+    if fr < 0: if w == 0: return "-0." + _itoa(t) + _itoa(o) else: return _itoa(w) + "." + _itoa(t) + _itoa(o)
+    return _itoa(w) + "." + _itoa(t) + _itoa(o)
+
+fn _px(v: Float, size: Int) -> Float: return v * (_itof(size) / 24.0)
+
+// ---- SVG primitives (single-quoted attrs) ----
+fn _svg_rect(x: Float, y: Float, w: Float, h: Float, fill: String, stroke: String, sw: Float, rx: Float) -> String:
+    var el = "<rect x='" + _ff(x) + "' y='" + _ff(y) + "' width='" + _ff(w) + "' height='" + _ff(h) + "'"
+    if rx > 0.0: el = el + " rx='" + _ff(rx) + "'"
+    el = el + " fill='" + (if fill == "" or fill == "none": "none" else: fill) + "'"
+    if stroke != "" and stroke != "none": el = el + " stroke='" + stroke + "' stroke-width='" + _ff(sw) + "' stroke-linecap='round' stroke-linejoin='round'"
+    el = el + " />"
+    return el
+
+fn _svg_circle(cx: Float, cy: Float, r: Float, fill: String, stroke: String, sw: Float) -> String:
+    var el = "<circle cx='" + _ff(cx) + "' cy='" + _ff(cy) + "' r='" + _ff(r) + "'"
+    el = el + " fill='" + (if fill == "" or fill == "none": "none" else: fill) + "'"
+    if stroke != "" and stroke != "none": el = el + " stroke='" + stroke + "' stroke-width='" + _ff(sw) + "'"
+    el = el + " />"
+    return el
+
+fn _svg_poly(pts: String, fill: String, stroke: String, sw: Float) -> String:
+    var el = "<polygon points='" + pts + "'"
+    el = el + " fill='" + (if fill == "" or fill == "none": "none" else: fill) + "'"
+    if stroke != "" and stroke != "none": el = el + " stroke='" + stroke + "' stroke-width='" + _ff(sw) + "' stroke-linejoin='round'"
+    el = el + " />"
+    return el
+
+fn _svg_path(d: String, fill: String, stroke: String, sw: Float) -> String:
+    var el = "<path d='" + d + "'"
+    el = el + " fill='" + (if fill == "" or fill == "none": "none" else: fill) + "'"
+    if stroke != "" and stroke != "none": el = el + " stroke='" + stroke + "' stroke-width='" + _ff(sw) + "' stroke-linecap='round' stroke-linejoin='round'"
+    el = el + " />"
+    return el
+
+fn _svg_text(x: Float, y: Float, content: String, fs: Float, fill: String) -> String:
+    return "<text x='" + _ff(x) + "' y='" + _ff(y) + "' font-size='" + _ff(fs) + "' font-family='system-ui, sans-serif' text-anchor='middle' dominant-baseline='central' fill='" + fill + "'>" + content + "</text>"
+
+fn _svg_doc(w: Int, h: Int, body: String, bg: String) -> String:
+    var d = "<?xml version='1.0' encoding='UTF-8'?>\n"
+    d = d + "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + _itoa(w) + " " + _itoa(h) + "' width='" + _itoa(w) + "' height='" + _itoa(h) + "'>\n"
+    if bg != "" and bg != "none": d = d + "  <rect width='100%' height='100%' fill='" + bg + "' />\n"
+    d = d + body + "\n</svg>\n"
+    return d
+
+// ---- polygon point builder ----
+fn _pts(size: Int, coords: Array<Float>) -> String:
+    var s = ""
+    var i = 0
+    while i < len(coords):
+        if i > 0 and i % 2 == 0: s = s + " "
+        if i > 0 and i % 2 == 1: s = s + ","
+        s = s + _ff(coords[i])
+        i = i + 1
+    return s
+
+// ===== ICONS =====
+// Each returns SVG body (elements inside <svg>). Parameters: size(Int) f(String) s(String) sw(Float)
+
+// ---- TRANSPORT (7) ----
+fn i_play(sz: Int, f: String, st: String, sw: Float) -> String:
+    let p = 5.0
+    return _svg_poly(_pts(sz, [_px(p,sz), _px(p,sz), _px(24.0-p,sz), _px(12.0,sz), _px(p,sz), _px(24.0-p,sz)]), f, st, sw)
+
+fn i_stop(sz: Int, f: String, st: String, sw: Float) -> String:
+    let p = 6.0
+    let w = 24.0 - p * 2.0
+    return _svg_rect(_px(p,sz), _px(p,sz), _px(w,sz), _px(w,sz), f, st, sw, 0.0)
+
+fn i_pause(sz: Int, f: String, st: String, sw: Float) -> String:
+    let bw = 3.0
+    let p = 7.0
+    let bh = 24.0 - p * 2.0
+    let g = 2.0
+    var b = _svg_rect(_px(12.0-g/2.0-bw,sz), _px(p,sz), _px(bw,sz), _px(bh,sz), f, st, sw, 0.0)
+    b = b + "\n  " + _svg_rect(_px(12.0+g/2.0,sz), _px(p,sz), _px(bw,sz), _px(bh,sz), f, st, sw, 0.0)
+    return b
+
+fn i_record(sz: Int, f: String, st: String, sw: Float) -> String:
+    return _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(5.0,sz), f, st, sw)
+
+fn i_loop(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(10.0,sz)) + " " + _ff(_px(9.0,sz))
+    d = d + " A " + _ff(_px(6.0,sz)) + " " + _ff(_px(6.0,sz)) + " 0 1 1 " + _ff(_px(10.0,sz)) + " " + _ff(_px(15.0,sz))
+    d = d + " M " + _ff(_px(14.0,sz)) + " " + _ff(_px(15.0,sz))
+    d = d + " A " + _ff(_px(6.0,sz)) + " " + _ff(_px(6.0,sz)) + " 0 1 1 " + _ff(_px(14.0,sz)) + " " + _ff(_px(9.0,sz))
+    d = d + " M " + _ff(_px(10.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(7.0,sz)) + " " + _ff(_px(10.5,sz))
+    d = d + " M " + _ff(_px(10.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(13.0,sz)) + " " + _ff(_px(6.5,sz))
+    return _svg_path(d, "none", st, sw)
+
+fn i_skip_fwd(sz: Int, f: String, st: String, sw: Float) -> String:
+    let py = 5.0
+    var b = _svg_poly(_pts(sz, [_px(5.0,sz), _px(py,sz), _px(14.0,sz), _px(12.0,sz), _px(5.0,sz), _px(24.0-py,sz)]), f, st, sw)
+    b = b + "\n  " + _svg_rect(_px(16.0,sz), _px(py,sz), _px(1.5,sz), _px(24.0-py*2.0,sz), f, st, sw, 0.0)
+    return b
+
+fn i_skip_back(sz: Int, f: String, st: String, sw: Float) -> String:
+    let py = 5.0
+    var b = _svg_poly(_pts(sz, [_px(19.0,sz), _px(py,sz), _px(10.0,sz), _px(12.0,sz), _px(19.0,sz), _px(24.0-py,sz)]), f, st, sw)
+    b = b + "\n  " + _svg_rect(_px(6.5,sz), _px(py,sz), _px(1.5,sz), _px(24.0-py*2.0,sz), f, st, sw, 0.0)
+    return b
+
+// ---- MIXER (8) ----
+fn i_vol_hi(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_poly(_pts(sz, [_px(4.0,sz),_px(9.0,sz),_px(8.0,sz),_px(9.0,sz),_px(8.0,sz),_px(15.0,sz),_px(4.0,sz),_px(15.0,sz)]), f, st, sw)
+    var d1 = "M " + _ff(_px(11.0,sz)) + " " + _ff(_px(8.0,sz)) + " Q " + _ff(_px(15.0,sz)) + " " + _ff(_px(7.0,sz)) + " " + _ff(_px(15.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d1, "none", st, sw)
+    var d2 = "M " + _ff(_px(11.0,sz)) + " " + _ff(_px(16.0,sz)) + " Q " + _ff(_px(15.0,sz)) + " " + _ff(_px(17.0,sz)) + " " + _ff(_px(15.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d2, "none", st, sw)
+    var d3 = "M " + _ff(_px(13.5,sz)) + " " + _ff(_px(5.0,sz)) + " Q " + _ff(_px(19.0,sz)) + " " + _ff(_px(4.0,sz)) + " " + _ff(_px(19.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d3, "none", st, sw)
+    var d4 = "M " + _ff(_px(13.5,sz)) + " " + _ff(_px(19.0,sz)) + " Q " + _ff(_px(19.0,sz)) + " " + _ff(_px(20.0,sz)) + " " + _ff(_px(19.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d4, "none", st, sw)
+    return b
+
+fn i_vol_lo(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_poly(_pts(sz, [_px(4.0,sz),_px(9.0,sz),_px(8.0,sz),_px(9.0,sz),_px(8.0,sz),_px(15.0,sz),_px(4.0,sz),_px(15.0,sz)]), f, st, sw)
+    var d1 = "M " + _ff(_px(11.0,sz)) + " " + _ff(_px(8.0,sz)) + " Q " + _ff(_px(15.0,sz)) + " " + _ff(_px(7.0,sz)) + " " + _ff(_px(15.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d1, "none", st, sw)
+    var d2 = "M " + _ff(_px(11.0,sz)) + " " + _ff(_px(16.0,sz)) + " Q " + _ff(_px(15.0,sz)) + " " + _ff(_px(17.0,sz)) + " " + _ff(_px(15.0,sz)) + " " + _ff(_px(12.0,sz))
+    b = b + "\n  " + _svg_path(d2, "none", st, sw)
+    return b
+
+fn i_vol_mute(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_poly(_pts(sz, [_px(4.0,sz),_px(9.0,sz),_px(8.0,sz),_px(9.0,sz),_px(8.0,sz),_px(15.0,sz),_px(4.0,sz),_px(15.0,sz)]), f, st, sw)
+    var dx = "M " + _ff(_px(11.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(18.0,sz)) + " " + _ff(_px(16.0,sz))
+    dx = dx + " M " + _ff(_px(18.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(11.0,sz)) + " " + _ff(_px(16.0,sz))
+    b = b + "\n  " + _svg_path(dx, "none", st, sw)
+    return b
+
+fn i_pan(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(8.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(4.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(12.0,sz)), "none", st, sw*0.75)
+    b = b + "\n  " + _svg_text(_px(6.0,sz), _px(12.0,sz), "L", _px(4.0,sz), f)
+    b = b + "\n  " + _svg_text(_px(18.0,sz), _px(12.0,sz), "R", _px(4.0,sz), f)
+    return b
+
+fn i_fx(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_poly(_pts(sz, [_px(12.0,sz),_px(2.0,sz),_px(21.0,sz),_px(12.0,sz),_px(12.0,sz),_px(22.0,sz),_px(3.0,sz),_px(12.0,sz)]), "none", st, sw)
+    b = b + "\n  " + _svg_text(_px(12.0,sz), _px(12.5,sz), "FX", _px(5.0,sz), f)
+    return b
+
+fn i_eq(sz: Int, f: String, st: String, sw: Float) -> String:
+    let bw = 2.5
+    let g = 3.0
+    var b = _svg_rect(_px(4.0,sz), _px(8.0,sz), _px(bw,sz), _px(12.0,sz), f, st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_rect(_px(4.0+g+bw,sz), _px(4.0,sz), _px(bw,sz), _px(16.0,sz), f, st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_rect(_px(4.0+(g+bw)*2.0,sz), _px(12.0,sz), _px(bw,sz), _px(8.0,sz), f, st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_circle(_px(4.0+bw/2.0,sz), _px(8.0,sz), _px(1.0,sz), st, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(4.0+g+bw+bw/2.0,sz), _px(4.0,sz), _px(1.0,sz), st, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(4.0+(g+bw)*2.0+bw/2.0,sz), _px(12.0,sz), _px(1.0,sz), st, "none", 0.0)
+    return b
+
+fn i_comp(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(9.0,sz), _px(4.0,sz), _px(6.0,sz), _px(16.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_path("M " + _ff(_px(5.0,sz)) + " " + _ff(_px(13.0,sz)) + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(13.0,sz)), "none", st, sw*0.75)
+    var da = "M " + _ff(_px(12.0,sz)) + " " + _ff(_px(14.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(19.0,sz))
+    da = da + " M " + _ff(_px(9.0,sz)) + " " + _ff(_px(17.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(20.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(17.0,sz))
+    b = b + "\n  " + _svg_path(da, "none", f, sw)
+    return b
+
+fn i_reverb(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_path("M " + _ff(_px(10.0,sz)) + " " + _ff(_px(14.0,sz)) + " A " + _ff(_px(3.0,sz)) + " " + _ff(_px(3.0,sz)) + " 0 0 1 " + _ff(_px(16.0,sz)) + " " + _ff(_px(11.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.0,sz)) + " " + _ff(_px(16.0,sz)) + " A " + _ff(_px(6.0,sz)) + " " + _ff(_px(6.0,sz)) + " 0 0 1 " + _ff(_px(19.0,sz)) + " " + _ff(_px(9.5,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.0,sz)) + " " + _ff(_px(18.0,sz)) + " A " + _ff(_px(9.0,sz)) + " " + _ff(_px(9.0,sz)) + " 0 0 1 " + _ff(_px(22.0,sz)) + " " + _ff(_px(8.0,sz)), "none", st, sw*0.6)
+    return b
+
+// ---- EDIT (8) ----
+fn i_cut(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(6.0,sz), _px(6.0,sz), _px(2.5,sz), "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(6.0,sz), _px(18.0,sz), _px(2.5,sz), "none", st, sw)
+    var d = "M " + _ff(_px(8.0,sz)) + " " + _ff(_px(6.5,sz)) + " L " + _ff(_px(18.0,sz)) + " " + _ff(_px(18.0,sz))
+    d = d + " M " + _ff(_px(18.0,sz)) + " " + _ff(_px(6.0,sz)) + " L " + _ff(_px(8.0,sz)) + " " + _ff(_px(17.5,sz))
+    b = b + "\n  " + _svg_path(d, "none", st, sw)
+    return b
+
+fn i_copy(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(7.0,sz), _px(5.0,sz), _px(12.0,sz), _px(14.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_rect(_px(5.0,sz), _px(7.0,sz), _px(12.0,sz), _px(14.0,sz), f, st, sw, _px(1.0,sz))
+    return b
+
+fn i_paste(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(6.0,sz), _px(6.0,sz), _px(12.0,sz), _px(14.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_rect(_px(9.0,sz), _px(3.0,sz), _px(6.0,sz), _px(3.0,sz), f, st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_path("M " + _ff(_px(9.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(12.0,sz)), "none", st, sw*0.5)
+    return b
+
+fn i_undo(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(7.0,sz)) + " " + _ff(_px(9.0,sz))
+    d = d + " Q " + _ff(_px(7.0,sz)) + " " + _ff(_px(4.0,sz)) + " " + _ff(_px(12.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " Q " + _ff(_px(17.0,sz)) + " " + _ff(_px(4.0,sz)) + " " + _ff(_px(17.0,sz)) + " " + _ff(_px(10.0,sz))
+    d = d + " L " + _ff(_px(17.0,sz)) + " " + _ff(_px(16.0,sz))
+    var b = _svg_path(d, "none", st, sw)
+    var d2 = "M " + _ff(_px(7.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(3.0,sz)) + " " + _ff(_px(7.0,sz))
+    d2 = d2 + " M " + _ff(_px(7.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(10.0,sz)) + " " + _ff(_px(4.0,sz))
+    b = b + "\n  " + _svg_path(d2, "none", st, sw)
+    return b
+
+fn i_redo(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(17.0,sz)) + " " + _ff(_px(9.0,sz))
+    d = d + " Q " + _ff(_px(17.0,sz)) + " " + _ff(_px(4.0,sz)) + " " + _ff(_px(12.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " Q " + _ff(_px(7.0,sz)) + " " + _ff(_px(4.0,sz)) + " " + _ff(_px(7.0,sz)) + " " + _ff(_px(10.0,sz))
+    d = d + " L " + _ff(_px(7.0,sz)) + " " + _ff(_px(16.0,sz))
+    var b = _svg_path(d, "none", st, sw)
+    var d2 = "M " + _ff(_px(17.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(7.0,sz))
+    d2 = d2 + " M " + _ff(_px(17.0,sz)) + " " + _ff(_px(9.0,sz)) + " L " + _ff(_px(14.0,sz)) + " " + _ff(_px(4.0,sz))
+    b = b + "\n  " + _svg_path(d2, "none", st, sw)
+    return b
+
+fn i_delete(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(6.0,sz), _px(7.0,sz), _px(12.0,sz), _px(14.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_rect(_px(4.0,sz), _px(5.0,sz), _px(16.0,sz), _px(2.0,sz), "none", st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_rect(_px(9.0,sz), _px(3.0,sz), _px(6.0,sz), _px(2.0,sz), "none", st, sw, _px(0.5,sz))
+    var dl = "M " + _ff(_px(9.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(9.0,sz)) + " " + _ff(_px(18.0,sz))
+    dl = dl + " M " + _ff(_px(12.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(18.0,sz))
+    dl = dl + " M " + _ff(_px(15.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(18.0,sz))
+    b = b + "\n  " + _svg_path(dl, "none", st, sw*0.5)
+    return b
+
+fn i_trim(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_path("M " + _ff(_px(5.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(3.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(3.0,sz)) + " " + _ff(_px(20.0,sz)) + " L " + _ff(_px(5.0,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(19.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(20.0,sz)) + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(4.0,sz)) + " " + _ff(_px(18.0,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(6.0,sz)), "none", f, sw)
+    return b
+
+fn i_split(sz: Int, f: String, st: String, sw: Float) -> String:
+    var dw = "M " + _ff(_px(2.0,sz)) + " " + _ff(_px(12.0,sz))
+    dw = dw + " Q " + _ff(_px(5.0,sz)) + " " + _ff(_px(3.0,sz)) + " " + _ff(_px(8.0,sz)) + " " + _ff(_px(12.0,sz))
+    dw = dw + " T " + _ff(_px(14.0,sz)) + " " + _ff(_px(12.0,sz)) + " T " + _ff(_px(22.0,sz)) + " " + _ff(_px(12.0,sz))
+    var b = _svg_path(dw, "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(14.0,sz)) + " " + _ff(_px(16.0,sz)) + " M " + _ff(_px(14.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(10.0,sz)) + " " + _ff(_px(16.0,sz)), "none", f, sw)
+    return b
+
+// ---- NAVIGATION (6) ----
+fn i_folder(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(3.0,sz)) + " " + _ff(_px(6.0,sz))
+    d = d + " L " + _ff(_px(9.0,sz)) + " " + _ff(_px(6.0,sz)) + " L " + _ff(_px(11.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(20.0,sz))
+    d = d + " L " + _ff(_px(3.0,sz)) + " " + _ff(_px(20.0,sz)) + " Z"
+    return _svg_path(d, f, st, sw)
+
+fn i_file(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(5.0,sz)) + " " + _ff(_px(3.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(3.0,sz))
+    d = d + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(7.0,sz)) + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(21.0,sz))
+    d = d + " L " + _ff(_px(5.0,sz)) + " " + _ff(_px(21.0,sz)) + " Z"
+    var b = _svg_path(d, f, st, sw)
+    var df = "M " + _ff(_px(15.0,sz)) + " " + _ff(_px(3.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(7.0,sz)) + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(7.0,sz))
+    b = b + "\n  " + _svg_path(df, "none", st, sw)
+    return b
+
+fn i_save(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(4.0,sz), _px(3.0,sz), _px(16.0,sz), _px(18.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_rect(_px(7.0,sz), _px(6.0,sz), _px(10.0,sz), _px(8.0,sz), f, "none", 0.0, _px(0.5,sz))
+    var da = "M " + _ff(_px(12.0,sz)) + " " + _ff(_px(16.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(20.0,sz))
+    da = da + " M " + _ff(_px(9.0,sz)) + " " + _ff(_px(18.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(21.0,sz)) + " L " + _ff(_px(15.0,sz)) + " " + _ff(_px(18.0,sz))
+    b = b + "\n  " + _svg_path(da, "none", st, sw)
+    return b
+
+fn i_open(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(3.0,sz)) + " " + _ff(_px(6.0,sz)) + " L " + _ff(_px(9.0,sz)) + " " + _ff(_px(6.0,sz))
+    d = d + " L " + _ff(_px(11.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(20.0,sz)) + " L " + _ff(_px(3.0,sz)) + " " + _ff(_px(20.0,sz)) + " Z"
+    var b = _svg_path(d, "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(7.0,sz)) + " " + _ff(_px(15.0,sz)) + " L " + _ff(_px(7.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(14.0,sz)) + " " + _ff(_px(10.0,sz)), "none", f, sw)
+    return b
+
+fn i_new(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(5.0,sz), _px(4.0,sz), _px(14.0,sz), _px(17.0,sz), "none", st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_path("M " + _ff(_px(12.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(17.0,sz)) + " M " + _ff(_px(7.5,sz)) + " " + _ff(_px(12.5,sz)) + " L " + _ff(_px(16.5,sz)) + " " + _ff(_px(12.5,sz)), "none", f, sw)
+    return b
+
+fn i_export(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(4.0,sz), _px(12.0,sz), _px(16.0,sz), _px(10.0,sz), "none", st, sw, _px(1.0,sz))
+    var da = "M " + _ff(_px(12.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(4.0,sz))
+    da = da + " M " + _ff(_px(8.0,sz)) + " " + _ff(_px(7.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(3.0,sz)) + " L " + _ff(_px(16.0,sz)) + " " + _ff(_px(7.0,sz))
+    b = b + "\n  " + _svg_path(da, "none", f, sw)
+    return b
+
+// ---- TOOL (6) ----
+fn i_zoom_in(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(10.0,sz), _px(10.0,sz), _px(6.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(14.5,sz)) + " " + _ff(_px(14.5,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.0,sz)) + " " + _ff(_px(7.0,sz)) + " L " + _ff(_px(10.0,sz)) + " " + _ff(_px(13.0,sz)) + " M " + _ff(_px(7.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(13.0,sz)) + " " + _ff(_px(10.0,sz)), "none", f, sw*0.7)
+    return b
+
+fn i_zoom_out(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(10.0,sz), _px(10.0,sz), _px(6.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(14.5,sz)) + " " + _ff(_px(14.5,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(7.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(13.0,sz)) + " " + _ff(_px(10.0,sz)), "none", f, sw*0.7)
+    return b
+
+fn i_selection(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(4.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(20.0,sz)) + " L " + _ff(_px(4.0,sz)) + " " + _ff(_px(20.0,sz)) + " Z"
+    return "<path d='" + d + "' fill='none' stroke='" + st + "' stroke-width='" + _ff(sw) + "' stroke-dasharray='" + _ff(_px(2.0,sz)) + " " + _ff(_px(1.5,sz)) + "' />"
+
+fn i_pencil(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(17.0,sz)) + " " + _ff(_px(3.0,sz)) + " L " + _ff(_px(7.0,sz)) + " " + _ff(_px(13.0,sz))
+    d = d + " L " + _ff(_px(6.0,sz)) + " " + _ff(_px(18.0,sz)) + " L " + _ff(_px(11.0,sz)) + " " + _ff(_px(17.0,sz))
+    d = d + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(7.0,sz)) + " Z"
+    return _svg_path(d, f, st, sw)
+
+fn i_crosshair(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(8.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(12.0,sz)) + " " + _ff(_px(2.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(22.0,sz)) + " M " + _ff(_px(2.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(22.0,sz)) + " " + _ff(_px(12.0,sz)), "none", st, sw*0.5)
+    b = b + "\n  " + _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(0.8,sz), f, "none", 0.0)
+    return b
+
+fn i_grid(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(7.0,sz), _px(7.0,sz), _px(1.5,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(17.0,sz), _px(7.0,sz), _px(1.5,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(7.0,sz), _px(17.0,sz), _px(1.5,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(17.0,sz), _px(17.0,sz), _px(1.5,sz), f, "none", 0.0)
+    return b
+
+// ---- STATUS (4) ----
+fn i_check(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(9.0,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(7.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(10.5,sz)) + " " + _ff(_px(15.5,sz)) + " L " + _ff(_px(17.0,sz)) + " " + _ff(_px(8.0,sz)), "none", "#ffffff", sw*3.0)
+    return b
+
+fn i_warning(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_poly(_pts(sz, [_px(12.0,sz),_px(2.0,sz),_px(22.0,sz),_px(20.0,sz),_px(2.0,sz),_px(20.0,sz)]), f, "none", 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(12.0,sz)) + " " + _ff(_px(7.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(14.0,sz)) + " M " + _ff(_px(12.0,sz)) + " " + _ff(_px(16.5,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(17.0,sz)), "none", "#ffffff", sw*3.0)
+    return b
+
+fn i_error(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(9.0,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(8.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(16.0,sz)) + " " + _ff(_px(16.0,sz)) + " M " + _ff(_px(16.0,sz)) + " " + _ff(_px(8.0,sz)) + " L " + _ff(_px(8.0,sz)) + " " + _ff(_px(16.0,sz)), "none", "#ffffff", sw*3.0)
+    return b
+
+fn i_info(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(9.0,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(12.0,sz), _px(7.5,sz), _px(1.0,sz), "#ffffff", "none", 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(12.0,sz)) + " " + _ff(_px(10.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(16.5,sz)), "none", "#ffffff", sw*3.0)
+    return b
+
+// ---- SETTINGS (4) ----
+fn i_settings(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(6.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(2.5,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(12.0,sz)) + " " + _ff(_px(3.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(5.0,sz)) + " M " + _ff(_px(12.0,sz)) + " " + _ff(_px(19.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(21.0,sz)) + " M " + _ff(_px(3.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(5.0,sz)) + " " + _ff(_px(12.0,sz)) + " M " + _ff(_px(19.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(12.0,sz)), "none", st, sw)
+    return b
+
+fn i_search(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(10.0,sz), _px(10.0,sz), _px(6.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(14.5,sz)) + " " + _ff(_px(14.5,sz)) + " L " + _ff(_px(20.0,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw)
+    return b
+
+fn i_menu(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(3.0,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(5.0,sz))
+    d = d + " M " + _ff(_px(3.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(12.0,sz))
+    d = d + " M " + _ff(_px(3.0,sz)) + " " + _ff(_px(19.0,sz)) + " L " + _ff(_px(21.0,sz)) + " " + _ff(_px(19.0,sz))
+    return _svg_path(d, "none", st, sw)
+
+fn i_close(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(5.0,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(19.0,sz)) + " " + _ff(_px(19.0,sz))
+    d = d + " M " + _ff(_px(19.0,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(5.0,sz)) + " " + _ff(_px(19.0,sz))
+    return _svg_path(d, "none", st, sw)
+
+// ---- MIDI (3) ----
+fn i_midi(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(12.0,sz), _px(12.0,sz), _px(9.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(8.0,sz), _px(9.0,sz), _px(1.2,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(12.0,sz), _px(7.0,sz), _px(1.2,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(16.0,sz), _px(9.0,sz), _px(1.2,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(8.5,sz), _px(15.0,sz), _px(1.2,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(15.5,sz), _px(15.0,sz), _px(1.2,sz), f, "none", 0.0)
+    return b
+
+fn i_piano(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(3.0,sz), _px(5.0,sz), _px(18.0,sz), _px(15.0,sz), "none", st, sw, 0.0)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(7.5,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(7.5,sz)) + " " + _ff(_px(20.0,sz)) + " M " + _ff(_px(12.0,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(12.0,sz)) + " " + _ff(_px(20.0,sz)) + " M " + _ff(_px(16.5,sz)) + " " + _ff(_px(5.0,sz)) + " L " + _ff(_px(16.5,sz)) + " " + _ff(_px(20.0,sz)), "none", st, sw*0.5)
+    b = b + "\n  " + _svg_rect(_px(5.5,sz), _px(5.0,sz), _px(3.0,sz), _px(8.0,sz), f, "none", 0.0, 0.0)
+    b = b + "\n  " + _svg_rect(_px(10.5,sz), _px(5.0,sz), _px(3.0,sz), _px(8.0,sz), f, "none", 0.0, 0.0)
+    b = b + "\n  " + _svg_rect(_px(14.5,sz), _px(5.0,sz), _px(3.0,sz), _px(8.0,sz), f, "none", 0.0, 0.0)
+    return b
+
+fn i_note(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(8.0,sz), _px(17.0,sz), _px(2.5,sz), f, st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.5,sz)) + " " + _ff(_px(17.0,sz)) + " L " + _ff(_px(10.5,sz)) + " " + _ff(_px(5.0,sz)), "none", st, sw)
+    b = b + "\n  " + _svg_path("M " + _ff(_px(10.5,sz)) + " " + _ff(_px(5.0,sz)) + " Q " + _ff(_px(16.0,sz)) + " " + _ff(_px(7.0,sz)) + " " + _ff(_px(14.0,sz)) + " " + _ff(_px(11.0,sz)), "none", st, sw)
+    return b
+
+// ---- GENERAL (4) ----
+fn i_r8logo(sz: Int, f: String, st: String, sw: Float) -> String:
+    var d = "M " + _ff(_px(6.0,sz)) + " " + _ff(_px(4.0,sz)) + " L " + _ff(_px(6.0,sz)) + " " + _ff(_px(20.0,sz))
+    d = d + " L " + _ff(_px(13.0,sz)) + " " + _ff(_px(20.0,sz))
+    d = d + " Q " + _ff(_px(18.0,sz)) + " " + _ff(_px(20.0,sz)) + " " + _ff(_px(18.0,sz)) + " " + _ff(_px(15.0,sz))
+    d = d + " Q " + _ff(_px(18.0,sz)) + " " + _ff(_px(10.0,sz)) + " " + _ff(_px(14.0,sz)) + " " + _ff(_px(9.0,sz))
+    d = d + " L " + _ff(_px(17.0,sz)) + " " + _ff(_px(4.0,sz))
+    d = d + " M " + _ff(_px(6.0,sz)) + " " + _ff(_px(12.0,sz)) + " L " + _ff(_px(13.0,sz)) + " " + _ff(_px(12.0,sz))
+    var b = _svg_path(d, "none", st, sw)
+    var dw = "M " + _ff(_px(4.0,sz)) + " " + _ff(_px(23.0,sz)) + " Q " + _ff(_px(8.0,sz)) + " " + _ff(_px(20.0,sz)) + " " + _ff(_px(12.0,sz)) + " " + _ff(_px(23.0,sz))
+    dw = dw + " T " + _ff(_px(20.0,sz)) + " " + _ff(_px(23.0,sz))
+    b = b + "\n  " + _svg_path(dw, "none", f, sw*0.6)
+    return b
+
+fn i_plugin(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_rect(_px(6.0,sz), _px(10.0,sz), _px(12.0,sz), _px(8.0,sz), f, st, sw, _px(1.0,sz))
+    b = b + "\n  " + _svg_rect(_px(8.0,sz), _px(4.0,sz), _px(2.0,sz), _px(6.0,sz), f, st, sw, _px(0.5,sz))
+    b = b + "\n  " + _svg_rect(_px(14.0,sz), _px(4.0,sz), _px(2.0,sz), _px(6.0,sz), f, st, sw, _px(0.5,sz))
+    var dc = "M " + _ff(_px(9.0,sz)) + " " + _ff(_px(4.0,sz)) + " Q " + _ff(_px(9.0,sz)) + " " + _ff(_px(2.0,sz)) + " " + _ff(_px(12.0,sz)) + " " + _ff(_px(2.0,sz)) + " T " + _ff(_px(15.0,sz)) + " " + _ff(_px(4.0,sz))
+    b = b + "\n  " + _svg_path(dc, "none", st, sw)
+    return b
+
+fn i_theme(sz: Int, f: String, st: String, sw: Float) -> String:
+    var dp = "M " + _ff(_px(12.0,sz)) + " " + _ff(_px(2.0,sz))
+    dp = dp + " A " + _ff(_px(10.0,sz)) + " " + _ff(_px(10.0,sz)) + " 0 1 1 " + _ff(_px(7.0,sz)) + " " + _ff(_px(20.0,sz))
+    dp = dp + " A " + _ff(_px(3.0,sz)) + " " + _ff(_px(2.5,sz)) + " 0 1 0 " + _ff(_px(17.0,sz)) + " " + _ff(_px(19.0,sz))
+    dp = dp + " A " + _ff(_px(10.0,sz)) + " " + _ff(_px(10.0,sz)) + " 0 1 1 " + _ff(_px(12.0,sz)) + " " + _ff(_px(2.0,sz))
+    var b = _svg_path(dp, "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(8.0,sz), _px(9.0,sz), _px(2.0,sz), f, "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(16.0,sz), _px(7.0,sz), _px(2.0,sz), "#60a5fa", "none", 0.0)
+    b = b + "\n  " + _svg_circle(_px(14.0,sz), _px(16.0,sz), _px(2.0,sz), "#f59e0b", "none", 0.0)
+    return b
+
+fn i_python(sz: Int, f: String, st: String, sw: Float) -> String:
+    var b = _svg_circle(_px(8.5,sz), _px(8.5,sz), _px(5.0,sz), "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(15.5,sz), _px(15.5,sz), _px(5.0,sz), f, st, sw)
+    var dc = "M " + _ff(_px(13.0,sz)) + " " + _ff(_px(6.5,sz)) + " Q " + _ff(_px(20.0,sz)) + " " + _ff(_px(8.0,sz)) + " " + _ff(_px(17.0,sz)) + " " + _ff(_px(12.0,sz))
+    dc = dc + " Q " + _ff(_px(14.0,sz)) + " " + _ff(_px(16.0,sz)) + " " + _ff(_px(11.0,sz)) + " " + _ff(_px(17.0,sz))
+    b = b + "\n  " + _svg_path(dc, "none", st, sw)
+    b = b + "\n  " + _svg_circle(_px(14.5,sz), _px(14.0,sz), _px(0.8,sz), "#ffffff", "none", 0.0)
+    return b
+
+// ===== ICON DISPATCH =====
+fn icon_body(name: String, sz: Int, f: String, st: String, sw: Float) -> String:
+    if name == "play": return i_play(sz, f, st, sw)
+    if name == "stop": return i_stop(sz, f, st, sw)
+    if name == "pause": return i_pause(sz, f, st, sw)
+    if name == "record": return i_record(sz, f, st, sw)
+    if name == "loop": return i_loop(sz, f, st, sw)
+    if name == "skip_forward": return i_skip_fwd(sz, f, st, sw)
+    if name == "skip_back": return i_skip_back(sz, f, st, sw)
+    if name == "volume_high": return i_vol_hi(sz, f, st, sw)
+    if name == "volume_low": return i_vol_lo(sz, f, st, sw)
+    if name == "volume_mute": return i_vol_mute(sz, f, st, sw)
+    if name == "pan": return i_pan(sz, f, st, sw)
+    if name == "fx": return i_fx(sz, f, st, sw)
+    if name == "eq": return i_eq(sz, f, st, sw)
+    if name == "compressor": return i_comp(sz, f, st, sw)
+    if name == "reverb": return i_reverb(sz, f, st, sw)
+    if name == "cut": return i_cut(sz, f, st, sw)
+    if name == "copy": return i_copy(sz, f, st, sw)
+    if name == "paste": return i_paste(sz, f, st, sw)
+    if name == "undo": return i_undo(sz, f, st, sw)
+    if name == "redo": return i_redo(sz, f, st, sw)
+    if name == "delete": return i_delete(sz, f, st, sw)
+    if name == "trim": return i_trim(sz, f, st, sw)
+    if name == "split": return i_split(sz, f, st, sw)
+    if name == "folder": return i_folder(sz, f, st, sw)
+    if name == "file": return i_file(sz, f, st, sw)
+    if name == "save": return i_save(sz, f, st, sw)
+    if name == "open": return i_open(sz, f, st, sw)
+    if name == "new": return i_new(sz, f, st, sw)
+    if name == "export": return i_export(sz, f, st, sw)
+    if name == "zoom_in": return i_zoom_in(sz, f, st, sw)
+    if name == "zoom_out": return i_zoom_out(sz, f, st, sw)
+    if name == "selection": return i_selection(sz, f, st, sw)
+    if name == "pencil": return i_pencil(sz, f, st, sw)
+    if name == "crosshair": return i_crosshair(sz, f, st, sw)
+    if name == "grid": return i_grid(sz, f, st, sw)
+    if name == "check": return i_check(sz, f, st, sw)
+    if name == "warning": return i_warning(sz, f, st, sw)
+    if name == "error": return i_error(sz, f, st, sw)
+    if name == "info": return i_info(sz, f, st, sw)
+    if name == "settings": return i_settings(sz, f, st, sw)
+    if name == "search": return i_search(sz, f, st, sw)
+    if name == "menu": return i_menu(sz, f, st, sw)
+    if name == "close": return i_close(sz, f, st, sw)
+    if name == "midi": return i_midi(sz, f, st, sw)
+    if name == "piano": return i_piano(sz, f, st, sw)
+    if name == "note": return i_note(sz, f, st, sw)
+    if name == "reson8_logo": return i_r8logo(sz, f, st, sw)
+    if name == "plugin": return i_plugin(sz, f, st, sw)
+    if name == "theme": return i_theme(sz, f, st, sw)
+    if name == "python": return i_python(sz, f, st, sw)
+    return ""
+
+fn icon_svg(name: String, sz: Int, f: String, st: String, sw: Float, bg: String) -> String:
+    let body = icon_body(name, sz, f, st, sw)
+    if body == "": return ""
+    return _svg_doc(sz, sz, "  " + body + "\n", bg)
+
+// ===== ICON REGISTRY =====
+struct IconDef:
+    name: String
+    category: String
+
+fn icon_all() -> Array<IconDef>:
+    var icons: Array<IconDef> = []
+    push(icons, IconDef{name:"play",category:"transport"})
+    push(icons, IconDef{name:"stop",category:"transport"})
+    push(icons, IconDef{name:"pause",category:"transport"})
+    push(icons, IconDef{name:"record",category:"transport"})
+    push(icons, IconDef{name:"loop",category:"transport"})
+    push(icons, IconDef{name:"skip_forward",category:"transport"})
+    push(icons, IconDef{name:"skip_back",category:"transport"})
+    push(icons, IconDef{name:"volume_high",category:"mixer"})
+    push(icons, IconDef{name:"volume_low",category:"mixer"})
+    push(icons, IconDef{name:"volume_mute",category:"mixer"})
+    push(icons, IconDef{name:"pan",category:"mixer"})
+    push(icons, IconDef{name:"fx",category:"mixer"})
+    push(icons, IconDef{name:"eq",category:"mixer"})
+    push(icons, IconDef{name:"compressor",category:"mixer"})
+    push(icons, IconDef{name:"reverb",category:"mixer"})
+    push(icons, IconDef{name:"cut",category:"edit"})
+    push(icons, IconDef{name:"copy",category:"edit"})
+    push(icons, IconDef{name:"paste",category:"edit"})
+    push(icons, IconDef{name:"undo",category:"edit"})
+    push(icons, IconDef{name:"redo",category:"edit"})
+    push(icons, IconDef{name:"delete",category:"edit"})
+    push(icons, IconDef{name:"trim",category:"edit"})
+    push(icons, IconDef{name:"split",category:"edit"})
+    push(icons, IconDef{name:"folder",category:"navigation"})
+    push(icons, IconDef{name:"file",category:"navigation"})
+    push(icons, IconDef{name:"save",category:"navigation"})
+    push(icons, IconDef{name:"open",category:"navigation"})
+    push(icons, IconDef{name:"new",category:"navigation"})
+    push(icons, IconDef{name:"export",category:"navigation"})
+    push(icons, IconDef{name:"zoom_in",category:"tool"})
+    push(icons, IconDef{name:"zoom_out",category:"tool"})
+    push(icons, IconDef{name:"selection",category:"tool"})
+    push(icons, IconDef{name:"pencil",category:"tool"})
+    push(icons, IconDef{name:"crosshair",category:"tool"})
+    push(icons, IconDef{name:"grid",category:"tool"})
+    push(icons, IconDef{name:"check",category:"status"})
+    push(icons, IconDef{name:"warning",category:"status"})
+    push(icons, IconDef{name:"error",category:"status"})
+    push(icons, IconDef{name:"info",category:"status"})
+    push(icons, IconDef{name:"settings",category:"settings"})
+    push(icons, IconDef{name:"search",category:"settings"})
+    push(icons, IconDef{name:"menu",category:"settings"})
+    push(icons, IconDef{name:"close",category:"settings"})
+    push(icons, IconDef{name:"midi",category:"midi"})
+    push(icons, IconDef{name:"piano",category:"midi"})
+    push(icons, IconDef{name:"note",category:"midi"})
+    push(icons, IconDef{name:"reson8_logo",category:"general"})
+    push(icons, IconDef{name:"plugin",category:"general"})
+    push(icons, IconDef{name:"theme",category:"general"})
+    push(icons, IconDef{name:"python",category:"general"})
+    return icons
+
+fn icon_cats() -> Array<String>:
+    var c: Array<String> = []
+    push(c, "transport"); push(c, "mixer"); push(c, "edit"); push(c, "navigation")
+    push(c, "tool"); push(c, "status"); push(c, "settings"); push(c, "midi"); push(c, "general")
+    return c
+
+// ===== CLI =====
+struct CliCfg:
+    name: String
+    category: String
+    all: Bool
+    sz: Int
+    fcol: String
+    scol: String
+    sw: Float
+    bg: String
+    out: String
+    help: Bool
+    quiet: Bool
+
+fn _dcfg() -> CliCfg:
+    return CliCfg{name:"",category:"",all:false,sz:DEFAULT_SIZE,fcol:DEFAULT_COLOR,scol:DEFAULT_STROKE,sw:DEFAULT_STROKE_WIDTH,bg:"",out:"icons",help:false,quiet:false}
+
+fn _atoi(s: String) -> Int:
+    var r=0; var i=0; var si=1
+    if len(s)>0 and char_at(s,0)=="-": si=-1; i=1
+    while i<len(s):
+        let c=char_at(s,i)
+        if c=="0": r=r*10+0
+        if c=="1": r=r*10+1
+        if c=="2": r=r*10+2
+        if c=="3": r=r*10+3
+        if c=="4": r=r*10+4
+        if c=="5": r=r*10+5
+        if c=="6": r=r*10+6
+        if c=="7": r=r*10+7
+        if c=="8": r=r*10+8
+        if c=="9": r=r*10+9
+        i=i+1
+    return r*si
+
+fn _atof(s: String) -> Float:
+    var ip=0; var fp=0; var fd=1; var si=1.0; var i=0; var inf=false
+    if len(s)>0 and char_at(s,0)=="-": si=-1.0; i=1
+    while i<len(s):
+        let c=char_at(s,i)
+        if c==".": inf=true; i=i+1; continue
+        var d=0
+        if c=="0": d=0
+        if c=="1": d=1
+        if c=="2": d=2
+        if c=="3": d=3
+        if c=="4": d=4
+        if c=="5": d=5
+        if c=="6": d=6
+        if c=="7": d=7
+        if c=="8": d=8
+        if c=="9": d=9
+        if inf: fp=fp*10+d; fd=fd*10 else: ip=ip*10+d
+        i=i+1
+    let r = _itof(ip)
+    if fd>1: let f = _itof(fp)/_itof(fd); if si<0.0: return si*(r+f) else: return r+f
+    return si*r
+
+fn _usage() -> String:
+    var t = "icono-spawno " + VERSION + " -- reson8 procedural icon creator\n\n"
+    t = t + "USAGE: kain run icono-spawno -- [OPTIONS]\n\n"
+    t = t + "  --name <name>       Single icon\n"
+    t = t + "  --category <cat>    Icons by category\n"
+    t = t + "  --all               Full suite (50 icons)\n"
+    t = t + "  --size <N>          Pixel size (default: 256)\n"
+    t = t + "  --color <hex>       Fill color (default: #e94560)\n"
+    t = t + "  --output <dir>      Output directory (default: icons/)\n"
+    t = t + "  --help              This help\n"
+    t = t + "\nCategories: transport mixer edit navigation tool status settings midi general\n"
+    return t
+
+fn _join_cats() -> String:
+    let cats=icon_cats()
+    var s=""; var i=0
+    while i<len(cats): if i>0: s=s+", "; s=s+cats[i]; i=i+1
+    return s
+
+fn _parse(argv: Array<String>) -> CliCfg:
+    var cfg=_dcfg()
+    var i=0
+    while i<len(argv):
+        let a=argv[i]
+        if a=="--help" or a=="-h": cfg.help=true
+        if a=="--all": cfg.all=true
+        if a=="--quiet" or a=="-q": cfg.quiet=true
+        if a=="--name": if i+1<len(argv): cfg.name=argv[i+1]; i=i+1
+        if a=="--category": if i+1<len(argv): cfg.category=argv[i+1]; i=i+1
+        if a=="--size": if i+1<len(argv): cfg.sz=_atoi(argv[i+1]); i=i+1
+        if a=="--color": if i+1<len(argv): cfg.fcol=argv[i+1]; i=i+1
+        if a=="--stroke": if i+1<len(argv): cfg.scol=argv[i+1]; i=i+1
+        if a=="--stroke-width": if i+1<len(argv): cfg.sw=_atof(argv[i+1]); i=i+1
+        if a=="--bg": if i+1<len(argv): cfg.bg=argv[i+1]; i=i+1
+        if a=="--output": if i+1<len(argv): cfg.out=argv[i+1]; i=i+1
+        i=i+1
+    return cfg
+
+fn _collect(cfg: CliCfg) -> Array<String>:
+    var n: Array<String> = []
+    if cfg.name!="": push(n,cfg.name); return n
+    if cfg.all: let a=icon_all(); var j=0; while j<len(a): push(n,a[j].name); j=j+1; return n
+    if cfg.category!="": let a=icon_all(); var j=0; while j<len(a): if a[j].category==cfg.category: push(n,a[j].name); j=j+1; return n
+    return n
+
+fn _iscat(cat: String) -> Bool:
+    let cats=icon_cats(); var i=0
+    while i<len(cats): if cats[i]==cat: return true; i=i+1
+    return false
+
+// ===== MAIN =====
+fn main() -> Int:
+    let argv = process_user_args()
+    if len(argv) == 0: print(_usage()); return EXIT_HELP
+    let cfg = _parse(argv)
+    if cfg.help: print(_usage()); return EXIT_HELP
+    if cfg.name=="" and cfg.category=="" and cfg.all==false: println("Error: Use --name, --category, or --all."); print(_usage()); return EXIT_ERROR
+    if cfg.category!="" and _iscat(cfg.category)==false: println("Error: Unknown category '"+cfg.category+"'."); println("Valid: "+_join_cats()); return EXIT_ERROR
+    if cfg.sz<16 or cfg.sz>4096: println("Error: Size must be 16-4096."); return EXIT_ERROR
+    let names = _collect(cfg)
+    if len(names)==0: println("Error: No icons matched."); return EXIT_ERROR
+    fs_create_dir_all(cfg.out)
+    if cfg.quiet==false: println("\n  icono-spawno "+VERSION+"\n  "+str(len(names))+" icons, "+str(cfg.sz)+"px -> "+cfg.out+"\n")
+    var ok=0; var i=0
+    while i<len(names):
+        let nm=names[i]
+        let svg=icon_svg(nm,cfg.sz,cfg.fcol,cfg.scol,cfg.sw,cfg.bg)
+        if svg=="":
+            if cfg.quiet==false: println("  SKIP  "+nm)
+        else:
+            let fp=os_path_join(cfg.out,nm+".svg")
+            fs_write_text(fp,svg)
+            ok=ok+1
+            if cfg.quiet==false: println("  OK    "+nm+".svg")
+        i=i+1
+    if cfg.quiet==false: println("\n  Generated: "+str(ok)+" icons\n")
+    if ok==0: return EXIT_ERROR
+    return EXIT_OK

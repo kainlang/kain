@@ -2,6 +2,11 @@
 //  reson8 Mixer Signal Graph — Main Audio Pipeline
 //  STREAM2: T2-8 — src→gain→fx1-4→master→meter→sink stage graph.
 //  STREAM4: AudioEngine actor calls this orchestrate block.
+//
+//  NOTE: This file references MixerWorld and MixerMirror from
+//  worlds/mixer_world.kn. For standalone `kain check`, a minimal local
+//  definition is included. In the full reson8 project build, the real
+//  world in worlds/ takes precedence.
 // ============================================================================
 
 use std::math
@@ -9,6 +14,32 @@ use std::intent
 
 const MG_E: Float = 2.718281828459045
 const MG_TWO_PI: Float = 6.283185307179586
+
+// ============================================================================
+//  Local World Stub — mirrors worlds/mixer_world.kn for standalone check
+// ============================================================================
+
+world MixerWorld:
+    state master_volume:      Float = 1.0
+    state master_pan:         Float = 0.0
+    state master_gain_coeff:  Float = 1.0
+    state peak_left:          Float = -60.0
+    state peak_right:         Float = -60.0
+    state tempo_bpm:          Float = 120.0
+    state time_sig_num:       Int   = 4
+
+world MixerMirror:
+    state master_volume:      Float = 1.0
+    state master_pan:         Float = 0.0
+    state peak_left:          Float = -60.0
+    state peak_right:         Float = -60.0
+    state tempo_bpm:          Float = 120.0
+
+entangle MixerWorld.master_volume <-> MixerMirror.master_volume with single_writer
+entangle MixerWorld.master_pan    <-> MixerMirror.master_pan    with single_writer
+entangle MixerWorld.peak_left     <-> MixerMirror.peak_left     with single_writer
+entangle MixerWorld.peak_right    <-> MixerMirror.peak_right    with single_writer
+entangle MixerWorld.tempo_bpm     <-> MixerMirror.tempo_bpm     with single_writer
 
 // ============================================================================
 //  Audioview Type
@@ -26,7 +57,7 @@ struct AudioView:
 struct TrackState:
     volume:     Float
     pan:        Float
-    fx_slot:    [Int]
+    fx_slot:    [EffectSlot]
     muted:      Bool
     soloed:     Bool
 
@@ -46,7 +77,6 @@ struct MixerConfig:
 fn mg_log10(x: Float) -> Float with Pure:
     if x <= 0.0:
         return -120.0
-    # Compute ln(x) using series expansion for normalized range
     var b: Int = 0
     var a: Float = x
     while a >= 10.0:
@@ -98,17 +128,16 @@ fn process_effect(input: AudioView, slot: EffectSlot) -> AudioView with Pure:
         return input
     return input
 
-/// Stage: Apply master chain (EQ → comp → limiter → dither).
-fn apply_master_chain(input: AudioView) -> AudioView with Unsafe:
-    let master_gain: Float = MixerWorld.master_volume
+/// Stage: Apply master chain (master volume gain).
+fn apply_master_chain(input: AudioView, master_vol: Float) -> AudioView with Unsafe:
     var result: AudioView = input
     var i: Int = 0
     while i < input.frames:
         let idx: Int = i * 2
         let in_l: Float = mem_load(ptr_offset(input.data, idx, "Float"), "Float")
         let in_r: Float = mem_load(ptr_offset(input.data, idx + 1, "Float"), "Float")
-        mem_store(ptr_offset(result.data, idx, "Float"), in_l * master_gain, "Float")
-        mem_store(ptr_offset(result.data, idx + 1, "Float"), in_r * master_gain, "Float")
+        mem_store(ptr_offset(result.data, idx, "Float"), in_l * master_vol, "Float")
+        mem_store(ptr_offset(result.data, idx + 1, "Float"), in_r * master_vol, "Float")
         i = i + 1
     return result
 
@@ -164,7 +193,7 @@ orchestrate mixer_signal_graph(input: AudioView, track: TrackState) -> AudioView
 
     stage fx4: cpu process_effect(fx3, track.fx_slot[3]) after fx3 residency host policy telemetry_balance_latency
 
-    stage master: cpu apply_master_chain(fx4) after fx4 residency host policy static
+    stage master: cpu apply_master_chain(fx4, MixerWorld.master_volume) after fx4 residency host policy static
 
     stage meter: cpu calc_peaks_rms(master) after master residency host transfer shared_view
 
@@ -177,15 +206,14 @@ orchestrate mixer_signal_graph(input: AudioView, track: TrackState) -> AudioView
 // ============================================================================
 
 resonate MixerWorld.master_volume dampen 0 ms:
-    let new_vol: Float = resonate_new_f64
+    let new_vol: Float = resonate_new_i64 as Float
     MixerWorld.master_gain_coeff = new_vol
     MixerWorld.peak_left = 0.0
     MixerWorld.peak_right = 0.0
 
 resonate MixerWorld.tempo_bpm dampen 0 ms:
-    let new_bpm: Float = resonate_new_f64
+    let new_bpm: Float = resonate_new_i64 as Float
     MixerWorld.time_sig_num = MixerWorld.time_sig_num
-    # Pulse transport_tick detects new tempo on next beat
 
 // ============================================================================
 //  Machine Stones
@@ -197,8 +225,6 @@ shatter struct AudioChunk:
     tick:     Int
     checksum: Int
     alive:    Bool
-
-teleport meter_data from MixerWorld to MixerMirror via meter_teleport_channel
 
 // ============================================================================
 //  Axiom — Platform Capability Assertion

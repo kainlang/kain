@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <circle cx='256.01' cy='256.01' r='170.67' fill='none' stroke='#ffffff' stroke-width='0.41' />
+  <path d='M 85.34 256.01 L 426.67 256.01' fill='none' stroke='#ffffff' stroke-width='0.31' stroke-linecap='round' stroke-linejoin='round' />
+  <text x='128.01' y='256.01' font-size='85.34' font-family='system-ui, sans-serif' text-anchor='middle' dominant-baseline='central' fill='#e94560'>L</text>
+  <text x='384.01' y='256.01' font-size='85.34' font-family='system-ui, sans-serif' text-anchor='middle' dominant-baseline='central' fill='#e94560'>R</text>
+
+</svg>

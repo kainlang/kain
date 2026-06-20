@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <polygon points='85.34,192.01 170.67,192.01 170.67,320.01 85.34,320.01' fill='#e94560' stroke='#ffffff' stroke-width='0.41' stroke-linejoin='round' />
+  <path d='M 234.67 170.67 Q 320.01 149.34 320.01 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <path d='M 234.67 341.34 Q 320.01 362.67 320.01 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <path d='M 288.01 106.67 Q 405.34 85.34 405.34 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <path d='M 288.01 405.34 Q 405.34 426.67 405.34 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+
+</svg>

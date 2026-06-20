@@ -63,7 +63,9 @@ fn mc_log10(x: Float) -> Float with Pure:
 fn master_eq_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
                     low_shelf_db: Float, high_shelf_db: Float,
                     low_freq: Float, high_freq: Float,
-                    sample_rate: Int) -> Int with Unsafe:
+                    sample_rate: Int, enabled: Bool) -> Int with Unsafe:
+    if enabled == false:
+        return 0
     let low_gain: Float = pow(10.0, low_shelf_db / 20.0)
     let high_gain: Float = pow(10.0, high_shelf_db / 20.0)
     let lp_alpha: Float = pow(MC_E, -MC_TWO_PI * low_freq / (sample_rate as Float))
@@ -100,7 +102,9 @@ fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
                             threshold_db: Float, ratio: Float,
                             attack_ms: Float, release_ms: Float,
                             knee_db: Float, makeup_db: Float,
-                            sample_rate: Int) -> Int with Unsafe:
+                            sample_rate: Int, enabled: Bool) -> Int with Unsafe:
+    if enabled == false:
+        return 0
     let attack_coeff: Float = pow(MC_E, -1.0 / (attack_ms * 0.001 * (sample_rate as Float)))
     let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
     let makeup_lin: Float = pow(10.0, makeup_db / 20.0)
@@ -158,7 +162,9 @@ fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
 
 fn master_limiter_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
                          ceiling_db: Float, release_ms: Float,
-                         sample_rate: Int) -> Int with Unsafe:
+                         sample_rate: Int, enabled: Bool) -> Int with Unsafe:
+    if enabled == false:
+        return 0
     let ceiling: Float = pow(10.0, ceiling_db / 20.0)
     let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
     var envelope: Float = 1.0
@@ -188,7 +194,9 @@ fn master_limiter_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
     return 0
 
 fn master_dither_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
-                        target_bits: Int) -> Int with Unsafe:
+                        target_bits: Int, enabled: Bool) -> Int with Unsafe:
+    if enabled == false:
+        return 0
     let scale: Float = 2.0 / (1 << target_bits) as Float
 
     var i: Int = 0
@@ -208,18 +216,21 @@ fn master_dither_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
     return 0
 
 // ============================================================================
-//  Master Chain — Orchestrate (all clauses inline)
+//  Master Chain — Orchestrate Signal Graph
 // ============================================================================
+//  NOTE: requires clauses accept only law stage names, not raw Bool expressions.
+//  Conditional enable/disable is handled inside each stage function via the
+//  enabled: Bool parameter. This keeps the orchestrate DAG valid while allowing
+//  parameter-driven stage bypass.
 
-orchestrate master_chain_pipeline(input: ptr<Float>, output: ptr<Float>, frames: Int,
-                                   params: MasterChainParams, sample_rate: Int) -> Int:
-    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate) when capability("cpu.scalar") residency host transfer none policy static requires params.eq_enabled fallback input
+orchestrate master_chain_pipeline(input: ptr<Float>, output: ptr<Float>, frames: Int, params: MasterChainParams, sample_rate: Int) -> Int:
+    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled) when capability("cpu.scalar") residency host transfer none policy static
 
-    stage comp_stage: cpu master_compressor_stage(eq_stage, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate) after eq_stage residency host policy telemetry_balance_latency requires params.comp_enabled fallback eq_stage
+    stage comp_stage: cpu master_compressor_stage(output, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate, params.comp_enabled) after eq_stage residency host policy telemetry_balance_latency
 
-    stage limiter_stage: cpu master_limiter_stage(comp_stage, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate) after comp_stage residency host policy static requires params.limiter_enabled fallback comp_stage
+    stage limiter_stage: cpu master_limiter_stage(output, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate, params.limiter_enabled) after comp_stage residency host policy static
 
-    stage dither_stage: cpu master_dither_stage(limiter_stage, output, frames, params.dither_bits) after limiter_stage residency host transfer none policy static requires params.dither_enabled fallback limiter_stage
+    stage dither_stage: cpu master_dither_stage(output, output, frames, params.dither_bits, params.dither_enabled) after limiter_stage residency host transfer none policy static
 
     return 0
 

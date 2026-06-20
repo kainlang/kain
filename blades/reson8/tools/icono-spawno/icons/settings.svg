@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <circle cx='256.01' cy='256.01' r='128.01' fill='none' stroke='#ffffff' stroke-width='0.41' />
+  <circle cx='256.01' cy='256.01' r='53.34' fill='#e94560' />
+  <path d='M 256.01 64.01 L 256.01 106.67 M 256.01 405.34 L 256.01 448.01 M 64.01 256.01 L 106.67 256.01 M 405.34 256.01 L 448.01 256.01' fill='none' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+
+</svg>

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <rect x='85.34' y='170.67' width='53.34' height='256.01' rx='10.67' fill='#e94560' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <rect x='202.67' y='85.34' width='53.34' height='341.34' rx='10.67' fill='#e94560' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <rect x='320.01' y='256.01' width='53.34' height='170.67' rx='10.67' fill='#e94560' stroke='#ffffff' stroke-width='0.41' stroke-linecap='round' stroke-linejoin='round' />
+  <circle cx='112.01' cy='170.67' r='21.34' fill='#ffffff' />
+  <circle cx='229.34' cy='85.34' r='21.34' fill='#ffffff' />
+  <circle cx='346.67' cy='256.01' r='21.34' fill='#ffffff' />
+
+</svg>

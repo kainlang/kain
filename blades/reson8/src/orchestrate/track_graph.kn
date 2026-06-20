@@ -52,7 +52,9 @@ fn apply_track_volume(input: ptr<Float>, output: ptr<Float>, frames: Int,
     return 0
 
 fn apply_track_pan(input: ptr<Float>, output: ptr<Float>, frames: Int,
-                    pan: Float) -> Int with Unsafe:
+                    pan: Float, enabled: Bool) -> Int with Unsafe:
+    if enabled == false:
+        return 0
     let pan_l: Float = sqrt((1.0 - pan) / 2.0)
     let pan_r: Float = sqrt((1.0 + pan) / 2.0)
     var i: Int = 0
@@ -103,28 +105,30 @@ fn apply_phase_invert(input: ptr<Float>, output: ptr<Float>, frames: Int,
     return 0
 
 // ============================================================================
-//  Track Signal Graph — Orchestrate (all clauses inline)
+//  Track Signal Graph — Orchestrate
 // ============================================================================
+//  NOTE: requires clauses accept only law stage names, not raw Bool expressions.
+//  Conditional enable/disable is handled inside the stage function via the
+//  enabled: Bool parameter.
 
-orchestrate track_signal_graph(input: ptr<Float>, output: ptr<Float>, frames: Int,
-                                params: TrackParams, sample_rate: Int) -> Int:
+orchestrate track_signal_graph(input: ptr<Float>, output: ptr<Float>, frames: Int, params: TrackParams, sample_rate: Int) -> Int:
     stage clip: cpu apply_clip_gain(input, output, frames, params.clip_gain_db) when capability("cpu.scalar") residency host transfer none policy static
 
-    stage phase: cpu apply_phase_invert(clip, output, frames, params.phase_invert) after clip residency host policy static
+    stage phase: cpu apply_phase_invert(output, output, frames, params.phase_invert) after clip residency host policy static
 
-    stage gain: cpu apply_track_volume(phase, output, frames, params.track_volume) after phase residency host policy static
+    stage gain: cpu apply_track_volume(output, output, frames, params.track_volume) after phase residency host policy static
 
-    stage pan: cpu apply_track_pan(gain, output, frames, params.track_pan) after gain residency host policy static
+    stage pan: cpu apply_track_pan(output, output, frames, params.track_pan, true) after gain residency host policy static
 
-    stage fx_send_1: cpu apply_fx_send(gain, output, frames, params.fx_send_1_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+    stage fx_send_1: cpu apply_fx_send(output, output, frames, params.fx_send_1_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
 
-    stage fx_send_2: cpu apply_fx_send(gain, output, frames, params.fx_send_2_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+    stage fx_send_2: cpu apply_fx_send(output, output, frames, params.fx_send_2_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
 
-    stage fx_send_3: cpu apply_fx_send(gain, output, frames, params.fx_send_3_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+    stage fx_send_3: cpu apply_fx_send(output, output, frames, params.fx_send_3_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
 
-    stage fx_send_4: cpu apply_fx_send(gain, output, frames, params.fx_send_4_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+    stage fx_send_4: cpu apply_fx_send(output, output, frames, params.fx_send_4_db) deps [gain] residency host transfer shared_view policy telemetry_balance_latency
 
-    stage main_out: cpu apply_track_pan(pan, output, frames, params.track_pan) after pan deps [fx_send_1, fx_send_2, fx_send_3, fx_send_4] residency host transfer none policy static requires params.output_enabled fallback pan
+    stage main_out: cpu apply_track_pan(output, output, frames, params.track_pan, params.output_enabled) deps [pan, fx_send_1, fx_send_2, fx_send_3, fx_send_4] residency host transfer none policy static
 
     return 0
 

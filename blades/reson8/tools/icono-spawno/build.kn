@@ -1,0 +1,28 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("icono-spawno")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("reson8's procedural icon creator — generates SVG icons programmatically")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/icono-spawno.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)
