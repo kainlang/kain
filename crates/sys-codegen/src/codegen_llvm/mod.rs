@@ -4,6 +4,8 @@
 //! by `clang` or `llc`. This approach is chosen for maximum portability and
 //! reliability without requiring local LLVM library linking during the build.
 
+pub(crate) mod component;
+
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
     Attribute, AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
@@ -676,6 +678,14 @@ struct LlvmGenerator {
     value_aggregate_structs: HashSet<String>,
     mmio_structs: HashSet<String>,
     component_defs: HashMap<String, Vec<(String, String)>>,
+    /// Whether the surface trait type has been declared this module
+    surface_trait_declared: bool,
+    /// Current component name during JSX→surface compilation (None outside component)
+    current_component_name: Option<String>,
+    /// Current session_id register name during component render
+    current_component_session: Option<String>,
+    /// Current parent_id register name during component render
+    current_component_parent: Option<String>,
     actor_state_initializers: HashMap<String, HashMap<String, Expr>>,
     actor_message_reply_types: HashMap<(String, String), String>,
     /// Current basic block label (for Phi nodes)
@@ -871,6 +881,10 @@ impl LlvmGenerator {
             value_aggregate_structs: HashSet::new(),
             mmio_structs: HashSet::new(),
             component_defs: HashMap::new(),
+            surface_trait_declared: false,
+            current_component_name: None,
+            current_component_session: None,
+            current_component_parent: None,
             actor_state_initializers: HashMap::new(),
             actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
@@ -13381,11 +13395,13 @@ impl LlvmGenerator {
                             props.push((prop.name.clone(), self.map_type_from_ast(&prop.ty)));
                         }
                     }
-                    props.push(("children".to_string(), "i8*".to_string()));
                     self.component_defs
                         .insert(component.ast.name.clone(), props.clone());
                     self.functions
-                        .insert(component.ast.name.clone(), "i8*".to_string());
+                        .insert(format!("{}_render", component.ast.name), "void".to_string());
+                    // Also register the plain name for symbol resolution
+                    self.functions
+                        .insert(component.ast.name.clone(), "void".to_string());
                 }
                 TypedItem::Actor(a) => {
                     self.record_actor_state_initializers(a);
@@ -14943,82 +14959,7 @@ impl LlvmGenerator {
     }
 
     fn compile_component(&mut self, component: &TypedComponent) -> KainResult<()> {
-        self.reg_count = 0;
-        self.locals.clear();
-        self.ssa_locals.clear();
-        self.authored_pointer_locals.clear();
-        self.helper_owned_pointer_locals.clear();
-        self.shattered_array_locals.clear();
-        self.fixed_array_locals.clear();
-        self.sealed_literal_map_locals.clear();
-        self.borrowed_locals.clear();
-        self.json_handle_locals.clear();
-        self.json_passthrough_locals.clear();
-        self.runtime_any_passthrough_locals.clear();
-        self.string_locals.clear();
-        self.runtime_array_locals.clear();
-        self.string_length_values.clear();
-        self.pooled_string_literal_slots.clear();
-        self.scopes.clear();
-        self.scopes.push(Vec::new());
-        self.const_init_blocks.clear();
-        self.entry_alloca_insert_offset = None;
-        self.entry_preamble_insert_offset = None;
-        self.entry_hoisted_const_inits.clear();
-
-        let name = &component.ast.name;
-        let defs = self.component_defs.get(name).cloned().unwrap_or_else(|| {
-            let mut props = component
-                .ast
-                .props
-                .iter()
-                .map(|prop| {
-                    let ty = component
-                        .prop_types
-                        .get(&prop.name)
-                        .map(|ty| self.map_type(ty))
-                        .unwrap_or_else(|| self.map_type_from_ast(&prop.ty));
-                    (prop.name.clone(), ty)
-                })
-                .collect::<Vec<_>>();
-            props.push(("children".to_string(), "i8*".to_string()));
-            props
-        });
-
-        let param_str = defs
-            .iter()
-            .enumerate()
-            .map(|(i, (_, ty))| format!("{} %arg{}", ty, i))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        self.emit(&format!("define i8* @{}({}) {{", name, param_str));
-        self.emit_label("entry");
-
-        for (i, (param_name, param_ty)) in defs.iter().enumerate() {
-            let addr_reg = format!("%{}.addr", param_name);
-            self.emit_entry_alloca(&addr_reg, param_ty);
-            self.emit(&format!(
-                "  store {} %arg{}, {}* {}",
-                param_ty, i, param_ty, addr_reg
-            ));
-            self.locals
-                .insert(param_name.clone(), (addr_reg, param_ty.clone()));
-            if let Some(scope) = self.scopes.last_mut() {
-                scope.push(param_name.clone());
-            }
-        }
-
-        for method in &component.ast.methods {
-            let _ = method;
-        }
-
-        let (result, _) = self.compile_jsx(&component.ast.body)?;
-        self.emit(&format!("  ret i8* {}", result));
-        self.emit("}");
-        self.emit("");
-        self.current_return_type = None;
-        Ok(())
+        self.compile_component_render(component)
     }
 
     fn compile_impl(&mut self, imp: &kain_core::types::TypedImpl) -> KainResult<()> {
@@ -16208,6 +16149,24 @@ impl LlvmGenerator {
         self.emit("  ret void");
         self.emit("}");
         self.emit("");
+
+        // Emit surface frame loop for each surface declaration (Contract 9)
+        for surface in &world.ast.surfaces {
+            let surface_kind = surface.kind.as_str();
+            let root_component = match &surface.expr {
+                kain_core::ast::Expr::Ident(name, _) => name.clone(),
+                _ => {
+                    // Surface expr should be a component name identifier
+                    continue;
+                }
+            };
+            self.compile_surface_frame_loop(
+                &world.ast.name,
+                surface_kind,
+                &root_component,
+            )?;
+        }
+
         self.current_return_type = None;
         Ok(())
     }
