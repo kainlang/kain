@@ -1,0 +1,75 @@
+// arrangement/audio_clip.kn -- Audio clip on timeline with waveform view, trim handles, fade in/out
+
+use std::math
+use types::Color
+use types::ClipData
+
+component AudioClip(
+ clip_data: ClipData,
+ lane_height: Float,
+):
+ state is_hovered: Bool = false
+ state is_dragging: Bool = false
+ state trim_left_active: Bool = false
+ state trim_right_active: Bool = false
+
+ fn clip_width_px(_self: Self_, zoom_x: Float) -> Float:
+ return Float(_self.clip_data.length_samples) * zoom_x
+
+ fn clip_x_px(_self: Self_, zoom_x: Float) -> Float:
+ return Float(_self.clip_data.start_sample) * zoom_x
+
+ fn clip_bg(_self: Self_) -> Color:
+ if _self.clip_data.is_muted:
+ return ThemeWorld.color_clip_muted
+ if _self.clip_data.is_selected:
+ return ThemeWorld.color_clip_selected
+ if _self.is_hovered:
+ return ThemeWorld.color_accent_hover
+ return _self.clip_data.color
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_clip_header
+
+ fn fade_in_c(_self: Self_) -> Color:
+ return ThemeWorld.color_clip_fade_in
+
+ fn fade_out_c(_self: Self_) -> Color:
+ return ThemeWorld.color_clip_fade_out
+
+ render <box
+ width={clip_width_px(1.0)}
+ height={lane_height}
+ corner_radius={ThemeWorld.radius_sm}
+ background={clip_bg}
+ position="absolute"
+ left={clip_x_px(1.0)}
+ top={1.0}
+ accessible_role="button"
+ accessible_label={"Audio clip: " + _self.clip_data.name}
+ tab_index={0}
+ 
+ 
+ >
+ {/* Clip header with name */}
+ <box width={clip_width_px(1.0)} height={18.0} corner_top_left_radius={ThemeWorld.radius_sm} corner_top_right_radius={ThemeWorld.radius_sm} background={header_bg} padding_horizontal={ThemeWorld.spacing_sm} direction="horizontal" align="center" >
+ <text value={_self.clip_data.name} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_primary} font_weight={ThemeWorld.font_weight_medium} />
+ </box>
+
+ {/* Waveform view */}
+ <WaveformView buffer={AudioView {}} zoom_level={1.0} scroll_offset={_self.clip_data.start_sample} selected={_self.clip_data.is_selected} width_px={clip_width_px(1.0)} height_px={_self.lane_height - 18.0} />
+
+ {/* Fade in handle */}
+ <box width={6.0} height={_self.lane_height - 18.0} background={fade_in_c} position="absolute" left={0.0} top={18.0} />
+ {/* Fade out handle */}
+ if _self.clip_width_px(1.0) > 20.0:
+ <box width={6.0} height={_self.lane_height - 18.0} background={fade_out_c} position="absolute" right={0.0} top={18.0} />
+
+ {/* Trim handles at edges */}
+ {clip_width_px(1.0) > 12.0}
+ {/* Left trim edge */}
+ <box width={4.0} height={lane_height} background={ThemeWorld.color_accent} position="absolute" left={0.0} top={0.0} cursor="col-resize" />
+ {clip_width_px(1.0) > 12.0}
+ {/* Right trim edge */}
+ <box width={4.0} height={lane_height} background={ThemeWorld.color_accent} position="absolute" right={0.0} top={0.0} cursor="col-resize" />
+ </box>

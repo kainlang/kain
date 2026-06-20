@@ -1,0 +1,141 @@
+// ============================================================================
+//  reson8 LFO Pulse — Modulation Clock
+//  STREAM2: T2-9 — LFO tick every 1ms, jitter 0ms, budget(alloc=0).
+//  STREAM4: AudioEngine registers this pulse for effect modulation.
+// ============================================================================
+
+use std::math
+
+// ── Constants ──
+const LFO_PI:       Float = 3.14159265358979323846
+const LFO_TWO_PI:   Float = 6.28318530717958647692
+const LFO_MAX_COUNT: Int  = 64   # Maximum number of LFOs tracked
+
+// ============================================================================
+//  LFO State (per effect slot)
+// ============================================================================
+
+struct LFOState:
+    enabled:       Bool
+    rate_hz:       Float
+    phase:         Float
+    depth:         Float        # 0.0 to 1.0
+    waveform:      Int          # 0=sine, 1=triangle, 2=saw, 3=square, 4=sample_hold
+    output:        Float        # Latest computed value [-1.0, 1.0]
+    sync_to_tempo: Bool
+    tempo_note:    Int          # 0=1/1, 1=1/2, 2=1/4, 3=1/8, 4=1/16, etc.
+
+// ============================================================================
+//  LFO Waveform Generators
+// ============================================================================
+
+/// Sine waveform (0 to 2pi phase).
+fn lfo_sine(phase: Float) -> Float with Pure:
+    return sin(phase)
+
+/// Triangle waveform.
+fn lfo_triangle(phase: Float) -> Float with Pure:
+    let normalized: Float = phase / LFO_TWO_PI  # 0.0 to 1.0
+    if normalized < 0.25:
+        return normalized * 4.0
+    if normalized < 0.75:
+        return 2.0 - normalized * 4.0
+    return normalized * 4.0 - 4.0
+
+/// Sawtooth waveform.
+fn lfo_saw(phase: Float) -> Float with Pure:
+    return (phase / LFO_PI) - 1.0
+
+/// Square waveform.
+fn lfo_square(phase: Float) -> Float with Pure:
+    if phase < LFO_PI:
+        return 1.0
+    return -1.0
+
+/// Sample-and-hold waveform (random at each cycle).
+fn lfo_sample_hold(phase: Float, prev_phase: Float) -> Float with Pure:
+    # Detect phase wraparound (new cycle started)
+    if phase < prev_phase:
+        # Generate new random value in [-1, 1]
+        let hash: Float = ((phase * 127.1 + 311.7) as Int % 10000) as Float / 5000.0 - 1.0
+        return hash
+    return 0.0  # Caller must track last_value
+
+// ============================================================================
+//  LFO Array State
+// ============================================================================
+
+struct LFOArray:
+    lfos:       [LFOState]
+    count:      Int
+    sample_rate: Int
+
+/// Compute the phase increment for one lfo tick (1ms).
+fn compute_lfo_phase_inc(rate_hz: Float, lfo_tick_hz: Float) -> Float with Pure:
+    return LFO_TWO_PI * rate_hz / lfo_tick_hz
+
+// ============================================================================
+//  LFO Pulse — 1ms Modulation Tick
+// ============================================================================
+
+/// High-frequency modulation clock. Fires every 1ms for smooth LFO updates.
+///
+/// Budget: alloc=0 — no allocation in audio thread.
+///         lock=0  — no mutex.
+///         io=0    — no syscalls.
+///
+/// At 48kHz, this gives ~48 samples per LFO update — sufficient for smooth
+/// parameter modulation without per-sample overhead.
+pulse lfo_tick every 1 ms jitter 0 ms budget(alloc=0, lock=0, io=0):
+    advance_all_lfo_phases()
+
+// ============================================================================
+//  LFO Phase Advancement
+// ============================================================================
+
+/// Advance all active LFO phases by one tick.
+/// LFOs that are synced to tempo read MixerWorld.tempo_bpm for rate computation.
+fn advance_all_lfo_phases() -> Int with Pure:
+    # STUB: Full LFO registry managed by AudioEngine actor (STREAM4).
+    # AudioEngine maintains a [LFOState] array and advances phases here.
+    #
+    # For each active LFO:
+    #   if lfo.sync_to_tempo:
+    #       rate = tempo_to_rate(lfo.tempo_note, MixerWorld.tempo_bpm)
+    #   else:
+    #       rate = lfo.rate_hz
+    #   inc = compute_lfo_phase_inc(rate, 1000.0)  # 1000 Hz = 1ms tick
+    #   lfo.phase = (lfo.phase + inc) % LFO_TWO_PI
+    #   lfo.output = eval_waveform(lfo.waveform, lfo.phase) * lfo.depth
+    return 0
+
+/// Evaluate an LFO waveform and return value in [-1.0, 1.0].
+fn eval_lfo_waveform(waveform: Int, phase: Float) -> Float with Pure:
+    if waveform == 0:
+        return lfo_sine(phase)
+    if waveform == 1:
+        return lfo_triangle(phase)
+    if waveform == 2:
+        return lfo_saw(phase)
+    if waveform == 3:
+        return lfo_square(phase)
+    if waveform == 4:
+        # Sample-and-hold: caller tracks last value and phase wraparound
+        return lfo_saw(phase)  # Fallback
+    return lfo_sine(phase)
+
+/// Convert a tempo-synced note division to Hz.
+/// tempo_note: 0=whole, 1=half, 2=quarter, 3=eighth, 4=sixteenth
+fn tempo_to_lfo_rate(tempo_note: Int, bpm: Float) -> Float with Pure:
+    let beats_per_second: Float = bpm / 60.0
+    if tempo_note == 0:
+        return beats_per_second / 4.0      # Whole note (4 beats)
+    if tempo_note == 1:
+        return beats_per_second / 2.0      # Half note
+    if tempo_note == 2:
+        return beats_per_second            # Quarter note
+    if tempo_note == 3:
+        return beats_per_second * 2.0      # Eighth note
+    if tempo_note == 4:
+        return beats_per_second * 4.0      # Sixteenth note
+    return beats_per_second                # Default: quarter

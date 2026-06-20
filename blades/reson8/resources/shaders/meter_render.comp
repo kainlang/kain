@@ -1,0 +1,91 @@
+// resources/shaders/meter_render.glsl
+// Compute shader: VU meter bar rendering with color zones
+// Renders peak/RMS bars with peak hold and clipping indicator
+// Layer: L6 Machine — GPU compute
+#version 450
+
+layout(local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 1, std430) writeonly buffer DstBuf {
+    uint8_t dst[];
+};
+
+layout(push_constant) uniform PushConstants {
+    float peakDb;
+    float rmsDb;
+    uint isClipping;
+    uint meterWidth;
+    uint meterHeight;
+    vec4 colorLow;      // -60 to -18 dB
+    vec4 colorMid;      // -18 to -6 dB
+    vec4 colorHigh;     // -6 to 0 dB
+    vec4 colorOver;     // > 0 dB
+    vec4 colorBg;       // Background
+    vec4 colorPeakHold; // Peak hold line
+} pc;
+
+float heightPct(float db) {
+    if (db < -60.0) return 0.0;
+    return clamp((db + 60.0) / 60.0, 0.0, 1.0);
+}
+
+vec4 meterColor(float db) {
+    if (db > -6.0) return pc.colorHigh;
+    if (db > -18.0) return pc.colorMid;
+    return pc.colorLow;
+}
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    if (x >= 3) return; // 3 vertical strips: RMS, peak line, clip
+
+    // Initialize to background
+    for (uint y = 0; y < pc.meterHeight; y++) {
+        uint pixelIdx = (y * pc.meterWidth + x) * 4;
+        dst[pixelIdx + 0] = uint8_t(pc.colorBg.r * 255.0);
+        dst[pixelIdx + 1] = uint8_t(pc.colorBg.g * 255.0);
+        dst[pixelIdx + 2] = uint8_t(pc.colorBg.b * 255.0);
+        dst[pixelIdx + 3] = uint8_t(pc.colorBg.a * 255.0);
+    }
+
+    // RMS bar (x=1, main fill)
+    if (x == 1) {
+        float rmsH = heightPct(pc.rmsDb);
+        uint yFilled = uint(rmsH * float(pc.meterHeight));
+        for (uint y = 0; y < yFilled && y < pc.meterHeight; y++) {
+            // Map y position to dB value for color zone
+            float yDb = -60.0 + (float(pc.meterHeight - 1 - y) / float(pc.meterHeight - 1)) * 60.0;
+            vec4 col = meterColor(yDb);
+
+            uint pixelIdx = ((pc.meterHeight - 1 - y) * pc.meterWidth + x) * 4;
+            dst[pixelIdx + 0] = uint8_t(col.r * 255.0);
+            dst[pixelIdx + 1] = uint8_t(col.g * 255.0);
+            dst[pixelIdx + 2] = uint8_t(col.b * 255.0);
+            dst[pixelIdx + 3] = uint8_t(col.a * 255.0);
+        }
+    }
+
+    // Peak hold line (x=2, thin horizontal line)
+    if (x == 2) {
+        float peakH = heightPct(pc.peakDb);
+        uint yPeak = uint(peakH * float(pc.meterHeight - 1));
+        if (yPeak < pc.meterHeight) {
+            uint pixelIdx = ((pc.meterHeight - 1 - yPeak) * pc.meterWidth + x) * 4;
+            dst[pixelIdx + 0] = uint8_t(pc.colorPeakHold.r * 255.0);
+            dst[pixelIdx + 1] = uint8_t(pc.colorPeakHold.g * 255.0);
+            dst[pixelIdx + 2] = uint8_t(pc.colorPeakHold.b * 255.0);
+            dst[pixelIdx + 3] = uint8_t(pc.colorPeakHold.a * 255.0);
+        }
+    }
+
+    // Clipping indicator (top of meter)
+    if (pc.isClipping != 0 && x == 0) {
+        for (uint y = 0; y < 4 && y < pc.meterHeight; y++) {
+            uint pixelIdx = (y * pc.meterWidth + x) * 4;
+            dst[pixelIdx + 0] = uint8_t(pc.colorOver.r * 255.0);
+            dst[pixelIdx + 1] = uint8_t(pc.colorOver.g * 255.0);
+            dst[pixelIdx + 2] = uint8_t(pc.colorOver.b * 255.0);
+            dst[pixelIdx + 3] = uint8_t(pc.colorOver.a * 255.0);
+        }
+    }
+}

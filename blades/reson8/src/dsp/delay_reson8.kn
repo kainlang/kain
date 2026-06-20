@@ -1,0 +1,240 @@
+// ============================================================================
+//  reson8 Delay — Multi-Tap Delay with Modulation and Filtering
+//  STREAM2: T2-4 — Tap, ping-pong, modulated, filtered feedback delay.
+//  STREAM4: PluginHost loads this as Kain-native delay.
+// ============================================================================
+
+use std::math
+
+// ── Constants ──
+const DELAY_PI:            Float = 3.14159265358979323846
+const DELAY_MAX_TIME_MS:   Float = 2000.0
+const DELAY_MAX_BUFFER:    Int   = 192000   # 4 seconds at 48kHz
+const DELAY_E:             Float = 2.718281828459045
+
+// ============================================================================
+//  Delay Parameter & State Structures
+// ============================================================================
+
+pub struct DelayParams:
+    time_ms_left:        Float    # 0.0 to 2000.0
+    time_ms_right:       Float    # 0.0 to 2000.0 (independent for ping-pong)
+    feedback:            Float    # 0.0 to 0.99
+    wet_dry:             Float    # 0.0 to 1.0
+    modulation_depth_ms: Float    # 0.0 to 20.0
+    modulation_rate_hz:  Float    # 0.1 to 20.0
+    lowpass_hz:          Float    # 200.0 to 20000.0 (0.0 = off)
+    highpass_hz:         Float    # 20.0 to 2000.0 (0.0 = off)
+    ping_pong:           Bool
+    stereo_spread:       Float    # 0.0 to 1.0
+
+pub struct DelayState:
+    params:           DelayParams
+    buffer:           ptr<Float>    # Ring buffer (mono or interleaved stereo)
+    buffer_len:       Int
+    write_pos:        Int
+    # Modulation state
+    mod_phase:        Float
+    mod_phase_inc:    Float
+    # Feedback filter state
+    lp_filter_state_l:  Float
+    lp_filter_state_r:  Float
+    hp_filter_state_l:  Float
+    hp_filter_state_r:  Float
+    # Ping-pong routing
+    feedback_l:       Float
+    feedback_r:       Float
+    sample_rate:      Int
+    initialized:      Bool
+
+// ============================================================================
+//  Ring Buffer Operations
+// ============================================================================
+
+/// Read from ring buffer at a fractional delay (linear interpolation).
+fn ring_read_frac(buffer: ptr<Float>, buf_len: Int, write_pos: Int,
+                   delay_samples: Float) -> Float with Unsafe:
+    let delay_int: Int = delay_samples as Int
+    let frac: Float = delay_samples - (delay_int as Float)
+
+    let pos_a: Int = write_pos - delay_int - 1
+    if pos_a < 0:
+        pos_a = pos_a + buf_len
+    let pos_b: Int = write_pos - delay_int
+    if pos_b < 0:
+        pos_b = pos_b + buf_len
+
+    let a: Float = mem_load(ptr_offset(buffer, pos_a, "Float"), "Float")
+    let b: Float = mem_load(ptr_offset(buffer, pos_b, "Float"), "Float")
+    return a + (b - a) * frac
+
+/// Write sample to ring buffer and advance write position.
+fn ring_write(buffer: ptr<Float>, buf_len: Int, write_pos: Int, sample: Float) -> Int with Unsafe:
+    mem_store(ptr_offset(buffer, write_pos, "Float"), sample, "Float")
+    return 0
+
+// ============================================================================
+//  Feedback Filter Processing
+// ============================================================================
+
+/// Apply a simple 1-pole lowpass filter to the feedback path.
+fn feedback_lowpass(input: Float, state: Float, cutoff_norm: Float) -> Float with Pure:
+    if cutoff_norm >= 0.999:
+        return input  # Bypass
+    let alpha: Float = 1.0 - cutoff_norm
+    let output: Float = alpha * input + (1.0 - alpha) * state
+    return output
+
+/// Apply a simple 1-pole highpass filter to the feedback path.
+fn feedback_highpass(input: Float, state: Float, cutoff_norm: Float) -> Float with Pure:
+    if cutoff_norm <= 0.000001:
+        return 0.0  # DC only
+    let alpha: Float = 1.0 - cutoff_norm
+    let output: Float = alpha * (input - state) + alpha * state
+    return output
+
+// ============================================================================
+//  Modulation (Tape-Style Wow/Flutter)
+// ============================================================================
+
+/// Compute modulated delay time in samples with LFO-driven variation.
+fn modulated_delay_time(base_samples: Float, depth_samples: Float,
+                         phase: Float) -> Float with Pure:
+    # Sinusoidal modulation: delay = base + depth * sin(phase)
+    let mod_val: Float = sin(phase) * depth_samples
+    let result: Float = base_samples + mod_val
+    if result < 0.0:
+        return 0.0
+    return result
+
+// ============================================================================
+//  Delay Initialization
+// ============================================================================
+
+/// Initialize the delay line buffer and state.
+fn delay_init(state: ptr<DelayState>, sample_rate: Int) -> Int:
+    state.buffer_len = DELAY_MAX_BUFFER
+    state.write_pos = 0
+    state.mod_phase = 0.0
+    state.lp_filter_state_l = 0.0
+    state.lp_filter_state_r = 0.0
+    state.hp_filter_state_l = 0.0
+    state.hp_filter_state_r = 0.0
+    state.feedback_l = 0.0
+    state.feedback_r = 0.0
+    state.sample_rate = sample_rate
+    state.initialized = true
+    return 0
+
+/// Update modulation phase increment from params.
+fn delay_update_params(state: ptr<DelayState>, params: DelayParams, sample_rate: Int) -> Int with Pure:
+    state.params = params
+    state.mod_phase_inc = DELAY_PI * 2.0 * params.modulation_rate_hz / (sample_rate as Float)
+    state.sample_rate = sample_rate
+    return 0
+
+// ============================================================================
+//  Core Delay Processing
+// ============================================================================
+
+/// Process a mono input to stereo output with ping-pong and modulation.
+pub fn delay_process(state: ptr<DelayState>, params: DelayParams,
+                      input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    let _ = delay_update_params(state, params, state.sample_rate)
+
+    let sr_f: Float = state.sample_rate as Float
+    let delay_l_samples: Float = params.time_ms_left * 0.001 * sr_f
+    let delay_r_samples: Float = params.time_ms_right * 0.001 * sr_f
+    let depth_samples: Float = params.modulation_depth_ms * 0.001 * sr_f
+    let fb: Float = params.feedback
+    let wet: Float = params.wet_dry
+    let dry: Float = 1.0 - wet
+
+    # Normalize filter cutoff frequencies
+    let lp_cutoff: Float = 0.999
+    if params.lowpass_hz > 0.0:
+        lp_cutoff = pow(DELAY_E, -DELAY_PI * 2.0 * params.lowpass_hz / sr_f)
+    let hp_cutoff: Float = 0.000001
+    if params.highpass_hz > 0.0:
+        hp_cutoff = pow(DELAY_E, -DELAY_PI * 2.0 * params.highpass_hz / sr_f)
+
+    var buf_len: Int = state.buffer_len
+    var wpos: Int = state.write_pos
+    var mod_phase: Float = state.mod_phase
+    var mod_inc: Float = state.mod_phase_inc
+
+    var i: Int = 0
+    while i < frames:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+
+        # Advance modulation phase
+        mod_phase = mod_phase + mod_inc
+        if mod_phase > DELAY_PI * 2.0:
+            mod_phase = mod_phase - DELAY_PI * 2.0
+
+        # Compute modulated delay times
+        let mod_l: Float = modulated_delay_time(delay_l_samples, depth_samples, mod_phase)
+        var mod_r: Float = delay_r_samples
+        if params.ping_pong:
+            mod_r = modulated_delay_time(delay_r_samples, depth_samples, mod_phase + DELAY_PI)
+
+        # Clamp to valid range
+        var clamped_l: Float = mod_l
+        if clamped_l < 0.0:
+            clamped_l = 0.0
+        if clamped_l > (buf_len as Float):
+            clamped_l = (buf_len - 1) as Float
+        var clamped_r: Float = mod_r
+        if clamped_r < 0.0:
+            clamped_r = 0.0
+        if clamped_r > (buf_len as Float):
+            clamped_r = (buf_len - 1) as Float
+
+        # Read delayed samples with interpolation
+        let delayed_l: Float = ring_read_frac(state.buffer, buf_len, wpos, clamped_l)
+        var delayed_r: Float = delayed_l
+        if params.ping_pong:
+            delayed_r = ring_read_frac(state.buffer, buf_len, wpos, clamped_r)
+
+        # Apply feedback filtering
+        let fb_l: Float = feedback_lowpass(delayed_l, state.lp_filter_state_l, lp_cutoff)
+        state.lp_filter_state_l = fb_l
+        let fb_l_hp: Float = feedback_highpass(fb_l, state.hp_filter_state_l, hp_cutoff)
+        state.hp_filter_state_l = fb_l_hp
+
+        let fb_r: Float = feedback_lowpass(delayed_r, state.lp_filter_state_r, lp_cutoff)
+        state.lp_filter_state_r = fb_r
+        let fb_r_hp: Float = feedback_highpass(fb_r, state.hp_filter_state_r, hp_cutoff)
+        state.hp_filter_state_r = fb_r_hp
+
+        # Compute feedback input (ping-pong cross-routes L->R, R->L)
+        var feed_l: Float = inp + fb_r_hp * fb
+        var feed_r: Float = inp + fb_l_hp * fb
+        if params.ping_pong == false:
+            feed_l = inp + fb_l_hp * fb
+            feed_r = inp + fb_r_hp * fb
+
+        # Write to ring buffer (interleaved stereo)
+        let write_idx_l: Int = wpos * 2
+        let write_idx_r: Int = wpos * 2 + 1
+        mem_store(ptr_offset(state.buffer, write_idx_l, "Float"), feed_l, "Float")
+        mem_store(ptr_offset(state.buffer, write_idx_r, "Float"), feed_r, "Float")
+
+        # Advance write position
+        wpos = wpos + 1
+        if wpos >= buf_len:
+            wpos = 0
+
+        # Mix wet/dry into interleaved output
+        let out_idx: Int = i * 2
+        mem_store(ptr_offset(output, out_idx, "Float"), inp * dry + fb_l_hp * wet, "Float")
+        mem_store(ptr_offset(output, out_idx + 1, "Float"), inp * dry + fb_r_hp * wet, "Float")
+
+        i = i + 1
+
+    # Write back mutable state
+    state.write_pos = wpos
+    state.mod_phase = mod_phase
+    return 0
+
+// STREAM4: PluginHost loads as Kain-native delay

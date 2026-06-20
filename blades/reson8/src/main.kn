@@ -1,0 +1,171 @@
+use std::runtime
+use std::intent
+use std::actor
+
+// ============================================================================
+//  main.kn — reson8 DAW entry point
+//  Owned by STREAM1 (skeleton). Wired by STREAM4 (actors, full integration).
+// ============================================================================
+
+// ── Theme application helper ──
+fn theme_load(name: String) -> Int with Pure:
+    if name == "reson8-dark":
+        ThemeWorld.active_theme_name = "reson8-dark"
+        return 0
+    if name == "reson8-light":
+        ThemeWorld.active_theme_name = "reson8-light"
+        return 0
+    if name == "reson8-oled":
+        ThemeWorld.active_theme_name = "reson8-oled"
+        return 0
+    if name == "slate-emulation":
+        ThemeWorld.active_theme_name = "slate-emulation"
+        return 0
+    if name == "reaper-classic":
+        ThemeWorld.active_theme_name = "reaper-classic"
+        return 0
+    return -1
+
+// ── Plugin scanner kickoff ──
+fn plugin_scanner_start() -> Int with Pure:
+    # STREAM4: FileScanner actor scans PluginRegistry.scan_paths
+    # and populates PluginRegistry.installed_* arrays.
+    # For now, mark the world as needing scan.
+    PluginRegistry.scan_complete = false
+    return 0
+
+// ── Audio engine initialization ──
+fn audio_engine_init() -> Int with Pure:
+    # STREAM4: Spawns AudioEngine actor, opens WASAPI device.
+    # Sets MixerWorld.sample_rate and buffer_size_frames.
+    MixerWorld.sample_rate = 48000
+    MixerWorld.buffer_size_frames = 256
+    return 0
+
+// ── MIDI input initialization ──
+fn midi_input_init() -> Int with Pure:
+    # STREAM4: Spawns MIDIInput actor, opens default MIDI device.
+    MixerWorld.active_midi_input = "Default"
+    return 0
+
+// ── Python bridge initialization ──
+fn python_bridge_init() -> Int with Pure:
+    # STREAM4: Spawns PythonBridge actor, initializes Python runtime region.
+    return 0
+
+// ── UI window creation ──
+fn ui_create_window(title: String, width: Int, height: Int) -> Int with Pure:
+    # STREAM3: Creates the native window via vulkan bridge.
+    # The window handle is tracked by UIMain actor.
+    let _ = title + (width as Float) + (height as Float)
+    return 0
+
+// ── UI event loop ──
+fn ui_run_event_loop() -> Int with Pure:
+    # STREAM3: Main render loop — pumps UI events, renders frames.
+    # In a real build, this blocks until the window closes.
+    # For check-only (kain check), this is a pure no-op stub.
+    return 0
+
+// ============================================================================
+//  MAIN — reson8 DAW lifecycle
+// ============================================================================
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    # ── Worlds auto-init with defaults ──
+
+    # ── STREAM3: Load theme ──
+    let theme_ok = theme_load("reson8-dark")
+    if theme_ok != 0:
+        return 300 + theme_ok
+
+    # ── STREAM4: Initialize subsystems ──
+    let scan_ok = plugin_scanner_start()
+    let ae_ok = audio_engine_init()
+    let midi_ok = midi_input_init()
+    let py_ok = python_bridge_init()
+    let _ = scan_ok + ae_ok + midi_ok + py_ok
+
+    # ── STREAM4: Spawn actors ──
+    # Actor spawns are compile-time registered; the runtime creates instances.
+    # Each actor file defines its own message contract and state.
+    let _ae = spawn AudioEngine()
+    let _ph = spawn PluginHost()
+    let _mi = spawn MIDIInput()
+    let _fs = spawn FileScanner()
+    let _pb = spawn PythonBridge()
+    let _ee = spawn ExportEngine()
+    let _ui = spawn UIMain()
+
+    # ── STREAM2+STREAM4: Pulses (declared in src/pulse/, compile-time registered) ──
+    # transport_tick  — 5ms audio heartbeat (src/pulse/transport_pulse.kn)
+    # lfo_tick        — 1ms modulation clock (src/pulse/lfo_pulse.kn)
+    # meter_ui_tick   — 50ms meter display update (src/pulse/ui_pulse.kn)
+    # These pulses fire automatically at their declared intervals.
+    # No runtime registration needed — the pulse declarations ARE the registration.
+
+    # ── STREAM3: Create UI window ──
+    let ui_ok = ui_create_window("reson8 — Untitled Project", 1920, 1080)
+    if ui_ok != 0:
+        return 400 + ui_ok
+
+    # ── STREAM3: Run event loop (blocks until window closes) ──
+    ui_run_event_loop()
+
+    # ── Shutdown ──
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0
+
+// ============================================================================
+//  main_test — Smoke test for basic world access without actors/UI
+// ============================================================================
+
+fn main_test() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    # Basic world read test — verify defaults are accessible
+    let vol = MixerWorld.master_volume
+    if vol < 0.0 or vol > 1.0:
+        return -1
+
+    let transport = MixerWorld.transport_state
+    if transport < 0 or transport > 3:
+        return -2
+
+    let bpm = MixerWorld.tempo_bpm
+    if bpm < 20.0 or bpm > 400.0:
+        return -3
+
+    let sr = MixerWorld.sample_rate
+    if sr != 48000 and sr != 44100:
+        return -4
+
+    # Theme world default check
+    let accent = ThemeWorld.color_accent
+    if color_rgba_alpha(accent) < 0.9:
+        return -5
+
+    # Project world default check
+    if ProjectWorld.is_new == false:
+        return -6
+
+    # Verify new settings fields exist
+    if MixerWorld.max_polyphony < 1:
+        return -7
+    if ProjectWorld.default_tempo_bpm < 20.0:
+        return -8
+    if PluginWorld.max_crash_recovery < 0:
+        return -9
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

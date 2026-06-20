@@ -1,0 +1,23 @@
+// shared/text_field.kn — Text input with placeholder
+use std::math
+use types::Color
+
+component TextField(value: String, placeholder: String, label: String, password: Bool, on_change: fn(String) -> Int, on_submit: fn(String) -> Int):
+    state is_focused: Bool = false
+
+    fn display_text(_self: Self_) -> String:
+        if _self.value == "":
+            return _self.placeholder
+        return _self.value
+
+    fn text_color(_self: Self_) -> Color:
+        if _self.value == "":
+            return ThemeWorld.color_text_muted
+        return ThemeWorld.color_text_primary
+
+    render <box accessible_role="textbox" accessible_label={label} tab_index={0} direction="vertical" gap={ThemeWorld.spacing_xs}>
+        <text value={label} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary}/>
+        <box direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm} corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_surface} border_width={1.0} border_color={ThemeWorld.color_border_default} min_height={28.0}>
+            <text value={display_text()} font_size={ThemeWorld.font_size_base} color={text_color()} flex_grow={1.0}/>
+        </box>
+    </box>

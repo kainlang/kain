@@ -1,0 +1,38 @@
+// arrangement/track_lane.kn -- One horizontal lane for a track's content
+
+use std::math
+use types::Color
+use types::ClipData
+
+component TrackLane(
+ track_index: Int,
+ track_name: String,
+ width: Float,
+ height: Float,
+ even: Bool,
+ clips: [ClipData],
+):
+ fn bg(_self: Self_) -> Color:
+ if _self.even:
+ return ThemeWorld.color_bg_primary
+ return ThemeWorld.color_bg_secondary
+
+ fn border_c(_self: Self_) -> Color:
+ return ThemeWorld.color_border_subtle
+
+ render <box
+ width={width}
+ height={height}
+ background={bg}
+ border_bottom_width={1.0}
+ border_bottom_color={border_c}
+ position="relative"
+ accessible_role="group"
+ accessible_label={"Track: " + _self.track_name}
+ >
+ {/* Render clips on this track */}
+ for idx in 0..len(_self.clips):
+ let clip = _self.clips[idx]
+ if clip.track_id == _self.track_index:
+ <AudioClip clip_data={clip} lane_height={_self.height - 2.0} />
+ </box>

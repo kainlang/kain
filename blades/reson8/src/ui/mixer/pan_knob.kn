@@ -1,0 +1,40 @@
+// mixer/pan_knob.kn -- Stereo pan rotary control (-100L to +100R) with center detent
+
+use std::math
+use types::Color
+
+component PanKnob(
+ value: Float, // -100 = full left, 0 = center, 100 = full right
+ on_change: fn(Float) -> Int,
+):
+ state is_dragging: Bool = false
+ state is_hovered: Bool = false
+
+ fn display_text(_self: Self_) -> String:
+ let abs_val = abs(_self.value)
+ if _self.value < -1.0:
+ return "L" + str(abs_val)
+ if _self.value > 1.0:
+ return "R" + str(abs_val)
+ return "C"
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_secondary
+
+ fn handle_dbl_click(_self: Self_) -> Int:
+ _self.on_change(0.0) // Reset to center
+ return 0
+
+ render <box
+ accessible_role="slider"
+ accessible_label="Pan"
+ accessible_value={display_text}
+ tab_index={0}
+ direction="vertical"
+ align="center"
+ on_dbl_click={handle_dbl_click}
+ >
+ {/* Small knob for pan */}
+ <Knob label="Pan" value={value} min={-100.0} max={100.0} default={0.0} unit="" on_change={on_change} />
+ <text value={display_text} font_size={ThemeWorld.font_size_xs} color={text_c} />
+ </box>

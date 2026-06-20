@@ -1,0 +1,36 @@
+use std::build
+
+const SOURCE_ROOTS = [
+    "src",
+]
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let project_spec = project("reson8")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("The world's first Kain-native DAW")
+        .entry("src/main.kn")
+        .source_roots(SOURCE_ROOTS)
+        .module_roots(SOURCE_ROOTS)
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+
+    let sources = source_set("reson8-sources")
+        .root("src")
+        .glob("src/**/*.kn")
+        .file("KAIN.toml")
+
+    let check = check_task("check-llvm")
+        .project(project_spec)
+        .target("llvm")
+        .inputs(sources)
+
+    let exe = native_executable("root-executable")
+        .project(project_spec)
+        .output("$blade/reson8.exe")
+        .requires("check-llvm")
+
+    return build_graph(project_spec)
+        .sources(sources)
+        .tasks(check, exe)

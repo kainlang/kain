@@ -1,0 +1,13 @@
+// shared/status_bar.kn — Bottom status bar
+use std::math
+use types::Color
+
+component StatusBar():
+    fn sample_info() -> String:
+        return str(MixerWorld.sample_rate) + " Hz / " + str(MixerWorld.buffer_size_frames) + " smp"
+
+    render <box height={22.0} background={ThemeWorld.color_bg_secondary} direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} border_top_width={1.0} border_top_color={ThemeWorld.color_border_subtle} gap={ThemeWorld.spacing_xl} accessible_role="status" accessible_label="Status bar">
+        <text value={ProjectWorld.project_name + " - reson8"} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary}/>
+        <box flex_grow={1.0}/>
+        <text value={sample_info()} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted}/>
+    </box>

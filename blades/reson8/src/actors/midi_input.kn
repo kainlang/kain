@@ -1,0 +1,65 @@
+// ============================================================================
+//  MIDIInput Actor — MIDI device input router
+//  STREAM4: T4-3 — Device enumeration, event routing to tracks.
+// ============================================================================
+
+use std::actor
+
+// ── MIDI event struct ──
+pub struct MidiEvent:
+    status:    Int
+    channel:   Int
+    data1:     Int
+    data2:     Int
+    timestamp: Int
+
+// ── MIDI device info ──
+pub struct MidiDeviceInfo:
+    name:      String
+    device_id: Int
+    is_input:  Bool
+    is_output: Bool
+
+// ── MIDI status reply struct ──
+pub struct MidiStatus:
+    active_device:  Int
+    is_open:        Bool
+    listen_channel: Int
+
+// ============================================================================
+//  MIDIInput ACTOR
+// ============================================================================
+
+actor MIDIInput:
+    state devices:        [MidiDeviceInfo] = []
+    state active_device:  Int = -1
+    state listen_channel: Int = -1
+    state is_open:        Bool = false
+
+    on EnumerateDevices(reply_to: P):
+        send reply_to.Reply(value = 0)
+
+    on OpenDevice(reply_to: P, device_id: Int):
+        self.active_device = device_id
+        self.is_open = true
+        send reply_to.Reply(value = device_id)
+
+    on CloseDevice(reply_to: P):
+        self.active_device = -1
+        self.is_open = false
+        send reply_to.Reply(value = 0)
+
+    on SetChannel(reply_to: P, channel: Int):
+        self.listen_channel = channel
+        send reply_to.Reply(value = 0)
+
+    on MidiEvent(reply_to: P, event: MidiEvent):
+        send reply_to.Reply(value = 0)
+
+    on GetStatus(reply_to: P):
+        let status = MidiStatus {
+            active_device: self.active_device,
+            is_open: self.is_open,
+            listen_channel: self.listen_channel,
+        }
+        send reply_to.Reply(value = status)

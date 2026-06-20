@@ -1,0 +1,74 @@
+// resources/shaders/waveform_render.glsl
+// Compute shader: GPU-accelerated audio waveform peak rendering
+// Processes thousands of samples per workgroup, outputs RGBA8 pixels
+// Layer: L6 Machine — GPU compute
+#version 450
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0, std430) readonly buffer SrcBuf {
+    float src[];
+};
+
+layout(binding = 1, std430) writeonly buffer DstBuf {
+    uint8_t dst[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint numSamples;
+    uint numChannels;
+    uint channel;
+    uint viewportWidth;
+    uint viewportHeight;
+    float zoomSamplesPerPixel;
+    uint scrollOffsetSamples;
+    vec4 waveformColor;
+    vec4 centerLineColor;
+} pc;
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    if (x >= pc.viewportWidth) return;
+
+    // Map pixel column x to sample range
+    uint sampleStart = pc.scrollOffsetSamples + uint(float(x) * pc.zoomSamplesPerPixel);
+    uint sampleEnd = sampleStart + uint(pc.zoomSamplesPerPixel);
+
+    // Find min/max in range (peak envelope)
+    float minVal = 0.0;
+    float maxVal = 0.0;
+
+    for (uint i = sampleStart; i < sampleEnd && i < pc.numSamples; i++) {
+        uint idx = (i * pc.numChannels) + pc.channel;
+        float val = src[idx];
+        if (val < minVal) minVal = val;
+        if (val > maxVal) maxVal = val;
+    }
+
+    // Map [-1, 1] to pixel Y (half_h to 0 and half_h to viewportHeight)
+    float halfH = float(pc.viewportHeight) * 0.5;
+    uint yMin = uint(halfH + minVal * halfH);
+    uint yMax = uint(halfH + maxVal * halfH);
+
+    // Clamp to viewport
+    if (yMax >= pc.viewportHeight) yMax = pc.viewportHeight - 1;
+
+    // Draw vertical line
+    for (uint y = yMin; y <= yMax; y++) {
+        uint pixelIdx = (y * pc.viewportWidth + x) * 4;
+        dst[pixelIdx + 0] = uint8_t(pc.waveformColor.r * 255.0);
+        dst[pixelIdx + 1] = uint8_t(pc.waveformColor.g * 255.0);
+        dst[pixelIdx + 2] = uint8_t(pc.waveformColor.b * 255.0);
+        dst[pixelIdx + 3] = uint8_t(pc.waveformColor.a * 255.0);
+    }
+
+    // Draw center line
+    uint centerY = uint(halfH);
+    if (centerY < pc.viewportHeight) {
+        uint clIdx = (centerY * pc.viewportWidth + x) * 4;
+        dst[clIdx + 0] = uint8_t(pc.centerLineColor.r * 255.0);
+        dst[clIdx + 1] = uint8_t(pc.centerLineColor.g * 255.0);
+        dst[clIdx + 2] = uint8_t(pc.centerLineColor.b * 255.0);
+        dst[clIdx + 3] = uint8_t(pc.centerLineColor.a * 255.0);
+    }
+}

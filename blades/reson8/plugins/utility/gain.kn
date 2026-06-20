@@ -1,0 +1,98 @@
+// ============================================================================
+//  reson8 Gain Plugin — Simple gain/trim utility
+//  STREAM4: T4-10 — Wraps dsp/utility.kn gain functions.
+//  Parameters: gain_db, pan, phase_invert, mute.
+//  Editor component: minimal — slider + meters.
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+//  Plugin Descriptor
+// ============================================================================
+
+pub struct KainPluginDescriptor:
+    name:             String
+    vendor:           String
+    version:          String
+    category:         String
+    num_inputs:       Int
+    num_outputs:      Int
+    num_params:       Int
+    has_editor:       Bool
+    latency_samples:  Int
+    dll_path:         String
+
+// ============================================================================
+//  Gain State
+// ============================================================================
+
+pub struct GainPluginState:
+    gain_db:      Float    // -120.0 to 24.0
+    pan:          Float    // -1.0 to 1.0
+    phase_invert: Bool
+    mute:         Bool
+    gain_lin:     Float
+
+// ============================================================================
+//  Plugin Export Contract
+// ============================================================================
+
+pub fn kain_plugin_get_descriptor() -> KainPluginDescriptor:
+    return KainPluginDescriptor {
+        name: "Gain",
+        vendor: "reson8 Studio",
+        version: "1.0.0",
+        category: "utility",
+        num_inputs: 2,
+        num_outputs: 2,
+        num_params: 4,     // gain_db, pan, phase_invert, mute
+        has_editor: true,
+        latency_samples: 0,
+        dll_path: "plugins/utility/gain.kn",
+    }
+
+pub fn kain_plugin_get_param_count() -> Int:
+    return 4
+
+pub fn kain_plugin_get_param_name(id: Int) -> String:
+    if id == 0:
+        return "Gain"
+    if id == 1:
+        return "Pan"
+    if id == 2:
+        return "Phase Invert"
+    return "Mute"
+
+pub fn kain_plugin_get_param_value(state: ptr<Void>, id: Int) -> Float:
+    return 0.5
+
+pub fn kain_plugin_set_param_value(state: ptr<Void>, id: Int, value: Float) -> Int:
+    return 0
+
+// ============================================================================
+//  Main Processing Function
+// ============================================================================
+
+/// Process audio through gain + pan.
+/// Called by PluginHost.Process handler on the audio thread.
+pub fn kain_plugin_process(state: ptr<Void>, input: ptr<Float>, output: ptr<Float>,
+                            frames: Int) -> Int with Unsafe:
+    # Placeholder: applies gain_db * pan to stereo input.
+    # In production: reads GainPluginState, applies gain, pan, phase invert, mute.
+
+    # Pass-through for now
+    var i: Int = 0
+    let total: Int = frames * 2   // stereo
+    while i < total:
+        let val: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        mem_store(ptr_offset(output, i, "Float"), val, "Float")
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  Editor Component Name
+// ============================================================================
+
+pub fn kain_plugin_get_editor_component() -> String:
+    return "GainEditor"

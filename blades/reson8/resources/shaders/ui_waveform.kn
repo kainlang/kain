@@ -1,0 +1,75 @@
+// ============================================================================
+//  ui_waveform — Audio waveform GPU compute + render shader
+// ============================================================================
+//  GPU-accelerated waveform rendering for AudioClip and WaveformView.
+//  Reduces audio samples to per-column peaks/mins, then renders as
+//  filled waveform or bars.
+//
+//  Binding convention:
+//    @0:  Audio sample buffer (input)
+//    @1:  Output vertex buffer
+//    @8:  Waveform parameters (sample count, zoom, offset)
+//
+//  Comptime metadata for resource binding specification.
+
+shader compute ui_waveform_render(id: UVec3) -> Void workgroup(64, 1, 1):
+    uniform audio_samples: StorageBuffer<Float> @0
+    uniform output_verts: StorageBuffer<Float> @1
+    uniform sample_count: UInt @8
+    uniform columns: UInt @9
+    uniform zoom: Float @10
+
+    comptime:
+        let compute = (
+            [1024, 1, 1],
+            [
+                ("audio_samples", "f32", [1], "input", "kain.shared.buffer"),
+                ("output_verts", "f32", [4], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("sample_count", "u32", "uniform", "kain.material"),
+                ("columns", "u32", "uniform", "kain.material"),
+                ("zoom", "f32", "uniform", "kain.material"),
+            ],
+        )
+
+    let col: UInt = id.x
+    if col >= columns:
+        return
+
+    // Determine sample range for this column
+    let samples_per_col: UInt = sample_count / columns
+    let start_sample: UInt = col * samples_per_col
+    let end_sample: UInt = start_sample + samples_per_col
+
+    // Find peak and min in range
+    var peak: Float = 0.0
+    var min_val: Float = 0.0
+    var si: UInt = start_sample
+    while si < end_sample and si < sample_count:
+        let s = audio_samples[si]
+        if s > peak:
+            peak = s
+        if s < min_val:
+            min_val = s
+        si = si + UInt(1)
+
+    // Write vertex data (two tris for this column bar)
+    let vert_base: UInt = col * 8 * 4   // 8 floats per vertex, 4 vertices
+    let x_start: Float = f32(col) / f32(columns) * 2.0 - 1.0
+    let x_end: Float = f32(col + 1) / f32(columns) * 2.0 - 1.0
+    let y_center: Float = 0.0
+    let y_top: Float = peak * 0.9
+    let y_bottom: Float = min_val * 0.9
+
+    // Two triangles forming a bar
+    output_verts[vert_base] = x_start
+    output_verts[vert_base + 1] = y_center - y_top
+    output_verts[vert_base + 2] = x_end
+    output_verts[vert_base + 3] = y_center - y_top
+    output_verts[vert_base + 4] = x_start
+    output_verts[vert_base + 5] = y_center - y_bottom
+    output_verts[vert_base + 6] = x_end
+    output_verts[vert_base + 7] = y_center - y_bottom
+
+    return

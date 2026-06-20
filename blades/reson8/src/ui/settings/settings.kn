@@ -1,0 +1,601 @@
+// settings.kn — reson8 Settings/Preferences UI Component
+//
+// A comprehensive settings panel covering audio, appearance, plugins,
+// MIDI, keybindings, and project defaults. Every setting maps to a
+// world state field — mutations are journaled patches, undoable.
+//
+// Owned by: T3-SETTINGS (add to STREAM3 tasks)
+
+use std::math
+
+// ============================================================================
+//  SettingsPanel — Top-level settings window with category tabs
+// ============================================================================
+
+component SettingsPanel():
+    state active_category: String = "audio"
+    state search_query: String = ""
+    state modified: Bool = false
+
+    fn categories(_self: Self_) -> [String] with Pure:
+        return ["audio", "appearance", "plugins", "midi", "keybindings", "project", "advanced"]
+
+    render <box accessible_role="dialog" accessible_label="Settings">
+        <stack direction="horizontal" fill={true}>
+            {/* Category sidebar */}
+            <box width={200.0} color={ThemeWorld.color_bg_secondary} padding={ThemeWorld.spacing_md}>
+                <text value="SETTINGS" font_size={ThemeWorld.font_size_lg}
+                      font_weight={ThemeWorld.font_weight_bold}
+                      color={ThemeWorld.color_text_primary} />
+                <spacer height={ThemeWorld.spacing_md} />
+
+                <text_field placeholder="Search settings..."
+                            value={_self.search_query}
+                            on_change={handle_search} />
+
+                <spacer height={ThemeWorld.spacing_lg} />
+
+                {/* Category tabs */}
+                <stack direction="vertical" spacing={ThemeWorld.spacing_xs}>
+                    <CategoryTab label="Audio" category="audio" active={_self.active_category} />
+                    <CategoryTab label="Appearance" category="appearance" active={_self.active_category} />
+                    <CategoryTab label="Plugins" category="plugins" active={_self.active_category} />
+                    <CategoryTab label="MIDI" category="midi" active={_self.active_category} />
+                    <CategoryTab label="Keybindings" category="keybindings" active={_self.active_category} />
+                    <CategoryTab label="Project" category="project" active={_self.active_category} />
+                    <CategoryTab label="Advanced" category="advanced" active={_self.active_category} />
+                </stack>
+            </box>
+
+            {/* Content area — switches panels by category */}
+            <box fill={true} padding={ThemeWorld.spacing_2xl}>
+                if _self.active_category == "audio":
+                    <AudioSettings />
+                if _self.active_category == "appearance":
+                    <AppearanceSettings />
+                if _self.active_category == "plugins":
+                    <PluginSettings />
+                if _self.active_category == "midi":
+                    <MIDISettings />
+                if _self.active_category == "keybindings":
+                    <KeybindingSettings />
+                if _self.active_category == "project":
+                    <ProjectSettings />
+                if _self.active_category == "advanced":
+                    <AdvancedSettings />
+            </box>
+        </stack>
+
+        {/* Footer: OK / Cancel / Apply */}
+        <box direction="horizontal" padding={ThemeWorld.spacing_md}
+             color={ThemeWorld.color_bg_tertiary}>
+            <spacer fill={true} />
+            <Button label="Cancel" kind="ghost" on_click={handle_cancel} />
+            <Button label="Apply" kind="default" on_click={handle_apply} disabled={not _self.modified} />
+            <Button label="OK" kind="primary" on_click={handle_ok} />
+        </box>
+    </box>
+
+
+// ============================================================================
+//  Audio Settings — Device, sample rate, buffer size, thread priority
+// ============================================================================
+
+component AudioSettings():
+    state devices: [AudioDeviceInfo] = []
+    state scanning: Bool = false
+
+    fn scan_devices(_self: Self_):
+        _self.scanning = true
+        let count = audio_device_count(0)   // 0 = WASAPI
+        var i: Int = 0
+        while i < count:
+            let name = audio_device_name(0, i)
+            let is_default = audio_device_is_default(0, i)
+            _self.devices.push(AudioDeviceInfo { name: name, id: i, is_default: is_default })
+            i = i + 1
+        _self.scanning = false
+
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Audio Device" description="Select and configure your audio interface" />
+
+        {/* Device selection */}
+        <LabeledSetting label="Audio System">
+            <Dropdown value={MixerWorld.audio_system}
+                      options={["WASAPI", "ASIO", "CoreAudio", "ALSA"]}
+                      on_change={set_audio_system} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Output Device">
+            <Dropdown value={MixerWorld.active_output_device}
+                      options={_self.devices}
+                      on_change={set_output_device} />
+            <Button label="Rescan" kind="ghost" size="sm" on_click={scan_devices} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Input Device">
+            <Dropdown value={MixerWorld.active_input_device}
+                      options={_self.devices}
+                      on_change={set_input_device} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* Sample rate */}
+        <LabeledSetting label="Sample Rate">
+            <Dropdown value={MixerWorld.sample_rate}
+                      options={[44100, 48000, 88200, 96000, 176400, 192000]}
+                      on_change={set_sample_rate} />
+        </LabeledSetting>
+
+        {/* Buffer size */}
+        <LabeledSetting label="Buffer Size (samples)">
+            <Slider value={MixerWorld.buffer_size_frames}
+                    min={64} max={2048} step={64}
+                    on_change={set_buffer_size} />
+            <text value={str(MixerWorld.buffer_size_frames) + " samples (" +
+                         fmt_latency_ms(MixerWorld.buffer_size_frames, MixerWorld.sample_rate) + " ms)"}
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_secondary} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* Thread priority */}
+        <LabeledSetting label="Audio Thread Priority">
+            <Dropdown value={MixerWorld.audio_thread_priority}
+                      options={["Normal", "High", "Realtime (MMCSS)"]}
+                      on_change={set_thread_priority} />
+        </LabeledSetting>
+
+        {/* Exclusive mode */}
+        <LabeledSetting label="Exclusive Mode (WASAPI)">
+            <Checkbox checked={MixerWorld.wasapi_exclusive}
+                      on_change={set_wasapi_exclusive} />
+            <text value="Bypass system mixer for lowest latency"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+    </stack>
+
+
+// ============================================================================
+//  Appearance Settings — Theme selection, color customization, font, scaling
+// ============================================================================
+
+component AppearanceSettings():
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Appearance" description="Customize how reson8 looks" />
+
+        {/* Theme selector */}
+        <LabeledSetting label="Theme">
+            <Dropdown value={ThemeWorld.active_theme_name}
+                      options={["reson8-dark", "reson8-light", "reson8-oled",
+                                "slate-emulation", "reaper-classic"]}
+                      on_change={apply_theme} />
+            <Button label="Open Theme Editor" kind="ghost" on_click={open_theme_editor} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* UI scaling */}
+        <LabeledSetting label="UI Scale">
+            <Dropdown value={ProjectWorld.ui_scale}
+                      options={[0.75, 1.0, 1.25, 1.5, 1.75, 2.0]}
+                      on_change={set_ui_scale} />
+        </LabeledSetting>
+
+        {/* Meter decay rate */}
+        <LabeledSetting label="Meter Decay Rate">
+            <Slider value={ThemeWorld.meter_decay_rate}
+                    min={5.0} max={60.0} step={1.0}
+                    on_change={set_meter_decay} />
+            <text value={str(ThemeWorld.meter_decay_rate) + " dB/s"}
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_secondary} />
+        </LabeledSetting>
+
+        {/* Peak hold time */}
+        <LabeledSetting label="Peak Hold Time">
+            <Slider value={ThemeWorld.meter_peak_hold_ms}
+                    min={500} max={10000} step={500}
+                    on_change={set_peak_hold} />
+            <text value={str(ThemeWorld.meter_peak_hold_ms) + " ms"}
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_secondary} />
+        </LabeledSetting>
+
+        {/* Waveform scroll smoothing */}
+        <LabeledSetting label="Waveform Scroll Smoothing">
+            <Slider value={ThemeWorld.waveform_scroll_smoothing}
+                    min={0.0} max={1.0} step={0.05}
+                    on_change={set_scroll_smoothing} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* Animation toggle */}
+        <LabeledSetting label="Animations">
+            <Checkbox checked={ThemeWorld.animation_enabled}
+                      on_change={set_animation_enabled} />
+        </LabeledSetting>
+
+        {/* Reduced motion (accessibility) */}
+        <LabeledSetting label="Reduced Motion">
+            <Checkbox checked={ThemeWorld.animation_reduced}
+                      on_change={set_animation_reduced} />
+            <text value="Disable all non-essential animations (accessibility)"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+    </stack>
+
+
+// ============================================================================
+//  Plugin Settings — Scan paths, plugin management, marketplace
+// ============================================================================
+
+component PluginSettings():
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Plugins" description="Manage plugin scan paths and settings" />
+
+        {/* Scan paths */}
+        <LabeledSetting label="VST3 Scan Paths">
+            <stack direction="vertical" spacing={ThemeWorld.spacing_sm}>
+                <PathListEditor paths={PluginRegistry.scan_paths}
+                                on_add={add_scan_path}
+                                on_remove={remove_scan_path} />
+                <Button label="Add Path" kind="ghost" size="sm" on_click={browse_scan_path} />
+            </stack>
+        </LabeledSetting>
+
+        <LabeledSetting label="CLAP Scan Paths">
+            <PathListEditor paths={PluginRegistry.clap_scan_paths}
+                            on_add={add_clap_scan_path}
+                            on_remove={remove_clap_scan_path} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* Plugin hosting */}
+        <LabeledSetting label="Plugin Sandboxing">
+            <Checkbox checked={PluginWorld.sandbox_enabled}
+                      on_change={set_plugin_sandboxing} />
+            <text value="Isolate plugins in separate processes (safer, more latency)"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Max Crash Recovery Attempts">
+            <Slider value={PluginWorld.max_crash_recovery}
+                    min={0} max={10} step={1}
+                    on_change={set_max_crash_recovery} />
+        </LabeledSetting>
+
+        <Separator />
+
+        {/* Plugin marketplace */}
+        <LabeledSetting label="Plugin Marketplace">
+            <Button label="Browse Marketplace" kind="primary"
+                    on_click={open_marketplace} />
+            <text value="https://plugins.reson8.dev"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+
+        {/* Rescan */}
+        <Button label="Rescan All Plugins" kind="default" on_click={rescan_plugins} />
+    </stack>
+
+
+// ============================================================================
+//  MIDI Settings — Device selection, channel routing, clock source
+// ============================================================================
+
+component MIDISettings():
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="MIDI" description="Configure MIDI input/output devices" />
+
+        <LabeledSetting label="MIDI Input Device">
+            <Dropdown value={MixerWorld.active_midi_input}
+                      options={enumerate_midi_inputs()}
+                      on_change={set_midi_input} />
+        </LabeledSetting>
+
+        <LabeledSetting label="MIDI Output Device">
+            <Dropdown value={MixerWorld.active_midi_output}
+                      options={enumerate_midi_outputs()}
+                      on_change={set_midi_output} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="MIDI Clock Source">
+            <Dropdown value={MixerWorld.midi_clock_source}
+                      options={["Internal", "MIDI Input", "Ableton Link"]}
+                      on_change={set_midi_clock_source} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Send MIDI Clock">
+            <Checkbox checked={MixerWorld.send_midi_clock}
+                      on_change={set_send_midi_clock} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Default MIDI Channel">
+            <Dropdown value={ProjectWorld.default_midi_channel}
+                      options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]}
+                      on_change={set_default_midi_channel} />
+        </LabeledSetting>
+
+        <LabeledSetting label="MIDI Thru">
+            <Checkbox checked={MixerWorld.midi_thru_enabled}
+                      on_change={set_midi_thru} />
+            <text value="Forward MIDI input to output device"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+    </stack>
+
+
+// ============================================================================
+//  Keybinding Settings — Action registry, search, import/export
+// ============================================================================
+
+component KeybindingSettings():
+    state search_filter: String = ""
+    state selected_action: Int = -1
+    state recording_binding: Bool = false
+
+    fn filtered_actions(_self: Self_) -> [ActionDef] with Pure:
+        if _self.search_filter == "":
+            return ActionRegistry.actions
+        return filter_actions_by_search(ActionRegistry.actions, _self.search_filter)
+
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Keybindings" description="Customize keyboard shortcuts" />
+
+        <text_field placeholder="Search actions..."
+                    value={_self.search_filter}
+                    on_change={handle_keybinding_search} />
+
+        {/* Action list with current bindings */}
+        <scroll_area fill={true}>
+            <stack direction="vertical" spacing={ThemeWorld.spacing_xs}>
+                for action in _self.filtered_actions:
+                    <KeybindingRow action={action}
+                                   selected={_self.selected_action == action.id}
+                                   on_select={select_action}
+                                   on_record={start_recording}
+                                   on_clear={clear_binding} />
+            </stack>
+        </scroll_area>
+
+        <Separator />
+
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+            <Button label="Import Keymap..." kind="ghost" on_click={import_keymap} />
+            <Button label="Export Keymap..." kind="ghost" on_click={export_keymap} />
+            <Button label="Reset to Defaults" kind="danger" on_click={reset_keybindings} />
+        </stack>
+    </stack>
+
+
+// ============================================================================
+//  Project Settings — Defaults for new projects
+// ============================================================================
+
+component ProjectSettings():
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Project Defaults" description="Settings applied to new projects" />
+
+        <LabeledSetting label="Default Sample Rate">
+            <Dropdown value={ProjectWorld.default_sample_rate}
+                      options={[44100, 48000, 88200, 96000, 176400, 192000]}
+                      on_change={set_default_sample_rate} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Default Tempo (BPM)">
+            <Slider value={ProjectWorld.default_tempo_bpm}
+                    min={20.0} max={999.0} step={1.0}
+                    on_change={set_default_tempo} />
+            <text value={str(ProjectWorld.default_tempo_bpm) + " BPM"}
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_secondary} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Default Time Signature">
+            <stack direction="horizontal" spacing={ThemeWorld.spacing_sm}>
+                <Dropdown value={ProjectWorld.default_time_sig_num}
+                          options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}
+                          on_change={set_default_time_sig_num} />
+                <text value="/" font_size={ThemeWorld.font_size_md} />
+                <Dropdown value={ProjectWorld.default_time_sig_den}
+                          options={[2, 4, 8, 16]}
+                          on_change={set_default_time_sig_den} />
+            </stack>
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Auto-Save">
+            <Checkbox checked={ProjectWorld.auto_save_enabled}
+                      on_change={set_auto_save} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Auto-Save Interval (minutes)">
+            <Slider value={ProjectWorld.auto_save_interval_min}
+                    min={1} max={60} step={1}
+                    on_change={set_auto_save_interval}
+                    disabled={not ProjectWorld.auto_save_enabled} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Recording Format">
+            <Dropdown value={ProjectWorld.default_record_format}
+                      options={["WAV 24-bit", "WAV 32-bit float", "FLAC", "AIFF"]}
+                      on_change={set_record_format} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Recording Path">
+            <stack direction="horizontal" spacing={ThemeWorld.spacing_sm}>
+                <text value={ProjectWorld.default_record_path}
+                      font_size={ThemeWorld.font_size_sm} />
+                <Button label="Browse..." kind="ghost" size="sm" on_click={browse_record_path} />
+            </stack>
+        </LabeledSetting>
+    </stack>
+
+
+// ============================================================================
+//  Advanced Settings — Engine, debugging, experimental
+// ============================================================================
+
+component AdvancedSettings():
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_lg} fill={true}>
+        <SectionHeader title="Advanced" description="Engine and debugging settings" />
+
+        <LabeledSetting label="Render Mode">
+            <Dropdown value={MixerWorld.render_mode}
+                      options={["Standard", "Offline (High Quality)", "Low Latency"]}
+                      on_change={set_render_mode} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Max Polyphony">
+            <Slider value={MixerWorld.max_polyphony}
+                    min={1} max={512} step={1}
+                    on_change={set_max_polyphony} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Logging Level">
+            <Dropdown value={ProjectWorld.log_level}
+                      options={["Error", "Warning", "Info", "Debug", "Trace"]}
+                      on_change={set_log_level} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Crash Reports">
+            <Checkbox checked={ProjectWorld.crash_reports_enabled}
+                      on_change={set_crash_reports} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Telemetry">
+            <Checkbox checked={ProjectWorld.telemetry_enabled}
+                      on_change={set_telemetry} />
+            <text value="Send anonymous usage data to help improve reson8"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Experimental Features">
+            <Checkbox checked={ProjectWorld.experimental_enabled}
+                      on_change={set_experimental} />
+        </LabeledSetting>
+
+        <LabeledSetting label="Python Interop">
+            <Checkbox checked={ProjectWorld.python_interop_enabled}
+                      on_change={set_python_interop} />
+            <text value="Enable Python-backed plugins (requires Python 3.10+)"
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_muted} />
+        </LabeledSetting>
+
+        <Separator />
+
+        <LabeledSetting label="Reset All Settings">
+            <Button label="Reset to Factory Defaults" kind="danger"
+                    on_click={reset_all_settings} />
+        </LabeledSetting>
+    </stack>
+
+
+// ============================================================================
+//  Shared primitives used by settings panels
+// ============================================================================
+
+component SectionHeader(title: String, description: String):
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_xs}>
+        <text value={title}
+              font_size={ThemeWorld.font_size_xl}
+              font_weight={ThemeWorld.font_weight_bold}
+              color={ThemeWorld.color_text_primary} />
+        if description != "":
+            <text value={description}
+                  font_size={ThemeWorld.font_size_sm}
+                  color={ThemeWorld.color_text_secondary} />
+    </stack>
+
+component LabeledSetting(label: String, children: component):
+    render <stack direction="horizontal" spacing={ThemeWorld.spacing_md} align="center">
+        <text value={label}
+              font_size={ThemeWorld.font_size_base}
+              color={ThemeWorld.color_text_primary}
+              width={200.0} />
+        <box fill={true}>
+            {children}
+        </box>
+    </stack>
+
+component Separator():
+    render <box height={1.0} color={ThemeWorld.color_border_subtle}
+               margin={ThemeWorld.spacing_sm} />
+
+component CategoryTab(label: String, category: String, active: String):
+    state is_hovered: Bool = false
+
+    fn bg(_self: Self_) -> Color with Pure:
+        if active == category:
+            return ThemeWorld.color_accent
+        if _self.is_hovered:
+            return ThemeWorld.color_surface_raised
+        return ThemeWorld.color_bg_secondary
+
+    fn text_c(_self: Self_) -> Color with Pure:
+        if active == category:
+            return ThemeWorld.color_text_inverse
+        return ThemeWorld.color_text_primary
+
+    render <box color={bg()} padding={ThemeWorld.spacing_md}
+               radius={ThemeWorld.radius_md}
+               accessible_role="tab"
+               accessible_label={label}
+               on_click={set_category(category)}
+               on_mouse_enter={set_hovered(true)}
+               on_mouse_leave={set_hovered(false)}>
+        <text value={label}
+              font_size={ThemeWorld.font_size_base}
+              color={text_c()} />
+    </box>
+
+component KeybindingRow(action: ActionDef, selected: Bool,
+                         on_select: fn(Int), on_record: fn(Int),
+                         on_clear: fn(Int)):
+    render <box direction="horizontal" padding={ThemeWorld.spacing_sm}
+               color={if selected: ThemeWorld.color_selection else: ThemeWorld.color_bg_primary}
+               radius={ThemeWorld.radius_sm}
+               on_click={on_select(action.id)}>
+        <text value={action.name} width={200.0} font_size={ThemeWorld.font_size_sm} />
+        <text value={action.category} width={120.0} font_size={ThemeWorld.font_size_sm}
+              color={ThemeWorld.color_text_muted} />
+        <text value={format_keybinding(action.id)} font_size={ThemeWorld.font_size_sm}
+              font_family={ThemeWorld.font_family_mono} />
+        <spacer fill={true} />
+        <Button label="Record" kind="ghost" size="sm" on_click={on_record(action.id)} />
+        <Button label="Clear" kind="ghost" size="sm" on_click={on_clear(action.id)} />
+    </box>
+
+component PathListEditor(paths: [String], on_add: fn(String), on_remove: fn(String)):
+    render <stack direction="vertical" spacing={ThemeWorld.spacing_xs}>
+        for path in paths:
+            <box direction="horizontal" padding={ThemeWorld.spacing_xs}>
+                <text value={path} font_size={ThemeWorld.font_size_sm}
+                      font_family={ThemeWorld.font_family_mono} />
+                <spacer fill={true} />
+                <Button label="✕" kind="ghost" size="sm" on_click={on_remove(path)} />
+            </box>
+    </stack>

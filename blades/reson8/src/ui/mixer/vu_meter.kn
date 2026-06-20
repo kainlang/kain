@@ -1,0 +1,63 @@
+// mixer/vu_meter.kn -- Peak/RMS meter with color zones and peak hold
+
+use std::math
+use types::Color
+
+component VUMeter(
+ peak_db: Float,
+ rms_db: Float,
+ is_clipping: Bool,
+):
+ state peak_hold_db: Float = -60.0
+ state peak_hold_timer: Int = 0
+
+ fn meter_color(_self: Self_, db: Float) -> Color:
+ if db > -6.0:
+ return ThemeWorld.color_meter_high
+ if db > -18.0:
+ return ThemeWorld.color_meter_mid
+ return ThemeWorld.color_meter_low
+
+ fn height_pct(_self: Self_, db: Float) -> Float:
+ // Map -60..0 dB to 0..100%
+ if db < -60.0: return 0.0
+ if db > 0.0: return 100.0
+ return ((db + 60.0) / 60.0) * 100.0
+
+ fn peak_hold_pct(_self: Self_) -> Float:
+ return _self.height_pct(_self.peak_hold_db)
+
+ fn meter_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_vu_background
+
+ fn meter_w(_self: Self_) -> Float:
+ return ThemeWorld.meter_width
+
+ fn meter_h(_self: Self_) -> Float:
+ return ThemeWorld.meter_height
+
+ fn clip_c(_self: Self_) -> Color:
+ return ThemeWorld.color_meter_over
+
+ fn peak_hold_c(_self: Self_) -> Color:
+ return ThemeWorld.color_meter_peak_hold
+
+ render <box
+ accessible_role="progressbar"
+ accessible_label="Peak level"
+ accessible_value={str(_self.peak_db) + " dB"}
+ direction="vertical"
+ width={meter_w}
+ height={meter_h}
+ background={meter_bg}
+ corner_radius={ThemeWorld.radius_sm}
+ >
+ {/* RMS bar */}
+ <box width={meter_w} height={height_pct(_self.rms_db).toString() + "%"} background={meter_color(_self.rms_db)} position="absolute" bottom={0.0} />
+ {/* Peak hold line */}
+ if _self.peak_hold_db > -60.0:
+ <box width={meter_w} height={2.0} background={peak_hold_c} position="absolute" bottom={_self.peak_hold_pct.toString() + "%"} />
+ {/* Clipping indicator */}
+ if _self.is_clipping:
+ <box width={meter_w} height={4.0} background={clip_c} position="absolute" top={0.0} />
+ </box>

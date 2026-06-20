@@ -1,0 +1,71 @@
+// ============================================================================
+//  ui_text — SDF-based text rendering shader
+// ============================================================================
+//  Renders text using signed-distance-field font atlases.
+//  Supports color, size, and alignment.
+//
+//  Binding convention:
+//    @0-@9:   Per-frame uniforms
+//    @60:     SDF font atlas texture
+//
+//  Comptime metadata for resource binding specification.
+
+shader vertex ui_text_vert(pos: Vec2, uv: Vec2) -> Vec4:
+    uniform mvp: Mat4 @0
+
+    let clip_pos = mvp * vec4(pos.x, pos.y, 0.0, 1.0)
+    return clip_pos
+
+shader fragment ui_text_frag(uv: Vec2) -> Vec4:
+    uniform text_color: Vec4 @10
+    uniform glow_color: Vec4 @11
+    uniform glow_width: Float @12
+    uniform outline_width: Float @13
+    uniform outline_color: Vec4 @14
+    uniform font_atlas: texture2d @60
+
+    // Sample SDF from font atlas
+    let sdf_sample = texture_sample(font_atlas, uv)
+    let signed_distance = sdf_sample.r
+
+    // Base alpha from SDF
+    let base_alpha = smoothstep(0.5 - outline_width, 0.5 + outline_width, signed_distance)
+
+    // Outline
+    let outline_dist = smoothstep(0.5 - outline_width - 0.1, 0.5 - outline_width + 0.1, signed_distance)
+    let outline_alpha = 1.0 - outline_dist
+
+    // Glow
+    let glow_dist = smoothstep(0.5 - glow_width, 0.5 + glow_width, signed_distance)
+    let glow_alpha = 1.0 - glow_dist
+
+    // Composite
+    let final_color = mix(glow_color, mix(outline_color, text_color, outline_alpha), base_alpha)
+    let final_alpha = max(glow_alpha * glow_color.a, max(base_alpha * text_color.a, outline_alpha * outline_color.a))
+
+    return vec4(final_color.rgb, final_alpha)
+
+    comptime:
+        let vertex = (
+            [],
+            [
+                ("pos", "f32", [2], "input", "kain.vertex.attribute"),
+                ("uv", "f32", [2], "input", "kain.vertex.attribute"),
+            ],
+            [
+                ("mvp", "mat4", "vertex", "uniform", "kain.frame"),
+            ],
+        )
+        let fragment = (
+            [],
+            [
+                ("text_color", "f32", [4], "uniform", "kain.material"),
+                ("glow_color", "f32", [4], "uniform", "kain.material"),
+                ("glow_width", "f32", "uniform", "kain.material"),
+                ("outline_width", "f32", "uniform", "kain.material"),
+                ("outline_color", "f32", [4], "uniform", "kain.material"),
+            ],
+            [
+                ("font_atlas", "texture2d", "fragment", "sampler", "kain.texture"),
+            ],
+        )

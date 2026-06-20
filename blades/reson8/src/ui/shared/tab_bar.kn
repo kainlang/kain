@@ -1,0 +1,14 @@
+// shared/tab_bar.kn — Tab bar with tabs
+use std::math
+use types::TabDef
+use types::Color
+
+component TabBar(tabs: [TabDef], active_id: Int, on_change: fn(Int) -> Int):
+    render <box accessible_role="tablist" direction="horizontal" background={ThemeWorld.color_bg_secondary} padding_horizontal={ThemeWorld.spacing_sm}>
+        <box accessible_role="tab" accessible_label="Tab 1" tab_index={0} direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm} border_bottom_width={2.0} border_bottom_color={ThemeWorld.color_accent}>
+            <text value="Tab 1" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_accent}/>
+        </box>
+        <box accessible_role="tab" accessible_label="Tab 2" tab_index={0} direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm}>
+            <text value="Tab 2" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+    </box>

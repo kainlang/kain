@@ -1,0 +1,58 @@
+// arrangement/arrangement_view.kn -- Main timeline with tracks, playhead, loop region
+
+use std::math
+use types::Color
+use types::ClipData
+
+component ArrangementView(
+ track_count: Int,
+ clips: [ClipData],
+ zoom_x: Float,
+ scroll_x: Float,
+ scroll_y: Float,
+):
+ state viewport_width: Float = 1200.0
+ state viewport_height: Float = 600.0
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ fn grid_beat_c(_self: Self_) -> Color:
+ return ThemeWorld.color_grid_beat
+
+ fn grid_bar_c(_self: Self_) -> Color:
+ return ThemeWorld.color_grid_bar
+
+ fn playhead_c(_self: Self_) -> Color:
+ return ThemeWorld.color_playhead
+
+ fn loop_c(_self: Self_) -> Color:
+ return ThemeWorld.color_loop_region
+
+ fn playhead_x(_self: Self_) -> Float:
+ // Convert transport position to pixel position
+ return Float(MixerWorld.transport_position_frames) * _self.zoom_x
+
+ render <box
+ accessible_role="group"
+ accessible_label="Arrangement view"
+ direction="vertical"
+ fill={true}
+ background={bg}
+ >
+ {/* Timeline ruler at top */}
+ <TimelineRuler zoom_x={zoom_x} scroll_x={scroll_x} viewport_width={viewport_width} arrangement_length_frames={MixerWorld.arrangement_length_frames} />
+
+ {/* Track lanes */}
+ <ScrollArea width={viewport_width} height={_self.viewport_height - ThemeWorld.timeline_ruler_height} scroll_x={true} scroll_y={true} >
+ <box direction="vertical" position="relative">
+ for t in 0.._self.track_count:
+ <TrackLane track_index={t} track_name={TrackWorld.track_names[t]} width={viewport_width} height={TrackWorld.track_heights[t]} even={t % 2 == 0} clips={filter_clips_for_track(_self.clips, t)} />
+ {/* Playhead overlay */}
+ <box width={1.0} height={_self.viewport_height - ThemeWorld.timeline_ruler_height} background={playhead_c} position="absolute" left={playhead_x} top={0.0} z_index={100} />
+ {/* Loop region overlay */}
+ if MixerWorld.loop_enabled:
+ <box width={Float(MixerWorld.loop_end - MixerWorld.loop_start) * _self.zoom_x} height={_self.viewport_height - ThemeWorld.timeline_ruler_height} background={loop_c} border_width={1.0} border_color={ThemeWorld.color_loop_region_border} position="absolute" left={Float(MixerWorld.loop_start) * _self.zoom_x} top={0.0} z_index={99} />
+ </box>
+ </ScrollArea>
+ </box>

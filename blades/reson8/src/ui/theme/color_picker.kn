@@ -1,0 +1,73 @@
+// theme/color_picker.kn -- Hex input + HSL sliders + eyedropper for the ThemeEditor
+
+use std::math
+use types::Color
+
+component ColorPicker(
+ color: Color,
+ on_change: fn(Color) -> Int,
+):
+ state is_open: Bool = false
+ state hex_input: String = ""
+ state hue: Float = 0.0
+ state saturation: Float = 0.0
+ state lightness: Float = 0.0
+ state alpha: Float = 1.0
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_surface_raised
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn recent_colors(_self: Self_) -> [Color]:
+ // Last 8 colors picked
+ return [
+ color_rgba(0.91, 0.27, 0.38, 1.0), // #e94560
+ color_rgba(0.15, 0.58, 0.99, 1.0), // #2563eb
+ color_rgba(0.07, 0.73, 0.51, 1.0), // #10b981
+ color_rgba(0.96, 0.62, 0.04, 1.0), // #f59e0b
+ color_rgba(0.94, 0.27, 0.27, 1.0), // #ef4444
+ color_rgba(0.23, 0.51, 0.99, 1.0), // #3b82f6
+ color_rgba(0.91, 0.91, 0.91, 1.0), // #e8e8e8
+ color_rgba(0.0, 0.0, 0.0, 1.0), // #000000
+ ]
+
+ fn toggle_open(_self: Self_) -> Int:
+ _self.is_open = not _self.is_open
+ return 0
+
+ fn select_recent(c: Color) -> Int:
+ _self.on_change(c)
+ _self.is_open = false
+ return 0
+
+ render <box
+ accessible_role="button"
+ accessible_label="Color picker"
+ direction="vertical"
+ >
+ {/* Color swatch trigger */}
+ <box width={32.0} height={24.0} corner_radius={ThemeWorld.radius_md} background={color} border_width={1.0} border_color={ThemeWorld.color_border_default} on_click={toggle_open} />
+
+ {/* Color picker popup */}
+ if _self.is_open:
+ <box direction="vertical" width={220.0} padding={ThemeWorld.spacing_md} corner_radius={ThemeWorld.radius_md} background={bg} border_width={1.0} border_color={ThemeWorld.color_border_default} gap={ThemeWorld.spacing_md} position="absolute" z_index={5000} >
+ {/* Hex input */}
+ <TextField value={hex_input} placeholder="#RRGGBB" label="Hex" password={false} on_change={fn(s: String): _self.hex_input = s; 0} on_submit={fn(_s: String): 0} />
+ {/* HSL sliders */}
+ <Slider value={hue} min={0.0} max={360.0} step={1.0} label="H" on_change={fn(v: Float): _self.hue = v; 0} />
+ <Slider value={saturation} min={0.0} max={100.0} step={1.0} label="S" on_change={fn(v: Float): _self.saturation = v; 0} />
+ <Slider value={lightness} min={0.0} max={100.0} step={1.0} label="L" on_change={fn(v: Float): _self.lightness = v; 0} />
+ {/* Alpha slider */}
+ <Slider value={_self.alpha * 100.0} min={0.0} max={100.0} step={1.0} label="A" on_change={fn(v: Float): _self.alpha = v / 100.0; 0} />
+ {/* Recent colors */}
+ <box direction="horizontal" gap={ThemeWorld.spacing_xs} wrap="wrap">
+ for c in _self.recent_colors:
+ <box width={20.0} height={20.0} corner_radius={ThemeWorld.radius_sm} background={c} border_width={1.0} border_color={ThemeWorld.color_border_subtle} />
+ </box>
+ </box>
+ </box>

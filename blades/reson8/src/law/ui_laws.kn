@@ -1,0 +1,36 @@
+use std::math
+
+// ============================================================================
+//  UI LAWS — Compiler-owned invariant predicates for theme/UI state
+//  Owned by STREAM1. Verified at compile time.
+// ============================================================================
+
+law theme_color_valid(c: ColorRgba) -> Bool:
+    return c.a >= 0.0 and c.a <= 1.0
+
+law theme_color_channel_valid(channel: Float) -> Bool:
+    return channel >= 0.0 and channel <= 1.0
+
+law theme_spacing_valid(s: Float) -> Bool:
+    return s >= 0.0 and s <= 1000.0
+
+law theme_font_size_valid(s: Float) -> Bool:
+    return s >= 6.0 and s <= 200.0
+
+law theme_font_weight_valid(w: Int) -> Bool:
+    return w >= 100 and w <= 900 and (w % 100) == 0
+
+law theme_animation_duration_valid(ms: Int) -> Bool:
+    return ms >= 0 and ms <= 10000
+
+law theme_radius_valid(r: Float) -> Bool:
+    return r >= 0.0
+
+law theme_component_size_valid(size: Float) -> Bool:
+    return size >= 0.0 and size <= 10000.0
+
+law theme_meter_decay_valid(rate: Float) -> Bool:
+    return rate >= 0.0 and rate <= 500.0
+
+law theme_scroll_smoothing_valid(smoothing: Float) -> Bool:
+    return smoothing >= 0.0 and smoothing <= 1.0

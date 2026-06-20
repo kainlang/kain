@@ -1,0 +1,11 @@
+// shared/context_menu.kn — Right-click context menu
+use std::math
+use types::MenuItem
+use types::Color
+
+component ContextMenu(items: [MenuItem], on_action: fn(String) -> Int, on_close: fn() -> Int):
+    render <box direction="vertical" corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_surface_raised} border_width={1.0} border_color={ThemeWorld.color_border_default} padding_vertical={ThemeWorld.spacing_xs} min_width={180.0}>
+        <box accessible_role="menuitem" accessible_label="Context Menu" direction="horizontal" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm}>
+            <text value="Menu Item" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_primary}/>
+        </box>
+    </box>

@@ -1,0 +1,52 @@
+// piano_roll/cc_lane.kn -- Continuous controller automation lane
+
+use std::math
+use types::Color
+
+component CCLane(
+ cc_number: Int,
+ width: Float,
+ height: Float,
+ values: [Int],
+ times: [Int],
+):
+ state selected_cc: Int = 1 // Default to mod wheel
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_cc_bg
+
+ fn line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_cc_line
+
+ fn border_c(_self: Self_) -> Color:
+ return ThemeWorld.color_border_subtle
+
+ fn cc_name(cc: Int) -> String:
+ match cc:
+ 1 => return "Mod Wheel"
+ 2 => return "Breath"
+ 7 => return "Volume"
+ 10 => return "Pan"
+ 11 => return "Expression"
+ 64 => return "Sustain"
+ _ => return "CC" + str(cc)
+
+ render <box
+ width={width}
+ height={height}
+ background={bg}
+ border_top_width={1.0}
+ border_top_color={border_c}
+ direction="vertical"
+ accessible_role="group"
+ accessible_label={cc_name(_self.cc_number)}
+ >
+ {/* Header with CC selector */}
+ <box direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_sm} padding_vertical={2.0} gap={ThemeWorld.spacing_sm} >
+ <text value={cc_name(_self.selected_cc)} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} />
+ </box>
+ {/* CC envelope area */}
+ <box flex_grow={1.0} position="relative" background={ThemeWorld.color_bg_primary} margin_horizontal={ThemeWorld.spacing_xs} margin_bottom={ThemeWorld.spacing_xs} corner_radius={ThemeWorld.radius_sm} >
+ {/* CC values rendered as line with points */}
+ </box>
+ </box>

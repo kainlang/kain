@@ -1,0 +1,279 @@
+// ============================================================================
+//  reson8 Compressor — Dynamics Processor
+//  STREAM2: T2-2 — Full dynamics compressor.
+//  STREAM4: PluginHost loads this as Kain-native compressor.
+// ============================================================================
+
+use std::math
+
+const COMP_DB_FLOOR:   Float = -120.0
+const COMP_E:          Float = 2.718281828459045
+
+pub struct CompressorParams:
+    threshold_db:     Float
+    ratio:            Float
+    attack_ms:        Float
+    release_ms:       Float
+    makeup_gain_db:   Float
+    knee_db:          Float
+    rms_window:       Int
+    sidechain_hpf_hz: Float
+    stereo_link:      Bool
+    lookahead_samples: Int
+    wet_dry_mix:      Float
+
+pub struct CompressorState:
+    attack_coeff:      Float
+    release_coeff:     Float
+    envelope:          Float
+    makeup_gain_lin:   Float
+    sample_rate:       Int
+    sc_filter_z1:      Float
+    sc_filter_z2:      Float
+    sc_b0:             Float
+    sc_b1:             Float
+    sc_b2:             Float
+    sc_a1:             Float
+    sc_a2:             Float
+    rms_acc:           Float
+    threshold_db:      Float
+    ratio:             Float
+    knee_db:           Float
+
+// ============================================================================
+//  dB / Linear Conversion
+// ============================================================================
+
+fn log10_impl(x: Float) -> Float with Unsafe:
+    if x <= 0.0:
+        return -120.0
+    var b: Int = 0
+    var a: Float = x
+    while a >= 10.0:
+        a = a / 10.0
+        b = b + 1
+    while a < 1.0 and a > 0.0:
+        a = a * 10.0
+        b = b - 1
+    let y: Float = (a - 1.0) / (a + 1.0)
+    let y2: Float = y * y
+    var ln_a: Float = 0.0
+    var term: Float = y
+    var k: Int = 1
+    while k < 20:
+        ln_a = ln_a + term / (k as Float)
+        term = term * y2
+        k = k + 2
+    let ln10: Float = 2.302585092994046
+    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+
+fn linear_to_db(linear: Float) -> Float with Unsafe:
+    if linear <= 0.000000000001:
+        return COMP_DB_FLOOR
+    return 20.0 * log10_impl(linear)
+
+fn db_to_linear(db: Float) -> Float with Unsafe:
+    if db <= COMP_DB_FLOOR:
+        return 0.0
+    return pow(10.0, db / 20.0)
+
+fn compute_attack_coeff(attack_ms: Float, sr: Int) -> Float with Unsafe:
+    let tau: Float = attack_ms * 0.001 * (sr as Float)
+    if tau < 1.0:
+        return 0.0
+    return pow(COMP_E, -1.0 / tau)
+
+fn compute_release_coeff(release_ms: Float, sr: Int) -> Float with Unsafe:
+    let tau: Float = release_ms * 0.001 * (sr as Float)
+    if tau < 1.0:
+        return 0.0
+    return pow(COMP_E, -1.0 / tau)
+
+// ============================================================================
+//  Gain Reduction Computer
+// ============================================================================
+
+fn compute_gain_reduction_db(level_db: Float, threshold_db: Float,
+                              ratio: Float, knee_db: Float) -> Float with Unsafe:
+    if knee_db <= 0.0:
+        if level_db <= threshold_db:
+            return 0.0
+        let over: Float = level_db - threshold_db
+        return over * (1.0 - 1.0 / ratio)
+
+    let knee_half: Float = knee_db * 0.5
+    let knee_start: Float = threshold_db - knee_half
+    let knee_end: Float = threshold_db + knee_half
+
+    if level_db <= knee_start:
+        return 0.0
+    if level_db >= knee_end:
+        let over: Float = level_db - threshold_db
+        return over * (1.0 - 1.0 / ratio)
+    let delta: Float = level_db - knee_start
+    let over_hard: Float = knee_end - threshold_db
+    let gr_at_end: Float = over_hard * (1.0 - 1.0 / ratio)
+    let t: Float = delta / knee_db
+    return gr_at_end * t * t / 2.0
+
+// ============================================================================
+//  Sidechain HPF
+// ============================================================================
+
+fn init_sidechain(state: ptr<CompressorState>, freq_hz: Float, sr: Int) -> Int with Unsafe:
+    if freq_hz <= 0.0:
+        state.sc_b0 = 1.0
+        state.sc_b1 = 0.0
+        state.sc_b2 = 0.0
+        state.sc_a1 = 0.0
+        state.sc_a2 = 0.0
+        return 0
+    let wc: Float = 6.283185307179586 * freq_hz / (sr as Float)
+    let kp1: Float = wc + 1.0
+    state.sc_b0 = 1.0 / kp1
+    state.sc_b1 = -2.0 / kp1
+    state.sc_b2 = 1.0 / kp1
+    state.sc_a1 = -2.0 * (1.0 - wc) / kp1
+    state.sc_a2 = -(1.0 - wc) / kp1
+    return 0
+
+fn process_sc_sample(state: ptr<CompressorState>, sample: Float) -> Float with Unsafe:
+    let ret: Float = state.sc_b0 * sample + state.sc_filter_z1
+    state.sc_filter_z1 = state.sc_b1 * sample - state.sc_a1 * ret + state.sc_filter_z2
+    state.sc_filter_z2 = state.sc_b2 * sample - state.sc_a2 * ret
+    return ret
+
+// ============================================================================
+//  RMS Envelope Detection
+// ============================================================================
+
+fn detect_rms(state: ptr<CompressorState>, sample: Float, window: Int) -> Float with Unsafe:
+    if window <= 1:
+        return abs(sample)
+    let alpha: Float = 2.0 / ((window as Float) + 1.0)
+    let sq: Float = sample * sample
+    let new_env: Float = alpha * sq + (1.0 - alpha) * state.rms_acc
+    state.rms_acc = new_env
+    return sqrt(new_env)
+
+// ============================================================================
+//  Mono Compressor Process
+// ============================================================================
+
+pub fn compressor_process_mono(state: ptr<CompressorState>, params: CompressorParams,
+                                input: ptr<Float>, output: ptr<Float>,
+                                sidechain: ptr<Float>, frames: Int,
+                                sample_rate: Int) -> Int with Unsafe:
+    # Update coefficients
+    state.attack_coeff = compute_attack_coeff(params.attack_ms, sample_rate)
+    state.release_coeff = compute_release_coeff(params.release_ms, sample_rate)
+    state.makeup_gain_lin = db_to_linear(params.makeup_gain_db)
+    state.sample_rate = sample_rate
+    state.threshold_db = params.threshold_db
+    state.ratio = params.ratio
+    state.knee_db = params.knee_db
+    let _ = init_sidechain(state, params.sidechain_hpf_hz, sample_rate)
+
+    let makeup: Float = state.makeup_gain_lin
+    let att: Float = state.attack_coeff
+    let rel: Float = state.release_coeff
+    let thresh: Float = state.threshold_db
+    let rat: Float = state.ratio
+    let knee: Float = state.knee_db
+    let window: Int = params.rms_window
+    let has_sc: Bool = sidechain != 0 as ptr<Float>
+
+    var i: Int = 0
+    while i < frames:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+
+        var sc_raw: Float = inp
+        if has_sc:
+            sc_raw = mem_load(ptr_offset(sidechain, i, "Float"), "Float")
+
+        let sc: Float = process_sc_sample(state, sc_raw)
+        let detected: Float = detect_rms(state, sc, window)
+        let level_db: Float = linear_to_db(detected)
+        let gr_db: Float = compute_gain_reduction_db(level_db, thresh, rat, knee)
+        let target: Float = db_to_linear(-gr_db)
+
+        if target < state.envelope:
+            state.envelope = att * state.envelope + (1.0 - att) * target
+        if target >= state.envelope:
+            state.envelope = rel * state.envelope + (1.0 - rel) * target
+
+        let out_val: Float = inp * state.envelope * makeup
+        mem_store(ptr_offset(output, i, "Float"), out_val, "Float")
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  Stereo Compressor Process (Linked Detection)
+// ============================================================================
+
+pub fn compressor_process_stereo(state: ptr<CompressorState>, params: CompressorParams,
+                                  input: ptr<Float>, output: ptr<Float>,
+                                  sidechain: ptr<Float>, frames: Int,
+                                  sample_rate: Int) -> Int with Unsafe:
+    state.attack_coeff = compute_attack_coeff(params.attack_ms, sample_rate)
+    state.release_coeff = compute_release_coeff(params.release_ms, sample_rate)
+    state.makeup_gain_lin = db_to_linear(params.makeup_gain_db)
+    state.sample_rate = sample_rate
+    state.threshold_db = params.threshold_db
+    state.ratio = params.ratio
+    state.knee_db = params.knee_db
+    let _ = init_sidechain(state, params.sidechain_hpf_hz, sample_rate)
+
+    let makeup: Float = state.makeup_gain_lin
+    let att: Float = state.attack_coeff
+    let rel: Float = state.release_coeff
+    let thresh: Float = state.threshold_db
+    let rat: Float = state.ratio
+    let knee: Float = state.knee_db
+    let window: Int = params.rms_window
+    let has_sc: Bool = sidechain != 0 as ptr<Float>
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+
+        var sc_raw: Float = (inp_l + inp_r) * 0.5
+        if has_sc:
+            let sc_l: Float = mem_load(ptr_offset(sidechain, idx, "Float"), "Float")
+            let sc_r: Float = mem_load(ptr_offset(sidechain, idx + 1, "Float"), "Float")
+            sc_raw = (sc_l + sc_r) * 0.5
+
+        let sc: Float = process_sc_sample(state, sc_raw)
+        let detected: Float = detect_rms(state, sc, window)
+        let level_db: Float = linear_to_db(detected)
+        let gr_db: Float = compute_gain_reduction_db(level_db, thresh, rat, knee)
+        let target: Float = db_to_linear(-gr_db)
+
+        if target < state.envelope:
+            state.envelope = att * state.envelope + (1.0 - att) * target
+        if target >= state.envelope:
+            state.envelope = rel * state.envelope + (1.0 - rel) * target
+
+        let gain: Float = state.envelope * makeup
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * gain, "Float")
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  Convenience: Dispatcher chooses mono or stereo based on param
+// ============================================================================
+
+pub fn compressor_process(state: ptr<CompressorState>, params: CompressorParams,
+                           input: ptr<Float>, output: ptr<Float>,
+                           sidechain: ptr<Float>, frames: Int,
+                           sample_rate: Int) -> Int with Unsafe:
+    if params.stereo_link:
+        return compressor_process_stereo(state, params, input, output, sidechain, frames, sample_rate)
+    return compressor_process_mono(state, params, input, output, sidechain, frames, sample_rate)
+
+// STREAM4: PluginHost loads as Kain-native compressor

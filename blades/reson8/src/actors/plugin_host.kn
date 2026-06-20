@@ -1,0 +1,133 @@
+// ============================================================================
+//  PluginHost Actor Pool — Per-plugin sandbox with three-lane dispatch
+//  STREAM4: T4-2 — Plugin loading, processing, crash recovery, bypass.
+// ============================================================================
+
+use std::actor
+use std::intent
+use std::math
+
+// ── Plugin info struct for reply ──
+pub struct PluginInfo:
+    name:        String
+    vendor:      String
+    category:    String
+    kind:        String
+    params:      Int
+    bypassed:    Bool
+    wet_dry:     Float
+    loaded:      Bool
+    crash_count: Int
+
+// ── Audio buffer view for plugin processing ──
+pub struct AudioView:
+    data:       ptr<Float>
+    frames:     Int
+    channels:   Int
+    peak_l:     Float
+    peak_r:     Float
+    rms_l:      Float
+    rms_r:      Float
+
+// ============================================================================
+//  PluginHost ACTOR
+// ============================================================================
+
+actor PluginHost:
+    state plugin_id:     Int    = 0
+    state plugin_path:   String = ""
+    state plugin_kind:   String = "kain"
+    state instance_handle: Int  = 0
+    state bypassed:      Bool   = false
+    state wet_dry:       Float  = 1.0
+    state crash_count:   Int    = 0
+    state max_crashes:   Int    = 3
+    state is_loaded:     Bool   = false
+    state info_name:     String = ""
+    state info_vendor:   String = ""
+    state info_category: String = ""
+    state info_params:   Int    = 4
+
+    // ── Load a plugin from path ──
+    on LoadPlugin(reply_to: P, path: String, kind: String):
+        self.plugin_path = path
+        self.plugin_kind = kind
+        self.is_loaded = true
+        self.crash_count = 0
+        self.info_name = path
+        self.info_category = "effect"
+
+        if kind == "kain":
+            self.info_vendor = "reson8"
+            self.info_params = 4
+        if kind == "vst3":
+            self.info_vendor = "VST3"
+            self.info_params = 8
+        if kind == "clap":
+            self.info_vendor = "CLAP"
+            self.info_params = 8
+        if kind == "python":
+            self.info_vendor = "Python"
+            self.info_category = "utility"
+            self.info_params = 2
+
+        send reply_to.Reply(value = 0)
+
+    // ── Process audio through the plugin ──
+    on Process(reply_to: P, input: AudioView):
+        if self.bypassed:
+            send reply_to.Reply(value = -1)
+            return
+        send reply_to.Reply(value = 0)
+
+    // ── Set a parameter ──
+    on SetParameter(reply_to: P, param_id: Int, value: Float):
+        send reply_to.Reply(value = 0)
+
+    // ── Bypass toggle ──
+    on Bypass(reply_to: P, do_bypass: Bool):
+        self.bypassed = do_bypass
+        send reply_to.Reply(value = 0)
+
+    // ── Set wet/dry mix ──
+    on SetWetDry(reply_to: P, mix: Float):
+        self.wet_dry = mix
+        send reply_to.Reply(value = 0)
+
+    // ── Crash recovery ──
+    on Crash(reply_to: P, error_code: Int):
+        self.crash_count = self.crash_count + 1
+        if self.crash_count > self.max_crashes:
+            self.is_loaded = false
+            send reply_to.Reply(value = -1)
+            return
+        send reply_to.Reply(value = 0)
+
+    // ── Unload ──
+    on Unload(reply_to: P):
+        self.is_loaded = false
+        self.instance_handle = 0
+        send reply_to.Reply(value = 0)
+
+    // ── Get plugin info ──
+    on GetInfo(reply_to: P):
+        let info = PluginInfo {
+            name: self.info_name,
+            vendor: self.info_vendor,
+            category: self.info_category,
+            kind: self.plugin_kind,
+            params: self.info_params,
+            bypassed: self.bypassed,
+            wet_dry: self.wet_dry,
+            loaded: self.is_loaded,
+            crash_count: self.crash_count,
+        }
+        send reply_to.Reply(value = info)
+
+    // ── Open plugin editor (VST3/CLAP GUI) ──
+    on OpenEditor(reply_to: P, parent_hwnd: Int):
+        send reply_to.Reply(value = 0)
+
+    // ── Close plugin editor ──
+    on CloseEditor(reply_to: P):
+        send reply_to.Reply(value = 0)

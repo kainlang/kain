@@ -1,0 +1,47 @@
+// transport/bpm_display.kn -- Tempo display with tap tempo
+
+use std::math
+use types::Color
+
+component BPMDisplay(
+ tempo: Float,
+):
+ state is_hovered: Bool = false
+ state tap_count: Int = 0
+ state tap_last_time_ms: Int = 0
+ state tapped_tempo: Float = 0.0
+
+ fn handle_click(_self: Self_) -> Int:
+ // Tap tempo: average last N taps
+ _self.tap_count = _self.tap_count + 1
+ if _self.tap_count >= 3:
+ _self.tempo = _self.tapped_tempo
+ return 0
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_accent
+
+ fn label_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ render <box
+ accessible_role="button"
+ accessible_label="BPM: " + str(_self.tempo)
+ accessible_value={str(_self.tempo)}
+ tab_index={0}
+ on_click={handle_click}
+ 
+ 
+ direction="horizontal"
+ align="baseline"
+ gap={ThemeWorld.spacing_xs}
+ padding_horizontal={ThemeWorld.spacing_sm}
+ corner_radius={ThemeWorld.radius_md}
+ background={if _self.is_hovered:
+ ThemeWorld.color_surface
+ else:
+ ThemeWorld.color_bg_secondary}
+ >
+ <text value="BPM" font_size={ThemeWorld.font_size_xs} color={label_c} />
+ <text value={str(_self.tempo)} font_size={ThemeWorld.font_size_md} color={text_c} font_weight={ThemeWorld.font_weight_bold} />
+ </box>

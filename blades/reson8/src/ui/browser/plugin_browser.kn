@@ -1,0 +1,78 @@
+// browser/plugin_browser.kn -- Searchable plugin list with category filter, drag to FX slot
+
+use std::math
+use types::Color
+use types::PluginInfo
+
+component PluginBrowser(
+ plugins: [PluginInfo],
+ on_load_plugin: fn(String) -> Int,
+):
+ state search_text: String = ""
+ state active_category: String = "All"
+ state categories: [String] = ["All", "EQ", "Dynamics", "Reverb", "Delay", "Modulation", "Distortion", "Utility", "Instrument"]
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn filter_plugins(_self: Self_) -> [PluginInfo]:
+ var result: [PluginInfo] = []
+ for p in _self.plugins:
+ let match_category = _self.active_category == "All" or p.category == _self.active_category
+ let match_search = _self.search_text == "" or contains_string(p.name, _self.search_text)
+ if match_category and match_search:
+ push(result, p)
+ return result
+
+ fn select_category(cat: String) -> Int:
+ _self.active_category = cat
+ return 0
+
+ render <box
+ accessible_role="listbox"
+ accessible_label="Plugin browser"
+ direction="vertical"
+ fill={true}
+ background={bg}
+ >
+ {/* Header */}
+ <box padding={ThemeWorld.spacing_md} background={header_bg} border_bottom_width={1.0} border_bottom_color={ThemeWorld.color_border_subtle} direction="vertical" gap={ThemeWorld.spacing_sm} >
+ <text value="Plugins" font_size={ThemeWorld.font_size_sm} color={text_c} font_weight={ThemeWorld.font_weight_semibold} />
+ {/* Search field */}
+ <TextField value={search_text} placeholder="Search plugins..." label="" password={false} on_change={fn(s: String): _self.search_text = s; 0} on_submit={fn(_s: String): 0} />
+ {/* Category filter tabs */}
+ <box direction="horizontal" wrap="wrap" gap={ThemeWorld.spacing_xs}>
+ for cat in _self.categories:
+ <Button label={cat} kind={if cat == _self.active_category: "primary" else: "ghost"} size="sm" disabled={false} />
+ </box>
+ </box>
+
+ {/* Plugin list */}
+ <ScrollArea width={250.0} height={400.0} scroll_x={false} scroll_y={true} >
+ <box direction="vertical">
+ var filtered: [PluginInfo] = _self.filter_plugins
+ for idx in 0..len(filtered):
+ let plugin = filtered[idx]
+ <box accessible_role="option" accessible_label={plugin.name} tab_index={0} direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm} gap={ThemeWorld.spacing_sm} >
+ {/* Format badge */}
+ <text value={plugin.format} font_size={ThemeWorld.font_size_xs} color={muted_c} font_family={ThemeWorld.font_family_mono} />
+ {/* Plugin name */}
+ <text value={plugin.name} font_size={ThemeWorld.font_size_sm} color={text_c} flex_grow={1.0} />
+ {/* Vendor */}
+ <text value={plugin.vendor} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ {/* Loaded indicator */}
+ if plugin.is_loaded:
+ <text value="✓" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_success} />
+ </box>
+ </box>
+ </ScrollArea>
+ </box>

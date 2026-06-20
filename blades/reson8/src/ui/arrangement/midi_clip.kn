@@ -1,0 +1,61 @@
+// arrangement/midi_clip.kn -- MIDI clip on timeline with mini note preview
+
+use std::math
+use types::Color
+use types::ClipData
+use types::MIDINoteData
+
+component MIDIClip(
+ clip_data: ClipData,
+ lane_height: Float,
+ notes: [MIDINoteData],
+):
+ state is_hovered: Bool = false
+ state is_selected: Bool = false
+
+ fn clip_width_px(_self: Self_) -> Float:
+ return Float(_self.clip_data.length_samples)
+
+ fn clip_x_px(_self: Self_) -> Float:
+ return Float(_self.clip_data.start_sample)
+
+ fn clip_bg(_self: Self_) -> Color:
+ if _self.clip_data.is_muted:
+ return ThemeWorld.color_midi_note_muted
+ if _self.clip_data.is_selected:
+ return ThemeWorld.color_midi_note_selected
+ if _self.is_hovered:
+ return ThemeWorld.color_accent_hover
+ return ThemeWorld.color_midi_note_default
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_clip_header
+
+ render <box
+ width={clip_width_px}
+ height={lane_height}
+ corner_radius={ThemeWorld.radius_sm}
+ background={clip_bg}
+ position="absolute"
+ left={clip_x_px}
+ top={1.0}
+ accessible_role="button"
+ accessible_label={"MIDI clip: " + _self.clip_data.name}
+ tab_index={0}
+ 
+ 
+ >
+ {/* Header */}
+ <box width={clip_width_px} height={18.0} corner_top_left_radius={ThemeWorld.radius_sm} corner_top_right_radius={ThemeWorld.radius_sm} background={header_bg} padding_horizontal={ThemeWorld.spacing_sm} direction="horizontal" align="center" >
+ <text value={_self.clip_data.name} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_primary} font_weight={ThemeWorld.font_weight_medium} />
+ </box>
+
+ {/* Mini note preview */}
+ <box width={clip_width_px} height={_self.lane_height - 18.0} background={ThemeWorld.color_midi_bg} corner_bottom_left_radius={ThemeWorld.radius_sm} corner_bottom_right_radius={ThemeWorld.radius_sm} >
+ for n in 0..min(len(_self.notes), 8):
+ let note = _self.notes[n]
+ let note_h = 4.0
+ let note_y = Float(127 - note.pitch) * (_self.lane_height - 18.0 - note_h) / 127.0
+ <box width={Float(note.length_ticks) * 0.01} height={note_h} corner_radius={1.0} background={clip_bg} position="absolute" left={Float(note.start_tick) * 0.01} top={note_y} />
+ </box>
+ </box>

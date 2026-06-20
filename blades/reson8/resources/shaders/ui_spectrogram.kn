@@ -1,0 +1,73 @@
+// ============================================================================
+//  ui_spectrogram — FFT spectrogram GPU compute shader
+// ============================================================================
+//  GPU-accelerated spectrogram rendering for SpectrogramView.
+//  Takes FFT magnitude data and produces a frequency-domain visualization
+//  with color mapping and log-frequency scale.
+//
+//  Binding convention:
+//    @0:  FFT magnitude buffer (input)
+//    @1:  Output render texture
+//    @8:  Spectrogram parameters
+//
+//  Comptime metadata for resource binding specification.
+
+shader compute ui_spectrogram_render(id: UVec3) -> Void workgroup(16, 16, 1):
+    uniform fft_magnitudes: StorageBuffer<Float> @0
+    uniform output_texture: StorageBuffer<Vec4> @1
+    uniform bin_count: UInt @8
+    uniform texture_height: UInt @9
+    uniform min_freq_hz: Float @10
+    uniform max_freq_hz: Float @11
+    uniform scroll_offset: UInt @12
+
+    comptime:
+        let compute = (
+            [256, 128, 1],
+            [
+                ("fft_magnitudes", "f32", [1], "input", "kain.shared.buffer"),
+                ("output_texture", "f32", [4], "output", "kain.shared.buffer"),
+            ],
+            [
+                ("bin_count", "u32", "uniform", "kain.material"),
+                ("texture_height", "u32", "uniform", "kain.material"),
+                ("min_freq_hz", "f32", "uniform", "kain.material"),
+                ("max_freq_hz", "f32", "uniform", "kain.material"),
+                ("scroll_offset", "u32", "uniform", "kain.material"),
+            ],
+        )
+
+    let px: UInt = id.x
+    let py: UInt = id.y
+
+    // Map pixel Y to log-frequency bin
+    let norm_y: Float = f32(py) / f32(texture_height)
+    let log_min: Float = log(min_freq_hz)
+    let log_max: Float = log(max_freq_hz)
+    let freq_hz: Float = exp(log_min + norm_y * (log_max - log_min))
+
+    // Map frequency to FFT bin index
+    let bin_f: Float = (freq_hz - min_freq_hz) / (max_freq_hz - min_freq_hz) * f32(bin_count)
+    let bin_index: UInt = bin_f as UInt
+    if bin_index >= bin_count:
+        return
+
+    // Read magnitude from FFT buffer
+    let magnitude: Float = fft_magnitudes[bin_index]
+
+    // Color mapping
+    let color: Vec4
+    if magnitude > 0.6:
+        color = vec4(1.0, 0.9, 0.4, 1.0)       // yellow/white (high)
+    elif magnitude > 0.3:
+        color = vec4(0.4, 0.7, 1.0, 1.0)        // blue (mid)
+    elif magnitude > 0.1:
+        color = vec4(0.1, 0.3, 0.6, 1.0)        // dark blue (low)
+    else:
+        color = vec4(0.02, 0.02, 0.04, 1.0)     // background
+
+    // Write to output texture
+    let idx: UInt = py * UInt(512) + px
+    output_texture[idx] = color
+
+    return

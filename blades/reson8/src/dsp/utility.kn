@@ -1,0 +1,124 @@
+use std::math
+
+// ============================================================================
+//  BASIC DSP UTILITIES — Fundamental audio processing functions
+//  Owned by STREAM1. Extends: STREAM2 adds stereo_tools, phase_invert, channel_swap.
+//  All functions operate on raw ptr<Float> — no AudioBuffer dependency.
+// ============================================================================
+
+// ── Apply gain to mono buffer in-place ──
+pub fn apply_gain(buffer: ptr<Float>, frames: Int, gain: Float) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        mem_store(ptr_offset(buffer, i, "Float"), val * gain, "Float")
+        i = i + 1
+    return 0
+
+// ── Apply constant-gain pan to stereo pair in-place ──
+// ── pan: -1.0 (full left) to 1.0 (full right), 0.0 = center ──
+pub fn apply_pan(left: ptr<Float>, right: ptr<Float>, frames: Int, pan: Float) -> Int with Unsafe:
+    let left_gain = sqrt((1.0 - pan) / 2.0)
+    let right_gain = sqrt((1.0 + pan) / 2.0)
+    apply_gain(left, frames, left_gain)
+    apply_gain(right, frames, right_gain)
+    return 0
+
+// ── Remove DC offset by subtracting mean ──
+pub fn dc_offset_remove(buffer: ptr<Float>, frames: Int) -> Int with Unsafe:
+    if frames <= 0:
+        return -1
+
+    var sum: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        sum = sum + mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        i = i + 1
+    let mean = sum / (frames as Float)
+
+    i = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        mem_store(ptr_offset(buffer, i, "Float"), val - mean, "Float")
+        i = i + 1
+    return 0
+
+// ── Measure peak amplitude ──
+pub fn peak_amplitude(buffer: ptr<Float>, frames: Int) -> Float with Unsafe:
+    var peak: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        let abs_val = if val < 0.0: -val else: val
+        if abs_val > peak:
+            peak = abs_val
+        i = i + 1
+    return peak
+
+// ── Normalize buffer to target peak ──
+pub fn normalize_peak(buffer: ptr<Float>, frames: Int, target_peak: Float) -> Int with Unsafe:
+    if target_peak <= 0.0:
+        return -1
+    let current_peak = peak_amplitude(buffer, frames)
+    if current_peak <= 0.0:
+        return 0   // silent buffer, nothing to normalize
+    let gain = target_peak / current_peak
+    return apply_gain(buffer, frames, gain)
+
+// ── Silence buffer (zero all samples) ──
+pub fn silence_buffer(buffer: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        mem_store(ptr_offset(buffer, i, "Float"), 0.0, "Float")
+        i = i + 1
+    return 0
+
+// ── Copy buffer (non-overlapping, mono) ──
+pub fn copy_buffer(src: ptr<Float>, dst: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(src, i, "Float"), "Float")
+        mem_store(ptr_offset(dst, i, "Float"), val, "Float")
+        i = i + 1
+    return 0
+
+// ── Compute RMS amplitude ──
+pub fn rms_amplitude(buffer: ptr<Float>, frames: Int) -> Float with Unsafe:
+    if frames <= 0:
+        return 0.0
+    var sum_sq: Float = 0.0
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        sum_sq = sum_sq + (val * val)
+        i = i + 1
+    return sqrt(sum_sq / (frames as Float))
+
+// ── Mix two buffers in-place (dest += src * mix_gain) ──
+pub fn mix_add(dest: ptr<Float>, src: ptr<Float>, frames: Int, mix_gain: Float) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let d = mem_load(ptr_offset(dest, i, "Float"), "Float")
+        let s = mem_load(ptr_offset(src, i, "Float"), "Float")
+        mem_store(ptr_offset(dest, i, "Float"), d + (s * mix_gain), "Float")
+        i = i + 1
+    return 0
+
+// ── Check if buffer has any non-zero samples ──
+pub fn has_signal(buffer: ptr<Float>, frames: Int) -> Bool with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let val = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        if val != 0.0:
+            return true
+        i = i + 1
+    return false
+
+// ============================================================================
+//  STREAM2: extends utility.kn with:
+//    - stereo_tools (mid/side encode/decode, stereo width)
+//    - phase_invert
+//    - channel_swap
+//    - interleave / deinterleave
+//    - crossfade (linear, equal-power, constant-power)
+// ============================================================================

@@ -1,0 +1,49 @@
+// theme/hot_reload.kn -- ThemeHotReloadWatcher actor: file watch + DLL swap
+// Detects theme file changes, rebuilds DLL, hot-swaps without restart
+
+use std::math
+use std::fs
+
+actor ThemeHotReloadWatcher:
+    state watch_path: String = "./themes/"
+    state active_theme: String = "reson8-dark"
+    state generation: Int = 0
+    state is_watching: Bool = false
+
+    on StartWatching(reply_to: P):
+        // Register file system watch on themes directory
+        self.is_watching = true
+        send reply_to.Watching(path = self.watch_path)
+
+    on StopWatching(reply_to: P):
+        self.is_watching = false
+        send reply_to.Stopped(generation = self.generation)
+
+    on FileChanged(path: String):
+        if not self.is_watching:
+            return
+        if not path.endswith(".kn"):
+            return
+
+        // Build the theme .kn file to a DLL
+        // let result = kain_build(path, target = "llvm", output = "dll")
+        // For now, log the change
+
+        self.active_theme = path
+        self.generation = self.generation + 1
+
+        // Apply theme patches from the rebuilt DLL
+        // hot_reload_swap_theme(result.output_path)
+
+    on GetStatus(reply_to: P):
+        send reply_to.Status(
+            active = self.active_theme,
+            generation = self.generation,
+            watching = self.is_watching
+        )
+
+    on ReloadCurrentTheme(reply_to: P):
+        // Reload the currently active theme
+        let theme_file = self.watch_path + self.active_theme + ".kn"
+        send self.FileChanged(path = theme_file)
+        send reply_to.Reloading(theme = self.active_theme)

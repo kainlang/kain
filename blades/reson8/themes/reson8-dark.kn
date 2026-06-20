@@ -1,0 +1,260 @@
+// themes/reson8-dark.kn -- Default dark theme for reson8
+// Complete color palette + typography + layout + animation
+// Applied via patch blocks on ThemeWorld
+
+use std::math
+use worlds::theme_world
+
+// ── Identity ──
+patch apply_dark_identity(tw: ThemeWorld):
+    tw.active_theme_name = "reson8-dark"
+    tw.theme_version = 1
+    tw.theme_author = "reson8"
+    tw.theme_description = "Default reson8 dark theme"
+
+// ── Surface Colors ──
+patch apply_dark_surfaces(tw: ThemeWorld):
+    // Background hierarchy
+    tw.color_bg_primary       = color_rgba(0.10, 0.10, 0.18, 1.0)  // #1a1a2e
+    tw.color_bg_secondary     = color_rgba(0.09, 0.13, 0.24, 1.0)  // #16213e
+    tw.color_bg_tertiary      = color_rgba(0.06, 0.20, 0.38, 1.0)  // #0f3460
+    tw.color_surface          = color_rgba(0.12, 0.16, 0.22, 1.0)  // #1f2937
+    tw.color_surface_raised   = color_rgba(0.18, 0.22, 0.28, 1.0)  // #2d3748
+    tw.color_surface_overlay  = color_rgba(0.22, 0.25, 0.32, 1.0)  // #374151
+    tw.color_surface_dialog   = color_rgba(0.12, 0.18, 0.23, 1.0)  // #1e293b
+
+// ── Text Colors ──
+patch apply_dark_text(tw: ThemeWorld):
+    tw.color_text_primary     = color_rgba(0.91, 0.91, 0.91, 1.0)  // #e8e8e8
+    tw.color_text_secondary   = color_rgba(0.63, 0.63, 0.63, 1.0)  // #a0a0a0
+    tw.color_text_muted       = color_rgba(0.38, 0.38, 0.38, 1.0)  // #606060
+    tw.color_text_inverse     = color_rgba(0.05, 0.07, 0.09, 1.0)  // #0d1117
+    tw.color_text_link        = color_rgba(0.35, 0.65, 1.00, 1.0)  // #58a6ff
+    tw.color_text_error       = color_rgba(0.97, 0.32, 0.29, 1.0)  // #f85149
+    tw.color_text_success     = color_rgba(0.25, 0.73, 0.31, 1.0)  // #3fb950
+
+// ── Accent Colors ──
+patch apply_dark_accent(tw: ThemeWorld):
+    tw.color_accent           = color_rgba(0.91, 0.27, 0.38, 1.0)  // #e94560
+    tw.color_accent_hover     = color_rgba(1.00, 0.42, 0.51, 1.0)  // #ff6b81
+    tw.color_accent_pressed   = color_rgba(0.76, 0.19, 0.32, 1.0)  // #c23152
+    tw.color_accent_alt       = color_rgba(0.33, 0.20, 0.51, 1.0)  // #533483
+    tw.color_accent_alt_hover = color_rgba(0.49, 0.23, 0.93, 1.0)  // #7c3aed
+
+// ── Semantic Colors ──
+patch apply_dark_semantic(tw: ThemeWorld):
+    tw.color_success          = color_rgba(0.07, 0.73, 0.51, 1.0)  // #10b981
+    tw.color_warning          = color_rgba(0.96, 0.62, 0.04, 1.0)  // #f59e0b
+    tw.color_error            = color_rgba(0.94, 0.27, 0.27, 1.0)  // #ef4444
+    tw.color_info             = color_rgba(0.23, 0.51, 0.99, 1.0)  // #3b82f6
+
+// ── Border Colors ──
+patch apply_dark_borders(tw: ThemeWorld):
+    tw.color_border_default   = color_rgba(0.19, 0.22, 0.27, 1.0)  // #30363d
+    tw.color_border_focus     = color_rgba(0.35, 0.65, 1.00, 1.0)  // #58a6ff
+    tw.color_border_error     = color_rgba(0.97, 0.32, 0.29, 1.0)  // #f85149
+    tw.color_border_subtle    = color_rgba(0.13, 0.15, 0.18, 1.0)  // #21262d
+
+// ── Meter Colors ──
+patch apply_dark_meters(tw: ThemeWorld):
+    tw.color_meter_low        = color_rgba(0.07, 0.73, 0.51, 1.0)  // #10b981
+    tw.color_meter_mid        = color_rgba(0.96, 0.62, 0.04, 1.0)  // #f59e0b
+    tw.color_meter_high       = color_rgba(0.94, 0.27, 0.27, 1.0)  // #ef4444
+    tw.color_meter_over       = color_rgba(1.00, 0.00, 0.00, 1.0)  // #ff0000
+    tw.color_meter_background = color_rgba(0.07, 0.09, 0.15, 1.0)  // #111827
+    tw.color_meter_peak_hold  = color_rgba(1.00, 1.00, 1.00, 1.0)  // #ffffff
+
+// ── Waveform Colors ──
+patch apply_dark_waveform(tw: ThemeWorld):
+    tw.color_waveform        = color_rgba(0.38, 0.65, 0.98, 1.0)   // #60a5fa
+    tw.color_waveform_selected = color_rgba(0.91, 0.27, 0.38, 1.0) // #e94560
+    tw.color_waveform_center_line = color_rgba(0.29, 0.34, 0.43, 1.0) // #4a5568
+    tw.color_waveform_rms    = color_rgba(0.12, 0.25, 0.50, 0.5)   // #1e40af80
+
+// ── Grid & Ruler Colors ──
+patch apply_dark_grid(tw: ThemeWorld):
+    tw.color_grid_line       = color_rgba(0.18, 0.22, 0.28, 1.0)   // #2d3748
+    tw.color_grid_beat       = color_rgba(0.29, 0.34, 0.43, 1.0)   // #4a5568
+    tw.color_grid_bar        = color_rgba(0.42, 0.47, 0.55, 1.0)   // #6b7280
+    tw.color_ruler_bg        = color_rgba(0.12, 0.16, 0.22, 1.0)   // #1f2937
+    tw.color_ruler_text      = color_rgba(0.61, 0.65, 0.69, 1.0)   // #9ca3af
+
+// ── Playhead & Loop ──
+patch apply_dark_playhead(tw: ThemeWorld):
+    tw.color_playhead         = color_rgba(1.00, 1.00, 1.00, 1.0)  // #ffffff
+    tw.color_playhead_line    = color_rgba(1.00, 1.00, 1.00, 1.0)  // #ffffff
+    tw.color_loop_region      = color_rgba(0.64, 0.44, 0.97, 0.13) // #a371f720
+    tw.color_loop_region_border = color_rgba(0.64, 0.44, 0.97, 1.0) // #a371f7
+
+// ── MIDI / Piano Roll ──
+patch apply_dark_midi(tw: ThemeWorld):
+    tw.color_midi_bg              = color_rgba(0.10, 0.10, 0.18, 1.0)  // #1a1a2e
+    tw.color_midi_note_default    = color_rgba(0.38, 0.65, 0.98, 1.0)  // #60a5fa
+    tw.color_midi_note_selected   = color_rgba(0.91, 0.27, 0.38, 1.0)  // #e94560
+    tw.color_midi_note_muted      = color_rgba(0.42, 0.47, 0.55, 1.0)  // #6b7280
+    tw.color_midi_note_velocity_low = color_rgba(0.11, 0.31, 0.85, 1.0) // #1d4ed8
+    tw.color_midi_note_velocity_high = color_rgba(0.38, 0.65, 0.98, 1.0) // #60a5fa
+    tw.color_midi_white_key       = color_rgba(0.90, 0.91, 0.93, 1.0)  // #e5e7eb
+    tw.color_midi_black_key       = color_rgba(0.22, 0.25, 0.32, 1.0)  // #374151
+    tw.color_midi_grid            = color_rgba(0.18, 0.22, 0.28, 1.0)  // #2d3748
+    tw.color_midi_cc_bg           = color_rgba(0.07, 0.09, 0.15, 1.0)  // #111827
+    tw.color_midi_cc_line         = color_rgba(0.96, 0.62, 0.04, 1.0)  // #f59e0b
+
+// ── Clip Colors ──
+patch apply_dark_clips(tw: ThemeWorld):
+    tw.color_clip_default     = color_rgba(0.38, 0.65, 0.98, 1.0)  // #60a5fa
+    tw.color_clip_selected    = color_rgba(0.91, 0.27, 0.38, 1.0)  // #e94560
+    tw.color_clip_muted       = color_rgba(0.42, 0.47, 0.55, 1.0)  // #6b7280
+    tw.color_clip_locked      = color_rgba(0.96, 0.62, 0.04, 1.0)  // #f59e0b
+    tw.color_clip_recording   = color_rgba(0.94, 0.27, 0.27, 1.0)  // #ef4444
+    tw.color_clip_header      = color_rgba(0.12, 0.23, 0.37, 1.0)  // #1e3a5f
+    tw.color_clip_waveform    = color_rgba(0.58, 0.77, 0.99, 1.0)  // #93c5fd
+    tw.color_clip_fade_in     = color_rgba(0.07, 0.73, 0.51, 0.5)  // #10b98180
+    tw.color_clip_fade_out    = color_rgba(0.94, 0.27, 0.27, 0.5)  // #ef444480
+
+// ── Automation ──
+patch apply_dark_automation(tw: ThemeWorld):
+    tw.color_automation_line         = color_rgba(0.96, 0.62, 0.04, 1.0) // #f59e0b
+    tw.color_automation_point        = color_rgba(1.00, 1.00, 1.00, 1.0) // #ffffff
+    tw.color_automation_point_selected = color_rgba(0.91, 0.27, 0.38, 1.0) // #e94560
+    tw.color_automation_lane_bg      = color_rgba(0.07, 0.09, 0.15, 1.0) // #111827
+
+// ── Knob Colors ──
+patch apply_dark_knobs(tw: ThemeWorld):
+    tw.color_knob_track       = color_rgba(0.22, 0.25, 0.32, 1.0)  // #374151
+    tw.color_knob_fill        = color_rgba(0.91, 0.27, 0.38, 1.0)  // #e94560
+    tw.color_knob_center      = color_rgba(0.12, 0.16, 0.22, 1.0)  // #1f2937
+    tw.color_knob_indicator   = color_rgba(1.00, 1.00, 1.00, 1.0)  // #ffffff
+
+// ── Button Colors ──
+patch apply_dark_buttons(tw: ThemeWorld):
+    tw.color_button_default  = color_rgba(0.22, 0.25, 0.32, 1.0)   // #374151
+    tw.color_button_hover    = color_rgba(0.29, 0.34, 0.39, 1.0)   // #4b5563
+    tw.color_button_active   = color_rgba(0.91, 0.27, 0.38, 1.0)   // #e94560
+    tw.color_button_text     = color_rgba(0.91, 0.91, 0.91, 1.0)   // #e8e8e8
+    tw.color_button_text_active = color_rgba(1.00, 1.00, 1.00, 1.0) // #ffffff
+    tw.color_button_disabled = color_rgba(0.12, 0.16, 0.22, 1.0)   // #1f2937
+    tw.color_button_text_disabled = color_rgba(0.42, 0.47, 0.55, 1.0) // #6b7280
+
+// ── Slider / Fader Colors ──
+patch apply_dark_sliders(tw: ThemeWorld):
+    tw.color_slider_track    = color_rgba(0.22, 0.25, 0.32, 1.0)   // #374151
+    tw.color_slider_fill     = color_rgba(0.91, 0.27, 0.38, 1.0)   // #e94560
+    tw.color_slider_thumb    = color_rgba(0.91, 0.91, 0.91, 1.0)   // #e8e8e8
+    tw.color_slider_thumb_hover = color_rgba(1.00, 1.00, 1.00, 1.0) // #ffffff
+    tw.color_fader_cap       = color_rgba(0.12, 0.16, 0.22, 1.0)   // #1f2937
+    tw.color_fader_cap_line  = color_rgba(0.91, 0.27, 0.38, 1.0)   // #e94560
+
+// ── Scrollbar ──
+patch apply_dark_scrollbar(tw: ThemeWorld):
+    tw.color_scrollbar_track      = color_rgba(0.05, 0.07, 0.09, 0.0) // transparent
+    tw.color_scrollbar_thumb      = color_rgba(0.28, 0.31, 0.37, 1.0)  // #484f58
+    tw.color_scrollbar_thumb_hover = color_rgba(0.43, 0.46, 0.51, 1.0) // #6e7681
+
+// ── Selection ──
+patch apply_dark_selection(tw: ThemeWorld):
+    tw.color_selection        = color_rgba(0.35, 0.65, 1.00, 0.25)  // #58a6ff40
+    tw.color_selection_border = color_rgba(0.35, 0.65, 1.00, 1.0)   // #58a6ff
+
+// ── Shadows ──
+patch apply_dark_shadows(tw: ThemeWorld):
+    tw.shadow_elevation_1  = 2.0
+    tw.shadow_elevation_2  = 4.0
+    tw.shadow_elevation_3  = 8.0
+    tw.shadow_color        = color_rgba(0.0, 0.0, 0.0, 0.5)
+    tw.glow_accent         = color_rgba(0.91, 0.27, 0.38, 0.25)
+    tw.glow_meter_peak     = color_rgba(1.00, 0.00, 0.00, 0.25)
+
+// ── Typography ──
+patch apply_dark_typography(tw: ThemeWorld):
+    tw.font_family_ui        = "Inter"
+    tw.font_family_mono      = "JetBrains Mono"
+    tw.font_family_display   = "Inter Display"
+    tw.font_size_xs          = 10.0
+    tw.font_size_sm          = 11.0
+    tw.font_size_base        = 12.0
+    tw.font_size_md          = 13.0
+    tw.font_size_lg          = 15.0
+    tw.font_size_xl          = 18.0
+    tw.font_size_2xl         = 24.0
+    tw.font_size_3xl         = 32.0
+    tw.font_weight_normal    = 400
+    tw.font_weight_medium    = 500
+    tw.font_weight_semibold  = 600
+    tw.font_weight_bold      = 700
+    tw.font_weight_black     = 900
+    tw.font_letter_spacing_tight   = -0.5
+    tw.font_letter_spacing_normal  = 0.0
+    tw.font_letter_spacing_wide    = 1.0
+    tw.font_line_height_tight      = 1.0
+    tw.font_line_height_normal     = 1.4
+    tw.font_line_height_relaxed    = 1.6
+
+// ── Spacing ──
+patch apply_dark_spacing(tw: ThemeWorld):
+    tw.spacing_xxs = 2.0
+    tw.spacing_xs  = 4.0
+    tw.spacing_sm  = 6.0
+    tw.spacing_md  = 8.0
+    tw.spacing_lg  = 12.0
+    tw.spacing_xl  = 16.0
+    tw.spacing_2xl = 24.0
+    tw.spacing_3xl = 32.0
+    tw.spacing_4xl = 48.0
+
+// ── Border Radius ──
+patch apply_dark_radius(tw: ThemeWorld):
+    tw.radius_none = 0.0
+    tw.radius_sm   = 2.0
+    tw.radius_md   = 4.0
+    tw.radius_lg   = 6.0
+    tw.radius_xl   = 8.0
+    tw.radius_2xl  = 12.0
+    tw.radius_full = 9999.0
+
+// ── Component Metrics ──
+patch apply_dark_metrics(tw: ThemeWorld):
+    tw.mixer_strip_width      = 80.0
+    tw.mixer_strip_min_height = 200.0
+    tw.transport_height       = 48.0
+    tw.track_header_width     = 200.0
+    tw.track_header_min_height = 60.0
+    tw.piano_roll_note_height = 12.0
+    tw.piano_roll_key_width   = 60.0
+    tw.timeline_ruler_height  = 24.0
+    tw.meter_width            = 10.0
+    tw.meter_height           = 200.0
+    tw.fader_throw            = 200.0
+    tw.fader_width            = 24.0
+    tw.knob_size_sm           = 20.0
+    tw.knob_size_md           = 32.0
+    tw.knob_size_lg           = 48.0
+    tw.button_size_sm         = 20.0
+    tw.button_size_md         = 28.0
+    tw.button_size_lg         = 36.0
+    tw.button_icon_size       = 16.0
+    tw.scrollbar_width        = 8.0
+    tw.min_panel_width        = 100.0
+    tw.min_panel_height       = 60.0
+
+// ── Animation ──
+patch apply_dark_animation(tw: ThemeWorld):
+    tw.animation_enabled           = true
+    tw.animation_reduced           = false
+    tw.animation_duration_fast     = 100
+    tw.animation_duration_normal   = 200
+    tw.animation_duration_slow     = 400
+    tw.animation_duration_glacial  = 800
+    tw.animation_easing_default    = "ease-out"
+    tw.animation_easing_bounce     = "ease-out-bounce"
+    tw.animation_easing_spring     = "ease-out-spring"
+    tw.meter_decay_rate           = 26.0
+    tw.meter_peak_hold_ms         = 2000
+    tw.meter_fall_rate_fast       = 60.0
+    tw.waveform_scroll_smoothing   = 0.85
+    tw.playhead_scroll_mode       = "page"
+
+// ── CPU Thresholds ──
+patch apply_dark_cpu_thresholds(tw: ThemeWorld):
+    tw.threshold_cpu_yellow = 50.0
+    tw.threshold_cpu_red    = 80.0

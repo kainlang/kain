@@ -1,0 +1,11 @@
+// shared/scroll_area.kn — Scrollable container
+use std::math
+use types::Color
+
+component ScrollArea(width: Float, height: Float, scroll_x: Bool, scroll_y: Bool):
+    render <box width={width} height={height} overflow="hidden" direction="horizontal" accessible_role="scrollpane" accessible_label="Scrollable content">
+        <box width={width - ThemeWorld.scrollbar_width} height={height} overflow="hidden"/>
+        <box width={ThemeWorld.scrollbar_width} height={height} background={ThemeWorld.color_scrollbar_track} direction="vertical">
+            <box width={ThemeWorld.scrollbar_width - 2.0} height={"20%"} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_scrollbar_thumb} margin_horizontal={1.0}/>
+        </box>
+    </box>

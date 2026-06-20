@@ -1,0 +1,50 @@
+// transport/transport_controls.kn -- Stop, Play, Pause, Record, Loop buttons
+
+use std::math
+use types::Color
+
+component TransportControls(
+ is_playing: Bool,
+ is_recording: Bool,
+ is_looping: Bool,
+ on_play: fn() -> Int,
+ on_stop: fn() -> Int,
+ on_pause: fn() -> Int,
+ on_record: fn() -> Int,
+ on_loop_toggle: fn() -> Int,
+):
+ fn stop_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_button_default
+
+ fn play_bg(_self: Self_) -> Color:
+ if _self.is_playing:
+ return ThemeWorld.color_accent
+ return ThemeWorld.color_button_default
+
+ fn record_bg(_self: Self_) -> Color:
+ if _self.is_recording:
+ return ThemeWorld.color_error
+ return ThemeWorld.color_button_default
+
+ fn loop_bg(_self: Self_) -> Color:
+ if _self.is_looping:
+ return ThemeWorld.color_accent_hover
+ return ThemeWorld.color_button_default
+
+ render <box
+ direction="horizontal"
+ gap={ThemeWorld.spacing_xs}
+ accessible_role="group"
+ accessible_label="Transport controls"
+ >
+ {/* Stop button */}
+ <Button label="◼" kind="icon" size="md" disabled={false} on_click={on_stop} />
+ {/* Play button */}
+ <Button label="▶" kind="icon" size="md" disabled={false} on_click={on_play} />
+ {/* Pause button */}
+ <Button label="⏸" kind="icon" size="md" disabled={false} on_click={on_pause} />
+ {/* Record button */}
+ <Button label="⏺" kind={if _self.is_recording: "danger" else: "default"} size="md" disabled={false} on_click={on_record} />
+ {/* Loop button */}
+ <Button label="↻" kind="icon" size="md" disabled={false} on_click={on_loop_toggle} />
+ </box>

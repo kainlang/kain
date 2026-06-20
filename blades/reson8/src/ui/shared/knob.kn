@@ -1,0 +1,25 @@
+// shared/knob.kn — Rotary control with mouse drag
+use std::math
+use types::Color
+
+component Knob(label: String, value: Float, min: Float, max: Float, default_val: Float, unit: String, on_change: fn(Float) -> Int):
+    state is_dragging: Bool = false
+
+    fn normalized(_self: Self_) -> Float:
+        if _self.max == _self.min: return 0.0
+        return (_self.value - _self.min) / (_self.max - _self.min)
+
+    fn display_val(_self: Self_) -> String:
+        return str(_self.value) + " " + _self.unit
+
+    fn handle_dbl_click(_self: Self_) -> Int:
+        _self.on_change(_self.default_val)
+        return 0
+
+    render <box accessible_role="slider" accessible_label={label} accessible_value={display_val()} tab_index={0} on_dbl_click={handle_dbl_click} direction="vertical" align="center" width={ThemeWorld.knob_size_md + ThemeWorld.spacing_lg}>
+        <text value={label} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary}/>
+        <box width={ThemeWorld.knob_size_md} height={ThemeWorld.knob_size_md} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_knob_center} border_width={2.0} border_color={ThemeWorld.color_knob_track}>
+            <box width={ThemeWorld.knob_size_md - 4.0} height={ThemeWorld.knob_size_md - 4.0} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_knob_fill} position="absolute"/>
+        </box>
+        <text value={display_val()} font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_primary} font_weight={ThemeWorld.font_weight_semibold}/>
+    </box>

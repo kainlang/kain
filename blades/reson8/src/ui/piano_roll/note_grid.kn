@@ -1,0 +1,86 @@
+// piano_roll/note_grid.kn -- Grid at MIDI pitch resolution, colored note rectangles
+
+use std::math
+use types::Color
+use types::MIDINoteData
+
+component NoteGrid(
+ notes: [MIDINoteData],
+ zoom_x: Float,
+ zoom_y: Float,
+ scroll_x: Float,
+ scroll_y: Float,
+ active_tool: String,
+ snap_value: String,
+):
+ state selected_notes: [Int] = []
+ state is_dragging: Bool = false
+ state drag_start_x: Float = 0.0
+ state drag_start_y: Float = 0.0
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_bg
+
+ fn grid_line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_grid
+
+ fn note_c(_self: Self_, velocity: Int) -> Color:
+ // Map velocity 0-127 to color gradient
+ let t = Float(velocity) / 127.0
+ if t > 0.5:
+ return color_rgba(
+ 0.376 + (1.0 - 0.376) * (t - 0.5) * 2.0,
+ 0.647 + (1.0 - 0.647) * (t - 0.5) * 2.0,
+ 0.980 + (1.0 - 0.980) * (t - 0.5) * 2.0,
+ 1.0
+ )
+ return color_rgba(
+ 0.114 + (0.376 - 0.114) * t * 2.0,
+ 0.306 + (0.647 - 0.306) * t * 2.0,
+ 0.847 + (0.980 - 0.847) * t * 2.0,
+ 1.0
+ )
+
+ fn note_selected_c(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_note_selected
+
+ fn is_note_selected(_self: Self_, note_id: Int) -> Bool:
+ for idx in 0..len(_self.selected_notes):
+ if _self.selected_notes[idx] == note_id:
+ return true
+ return false
+
+ render <box
+ accessible_role="group"
+ accessible_label="Note grid"
+ flex_grow={1.0}
+ background={bg}
+ position="relative"
+ >
+ {/* Grid backdrop */}
+ <box width={total_width} height={127.0 * ThemeWorld.piano_roll_note_height} position="absolute" left={0.0} top={0.0} >
+ {/* Horizontal grid lines for C notes (pitch % 12 == 0) */}
+ {/* Vertical grid lines for beats */}
+ </box>
+
+ {/* Note rectangles */}
+ for idx in 0..len(_self.notes):
+ let note = _self.notes[idx]
+ let x_pos = Float(note.start_tick) * _self.zoom_x
+ let w = Float(note.length_ticks) * _self.zoom_x
+ let y_pos = Float(127 - note.pitch) * _self.note_height
+ let h = ThemeWorld.piano_roll_note_height - 1.0
+ <box width={w} height={h} corner_radius={ThemeWorld.radius_sm} background={if _self.is_note_selected(note.id):>
+ _self.note_selected_c
+ else:
+ _self.note_c(note.velocity)}
+ border_width={0.5}
+ border_color={color_rgba(0.0, 0.0, 0.0, 0.3)}
+ position="absolute"
+ left={x_pos}
+ top={y_pos}
+ accessible_role="button"
+ accessible_label={"Note " + str(note.pitch) + " vel " + str(note.velocity)}
+ tab_index={0}
+ />
+ </box>

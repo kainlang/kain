@@ -1,0 +1,78 @@
+// ============================================================================
+//  analyzer.kn — librosa Audio Analysis Suite Python Plugin Wrapper
+//  STREAM4: T4-11 — Python-backed audio analysis (librosa).
+//  Uses PythonBridge actor. //@ ignore-llvm
+// ============================================================================
+
+use std::actor
+
+pub struct PythonParamDef:
+    name:        String
+    kind:        String
+    default_val: String
+
+// ============================================================================
+//  Analyzer ACTOR
+// ============================================================================
+
+actor Analyzer:
+    state busy:        Bool   = false
+    state sample_rate: Int    = 48000
+    state hop_length:  Int    = 512
+    state initialized: Bool   = false
+
+    on Initialize(reply_to: P, sr: Int):
+        self.sample_rate = sr
+        self.initialized = true
+        send reply_to.Reply(value = 0)
+
+    on DetectPitch(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on DetectBPM(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on DetectKey(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on AnalyzeSpectral(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on DetectOnsets(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on AnalyzeFull(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on GetStatus(reply_to: P):
+        send reply_to.Reply(value = 0)

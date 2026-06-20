@@ -1,0 +1,29 @@
+// shared/slider.kn — Horizontal slider with track, fill, and thumb
+use std::math
+use types::Color
+
+component Slider(value: Float, min: Float, max: Float, step: Float, label: String, on_change: fn(Float) -> Int):
+    state is_dragging: Bool = false
+
+    fn normalized(_self: Self_) -> Float:
+        if _self.max == _self.min:
+            return 0.0
+        return (_self.value - _self.min) / (_self.max - _self.min)
+
+    fn fill_pct(_self: Self_) -> Float:
+        let n = normalized()
+        if n < 0.0: return 0.0
+        if n > 1.0: return 100.0
+        return n * 100.0
+
+    fn display_val(_self: Self_) -> Float:
+        return _self.value
+
+    render <box accessible_role="slider" accessible_label={label} accessible_value={display_val().toString()} tab_index={0} direction="horizontal" align="center" gap={ThemeWorld.spacing_sm}>
+        <text value={label} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary}/>
+        <box width={120.0} height={6.0} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_slider_track}>
+            <box width={fill_pct().toString() + "%"} height={6.0} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_slider_fill}/>
+            <box width={14.0} height={14.0} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_slider_thumb} position="absolute"/>
+        </box>
+        <text value={display_val().toString()} font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_primary} font_weight={ThemeWorld.font_weight_medium}/>
+    </box>

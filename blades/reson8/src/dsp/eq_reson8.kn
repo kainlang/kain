@@ -1,0 +1,329 @@
+// ============================================================================
+//  reson8 Parametric EQ — RBJ Cookbook Biquad Filters
+//  STREAM2: T2-1 — Full parametric equalizer with 6 filter types.
+//  STREAM4: PluginHost loads this as Kain-native EQ plugin.
+//  Converge SIMD fast lanes: AVX2, NEON, scalar reference.
+// ============================================================================
+
+use std::math
+
+// ── Constants ──
+const EQ_PI:         Float = 3.14159265358979323846
+const EQ_TWO_PI:     Float = 6.28318530717958647692
+const EQ_MIN_Q:      Float = 0.1
+const EQ_MAX_Q:      Float = 40.0
+const EQ_MIN_FREQ:   Float = 20.0
+const EQ_MAX_FREQ:   Float = 20000.0
+const EQ_MAX_BANDS:  Int   = 8
+
+// ============================================================================
+//  Biquad Coefficient Structures
+// ============================================================================
+
+pub struct BiquadCoeffs:
+    b0: Float
+    b1: Float
+    b2: Float
+    a1: Float
+    a2: Float
+
+pub struct BiquadState:
+    z1: Float
+    z2: Float
+
+pub struct EQBand:
+    filter_type: Int
+    freq_hz:     Float
+    q:           Float
+    gain_db:     Float
+    coeffs:      BiquadCoeffs
+    state_l:     BiquadState
+    state_r:     BiquadState
+    enabled:     Bool
+
+pub struct EQState:
+    band_count: Int
+    bands:      [EQBand]
+    sample_rate: Int
+
+// ============================================================================
+//  RBJ Cookbook — Filter Coefficient Calculators
+// ============================================================================
+
+pub fn calc_peaking_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let b0: Float = 1.0 + alpha * a
+    let b1: Float = -2.0 * cw
+    let b2: Float = 1.0 - alpha * a
+    let a0: Float = 1.0 + alpha / a
+    let a1: Float = -2.0 * cw
+    let a2: Float = 1.0 - alpha / a
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+pub fn calc_lowpass_coeffs(freq: Float, q: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let b0: Float = (1.0 - cw) / 2.0
+    let b1: Float = 1.0 - cw
+    let b2: Float = (1.0 - cw) / 2.0
+    let a0: Float = 1.0 + alpha
+    let a1: Float = -2.0 * cw
+    let a2: Float = 1.0 - alpha
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+pub fn calc_highpass_coeffs(freq: Float, q: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let b0: Float = (1.0 + cw) / 2.0
+    let b1: Float = -(1.0 + cw)
+    let b2: Float = (1.0 + cw) / 2.0
+    let a0: Float = 1.0 + alpha
+    let a1: Float = -2.0 * cw
+    let a2: Float = 1.0 - alpha
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+pub fn calc_lowshelf_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let sqrt_a: Float = sqrt(a)
+    let b0: Float = a * ((a + 1.0) - (a - 1.0) * cw + 2.0 * sqrt_a * alpha)
+    let b1: Float = 2.0 * a * ((a - 1.0) - (a + 1.0) * cw)
+    let b2: Float = a * ((a + 1.0) - (a - 1.0) * cw - 2.0 * sqrt_a * alpha)
+    let a0: Float = (a + 1.0) + (a - 1.0) * cw + 2.0 * sqrt_a * alpha
+    let a1: Float = -2.0 * ((a - 1.0) + (a + 1.0) * cw)
+    let a2: Float = (a + 1.0) + (a - 1.0) * cw - 2.0 * sqrt_a * alpha
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+pub fn calc_highshelf_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let sqrt_a: Float = sqrt(a)
+    let b0: Float = a * ((a + 1.0) + (a - 1.0) * cw + 2.0 * sqrt_a * alpha)
+    let b1: Float = -2.0 * a * ((a - 1.0) + (a + 1.0) * cw)
+    let b2: Float = a * ((a + 1.0) + (a - 1.0) * cw - 2.0 * sqrt_a * alpha)
+    let a0: Float = (a + 1.0) - (a - 1.0) * cw + 2.0 * sqrt_a * alpha
+    let a1: Float = 2.0 * ((a - 1.0) - (a + 1.0) * cw)
+    let a2: Float = (a + 1.0) - (a - 1.0) * cw - 2.0 * sqrt_a * alpha
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+pub fn calc_bandpass_coeffs(freq: Float, q: Float, sr: Int) -> BiquadCoeffs with Pure:
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let b0: Float = alpha
+    let b1: Float = 0.0
+    let b2: Float = -alpha
+    let a0: Float = 1.0 + alpha
+    let a1: Float = -2.0 * cw
+    let a2: Float = 1.0 - alpha
+    let inv_a0: Float = 1.0 / a0
+    return BiquadCoeffs {
+        b0: b0 * inv_a0, b1: b1 * inv_a0, b2: b2 * inv_a0,
+        a1: a1 * inv_a0, a2: a2 * inv_a0,
+    }
+
+// ============================================================================
+//  Biquad Processing — Transposed Direct Form II
+// ============================================================================
+
+/// Process one sample through biquad with value state, returns (output, new_z1, new_z2).
+fn biquad_tick(coeffs: BiquadCoeffs, z1: Float, z2: Float, input: Float) -> (Float, Float, Float) with Pure:
+    let output: Float = coeffs.b0 * input + z1
+    let new_z1: Float = coeffs.b1 * input - coeffs.a1 * output + z2
+    let new_z2: Float = coeffs.b2 * input - coeffs.a2 * output
+    return (output, new_z1, new_z2)
+
+/// Process a single sample through a biquad filter and update state (via pointer).
+pub fn biquad_process_sample_stateful(coeffs: BiquadCoeffs, state: ptr<BiquadState>, input: Float) -> Float with Pure:
+    let output: Float = coeffs.b0 * input + state.z1
+    let new_z1: Float = coeffs.b1 * input - coeffs.a1 * output + state.z2
+    let new_z2: Float = coeffs.b2 * input - coeffs.a2 * output
+    state.z1 = new_z1
+    state.z2 = new_z2
+    return output
+
+// ============================================================================
+//  Biquad Block Processing — Scalar Reference
+// ============================================================================
+
+pub fn biquad_process_scalar(coeffs: BiquadCoeffs, state: ptr<BiquadState>,
+                              input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        let out_sample: Float = biquad_process_sample_stateful(coeffs, state, inp)
+        mem_store(ptr_offset(output, i, "Float"), out_sample, "Float")
+        i = i + 1
+    return 0
+
+pub fn biquad_process_stereo_scalar(coeffs: BiquadCoeffs,
+                                     state_l: ptr<BiquadState>, state_r: ptr<BiquadState>,
+                                     input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        let out_l: Float = biquad_process_sample_stateful(coeffs, state_l, inp_l)
+        let out_r: Float = biquad_process_sample_stateful(coeffs, state_r, inp_r)
+        mem_store(ptr_offset(output, idx, "Float"), out_l, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), out_r, "Float")
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  Biquad Block Dispatch — scalar reference (SIMD lanes TBD)
+// ============================================================================
+
+/// Dispatch to best available biquad processing lane.
+/// Fast lanes (AVX2/NEON/GPU) are stubs pending std::simd maturity.
+/// TODO: Upgrade to converge when SIMD intrinsics are ready.
+pub fn biquad_process_converge(coeffs: BiquadCoeffs, state: ptr<BiquadState>,
+                                input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    return biquad_process_scalar(coeffs, state, input, output, frames)
+
+// ============================================================================
+//  EQ Band Management
+// ============================================================================
+
+pub fn eq_band_init(band: ptr<EQBand>, filter_type: Int, freq_hz: Float, q: Float,
+                     gain_db: Float, sample_rate: Int) -> Int with Pure:
+    band.filter_type = filter_type
+    band.freq_hz = freq_hz
+    band.q = clamp_q(q)
+    band.gain_db = gain_db
+    band.enabled = true
+    band.state_l = BiquadState { z1: 0.0, z2: 0.0 }
+    band.state_r = BiquadState { z1: 0.0, z2: 0.0 }
+    band.coeffs = eq_calc_coeffs(band.filter_type, band.freq_hz, band.q, band.gain_db, sample_rate)
+    return 0
+
+fn eq_calc_coeffs(filter_type: Int, freq: Float, q: Float, gain_db: Float, sr: Int) -> BiquadCoeffs with Pure:
+    if filter_type == 0:
+        return calc_peaking_coeffs(freq, q, gain_db, sr)
+    if filter_type == 1:
+        return calc_lowpass_coeffs(freq, q, sr)
+    if filter_type == 2:
+        return calc_highpass_coeffs(freq, q, sr)
+    if filter_type == 3:
+        return calc_lowshelf_coeffs(freq, q, gain_db, sr)
+    if filter_type == 4:
+        return calc_highshelf_coeffs(freq, q, gain_db, sr)
+    if filter_type == 5:
+        return calc_bandpass_coeffs(freq, q, sr)
+    return BiquadCoeffs { b0: 1.0, b1: 0.0, b2: 0.0, a1: 0.0, a2: 0.0 }
+
+fn clamp_q(q: Float) -> Float with Pure:
+    if q < EQ_MIN_Q:
+        return EQ_MIN_Q
+    if q > EQ_MAX_Q:
+        return EQ_MAX_Q
+    return q
+
+// ============================================================================
+//  Full EQ Processing — Inlined biquad ticks on value-based state
+// ============================================================================
+
+/// Process a stereo interleaved buffer through the entire EQ chain.
+pub fn eq_process(eq: ptr<EQState>, input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    # Copy input to output buffer
+    var i: Int = 0
+    while i < frames * 2:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        mem_store(ptr_offset(output, i, "Float"), inp, "Float")
+        i = i + 1
+
+    # Apply each enabled band in series, inlining the biquad tick
+    var b: Int = 0
+    while b < eq.band_count:
+        if eq.bands[b].enabled:
+            let c: BiquadCoeffs = eq.bands[b].coeffs
+            var f: Int = 0
+            while f < frames:
+                let idx: Int = f * 2
+                let out_l: Float = mem_load(ptr_offset(output, idx, "Float"), "Float")
+                let out_r: Float = mem_load(ptr_offset(output, idx + 1, "Float"), "Float")
+
+                # Inline biquad tick for left channel
+                let l_output: Float = c.b0 * out_l + eq.bands[b].state_l.z1
+                let l_new_z1: Float = c.b1 * out_l - c.a1 * l_output + eq.bands[b].state_l.z2
+                let l_new_z2: Float = c.b2 * out_l - c.a2 * l_output
+                eq.bands[b].state_l.z1 = l_new_z1
+                eq.bands[b].state_l.z2 = l_new_z2
+
+                # Inline biquad tick for right channel
+                let r_output: Float = c.b0 * out_r + eq.bands[b].state_r.z1
+                let r_new_z1: Float = c.b1 * out_r - c.a1 * r_output + eq.bands[b].state_r.z2
+                let r_new_z2: Float = c.b2 * out_r - c.a2 * r_output
+                eq.bands[b].state_r.z1 = r_new_z1
+                eq.bands[b].state_r.z2 = r_new_z2
+
+                mem_store(ptr_offset(output, idx, "Float"), l_output, "Float")
+                mem_store(ptr_offset(output, idx + 1, "Float"), r_output, "Float")
+                f = f + 1
+        b = b + 1
+
+    return 0
+
+/// Process a mono buffer through the EQ chain.
+pub fn eq_process_mono(eq: ptr<EQState>, input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        mem_store(ptr_offset(output, i, "Float"), inp, "Float")
+        i = i + 1
+
+    var b: Int = 0
+    while b < eq.band_count:
+        if eq.bands[b].enabled:
+            let c: BiquadCoeffs = eq.bands[b].coeffs
+            var f: Int = 0
+            while f < frames:
+                let out_val: Float = mem_load(ptr_offset(output, f, "Float"), "Float")
+                let m_output: Float = c.b0 * out_val + eq.bands[b].state_l.z1
+                let m_new_z1: Float = c.b1 * out_val - c.a1 * m_output + eq.bands[b].state_l.z2
+                let m_new_z2: Float = c.b2 * out_val - c.a2 * m_output
+                eq.bands[b].state_l.z1 = m_new_z1
+                eq.bands[b].state_l.z2 = m_new_z2
+                mem_store(ptr_offset(output, f, "Float"), m_output, "Float")
+                f = f + 1
+        b = b + 1
+
+    return 0
+
+// STREAM4: PluginHost loads this as Kain-native EQ plugin

@@ -1,0 +1,47 @@
+// piano_roll/piano_roll.kn -- MIDI editor: piano keys + note grid + velocity lane
+
+use std::math
+use types::Color
+use types::MIDINoteData
+
+component PianoRoll(
+ notes: [MIDINoteData],
+ zoom_x: Float,
+ zoom_y: Float,
+ scroll_x: Float,
+ scroll_y: Float,
+):
+ state active_tool: String = "select" // "select", "draw", "erase", "paint"
+ state snap_value: String = "1/16"
+ state show_velocity: Bool = true
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_bg
+
+ fn key_width(_self: Self_) -> Float:
+ return ThemeWorld.piano_roll_key_width
+
+ fn note_height(_self: Self_) -> Float:
+ return ThemeWorld.piano_roll_note_height
+
+ render <box
+ accessible_role="group"
+ accessible_label="Piano Roll"
+ direction="vertical"
+ fill={true}
+ background={bg}
+ >
+ {/* Main editor area: piano keys + note grid */}
+ <box direction="horizontal" flex_grow={1.0}>
+ {/* Piano keys sidebar */}
+ <PianoKeys width={key_width} note_height={note_height} scroll_y={scroll_y} on_note_preview={fn(pitch: Int): 0} />
+ {/* Note grid */}
+ <NoteGrid notes={notes} zoom_x={zoom_x} zoom_y={zoom_y} scroll_x={scroll_x} scroll_y={scroll_y} active_tool={active_tool} snap_value={snap_value} />
+ </box>
+ {/* Bottom: velocity lane + CC lane */}
+ if _self.show_velocity:
+ <box direction="vertical">
+ <VelocityLane notes={notes} width={viewport_w} height={80.0} />
+ <CCLane cc_number={1} width={viewport_w} height={80.0} values={[]} times={[]} />
+ </box>
+ </box>

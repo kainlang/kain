@@ -1,0 +1,153 @@
+// ============================================================================
+//  reson8 Track Signal Graph — Per-Track Routing
+//  STREAM2: T2-8 — clip→gain→fx→pan→bus routing per track.
+//  STREAM4: AudioEngine actor calls this for each track.
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+//  Track Routing Types
+// ============================================================================
+
+struct TrackParams:
+    clip_gain_db:    Float
+    track_volume:    Float
+    track_pan:       Float
+    fx_send_1_db:    Float
+    fx_send_2_db:    Float
+    fx_send_3_db:    Float
+    fx_send_4_db:    Float
+    bus_assign:      Int
+    output_enabled:  Bool
+    phase_invert:    Bool
+
+struct TrackRoutingState:
+    params:      TrackParams
+    sample_rate: Int
+
+// ============================================================================
+//  Stage Functions (all Unsafe — operate on raw audio ptrs)
+// ============================================================================
+
+fn apply_clip_gain(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                    gain_db: Float) -> Int with Unsafe:
+    let gain: Float = pow(10.0, gain_db / 20.0)
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * gain, "Float")
+        i = i + 1
+    return 0
+
+fn apply_track_volume(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                       volume: Float) -> Int with Unsafe:
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * volume, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * volume, "Float")
+        i = i + 1
+    return 0
+
+fn apply_track_pan(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                    pan: Float) -> Int with Unsafe:
+    let pan_l: Float = sqrt((1.0 - pan) / 2.0)
+    let pan_r: Float = sqrt((1.0 + pan) / 2.0)
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * pan_l, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * pan_r, "Float")
+        i = i + 1
+    return 0
+
+fn apply_fx_send(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                  send_db: Float) -> Int with Unsafe:
+    if send_db <= -120.0:
+        var i: Int = 0
+        while i < frames:
+            let idx: Int = i * 2
+            mem_store(ptr_offset(output, idx, "Float"), 0.0, "Float")
+            mem_store(ptr_offset(output, idx + 1, "Float"), 0.0, "Float")
+            i = i + 1
+        return 0
+    let send_gain: Float = pow(10.0, send_db / 20.0)
+    var j: Int = 0
+    while j < frames:
+        let idx: Int = j * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * send_gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * send_gain, "Float")
+        j = j + 1
+    return 0
+
+fn apply_phase_invert(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                       invert: Bool) -> Int with Unsafe:
+    if invert == false:
+        var i: Int = 0
+        while i < frames * 2:
+            let val: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+            mem_store(ptr_offset(output, i, "Float"), val, "Float")
+            i = i + 1
+        return 0
+    var j: Int = 0
+    while j < frames * 2:
+        let val: Float = mem_load(ptr_offset(input, j, "Float"), "Float")
+        mem_store(ptr_offset(output, j, "Float"), -val, "Float")
+        j = j + 1
+    return 0
+
+// ============================================================================
+//  Track Signal Graph — Orchestrate
+// ============================================================================
+
+orchestrate track_signal_graph(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                                params: TrackParams, sample_rate: Int) -> Int:
+    stage clip: cpu apply_clip_gain(input, output, frames, params.clip_gain_db)
+        when capability("cpu.scalar") residency host transfer none policy static
+
+    stage phase: cpu apply_phase_invert(clip, output, frames, params.phase_invert)
+        after clip residency host policy static
+
+    stage gain: cpu apply_track_volume(phase, output, frames, params.track_volume)
+        after phase residency host policy static
+
+    stage pan: cpu apply_track_pan(gain, output, frames, params.track_pan)
+        after gain residency host policy static
+
+    # FX sends (parallel from the gain stage)
+    stage fx_send_1: cpu apply_fx_send(gain, output, frames, params.fx_send_1_db)
+        deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+
+    stage fx_send_2: cpu apply_fx_send(gain, output, frames, params.fx_send_2_db)
+        deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+
+    stage fx_send_3: cpu apply_fx_send(gain, output, frames, params.fx_send_3_db)
+        deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+
+    stage fx_send_4: cpu apply_fx_send(gain, output, frames, params.fx_send_4_db)
+        deps [gain] residency host transfer shared_view policy telemetry_balance_latency
+
+    stage main_out: cpu apply_track_pan(pan, output, frames, params.track_pan)
+        after pan deps [fx_send_1, fx_send_2, fx_send_3, fx_send_4]
+        residency host transfer none policy static
+        requires params.output_enabled fallback pan
+
+    return 0
+
+// ============================================================================
+//  Exported Entry Point
+// ============================================================================
+
+pub fn track_graph_process(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                            params: TrackParams, sample_rate: Int) -> Int with Unsafe:
+    return track_signal_graph(input, output, frames, params, sample_rate)

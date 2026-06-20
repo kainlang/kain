@@ -1,0 +1,58 @@
+// browser/sample_preview.kn -- Waveform preview + play/stop for selected sample
+
+use std::math
+use types::Color
+use types::AudioView
+
+component SamplePreview(
+ file_path: String,
+ waveform_buffer: AudioView,
+ on_play: fn() -> Int,
+ on_stop: fn() -> Int,
+):
+ state is_playing: Bool = false
+ state detected_tempo: Float = 0.0
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn handle_play_stop(_self: Self_) -> Int:
+ if _self.is_playing:
+ _self.on_stop()
+ _self.is_playing = false
+ else:
+ _self.on_play()
+ _self.is_playing = true
+ return 0
+
+ render <box
+ accessible_role="group"
+ accessible_label="Sample preview"
+ direction="vertical"
+ padding={ThemeWorld.spacing_md}
+ background={bg}
+ corner_radius={ThemeWorld.radius_md}
+ border_width={1.0}
+ border_color={ThemeWorld.color_border_subtle}
+ gap={ThemeWorld.spacing_sm}
+ >
+ {/* File name */}
+ <text value={file_path} font_size={ThemeWorld.font_size_sm} color={text_c} font_weight={ThemeWorld.font_weight_medium} max_width={220.0} />
+
+ {/* Waveform thumbnail */}
+ <WaveformView buffer={waveform_buffer} zoom_level={1.0} scroll_offset={0} selected={false} width_px={230.0} height_px={60.0} />
+
+ {/* Controls */}
+ <box direction="horizontal" align="center" gap={ThemeWorld.spacing_md}>
+ <Button label={if _self.is_playing: "⏹" else: "▶"} kind="primary" size="sm" disabled={false} on_click={handle_play_stop} />
+ {/* Detected tempo */}
+ if _self.detected_tempo > 0.0:
+ <text value={"Tempo: " + str(_self.detected_tempo)} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ </box>
+ </box>

@@ -1,0 +1,41 @@
+// ============================================================================
+//  intelligent_master.kn — Matchering Mastering Python Plugin Wrapper
+//  STREAM4: T4-11 — Python-backed AI mastering (Matchering).
+//  Uses PythonBridge actor. //@ ignore-llvm
+// ============================================================================
+
+use std::actor
+
+pub struct PythonParamDef:
+    name:        String
+    kind:        String
+    default_val: String
+
+// ============================================================================
+//  IntelligentMaster ACTOR
+// ============================================================================
+
+actor IntelligentMaster:
+    state busy:           Bool   = false
+    state reference_path: String = ""
+    state match_loudness: Bool   = true
+    state target_lufs:    Float  = -14.0
+
+    on SetReference(reply_to: P, path: String):
+        self.reference_path = path
+        send reply_to.Reply(value = 0)
+
+    on MasterTrack(reply_to: P, input_path: String, output_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on SetTargetLUFS(reply_to: P, lufs: Float):
+        self.target_lufs = lufs
+        send reply_to.Reply(value = 0)
+
+    on GetStatus(reply_to: P):
+        send reply_to.Reply(value = 0)

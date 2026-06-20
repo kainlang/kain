@@ -1,0 +1,37 @@
+// transport/time_sig.kn -- Time signature numerator/denominator display
+
+use std::math
+use types::Color
+
+component TimeSigDisplay(
+ num: Int,
+ den: Int,
+):
+ state is_hovered: Bool = false
+
+ fn handle_click(_self: Self_) -> Int:
+ // Open time signature editor
+ return 0
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ render <box
+ accessible_role="button"
+ accessible_label="Time signature " + str(_self.num) + "/" + str(_self.den)
+ tab_index={0}
+ on_click={handle_click}
+ 
+ 
+ direction="vertical"
+ align="center"
+ padding_horizontal={ThemeWorld.spacing_sm}
+ corner_radius={ThemeWorld.radius_md}
+ background={if _self.is_hovered:
+ ThemeWorld.color_surface
+ else:
+ ThemeWorld.color_bg_secondary}
+ >
+ <text value={str(_self.num)} font_size={ThemeWorld.font_size_md} color={text_c} font_weight={ThemeWorld.font_weight_bold} />
+ <text value={str(_self.den)} font_size={ThemeWorld.font_size_md} color={text_c} font_weight={ThemeWorld.font_weight_bold} />
+ </box>

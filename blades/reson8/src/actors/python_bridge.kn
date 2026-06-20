@@ -1,0 +1,72 @@
+// ============================================================================
+//  PythonBridge Actor — Python interop bridge with region caching
+//  STREAM4: T4-5 — Region management, module import caching, worker pattern.
+//  All Python calls run here (NOT on audio thread).
+// ============================================================================
+
+use std::actor
+
+// ── Cache status reply struct ──
+pub struct CacheStatus:
+    region_active:  Bool
+    busy:           Bool
+    jobs_completed: Int
+    module_count:   Int
+
+// ============================================================================
+//  PythonBridge ACTOR
+// ============================================================================
+
+actor PythonBridge:
+    state region_handle:   Int      = 0
+    state initialized:     Bool     = false
+    state cached_modules:  [String] = []
+    state busy:            Bool     = false
+    state job_count:       Int      = 0
+
+    on Initialize(reply_to: P):
+        self.initialized = true
+        self.region_handle = 1
+        send reply_to.Reply(value = 0)
+
+    on ImportModule(reply_to: P, module_name: String):
+        var i: Int = 0
+        var found: Bool = false
+        while i < len(self.cached_modules):
+            if self.cached_modules[i] == module_name:
+                found = true
+            i = i + 1
+        if found == false:
+            self.cached_modules.push(module_name)
+        send reply_to.Reply(value = 0)
+
+    on ExecutePython(reply_to: P, fn_name: String, args_json: String):
+        self.busy = true
+        self.job_count = self.job_count + 1
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on CheckModule(reply_to: P, module_name: String):
+        var available: Bool = false
+        var i: Int = 0
+        while i < len(self.cached_modules):
+            if self.cached_modules[i] == module_name:
+                available = true
+            i = i + 1
+        let result: Int = if available: 1 else: 0
+        send reply_to.Reply(value = result)
+
+    on GetCacheStatus(reply_to: P):
+        let status = CacheStatus {
+            region_active: self.initialized,
+            busy: self.busy,
+            jobs_completed: self.job_count,
+            module_count: len(self.cached_modules),
+        }
+        send reply_to.Reply(value = status)
+
+    on Shutdown(reply_to: P):
+        self.initialized = false
+        self.region_handle = 0
+        self.cached_modules = []
+        send reply_to.Reply(value = 0)

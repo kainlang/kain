@@ -1,0 +1,196 @@
+// ============================================================================
+//  reson8 EQ Plugin — Full Parametric Equalizer
+//  STREAM4: T4-10 — Wraps dsp/eq_reson8.kn through the Kain plugin contract.
+//  Plugin format: 4-band EQ (low shelf, 2 peaking, high shelf).
+//  Editor component: 4-band EQ with interactive frequency response curve.
+// ============================================================================
+
+use std::math
+
+// ── Re-export from DSP ──
+// In production: imports from dsp/eq_reson8
+// For standalone plugin compilation, DSP functions are inlined.
+
+const EQ_PI:     Float = 3.14159265358979323846
+const EQ_TWO_PI: Float = 6.28318530717958647692
+
+// ============================================================================
+//  Plugin Descriptor
+// ============================================================================
+
+pub struct KainPluginDescriptor:
+    name:             String
+    vendor:           String
+    version:          String
+    category:         String
+    num_inputs:       Int
+    num_outputs:      Int
+    num_params:       Int
+    has_editor:       Bool
+    latency_samples:  Int
+    dll_path:         String
+
+// ============================================================================
+//  EQ State
+// ============================================================================
+
+pub struct EQBandState:
+    filter_type: Int       // 0=peaking, 1=lowpass, 2=highpass, 3=lowshelf, 4=highshelf
+    freq_hz:     Float
+    q:           Float
+    gain_db:     Float
+    enabled:     Bool
+    z1_l:        Float
+    z2_l:        Float
+    z1_r:        Float
+    z2_r:        Float
+
+pub struct EQPluginState:
+    sample_rate: Int
+    bands:       [EQBandState]
+
+// ============================================================================
+//  Plugin Export Contract
+// ============================================================================
+
+pub fn kain_plugin_get_descriptor() -> KainPluginDescriptor:
+    return KainPluginDescriptor {
+        name: "reson8 EQ",
+        vendor: "reson8 Studio",
+        version: "1.0.0",
+        category: "effect",
+        num_inputs: 2,
+        num_outputs: 2,
+        num_params: 16,     // 4 bands × 4 params (type, freq, Q, gain)
+        has_editor: true,
+        latency_samples: 0,
+        dll_path: "plugins/eq/reson8_eq.kn",
+    }
+
+pub fn kain_plugin_get_param_count() -> Int:
+    return 16
+
+pub fn kain_plugin_get_param_name(id: Int) -> String:
+    let band: Int = id / 4
+    let sub: Int  = id % 4
+    let band_label: String = "Band " + str(band + 1) + " "
+    if sub == 0:
+        return band_label + "Type"
+    if sub == 1:
+        return band_label + "Freq"
+    if sub == 2:
+        return band_label + "Q"
+    return band_label + "Gain"
+
+pub fn kain_plugin_get_param_value(state: ptr<Void>, id: Int) -> Float:
+    # Cast state pointer to EQPluginState
+    return 0.5   // placeholder
+
+pub fn kain_plugin_set_param_value(state: ptr<Void>, id: Int, value: Float) -> Int:
+    return 0     // placeholder
+
+// ============================================================================
+//  Audio Processing — RBJ Biquad Filters
+// ============================================================================
+
+/// Calculate biquad coefficients for a peaking (bell) EQ filter.
+fn calc_peaking_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> [Float] with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+
+    let b0: Float = 1.0 + alpha * a
+    let b1: Float = -2.0 * cw
+    let b2: Float = 1.0 - alpha * a
+    let a0: Float = 1.0 + alpha / a
+    let a1: Float = -2.0 * cw
+    let a2: Float = 1.0 - alpha / a
+
+    let inv_a0: Float = 1.0 / a0
+    return [b0 * inv_a0, b1 * inv_a0, b2 * inv_a0, a1 * inv_a0, a2 * inv_a0]
+
+/// Calculate biquad coefficients for a low shelf filter.
+fn calc_lowshelf_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> [Float] with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let sqrt_a: Float = sqrt(a)
+
+    let b0: Float = a * ((a + 1.0) - (a - 1.0) * cw + 2.0 * sqrt_a * alpha)
+    let b1: Float = 2.0 * a * ((a - 1.0) - (a + 1.0) * cw)
+    let b2: Float = a * ((a + 1.0) - (a - 1.0) * cw - 2.0 * sqrt_a * alpha)
+    let a0: Float = (a + 1.0) + (a - 1.0) * cw + 2.0 * sqrt_a * alpha
+    let a1: Float = -2.0 * ((a - 1.0) + (a + 1.0) * cw)
+    let a2: Float = (a + 1.0) + (a - 1.0) * cw - 2.0 * sqrt_a * alpha
+
+    let inv_a0: Float = 1.0 / a0
+    return [b0 * inv_a0, b1 * inv_a0, b2 * inv_a0, a1 * inv_a0, a2 * inv_a0]
+
+/// Calculate biquad coefficients for a high shelf filter.
+fn calc_highshelf_coeffs(freq: Float, q: Float, gain_db: Float, sr: Int) -> [Float] with Pure:
+    let a: Float = pow(10.0, gain_db / 40.0)
+    let w0: Float = EQ_TWO_PI * freq / (sr as Float)
+    let sw: Float = sin(w0)
+    let cw: Float = cos(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let sqrt_a: Float = sqrt(a)
+
+    let b0: Float = a * ((a + 1.0) + (a - 1.0) * cw + 2.0 * sqrt_a * alpha)
+    let b1: Float = -2.0 * a * ((a - 1.0) + (a + 1.0) * cw)
+    let b2: Float = a * ((a + 1.0) + (a - 1.0) * cw - 2.0 * sqrt_a * alpha)
+    let a0: Float = (a + 1.0) - (a - 1.0) * cw + 2.0 * sqrt_a * alpha
+    let a1: Float = 2.0 * ((a - 1.0) - (a + 1.0) * cw)
+    let a2: Float = (a + 1.0) - (a - 1.0) * cw - 2.0 * sqrt_a * alpha
+
+    let inv_a0: Float = 1.0 / a0
+    return [b0 * inv_a0, b1 * inv_a0, b2 * inv_a0, a1 * inv_a0, a2 * inv_a0]
+
+/// Process a single sample through a biquad filter (transposed form II).
+fn biquad_process_sample(input: Float, coeffs: ptr<Float>, z1: ptr<Float>, z2: ptr<Float>) -> Float with Unsafe:
+    let b0: Float = mem_load(ptr_offset(coeffs, 0, "Float"), "Float")
+    let b1: Float = mem_load(ptr_offset(coeffs, 1, "Float"), "Float")
+    let b2: Float = mem_load(ptr_offset(coeffs, 2, "Float"), "Float")
+    let a1: Float = mem_load(ptr_offset(coeffs, 3, "Float"), "Float")
+    let a2: Float = mem_load(ptr_offset(coeffs, 4, "Float"), "Float")
+
+    let z1v: Float = mem_load(z1, "Float")
+    let z2v: Float = mem_load(z2, "Float")
+
+    let output_val: Float = input * b0 + z1v
+    let new_z1: Float = input * b1 + z2v - a1 * output_val
+    let new_z2: Float = input * b2 - a2 * output_val
+
+    mem_store(z1, new_z1, "Float")
+    mem_store(z2, new_z2, "Float")
+    return output_val
+
+// ============================================================================
+//  Main Processing Function
+// ============================================================================
+
+/// Process audio through the 4-band EQ.
+/// Called by PluginHost.Process handler on the audio thread.
+pub fn kain_plugin_process(state: ptr<Void>, input: ptr<Float>, output: ptr<Float>,
+                            frames: Int) -> Int with Unsafe:
+    # Placeholder: processes through all enabled EQ bands.
+    # In production: reads EQPluginState from state pointer, applies each band.
+
+    # Pass-through for now (copy input to output)
+    var i: Int = 0
+    let total: Int = frames * 2   // stereo
+    while i < total:
+        let val: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        mem_store(ptr_offset(output, i, "Float"), val, "Float")
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  Editor Component Name
+// ============================================================================
+
+pub fn kain_plugin_get_editor_component() -> String:
+    return "EQEditor"

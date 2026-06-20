@@ -1,0 +1,89 @@
+// browser/file_browser.kn -- File system tree view, filter by audio types, drag to arrangement
+
+use std::math
+use std::fs
+use types::Color
+use types::FileEntry
+
+component FileBrowser(
+ root_path: String,
+ filter_extension: String,
+ on_file_select: fn(String) -> Int,
+ on_import: fn(String) -> Int,
+):
+ state entries: [FileEntry] = []
+ state expanded_dirs: [String] = []
+ state selected_path: String = ""
+ state is_loading: Bool = false
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn selected_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_selection
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn handle_click(entry: FileEntry) -> Int:
+ if entry.is_directory:
+ // Toggle expand
+ let found = false
+ for d in _self.expanded_dirs:
+ if d == entry.path:
+ found = true
+ if found:
+ // Remove from expanded
+ var new_expanded: [String] = []
+ for d in _self.expanded_dirs:
+ if d != entry.path:
+ push(new_expanded, d)
+ _self.expanded_dirs = new_expanded
+ else:
+ push(_self.expanded_dirs, entry.path)
+ else:
+ _self.selected_path = entry.path
+ _self.on_file_select(entry.path)
+ return 0
+
+ render <box
+ accessible_role="tree"
+ accessible_label="File browser"
+ direction="vertical"
+ fill={true}
+ background={bg}
+ >
+ {/* Header */}
+ <box padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_sm} background={header_bg} border_bottom_width={1.0} border_bottom_color={ThemeWorld.color_border_subtle} >
+ <text value="Browser" font_size={ThemeWorld.font_size_sm} color={text_c} font_weight={ThemeWorld.font_weight_semibold} />
+ <text value={root_path} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ </box>
+
+ {/* File tree entries */}
+ <ScrollArea width={250.0} height={400.0} scroll_x={false} scroll_y={true} >
+ <box direction="vertical">
+ for idx in 0..len(_self.entries):
+ let entry = _self.entries[idx]
+ <box accessible_role="treeitem" accessible_label={entry.name} tab_index={0} direction="horizontal" align="center" padding_horizontal={ThemeWorld.spacing_md} padding_vertical={ThemeWorld.spacing_xs} padding_left={ThemeWorld.spacing_md + Float(entry.depth * 16.0)} background={if entry.path == _self.selected_path:>
+ _self.selected_bg
+ else:
+ color_rgba(0.0, 0.0, 0.0, 0.0)}
+ 
+ >
+ {/* Icon */}
+ <text value={if entry.is_directory: "📁" else: "🎵"} font_size={ThemeWorld.font_size_sm} />
+ {/* Name */}
+ <text value={entry.name} font_size={ThemeWorld.font_size_sm} color={text_c} padding_left={ThemeWorld.spacing_sm} />
+ {/* Size */}
+ if not entry.is_directory:
+ <text value={format_file_size(entry.size_bytes)} font_size={ThemeWorld.font_size_xs} color={muted_c} flex_grow={1.0} text_align="right" />
+ </box>
+ </box>
+ </ScrollArea>
+ </box>

@@ -1,0 +1,42 @@
+// ============================================================================
+//  stem_splitter.kn — Demucs Stem Splitter Python Plugin Wrapper
+//  STREAM4: T4-11 — Python-backed ML source separation (Demucs).
+//  Uses PythonBridge actor. //@ ignore-llvm
+// ============================================================================
+
+use std::actor
+
+pub struct PythonParamDef:
+    name:        String
+    kind:        String
+    default_val: String
+
+// ============================================================================
+//  DemucsStemSplitter ACTOR
+// ============================================================================
+
+actor DemucsStemSplitter:
+    state model_loaded: Bool   = false
+    state model_type:   String = "htdemucs"
+    state busy:         Bool   = false
+    state device:       String = "cuda"
+
+    on LoadModel(reply_to: P, model: String, device_type: String):
+        self.model_type = model
+        self.device = device_type
+        self.model_loaded = true
+        send reply_to.Reply(value = 0)
+
+    on SplitStems(reply_to: P, audio_path: String):
+        if self.busy:
+            send reply_to.Reply(value = -1)
+            return
+        if self.model_loaded == false:
+            send reply_to.Reply(value = -2)
+            return
+        self.busy = true
+        self.busy = false
+        send reply_to.Reply(value = 0)
+
+    on GetStatus(reply_to: P):
+        send reply_to.Reply(value = 0)

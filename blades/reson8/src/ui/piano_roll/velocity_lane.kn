@@ -1,0 +1,52 @@
+// piano_roll/velocity_lane.kn -- Bar chart showing velocity per note, editable bars
+
+use std::math
+use types::Color
+use types::MIDINoteData
+
+component VelocityLane(
+ notes: [MIDINoteData],
+ width: Float,
+ height: Float,
+):
+ state selected_note: Int = -1
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_automation_lane_bg
+
+ fn bar_c(_self: Self_, velocity: Int) -> Color:
+ let t = Float(velocity) / 127.0
+ return color_rgba(
+ 0.376 + (1.0 - 0.376) * t,
+ 0.647 + (1.0 - 0.647) * t,
+ 0.980 + (1.0 - 0.980) * t,
+ 1.0
+ )
+
+ fn border_c(_self: Self_) -> Color:
+ return ThemeWorld.color_border_subtle
+
+ render <box
+ width={width}
+ height={height}
+ background={bg}
+ border_top_width={1.0}
+ border_top_color={border_c}
+ border_bottom_width={1.0}
+ border_bottom_color={border_c}
+ direction="horizontal"
+ align="end"
+ padding_horizontal={ThemeWorld.spacing_xs}
+ padding_vertical={ThemeWorld.spacing_xs}
+ accessible_role="group"
+ accessible_label="Velocity lane"
+ >
+ {/* Label */}
+ <text value="Velocity" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} padding_right={ThemeWorld.spacing_sm} />
+ {/* Bar chart -- one bar per note */}
+ for idx in 0..len(_self.notes):
+ let note = _self.notes[idx]
+ let bar_h = Float(note.velocity) * (_self.height - 20.0) / 127.0
+ let bar_w = max(2.0, Float(note.length_ticks) * 0.01)
+ <box width={bar_w} height={bar_h} corner_top_radius={ThemeWorld.radius_sm} background={bar_c(note.velocity)} accessible_role="slider" accessible_label={"Velocity " + str(note.velocity)} accessible_value={str(note.velocity)} tab_index={0} />
+ </box>

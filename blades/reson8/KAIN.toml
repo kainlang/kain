@@ -1,0 +1,89 @@
+[package]
+name = "reson8"
+version = "0.1.0"
+authors = ["reson8 Studio"]
+kain-version = "0.1"
+description = "The world's first Kain-native DAW — compiler-owned state, journaled undo, zero-copy metering, Python+ML interop, 7 semantic layers"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out/llvm"
+cache_root = ".kain/cache/build"
+profile = "dev"
+
+# ── C ABI: Vendored third-party audio bridges ──
+# Three bridges: miniaudio (device I/O), VST3 SDK (plugin hosting),
+# CLAP SDK (plugin hosting — pure C, minimal wrapping).
+#
+# All SDKs are vendored under 3rdparty/ — no system registry needed.
+
+[c_ffi]
+include_paths = [
+  "3rdparty/miniaudio",
+  "3rdparty/vst3_sdk",
+  "3rdparty/vst3_sdk/pluginterfaces",
+  "3rdparty/vst3_sdk/public.sdk",
+  "3rdparty/clap/include",
+]
+
+# ── Bridge 1: Audio device I/O (miniaudio) ──
+[[c_ffi.libraries]]
+name = "audio_device_bridge"
+header = "src/bridge/native/audio_device_bridge.h"
+sources = ["src/bridge/native/audio_device_bridge.c"]
+include_paths = [
+  "3rdparty/miniaudio",
+]
+
+# Platform-specific link libs for miniaudio
+[[c_ffi.libraries.target_policies]]
+target = "windows"
+link_libs = ["ole32", "avrt"]    # WASAPI requires ole32 (COM), avrt (MMCSS)
+[[c_ffi.libraries.target_policies]]
+target = "linux"
+link_libs = ["asound", "pulse"]  # ALSA + PulseAudio
+[[c_ffi.libraries.target_policies]]
+target = "macos"
+link_libs = ["AudioToolbox", "CoreAudio", "CoreFoundation"]
+
+# ── Bridge 2: VST3 plugin host ──
+# NOTE: The VST3 bridge is compiled as C++ (vst3_host_bridge.cpp).
+# The SDK is header-only for our purposes (no prebuilt libs to link).
+[[c_ffi.libraries]]
+name = "vst3_host_bridge"
+header = "src/bridge/native/vst3_host_bridge.h"
+sources = ["src/bridge/native/vst3_host_bridge.cpp"]
+include_paths = [
+  "3rdparty/vst3_sdk",
+  "3rdparty/vst3_sdk/pluginterfaces",
+  "3rdparty/vst3_sdk/public.sdk",
+  "3rdparty/vst3_sdk/public.sdk/source",
+]
+
+# VST3 module loading needs platform dlopen
+[[c_ffi.libraries.target_policies]]
+target = "windows"
+link_libs = ["ole32", "shell32"]   # COM + path utilities
+[[c_ffi.libraries.target_policies]]
+target = "linux"
+link_libs = ["dl"]
+[[c_ffi.libraries.target_policies]]
+target = "macos"
+link_libs = ["dl"]
+
+# ── Bridge 3: CLAP plugin host ──
+[[c_ffi.libraries]]
+name = "clap_host_bridge"
+header = "src/bridge/native/clap_host_bridge.h"
+sources = ["src/bridge/native/clap_host_bridge.c"]
+include_paths = [
+  "3rdparty/clap/include",
+]
+
+# CLAP uses dlopen/LoadLibrary
+[[c_ffi.libraries.target_policies]]
+target = "linux"
+link_libs = ["dl"]
+[[c_ffi.libraries.target_policies]]
+target = "macos"
+link_libs = ["dl"]

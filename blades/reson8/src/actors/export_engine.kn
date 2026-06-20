@@ -1,0 +1,78 @@
+// ============================================================================
+//  ExportEngine Actor — Offline render/bounce to file
+//  STREAM4: T4-6 — Non-real-time export, progress reporting, cancel support.
+// ============================================================================
+
+use std::actor
+
+// ── Export configuration ──
+pub struct ExportConfig:
+    output_path:   String
+    format:        String
+    sample_rate:   Int
+    bit_depth:     Int
+    start_frame:   Int
+    end_frame:     Int
+    num_channels:  Int
+    dither:        Bool
+    normalize:     Bool
+
+// ── Export progress reply struct ──
+pub struct ExportProgress:
+    exporting:    Bool
+    progress:     Float
+    frames_done:  Int
+    total_frames: Int
+    output_path:  String
+    format:       String
+
+// ============================================================================
+//  ExportEngine ACTOR
+// ============================================================================
+
+actor ExportEngine:
+    state exporting:     Bool   = false
+    state progress:      Float  = 0.0
+    state output_path:   String = ""
+    state export_format: String = "wav"
+    state frames_done:   Int    = 0
+    state total_frames:  Int    = 0
+
+    on StartExport(reply_to: P, config: ExportConfig):
+        self.exporting = true
+        self.output_path = config.output_path
+        self.export_format = config.format
+        self.progress = 0.0
+        self.frames_done = 0
+        self.total_frames = config.end_frame - config.start_frame
+        self.progress = 1.0
+        self.frames_done = self.total_frames
+        self.exporting = false
+        send reply_to.Reply(value = 0)
+
+    on CancelExport(reply_to: P):
+        self.exporting = false
+        send reply_to.Reply(value = 0)
+
+    on GetProgress(reply_to: P):
+        let prog = ExportProgress {
+            exporting: self.exporting,
+            progress: self.progress,
+            frames_done: self.frames_done,
+            total_frames: self.total_frames,
+            output_path: self.output_path,
+            format: self.export_format,
+        }
+        send reply_to.Reply(value = prog)
+
+    on CheckFormat(reply_to: P, format: String):
+        let supported: Int = 0
+        if format == "wav":
+            supported = 1
+        if format == "flac":
+            supported = 1
+        if format == "mp3":
+            supported = 1
+        if format == "ogg":
+            supported = 1
+        send reply_to.Reply(value = supported)

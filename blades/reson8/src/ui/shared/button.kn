@@ -1,0 +1,57 @@
+// shared/button.kn — Theme-aware clickable button
+use std::math
+use types::Color
+use types::color_rgba
+
+component Button(label: String, kind: String, size: String, disabled: Bool, on_click: fn() -> Int):
+    state is_hovered: Bool = false
+    state is_pressed: Bool = false
+
+    fn bg(_self: Self_) -> Color:
+        if _self.disabled:
+            return ThemeWorld.color_button_disabled
+        if _self.is_pressed:
+            return ThemeWorld.color_button_active
+        if _self.is_hovered:
+            return ThemeWorld.color_button_hover
+        match _self.kind:
+            "primary" => return ThemeWorld.color_accent
+            "danger"  => return ThemeWorld.color_error
+            "ghost"   => return color_rgba(0.0, 0.0, 0.0, 0.0)
+            "icon"    => return color_rgba(0.0, 0.0, 0.0, 0.0)
+            _         => return ThemeWorld.color_button_default
+
+    fn text_c(_self: Self_) -> Color:
+        if _self.disabled:
+            return ThemeWorld.color_button_text_disabled
+        if _self.is_pressed:
+            return ThemeWorld.color_button_text_active
+        match _self.kind:
+            "primary" => return ThemeWorld.color_text_inverse
+            "danger"  => return ThemeWorld.color_text_inverse
+            _         => return ThemeWorld.color_button_text
+
+    fn size_px(_self: Self_) -> Float:
+        match _self.size:
+            "sm" => return ThemeWorld.button_size_sm
+            "lg" => return ThemeWorld.button_size_lg
+            _    => return ThemeWorld.button_size_md
+
+    fn radius_px(_self: Self_) -> Float:
+        match _self.kind:
+            "icon" => return ThemeWorld.radius_full
+            _      => return ThemeWorld.radius_md
+
+    fn padding_px(_self: Self_) -> Float:
+        match _self.size:
+            "sm" => return ThemeWorld.spacing_xs
+            "lg" => return ThemeWorld.spacing_lg
+            _    => return ThemeWorld.spacing_md
+
+    fn handle_click(_self: Self_) -> Int:
+        _self.on_click()
+        return 0
+
+    render <box accessible_role="button" accessible_label={label} tab_index={0} width={size_px()} height={size_px()} corner_radius={radius_px()} padding={padding_px()} background={bg()} on_click={handle_click}>
+        <text value={label} color={text_c()} font_size={ThemeWorld.font_size_sm} font_weight={ThemeWorld.font_weight_medium}/>
+    </box>

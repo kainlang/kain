@@ -1,0 +1,74 @@
+// audio_engine_bridge.kn — Wires AudioEngine actor to audio_device C facade
+//
+// STREAM4: T4-8 — This is the actor→C bridge wiring layer.
+// Imports the existing audio_device facade (src/bridge/audio_device.kn)
+// and exposes semantically named functions that the AudioEngine actor calls.
+//
+// The actual C bridge is at src/bridge/native/audio_device_bridge.c
+// The Kain facade is at src/bridge/audio_device.kn (include "native/audio_device_bridge.h" as ad)
+
+// ── Re-export audio_device facade as semantically named API ──
+// These are thin wrappers over the ad_* externs from audio_device.kn
+
+pub fn ae_bridge_init(device_type: Int, sample_rate: Int, channels: Int,
+                       buffer_size: Int, format: Int) -> Int:
+    let result = audio_device_init(device_type, sample_rate, channels, buffer_size, format)
+    return result
+
+pub fn ae_bridge_start() -> Int:
+    return audio_device_start()
+
+pub fn ae_bridge_stop() -> Int:
+    return audio_device_stop()
+
+pub fn ae_bridge_close() -> Int:
+    return audio_device_close()
+
+pub fn ae_bridge_state() -> Int:
+    return audio_device_state()
+
+pub fn ae_bridge_sample_rate() -> Int:
+    return audio_device_sample_rate()
+
+pub fn ae_bridge_channels() -> Int:
+    return audio_device_channels()
+
+pub fn ae_bridge_buffer_size() -> Int:
+    return audio_device_buffer_size()
+
+// ── Audio callback path (real-time, budget alloc=0) ──
+// Called by the miniaudio callback thread.
+// Reads input ring buffer, forwards to AudioEngine for processing,
+// writes output back to device ring buffer.
+pub fn ae_audio_callback(input: ptr<Float>, output: ptr<Float>,
+                          frames: Int, channels: Int) -> Int with Unsafe:
+    // Read input from device
+    let input_frames = audio_device_read_input(input, frames)
+
+    // Processing happens via actor message — the callback fills the output
+    // ring buffer which the device consumes on next swap
+    let written = audio_device_write_output(output, frames)
+
+    audio_device_swap_buffers()
+    return written
+
+// ── Device enumeration ──
+pub fn ae_enumerate_devices(device_type: Int) -> Int:
+    return audio_device_count(device_type)
+
+pub fn ae_device_name(device_type: Int, index: Int) -> String:
+    return audio_device_name(device_type, index)
+
+pub fn ae_device_is_default(device_type: Int, index: Int) -> Bool:
+    return audio_device_is_default(device_type, index)
+
+// ── CPU load ──
+pub fn ae_cpu_load() -> Float:
+    return audio_device_cpu_load()
+
+// ── Error ──
+pub fn ae_bridge_last_error() -> String:
+    return audio_device_last_error()
+
+pub fn ae_bridge_last_status() -> Int:
+    return audio_device_last_status()

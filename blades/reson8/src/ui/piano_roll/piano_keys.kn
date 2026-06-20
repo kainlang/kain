@@ -1,0 +1,54 @@
+// piano_roll/piano_keys.kn -- Vertical piano keyboard sidebar
+
+use std::math
+use types::Color
+
+component PianoKeys(
+ width: Float,
+ note_height: Float,
+ scroll_y: Float,
+ on_note_preview: fn(Int) -> Int,
+):
+ fn white_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_white_key
+
+ fn black_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_midi_black_key
+
+ fn is_black_key(pitch: Int) -> Bool:
+ let mod12 = pitch % 12
+ return mod12 == 1 or mod12 == 3 or mod12 == 6 or mod12 == 8 or mod12 == 10
+
+ fn note_name(pitch: Int) -> String:
+ let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+ let octave = pitch / 12 - 1
+ return names[pitch % 12] + str(octave)
+
+ fn handle_click(pitch: Int) -> Int:
+ _self.on_note_preview(pitch)
+ return 0
+
+ render <box
+ width={width}
+ height={127.0 * _self.note_height}
+ background={ThemeWorld.color_bg_secondary}
+ border_right_width={1.0}
+ border_right_color={ThemeWorld.color_border_subtle}
+ direction="vertical"
+ accessible_role="group"
+ accessible_label="Piano keys"
+ >
+ {/* Render 127 MIDI notes as piano keys */}
+ {/* White keys fill the full width, black keys overlay shorter */}
+ for pitch in 0..128:
+ let reversed_pitch = 127 - pitch
+ let key_h = _self.note_height
+ if _self.is_black_key(reversed_pitch):
+ <box width={_self.width * 0.6} height={key_h - 1.0} background={black_bg} corner_right_radius={ThemeWorld.radius_sm} border_width={0.5} border_color={ThemeWorld.color_border_subtle} accessible_role="button" accessible_label={note_name(reversed_pitch)} accessible_value={"Note " + str(reversed_pitch)} />
+ else:
+ <box width={width} height={key_h - 1.0} background={white_bg} border_width={0.5} border_color={ThemeWorld.color_border_subtle} padding_left={ThemeWorld.spacing_xs} direction="horizontal" align="center" accessible_role="button" accessible_label={note_name(reversed_pitch)} accessible_value={"Note " + str(reversed_pitch)} >
+ {/* Show C notes with label */}
+ if reversed_pitch % 12 == 0:
+ <text value={note_name(reversed_pitch)} font_size={8.0} color={ThemeWorld.color_text_muted} />
+ </box>
+ </box>

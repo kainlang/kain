@@ -7,7 +7,7 @@
 # Target: native_core_freestanding
 #
 # Load into runtime/BUILD.bazel:
-#   load(":BUILD.freestanding", "declare_freestanding_core_runtime")
+#   load(":BUILD.freestanding.bzl", "declare_freestanding_core_runtime")
 #   declare_freestanding_core_runtime()
 
 load("@rules_cc//cc:defs.bzl", "cc_library")

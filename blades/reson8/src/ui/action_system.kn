@@ -1,0 +1,296 @@
+// action_system.kn -- REAPER-inspired action registry and keybinding system
+// Every reson8 operation is a named action with keybinding and MIDI mapping support
+
+use std::math
+use types::ActionDef
+use types::KeyBinding
+use types::MIDIMapping
+use types::Color
+
+// Action IDs -- transport
+pub const ACTION_TRANSPORT_PLAY: Int = 100
+pub const ACTION_TRANSPORT_STOP: Int = 101
+pub const ACTION_TRANSPORT_PAUSE: Int = 102
+pub const ACTION_TRANSPORT_RECORD: Int = 103
+pub const ACTION_TRANSPORT_LOOP_TOGGLE: Int = 104
+pub const ACTION_TRANSPORT_GO_START: Int = 105
+pub const ACTION_TRANSPORT_GO_END: Int = 106
+pub const ACTION_TRANSPORT_REWIND: Int = 107
+pub const ACTION_TRANSPORT_FAST_FORWARD: Int = 108
+
+// Action IDs -- edit
+pub const ACTION_EDIT_UNDO: Int = 200
+pub const ACTION_EDIT_REDO: Int = 201
+pub const ACTION_EDIT_CUT: Int = 202
+pub const ACTION_EDIT_COPY: Int = 203
+pub const ACTION_EDIT_PASTE: Int = 204
+pub const ACTION_EDIT_DELETE: Int = 205
+pub const ACTION_EDIT_SELECT_ALL: Int = 206
+pub const ACTION_EDIT_DESELECT: Int = 207
+
+// Action IDs -- file
+pub const ACTION_FILE_NEW: Int = 300
+pub const ACTION_FILE_OPEN: Int = 301
+pub const ACTION_FILE_SAVE: Int = 302
+pub const ACTION_FILE_SAVE_AS: Int = 303
+pub const ACTION_FILE_EXPORT: Int = 304
+
+// Action IDs -- view
+pub const ACTION_VIEW_MIXER: Int = 400
+pub const ACTION_VIEW_PIANO_ROLL: Int = 401
+pub const ACTION_VIEW_BROWSER: Int = 402
+pub const ACTION_VIEW_THEME_EDITOR: Int = 403
+pub const ACTION_VIEW_ZOOM_IN: Int = 404
+pub const ACTION_VIEW_ZOOM_OUT: Int = 405
+pub const ACTION_VIEW_ZOOM_FIT: Int = 406
+pub const ACTION_VIEW_FULLSCREEN: Int = 407
+
+// Action IDs -- track
+pub const ACTION_TRACK_INSERT: Int = 500
+pub const ACTION_TRACK_DUPLICATE: Int = 501
+pub const ACTION_TRACK_DELETE: Int = 502
+pub const ACTION_TRACK_RENAME: Int = 503
+
+// Action IDs -- navigation
+pub const ACTION_NAV_NEXT_MARKER: Int = 600
+pub const ACTION_NAV_PREV_MARKER: Int = 601
+pub const ACTION_NAV_SCROLL_LEFT: Int = 602
+pub const ACTION_NAV_SCROLL_RIGHT: Int = 603
+
+// Modifier key constants
+pub const MOD_NONE: Int = 0
+pub const MOD_CTRL: Int = 1
+pub const MOD_SHIFT: Int = 2
+pub const MOD_ALT: Int = 4
+pub const MOD_WIN: Int = 8
+
+// Context constants
+pub const CTX_GLOBAL: String = "global"
+pub const CTX_ARRANGEMENT: String = "arrangement"
+pub const CTX_PIANO_ROLL: String = "piano_roll"
+pub const CTX_MIXER: String = "mixer"
+
+// Transport state constants for accessibility announcements
+pub const TRANSPORT_STOPPED: Int = 0
+pub const TRANSPORT_PLAYING: Int = 1
+pub const TRANSPORT_PAUSED: Int = 2
+pub const TRANSPORT_RECORDING: Int = 3
+
+// ------ Action Registry World ------
+world ActionRegistry:
+    state actions: [ActionDef] = []
+    state keybindings: [KeyBinding] = []
+    state midi_mappings: [MIDIMapping] = []
+    state last_action_id: Int = -1
+    state last_action_result: Int = 0
+    surface native_ui => MenuBar
+
+// ------ Action execution ------
+pub fn execute_action(action_id: Int) -> Int:
+    for a in ActionRegistry.actions:
+        if a.id == action_id:
+            let result = a.fn_ptr()
+            ActionRegistry.last_action_id = action_id
+            ActionRegistry.last_action_result = result
+            return result
+    return -1
+
+// ------ Keybinding resolution ------
+pub fn find_keybinding(key_code: Int, modifiers: Int, context: String) -> Int:
+    for b in ActionRegistry.keybindings:
+        if b.key_code == key_code and b.modifiers == modifiers and b.context == context:
+            return b.action_id
+        if b.context == CTX_GLOBAL and b.key_code == key_code and b.modifiers == modifiers:
+            return b.action_id
+    return -1
+
+// ------ Default action registration ------
+pub fn register_default_actions() -> Int:
+    // Transport actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_PLAY, name: "Transport: Play",
+        category: "Transport", fn_ptr: fn(): transport_play_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_STOP, name: "Transport: Stop",
+        category: "Transport", fn_ptr: fn(): transport_stop_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_PAUSE, name: "Transport: Pause",
+        category: "Transport", fn_ptr: fn(): transport_pause_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_RECORD, name: "Transport: Record",
+        category: "Transport", fn_ptr: fn(): transport_record_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_LOOP_TOGGLE, name: "Transport: Toggle Loop",
+        category: "Transport", fn_ptr: fn(): transport_loop_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_GO_START, name: "Transport: Go to Start",
+        category: "Navigation", fn_ptr: fn(): nav_start_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRANSPORT_GO_END, name: "Transport: Go to End",
+        category: "Navigation", fn_ptr: fn(): nav_end_fn(), is_toggle: false })
+
+    // Edit actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_UNDO, name: "Edit: Undo",
+        category: "Edit", fn_ptr: fn(): edit_undo_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_REDO, name: "Edit: Redo",
+        category: "Edit", fn_ptr: fn(): edit_redo_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_CUT, name: "Edit: Cut",
+        category: "Edit", fn_ptr: fn(): edit_cut_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_COPY, name: "Edit: Copy",
+        category: "Edit", fn_ptr: fn(): edit_copy_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_PASTE, name: "Edit: Paste",
+        category: "Edit", fn_ptr: fn(): edit_paste_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_EDIT_DELETE, name: "Edit: Delete",
+        category: "Edit", fn_ptr: fn(): edit_delete_fn(), is_toggle: false })
+
+    // File actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_FILE_SAVE, name: "File: Save",
+        category: "File", fn_ptr: fn(): file_save_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_FILE_SAVE_AS, name: "File: Save As",
+        category: "File", fn_ptr: fn(): file_save_as_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_FILE_NEW, name: "File: New Project",
+        category: "File", fn_ptr: fn(): file_new_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_FILE_OPEN, name: "File: Open Project",
+        category: "File", fn_ptr: fn(): file_open_fn(), is_toggle: false })
+
+    // View actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_VIEW_MIXER, name: "View: Toggle Mixer",
+        category: "View", fn_ptr: fn(): view_mixer_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_VIEW_PIANO_ROLL, name: "View: Toggle Piano Roll",
+        category: "View", fn_ptr: fn(): view_piano_roll_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_VIEW_BROWSER, name: "View: Toggle Browser",
+        category: "View", fn_ptr: fn(): view_browser_fn(), is_toggle: true })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_VIEW_ZOOM_IN, name: "View: Zoom In",
+        category: "View", fn_ptr: fn(): view_zoom_in_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_VIEW_ZOOM_OUT, name: "View: Zoom Out",
+        category: "View", fn_ptr: fn(): view_zoom_out_fn(), is_toggle: false })
+
+    // Track actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRACK_INSERT, name: "Track: Insert",
+        category: "Track", fn_ptr: fn(): track_insert_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRACK_DUPLICATE, name: "Track: Duplicate",
+        category: "Track", fn_ptr: fn(): track_duplicate_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_TRACK_DELETE, name: "Track: Delete",
+        category: "Track", fn_ptr: fn(): track_delete_fn(), is_toggle: false })
+
+    // Navigation actions
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_NAV_NEXT_MARKER, name: "Navigate: Next Marker",
+        category: "Navigation", fn_ptr: fn(): nav_next_marker_fn(), is_toggle: false })
+    push(ActionRegistry.actions, ActionDef {
+        id: ACTION_NAV_PREV_MARKER, name: "Navigate: Previous Marker",
+        category: "Navigation", fn_ptr: fn(): nav_prev_marker_fn(), is_toggle: false })
+    return 0
+
+// ------ Default keybindings ------
+pub fn register_default_keybindings() -> Int:
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_TRANSPORT_PLAY, key_code: 32, modifiers: MOD_NONE, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_UNDO, key_code: 90, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_REDO, key_code: 89, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_CUT, key_code: 88, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_COPY, key_code: 67, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_PASTE, key_code: 86, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_EDIT_DELETE, key_code: 46, modifiers: MOD_NONE, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_FILE_SAVE, key_code: 83, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_TRANSPORT_RECORD, key_code: 82, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_VIEW_MIXER, key_code: 77, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_VIEW_PIANO_ROLL, key_code: 80, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_VIEW_BROWSER, key_code: 66, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_TRACK_INSERT, key_code: 84, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_VIEW_ZOOM_IN, key_code: 187, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    push(ActionRegistry.keybindings, KeyBinding {
+        action_id: ACTION_VIEW_ZOOM_OUT, key_code: 189, modifiers: MOD_CTRL, context: CTX_GLOBAL })
+    return 0
+
+// ------ Accessibility announcements ------
+pub fn announce_transport_state(state: Int) -> Int:
+    let msg = match state:
+        TRANSPORT_PLAYING  => "Playing"
+        TRANSPORT_PAUSED   => "Paused"
+        TRANSPORT_RECORDING => "Recording"
+        _                  => "Stopped"
+    // ui_accessibility_announce(msg)
+    return 0
+
+// ------ Transport action stubs (delegated to actual implementations) ------
+fn transport_play_fn() -> Int:
+    patch transport_play():
+        MixerWorld.transport_state = TRANSPORT_PLAYING
+        return 0
+    return 0
+
+fn transport_stop_fn() -> Int:
+    patch transport_stop():
+        MixerWorld.transport_state = TRANSPORT_STOPPED
+        return 0
+    return 0
+
+fn transport_pause_fn() -> Int:
+    patch transport_pause():
+        MixerWorld.transport_state = TRANSPORT_PAUSED
+        return 0
+    return 0
+
+fn transport_record_fn() -> Int:
+    patch transport_record():
+        MixerWorld.transport_state = TRANSPORT_RECORDING
+        return 0
+    return 0
+
+fn transport_loop_fn() -> Int:
+    return 0
+
+fn nav_start_fn() -> Int: return 0
+fn nav_end_fn() -> Int: return 0
+fn edit_undo_fn() -> Int: return 0
+fn edit_redo_fn() -> Int: return 0
+fn edit_cut_fn() -> Int: return 0
+fn edit_copy_fn() -> Int: return 0
+fn edit_paste_fn() -> Int: return 0
+fn edit_delete_fn() -> Int: return 0
+fn file_save_fn() -> Int: return 0
+fn file_save_as_fn() -> Int: return 0
+fn file_new_fn() -> Int: return 0
+fn file_open_fn() -> Int: return 0
+fn view_mixer_fn() -> Int: return 0
+fn view_piano_roll_fn() -> Int: return 0
+fn view_browser_fn() -> Int: return 0
+fn view_zoom_in_fn() -> Int: return 0
+fn view_zoom_out_fn() -> Int: return 0
+fn track_insert_fn() -> Int: return 0
+fn track_duplicate_fn() -> Int: return 0
+fn track_delete_fn() -> Int: return 0
+fn nav_next_marker_fn() -> Int: return 0
+fn nav_prev_marker_fn() -> Int: return 0

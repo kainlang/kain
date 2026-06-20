@@ -1270,7 +1270,14 @@ def bazel_build_tracking_args(context: SyncContext) -> tuple[str, ...]:
     repo_sha = repo_head_sha(context.repo_root)
     short_sha = repo_sha[:12] if len(repo_sha) >= 12 else repo_sha
     build_number = f"{tracking_mode}-{short_sha}"
+    # Pass SOURCE_DATE_EPOCH with current Unix time so build.rs always
+    # embeds a fresh timestamp. Without this, Bazel caches the build-script
+    # output and the binary claims a frozen build date even on fresh compiles.
+    # build.rs already has rerun-if-env-changed=SOURCE_DATE_EPOCH, so this
+    # forces re-evaluation only when the timestamp actually changes.
+    source_date_epoch = str(int(time.time()))
     return (
+        f"--action_env=SOURCE_DATE_EPOCH={source_date_epoch}",
         f"--action_env=KAIN_BUILD_NUMBER={build_number}",
         f"--action_env=KAIN_BUILD_TRACKING_MODE={tracking_mode}",
     )

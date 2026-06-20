@@ -1,0 +1,89 @@
+// audio_device.kn — Kain facade over audio_device_bridge (miniaudio)
+//
+// Pattern: smoketest/interop/sqlite_rally.kn
+//   include "native/header.h" as alias  →  Kain facade wraps raw alias_* calls
+//
+// This module is the SINGLE canonical include site for the audio device bridge.
+// All other reson8 modules import THIS, never the raw bridge.
+
+include "native/audio_device_bridge.h" as ad
+
+// ── Device types (must match audio_device_bridge.h) ──
+pub const DEVICE_WASAPI:  Int = 0
+pub const DEVICE_ASIO:    Int = 1
+pub const DEVICE_COREAUDIO: Int = 2
+pub const DEVICE_ALSA:    Int = 3
+pub const DEVICE_PULSE:   Int = 4
+
+// ── Format constants ──
+pub const FORMAT_F32: Int = 0
+pub const FORMAT_S16: Int = 1
+pub const FORMAT_S24: Int = 2
+pub const FORMAT_S32: Int = 3
+
+// ── State ──
+pub const STATE_STOPPED:  Int = 0
+pub const STATE_STARTING: Int = 1
+pub const STATE_RUNNING:  Int = 2
+pub const STATE_STOPPING: Int = 3
+
+// ── Lifecycle ──
+pub fn audio_device_init(device_type: Int, sample_rate: Int, channels: Int,
+                          buffer_size: Int, format: Int) -> Int:
+    return ad_audio_device_init(device_type, sample_rate, channels, buffer_size, format)
+
+pub fn audio_device_start() -> Int:
+    return ad_audio_device_start()
+
+pub fn audio_device_stop() -> Int:
+    return ad_audio_device_stop()
+
+pub fn audio_device_close() -> Int:
+    return ad_audio_device_close()
+
+// ── Buffer exchange ──
+pub fn audio_device_input_frames() -> Int:
+    return ad_audio_device_input_frame_count()
+
+pub fn audio_device_read_input(dst: ptr<Float>, max_frames: Int) -> Int with Unsafe:
+    return ad_audio_device_read_input(dst, max_frames)
+
+pub fn audio_device_write_output(src: ptr<Float>, frames: Int) -> Int with Unsafe:
+    return ad_audio_device_write_output(src, frames)
+
+pub fn audio_device_swap_buffers():
+    ad_audio_device_swap_buffers()
+
+// ── State query ──
+pub fn audio_device_state() -> Int:
+    return ad_audio_device_state()
+
+pub fn audio_device_sample_rate() -> Int:
+    return ad_audio_device_sample_rate()
+
+pub fn audio_device_channels() -> Int:
+    return ad_audio_device_channels()
+
+pub fn audio_device_buffer_size() -> Int:
+    return ad_audio_device_buffer_size_frames()
+
+// ── Device enumeration ──
+pub fn audio_device_count(device_type: Int) -> Int:
+    return ad_audio_device_count(device_type)
+
+pub fn audio_device_name(device_type: Int, index: Int) -> String:
+    return ad_audio_device_name(device_type, index)
+
+pub fn audio_device_is_default(device_type: Int, index: Int) -> Bool:
+    return ad_audio_device_is_default(device_type, index) != 0
+
+// ── CPU load ──
+pub fn audio_device_cpu_load() -> Float:
+    return ad_audio_device_cpu_load()
+
+// ── Error ──
+pub fn audio_device_last_error() -> String:
+    return ad_audio_device_last_error()
+
+pub fn audio_device_last_status() -> Int:
+    return ad_audio_device_last_status()

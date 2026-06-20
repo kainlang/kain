@@ -1,0 +1,29 @@
+// shared/menu.kn — MenuBar
+use std::math
+use types::MenuItem
+use types::Color
+
+component MenuBar():
+    fn menu_names(_self: Self_) -> [String]:
+        return ["File", "Edit", "View", "Track", "Options", "Help"]
+
+    render <box height={24.0} background={ThemeWorld.color_bg_secondary} direction="horizontal" padding_horizontal={ThemeWorld.spacing_md} border_bottom_width={1.0} border_bottom_color={ThemeWorld.color_border_subtle} accessible_role="menubar" accessible_label="Main menu">
+        <box accessible_role="menuitem" accessible_label="File" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="File" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box accessible_role="menuitem" accessible_label="Edit" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="Edit" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box accessible_role="menuitem" accessible_label="View" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="View" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box accessible_role="menuitem" accessible_label="Track" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="Track" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box accessible_role="menuitem" accessible_label="Options" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="Options" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box accessible_role="menuitem" accessible_label="Help" has_popup={true} tab_index={0} padding_horizontal={ThemeWorld.spacing_md} padding_vertical={4.0} corner_radius={ThemeWorld.radius_sm}>
+            <text value="Help" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_secondary}/>
+        </box>
+    </box>

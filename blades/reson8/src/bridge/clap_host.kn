@@ -1,0 +1,125 @@
+// clap_host.kn — Kain facade over clap_host_bridge (CLAP SDK)
+//
+// Pattern: smoketest/interop/sqlite_rally.kn
+//   include "native/header.h" as alias  →  Kain facade wraps raw alias_* calls
+//
+// CLAP is already a flat C ABI — this facade handles the Kain-side
+// vocabulary wrapping.
+
+include "native/clap_host_bridge.h" as clap
+
+// ── Scanning ──
+pub fn clap_scan_directory(path: String) -> Int:
+    return clap_clap_host_scan_directory(path, 0 as ptr<String>, 0)
+
+pub fn clap_entry_path(index: Int) -> String:
+    return clap_clap_host_entry_path(index)
+
+// ── Load / Unload ──
+pub fn clap_load(index: Int) -> Int:
+    return clap_clap_host_load(index)
+
+pub fn clap_load_path(plugin_path: String) -> Int:
+    return clap_clap_host_load_path(plugin_path)
+
+pub fn clap_unload(instance: Int):
+    clap_clap_host_unload(instance)
+
+// ── Plugin info ──
+pub fn clap_name(instance: Int) -> String:
+    return clap_clap_host_name(instance)
+
+pub fn clap_vendor(instance: Int) -> String:
+    return clap_clap_host_vendor(instance)
+
+pub fn clap_version(instance: Int) -> String:
+    return clap_clap_host_version(instance)
+
+pub fn clap_description(instance: Int) -> String:
+    return clap_clap_host_description(instance)
+
+pub fn clap_feature_count(instance: Int) -> Int:
+    return clap_clap_host_feature_count(instance)
+
+pub fn clap_feature(instance: Int, index: Int) -> String:
+    return clap_clap_host_feature(instance, index)
+
+// ── Activation ──
+pub fn clap_activate(instance: Int, sample_rate: Int, min_block: Int, max_block: Int) -> Int:
+    return clap_clap_host_activate(instance, sample_rate, min_block, max_block)
+
+pub fn clap_deactivate(instance: Int) -> Int:
+    return clap_clap_host_deactivate(instance)
+
+// ── Processing ──
+pub fn clap_process(instance: Int, input: ptr<Float>, output: ptr<Float>,
+                     frames: Int, input_channels: Int, output_channels: Int) -> Int with Unsafe:
+    return clap_clap_host_process(instance, input, output, frames, input_channels, output_channels)
+
+// ── Parameters ──
+pub fn clap_param_count(instance: Int) -> Int:
+    return clap_clap_host_param_count(instance)
+
+pub fn clap_param_id(instance: Int, index: Int) -> Int:
+    return clap_clap_host_param_id(instance, index)
+
+pub fn clap_param_name(instance: Int, param_id: Int) -> String:
+    return clap_clap_host_param_name(instance, param_id)
+
+pub fn clap_param_module(instance: Int, param_id: Int) -> String:
+    return clap_clap_host_param_module(instance, param_id)
+
+pub fn clap_param_value(instance: Int, param_id: Int) -> Float:
+    return clap_clap_host_param_value(instance, param_id)
+
+pub fn clap_param_default(instance: Int, param_id: Int) -> Float:
+    return clap_clap_host_param_default(instance, param_id)
+
+pub fn clap_param_min(instance: Int, param_id: Int) -> Float:
+    return clap_clap_host_param_min(instance, param_id)
+
+pub fn clap_param_max(instance: Int, param_id: Int) -> Float:
+    return clap_clap_host_param_max(instance, param_id)
+
+pub fn clap_set_param(instance: Int, param_id: Int, value: Float) -> Int:
+    return clap_clap_host_set_param(instance, param_id, value)
+
+pub fn clap_param_is_stepped(instance: Int, param_id: Int) -> Bool:
+    return clap_clap_host_param_is_stepped(instance, param_id) != 0
+
+pub fn clap_param_is_periodic(instance: Int, param_id: Int) -> Bool:
+    return clap_clap_host_param_is_periodic(instance, param_id) != 0
+
+pub fn clap_param_is_hidden(instance: Int, param_id: Int) -> Bool:
+    return clap_clap_host_param_is_hidden(instance, param_id) != 0
+
+// ── State ──
+pub fn clap_state_save(instance: Int, buffer: ptr<U8>, buffer_size: Int) -> Int with Unsafe:
+    return clap_clap_host_state_save(instance, buffer, buffer_size)
+
+pub fn clap_state_load(instance: Int, buffer: ptr<U8>, buffer_size: Int) -> Int with Unsafe:
+    return clap_clap_host_state_load(instance, buffer, buffer_size)
+
+// ── GUI ──
+pub fn clap_gui_open(instance: Int, parent_hwnd: Int) -> Int:
+    return clap_clap_host_gui_open(instance, parent_hwnd)
+
+pub fn clap_gui_close(instance: Int) -> Int:
+    return clap_clap_host_gui_close(instance)
+
+pub fn clap_gui_is_open(instance: Int) -> Bool:
+    return clap_clap_host_gui_is_open(instance) != 0
+
+pub fn clap_gui_can_resize(instance: Int) -> Bool:
+    return clap_clap_host_gui_can_resize(instance) != 0
+
+// ── Latency ──
+pub fn clap_latency(instance: Int) -> Int:
+    return clap_clap_host_latency(instance)
+
+// ── Error ──
+pub fn clap_last_error() -> String:
+    return clap_clap_host_last_error()
+
+pub fn clap_last_status() -> Int:
+    return clap_clap_host_last_status()

@@ -1,0 +1,41 @@
+// ============================================================================
+//  MIXER LAWS — Compiler-owned invariant predicates for mixer state
+//  Owned by STREAM1. Verified at compile time, consumed by orchestrate stages.
+// ============================================================================
+
+law master_volume_in_bounds(v: Float) -> Bool:
+    return v >= 0.0 and v <= 1.0
+
+law sample_rate_valid(sr: Int) -> Bool:
+    return sr == 44100 or sr == 48000 or sr == 88200 or sr == 96000 or sr == 176400 or sr == 192000
+
+law buffer_size_valid(bs: Int) -> Bool:
+    return bs >= 16 and bs <= 4096 and (bs % 16) == 0
+
+law buffer_aligned(buf: ptr<Int>) -> Bool:
+    # 16-byte alignment for SIMD
+    return (ptr_to_int(buf) % 16) == 0
+
+law transport_state_valid(s: Int) -> Bool:
+    return s >= 0 and s <= 3
+
+law tempo_valid(bpm: Float) -> Bool:
+    return bpm >= 20.0 and bpm <= 400.0
+
+law time_signature_valid(num: Int, den: Int) -> Bool:
+    return num >= 1 and num <= 32 and (den == 1 or den == 2 or den == 4 or den == 8 or den == 16)
+
+law meter_db_valid(db: Float) -> Bool:
+    return db >= -120.0 and db <= 12.0
+
+law loop_region_valid(start: Int, end: Int, transport_max: Int) -> Bool:
+    return start >= 0 and end > start and end <= transport_max
+
+law pan_valid(pan: Float) -> Bool:
+    return pan >= -1.0 and pan <= 1.0
+
+law track_count_valid(count: Int) -> Bool:
+    return count >= 0 and count <= 512
+
+law cpu_load_valid(load: Float) -> Bool:
+    return load >= 0.0 and load <= 100.0

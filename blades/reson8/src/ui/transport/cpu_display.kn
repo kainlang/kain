@@ -1,0 +1,40 @@
+// transport/cpu_display.kn -- Real-time CPU usage meter with color zones
+
+use std::math
+use types::Color
+
+component CPUUsage(
+ value: Float, // 0-100 percentage
+):
+ fn zone_color(_self: Self_) -> Color:
+ if _self.value > ThemeWorld.threshold_cpu_red:
+ return ThemeWorld.color_error
+ if _self.value > ThemeWorld.threshold_cpu_yellow:
+ return ThemeWorld.color_warning
+ return ThemeWorld.color_success
+
+ fn fill_pct(_self: Self_) -> Float:
+ let pct = _self.value
+ if pct < 0.0: return 0.0
+ if pct > 100.0: return 100.0
+ return pct
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_secondary
+
+ render <box
+ accessible_role="progressbar"
+ accessible_label="CPU usage"
+ accessible_value={str(_self.value) + "%"}
+ direction="horizontal"
+ align="center"
+ gap={ThemeWorld.spacing_xs}
+ padding_horizontal={ThemeWorld.spacing_sm}
+ >
+ <text value="CPU" font_size={ThemeWorld.font_size_xs} color={text_c} />
+ {/* Meter bar */}
+ <box width={60.0} height={6.0} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_surface} >
+ <box width={_self.fill_pct.toString() + "%"} height={6.0} corner_radius={ThemeWorld.radius_full} background={zone_color} />
+ </box>
+ <text value={str(_self.value) + "%"} font_size={ThemeWorld.font_size_xs} color={zone_color} font_weight={ThemeWorld.font_weight_medium} />
+ </box>

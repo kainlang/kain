@@ -1,0 +1,66 @@
+// ============================================================================
+//  FileScanner Actor — Background scanner for samples and plugins
+//  STREAM4: T4-4 — Async directory walk, sample discovery, plugin indexing.
+// ============================================================================
+
+use std::actor
+
+// ── Scan result types ──
+pub struct ScanResult:
+    path:       String
+    file_name:  String
+    extension:  String
+    size_bytes: Int
+    kind:       String
+
+// ── Scan status reply struct ──
+pub struct ScanStatus:
+    state:    Int
+    samples:  Int
+    plugins:  Int
+    path:     String
+
+// ============================================================================
+//  FileScanner ACTOR
+// ============================================================================
+
+actor FileScanner:
+    state scan_state:     Int    = 0
+    state found_samples:  Int    = 0
+    state found_plugins:  Int    = 0
+    state found_projects: Int    = 0
+    state scan_path:      String = ""
+    state results:        [ScanResult] = []
+
+    on ScanDirectory(reply_to: P, path: String):
+        self.scan_state = 1
+        self.scan_path = path
+        self.found_samples = 0
+        self.found_plugins = 0
+        self.found_projects = 0
+        self.results = []
+        self.scan_state = 2
+        send reply_to.Reply(value = 0)
+
+    on ScanPlugins(reply_to: P, paths: [String]):
+        self.scan_state = 1
+        self.found_plugins = 0
+        self.scan_state = 2
+        send reply_to.Reply(value = 0)
+
+    on GetStatus(reply_to: P):
+        let status = ScanStatus {
+            state: self.scan_state,
+            samples: self.found_samples,
+            plugins: self.found_plugins,
+            path: self.scan_path,
+        }
+        send reply_to.Reply(value = status)
+
+    on GetResults(reply_to: P):
+        send reply_to.Reply(value = 0)
+
+    on CancelScan(reply_to: P):
+        if self.scan_state == 1:
+            self.scan_state = 0
+        send reply_to.Reply(value = 0)

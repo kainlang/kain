@@ -1,0 +1,16 @@
+// shared/checkbox.kn — Toggle checkbox
+use std::math
+use types::Color
+
+component Checkbox(label: String, checked: Bool, disabled: Bool, on_change: fn(Bool) -> Int):
+    fn box_bg(_self: Self_) -> Color:
+        if _self.disabled: return ThemeWorld.color_button_disabled
+        if _self.checked: return ThemeWorld.color_accent
+        return ThemeWorld.color_button_default
+
+    render <box accessible_role="checkbox" accessible_label={label} tab_index={0} direction="horizontal" align="center" gap={ThemeWorld.spacing_sm}>
+        <box width={18.0} height={18.0} corner_radius={ThemeWorld.radius_sm} background={box_bg()} border_width={1.5} border_color={ThemeWorld.color_border_default} align="center" justify="center">
+            <text value="v" font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_inverse} font_weight={ThemeWorld.font_weight_bold}/>
+        </box>
+        <text value={label} font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_primary}/>
+    </box>

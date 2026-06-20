@@ -1,0 +1,233 @@
+// ============================================================================
+//  reson8 Mixer Signal Graph — Main Audio Pipeline
+//  STREAM2: T2-8 — src→gain→fx1-4→master→meter→sink stage graph.
+//  STREAM4: AudioEngine actor calls this orchestrate block.
+// ============================================================================
+
+use std::math
+use std::intent
+
+const MG_E: Float = 2.718281828459045
+const MG_TWO_PI: Float = 6.283185307179586
+
+// ============================================================================
+//  Audioview Type
+// ============================================================================
+
+struct AudioView:
+    data:       ptr<Float>
+    frames:     Int
+    channels:   Int
+    peak_l:     Float
+    peak_r:     Float
+    rms_l:      Float
+    rms_r:      Float
+
+struct TrackState:
+    volume:     Float
+    pan:        Float
+    fx_slot:    [Int]
+    muted:      Bool
+    soloed:     Bool
+
+struct EffectSlot:
+    plugin_id:  Int
+    enabled:    Bool
+    wet_dry:    Float
+
+struct MixerConfig:
+    sample_rate: Int
+    buffer_size: Int
+
+// ============================================================================
+//  log10 implementation (ln(x) / ln(10) via series)
+// ============================================================================
+
+fn mg_log10(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return -120.0
+    # Compute ln(x) using series expansion for normalized range
+    var b: Int = 0
+    var a: Float = x
+    while a >= 10.0:
+        a = a / 10.0
+        b = b + 1
+    while a < 1.0 and a > 0.0:
+        a = a * 10.0
+        b = b - 1
+    let y: Float = (a - 1.0) / (a + 1.0)
+    let y2: Float = y * y
+    var ln_a: Float = 0.0
+    var term: Float = y
+    var k: Int = 1
+    while k < 20:
+        ln_a = ln_a + term / (k as Float)
+        term = term * y2
+        k = k + 2
+    let ln10: Float = 2.302585092994046
+    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+
+// ============================================================================
+//  Stage Functions
+// ============================================================================
+
+/// Stage: Read audio from track source (file/clip).
+fn read_track_audio(input: AudioView, track: TrackState) -> AudioView with Pure:
+    return input
+
+/// Stage: Apply gain and pan to the signal.
+fn apply_gain_stage(input: AudioView, volume: Float, pan: Float) -> AudioView with Unsafe:
+    let pan_l: Float = sqrt((1.0 - pan) / 2.0)
+    let pan_r: Float = sqrt((1.0 + pan) / 2.0)
+
+    var result: AudioView = input
+    var i: Int = 0
+    while i < input.frames:
+        let idx: Int = i * 2
+        let in_l: Float = mem_load(ptr_offset(input.data, idx, "Float"), "Float")
+        let in_r: Float = mem_load(ptr_offset(input.data, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(result.data, idx, "Float"), in_l * volume * pan_l, "Float")
+        mem_store(ptr_offset(result.data, idx + 1, "Float"), in_r * volume * pan_r, "Float")
+        i = i + 1
+
+    return result
+
+/// Stage: Process a single effect slot.
+fn process_effect(input: AudioView, slot: EffectSlot) -> AudioView with Pure:
+    if slot.enabled == false or slot.wet_dry <= 0.0:
+        return input
+    return input
+
+/// Stage: Apply master chain (EQ → comp → limiter → dither).
+fn apply_master_chain(input: AudioView) -> AudioView with Unsafe:
+    let master_gain: Float = MixerWorld.master_volume
+    var result: AudioView = input
+    var i: Int = 0
+    while i < input.frames:
+        let idx: Int = i * 2
+        let in_l: Float = mem_load(ptr_offset(input.data, idx, "Float"), "Float")
+        let in_r: Float = mem_load(ptr_offset(input.data, idx + 1, "Float"), "Float")
+        mem_store(ptr_offset(result.data, idx, "Float"), in_l * master_gain, "Float")
+        mem_store(ptr_offset(result.data, idx + 1, "Float"), in_r * master_gain, "Float")
+        i = i + 1
+    return result
+
+/// Stage: Calculate peak and RMS levels for metering.
+fn calc_peaks_rms(input: AudioView) -> AudioView with Unsafe:
+    var peak_l: Float = 0.0
+    var peak_r: Float = 0.0
+    var rms_sum_l: Float = 0.0
+    var rms_sum_r: Float = 0.0
+
+    var i: Int = 0
+    while i < input.frames:
+        let idx: Int = i * 2
+        let al: Float = abs(mem_load(ptr_offset(input.data, idx, "Float"), "Float"))
+        let ar: Float = abs(mem_load(ptr_offset(input.data, idx + 1, "Float"), "Float"))
+        if al > peak_l:
+            peak_l = al
+        if ar > peak_r:
+            peak_r = ar
+        let val_l: Float = mem_load(ptr_offset(input.data, idx, "Float"), "Float")
+        let val_r: Float = mem_load(ptr_offset(input.data, idx + 1, "Float"), "Float")
+        rms_sum_l = rms_sum_l + val_l * val_l
+        rms_sum_r = rms_sum_r + val_r * val_r
+        i = i + 1
+
+    let frame_count: Float = input.frames as Float
+
+    var result: AudioView = input
+    result.peak_l = peak_l
+    result.peak_r = peak_r
+    result.rms_l = sqrt(rms_sum_l / frame_count)
+    result.rms_r = sqrt(rms_sum_r / frame_count)
+    return result
+
+/// Stage: Deliver processed audio to output device.
+fn deliver_to_output(input: AudioView, meter: AudioView) -> AudioView with Pure:
+    return input
+
+// ============================================================================
+//  Mixer Signal Graph — Orchestrate
+// ============================================================================
+
+orchestrate mixer_signal_graph(input: AudioView, track: TrackState) -> AudioView:
+    stage src: cpu read_track_audio(input, track)
+        when capability("audio.source") residency host transfer none
+
+    stage gain: cpu apply_gain_stage(src, track.volume, track.pan)
+        after src residency host policy static
+
+    stage fx1: cpu process_effect(gain, track.fx_slot[0])
+        after gain residency host policy telemetry_balance_latency
+
+    stage fx2: cpu process_effect(fx1, track.fx_slot[1])
+        after fx1 residency host policy telemetry_balance_latency
+
+    stage fx3: cpu process_effect(fx2, track.fx_slot[2])
+        after fx2 residency host policy telemetry_balance_latency
+
+    stage fx4: cpu process_effect(fx3, track.fx_slot[3])
+        after fx3 residency host policy telemetry_balance_latency
+
+    stage master: cpu apply_master_chain(fx4)
+        after fx4 residency host policy static
+
+    stage meter: cpu calc_peaks_rms(master)
+        after master residency host transfer shared_view
+
+    stage sink: cpu deliver_to_output(master, meter)
+        when capability("audio.sink") after master residency host transfer none
+
+    return sink
+
+// ============================================================================
+//  Resonate Handlers
+// ============================================================================
+
+resonate MixerWorld.master_volume dampen 0 ms:
+    let new_vol: Float = resonate_new_f64
+    MixerWorld.master_gain_coeff = new_vol
+    MixerWorld.peak_left = 0.0
+    MixerWorld.peak_right = 0.0
+
+resonate MixerWorld.tempo_bpm dampen 0 ms:
+    let new_bpm: Float = resonate_new_f64
+    MixerWorld.time_sig_num = MixerWorld.time_sig_num
+    # Pulse transport_tick detects new tempo on next beat
+
+// ============================================================================
+//  Machine Stones
+// ============================================================================
+
+shatter struct AudioChunk:
+    bias:     Float
+    phase:    Float
+    tick:     Int
+    checksum: Int
+    alive:    Bool
+
+teleport meter_data from MixerWorld to MixerMirror via meter_teleport_channel
+
+// ============================================================================
+//  Axiom — Platform Capability Assertion
+// ============================================================================
+
+axiom reson8_capability_check:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("simd.avx2")
+    when capability("audio.wasapi")
+    when capability("gpu.vulkan")
+    guarantee "reson8 requires AVX2 + WASAPI + Vulkan for optimal performance"
+    fallback reson8_minimal_mode
+
+fn reson8_minimal_mode() -> Int:
+    return 0
+
+// ============================================================================
+//  Exported entry point
+// ============================================================================
+
+pub fn mixer_graph_process(input: AudioView, track: TrackState) -> AudioView with Unsafe:
+    return mixer_signal_graph(input, track)

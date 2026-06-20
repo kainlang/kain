@@ -1,0 +1,6 @@
+// shared/split_pane.kn — Resizable split pane
+use std::math
+use types::Color
+
+component SplitPane(direction: String, initial_sizes: [Float], min_sizes: [Float]):
+    render <box direction={direction} fill={true} accessible_role="group" accessible_label="Split pane"/>

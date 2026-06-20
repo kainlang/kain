@@ -1,0 +1,70 @@
+// mixer/fader.kn -- Linear volume fader with track, fill, and cap
+
+use std::math
+use types::Color
+
+component Fader(
+ value: Float,
+ min: Float,
+ max: Float,
+ on_change: fn(Float) -> Int,
+):
+ state is_dragging: Bool = false
+ state is_hovered: Bool = false
+
+ fn normalized(_self: Self_) -> Float:
+ if _self.max == _self.min:
+ return 0.0
+ return (_self.value - _self.min) / (_self.max - _self.min)
+
+ fn fill_height_px(_self: Self_) -> Float:
+ let n = _self.normalized
+ let fader_throw_val = ThemeWorld.fader_throw
+ if n < 0.0: return 0.0
+ if n > 1.0: return fader_throw_val
+ return n * fader_throw_val
+
+ fn cap_c(_self: Self_) -> Color:
+ if _self.is_dragging:
+ return ThemeWorld.color_accent_pressed
+ if _self.is_hovered:
+ return ThemeWorld.color_accent_hover
+ return ThemeWorld.color_fader_cap
+
+ fn line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_fader_cap_line
+
+ fn track_c(_self: Self_) -> Color:
+ return ThemeWorld.color_slider_track
+
+ fn fill_c(_self: Self_) -> Color:
+ return ThemeWorld.color_slider_fill
+
+ fn handle_dbl_click(_self: Self_) -> Int:
+ _self.on_change(0.0) // Reset to 0 dB
+ return 0
+
+ render <box
+ accessible_role="slider"
+ accessible_label="Volume"
+ accessible_value={str(_self.value) + " dB"}
+ tab_index={0}
+ direction="vertical"
+ align="center"
+ width={ThemeWorld.fader_width}
+ height={ThemeWorld.fader_throw}
+ 
+ 
+ on_dbl_click={handle_dbl_click}
+ >
+ {/* Track */}
+ <box width={4.0} height={ThemeWorld.fader_throw} corner_radius={ThemeWorld.radius_full} background={track_c} position="relative" >
+ {/* Fill (from bottom up) */}
+ <box width={4.0} height={fill_height_px} corner_radius={ThemeWorld.radius_full} background={fill_c} position="absolute" bottom={0.0} />
+ {/* Cap (thumb) */}
+ <box width={fader_cap_w} height={12.0} corner_radius={ThemeWorld.radius_sm} background={cap_c} position="absolute" bottom={_self.fill_height_px - 6.0} >
+ {/* Cap line accent */}
+ <box width={_self.fader_cap_w - 8.0} height={2.0} corner_radius={ThemeWorld.radius_full} background={line_c} />
+ </box>
+ </box>
+ </box>

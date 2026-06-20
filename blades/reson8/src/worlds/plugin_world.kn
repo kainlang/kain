@@ -1,0 +1,107 @@
+// ============================================================================
+//  PLUGINWORLD — Compiler-owned plugin registry and state
+//  Owned by STREAM1. Read/written by STREAM4 (actors, plugin scanner).
+// ============================================================================
+
+// ── Plugin descriptor structs ──
+
+pub struct KainPluginDescriptor:
+    name:             String
+    vendor:           String
+    version:          String
+    category:         String
+    num_inputs:       Int
+    num_outputs:      Int
+    num_params:       Int
+    has_editor:       Bool
+    latency_samples:  Int
+    dll_path:         String
+
+pub struct VST3PluginInfo:
+    name:        String
+    vendor:      String
+    vst3_id:     String
+    dll_path:    String
+    num_inputs:  Int
+    num_outputs: Int
+
+pub struct PythonPluginInfo:
+    name:               String
+    python_module:      String
+    python_function:    String
+    category:           String
+    expected_latency_ms: Int
+
+pub struct CLAPPluginInfo:
+    name:        String
+    vendor:      String
+    clap_id:     String
+    dll_path:    String
+    num_inputs:  Int
+    num_outputs: Int
+
+// ── Effect slot ──
+pub struct PluginSlot:
+    slot_index:  Int
+    plugin_name: String
+    plugin_kind: String
+    bypassed:    Bool
+    wet_dry:     Float
+    enabled:     Bool
+
+// ============================================================================
+//  PLUGINWORLD — Active plugin state
+// ============================================================================
+
+world PluginWorld:
+    state kain_plugins:   [KainPluginDescriptor] = []
+    state vst3_plugins:   [VST3PluginInfo] = []
+    state clap_plugins:   [CLAPPluginInfo] = []
+    state python_plugins: [PythonPluginInfo] = []
+    state scan_paths:     [String] = []
+    state last_scan_time:    Int  = 0
+    state plugins_loaded:    Bool = false
+    state active_plugin_count: Int = 0
+
+    # ── Settings panel fields (STREAM3) ──
+    state sandbox_enabled:     Bool = false
+    state max_crash_recovery:  Int  = 3
+
+    surface native_ui => PluginManagerPanel
+
+// ============================================================================
+//  PLUGINREGISTRY — Separate world for scan database
+// ============================================================================
+
+world PluginRegistry:
+    state installed_kain:   [KainPluginDescriptor] = []
+    state installed_vst3:   [VST3PluginInfo] = []
+    state installed_clap:   [CLAPPluginInfo] = []
+    state installed_python: [PythonPluginInfo] = []
+    state scan_complete:    Bool = false
+
+    # ── Settings panel fields (STREAM3) ──
+    state scan_paths:       [String] = []
+    state clap_scan_paths:  [String] = []
+
+    surface native_ui => PluginBrowser
+
+// ============================================================================
+//  PATCH BLOCKS
+// ============================================================================
+
+patch mark_scan_complete(registry: PluginRegistry) -> Int:
+    registry.scan_complete = true
+    return 0
+
+patch set_plugins_loaded(pw: PluginWorld, loaded: Bool) -> Int:
+    pw.plugins_loaded = loaded
+    return 0
+
+patch update_last_scan_time(pw: PluginWorld, timestamp: Int) -> Int:
+    pw.last_scan_time = timestamp
+    return 0
+
+patch set_active_plugin_count(pw: PluginWorld, count: Int) -> Int:
+    pw.active_plugin_count = count
+    return 0

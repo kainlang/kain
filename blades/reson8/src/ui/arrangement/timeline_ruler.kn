@@ -1,0 +1,46 @@
+// arrangement/timeline_ruler.kn -- Horizontal ruler showing measures/beats/time
+
+use std::math
+use types::Color
+
+component TimelineRuler(
+ zoom_x: Float,
+ scroll_x: Float,
+ viewport_width: Float,
+ arrangement_length_frames: Int,
+):
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_ruler_bg
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_ruler_text
+
+ fn bar_line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_grid_bar
+
+ fn beat_line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_grid_beat
+
+ fn grid_line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_grid_line
+
+ fn height_px(_self: Self_) -> Float:
+ return ThemeWorld.timeline_ruler_height
+
+ fn handle_click(_self: Self_, frame: Int) -> Int:
+ // Set playhead to clicked position
+ return 0
+
+ render <box
+ height={height_px}
+ background={bg}
+ width={viewport_width}
+ border_bottom_width={1.0}
+ border_bottom_color={ThemeWorld.color_border_subtle}
+ accessible_role="ruler"
+ accessible_label="Timeline ruler"
+ >
+ {/* Bar markers rendered based on zoom_x, scroll_x, tempo, time sig */}
+ <text value="1" font_size={ThemeWorld.font_size_xs} color={text_c} font_family={ThemeWorld.font_family_mono} padding_horizontal={ThemeWorld.spacing_sm} />
+ <text value="2" font_size={ThemeWorld.font_size_xs} color={text_c} font_family={ThemeWorld.font_family_mono} padding_horizontal={ThemeWorld.spacing_sm} />
+ </box>

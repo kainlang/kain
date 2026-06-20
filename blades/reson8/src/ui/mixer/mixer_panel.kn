@@ -1,0 +1,35 @@
+// mixer/mixer_panel.kn -- Full mixer view with scrollable strips + master
+
+use std::math
+use types::Color
+use types::FXSlot
+
+component MixerPanel(
+ track_count: Int,
+):
+ state scroll_offset: Float = 0.0
+ state selected_strip: Int = -1
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ fn strip_width(_self: Self_) -> Float:
+ return ThemeWorld.mixer_strip_width
+
+ render <box
+ accessible_role="group"
+ accessible_label="Mixer"
+ direction="horizontal"
+ fill={true}
+ background={bg}
+ >
+ {/* Scrollable track strips */}
+ <ScrollArea width={_self.strip_width * Float(_self.track_count) + ThemeWorld.mixer_strip_width} height={600.0} scroll_x={true} scroll_y={false} >
+ <box direction="horizontal" gap={0.0}>
+ for i in 0.._self.track_count:
+ <MixerStrip track_index={i} track_name={TrackWorld.track_names[i]} selected={i == _self.selected_strip} />
+ </box>
+ </ScrollArea>
+ {/* Master strip -- always visible at right */}
+ <MixerStrip track_index={-1} track_name={"Master"} selected={false} />
+ </box>

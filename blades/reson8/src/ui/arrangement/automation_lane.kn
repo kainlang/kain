@@ -1,0 +1,44 @@
+// arrangement/automation_lane.kn -- Automation envelope below track lane
+
+use std::math
+use types::Color
+
+component AutomationLane(
+ track_index: Int,
+ param_name: String,
+ width: Float,
+ height: Float,
+ points: [Float],
+ point_times: [Int],
+):
+ state is_hovered: Bool = false
+ state selected_point: Int = -1
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_automation_lane_bg
+
+ fn line_c(_self: Self_) -> Color:
+ return ThemeWorld.color_automation_line
+
+ fn point_c(_self: Self_, idx: Int) -> Color:
+ if idx == _self.selected_point:
+ return ThemeWorld.color_automation_point_selected
+ return ThemeWorld.color_automation_point
+
+ render <box
+ width={width}
+ height={height}
+ background={bg}
+ border_top_width={1.0}
+ border_top_color={ThemeWorld.color_border_subtle}
+ border_bottom_width={1.0}
+ border_bottom_color={ThemeWorld.color_border_subtle}
+ accessible_role="group"
+ accessible_label={"Automation: " + _self.param_name}
+ position="relative"
+ >
+ {/* Label */}
+ <text value={param_name} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} padding_horizontal={ThemeWorld.spacing_sm} padding_top={2.0} />
+ {/* Automation line and points */}
+ {/* Points rendered as small circles connected by lines */}
+ </box>

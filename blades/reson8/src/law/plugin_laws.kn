@@ -1,0 +1,35 @@
+// ============================================================================
+//  PLUGIN LAWS — Compiler-owned invariant predicates for plugin system
+//  Owned by STREAM1. Verified at compile time.
+// ============================================================================
+
+law param_in_bounds(value: Float, min_val: Float, max_val: Float) -> Bool:
+    return value >= min_val and value <= max_val
+
+law slot_count_valid(count: Int) -> Bool:
+    return count >= 0 and count <= 16
+
+law plugin_category_valid(cat: String) -> Bool:
+    return cat == "effect" or cat == "instrument" or cat == "utility" or cat == "analyzer"
+
+law plugin_category_valid_extended(cat: String) -> Bool:
+    return cat == "effect" or cat == "instrument" or cat == "utility" or cat == "analyzer" or cat == "spatial" or cat == "spectral" or cat == "dynamics" or cat == "modulation"
+
+law plugin_path_exists(path: String) -> Bool:
+    # Path must be non-empty to be valid
+    return len(path) > 0
+
+law plugin_latency_valid(latency_samples: Int) -> Bool:
+    return latency_samples >= 0 and latency_samples <= 65536
+
+law plugin_wet_dry_valid(mix: Float) -> Bool:
+    return mix >= 0.0 and mix <= 1.0
+
+law scan_path_valid(path: String) -> Bool:
+    return len(path) > 0
+
+law vst3_id_valid(id: String) -> Bool:
+    return len(id) > 0
+
+law python_module_valid(module: String) -> Bool:
+    return len(module) > 0

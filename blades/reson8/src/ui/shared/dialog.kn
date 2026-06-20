@@ -1,0 +1,20 @@
+// shared/dialog.kn — Modal dialog
+use std::math
+use types::Color
+
+component Dialog(title: String, message: String, is_open: Bool, kind: String, on_confirm: fn() -> Int, on_cancel: fn() -> Int):
+    fn confirm_label(_self: Self_) -> String:
+        match _self.kind:
+            "error" => return "Dismiss"
+            _       => return "OK"
+
+    render <box position="fixed" top={0.0} left={0.0} width={10000.0} height={10000.0} background={color_rgba(0.0, 0.0, 0.0, 0.5)} z_index={5000} align="center" justify="center">
+        <box direction="vertical" width={400.0} padding={ThemeWorld.spacing_xl} corner_radius={ThemeWorld.radius_xl} background={ThemeWorld.color_surface_dialog} border_width={1.0} border_color={ThemeWorld.color_border_default} gap={ThemeWorld.spacing_lg} accessible_role="dialog" accessible_label={title}>
+            <text value={title} font_size={ThemeWorld.font_size_lg} font_weight={ThemeWorld.font_weight_bold} color={ThemeWorld.color_text_primary}/>
+            <text value={message} font_size={ThemeWorld.font_size_base} color={ThemeWorld.color_text_secondary} line_height={ThemeWorld.font_line_height_relaxed}/>
+            <box direction="horizontal" justify="end" gap={ThemeWorld.spacing_md}>
+                <Button label="Cancel" kind="ghost" size="md" disabled={false} on_click={on_cancel}/>
+                <Button label={confirm_label()} kind="primary" size="md" disabled={false} on_click={on_confirm}/>
+            </box>
+        </box>
+    </box>

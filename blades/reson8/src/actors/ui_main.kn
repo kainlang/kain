@@ -1,0 +1,98 @@
+// ============================================================================
+//  UIMain Actor — UI render loop and input dispatch
+//  STREAM4: T4-7 — Window management, frame pacing, event dispatch.
+//  Wires to: bridges/vulkan_ui, pulse/ui_pulse, worlds/ThemeWorld.
+// ============================================================================
+
+use std::actor
+use std::math
+
+// ── UI event types ──
+pub struct UIEvent:
+    event_type:  Int
+    x:           Float
+    y:           Float
+    button:      Int
+    key_code:    Int
+    modifiers:   Int
+    delta:       Float
+
+// ── Window config ──
+pub struct WindowConfig:
+    title:      String
+    width:      Int
+    height:     Int
+    min_width:  Int
+    min_height: Int
+    resizable:  Bool
+
+// ── UI metrics reply struct ──
+pub struct UIMetrics:
+    frame_count: Int
+    fps:         Float
+    width:       Int
+    height:      Int
+    running:     Bool
+
+// ============================================================================
+//  UIMain ACTOR
+// ============================================================================
+
+actor UIMain:
+    state window_handle:  Int    = 0
+    state running:        Bool   = false
+    state window_title:   String = "reson8"
+    state window_width:   Int    = 1920
+    state window_height:  Int    = 1080
+    state frame_count:    Int    = 0
+    state fps:            Float  = 0.0
+    state needs_redraw:   Bool   = true
+
+    on StartUI(reply_to: P, config: WindowConfig):
+        self.window_title = config.title
+        self.window_width = config.width
+        self.window_height = config.height
+        self.running = true
+        self.frame_count = 0
+        self.window_handle = 1
+        send reply_to.Reply(value = 0)
+
+    on RenderFrame(reply_to: P):
+        if self.running == false:
+            send reply_to.Reply(value = -1)
+            return
+        self.frame_count = self.frame_count + 1
+        self.needs_redraw = false
+        send reply_to.Reply(value = self.frame_count)
+
+    on HandleEvent(reply_to: P, event: UIEvent):
+        send reply_to.Reply(value = 0)
+
+    on Resize(reply_to: P, width: Int, height: Int):
+        self.window_width = width
+        self.window_height = height
+        self.needs_redraw = true
+        send reply_to.Reply(value = 0)
+
+    on SetTitle(reply_to: P, title: String):
+        self.window_title = title
+        send reply_to.Reply(value = 0)
+
+    on RequestRedraw(reply_to: P):
+        self.needs_redraw = true
+        send reply_to.Reply(value = 0)
+
+    on GetMetrics(reply_to: P):
+        let metrics = UIMetrics {
+            frame_count: self.frame_count,
+            fps: self.fps,
+            width: self.window_width,
+            height: self.window_height,
+            running: self.running,
+        }
+        send reply_to.Reply(value = metrics)
+
+    on StopUI(reply_to: P):
+        self.running = false
+        self.window_handle = 0
+        send reply_to.Reply(value = 0)

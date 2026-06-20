@@ -1,0 +1,26 @@
+// shared/dropdown.kn — Dropdown select with items list
+use std::math
+use types::DropdownItem
+use types::Color
+
+component Dropdown(items: [DropdownItem], selected_idx: Int, label: String, on_select: fn(Int) -> Int):
+    state is_open: Bool = false
+
+    fn get_label(_self: Self_) -> String:
+        if _self.selected_idx >= 0 and _self.selected_idx < len(_self.items):
+            return _self.items[_self.selected_idx].label
+        return _self.label
+
+    fn toggle(_self: Self_) -> Int:
+        _self.is_open = not _self.is_open
+        return 0
+
+    render <box accessible_role="combobox" accessible_label={label} accessible_value={get_label()} tab_index={0} on_click={toggle} direction="vertical">
+        <box direction="horizontal" align="center" padding={ThemeWorld.spacing_sm} corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_button_default} min_width={100.0}>
+            <text value={get_label()} font_size={ThemeWorld.font_size_sm} color={ThemeWorld.color_text_primary}/>
+            <text value=" v" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary}/>
+        </box>
+        <box direction="vertical" corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_surface_raised} border_width={1.0} border_color={ThemeWorld.color_border_default} position="absolute" z_index={1000}>
+            <text value="Dropdown items" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted}/>
+        </box>
+    </box>

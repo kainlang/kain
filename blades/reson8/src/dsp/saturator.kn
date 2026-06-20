@@ -1,0 +1,164 @@
+// ============================================================================
+//  reson8 Saturator — Analog-Style Saturation and Waveshaping
+//  STREAM2: T2-5 — Soft clip, tube, tape, waveshaper with multiple curves.
+//  STREAM4: PluginHost loads this as Kain-native saturator.
+// ============================================================================
+
+use std::math
+
+const SAT_PI: Float = 3.14159265358979323846
+const SAT_E:  Float = 2.718281828459045
+
+pub struct SaturatorParams:
+    drive_db:   Float
+    output_db:  Float
+    mix:        Float
+    mode:       Int
+    bias:       Float
+    drive_lin:  Float
+    output_lin: Float
+
+// ============================================================================
+//  Math Helpers (no built-in exp/tanh/atan)
+// ============================================================================
+
+fn sat_exp(x: Float) -> Float with Unsafe:
+    return pow(SAT_E, x)
+
+fn sat_tanh(x: Float) -> Float with Unsafe:
+    if x > 20.0:
+        return 1.0
+    if x < -20.0:
+        return -1.0
+    let e2: Float = sat_exp(2.0 * x)
+    return (e2 - 1.0) / (e2 + 1.0)
+
+fn sat_atan_core(x: Float) -> Float with Unsafe:
+    let x2: Float = x * x
+    let num: Float = 0.9998660 + x2 * (-0.3302995 + x2 * (0.1801410 + x2 * (-0.0851330 + 0.0208351 * x2)))
+    return x * num
+
+fn sat_atan(x: Float) -> Float with Unsafe:
+    if x > 1.0:
+        return 1.5707963267948966 - sat_atan_core(1.0 / x)
+    if x < -1.0:
+        return -1.5707963267948966 - sat_atan_core(1.0 / x)
+    return sat_atan_core(x)
+
+// ============================================================================
+//  Saturation Curves
+// ============================================================================
+
+pub fn soft_clip(x: Float) -> Float with Unsafe:
+    return sat_tanh(x)
+
+pub fn soft_clip_drive(x: Float, drive: Float) -> Float with Unsafe:
+    return sat_tanh(x * drive)
+
+pub fn tube_saturate(x: Float, drive: Float) -> Float with Unsafe:
+    let y: Float = x * drive
+    if y > 0.0:
+        return sat_tanh(y) * 0.8 + (1.0 - sat_exp(-y)) * 0.2
+    return sat_tanh(y) * 0.8 - (1.0 - sat_exp(y)) * 0.2
+
+pub fn tape_saturate(x: Float, drive: Float) -> Float with Unsafe:
+    return sat_atan(x * drive) * (2.0 / SAT_PI)
+
+pub fn waveshaper(x: Float, drive: Float) -> Float with Unsafe:
+    let y: Float = x * drive
+    if y < -1.0:
+        return -1.0
+    if y > 1.0:
+        return 1.0
+    return 1.5 * y - 0.5 * y * y * y
+
+pub fn asymmetric_clip(x: Float, drive: Float, bias: Float) -> Float with Unsafe:
+    let y: Float = x * drive + bias
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    if y < 0.0:
+        return -sat_tanh(-y * 1.5) * 0.85
+    return sat_tanh(y) * 0.9
+
+pub fn hard_clip(x: Float, drive: Float) -> Float with Unsafe:
+    let y: Float = x * drive
+    if y > 1.0:
+        return 1.0
+    if y < -1.0:
+        return -1.0
+    return y
+
+// ============================================================================
+//  Mode Dispatcher
+// ============================================================================
+
+pub fn saturate_sample(params: ptr<SaturatorParams>, x: Float) -> Float with Unsafe:
+    let drive: Float = params.drive_lin
+    let bias: Float = params.bias
+
+    if params.mode == 0:
+        return soft_clip_drive(x, drive)
+    if params.mode == 1:
+        return tube_saturate(x, drive)
+    if params.mode == 2:
+        return tape_saturate(x, drive)
+    if params.mode == 3:
+        return waveshaper(x, drive)
+    if params.mode == 4:
+        return asymmetric_clip(x, drive, bias)
+    return soft_clip_drive(x, drive)
+
+// ============================================================================
+//  Mono Block Processing
+// ============================================================================
+
+pub fn saturator_process_mono(params: ptr<SaturatorParams>,
+                               input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    params.drive_lin = pow(10.0, params.drive_db / 20.0)
+    params.output_lin = pow(10.0, params.output_db / 20.0)
+
+    let mix: Float = params.mix
+    let dry_mix: Float = 1.0 - mix
+    let out_gain: Float = params.output_lin
+
+    var i: Int = 0
+    while i < frames:
+        let inp: Float = mem_load(ptr_offset(input, i, "Float"), "Float")
+        let saturated: Float = saturate_sample(params, inp)
+        let blended: Float = inp * dry_mix + saturated * mix
+        mem_store(ptr_offset(output, i, "Float"), blended * out_gain, "Float")
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  Stereo Block Processing
+// ============================================================================
+
+pub fn saturator_process_stereo(params: ptr<SaturatorParams>,
+                                 input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    params.drive_lin = pow(10.0, params.drive_db / 20.0)
+    params.output_lin = pow(10.0, params.output_db / 20.0)
+
+    let mix: Float = params.mix
+    let dry_mix: Float = 1.0 - mix
+    let out_gain: Float = params.output_lin
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+
+        let sat_l: Float = saturate_sample(params, inp_l)
+        let sat_r: Float = saturate_sample(params, inp_r)
+
+        mem_store(ptr_offset(output, idx, "Float"), (inp_l * dry_mix + sat_l * mix) * out_gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), (inp_r * dry_mix + sat_r * mix) * out_gain, "Float")
+        i = i + 1
+
+    return 0
+
+// STREAM4: PluginHost loads as Kain-native saturator

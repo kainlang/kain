@@ -1,0 +1,141 @@
+// themes/slate-emulation.kn -- Slate Digital skeuomorphic style
+// Dark, rich, analog-inspired: deep browns, gold accents, texture feel
+
+use std::math
+use worlds::theme_world
+
+patch apply_slate_identity(tw: ThemeWorld):
+    tw.active_theme_name = "slate-emulation"
+    tw.theme_version = 1
+    tw.theme_author = "reson8"
+    tw.theme_description = "Slate Digital skeuomorphic style: deep browns, gold accents"
+
+patch apply_slate_surfaces(tw: ThemeWorld):
+    tw.color_bg_primary       = color_rgba(0.08, 0.06, 0.04, 1.0)  // deep brown-black
+    tw.color_bg_secondary     = color_rgba(0.12, 0.09, 0.06, 1.0)  // rich brown
+    tw.color_bg_tertiary      = color_rgba(0.16, 0.12, 0.08, 1.0)  // lighter brown
+    tw.color_surface          = color_rgba(0.14, 0.10, 0.07, 1.0)  // surface brown
+    tw.color_surface_raised   = color_rgba(0.18, 0.14, 0.10, 1.0)  // raised brown
+    tw.color_surface_overlay  = color_rgba(0.22, 0.16, 0.12, 1.0)  // overlay brown
+    tw.color_surface_dialog   = color_rgba(0.12, 0.09, 0.06, 1.0)  // dialog brown
+
+patch apply_slate_text(tw: ThemeWorld):
+    tw.color_text_primary     = color_rgba(0.91, 0.85, 0.78, 1.0)  // warm cream
+    tw.color_text_secondary   = color_rgba(0.69, 0.62, 0.55, 1.0)  // muted cream
+    tw.color_text_muted       = color_rgba(0.45, 0.40, 0.35, 1.0)  // dark cream
+    tw.color_text_inverse     = color_rgba(0.08, 0.06, 0.04, 1.0)  // deep brown
+    tw.color_text_link        = color_rgba(0.89, 0.69, 0.25, 1.0)  // gold
+    tw.color_text_error       = color_rgba(0.90, 0.28, 0.24, 1.0)  // warm red
+    tw.color_text_success     = color_rgba(0.35, 0.78, 0.51, 1.0)  // muted green
+
+patch apply_slate_accent(tw: ThemeWorld):
+    tw.color_accent           = color_rgba(0.83, 0.60, 0.15, 1.0)  // #d4a53d gold/brass
+    tw.color_accent_hover     = color_rgba(0.89, 0.69, 0.25, 1.0)  // #e4b044 brighter gold
+    tw.color_accent_pressed   = color_rgba(0.69, 0.47, 0.08, 1.0)  // #b07814 darker gold
+    tw.color_accent_alt       = color_rgba(0.55, 0.45, 0.35, 1.0)  // warm grey
+    tw.color_accent_alt_hover = color_rgba(0.65, 0.55, 0.45, 1.0)  // lighter warm grey
+
+patch apply_slate_full_palette(tw: ThemeWorld):
+    tw.color_success          = color_rgba(0.35, 0.78, 0.51, 1.0)  // #58c982
+    tw.color_warning          = color_rgba(0.90, 0.60, 0.10, 1.0)  // amber
+    tw.color_error            = color_rgba(0.90, 0.28, 0.24, 1.0)  // #e6473d
+    tw.color_info             = color_rgba(0.45, 0.65, 0.85, 1.0)  // slate blue
+    tw.color_border_default   = color_rgba(0.22, 0.18, 0.14, 1.0)  // #383024
+    tw.color_border_focus     = color_rgba(0.83, 0.60, 0.15, 1.0)  // gold
+    tw.color_border_error     = color_rgba(0.90, 0.28, 0.24, 1.0)
+    tw.color_border_subtle    = color_rgba(0.15, 0.12, 0.08, 1.0)
+    tw.color_meter_low        = color_rgba(0.35, 0.78, 0.51, 1.0)  // green
+    tw.color_meter_mid        = color_rgba(0.90, 0.60, 0.10, 1.0)  // amber
+    tw.color_meter_high       = color_rgba(0.90, 0.28, 0.24, 1.0)  // red
+    tw.color_meter_over       = color_rgba(0.95, 0.15, 0.15, 1.0)  // bright red
+    tw.color_meter_background = color_rgba(0.04, 0.03, 0.02, 1.0)  // very dark
+    tw.color_meter_peak_hold  = color_rgba(0.91, 0.85, 0.78, 1.0)  // cream
+    tw.color_waveform         = color_rgba(0.83, 0.60, 0.15, 1.0)  // gold waveform
+    tw.color_waveform_selected = color_rgba(0.89, 0.69, 0.25, 1.0) // brighter gold
+    tw.color_waveform_center_line = color_rgba(0.22, 0.18, 0.14, 1.0)
+    tw.color_waveform_rms     = color_rgba(0.83, 0.60, 0.15, 0.4)
+    tw.color_grid_line        = color_rgba(0.15, 0.12, 0.08, 1.0)
+    tw.color_grid_beat        = color_rgba(0.20, 0.16, 0.12, 1.0)
+    tw.color_grid_bar         = color_rgba(0.30, 0.24, 0.18, 1.0)
+    tw.color_ruler_bg         = color_rgba(0.10, 0.08, 0.05, 1.0)
+    tw.color_ruler_text       = color_rgba(0.69, 0.62, 0.55, 1.0)
+    tw.color_playhead         = color_rgba(0.91, 0.85, 0.78, 1.0)  // cream playhead
+    tw.color_playhead_line    = color_rgba(0.91, 0.85, 0.78, 1.0)
+    tw.color_loop_region      = color_rgba(0.83, 0.60, 0.15, 0.13)
+    tw.color_loop_region_border = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_midi_bg          = color_rgba(0.08, 0.06, 0.04, 1.0)
+    tw.color_midi_note_default = color_rgba(0.83, 0.60, 0.15, 1.0)  // gold notes
+    tw.color_midi_note_selected = color_rgba(0.89, 0.69, 0.25, 1.0)
+    tw.color_midi_note_muted  = color_rgba(0.35, 0.28, 0.20, 1.0)
+    tw.color_midi_white_key   = color_rgba(0.30, 0.24, 0.18, 1.0)  // ivory keys
+    tw.color_midi_black_key   = color_rgba(0.12, 0.09, 0.06, 1.0)
+    tw.color_midi_grid        = color_rgba(0.15, 0.12, 0.08, 1.0)
+    tw.color_midi_cc_bg       = color_rgba(0.04, 0.03, 0.02, 1.0)
+    tw.color_midi_cc_line     = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_clip_default     = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_clip_selected    = color_rgba(0.89, 0.69, 0.25, 1.0)
+    tw.color_clip_muted       = color_rgba(0.35, 0.28, 0.20, 1.0)
+    tw.color_clip_locked      = color_rgba(0.70, 0.55, 0.25, 1.0)
+    tw.color_clip_recording   = color_rgba(0.90, 0.28, 0.24, 1.0)
+    tw.color_clip_header      = color_rgba(0.16, 0.12, 0.06, 1.0)
+    tw.color_clip_waveform    = color_rgba(0.89, 0.69, 0.25, 1.0)
+    tw.color_clip_fade_in     = color_rgba(0.35, 0.78, 0.51, 0.5)
+    tw.color_clip_fade_out    = color_rgba(0.90, 0.28, 0.24, 0.5)
+    tw.color_automation_line  = color_rgba(0.83, 0.60, 0.15, 1.0)  // gold automation
+    tw.color_automation_point = color_rgba(0.91, 0.85, 0.78, 1.0)
+    tw.color_automation_point_selected = color_rgba(0.89, 0.69, 0.25, 1.0)
+    tw.color_automation_lane_bg = color_rgba(0.04, 0.03, 0.02, 1.0)
+    tw.color_knob_track       = color_rgba(0.22, 0.18, 0.14, 1.0)
+    tw.color_knob_fill        = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_knob_center      = color_rgba(0.12, 0.09, 0.06, 1.0)
+    tw.color_knob_indicator   = color_rgba(0.91, 0.85, 0.78, 1.0)
+    tw.color_button_default   = color_rgba(0.18, 0.14, 0.10, 1.0)
+    tw.color_button_hover     = color_rgba(0.26, 0.20, 0.15, 1.0)
+    tw.color_button_active    = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_button_text      = color_rgba(0.91, 0.85, 0.78, 1.0)
+    tw.color_button_text_active = color_rgba(0.08, 0.06, 0.04, 1.0)
+    tw.color_button_disabled  = color_rgba(0.10, 0.08, 0.05, 1.0)
+    tw.color_button_text_disabled = color_rgba(0.35, 0.28, 0.20, 1.0)
+    tw.color_slider_track     = color_rgba(0.18, 0.14, 0.10, 1.0)
+    tw.color_slider_fill      = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_slider_thumb     = color_rgba(0.69, 0.62, 0.55, 1.0)
+    tw.color_slider_thumb_hover = color_rgba(0.89, 0.69, 0.25, 1.0)
+    tw.color_fader_cap        = color_rgba(0.12, 0.09, 0.06, 1.0)
+    tw.color_fader_cap_line   = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.color_scrollbar_thumb  = color_rgba(0.35, 0.28, 0.20, 1.0)
+    tw.color_scrollbar_thumb_hover = color_rgba(0.50, 0.40, 0.30, 1.0)
+    tw.color_selection        = color_rgba(0.83, 0.60, 0.15, 0.2)
+    tw.color_selection_border = color_rgba(0.83, 0.60, 0.15, 1.0)
+    tw.shadow_color           = color_rgba(0.0, 0.0, 0.0, 0.7)
+    tw.glow_accent            = color_rgba(0.83, 0.60, 0.15, 0.2)
+    tw.glow_meter_peak        = color_rgba(0.90, 0.28, 0.24, 0.3)
+
+patch apply_slate_layout(tw: ThemeWorld):
+    tw.font_family_ui = "Inter"
+    tw.font_family_mono = "JetBrains Mono"
+    tw.font_size_base = 12.0
+    tw.font_size_sm = 11.0
+    tw.font_size_lg = 15.0
+    tw.font_weight_normal = 400
+    tw.font_weight_semibold = 600
+    tw.font_weight_bold = 700
+    tw.mixer_strip_width = 80.0
+    tw.transport_height = 48.0
+    tw.track_header_width = 200.0
+    tw.piano_roll_note_height = 12.0
+    tw.piano_roll_key_width = 60.0
+    tw.timeline_ruler_height = 24.0
+    tw.meter_width = 10.0
+    tw.meter_height = 200.0
+    tw.fader_throw = 200.0
+    tw.fader_width = 24.0
+    tw.knob_size_md = 32.0
+    tw.button_size_md = 28.0
+    tw.scrollbar_width = 8.0
+    tw.animation_enabled = true
+    tw.animation_reduced = false
+    tw.animation_duration_normal = 250
+    tw.meter_decay_rate = 24.0
+    tw.meter_peak_hold_ms = 3000
+    tw.threshold_cpu_yellow = 50.0
+    tw.threshold_cpu_red = 80.0

@@ -1,0 +1,115 @@
+// ============================================================================
+//  reson8 UI Meter Pulse — Meter Display Update Clock
+//  STREAM2: T2-9 — UI update every 50ms, jitter 5ms, budget(alloc=1).
+//  STREAM4: UIMain registers this pulse for meter rendering.
+// ============================================================================
+
+use std::intent
+use std::math
+
+// ============================================================================
+//  UI Meter Snapshot
+// ============================================================================
+
+struct MeterSnapshot:
+    peak_left:      Float
+    peak_right:     Float
+    rms_left:       Float
+    rms_right:      Float
+    cpu_load:       Float
+    transport_pos:  Int
+    tempo_bpm:      Float
+    playing:        Bool
+    tick:           Int
+    timestamp_ms:   Int
+
+// ============================================================================
+//  log10 implementation for meter DB conversion
+// ============================================================================
+
+fn ui_log10(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return -120.0
+    var b: Int = 0
+    var a: Float = x
+    while a >= 10.0:
+        a = a / 10.0
+        b = b + 1
+    while a < 1.0 and a > 0.0:
+        a = a * 10.0
+        b = b - 1
+    let y: Float = (a - 1.0) / (a + 1.0)
+    let y2: Float = y * y
+    var ln_a: Float = 0.0
+    var term: Float = y
+    var k: Int = 1
+    while k < 20:
+        ln_a = ln_a + term / (k as Float)
+        term = term * y2
+        k = k + 2
+    let ln10: Float = 2.302585092994046
+    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+
+// ============================================================================
+//  UI Meter Pulse — 50ms Display Update
+// ============================================================================
+
+pulse meter_ui_tick every 50 ms jitter 5 ms budget(alloc=1, lock=0, io=0):
+    let snapshot: MeterSnapshot = meter_teleport_poll()
+    update_meter_displays(snapshot)
+
+// ============================================================================
+//  Meter Teleport Poll
+// ============================================================================
+
+/// Read the latest meter values from the teleport mirror.
+fn meter_teleport_poll() -> MeterSnapshot with Pure:
+    # Read from MixerMirror (populated by teleport channel from MixerWorld)
+    # Field names match the MixerMirror definition in src/worlds/mixer_world.kn
+    return MeterSnapshot {
+        peak_left:      MixerMirror.peak_left,
+        peak_right:     MixerMirror.peak_right,
+        rms_left:       MixerMirror.rms_left,
+        rms_right:      MixerMirror.rms_right,
+        cpu_load:       MixerMirror.cpu_load,
+        transport_pos:  MixerWorld.transport_position,
+        tempo_bpm:      MixerWorld.tempo_bpm,
+        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
+        tick:           0,
+        timestamp_ms:   0,
+    }
+
+// ============================================================================
+//  Meter Display Update
+// ============================================================================
+
+fn update_meter_displays(snapshot: MeterSnapshot) -> Int with Pure:
+    # Peak values: linear [0.0, 1.0] — convert to dB for display
+    var peak_l_db: Float = -120.0
+    if snapshot.peak_left > 0.000000000001:
+        peak_l_db = 20.0 * ui_log10(snapshot.peak_left)
+    var peak_r_db: Float = -120.0
+    if snapshot.peak_right > 0.000000000001:
+        peak_r_db = 20.0 * ui_log10(snapshot.peak_right)
+
+    # RMS values
+    var rms_l_db: Float = -120.0
+    if snapshot.rms_left > 0.000000000001:
+        rms_l_db = 20.0 * ui_log10(snapshot.rms_left)
+    var rms_r_db: Float = -120.0
+    if snapshot.rms_right > 0.000000000001:
+        rms_r_db = 20.0 * ui_log10(snapshot.rms_right)
+
+    let _ = peak_l_db + peak_r_db + rms_l_db + rms_r_db
+    let _ = snapshot.cpu_load + (snapshot.transport_pos as Float) + snapshot.tempo_bpm
+    return 0
+
+// ============================================================================
+//  Meter Decay
+// ============================================================================
+
+fn apply_meter_decay(current_peak: Float, held_peak: Float,
+                      peak_hold_ms: Int, decay_rate_db_per_sec: Float,
+                      dt_ms: Int) -> Float with Pure:
+    let _ = current_peak + held_peak + (peak_hold_ms as Float) + decay_rate_db_per_sec + (dt_ms as Float)
+    return current_peak

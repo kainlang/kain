@@ -1,0 +1,84 @@
+// app.kn -- Root Reson8App component: window, layout, menu, transport, main area, status bar
+
+use std::math
+use types::Color
+
+component Reson8App():
+ state project_path: String = ""
+ state project_modified: Bool = false
+ state active_panel: String = "arrangement"
+ state layout_preset: String = "default"
+
+ fn window_title(_self: Self_) -> String:
+ let name = if _self.project_path == "":
+ "Untitled"
+ else:
+ _self.project_path
+ let mod = if _self.project_modified:
+ " *"
+ else:
+ ""
+ return "reson8 -- " + name + mod
+
+ fn handle_close() -> Int:
+ // Check for unsaved changes, prompt save
+ return 0
+
+ fn init_app(_self: Self_) -> Int:
+ // Initialize themes, worlds, audio engine
+ // theme_load("reson8-dark")
+ return 0
+
+ render <window
+ title={window_title}
+ width={1920.0}
+ height={1080.0}
+ min_width={1024.0}
+ min_height={600.0}
+ on_close={handle_close}
+ >
+ <box direction="vertical" fill={true} background={ThemeWorld.color_bg_primary} >
+ {/* Menu bar */}
+ <MenuBar />
+
+ {/* Transport bar */}
+ <TransportBar />
+
+ {/* Main area */}
+ <MainArea />
+
+ {/* Status bar */}
+ <StatusBar />
+ </box>
+ </window>
+
+// Main area -- split pane with track control + arrangement + optional panels
+component MainArea():
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ render <box
+ direction="horizontal"
+ flex_grow={1.0}
+ background={bg}
+ >
+ {/* Left panel: track controls */}
+ <box width={ThemeWorld.track_header_width} min_width={ThemeWorld.min_panel_width} background={ThemeWorld.color_bg_secondary} border_right_width={1.0} border_right_color={ThemeWorld.color_border_subtle} direction="vertical" >
+ {/* Track headers rendered here */}
+ <text value="Tracks" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} padding={ThemeWorld.spacing_md} />
+ </box>
+
+ {/* Center: arrangement or piano roll */}
+ <box direction="vertical" flex_grow={1.0}>
+ {/* Timeline ruler */}
+ <TimelineRuler zoom_x={1.0} scroll_x={0.0} viewport_width={1200.0} arrangement_length_frames={MixerWorld.arrangement_length_frames} />
+ {/* Arrangement view */}
+ <ArrangementView track_count={TrackWorld.track_count} clips={[]} zoom_x={1.0} scroll_x={0.0} scroll_y={0.0} />
+ </box>
+
+ {/* Right panel: mixer or browser */}
+ <box width={250.0} min_width={ThemeWorld.min_panel_width} background={ThemeWorld.color_bg_secondary} border_left_width={1.0} border_left_color={ThemeWorld.color_border_subtle} direction="vertical" >
+ {/* Browser panel */}
+ <FileBrowser root_path="./projects" filter_extension=".wav,.flac,.mp3" on_file_select={fn(_p: String): 0} on_import={fn(_p: String): 0} />
+ </box>
+ </box>

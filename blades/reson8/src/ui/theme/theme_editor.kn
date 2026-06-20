@@ -1,0 +1,80 @@
+// theme/theme_editor.kn -- Category list + property grid + live preview
+// Full theme editor component for live theming
+
+use std::math
+use types::Color
+use types::DropdownItem
+
+component ThemeEditor():
+ state active_category: String = "Colors"
+ state categories: [String] = ["Colors", "Typography", "Spacing", "Components", "Animation"]
+ state selected_property: String = ""
+ state preview_playing: Bool = false
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_primary
+
+ fn sidebar_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn select_category(cat: String) -> Int:
+ _self.active_category = cat
+ return 0
+
+ fn handle_save_theme(_self: Self_) -> Int:
+ // Export current ThemeWorld state as a .kn theme file
+ return 0
+
+ fn handle_load_theme(_self: Self_) -> Int:
+ // Open file dialog to load a theme
+ return 0
+
+ render <box
+ accessible_role="group"
+ accessible_label="Theme editor"
+ direction="horizontal"
+ fill={true}
+ background={bg}
+ >
+ {/* Sidebar with category list */}
+ <box width={180.0} background={sidebar_bg} border_right_width={1.0} border_right_color={ThemeWorld.color_border_subtle} direction="vertical" padding={ThemeWorld.spacing_md} gap={ThemeWorld.spacing_md} >
+ <text value="Theme Editor" font_size={ThemeWorld.font_size_md} color={text_c} font_weight={ThemeWorld.font_weight_bold} />
+ {/* Category list buttons */}
+ for cat in _self.categories:
+ <Button label={cat} kind={if cat == _self.active_category: "primary" else: "ghost"} size="md" disabled={false} />
+ {/* Separator */}
+ <box height={1.0} background={ThemeWorld.color_border_subtle} />
+ {/* Save/Load buttons */}
+ <Button label="Save Theme" kind="default" size="md" disabled={false} on_click={handle_save_theme} />
+ <Button label="Load Theme" kind="default" size="md" disabled={false} on_click={handle_load_theme} />
+ </box>
+
+ {/* Property grid (center) */}
+ <box flex_grow={1.0} direction="vertical" padding={ThemeWorld.spacing_md} >
+ <text value={_self.active_category + " Properties"} font_size={ThemeWorld.font_size_lg} color={text_c} font_weight={ThemeWorld.font_weight_semibold} padding_bottom={ThemeWorld.spacing_md} />
+ {/* Property list */}
+ <ScrollArea width={500.0} height={400.0} scroll_x={false} scroll_y={true} >
+ <box direction="vertical" gap={ThemeWorld.spacing_sm}>
+ if _self.active_category == "Colors":
+ {/* Color properties from ThemeWorld */}
+ for prop in get_color_properties():
+ <box direction="horizontal" align="center" gap={ThemeWorld.spacing_md} padding={ThemeWorld.spacing_sm} >
+ <text value={prop.name} font_size={ThemeWorld.font_size_sm} color={text_c} flex_grow={1.0} />
+ <ColorPicker color={prop.value} on_change={fn(c: Color): 0} />
+ </box>
+ </box>
+ </ScrollArea>
+ </box>
+
+ {/* Live preview panel (right) */}
+ <ThemePreview is_playing={preview_playing} />
+ </box>

@@ -1,0 +1,89 @@
+// mixer/mixer_strip.kn -- One channel: track name, FX slots, pan, fader, VU meter, M/S/R
+
+use std::math
+use types::Color
+use types::FXSlot
+
+component MixerStrip(
+ track_index: Int,
+ track_name: String,
+ selected: Bool,
+ on_select: fn() -> Int,
+):
+ state is_muted: Bool = false
+ state is_soloed: Bool = false
+ state is_record_armed: Bool = false
+ state volume_db: Float = 0.0
+ state pan: Float = 0.0
+ state fx_slots: [FXSlot] = []
+
+ fn bg(_self: Self_) -> Color:
+ if _self.selected:
+ return ThemeWorld.color_surface_raised
+ return ThemeWorld.color_bg_secondary
+
+ fn strip_w(_self: Self_) -> Float:
+ return ThemeWorld.mixer_strip_width
+
+ fn handle_mute(_self: Self_) -> Int:
+ _self.is_muted = not _self.is_muted
+ patch mixer_mute_patch(track: Int):
+ // TrackWorld mute toggle
+ return 0
+ return 0
+
+ fn handle_solo(_self: Self_) -> Int:
+ _self.is_soloed = not _self.is_soloed
+ return 0
+
+ fn handle_record_arm(_self: Self_) -> Int:
+ _self.is_record_armed = not _self.is_record_armed
+ return 0
+
+ fn handle_volume_change(val: Float) -> Int:
+ _self.volume_db = val
+ return 0
+
+ fn handle_pan_change(val: Float) -> Int:
+ _self.pan = val
+ return 0
+
+ render <box
+ accessible_role="group"
+ accessible_label={"Track: " + _self.track_name}
+ direction="vertical"
+ align="center"
+ width={strip_w}
+ min_height={ThemeWorld.mixer_strip_min_height}
+ background={bg}
+ padding={ThemeWorld.spacing_sm}
+ gap={ThemeWorld.spacing_sm}
+ border_right_width={if _self.selected: 1.0 else: 0.0}
+ border_right_color={ThemeWorld.color_accent}
+ on_click={on_select}
+ >
+ {/* Track name */}
+ <text value={track_name} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_primary} font_weight={ThemeWorld.font_weight_medium} text_align="center" max_width={_self.strip_w - ThemeWorld.spacing_sm} />
+
+ {/* FX slots */}
+ <FXSlotDisplay slots={fx_slots} on_slot_click={fn(idx: Int): 0} />
+
+ {/* Pan knob */}
+ <PanKnob value={pan} on_change={handle_pan_change} />
+
+ {/* Fader */}
+ <Fader value={volume_db} min={-60.0} max={12.0} on_change={handle_volume_change} />
+
+ {/* VU Meter */}
+ <VUMeter peak_db={TrackWorld.track_levels[_self.track_index].peak} rms_db={TrackWorld.track_levels[_self.track_index].rms} is_clipping={TrackWorld.track_levels[_self.track_index].clipping} />
+
+ {/* Mute / Solo / Record buttons */}
+ <box direction="horizontal" gap={ThemeWorld.spacing_xs}>
+ <Button label="M" kind={if _self.is_muted: "danger" else: "default"} size="sm" disabled={false} on_click={handle_mute} />
+ <Button label="S" kind={if _self.is_soloed: "primary" else: "default"} size="sm" disabled={false} on_click={handle_solo} />
+ <Button label="R" kind={if _self.is_record_armed: "danger" else: "default"} size="sm" disabled={false} on_click={handle_record_arm} />
+ </box>
+
+ {/* Level readout */}
+ <text value={str(_self.volume_db) + " dB"} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_secondary} />
+ </box>

@@ -1,0 +1,113 @@
+// vst3_host.kn — Kain facade over vst3_host_bridge (Steinberg VST3 SDK)
+//
+// Pattern: smoketest/interop/sqlite_rally.kn
+//   include "native/header.h" as alias  →  Kain facade wraps raw alias_* calls
+//
+// This is the SINGLE canonical include site for VST3 hosting.
+// All other reson8 modules import THIS, never the raw bridge.
+
+include "native/vst3_host_bridge.h" as vst3
+
+// ── Plugin category constants ──
+pub const VST3_CAT_AUDIO_EFFECT: Int = 0
+pub const VST3_CAT_INSTRUMENT:   Int = 1
+pub const VST3_CAT_CONTROLLER:   Int = 2
+
+// ── Scanning ──
+pub fn vst3_scan_directory(path: String) -> Int:
+    return vst3_vst3_host_scan_directory(path, 0 as ptr<String>, 0 as ptr<String>, 0)
+
+// ── Factory ──
+pub fn vst3_load_factory(plugin_path: String) -> Int:
+    return vst3_vst3_host_load_factory(plugin_path)
+
+pub fn vst3_class_count(factory: Int) -> Int:
+    return vst3_vst3_host_class_count(factory)
+
+pub fn vst3_class_name(factory: Int, class_index: Int) -> String:
+    return vst3_vst3_host_class_name(factory, class_index)
+
+pub fn vst3_class_category(factory: Int, class_index: Int) -> Int:
+    return vst3_vst3_host_class_category(factory, class_index)
+
+pub fn vst3_class_vendor(factory: Int, class_index: Int) -> String:
+    return vst3_vst3_host_class_vendor(factory, class_index)
+
+pub fn vst3_class_version(factory: Int, class_index: Int) -> String:
+    return vst3_vst3_host_class_version(factory, class_index)
+
+pub fn vst3_release_factory(factory: Int):
+    vst3_vst3_host_release_factory(factory)
+
+// ── Instance ──
+pub fn vst3_create_instance(factory: Int, class_index: Int) -> Int:
+    return vst3_vst3_host_create_instance(factory, class_index)
+
+pub fn vst3_create_controller(instance: Int) -> Int:
+    return vst3_vst3_host_create_controller(instance)
+
+// ── Processing ──
+pub fn vst3_setup_processing(instance: Int, sample_rate: Int, max_block_size: Int) -> Int:
+    return vst3_vst3_host_setup_processing(instance, sample_rate, max_block_size)
+
+pub fn vst3_activate(instance: Int, active: Bool) -> Int:
+    return vst3_vst3_host_activate(instance, if active: 1 else: 0)
+
+pub fn vst3_process(instance: Int, input: ptr<Float>, output: ptr<Float>, frames: Int) -> Int with Unsafe:
+    return vst3_vst3_host_process(instance, input, output, frames)
+
+// ── Parameters ──
+pub fn vst3_param_count(instance: Int) -> Int:
+    return vst3_vst3_host_param_count(instance)
+
+pub fn vst3_param_id(instance: Int, index: Int) -> Int:
+    return vst3_vst3_host_param_id(instance, index)
+
+pub fn vst3_param_name(instance: Int, param_id: Int) -> String:
+    return vst3_vst3_host_param_name(instance, param_id)
+
+pub fn vst3_param_unit(instance: Int, param_id: Int) -> String:
+    return vst3_vst3_host_param_unit(instance, param_id)
+
+pub fn vst3_param_value(instance: Int, param_id: Int) -> Float:
+    return vst3_vst3_host_param_value(instance, param_id)
+
+pub fn vst3_param_default(instance: Int, param_id: Int) -> Float:
+    return vst3_vst3_host_param_default(instance, param_id)
+
+pub fn vst3_set_param(instance: Int, param_id: Int, value: Float) -> Int:
+    return vst3_vst3_host_set_param(instance, param_id, value)
+
+pub fn vst3_param_step_count(instance: Int, param_id: Int) -> Int:
+    return vst3_vst3_host_param_step_count(instance, param_id)
+
+// ── Editor ──
+pub fn vst3_open_editor(instance: Int, parent_hwnd: Int) -> Int:
+    return vst3_vst3_host_open_editor(instance, parent_hwnd)
+
+pub fn vst3_close_editor(instance: Int) -> Int:
+    return vst3_vst3_host_close_editor(instance)
+
+pub fn vst3_editor_open(instance: Int) -> Bool:
+    return vst3_vst3_host_editor_open(instance) != 0
+
+// ── Info ──
+pub fn vst3_latency_samples(instance: Int) -> Int:
+    return vst3_vst3_host_latency_samples(instance)
+
+pub fn vst3_tail_samples(instance: Int) -> Int:
+    return vst3_vst3_host_tail_samples(instance)
+
+pub fn vst3_bus_count(instance: Int, is_input: Bool) -> Int:
+    return vst3_vst3_host_bus_count(instance, if is_input: 1 else: 0)
+
+// ── Lifecycle ──
+pub fn vst3_release_instance(instance: Int):
+    vst3_vst3_host_release_instance(instance)
+
+// ── Error ──
+pub fn vst3_last_error() -> String:
+    return vst3_vst3_host_last_error()
+
+pub fn vst3_last_status() -> Int:
+    return vst3_vst3_host_last_status()

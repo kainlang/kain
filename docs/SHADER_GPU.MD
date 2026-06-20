@@ -1509,3 +1509,92 @@ ______________________________________________________________________
 | **LLM training kernels** | `library_of_kain/blades_cuda_llm_src_training_kernel.kn` ~ 8 kernels |
 | **LLM transformer kernels** | `library_of_kain/blades_cuda_llm_src_transformer_kernel.kn` ->> 7 kernels |
 | **LLM search kernels** | `library_of_kain/blades_cuda_llm_src_search_kernel.kn` --- 4 kernels with warp-reduce |
+
+______________________________________________________________________
+
+## Recommended Improvements (GPU Debate 2026-06-20)
+
+**Source:** Structured debate between Graphics Programmer and Bell Labs Compiler Engineer.
+**Full research:** `research/gpu/GPU_DEBATE_RECOMMENDATIONS.md`
+
+### Philosophy: Absorption Over Expansion
+
+Kain's existing semantic stack already provides structural vocabulary for all but one GPU concern.
+The gap is not missing keywords but missing **compiler inference passes** that derive GPU bridge
+metadata from what the programmer already declares.
+
+### The One New Keyword: `subgroup(N) { }`
+
+Warp-synchronous scope inside GPU kernels. Control-flow keyword (parallel to `if`/`for`/`while`),
+NOT a semantic keyword (no decision ladder entry).
+
+```kn
+shader compute MyKernel(id: UVec3) -> Void workgroup(32, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    subgroup(32):
+        let max_val = cuda_warp_reduce_max_f32(src[id.x])
+        if cuda_lane_id() == 0:
+            dst[id.x] = max_val
+    // Outside — normal divergent execution allowed
+```
+
+**Design constraints:**
+- No nesting — compile error
+- Size validated against hardware subgroup size
+- Divergence escape analysis — compiler verifies reconvergence at scope boundary
+- Backends: SPIR-V → `OpGroupNonUniform*`, PTX → `__syncwarp` + intrinsics, HLSL → `WaveActive*`, WGSL → `subgroup*`
+
+### Nine Absorbed Proposals (Zero Keywords)
+
+| Proposal | Absorbed Into | Mechanism |
+|---|---|---|
+| Mesh/task/raytracing stages | `ShaderStage` enum | Extend to 11 variants — parser already handles `shader <stage> Name` |
+| Push constants | `uniform` inference | SPIR-V backend: ≤128 bytes + single-stage → `VkPushConstantRange` |
+| Specialization constants | `comptime` metadata | Add `spec_constant` tuple to compute plans → `OpSpecConstant` |
+| Shader-as-value | `std::gpu` library | `PipelineLibrary` + `PipelineHandle` types |
+| Tensor cores | `@extern` + `axiom` | `capability("cuda.tensorcore")` + `axiom` presets |
+| Async compute | `orchestrate` | Parallel DAG stages + `policy prefer_async_compute` |
+| GPU barriers | `orchestrate` planner | `access_map` inference from DAG stage bindings |
+| Indirect dispatch | `dispatch` grammar variant | `dispatch "key" from buf` — same keyword, one AST variant |
+| Memory visibility | `orchestrate` + ABI | Same `access_map` → `abi_gpu_dispatch_ext` |
+
+### Key Code Locations for Implementation
+
+| File | What Changes |
+|------|-------------|
+| `crates/core/src/ast.rs` | `ShagerStage` enum (4→11), `DispatchSize::Fixed \| Indirect` |
+| `crates/core/src/parser.rs` | `subgroup` token + grammar, mesh/task entry tokens |
+| `crates/gpu/src/codegen_spirv.rs` | Push constant inference, `OpSpecConstant`, barrier metadata |
+| `crates/gpu/src/codegen_ptx.rs` | `subgroup` scope → `__syncwarp` + warp intrinsics |
+| `crates/gpu/src/codegen_hlsl.rs` | `subgroup` → `WaveActive*` mapping |
+| `crates/gpu/src/codegen_wgsl.rs` | `subgroup` → `subgroup*` mapping |
+| `crates/orchestrate/src/graph.rs` | `access_map` field on `OrchestrateStageGraphMetadata` |
+| `crates/orchestrate/src/planner.rs` | Barrier/visibility inference pass |
+| `crates/gpu-runtime/src/executor.rs` | Consume barrier metadata instead of full-pipeline-drain |
+| `stdlib/gpu.kn` | `PipelineLibrary`, `PipelineHandle` types |
+| `stdlib/cuda.kn` | Tensor core `@extern` declarations |
+
+### What NOT to Add
+
+| Don't Add | Why |
+|-----------|-----|
+| `gpu_barrier` keyword | Inferrable from orchestrate DAG |
+| `push_constants` keyword | Invisible compiler optimization |
+| `specialize` keyword | `comptime` owns this space |
+| `dispatch_indirect` keyword | Grammar variant on `dispatch` |
+| `async_dispatch` keyword | Parallel orchestrate stages |
+| `tensor_matmul` keyword | `@extern` + `axiom` is correct |
+| `pipeline_library` keyword | Library type in `std::gpu` |
+
+### Net Change to Shader & GPU Pipeline
+
+| Metric | Value |
+|--------|-------|
+| New keywords | **1** (`subgroup`) |
+| Grammar variants | 1 (`dispatch "key" from buf`) |
+| Compiler inference passes | 4 (barriers, push constants, memory access, staging) |
+| ABI entry points | 2 (`abi_gpu_dispatch_ext`, `abi_gpu_dispatch_indirect`) |
+| Stdlib additions | 3 (`PipelineLibrary`, `PipelineHandle`, `IndirectDispatchBuffer`) |
+| Shader stages | 4 → 11 (adds mesh, task, 5 raytracing, callable) |

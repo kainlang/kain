@@ -1,0 +1,86 @@
+// theme/theme_preview.kn -- Live preview with mock transport + mixer strip
+
+use std::math
+use types::Color
+
+component ThemePreview(
+ is_playing: Bool,
+):
+ state mock_volume: Float = -12.0
+ state mock_pan: Float = 25.0
+ state mock_peak: Float = -8.0
+ state mock_rms: Float = -18.0
+ state mock_cpu: Float = 32.0
+
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_bg_secondary
+
+ fn header_bg(_self: Self_) -> Color:
+ return ThemeWorld.color_surface
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn muted_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ fn accent_c(_self: Self_) -> Color:
+ return ThemeWorld.color_accent
+
+ render <box
+ accessible_role="group"
+ accessible_label="Theme preview"
+ direction="vertical"
+ width={300.0}
+ min_width={250.0}
+ background={bg}
+ border_left_width={1.0}
+ border_left_color={ThemeWorld.color_border_subtle}
+ padding={ThemeWorld.spacing_md}
+ gap={ThemeWorld.spacing_md}
+ >
+ <text value="Live Preview" font_size={ThemeWorld.font_size_md} color={text_c} font_weight={ThemeWorld.font_weight_semibold} />
+ <text value={ThemeWorld.active_theme_name} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+
+ {/* Mock transport bar */}
+ <box direction="horizontal" align="center" gap={ThemeWorld.spacing_sm} padding={ThemeWorld.spacing_sm} corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_bg_secondary} height={ThemeWorld.transport_height} >
+ <Box width={8.0} height={8.0} corner_radius={2.0} background={ThemeWorld.color_button_default} />
+ <Box width={8.0} height={8.0} corner_radius={2.0} background={if _self.is_playing: _self.accent_c else: ThemeWorld.color_button_default} />
+ <Box width={8.0} height={8.0} corner_radius={2.0} background={ThemeWorld.color_button_default} />
+ <text value={"BPM 120"} font_size={ThemeWorld.font_size_xs} color={accent_c} font_weight={ThemeWorld.font_weight_bold} />
+ <text value={"1:1:000"} font_size={ThemeWorld.font_size_xs} color={text_c} font_family={ThemeWorld.font_family_mono} />
+ <box flex_grow={1.0} />
+ <text value={"CPU " + str(_self.mock_cpu) + "%"} font_size={ThemeWorld.font_size_xs} color={if _self.mock_cpu > 80.0:>
+ ThemeWorld.color_error
+ elif _self.mock_cpu > 50.0:
+ ThemeWorld.color_warning
+ else:
+ ThemeWorld.color_success}
+ />
+ </box>
+
+ {/* Mock mixer strip */}
+ <box direction="vertical" align="center" gap={ThemeWorld.spacing_sm} padding={ThemeWorld.spacing_md} corner_radius={ThemeWorld.radius_md} background={ThemeWorld.color_bg_primary} width={ThemeWorld.mixer_strip_width} >
+ <text value="Kick" font_size={ThemeWorld.font_size_xs} color={text_c} />
+ {/* Mock VU meter */}
+ <box width={ThemeWorld.meter_width} height={ThemeWorld.meter_height * 0.5} corner_radius={ThemeWorld.radius_sm} background={ThemeWorld.color_vu_background} >
+ <box width={ThemeWorld.meter_width} height={((_self.mock_rms + 60.0) / 60.0 * 100.0).toString() + "%"} background={ThemeWorld.color_meter_low} position="absolute" bottom={0.0} />
+ </box>
+ {/* Mock fader */}
+ <box width={4.0} height={ThemeWorld.fader_throw * 0.4} corner_radius={ThemeWorld.radius_full} background={ThemeWorld.color_slider_track} />
+ {/* M/S/R buttons */}
+ <box direction="horizontal" gap={ThemeWorld.spacing_xs}>
+ <box width={16.0} height={12.0} corner_radius={ThemeWorld.radius_sm} background={ThemeWorld.color_button_default} />
+ <box width={16.0} height={12.0} corner_radius={ThemeWorld.radius_sm} background={ThemeWorld.color_button_default} />
+ <box width={16.0} height={12.0} corner_radius={ThemeWorld.radius_sm} background={ThemeWorld.color_error} />
+ </box>
+ <text value={"-12.0 dB"} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ </box>
+
+ {/* Theme info */}
+ <box padding_top={ThemeWorld.spacing_md} gap={ThemeWorld.spacing_xs}>
+ <text value={"Accent: " + str(ThemeWorld.color_accent)} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ <text value={"Bg: " + str(ThemeWorld.color_bg_primary)} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ <text value={"Font: " + ThemeWorld.font_family_ui + " " + str(ThemeWorld.font_size_base)} font_size={ThemeWorld.font_size_xs} color={muted_c} />
+ </box>
+ </box>

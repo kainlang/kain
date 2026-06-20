@@ -1,0 +1,12 @@
+// shared/waveform_view.kn — GPU-accelerated waveform renderer
+use std::math
+use types::{Color, AudioView}
+
+component WaveformView(buffer: AudioView, zoom_level: Float, scroll_offset: Int, selected: Bool, width_px: Float, height_px: Float):
+    fn wave_color(_self: Self_) -> Color:
+        if _self.selected: return ThemeWorld.color_waveform_selected
+        return ThemeWorld.color_waveform
+
+    render <box accessible_role="img" accessible_label="Waveform" width={width_px} height={height_px} background={ThemeWorld.color_bg_primary} corner_radius={ThemeWorld.radius_sm}>
+        <box width={width_px} height={height_px} border_width={if selected: 2.0 else: 0.0} border_color={ThemeWorld.color_selection_border}/>
+    </box>

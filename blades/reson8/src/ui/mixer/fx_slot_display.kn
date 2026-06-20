@@ -1,0 +1,45 @@
+// mixer/fx_slot_display.kn -- Effect chain display per channel strip
+
+use std::math
+use types::Color
+use types::FXSlot
+
+component FXSlotDisplay(
+ slots: [FXSlot],
+ on_slot_click: fn(Int) -> Int,
+):
+ fn bg(_self: Self_) -> Color:
+ return ThemeWorld.color_surface
+
+ fn byp_c(_self: Self_, slot: FXSlot) -> Color:
+ if slot.is_bypassed:
+ return ThemeWorld.color_text_muted
+ return ThemeWorld.color_text_success
+
+ fn text_c(_self: Self_, slot: FXSlot) -> Color:
+ if slot.is_bypassed:
+ return ThemeWorld.color_text_muted
+ return ThemeWorld.color_text_primary
+
+ render <box
+ accessible_role="group"
+ accessible_label="Effect slots"
+ direction="vertical"
+ gap={ThemeWorld.spacing_xxs}
+ padding={ThemeWorld.spacing_xs}
+ corner_radius={ThemeWorld.radius_sm}
+ background={bg}
+ width={ThemeWorld.mixer_strip_width - ThemeWorld.spacing_sm}
+ >
+ for idx in 0..len(_self.slots):
+ let slot = _self.slots[idx]
+ <box accessible_role="button" accessible_label={slot.plugin_name + " slot " + str(slot.slot_index)} tab_index={0} direction="horizontal" align="center" gap={ThemeWorld.spacing_xs} padding_horizontal={ThemeWorld.spacing_xs} padding_vertical={2.0} corner_radius={ThemeWorld.radius_sm} >
+ {/* Bypass indicator */}
+ <box width={6.0} height={6.0} corner_radius={ThemeWorld.radius_full} background={byp_c(slot)} />
+ {/* Plugin name */}
+ <text value={slot.plugin_name} font_size={ThemeWorld.font_size_xs} color={text_c(slot)} max_width={60.0} />
+ </box>
+ {/* Empty slot indicator if no FX */}
+ if len(_self.slots) == 0:
+ <text value="No FX" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} font_style="italic" />
+ </box>

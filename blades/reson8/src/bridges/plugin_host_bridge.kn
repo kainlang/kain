@@ -1,0 +1,180 @@
+// plugin_host_bridge.kn — Wires PluginHost actor to VST3 + CLAP C facades
+//
+// STREAM4: T4-9 — This is the actor→C bridge wiring layer for foreign plugins.
+// Imports vst3_host and clap_host facades, exposes a unified plugin API
+// that PluginHost actors use for three-lane dispatch.
+//
+// C bridges at:  src/bridge/native/vst3_host_bridge.cpp / clap_host_bridge.c
+// Kain facades:  src/bridge/vst3_host.kn / src/bridge/clap_host.kn
+
+// ── VST3 Host Bridge ──
+
+pub fn ph_vst3_scan(path: String) -> Int:
+    return vst3_scan_directory(path)
+
+pub fn ph_vst3_load(path: String) -> Int:
+    return vst3_load_factory(path)
+
+pub fn ph_vst3_class_count(factory: Int) -> Int:
+    return vst3_class_count(factory)
+
+pub fn ph_vst3_create(factory: Int, class_index: Int) -> Int:
+    return vst3_create_instance(factory, class_index)
+
+pub fn ph_vst3_setup(instance: Int, sr: Int, block_size: Int) -> Int:
+    return vst3_setup_processing(instance, sr, block_size)
+
+pub fn ph_vst3_activate(instance: Int, active: Bool) -> Int:
+    return vst3_activate(instance, active)
+
+pub fn ph_vst3_process(instance: Int, input: ptr<Float>, output: ptr<Float>,
+                        frames: Int) -> Int with Unsafe:
+    return vst3_process(instance, input, output, frames)
+
+pub fn ph_vst3_param_count(instance: Int) -> Int:
+    return vst3_param_count(instance)
+
+pub fn ph_vst3_param_name(instance: Int, param_id: Int) -> String:
+    return vst3_param_name(instance, param_id)
+
+pub fn ph_vst3_param_value(instance: Int, param_id: Int) -> Float:
+    return vst3_param_value(instance, param_id)
+
+pub fn ph_vst3_set_param(instance: Int, param_id: Int, value: Float) -> Int:
+    return vst3_set_param(instance, param_id, value)
+
+pub fn ph_vst3_open_editor(instance: Int, parent_hwnd: Int) -> Int:
+    return vst3_open_editor(instance, parent_hwnd)
+
+pub fn ph_vst3_close_editor(instance: Int) -> Int:
+    return vst3_close_editor(instance)
+
+pub fn ph_vst3_latency(instance: Int) -> Int:
+    return vst3_latency_samples(instance)
+
+pub fn ph_vst3_release(instance: Int):
+    vst3_release_instance(instance)
+
+pub fn ph_vst3_release_factory(factory: Int):
+    vst3_release_factory(factory)
+
+// ── CLAP Host Bridge ──
+
+pub fn ph_clap_scan(path: String) -> Int:
+    return clap_scan_directory(path)
+
+pub fn ph_clap_load(index: Int) -> Int:
+    return clap_load(index)
+
+pub fn ph_clap_load_path(path: String) -> Int:
+    return clap_load_path(path)
+
+pub fn ph_clap_name(instance: Int) -> String:
+    return clap_name(instance)
+
+pub fn ph_clap_vendor(instance: Int) -> String:
+    return clap_vendor(instance)
+
+pub fn ph_clap_activate(instance: Int, sr: Int, min_block: Int, max_block: Int) -> Int:
+    return clap_activate(instance, sr, min_block, max_block)
+
+pub fn ph_clap_deactivate(instance: Int) -> Int:
+    return clap_deactivate(instance)
+
+pub fn ph_clap_process(instance: Int, input: ptr<Float>, output: ptr<Float>,
+                        frames: Int, in_ch: Int, out_ch: Int) -> Int with Unsafe:
+    return clap_process(instance, input, output, frames, in_ch, out_ch)
+
+pub fn ph_clap_param_count(instance: Int) -> Int:
+    return clap_param_count(instance)
+
+pub fn ph_clap_param_name(instance: Int, param_id: Int) -> String:
+    return clap_param_name(instance, param_id)
+
+pub fn ph_clap_param_value(instance: Int, param_id: Int) -> Float:
+    return clap_param_value(instance, param_id)
+
+pub fn ph_clap_set_param(instance: Int, param_id: Int, value: Float) -> Int:
+    return clap_set_param(instance, param_id, value)
+
+pub fn ph_clap_gui_open(instance: Int, parent: Int) -> Int:
+    return clap_gui_open(instance, parent)
+
+pub fn ph_clap_gui_close(instance: Int) -> Int:
+    return clap_gui_close(instance)
+
+pub fn ph_clap_latency(instance: Int) -> Int:
+    return clap_latency(instance)
+
+pub fn ph_clap_unload(instance: Int):
+    clap_unload(instance)
+
+// ── Unified Plugin Host API ──
+// These functions dispatch to the correct bridge based on plugin type
+
+pub const PLUGIN_TYPE_KAIN:  Int = 0
+pub const PLUGIN_TYPE_VST3:  Int = 1
+pub const PLUGIN_TYPE_CLAP:  Int = 2
+pub const PLUGIN_TYPE_PYTHON: Int = 3
+
+pub fn ph_load_plugin(plugin_type: Int, path: String, index: Int) -> Int:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_load(path)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        if index >= 0:
+            return ph_clap_load(index)
+        return ph_clap_load_path(path)
+    // Kain-native and Python plugins handled by their own loading paths
+    return -1
+
+pub fn ph_unload_plugin(plugin_type: Int, instance: Int):
+    if plugin_type == PLUGIN_TYPE_VST3:
+        ph_vst3_release(instance)
+        return
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        ph_clap_unload(instance)
+        return
+
+pub fn ph_process(plugin_type: Int, instance: Int, input: ptr<Float>,
+                   output: ptr<Float>, frames: Int,
+                   in_ch: Int, out_ch: Int) -> Int with Unsafe:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_process(instance, input, output, frames)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_process(instance, input, output, frames, in_ch, out_ch)
+    return -1
+
+pub fn ph_get_param(plugin_type: Int, instance: Int, param_id: Int) -> Float:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_param_value(instance, param_id)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_param_value(instance, param_id)
+    return 0.0
+
+pub fn ph_set_param(plugin_type: Int, instance: Int, param_id: Int, value: Float) -> Int:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_set_param(instance, param_id, value)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_set_param(instance, param_id, value)
+    return -1
+
+pub fn ph_open_editor(plugin_type: Int, instance: Int, parent_hwnd: Int) -> Int:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_open_editor(instance, parent_hwnd)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_gui_open(instance, parent_hwnd)
+    return -1
+
+pub fn ph_close_editor(plugin_type: Int, instance: Int) -> Int:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_close_editor(instance)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_gui_close(instance)
+    return -1
+
+pub fn ph_latency(plugin_type: Int, instance: Int) -> Int:
+    if plugin_type == PLUGIN_TYPE_VST3:
+        return ph_vst3_latency(instance)
+    if plugin_type == PLUGIN_TYPE_CLAP:
+        return ph_clap_latency(instance)
+    return 0

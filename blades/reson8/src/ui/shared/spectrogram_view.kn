@@ -1,0 +1,8 @@
+// shared/spectrogram_view.kn — GPU-rendered spectrogram
+use std::math
+use types::AudioView
+
+component SpectrogramView(buffer: AudioView, fft_size: Int, colormap: String, width_px: Float, height_px: Float):
+    render <box accessible_role="img" accessible_label="Spectrogram" width={width_px} height={height_px} background={ThemeWorld.color_bg_primary} corner_radius={ThemeWorld.radius_sm}>
+        <box width={width_px} height={height_px}/>
+    </box>

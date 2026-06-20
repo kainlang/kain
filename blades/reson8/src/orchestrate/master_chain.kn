@@ -1,0 +1,279 @@
+// ============================================================================
+//  reson8 Master Chain — Mastering Signal Graph
+//  STREAM2: T2-8 — EQ→compressor→limiter→dither pipeline.
+//  STREAM4: AudioEngine actor applies this as the final mix stage.
+// ============================================================================
+
+use std::math
+
+const MC_E: Float = 2.718281828459045
+const MC_TWO_PI: Float = 6.283185307179586
+
+// ============================================================================
+//  Master Chain Parameters
+// ============================================================================
+
+struct MasterChainParams:
+    eq_enabled:       Bool
+    eq_low_shelf_db:  Float      # -12.0 to 12.0
+    eq_high_shelf_db: Float      # -12.0 to 12.0
+    eq_low_freq:      Float      # 20.0 to 500.0 Hz
+    eq_high_freq:     Float      # 2000.0 to 20000.0 Hz
+    comp_enabled:     Bool
+    comp_threshold_db: Float     # -60.0 to 0.0
+    comp_ratio:       Float      # 1.0 to 20.0
+    comp_attack_ms:   Float      # 1.0 to 200.0
+    comp_release_ms:  Float      # 10.0 to 1000.0
+    comp_knee_db:     Float      # 0.0 to 12.0
+    comp_makeup_db:   Float      # -12.0 to 24.0
+    limiter_enabled:  Bool
+    limiter_ceiling_db: Float    # -12.0 to 0.0
+    limiter_release_ms: Float    # 5.0 to 500.0
+    dither_enabled:   Bool
+    dither_bits:      Int        # 16 or 24
+    output_gain_db:   Float      # -24.0 to 6.0
+
+// ============================================================================
+//  log10 implementation
+// ============================================================================
+
+fn mc_log10(x: Float) -> Float with Pure:
+    if x <= 0.0:
+        return -120.0
+    var b: Int = 0
+    var a: Float = x
+    while a >= 10.0:
+        a = a / 10.0
+        b = b + 1
+    while a < 1.0 and a > 0.0:
+        a = a * 10.0
+        b = b - 1
+    let y: Float = (a - 1.0) / (a + 1.0)
+    let y2: Float = y * y
+    var ln_a: Float = 0.0
+    var term: Float = y
+    var k: Int = 1
+    while k < 20:
+        ln_a = ln_a + term / (k as Float)
+        term = term * y2
+        k = k + 2
+    let ln10: Float = 2.302585092994046
+    return (2.0 * ln_a + (b as Float) * ln10) / ln10
+
+// ============================================================================
+//  Stage Functions
+// ============================================================================
+
+/// Apply mastering EQ (gentle low/high shelf).
+fn master_eq_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                    low_shelf_db: Float, high_shelf_db: Float,
+                    low_freq: Float, high_freq: Float,
+                    sample_rate: Int) -> Int with Unsafe:
+    let low_gain: Float = pow(10.0, low_shelf_db / 20.0)
+    let high_gain: Float = pow(10.0, high_shelf_db / 20.0)
+
+    # 1-pole approximations for gentle mastering shelves
+    let lp_alpha: Float = pow(MC_E, -MC_TWO_PI * low_freq / (sample_rate as Float))
+    let hp_alpha: Float = pow(MC_E, -MC_TWO_PI * high_freq / (sample_rate as Float))
+
+    var lp_state: Float = 0.0
+    var hp_state: Float = 0.0
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+
+        # Low shelf
+        lp_state = lp_alpha * lp_state + (1.0 - lp_alpha) * inp_l
+        let out_l_low: Float = inp_l + (low_gain - 1.0) * lp_state
+
+        lp_state = lp_alpha * lp_state + (1.0 - lp_alpha) * inp_r
+        let out_r_low: Float = inp_r + (low_gain - 1.0) * lp_state
+
+        # High shelf
+        hp_state = hp_alpha * (hp_state + out_l_low - inp_l)
+        let out_l: Float = out_l_low + (high_gain - 1.0) * hp_state
+
+        hp_state = hp_alpha * (hp_state + out_r_low - inp_r)
+        let out_r: Float = out_r_low + (high_gain - 1.0) * hp_state
+
+        mem_store(ptr_offset(output, idx, "Float"), out_l, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), out_r, "Float")
+        i = i + 1
+
+    return 0
+
+/// Apply bus compressor (glue compression).
+fn master_compressor_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                            threshold_db: Float, ratio: Float,
+                            attack_ms: Float, release_ms: Float,
+                            knee_db: Float, makeup_db: Float,
+                            sample_rate: Int) -> Int with Unsafe:
+    let attack_coeff: Float = pow(MC_E, -1.0 / (attack_ms * 0.001 * (sample_rate as Float)))
+    let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
+    let makeup_lin: Float = pow(10.0, makeup_db / 20.0)
+    let knee_half: Float = knee_db * 0.5
+
+    var envelope: Float = 1.0
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+
+        # Stereo-linked detection: max of L and R
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+        let al: Float = abs(inp_l)
+        let ar: Float = abs(inp_r)
+        let peak: Float = if al > ar: al else: ar
+
+        # Peak level in dB
+        var level_lin: Float = peak
+        if peak < 0.000000000001:
+            level_lin = 0.000000000001
+        let level_db: Float = 20.0 * mc_log10(level_lin)
+
+        # Gain reduction computation
+        var gr_lin: Float = 1.0
+        if knee_db <= 0.0:
+            # Hard knee
+            if level_db > threshold_db:
+                let over: Float = level_db - threshold_db
+                let target_db: Float = over * (1.0 - 1.0 / ratio)
+                gr_lin = pow(10.0, -target_db / 20.0)
+        if knee_db > 0.0:
+            # Soft knee
+            let knee_start_db: Float = threshold_db - knee_half
+            let knee_end_db: Float = threshold_db + knee_half
+            if level_db <= knee_start_db:
+                gr_lin = 1.0
+            if level_db >= knee_end_db:
+                let over: Float = level_db - threshold_db
+                let target_db: Float = over * (1.0 - 1.0 / ratio)
+                gr_lin = pow(10.0, -target_db / 20.0)
+            if level_db > knee_start_db and level_db < knee_end_db:
+                let t: Float = (level_db - knee_start_db) / knee_db
+                let over: Float = knee_end_db - threshold_db
+                let max_db: Float = over * (1.0 - 1.0 / ratio)
+                let target_db: Float = max_db * t * t * 0.5
+                gr_lin = pow(10.0, -target_db / 20.0)
+
+        # Envelope follower
+        if gr_lin < envelope:
+            envelope = attack_coeff * envelope + (1.0 - attack_coeff) * gr_lin
+        if gr_lin >= envelope:
+            envelope = release_coeff * envelope + (1.0 - release_coeff) * gr_lin
+
+        # Apply
+        let gain: Float = envelope * makeup_lin
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * gain, "Float")
+        i = i + 1
+
+    return 0
+
+/// Apply brick-wall lookahead limiter.
+fn master_limiter_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                         ceiling_db: Float, release_ms: Float,
+                         sample_rate: Int) -> Int with Unsafe:
+    let ceiling: Float = pow(10.0, ceiling_db / 20.0)
+    let release_coeff: Float = pow(MC_E, -1.0 / (release_ms * 0.001 * (sample_rate as Float)))
+    var envelope: Float = 1.0
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+
+        let al: Float = abs(inp_l)
+        let ar: Float = abs(inp_r)
+        let peak: Float = if al > ar: al else: ar
+
+        if peak > ceiling:
+            let target: Float = ceiling / peak
+            if target < envelope:
+                envelope = target
+        else:
+            if envelope < 1.0:
+                envelope = release_coeff * envelope + (1.0 - release_coeff) * 1.0
+
+        let gain: Float = if envelope < 1.0: envelope else: 1.0
+        mem_store(ptr_offset(output, idx, "Float"), inp_l * gain, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r * gain, "Float")
+        i = i + 1
+
+    return 0
+
+/// Apply TPDF dither (triangular probability density function).
+fn master_dither_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                        target_bits: Int) -> Int with Unsafe:
+    let scale: Float = 2.0 / (1 << target_bits) as Float
+
+    var i: Int = 0
+    while i < frames:
+        let idx: Int = i * 2
+
+        let inp_l: Float = mem_load(ptr_offset(input, idx, "Float"), "Float")
+        let inp_r: Float = mem_load(ptr_offset(input, idx + 1, "Float"), "Float")
+
+        # Hash-based pseudo-random: two uncorrelated values
+        let hash1: Float = ((inp_l * 127.1 + 311.7) as Int % 10000) as Float / 5000.0 - 1.0
+        let hash2: Float = ((inp_r * 269.5 + 183.3) as Int % 10000) as Float / 5000.0 - 1.0
+        let hash3: Float = ((inp_l * 541.3 + 719.9) as Int % 10000) as Float / 5000.0 - 1.0
+
+        # Triangular noise = r1 + r2
+        let tri_l: Float = (hash1 + hash2) * 0.5 * scale
+        let tri_r: Float = (hash1 + hash3) * 0.5 * scale
+
+        mem_store(ptr_offset(output, idx, "Float"), inp_l + tri_l, "Float")
+        mem_store(ptr_offset(output, idx + 1, "Float"), inp_r + tri_r, "Float")
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  Master Chain — Orchestrate
+// ============================================================================
+
+orchestrate master_chain_pipeline(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                                   params: MasterChainParams, sample_rate: Int) -> Int:
+    stage eq_stage: cpu master_eq_stage(input, output, frames,
+                                         params.eq_low_shelf_db, params.eq_high_shelf_db,
+                                         params.eq_low_freq, params.eq_high_freq,
+                                         sample_rate)
+        when capability("cpu.scalar") residency host transfer none policy static
+        requires params.eq_enabled fallback input
+
+    stage comp_stage: cpu master_compressor_stage(eq_stage, output, frames,
+                                                    params.comp_threshold_db, params.comp_ratio,
+                                                    params.comp_attack_ms, params.comp_release_ms,
+                                                    params.comp_knee_db, params.comp_makeup_db,
+                                                    sample_rate)
+        after eq_stage residency host policy telemetry_balance_latency
+        requires params.comp_enabled fallback eq_stage
+
+    stage limiter_stage: cpu master_limiter_stage(comp_stage, output, frames,
+                                                    params.limiter_ceiling_db,
+                                                    params.limiter_release_ms,
+                                                    sample_rate)
+        after comp_stage residency host policy static
+        requires params.limiter_enabled fallback comp_stage
+
+    stage dither_stage: cpu master_dither_stage(limiter_stage, output, frames,
+                                                  params.dither_bits)
+        after limiter_stage residency host transfer none policy static
+        requires params.dither_enabled fallback limiter_stage
+
+    return 0
+
+// ============================================================================
+//  Exported Entry Point
+// ============================================================================
+
+pub fn master_chain_process(input: ptr<Float>, output: ptr<Float>, frames: Int,
+                             params: MasterChainParams, sample_rate: Int) -> Int with Unsafe:
+    return master_chain_pipeline(input, output, frames, params, sample_rate)

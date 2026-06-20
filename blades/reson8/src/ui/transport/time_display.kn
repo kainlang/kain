@@ -1,0 +1,72 @@
+// transport/time_display.kn -- Bars:Beats:Ticks or Minutes:Seconds:Frames
+// Click to toggle display mode
+
+use std::math
+use types::Color
+
+component TimeDisplay(
+ position_frames: Int,
+ display_mode: String,
+):
+ state mode: String = "bars" // "bars" or "time"
+ state labels: [String] = ["Bars:Beats:Ticks", "Time"]
+
+ fn toggle_mode(_self: Self_) -> Int:
+ if _self.mode == "bars":
+ _self.mode = "time"
+ else:
+ _self.mode = "bars"
+ return 0
+
+ fn display_text(_self: Self_) -> String:
+ if _self.mode == "time":
+ // Convert frames to time display
+ let total_seconds = Float(_self.position_frames) / Float(MixerWorld.sample_rate)
+ let minutes = Int(total_seconds / 60.0)
+ let seconds = Int(total_seconds) % 60
+ let frames = _self.position_frames % MixerWorld.sample_rate
+ let frame_rate = 30 // Assuming 30fps display
+ let sub_frames = (frames * frame_rate) / MixerWorld.sample_rate
+ return str(minutes) + ":" +
+ if seconds < 10: "0" + str(seconds) else: str(seconds) +
+ ":" +
+ if sub_frames < 10: "0" + str(sub_frames) else: str(sub_frames)
+ else:
+ // Bars:Beats:Ticks
+ let ticks_per_beat = 960
+ let beats_per_bar = MixerWorld.time_sig_num
+ let total_ticks = _self.position_frames * ticks_per_beat / (MixerWorld.sample_rate * 60 / MixerWorld.tempo_bpm) as Int
+ let bars = total_ticks / (beats_per_bar * ticks_per_beat)
+ let beat_remainder = total_ticks % (beats_per_bar * ticks_per_beat)
+ let beats = beat_remainder / ticks_per_beat
+ let ticks = beat_remainder % ticks_per_beat
+ return str(bars + 1) + ":" +
+ str(beats + 1) + ":" +
+ if ticks / 10 < 10: "00" + str(ticks / 10)
+ elif ticks / 10 < 100: "0" + str(ticks / 10)
+ else: str(ticks / 10)
+
+ fn text_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_primary
+
+ fn label_c(_self: Self_) -> Color:
+ return ThemeWorld.color_text_muted
+
+ render <box
+ accessible_role="text"
+ accessible_label={_self.labels[if _self.mode == "bars": 0 else: 1]}
+ accessible_value={display_text}
+ tab_index={0}
+ on_click={toggle_mode}
+ direction="horizontal"
+ align="baseline"
+ gap={ThemeWorld.spacing_xs}
+ padding_horizontal={ThemeWorld.spacing_sm}
+ >
+ {/* Mode label */}
+ <text value={if _self.mode == "bars": "Bars" else: "Time"} font_size={ThemeWorld.font_size_xs} color={label_c} />
+ {/* Position */}
+ <text value={display_text} font_size={ThemeWorld.font_size_md} color={text_c} font_family={ThemeWorld.font_family_mono} font_weight={ThemeWorld.font_weight_bold} />
+ {/* Mode indicator -- click to toggle */}
+ <text value="⟳" font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_accent} />
+ </box>

@@ -1,0 +1,10 @@
+// shared/tooltip.kn — Hover-revealed tooltip
+use std::math
+use types::Color
+
+component Tooltip(text: String, position: String, delay_ms: Int):
+    state is_visible: Bool = false
+
+    render <box accessible_role="tooltip" accessible_label={text} position="relative">
+        {children}
+    </box>

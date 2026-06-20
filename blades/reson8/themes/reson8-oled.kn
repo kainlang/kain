@@ -1,0 +1,174 @@
+// themes/reson8-oled.kn -- OLED theme: pure black backgrounds, orange accents
+// Optimized for OLED displays -- true black (#000000) saves power
+
+use std::math
+use worlds::theme_world
+
+patch apply_oled_identity(tw: ThemeWorld):
+    tw.active_theme_name = "reson8-oled"
+    tw.theme_version = 1
+    tw.theme_author = "reson8"
+    tw.theme_description = "OLED-optimized: pure black backgrounds, orange accents"
+
+patch apply_oled_surfaces(tw: ThemeWorld):
+    tw.color_bg_primary       = color_rgba(0.0, 0.0, 0.0, 1.0)   // #000000
+    tw.color_bg_secondary     = color_rgba(0.02, 0.02, 0.02, 1.0) // #050505
+    tw.color_bg_tertiary      = color_rgba(0.05, 0.05, 0.05, 1.0) // #0d0d0d
+    tw.color_surface          = color_rgba(0.06, 0.06, 0.06, 1.0) // #0f0f0f
+    tw.color_surface_raised   = color_rgba(0.10, 0.10, 0.10, 1.0) // #1a1a1a
+    tw.color_surface_overlay  = color_rgba(0.13, 0.13, 0.13, 1.0) // #212121
+    tw.color_surface_dialog   = color_rgba(0.08, 0.08, 0.08, 1.0) // #141414
+
+patch apply_oled_text(tw: ThemeWorld):
+    tw.color_text_primary     = color_rgba(0.93, 0.93, 0.93, 1.0)  // #eeeeee
+    tw.color_text_secondary   = color_rgba(0.67, 0.67, 0.67, 1.0)  // #aaaaaa
+    tw.color_text_muted       = color_rgba(0.40, 0.40, 0.40, 1.0)  // #666666
+    tw.color_text_inverse     = color_rgba(0.0, 0.0, 0.0, 1.0)    // #000000
+    tw.color_text_link        = color_rgba(0.98, 0.65, 0.15, 1.0)  // #f9a526
+    tw.color_text_error       = color_rgba(1.00, 0.35, 0.30, 1.0)  // #ff594d
+    tw.color_text_success     = color_rgba(0.30, 0.85, 0.45, 1.0)  // #4dd972
+
+patch apply_oled_accent(tw: ThemeWorld):
+    tw.color_accent           = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00 orange
+    tw.color_accent_hover     = color_rgba(1.00, 0.65, 0.15, 1.0)  // #f9a526
+    tw.color_accent_pressed   = color_rgba(0.85, 0.45, 0.00, 1.0)  // #d97200
+    tw.color_accent_alt       = color_rgba(1.00, 0.35, 0.65, 1.0)  // #ff59a6
+    tw.color_accent_alt_hover = color_rgba(1.00, 0.50, 0.75, 1.0)  // #ff80bf
+
+patch apply_oled_semantic_borders(tw: ThemeWorld):
+    tw.color_success          = color_rgba(0.30, 0.85, 0.45, 1.0)  // #4dd972
+    tw.color_warning          = color_rgba(1.00, 0.70, 0.15, 1.0)  // #ffb326
+    tw.color_error            = color_rgba(1.00, 0.35, 0.30, 1.0)  // #ff594d
+    tw.color_info             = color_rgba(0.30, 0.75, 1.00, 1.0)  // #4dbfff
+    tw.color_border_default   = color_rgba(0.20, 0.20, 0.20, 1.0)  // #333333
+    tw.color_border_focus     = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_border_error     = color_rgba(1.00, 0.35, 0.30, 1.0)  // #ff594d
+    tw.color_border_subtle    = color_rgba(0.10, 0.10, 0.10, 1.0)  // #1a1a1a
+
+patch apply_oled_meters(tw: ThemeWorld):
+    tw.color_meter_low        = color_rgba(0.30, 0.85, 0.45, 1.0)  // #4dd972
+    tw.color_meter_mid        = color_rgba(1.00, 0.70, 0.15, 1.0)  // #ffb326
+    tw.color_meter_high       = color_rgba(1.00, 0.35, 0.30, 1.0)  // #ff594d
+    tw.color_meter_over       = color_rgba(1.00, 0.15, 0.10, 1.0)  // #ff261a
+    tw.color_meter_background = color_rgba(0.0, 0.0, 0.0, 1.0)     // #000000
+    tw.color_meter_peak_hold  = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+
+patch apply_oled_waveform_grid(tw: ThemeWorld):
+    tw.color_waveform         = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_waveform_selected = color_rgba(1.00, 0.70, 0.30, 1.0) // #ffb24d
+    tw.color_waveform_center_line = color_rgba(0.15, 0.15, 0.15, 1.0) // #262626
+    tw.color_waveform_rms     = color_rgba(1.00, 0.55, 0.00, 0.4)
+    tw.color_grid_line        = color_rgba(0.10, 0.10, 0.10, 1.0)  // #1a1a1a
+    tw.color_grid_beat        = color_rgba(0.20, 0.20, 0.20, 1.0)  // #333333
+    tw.color_grid_bar         = color_rgba(0.30, 0.30, 0.30, 1.0)  // #4d4d4d
+    tw.color_ruler_bg         = color_rgba(0.03, 0.03, 0.03, 1.0)  // #080808
+    tw.color_ruler_text       = color_rgba(0.55, 0.55, 0.55, 1.0)  // #8c8c8c
+
+patch apply_oled_playhead_midi(tw: ThemeWorld):
+    tw.color_playhead         = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_playhead_line    = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_loop_region      = color_rgba(1.00, 0.55, 0.00, 0.1)  // #ff8c001a
+    tw.color_loop_region_border = color_rgba(1.00, 0.55, 0.00, 1.0) // #ff8c00
+    tw.color_midi_bg          = color_rgba(0.0, 0.0, 0.0, 1.0)     // #000000
+    tw.color_midi_note_default = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_midi_note_selected = color_rgba(1.00, 0.70, 0.30, 1.0) // #ffb24d
+    tw.color_midi_note_muted  = color_rgba(0.30, 0.30, 0.30, 1.0)  // #4d4d4d
+    tw.color_midi_note_velocity_low = color_rgba(0.70, 0.40, 0.05, 1.0)
+    tw.color_midi_note_velocity_high = color_rgba(1.00, 0.60, 0.10, 1.0)
+    tw.color_midi_white_key   = color_rgba(0.20, 0.20, 0.20, 1.0)  // #333333
+    tw.color_midi_black_key   = color_rgba(0.05, 0.05, 0.05, 1.0)  // #0d0d0d
+    tw.color_midi_grid        = color_rgba(0.08, 0.08, 0.08, 1.0)  // #141414
+    tw.color_midi_cc_bg       = color_rgba(0.0, 0.0, 0.0, 1.0)     // #000000
+    tw.color_midi_cc_line     = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+
+patch apply_oled_clips_automation(tw: ThemeWorld):
+    tw.color_clip_default     = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_clip_selected    = color_rgba(1.00, 0.70, 0.30, 1.0)  // #ffb24d
+    tw.color_clip_muted       = color_rgba(0.30, 0.30, 0.30, 1.0)  // #4d4d4d
+    tw.color_clip_locked      = color_rgba(1.00, 0.85, 0.15, 1.0)  // #ffd926
+    tw.color_clip_recording   = color_rgba(1.00, 0.25, 0.20, 1.0)  // #ff4033
+    tw.color_clip_header      = color_rgba(0.10, 0.05, 0.00, 1.0)  // #1a0d00
+    tw.color_clip_waveform    = color_rgba(1.00, 0.60, 0.20, 1.0)  // #ff9933
+    tw.color_clip_fade_in     = color_rgba(0.30, 0.85, 0.45, 0.5)
+    tw.color_clip_fade_out    = color_rgba(1.00, 0.35, 0.30, 0.5)
+    tw.color_automation_line  = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_automation_point = color_rgba(1.00, 1.00, 1.00, 1.0)  // #ffffff
+    tw.color_automation_point_selected = color_rgba(1.00, 0.70, 0.30, 1.0)
+    tw.color_automation_lane_bg = color_rgba(0.0, 0.0, 0.0, 1.0)   // #000000
+    tw.color_knob_track       = color_rgba(0.15, 0.15, 0.15, 1.0)  // #262626
+    tw.color_knob_fill        = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_knob_center      = color_rgba(0.06, 0.06, 0.06, 1.0)  // #0f0f0f
+    tw.color_knob_indicator   = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+
+patch apply_oled_buttons_sliders(tw: ThemeWorld):
+    tw.color_button_default   = color_rgba(0.10, 0.10, 0.10, 1.0)  // #1a1a1a
+    tw.color_button_hover     = color_rgba(0.20, 0.20, 0.20, 1.0)  // #333333
+    tw.color_button_active    = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_button_text      = color_rgba(0.87, 0.87, 0.87, 1.0)  // #dddddd
+    tw.color_button_text_active = color_rgba(0.0, 0.0, 0.0, 1.0)
+    tw.color_button_disabled  = color_rgba(0.05, 0.05, 0.05, 1.0)
+    tw.color_button_text_disabled = color_rgba(0.30, 0.30, 0.30, 1.0)
+    tw.color_slider_track     = color_rgba(0.10, 0.10, 0.10, 1.0)  // #1a1a1a
+    tw.color_slider_fill      = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_slider_thumb     = color_rgba(0.93, 0.93, 0.93, 1.0)  // #eeeeee
+    tw.color_slider_thumb_hover = color_rgba(1.00, 0.55, 0.00, 1.0)
+    tw.color_fader_cap        = color_rgba(0.06, 0.06, 0.06, 1.0)
+    tw.color_fader_cap_line   = color_rgba(1.00, 0.55, 0.00, 1.0)  // #ff8c00
+    tw.color_scrollbar_thumb  = color_rgba(0.25, 0.25, 0.25, 1.0)
+    tw.color_scrollbar_thumb_hover = color_rgba(0.40, 0.40, 0.40, 1.0)
+    tw.color_selection        = color_rgba(1.00, 0.55, 0.00, 0.25)
+    tw.color_selection_border = color_rgba(1.00, 0.55, 0.00, 1.0)
+    tw.shadow_color           = color_rgba(0.0, 0.0, 0.0, 0.8)
+    tw.glow_accent            = color_rgba(1.00, 0.55, 0.00, 0.3)
+    tw.glow_meter_peak        = color_rgba(1.00, 0.15, 0.10, 0.3)
+
+patch apply_oled_layout_anim(tw: ThemeWorld):
+    tw.font_family_ui = "Inter"
+    tw.font_family_mono = "JetBrains Mono"
+    tw.font_size_xs = 10.0
+    tw.font_size_sm = 11.0
+    tw.font_size_base = 12.0
+    tw.font_size_md = 13.0
+    tw.font_size_lg = 15.0
+    tw.font_size_xl = 18.0
+    tw.font_size_2xl = 24.0
+    tw.font_size_3xl = 32.0
+    tw.font_weight_normal = 400
+    tw.font_weight_medium = 500
+    tw.font_weight_semibold = 600
+    tw.font_weight_bold = 700
+    tw.font_weight_black = 900
+    tw.spacing_xxs = 2.0
+    tw.spacing_xs = 4.0
+    tw.spacing_sm = 6.0
+    tw.spacing_md = 8.0
+    tw.spacing_lg = 12.0
+    tw.spacing_xl = 16.0
+    tw.spacing_2xl = 24.0
+    tw.spacing_3xl = 32.0
+    tw.spacing_4xl = 48.0
+    tw.mixer_strip_width = 80.0
+    tw.transport_height = 48.0
+    tw.track_header_width = 200.0
+    tw.piano_roll_note_height = 12.0
+    tw.piano_roll_key_width = 60.0
+    tw.timeline_ruler_height = 24.0
+    tw.meter_width = 10.0
+    tw.meter_height = 200.0
+    tw.fader_throw = 200.0
+    tw.fader_width = 24.0
+    tw.knob_size_md = 32.0
+    tw.button_size_sm = 20.0
+    tw.button_size_md = 28.0
+    tw.button_size_lg = 36.0
+    tw.scrollbar_width = 8.0
+    tw.radius_md = 4.0
+    tw.radius_sm = 2.0
+    tw.radius_full = 9999.0
+    tw.animation_enabled = true
+    tw.animation_reduced = false
+    tw.animation_duration_normal = 150
+    tw.meter_decay_rate = 26.0
+    tw.meter_peak_hold_ms = 2000
+    tw.threshold_cpu_yellow = 50.0
+    tw.threshold_cpu_red = 80.0
