@@ -1,0 +1,255 @@
+// patch.kn — Journaled Audio Mutations (std::audio Phase 1)
+//
+// Layer: L2 (patch — journaled world mutation)
+//
+// Every parameter change in the mixer goes through `patch`. This gives us:
+//   - Undo/redo for free — the patch journal is compiler-owned
+//   - Law verification — volume_in_bounds / sample_rate_valid / etc.
+//     are checked before the mutation commits
+//   - Auto dual-path — when called inside a `pulse budget(lock=0)` scope,
+//     the compiler auto-generates a teleport-channel bypass instead of
+//     a heap-allocated journal entry
+//
+// All patches in this file mutate MixerWorld. They return Int status
+// (0 = committed, <0 = rejected). Rejection codes mirror the BUFFER_*
+// family for consistency with std::audio::buffer.
+
+use std::audio::law
+use std::audio::world
+
+// ============================================================================
+// Constants — Patch Status Codes
+// ============================================================================
+
+pub const PATCH_OK:                  Int = 0
+pub const PATCH_ERR_VOLUME_OOB:      Int = -100
+pub const PATCH_ERR_TEMPO_OOB:       Int = -101
+pub const PATCH_ERR_BUFFER_INVALID:  Int = -102
+pub const PATCH_ERR_CHANNELS_INVALID: Int = -103
+pub const PATCH_ERR_LOOP_INVALID:    Int = -104
+pub const PATCH_ERR_POSITION_INVALID: Int = -105
+pub const PATCH_ERR_TIMESIG_INVALID: Int = -106
+pub const PATCH_ERR_SAMPLE_RATE:     Int = -107
+
+// ============================================================================
+// M A S T E R   B U S   P A T C H E S
+// ============================================================================
+
+// set_master_volume — law-checked: volume_in_bounds(volume).
+pub patch set_master_volume(mixer: MixerWorld, volume: Float) -> Int:
+    if volume_in_bounds(volume) == false:
+        return PATCH_ERR_VOLUME_OOB
+    mixer.master_volume = volume
+    return PATCH_OK
+
+// set_master_mute — boolean toggle (no law check needed; the patch journal
+// can record the no-op if muted was already the value).
+pub patch set_master_mute(mixer: MixerWorld, muted: Bool) -> Int:
+    mixer.master_mute = muted
+    return PATCH_OK
+
+// set_solo_channel — -1 means no solo. Any other value in [0, channels)
+// is valid; we trust the caller to pass a sensible channel index.
+pub patch set_solo_channel(mixer: MixerWorld, channel: Int) -> Int:
+    if channels_valid(channel) == false and channel != -1:
+        return PATCH_ERR_CHANNELS_INVALID
+    mixer.master_solo_channel = channel
+    return PATCH_OK
+
+// ============================================================================
+// T R A N S P O R T   P A T C H E S
+// ============================================================================
+
+// transport_play — sets state to playing (1). Idempotent.
+pub patch transport_play(mixer: MixerWorld) -> Int:
+    mixer.transport_state = 1
+    return PATCH_OK
+
+// transport_stop — sets state to stopped (0) and rewinds to loop start
+// (if loop enabled) or frame 0.
+pub patch transport_stop(mixer: MixerWorld) -> Int:
+    mixer.transport_state = 0
+    if mixer.transport_loop_enabled:
+        mixer.transport_position_frames = mixer.transport_loop_start
+    else:
+        mixer.transport_position_frames = 0
+    return PATCH_OK
+
+// transport_pause — sets state to paused (2). Position is preserved.
+pub patch transport_pause(mixer: MixerWorld) -> Int:
+    mixer.transport_state = 2
+    return PATCH_OK
+
+// transport_set_position — law-checked: position >= 0. We do not have
+// a total-frames limit (that depends on the loaded audio file length),
+// so we use transport_position_valid with a synthetic upper bound.
+pub patch transport_set_position(mixer: MixerWorld, frame: Int) -> Int:
+    if frame < 0:
+        return PATCH_ERR_POSITION_INVALID
+    mixer.transport_position_frames = frame
+    return PATCH_OK
+
+// transport_advance_by — atomically advance position by `delta` frames,
+// wrapping inside the loop region if active. Pure patch (no law needed
+// because the loop wrap is the only branch).
+pub patch transport_advance_by(mixer: MixerWorld, delta: Int) -> Int:
+    let cur: Int = mixer.transport_position_frames
+    var next: Int = cur + delta
+    if mixer.transport_loop_enabled:
+        let loop_end: Int = mixer.transport_loop_end
+        let loop_start: Int = mixer.transport_loop_start
+        if loop_end > loop_start and next >= loop_end:
+            let span: Int = loop_end - loop_start
+            next = loop_start + ((next - loop_start) % span)
+    elif transport_position_valid(next, 2147483647) == false:
+        next = 0
+    mixer.transport_position_frames = next
+    return PATCH_OK
+
+// transport_set_loop — law-checked: loop_region_valid(start, end).
+pub patch transport_set_loop(mixer: MixerWorld, start: Int, end: Int, enabled: Bool) -> Int:
+    if loop_region_valid(start, end) == false:
+        return PATCH_ERR_LOOP_INVALID
+    mixer.transport_loop_start = start
+    mixer.transport_loop_end = end
+    mixer.transport_loop_enabled = enabled
+    return PATCH_OK
+
+// ============================================================================
+// S E S S I O N   P A T C H E S
+// ============================================================================
+
+// set_tempo — law-checked: tempo_in_bounds(bpm).
+pub patch set_tempo(mixer: MixerWorld, bpm: Float) -> Int:
+    if tempo_in_bounds(bpm) == false:
+        return PATCH_ERR_TEMPO_OOB
+    mixer.tempo_bpm = bpm
+    return PATCH_OK
+
+// set_time_signature — num in [1..32], den in {1, 2, 4, 8, 16, 32}.
+pub patch set_time_signature(mixer: MixerWorld, num: Int, den: Int) -> Int:
+    if time_signature_valid(num, den) == false:
+        return PATCH_ERR_TIMESIG_INVALID
+    mixer.time_signature_numerator = num
+    mixer.time_signature_denominator = den
+    return PATCH_OK
+
+// set_sample_rate — law-checked: sample_rate_valid(rate). The C runtime
+// re-negotiates with the audio device asynchronously after the patch
+// commits; the law check here is synchronous.
+pub patch set_sample_rate(mixer: MixerWorld, rate: Int) -> Int:
+    if sample_rate_valid(rate) == false:
+        return PATCH_ERR_SAMPLE_RATE
+    mixer.sample_rate = rate
+    return PATCH_OK
+
+// set_buffer_size — law-checked: buffer_size_valid(frames).
+pub patch set_buffer_size(mixer: MixerWorld, frames: Int) -> Int:
+    if buffer_size_valid(frames) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    mixer.buffer_size_frames = frames
+    return PATCH_OK
+
+// ============================================================================
+// T E L E M E T R Y   P A T C H E S
+// ============================================================================
+//
+// These are the audio-thread-side telemetry updates. They run inside the
+// pulse budget(lock=0) callback and are auto-dual-pathed to a teleport
+// channel by the compiler (see research/audio/COMPILER_WORK.md).
+
+// update_meter_peaks — write the current peak levels. Called once per
+// audio buffer (e.g. every 5.8ms at 256 frames / 44.1kHz). Law-checked
+// against sample_in_bounds to reject NaN/Inf from the detector.
+pub patch update_meter_peaks(mixer: MixerWorld, left: Float, right: Float) -> Int:
+    var safe_l: Float = left
+    var safe_r: Float = right
+    if sample_in_bounds(safe_l) == false:
+        safe_l = 0.0
+    if sample_in_bounds(safe_r) == false:
+        safe_r = 0.0
+    mixer.peak_left = safe_l
+    mixer.peak_right = safe_r
+    return PATCH_OK
+
+// update_meter_rms — write the current RMS levels.
+pub patch update_meter_rms(mixer: MixerWorld, left: Float, right: Float) -> Int:
+    mixer.rms_left = left
+    mixer.rms_right = right
+    return PATCH_OK
+
+// record_cpu_load — write the audio thread CPU utilization.
+pub patch record_cpu_load(mixer: MixerWorld, load_percent: Float) -> Int:
+    if load_percent < 0.0:
+        mixer.cpu_load_percent = 0.0
+    elif load_percent > 100.0:
+        mixer.cpu_load_percent = 100.0
+    else:
+        mixer.cpu_load_percent = load_percent
+    return PATCH_OK
+
+// ============================================================================
+// R E S E T   P A T C H
+// ============================================================================
+
+// reset_transport — stop and rewind to frame 0. Does NOT touch the master
+// bus or session parameters. Useful for the user pressing "rewind".
+pub patch reset_transport(mixer: MixerWorld) -> Int:
+    mixer.transport_state = 0
+    mixer.transport_position_frames = 0
+    mixer.transport_loop_enabled = false
+    mixer.transport_loop_start = 0
+    mixer.transport_loop_end = 0
+    return PATCH_OK
+
+// ============================================================================
+// A U X   P A T C H E S   —   reference remaining laws
+// ============================================================================
+//
+// These patches don't mutate the world; they exist so the law catalog in
+// std::audio::law.kn is fully wired up to state validators. Calling them
+// from a UI handler triggers the law check; on success they return 0.
+
+// audio_buffer_validate — law-checked: buffer_alignment_ok + buffer_size_valid.
+pub patch audio_buffer_validate(buffer_ptr: ptr<Float>, frames: Int) -> Int:
+    if ptr_to_int(buffer_ptr) == 0:
+        return PATCH_ERR_BUFFER_INVALID
+    if buffer_alignment_ok(buffer_ptr) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    if buffer_size_valid(frames) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    return PATCH_OK
+
+// audio_ring_buffer_validate — law-checked: ring_buffer_power_of_two.
+pub patch audio_ring_buffer_validate(capacity: Int) -> Int:
+    if ring_buffer_power_of_two(capacity) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    return PATCH_OK
+
+// audio_buffer_safety_check — law-checked: no_nan_in_buffer.
+pub patch audio_buffer_safety_check(frames: Int, data_ptr: ptr<Float>, channels: Int) -> Int:
+    if ptr_to_int(data_ptr) == 0:
+        return PATCH_ERR_BUFFER_INVALID
+    # Law invocation: no_nan_in_buffer scans for NaN/Inf in the buffer.
+    if no_nan_in_buffer(frames, data_ptr, channels) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    return PATCH_OK
+
+// audio_wav_format_validate — law-checked: bit_depth_valid + sample_format_valid.
+pub patch audio_wav_format_validate(bit_depth: Int, sample_format: Int) -> Int:
+    if bit_depth_valid(bit_depth) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    if sample_format_valid(sample_format) == false:
+        return PATCH_ERR_BUFFER_INVALID
+    return PATCH_OK
+
+// audio_master_gain_set — law-checked: gain_in_bounds (used for effects
+// chain makeup gain; master bus itself uses volume_in_bounds).
+pub patch audio_master_gain_set(mixer: MixerWorld, gain: Float) -> Int:
+    if gain_in_bounds(gain) == false:
+        return PATCH_ERR_VOLUME_OOB
+    return PATCH_OK
+
+// ============================================================================
+// End of patch.kn
+// ============================================================================

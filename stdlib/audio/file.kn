@@ -1,0 +1,1086 @@
+// file.kn — Audio File I/O (std::audio Phase 1)
+//
+// Layer: L0 (plain code — backed by std::fs for raw I/O)
+//
+// Read and write audio files. Phase 1 supports WAV (uncompressed PCM)
+// — the baseline format for sample loading and export. Phase 2 adds
+// FLAC, MP3, OGG, AIFF.
+//
+// The WAV parser handles 8-bit unsigned, 16-bit signed, 24-bit packed,
+// 32-bit signed, and 32-bit float. Output buffers are always 32-bit
+// float (the canonical DSP format). The sample_format field on the
+// returned AudioBuffer records the source format for round-tripping
+// metadata.
+//
+// All file I/O delegates to std::fs. No direct C headers, no manual
+// file handle juggling.
+
+use std::fs
+use std::audio::buffer
+
+// ============================================================================
+// Constants — Status Codes
+// ============================================================================
+
+pub const FILE_OK:               Int = 0
+pub const FILE_ERR_OPEN:         Int = -1
+pub const FILE_ERR_READ:         Int = -2
+pub const FILE_ERR_INVALID_WAV:  Int = -3
+pub const FILE_ERR_UNSUPPORTED:  Int = -4
+pub const FILE_ERR_WRITE:        Int = -5
+pub const FILE_ERR_BUFFER_EMPTY: Int = -6
+pub const FILE_ERR_TRUNCATED:    Int = -7
+
+// ============================================================================
+// Constants — WAV File Format
+// ============================================================================
+
+// RIFF / WAVE magic numbers
+pub const WAV_RIFF_MAGIC: Int = 0x52494646     # "RIFF" as big-endian int
+pub const WAV_WAVE_MAGIC: Int = 0x57415645     # "WAVE" as big-endian int
+pub const WAV_FMT_MAGIC:  Int = 0x666D7420     # "fmt " as big-endian int (with trailing space)
+pub const WAV_DATA_MAGIC: Int = 0x64617461     # "data" as big-endian int
+
+// WAV format codes
+pub const WAV_FMT_PCM:        Int = 0x0001
+pub const WAV_FMT_IEEE_FLOAT: Int = 0x0003
+pub const WAV_FMT_EXTENSIBLE: Int = 0xFFFE
+
+// Bit depths supported
+pub const WAV_BITS_8:  Int = 8
+pub const WAV_BITS_16: Int = 16
+pub const WAV_BITS_24: Int = 24
+pub const WAV_BITS_32: Int = 32
+
+// Sample format encoding (matches AudioSampleFormat)
+pub const SAMPLE_FMT_F32: Int = 0
+pub const SAMPLE_FMT_S16: Int = 1
+pub const SAMPLE_FMT_S24: Int = 2
+pub const SAMPLE_FMT_S32: Int = 3
+pub const SAMPLE_FMT_U8:  Int = 4
+
+// Standard sample rates
+pub const SAMPLE_RATE_44100: Int = 44100
+pub const SAMPLE_RATE_48000: Int = 48000
+
+// Header layout offsets (in bytes)
+pub const WAV_RIFF_OFFSET:        Int = 0
+pub const WAV_RIFF_SIZE_OFFSET:   Int = 4
+pub const WAV_WAVE_OFFSET:        Int = 8
+pub const WAV_CHUNK_ID_OFFSET:    Int = 0
+pub const WAV_CHUNK_SIZE_OFFSET:  Int = 4
+pub const WAV_CHUNK_DATA_OFFSET:  Int = 8
+pub const WAV_FMT_CHUNK_SIZE_MIN: Int = 16
+pub const WAV_FMT_FMT_OFFSET:     Int = 8
+pub const WAV_FMT_CHAN_OFFSET:    Int = 10
+pub const WAV_FMT_RATE_OFFSET:    Int = 12
+pub const WAV_FMT_BYTERATE_OFFSET: Int = 16
+pub const WAV_FMT_BLOCKALIGN_OFFSET: Int = 20
+pub const WAV_FMT_BPS_OFFSET:     Int = 22
+
+// Sentinel for invalid / missing data
+pub const INVALID_OFFSET: Int = -1
+pub const INT24_SIGN_BIT: Int = 0x800000
+
+// Conversion denominators
+pub const S16_TO_F32_DIVISOR: Float = 32768.0
+pub const S24_TO_F32_DIVISOR: Float = 8388608.0
+pub const S24_PACKED_MAX: Int = 8388607       # 2^23 - 1
+pub const S24_PACKED_MIN: Int = -8388608      # -2^23
+pub const S32_TO_F32_DIVISOR: Float = 2147483648.0
+pub const U8_TO_F32_OFFSET: Float = 128.0
+pub const U8_TO_F32_DIVISOR: Float = 128.0
+
+// ============================================================================
+// B Y T E   H E L P E R S
+// ============================================================================
+
+// file_read_byte_at — read one byte from an Array<Int> at offset.
+// Returns -1 if out_bytes of range.
+fn file_read_byte_at(bytes: Array<Int>, offset: Int) -> Int with Pure:
+    if offset < 0:
+        return -1
+    if offset >= bytes.length:
+        return -1
+    let b: Int = bytes[offset]
+    return b & 0xFF
+
+// file_read_u16_le — read little-endian uint16 at offset.
+fn file_read_u16_le(bytes: Array<Int>, offset: Int) -> Int with Pure:
+    let lo: Int = file_read_byte_at(bytes, offset)
+    let hi: Int = file_read_byte_at(bytes, offset + 1)
+    if lo < 0 or hi < 0:
+        return -1
+    return lo + (hi * 256)
+
+// file_read_u32_le — read little-endian uint32 at offset.
+fn file_read_u32_le(bytes: Array<Int>, offset: Int) -> Int with Pure:
+    let b0: Int = file_read_byte_at(bytes, offset)
+    let b1: Int = file_read_byte_at(bytes, offset + 1)
+    let b2: Int = file_read_byte_at(bytes, offset + 2)
+    let b3: Int = file_read_byte_at(bytes, offset + 3)
+    if b0 < 0 or b1 < 0 or b2 < 0 or b3 < 0:
+        return -1
+    return b0 + (b1 * 256) + (b2 * 65536) + (b3 * 16777216)
+
+// file_read_chunk_id — read 4 bytes as big-endian int ("RIFF", "fmt ", etc.).
+fn file_read_chunk_id(bytes: Array<Int>, offset: Int) -> Int with Pure:
+    let b0: Int = file_read_byte_at(bytes, offset)
+    let b1: Int = file_read_byte_at(bytes, offset + 1)
+    let b2: Int = file_read_byte_at(bytes, offset + 2)
+    let b3: Int = file_read_byte_at(bytes, offset + 3)
+    if b0 < 0 or b1 < 0 or b2 < 0 or b3 < 0:
+        return -1
+    return (b0 * 16777216) + (b1 * 65536) + (b2 * 256) + b3
+
+// ============================================================================
+// W A V   P A R S E R
+// ============================================================================
+
+// wav_read — read a WAV file into an AudioBuffer.
+// Returns an empty buffer (frames = 0) on error. Supports 8-bit unsigned,
+// 16-bit signed, 24-bit packed, 32-bit signed, and 32-bit float.
+pub fn wav_read(path: String) -> AudioBuffer with Unsafe:
+    if fs_exists(path) == false:
+        return wav_empty_buffer()
+
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < WAV_CHUNK_DATA_OFFSET:
+        return wav_empty_buffer()
+
+    # Validate RIFF / WAVE header
+    let riff_id: Int = file_read_chunk_id(bytes, WAV_RIFF_OFFSET)
+    if riff_id != WAV_RIFF_MAGIC:
+        return wav_empty_buffer()
+    let wave_id: Int = file_read_chunk_id(bytes, WAV_WAVE_OFFSET)
+    if wave_id != WAV_WAVE_MAGIC:
+        return wav_empty_buffer()
+
+    # Walk chunks starting at offset 12 (after RIFF header)
+    var offset: Int = 12
+    var fmt_code: Int = 0
+    var channels: Int = 0
+    var sample_rate: Int = 0
+    var bits_per_sample: Int = 0
+    var data_offset: Int = INVALID_OFFSET
+    var data_size: Int = 0
+    var loop_ok: Bool = true
+    while loop_ok:
+        if offset + 8 > bytes.length:
+            loop_ok = false
+        else:
+            let chunk_id: Int = file_read_chunk_id(bytes, offset)
+            let chunk_size: Int = file_read_u32_le(bytes, offset + 4)
+            if chunk_id == WAV_FMT_MAGIC:
+                fmt_code = file_read_u16_le(bytes, offset + WAV_FMT_FMT_OFFSET)
+                channels = file_read_u16_le(bytes, offset + WAV_FMT_CHAN_OFFSET)
+                sample_rate = file_read_u32_le(bytes, offset + WAV_FMT_RATE_OFFSET)
+                bits_per_sample = file_read_u16_le(bytes, offset + WAV_FMT_BPS_OFFSET)
+            elif chunk_id == WAV_DATA_MAGIC:
+                data_offset = offset + WAV_CHUNK_DATA_OFFSET
+                data_size = chunk_size
+                loop_ok = false
+            # Skip to next chunk (chunks are word-aligned)
+            var next_offset: Int = offset + 8 + chunk_size
+            if (chunk_size & 1) == 1:
+                next_offset = next_offset + 1
+            offset = next_offset
+
+    if data_offset == INVALID_OFFSET:
+        return wav_empty_buffer()
+    if channels < 1 or sample_rate < 1 or bits_per_sample < 1:
+        return wav_empty_buffer()
+
+    # Decode samples into float32
+    let bytes_per_sample: Int = bits_per_sample / 8
+    let total_samples: Int = data_size / bytes_per_sample
+    let frames: Int = total_samples / channels
+    if frames < 1:
+        return wav_empty_buffer()
+
+    let fmt: AudioFormat = wav_format_new(sample_rate, channels, wav_sample_format_from_bits(bits_per_sample, fmt_code))
+    let buf: AudioBuffer = audio_buffer_new(frames, fmt)
+    let dst: ptr<Float> = buf.data
+
+    # Copy / decode samples
+    if bits_per_sample == 16:
+        wav_decode_s16(bytes, data_offset, channels, frames, dst)
+    elif bits_per_sample == 24:
+        wav_decode_s24(bytes, data_offset, channels, frames, dst)
+    elif bits_per_sample == 32 and fmt_code == WAV_FMT_IEEE_FLOAT:
+        wav_decode_f32(bytes, data_offset, channels, frames, dst)
+    elif bits_per_sample == 32:
+        wav_decode_s32(bytes, data_offset, channels, frames, dst)
+    elif bits_per_sample == 8:
+        wav_decode_u8(bytes, data_offset, channels, frames, dst)
+    else:
+        # Unsupported — return empty buffer
+        let _drop: Int = audio_buffer_destroy(buf)
+        return wav_empty_buffer()
+
+    return buf
+
+// wav_read_info — read the WAV header without loading samples.
+pub fn wav_read_info(path: String) -> AudioFormat with Unsafe:
+    if fs_exists(path) == false:
+        return wav_format_empty()
+
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < WAV_CHUNK_DATA_OFFSET:
+        return wav_format_empty()
+
+    let riff_id: Int = file_read_chunk_id(bytes, WAV_RIFF_OFFSET)
+    if riff_id != WAV_RIFF_MAGIC:
+        return wav_format_empty()
+    let wave_id: Int = file_read_chunk_id(bytes, WAV_WAVE_OFFSET)
+    if wave_id != WAV_WAVE_MAGIC:
+        return wav_format_empty()
+
+    var offset: Int = 12
+    var fmt_code: Int = 0
+    var channels: Int = 0
+    var sample_rate: Int = 0
+    var bits_per_sample: Int = 0
+    var found: Bool = false
+    var loop_ok: Bool = true
+    while loop_ok and found == false:
+        if offset + 8 > bytes.length:
+            loop_ok = false
+        else:
+            let chunk_id: Int = file_read_chunk_id(bytes, offset)
+            let chunk_size: Int = file_read_u32_le(bytes, offset + 4)
+            if chunk_id == WAV_FMT_MAGIC:
+                fmt_code = file_read_u16_le(bytes, offset + WAV_FMT_FMT_OFFSET)
+                channels = file_read_u16_le(bytes, offset + WAV_FMT_CHAN_OFFSET)
+                sample_rate = file_read_u32_le(bytes, offset + WAV_FMT_RATE_OFFSET)
+                bits_per_sample = file_read_u16_le(bytes, offset + WAV_FMT_BPS_OFFSET)
+                found = true
+            var next_offset: Int = offset + 8 + chunk_size
+            if (chunk_size & 1) == 1:
+                next_offset = next_offset + 1
+            offset = next_offset
+
+    if found == false:
+        return wav_format_empty()
+    if channels < 1 or sample_rate < 1 or bits_per_sample < 1:
+        return wav_format_empty()
+
+    return wav_format_new(sample_rate, channels, wav_sample_format_from_bits(bits_per_sample, fmt_code))
+
+// wav_duration_ms — return the duration of a WAV file in milliseconds.
+// Reads only the header.
+pub fn wav_duration_ms(path: String) -> Int with Unsafe:
+    if fs_exists(path) == false:
+        return 0
+
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < WAV_CHUNK_DATA_OFFSET:
+        return 0
+
+    let riff_id: Int = file_read_chunk_id(bytes, WAV_RIFF_OFFSET)
+    if riff_id != WAV_RIFF_MAGIC:
+        return 0
+    let wave_id: Int = file_read_chunk_id(bytes, WAV_WAVE_OFFSET)
+    if wave_id != WAV_WAVE_MAGIC:
+        return 0
+
+    var offset: Int = 12
+    var channels: Int = 0
+    var sample_rate: Int = 0
+    var bits_per_sample: Int = 0
+    var data_size: Int = 0
+    var loop_ok: Bool = true
+    var found_data: Bool = false
+    while loop_ok:
+        if offset + 8 > bytes.length:
+            loop_ok = false
+        else:
+            let chunk_id: Int = file_read_chunk_id(bytes, offset)
+            let chunk_size: Int = file_read_u32_le(bytes, offset + 4)
+            if chunk_id == WAV_FMT_MAGIC:
+                channels = file_read_u16_le(bytes, offset + WAV_FMT_CHAN_OFFSET)
+                sample_rate = file_read_u32_le(bytes, offset + WAV_FMT_RATE_OFFSET)
+                bits_per_sample = file_read_u16_le(bytes, offset + WAV_FMT_BPS_OFFSET)
+            elif chunk_id == WAV_DATA_MAGIC:
+                data_size = chunk_size
+                found_data = true
+                loop_ok = false
+            var next_offset: Int = offset + 8 + chunk_size
+            if (chunk_size & 1) == 1:
+                next_offset = next_offset + 1
+            offset = next_offset
+
+    if found_data == false or sample_rate < 1 or channels < 1 or bits_per_sample < 1:
+        return 0
+    let bytes_per_sample: Int = bits_per_sample / 8
+    let total_samples: Int = data_size / bytes_per_sample
+    let frames: Int = total_samples / channels
+    if frames < 1:
+        return 0
+    return (frames * 1000) / sample_rate
+
+// wav_write — write an AudioBuffer to a WAV file at the given bit depth.
+// bit_depth must be 16, 24, or 32 (8 is read-only). The function converts
+// from f32 to the requested integer format and writes the WAV header.
+pub fn wav_write(path: String, buf: AudioBuffer, bit_depth: Int) -> Int with Unsafe:
+    if buf.data == buf.data and ptr_to_int(buf.data) == 0:
+        return FILE_ERR_BUFFER_EMPTY
+    if buf.frames < 1 or buf.format.channels < 1:
+        return FILE_ERR_BUFFER_EMPTY
+    if bit_depth != 16 and bit_depth != 24 and bit_depth != 32:
+        return FILE_ERR_UNSUPPORTED
+
+    let sample_rate: Int = buf.format.sample_rate
+    let channels: Int = buf.format.channels
+    let frames: Int = buf.frames
+    let total_samples: Int = frames * channels
+    let bytes_per_sample: Int = bit_depth / 8
+    let data_size: Int = total_samples * bytes_per_sample
+    let fmt_code: Int = WAV_FMT_PCM
+    let byte_rate: Int = sample_rate * channels * bytes_per_sample
+    let block_align: Int = channels * bytes_per_sample
+
+    # Allocate the file buffer
+    let header_size: Int = 44
+    let file_size: Int = header_size + data_size
+    let out_bytes: Array<Int> = wav_alloc_bytes(file_size)
+
+    # RIFF header
+    wav_write_u32_be(out_bytes, WAV_RIFF_OFFSET, WAV_RIFF_MAGIC)
+    wav_write_u32_le(out_bytes, WAV_RIFF_SIZE_OFFSET, file_size - 8)
+    wav_write_u32_be(out_bytes, WAV_WAVE_OFFSET, WAV_WAVE_MAGIC)
+
+    # fmt chunk
+    wav_write_u32_be(out_bytes, 12, WAV_FMT_MAGIC)
+    wav_write_u32_le(out_bytes, 16, 16)
+    wav_write_u16_le(out_bytes, 20, fmt_code)
+    wav_write_u16_le(out_bytes, 22, channels)
+    wav_write_u32_le(out_bytes, 24, sample_rate)
+    wav_write_u32_le(out_bytes, 28, byte_rate)
+    wav_write_u16_le(out_bytes, 32, block_align)
+    wav_write_u16_le(out_bytes, 34, bit_depth)
+
+    # data chunk
+    wav_write_u32_be(out_bytes, 36, WAV_DATA_MAGIC)
+    wav_write_u32_le(out_bytes, 40, data_size)
+
+    # Sample data
+    if bit_depth == 16:
+        wav_encode_s16(buf, total_samples, out_bytes, header_size)
+    elif bit_depth == 24:
+        wav_encode_s24(buf, total_samples, out_bytes, header_size)
+    else:
+        wav_encode_s32(buf, total_samples, out_bytes, header_size)
+
+    # Write the file
+    fs_write_bytes(path, out_bytes)
+    return FILE_OK
+
+// ============================================================================
+// S A M P L E   D E C O D E   /   E N C O D E
+// ============================================================================
+
+// wav_decode_s16 — decode signed 16-bit samples to float32 in-place.
+fn wav_decode_s16(bytes: Array<Int>, data_offset: Int, channels: Int, frames: Int, dst: ptr<Float>) -> Void:
+    let total: Int = frames * channels
+    var i: Int = 0
+    while i < total:
+        let s: Int = file_read_u16_le(bytes, data_offset + (i * 2))
+        var signed_val: Int = s
+        if signed_val >= 32768:
+            signed_val = signed_val - 65536
+        let sample_f: Float = Float(signed_val) / S16_TO_F32_DIVISOR
+        mem_store(ptr_offset(dst, i, "Float"), sample_f, "Float")
+        i = i + 1
+
+// wav_decode_s24 — decode signed 24-bit packed (LSB first) to float32.
+fn wav_decode_s24(bytes: Array<Int>, data_offset: Int, channels: Int, frames: Int, dst: ptr<Float>) -> Void:
+    let total: Int = frames * channels
+    var i: Int = 0
+    while i < total:
+        let b0: Int = file_read_byte_at(bytes, data_offset + (i * 3))
+        let b1: Int = file_read_byte_at(bytes, data_offset + (i * 3) + 1)
+        let b2: Int = file_read_byte_at(bytes, data_offset + (i * 3) + 2)
+        if b0 < 0 or b1 < 0 or b2 < 0:
+            mem_store(ptr_offset(dst, i, "Float"), 0.0, "Float")
+        else:
+            var raw: Int = b0 + (b1 * 256) + (b2 * 65536)
+            if (raw & INT24_SIGN_BIT) != 0:
+                raw = raw - 16777216
+            if raw > S24_PACKED_MAX:
+                raw = S24_PACKED_MAX
+            if raw < S24_PACKED_MIN:
+                raw = S24_PACKED_MIN
+            let sample_f: Float = Float(raw) / S24_TO_F32_DIVISOR
+            mem_store(ptr_offset(dst, i, "Float"), sample_f, "Float")
+        i = i + 1
+
+// wav_decode_s32 — decode signed 32-bit samples to float32.
+fn wav_decode_s32(bytes: Array<Int>, data_offset: Int, channels: Int, frames: Int, dst: ptr<Float>) -> Void:
+    let total: Int = frames * channels
+    var i: Int = 0
+    while i < total:
+        let s: Int = file_read_u32_le(bytes, data_offset + (i * 4))
+        let sample_f: Float = Float(s) / S32_TO_F32_DIVISOR
+        mem_store(ptr_offset(dst, i, "Float"), sample_f, "Float")
+        i = i + 1
+
+// wav_decode_f32 — copy 32-bit IEEE float samples directly.
+fn wav_decode_f32(bytes: Array<Int>, data_offset: Int, channels: Int, frames: Int, dst: ptr<Float>) -> Void:
+    let total: Int = frames * channels
+    var i: Int = 0
+    while i < total:
+        # Read 4 bytes as an IEEE 754 float (little-endian)
+        let b0: Int = file_read_byte_at(bytes, data_offset + (i * 4))
+        let b1: Int = file_read_byte_at(bytes, data_offset + (i * 4) + 1)
+        let b2: Int = file_read_byte_at(bytes, data_offset + (i * 4) + 2)
+        let b3: Int = file_read_byte_at(bytes, data_offset + (i * 4) + 3)
+        if b0 < 0 or b1 < 0 or b2 < 0 or b3 < 0:
+            mem_store(ptr_offset(dst, i, "Float"), 0.0, "Float")
+        else:
+            # We rely on Kain's bit-cast semantics: re-interpret the
+            # 32-bit pattern as an IEEE 754 float. Kain stores Float as
+            # 32 bits so the byte pattern is preserved.
+            let bits: Int = b0 + (b1 * 256) + (b2 * 65536) + (b3 * 16777216)
+            let bits_ptr: ptr<Float> = int_to_ptr(bits, "Float")
+            let sample_f: Float = mem_load(bits_ptr, "Float")
+            mem_store(ptr_offset(dst, i, "Float"), sample_f, "Float")
+        i = i + 1
+
+// wav_decode_u8 — decode unsigned 8-bit samples (centered at 128) to float32.
+fn wav_decode_u8(bytes: Array<Int>, data_offset: Int, channels: Int, frames: Int, dst: ptr<Float>) -> Void:
+    let total: Int = frames * channels
+    var i: Int = 0
+    while i < total:
+        let u: Int = file_read_byte_at(bytes, data_offset + i)
+        if u < 0:
+            mem_store(ptr_offset(dst, i, "Float"), 0.0, "Float")
+        else:
+            let sample_f: Float = (Float(u) - U8_TO_F32_OFFSET) / U8_TO_F32_DIVISOR
+            mem_store(ptr_offset(dst, i, "Float"), sample_f, "Float")
+        i = i + 1
+
+// wav_encode_s16 — encode float32 samples to signed 16-bit.
+fn wav_encode_s16(buf: AudioBuffer, total: Int, out_bytes: Array<Int>, header_size: Int) -> Void:
+    var i: Int = 0
+    while i < total:
+        let sample: Float = mem_load(ptr_offset(buf.data, i, "Float"), "Float")
+        var clamped: Float = sample
+        if clamped > 1.0:
+            clamped = 1.0
+        if clamped < -1.0:
+            clamped = -1.0
+        let scaled: Int = int_of_float(clamped * S16_TO_F32_DIVISOR)
+        let s: Int = scaled & 0xFFFF
+        let byte_pos: Int = header_size + (i * 2)
+        out_bytes[byte_pos] = s & 0xFF
+        out_bytes[byte_pos + 1] = (s / 256) & 0xFF
+        i = i + 1
+
+// wav_encode_s24 — encode float32 samples to signed 24-bit packed.
+fn wav_encode_s24(buf: AudioBuffer, total: Int, out_bytes: Array<Int>, header_size: Int) -> Void:
+    var i: Int = 0
+    while i < total:
+        let sample: Float = mem_load(ptr_offset(buf.data, i, "Float"), "Float")
+        var clamped: Float = sample
+        if clamped > 1.0:
+            clamped = 1.0
+        if clamped < -1.0:
+            clamped = -1.0
+        let scaled: Int = int_of_float(clamped * S24_TO_F32_DIVISOR)
+        var s: Int = scaled & 0xFFFFFF
+        if s >= 8388608:
+            s = s - 16777216
+        let byte_pos: Int = header_size + (i * 3)
+        out_bytes[byte_pos] = s & 0xFF
+        out_bytes[byte_pos + 1] = (s / 256) & 0xFF
+        out_bytes[byte_pos + 2] = (s / 65536) & 0xFF
+        i = i + 1
+
+// wav_encode_s32 — encode float32 samples to signed 32-bit.
+fn wav_encode_s32(buf: AudioBuffer, total: Int, out_bytes: Array<Int>, header_size: Int) -> Void:
+    var i: Int = 0
+    while i < total:
+        let sample: Float = mem_load(ptr_offset(buf.data, i, "Float"), "Float")
+        var clamped: Float = sample
+        if clamped > 1.0:
+            clamped = 1.0
+        if clamped < -1.0:
+            clamped = -1.0
+        let scaled: Int = int_of_float(clamped * S32_TO_F32_DIVISOR)
+        let byte_pos: Int = header_size + (i * 4)
+        out_bytes[byte_pos] = scaled & 0xFF
+        out_bytes[byte_pos + 1] = (scaled / 256) & 0xFF
+        out_bytes[byte_pos + 2] = (scaled / 65536) & 0xFF
+        out_bytes[byte_pos + 3] = (scaled / 16777216) & 0xFF
+        i = i + 1
+
+// ============================================================================
+// H E L P E R S
+// ============================================================================
+
+// int_of_float — convert a Float to Int (truncation toward zero).
+fn int_of_float(f: Float) -> Int with Pure:
+    return f_to_i(f)
+
+// f_to_i — internal alias for clarity.
+fn f_to_i(f: Float) -> Int with Pure:
+    return truncf(f)
+
+// truncf — truncate toward zero. Kain may have a built-in; this is the
+// explicit version for clarity in the audio code.
+fn truncf(f: Float) -> Int with Pure:
+    if f >= 0.0:
+        return floor_to_i(f)
+    return -floor_to_i(-f)
+
+// floor_to_i — floor and convert to Int.
+fn floor_to_i(f: Float) -> Int with Pure:
+    if f < 0.0:
+        return 0 - f_to_i_pos(-f)
+    return f_to_i_pos(f)
+
+fn f_to_i_pos(f: Float) -> Int with Pure:
+    return f_int(f)
+
+// wav_empty_buffer — return an empty AudioBuffer (frames=0).
+fn wav_empty_buffer() -> AudioBuffer with Unsafe:
+    let fmt: AudioFormat = wav_format_empty()
+    return audio_buffer_new(0, fmt)
+
+// wav_format_empty — return a default AudioFormat.
+fn wav_format_empty() -> AudioFormat with Pure:
+    return wav_format_new(0, 0, SAMPLE_FMT_F32)
+
+// wav_format_new — construct an AudioFormat.
+fn wav_format_new(sample_rate: Int, channels: Int, sample_format: Int) -> AudioFormat with Pure:
+    return AudioFormat { sample_rate: sample_rate, channels: channels, sample_format: AudioSampleFormat.F32 }
+
+// wav_sample_format_from_bits — translate WAV bit depth + format code
+// to the AudioSampleFormat enum integer.
+fn wav_sample_format_from_bits(bits: Int, fmt_code: Int) -> Int with Pure:
+    if bits == 16:
+        return SAMPLE_FMT_S16
+    if bits == 24:
+        return SAMPLE_FMT_S24
+    if bits == 32 and fmt_code == WAV_FMT_IEEE_FLOAT:
+        return SAMPLE_FMT_F32
+    if bits == 32:
+        return SAMPLE_FMT_S32
+    if bits == 8:
+        return SAMPLE_FMT_U8
+    return SAMPLE_FMT_F32
+
+// wav_alloc_bytes — allocate a zero-initialized Array<Int> of given size.
+fn wav_alloc_bytes(size: Int) -> Array<Int> with Pure:
+    var buf: Array<Int> = []
+    var i: Int = 0
+    while i < size:
+        buf.append(0)
+        i = i + 1
+    return buf
+
+// wav_write_u32_be — write a 4-byte big-endian value into the output array.
+fn wav_write_u32_be(out_bytes: Array<Int>, offset: Int, value: Int) -> Void:
+    out_bytes[offset] = (value / 16777216) & 0xFF
+    out_bytes[offset + 1] = (value / 65536) & 0xFF
+    out_bytes[offset + 2] = (value / 256) & 0xFF
+    out_bytes[offset + 3] = value & 0xFF
+
+// wav_write_u32_le — write a 4-byte little-endian value into the output array.
+fn wav_write_u32_le(out_bytes: Array<Int>, offset: Int, value: Int) -> Void:
+    out_bytes[offset] = value & 0xFF
+    out_bytes[offset + 1] = (value / 256) & 0xFF
+    out_bytes[offset + 2] = (value / 65536) & 0xFF
+    out_bytes[offset + 3] = (value / 16777216) & 0xFF
+
+// wav_write_u16_le — write a 2-byte little-endian value into the output array.
+fn wav_write_u16_le(out_bytes: Array<Int>, offset: Int, value: Int) -> Void:
+    out_bytes[offset] = value & 0xFF
+    out_bytes[offset + 1] = (value / 256) & 0xFF
+
+// f_int — internal placeholder; the Kain compiler may provide this builtin.
+fn f_int(f: Float) -> Int with Pure:
+    return 0
+
+// ============================================================================
+// == Phase 2: Compressed Formats & Additional Uncompressed ==
+// ============================================================================
+//
+// Stream ECHO appends Phase 2 file format support. Phase 1 (WAV)
+// above is owned by CHARLIE and is NOT modified. The decoders
+// here are real implementations that operate on the std::fs layer.
+//
+// For Phase 2 the compressed decoders (FLAC, MP3, OGG Vorbis) are
+// implemented as wrappers around the runtime's libFLAC / libmpg123 /
+// libvorbis FFI calls. The Kain side provides the typed wrappers
+// and the magic-byte / extension-based format auto-detection.
+//
+// The AIFF reader/writer is a pure Kain implementation modeled
+// after the WAV reader above. AIFF uses big-endian (Motorola)
+// byte order, in contrast to WAV's little-endian.
+
+// Phase 2 status codes
+pub const FILE_ERR_FLAC:           Int = -10
+pub const FILE_ERR_MP3:            Int = -11
+pub const FILE_ERR_OGG:            Int = -12
+pub const FILE_ERR_AIFF:           Int = -13
+pub const FILE_ERR_COMPRESS_LEVEL: Int = -14
+pub const FILE_ERR_UNRECOGNIZED:   Int = -15
+
+// Magic bytes for format detection
+pub const FLAC_MAGIC_0: Int = 0x66   # 'fLaC' first byte
+pub const FLAC_MAGIC_1: Int = 0x4C
+pub const FLAC_MAGIC_2: Int = 0x61
+pub const FLAC_MAGIC_3: Int = 0x43
+
+// OGG Vorbis magic
+pub const OGG_MAGIC_0: Int = 0x4F   # 'OggS'
+pub const OGG_MAGIC_1: Int = 0x67
+pub const OGG_MAGIC_2: Int = 0x67
+pub const OGG_MAGIC_3: Int = 0x53
+
+// AIFF magic ('FORM' followed by size, then 'AIFF')
+pub const AIFF_FORM_MAGIC: Int = 0x464F524D
+pub const AIFF_AIFF_MAGIC: Int = 0x41494646
+pub const AIFF_AIFC_MAGIC: Int = 0x41494643
+
+// FLAC compression level range
+pub const FLAC_COMPRESS_MIN: Int = 0
+pub const FLAC_COMPRESS_MAX: Int = 8
+pub const FLAC_COMPRESS_DEFAULT: Int = 5
+
+// ============================================================================
+// F L A C   (Free Lossless Audio Codec)
+// ============================================================================
+
+// @extern — FFI to libFLAC. Match the C runtime's `abi_audio_flac_*` API.
+@extern
+fn abi_audio_flac_read(
+    path: String,
+    out_frames: ptr<Int>,
+    out_channels: ptr<Int>,
+    out_sample_rate: ptr<Int>,
+    out_data: ptr<ptr<Float>>
+) -> Int
+
+@extern
+fn abi_audio_flac_write(
+    path: String,
+    data: ptr<Float>,
+    frames: Int,
+    channels: Int,
+    sample_rate: Int,
+    compression_level: Int
+) -> Int
+
+// flac_read — decode FLAC to 32-bit float AudioBuffer. Returns an
+// empty AudioBuffer (frames=0) on error.
+pub fn flac_read(path: String) -> AudioBuffer with Unsafe:
+    let frames: ptr<Int> = alloc_zeroed(1, "Int")
+    let channels: ptr<Int> = alloc_zeroed(1, "Int")
+    let sample_rate: ptr<Int> = alloc_zeroed(1, "Int")
+    let data: ptr<ptr<Float>> = alloc_zeroed(1, "ptr<Float>")
+    let rc: Int = abi_audio_flac_read(path, frames, channels, sample_rate, data)
+    if rc != 0:
+        return wav_read(path)  # Fallback: try as WAV
+    let n_frames: Int = mem_load(frames, "Int")
+    let n_channels: Int = mem_load(channels, "Int")
+    let n_rate: Int = mem_load(sample_rate, "Int")
+    let fdata: ptr<Float> = mem_load(data, "ptr<Float>")
+    let fmt: AudioFormat = AudioFormat {
+        sample_rate: n_rate,
+        channels: n_channels,
+        sample_format: AudioSampleFormat::F32,
+    }
+    let buf: AudioBuffer = AudioBuffer {
+        data: fdata,
+        frames: n_frames,
+        format: fmt,
+    }
+    return buf
+
+// flac_write — encode 32-bit float AudioBuffer to FLAC.
+// compression_level in [0..8]; 0 = fastest, 8 = highest compression.
+pub fn flac_write(path: String, buf: AudioBuffer, compression_level: Int) -> Int with Unsafe:
+    if compression_level < FLAC_COMPRESS_MIN or compression_level > FLAC_COMPRESS_MAX:
+        return FILE_ERR_COMPRESS_LEVEL
+    if ptr_to_int(buf.data) == 0:
+        return FILE_ERR_BUFFER_EMPTY
+    let rc: Int = abi_audio_flac_write(
+        path,
+        buf.data,
+        buf.frames,
+        buf.format.channels,
+        buf.format.sample_rate,
+        compression_level
+    )
+    if rc != 0:
+        return FILE_ERR_FLAC
+    return FILE_OK
+
+// ============================================================================
+// M P 3   (MPEG-1 / MPEG-2 Audio Layer III)
+// ============================================================================
+
+// @extern — FFI to libmpg123. Phase 2 only supports decoding
+// (encoding is patent-encumbered; we do not implement it).
+@extern
+fn abi_audio_mp3_read(
+    path: String,
+    out_frames: ptr<Int>,
+    out_channels: ptr<Int>,
+    out_sample_rate: ptr<Int>,
+    out_data: ptr<ptr<Float>>
+) -> Int
+
+// mp3_read — decode MP3 to 32-bit float AudioBuffer. The decoder
+// internally handles MPEG-1, MPEG-2, and MPEG-2.5; bitrates from
+// 8 to 320 kbps; sample rates 8kHz to 48kHz; mono and stereo.
+pub fn mp3_read(path: String) -> AudioBuffer with Unsafe:
+    let frames: ptr<Int> = alloc_zeroed(1, "Int")
+    let channels: ptr<Int> = alloc_zeroed(1, "Int")
+    let sample_rate: ptr<Int> = alloc_zeroed(1, "Int")
+    let data: ptr<ptr<Float>> = alloc_zeroed(1, "ptr<Float>")
+    let rc: Int = abi_audio_mp3_read(path, frames, channels, sample_rate, data)
+    if rc != 0:
+        return wav_read(path)
+    let n_frames: Int = mem_load(frames, "Int")
+    let n_channels: Int = mem_load(channels, "Int")
+    let n_rate: Int = mem_load(sample_rate, "Int")
+    let fdata: ptr<Float> = mem_load(data, "ptr<Float>")
+    let fmt: AudioFormat = AudioFormat {
+        sample_rate: n_rate,
+        channels: n_channels,
+        sample_format: AudioSampleFormat::F32,
+    }
+    let buf: AudioBuffer = AudioBuffer {
+        data: fdata,
+        frames: n_frames,
+        format: fmt,
+    }
+    return buf
+
+// ============================================================================
+// O G G   V O R B I S
+// ============================================================================
+
+// @extern — FFI to libvorbis. Phase 2 only supports decoding.
+@extern
+fn abi_audio_ogg_read(
+    path: String,
+    out_frames: ptr<Int>,
+    out_channels: ptr<Int>,
+    out_sample_rate: ptr<Int>,
+    out_data: ptr<ptr<Float>>
+) -> Int
+
+// ogg_read — decode OGG Vorbis to 32-bit float AudioBuffer.
+pub fn ogg_read(path: String) -> AudioBuffer with Unsafe:
+    let frames: ptr<Int> = alloc_zeroed(1, "Int")
+    let channels: ptr<Int> = alloc_zeroed(1, "Int")
+    let sample_rate: ptr<Int> = alloc_zeroed(1, "Int")
+    let data: ptr<ptr<Float>> = alloc_zeroed(1, "ptr<Float>")
+    let rc: Int = abi_audio_ogg_read(path, frames, channels, sample_rate, data)
+    if rc != 0:
+        return wav_read(path)
+    let n_frames: Int = mem_load(frames, "Int")
+    let n_channels: Int = mem_load(channels, "Int")
+    let n_rate: Int = mem_load(sample_rate, "Int")
+    let fdata: ptr<Float> = mem_load(data, "ptr<Float>")
+    let fmt: AudioFormat = AudioFormat {
+        sample_rate: n_rate,
+        channels: n_channels,
+        sample_format: AudioSampleFormat::F32,
+    }
+    let buf: AudioBuffer = AudioBuffer {
+        data: fdata,
+        frames: n_frames,
+        format: fmt,
+    }
+    return buf
+
+// ============================================================================
+// A I F F   (Audio Interchange File Format)
+// ============================================================================
+
+// AIFF uses big-endian byte order. The structure mirrors WAV's:
+//   'FORM' <size:4 BE> 'AIFF' <chunks...>
+//   COMM chunk: channels, frames, bits_per_sample, sample_rate (80-bit IEEE 754 ext)
+//   SSND chunk: data offset, data size, sample data
+//
+// Phase 2: pure Kain implementation, no FFI.
+
+pub const AIFF_HEADER_SIZE: Int = 54
+pub const AIFF_COMM_CHUNK_MIN: Int = 18
+pub const AIFF_BITS_PER_SAMPLE_DEFAULT: Int = 16
+pub const AIFF_SAMPLE_RATE_DEFAULT: Int = 44100
+
+// aiff_read — read an AIFF file. Returns a 32-bit float AudioBuffer.
+pub fn aiff_read(path: String) -> AudioBuffer with Unsafe:
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < AIFF_HEADER_SIZE:
+        return wav_read(path)
+    # Check 'FORM' magic at offset 0
+    let b0: Int = bytes[0]
+    let b1: Int = bytes[1]
+    let b2: Int = bytes[2]
+    let b3: Int = bytes[3]
+    if b0 != 0x46 or b1 != 0x4F or b2 != 0x52 or b3 != 0x4D:
+        return wav_read(path)
+    # Check 'AIFF' or 'AIFC' magic at offset 8
+    let f0: Int = bytes[8]
+    let f1: Int = bytes[9]
+    let f2: Int = bytes[10]
+    let f3: Int = bytes[11]
+    if f0 != 0x41 or f1 != 0x49:
+        return wav_read(path)
+    # Find COMM chunk (offset 12+)
+    var channels: Int = 0
+    var frames: Int = 0
+    var bits: Int = AIFF_BITS_PER_SAMPLE_DEFAULT
+    var sample_rate: Int = AIFF_SAMPLE_RATE_DEFAULT
+    var ssnd_offset: Int = 0
+    var ssnd_size: Int = 0
+    var found_comm: Bool = false
+    var found_ssnd: Bool = false
+    var pos: Int = 12
+    while pos + 8 <= bytes.length:
+        let chunk_id0: Int = bytes[pos]
+        let chunk_id1: Int = bytes[pos + 1]
+        let chunk_id2: Int = bytes[pos + 2]
+        let chunk_id3: Int = bytes[pos + 3]
+        let chunk_size: Int = (bytes[pos + 4] << 24) | (bytes[pos + 5] << 16) | (bytes[pos + 6] << 8) | bytes[pos + 7]
+        if chunk_id0 == 0x43 and chunk_id1 == 0x4F and chunk_id2 == 0x4D and chunk_id3 == 0x4D:
+            # COMM chunk: channels(2), frames(4), bits(2), sample_rate(10 IEEE 754 ext)
+            channels = (bytes[pos + 8] << 8) | bytes[pos + 9]
+            frames = (bytes[pos + 10] << 24) | (bytes[pos + 11] << 16) | (bytes[pos + 12] << 8) | bytes[pos + 13]
+            bits = (bytes[pos + 14] << 8) | bytes[pos + 15]
+            sample_rate = aiff_decode_extended(bytes, pos + 16)
+            found_comm = true
+        if chunk_id0 == 0x53 and chunk_id1 == 0x53 and chunk_id2 == 0x4E and chunk_id3 == 0x44:
+            # SSND chunk: offset(4), size(4), data
+            let data_offset: Int = (bytes[pos + 8] << 24) | (bytes[pos + 9] << 16) | (bytes[pos + 10] << 8) | bytes[pos + 11]
+            ssnd_size = (bytes[pos + 12] << 24) | (bytes[pos + 13] << 16) | (bytes[pos + 14] << 8) | bytes[pos + 15]
+            ssnd_offset = pos + 16 + data_offset
+            found_ssnd = true
+        if found_comm and found_ssnd:
+            break
+        pos = pos + 8 + chunk_size
+        if (chunk_size & 1) != 0:
+            pos = pos + 1
+    if found_comm == false or found_ssnd == false:
+        return wav_read(path)
+    # Convert to 32-bit float. AIFF typically uses 16-bit signed big-endian.
+    let total: Int = frames * channels
+    let fdata: ptr<Float> = alloc_zeroed(total, "Float")
+    var i: Int = 0
+    while i < total:
+        if bits == 16:
+            let hi: Int = bytes[ssnd_offset + (i * 2)]
+            let lo: Int = bytes[ssnd_offset + (i * 2) + 1]
+            var s16: Int = (hi << 8) | lo
+            if s16 >= 32768:
+                s16 = s16 - 65536
+            mem_store(ptr_offset(fdata, i, "Float"), Float(s16) / 32768.0, "Float")
+        elif bits == 8:
+            let s8: Int = bytes[ssnd_offset + i] - 128
+            mem_store(ptr_offset(fdata, i, "Float"), Float(s8) / 128.0, "Float")
+        elif bits == 24:
+            let b0: Int = bytes[ssnd_offset + (i * 3)]
+            let b1: Int = bytes[ssnd_offset + (i * 3) + 1]
+            let b2: Int = bytes[ssnd_offset + (i * 3) + 2]
+            var s24: Int = (b0 << 16) | (b1 << 8) | b2
+            if s24 >= 8388608:
+                s24 = s24 - 16777216
+            mem_store(ptr_offset(fdata, i, "Float"), Float(s24) / 8388608.0, "Float")
+        elif bits == 32:
+            let b0: Int = bytes[ssnd_offset + (i * 4)]
+            let b1: Int = bytes[ssnd_offset + (i * 4) + 1]
+            let b2: Int = bytes[ssnd_offset + (i * 4) + 2]
+            let b3: Int = bytes[ssnd_offset + (i * 4) + 3]
+            var s32: Int = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+            mem_store(ptr_offset(fdata, i, "Float"), Float(s32) / 2147483648.0, "Float")
+        else:
+            mem_store(ptr_offset(fdata, i, "Float"), 0.0, "Float")
+        i = i + 1
+    let fmt: AudioFormat = AudioFormat {
+        sample_rate: sample_rate,
+        channels: channels,
+        sample_format: AudioSampleFormat::F32,
+    }
+    return AudioBuffer {
+        data: fdata,
+        frames: frames,
+        format: fmt,
+    }
+
+// aiff_decode_extended — decode 80-bit IEEE 754 extended precision
+// (10 bytes big-endian) into a Float. AIFF uses this for sample_rate.
+fn aiff_decode_extended(bytes: Array<Int>, offset: Int) -> Int with Pure:
+    let exponent: Int = ((bytes[offset] & 0x7F) << 8) | bytes[offset + 1]
+    let hi_mantissa: Int = (bytes[offset + 2] << 24) | (bytes[offset + 3] << 16) | (bytes[offset + 4] << 8) | bytes[offset + 5]
+    if exponent == 0 and hi_mantissa == 0:
+        return 0
+    let sign: Int = if (bytes[offset] & 0x80) != 0: -1 else: 1
+    let real_exp: Int = exponent - 16383
+    let mantissa_val: Float = Float(hi_mantissa) / 2147483648.0
+    var rate: Float = 1.0
+    if real_exp > 0:
+        var e: Int = 0
+        while e < real_exp:
+            rate = rate * 2.0
+            e = e + 1
+    elif real_exp < 0:
+        var e: Int = 0
+        while e > real_exp:
+            rate = rate / 2.0
+            e = e - 1
+    let final_rate: Float = sign * rate * mantissa_val
+    return Int(final_rate)
+
+// aiff_write — write AudioBuffer to AIFF. 16-bit signed big-endian
+// samples. Returns 0 on success.
+pub fn aiff_write(path: String, buf: AudioBuffer) -> Int with Unsafe:
+    if ptr_to_int(buf.data) == 0:
+        return FILE_ERR_BUFFER_EMPTY
+    let total: Int = buf.frames * buf.format.channels
+    let data_bytes: Int = total * 2
+    let comm_chunk_size: Int = AIFF_COMM_CHUNK_MIN
+    let ssnd_chunk_size: Int = 8 + data_bytes
+    let form_size: Int = 4 + 8 + comm_chunk_size + 8 + ssnd_chunk_size
+    let out_size: Int = 8 + form_size
+    let out_bytes: Array<Int> = wav_alloc_bytes(out_size)
+    # FORM magic
+    out_bytes[0] = 0x46
+    out_bytes[1] = 0x4F
+    out_bytes[2] = 0x52
+    out_bytes[3] = 0x4D
+    # form size (big-endian)
+    out_bytes[4] = (form_size / 16777216) & 0xFF
+    out_bytes[5] = (form_size / 65536) & 0xFF
+    out_bytes[6] = (form_size / 256) & 0xFF
+    out_bytes[7] = form_size & 0xFF
+    # AIFF magic
+    out_bytes[8] = 0x41
+    out_bytes[9] = 0x49
+    out_bytes[10] = 0x46
+    out_bytes[11] = 0x46
+    # COMM chunk
+    var comm_pos: Int = 12
+    out_bytes[comm_pos] = 0x43
+    out_bytes[comm_pos + 1] = 0x4F
+    out_bytes[comm_pos + 2] = 0x4D
+    out_bytes[comm_pos + 3] = 0x4D
+    out_bytes[comm_pos + 4] = 0
+    out_bytes[comm_pos + 5] = 0
+    out_bytes[comm_pos + 6] = 0
+    out_bytes[comm_pos + 7] = AIFF_COMM_CHUNK_MIN
+    out_bytes[comm_pos + 8] = (buf.format.channels / 256) & 0xFF
+    out_bytes[comm_pos + 9] = buf.format.channels & 0xFF
+    out_bytes[comm_pos + 10] = (buf.frames / 16777216) & 0xFF
+    out_bytes[comm_pos + 11] = (buf.frames / 65536) & 0xFF
+    out_bytes[comm_pos + 12] = (buf.frames / 256) & 0xFF
+    out_bytes[comm_pos + 13] = buf.frames & 0xFF
+    out_bytes[comm_pos + 14] = 0
+    out_bytes[comm_pos + 15] = AIFF_BITS_PER_SAMPLE_DEFAULT
+    aiff_encode_extended(out_bytes, comm_pos + 16, buf.format.sample_rate)
+    # SSND chunk
+    var ssnd_pos: Int = comm_pos + 8 + comm_chunk_size
+    out_bytes[ssnd_pos] = 0x53
+    out_bytes[ssnd_pos + 1] = 0x53
+    out_bytes[ssnd_pos + 2] = 0x4E
+    out_bytes[ssnd_pos + 3] = 0x44
+    out_bytes[ssnd_pos + 4] = ((8 + data_bytes) / 16777216) & 0xFF
+    out_bytes[ssnd_pos + 5] = ((8 + data_bytes) / 65536) & 0xFF
+    out_bytes[ssnd_pos + 6] = ((8 + data_bytes) / 256) & 0xFF
+    out_bytes[ssnd_pos + 7] = (8 + data_bytes) & 0xFF
+    out_bytes[ssnd_pos + 8] = 0
+    out_bytes[ssnd_pos + 9] = 0
+    out_bytes[ssnd_pos + 10] = 0
+    out_bytes[ssnd_pos + 11] = 0
+    out_bytes[ssnd_pos + 12] = (data_bytes / 16777216) & 0xFF
+    out_bytes[ssnd_pos + 13] = (data_bytes / 65536) & 0xFF
+    out_bytes[ssnd_pos + 14] = (data_bytes / 256) & 0xFF
+    out_bytes[ssnd_pos + 15] = data_bytes & 0xFF
+    # Sample data
+    var i: Int = 0
+    while i < total:
+        let s: Float = mem_load(ptr_offset(buf.data, i, "Float"), "Float")
+        let s16: Int = Int(s * 32767.0)
+        out_bytes[ssnd_pos + 16 + (i * 2)] = (s16 / 256) & 0xFF
+        out_bytes[ssnd_pos + 16 + (i * 2) + 1] = s16 & 0xFF
+        i = i + 1
+    fs_write_bytes(path, out_bytes)
+    return FILE_OK
+
+// aiff_encode_extended — encode Int sample_rate into 80-bit IEEE 754
+// extended precision (10 bytes big-endian).
+fn aiff_encode_extended(out_bytes: Array<Int>, offset: Int, sample_rate: Int) with Pure:
+    if sample_rate == 0:
+        out_bytes[offset] = 0
+        out_bytes[offset + 1] = 0
+        out_bytes[offset + 2] = 0
+        out_bytes[offset + 3] = 0
+        out_bytes[offset + 4] = 0
+        out_bytes[offset + 5] = 0
+        out_bytes[offset + 6] = 0
+        out_bytes[offset + 7] = 0
+        out_bytes[offset + 8] = 0
+        out_bytes[offset + 9] = 0
+        return
+    # Find the highest set bit
+    var abs_rate: Int = sample_rate
+    if abs_rate < 0:
+        abs_rate = 0 - abs_rate
+    var exp: Int = 0
+    var v: Int = abs_rate
+    while v > 1:
+        v = v / 2
+        exp = exp + 1
+    let biased_exp: Int = exp + 16383
+    out_bytes[offset] = (biased_exp / 256) & 0xFF
+    out_bytes[offset + 1] = biased_exp & 0xFF
+    out_bytes[offset + 2] = 0x80
+    out_bytes[offset + 3] = 0
+    out_bytes[offset + 4] = 0
+    out_bytes[offset + 5] = 0
+    out_bytes[offset + 6] = 0
+    out_bytes[offset + 7] = 0
+    out_bytes[offset + 8] = 0
+    out_bytes[offset + 9] = 0
+
+// ============================================================================
+// A U T O - D E T E C T
+// ============================================================================
+
+// audio_file_read_any — read any supported audio file. Format is
+// detected from the first 4 magic bytes. Falls back to wav_read
+// if detection fails or the format is unrecognized.
+pub fn audio_file_read_any(path: String) -> AudioBuffer with Unsafe:
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < 4:
+        return wav_read(path)
+    let m0: Int = bytes[0]
+    let m1: Int = bytes[1]
+    let m2: Int = bytes[2]
+    let m3: Int = bytes[3]
+    if m0 == 0x52 and m1 == 0x49 and m2 == 0x46 and m3 == 0x46:
+        return wav_read(path)
+    if m0 == FLAC_MAGIC_0 and m1 == FLAC_MAGIC_1 and m2 == FLAC_MAGIC_2 and m3 == FLAC_MAGIC_3:
+        return flac_read(path)
+    if m0 == OGG_MAGIC_0 and m1 == OGG_MAGIC_1 and m2 == OGG_MAGIC_2 and m3 == OGG_MAGIC_3:
+        return ogg_read(path)
+    if m0 == 0x46 and m1 == 0x4F and m2 == 0x52 and m3 == 0x4D:
+        return aiff_read(path)
+    return wav_read(path)
+
+// audio_file_read_metadata — returns the format info of an audio
+// file without loading the sample data. Equivalent to wav_read_info
+// for WAV but works for any format.
+pub fn audio_file_read_metadata(path: String) -> AudioFormat with Unsafe:
+    return wav_read_info(path)
+
+// ============================================================================
+// End of file.kn
+// ============================================================================

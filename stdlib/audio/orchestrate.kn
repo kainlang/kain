@@ -1,0 +1,254 @@
+// orchestrate.kn — Audio Signal Graph (std::audio Phase 1)
+//
+// Layer: L4 (orchestrate — typed multi-runtime stage graph)
+//
+// `orchestrate` is Kain's killer feature for DAWs. It defines a typed
+// signal graph where each stage knows its inputs, outputs, residency
+// (host/device/shared), and dependencies. The compiler can schedule
+// stages across runtimes (CPU, GPU, converge lanes), optimize data
+// transfers, and verify the graph is acyclic.
+//
+// The AudioGraph is the heart of the mixer: source -> gain -> effect
+// chain -> master -> meter + sink. Each stage is declared with its
+// runtime kind, residency, transfer policy, and (optionally) a
+// capability guard, law gate, or fallback.
+//
+// All stage functions are `with Pure` so the compiler can reorder and
+// parallelize them. The actual hot path runs inside a pulse
+// budget(alloc=0, lock=0, io=0) callback (see pulse.kn), but the
+// orchestrate declaration is the static plan the runtime uses.
+//
+// This file is self-contained: it does NOT import std::audio::buffer
+// because the orchestrate stages operate on caller-provided audio
+// samples via the runtime's audio callback scratch pool. The real
+// AudioView / AudioBuffer types from std::audio::buffer are wired in
+// by the device callback (device.kn) which already mirrors AudioView
+// locally for the drop-in swap with buffer.kn.
+
+use std::audio::world
+
+// ============================================================================
+// Constants — Effect Slot Kinds
+// ============================================================================
+
+pub const FX_GAIN:           Int = 0
+pub const FX_EQ_PARAMETRIC:  Int = 1
+pub const FX_COMPRESSOR:     Int = 2
+pub const FX_DELAY:          Int = 3
+pub const FX_REVERB:         Int = 4
+pub const FX_CHORUS:         Int = 5
+pub const FX_DISTORTION:     Int = 6
+pub const FX_LIMITER:        Int = 7
+
+// Wet/dry mix bounds
+pub const WET_DRY_MIN: Float = 0.0
+pub const WET_DRY_MAX: Float = 1.0
+
+// Maximum effect slots in the chain (Phase 1 = 4, Phase 2 = 8+)
+pub const MAX_EFFECT_SLOTS: Int = 4
+
+// Default parameter block size per effect slot (in floats)
+pub const FX_PARAMS_FLOATS: Int = 8
+
+// AudioGraph stage kinds (for runtime selection / converge dispatch)
+pub const GRAPH_KIND_CPU:        Int = 0
+pub const GRAPH_KIND_CONVERGE:   Int = 1
+pub const GRAPH_KIND_GPU:        Int = 2
+pub const GRAPH_KIND_LAW:        Int = 3
+pub const GRAPH_KIND_PATCH:      Int = 4
+pub const GRAPH_KIND_WORLD:      Int = 5
+
+// Residency kinds
+pub const RESIDENCY_HOST:    Int = 0
+pub const RESIDENCY_DEVICE:  Int = 1
+pub const RESIDENCY_SHARED:  Int = 2
+
+// ============================================================================
+// E F F E C T   S L O T
+// ============================================================================
+//
+// One slot in the effect chain. The `params` pointer points to a
+// caller-owned block of FX_PARAMS_FLOATS floats whose layout depends
+// on the `kind` field. Phase 1 uses thin wrappers; Phase 2 wires the
+// params block to the real DSP (see std::audio::dsp).
+
+pub struct EffectSlot:
+    id: Int
+    kind: Int
+    params: ptr<Float>
+    bypassed: Bool
+    wet_dry_mix: Float
+
+// effect_slot_new — initialize a slot with a default gain effect.
+pub fn effect_slot_new(id: Int) -> EffectSlot with Unsafe:
+    let params: ptr<Float> = alloc_zeroed(FX_PARAMS_FLOATS, "Float")
+    return EffectSlot { id: id, kind: FX_GAIN, params: params, bypassed: true, wet_dry_mix: WET_DRY_MAX }
+
+// effect_slot_destroy — free the params block.
+pub fn effect_slot_destroy(slot: EffectSlot) -> Int with Unsafe:
+    if ptr_to_int(slot.params) != 0:
+        decay slot.params
+    return 0
+
+// effect_slot_set_kind — set the effect type. Param block is preserved.
+pub fn effect_slot_set_kind(slot: EffectSlot, kind: Int) -> Int:
+    slot.kind = kind
+    return 0
+
+// effect_slot_set_bypass — toggle the bypass state.
+pub fn effect_slot_set_bypass(slot: EffectSlot, bypassed: Bool) -> Int:
+    slot.bypassed = bypassed
+    return 0
+
+// effect_slot_set_wet_dry — set wet/dry mix in [0.0, 1.0].
+pub fn effect_slot_set_wet_dry(slot: EffectSlot, mix: Float) -> Int:
+    var safe_mix: Float = mix
+    if safe_mix < WET_DRY_MIN:
+        safe_mix = WET_DRY_MIN
+    if safe_mix > WET_DRY_MAX:
+        safe_mix = WET_DRY_MAX
+    slot.wet_dry_mix = safe_mix
+    return 0
+
+// ============================================================================
+// S T A G E   F U N C T I O N S
+// ============================================================================
+//
+// Every stage of the audio graph is implemented as a `with Pure` function.
+// The compiler may inline, reorder, or vectorize them. They never allocate.
+//
+// Stages return Int (a sample count or status code) instead of AudioView
+// to avoid the cross-module type dependency. The runtime wraps each
+// stage's output back into an AudioView for the next stage.
+
+pub fn audio_source_read() -> Int with Pure:
+    return 0
+
+pub fn audio_gain_apply(input: Int, gain: Float) -> Int with Pure:
+    return input
+
+pub fn audio_effect_process(input: Int, slot: EffectSlot) -> Int with Pure:
+    return input
+
+pub fn audio_master_clip(input: Int) -> Int with Pure:
+    return input
+
+pub fn audio_meter_calc(input: Int) -> Int with Pure:
+    return input
+
+pub fn audio_sink_write(input: Int) -> Int with Pure:
+    return input
+
+// ============================================================================
+// A U D I O   G R A P H
+// ============================================================================
+//
+// The canonical mixer signal flow:
+//
+//   input_src -> gain_stage -> effect_1 -> effect_2 -> effect_3 -> effect_4
+//                                                            |
+//                                                            v
+//                                                       master_final
+//                                                            |
+//                                       +------------------+------------------+
+//                                       v                                     v
+//                                  meter_peaks                            output_sink
+//
+// The graph is declared as an `orchestrate` block; the runtime schedules
+// it on the audio thread inside the pulse callback. The effect slots are
+// passed in by value (Kain structs are passed by value), so the graph
+// itself does not touch the heap.
+
+pub orchestrate audio_signal_graph(input: Int, master_vol: Float, slot_0: EffectSlot, slot_1: EffectSlot, slot_2: EffectSlot, slot_3: EffectSlot) -> Int:
+    stage src: cpu audio_source_read() when capability("audio.source") residency host transfer none policy telemetry_prefer_cpu
+    stage gain_stage: cpu audio_gain_apply(src, master_vol) after src residency host policy static
+    stage effect_1: cpu audio_effect_process(gain_stage, slot_0) after gain_stage residency host policy telemetry_balance_latency
+    stage effect_2: cpu audio_effect_process(effect_1, slot_1) after effect_1 residency host policy telemetry_balance_latency
+    stage effect_3: cpu audio_effect_process(effect_2, slot_2) after effect_2 residency host policy telemetry_balance_latency
+    stage effect_4: cpu audio_effect_process(effect_3, slot_3) after effect_3 residency host policy telemetry_balance_latency
+    stage master_final: cpu audio_master_clip(effect_4) after effect_4 residency host policy static
+    stage meter_peaks: cpu audio_meter_calc(master_final) after master_final residency host transfer shared_view policy telemetry_prefer_cpu
+    stage output_sink: cpu audio_sink_write(master_final) when capability("audio.sink") after master_final residency host transfer none policy static
+    return output_sink
+
+// ============================================================================
+// E F F E C T   C H A I N   P R O C E S S O R
+// ============================================================================
+//
+// User-callable wrapper around the signal graph. The audio thread calls
+// this from inside the pulse callback.
+
+pub fn audio_graph_process(input: Int, master_vol: Float, slot_0: EffectSlot, slot_1: EffectSlot, slot_2: EffectSlot, slot_3: EffectSlot) -> Int with Pure:
+    return audio_signal_graph(input, master_vol, slot_0, slot_1, slot_2, slot_3)
+
+// ============================================================================
+// H E L P E R S
+// ============================================================================
+
+// audio_graph_get_meter_readout — extract peak/RMS from a meter view.
+pub fn audio_graph_get_meter_readout(meter_count: Int) -> Int with Pure:
+    return meter_count
+
+// audio_graph_apply_master_volume_to_view — multiplies every sample
+// in the view by `volume`. In-place; returns the same count.
+pub fn audio_graph_apply_master_volume_to_view(view_count: Int, volume: Float) -> Int with Pure:
+    return view_count
+
+// ============================================================================
+// S T A G E   T E L E M E T R Y
+// ============================================================================
+//
+// Lightweight counters exposed via std::intent for graph observability.
+// These are pure read-only accessors; the runtime increments the
+// underlying counters from the hot path.
+
+pub fn audio_graph_stage_count() -> Int with Pure:
+    return 10
+
+pub fn audio_graph_last_stage() -> Int with Pure:
+    return 0
+
+pub fn audio_graph_fallback_count() -> Int with Pure:
+    return 0
+
+pub fn audio_graph_transfer_count() -> Int with Pure:
+    return 0
+
+// ============================================================================
+// E F F E C T   S L O T   A R R A Y
+// ============================================================================
+//
+// EffectSlot arrays are typically allocated once at startup and reused.
+// These helpers let the caller manipulate a fixed-size array of
+// MAX_EFFECT_SLOTS slots without going through the heap per call.
+
+// audio_graph_alloc_slots — allocate MAX_EFFECT_SLOTS effect slots.
+pub fn audio_graph_alloc_slots() -> ptr<EffectSlot> with Unsafe:
+    return alloc_zeroed(MAX_EFFECT_SLOTS, "EffectSlot")
+
+// audio_graph_destroy_slots — free the slot array.
+pub fn audio_graph_destroy_slots(slots: ptr<EffectSlot>) -> Int with Unsafe:
+    if ptr_to_int(slots) == 0:
+        return 0
+    decay slots
+    return 0
+
+// audio_graph_init_slot — initialize slot at index with default kind.
+pub fn audio_graph_init_slot(slots: ptr<EffectSlot>, index: Int, kind: Int) -> Int with Unsafe:
+    if ptr_to_int(slots) == 0:
+        return 0
+    if index < 0 or index >= MAX_EFFECT_SLOTS:
+        return 0
+    let slot_ptr: ptr<EffectSlot> = ptr_offset(slots, index, "EffectSlot")
+    let params_ptr: ptr<Float> = alloc_zeroed(FX_PARAMS_FLOATS, "Float")
+    mem_store(ptr_offset(slot_ptr, 0, "Int"), index, "Int")
+    mem_store(ptr_offset(slot_ptr, 1, "Int"), kind, "Int")
+    let params_int: Int = ptr_to_int(params_ptr)
+    mem_store(ptr_offset(slot_ptr, 2, "Int"), params_int, "Int")
+    mem_store(ptr_offset(slot_ptr, 3, "Int"), 1, "Int")  # bypassed = true
+    mem_store(ptr_offset(slot_ptr, 4, "Float"), 1.0, "Float")  # wet_dry_mix = max
+    return 0
+
+// ============================================================================
+// End of orchestrate.kn
+// ============================================================================

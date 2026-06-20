@@ -1,0 +1,293 @@
+// teleport.kn — Audio→UI Metering Bridge (std::audio Phase 1)
+//
+// Layer: L6 (teleport — zero-copy cross-world handoff)
+//
+// Lock-free, zero-copy metering from the audio thread to the UI thread.
+// Uses the existing std::sync::TeleportChannel (Z3-proven index bounds).
+// The audio thread writes peaks; the UI thread reads them. No lock, no
+// allocation, no copy.
+//
+// The MeterBridge holds a 5-float snapshot per tick:
+//   [peak_l, peak_r, rms_l, rms_r, cpu_load]
+//
+// The audio thread calls meter_bridge_push_peaks inside the pulse
+// budget(lock=0) callback (or any non-real-time path). The UI thread
+// calls meter_bridge_poll at ~20 Hz (every 50 ms) to refresh the
+// level meters.
+
+use std::sync
+use std::audio::buffer
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+// Status codes
+pub const TELEPORT_OK:                 Int = 0
+pub const TELEPORT_ERR_FULL:           Int = -1
+pub const TELEPORT_ERR_INVALID:        Int = -2
+pub const TELEPORT_ERR_NOT_READY:      Int = -3
+
+// Snapshot size in floats: [peak_l, peak_r, rms_l, rms_r, cpu_load]
+pub const METER_SNAPSHOT_FLOATS: Int = 5
+
+// Index within the snapshot
+pub const METER_IDX_PEAK_L:    Int = 0
+pub const METER_IDX_PEAK_R:    Int = 1
+pub const METER_IDX_RMS_L:     Int = 2
+pub const METER_IDX_RMS_R:     Int = 3
+pub const METER_IDX_CPU_LOAD:  Int = 4
+
+// Default update interval (50 ms = 20 Hz)
+pub const DEFAULT_UPDATE_INTERVAL_MS: Int = 50
+
+// Minimum supported capacity (must be power of two for ring buffer)
+pub const MIN_BRIDGE_CAPACITY: Int = 2
+pub const DEFAULT_BRIDGE_CAPACITY: Int = 64
+
+// ============================================================================
+// M E T E R   B R I D G E
+// ============================================================================
+//
+// A MeterBridge owns:
+//   - a TeleportChannel (lock-free SPSC ring buffer of pointer-Int handles)
+//   - a scratch pool of METER_SNAPSHOT_FLOATS-sized float blocks
+//   - a write cursor (audio thread increments)
+//   - a read cursor (UI thread polls)
+//
+// Each call to push allocates one snapshot from the pool and sends a
+// pointer-Int handle through the channel. Each poll receives a handle and
+// copies the float values into a 5-float scratch block the UI can read.
+//
+// Phase 1: capacity is 64 snapshots (~3.2s of metering at 20Hz). Phase 2
+// will let the user pick a custom capacity per bridge.
+
+pub struct MeterBridge:
+    channel: TeleportChannel
+    update_interval_ms: Int
+    capacity: Int
+    pool: ptr<Float>           # scratch pool: capacity * METER_SNAPSHOT_FLOATS floats
+    write_idx: ptr<Int>        # monotonic counter (audio thread)
+    read_idx: ptr<Int>         # monotonic counter (UI thread)
+    last_poll_ns: ptr<Int>     # timestamp of last successful UI poll
+
+// meter_bridge_new — create a meter bridge with given capacity.
+// Capacity is the number of snapshots the ring buffer can hold between
+// pushes and polls before the audio thread starts dropping samples.
+// Round to the next power of two for cheap modulo.
+pub fn meter_bridge_new(capacity: Int) -> MeterBridge with Unsafe:
+    var cap: Int = MIN_BRIDGE_CAPACITY
+    if capacity > MIN_BRIDGE_CAPACITY:
+        cap = capacity
+    # Round up to power of two
+    var pow2: Int = 1
+    while pow2 < cap:
+        pow2 = pow2 * 2
+    cap = pow2
+    let chan: TeleportChannel = teleport_channel_new(cap)
+    let pool_size: Int = cap * METER_SNAPSHOT_FLOATS
+    let pool: ptr<Float> = alloc_zeroed(pool_size, "Float")
+    let w_idx: ptr<Int> = alloc_zeroed(1, "Int")
+    let r_idx: ptr<Int> = alloc_zeroed(1, "Int")
+    let last_poll: ptr<Int> = alloc_zeroed(1, "Int")
+    return MeterBridge { channel: chan, update_interval_ms: DEFAULT_UPDATE_INTERVAL_MS, capacity: cap, pool: pool, write_idx: w_idx, read_idx: r_idx, last_poll_ns: last_poll }
+
+// meter_bridge_destroy — release the channel and scratch pool.
+pub fn meter_bridge_destroy(bridge: MeterBridge) -> Int with Unsafe:
+    let destroy_status: Int = teleport_channel_destroy(bridge.channel)
+    if ptr_to_int(bridge.pool) != 0:
+        decay bridge.pool
+    if ptr_to_int(bridge.write_idx) != 0:
+        decay bridge.write_idx
+    if ptr_to_int(bridge.read_idx) != 0:
+        decay bridge.read_idx
+    if ptr_to_int(bridge.last_poll_ns) != 0:
+        decay bridge.last_poll_ns
+    return destroy_status
+
+// meter_bridge_set_update_interval_ms — change the UI poll cadence hint.
+// The hint is stored in the bridge but the actual gating is the caller's
+// responsibility (the UI thread reads the hint and sleeps accordingly).
+pub fn meter_bridge_set_update_interval_ms(bridge: MeterBridge, interval_ms: Int) -> Int with Unsafe:
+    if interval_ms < 1:
+        bridge.update_interval_ms = 1
+    elif interval_ms > 1000:
+        bridge.update_interval_ms = 1000
+    else:
+        bridge.update_interval_ms = interval_ms
+    return TELEPORT_OK
+
+// meter_bridge_capacity — return the underlying ring capacity.
+pub fn meter_bridge_capacity(bridge: MeterBridge) -> Int with Pure:
+    return bridge.capacity
+
+// meter_bridge_available_read — how many snapshots are pending.
+pub fn meter_bridge_available_read(bridge: MeterBridge) -> Int with Unsafe:
+    if ptr_to_int(bridge.write_idx) == 0 or ptr_to_int(bridge.read_idx) == 0:
+        return 0
+    let w: Int = mem_load(bridge.write_idx, "Int")
+    let r: Int = mem_load(bridge.read_idx, "Int")
+    let diff: Int = w - r
+    if diff < 0:
+        return 0
+    if diff > bridge.capacity:
+        return bridge.capacity
+    return diff
+
+// meter_bridge_push_peaks — audio-thread side: push a meter snapshot.
+// Allocates a 5-float slot from the bridge's scratch pool and sends a
+// pointer-Int handle through the TeleportChannel. Returns false if the
+// bridge is full (UI thread is behind).
+pub fn meter_bridge_push_peaks(bridge: MeterBridge, peak_l: Float, peak_r: Float, rms_l: Float, rms_r: Float) -> Bool with Unsafe:
+    if ptr_to_int(bridge.pool) == 0:
+        return false
+    if ptr_to_int(bridge.write_idx) == 0:
+        return false
+    # Check if bridge is full (write - read == capacity)
+    let w: Int = mem_load(bridge.write_idx, "Int")
+    let r: Int = mem_load(bridge.read_idx, "Int")
+    if (w - r) >= bridge.capacity:
+        return false
+    # Allocate slot at index (w % capacity)
+    let slot: Int = w % bridge.capacity
+    let base_offset: Int = slot * METER_SNAPSHOT_FLOATS
+    mem_store(ptr_offset(bridge.pool, base_offset + METER_IDX_PEAK_L, "Float"), peak_l, "Float")
+    mem_store(ptr_offset(bridge.pool, base_offset + METER_IDX_PEAK_R, "Float"), peak_r, "Float")
+    mem_store(ptr_offset(bridge.pool, base_offset + METER_IDX_RMS_L, "Float"), rms_l, "Float")
+    mem_store(ptr_offset(bridge.pool, base_offset + METER_IDX_RMS_R, "Float"), rms_r, "Float")
+    mem_store(ptr_offset(bridge.pool, base_offset + METER_IDX_CPU_LOAD, "Float"), 0.0, "Float")
+    # Send a pointer-Int handle through the channel. The handle is the
+    # absolute write index; the UI thread uses (handle % capacity) to
+    # locate the slot in the pool.
+    let handle: Int = w
+    let sent: Bool = teleport_channel_send(bridge.channel, handle)
+    if sent == false:
+        return false
+    mem_store(bridge.write_idx, w + 1, "Int")
+    return true
+
+// meter_bridge_set_cpu_load — update the CPU load in the most recent
+// pending snapshot. Called by the audio thread to overwrite the
+// cpu_load float on the slot it just wrote.
+pub fn meter_bridge_set_cpu_load(bridge: MeterBridge, load_percent: Float) -> Int with Unsafe:
+    if ptr_to_int(bridge.pool) == 0:
+        return TELEPORT_ERR_INVALID
+    if ptr_to_int(bridge.write_idx) == 0:
+        return TELEPORT_ERR_INVALID
+    let w: Int = mem_load(bridge.write_idx, "Int")
+    if w <= 0:
+        return TELEPORT_ERR_NOT_READY
+    let last_slot: Int = (w - 1) % bridge.capacity
+    let offset: Int = (last_slot * METER_SNAPSHOT_FLOATS) + METER_IDX_CPU_LOAD
+    mem_store(ptr_offset(bridge.pool, offset, "Float"), load_percent, "Float")
+    return TELEPORT_OK
+
+// meter_bridge_poll — UI-thread side: read the most recent meter snapshot.
+// Returns a pointer to a 5-float block [peak_l, peak_r, rms_l, rms_r, cpu_load].
+// The pointer is to a STATIC scratch block inside the bridge; the caller
+// must read the values before calling meter_bridge_poll again.
+//
+// Returns an int_to_ptr(0, "Float") (null) if no new data is available.
+pub fn meter_bridge_poll(bridge: MeterBridge) -> ptr<Float> with Unsafe:
+    if ptr_to_int(bridge.read_idx) == 0:
+        return int_to_ptr(0, "Float")
+    if ptr_to_int(bridge.pool) == 0:
+        return int_to_ptr(0, "Float")
+    # Try to receive a new handle from the channel
+    let handle: Int = teleport_channel_recv(bridge.channel)
+    if handle < 0:
+        return int_to_ptr(0, "Float")
+    # Map the handle to a slot in the pool
+    let slot: Int = handle % bridge.capacity
+    let base_offset: Int = slot * METER_SNAPSHOT_FLOATS
+    # Advance the read cursor past the just-consumed handle
+    mem_store(bridge.read_idx, handle + 1, "Int")
+    return ptr_offset(bridge.pool, base_offset, "Float")
+
+// meter_bridge_poll_into — UI-thread side: copy the latest snapshot
+// into a caller-provided 5-float block. Returns 0 on success, <0 on
+// no-data or error.
+pub fn meter_bridge_poll_into(bridge: MeterBridge, out_block: ptr<Float>) -> Int with Unsafe:
+    if ptr_to_int(out_block) == 0:
+        return TELEPORT_ERR_INVALID
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return TELEPORT_ERR_NOT_READY
+    var i: Int = 0
+    while i < METER_SNAPSHOT_FLOATS:
+        let v: Float = mem_load(ptr_offset(snapshot, i, "Float"), "Float")
+        mem_store(ptr_offset(out_block, i, "Float"), v, "Float")
+        i = i + 1
+    return TELEPORT_OK
+
+// meter_bridge_get_peak_l — convenience: get peak_l from the most
+// recent snapshot. Returns 0.0 if no data.
+pub fn meter_bridge_get_peak_l(bridge: MeterBridge) -> Float with Unsafe:
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return 0.0
+    return mem_load(ptr_offset(snapshot, METER_IDX_PEAK_L, "Float"), "Float")
+
+// meter_bridge_get_peak_r — convenience: get peak_r.
+pub fn meter_bridge_get_peak_r(bridge: MeterBridge) -> Float with Unsafe:
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return 0.0
+    return mem_load(ptr_offset(snapshot, METER_IDX_PEAK_R, "Float"), "Float")
+
+// meter_bridge_get_rms_l — convenience: get rms_l.
+pub fn meter_bridge_get_rms_l(bridge: MeterBridge) -> Float with Unsafe:
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return 0.0
+    return mem_load(ptr_offset(snapshot, METER_IDX_RMS_L, "Float"), "Float")
+
+// meter_bridge_get_rms_r — convenience: get rms_r.
+pub fn meter_bridge_get_rms_r(bridge: MeterBridge) -> Float with Unsafe:
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return 0.0
+    return mem_load(ptr_offset(snapshot, METER_IDX_RMS_R, "Float"), "Float")
+
+// meter_bridge_get_cpu_load — convenience: get cpu_load.
+pub fn meter_bridge_get_cpu_load(bridge: MeterBridge) -> Float with Unsafe:
+    let snapshot: ptr<Float> = meter_bridge_poll(bridge)
+    if ptr_to_int(snapshot) == 0:
+        return 0.0
+    return mem_load(ptr_offset(snapshot, METER_IDX_CPU_LOAD, "Float"), "Float")
+
+// ============================================================================
+// H E L P E R S — pure accessors
+// ============================================================================
+
+// meter_bridge_default_update_interval_ms — return the default 50ms.
+pub fn meter_bridge_default_update_interval_ms() -> Int with Pure:
+    return DEFAULT_UPDATE_INTERVAL_MS
+
+// meter_bridge_snapshot_size — number of floats in one snapshot.
+pub fn meter_bridge_snapshot_size() -> Int with Pure:
+    return METER_SNAPSHOT_FLOATS
+
+// meter_bridge_index_peak_l — snapshot index of peak_l.
+pub fn meter_bridge_index_peak_l() -> Int with Pure:
+    return METER_IDX_PEAK_L
+
+// meter_bridge_index_peak_r — snapshot index of peak_r.
+pub fn meter_bridge_index_peak_r() -> Int with Pure:
+    return METER_IDX_PEAK_R
+
+// meter_bridge_index_rms_l — snapshot index of rms_l.
+pub fn meter_bridge_index_rms_l() -> Int with Pure:
+    return METER_IDX_RMS_L
+
+// meter_bridge_index_rms_r — snapshot index of rms_r.
+pub fn meter_bridge_index_rms_r() -> Int with Pure:
+    return METER_IDX_RMS_R
+
+// meter_bridge_index_cpu_load — snapshot index of cpu_load.
+pub fn meter_bridge_index_cpu_load() -> Int with Pure:
+    return METER_IDX_CPU_LOAD
+
+// ============================================================================
+// End of teleport.kn
+// ============================================================================

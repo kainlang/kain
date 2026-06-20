@@ -1,0 +1,131 @@
+// ============================================================================
+//                    std::python::venv  —  Python Virtual Environment Management
+// ============================================================================
+//
+//  Provides idempotent venv creation, package installation, and activation.
+//  Interlocks with the C runtime (python_runtime.c) via the KAIN_PYTHON_VENV
+//  environment variable: when set, the runtime calls Py_SetPythonHome() with
+//  the venv path BEFORE Py_Initialize(), causing CPython to use the venv's
+//  Lib/site-packages.
+//
+//  Usage:
+//    use std::python::venv
+//    let env = venv_ensure("./.venv", ["numpy>=1.24", "torch>=2.0"])
+//    import numpy as np   // uses the venv's numpy
+//
+//  Architecture:
+//    Layer 0 ─ @extern ABIs (fs, os, process) for I/O and shell calls
+//    Layer 1 ─ this module: Python venv lifecycle
+//    Layer 2 ─ user Kain code: import numpy as np (reads KAIN_PYTHON_VENV)
+//
+//  Env var priority (set by this module, read by the C runtime):
+//    KAIN_PYTHON_VENV → path to .venv root → Py_SetPythonHome before init
+//
+// ============================================================================
+
+use std::fs
+use std::os
+use std::os_path
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+pub struct PythonVenv:
+    path:       String        // e.g. "X:\reson8\.venv"
+    python_exe: String        // e.g. "X:\reson8\.venv\Scripts\python.exe"
+    active:     Bool
+
+// ── Status codes ──────────────────────────────────────────────────────────
+
+pub const VENV_OK:             Int = 0
+pub const VENV_ERR_EXISTS:     Int = -1
+pub const VENV_ERR_CREATE:    Int = -2
+pub const VENV_ERR_NO_PYTHON: Int = -3
+
+// ── venv_exists — check if a venv already exists at the given path ────────
+
+pub fn venv_exists(path: String) -> Bool with Pure:
+    let cfg = os_path_join(path, "pyvenv.cfg")
+    return fs_exists(cfg)
+
+// ── venv_from_path — load a venv descriptor from an existing venv ─────────
+
+pub fn venv_from_path(path: String) -> PythonVenv with Pure:
+    var exe = ""
+    if os_is_windows():
+        exe = os_path_join(path, os_path_join("Scripts", "python.exe"))
+    if os_is_windows() == false:
+        exe = os_path_join(path, os_path_join("bin", "python3"))
+    return PythonVenv { path: path, python_exe: exe, active: false }
+
+// ── venv_create — create a new virtual environment ────────────────────────
+//  Runs: python -m venv <path>
+//  Returns VENV_OK on success, VENV_ERR_EXISTS if venv already present,
+//  VENV_ERR_CREATE if the subprocess fails.
+
+pub fn venv_create(path: String, python: String) -> Int with IO:
+    if venv_exists(path):
+        return VENV_ERR_EXISTS
+    let cmd = python + " -m venv " + path
+    let exit_code = os_system(cmd)
+    if exit_code != 0:
+        return VENV_ERR_CREATE
+    return VENV_OK
+
+// ── venv_install — pip install packages into a venv ───────────────────────
+//  Runs: <venv>/bin/pip install <packages...>
+//  Returns the exit code of pip (0 = success).
+
+pub fn venv_install(venv: PythonVenv, packages: Array<String>) -> Int with IO:
+    var pip = os_path_join(venv.path, os_path_join("Scripts", "pip.exe"))
+    if os_is_windows() == false:
+        pip = os_path_join(venv.path, os_path_join("bin", "pip"))
+    // Build the pip install command
+    var pkgs = ""
+    var i: Int = 0
+    while i < len(packages):
+        if i > 0:
+            pkgs = pkgs + " "
+        pkgs = pkgs + packages[i]
+        i = i + 1
+    let cmd = pip + " install " + pkgs
+    let exit_code = os_system(cmd)
+    return exit_code
+
+// ── venv_activate — set KAIN_PYTHON_VENV env var so the C runtime picks it up ─
+
+pub fn venv_activate(venv: PythonVenv) -> Int with IO:
+    let ok = os_setenv("KAIN_PYTHON_VENV", venv.path)
+    if ok:
+        return VENV_OK
+    return VENV_ERR_CREATE
+
+// ── venv_ensure — idempotent: create + install if missing, activate always ─
+//  If the venv doesn't exist, creates it with the system Python.
+//  If packages are provided and the venv was just created, installs them.
+//  Always activates the venv by setting KAIN_PYTHON_VENV.
+//  Returns the populated PythonVenv descriptor.
+
+pub fn venv_ensure(path: String, requirements: Array<String>) -> PythonVenv with IO:
+    if venv_exists(path) == false:
+        var py = "python3"
+        if os_is_windows():
+            py = "python"
+        let rc = venv_create(path, py)
+        // If creation failed (e.g. no system Python), still try to proceed
+        if rc != VENV_OK:
+            var venv = venv_from_path(path)
+            return venv
+        // Install requirements into the freshly created venv
+        if len(requirements) > 0:
+            let _install_rc = venv_install(venv_from_path(path), requirements)
+    var venv = venv_from_path(path)
+    let _activate_rc = venv_activate(venv)
+    return venv
+
+// ── venv_current — read KAIN_PYTHON_VENV env var, return active venv info ─
+
+pub fn venv_current() -> PythonVenv with Pure:
+    let path = os_getenv("KAIN_PYTHON_VENV")
+    var venv = venv_from_path(path)
+    venv.active = true
+    return venv

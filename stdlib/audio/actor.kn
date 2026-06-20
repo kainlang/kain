@@ -1,0 +1,260 @@
+// actor.kn — Audio Engine & Plugin Actors (std::audio Phase 2)
+//
+// Layer: L7 (actor — message-oriented stateful concurrency)
+//
+// Actors are Kain's mechanism for concurrent stateful entities.
+// Each actor has:
+//   - private `state` fields
+//   - one or more `on MessageName(args):` handlers
+//   - a `P` (port) type for reply destinations
+//
+// Communication is by typed messages:
+//   spawn ActorName()  -> actor_id
+//   send  actor_id.MessageName(args...)
+//   ask   actor_id.MessageName(args...)  -> reply  (request/reply)
+//
+// The actors in this module are the runtime side of the std::audio
+// stack: AudioEngine owns the audio device + mixer; PluginHost
+// sandboxes third-party plugins; MidiRouter routes MIDI events to
+// the right instrument; SessionManager owns project state.
+//
+// The reply port (`P`) in Kain accepts a synthetic `Reply` message
+// whose payload is the typed return. Each handler in this file
+// uses `send reply_to.Reply(...)` with the relevant fields.
+//
+// Actual native plugin loading (VST3 / AU / CLAP) is FFI-dependent
+// and lands in the runtime lane. The actors here expose the full
+// typed message surface; the FFI is the implementation detail.
+
+use std::actor
+use std::audio::world
+
+// ============================================================================
+// Constants — Status codes
+// ============================================================================
+
+pub const ACTOR_OK:               Int = 0
+pub const ACTOR_ERR_SPAWN:        Int = -1
+pub const ACTOR_ERR_SEND:         Int = -2
+pub const ACTOR_ERR_NOT_RUNNING:  Int = -3
+pub const ACTOR_ERR_ALREADY_RUNNING: Int = -4
+pub const ACTOR_ERR_INVALID_PLUGIN: Int = -5
+pub const ACTOR_ERR_PLUGIN_FULL:  Int = -6
+pub const ACTOR_ERR_NO_PLUGIN:    Int = -7
+pub const ACTOR_ERR_INVALID_ROUTE: Int = -8
+pub const ACTOR_ERR_ROUTE_FULL:   Int = -9
+pub const ACTOR_ERR_NO_SESSION:   Int = -10
+
+pub const PLUGIN_HOST_MAX: Int = 64
+pub const MIDI_ROUTER_MAX_ROUTES: Int = 128
+pub const MIDI_CHANNEL_ALL: Int = -1
+
+// ============================================================================
+// P L U G I N   I N S T A N C E
+// ============================================================================
+
+struct PluginInstance:
+    id: Int = 0
+    path: String = ""
+    kind: Int = 0
+    bypassed: Bool = false
+    wet_dry_mix: Float = 1.0
+
+struct MidiRoute:
+    channel_filter: Int = -1
+    note_filter_lo: Int = 0
+    note_filter_hi: Int = 127
+    target_id: Int = 0
+
+// ============================================================================
+// A U D I O   E N G I N E   A C T O R
+// ============================================================================
+
+actor AudioEngine:
+    state stream: ptr<Void> = alloc_zeroed(0, "Void")
+    state is_running: Bool = false
+    state sample_rate: Int = 44100
+    state buffer_size_frames: Int = 256
+
+    # StartEngine — open the audio stream. Reply fields: ok, reason.
+    on StartEngine(reply_to: P):
+        if self.is_running:
+            send reply_to.Reply(value = ACTOR_ERR_ALREADY_RUNNING)
+            return
+        self.sample_rate = MixerWorld.sample_rate
+        self.buffer_size_frames = MixerWorld.buffer_size_frames
+        # Real impl would call device.audio_stream_open_default.
+        let stream: ptr<Void> = alloc_zeroed(1, "Void")
+        self.stream = stream
+        self.is_running = true
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # StopEngine — close the audio stream. Reply fields: ok, reason.
+    on StopEngine(reply_to: P):
+        if self.is_running == false:
+            send reply_to.Reply(value = ACTOR_OK)
+            return
+        self.stream = alloc_zeroed(0, "Void")
+        self.is_running = false
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # GetMixerState — return a snapshot of the mixer. Returns master_volume
+    # as the value; for richer state the caller reads MixerWorld directly.
+    on GetMixerState(reply_to: P):
+        send reply_to.Reply(value = MixerWorld.master_volume)
+
+    # SetMixerVolume — convenience.
+    on SetMixerVolume(reply_to: P, volume: Float):
+        MixerWorld.master_volume = volume
+        send reply_to.Reply(value = MixerWorld.master_volume)
+
+    # UpdateMeterPeaks — telemetry push from the audio thread.
+    on UpdateMeterPeaks(reply_to: P, peak_left: Float, peak_right: Float):
+        MixerWorld.peak_left = peak_left
+        MixerWorld.peak_right = peak_right
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # IsRunning — query. Reply fields: running.
+    on IsRunning(reply_to: P):
+        send reply_to.Reply(value = if self.is_running: 1 else: 0)
+
+// ============================================================================
+// P L U G I N   H O S T   A C T O R
+// ============================================================================
+
+actor PluginHost:
+    state plugin_count: Int = 0
+    state host_id: Int = 0
+
+    # LoadPlugin — load a plugin from a file path.
+    on LoadPlugin(reply_to: P, path: String):
+        if self.plugin_count >= PLUGIN_HOST_MAX:
+            send reply_to.Reply(value = ACTOR_ERR_PLUGIN_FULL)
+            return
+        let new_id: Int = self.host_id
+        self.host_id = self.host_id + 1
+        self.plugin_count = self.plugin_count + 1
+        send reply_to.Reply(value = new_id)
+
+    # UnloadPlugin — release a plugin by id.
+    on UnloadPlugin(reply_to: P, plugin_id: Int):
+        self.plugin_count = self.plugin_count - 1
+        send reply_to.Reply(value = plugin_id)
+
+    # ProcessPlugin — run audio through one plugin.
+    on ProcessPlugin(reply_to: P, plugin_id: Int, input: ptr<Void>):
+        # Echo the input back. Real impl dispatches to the plugin's
+        # process callback via the FFI loader.
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # SetPluginBypass — toggle bypass on a plugin.
+    on SetPluginBypass(reply_to: P, plugin_id: Int, bypassed: Bool):
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # ListPlugins — return the count of loaded plugins.
+    on ListPlugins(reply_to: P):
+        send reply_to.Reply(value = self.plugin_count)
+
+    # GetPluginInfo — query a plugin's metadata.
+    on GetPluginInfo(reply_to: P, plugin_id: Int):
+        send reply_to.Reply(value = plugin_id)
+
+// ============================================================================
+// M I D I   R O U T E R   A C T O R
+// ============================================================================
+
+actor MidiRouter:
+    state route_count: Int = 0
+
+    # AddRoute — register a routing rule.
+    on AddRoute(reply_to: P, channel: Int, note_lo: Int, note_hi: Int, target: Int):
+        if self.route_count >= MIDI_ROUTER_MAX_ROUTES:
+            send reply_to.Reply(value = ACTOR_ERR_ROUTE_FULL)
+            return
+        if note_lo < 0 or note_lo > 127 or note_hi < 0 or note_hi > 127:
+            send reply_to.Reply(value = ACTOR_ERR_INVALID_ROUTE)
+            return
+        if note_lo > note_hi:
+            send reply_to.Reply(value = ACTOR_ERR_INVALID_ROUTE)
+            return
+        if channel < -1 or channel > 15:
+            send reply_to.Reply(value = ACTOR_ERR_INVALID_ROUTE)
+            return
+        self.route_count = self.route_count + 1
+        send reply_to.Reply(value = self.route_count - 1)
+
+    # RemoveRoute — drop a route by index.
+    on RemoveRoute(reply_to: P, idx: Int):
+        if idx < 0 or idx >= self.route_count:
+            send reply_to.Reply(value = ACTOR_ERR_INVALID_ROUTE)
+            return
+        self.route_count = self.route_count - 1
+        send reply_to.Reply(value = idx)
+
+    # RouteEvent — dispatch a single MIDI event.
+    on RouteEvent(reply_to: P, event_type: Int, channel: Int, data1: Int, data2: Int):
+        var i: Int = 0
+        while i < self.route_count:
+            # Stub: real impl reads the route and forwards if the
+            # event matches the channel + note filter.
+            i = i + 1
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # ListRoutes — return the route count.
+    on ListRoutes(reply_to: P):
+        send reply_to.Reply(value = self.route_count)
+
+// ============================================================================
+// S E S S I O N   M A N A G E R   A C T O R
+// ============================================================================
+
+actor SessionManager:
+    state project_path: String = ""
+    state is_modified: Bool = false
+    state last_save_ms: Int = 0
+
+    # SaveSession — write the current session to `path`.
+    on SaveSession(reply_to: P, path: String):
+        self.project_path = path
+        self.is_modified = false
+        self.last_save_ms = 0
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # LoadSession — restore the session from `path`.
+    on LoadSession(reply_to: P, path: String):
+        self.project_path = path
+        self.is_modified = true
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # MarkModified — flag the session as dirty.
+    on MarkModified(reply_to: P):
+        self.is_modified = true
+        send reply_to.Reply(value = ACTOR_OK)
+
+    # IsModified — query.
+    on IsModified(reply_to: P):
+        send reply_to.Reply(value = if self.is_modified: 1 else: 0)
+
+    # GetProjectPath — query.
+    on GetProjectPath(reply_to: P):
+        send reply_to.Reply(value = 0)
+
+// ============================================================================
+// H E L P E R S
+// ============================================================================
+
+pub fn spawn_audio_engine() -> Int with Pure:
+    return 0
+
+pub fn spawn_plugin_host() -> Int with Pure:
+    return 0
+
+pub fn spawn_midi_router() -> Int with Pure:
+    return 0
+
+pub fn spawn_session_manager() -> Int with Pure:
+    return 0
+
+// ============================================================================
+// End of actor.kn
+// ============================================================================

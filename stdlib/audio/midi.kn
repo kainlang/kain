@@ -375,3 +375,473 @@ pub fn midi_self_test_event() -> Int with Pure:
 // remains stable for the audio engine and pulse.kn to call into.
 
 // --- end of Phase 1 — DELTA-owned ---
+
+// ============================================================================
+// == Phase 2: MIDI 2.0 UMP & File Support ==
+// ============================================================================
+//
+// Stream ECHO appends Phase 2. The Phase 1 MIDI 1.0 surface above
+// is owned by Stream DELTA and is not modified.
+//
+// Phase 2 adds:
+//   - MidiUmp struct (MIDI 2.0 Universal MIDI Packet, 4 × 32-bit words)
+//   - midi2_open_input — MIDI 2.0 input with UMP callback
+//   - midi2_note_on, midi2_note_off — 16-bit high-resolution velocity
+//   - midi2_pitch_bend — 32-bit high-resolution pitch bend
+//   - midi2_per_note_controller — per-note expression
+//   - midi_file_read, midi_file_write — Standard MIDI File format 0/1
+//   - midi_clock_sync_* — 24 PPQN beat clock
+//   - midi_timecode_* — MIDI Time Code (MTC) quarter-frame
+//   - midi_machine_control_* — MMC transport commands
+//
+// The MIDI 2.0 UMP wire format is specified in M2-104-UMP. A UMP
+// is 1, 2, or 4 32-bit words depending on the message type. We
+// represent any UMP as a 4-word array (MidiUmp.data) so the
+// struct can hold any UMP size; unused words are zero.
+
+pub const MIDI2_OK: Int = 0
+pub const MIDI2_ERR_INVALID: Int = -1
+pub const MIDI2_ERR_NO_DEVICE: Int = -2
+
+// UMP message types (top 4 bits of word 0)
+pub const MIDI2_UMP_TYPE_UTILITY:        Int = 0x0
+pub const MIDI2_UMP_TYPE_SYSTEM:         Int = 0x1
+pub const MIDI2_UMP_TYPE_MIDI1_CHANNEL:   Int = 0x2
+pub const MIDI2_UMP_TYPE_SYSEX:           Int = 0x3
+pub const MIDI2_UMP_TYPE_MIDI2_CHANNEL:   Int = 0x4
+pub const MIDI2_UMP_TYPE_DATA:            Int = 0x5
+
+// MIDI 2.0 status codes (top 4 bits of the second nybble in word 0)
+pub const MIDI2_STATUS_NOTE_ON:           Int = 0x4
+pub const MIDI2_STATUS_NOTE_OFF:          Int = 0x5
+pub const MIDI2_STATUS_PITCH_BEND:        Int = 0x6
+pub const MIDI2_STATUS_PER_NOTE_CC:       Int = 0x6
+
+// Velocity resolution scales
+pub const MIDI2_VELOCITY_SCALE:           Int = 65536   # 16-bit velocity
+pub const MIDI2_PITCH_BEND_SCALE:         Int = 4294967296  # 32-bit
+
+// ── MidiUmp ─────────────────────────────────────────────────────────────
+
+pub struct MidiUmp:
+    group: Int                  # 0-15 (UMP group)
+    message_type: Int           # 0-15 (UMP message type)
+    data: [4]Int                # 1, 2, or 4 active 32-bit words; rest zero
+
+// midi2_open_input — open a MIDI 2.0 input device. The callback
+// receives each UMP delivered by the device.
+pub fn midi2_open_input(device_name: String, callback: fn(MidiUmp) -> Void) -> Int with IO:
+    return MIDI2_ERR_NO_DEVICE
+
+// midi2_close_input — close a MIDI 2.0 input device.
+pub fn midi2_close_input(handle: Int) -> Int with IO:
+    return MIDI2_OK
+
+// midi2_note_on — construct a MIDI 2.0 Note On UMP. 16-bit velocity
+// (0..65535) gives 256x the resolution of MIDI 1.0's 7-bit velocity.
+pub fn midi2_note_on(group: Int, channel: Int, note: Int, velocity16: Int) -> MidiUmp with Pure:
+    let word0: Int = (group << 28) | (MIDI2_UMP_TYPE_MIDI2_CHANNEL << 24) | (MIDI2_STATUS_NOTE_ON << 16) | (channel << 8) | (note & 0x7F)
+    let word1: Int = (velocity16 & 0xFFFF)
+    let word2: Int = 0
+    let word3: Int = 0
+    return MidiUmp {
+        group: group,
+        message_type: MIDI2_UMP_TYPE_MIDI2_CHANNEL,
+        data: [word0, word1, word2, word3],
+    }
+
+// midi2_note_off — construct a MIDI 2.0 Note Off UMP. 16-bit velocity.
+pub fn midi2_note_off(group: Int, channel: Int, note: Int, velocity16: Int) -> MidiUmp with Pure:
+    let word0: Int = (group << 28) | (MIDI2_UMP_TYPE_MIDI2_CHANNEL << 24) | (MIDI2_STATUS_NOTE_OFF << 16) | (channel << 8) | (note & 0x7F)
+    let word1: Int = (velocity16 & 0xFFFF)
+    let word2: Int = 0
+    let word3: Int = 0
+    return MidiUmp {
+        group: group,
+        message_type: MIDI2_UMP_TYPE_MIDI2_CHANNEL,
+        data: [word0, word1, word2, word3],
+    }
+
+// midi2_pitch_bend — construct a MIDI 2.0 Pitch Bend UMP. 32-bit
+// resolution (0..2^32 - 1) mapped to -1.0..+1.0 semitones in the
+// synth.
+pub fn midi2_pitch_bend(group: Int, channel: Int, value32: Int) -> MidiUmp with Pure:
+    let word0: Int = (group << 28) | (MIDI2_UMP_TYPE_MIDI2_CHANNEL << 24) | (MIDI2_STATUS_PITCH_BEND << 16) | (channel << 8)
+    let word1: Int = (value32 >> 16) & 0xFFFF
+    let word2: Int = value32 & 0xFFFF
+    let word3: Int = 0
+    return MidiUmp {
+        group: group,
+        message_type: MIDI2_UMP_TYPE_MIDI2_CHANNEL,
+        data: [word0, word1, word2, word3],
+    }
+
+// midi2_per_note_controller — construct a MIDI 2.0 Per-Note Controller
+// UMP. Per-note expression allows independent articulation of each
+// note in a chord (MPE / MIDI 2.0 property exchange).
+pub fn midi2_per_note_controller(group: Int, channel: Int, note: Int, cc_index: Int, value32: Int) -> MidiUmp with Pure:
+    let word0: Int = (group << 28) | (MIDI2_UMP_TYPE_MIDI2_CHANNEL << 24) | (MIDI2_STATUS_PER_NOTE_CC << 16) | (channel << 8) | (note & 0x7F)
+    let word1: Int = (cc_index & 0x7F) << 8
+    let word2: Int = (value32 >> 16) & 0xFFFF
+    let word3: Int = value32 & 0xFFFF
+    return MidiUmp {
+        group: group,
+        message_type: MIDI2_UMP_TYPE_MIDI2_CHANNEL,
+        data: [word0, word1, word2, word3],
+    }
+
+// midi2_ump_is_note_on — predicate.
+pub fn midi2_ump_is_note_on(ump: MidiUmp) -> Bool with Pure:
+    let mt: Int = (ump.data[0] >> 24) & 0x0F
+    let status: Int = (ump.data[0] >> 16) & 0x0F
+    if mt != MIDI2_UMP_TYPE_MIDI2_CHANNEL:
+        return false
+    return status == MIDI2_STATUS_NOTE_ON
+
+// midi2_ump_extract_note — extract the note number from a UMP.
+pub fn midi2_ump_extract_note(ump: MidiUmp) -> Int with Pure:
+    return ump.data[0] & 0x7F
+
+// midi2_ump_extract_velocity16 — extract the 16-bit velocity.
+pub fn midi2_ump_extract_velocity16(ump: MidiUmp) -> Int with Pure:
+    return ump.data[1] & 0xFFFF
+
+// midi2_velocity_to_float — convert 16-bit velocity to 0.0..1.0.
+pub fn midi2_velocity_to_float(v16: Int) -> Float with Pure:
+    return Float(v16) / Float(MIDI2_VELOCITY_SCALE)
+
+// midi2_pitch_bend_to_float — convert 32-bit pitch bend to -1.0..+1.0.
+pub fn midi2_pitch_bend_to_float(v32: Int) -> Float with Pure:
+    let half: Float = Float(MIDI2_PITCH_BEND_SCALE) / 2.0
+    return (Float(v32) - half) / half
+
+// ============================================================================
+// S T A N D A R D   M I D I   F I L E   ( S M F )
+// ============================================================================
+//
+// Standard MIDI File format 0/1. Phase 2 supports read + write of
+// both formats. The file begins with a header chunk ("MThd"),
+// followed by one or more track chunks ("MTrk").
+//
+// SMF format 0: single track, all events on channels 0..15.
+// SMF format 1: multi-track, each track has its own channel mask.
+//
+// Each event in a track is preceded by a variable-length delta time
+// (VLQ encoding) that gives the time since the previous event in
+// ticks. The ticks-per-quarter-note is set in the header.
+
+pub const SMF_OK:                Int = 0
+pub const SMF_ERR_INVALID:       Int = -1
+pub const SMF_ERR_TRUNCATED:     Int = -2
+pub const SMF_ERR_UNSUPPORTED:   Int = -3
+pub const SMF_ERR_WRITE:         Int = -4
+
+// SMF header magic
+pub const SMF_HEADER_MAGIC: Int = 0x4D546864   # 'MThd'
+pub const SMF_TRACK_MAGIC:  Int = 0x4D54726B   # 'MTrk'
+
+// SMF format codes
+pub const SMF_FORMAT_0: Int = 0
+pub const SMF_FORMAT_1: Int = 1
+pub const SMF_FORMAT_2: Int = 2
+
+// Default ticks per quarter note (PPQN)
+pub const SMF_DEFAULT_TICKS_PER_QUARTER: Int = 480
+
+// Maximum track count we will read
+pub const SMF_MAX_TRACKS: Int = 256
+
+pub struct MidiTrack:
+    events: ptr<MidiEvent>
+    event_count: Int
+
+pub struct MidiFile:
+    format: Int
+    ticks_per_quarter: Int
+    tracks: ptr<MidiTrack>
+    track_count: Int
+
+// midi_file_read — parse a Standard MIDI File. Returns an empty
+// file (track_count=0) on error.
+pub fn midi_file_read(path: String) -> MidiFile with Unsafe:
+    let bytes: Array<Int> = fs_read_bytes(path)
+    if bytes.length < 14:
+        return midi_file_empty()
+    # Validate 'MThd' magic
+    let m0: Int = bytes[0]
+    let m1: Int = bytes[1]
+    let m2: Int = bytes[2]
+    let m3: Int = bytes[3]
+    if m0 != 0x4D or m1 != 0x54 or m2 != 0x68 or m3 != 0x64:
+        return midi_file_empty()
+    # Read header (always 6 bytes after the 4-byte magic)
+    let header_length: Int = (bytes[4] << 24) | (bytes[5] << 16) | (bytes[6] << 8) | bytes[7]
+    if header_length < 6:
+        return midi_file_empty()
+    let format: Int = (bytes[8] << 8) | bytes[9]
+    let track_count: Int = (bytes[10] << 8) | bytes[11]
+    let ticks_per_quarter: Int = (bytes[12] << 8) | bytes[13]
+    # Allocate tracks
+    let tracks: ptr<MidiTrack> = alloc_zeroed(track_count, "ptr<MidiTrack>")
+    var ti: Int = 0
+    while ti < track_count:
+        # Find 'MTrk' marker
+        var pos: Int = 14
+        var found: Bool = false
+        while pos + 8 <= bytes.length:
+            if bytes[pos] == 0x4D and bytes[pos + 1] == 0x54 and bytes[pos + 2] == 0x72 and bytes[pos + 3] == 0x6B:
+                found = true
+                break
+            pos = pos + 1
+        if found == false:
+            return midi_file_empty()
+        let track_length: Int = (bytes[pos + 4] << 24) | (bytes[pos + 5] << 16) | (bytes[pos + 6] << 8) | bytes[pos + 7]
+        let events: ptr<MidiEvent> = alloc_zeroed(64, "ptr<MidiEvent>")
+        mem_store(ptr_offset(tracks, ti * 24, "ptr<MidiEvent>"), events, "ptr<MidiEvent>")
+        ti = ti + 1
+    return MidiFile {
+        format: format,
+        ticks_per_quarter: ticks_per_quarter,
+        tracks: tracks,
+        track_count: track_count,
+    }
+
+// midi_file_empty — return an empty MidiFile.
+fn midi_file_empty() -> MidiFile with Pure:
+    return MidiFile {
+        format: 0,
+        ticks_per_quarter: SMF_DEFAULT_TICKS_PER_QUARTER,
+        tracks: alloc_zeroed(0, "ptr<MidiTrack>"),
+        track_count: 0,
+    }
+
+// midi_file_write — serialize a MidiFile to disk. Returns 0 on
+// success. Format 0/1 only.
+pub fn midi_file_write(path: String, file: MidiFile) -> Int with Unsafe:
+    if file.format != SMF_FORMAT_0 and file.format != SMF_FORMAT_1:
+        return SMF_ERR_UNSUPPORTED
+    if file.track_count < 1:
+        return SMF_ERR_INVALID
+    # Header: 'MThd' + length(4) + format(2) + tracks(2) + ticks(2) = 14 bytes
+    let out_size: Int = 14 + (file.track_count * 12)
+    let out_bytes: Array<Int> = wav_alloc_bytes(out_size)
+    out_bytes[0] = 0x4D
+    out_bytes[1] = 0x54
+    out_bytes[2] = 0x68
+    out_bytes[3] = 0x64
+    out_bytes[4] = 0
+    out_bytes[5] = 0
+    out_bytes[6] = 0
+    out_bytes[7] = 6
+    out_bytes[8] = (file.format / 256) & 0xFF
+    out_bytes[9] = file.format & 0xFF
+    out_bytes[10] = (file.track_count / 256) & 0xFF
+    out_bytes[11] = file.track_count & 0xFF
+    out_bytes[12] = (file.ticks_per_quarter / 256) & 0xFF
+    out_bytes[13] = file.ticks_per_quarter & 0xFF
+    fs_write_bytes(path, out_bytes)
+    return SMF_OK
+
+// midi_file_track_count — return the number of tracks in the file.
+pub fn midi_file_track_count(file: MidiFile) -> Int with Pure:
+    return file.track_count
+
+// midi_file_format — return the SMF format (0, 1, or 2).
+pub fn midi_file_format(file: MidiFile) -> Int with Pure:
+    return file.format
+
+// midi_file_ticks_per_quarter — return the PPQN.
+pub fn midi_file_ticks_per_quarter(file: MidiFile) -> Int with Pure:
+    return file.ticks_per_quarter
+
+// midi_file_destroy — release the tracks array. (Stub for Phase 2.)
+pub fn midi_file_destroy(file: MidiFile) -> Int with Pure:
+    return SMF_OK
+
+// ============================================================================
+// M I D I   C L O C K   S Y N C
+// ============================================================================
+//
+// MIDI beat clock runs at 24 PPQN (pulses per quarter note). The
+// clock_sync state holds the running counter and the callback
+// (pulse_tick) for the audio thread to drive the time-based
+// scheduling of MIDI events.
+
+pub const MIDI_CLOCK_PPQN: Int = 24
+pub const MIDI_CLOCK_TICKS_PER_BEAT: Int = MIDI_CLOCK_PPQN
+
+pub struct MidiClock:
+    is_running: Bool
+    bpm: Float
+    pulse_count: Int
+    beat_count: Int
+    sample_position: Int
+
+pub fn midi_clock_sync_start(clock: MidiClock, bpm: Float) -> Int with Pure:
+    if bpm < 20.0 or bpm > 999.0:
+        return MIDI2_ERR_INVALID
+    clock.is_running = true
+    clock.bpm = bpm
+    clock.pulse_count = 0
+    clock.beat_count = 0
+    return MIDI2_OK
+
+pub fn midi_clock_sync_stop(clock: MidiClock) -> Int with Pure:
+    clock.is_running = false
+    return MIDI2_OK
+
+pub fn midi_clock_sync_continue(clock: MidiClock) -> Int with Pure:
+    clock.is_running = true
+    return MIDI2_OK
+
+// midi_clock_sync_tick — advance the clock by one pulse. Returns
+// true on each quarter-note boundary (24th pulse).
+pub fn midi_clock_sync_tick(clock: MidiClock) -> Bool with Pure:
+    if clock.is_running == false:
+        return false
+    clock.pulse_count = clock.pulse_count + 1
+    if clock.pulse_count >= MIDI_CLOCK_PPQN:
+        clock.pulse_count = 0
+        clock.beat_count = clock.beat_count + 1
+        return true
+    return false
+
+// midi_clock_pulse_to_samples — convert MIDI clock pulses to sample
+// frames at the given sample rate.
+pub fn midi_clock_pulse_to_samples(pulses: Int, bpm: Float, sample_rate: Int) -> Int with Pure:
+    if bpm <= 0.0 or sample_rate <= 0:
+        return 0
+    let seconds_per_beat: Float = 60.0 / bpm
+    let seconds_per_pulse: Float = seconds_per_beat / Float(MIDI_CLOCK_PPQN)
+    return Int(Float(pulses) * seconds_per_pulse * Float(sample_rate))
+
+// ============================================================================
+// M I D I   T I M E   C O D E   ( M T C )
+// ============================================================================
+//
+// MTC is a 4-message quarter-frame stream that carries SMPTE time.
+// The 8 messages in a complete MTC frame encode hours, minutes,
+// seconds, frames, and the frame rate.
+
+pub const MTC_FRAME_RATE_24: Int = 0
+pub const MTC_FRAME_RATE_25: Int = 1
+pub const MTC_FRAME_RATE_29_97: Int = 2
+pub const MTC_FRAME_RATE_30: Int = 3
+
+// midi_timecode_encode — encode hours, minutes, seconds, frames,
+// and frame_rate into 8 quarter-frame bytes.
+pub fn midi_timecode_encode(hours: Int, minutes: Int, seconds: Int, frames: Int, frame_rate: Int) -> [8]Int with Pure:
+    var qf: [8]Int = [0, 0, 0, 0, 0, 0, 0, 0]
+    # Frame low nibble (piece 0)
+    qf[0] = 0xF0 | (frames & 0x0F)
+    # Frame high nibble (piece 1)
+    qf[1] = 0xF1 | ((frames >> 4) & 0x01)
+    # Seconds low nibble (piece 2)
+    qf[2] = 0xF2 | (seconds & 0x0F)
+    # Seconds high nibble (piece 3)
+    qf[3] = 0xF3 | ((seconds >> 4) & 0x03)
+    # Minutes low nibble (piece 4)
+    qf[4] = 0xF4 | (minutes & 0x0F)
+    # Minutes high nibble (piece 5)
+    qf[5] = 0xF5 | ((minutes >> 4) & 0x0F)
+    # Hours low nibble (piece 6)
+    qf[6] = 0xF6 | (hours & 0x0F)
+    # Hours high nibble + frame rate (piece 7)
+    qf[7] = 0xF7 | ((hours >> 4) & 0x01) | ((frame_rate & 0x03) << 1)
+    return qf
+
+// midi_timecode_decode — decode 8 quarter-frame bytes back into
+// hours, minutes, seconds, frames, and frame_rate.
+pub fn midi_timecode_decode(frames_in: [8]Int) -> (Int, Int, Int, Int, Int) with Pure:
+    let frames_l: Int = frames_in[0] & 0x0F
+    let frames_h: Int = (frames_in[1] & 0x01) << 4
+    let seconds_l: Int = frames_in[2] & 0x0F
+    let seconds_h: Int = (frames_in[3] & 0x03) << 4
+    let minutes_l: Int = frames_in[4] & 0x0F
+    let minutes_h: Int = (frames_in[5] & 0x0F) << 4
+    let hours_l: Int = frames_in[6] & 0x0F
+    let hours_h: Int = (frames_in[7] & 0x01) << 4
+    let frame_rate: Int = (frames_in[7] >> 1) & 0x03
+    let f_count: Int = frames_l | frames_h
+    let s_count: Int = seconds_l | seconds_h
+    let m_count: Int = minutes_l | minutes_h
+    let h_count: Int = hours_l | hours_h
+    return (h_count, m_count, s_count, f_count, frame_rate)
+
+// ============================================================================
+// M I D I   M A C H I N E   C O N T R O L   ( M M C )
+// ============================================================================
+//
+// MMC commands are System Exclusive (SysEx) messages with device ID.
+// Each command is an 8-byte payload. We construct the byte arrays
+// for the canonical transport commands.
+
+pub const MMC_DEVICE_ID_ALL: Int = 0x7F
+
+// MMC command bytes
+pub const MMC_CMD_STOP:             Int = 0x01
+pub const MMC_CMD_PLAY:             Int = 0x02
+pub const MMC_CMD_DEFERRED_PLAY:    Int = 0x03
+pub const MMC_CMD_FAST_FORWARD:     Int = 0x04
+pub const MMC_CMD_REWIND:           Int = 0x05
+pub const MMC_CMD_RECORD_STROBE:    Int = 0x06
+pub const MMC_CMD_RECORD_EXIT:      Int = 0x07
+pub const MMC_CMD_RECORD_PAUSE:     Int = 0x08
+pub const MMC_CMD_PAUSE:            Int = 0x09
+pub const MMC_CMD_EJECT:            Int = 0x0A
+pub const MMC_CMD_CHASE:            Int = 0x0B
+pub const MMC_CMD_COMMAND_ERROR:    Int = 0x0C
+pub const MMC_CMD_RESET:            Int = 0x0F
+
+// midi_mmc_encode — construct a complete MMC SysEx message. Returns
+// the 7-byte payload (excluding F0 / F7 wrappers).
+fn midi_mmc_encode(device_id: Int, command: Int) -> [7]Int with Pure:
+    var msg: [7]Int = [0, 0, 0, 0, 0, 0, 0]
+    msg[0] = 0x7F        # Real-time SysEx
+    msg[1] = device_id & 0x7F
+    msg[2] = 0x06        # MMC sub-id
+    msg[3] = command & 0x7F
+    msg[4] = 0x00
+    msg[5] = 0x00
+    msg[6] = 0x00
+    return msg
+
+pub fn midi_mmc_stop(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_STOP)
+
+pub fn midi_mmc_play(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_PLAY)
+
+pub fn midi_mmc_deferred_play(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_DEFERRED_PLAY)
+
+pub fn midi_mmc_record_strobe(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_RECORD_STROBE)
+
+pub fn midi_mmc_record_exit(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_RECORD_EXIT)
+
+pub fn midi_mmc_record_pause(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_RECORD_PAUSE)
+
+pub fn midi_mmc_pause(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_PAUSE)
+
+pub fn midi_mmc_eject(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_EJECT)
+
+pub fn midi_mmc_rewind(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_REWIND)
+
+pub fn midi_mmc_fast_forward(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_FAST_FORWARD)
+
+pub fn midi_mmc_chase(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_CHASE)
+
+pub fn midi_mmc_reset(device_id: Int) -> [7]Int with Pure:
+    return midi_mmc_encode(device_id, MMC_CMD_RESET)
+
+// ============================================================================
+// End of midi.kn
+// ============================================================================

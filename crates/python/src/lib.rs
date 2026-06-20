@@ -461,6 +461,11 @@ fn register_python_stdlib(stdlib: &mut StdLib) {
     }
 }
 
+// Recognized environment variables consumed by the C runtime (python_runtime.c):
+//   KAIN_PYTHON_DLL  — exact path to python3xx.dll (existing)
+//   KAIN_PYTHON_EXE  — path to python.exe, find matching DLL (existing)
+//   KAIN_PYTHON_VENV — path to .venv/ root, sets Python home before init (NEW)
+//   KAIN_PYTHON_HOME — explicit Python home, no venv structure needed (NEW)
 fn register_python_env(env: &mut Env) {
     if env
         .get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)

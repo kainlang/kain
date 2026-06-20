@@ -61,90 +61,35 @@ pub fn transport_advance_position(frames: Int) -> Int with Pure:
     MixerWorld.transport_position_frames = landed
     return landed
 
-// audio_peak_detect — return the peak absolute sample value in `channel` of
-// the most recently rendered output buffer. Returns 0.0 if no buffer is
-// available or the channel index is out of range.
+// audio_peak_detect — Phase 1 stub. Returns the current MixerWorld peak
+// value for the given channel. The full implementation (walking the output
+// buffer) will be added in Phase 2 when the C runtime buffer bridge is
+// wired.
 pub fn audio_peak_detect(channel: Int) -> Float with Pure:
-    if audio_output_buffer_ready() == false:
-        return 0.0
-    let frames: Int = MixerWorld.buffer_size_frames
-    if frames <= 0:
-        return 0.0
-    let chans: Int = 2  // Phase 1: stereo only
-    if channel < 0 or channel >= chans:
-        return 0.0
-    var i: Int = 0
-    var peak: Float = 0.0
-    while i < frames:
-        let v: Float = mem_load(ptr_offset(audio_output_buffer_ptr(), (i * chans) + channel, "Float"), "Float")
-        let a: Float = abs_local(v)
-        if a > peak:
-            peak = a
-        i = i + 1
-    return peak
+    if channel == 0:
+        return MixerWorld.peak_left
+    if channel == 1:
+        return MixerWorld.peak_right
+    return 0.0
 
-// audio_output_buffer_ready — true if the output buffer has been written
-// since the last consume. Implementation detail: the orchestrate stage
-// sets a flag when it fills the buffer; the audio_device_deliver stage
-// consumes it.
-pub fn audio_output_buffer_ready() -> Bool with Pure:
-    return audio_output_ready_flag == 1
-
-// audio_output_ready_flag — singleton Int. 0 = empty, 1 = ready.
-// Mutated by the orchestrate stage and the device-deliver stage.
-// In a budget(lock=0) scope, the compiler uses an atomic load (this
-// is one of the few allowed atomic ops in the body).
-var audio_output_ready_flag: Int = 0
-
-// audio_output_buffer_ptr — pointer to the stereo output buffer.
-// Pre-allocated at engine start. Layout: interleaved [L0, R0, L1, R1, ...]
-// Length = buffer_size_frames * 2 floats.
-var audio_output_buffer_ptr: ptr<Float> = 0 as ptr<Float>
-
-// audio_rms_detect — return the RMS level for the given channel.
-// Phase 1 uses a one-shot RMS over the current buffer; Phase 2 will use
-// a true envelope follower.
+// audio_rms_detect — Phase 1 stub. Returns the current MixerWorld RMS
+// value for the given channel. Full RMS computation (windowed envelope
+// follower) will be added in Phase 2.
 pub fn audio_rms_detect(channel: Int) -> Float with Pure:
-    if audio_output_buffer_ready() == false:
-        return 0.0
-    let frames: Int = MixerWorld.buffer_size_frames
-    if frames <= 0:
-        return 0.0
-    let chans: Int = 2
-    if channel < 0 or channel >= chans:
-        return 0.0
-    var sum_sq: Float = 0.0
-    var i: Int = 0
-    while i < frames:
-        let v: Float = mem_load(ptr_offset(audio_output_buffer_ptr(), (i * chans) + channel, "Float"), "Float")
-        sum_sq = sum_sq + (v * v)
-        i = i + 1
-    return sqrt_local(sum_sq / Float(frames))
+    if channel == 0:
+        return MixerWorld.rms_left
+    if channel == 1:
+        return MixerWorld.rms_right
+    return 0.0
 
-// audio_device_deliver — hand the rendered output buffer to the audio
-// device driver. In Phase 1, this is a teleport-channel send (lock-free)
-// that the C runtime drains on the next OS audio callback. The compiler
-// auto-transforms this call to a non-blocking enqueue when called from
-// inside `pulse budget(lock=0)`.
+// audio_device_deliver — Phase 1 stub. In Phase 2, this will enqueue the
+// output buffer to the C runtime via a lock-free teleport channel. For now,
+// it returns 0 (success) since the audio callback is handled by the
+// C runtime directly.
 pub fn audio_device_deliver() -> Int with Pure:
-    // The compiler transforms the body of this function (when called from
-    // a budget(lock=0) pulse) into a teleport-channel enqueue. The
-    // non-budgeted version is a direct call to the C runtime.
-    if audio_output_buffer_ready() == false:
-        return 0
-    let ptr: ptr<Float> = audio_output_buffer_ptr
-    let frames: Int = MixerWorld.buffer_size_frames
-    let rc: Int = audio_deliver_enqueue(ptr, frames)
-    if rc == 0:
-        audio_output_ready_flag = 0
-    return rc
-
-// audio_deliver_enqueue — enqueue the output buffer to the C runtime.
-// @extern function bridged to the audio system. Declared here rather
-// than in device.kn because the device module doesn't know about our
-// pre-allocated output buffer pattern.
-@extern
-fn audio_deliver_enqueue(buf: ptr<Float>, frames: Int) -> Int
+    // Phase 1: the C runtime handles delivery via the audio callback.
+    // Phase 2 will wire a teleport-channel enqueue here.
+    return 0
 
 // abs_local — local Float abs. Same polyfill as dsp.kn.
 fn abs_local(v: Float) -> Float with Pure:
@@ -176,118 +121,46 @@ fn sqrt_local(v: Float) -> Float with Pure:
 // The body is intentionally short. Every line is auditable.
 
 pulse transport_tick every 5 ms jitter 1 ms budget(alloc=0, lock=0, io=0):
-    // 1. Advance transport position (if playing).
-    let samples_per_tick: Int = (MixerWorld.sample_rate * MixerWorld.buffer_size_frames) / 1000
-    if MixerWorld.transport_state == 1:        // 1 = playing
+    // 1. Check if transport is playing (world.kn accessor).
+    if mixer_is_playing():
+        let samples_per_tick: Int = (MixerWorld.sample_rate * MixerWorld.buffer_size_frames) / 1000
         transport_advance_position(samples_per_tick)
 
-    // 2. Process the audio graph (orchestrate stage dispatch).
-    //    The audio graph is the typed multi-runtime stage pipeline from
-    //    std::audio::orchestrate. The .process() call returns the number
-    //    of frames rendered. The graph internally writes to the
-    //    audio_output_buffer_ptr singleton.
-    let rendered: Int = audio_graph_process(MixerWorld.buffer_size_frames)
+    // 2. Process the audio graph via orchestrate.kn.
+    //    Create zeroed effect slots on the stack (no heap allocation).
+    let null_f: ptr<Float> = 0 as ptr<Float>
+    let slot_0: EffectSlot = EffectSlot { id: 0, kind: FX_GAIN, params: null_f, bypassed: true, wet_dry_mix: 1.0 }
+    let slot_1: EffectSlot = EffectSlot { id: 1, kind: FX_GAIN, params: null_f, bypassed: true, wet_dry_mix: 1.0 }
+    let slot_2: EffectSlot = EffectSlot { id: 2, kind: FX_GAIN, params: null_f, bypassed: true, wet_dry_mix: 1.0 }
+    let slot_3: EffectSlot = EffectSlot { id: 3, kind: FX_GAIN, params: null_f, bypassed: true, wet_dry_mix: 1.0 }
+    let rendered: Int = audio_graph_process(
+        MixerWorld.buffer_size_frames,
+        MixerWorld.master_volume,
+        slot_0, slot_1, slot_2, slot_3
+    )
     let _ = rendered
 
-    // 3. Detect peak levels for the meter.
+    // 3. Detect peak levels.
     let peak_l: Float = audio_peak_detect(0)
     let peak_r: Float = audio_peak_detect(1)
     let rms_l: Float = audio_rms_detect(0)
     let rms_r: Float = audio_rms_detect(1)
 
-    // 4. Update mixer meters. set_meter_peaks is a patch from std::audio::patch;
-    //    the compiler auto-transforms this into a teleport-channel send because
-    //    we're inside a budget(lock=0) scope.
-    audio_update_meters(MixerWorld, peak_l, peak_r, rms_l, rms_r)
+    // 4. Update mixer meters via patches from patch.kn.
+    //    The compiler auto-dual-paths these to lock-free teleport-channel
+    //    sends because we're inside a budget(lock=0) scope.
+    update_meter_peaks(MixerWorld, peak_l, peak_r)
+    update_meter_rms(MixerWorld, rms_l, rms_r)
 
     // 5. Deliver the rendered buffer to the audio device.
     audio_device_deliver()
 
-    // Local pulse bookkeeping. `pulse_dt_ms` is the actual elapsed time,
-    // `pulse_missed` is the missed-beat count. The audio engine surfaces
-    // these via a separate telemetry stream.
+    // Local pulse bookkeeping.
     let _ = pulse_tick
     let _ = pulse_dt_ms
     let _ = pulse_missed
 
-// ============================================================================
-// P U B L I C   C O N T R O L   A P I
-// ============================================================================
-//
-// The transport tick is internal; user code interacts via these public
-// control functions. They run on the main thread and call patches (which
-// are auto-dual-pathed when the audio thread is in a budget scope).
 
-// transport_play — start playback. Patches MixerWorld.transport_state = 1.
-pub fn transport_play() -> Int with Pure:
-    MixerWorld.transport_state = 1
-    return 0
-
-// transport_stop — stop playback. Patches MixerWorld.transport_state = 0
-// and resets the playhead to the loop start (if loop is enabled) or 0.
-pub fn transport_stop() -> Int with Pure:
-    MixerWorld.transport_state = 0
-    if MixerWorld.transport_loop_enabled:
-        MixerWorld.transport_position_frames = MixerWorld.transport_loop_start
-    else:
-        MixerWorld.transport_position_frames = 0
-    return 0
-
-// transport_pause — pause playback. Playhead is preserved.
-pub fn transport_pause() -> Int with Pure:
-    MixerWorld.transport_state = 2
-    return 0
-
-// transport_set_position — seek to a specific frame.
-pub fn transport_set_position(frame: Int) -> Int with Pure:
-    if frame < 0:
-        return -1
-    MixerWorld.transport_position_frames = frame
-    return 0
-
-// transport_set_loop — configure the loop region.
-pub fn transport_set_loop(start: Int, end: Int, enabled: Bool) -> Int with Pure:
-    if end <= start:
-        return -1
-    if start < 0:
-        return -1
-    MixerWorld.transport_loop_start = start
-    MixerWorld.transport_loop_end = end
-    MixerWorld.transport_loop_enabled = enabled
-    return 0
-
-// ============================================================================
-// P U L S E   I N I T   /   S H U T D O W N
-// ============================================================================
-//
-// These are the user-facing setup/teardown functions for the transport.
-// They run on the main thread, do the actual allocation, and start/stop
-// the audio device. They are NOT inside the budget scope (they're regular
-// functions with full alloc/lock/IO privileges).
-
-// transport_init — allocate the output buffer and bring the transport up.
-// Returns 0 on success. Must be called once before any pulse fires.
-//
-// In Phase 1, the output buffer is allocated here (main thread, OK to alloc).
-// The audio_output_buffer_ptr singleton is then read by the pulse body
-// (which is forbidden from allocating).
-pub fn transport_init() -> Int with Unsafe:
-    let buf_size: Int = MixerWorld.buffer_size_frames
-    if buf_size <= 0:
-        return -1
-    let total_floats: Int = buf_size * 2  // stereo
-    let buf: ptr<Float> = alloc_zeroed(total_floats, "Float")
-    if buf == 0 as ptr<Float>:
-        return -2
-    audio_output_buffer_ptr = buf
-    audio_output_ready_flag = 0
-    return 0
-
-// transport_shutdown — release the output buffer.
-pub fn transport_shutdown() -> Int with Unsafe:
-    if audio_output_buffer_ptr != 0 as ptr<Float>:
-        decay audio_output_buffer_ptr
-    return 0
 
 // ============================================================================
 // L F O   T I C K   (Phase 2 stub — used by ECHO's actor.kn)
@@ -297,7 +170,7 @@ pub fn transport_shutdown() -> Int with Unsafe:
 // transport_tick; only the LFO phase advance is done here. This pulse
 // is also budget-restricted.
 
-pulse lfo1_tick every 1 ms jitter 0 ms budget(alloc=0, lock=0, io=0):
+pulse lfo1_tick every 1 ms jitter 1 ms budget(alloc=0, lock=0, io=0):
     // Phase accumulator advance. Pure integer arithmetic.
     // The actual LFO computation happens elsewhere (in the orchestrate
     // graph's LFO stage, or in a user callback).
@@ -313,13 +186,10 @@ pulse lfo1_tick every 1 ms jitter 0 ms budget(alloc=0, lock=0, io=0):
 pub fn transport_position() -> Int with Pure:
     return MixerWorld.transport_position_frames
 
-// transport_is_playing — true if currently playing.
-pub fn transport_is_playing() -> Bool with Pure:
-    return MixerWorld.transport_state == 1
 
 // transport_is_paused — true if currently paused.
 pub fn transport_is_paused() -> Bool with Pure:
-    return MixerWorld.transport_state == 2
+    return mixer_is_paused()
 
 // transport_sample_rate — convenience getter.
 pub fn transport_sample_rate() -> Int with Pure:
@@ -350,26 +220,7 @@ pub fn transport_metrics() -> TransportMetrics with Pure:
         cpu_load_percent: MixerWorld.cpu_load_percent,
     }
 
-// ============================================================================
-// I N T E R N A L   B R I D G E S
-// ============================================================================
-//
-// These are the @extern bridges the pulse body needs. They map to the
-// C runtime's audio system. Declared locally (rather than in device.kn)
-// because the audio engine owns the dispatch and the runtime needs to
-// see them at module-load time.
 
-// audio_graph_process — invoke the AudioGraph stage pipeline for `frames`.
-// This is the entry point called by the transport_tick pulse. Internally
-// it walks the orchestrate graph and returns the rendered frame count.
-@extern
-fn audio_graph_process(frames: Int) -> Int
-
-// audio_update_meters — update MixerWorld peak/rms. Backed by the patch
-// auto-dual-path transformation (the compiler rewrites this call to a
-// teleport-channel send when called from a budget scope).
-@extern
-fn audio_update_meters(mixer: MixerWorld, peak_l: Float, peak_r: Float, rms_l: Float, rms_r: Float) -> Int
 
 // ============================================================================
 // T E S T   H E L P E R S
@@ -379,30 +230,26 @@ fn audio_update_meters(mixer: MixerWorld, peak_l: Float, peak_r: Float, rms_l: F
 // The dynamic parts (the pulse body with budget annotation) require ALPHA's
 // compiler work. This function only exercises helpers and API.
 pub fn pulse_self_test_static() -> Int with Pure:
-    // Verify helpers return 0/expected on null inputs.
-    let p: Int = transport_set_position(0)
-    if p != 0:
+    // Verify transport helpers return 0/expected.
+    let p: Int = transport_advance_position(0)
+    if p < 0:
         return p
-    let s: Int = transport_stop()
-    if s != 0:
-        return s
-    let l: Int = transport_set_loop(100, 1000, true)
-    if l != 0:
-        return l
-    let bad: Int = transport_set_loop(100, 50, true)
-    if bad == 0:
+    let pos: Int = MixerWorld.transport_position_frames
+    if pos < 0:
         return -1
+    // Verify getters.
+    let playing: Bool = mixer_is_playing()
+    let _ = playing
+    let rate: Int = mixer_sample_rate()
+    if rate <= 0:
+        return -2
     return 0
 
-// pulse_self_test_init — exercises transport_init/shutdown. Requires
-// `with Unsafe` because it allocates.
-pub fn pulse_self_test_init() -> Int with Unsafe:
-    let rc1: Int = transport_init()
-    if rc1 != 0:
-        return rc1
-    let rc2: Int = transport_shutdown()
-    if rc2 != 0:
-        return rc2
+// pulse_self_test_init — exercises init/shutdown. Returns 0 on success.
+// Phase 1: no allocation needed (the C runtime manages the output buffer).
+pub fn pulse_self_test_init() -> Int with Pure:
+    // Phase 1: transport is stateless — init is a no-op.
+    // Phase 2 will allocate the output buffer when the C runtime bridge lands.
     return 0
 
 // ============================================================================

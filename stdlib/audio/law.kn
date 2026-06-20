@@ -1,0 +1,211 @@
+// law.kn — Audio Invariant Predicates (std::audio Phase 1)
+//
+// Layer: L2 (law — compiler-witnessed invariant predicates)
+//
+// Laws are compile-time-witnessed predicates that the compiler can check
+// when verifying patches. Every `patch` that mutates a parameter covered
+// by a law will trigger the law check. Laws can be queried at runtime via
+// `law_status()` (see std::intent). They are the audio world's analog of
+// Rust's debug_assert!/const-eval checks — but the compiler can prove
+// them statically when called inside a patch body.
+//
+// Law naming convention: `<subject>_<property>`. Returns Bool. All laws
+// are `with Pure` (no side effects, no allocations).
+
+use std::memory
+
+// ============================================================================
+// Constants — Law Validation Tables
+// ============================================================================
+
+// Supported sample rates (matches Phase 1 device driver negotiation)
+pub const SR_44100:    Int = 44100
+pub const SR_48000:    Int = 48000
+pub const SR_88200:    Int = 88200
+pub const SR_96000:    Int = 96000
+pub const SR_176400:   Int = 176400
+pub const SR_192000:   Int = 192000
+
+// Buffer size bounds (matches WASAPI / CoreAudio / ALSA ranges)
+pub const BUFFER_MIN_FRAMES: Int = 16
+pub const BUFFER_MAX_FRAMES: Int = 8192
+
+// Tempo bounds (BPM)
+pub const TEMPO_MIN_BPM: Float = 20.0
+pub const TEMPO_MAX_BPM: Float = 999.0
+
+// Volume bounds (linear gain)
+pub const VOLUME_MIN: Float = 0.0
+pub const VOLUME_MAX: Float = 1.0
+
+// Channel count bounds
+pub const CHANNELS_MIN: Int = 1
+pub const CHANNELS_MAX: Int = 128
+
+// SSE / AVX alignment requirement
+pub const BUFFER_ALIGN_MASK: Int = 15
+
+// Detected-NaN upper threshold (anything past this in absolute value is
+// treated as Inf / corrupted sample). 1e15 is well above the largest
+// legal float sample and well below the float32 Inf range.
+pub const NAN_DETECT_THRESHOLD: Float = 1000000000000000.0
+
+// ============================================================================
+// B O U N D S   L A W S
+// ============================================================================
+
+// volume_in_bounds — 0.0 to 1.0 linear gain.
+pub law volume_in_bounds(vol: Float) -> Bool:
+    return vol >= VOLUME_MIN and vol <= VOLUME_MAX
+
+// sample_rate_valid — 44100, 48000, 88200, 96000, 176400, 192000.
+pub law sample_rate_valid(rate: Int) -> Bool:
+    return rate == SR_44100 or rate == SR_48000 or rate == SR_88200 or rate == SR_96000 or rate == SR_176400 or rate == SR_192000
+
+// buffer_size_valid — power of two, in [16, 8192].
+pub law buffer_size_valid(frames: Int) -> Bool:
+    let lower_ok: Bool = frames >= BUFFER_MIN_FRAMES
+    let upper_ok: Bool = frames <= BUFFER_MAX_FRAMES
+    let pow2: Bool = (frames & (frames - 1)) == 0
+    return lower_ok and upper_ok and pow2
+
+// tempo_in_bounds — 20.0 to 999.0 BPM.
+pub law tempo_in_bounds(bpm: Float) -> Bool:
+    return bpm >= TEMPO_MIN_BPM and bpm <= TEMPO_MAX_BPM
+
+// channels_valid — 1 to 128 channels (mono up through ambisonics).
+pub law channels_valid(ch: Int) -> Bool:
+    return ch >= CHANNELS_MIN and ch <= CHANNELS_MAX
+
+// ============================================================================
+// A L I G N M E N T   L A W S
+// ============================================================================
+
+// buffer_alignment_ok — data pointer is 16-byte aligned (SSE requirement).
+pub law buffer_alignment_ok(data: ptr<Float>) -> Bool:
+    return (ptr_to_int(data) & BUFFER_ALIGN_MASK) == 0
+
+// ring_buffer_power_of_two — capacity must be a power of two for cheap
+// modulo (the ring buffer uses (idx & (cap-1)) instead of (idx % cap)).
+pub law ring_buffer_power_of_two(cap: Int) -> Bool:
+    return cap > 0 and (cap & (cap - 1)) == 0
+
+// ============================================================================
+// D S P   S A F E T Y   L A W S
+// ============================================================================
+
+// no_nan_in_buffer — no NaN or Inf values in the buffer's first channel.
+// Catches feedback explosions and uninitialized memory. O(n) over frames.
+pub law no_nan_in_buffer(frames: Int, data: ptr<Float>, channels: Int) -> Bool:
+    if data == ptr_offset(data, 0, "Float") and frames > 0 and ptr_to_int(data) == 0:
+        return false
+    var i: Int = 0
+    let total: Int = frames * channels
+    while i < total:
+        let v: Float = mem_load(ptr_offset(data, i, "Float"), "Float")
+        # NaN check: v != v
+        # Inf check: abs(v) > 1e30
+        if v != v:
+            return false
+        if v > NAN_DETECT_THRESHOLD:
+            return false
+        if v < -NAN_DETECT_THRESHOLD:
+            return false
+        i = i + 1
+    return true
+
+// sample_in_bounds — single sample in [-1.0, 1.0] (normalized float range).
+pub law sample_in_bounds(v: Float) -> Bool:
+    return v >= -1.0 and v <= 1.0 and v == v
+
+// gain_in_bounds — gain coefficient (can exceed 1.0 for makeup gain).
+pub law gain_in_bounds(g: Float) -> Bool:
+    return g >= 0.0 and g <= 64.0 and g == g
+
+// ============================================================================
+// T I M I N G   L A W S
+// ============================================================================
+
+// transport_position_valid — position in [0, total_frames).
+pub law transport_position_valid(pos: Int, total: Int) -> Bool:
+    return pos >= 0 and pos < total
+
+// loop_region_valid — start >= 0 and end > start.
+pub law loop_region_valid(start: Int, end: Int) -> Bool:
+    return start >= 0 and end > start
+
+// time_signature_valid — num in [1..32], den in {1, 2, 4, 8, 16, 32}.
+pub law time_signature_valid(num: Int, den: Int) -> Bool:
+    let num_ok: Bool = num >= 1 and num <= 32
+    let den_ok: Bool = den == 1 or den == 2 or den == 4 or den == 8 or den == 16 or den == 32
+    return num_ok and den_ok
+
+// ============================================================================
+// F O R M A T   L A W S
+// ============================================================================
+
+// bit_depth_valid — supported WAV bit depths.
+pub law bit_depth_valid(depth: Int) -> Bool:
+    return depth == 8 or depth == 16 or depth == 24 or depth == 32
+
+// sample_format_valid — 0..3 (F32, S16, S24, S32 encoded as Int).
+pub law sample_format_valid(fmt: Int) -> Bool:
+    return fmt == 0 or fmt == 1 or fmt == 2 or fmt == 3
+
+// ============================================================================
+// L A W   I N V E N T O R Y   — cross-reference anchor
+// ============================================================================
+//
+// patch.kn invokes most of these laws. This function exists so that the
+// static analyzer does not flag any law as "unreferenced" when law.kn
+// is typechecked in isolation (the analyzer does not currently track
+// cross-file usage). The function is `with Pure` and never called from
+// production code; the compiler is free to elide it.
+
+pub fn audio_law_inventory() -> Int with Pure:
+    let a: Bool = volume_in_bounds(0.5)
+    let b: Bool = sample_rate_valid(48000)
+    let c: Bool = buffer_size_valid(256)
+    let d: Bool = tempo_in_bounds(120.0)
+    let e: Bool = channels_valid(2)
+    let f: Bool = ring_buffer_power_of_two(1024)
+    let g: Bool = loop_region_valid(0, 48000)
+    let h: Bool = time_signature_valid(4, 4)
+    let i: Bool = bit_depth_valid(16)
+    let j: Bool = sample_format_valid(0)
+    let k: Bool = sample_in_bounds(0.0)
+    let l: Bool = gain_in_bounds(1.0)
+    let m: Bool = transport_position_valid(0, 1000)
+    var count: Int = 0
+    if a: count = count + 1
+    if b: count = count + 1
+    if c: count = count + 1
+    if d: count = count + 1
+    if e: count = count + 1
+    if f: count = count + 1
+    if g: count = count + 1
+    if h: count = count + 1
+    if i: count = count + 1
+    if j: count = count + 1
+    if k: count = count + 1
+    if l: count = count + 1
+    if m: count = count + 1
+    return count
+
+// audio_law_inventory_unsafe — references the pointer-taking laws.
+// Separate function (with Unsafe) because the inventory function itself
+// is Pure and the static analyzer only flags laws that are never
+// referenced ANYWHERE in the file.
+pub fn audio_law_inventory_unsafe() -> Int with Unsafe:
+    let placeholder: ptr<Float> = alloc_zeroed(1, "Float")
+    let ok: Bool = buffer_alignment_ok(placeholder)
+    let safe: Bool = no_nan_in_buffer(1, placeholder, 1)
+    decay placeholder
+    var count: Int = 0
+    if ok: count = count + 1
+    if safe: count = count + 1
+    return count
+
+// ============================================================================
+// End of law.kn
+// ============================================================================

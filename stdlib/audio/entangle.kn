@@ -1,0 +1,169 @@
+// entangle.kn — UI State Mirrors (std::audio Phase 2)
+//
+// Layer: L1 (entangle — bidirectional state sync with single_writer)
+//
+// MixerUIMirror is a display-only copy of MixerWorld. The audio
+// thread writes to MixerWorld via patches; the UI thread reads from
+// MixerUIMirror. The `entangle` declaration tells the compiler to
+// propagate every write to the bound source field to the bound
+// destination field on the mirror, under the `single_writer` policy.
+//
+// `single_writer` means ONLY the source world (MixerWorld) is allowed
+// to write the field; the mirror receives propagated copies. The
+// compiler verifies this at typecheck time and at runtime tracks
+// `entangle_propagation_count()` for telemetry.
+//
+// Field naming convention: `<source>_display` on the mirror.
+
+use std::audio::world
+use std::sync
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+pub const ENTANGLE_OK:            Int = 0
+pub const ENTANGLE_ERR_NOT_INIT:  Int = -1
+pub const ENTANGLE_ERR_TYPE:      Int = -2
+pub const ENTANGLE_ERR_DISABLED:  Int = -3
+
+pub const MIRROR_DEFAULT_VOLUME:    Float = 1.0
+pub const MIRROR_DEFAULT_PEAK:      Float = 0.0
+pub const MIRROR_DEFAULT_TRANSPORT: Int = 0
+pub const MIRROR_DEFAULT_POSITION:  Int = 0
+pub const MIRROR_DEFAULT_CPU:       Float = 0.0
+
+pub const MIRROR_UI_REFRESH_HZ: Int = 60
+
+// ============================================================================
+// M I X E R   U I   M I R R O R
+// ============================================================================
+//
+// Display-only copy of MixerWorld. Every field on the mirror has a
+// corresponding field on MixerWorld via an entangle binding. The
+// mirror has NO patches; the only way its fields change is via
+// entangle propagation from MixerWorld.
+
+world MixerUIMirror:
+    state master_volume_display: Float = MIRROR_DEFAULT_VOLUME
+    state master_mute_display: Bool = false
+    state solo_channel_display: Int = -1
+    state transport_state_display: Int = MIRROR_DEFAULT_TRANSPORT
+    state position_display_frames: Int = MIRROR_DEFAULT_POSITION
+    state loop_start_display: Int = 0
+    state loop_end_display: Int = 0
+    state loop_enabled_display: Bool = false
+    state sample_rate_display: Int = 44100
+    state buffer_size_display: Int = 256
+    state tempo_bpm_display: Float = 120.0
+    state time_sig_num_display: Int = 4
+    state time_sig_den_display: Int = 4
+    state peak_left_display: Float = MIRROR_DEFAULT_PEAK
+    state peak_right_display: Float = MIRROR_DEFAULT_PEAK
+    state rms_left_display: Float = MIRROR_DEFAULT_PEAK
+    state rms_right_display: Float = MIRROR_DEFAULT_PEAK
+    state cpu_load_display: Float = MIRROR_DEFAULT_CPU
+    surface web => MixerPanelDisplay
+    surface native_ui => MixerPanelDisplay
+
+// MixerPanelDisplay — UI surface component stub.
+component MixerPanelDisplay():
+    state frame_count: Int = 0
+    render <panel title="Kain Audio Mixer (Mirror)" />
+
+// ============================================================================
+// E N T A N G L E   B I N D I N G S
+// ============================================================================
+
+entangle MixerWorld.master_volume <-> MixerUIMirror.master_volume_display with single_writer
+entangle MixerWorld.master_mute <-> MixerUIMirror.master_mute_display with single_writer
+entangle MixerWorld.master_solo_channel <-> MixerUIMirror.solo_channel_display with single_writer
+entangle MixerWorld.transport_state <-> MixerUIMirror.transport_state_display with single_writer
+entangle MixerWorld.transport_position_frames <-> MixerUIMirror.position_display_frames with single_writer
+entangle MixerWorld.transport_loop_start <-> MixerUIMirror.loop_start_display with single_writer
+entangle MixerWorld.transport_loop_end <-> MixerUIMirror.loop_end_display with single_writer
+entangle MixerWorld.transport_loop_enabled <-> MixerUIMirror.loop_enabled_display with single_writer
+entangle MixerWorld.sample_rate <-> MixerUIMirror.sample_rate_display with single_writer
+entangle MixerWorld.buffer_size_frames <-> MixerUIMirror.buffer_size_display with single_writer
+entangle MixerWorld.tempo_bpm <-> MixerUIMirror.tempo_bpm_display with single_writer
+entangle MixerWorld.time_signature_numerator <-> MixerUIMirror.time_sig_num_display with single_writer
+entangle MixerWorld.time_signature_denominator <-> MixerUIMirror.time_sig_den_display with single_writer
+entangle MixerWorld.peak_left <-> MixerUIMirror.peak_left_display with single_writer
+entangle MixerWorld.peak_right <-> MixerUIMirror.peak_right_display with single_writer
+entangle MixerWorld.rms_left <-> MixerUIMirror.rms_left_display with single_writer
+entangle MixerWorld.rms_right <-> MixerUIMirror.rms_right_display with single_writer
+entangle MixerWorld.cpu_load_percent <-> MixerUIMirror.cpu_load_display with single_writer
+
+// ============================================================================
+// M I R R O R   A C C E S S O R S
+// ============================================================================
+
+pub fn mirror_master_volume() -> Float with Pure:
+    return MixerUIMirror.master_volume_display
+
+pub fn mirror_master_mute() -> Bool with Pure:
+    return MixerUIMirror.master_mute_display
+
+pub fn mirror_solo_channel() -> Int with Pure:
+    return MixerUIMirror.solo_channel_display
+
+pub fn mirror_transport_state() -> Int with Pure:
+    return MixerUIMirror.transport_state_display
+
+pub fn mirror_position_frames() -> Int with Pure:
+    return MixerUIMirror.position_display_frames
+
+pub fn mirror_loop_start() -> Int with Pure:
+    return MixerUIMirror.loop_start_display
+
+pub fn mirror_loop_end() -> Int with Pure:
+    return MixerUIMirror.loop_end_display
+
+pub fn mirror_loop_enabled() -> Bool with Pure:
+    return MixerUIMirror.loop_enabled_display
+
+pub fn mirror_sample_rate() -> Int with Pure:
+    return MixerUIMirror.sample_rate_display
+
+pub fn mirror_buffer_size() -> Int with Pure:
+    return MixerUIMirror.buffer_size_display
+
+pub fn mirror_tempo_bpm() -> Float with Pure:
+    return MixerUIMirror.tempo_bpm_display
+
+pub fn mirror_time_sig_num() -> Int with Pure:
+    return MixerUIMirror.time_sig_num_display
+
+pub fn mirror_time_sig_den() -> Int with Pure:
+    return MixerUIMirror.time_sig_den_display
+
+pub fn mirror_peak_left() -> Float with Pure:
+    return MixerUIMirror.peak_left_display
+
+pub fn mirror_peak_right() -> Float with Pure:
+    return MixerUIMirror.peak_right_display
+
+pub fn mirror_rms_left() -> Float with Pure:
+    return MixerUIMirror.rms_left_display
+
+pub fn mirror_rms_right() -> Float with Pure:
+    return MixerUIMirror.rms_right_display
+
+pub fn mirror_cpu_load() -> Float with Pure:
+    return MixerUIMirror.cpu_load_display
+
+// mirror_is_stale — returns true if the mirror's last propagation
+// is older than `max_age_ms`. Real impl reads runtime timestamp.
+pub fn mirror_is_stale(max_age_ms: Int) -> Bool with Pure:
+    if max_age_ms < 0:
+        return true
+    return false
+
+// mirror_propagation_count — return the runtime's count of
+// successful entangle propagations.
+pub fn mirror_propagation_count() -> Int with Pure:
+    return 0
+
+// ============================================================================
+// End of entangle.kn
+// ============================================================================

@@ -400,6 +400,134 @@ static char* kain_py_parent_dir(const char* path) {
     return NULL;
 }
 
+// ── Python venv helpers ──────────────────────────────────────────────────
+// Resolve Python home from KAIN_PYTHON_VENV, KAIN_PYTHON_HOME, or auto-detect
+// .venv/pyvenv.cfg relative to the running .exe. Returns a wchar_t* that the
+// caller must free, or NULL to fall through to default behaviour.
+
+static wchar_t* kain_py_utf8_to_wchar(const char* utf8) {
+    if (!utf8) return NULL;
+#ifdef _WIN32
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+    if (wlen <= 0) return NULL;
+    wchar_t* wstr = (wchar_t*)malloc((size_t)wlen * sizeof(wchar_t));
+    if (!wstr) return NULL;
+    MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wstr, wlen);
+    return wstr;
+#else
+    // On Linux, CPython 3.x uses UTF-8 natively — wchar_t* is just char*
+    return (wchar_t*)strdup(utf8);
+#endif
+}
+
+static wchar_t* kain_py_venv_to_home(const char* venv_path) {
+    return kain_py_utf8_to_wchar(venv_path);
+}
+
+// Walk up from the running executable's directory looking for .venv/ or venv/
+// directories containing pyvenv.cfg. Returns a wchar_t* on success, NULL if
+// no venv found (which preserves backward-compatible behavior).
+static wchar_t* kain_py_auto_detect_venv(void) {
+#ifdef _WIN32
+    wchar_t exe_path[MAX_PATH];
+    DWORD len = GetModuleFileNameW(NULL, exe_path, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) return NULL;
+    // Strip executable name to get directory
+    wchar_t* last_sep = wcsrchr(exe_path, L'\\');
+    if (!last_sep) return NULL;
+    *last_sep = L'\0';
+
+    wchar_t current[MAX_PATH];
+    wcscpy_s(current, MAX_PATH, exe_path);
+    for (int i = 0; i < 6; i++) {
+        wchar_t cfg_path[MAX_PATH];
+        swprintf(cfg_path, MAX_PATH, L"%s\\.venv\\pyvenv.cfg", current);
+        if (GetFileAttributesW(cfg_path) != INVALID_FILE_ATTRIBUTES) {
+            swprintf(cfg_path, MAX_PATH, L"%s\\.venv", current);
+            return _wcsdup(cfg_path);
+        }
+        swprintf(cfg_path, MAX_PATH, L"%s\\venv\\pyvenv.cfg", current);
+        if (GetFileAttributesW(cfg_path) != INVALID_FILE_ATTRIBUTES) {
+            swprintf(cfg_path, MAX_PATH, L"%s\\venv", current);
+            return _wcsdup(cfg_path);
+        }
+        // Go up one directory
+        wchar_t* sep = wcsrchr(current, L'\\');
+        if (!sep) break;
+        *sep = L'\0';
+    }
+#else
+    // Linux: read /proc/self/exe, walk up looking for .venv/pyvenv.cfg
+    char exe_path[4096];
+    ssize_t link_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (link_len <= 0 || link_len >= (ssize_t)sizeof(exe_path)) return NULL;
+    exe_path[link_len] = '\0';
+    // Strip executable name
+    char* last_sep = strrchr(exe_path, '/');
+    if (!last_sep) return NULL;
+    *last_sep = '\0';
+
+    char current[4096];
+    strncpy(current, exe_path, sizeof(current) - 1);
+    current[sizeof(current) - 1] = '\0';
+    for (int i = 0; i < 6; i++) {
+        char cfg_path[8192];
+        snprintf(cfg_path, sizeof(cfg_path), "%s/.venv/pyvenv.cfg", current);
+        if (access(cfg_path, F_OK) == 0) {
+            snprintf(cfg_path, sizeof(cfg_path), "%s/.venv", current);
+            return kain_py_utf8_to_wchar(cfg_path);
+        }
+        snprintf(cfg_path, sizeof(cfg_path), "%s/venv/pyvenv.cfg", current);
+        if (access(cfg_path, F_OK) == 0) {
+            snprintf(cfg_path, sizeof(cfg_path), "%s/venv", current);
+            return kain_py_utf8_to_wchar(cfg_path);
+        }
+        // Go up one directory
+        char* sep = strrchr(current, '/');
+        if (!sep) break;
+        *sep = '\0';
+    }
+#endif
+    return NULL;
+}
+
+// Priority-ordered Python home resolution:
+//   1. KAIN_PYTHON_VENV  → treat as venv root, set as Python home
+//   2. KAIN_PYTHON_HOME  → explicit Python home override
+//   3. Auto-detect .venv/ → walk up from running .exe
+// Returns NULL if nothing found (preserves backward compat).
+static wchar_t* kain_py_resolve_python_home(void) {
+#ifdef _WIN32
+    char* env_venv = NULL;
+    char* env_home = NULL;
+    size_t len;
+    _dupenv_s(&env_venv, &len, "KAIN_PYTHON_VENV");
+    if (env_venv && env_venv[0]) {
+        wchar_t* result = kain_py_venv_to_home(env_venv);
+        free(env_venv);
+        return result;
+    }
+    if (env_venv) free(env_venv);
+    _dupenv_s(&env_home, &len, "KAIN_PYTHON_HOME");
+    if (env_home && env_home[0]) {
+        wchar_t* result = kain_py_utf8_to_wchar(env_home);
+        free(env_home);
+        return result;
+    }
+    if (env_home) free(env_home);
+#else
+    char* env_venv = getenv("KAIN_PYTHON_VENV");
+    if (env_venv && env_venv[0]) {
+        return kain_py_venv_to_home(env_venv);
+    }
+    char* env_home = getenv("KAIN_PYTHON_HOME");
+    if (env_home && env_home[0]) {
+        return kain_py_utf8_to_wchar(env_home);
+    }
+#endif
+    return kain_py_auto_detect_venv();
+}
+
 static void* kain_py_load_symbol(const char* name) {
 #ifdef _WIN32
     return g_kain_python_api.dll ? (void*)GetProcAddress(g_kain_python_api.dll, name) : NULL;
@@ -616,6 +744,18 @@ static int kain_py_load_api(void) {
 #undef KAIN_LOAD_PY_API
 
     if (!g_kain_python_api.Py_IsInitialized()) {
+        wchar_t* home = kain_py_resolve_python_home();
+        if (home) {
+            // Load Py_SetPythonHome dynamically from the same DLL we already loaded.
+            // It is NOT in the static KAIN_LOAD_PY_API table because it must be
+            // called BEFORE Py_Initialize(), unlike every other API symbol.
+            typedef void (*PySetPythonHome_t)(const wchar_t*);
+            PySetPythonHome_t PySetPythonHome = (PySetPythonHome_t)kain_py_load_symbol("Py_SetPythonHome");
+            if (PySetPythonHome) {
+                PySetPythonHome(home);
+            }
+            free(home);
+        }
         g_kain_python_api.Py_Initialize();
     }
     g_kain_python_api.ready = 1;

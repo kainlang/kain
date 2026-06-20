@@ -1,0 +1,342 @@
+// shatter.kn — SoA Audio Chunks (std::audio Phase 2)
+//
+// Layer: L6 (shatter struct — Structure-of-Arrays layout)
+//
+// AudioChunk is the user-facing SoA-friendly type for audio data. The
+// `shatter struct` keyword declares the INTENT: the compiler may lay
+// out the lanes as Structure-of-Arrays (SoA, deinterleaved) when the
+// active `converge` lane prefers SoA, or as Array-of-Structures (AoS,
+// interleaved) when the spec reference is selected. The runtime picks
+// the layout at allocation time via `converge.audio_buffer_layout`.
+//
+// Lanes:
+//   sample     — the audio sample value (Float)
+//   channel    — channel index (Int)
+//   frame_idx  — frame index in the parent AudioBuffer (Int)
+//
+// Why three lanes? A shatter struct's lane count is the field count;
+// each field becomes a SIMD-friendly lane when the layout is SoA. In
+// AoS layout, the fields are interleaved per element (one chunk =
+// {sample, channel, frame_idx}); in SoA layout, each field lives in
+// its own contiguous region.
+//
+// Constructors and accessors in this module are layout-agnostic —
+// they index the chunk abstractly. The runtime resolves whether the
+// underlying memory is SoA or AoS based on the active `converge`
+// lane, so the user code does not change.
+
+use std::audio::buffer
+use std::audio::converge
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+// Status codes
+pub const SHATTER_OK:           Int = 0
+pub const SHATTER_ERR_NULL:     Int = -1
+pub const SHATTER_ERR_OOB:      Int = -2
+pub const SHATTER_ERR_LAYOUT:   Int = -3
+
+// Sentinel for the AoS layout
+pub const SHATTER_LAYOUT_AOS: Int = 0
+
+// Sentinel for the SoA (deinterleaved) layout
+pub const SHATTER_LAYOUT_SOA: Int = 1
+
+// Chunk size in floats per element. One chunk = {sample, channel, frame_idx}
+// (or {sample, frame_idx} for compact mode — see below).
+pub const CHUNK_FLOATS_PER_ELEMENT: Int = 3
+
+// Maximum channel count for one AudioChunk. Beyond this, the caller
+// should shard the data into multiple chunks (one per channel group).
+pub const CHUNK_MAX_CHANNELS: Int = 128
+
+// Maximum frame count for one AudioChunk.
+pub const CHUNK_MAX_FRAMES: Int = 65536
+
+// ============================================================================
+// A U D I O   C H U N K
+// ============================================================================
+
+// AudioChunk — a shatter struct of 3 lanes. The runtime picks SoA vs
+// AoS at allocation time via the converge.audio_buffer_layout selector.
+//
+// In SoA layout:
+//   sample     is at offset 0,  length = frames (contiguous)
+//   channel    is at offset frames,    length = frames
+//   frame_idx  is at offset 2*frames,  length = frames
+//
+// In AoS layout:
+//   element i = {sample[i], channel[i], frame_idx[i]}
+//   i-th sample is at offset 3*i + 0
+//   i-th channel is at offset 3*i + 1
+//   i-th frame_idx is at offset 3*i + 2
+//
+// The active layout is recorded in `layout` (SHATTER_LAYOUT_AOS or
+// SHATTER_LAYOUT_SOA) so accessors can compute the right offset.
+pub shatter struct AudioChunk:
+    sample: Float
+    channel: Int
+    frame_idx: Int
+
+// AudioChunkHandle — opaque handle returned by audio_chunk_from_buffer.
+// Holds the underlying memory, the layout, and the frame/channel counts
+// so the accessors can address the right offset without re-deriving it.
+pub struct AudioChunkHandle:
+    data: ptr<Float>       # backing memory (SoA or AoS)
+    frames: Int           # number of frames
+    channels: Int         # number of channels represented
+    layout: Int           # SHATTER_LAYOUT_AOS or SHATTER_LAYOUT_SOA
+    start_frame: Int      # offset into the parent buffer
+
+// ============================================================================
+// C O N S T R U C T O R S
+// ============================================================================
+
+// audio_chunk_from_buffer — convert an AudioBuffer into an AudioChunk.
+// The layout is chosen by `converge.audio_buffer_layout`. Returns a
+// handle that the caller can query for samples by frame index.
+pub fn audio_chunk_from_buffer(buf: AudioBuffer) -> AudioChunkHandle with Unsafe:
+    if ptr_to_int(buf.data) == 0:
+        return AudioChunkHandle {
+            data: alloc_zeroed(0, "Float"),
+            frames: 0,
+            channels: 0,
+            layout: SHATTER_LAYOUT_AOS,
+            start_frame: 0,
+        }
+    let frames: Int = buf.frames
+    let channels: Int = buf.format.channels
+    let total: Int = frames * channels * CHUNK_FLOATS_PER_ELEMENT
+
+    # Use the converge selector to pick AoS vs SoA. The selector returns
+    # raw memory; we annotate it with the layout we requested. In Phase 2
+    # the selector picks SoA when AVX2 is present, AoS otherwise.
+    let raw: ptr<Float> = audio_buffer_layout(channels * CHUNK_FLOATS_PER_ELEMENT, frames)
+
+    # Copy from the source buffer into the chosen layout.
+    var layout: Int = SHATTER_LAYOUT_AOS
+    if capability_shatter_soa_preferred() != 0:
+        layout = SHATTER_LAYOUT_SOA
+
+    var f: Int = 0
+    while f < frames:
+        var c: Int = 0
+        while c < channels:
+            let src: ptr<Float> = audio_buffer_sample_ptr(buf, f, c)
+            let sample: Float = mem_load(src, "Float")
+            if layout == SHATTER_LAYOUT_SOA:
+                let soa_off: Int = (c * frames) + f
+                mem_store(ptr_offset(raw, soa_off, "Float"), sample, "Float")
+            else:
+                let aos_off: Int = ((f * channels) + c) * CHUNK_FLOATS_PER_ELEMENT
+                mem_store(ptr_offset(raw, aos_off, 0, "Float"), sample, "Float")
+                mem_store(ptr_offset(raw, aos_off, 1, "Float"), Float(c), "Float")
+                mem_store(ptr_offset(raw, aos_off, 2, "Float"), Float(f), "Float")
+            c = c + 1
+        f = f + 1
+
+    return AudioChunkHandle {
+        data: raw,
+        frames: frames,
+        channels: channels,
+        layout: layout,
+        start_frame: 0,
+    }
+
+// audio_chunk_empty — create an empty chunk handle. Useful as a
+// default before any buffer is loaded.
+pub fn audio_chunk_empty() -> AudioChunkHandle with Pure:
+    return AudioChunkHandle {
+        data: alloc_zeroed(0, "Float"),
+        frames: 0,
+        channels: 0,
+        layout: SHATTER_LAYOUT_AOS,
+        start_frame: 0,
+    }
+
+// audio_chunk_destroy — release the backing memory of a chunk.
+pub fn audio_chunk_destroy(chunk: AudioChunkHandle) -> Int with Unsafe:
+    decay chunk.data
+    return SHATTER_OK
+
+// ============================================================================
+// A C C E S S O R S
+// ============================================================================
+//
+// All accessors are layout-agnostic. They branch on `chunk.layout` to
+// pick the right offset formula. Branch-predictable; the JIT will
+// inline and hoist the branch out of the hot loop.
+
+// audio_chunk_sample — return the sample value at frame `f` for the
+// first channel present in the chunk. When the chunk holds multiple
+// channels, use `audio_chunk_sample_at`.
+pub fn audio_chunk_sample(chunk: AudioChunkHandle, f: Int) -> Float with Pure:
+    return audio_chunk_sample_at(chunk, f, 0)
+
+// audio_chunk_sample_at — sample value at frame `f`, channel `c`.
+pub fn audio_chunk_sample_at(chunk: AudioChunkHandle, f: Int, c: Int) -> Float with Pure:
+    if f < 0 or f >= chunk.frames:
+        return 0.0
+    if c < 0 or c >= chunk.channels:
+        return 0.0
+    if chunk.layout == SHATTER_LAYOUT_SOA:
+        let off: Int = (c * chunk.frames) + f
+        return mem_load(ptr_offset(chunk.data, off, "Float"), "Float")
+    let off: Int = ((f * chunk.channels) + c) * CHUNK_FLOATS_PER_ELEMENT
+    return mem_load(ptr_offset(chunk.data, off, "Float"), "Float")
+
+// audio_chunk_channel — channel index for the i-th element (AoS) or
+// the lane (SoA). For SoA, returns c since channel is constant per
+// lane; for AoS, returns the channel stored alongside each sample.
+pub fn audio_chunk_channel(chunk: AudioChunkHandle, f: Int) -> Int with Pure:
+    if f < 0 or f >= chunk.frames:
+        return 0
+    if chunk.layout == SHATTER_LAYOUT_SOA:
+        return 0  # SoA doesn't carry per-element channel; use accessor + c
+    let off: Int = ((f * chunk.channels) + 0) * CHUNK_FLOATS_PER_ELEMENT + 1
+    return Int(mem_load(ptr_offset(chunk.data, off, "Float"), "Float"))
+
+// audio_chunk_frame_idx — frame index for the i-th element.
+pub fn audio_chunk_frame_idx(chunk: AudioChunkHandle, f: Int) -> Int with Pure:
+    if f < 0 or f >= chunk.frames:
+        return 0
+    if chunk.layout == SHATTER_LAYOUT_SOA:
+        return f  # SoA: frame_idx is the lane position
+    let off: Int = ((f * chunk.channels) + 0) * CHUNK_FLOATS_PER_ELEMENT + 2
+    return Int(mem_load(ptr_offset(chunk.data, off, "Float"), "Float"))
+
+// audio_chunk_frame_count — number of frames represented.
+pub fn audio_chunk_frame_count(chunk: AudioChunkHandle) -> Int with Pure:
+    return chunk.frames
+
+// audio_chunk_channel_count — number of channels represented.
+pub fn audio_chunk_channel_count(chunk: AudioChunkHandle) -> Int with Pure:
+    return chunk.channels
+
+// audio_chunk_layout — which layout the chunk is using.
+pub fn audio_chunk_layout(chunk: AudioChunkHandle) -> Int with Pure:
+    return chunk.layout
+
+// ============================================================================
+// C H U N K   T R A N S F O R M S
+// ============================================================================
+//
+// Layout-conversion utilities. AOS <-> SOA copy. These are real
+// copies, not in-place reinterpretations, because the lane widths
+// differ between layouts (3 floats per element in AoS, 1 float per
+// element in SoA but in separate lanes).
+
+// audio_chunk_to_aos — convert any chunk to AoS layout. Allocates a
+// new handle with the sample/channel/frame_idx interleaved. The
+// input chunk is not modified.
+pub fn audio_chunk_to_aos(chunk: AudioChunkHandle) -> AudioChunkHandle with Unsafe:
+    if chunk.layout == SHATTER_LAYOUT_AOS:
+        return chunk
+    let total: Int = chunk.frames * chunk.channels * CHUNK_FLOATS_PER_ELEMENT
+    let raw: ptr<Float> = alloc_zeroed(total, "Float")
+    var f: Int = 0
+    while f < chunk.frames:
+        var c: Int = 0
+        while c < chunk.channels:
+            let soa_off: Int = (c * chunk.frames) + f
+            let sample: Float = mem_load(ptr_offset(chunk.data, soa_off, "Float"), "Float")
+            let aos_off: Int = ((f * chunk.channels) + c) * CHUNK_FLOATS_PER_ELEMENT
+            mem_store(ptr_offset(raw, aos_off + 0, "Float"), sample, "Float")
+            mem_store(ptr_offset(raw, aos_off + 1, "Float"), Float(c), "Float")
+            mem_store(ptr_offset(raw, aos_off + 2, "Float"), Float(f), "Float")
+            c = c + 1
+        f = f + 1
+    return AudioChunkHandle {
+        data: raw,
+        frames: chunk.frames,
+        channels: chunk.channels,
+        layout: SHATTER_LAYOUT_AOS,
+        start_frame: chunk.start_frame,
+    }
+
+// audio_chunk_to_soa — convert any chunk to SoA layout.
+pub fn audio_chunk_to_soa(chunk: AudioChunkHandle) -> AudioChunkHandle with Unsafe:
+    if chunk.layout == SHATTER_LAYOUT_SOA:
+        return chunk
+    let total: Int = chunk.frames * chunk.channels
+    let raw: ptr<Float> = alloc_zeroed(total, "Float")
+    var f: Int = 0
+    while f < chunk.frames:
+        var c: Int = 0
+        while c < chunk.channels:
+            let aos_off: Int = ((f * chunk.channels) + c) * CHUNK_FLOATS_PER_ELEMENT
+            let sample: Float = mem_load(ptr_offset(chunk.data, aos_off, "Float"), "Float")
+            let soa_off: Int = (c * chunk.frames) + f
+            mem_store(ptr_offset(raw, soa_off, "Float"), sample, "Float")
+            c = c + 1
+        f = f + 1
+    return AudioChunkHandle {
+        data: raw,
+        frames: chunk.frames,
+        channels: chunk.channels,
+        layout: SHATTER_LAYOUT_SOA,
+        start_frame: chunk.start_frame,
+    }
+
+// ============================================================================
+// L A N E   P R O B I N G
+// ============================================================================
+
+// capability_shatter_soa_preferred — runtime query. Returns 1 when
+// the active converge lane prefers SoA (AVX2 / NEON present), 0 when
+// the scalar AoS spec reference is the active lane.
+pub fn capability_shatter_soa_preferred() -> Int with Pure:
+    if capability_avx2_available() != 0:
+        return 1
+    if capability_neon_available() != 0:
+        return 1
+    return 0
+
+// ============================================================================
+// A U D I O   C H U N K   I T E R A T O R
+// ============================================================================
+//
+// Sequential iteration over a chunk. Avoids per-element layout
+// branching by reading the layout once and dispatching to the
+// matching inner loop.
+
+pub struct AudioChunkIterator:
+    chunk: AudioChunkHandle
+    frame: Int
+    channel: Int
+
+pub fn audio_chunk_iter(chunk: AudioChunkHandle) -> AudioChunkIterator with Pure:
+    return AudioChunkIterator {
+        chunk: chunk,
+        frame: 0,
+        channel: 0,
+    }
+
+// audio_chunk_iter_next — returns the next sample as (frame, channel, value).
+// Returns (-1, -1, 0.0) when iteration is complete.
+pub fn audio_chunk_iter_next(it: AudioChunkIterator) -> (Int, Int, Float) with Pure:
+    if it.chunk.layout == SHATTER_LAYOUT_AOS:
+        if it.frame >= it.chunk.frames:
+            return (-1, -1, 0.0)
+        let sample: Float = audio_chunk_sample_at(it.chunk, it.frame, it.channel)
+        let f_out: Int = it.frame
+        let c_out: Int = it.channel
+        var next_frame: Int = it.frame
+        var next_channel: Int = it.channel + 1
+        if next_channel >= it.chunk.channels:
+            next_channel = 0
+            next_frame = next_frame + 1
+        return (f_out, c_out, sample)
+    # SoA: iterate channels outermost, frames innermost
+    if it.channel >= it.chunk.channels:
+        return (-1, -1, 0.0)
+    if it.frame >= it.chunk.frames:
+        return (-1, -1, 0.0)
+    let sample: Float = audio_chunk_sample_at(it.chunk, it.frame, it.channel)
+    return (it.frame, it.channel, sample)
+
+// ============================================================================
+// End of shatter.kn
+// ============================================================================

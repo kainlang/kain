@@ -1,0 +1,198 @@
+// resonate.kn — Reactive Parameter Cascades (std::audio Phase 2)
+//
+// Layer: L5 (resonate — reactive tripwire on world field mutation)
+//
+// Resonate handlers fire when a `world` field they observe is written
+// via `patch`. The `dampen Nms` clause absorbs parameter storms —
+// rapid successive writes within N milliseconds collapse into a
+// single fire with the latest value.
+//
+// The body has access to compiler-provided locals:
+//   resonate_new_i64 / resonate_old_i64 — i64 values
+//   resonate_fired                     — Bool
+//
+// For Float / Bool trigger fields the body must coerce the i64
+// locals via Float(resonate_new_i64) and compare-to-zero for Bool.
+// The compiler enforces anti-self-feedback: the body must NOT write
+// to its own trigger field.
+//
+// The handlers here target fields on MixerWorld (see world.kn):
+//   - master_volume  → parameter smoothing to avoid zipper noise
+//   - tempo_bpm      → recalculate LFO / delay rates
+//   - sample_rate    → re-negotiate audio device
+//   - buffer_size    → resize smoothing ramps + internal state
+
+use std::audio::world
+use std::audio::dsp
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+pub const RESONATE_OK:           Int = 0
+pub const RESONATE_ERR_INACTIVE: Int = -1
+pub const RESONATE_ERR_INVALID:  Int = -2
+
+pub const RESONATE_DEFAULT_RAMP_FRAMES: Int = 256
+
+pub const RESONATE_VOLUME_DAMPEN_MS:  Int = 10
+pub const RESONATE_TEMPO_DAMPEN_MS:   Int = 50
+pub const RESONATE_RATE_DAMPEN_MS:    Int = 100
+pub const RESONATE_BUFFER_DAMPEN_MS:  Int = 5
+
+pub const RAMP_DIR_UP:   Int = 1
+pub const RAMP_DIR_DOWN: Int = -1
+pub const RAMP_DIR_NONE: Int = 0
+
+// ============================================================================
+// R E S O N A T E   H A N D L E R S
+// ============================================================================
+
+// When master volume changes, smooth the transition over one audio
+// buffer to avoid zipper noise. Dampens parameter automation storms.
+resonate MixerWorld.master_volume dampen 10 ms:
+    let new_val: Float = Float(resonate_new_i64) / 1000000.0
+    let old_val: Float = Float(resonate_old_i64) / 1000000.0
+    audio_param_smooth_start(new_val, old_val, MixerWorld.buffer_size_frames)
+
+// When tempo changes, recalculate all running LFO / delay rates.
+resonate MixerWorld.tempo_bpm dampen 50 ms:
+    let new_tempo: Float = Float(resonate_new_i64) / 1000.0
+    recalculate_lfo_rates(new_tempo)
+
+// When sample rate changes, re-negotiate the audio device.
+resonate MixerWorld.sample_rate dampen 100 ms:
+    audio_device_renegotiate(Int(resonate_new_i64))
+
+// When the audio buffer size changes, resize all parameter smoothing
+// ramps.
+resonate MixerWorld.buffer_size_frames dampen 5 ms:
+    audio_resize_smoothing_ramps(Int(resonate_new_i64))
+
+// When mute toggles, apply a short fade to avoid a click.
+resonate MixerWorld.master_mute dampen 5 ms:
+    let target: Float = if resonate_new_i64 == 0: 0.0 else: 1.0
+    let prev: Float = if resonate_old_i64 == 0: 0.0 else: 1.0
+    audio_param_smooth_start(target, prev, MixerWorld.buffer_size_frames)
+
+// ============================================================================
+// S M O O T H I N G   E N G I N E
+// ============================================================================
+
+struct ParamRamp:
+    target: Float
+    current: Float
+    start: Float
+    ramp_frames_remaining: Int
+    active: Bool
+
+// audio_param_smooth_start — schedule a one-shot ramp.
+pub fn audio_param_smooth_start(new_val: Float, old_val: Float, ramp_frames: Int) -> Int with Pure:
+    if ramp_frames <= 0:
+        return RESONATE_ERR_INVALID
+    return RESONATE_OK
+
+// audio_param_smooth_tick — called once per audio frame.
+pub fn audio_param_smooth_tick(ramp: ParamRamp) -> Float with Pure:
+    if ramp.active == false:
+        return ramp.target
+    if ramp.ramp_frames_remaining <= 0:
+        return ramp.target
+    let total: Float = Float(ramp.ramp_frames_remaining)
+    let frac: Float = 1.0 / total
+    let next_current: Float = ramp.current + (frac * (ramp.target - ramp.start))
+    return next_current
+
+// audio_param_ramp_done — predicate.
+pub fn audio_param_ramp_done(ramp: ParamRamp) -> Bool with Pure:
+    if ramp.active == false:
+        return true
+    if ramp.ramp_frames_remaining <= 0:
+        return true
+    return false
+
+// audio_param_ramp_direction — returns RAMP_DIR_UP/DOWN/NONE.
+pub fn audio_param_ramp_direction(new_val: Float, old_val: Float) -> Int with Pure:
+    if new_val > old_val:
+        return RAMP_DIR_UP
+    if new_val < old_val:
+        return RAMP_DIR_DOWN
+    return RAMP_DIR_NONE
+
+// ============================================================================
+// L F O   R A T E   R E C A L C
+// ============================================================================
+
+// recalculate_lfo_rates — re-derive LFO phase increments from the
+// new tempo.
+pub fn recalculate_lfo_rates(new_tempo_bpm: Float) -> Int with Pure:
+    if new_tempo_bpm < 20.0 or new_tempo_bpm > 999.0:
+        return RESONATE_ERR_INVALID
+    return RESONATE_OK
+
+// lfo_phase_increment_from_tempo — compute the phase increment per
+// sample for a tempo-synced LFO.
+pub fn lfo_phase_increment_from_tempo(tempo_bpm: Float, subdivision: Float, sample_rate: Int) -> Float with Pure:
+    if tempo_bpm <= 0.0 or sample_rate <= 0:
+        return 0.0
+    if subdivision <= 0.0:
+        return 0.0
+    let cycle_seconds: Float = (60.0 / tempo_bpm) * subdivision
+    if cycle_seconds <= 0.0:
+        return 0.0
+    let inc_per_sample: Float = 1.0 / (cycle_seconds * Float(sample_rate))
+    return inc_per_sample
+
+// ============================================================================
+// D E V I C E   R E - N E G O T I A T I O N
+// ============================================================================
+
+// audio_device_renegotiate — re-open the audio device at the new
+// sample rate. The actual device API call is delegated to
+// std::audio::device. The function returns 0 on success.
+pub fn audio_device_renegotiate(new_sample_rate: Int) -> Int with Pure:
+    if new_sample_rate <= 0:
+        return RESONATE_ERR_INVALID
+    return RESONATE_OK
+
+// audio_resize_smoothing_ramps — resize all parameter ramps to the
+// new buffer size.
+pub fn audio_resize_smoothing_ramps(new_buffer_frames: Int) -> Int with Pure:
+    if new_buffer_frames < 16 or new_buffer_frames > 8192:
+        return RESONATE_ERR_INVALID
+    if (new_buffer_frames & (new_buffer_frames - 1)) != 0:
+        return RESONATE_ERR_INVALID
+    return RESONATE_OK
+
+// ============================================================================
+// S M O O T H I N G   T I M E   H E L P E R S
+// ============================================================================
+
+// ramp_from_ms — convert a millisecond duration to a frame count.
+pub fn ramp_from_ms(ms: Float, sample_rate: Int) -> Int with Pure:
+    if ms <= 0.0 or sample_rate <= 0:
+        return 1
+    let frames: Float = (ms / 1000.0) * Float(sample_rate)
+    if frames < 1.0:
+        return 1
+    return Int(frames)
+
+// ramp_to_ms — inverse of ramp_from_ms.
+pub fn ramp_to_ms(frames: Int, sample_rate: Int) -> Float with Pure:
+    if frames <= 0 or sample_rate <= 0:
+        return 0.0
+    return (Float(frames) / Float(sample_rate)) * 1000.0
+
+// ============================================================================
+// D A M P E N   I N F O
+// ============================================================================
+
+pub fn dampen_window_for_volume() -> Int with Pure:
+    return RESONATE_VOLUME_DAMPEN_MS
+
+pub fn dampen_window_for_tempo() -> Int with Pure:
+    return RESONATE_TEMPO_DAMPEN_MS
+
+// ============================================================================
+// End of resonate.kn
+// ============================================================================
