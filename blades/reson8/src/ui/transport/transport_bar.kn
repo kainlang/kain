@@ -1,5 +1,6 @@
-// transport/transport_bar.kn -- Full transport bar assembly
+// transport/transport_bar.kn — Full transport bar assembly
 // Contains: TransportControls, TimeDisplay, BPMDisplay, TimeSigDisplay, CPUUsage, AudioDeviceInfo
+// Wired to MixerWorld/MixerMirror for reactive transport state.
 
 use std::math
 use types::Color
@@ -15,35 +16,31 @@ component TransportBar():
  fn height_px(_self: Self_) -> Float:
  return ThemeWorld.transport_height
 
- // Transport control patches (delegated to action system)
+ // Transport control patches — delegate to world patches via action system
  fn transport_play() -> Int:
- patch transport_play_patch():
- MixerWorld.transport_state = 1
- return 0
+ transport_play(MixerWorld)
  return 0
 
  fn transport_stop() -> Int:
- patch transport_stop_patch():
- MixerWorld.transport_state = 0
- return 0
+ transport_stop(MixerWorld)
  return 0
 
  fn transport_pause() -> Int:
- patch transport_pause_patch():
- MixerWorld.transport_state = 2
- return 0
+ MixerWorld.transport_state = TRANSPORT_PAUSED
  return 0
 
  fn transport_record() -> Int:
- patch transport_record_patch():
- MixerWorld.transport_state = 3
- return 0
+ MixerWorld.transport_state = TRANSPORT_RECORDING
  return 0
 
  fn transport_loop_toggle() -> Int:
- patch transport_loop_toggle_patch():
  // Toggle loop state
- return 0
+ if MixerWorld.loop_end > MixerWorld.loop_start:
+ MixerWorld.loop_start = 0
+ MixerWorld.loop_end = 0
+ else:
+ MixerWorld.loop_start = 0
+ MixerWorld.loop_end = MixerWorld.buffer_size_frames * 32
  return 0
 
  render <box
@@ -64,7 +61,7 @@ component TransportBar():
  <box width={1.0} height={24.0} background={ThemeWorld.color_border_subtle} />
 
  {/* Time display */}
- <TimeDisplay position_frames={MixerWorld.transport_position_frames} display_mode={"bars"} />
+ <TimeDisplay position_frames={MixerWorld.transport_position} display_mode={"bars"} />
 
  {/* Separator */}
  <box width={1.0} height={24.0} background={ThemeWorld.color_border_subtle} />
@@ -75,19 +72,19 @@ component TransportBar():
  {/* Separator */}
  <box width={1.0} height={24.0} background={ThemeWorld.color_border_subtle} />
 
- {/* Time signature */}
- <TimeSigDisplay num={MixerWorld.time_sig_num} den={MixerWorld.time_sig_den} />
+ {/* Time signature — stub: 4/4 always */}
+ <TimeSigDisplay num={4} den={4} />
 
  {/* Separator */}
  <box width={1.0} height={24.0} background={ThemeWorld.color_border_subtle} />
 
  {/* CPU usage meter */}
- <CPUUsage value={MixerWorld.cpu_load_percent} />
+ <CPUUsage value={MixerWorld.cpu_load} />
 
  {/* Spacer pushes right-aligned content to end */}
  <box flex_grow={1.0} />
 
- {/* Audio device info -- right aligned */}
+ {/* Audio device info — right aligned */}
  <box direction="horizontal" align="center" gap={ThemeWorld.spacing_sm}>
  <text value={str(MixerWorld.sample_rate) + " Hz"} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} />
  <text value={str(MixerWorld.buffer_size_frames) + " smp"} font_size={ThemeWorld.font_size_xs} color={ThemeWorld.color_text_muted} />

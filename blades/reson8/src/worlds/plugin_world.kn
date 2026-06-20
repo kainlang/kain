@@ -48,9 +48,9 @@ patch mark_scan_complete(registry: PluginRegistry) -> Int:
     registry.scan_complete = true
     return 0
 
-patch record_crash(world: PluginWorld) -> Int:
-    world.crash_count = world.crash_count + 1
-    world.last_crash_timestamp_ms = 0
-    if world.crash_count > world.max_crash_recovery:
-        world.crash_count = 0
-    return world.crash_count
+patch record_crash(state: PluginWorld) -> Int:
+    state.crash_count = state.crash_count + 1
+    state.last_crash_timestamp_ms = 0
+    if state.crash_count > state.max_crash_recovery:
+        state.crash_count = 0
+    return state.crash_count

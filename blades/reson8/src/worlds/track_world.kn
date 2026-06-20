@@ -1,0 +1,14 @@
+// ============================================================================
+//  TRACKWORLD + TRACKMIRROR — Compiler-owned track state
+//  Minimal stub for component references. Re-expand for STREAM4 mixer wiring.
+// ============================================================================
+
+world TrackWorld:
+    state track_names: [String] = []
+    surface native_ui => MixerPanel
+
+world TrackMirror:
+    state track_names_copy: [String] = []
+    surface native_ui => MixerPanel
+
+entangle TrackWorld.track_names <-> TrackMirror.track_names_copy with single_writer

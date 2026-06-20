@@ -27,14 +27,56 @@ pub const TRANSPORT_RECORDING: Int = 3   // reson8 extension; stdlib doesn't hav
 
 // ── MixerWorld (reson8-specific fields — canonical base is std::audio::world) ──
 world MixerWorld:
-    state transport_state:    Int   = TRANSPORT_STOPPED
-    state master_volume:      Float = 1.0
-    state tempo_bpm:          Float = 120.0
-    state sample_rate:        Int   = 48000
-    state buffer_size_frames: Int   = 256
-    state active_midi_input:  String = "None"
-    state max_polyphony:      Int   = 128
+    state transport_state:        Int   = TRANSPORT_STOPPED
+    state transport_position:     Int   = 0
+    state master_volume:          Float = 1.0
+    state tempo_bpm:              Float = 120.0
+    state sample_rate:            Int   = 48000
+    state buffer_size_frames:     Int   = 256
+    state active_midi_input:      String = "None"
+    state max_polyphony:          Int   = 128
+    state peak_left:              Float = -60.0
+    state peak_right:             Float = -60.0
+    state rms_left:               Float = -60.0
+    state rms_right:              Float = -60.0
+    state cpu_load:               Float = 0.0
+    state master_pan:             Float = 0.0
+    state epoch:                  Int   = 0
     surface native_ui => MixerPanel
+    surface web      => MixerPanel
+
+// ── MixerMirror — Read-only mirror for UI meter consumption ──
+world MixerMirror:
+    state transport_state_copy:    Int   = TRANSPORT_STOPPED
+    state master_volume_copy:      Float = 1.0
+    state tempo_bpm_copy:          Float = 120.0
+    state sample_rate_copy:        Int   = 48000
+    state buffer_size_frames_copy: Int   = 256
+    state transport_position_copy: Int   = 0
+    state peak_left_copy:          Float = -60.0
+    state peak_right_copy:         Float = -60.0
+    state rms_left_copy:           Float = -60.0
+    state rms_right_copy:          Float = -60.0
+    state cpu_load_copy:           Float = 0.0
+    state master_pan_copy:         Float = 0.0
+    state epoch_copy:              Int   = 0
+    surface native_ui => MixerPanel
+    surface web      => MixerPanel
+
+// ── Entangle: single_writer ensures only MixerWorld writes; MixerMirror reads ──
+entangle MixerWorld.transport_state    <-> MixerMirror.transport_state_copy    with single_writer
+entangle MixerWorld.master_volume      <-> MixerMirror.master_volume_copy      with single_writer
+entangle MixerWorld.tempo_bpm          <-> MixerMirror.tempo_bpm_copy          with single_writer
+entangle MixerWorld.sample_rate        <-> MixerMirror.sample_rate_copy        with single_writer
+entangle MixerWorld.buffer_size_frames <-> MixerMirror.buffer_size_frames_copy with single_writer
+entangle MixerWorld.transport_position <-> MixerMirror.transport_position_copy with single_writer
+entangle MixerWorld.peak_left          <-> MixerMirror.peak_left_copy          with single_writer
+entangle MixerWorld.peak_right         <-> MixerMirror.peak_right_copy         with single_writer
+entangle MixerWorld.rms_left           <-> MixerMirror.rms_left_copy           with single_writer
+entangle MixerWorld.rms_right          <-> MixerMirror.rms_right_copy          with single_writer
+entangle MixerWorld.cpu_load           <-> MixerMirror.cpu_load_copy           with single_writer
+entangle MixerWorld.master_pan         <-> MixerMirror.master_pan_copy         with single_writer
+entangle MixerWorld.epoch              <-> MixerMirror.epoch_copy              with single_writer
 
 // ── Accessors (identical to std::audio::world::mixer_is_playing / mixer_is_stopped) ──
 pub fn mixer_is_playing() -> Bool with Pure:

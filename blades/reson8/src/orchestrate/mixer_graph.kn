@@ -1,31 +1,51 @@
 // ============================================================================
 //  reson8 Mixer Signal Graph — Main Audio Pipeline
-//  STREAM2: T2-8 — src->gain->fx1-4->master->meter->sink stage graph.
+//  STREAM2: T2-8 — src→gain→fx1-4→master→meter→sink stage graph.
+//  STREAM4: AudioEngine actor calls this orchestrate block.
 //
-//  Phase 3 (Resonate): Resonate handlers moved to src/resonate/mixer_react.kn
-//    (canonical source). Local handlers removed to avoid conflicts.
-//
-//  Phase 4 (Converge): Converge dispatch is in src/converge/plugin_dispatch.kn.
-//
-//  Phase 5+6 (Shatter + Axiom): Canonical imports from src/shatter/ and
-//    src/axiom/. The local world stubs (entangle, resonate, axiom, shatter)
-//    that previously lived here have been migrated to their canonical homes.
-//
-//  Phase 8 (Laws): Law stages wired into orchestrate with `requires` clauses.
-//    Law predicates defined in src/law/mixer_laws.kn are evaluated as
-//    separate law stages in the pipeline, then required by processing stages.
+//  Phase 5+6 (Shatter + Axiom): Canonical shatter structs and axioms
+//  are defined in src/shatter/audio_buffer.kn and src/axiom/reson8_caps.kn.
+//  This file imports them and wires law/axiom guards into stages.
 // ============================================================================
 
 use std::math
 use std::intent
 use std::audio::dsp
-use worlds::mixer_world
-use law::mixer_laws
 use shatter::audio_buffer
 use axiom::reson8_caps
+use law::mixer_laws
 
 const MG_E: Float = 2.718281828459045
 const MG_TWO_PI: Float = 6.283185307179586
+
+// ============================================================================
+//  Local World Stub — mirrors worlds/mixer_world.kn for standalone check
+//  NOTE: Phase 2 (Entangle) will replace these with canonical imports.
+//  Fields master_pan, master_gain_coeff, time_sig_num are reson8-specific
+//  extensions not yet upstreamed to the canonical MixerWorld.
+// ============================================================================
+
+world MixerWorld:
+    state master_volume:      Float = 1.0
+    state master_pan:         Float = 0.0
+    state master_gain_coeff:  Float = 1.0
+    state peak_left:          Float = -60.0
+    state peak_right:         Float = -60.0
+    state tempo_bpm:          Float = 120.0
+    state time_sig_num:       Int   = 4
+
+world MixerMirror:
+    state master_volume:      Float = 1.0
+    state master_pan:         Float = 0.0
+    state peak_left:          Float = -60.0
+    state peak_right:         Float = -60.0
+    state tempo_bpm:          Float = 120.0
+
+entangle MixerWorld.master_volume <-> MixerMirror.master_volume with single_writer
+entangle MixerWorld.master_pan    <-> MixerMirror.master_pan    with single_writer
+entangle MixerWorld.peak_left     <-> MixerMirror.peak_left     with single_writer
+entangle MixerWorld.peak_right    <-> MixerMirror.peak_right    with single_writer
+entangle MixerWorld.tempo_bpm     <-> MixerMirror.tempo_bpm     with single_writer
 
 // ============================================================================
 //  AudioView Types
@@ -75,7 +95,6 @@ fn read_track_audio(input: AudioView, track: TrackState) -> AudioView with Pure:
 fn apply_gain_stage(input: AudioView, volume: Float, pan: Float) -> AudioView with Unsafe:
     let pan_l: Float = sqrt((1.0 - pan) / 2.0)
     let pan_r: Float = sqrt((1.0 + pan) / 2.0)
-
     var result: AudioView = input
     var i: Int = 0
     while i < input.frames:
@@ -85,7 +104,6 @@ fn apply_gain_stage(input: AudioView, volume: Float, pan: Float) -> AudioView wi
         mem_store(ptr_offset(result.data, idx, "Float"), in_l * volume * pan_l, "Float")
         mem_store(ptr_offset(result.data, idx + 1, "Float"), in_r * volume * pan_r, "Float")
         i = i + 1
-
     return result
 
 /// Stage: Process a single effect slot.
@@ -113,7 +131,6 @@ fn calc_peaks_rms(input: AudioView) -> AudioView with Unsafe:
     var peak_r: Float = 0.0
     var rms_sum_l: Float = 0.0
     var rms_sum_r: Float = 0.0
-
     var i: Int = 0
     while i < input.frames:
         let idx: Int = i * 2
@@ -128,9 +145,7 @@ fn calc_peaks_rms(input: AudioView) -> AudioView with Unsafe:
         rms_sum_l = rms_sum_l + val_l * val_l
         rms_sum_r = rms_sum_r + val_r * val_r
         i = i + 1
-
     let frame_count: Float = input.frames as Float
-
     var result: AudioView = input
     result.peak_l = peak_l
     result.peak_r = peak_r
@@ -143,70 +158,40 @@ fn deliver_to_output(input: AudioView, meter: AudioView) -> AudioView with Pure:
     return input
 
 // ============================================================================
-//  Mixer Signal Graph — Orchestrate with Law Wiring
-//
-//  Law stages are defined BEFORE their consumers in the pipeline order.
-//  Each law stage runs a predicate from src/law/mixer_laws.kn.
-//  Processing stages use `requires stage_name` to gate on law results.
-//  Axiom guards use `guarded by` for platform capability gating.
+//  Mixer Signal Graph — Orchestrate
+//  Phase 6: Axiom guards + Phase 8: Law checks wired into stages
+//  NOTE: All stage clauses must be on a single line (parser constraint).
+//  The `requires` keyword references a law stage by name.
+//  The `guarded by` keyword references an axiom by name.
 // ============================================================================
 
 orchestrate mixer_signal_graph(input: AudioView, track: TrackState) -> AudioView:
-    # ── Law check: track pan must be within [-1.0, 1.0] ──
-    stage gain_law_check: law pan_valid(track.pan)
-        residency host policy static
-
-    # ── Law check: master volume must be within [0.0, 1.0] ──
-    stage master_law_check: law master_volume_in_bounds(MixerWorld.master_volume)
-        residency host policy static
-
-    # ── Source ──
-    stage src: cpu read_track_audio(input, track)
-        when capability("audio.source") residency host transfer none
-        guarded by reson8_audio_pipeline
-        fallback degrade read_track_audio(input, track)
-
-    # ── Gain stage (requires pan_valid) ──
-    stage gain: cpu apply_gain_stage(src, track.volume, track.pan)
-        after src residency host policy static
-        requires gain_law_check
-        guarded by reson8_avx2_pipeline
-        fallback degrade apply_gain_stage(src, track.volume, track.pan)
-
-    # ── FX slots ──
-    stage fx1: cpu process_effect(gain, track.fx_slot[0])
-        after gain residency host policy telemetry_balance_latency
-
-    stage fx2: cpu process_effect(fx1, track.fx_slot[1])
-        after fx1 residency host policy telemetry_balance_latency
-
-    stage fx3: cpu process_effect(fx2, track.fx_slot[2])
-        after fx2 residency host policy telemetry_balance_latency
-
-    stage fx4: cpu process_effect(fx3, track.fx_slot[3])
-        after fx3 residency host policy telemetry_balance_latency
-
-    # ── Master chain (requires master_volume_in_bounds) ──
-    stage master: cpu apply_master_chain(fx4, MixerWorld.master_volume)
-        after fx4 residency host policy static
-        requires master_law_check
-        guarded by reson8_avx2_pipeline
-        fallback degrade apply_master_chain(fx4, MixerWorld.master_volume)
-
-    # ── Law check: meter dB values must be valid ──
-    stage meter_law_check: law meter_db_valid(MixerWorld.peak_left)
-        after master residency host policy static
-
-    # ── Meter stage (requires valid meter dB) ──
-    stage meter: cpu calc_peaks_rms(master)
-        after master residency host transfer shared_view
-        requires meter_law_check
-
-    # ── Sink ──
-    stage sink: cpu deliver_to_output(master, meter)
-        when capability("audio.sink") after master residency host transfer none
-
+    stage src: cpu read_track_audio(input, track) when capability("audio.source") residency host transfer none guarded by reson8_audio_pipeline fallback degrade read_track_audio(input, track)
+    stage gain: cpu apply_gain_stage(src, track.volume, track.pan) after src residency host policy static guarded by reson8_avx2_pipeline fallback degrade apply_gain_stage(src, track.volume, track.pan)
+    stage fx1: cpu process_effect(gain, track.fx_slot[0]) after gain residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
+    stage fx2: cpu process_effect(fx1, track.fx_slot[1]) after fx1 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
+    stage fx3: cpu process_effect(fx2, track.fx_slot[2]) after fx2 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
+    stage fx4: cpu process_effect(fx3, track.fx_slot[3]) after fx3 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
+    stage vol_law_in: law pan_valid(track.pan) after src residency host policy static
+    stage master: cpu apply_master_chain(fx4, MixerWorld.master_volume) after fx4 residency host policy static guarded by reson8_avx2_pipeline fallback degrade apply_master_chain(fx4, MixerWorld.master_volume) requires vol_law_in
+    stage meter: cpu calc_peaks_rms(master) after master residency host transfer shared_view guarded by reson8_audio_pipeline
+    stage meter_law_in: law meter_db_valid(MixerWorld.peak_left) after meter residency host policy static
+    stage sink: cpu deliver_to_output(master, meter) when capability("audio.sink") after master residency host transfer none guarded by reson8_audio_pipeline
     return sink
+
+// ============================================================================
+//  Resonate Handlers
+// ============================================================================
+
+resonate MixerWorld.master_volume dampen 0 ms:
+    let new_vol: Float = resonate_new_i64 as Float
+    MixerWorld.master_gain_coeff = new_vol
+    MixerWorld.peak_left = 0.0
+    MixerWorld.peak_right = 0.0
+
+resonate MixerWorld.tempo_bpm dampen 0 ms:
+    let new_bpm: Float = resonate_new_i64 as Float
+    MixerWorld.time_sig_num = MixerWorld.time_sig_num
 
 // ============================================================================
 //  Exported entry point
