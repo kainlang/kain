@@ -43,8 +43,8 @@ resonate MixerWorld.transport_state dampen 0 ms:
             cpu_load:       MixerWorld.cpu_load,
             transport_pos:  MixerWorld.transport_position,
             tempo_bpm:      MixerWorld.tempo_bpm,
-            playing:        false,
-            tick:           resonate_fired,
+            playing:        0,
+            tick:           if resonate_fired: 1 else: 0,
             timestamp_ms:   0,
         }
         update_meter_displays(snapshot)
@@ -71,8 +71,8 @@ resonate MixerWorld.master_volume dampen 0 ms:
         cpu_load:       MixerWorld.cpu_load,
         transport_pos:  MixerWorld.transport_position,
         tempo_bpm:      MixerWorld.tempo_bpm,
-        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
-        tick:           resonate_fired,
+        playing:        if MixerWorld.transport_state == TRANSPORT_PLAYING: 1 else: 0,
+        tick:           if resonate_fired: 1 else: 0,
         timestamp_ms:   0,
     }
     update_meter_displays(snapshot)
@@ -111,8 +111,8 @@ resonate MixerWorld.peak_left dampen 16 ms:
         cpu_load:       MixerWorld.cpu_load,
         transport_pos:  MixerWorld.transport_position,
         tempo_bpm:      MixerWorld.tempo_bpm,
-        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
-        tick:           resonate_fired,
+        playing:        if MixerWorld.transport_state == TRANSPORT_PLAYING: 1 else: 0,
+        tick:           if resonate_fired: 1 else: 0,
         timestamp_ms:   0,
     }
     update_meter_displays(snapshot)
@@ -134,8 +134,8 @@ resonate MixerWorld.peak_right dampen 16 ms:
         cpu_load:       MixerWorld.cpu_load,
         transport_pos:  MixerWorld.transport_position,
         tempo_bpm:      MixerWorld.tempo_bpm,
-        playing:        MixerWorld.transport_state == TRANSPORT_PLAYING,
-        tick:           resonate_fired,
+        playing:        if MixerWorld.transport_state == TRANSPORT_PLAYING: 1 else: 0,
+        tick:           if resonate_fired: 1 else: 0,
         timestamp_ms:   0,
     }
     update_meter_displays(snapshot)

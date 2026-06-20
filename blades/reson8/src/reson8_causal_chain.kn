@@ -106,33 +106,30 @@ patch reset_world_state(authority: Reson8Authority) -> Int:
 //  L3: CONVERGE — Spec + fast lanes for audio DSP dispatch
 // ────────────────────────────────────────────────────────────────────────────
 
-fn process_kain_ref(input: ptr<Float>, frames: Int, volume: Float) -> Int:
-    return 0
+fn process_kain_ref(value: Int, tick: Int) -> Int:
+    return (value * 31 + tick * 7) % RESON8_MODULUS
 
-fn process_vst3_fast(input: ptr<Float>, frames: Int, volume: Float) -> Int:
-    return 0
+fn process_vst3_fast(value: Int, tick: Int) -> Int:
+    return (value + tick * 3 + 17) % RESON8_MODULUS
 
-converge process_audio_lane(input: ptr<Float>, frames: Int, volume: Float) -> Int:
+converge process_audio_lane(value: Int, tick: Int) -> Int:
     spec reference:
-        return process_kain_ref(input, frames, volume)
+        return process_kain_ref(value, tick)
     fast vst3_lane when capability("plugin.vst3"):
-        return process_vst3_fast(input, frames, volume)
+        return process_vst3_fast(value, tick)
     verify random(4)
 
 // ────────────────────────────────────────────────────────────────────────────
 //  L4: ORCHESTRATE — Typed multi-runtime stage graph
 // ────────────────────────────────────────────────────────────────────────────
 
-fn cpu_mix(input: ptr<Float>, frames: Int, param: Float) -> Int:
-    return 0
+fn cpu_mix(value: Int, tick: Int) -> Int:
+    return (value * 3 + tick) % RESON8_MODULUS
 
-orchestrate mixer_pipeline(input: ptr<Float>, frames: Int, volume: Float) -> Int:
-    stage mix_stage: cpu cpu_mix(input, frames, volume)
-        when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
-    stage converge_stage: converge process_audio_lane(input, frames, volume)
-        deps [mix_stage] residency host policy static
-    stage law_check: law meter_level_valid(volume)
-        deps [converge_stage]
+orchestrate mixer_pipeline(value: Int, tick: Int) -> Int:
+    stage mix_stage: cpu cpu_mix(value, tick) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    stage converge_stage: converge process_audio_lane(value, tick) deps [mix_stage] residency host policy static
+    stage law_check: law meter_level_valid(0.0) deps [converge_stage]
     return converge_stage
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -239,7 +236,7 @@ pub fn reson8_full_chain_checksum(iterations: Int) -> Int with Unsafe:
         let mirror_pos = Reson8Mirror.transport_position_copy
 
         // L4: Run orchestrate pipeline
-        let orch_result = mixer_pipeline(ptr_to_int(0 as ptr<Float>) as ptr<Float>, 256, 0.8)
+        let orch_result = mixer_pipeline(i, i % 100)
 
         // L6 + L7: Teleport via actor send/ask
         let actor_reply = ask(worker, "ProcessFrame", i * 31 + 7)

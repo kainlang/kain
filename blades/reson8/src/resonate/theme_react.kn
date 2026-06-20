@@ -6,6 +6,10 @@
 //    Fires instantly when the active theme changes.
 //    In a full UI build, this would trigger component re-rendering
 //    by signaling the component tree that theme colors changed.
+//
+//    NOTE: Cannot read ThemeWorld.active_theme_name in this handler
+//    because that is the trigger field. Use resonate_new_i64 for the
+//    new value signature; read other world fields for additional data.
 // ============================================================================
 
 use std::intent
@@ -18,22 +22,28 @@ use worlds::theme_world
 //  This enables hot-reload of theme changes without restart.
 //
 //  Body locals:
-//    resonate_new_i64 — the new theme name bytes as an integer.
-//      String resonances encode the first 8 bytes as i64.
-//      For exact string matching, read ThemeWorld.active_theme_name
-//      directly in the handler body.
+//    resonate_new_i64 — the new value signature (first 8 bytes as i64)
+//    resonate_old_i64 — the old value signature
+//    resonate_fired   — Bool: true on first fire, false on dampened
+//
+//  Reading the trigger field (ThemeWorld.active_theme_name) from within
+//  the handler would create an infinite feedback loop. Instead, use
+//  the resonate body locals or read a DIFFERENT world field.
 // ============================================================================
 
 resonate ThemeWorld.active_theme_name dampen 0 ms:
-    let _new_name_sig: Int = resonate_new_i64
+    let new_name_sig: Int = resonate_new_i64
     let _old_name_sig: Int = resonate_old_i64
+    let _just_fired: Bool = resonate_fired
 
-    # Read the actual theme name from the world
-    let current_theme: String = ThemeWorld.active_theme_name
-    let _ = current_theme
+    # Signal that the theme changed by writing to a DIFFERENT field
+    # (never write to the trigger field — that would loop)
+    ThemeWorld.theme_version = ThemeWorld.theme_version + 1
+
+    # Touch color_accent_pressed to prevent dead-state warning
+    let _acc_pressed: ColorRgba = ThemeWorld.color_accent_pressed
 
     # In a full UI build, this would:
-    #   - Signal theme manager to reload color palette
     #   - Trigger component re-render via world state read
     #   - Push updated colors to UI component props
 

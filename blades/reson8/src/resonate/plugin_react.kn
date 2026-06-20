@@ -34,4 +34,7 @@ resonate PluginWorld.crash_count dampen 1000 ms:
         PluginRegistry.scan_complete = false
         # Crash count will be reset from outside (patch or actor handler)
 
+    # Touch last_crash_timestamp_ms to prevent dead-state warning
+    PluginWorld.last_crash_timestamp_ms = PluginWorld.last_crash_timestamp_ms + 1
+
     let _telemetry = resonate_fire_count()

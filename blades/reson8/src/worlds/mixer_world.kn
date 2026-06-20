@@ -60,6 +60,7 @@ world MixerMirror:
     state cpu_load_copy:           Float = 0.0
     state master_pan_copy:         Float = 0.0
     state epoch_copy:              Int   = 0
+    state meter_feed:              Int   = 0
     surface native_ui => MixerPanel
     surface web      => MixerPanel
 

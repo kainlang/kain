@@ -190,11 +190,11 @@ fn master_dither_stage(input: ptr<Float>, output: ptr<Float>, frames: Int,
 
 orchestrate master_chain_pipeline(input: ptr<Float>, output: ptr<Float>, frames: Int, params: MasterChainParams, sample_rate: Int) -> Int:
     stage sr_law: law sample_rate_valid(sample_rate) residency host policy static
-    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled) when capability("cpu.scalar") residency host transfer none policy static guarded by reson8_avx2_pipeline fallback degrade master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled) requires sr_law
-    stage comp_stage: cpu master_compressor_stage(output, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate, params.comp_enabled) after eq_stage residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
+    stage eq_stage: cpu master_eq_stage(input, output, frames, params.eq_low_shelf_db, params.eq_high_shelf_db, params.eq_low_freq, params.eq_high_freq, sample_rate, params.eq_enabled) when capability("cpu.scalar") residency host transfer none guarded by reson8_avx2_pipeline fallback abort requires sr_law policy static
+    stage comp_stage: cpu master_compressor_stage(output, output, frames, params.comp_threshold_db, params.comp_ratio, params.comp_attack_ms, params.comp_release_ms, params.comp_knee_db, params.comp_makeup_db, sample_rate, params.comp_enabled) after eq_stage residency host guarded by reson8_audio_pipeline fallback abort policy telemetry_balance_latency
     stage vol_law: law master_volume_in_bounds(params.output_gain_db) after comp_stage residency host policy static
-    stage limiter_stage: cpu master_limiter_stage(output, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate, params.limiter_enabled) after comp_stage residency host policy static guarded by reson8_audio_pipeline requires vol_law
-    stage dither_stage: cpu master_dither_stage(output, output, frames, params.dither_bits, params.dither_enabled) after limiter_stage residency host transfer none policy static guarded by reson8_audio_pipeline
+    stage limiter_stage: cpu master_limiter_stage(output, output, frames, params.limiter_ceiling_db, params.limiter_release_ms, sample_rate, params.limiter_enabled) after comp_stage residency host guarded by reson8_audio_pipeline fallback abort requires vol_law policy static
+    stage dither_stage: cpu master_dither_stage(output, output, frames, params.dither_bits, params.dither_enabled) after limiter_stage residency host transfer none guarded by reson8_audio_pipeline fallback abort policy static
     return 0
 
 pub fn master_chain_process(input: ptr<Float>, output: ptr<Float>, frames: Int,

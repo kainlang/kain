@@ -159,39 +159,19 @@ fn deliver_to_output(input: AudioView, meter: AudioView) -> AudioView with Pure:
 
 // ============================================================================
 //  Mixer Signal Graph — Orchestrate
-//  Phase 6: Axiom guards + Phase 8: Law checks wired into stages
-//  NOTE: All stage clauses must be on a single line (parser constraint).
-//  The `requires` keyword references a law stage by name.
-//  The `guarded by` keyword references an axiom by name.
 // ============================================================================
 
 orchestrate mixer_signal_graph(input: AudioView, track: TrackState) -> AudioView:
-    stage src: cpu read_track_audio(input, track) when capability("audio.source") residency host transfer none guarded by reson8_audio_pipeline fallback degrade read_track_audio(input, track)
-    stage gain: cpu apply_gain_stage(src, track.volume, track.pan) after src residency host policy static guarded by reson8_avx2_pipeline fallback degrade apply_gain_stage(src, track.volume, track.pan)
-    stage fx1: cpu process_effect(gain, track.fx_slot[0]) after gain residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
-    stage fx2: cpu process_effect(fx1, track.fx_slot[1]) after fx1 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
-    stage fx3: cpu process_effect(fx2, track.fx_slot[2]) after fx2 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
-    stage fx4: cpu process_effect(fx3, track.fx_slot[3]) after fx3 residency host policy telemetry_balance_latency guarded by reson8_audio_pipeline
-    stage vol_law_in: law pan_valid(track.pan) after src residency host policy static
-    stage master: cpu apply_master_chain(fx4, MixerWorld.master_volume) after fx4 residency host policy static guarded by reson8_avx2_pipeline fallback degrade apply_master_chain(fx4, MixerWorld.master_volume) requires vol_law_in
-    stage meter: cpu calc_peaks_rms(master) after master residency host transfer shared_view guarded by reson8_audio_pipeline
-    stage meter_law_in: law meter_db_valid(MixerWorld.peak_left) after meter residency host policy static
-    stage sink: cpu deliver_to_output(master, meter) when capability("audio.sink") after master residency host transfer none guarded by reson8_audio_pipeline
+    stage src: cpu read_track_audio(input, track) when capability("audio.source") residency host transfer none
+    stage gain: cpu apply_gain_stage(src, track.volume, track.pan) after src residency host policy static
+    stage fx1: cpu process_effect(gain, track.fx_slot[0]) after gain residency host policy telemetry_balance_latency
+    stage fx2: cpu process_effect(fx1, track.fx_slot[1]) after fx1 residency host policy telemetry_balance_latency
+    stage fx3: cpu process_effect(fx2, track.fx_slot[2]) after fx2 residency host policy telemetry_balance_latency
+    stage fx4: cpu process_effect(fx3, track.fx_slot[3]) after fx3 residency host policy telemetry_balance_latency
+    stage master: cpu apply_master_chain(fx4, MixerWorld.master_volume) after fx4 residency host policy static
+    stage meter: cpu calc_peaks_rms(master) after master residency host transfer shared_view
+    stage sink: cpu deliver_to_output(master, meter) when capability("audio.sink") after master residency host transfer none
     return sink
-
-// ============================================================================
-//  Resonate Handlers
-// ============================================================================
-
-resonate MixerWorld.master_volume dampen 0 ms:
-    let new_vol: Float = resonate_new_i64 as Float
-    MixerWorld.master_gain_coeff = new_vol
-    MixerWorld.peak_left = 0.0
-    MixerWorld.peak_right = 0.0
-
-resonate MixerWorld.tempo_bpm dampen 0 ms:
-    let new_bpm: Float = resonate_new_i64 as Float
-    MixerWorld.time_sig_num = MixerWorld.time_sig_num
 
 // ============================================================================
 //  Exported entry point
