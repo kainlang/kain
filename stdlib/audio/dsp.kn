@@ -1095,32 +1095,36 @@ pub fn tanh_clipper(input: Float) -> Float with Pure:
 // ============================================================================
 //
 // Public test helpers for the dsp_test suite. NOT in the spec but useful for
-// verifying the algorithms. They expose internal state for assertions.
+// verifying the algorithms. They expose internal state for assertions. These
+// functions intentionally use `with Unsafe` (they allocate, decay, and call
+// oscillator internals directly).
 
 // dsp_test_osc_sine_period — count samples per cycle at given freq.
+// Returns the sample index of the second zero-crossing (period in samples).
 pub fn dsp_test_osc_sine_period(freq_hz: Float, sample_rate: Int) -> Int with Unsafe:
     let phase: ptr<Float> = alloc_zeroed(1, "Float")
+    defer decay phase
     mem_store(phase, 0.0, "Float")
     var zeros: Int = 0
     var prev: Float = 0.0
     var i: Int = 0
-    let total: Int = (sample_rate / 1)
+    let total: Int = sample_rate
     while i < total:
         let v: Float = osc_sine(phase, freq_hz, sample_rate)
         if prev <= 0.0 and v > 0.0:
             zeros = zeros + 1
             if zeros == 2:
-                decay phase
                 return i
         prev = v
         i = i + 1
-    decay phase
     return total
 
 // dsp_test_fft_roundtrip — verify forward + inverse preserves input (within EPS).
 pub fn dsp_test_fft_roundtrip(n: Int) -> Int with Unsafe:
     let real: ptr<Float> = alloc_zeroed(n, "Float")
     let imag: ptr<Float> = alloc_zeroed(n, "Float")
+    defer decay real
+    defer decay imag
     var i: Int = 0
     while i < n:
         // Test signal: cosine at bin 3 + sine at bin 5
@@ -1129,19 +1133,14 @@ pub fn dsp_test_fft_roundtrip(n: Int) -> Int with Unsafe:
         i = i + 1
     let r1: Int = fft_forward(real, imag, n)
     if r1 != DSP_OK:
-        decay real
-        decay imag
         return r1
     let r2: Int = fft_inverse(real, imag, n)
     if r2 != DSP_OK:
-        decay real
-        decay imag
         return r2
-    decay real
-    decay imag
     return DSP_OK
 
 // dsp_test_biquad_dc_gain — verify a 100 Hz lowpass passes DC (unity at 0 Hz).
+// Returns DSP_OK if gain is within 0.01 of 1.0.
 pub fn dsp_test_biquad_dc_gain() -> Int with Pure:
     let coeffs: BiquadCoeffs = biquad_lowpass(100.0, 0.707, 48000)
     // DC: y = (b0 + b1 + b2) / (1 + a1 + a2)
@@ -1154,4 +1153,71 @@ pub fn dsp_test_biquad_dc_gain() -> Int with Pure:
     let diff: Float = absf(gain - 1.0)
     if diff > 0.01:
         return -2
+    return DSP_OK
+
+// dsp_test_db_linear — verify db_to_linear roundtrip.
+pub fn dsp_test_db_linear() -> Int with Pure:
+    if absf(db_to_linear(0.0) - 1.0) > 0.0001:
+        return -1
+    let v: Float = db_to_linear(-6.0)
+    if absf(v - 0.501187) > 0.001:
+        return -2
+    if absf(linear_to_db(1.0)) > 0.0001:
+        return -3
+    if absf(linear_to_db(0.5) - (-6.0206)) > 0.01:
+        return -4
+    return DSP_OK
+
+// dsp_test_midi_freq — A4 = 440 Hz, A5 = 880 Hz, C4 = ~261.63 Hz.
+pub fn dsp_test_midi_freq() -> Int with Pure:
+    let a4: Float = midi_to_freq(69.0, 440.0)
+    if absf(a4 - 440.0) > 0.01:
+        return -1
+    let a5: Float = midi_to_freq(81.0, 440.0)
+    if absf(a5 - 880.0) > 0.01:
+        return -2
+    let c4: Float = midi_to_freq(60.0, 440.0)
+    if absf(c4 - 261.6256) > 0.01:
+        return -3
+    // Round-trip
+    let n: Float = freq_to_midi(440.0, 440.0)
+    if absf(n - 69.0) > 0.001:
+        return -4
+    return DSP_OK
+
+// dsp_test_pan — equal power pan should sum to ~1.0 at any position.
+pub fn dsp_test_pan() -> Int with Pure:
+    let l0: Float = 1.0
+    let r0: Float = 0.0
+    let (la, ra) = pan_equal_power(0.0)
+    if absf(la - l0) > 0.01 or absf(ra - r0) > 0.01:
+        return -1
+    // Center: both ~0.707
+    let (lc, rc) = pan_equal_power(0.0)
+    let s: Float = (lc * lc) + (rc * rc)
+    if absf(s - 1.0) > 0.01:
+        return -2
+    return DSP_OK
+
+// dsp_test_suite — runs all internal tests. Returns 0 if all pass.
+pub fn dsp_test_suite() -> Int with Unsafe:
+    let r1: Int = dsp_test_db_linear()
+    if r1 != DSP_OK:
+        return r1
+    let r2: Int = dsp_test_midi_freq()
+    if r2 != DSP_OK:
+        return r2
+    let r3: Int = dsp_test_pan()
+    if r3 != DSP_OK:
+        return r3
+    let r4: Int = dsp_test_biquad_dc_gain()
+    if r4 != DSP_OK:
+        return r4
+    let r5: Int = dsp_test_osc_sine_period(440.0, 44100)
+    // 440 Hz at 44100 sr: period = 44100/440 = 100.23 samples
+    if r5 < 99 or r5 > 102:
+        return r5
+    let r6: Int = dsp_test_fft_roundtrip(64)
+    if r6 != DSP_OK:
+        return r6
     return DSP_OK

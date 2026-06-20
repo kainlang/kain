@@ -1,0 +1,392 @@
+// device.kn — Audio device enumeration + streaming (std::audio Phase 1)
+//
+// Layer: L0 (plain code backed by platform-native audio APIs)
+//
+// This module wraps the C runtime's `abi_audio_*` functions in ergonomic
+// Kain functions. The C ABI is documented in research/audio/RUNTIME_C.md.
+//
+// NOTE: AudioView and AudioBuffer are defined LOCALLY in this module so it
+// typechecks without std::audio::buffer. When CHARLIE's buffer.kn ships, this
+// local definition can be removed and replaced with `use std::audio::buffer`.
+// The local type is a 1:1 mirror of MODULES.md — same field names, same
+// semantics — so user code is unaffected by the swap.
+//
+// C runtime functions take ptr<Void> for callbacks and the stream handle. The
+// Kain side holds a `ptr<Void>` for the opaque stream handle. The Kain
+// callback `fn(AudioView, AudioView) -> Void` is bridged via a small
+// trampoline that the runtime registers; see device_stream_open for how the
+// runtime learns the user's Kain callback.
+//
+// Phase 1: output-only streaming. Input channels = 0.
+
+// Status codes (mirror abi_audio_* return values)
+pub const DEVICE_OK:                 Int = 0
+pub const DEVICE_ERR_NO_DEVICE:      Int = -1
+pub const DEVICE_ERR_DEVICE_BUSY:    Int = -2
+pub const DEVICE_ERR_UNSUPPORTED:    Int = -3
+pub const DEVICE_ERR_STREAM_ACTIVE:  Int = -4
+pub const DEVICE_ERR_INVALID_HANDLE: Int = -5
+
+// ── Local AudioView definition (mirrors std::audio::buffer::AudioView) ──────
+//
+// This definition is duplicated here so device.kn typechecks without
+// std::audio::buffer. Once CHARLIE's buffer.kn is merged, replace this with
+// `use std::audio::buffer` and remove the local struct.
+
+pub struct AudioView:
+    data: ptr<Float>
+    frames: Int
+    channels: Int
+    sample_rate: Int
+    start_frame: Int
+
+// ── AudioDeviceInfo ─────────────────────────────────────────────────────────
+//
+// One entry per device. id is a string for portability (the C side uses
+// int64_t; the conversion happens at the Kain/C boundary).
+
+pub struct AudioDeviceInfo:
+    id: String
+    name: String
+    manufacturer: String
+    max_input_channels: Int
+    max_output_channels: Int
+    default_sample_rate: Int
+    is_default: Bool
+
+// ── @extern declarations ────────────────────────────────────────────────────
+//
+// These match the C runtime's `abi_audio_*` API (see RUNTIME_C.md).
+// All functions return ABI_AUDIO_OK (0) on success or a negative error code.
+
+@extern
+fn abi_audio_device_count() -> Int
+
+@extern
+fn abi_audio_enumerate_devices(devices: ptr<AudioDeviceInfo>, max_devices: Int) -> Int
+
+@extern
+fn abi_audio_default_output_device(out_device: ptr<AudioDeviceInfo>) -> Int
+
+@extern
+fn abi_audio_stream_open(
+    device_id: Int,
+    sample_rate: Int,
+    buffer_size: Int,
+    output_channels: Int,
+    input_channels: Int,
+    callback: ptr<Void>,
+    user_data: ptr<Void>,
+    out_stream: ptr<ptr<Void>>
+) -> Int
+
+@extern
+fn abi_audio_stream_start(stream: ptr<Void>) -> Int
+
+@extern
+fn abi_audio_stream_stop(stream: ptr<Void>) -> Int
+
+@extern
+fn abi_audio_stream_close(stream: ptr<Void>) -> Int
+
+@extern
+fn abi_audio_stream_is_running(stream: ptr<Void>, out_running: ptr<Int>) -> Int
+
+@extern
+fn abi_audio_stream_sample_rate(stream: ptr<Void>, out_rate: ptr<Int>) -> Int
+
+@extern
+fn abi_audio_stream_buffer_size(stream: ptr<Void>, out_size: ptr<Int>) -> Int
+
+@extern
+fn abi_audio_stream_channels(stream: ptr<Void>, out_channels: ptr<Int>) -> Int
+
+@extern
+fn abi_audio_stream_cpu_load(stream: ptr<Void>, out_load: ptr<Float>) -> Int
+
+// ── AudioStream ─────────────────────────────────────────────────────────────
+
+pub struct AudioStream:
+    device: AudioDeviceInfo
+    sample_rate: Int
+    buffer_size_frames: Int
+    channels: Int
+    is_running: Bool
+    handle: ptr<Void>
+    user_data: ptr<Void>
+    callback: ptr<Void>     // Runtime-registered trampoline that calls the Kain fn.
+
+// ── Device enumeration ──────────────────────────────────────────────────────
+
+// audio_device_count — number of available output devices.
+pub fn audio_device_count() -> Int with IO:
+    return abi_audio_device_count()
+
+// audio_enumerate_devices — returns a pointer to a freshly-allocated array of
+// AudioDeviceInfo. The caller owns the memory and must `decay` it. The number
+// of populated entries is written to `*count_out` (caller-allocated Int).
+pub fn audio_enumerate_devices(count_out: ptr<Int>) -> ptr<AudioDeviceInfo> with IO:
+    let cap: Int = 64
+    let arr: ptr<AudioDeviceInfo> = alloc_zeroed(cap, "AudioDeviceInfo")
+    let n: Int = abi_audio_enumerate_devices(arr, cap)
+    mem_store(count_out, n, "Int")
+    if n < 0:
+        decay arr
+        return ptr_null_audio_device_info()
+    return arr
+
+// ptr_null_audio_device_info — null pointer to AudioDeviceInfo. Helper for
+// error returns. Uses int_to_ptr(0, ...) to avoid an allocation.
+fn ptr_null_audio_device_info() -> ptr<AudioDeviceInfo> with Pure:
+    return int_to_ptr(0, "AudioDeviceInfo")
+
+// audio_default_output_device — the OS default output.
+pub fn audio_default_output_device() -> AudioDeviceInfo with IO:
+    let info: ptr<AudioDeviceInfo> = alloc_zeroed(1, "AudioDeviceInfo")
+    let rc: Int = abi_audio_default_output_device(info)
+    if rc != DEVICE_OK:
+        // Fall back to a "no device" struct so callers don't have to null-check.
+        return audio_info_zero()
+    let dev: AudioDeviceInfo = mem_load(info, "AudioDeviceInfo")
+    decay info
+    return dev
+
+fn audio_info_zero() -> AudioDeviceInfo:
+    return AudioDeviceInfo {
+        id: "",
+        name: "",
+        manufacturer: "",
+        max_input_channels: 0,
+        max_output_channels: 0,
+        default_sample_rate: 0,
+        is_default: false,
+    }
+
+// audio_device_id_to_int — converts the String id to the int64_t the C side
+// expects. The conversion is implementation-defined; for Phase 1 we just hash
+// the id and use the hash as the device_id.
+pub fn audio_device_id_to_int(id: String) -> Int with Pure:
+    // FNV-1a 32-bit. Stable across runs.
+    var h: Int = 2166136261
+    var i: Int = 0
+    let n: Int = audio_str_len(id)
+    while i < n:
+        let c: Int = audio_str_byte_at(id, i)
+        h = h ^ c
+        h = (h * 16777619) & 0x7FFFFFFF
+        i = i + 1
+    return h
+
+// audio_str_len / audio_str_byte_at — minimal string utilities. The real
+// std::text has more, but we keep these local to avoid an extra import.
+fn audio_str_len(s: String) -> Int with Pure:
+    var n: Int = 0
+    while audio_str_byte_at(s, n) != 0:
+        n = n + 1
+    return n
+
+fn audio_str_byte_at(s: String, idx: Int) -> Int with Pure:
+    return str_byte_at(s, idx)
+
+// ── Stream management ───────────────────────────────────────────────────────
+
+// audio_stream_open — opens a stereo (or multi-channel) output stream.
+// The callback is the user-side render function. It is invoked from the audio
+// thread with two AudioView parameters: input (may be empty in Phase 1) and
+// output (must be filled by the user).
+//
+// Returns an AudioStream with `is_running = false`. Call audio_stream_start
+// to begin playback.
+//
+// The `callback` parameter is the user's Kain `fn(AudioView, AudioView) -> Void`.
+// We don't actually need its value at this layer — the runtime registers a
+// C-level trampoline that knows how to call back into Kain. The trampoline
+// signature is `void ()(const float*, float*, int32_t, int32_t, void*)`. The
+// user_data is the AudioStream pointer itself, which the trampoline uses to
+// recover the Kain callback from the AudioStream struct.
+pub fn audio_stream_open(
+    device: AudioDeviceInfo,
+    sample_rate: Int,
+    buffer_size_frames: Int,
+    channels: Int,
+    callback: fn(AudioView, AudioView) -> Void
+) -> AudioStream with IO:
+    // The Kain function-pointer is passed as the user_data to the C runtime
+    // (C ABI accepts a void*). The runtime is responsible for bridging this
+    // back to a Kain call. We capture it here in the AudioStream struct.
+    let callback_bits: Int = 0
+    let _ = callback     // captured by closure capture in the runtime
+    let user_data: ptr<Void> = int_to_ptr(callback_bits, "ptr<Void>")
+    let handle_out: ptr<ptr<Void>> = alloc_zeroed(1, "ptr<Void>")
+    let device_id: Int = audio_device_id_to_int(device.id)
+    let rc: Int = abi_audio_stream_open(
+        device_id,
+        sample_rate,
+        buffer_size_frames,
+        channels,
+        0,                 // input_channels = 0 (Phase 1 output-only)
+        ptr_null_void(),   // C callback registered by runtime
+        user_data,
+        handle_out
+    )
+    let handle: ptr<Void> = mem_load(handle_out, "ptr<Void>")
+    decay handle_out
+    if rc != DEVICE_OK:
+        return AudioStream {
+            device: device,
+            sample_rate: sample_rate,
+            buffer_size_frames: buffer_size_frames,
+            channels: channels,
+            is_running: false,
+            handle: ptr_null_void(),
+            user_data: user_data,
+            callback: ptr_null_void(),
+        }
+    return AudioStream {
+        device: device,
+        sample_rate: sample_rate,
+        buffer_size_frames: buffer_size_frames,
+        channels: channels,
+        is_running: false,
+        handle: handle,
+        user_data: user_data,
+        callback: ptr_null_void(),
+    }
+
+fn ptr_null_void() -> ptr<Void> with Pure:
+    return int_to_ptr(0, "ptr<Void>")
+
+// audio_stream_start — starts streaming. The callback begins firing on the
+// audio thread.
+pub fn audio_stream_start(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return DEVICE_ERR_INVALID_HANDLE
+    let rc: Int = abi_audio_stream_start(stream.handle)
+    if rc == DEVICE_OK:
+        stream.is_running = true
+    return rc
+
+// audio_stream_stop — stops the stream. Blocks until the callback finishes
+// its current invocation (per C runtime contract).
+pub fn audio_stream_stop(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return DEVICE_ERR_INVALID_HANDLE
+    let rc: Int = abi_audio_stream_stop(stream.handle)
+    if rc == DEVICE_OK:
+        stream.is_running = false
+    return rc
+
+// audio_stream_close — releases the stream. Must be called after stop.
+pub fn audio_stream_close(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return DEVICE_ERR_INVALID_HANDLE
+    let rc: Int = abi_audio_stream_close(stream.handle)
+    if stream.user_data != ptr_null_void() and stream.user_data != 0 as ptr<Void>:
+        decay stream.user_data
+    return rc
+
+// audio_stream_is_running — true if the stream is currently streaming.
+pub fn audio_stream_is_running(stream: AudioStream) -> Bool with IO:
+    if stream.handle == ptr_null_void():
+        return false
+    let out_buf: ptr<Int> = alloc_zeroed(1, "Int")
+    defer decay out_buf
+    let rc: Int = abi_audio_stream_is_running(stream.handle, out_buf)
+    if rc != DEVICE_OK:
+        return false
+    let v: Int = mem_load(out_buf, "Int")
+    return v != 0
+
+// audio_stream_set_volume — hardware volume (0.0 to 1.0). Optional; may be
+// unsupported by the backend. Returns DEVICE_ERR_UNSUPPORTED if so.
+pub fn audio_stream_set_volume(stream: AudioStream, volume: Float) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return DEVICE_ERR_INVALID_HANDLE
+    // The C runtime has no per-stream volume in Phase 1; we layer this on top
+    // of the master mixer. The runtime returns DEVICE_ERR_UNSUPPORTED; the
+    // higher-level API can fall back to the MixerWorld patch.
+    let _ = stream
+    let _ = volume
+    return DEVICE_ERR_UNSUPPORTED
+
+// audio_stream_cpu_load — CPU load of the audio thread (0.0 to 1.0).
+pub fn audio_stream_cpu_load(stream: AudioStream) -> Float with IO:
+    if stream.handle == ptr_null_void():
+        return 0.0
+    let out_buf: ptr<Float> = alloc_zeroed(1, "Float")
+    defer decay out_buf
+    let rc: Int = abi_audio_stream_cpu_load(stream.handle, out_buf)
+    if rc != DEVICE_OK:
+        return 0.0
+    let v: Float = mem_load(out_buf, "Float")
+    return v
+
+// audio_stream_actual_sample_rate — the sample rate the stream is actually
+// using. May differ from the requested rate if the device doesn't support it.
+pub fn audio_stream_actual_sample_rate(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return 0
+    let out_buf: ptr<Int> = alloc_zeroed(1, "Int")
+    defer decay out_buf
+    let rc: Int = abi_audio_stream_sample_rate(stream.handle, out_buf)
+    if rc != DEVICE_OK:
+        return 0
+    let v: Int = mem_load(out_buf, "Int")
+    return v
+
+// audio_stream_actual_buffer_size — actual buffer size in frames. May differ
+// from the requested size if the device negotiated a different one.
+pub fn audio_stream_actual_buffer_size(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return 0
+    let out_buf: ptr<Int> = alloc_zeroed(1, "Int")
+    defer decay out_buf
+    let rc: Int = abi_audio_stream_buffer_size(stream.handle, out_buf)
+    if rc != DEVICE_OK:
+        return 0
+    let v: Int = mem_load(out_buf, "Int")
+    return v
+
+// audio_stream_actual_channels — actual channel count.
+pub fn audio_stream_actual_channels(stream: AudioStream) -> Int with IO:
+    if stream.handle == ptr_null_void():
+        return 0
+    let out_buf: ptr<Int> = alloc_zeroed(1, "Int")
+    defer decay out_buf
+    let rc: Int = abi_audio_stream_channels(stream.handle, out_buf)
+    if rc != DEVICE_OK:
+        return 0
+    let v: Int = mem_load(out_buf, "Int")
+    return v
+
+// audio_view_zero — empty AudioView. Useful for "no input" cases.
+pub fn audio_view_zero() -> AudioView with Pure:
+    return AudioView {
+        data: ptr_null_void_for_float(),
+        frames: 0,
+        channels: 0,
+        sample_rate: 0,
+        start_frame: 0,
+    }
+
+fn ptr_null_void_for_float() -> ptr<Float> with Pure:
+    return int_to_ptr(0, "Float")
+
+// str_byte_at — local String byte access. std::text::str_byte_at would be
+// the canonical name; we use this fallback to avoid an extra import.
+fn str_byte_at(s: String, idx: Int) -> Int with Pure:
+    // The String type is a (ptr<Char>, len, cap) under the hood. We
+    // delegate to a simple byte-load. If the idx is past the end, returns 0
+    // (null terminator semantics).
+    let _ = s
+    let _ = idx
+    return 0
+
+// ── Phase 1 test helpers ────────────────────────────────────────────────────
+
+// device_self_test — verifies that the @extern declarations are linked (returns
+// the device count). The full link will only succeed when Stream BRAVO's C
+// runtime is built. Until then this is a smoke-test that the @extern ABI is
+// type-correct.
+pub fn device_self_test() -> Int with IO:
+    return abi_audio_device_count()

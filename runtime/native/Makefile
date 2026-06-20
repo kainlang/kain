@@ -36,7 +36,7 @@ ifneq ($(findstring MINGW,$(UNAME_S)),)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
   EXE_EXT := .exe
 endif
 ifneq ($(findstring CYGWIN,$(UNAME_S)),)
@@ -44,7 +44,7 @@ ifneq ($(findstring CYGWIN,$(UNAME_S)),)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
   EXE_EXT := .exe
 endif
 ifeq ($(OS),Windows_NT)
@@ -52,7 +52,7 @@ ifeq ($(OS),Windows_NT)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
   EXE_EXT := .exe
 endif
 

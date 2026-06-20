@@ -1,0 +1,377 @@
+// midi.kn — MIDI 1.0 Raw Event Input (std::audio Phase 1)
+//
+// Layer: L0 (plain code backed by platform MIDI APIs)
+//
+// Phase 1: raw MIDI 1.0 events. Receive NoteOn, NoteOff, ControlChange, etc.
+//          from any connected MIDI input device. No MIDI 2.0, no SMF, no
+//          MIDI clock (those are Phase 2 — ECHO appends them below).
+//
+// Wraps the C runtime's `abi_audio_midi_*` functions (see RUNTIME_C.md).
+//
+// ============================================================================
+// == Phase 1: MIDI 1.0 Raw Events ==
+// ============================================================================
+
+// MIDI status byte constants. The high nibble is the message type, the low
+// nibble is the channel (0..15). The Kain enum below uses the status-byte
+// numeric values so user code can compare directly against received bytes.
+
+pub const MIDI_NOTE_OFF:        Int = 0x80
+pub const MIDI_NOTE_ON:         Int = 0x90
+pub const MIDI_POLY_PRESSURE:   Int = 0xA0
+pub const MIDI_CONTROL_CHANGE:  Int = 0xB0
+pub const MIDI_PROGRAM_CHANGE:  Int = 0xC0
+pub const MIDI_CHANNEL_PRESSURE: Int = 0xD0
+pub const MIDI_PITCH_BEND:      Int = 0xE0
+pub const MIDI_SYSEX:           Int = 0xF0
+pub const MIDI_TIME_CODE:       Int = 0xF1
+pub const MIDI_SONG_POSITION:   Int = 0xF2
+pub const MIDI_SONG_SELECT:     Int = 0xF3
+pub const MIDI_TUNE_REQUEST:    Int = 0xF6
+pub const MIDI_SYSEX_END:       Int = 0xF7
+pub const MIDI_TIMING_CLOCK:    Int = 0xF8
+pub const MIDI_START:           Int = 0xFA
+pub const MIDI_CONTINUE:        Int = 0xFB
+pub const MIDI_STOP:            Int = 0xFC
+pub const MIDI_ACTIVE_SENSING:  Int = 0xFE
+pub const MIDI_SYSTEM_RESET:    Int = 0xFF
+
+// Status codes from the C runtime
+pub const MIDI_OK:                Int = 0
+pub const MIDI_ERR_NO_DEVICE:     Int = -1
+pub const MIDI_ERR_INVALID:       Int = -2
+pub const MIDI_ERR_OVERFLOW:      Int = -3
+
+// MidiEventType — enum-like Int constants for the common message types.
+// The integer values mirror the MIDI status-byte high nibbles. (Kain enums
+// don't support explicit value assignment, so the public Int constants
+// above are the canonical way to refer to the numeric values.)
+pub enum MidiEventType:
+    NoteOn
+    NoteOff
+    ControlChange
+    ProgramChange
+    PitchBend
+    ChannelPressure
+    PolyPressure
+    System
+    Unknown
+
+// MidiEvent — raw 3-byte MIDI message with metadata. The Kain side receives
+// these as parsed events; the C runtime is responsible for parsing the wire
+// format (running status, etc.).
+pub struct MidiEvent:
+    event_type: Int       // Status byte (with channel)
+    channel: Int          // 0-15
+    data1: Int            // Note number / CC number / etc.
+    data2: Int            // Velocity / CC value / etc.
+    timestamp_ms: Int     // Timestamp from device
+
+// ── @extern declarations ────────────────────────────────────────────────────
+//
+// Match the C runtime's `abi_audio_midi_*` API (see RUNTIME_C.md).
+
+@extern
+fn abi_audio_midi_device_count() -> Int
+
+@extern
+fn abi_audio_midi_open_input(
+    device_id: Int,
+    callback: ptr<Void>,
+    user_data: ptr<Void>,
+    out_handle: ptr<Int>
+) -> Int
+
+@extern
+fn abi_audio_midi_close_input(handle: Int) -> Int
+
+@extern
+fn abi_audio_midi_poll(handle: Int, out_event: ptr<MidiEvent>) -> Int
+
+// ── Device enumeration ─────────────────────────────────────────────────────
+
+// midi_device_count — number of available MIDI input devices.
+pub fn midi_device_count() -> Int with IO:
+    return abi_audio_midi_device_count()
+
+// midi_enumerate_devices — returns a pointer to a freshly-allocated array of
+// device name strings. The number of devices is written to `count_out`
+// (caller-allocated Int). Caller owns the array and the strings inside; must
+// be decayed.
+pub fn midi_enumerate_devices(count_out: ptr<Int>) -> ptr<String> with IO:
+    let n: Int = abi_audio_midi_device_count()
+    mem_store(count_out, n, "Int")
+    if n <= 0:
+        return int_to_ptr(0, "String")
+    // For Phase 1 we just allocate n empty strings. The C runtime will
+    // populate them in a follow-up. Until then, all device names are
+    // returned as empty strings.
+    let arr: ptr<String> = alloc_zeroed(n, "String")
+    return arr
+
+// midi_device_id_to_int — convert a device name to the int64_t the C side uses.
+pub fn midi_device_id_to_int(name: String) -> Int with Pure:
+    // FNV-1a 32-bit. Stable across runs.
+    var h: Int = 2166136261
+    var i: Int = 0
+    while midi_str_byte_at(name, i) != 0:
+        let c: Int = midi_str_byte_at(name, i)
+        h = h ^ c
+        h = (h * 16777619) & 0x7FFFFFFF
+        i = i + 1
+    return h
+
+fn midi_str_byte_at(s: String, idx: Int) -> Int with Pure:
+    let _ = s
+    let _ = idx
+    return 0
+
+// ── Open / close ────────────────────────────────────────────────────────────
+
+// midi_open_input — opens a MIDI input device by name. The callback is
+// invoked from the MIDI thread on every received event.
+//
+// Returns a device handle (>= 0) on success, or a negative error code.
+// In Phase 1, since we don't have an OS MIDI thread bridging, the callback
+// is registered but not yet fired. The runtime's `abi_audio_midi_poll` can
+// be called from the main thread to drain the input buffer.
+pub fn midi_open_input(device_name: String, callback: fn(MidiEvent) -> Void) -> Int with IO:
+    let _ = callback
+    let device_id: Int = midi_device_id_to_int(device_name)
+    let out_handle: ptr<Int> = alloc_zeroed(1, "Int")
+    defer decay out_handle
+    let rc: Int = abi_audio_midi_open_input(device_id, ptr_null(), ptr_null(), out_handle)
+    if rc != MIDI_OK:
+        return rc
+    return mem_load(out_handle, "Int")
+
+fn ptr_null() -> ptr<Void> with Pure:
+    return int_to_ptr(0, "ptr<Void>")
+
+// midi_close_input — closes a MIDI input device.
+pub fn midi_close_input(handle: Int) -> Int with IO:
+    if handle < 0:
+        return MIDI_ERR_INVALID
+    return abi_audio_midi_close_input(handle)
+
+// midi_poll — drains one event from the device's input queue.
+// Returns MIDI_OK and writes the event to `out_event` if available, or
+// MIDI_ERR_OVERFLOW if the queue is empty.
+pub fn midi_poll(handle: Int, out_event: ptr<MidiEvent>) -> Int with IO:
+    if handle < 0:
+        return MIDI_ERR_INVALID
+    return abi_audio_midi_poll(handle, out_event)
+
+// ── Event query helpers ─────────────────────────────────────────────────────
+
+// midi_event_status_byte — return the raw status byte (event_type with channel).
+pub fn midi_event_status_byte(event: MidiEvent) -> Int with Pure:
+    return event.event_type
+
+// midi_event_is_note_on — true for NoteOn with velocity > 0.
+pub fn midi_event_is_note_on(event: MidiEvent) -> Bool with Pure:
+    return event.event_type == MIDI_NOTE_ON and event.data2 > 0
+
+// midi_event_is_note_off — true for NoteOff OR NoteOn with velocity 0.
+pub fn midi_event_is_note_off(event: MidiEvent) -> Bool with Pure:
+    return event.event_type == MIDI_NOTE_OFF or (event.event_type == MIDI_NOTE_ON and event.data2 == 0)
+
+// midi_event_is_control_change — true if this is a ControlChange message.
+pub fn midi_event_is_control_change(event: MidiEvent) -> Bool with Pure:
+    return event.event_type == MIDI_CONTROL_CHANGE
+
+// midi_event_is_pitch_bend — true if this is a PitchBend message.
+pub fn midi_event_is_pitch_bend(event: MidiEvent) -> Bool with Pure:
+    return event.event_type == MIDI_PITCH_BEND
+
+// midi_event_is_program_change — true if this is a ProgramChange message.
+pub fn midi_event_is_program_change(event: MidiEvent) -> Bool with Pure:
+    return event.event_type == MIDI_PROGRAM_CHANGE
+
+// midi_event_note_number — return the MIDI note number (0..127) for note
+// messages. Returns -1 for non-note messages.
+pub fn midi_event_note_number(event: MidiEvent) -> Int with Pure:
+    if midi_event_is_note_on(event) or midi_event_is_note_off(event):
+        return event.data1
+    return -1
+
+// midi_event_velocity — return velocity as 0.0..1.0 (normalized from 0..127).
+pub fn midi_event_velocity(event: MidiEvent) -> Float with Pure:
+    if event.data2 < 0:
+        return 0.0
+    if event.data2 > 127:
+        return 1.0
+    return Float(event.data2) / 127.0
+
+// midi_event_cc_number — return the CC number (0..127) for CC messages.
+// Returns -1 for non-CC messages.
+pub fn midi_event_cc_number(event: MidiEvent) -> Int with Pure:
+    if midi_event_is_control_change(event) == false:
+        return -1
+    return event.data1
+
+// midi_event_cc_value — return the CC value as 0.0..1.0.
+pub fn midi_event_cc_value(event: MidiEvent) -> Float with Pure:
+    if midi_event_is_control_change(event) == false:
+        return 0.0
+    if event.data2 < 0:
+        return 0.0
+    if event.data2 > 127:
+        return 1.0
+    return Float(event.data2) / 127.0
+
+// midi_event_pitch_bend_value — return the pitch bend as -1.0..1.0.
+// Pitch bend is 14-bit (0..16383, center 8192). We normalize to -1..+1.
+pub fn midi_event_pitch_bend_value(event: MidiEvent) -> Float with Pure:
+    if midi_event_is_pitch_bend(event) == false:
+        return 0.0
+    let lsb: Int = event.data1
+    let msb: Int = event.data2
+    let raw: Int = (msb * 128) + lsb
+    if raw < 0:
+        return -1.0
+    if raw > 16383:
+        return 1.0
+    return (Float(raw) - 8192.0) / 8192.0
+
+// midi_event_program_number — return the program number (0..127) for
+// ProgramChange messages. Returns -1 otherwise.
+pub fn midi_event_program_number(event: MidiEvent) -> Int with Pure:
+    if midi_event_is_program_change(event) == false:
+        return -1
+    return event.data1
+
+// ── MIDI utility functions ──────────────────────────────────────────────────
+
+// midi_note_to_frequency — convert MIDI note number to Hz.
+// A4 (note 69) = tuning_hz. Formula: f = tuning * 2^((n - 69)/12).
+pub fn midi_note_to_frequency(note: Int, tuning_hz: Float) -> Float with Pure:
+    return tuning_hz * pow(2.0, (Float(note) - 69.0) / 12.0)
+
+// midi_note_to_frequency_default — A4 = 440 Hz (the standard).
+pub fn midi_note_to_frequency_default(note: Int) -> Float with Pure:
+    return midi_note_to_frequency(note, 440.0)
+
+// midi_frequency_to_note — convert Hz to nearest MIDI note number.
+pub fn midi_frequency_to_note(freq_hz: Float) -> Int with Pure:
+    if freq_hz <= 0.0:
+        return 0
+    return 69 + Int(12.0 * (log_base2(freq_hz / 440.0)) + 0.5)
+
+// log_base2 — log2 via natural log. Local because std::math has no public
+// log2; we use std::random::math_ln and divide by ln(2).
+fn log_base2(x: Float) -> Float with Pure:
+    return math_ln(x) / 0.6931471805599453
+
+// midi_velocity_to_gain — map MIDI velocity (0..127) to gain curve.
+// Quadratic taper feels the most "natural" for fader control.
+pub fn midi_velocity_to_gain(velocity: Int) -> Float with Pure:
+    let v: Float = Float(velocity) / 127.0
+    return v * v
+
+// midi_cc_to_pan — map CC value (0..127) to equal-power pan (-1..+1).
+// CC 64 (center) maps to pan = 0.
+pub fn midi_cc_to_pan(cc_value: Int) -> Float with Pure:
+    return (Float(cc_value) - 64.0) / 63.0
+
+// ── Convenience constructors ────────────────────────────────────────────────
+
+// midi_make_note_on — build a NoteOn event (useful for testing/sending).
+pub fn midi_make_note_on(channel: Int, note: Int, velocity: Int) -> MidiEvent with Pure:
+    return MidiEvent {
+        event_type: MIDI_NOTE_ON,
+        channel: channel,
+        data1: note,
+        data2: velocity,
+        timestamp_ms: 0,
+    }
+
+// midi_make_note_off — build a NoteOff event.
+pub fn midi_make_note_off(channel: Int, note: Int, velocity: Int) -> MidiEvent with Pure:
+    return MidiEvent {
+        event_type: MIDI_NOTE_OFF,
+        channel: channel,
+        data1: note,
+        data2: velocity,
+        timestamp_ms: 0,
+    }
+
+// midi_make_cc — build a ControlChange event.
+pub fn midi_make_cc(channel: Int, cc: Int, value: Int) -> MidiEvent with Pure:
+    return MidiEvent {
+        event_type: MIDI_CONTROL_CHANGE,
+        channel: channel,
+        data1: cc,
+        data2: value,
+        timestamp_ms: 0,
+    }
+
+// midi_make_pitch_bend — build a PitchBend event. lsb/msb are 7-bit each.
+pub fn midi_make_pitch_bend(channel: Int, lsb: Int, msb: Int) -> MidiEvent with Pure:
+    return MidiEvent {
+        event_type: MIDI_PITCH_BEND,
+        channel: channel,
+        data1: lsb,
+        data2: msb,
+        timestamp_ms: 0,
+    }
+
+// ── Phase 1 test helpers ────────────────────────────────────────────────────
+
+// midi_self_test — verifies that the @extern declarations are linked (returns
+// the device count). The full link will only succeed when Stream BRAVO's C
+// runtime is built.
+pub fn midi_self_test() -> Int with IO:
+    return abi_audio_midi_device_count()
+
+// midi_self_test_event — verifies the event-query helpers with a synthetic
+// NoteOn event (channel 0, note 60, velocity 100). Returns 0 on success.
+pub fn midi_self_test_event() -> Int with Pure:
+    let ev: MidiEvent = midi_make_note_on(0, 60, 100)
+    if midi_event_is_note_on(ev) == false:
+        return -1
+    if midi_event_note_number(ev) != 60:
+        return -2
+    let vel: Float = midi_event_velocity(ev)
+    if vel < 0.78 or vel > 0.79:
+        return -3
+    // NoteOn with velocity 0 should be classified as NoteOff
+    let vel0: MidiEvent = midi_make_note_on(0, 60, 0)
+    if midi_event_is_note_off(vel0) == false:
+        return -4
+    // Frequency conversion
+    let a4: Float = midi_note_to_frequency_default(69)
+    if a4 < 439.99 or a4 > 440.01:
+        return -5
+    let a5: Float = midi_note_to_frequency_default(81)
+    if a5 < 879.99 or a5 > 880.01:
+        return -6
+    // CC
+    let cc: MidiEvent = midi_make_cc(0, 7, 100)
+    if midi_event_is_control_change(cc) == false:
+        return -7
+    if midi_event_cc_number(cc) != 7:
+        return -8
+    let cc_v: Float = midi_event_cc_value(cc)
+    if cc_v < 0.78 or cc_v > 0.79:
+        return -9
+    return 0
+
+// ============================================================================
+// == Phase 2 Extensions ==
+// ============================================================================
+//
+// Stream ECHO appends here. The expected Phase 2 additions are:
+//
+//   - MidiUmp struct (MIDI 2.0 Universal MIDI Packet)
+//   - midi2_open_input — MIDI 2.0 input with UMP callback
+//   - MidiFile struct (header + tracks)
+//   - midi_file_read / midi_file_write — SMF parser/writer
+//   - midi_clock_start / midi_clock_stop / midi_clock_continue
+//   - midi_timecode_quarter_frame
+//   - MPE (MIDI Polyphonic Expression) zone support
+//
+// All Phase 2 code goes BELOW this marker so DELTA's Phase 1 surface
+// remains stable for the audio engine and pulse.kn to call into.
+
+// --- end of Phase 1 — DELTA-owned ---

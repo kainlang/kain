@@ -191,19 +191,6 @@ static int64_t abi_audio_fail(int64_t status, const char* kind, const char* mess
     return status;
 }
 
-static KainNativeAudioStreamSlot* abi_audio_stream_slot_locked(int64_t stream_id) {
-    int i;
-    if (stream_id <= 0) {
-        return NULL;
-    }
-    for (i = 0; i < ABI_AUDIO_MAX_STREAMS; i++) {
-        if (g_streams[i].in_use && g_streams[i].id == stream_id) {
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
 static KainNativeMidiInputSlot* abi_audio_midi_slot_locked(int64_t handle) {
     int i;
     if (handle <= 0) {
@@ -215,17 +202,6 @@ static KainNativeMidiInputSlot* abi_audio_midi_slot_locked(int64_t handle) {
         }
     }
     return NULL;
-}
-
-static int abi_audio_text_equal_ci(const char* a, const char* b) {
-    if (!a || !b) {
-        return 0;
-    }
-#ifdef _WIN32
-    return _stricmp(a, b) == 0;
-#else
-    return strcasecmp(a, b) == 0;
-#endif
 }
 
 static int64_t abi_audio_ms_now(void) {

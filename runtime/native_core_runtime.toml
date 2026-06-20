@@ -531,6 +531,6 @@ platforms = ["windows", "linux", "macos"]
 description = "Raw platform dynamic library open/resolve/close substrate for generated typed platform packages; no generic public ABI call surface is exposed"
 
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp", "advapi32"]
-linux = ["pthread", "dl", "rt", "m"]
-macos = []
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp", "advapi32", "ole32", "winmm"]
+linux = ["pthread", "dl", "rt", "m", "asound"]
+macos = ["AudioToolbox", "CoreAudio", "CoreMIDI", "CoreFoundation"]

@@ -41,22 +41,6 @@
 #error "KAIN_MACHINE_PULSE_SLOT_COUNT must be a power of two."
 #endif
 
-typedef struct KainMachinePulseSlot {
-    uint64_t token;
-    uint64_t last_ns;
-    uint64_t tick;
-    uint64_t interval_ns;
-    uint64_t jitter_ns;
-    uint64_t next_due_ns;
-    uint64_t fire_count;
-    KainMachinePulseFireFn fire;
-    uint8_t occupied;
-    uint8_t scheduled;
-    uint32_t budget_alloc;   // 0 = forbidden, >0 = max allowed; UINT32_MAX = unlimited
-    uint32_t budget_lock;    // 0 = forbidden
-    uint32_t budget_io;      // 0 = forbidden
-} KainMachinePulseSlot;
-
 typedef struct KainMachinePulseFireJob {
     KainMachinePulseFireFn fire;
 } KainMachinePulseFireJob;
