@@ -50,12 +50,6 @@ impl LlvmGenerator {
         }
         self.surface_trait_declared = true;
 
-        // Opaque struct — backends define the actual layout.
-        self.emit(&format!(
-            "{} = type {{ i64, void, i64, void, void, void, void, void, i64, void, void, void, void, i64, i64 }}",
-            SURFACE_STRUCT_TYPE
-        ));
-
         // Registry helpers
         self.emit("declare void @kain_component_surface_register(i8*, i8*)");
         self.emit("declare i8* @kain_component_surface_resolve(i8*)");

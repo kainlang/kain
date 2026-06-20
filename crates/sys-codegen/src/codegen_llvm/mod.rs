@@ -686,6 +686,8 @@ struct LlvmGenerator {
     current_component_session: Option<String>,
     /// Current parent_id register name during component render
     current_component_parent: Option<String>,
+    /// Pending world-surface frame loop function names to call from main
+    pending_frame_loops: Vec<String>,
     actor_state_initializers: HashMap<String, HashMap<String, Expr>>,
     actor_message_reply_types: HashMap<(String, String), String>,
     /// Current basic block label (for Phi nodes)
@@ -885,6 +887,7 @@ impl LlvmGenerator {
             current_component_name: None,
             current_component_session: None,
             current_component_parent: None,
+            pending_frame_loops: Vec::new(),
             actor_state_initializers: HashMap::new(),
             actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
@@ -15306,6 +15309,13 @@ impl LlvmGenerator {
         if is_main && self.debug_info_enabled {
             self.emit("  call void @__kain_crash_handler_init()");
         }
+        if is_main {
+            // Emit calls to world-surface frame loops (Contract 9)
+            let pending: Vec<String> = self.pending_frame_loops.drain(..).collect();
+            for fn_name in &pending {
+                self.emit(&format!("  call void @{}()", fn_name));
+            }
+        }
 
         if let Some(patch_name) = self.current_patch_name.clone() {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -16165,6 +16175,9 @@ impl LlvmGenerator {
                 surface_kind,
                 &root_component,
             )?;
+            let fn_name = format!("__kain_world_surface_loop_{}",
+                Self::sanitize_symbol_fragment(&world.ast.name));
+            self.pending_frame_loops.push(fn_name);
         }
 
         self.current_return_type = None;
