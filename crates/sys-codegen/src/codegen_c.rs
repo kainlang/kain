@@ -4,8 +4,9 @@
 //! Unsupported constructs fail with codegen errors instead of emitting invalid C.
 
 use kain_core::ast::{
-    BinaryOp, Block, ConvergeDef, ElseBranch, Enum, EnumVariantFields, Expr, Function, LawDef,
-    OrchestrateDef, Param, PatchDef, Pattern, Stmt, Struct, Type, UnaryOp, VariantFields, WorldDef,
+    BinaryOp, Block, ConvergeDef, DispatchSize, ElseBranch, Enum, EnumVariantFields, Expr,
+    Function, LawDef, OrchestrateDef, Param, PatchDef, Pattern, Stmt, Struct, Type, UnaryOp,
+    VariantFields, WorldDef,
 };
 use kain_core::error::{KainError, KainResult};
 use kain_core::span::Span;
@@ -624,12 +625,20 @@ impl CGen {
                 dispatch_size,
                 ..
             } => {
+                let (sx, sy, sz) = match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => (
+                        self.gen_expr(x)?,
+                        self.gen_expr(y)?,
+                        self.gen_expr(z)?,
+                    ),
+                    DispatchSize::Indirect(expr) => {
+                        let e = self.gen_expr(expr)?;
+                        (e.clone(), e.clone(), e)
+                    }
+                };
                 self.write_line(&format!(
                     "/* dispatch {} */ (void)({}), (void)({}), (void)({});",
-                    compute_key,
-                    self.gen_expr(&dispatch_size[0])?,
-                    self.gen_expr(&dispatch_size[1])?,
-                    self.gen_expr(&dispatch_size[2])?
+                    compute_key, sx, sy, sz
                 ));
             }
             Stmt::For { .. } => {
@@ -682,6 +691,7 @@ impl CGen {
                 }
             },
             Stmt::Item(_) => {}
+            _ => {}
         }
         Ok(())
     }

@@ -9,9 +9,10 @@ pub mod gpu_artifacts;
 pub mod gpu_host;
 
 use kain_core::ast::{
-    BinaryOp, Block, CallArg, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function,
-    Generic, Impl, Item, JSXAttrValue, JSXNode, Mod, Param, Pattern, Stmt, Struct, Trait,
-    TraitMethod, Type, UnaryOp, Use, VariantFields, VariantPatternFields,
+    dispatch_size_for_each, BinaryOp, Block, CallArg, Component, DispatchSize, ElseBranch, Enum,
+    EnumVariantFields, Expr, Function, Generic, Impl, Item, JSXAttrValue, JSXNode, Mod, Param,
+    Pattern, Stmt, Struct, Trait, TraitMethod, Type, UnaryOp, Use, VariantFields,
+    VariantPatternFields,
 };
 use kain_core::effects::Effect;
 use kain_core::error::KainResult;
@@ -1980,12 +1981,20 @@ impl RustGen {
                 dispatch_size,
                 ..
             } => {
+                let (sx, sy, sz) = match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => (
+                        self.gen_expr(x),
+                        self.gen_expr(y),
+                        self.gen_expr(z),
+                    ),
+                    DispatchSize::Indirect(expr) => {
+                        let e = self.gen_expr(expr);
+                        (e.clone(), e.clone(), e)
+                    }
+                };
                 self.write_line(&format!(
                     "/* dispatch {} */ let _ = ({}, {}, {});",
-                    compute_key,
-                    self.gen_expr(&dispatch_size[0]),
-                    self.gen_expr(&dispatch_size[1]),
-                    self.gen_expr(&dispatch_size[2])
+                    compute_key, sx, sy, sz
                 ));
             }
             Stmt::For {
@@ -2117,13 +2126,23 @@ impl RustGen {
                 compute_key,
                 dispatch_size,
                 ..
-            } => format!(
-                "/* dispatch {} */ let _ = ({}, {}, {});",
-                compute_key,
-                self.gen_expr(&dispatch_size[0]),
-                self.gen_expr(&dispatch_size[1]),
-                self.gen_expr(&dispatch_size[2])
-            ),
+            } => {
+                let (sx, sy, sz) = match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => (
+                        self.gen_expr(x),
+                        self.gen_expr(y),
+                        self.gen_expr(z),
+                    ),
+                    DispatchSize::Indirect(expr) => {
+                        let e = self.gen_expr(expr);
+                        (e.clone(), e.clone(), e)
+                    }
+                };
+                format!(
+                    "/* dispatch {} */ let _ = ({}, {}, {});",
+                    compute_key, sx, sy, sz
+                )
+            },
             Stmt::For {
                 binding,
                 iter,
@@ -3073,9 +3092,10 @@ impl RustGen {
                 Stmt::Expr(expr) => self.collect_mutated_bindings_in_expr(expr, names),
                 Stmt::Defer { expr, .. } => self.collect_mutated_bindings_in_expr(expr, names),
                 Stmt::Dispatch { dispatch_size, .. } => {
-                    for expr in dispatch_size {
+                    dispatch_size_for_each(dispatch_size, |expr| {
                         self.collect_mutated_bindings_in_expr(expr, names);
-                    }
+                        Ok::<(), ()>(())
+                    }).ok();
                 }
                 Stmt::Return(value, _) | Stmt::Break(value, _) => {
                     if let Some(value) = value {
@@ -3096,6 +3116,7 @@ impl RustGen {
                     self.collect_mutated_bindings_in_stmts(&body.stmts, names)
                 }
                 Stmt::Continue(_) | Stmt::Item(_) => {}
+                _ => {}
             }
         }
     }

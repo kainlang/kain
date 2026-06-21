@@ -8,7 +8,7 @@ pub(crate) mod component;
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    dispatch_size_any, dispatch_size_for_each, dispatch_size_find_map, Attribute,
+    dispatch_size_any, dispatch_size_for_each, Attribute,
     AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, DispatchSize, ElseBranch,
     Expr, Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type,
     UnaryOp, VariantPatternFields,
@@ -1306,7 +1306,7 @@ impl LlvmGenerator {
             Stmt::Dispatch { dispatch_size, .. } => {
                 dispatch_size_for_each(dispatch_size, |expr| {
                     self.collect_pointer_let_types_from_expr(expr);
-                    Ok(())
+                    Ok::<(), ()>(())
                 }).ok();
             }
             Stmt::Return(value, _) | Stmt::Break(value, _) => {
@@ -4609,6 +4609,7 @@ impl LlvmGenerator {
             | Stmt::Return(None, _)
             | Stmt::Break(None, _)
             | Stmt::Continue(_) => false,
+            _ => false,
         }
     }
 
@@ -4939,7 +4940,7 @@ impl LlvmGenerator {
                 Stmt::Dispatch { dispatch_size, .. } => {
                     dispatch_size_for_each(dispatch_size, |expr| {
                         Self::collect_expr_assigned_identifier_names(expr, assigned);
-                        Ok(())
+                        Ok::<(), ()>(())
                     }).ok();
                 }
                 Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
@@ -5565,6 +5566,7 @@ impl LlvmGenerator {
             }
             Stmt::Loop { body, .. } => Self::block_is_safe_for_ephemeral_local(body, target),
             Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+            _ => false,
         }
     }
 
@@ -5922,6 +5924,7 @@ impl LlvmGenerator {
             }
             Stmt::Loop { body, .. } => Self::block_is_safe_fixed_array_use(body, target),
             Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+            _ => false,
         }
     }
 
@@ -6141,6 +6144,7 @@ impl LlvmGenerator {
             }
             Stmt::Loop { body, .. } => Self::block_is_safe_stack_shatter_use(body, target),
             Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+            _ => false,
         }
     }
 
@@ -6341,6 +6345,7 @@ impl LlvmGenerator {
             }
             Stmt::Loop { body, .. } => Self::block_is_safe_literal_map_use(body, target),
             Stmt::Item(item) => !Self::debug_mentions_identifier(item, target),
+            _ => false,
         }
     }
 
@@ -17326,11 +17331,12 @@ impl LlvmGenerator {
                         let (cy, _) = self.compile_expr_for_target_type(y, "i64")?;
                         let (cz, _) = self.compile_expr_for_target_type(z, "i64")?;
                         let status = self.next_reg();
-                        if let Some(ref barrier_json) = self.orchestrate_barrier_json {
+                        let barrier_json = self.orchestrate_barrier_json.clone();
+                        if let Some(ref barrier_json_str) = barrier_json {
                             // Extended dispatch with compiler-inferred barrier
                             // metadata from the enclosing orchestrate DAG.
                             let barrier_ptr =
-                                self.compile_static_c_string_literal(barrier_json);
+                                self.compile_static_c_string_literal(barrier_json_str);
                             self.emit(&format!(
                                 "  {} = call i64 @abi_gpu_dispatch_ext(i8* {}, i64 {}, i64 {}, i64 {}, i8* {})",
                                 status, key_ptr, cx, cy, cz, barrier_ptr

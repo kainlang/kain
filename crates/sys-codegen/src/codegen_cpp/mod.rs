@@ -4,8 +4,8 @@
 //! Generated code uses C++17 features: structured bindings, optional, variant.
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, Enum, EnumVariantFields, Expr, Function, Impl, Param, Pattern,
-    Stmt, Struct, Type, UnaryOp, VariantFields,
+    BinaryOp, Block, DispatchSize, ElseBranch, Enum, EnumVariantFields, Expr, Function, Impl,
+    Param, Pattern, Stmt, Struct, Type, UnaryOp, VariantFields,
 };
 use kain_core::error::KainResult;
 use kain_core::types::{TypedItem, TypedProgram};
@@ -548,12 +548,20 @@ impl CppGen {
                 dispatch_size,
                 ..
             } => {
+                let (sx, sy, sz) = match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => (
+                        self.gen_expr(x),
+                        self.gen_expr(y),
+                        self.gen_expr(z),
+                    ),
+                    DispatchSize::Indirect(expr) => {
+                        let e = self.gen_expr(expr);
+                        (e.clone(), e.clone(), e)
+                    }
+                };
                 self.write_line(&format!(
                     "/* dispatch {} */ (void)({}), (void)({}), (void)({});",
-                    compute_key,
-                    self.gen_expr(&dispatch_size[0]),
-                    self.gen_expr(&dispatch_size[1]),
-                    self.gen_expr(&dispatch_size[2])
+                    compute_key, sx, sy, sz
                 ));
             }
 
@@ -630,6 +638,7 @@ impl CppGen {
             Stmt::Item(_) => {
                 // Nested items not common in generated C++
             }
+            _ => {}
         }
     }
 

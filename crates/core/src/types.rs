@@ -8378,6 +8378,74 @@ fn check_block_semantics(
     finish_accumulated(errors, ())
 }
 
+/// Validate subgroup divergence rules:
+/// - KAIN-SHADER-0042: No nested subgroups
+/// - KAIN-SHADER-0043: No divergent escape from subgroup scope
+fn validate_subgroup_divergence(
+    body: &Block,
+    in_loop: bool,
+    env: &TypeEnv,
+) -> KainResult<()> {
+    for stmt in &body.stmts {
+        match stmt {
+            // KAIN-SHADER-0042: Nested subgroup
+            Stmt::Subgroup { span, .. } => {
+                return Err(env.type_error_with_code(
+                    DiagnosticCode::ShaderSubgroupNested,
+                    "subgroup cannot be nested inside another subgroup",
+                    *span,
+                ));
+            }
+            // KAIN-SHADER-0043: Divergent escape via return
+            Stmt::Return(Some(_), span) | Stmt::Return(None, span) => {
+                return Err(env.type_error_with_code(
+                    DiagnosticCode::ShaderSubgroupDivergentEscape,
+                    "return inside subgroup would cause divergent warp execution",
+                    *span,
+                ));
+            }
+            // break/continue: allowed only if in_loop is true
+            Stmt::Break(_, span) | Stmt::Continue(span) => {
+                if !in_loop {
+                    return Err(env.type_error_with_code(
+                        DiagnosticCode::ShaderSubgroupDivergentEscape,
+                        "break/continue inside subgroup outside of a loop would cause divergent warp execution",
+                        *span,
+                    ));
+                }
+            }
+            // if/else: validate each branch individually
+            Stmt::If {
+                then, elifs, else_, ..
+            } => {
+                validate_subgroup_divergence(then, in_loop, env)?;
+                for (_, elif_block) in elifs {
+                    validate_subgroup_divergence(elif_block, in_loop, env)?;
+                }
+                if let Some(else_block) = else_ {
+                    if let ElseBranch::Else(block) = else_block.as_ref() {
+                        validate_subgroup_divergence(block, in_loop, env)?;
+                    }
+                }
+            }
+            // for/while/loop inside subgroup: allowed, toggle in_loop flag
+            Stmt::For { body, .. }
+            | Stmt::Fanout { body, .. }
+            | Stmt::While { body, .. }
+            | Stmt::Loop { body, .. } => {
+                validate_subgroup_divergence(body, true, env)?;
+            }
+            // Other statements: no divergence risk
+            Stmt::Dispatch { .. }
+            | Stmt::Let { .. }
+            | Stmt::Expr(_)
+            | Stmt::Defer { .. }
+            | Stmt::Item(_) => {}
+        }
+    }
+    Ok(())
+}
+
 fn block_value_type(
     env: &mut TypeEnv,
     block: &Block,
@@ -8609,7 +8677,11 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             let _ = infer_expr_type(env, expr, Some(ctx))?;
         }
         Stmt::Break(None, _) | Stmt::Continue(_) => {}
-        Stmt::Subgroup { body, .. } => check_block_semantics(env, body, ctx)?,
+        Stmt::Subgroup { size: _, body, span: _ } => {
+            // Typecheck the subgroup body.
+            // Divergence escape analysis is deferred to Stream DELTA.
+            check_block_semantics(env, body, ctx)?;
+        }
     }
     Ok(())
 }

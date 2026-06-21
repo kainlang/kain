@@ -2668,10 +2668,10 @@ impl<'a> Parser<'a> {
                 "miss" => { self.advance(); ShaderStage::Miss }
                 "intersection" => { self.advance(); ShaderStage::Intersection }
                 "callable" => { self.advance(); ShaderStage::Callable }
-                _ => return Err(self.unexpected_token_error("expected shader stage (vertex, fragment, compute, surface, mesh, task, raygen, anyhit, closesthit, miss, intersection, callable)"))
+                _ => return Err(self.parser_error(self.expected_tokens_list(&["vertex", "fragment", "compute", "surface", "mesh", "task", "raygen", "anyhit", "closesthit", "miss", "intersection", "callable"]), self.current_span()))
             }
         } else {
-            return Err(self.unexpected_token_error("expected shader stage"))
+            return Err(self.parser_error(self.expected_tokens_list(&["a shader stage"]), self.current_span()))
         };
 
         let name = self.parse_ident()?;
@@ -4353,6 +4353,7 @@ impl<'a> Parser<'a> {
             TokenKind::Break => self.parse_break(),
             TokenKind::Continue => self.parse_continue(),
             TokenKind::Ident(ref name) if name == "dispatch" => self.parse_dispatch(),
+            TokenKind::Ident(ref name) if name == "subgroup" => self.parse_subgroup_block(),
             TokenKind::Ident(ref name) if name == "stage" => self.parse_orchestrate_stage(),
             _ => Ok(Stmt::Expr(self.parse_expr()?)),
         }
@@ -4604,6 +4605,17 @@ impl<'a> Parser<'a> {
             }
         };
 
+        // Check for indirect dispatch variant: `dispatch "key" from expr`
+        if self.peek_contextual_ident("from") {
+            self.advance(); // consume "from"
+            let buf_expr = self.parse_expr()?;
+            return Ok(Stmt::Dispatch {
+                compute_key,
+                dispatch_size: DispatchSize::Indirect(Box::new(buf_expr)),
+                span: start.merge(self.current_span()),
+            });
+        }
+
         self.expect(TokenKind::LBracket)?;
         let x = self.parse_expr()?;
         self.expect(TokenKind::Comma)?;
@@ -4615,6 +4627,31 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Dispatch {
             compute_key,
             dispatch_size: DispatchSize::Fixed([x, y, z]),
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_subgroup_block(&mut self) -> KainResult<Stmt> {
+        let start = self.current_span();
+        // Consume "subgroup" contextual identifier
+        self.expect_contextual_ident("subgroup")?;
+        self.expect(TokenKind::LParen)?;
+        // Parse subgroup size as u32 literal
+        let size = self.parse_u32_literal("subgroup size")?;
+        // Validate: size must be > 0
+        if size == 0 {
+            return Err(self.parser_error(
+                "subgroup size must be greater than 0",
+                start,
+            ));
+        }
+        self.expect(TokenKind::RParen)?;
+        self.expect(TokenKind::Colon)?;
+        // Parse body block
+        let body = self.parse_block()?;
+        Ok(Stmt::Subgroup {
+            size,
+            body,
             span: start.merge(self.current_span()),
         })
     }
@@ -4637,6 +4674,24 @@ impl<'a> Parser<'a> {
             body,
             span: start.merge(self.current_span()),
         })
+    }
+
+    fn parse_u32_literal(&mut self, context: &str) -> KainResult<u32> {
+        let span = self.current_span();
+        match self.peek_kind() {
+            TokenKind::Int(n) if n >= 0 && n <= u32::MAX as i64 => {
+                self.advance();
+                Ok(n as u32)
+            }
+            TokenKind::Int(_) => Err(self.parser_error(
+                format!("{}: value out of range for u32 (0..{})", context, u32::MAX),
+                span,
+            )),
+            _ => Err(self.parser_error(
+                format!("expected integer literal for {}", context),
+                span,
+            )),
+        }
     }
 
     fn parse_fanout(&mut self) -> KainResult<Stmt> {

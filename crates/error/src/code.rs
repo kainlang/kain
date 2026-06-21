@@ -98,6 +98,8 @@ impl DiagnosticCode {
     pub const ShaderCompilationFailed: Self = Self::new("KAIN-SHADER-0010");
     pub const ShaderGpuMemoryBudgetExceeded: Self = Self::new("KAIN-SHADER-0011");
     pub const ShaderSharedMemoryBankConflict: Self = Self::new("KAIN-SHADER-0012");
+    pub const ShaderSubgroupNested: Self = Self::new("KAIN-SHADER-0042");
+    pub const ShaderSubgroupDivergentEscape: Self = Self::new("KAIN-SHADER-0043");
 
     // ── Effect ───────────────────────────────────────────────────────────
     pub const EffectViolation: Self = Self::new("KAIN-EFFECT-0001");

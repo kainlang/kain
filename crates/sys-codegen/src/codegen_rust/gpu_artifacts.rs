@@ -176,6 +176,8 @@ fn map_shader_stage(stage: ShaderStage) -> RustGpuShaderStage {
         ShaderStage::Fragment => RustGpuShaderStage::Fragment,
         ShaderStage::Compute => RustGpuShaderStage::Compute,
         ShaderStage::Surface => RustGpuShaderStage::Surface,
+        // Stream DELTA will add proper mappings for Mesh, Task, RayGen, etc.
+        _ => RustGpuShaderStage::Compute,
     }
 }
 
