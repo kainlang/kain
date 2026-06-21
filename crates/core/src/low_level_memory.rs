@@ -855,11 +855,16 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
         } => {
             out.push(Stmt::Dispatch {
                 compute_key: compute_key.clone(),
-                dispatch_size: [
-                    lower_expr_memory_with_ctx(&dispatch_size[0], ctx),
-                    lower_expr_memory_with_ctx(&dispatch_size[1], ctx),
-                    lower_expr_memory_with_ctx(&dispatch_size[2], ctx),
-                ],
+                dispatch_size: match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => DispatchSize::Fixed([
+                        lower_expr_memory_with_ctx(x, ctx),
+                        lower_expr_memory_with_ctx(y, ctx),
+                        lower_expr_memory_with_ctx(z, ctx),
+                    ]),
+                    DispatchSize::Indirect(expr) => DispatchSize::Indirect(Box::new(
+                        lower_expr_memory_with_ctx(expr, ctx),
+                    )),
+                },
                 span: *span,
             });
         }
@@ -958,6 +963,13 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
         }
         Stmt::Item(item) => {
             out.push(Stmt::Item(item.clone()));
+        }
+        Stmt::Subgroup { size, body, span } => {
+            out.push(Stmt::Subgroup {
+                size: *size,
+                body: lower_block_memory_with_ctx(body, ctx),
+                span: *span,
+            });
         }
     }
     out
@@ -2999,12 +3011,18 @@ fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
             expr,
             format!("{owner} defer contains a raw memory operation"),
         ),
-        Stmt::Dispatch { dispatch_size, .. } => dispatch_size.iter().find_map(|expr| {
-            first_memory_expr_context(
+        Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+            DispatchSize::Fixed([x, y, z]) => [x, y, z].iter().find_map(|expr| {
+                first_memory_expr_context(
+                    expr,
+                    format!("{owner} dispatch dimension contains a raw memory operation"),
+                )
+            }),
+            DispatchSize::Indirect(expr) => first_memory_expr_context(
                 expr,
-                format!("{owner} dispatch dimension contains a raw memory operation"),
-            )
-        }),
+                format!("{owner} indirect dispatch contains a raw memory operation"),
+            ),
+        },
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             if let Some(context) = first_memory_expr_context(
                 iter,
@@ -3028,7 +3046,7 @@ fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
             }
         }
         Stmt::Loop { body, .. } => first_memory_block_context(body, owner.to_string()),
-        Stmt::Item(_) | Stmt::Return(None, _) | Stmt::Break(_, _) | Stmt::Continue(_) => None,
+        Stmt::Item(_) | Stmt::Return(None, _) | Stmt::Break(_, _) | Stmt::Continue(_) | Stmt::Subgroup { .. } => None,
     }
 }
 

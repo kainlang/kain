@@ -46,6 +46,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        "//crates/actor:kain-actor",
         "//crates/core:kain-core",
         "//crates/driver:kain-driver",
         "//crates/error:kain-error",
@@ -54,4 +55,29 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+)
+
+rust_test(
+    name = "regression_test_test",
+    crate_name = "regression_test",
+    crate_root = "tests/regression_test.rs",
+    srcs = [
+        "tests/regression_test.rs",
+    ],
+    edition = "2021",
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = [
+        ":kain-check",
+        "//crates/actor:kain-actor",
+        "//crates/core:kain-core",
+        "//crates/driver:kain-driver",
+        "//crates/error:kain-error",
+        "//crates/fs:kain-fs",
+        "//crates/ownership:kain-ownership",
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
+    compile_data = COMMON_COMPILE_DATA,
+    tags = [
+        "manual",
+    ],
 )

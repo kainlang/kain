@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    Block, ComputeMetadata, ConvergeSelector, ElseBranch, Expr, ShaderStage, Stmt, Type,
+    Block, ComputeMetadata, ConvergeSelector, DispatchSize, ElseBranch, Expr, ShaderStage, Stmt, Type,
     WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
@@ -1639,8 +1639,15 @@ fn scan_shader_stmt_for_storage_access(
             scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
         }
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
-                scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+            match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    scan_shader_expr_for_storage_access(x, storage_uniforms, access);
+                    scan_shader_expr_for_storage_access(y, storage_uniforms, access);
+                    scan_shader_expr_for_storage_access(z, storage_uniforms, access);
+                }
+                DispatchSize::Indirect(expr) => {
+                    scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+                }
             }
         }
         Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
@@ -1661,6 +1668,9 @@ fn scan_shader_stmt_for_storage_access(
         }
         Stmt::Item(_) | Stmt::Continue(_) | Stmt::Return(None, _) | Stmt::Break(None, _) => {}
         Stmt::Let { value: None, .. } => {}
+        Stmt::Subgroup { body, .. } => {
+            scan_shader_block_for_storage_access(body, storage_uniforms, access);
+        }
     }
 }
 

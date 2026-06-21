@@ -8,9 +8,10 @@ pub(crate) mod component;
 
 use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
-    Attribute, AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, ElseBranch, Expr,
-    Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
-    VariantPatternFields,
+    dispatch_size_any, dispatch_size_for_each, dispatch_size_find_map, Attribute,
+    AxiomPredicate, BinaryOp, Block, ConvergeSelector, CpuFenceKind, DispatchSize, ElseBranch,
+    Expr, Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type,
+    UnaryOp, VariantPatternFields,
 };
 use kain_core::effects::EffectSet;
 use kain_core::error::{KainError, KainResult};
@@ -753,6 +754,12 @@ struct LlvmGenerator {
 
     /// Accumulated crash forensics table entries (emitted when -g is on).
     crash_table: Vec<CrashTableEntry>,
+
+    /// Current orchestrate barrier metadata JSON, if dispatch is inside
+    /// an orchestrate block with inferred barrier information. When set,
+    /// `dispatch` statements emit `abi_gpu_dispatch_ext` instead of the
+    /// plain `abi_gpu_dispatch`.
+    orchestrate_barrier_json: Option<String>,
 }
 
 #[derive(Clone)]
@@ -925,6 +932,7 @@ impl LlvmGenerator {
             original_pointer_param_types: HashMap::new(),
 
             // ── DWARF debug metadata ──────────────────────────────────
+            orchestrate_barrier_json: None,
             debug_info_enabled,
             debug_metadata_counter: 200,
             debug_footer_strings: Vec::new(),
@@ -1296,9 +1304,10 @@ impl LlvmGenerator {
             Stmt::Expr(expr) => self.collect_pointer_let_types_from_expr(expr),
             Stmt::Defer { expr, .. } => self.collect_pointer_let_types_from_expr(expr),
             Stmt::Dispatch { dispatch_size, .. } => {
-                for expr in dispatch_size {
+                dispatch_size_for_each(dispatch_size, |expr| {
                     self.collect_pointer_let_types_from_expr(expr);
-                }
+                    Ok(())
+                }).ok();
             }
             Stmt::Return(value, _) | Stmt::Break(value, _) => {
                 if let Some(value) = value {
@@ -1608,6 +1617,7 @@ impl LlvmGenerator {
             Stmt::Fanout { span, .. } => *span,
             Stmt::While { span, .. } => *span,
             Stmt::Loop { span, .. } => *span,
+            Stmt::Subgroup { span, .. } => *span,
             Stmt::Item(_) => Span::default(),
         }
     }
@@ -3794,9 +3804,11 @@ impl LlvmGenerator {
                     || Self::block_requires_addressable_local(body, name)
             }
             Stmt::Loop { body, .. } => Self::block_requires_addressable_local(body, name),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .any(|expr| Self::expr_requires_addressable_local(expr, name)),
+            Stmt::Dispatch { dispatch_size, .. } => {
+                dispatch_size_any(dispatch_size, |expr| {
+                    Self::expr_requires_addressable_local(expr, name)
+                })
+            },
             _ => false,
         }
     }
@@ -4568,9 +4580,11 @@ impl LlvmGenerator {
                 Self::expr_has_loop_that_mentions_identifier(expr, target)
             }
             Stmt::Defer { expr, .. } => Self::expr_has_loop_that_mentions_identifier(expr, target),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .any(|expr| Self::expr_has_loop_that_mentions_identifier(expr, target)),
+            Stmt::Dispatch { dispatch_size, .. } => {
+                dispatch_size_any(dispatch_size, |expr| {
+                    Self::expr_has_loop_that_mentions_identifier(expr, target)
+                })
+            },
             Stmt::Let {
                 value: Some(expr), ..
             } => Self::expr_has_loop_that_mentions_identifier(expr, target),
@@ -4923,9 +4937,10 @@ impl LlvmGenerator {
                     Self::collect_expr_assigned_identifier_names(expr, assigned);
                 }
                 Stmt::Dispatch { dispatch_size, .. } => {
-                    for expr in dispatch_size {
+                    dispatch_size_for_each(dispatch_size, |expr| {
                         Self::collect_expr_assigned_identifier_names(expr, assigned);
-                    }
+                        Ok(())
+                    }).ok();
                 }
                 Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                     Self::collect_expr_assigned_identifier_names(iter, assigned);
@@ -5524,9 +5539,16 @@ impl LlvmGenerator {
             }
             Stmt::Expr(expr) => Self::expr_is_safe_for_ephemeral_local(expr, target),
             Stmt::Defer { expr, .. } => Self::expr_is_safe_for_ephemeral_local(expr, target),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .all(|expr| Self::expr_is_safe_for_ephemeral_local(expr, target)),
+            Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    Self::expr_is_safe_for_ephemeral_local(x, target)
+                        && Self::expr_is_safe_for_ephemeral_local(y, target)
+                        && Self::expr_is_safe_for_ephemeral_local(z, target)
+                }
+                DispatchSize::Indirect(expr) => {
+                    Self::expr_is_safe_for_ephemeral_local(expr, target)
+                }
+            },
             Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 Self::expr_is_safe_for_ephemeral_local(expr, target)
             }
@@ -5875,9 +5897,16 @@ impl LlvmGenerator {
                 .unwrap_or(true),
             Stmt::Expr(expr) => Self::expr_is_safe_fixed_array_use(expr, target),
             Stmt::Defer { expr, .. } => Self::expr_is_safe_fixed_array_use(expr, target),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .all(|expr| Self::expr_is_safe_fixed_array_use(expr, target)),
+            Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    Self::expr_is_safe_fixed_array_use(x, target)
+                        && Self::expr_is_safe_fixed_array_use(y, target)
+                        && Self::expr_is_safe_fixed_array_use(z, target)
+                }
+                DispatchSize::Indirect(expr) => {
+                    Self::expr_is_safe_fixed_array_use(expr, target)
+                }
+            },
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
@@ -6087,9 +6116,16 @@ impl LlvmGenerator {
                 .unwrap_or(true),
             Stmt::Expr(expr) => Self::expr_is_safe_stack_shatter_use(expr, target),
             Stmt::Defer { expr, .. } => Self::expr_is_safe_stack_shatter_use(expr, target),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .all(|expr| Self::expr_is_safe_stack_shatter_use(expr, target)),
+            Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    Self::expr_is_safe_stack_shatter_use(x, target)
+                        && Self::expr_is_safe_stack_shatter_use(y, target)
+                        && Self::expr_is_safe_stack_shatter_use(z, target)
+                }
+                DispatchSize::Indirect(expr) => {
+                    Self::expr_is_safe_stack_shatter_use(expr, target)
+                }
+            },
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
@@ -6280,9 +6316,16 @@ impl LlvmGenerator {
                     || Self::expr_is_safe_literal_map_use(expr, target)
             }
             Stmt::Defer { expr, .. } => Self::expr_is_safe_literal_map_use(expr, target),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .all(|expr| Self::expr_is_safe_literal_map_use(expr, target)),
+            Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    Self::expr_is_safe_literal_map_use(x, target)
+                        && Self::expr_is_safe_literal_map_use(y, target)
+                        && Self::expr_is_safe_literal_map_use(z, target)
+                }
+                DispatchSize::Indirect(expr) => {
+                    Self::expr_is_safe_literal_map_use(expr, target)
+                }
+            },
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
@@ -14775,6 +14818,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_converge_record_i64(i8*, i8*, i64, i64)");
         self.emit("declare i64 @abi_converge_record_bool(i8*, i8*, i32)");
         self.emit("declare i64 @abi_gpu_dispatch(i8*, i64, i64, i64)");
+        self.emit("declare i64 @abi_gpu_dispatch_ext(i8*, i64, i64, i64, i8*)");
         self.emit("declare i64 @abi_cpu_feature_mask()");
         self.emit("declare i64 @abi_cpu_capability_mask_for_key(i8*)");
         self.emit("declare i64 @abi_converge_select_lane_for_key(i64, i64, i64, i64)");
@@ -17272,17 +17316,43 @@ impl LlvmGenerator {
             Stmt::Dispatch {
                 compute_key,
                 dispatch_size,
+                span,
                 ..
             } => {
                 let key_ptr = self.compile_static_c_string_literal(compute_key);
-                let (x, _) = self.compile_expr_for_target_type(&dispatch_size[0], "i64")?;
-                let (y, _) = self.compile_expr_for_target_type(&dispatch_size[1], "i64")?;
-                let (z, _) = self.compile_expr_for_target_type(&dispatch_size[2], "i64")?;
-                let status = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @abi_gpu_dispatch(i8* {}, i64 {}, i64 {}, i64 {})",
-                    status, key_ptr, x, y, z
-                ));
+                match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => {
+                        let (cx, _) = self.compile_expr_for_target_type(x, "i64")?;
+                        let (cy, _) = self.compile_expr_for_target_type(y, "i64")?;
+                        let (cz, _) = self.compile_expr_for_target_type(z, "i64")?;
+                        let status = self.next_reg();
+                        if let Some(ref barrier_json) = self.orchestrate_barrier_json {
+                            // Extended dispatch with compiler-inferred barrier
+                            // metadata from the enclosing orchestrate DAG.
+                            let barrier_ptr =
+                                self.compile_static_c_string_literal(barrier_json);
+                            self.emit(&format!(
+                                "  {} = call i64 @abi_gpu_dispatch_ext(i8* {}, i64 {}, i64 {}, i64 {}, i8* {})",
+                                status, key_ptr, cx, cy, cz, barrier_ptr
+                            ));
+                        } else {
+                            // Fall back to existing dispatch (full barrier at runtime).
+                            self.emit(&format!(
+                                "  {} = call i64 @abi_gpu_dispatch(i8* {}, i64 {}, i64 {}, i64 {})",
+                                status, key_ptr, cx, cy, cz
+                            ));
+                        }
+                    }
+                    DispatchSize::Indirect(_buf_expr) => {
+                        // Indirect dispatch: emit abi_gpu_dispatch_indirect.
+                        // ABI handling is in Stream ECHO; here we just emit
+                        // the call site. Marked as TODO for Stream ECHO.
+                        return Err(KainError::codegen(
+                            "indirect dispatch codegen not yet implemented -- see Stream ECHO",
+                            *span,
+                        ));
+                    }
+                }
             }
             Stmt::Return(expr, _) => {
                 let actor_return_label = self.actor_return_label.clone();

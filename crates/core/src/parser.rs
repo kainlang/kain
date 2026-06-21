@@ -2657,14 +2657,21 @@ impl<'a> Parser<'a> {
             self.advance();
             ShaderStage::Fragment
         } else if let TokenKind::Ident(ref s) = self.peek_kind() {
-            if s == "compute" {
-                self.advance();
-                ShaderStage::Compute
-            } else {
-                ShaderStage::Fragment // Default
+            match s.as_str() {
+                "compute" => { self.advance(); ShaderStage::Compute }
+                "surface" => { self.advance(); ShaderStage::Surface }
+                "mesh" => { self.advance(); ShaderStage::Mesh }
+                "task" => { self.advance(); ShaderStage::Task }
+                "raygen" => { self.advance(); ShaderStage::RayGen }
+                "anyhit" => { self.advance(); ShaderStage::AnyHit }
+                "closesthit" => { self.advance(); ShaderStage::ClosestHit }
+                "miss" => { self.advance(); ShaderStage::Miss }
+                "intersection" => { self.advance(); ShaderStage::Intersection }
+                "callable" => { self.advance(); ShaderStage::Callable }
+                _ => return Err(self.unexpected_token_error("expected shader stage (vertex, fragment, compute, surface, mesh, task, raygen, anyhit, closesthit, miss, intersection, callable)"))
             }
         } else {
-            ShaderStage::Fragment // Default
+            return Err(self.unexpected_token_error("expected shader stage"))
         };
 
         let name = self.parse_ident()?;
@@ -4001,9 +4008,9 @@ impl<'a> Parser<'a> {
         }
         let start = self.current_span();
         self.expect_contextual_ident("workgroup")?;
-        if !matches!(stage, ShaderStage::Compute) {
+        if !matches!(stage, ShaderStage::Compute | ShaderStage::Mesh | ShaderStage::Task) {
             return Err(self.parser_error(
-                "workgroup(...) is only legal on shader compute headers",
+                "workgroup(...) is only legal on shader compute, mesh, or task headers",
                 start,
             ));
         }
@@ -4607,7 +4614,7 @@ impl<'a> Parser<'a> {
 
         Ok(Stmt::Dispatch {
             compute_key,
-            dispatch_size: [x, y, z],
+            dispatch_size: DispatchSize::Fixed([x, y, z]),
             span: start.merge(self.current_span()),
         })
     }

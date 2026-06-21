@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    AxiomPredicate, Block, ConvergeSelector, Expr, PulseDuration, ShaderStage, Stmt, Type,
+    AxiomPredicate, Block, ConvergeSelector, DispatchSize, Expr, PulseDuration, ShaderStage, Stmt, Type,
     UseOrigin, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
@@ -1826,13 +1826,20 @@ fn block_contains_ownership_expr(block: &Block) -> bool {
     block.stmts.iter().any(stmt_contains_ownership_expr)
 }
 
+fn dispatch_size_contains(dispatch_size: &DispatchSize, f: fn(&Expr) -> bool) -> bool {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => f(x) || f(y) || f(z),
+        DispatchSize::Indirect(expr) => f(expr),
+    }
+}
+
 fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_ownership_expr),
         Stmt::Expr(expr) => expr_contains_ownership_expr(expr),
         Stmt::Defer { expr, .. } => expr_contains_ownership_expr(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().any(expr_contains_ownership_expr)
+            dispatch_size_contains(dispatch_size, expr_contains_ownership_expr)
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_ownership_expr)
@@ -1844,7 +1851,7 @@ fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
             condition, body, ..
         } => expr_contains_ownership_expr(condition) || block_contains_ownership_expr(body),
         Stmt::Loop { body, .. } => block_contains_ownership_expr(body),
-        Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
     }
 }
 
@@ -2006,7 +2013,7 @@ fn stmt_contains_shared_fanout_expr(stmt: &Stmt) -> bool {
         Stmt::Expr(expr) => expr_contains_shared_fanout_expr(expr),
         Stmt::Defer { expr, .. } => expr_contains_shared_fanout_expr(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().any(expr_contains_shared_fanout_expr)
+            dispatch_size_contains(dispatch_size, expr_contains_shared_fanout_expr)
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_shared_fanout_expr)
@@ -2019,7 +2026,7 @@ fn stmt_contains_shared_fanout_expr(stmt: &Stmt) -> bool {
             condition, body, ..
         } => expr_contains_shared_fanout_expr(condition) || block_contains_shared_fanout_expr(body),
         Stmt::Loop { body, .. } => block_contains_shared_fanout_expr(body),
-        Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
     }
 }
 
@@ -2196,7 +2203,7 @@ fn stmt_contains_atomic_seqcst_expr(stmt: &Stmt) -> bool {
         Stmt::Expr(expr) => expr_contains_atomic_seqcst_expr(expr),
         Stmt::Defer { expr, .. } => expr_contains_atomic_seqcst_expr(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().any(expr_contains_atomic_seqcst_expr)
+            dispatch_size_contains(dispatch_size, expr_contains_atomic_seqcst_expr)
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_atomic_seqcst_expr)
@@ -2208,7 +2215,7 @@ fn stmt_contains_atomic_seqcst_expr(stmt: &Stmt) -> bool {
             condition, body, ..
         } => expr_contains_atomic_seqcst_expr(condition) || block_contains_atomic_seqcst_expr(body),
         Stmt::Loop { body, .. } => block_contains_atomic_seqcst_expr(body),
-        Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
     }
 }
 
@@ -2386,7 +2393,7 @@ fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
         Stmt::Expr(expr) => expr_contains_teleport_expr(expr),
         Stmt::Defer { expr, .. } => expr_contains_teleport_expr(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().any(expr_contains_teleport_expr)
+            dispatch_size_contains(dispatch_size, expr_contains_teleport_expr)
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_teleport_expr)
@@ -2398,7 +2405,7 @@ fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
             condition, body, ..
         } => expr_contains_teleport_expr(condition) || block_contains_teleport_expr(body),
         Stmt::Loop { body, .. } => block_contains_teleport_expr(body),
-        Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
     }
 }
 

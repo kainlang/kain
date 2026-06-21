@@ -556,6 +556,7 @@ fn validate_zero_prologue_body(
                 Stmt::Let { span, .. }
                 | Stmt::Defer { span, .. }
                 | Stmt::Dispatch { span, .. }
+                | Stmt::Subgroup { span, .. }
                 | Stmt::Return(_, span)
                 | Stmt::Break(_, span)
                 | Stmt::Continue(span)
@@ -1077,6 +1078,9 @@ pub struct TypeEnv<'a> {
     in_patch: bool,
     in_world: bool,
     in_comptime: bool,
+    /// True when type-checking inside an `orchestrate` block body.
+    /// Enables `with GPU` (no Unsafe) for dispatch statements.
+    in_orchestrate: bool,
     relaxed_checks: bool,
     span_mapper: &'a SpanMapper,
     filename: &'a str,
@@ -1126,6 +1130,7 @@ impl<'a> TypeEnv<'a> {
             in_patch: false,
             in_world: false,
             in_comptime: false,
+            in_orchestrate: false,
             relaxed_checks: false,
             span_mapper,
             filename,
@@ -5035,6 +5040,46 @@ fn collect_reply_contract_type(
     Ok(())
 }
 
+// --- DispatchSize helpers (since DispatchSize is not iterable) ---
+
+fn dispatch_size_exprs_ref(dispatch_size: &DispatchSize) -> Vec<&Expr> {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => vec![x, y, z],
+        DispatchSize::Indirect(expr) => vec![expr],
+    }
+}
+
+fn dispatch_size_for_each<F, E>(dispatch_size: &DispatchSize, mut f: F) -> Result<(), E>
+where
+    F: FnMut(&Expr) -> Result<(), E>,
+{
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => {
+            f(x)?;
+            f(y)?;
+            f(z)?;
+        }
+        DispatchSize::Indirect(expr) => {
+            f(expr)?;
+        }
+    }
+    Ok(())
+}
+
+fn dispatch_size_any(dispatch_size: &DispatchSize, f: fn(&Expr) -> bool) -> bool {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => f(x) || f(y) || f(z),
+        DispatchSize::Indirect(expr) => f(expr),
+    }
+}
+
+fn dispatch_size_find_map<T>(dispatch_size: &DispatchSize, f: fn(&Expr) -> Option<T>) -> Option<T> {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => f(x).or_else(|| f(y)).or_else(|| f(z)),
+        DispatchSize::Indirect(expr) => f(expr),
+    }
+}
+
 fn collect_reply_contract_type_from_stmt(
     env: &mut TypeEnv,
     stmt: &Stmt,
@@ -5055,9 +5100,10 @@ fn collect_reply_contract_type_from_stmt(
             collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)
         }
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
-                collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)?;
-            }
+            dispatch_size_for_each(dispatch_size, |expr| {
+                let _ = collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)?;
+                Ok(())
+            })?;
             Ok(())
         }
         Stmt::Return(value, _) => {
@@ -5086,6 +5132,7 @@ fn collect_reply_contract_type_from_stmt(
             Ok(())
         }
         Stmt::Continue(_) | Stmt::Item(_) => Ok(()),
+        Stmt::Subgroup { body, .. } => collect_reply_contract_type(env, body, reply_port_name, reply_type),
     }
 }
 
@@ -5426,6 +5473,7 @@ fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedT
         in_patch: env.in_patch,
         in_world: env.in_world,
         in_comptime: env.in_comptime,
+        in_orchestrate: env.in_orchestrate,
         relaxed_checks: env.relaxed_checks,
         span_mapper: env.span_mapper,
         filename: env.filename,
@@ -6105,9 +6153,9 @@ fn verify_stmt_budget(
             }
         }
         Stmt::Dispatch { dispatch_size, .. } => {
-            for d in dispatch_size {
-                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, d, state)?;
-            }
+            dispatch_size_for_each(dispatch_size, |d| {
+                verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, d, state)
+            })?;
         }
         Stmt::Return(Some(expr), _) => {
             verify_expr_budget(env, pulse_name, alloc_limit, lock_limit, io_limit, expr, state)?;
@@ -6811,15 +6859,21 @@ fn check_orchestrate(
     env: &mut TypeEnv,
     orchestrate: &OrchestrateDef,
 ) -> KainResult<TypedOrchestrate> {
-    let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
-    let stages = collect_orchestrate_stage_descriptors(env, orchestrate)?;
-    let graph = build_orchestrate_graph_plan(env, orchestrate, &stages)?;
-    Ok(TypedOrchestrate {
-        ast: orchestrate.clone(),
-        resolved_type: typed_fn.resolved_type,
-        stages,
-        graph,
-    })
+    let old_in_orchestrate = env.in_orchestrate;
+    env.in_orchestrate = true;
+    let res = (|| {
+        let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
+        let stages = collect_orchestrate_stage_descriptors(env, orchestrate)?;
+        let graph = build_orchestrate_graph_plan(env, orchestrate, &stages)?;
+        Ok(TypedOrchestrate {
+            ast: orchestrate.clone(),
+            resolved_type: typed_fn.resolved_type,
+            stages,
+            graph,
+        })
+    })();
+    env.in_orchestrate = old_in_orchestrate;
+    res
 }
 
 fn build_orchestrate_graph_plan(
@@ -6989,7 +7043,7 @@ fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>)
         Stmt::Expr(expr) => collect_patch_mutation_paths_from_expr(expr, output),
         Stmt::Defer { expr, .. } => collect_patch_mutation_paths_from_expr(expr, output),
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
+            for expr in dispatch_size_exprs_ref(dispatch_size) {
                 collect_patch_mutation_paths_from_expr(expr, output);
             }
         }
@@ -7018,6 +7072,11 @@ fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>)
             }
         }
         Stmt::Item(_) | Stmt::Continue(_) => {}
+        Stmt::Subgroup { body, .. } => {
+            for stmt in &body.stmts {
+                collect_patch_mutation_paths_from_stmt(stmt, output);
+            }
+        }
     }
 }
 
@@ -7259,9 +7318,9 @@ fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Expr(expr) => expr_requires_best_effort_patch_mode(expr),
         Stmt::Defer { expr, .. } => expr_requires_best_effort_patch_mode(expr),
-        Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-            .iter()
-            .any(expr_requires_best_effort_patch_mode),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size_any(dispatch_size, expr_requires_best_effort_patch_mode)
+        },
         Stmt::Let { value, .. } => value
             .as_ref()
             .is_some_and(expr_requires_best_effort_patch_mode),
@@ -7281,6 +7340,7 @@ fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
         }
         Stmt::Loop { body, .. } => body.stmts.iter().any(stmt_requires_best_effort_patch_mode),
         Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Subgroup { body, .. } => body.stmts.iter().any(stmt_requires_best_effort_patch_mode),
     }
 }
 
@@ -7543,7 +7603,7 @@ fn first_stage_call_in_stmt(stmt: &Stmt) -> Option<Span> {
         Stmt::Expr(expr) => first_stage_call_in_expr(expr),
         Stmt::Defer { expr, .. } => first_stage_call_in_expr(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().find_map(first_stage_call_in_expr)
+            dispatch_size_find_map(dispatch_size, first_stage_call_in_expr)
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().and_then(first_stage_call_in_expr)
@@ -7556,6 +7616,7 @@ fn first_stage_call_in_stmt(stmt: &Stmt) -> Option<Span> {
         } => first_stage_call_in_expr(condition).or_else(|| first_stage_call_in_block(body)),
         Stmt::Loop { body, .. } => first_stage_call_in_block(body),
         Stmt::Item(_) | Stmt::Continue(_) => None,
+        Stmt::Subgroup { body, .. } => first_stage_call_in_block(body),
     }
 }
 
@@ -8377,7 +8438,28 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             if compute_key.is_empty() {
                 return Err(env.type_error("dispatch compute key cannot be empty", *span));
             }
-            for dimension in dispatch_size {
+            // GPU effect check ---------------------------------------------------
+            // dispatch requires at least `with GPU` on the enclosing function.
+            //   - `with GPU, Unsafe`: always allowed (existing behavior).
+            //   - `with GPU` without `Unsafe`: allowed only inside an orchestrate
+            //     block whose compiler-owned access_map can prove memory safety.
+            //   - No GPU effect: compile error.
+            let has_gpu = ctx.effects.effects.contains(&Effect::GPU);
+            let has_unsafe = ctx.effects.effects.contains(&Effect::Unsafe);
+            if !has_gpu && !has_unsafe {
+                return Err(env.type_error(
+                    "dispatch requires 'with GPU' effect annotation on the enclosing function",
+                    *span,
+                ));
+            }
+            if has_gpu && !has_unsafe && !env.in_orchestrate {
+                return Err(env.type_error(
+                    "GPU dispatch without 'Unsafe' effect requires an orchestrate wrapper. \
+                     Add 'with GPU, Unsafe' or wrap dispatch in an 'orchestrate' block.",
+                    *span,
+                ));
+            }
+            for dimension in dispatch_size_exprs_ref(dispatch_size) {
                 let dim_ty = infer_expr_type(env, dimension, Some(ctx))?;
                 ensure_type_compatible(
                     env,
@@ -8527,6 +8609,7 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             let _ = infer_expr_type(env, expr, Some(ctx))?;
         }
         Stmt::Break(None, _) | Stmt::Continue(_) => {}
+        Stmt::Subgroup { body, .. } => check_block_semantics(env, body, ctx)?,
     }
     Ok(())
 }
@@ -10012,7 +10095,7 @@ fn ownership_stmt_contains_early_exit(stmt: &Stmt) -> bool {
         Stmt::Expr(expr) => ownership_expr_contains_early_exit(expr),
         Stmt::Defer { expr, .. } => ownership_expr_contains_early_exit(expr),
         Stmt::Dispatch { dispatch_size, .. } => {
-            dispatch_size.iter().any(ownership_expr_contains_early_exit)
+            dispatch_size_any(dispatch_size, ownership_expr_contains_early_exit)
         }
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             ownership_expr_contains_early_exit(iter) || ownership_block_contains_early_exit(body)
@@ -10025,6 +10108,7 @@ fn ownership_stmt_contains_early_exit(stmt: &Stmt) -> bool {
         }
         Stmt::Loop { body, .. } => ownership_block_contains_early_exit(body),
         Stmt::Item(_) => false,
+        Stmt::Subgroup { body, .. } => ownership_block_contains_early_exit(body),
     }
 }
 

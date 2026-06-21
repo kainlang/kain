@@ -90,17 +90,17 @@ pub const GPU_LAYOUT_RASTER_HWC: String = "raster_hwc"
 
 /// An opaque handle to a registered compute pipeline in a library.
 /// Carries enough information to locate the cached VkPipeline/CUfunction.
-pub struct PipelineHandle:
-    pub id: Int
-    pub library_name: String
-    pub compute_key: String
-    pub dispatch_size: [Int; 3]
+struct PipelineHandle:
+    id: Int
+    library_name: String
+    compute_key: String
+    dispatch_size: [Int; 3]
 
 /// A pipeline library — a named cache of compiled shader pipelines.
 /// Pipelines are registered once and dispatched many times.
-pub struct PipelineLibrary:
-    pub name: String
-    pub pipeline_count: Int
+struct PipelineLibrary:
+    name: String
+    pipeline_count: Int
 
 // ============================================================================
 //                    PIPELINE LIBRARY FUNCTIONS
@@ -160,10 +160,10 @@ pub fn gpu_pipeline_library_destroy(lib: PipelineLibrary) -> Int:
 
 /// Dispatch dimensions written by a GPU shader for indirect dispatch.
 /// Compatible with VkDispatchIndirectCommand layout (12 bytes).
-pub struct DispatchIndirectCommand:
-    pub x: UInt
-    pub y: UInt
-    pub z: UInt
+struct DispatchIndirectCommand:
+    x: UInt
+    y: UInt
+    z: UInt
 
 /// Allocate a zero-initialized indirect dispatch buffer.
 /// The returned pointer is device-visible and can be written from GPU shaders.

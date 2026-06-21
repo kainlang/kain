@@ -1223,7 +1223,7 @@ fn parse_spec_constant_plan_expr(
 
     if fields.len() < 4 {
         return Err(ComputeMetadataError::InvalidSpecConstant(
-            "spec constant plan needs name, type, default value, and "SPEC" marker".to_string(),
+            "spec constant plan needs name, type, default value, and 'SPEC' marker".to_string(),
         ));
     }
 
@@ -1243,7 +1243,7 @@ fn parse_spec_constant_plan_expr(
     let default_value = match ty.as_str() {
         "u32" => match &fields[2] {
             Expr::Int(v, _) if *v >= 0 && *v <= u32::MAX as i64 => SpecConstantValue::U32(*v as u32),
-            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            Expr::Paren(inner, _) => parse_spec_constant_value_inner("u32", inner)?,
             _ => return Err(ComputeMetadataError::InvalidSpecConstant(
                 format!("expected non-negative integer literal for u32 spec constant, got {:?}", fields[2])
             )),
@@ -1251,14 +1251,14 @@ fn parse_spec_constant_plan_expr(
         "f32" => match &fields[2] {
             Expr::Float(v, _) => SpecConstantValue::F32(*v as f32),
             Expr::Int(v, _) => SpecConstantValue::F32(*v as f32),
-            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            Expr::Paren(inner, _) => parse_spec_constant_value_inner("f32", inner)?,
             _ => return Err(ComputeMetadataError::InvalidSpecConstant(
                 format!("expected numeric literal for f32 spec constant, got {:?}", fields[2])
             )),
         },
         "bool" => match &fields[2] {
             Expr::Bool(v, _) => SpecConstantValue::Bool(*v),
-            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            Expr::Paren(inner, _) => parse_spec_constant_value_inner("bool", inner)?,
             _ => return Err(ComputeMetadataError::InvalidSpecConstant(
                 format!("expected boolean literal for bool spec constant, got {:?}", fields[2])
             )),
@@ -1266,7 +1266,7 @@ fn parse_spec_constant_plan_expr(
         "i32" => match &fields[2] {
             Expr::Int(v, _) if *v >= i32::MIN as i64 && *v <= i32::MAX as i64 =>
                 SpecConstantValue::Int(*v as i32),
-            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            Expr::Paren(inner, _) => parse_spec_constant_value_inner("i32", inner)?,
             _ => return Err(ComputeMetadataError::InvalidSpecConstant(
                 format!("expected integer literal for i32 spec constant, got {:?}", fields[2])
             )),
@@ -1690,6 +1690,51 @@ pub enum DispatchSize {
     Fixed([Expr; 3]),
     /// Indirect dispatch: `dispatch "key" from expr` — GPU-written buffer pointer
     Indirect(Box<Expr>),
+}
+
+/// Apply `f` to every expression in a `DispatchSize`.
+pub fn dispatch_size_for_each<E>(
+    dispatch_size: &DispatchSize,
+    mut f: impl FnMut(&Expr) -> Result<(), E>,
+) -> Result<(), E> {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => {
+            f(x)?;
+            f(y)?;
+            f(z)?;
+        }
+        DispatchSize::Indirect(expr) => f(expr)?,
+    }
+    Ok(())
+}
+
+/// Returns a `Vec` of references to every expression in a `DispatchSize`.
+#[allow(dead_code)]
+pub fn dispatch_size_exprs_ref(dispatch_size: &DispatchSize) -> Vec<&Expr> {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => vec![x, y, z],
+        DispatchSize::Indirect(expr) => vec![expr],
+    }
+}
+
+/// Returns true if `f` returns true for any expression in `DispatchSize`.
+pub fn dispatch_size_any(dispatch_size: &DispatchSize, f: impl Fn(&Expr) -> bool) -> bool {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => f(x) || f(y) || f(z),
+        DispatchSize::Indirect(expr) => f(expr),
+    }
+}
+
+/// Returns `Some(span)` if `f` returns `Some(span)` for any expression in
+/// `DispatchSize`, otherwise `None`.
+pub fn dispatch_size_find_map<T>(
+    dispatch_size: &DispatchSize,
+    f: impl Fn(&Expr) -> Option<T>,
+) -> Option<T> {
+    match dispatch_size {
+        DispatchSize::Fixed([x, y, z]) => f(x).or_else(|| f(y)).or_else(|| f(z)),
+        DispatchSize::Indirect(expr) => f(expr),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

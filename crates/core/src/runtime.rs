@@ -5709,8 +5709,15 @@ fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
         Stmt::Continue(_) => Ok(Value::Continue),
         Stmt::Defer { .. } => Ok(Value::Unit),
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
-                let _ = eval_expr(env, expr)?;
+            match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    let _ = eval_expr(env, x)?;
+                    let _ = eval_expr(env, y)?;
+                    let _ = eval_expr(env, z)?;
+                }
+                DispatchSize::Indirect(expr) => {
+                    let _ = eval_expr(env, expr)?;
+                }
             }
             Ok(Value::Unit)
         }
@@ -8720,9 +8727,16 @@ fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Expr(expr) => expr_contains_runtime_best_effort_effects(expr),
         Stmt::Defer { expr, .. } => expr_contains_runtime_best_effort_effects(expr),
-        Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-            .iter()
-            .any(expr_contains_runtime_best_effort_effects),
+        Stmt::Dispatch { dispatch_size, .. } => match dispatch_size {
+            DispatchSize::Fixed([x, y, z]) => {
+                expr_contains_runtime_best_effort_effects(x)
+                    || expr_contains_runtime_best_effort_effects(y)
+                    || expr_contains_runtime_best_effort_effects(z)
+            }
+            DispatchSize::Indirect(expr) => {
+                expr_contains_runtime_best_effort_effects(expr)
+            }
+        },
         Stmt::Let { value, .. } => value
             .as_ref()
             .is_some_and(|value| expr_contains_runtime_best_effort_effects(value)),
@@ -8741,7 +8755,7 @@ fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
                 || block_contains_runtime_best_effort_effects(body)
         }
         Stmt::Loop { body, .. } => block_contains_runtime_best_effort_effects(body),
-        Stmt::Item(_) | Stmt::Continue(_) => false,
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
     }
 }
 
