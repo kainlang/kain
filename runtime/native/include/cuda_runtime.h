@@ -41,6 +41,11 @@ int64_t abi_gpu_dispatch_ext(
     int64_t dispatch_z,
     const char* barrier_json
 );
+int64_t abi_gpu_dispatch_indirect(
+    const char* compute_key,
+    const void* dispatch_payload,
+    int64_t payload_size
+);
 int64_t abi_cuda_last_status(void);
 const char* abi_cuda_last_error_kind(void);
 const char* abi_cuda_last_error_message(void);

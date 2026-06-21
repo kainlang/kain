@@ -1793,6 +1793,7 @@ pub fn emit_shader_body(
             ctx.pop_indent();
             output.push_str("}\n");
         }
+        _ => {}
     }
 
     Ok(output)
@@ -2059,6 +2060,7 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
         Stmt::Item(_) => {
             // Nested items not supported in shader body
         }
+        Stmt::Subgroup { .. } => {}
     }
 
     Ok(output)

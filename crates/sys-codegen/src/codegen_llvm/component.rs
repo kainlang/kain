@@ -179,8 +179,8 @@ impl LlvmGenerator {
             }
         }
 
-        // Compile state fields (Contract 8)
-        self.compile_component_state_init(component, &surface_reg, &session_reg)?;
+        // Compile state fields (Contract 8) — returns (key, addr_reg) for write-back
+        let state_fields = self.compile_component_state_init(component, &surface_reg, &session_reg)?;
 
         // Set current component context for JSX compilation
         self.current_component_name = Some(name.clone());
@@ -197,6 +197,20 @@ impl LlvmGenerator {
             name,
             &mut sibling_index,
         )?;
+
+        // Write-back: persist current state field values to the surface
+        // so mutations (self.count = self.count + 1) survive across frames.
+        for (key, addr_reg) in &state_fields {
+            let load_reg = self.next_reg();
+            self.emit(&format!("  {} = load i64, i64* {}", load_reg, addr_reg));
+            let key_str = self.compile_static_c_string_literal(key);
+            self.emit_vtable_call_void(
+                &surface_reg,
+                OFF_STATE_SET_I64,
+                "void (i64, i8*, i64)*",
+                &[(&session_reg, "i64"), (&key_str, "i8*"), (&load_reg, "i64")],
+            );
+        }
 
         // Clear component context
         self.current_component_name = None;
@@ -539,8 +553,8 @@ impl LlvmGenerator {
 
         // Emit children with the element as parent
         let el_clone = el.clone();
+        let mut child_si = 0usize;
         for child in children {
-            let mut child_si = 0usize;
             self.compile_jsx_to_surface(
                 surface_reg, session_reg, &el_clone,
                 child, component_name, &mut child_si,
@@ -1070,7 +1084,8 @@ impl LlvmGenerator {
         component: &TypedComponent,
         surface_reg: &str,
         session_reg: &str,
-    ) -> KainResult<()> {
+    ) -> KainResult<Vec<(String, String)>> {
+        let mut state_fields: Vec<(String, String)> = Vec::new();
         for state in &component.ast.state {
             let key = format!("{}:{}", component.ast.name, state.name);
             let key_str = self.compile_static_c_string_literal(&key);
@@ -1097,6 +1112,15 @@ impl LlvmGenerator {
                 is_first, init_block, load_block
             ));
 
+            // Alloca for the state field (local fast access) — hoisted to entry
+            let addr_reg = format!("%{}.addr", state.name);
+            self.emit_entry_alloca(&addr_reg, "i64");
+            // Track in locals so $self.name works BEFORE init_block emits
+            self.locals.insert(state.name.clone(), (addr_reg.clone(), "i64".to_string()));
+            if let Some(scope) = self.scopes.last_mut() {
+                scope.push(state.name.clone());
+            }
+
             self.emit_label(&init_block);
             // Store initial value through vtable (offset 9)
             let (init_val, _) = self.compile_expr(&state.initial)?;
@@ -1106,25 +1130,23 @@ impl LlvmGenerator {
                 "void (i64, i8*, i64)*",
                 &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val, "i64")],
             );
-
-            // Alloca for the state field (local fast access)
-            let addr_reg = format!("%{}.addr", state.name);
-            self.emit_entry_alloca(&addr_reg, "i64");
-            self.emit(&format!(
-                "  store i64 {}, i64* {}",
-                init_val, addr_reg
-            ));
-            // Track in locals so $self.name works
-            self.locals.insert(state.name.clone(), (addr_reg.clone(), "i64".to_string()));
-            if let Some(scope) = self.scopes.last_mut() {
-                scope.push(state.name.clone());
-            }
             self.emit(&format!("  br label %{}", load_block));
 
             self.emit_label(&load_block);
-            // Readers of the state will load from the alloca
+            // PHI: merge init_val (first frame) with stored_val (subsequent frames)
+            // NOTE: sentinel 0 means "first frame" — initial value of 0 would
+            // cause re-init every frame. Future: use a separate init-flag key.
+            let phi_reg = self.next_reg();
+            self.emit(&format!(
+                "  {} = phi i64 [ {}, %{} ], [ {}, %entry ]",
+                phi_reg, init_val, init_block, stored_val
+            ));
+            self.emit(&format!("  store i64 {}, i64* {}", phi_reg, addr_reg));
+
+            // Track for write-back at end of render function
+            state_fields.push((key, addr_reg));
         }
 
-        Ok(())
+        Ok(state_fields)
     }
 }

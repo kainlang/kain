@@ -1,4 +1,40 @@
 use ash::vk;
+use serde::Deserialize;
+
+/// Barrier metadata deserialized from the JSON passed via the ABI
+/// (`abi_gpu_dispatch_ext`'s barrier_json parameter). When present,
+/// the executor emits precise pipeline barriers instead of a full
+/// pipeline drain.
+#[derive(Clone, Debug, Deserialize)]
+pub struct BarrierMetadata {
+    pub barriers: Vec<BarrierDescription>,
+}
+
+impl BarrierMetadata {
+    pub fn from_json(json: &str) -> Option<Self> {
+        serde_json::from_str(json).ok()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct BarrierDescription {
+    pub from_stage: String,
+    pub to_stage: String,
+    pub src_stage_mask: u32,
+    pub dst_stage_mask: u32,
+    pub src_access_mask: u32,
+    pub dst_access_mask: u32,
+}
+
+/// Queue selection policy for dispatching GPU compute work.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GpuQueuePolicy {
+    /// Use the default compute queue (always available).
+    #[default]
+    Default,
+    /// Prefer an async compute queue when the GPU supports one.
+    PreferAsyncCompute,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GpuDescriptorKind {
@@ -151,6 +187,11 @@ pub struct GpuDispatchRequest {
     pub tensor_binding_count: usize,
     pub stream_binding_count: usize,
     pub neural_node_count: usize,
+    /// Barrier metadata for precise pipeline barriers.
+    /// None = use full pipeline drain fallback.
+    pub barrier_metadata: Option<BarrierMetadata>,
+    /// Queue selection policy for async compute routing.
+    pub queue_policy: GpuQueuePolicy,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

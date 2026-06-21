@@ -791,6 +791,7 @@ impl KsGen {
                 );
             }
             Stmt::Item(_) => { /* nested items hoisted to module scope by type checker */ }
+            Stmt::Subgroup { .. } => {}
         }
     }
 

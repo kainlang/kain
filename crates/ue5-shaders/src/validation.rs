@@ -1222,6 +1222,7 @@ Documentation: https://kain.dev/docs/shaders/types",
                     ));
                 }
             }
+            _ => {}
         }
     }
 

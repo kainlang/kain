@@ -848,6 +848,7 @@ fn emit_block(ctx: &mut PtxContext, block: &Block) -> KainResult<()> {
 
 fn emit_stmt(ctx: &mut PtxContext, stmt: &Stmt) -> KainResult<()> {
     match stmt {
+        Stmt::Subgroup { .. } => {}
         Stmt::Let {
             pattern,
             ty,

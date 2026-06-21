@@ -589,6 +589,7 @@ impl SourceFormatter {
                     "Kain formatter cannot emit `surface` shader stage because the parser does not currently accept it",
                 ))
             }
+            _ => "compute ",
         };
         let mut header = self.render_callable_head(
             &format!("shader {stage}{}(", value.name),
@@ -1727,13 +1728,25 @@ impl SourceFormatter {
                 compute_key,
                 dispatch_size,
                 ..
-            } => Ok(format!(
-                "dispatch {} [{}, {}, {}]",
-                self.quote_string(compute_key),
-                self.format_expr(&dispatch_size[0])?,
-                self.format_expr(&dispatch_size[1])?,
-                self.format_expr(&dispatch_size[2])?
-            )),
+            } => {
+                let dims = match dispatch_size {
+                    DispatchSize::Fixed([x, y, z]) => [x, y, z],
+                    DispatchSize::Indirect(expr) => {
+                        return Ok(format!(
+                            "dispatch {} from {}",
+                            self.quote_string(compute_key),
+                            self.format_expr(expr)?
+                        ))
+                    }
+                };
+                Ok(format!(
+                    "dispatch {} [{}, {}, {}]",
+                    self.quote_string(compute_key),
+                    self.format_expr(&dims[0])?,
+                    self.format_expr(&dims[1])?,
+                    self.format_expr(&dims[2])?
+                ))
+            },
             Stmt::Return(Some(expr), _) => Ok(format!("return {}", self.format_expr(expr)?)),
             Stmt::Return(None, _) => Ok(String::from("return")),
             Stmt::Break(Some(expr), _) => Ok(format!("break {}", self.format_expr(expr)?)),
@@ -1775,6 +1788,7 @@ impl SourceFormatter {
                 self.format_header_with_body("loop", &self.format_statement_sequence(&body.stmts)?)
             }
             Stmt::Item(item) => self.format_item(item),
+            Stmt::Subgroup { .. } => Ok(String::new()),
         }
     }
 

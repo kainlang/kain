@@ -99,6 +99,7 @@ fn emit_shader(
         ShaderStage::Fragment => ExecutionModel::Fragment,
         ShaderStage::Compute => ExecutionModel::GLCompute,
         ShaderStage::Surface => ExecutionModel::Fragment, // Surface shaders compile to fragment
+        _ => ExecutionModel::GLCompute,
     };
 
     // 1. Define Basic Types

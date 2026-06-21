@@ -14,7 +14,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use kain_core::ast::{
-    Block, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind,
+    Block, DispatchSize, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind,
 };
 use kain_core::diagnostics::SourceOriginSegment;
 use kain_core::error::KainError;
@@ -2444,12 +2444,14 @@ fn collect_implicit_root_stdlib_modules_from_block(
                 collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
             }
             Stmt::Dispatch { dispatch_size, .. } => {
-                for expr in dispatch_size {
-                    collect_implicit_root_stdlib_modules_from_expr(
-                        expr,
-                        symbol_lookup,
-                        module_names,
-                    );
+                if let DispatchSize::Fixed(exprs) = dispatch_size {
+                    for expr in exprs {
+                        collect_implicit_root_stdlib_modules_from_expr(
+                            expr,
+                            symbol_lookup,
+                            module_names,
+                        );
+                    }
                 }
             }
             Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
@@ -2472,7 +2474,7 @@ fn collect_implicit_root_stdlib_modules_from_block(
             Stmt::Item(item) => {
                 collect_implicit_root_stdlib_modules_from_item(item, symbol_lookup, module_names);
             }
-            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => {}
+            Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) | Stmt::Subgroup { .. } => {}
         }
     }
 }

@@ -592,6 +592,7 @@ pub mod hlsl {
             ShaderStage::Fragment | ShaderStage::Surface => {
                 emit_fragment_shader(&mut ctx, shader, &mut output)?
             }
+            _ => {}
         }
         Ok(output)
     }
@@ -813,6 +814,7 @@ pub mod wgsl {
             ShaderStage::Fragment | ShaderStage::Surface => {
                 emit_fragment_shader(&mut ctx, shader, &mut output)?
             }
+            _ => {}
         }
         Ok(output)
     }
@@ -1073,6 +1075,7 @@ fn emit_block(ctx: &mut TextContext, block: &Block) -> KainResult<String> {
 
 fn emit_stmt(ctx: &mut TextContext, stmt: &Stmt) -> KainResult<String> {
     match stmt {
+        Stmt::Subgroup { .. } => Ok(String::new()),
         Stmt::Let {
             pattern,
             ty,
@@ -1254,6 +1257,7 @@ fn emit_return(ctx: &mut TextContext, expr: Option<&Expr>, span: Span) -> KainRe
                 }
             }
         }
+        _ => {}
     }
     Ok(output)
 }

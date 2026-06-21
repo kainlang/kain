@@ -5303,6 +5303,7 @@ impl Ue5Gen {
             }
 
             Stmt::Item(_) => {}
+            Stmt::Subgroup { .. } => {}
         }
     }
 
@@ -7251,7 +7252,19 @@ fn stmt_uses_kain_runtime(stmt: &Stmt) -> bool {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_uses_kain_runtime),
         Stmt::Expr(e) => expr_uses_kain_runtime(e),
         Stmt::Defer { expr, .. } => expr_uses_kain_runtime(expr),
-        Stmt::Dispatch { dispatch_size, .. } => dispatch_size.iter().any(expr_uses_kain_runtime),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            kain_core::ast::dispatch_size_for_each(
+                dispatch_size,
+                |expr| {
+                    if expr_uses_kain_runtime(expr) {
+                        Err(())
+                    } else {
+                        Ok(())
+                    }
+                },
+            )
+            .is_err()
+        },
         Stmt::Return(v, _) | Stmt::Break(v, _) => v.as_ref().is_some_and(expr_uses_kain_runtime),
         Stmt::Continue(_) => false,
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
@@ -7261,7 +7274,7 @@ fn stmt_uses_kain_runtime(stmt: &Stmt) -> bool {
             condition, body, ..
         } => expr_uses_kain_runtime(condition) || block_uses_kain_runtime(body),
         Stmt::Loop { body, .. } => block_uses_kain_runtime(body),
-        Stmt::Item(_) => false,
+        Stmt::Item(_) | Stmt::Subgroup { .. } => false,
     }
 }
 

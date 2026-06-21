@@ -4464,9 +4464,19 @@ impl RustTransformer {
                 .is_some_and(|expr| self.expr_requires_async_effect(expr)),
             Stmt::Expr(expr) => self.expr_requires_async_effect(expr),
             Stmt::Defer { expr, .. } => self.expr_requires_async_effect(expr),
-            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
-                .iter()
-                .any(|expr| self.expr_requires_async_effect(expr)),
+            Stmt::Dispatch { dispatch_size, .. } => {
+                kain_core::ast::dispatch_size_for_each(
+                    dispatch_size,
+                    |expr| {
+                        if self.expr_requires_async_effect(expr) {
+                            Err(())
+                        } else {
+                            Ok(())
+                        }
+                    },
+                )
+                .is_err()
+            },
             Stmt::Return(value, _) | Stmt::Break(value, _) => value
                 .as_ref()
                 .is_some_and(|expr| self.expr_requires_async_effect(expr)),
@@ -4479,7 +4489,7 @@ impl RustTransformer {
                 self.expr_requires_async_effect(condition) || self.block_requires_async_effect(body)
             }
             Stmt::Loop { body, .. } => self.block_requires_async_effect(body),
-            Stmt::Item(_) | Stmt::Continue(_) => false,
+            Stmt::Item(_) | Stmt::Continue(_) | Stmt::Subgroup { .. } => false,
         }
     }
 

@@ -767,6 +767,7 @@ impl SlateGenerator {
                 self.push_line("}");
             }
             Stmt::Item(_) => {}
+            Stmt::Subgroup { .. } => {}
         }
     }
 

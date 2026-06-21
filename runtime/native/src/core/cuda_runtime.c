@@ -426,6 +426,165 @@ void kain_cuda_pipeline_cache_free_all(void) {
     g_pipeline_cache_head = NULL;
 }
 
+/// Extended internal dispatch that passes barrier metadata JSON to the GPU
+/// runtime executor. Used by abi_gpu_dispatch_ext when barrier_json is non-NULL.
+static int64_t cuda_dispatch_internal_ext(
+    const char* shader_bundle_path_override,
+    const char* compute_residency_path_override,
+    const char* compute_key,
+    int64_t dispatch_x,
+    int64_t dispatch_y,
+    int64_t dispatch_z,
+    const char* barrier_json
+) {
+    char runtime_library_path[KAIN_CUDA_RUNTIME_PATH_MAX];
+    char shader_bundle_path[KAIN_CUDA_RUNTIME_PATH_MAX];
+    char compute_residency_path[KAIN_CUDA_RUNTIME_PATH_MAX];
+    char message[KAIN_CUDA_RUNTIME_MESSAGE_MAX];
+    KainCudaRuntimeLibrary runtime_library = NULL;
+    KainGpuRuntimeDispatchPtxPersistedFn dispatch_fn = NULL;
+    KainGpuRuntimeDispatchRequest request;
+    KainGpuRuntimeDispatchResult dispatch_result;
+    int call_status;
+
+    cuda_reset_dispatch_stats();
+    cuda_store_paths("", "", "");
+
+    if ((dispatch_x != 0 || dispatch_y != 0 || dispatch_z != 0) &&
+        (dispatch_x <= 0 || dispatch_y <= 0 || dispatch_z <= 0 ||
+         dispatch_x > UINT32_MAX || dispatch_y > UINT32_MAX || dispatch_z > UINT32_MAX)) {
+        return cuda_set_status(
+            -1,
+            "invalid_argument",
+            "gpu dispatch dimensions must be positive u32 values when provided"
+        );
+    }
+    if (compute_key == NULL || compute_key[0] == '\0') {
+        return cuda_set_status(
+            -1,
+            "invalid_argument",
+            "cuda compute dispatch requires a non-empty compute key"
+        );
+    }
+
+    /* Resolve paths the same way as cuda_dispatch_internal */
+    if (shader_bundle_path_override != NULL && shader_bundle_path_override[0] != '\0') {
+        cuda_copy_text(shader_bundle_path, sizeof(shader_bundle_path), shader_bundle_path_override);
+    } else if (!cuda_resolve_artifact_path(
+                   KAIN_CUDA_SHADER_BUNDLE_ENV,
+                   "KAIN_UI_NATIVE_SHADER_BUNDLE",
+                   KAIN_CUDA_SHADER_BUNDLE_FILE_NAME,
+                   shader_bundle_path,
+                   sizeof(shader_bundle_path)
+               )) {
+        return cuda_set_status(
+            -1,
+            "shader_bundle_missing",
+            "unable to resolve the CUDA shader bundle path"
+        );
+    }
+    if (compute_residency_path_override != NULL && compute_residency_path_override[0] != '\0') {
+        cuda_copy_text(
+            compute_residency_path,
+            sizeof(compute_residency_path),
+            compute_residency_path_override
+        );
+    } else if (!cuda_resolve_artifact_path(
+                   KAIN_CUDA_COMPUTE_RESIDENCY_ENV,
+                   KAIN_COMPUTE_RESIDENCY_ENV,
+                   KAIN_CUDA_COMPUTE_RESIDENCY_FILE_NAME,
+                   compute_residency_path,
+                   sizeof(compute_residency_path)
+               )) {
+        return cuda_set_status(
+            -1,
+            "compute_residency_missing",
+            "unable to resolve the CUDA compute residency path"
+        );
+    }
+    if (!cuda_file_exists(shader_bundle_path)) {
+        return cuda_set_status(
+            -1,
+            "shader_bundle_missing",
+            "CUDA shader bundle path does not exist"
+        );
+    }
+    if (!cuda_file_exists(compute_residency_path)) {
+        return cuda_set_status(
+            -1,
+            "compute_residency_missing",
+            "CUDA compute residency path does not exist"
+        );
+    }
+    if (!cuda_resolve_runtime_library_path(
+            runtime_library_path,
+            sizeof(runtime_library_path)
+        )) {
+        return cuda_set_status(
+            -1,
+            "runtime_library_missing",
+            "unable to resolve kain-gpu-runtime for CUDA dispatch"
+        );
+    }
+    if (!cuda_open_runtime_library(
+            runtime_library_path,
+            &runtime_library,
+            message,
+            sizeof(message)
+        )) {
+        return cuda_set_status(-1, "runtime_library_open_failed", message);
+    }
+
+    dispatch_fn = (KainGpuRuntimeDispatchPtxPersistedFn)cuda_resolve_runtime_symbol(
+        runtime_library,
+        "kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted",
+        message,
+        sizeof(message)
+    );
+    if (dispatch_fn == NULL) {
+        cuda_close_runtime_library(runtime_library);
+        return cuda_set_status(-1, "runtime_symbol_missing", message);
+    }
+
+    ZeroMemory(&request, sizeof(request));
+    ZeroMemory(&dispatch_result, sizeof(dispatch_result));
+    request.shader_bundle_path = shader_bundle_path;
+    request.compute_residency_path = compute_residency_path;
+    request.compute_key = compute_key;
+    request.barrier_json = barrier_json;
+    if (dispatch_x > 0 && dispatch_y > 0 && dispatch_z > 0) {
+        request.dispatch_size[0] = (unsigned int)dispatch_x;
+        request.dispatch_size[1] = (unsigned int)dispatch_y;
+        request.dispatch_size[2] = (unsigned int)dispatch_z;
+    }
+    call_status = dispatch_fn(&request, &dispatch_result);
+
+    cuda_store_paths(
+        runtime_library_path,
+        shader_bundle_path,
+        compute_residency_path
+    );
+    g_cuda_last_dispatch_invocations = (int64_t)dispatch_result.dispatch_invocations;
+    g_cuda_last_tensor_binding_count = (int64_t)dispatch_result.tensor_binding_count;
+    g_cuda_last_stream_binding_count = (int64_t)dispatch_result.stream_binding_count;
+    g_cuda_last_neural_node_count = (int64_t)dispatch_result.neural_node_count;
+    g_cuda_last_output_binding_count = (int64_t)dispatch_result.output_binding_count;
+    g_cuda_last_total_output_bytes = (int64_t)dispatch_result.total_output_bytes;
+
+    cuda_close_runtime_library(runtime_library);
+
+    if (call_status != 0 || dispatch_result.status_code != 0) {
+        return cuda_set_status(
+            dispatch_result.status_code != 0 ? (int64_t)dispatch_result.status_code : -1,
+            "dispatch_failed",
+            dispatch_result.message[0] ? dispatch_result.message : "CUDA dispatch failed"
+        );
+    }
+    return cuda_ok(
+        dispatch_result.message[0] ? dispatch_result.message : "cuda dispatch ok"
+    );
+}
+
 static int64_t cuda_dispatch_internal(
     const char* shader_bundle_path_override,
     const char* compute_residency_path_override,
@@ -704,11 +863,56 @@ int64_t abi_gpu_dispatch_ext(
     int64_t dispatch_z,
     const char* barrier_json
 ) {
-    /* Forward to plain dispatch for now.
-     * TODO(E): Parse barrier_json for pipeline barrier insertion
-     *          when the orchestrate->Vulkan barrier pipeline is plumbed. */
-    (void)barrier_json;
-    return abi_gpu_dispatch(compute_key, dispatch_x, dispatch_y, dispatch_z);
+    /* Extended dispatch: passes barrier metadata JSON through to the GPU
+     * runtime executor for precise pipeline barrier emission. When the JSON
+     * is NULL or empty, falls back to the plain dispatch path which uses a
+     * full pipeline drain barrier at runtime. */
+    if (compute_key == NULL || compute_key[0] == '\0') {
+        return cuda_set_status(-1, "null_argument", "compute_key is NULL");
+    }
+    if (barrier_json == NULL || barrier_json[0] == '\0') {
+        return abi_gpu_dispatch(compute_key, dispatch_x, dispatch_y, dispatch_z);
+    }
+    return cuda_dispatch_internal_ext(
+        NULL, NULL,
+        compute_key,
+        dispatch_x, dispatch_y, dispatch_z,
+        barrier_json
+    );
+}
+
+int64_t abi_gpu_dispatch_indirect(
+    const char* compute_key,
+    const void* dispatch_payload,
+    int64_t payload_size
+) {
+    if (compute_key == NULL || compute_key[0] == '\0') {
+        return cuda_set_status(-1, "null_argument", "compute_key is NULL");
+    }
+    if (dispatch_payload == NULL) {
+        return cuda_set_status(-5, "null_indirect_buffer",
+            "indirect dispatch buffer is NULL");
+    }
+    if (payload_size < 12) {
+        return cuda_set_status(-5, "invalid_indirect_buffer",
+            "indirect dispatch buffer too small: expected >= 12 bytes");
+    }
+
+    const uint32_t* dims = (const uint32_t*)dispatch_payload;
+    uint32_t x = dims[0];
+    uint32_t y = dims[1];
+    uint32_t z = dims[2];
+
+    if (x == 0 || x > 65535 || y == 0 || y > 65535 || z == 0 || z > 65535) {
+        return cuda_set_status(-6, "invalid_dispatch_dims",
+            "indirect dispatch dimensions out of valid range [1, 65535]");
+    }
+
+    return cuda_dispatch_internal(
+        NULL, NULL,
+        compute_key,
+        (int64_t)x, (int64_t)y, (int64_t)z
+    );
 }
 
 int64_t abi_cuda_last_status(void) {

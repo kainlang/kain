@@ -289,6 +289,9 @@ typedef struct {
     const char* compute_residency_path;
     const char* compute_key;
     unsigned int dispatch_size[3];
+    /// Barrier metadata JSON for precise pipeline barriers.
+    /// NULL = use full pipeline drain fallback.
+    const char* barrier_json;
 } KainGpuRuntimeDispatchRequest;
 
 typedef struct {
@@ -299,6 +302,8 @@ typedef struct {
     unsigned int neural_node_count;
     unsigned int output_binding_count;
     unsigned long long total_output_bytes;
+    unsigned int barrier_count;
+    unsigned int async_queue_used;
     char message[GRAPHICS_BUNDLE_MAX_SUMMARY];
 } KainGpuRuntimeDispatchResult;
 
