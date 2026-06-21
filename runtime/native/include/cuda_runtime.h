@@ -42,6 +42,7 @@ int64_t abi_cuda_last_stream_binding_count(void);
 int64_t abi_cuda_last_neural_node_count(void);
 int64_t abi_cuda_last_output_binding_count(void);
 int64_t abi_cuda_last_total_output_bytes(void);
+void kain_cuda_pipeline_cache_free_all(void);
 
 #ifdef __cplusplus
 }

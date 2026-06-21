@@ -1940,6 +1940,18 @@ impl LlvmGenerator {
             "cpu.x86.avx2" | "x86.avx2" | "avx2" => 1u64 << 10,
             "cpu.x86.avx512" | "cpu.x86.avx512f" | "x86.avx512" | "x86.avx512f" | "avx512"
             | "avx512f" => 1u64 << 11,
+            // CUDA SM variant predicates (NVIDIA GPU compute capability)
+            "cuda.sm_70" => 1u64 << 12,
+            "cuda.sm_75" => 1u64 << 13,
+            "cuda.sm_80" => 1u64 << 14,
+            "cuda.sm_90" => 1u64 << 15,
+            // Tensor core capability predicates
+            "cuda.tensorcore" => 1u64 << 16,
+            "cuda.wmma" => 1u64 << 17,
+            "cuda.mma" => 1u64 << 18,
+            "cuda.wgmma" => 1u64 << 19,
+            // GPU queue capability predicates
+            "gpu.async_compute" => 1u64 << 20,
             _ => 0,
         }
     }

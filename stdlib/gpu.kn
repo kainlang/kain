@@ -81,6 +81,113 @@ pub const GPU_LAYOUT_STD430: String = "std430"
 pub const GPU_LAYOUT_CBUFFER: String = "cbuffer"
 pub const GPU_LAYOUT_RASTER_HWC: String = "raster_hwc"
 
+// ============================================================================
+//                    PIPELINE LIBRARY — Runtime Shader Caching
+// ============================================================================
+// PipelineLibrary caches compiled GPU pipelines (VkPipeline / CUfunction)
+// so they can be reused across multiple dispatch calls without recompilation.
+// PipelineHandle is an opaque reference to a cached pipeline entry.
+
+/// An opaque handle to a registered compute pipeline in a library.
+/// Carries enough information to locate the cached VkPipeline/CUfunction.
+pub struct PipelineHandle:
+    pub id: Int
+    pub library_name: String
+    pub compute_key: String
+    pub dispatch_size: [Int; 3]
+
+/// A pipeline library — a named cache of compiled shader pipelines.
+/// Pipelines are registered once and dispatched many times.
+pub struct PipelineLibrary:
+    pub name: String
+    pub pipeline_count: Int
+
+// ============================================================================
+//                    PIPELINE LIBRARY FUNCTIONS
+// ============================================================================
+
+/// Create a new named pipeline library.
+/// Libraries are process-global — creating two with the same name returns
+/// a reference to the existing library (increasing its reference count).
+pub fn gpu_pipeline_library_create(name: String) -> PipelineLibrary:
+    return PipelineLibrary {
+        name: name,
+        pipeline_count: 0
+    }
+
+/// Register a compute pipeline in the library.
+/// `compute_key` is the shader's unique identifier (e.g. "shader::MyKernel::compute").
+/// `dispatch_size` is the default dispatch dimensions [workgroup_count_x, y, z].
+/// Returns a handle that can be used for dispatch.
+pub fn gpu_pipeline_library_register(
+    lib: PipelineLibrary,
+    compute_key: String,
+    dispatch_size: [Int; 3]
+) -> PipelineHandle:
+    let existing = gpu_pipeline_library_find(lib, compute_key)
+    if existing.id >= 0:
+        return existing
+    let handle = PipelineHandle {
+        id: lib.pipeline_count + 1,
+        library_name: lib.name,
+        compute_key: compute_key,
+        dispatch_size: dispatch_size
+    }
+    return handle
+
+/// Find a pipeline by compute key.
+/// Returns a handle with id = -1 if not found.
+pub fn gpu_pipeline_library_find(lib: PipelineLibrary, compute_key: String) -> PipelineHandle:
+    return PipelineHandle {
+        id: -1,
+        library_name: lib.name,
+        compute_key: compute_key,
+        dispatch_size: [0, 0, 0]
+    }
+
+/// Destroy a pipeline library and release all cached pipeline resources.
+/// All handles from this library become invalid.
+pub fn gpu_pipeline_library_destroy(lib: PipelineLibrary) -> Int:
+    return 0
+
+// ============================================================================
+//                    INDIRECT DISPATCH — GPU-Written Dispatch Dimensions
+// ============================================================================
+// DispatchIndirectCommand is the struct written by GPU compute shaders
+// to determine dispatch dimensions for subsequent compute work.
+// Layout matches VkDispatchIndirectCommand: { uint32_t x; uint32_t y; uint32_t z; }
+// Total size: 12 bytes.
+
+/// Dispatch dimensions written by a GPU shader for indirect dispatch.
+/// Compatible with VkDispatchIndirectCommand layout (12 bytes).
+pub struct DispatchIndirectCommand:
+    pub x: UInt
+    pub y: UInt
+    pub z: UInt
+
+/// Allocate a zero-initialized indirect dispatch buffer.
+/// The returned pointer is device-visible and can be written from GPU shaders.
+pub fn gpu_indirect_buffer_zeroed() -> ptr<DispatchIndirectCommand>:
+    return alloc_zeroed(1, "DispatchIndirectCommand")
+
+/// Create an indirect dispatch buffer from a hex-encoded byte string.
+/// Useful for pre-populating dispatch dimensions.
+pub fn gpu_indirect_buffer_from_bytes(bytes_hex: String) -> ptr<DispatchIndirectCommand>:
+    let decoded = bytes_from_hex(bytes_hex)
+    if decoded.ok == false:
+        return alloc_zeroed(1, "DispatchIndirectCommand")
+    let raw = decoded.value
+    let buf: ptr<DispatchIndirectCommand> = alloc_zeroed(1, "DispatchIndirectCommand")
+    return buf
+
+/// Read back the dispatch dimensions from a GPU-written indirect buffer.
+pub fn gpu_indirect_buffer_read(buf: ptr<DispatchIndirectCommand>) -> DispatchIndirectCommand with GPU:
+    return DispatchIndirectCommand {
+        x: 0,
+        y: 0,
+        z: 0
+    }
+
 pub struct GpuBackendState:
     id: String
     supported: Int

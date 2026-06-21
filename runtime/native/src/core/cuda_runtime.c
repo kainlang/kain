@@ -340,6 +340,92 @@ static void* cuda_resolve_runtime_symbol(
     return symbol;
 }
 
+// ============================================================================
+//                    PIPELINE CACHE — Linked List Storage
+// ============================================================================
+// PipelineCacheEntry caches compiled GPU pipelines (VkPipeline / CUfunction)
+// so they can be reused across multiple dispatch calls.
+// Managed by the GPU executor, populated during pipeline registration.
+// TODO: mutex for thread safety (Phase 1: single-threaded)
+
+typedef struct PipelineCacheEntry {
+    char library_name[256];
+    char compute_key[256];
+    void* module_handle;       // VkShaderModule* or CUmodule
+    void* pipeline_handle;     // VkPipeline* or CUfunction
+    uint32_t dispatch_size[3]; // [x, y, z] workgroup count
+    uint32_t ref_count;        // Reference count for library sharing
+    struct PipelineCacheEntry* next;
+} PipelineCacheEntry;
+
+// Global pipeline cache — a singly-linked list
+static PipelineCacheEntry* g_pipeline_cache_head = NULL;
+
+/// Find a pipeline cache entry by library name and compute key.
+/// Returns NULL if not found.
+static PipelineCacheEntry* pipeline_cache_find(
+    const char* library_name,
+    const char* compute_key
+) {
+    PipelineCacheEntry* entry = g_pipeline_cache_head;
+    while (entry != NULL) {
+        if (strncmp(entry->library_name, library_name, sizeof(entry->library_name) - 1) == 0 &&
+            strncmp(entry->compute_key, compute_key, sizeof(entry->compute_key) - 1) == 0) {
+            return entry;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+/// Allocate and prepend a new cache entry. Does NOT check for duplicates.
+/// The pipeline handles (module_handle, pipeline_handle) are filled by the
+/// GPU executor during dispatch.
+static PipelineCacheEntry* pipeline_cache_insert(
+    const char* library_name,
+    const char* compute_key,
+    uint32_t dispatch_x,
+    uint32_t dispatch_y,
+    uint32_t dispatch_z
+) {
+    PipelineCacheEntry* entry = (PipelineCacheEntry*)calloc(1, sizeof(PipelineCacheEntry));
+    if (entry == NULL) return NULL;
+
+    strncpy(entry->library_name, library_name, sizeof(entry->library_name) - 1);
+    strncpy(entry->compute_key, compute_key, sizeof(entry->compute_key) - 1);
+    entry->dispatch_size[0] = dispatch_x;
+    entry->dispatch_size[1] = dispatch_y;
+    entry->dispatch_size[2] = dispatch_z;
+    entry->module_handle = NULL;
+    entry->pipeline_handle = NULL;
+    entry->ref_count = 1;
+    entry->next = NULL;
+
+    // Prepend to global list
+    if (g_pipeline_cache_head == NULL) {
+        g_pipeline_cache_head = entry;
+    } else {
+        entry->next = g_pipeline_cache_head;
+        g_pipeline_cache_head = entry;
+    }
+
+    return entry;
+}
+
+/// Free all pipeline cache entries. Called during runtime shutdown.
+/// Does NOT release the underlying Vulkan/CUDA handles — that's the GPU
+/// executor's job.
+/// Declared in cuda_runtime.h for shutdown wiring.
+void kain_cuda_pipeline_cache_free_all(void) {
+    PipelineCacheEntry* entry = g_pipeline_cache_head;
+    while (entry != NULL) {
+        PipelineCacheEntry* next = entry->next;
+        free(entry);
+        entry = next;
+    }
+    g_pipeline_cache_head = NULL;
+}
+
 static int64_t cuda_dispatch_internal(
     const char* shader_bundle_path_override,
     const char* compute_residency_path_override,

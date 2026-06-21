@@ -655,6 +655,54 @@ pub enum ShaderStage {
     Fragment,
     Compute,
     Surface,
+    /// Mesh shading (VK_EXT_mesh_shader / NV_mesh_shader)
+    Mesh,
+    /// Task/amplification shader (VK_EXT_mesh_shader / NV_mesh_shader)
+    Task,
+    /// Ray tracing (VK_KHR_ray_tracing_pipeline)
+    RayGen,
+    AnyHit,
+    ClosestHit,
+    Miss,
+    Intersection,
+    Callable,
+}
+
+impl ShaderStage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Vertex => "vertex",
+            Self::Fragment => "fragment",
+            Self::Compute => "compute",
+            Self::Surface => "surface",
+            Self::Mesh => "mesh",
+            Self::Task => "task",
+            Self::RayGen => "raygen",
+            Self::AnyHit => "anyhit",
+            Self::ClosestHit => "closesthit",
+            Self::Miss => "miss",
+            Self::Intersection => "intersection",
+            Self::Callable => "callable",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "vertex" => Some(Self::Vertex),
+            "fragment" => Some(Self::Fragment),
+            "compute" => Some(Self::Compute),
+            "surface" => Some(Self::Surface),
+            "mesh" => Some(Self::Mesh),
+            "task" => Some(Self::Task),
+            "raygen" => Some(Self::RayGen),
+            "anyhit" => Some(Self::AnyHit),
+            "closesthit" => Some(Self::ClosestHit),
+            "miss" => Some(Self::Miss),
+            "intersection" => Some(Self::Intersection),
+            "callable" => Some(Self::Callable),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

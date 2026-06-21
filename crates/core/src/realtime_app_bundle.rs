@@ -1455,6 +1455,14 @@ fn shader_ref_stage_name(stage: ShaderStage) -> &'static str {
         ShaderStage::Vertex => "vertex",
         ShaderStage::Fragment | ShaderStage::Surface => "fragment",
         ShaderStage::Compute => "compute",
+        ShaderStage::Mesh => "mesh",
+        ShaderStage::Task => "task",
+        ShaderStage::RayGen => "raygen",
+        ShaderStage::AnyHit => "anyhit",
+        ShaderStage::ClosestHit => "closesthit",
+        ShaderStage::Miss => "miss",
+        ShaderStage::Intersection => "intersection",
+        ShaderStage::Callable => "callable",
     }
 }
 

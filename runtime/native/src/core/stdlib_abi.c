@@ -15,6 +15,7 @@
 #include "../../include/async.h"
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
+#include "../../include/cuda_runtime.h"
 #include "../../include/entangle.h"
 #include "../../include/fanout.h"
 
@@ -558,6 +559,7 @@ int64_t abi_runtime_shutdown(void) {
     kain_actor_runtime_shutdown();
 #endif
     kain_fanout_runtime_shutdown();
+    kain_cuda_pipeline_cache_free_all();
     if (abi_attrition_capture_enabled()) {
         kain_attrition_runtime_checkpoint(
             "case-end",

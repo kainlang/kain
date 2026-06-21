@@ -1,39 +1,60 @@
 //! Component surface codegen — emits LLVM IR that calls through the
-//! `KainComponentSurface` trait. See `X:/research/component/WIRING_CONTRACT.md`.
+//! `KainComponentSurface` trait vtable. All element creation, attribute
+//! setting, state persistence, and frame lifecycle operations go through
+//! indirect vtable calls — never direct `abi_ui_*` function calls.
+//!
+//! See `X:/research/component/WIRING_CONTRACT.md` for the full contract.
+//! See `X:/runtime/native/include/component_surface.h` for the C trait layout.
 
 use kain_core::ast::{Expr, JSXAttrValue, JSXAttribute, JSXNode};
 use kain_core::error::KainResult;
 use kain_core::types::TypedComponent;
 use super::LlvmGenerator;
 
-// ── Surface trait type name ──────────────────────────────────────────────
-const SURFACE_STRUCT_TYPE: &str = "%KainComponentSurface";
+// ── Vtable offset constants — must match KainComponentSurface field order ────
+// See: runtime/native/include/component_surface.h
+const OFF_SESSION_CREATE: u32 = 0;
+const OFF_SESSION_DESTROY: u32 = 1;
+const OFF_ELEMENT_BEGIN: u32 = 2;
+const OFF_ELEMENT_END: u32 = 3;
+const OFF_ELEMENT_SET_TEXT: u32 = 4;
+const OFF_ELEMENT_SET_ATTR_I64: u32 = 5;
+const OFF_ELEMENT_SET_ATTR_F64: u32 = 6;
+const OFF_ELEMENT_SET_ATTR_STRING: u32 = 7;
+const OFF_STATE_GET_I64: u32 = 8;
+const OFF_STATE_SET_I64: u32 = 9;
+const OFF_BEGIN_FRAME: u32 = 10;
+const OFF_END_FRAME: u32 = 11;
+const OFF_PRESENT: u32 = 12;
+const OFF_POLL_EVENT: u32 = 13;
+const OFF_SHOULD_CLOSE: u32 = 14;
 
 // ── JSX attribute → surface call mapping (Contract 11) ──────────────────
 struct AttrMapping {
-    call_name: &'static str,
+    vtable_offset: u32,
+    fn_ptr_ty: &'static str,
     style_key: &'static str,
 }
 
 fn map_jsx_attr_to_surface_key(attr_name: &str) -> AttrMapping {
     match attr_name {
-        "padding" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "padding" },
-        "spacing" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "spacing" },
-        "corner_radius" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "corner_radius" },
-        "font_size" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "font_size" },
-        "opacity" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "opacity" },
-        "border" | "border_width" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "border_width" },
-        "width" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "width" },
-        "height" => AttrMapping { call_name: "abi_ui_node_set_style_f64", style_key: "height" },
-        "background" => AttrMapping { call_name: "abi_ui_node_set_style_string", style_key: "fill_color" },
-        "border_color" => AttrMapping { call_name: "abi_ui_node_set_style_string", style_key: "border_color" },
-        "color" | "ink_color" => AttrMapping { call_name: "abi_ui_node_set_style_string", style_key: "ink_color" },
-        "title" => AttrMapping { call_name: "abi_ui_node_set_style_string", style_key: "title" },
-        "value" => AttrMapping { call_name: "abi_ui_node_set_text", style_key: "" },
-        "direction" => AttrMapping { call_name: "abi_ui_node_set_style_i64", style_key: "layout.direction" },
-        "disabled" => AttrMapping { call_name: "abi_ui_node_set_style_i64", style_key: "disabled" },
+        "padding" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
+        "spacing" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
+        "corner_radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "corner_radius" },
+        "font_size" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "font_size" },
+        "opacity" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "opacity" },
+        "border" | "border_width" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "border_width" },
+        "width" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "width" },
+        "height" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "height" },
+        "background" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "fill_color" },
+        "border_color" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "border_color" },
+        "color" | "ink_color" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "ink_color" },
+        "title" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "title" },
+        "value" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_TEXT, fn_ptr_ty: "void (i64, i64, i8*)*", style_key: "" },
+        "direction" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "layout.direction" },
+        "disabled" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "disabled" },
         // Unknown attributes pass through as strings with the attr name as the key
-        _ => AttrMapping { call_name: "abi_ui_node_set_style_string", style_key: "" },
+        _ => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "" },
     }
 }
 
@@ -42,52 +63,40 @@ impl LlvmGenerator {
     //  Public entry points — called from `mod.rs`
     // =====================================================================
 
-    /// Emit declarations for the KainComponentSurface struct and registry
-    /// functions. Call once per module before any component code.
+    /// Emit declarations for the `KainComponentSurface` opaque struct type
+    /// and registry/support functions. Call once per module before any
+    /// component code.
+    ///
+    /// Does NOT declare any direct `abi_ui_*` functions — all surface
+    /// operations go through the vtable.
     pub(crate) fn declare_surface_trait_types(&mut self) {
         if self.surface_trait_declared {
             return;
         }
         self.surface_trait_declared = true;
 
-        // Registry helpers
-        self.emit("declare void @kain_component_surface_register(i8*, i8*)");
-        self.emit("declare i8* @kain_component_surface_resolve(i8*)");
+        // Sized trait type with 15 pointer-sized fields (one per vtable slot).
+        // The exact function pointer types differ per slot; we use i8* as a
+        // uniform placeholder and bitcast before loading the real fn pointer.
+        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
 
-        // Runtime panic (for surface resolution failures)
+        // Registry — resolve a named surface backend
+        self.emit("declare %KainComponentSurface* @kain_component_surface_resolve(i8*)");
+
+        // Runtime panic — for surface resolution / session failures
         self.emit("declare void @kain_runtime_panic(i8*)");
 
-        // Frame delta helper
+        // Frame delta — high-resolution timer
         self.emit("declare double @__kain_frame_delta_ms()");
 
-        // Session lifecycle
-        self.emit("declare i64 @abi_ui_session_create(i8*, i64, i64)");
-        self.emit("declare void @abi_ui_session_destroy(i64)");
-
-        // Frame lifecycle
-        self.emit("declare void @abi_ui_begin_frame(i64, double)");
-        self.emit("declare void @abi_ui_end_frame(i64)");
-        self.emit("declare void @abi_ui_present(i64)");
-
-        // Element tree
-        self.emit("declare i64 @abi_ui_node_create_and_parent(i64, i64, i8*, i8*)");
-        self.emit("declare void @abi_ui_node_set_text(i64, i64, i8*)");
-
-        // Style attributes
-        self.emit("declare void @abi_ui_node_set_style_f64(i64, i64, i8*, double)");
-        self.emit("declare void @abi_ui_node_set_style_string(i64, i64, i8*, i8*)");
-        self.emit("declare void @abi_ui_node_set_style_i64(i64, i64, i8*, i64)");
-
-        // State persistence
-        self.emit("declare i64 @abi_ui_surface_state_get_i64(i64, i8*)");
-        self.emit("declare void @abi_ui_surface_state_set_i64(i64, i8*, i64)");
-
-        // Event / close
-        self.emit("declare i64 @abi_ui_host_should_close(i64)");
+        // Note: @str_concat and @to_string are declared by the main module preamble.
+        // They are NOT re-declared here to avoid duplicate-definition linker errors.
     }
 
-    /// Compile a component as `void @Name_render(i64 %session_id, i64 %parent_id, props...)`.
-    /// Replaces the old `compile_component` which emitted `i8*` string concatenation.
+    /// Compile a component as `void @Name_render(%KainComponentSurface* %surface, i64 %session_id, i64 %parent_id, props...)`.
+    ///
+    /// The `%surface` pointer is threaded through all render functions so
+    /// every JSX node can call through the vtable.
     pub(crate) fn compile_component_render(
         &mut self,
         component: &TypedComponent,
@@ -120,9 +129,14 @@ impl LlvmGenerator {
         let name = &component.ast.name;
         let render_name = format!("{}_render", name);
 
-        // Build prop type list: session_id (i64), parent_id (i64), then declared props
-        let prop_defs: Vec<(String, String)> = {
+        // Build param type list:
+        //   1. %KainComponentSurface* %surface   (arg0)
+        //   2. i64 %session_id                    (arg1)
+        //   3. i64 %parent_id                     (arg2)
+        //   4..N props in declaration order
+        let param_defs: Vec<(String, String)> = {
             let mut defs = Vec::new();
+            defs.push(("surface".to_string(), "%KainComponentSurface*".to_string()));
             defs.push(("session_id".to_string(), "i64".to_string()));
             defs.push(("parent_id".to_string(), "i64".to_string()));
             for prop in &component.ast.props {
@@ -136,7 +150,7 @@ impl LlvmGenerator {
             defs
         };
 
-        let param_str = prop_defs
+        let param_str = param_defs
             .iter()
             .enumerate()
             .map(|(i, (_, ty))| format!("{} %arg{}", ty, i))
@@ -146,11 +160,12 @@ impl LlvmGenerator {
         self.emit(&format!("define void @{}({}) {{", render_name, param_str));
         self.emit_label("entry");
 
-        let session_reg = "%arg0".to_string();
-        let parent_reg = "%arg1".to_string();
+        let surface_reg = "%arg0".to_string();
+        let session_reg = "%arg1".to_string();
+        let parent_reg = "%arg2".to_string();
 
-        // Store prop params in locals (skipping session/parent at indices 0,1)
-        for (i, (param_name, param_ty)) in prop_defs.iter().enumerate().skip(2) {
+        // Store prop params in locals (skipping surface/session/parent at indices 0,1,2)
+        for (i, (param_name, param_ty)) in param_defs.iter().enumerate().skip(3) {
             let addr_reg = format!("%{}.addr", param_name);
             self.emit_entry_alloca(&addr_reg, param_ty);
             self.emit(&format!(
@@ -165,16 +180,17 @@ impl LlvmGenerator {
         }
 
         // Compile state fields (Contract 8)
-        self.compile_component_state_init(component, &session_reg)?;
+        self.compile_component_state_init(component, &surface_reg, &session_reg)?;
 
         // Set current component context for JSX compilation
         self.current_component_name = Some(name.clone());
         self.current_component_session = Some(session_reg.clone());
         self.current_component_parent = Some(parent_reg.clone());
 
-        // Compile the JSX body (Contract 1-7)
+        // Compile the JSX body (Contracts 1-7)
         let mut sibling_index = 0usize;
         self.compile_jsx_to_surface(
+            &surface_reg,
             &session_reg,
             &parent_reg,
             &component.ast.body,
@@ -195,7 +211,11 @@ impl LlvmGenerator {
     }
 
     /// Emit a world-surface frame loop for a world with a surface declaration.
-    /// Called from `compile_world_initializer` extension.
+    /// Called from `compile_world_initializer`.
+    ///
+    /// Resolves the `%KainComponentSurface*` from the registry, creates a
+    /// session, then loops: begin_frame → render root component → end_frame
+    /// → present → should_close. All surface ops go through the vtable.
     pub(crate) fn compile_surface_frame_loop(
         &mut self,
         world_name: &str,
@@ -210,18 +230,18 @@ impl LlvmGenerator {
         self.emit(&format!("define void @{}() {{", fn_name));
         self.emit_label("entry");
 
-        // Resolve surface
+        // ── Resolve surface ────────────────────────────────────────
         let surface_name_str = self.compile_static_c_string_literal(surface_kind);
-        let surface_ptr = self.next_reg();
+        let surface_reg = self.next_reg();
         self.emit(&format!(
-            "  {} = call i8* @kain_component_surface_resolve(i8* {})",
-            surface_ptr, surface_name_str
+            "  {} = call %KainComponentSurface* @kain_component_surface_resolve(i8* {})",
+            surface_reg, surface_name_str
         ));
 
         let is_null = self.next_reg();
         self.emit(&format!(
-            "  {} = icmp eq i8* {}, null",
-            is_null, surface_ptr
+            "  {} = icmp eq %KainComponentSurface* {}, null",
+            is_null, surface_reg
         ));
         let null_block = self.next_label();
         let init_block = self.next_label();
@@ -237,15 +257,20 @@ impl LlvmGenerator {
         self.emit(&format!("  call void @kain_runtime_panic(i8* {})", err_str));
         self.emit("  unreachable");
 
-        // Session create
+        // ── Create session (vtable offset 0) ──────────────────────
         self.emit_label(&init_block);
         let session_name_str = self.compile_static_c_string_literal(world_name);
         // Default dimensions: 1280x720
-        let session_id = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i64 @abi_ui_session_create(i8* {}, i64 1280, i64 720)",
-            session_id, session_name_str
-        ));
+        let session_id = self.emit_vtable_call(
+            &surface_reg,
+            OFF_SESSION_CREATE,
+            "i64 (i8*, i64, i64)*",
+            &[
+                (&session_name_str, "i8*"),
+                ("1280", "i64"),
+                ("720", "i64"),
+            ],
+        );
 
         let session_err = self.next_reg();
         self.emit(&format!(
@@ -265,36 +290,51 @@ impl LlvmGenerator {
         self.emit(&format!("  call void @kain_runtime_panic(i8* {})", fail_str));
         self.emit("  unreachable");
 
-        // Frame loop
+        // ── Frame loop ─────────────────────────────────────────────
         self.emit_label(&frame_loop_label);
 
-        // begin_frame
+        // begin_frame (vtable offset 10)
         let delta = self.next_reg();
         self.emit(&format!(
             "  {} = call double @__kain_frame_delta_ms()",
             delta
         ));
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_BEGIN_FRAME,
+            "void (i64, double)*",
+            &[(&session_id, "i64"), (&delta, "double")],
+        );
+
+        // Render root component — pass surface, session, and root parent (0)
         self.emit(&format!(
-            "  call void @abi_ui_begin_frame(i64 {}, double {})",
-            session_id, delta
+            "  call void @{}(%KainComponentSurface* {}, i64 {}, i64 0)",
+            render_name, surface_reg, session_id
         ));
 
-        // Render root component
-        self.emit(&format!(
-            "  call void @{}(i64 {}, i64 0)",
-            render_name, session_id
-        ));
+        // end_frame (vtable offset 11)
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_END_FRAME,
+            "void (i64)*",
+            &[(&session_id, "i64")],
+        );
 
-        // end_frame + present
-        self.emit(&format!("  call void @abi_ui_end_frame(i64 {})", session_id));
-        self.emit(&format!("  call void @abi_ui_present(i64 {})", session_id));
+        // present (vtable offset 12)
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_PRESENT,
+            "void (i64)*",
+            &[(&session_id, "i64")],
+        );
 
-        // should_close
-        let should_close = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i64 @abi_ui_host_should_close(i64 {})",
-            should_close, session_id
-        ));
+        // should_close (vtable offset 14)
+        let should_close = self.emit_vtable_call(
+            &surface_reg,
+            OFF_SHOULD_CLOSE,
+            "i64 (i64)*",
+            &[(&session_id, "i64")],
+        );
         let keep_going = self.next_reg();
         self.emit(&format!(
             "  {} = icmp eq i64 {}, 0",
@@ -306,12 +346,15 @@ impl LlvmGenerator {
             keep_going, frame_loop_label, shutdown
         ));
 
-        // Shutdown
+        // ── Shutdown ───────────────────────────────────────────────
         self.emit_label(&shutdown);
-        self.emit(&format!(
-            "  call void @abi_ui_session_destroy(i64 {})",
-            session_id
-        ));
+        // session_destroy (vtable offset 1)
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_SESSION_DESTROY,
+            "void (i64)*",
+            &[(&session_id, "i64")],
+        );
         self.emit("  ret void");
         self.emit("}");
         self.emit("");
@@ -320,13 +363,13 @@ impl LlvmGenerator {
     }
 
     // =====================================================================
-    //  JSX → surface calls
+    //  JSX → surface calls (all through vtable)
     // =====================================================================
 
-    /// Walk a JSX tree, emitting surface trait calls for every node.
-    /// Returns nothing — all output is IR emitted into self.output.
+    /// Walk a JSX tree, emitting surface trait vtable calls for every node.
     fn compile_jsx_to_surface(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         node: &JSXNode,
@@ -335,19 +378,16 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         match node {
             JSXNode::Text(text, _) => {
-                self.compile_jsx_text(session_reg, parent_reg, text, component_name, sibling_index)
+                self.compile_jsx_text(surface_reg, session_reg, parent_reg, text, component_name, sibling_index)
             }
             JSXNode::Expression(expr) => {
-                self.compile_jsx_expression(session_reg, parent_reg, expr, component_name, sibling_index)
+                self.compile_jsx_expression(surface_reg, session_reg, parent_reg, expr, component_name, sibling_index)
             }
             JSXNode::Fragment(children, _) => {
                 for child in children {
                     self.compile_jsx_to_surface(
-                        session_reg,
-                        parent_reg,
-                        child,
-                        component_name,
-                        sibling_index,
+                        surface_reg, session_reg, parent_reg,
+                        child, component_name, sibling_index,
                     )?;
                 }
                 Ok(())
@@ -356,24 +396,17 @@ impl LlvmGenerator {
                 tag, attributes, children, ..
             } => {
                 self.compile_jsx_element(
-                    session_reg,
-                    parent_reg,
-                    tag,
-                    attributes,
-                    children,
-                    component_name,
-                    sibling_index,
+                    surface_reg, session_reg, parent_reg,
+                    tag, attributes, children,
+                    component_name, sibling_index,
                 )
             }
             JSXNode::ComponentCall {
                 name, props, children, ..
             } => {
                 self.compile_jsx_component_call(
-                    session_reg,
-                    parent_reg,
-                    name,
-                    props,
-                    children,
+                    surface_reg, session_reg, parent_reg,
+                    name, props, children,
                     component_name,
                 )
             }
@@ -381,13 +414,9 @@ impl LlvmGenerator {
                 binding, iter, body, ..
             } => {
                 self.compile_jsx_for(
-                    session_reg,
-                    parent_reg,
-                    binding,
-                    iter,
-                    body,
-                    component_name,
-                    sibling_index,
+                    surface_reg, session_reg, parent_reg,
+                    binding, iter, body,
+                    component_name, sibling_index,
                 )
             }
             JSXNode::If {
@@ -397,21 +426,18 @@ impl LlvmGenerator {
                 ..
             } => {
                 self.compile_jsx_if(
-                    session_reg,
-                    parent_reg,
-                    condition,
-                    then_branch,
-                    else_branch.as_deref(),
-                    component_name,
-                    sibling_index,
+                    surface_reg, session_reg, parent_reg,
+                    condition, then_branch, else_branch.as_deref(),
+                    component_name, sibling_index,
                 )
             }
         }
     }
 
-    /// <text>literal</text> or {expression} → "text" element with set_text
+    /// `<text>literal</text>` or `{expression}` → `"text"` element with set_text
     fn compile_jsx_text(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         text: &str,
@@ -427,21 +453,22 @@ impl LlvmGenerator {
             si as u64,
         );
 
-        let el = self.emit_element_begin(session_reg, parent_reg, "text", &sk);
+        let el = self.emit_element_begin(surface_reg, session_reg, parent_reg, "text", &sk);
         let (text_val, _) = self.compile_string_literal(text);
-        self.emit_surface_call(
-            session_reg,
-            &el,
-            "element_set_text",
-            &[("i8*", &text_val)],
+        self.emit_vtable_call_void(
+            surface_reg,
+            OFF_ELEMENT_SET_TEXT,
+            "void (i64, i64, i8*)*",
+            &[(session_reg, "i64"), (&el, "i64"), (&text_val, "i8*")],
         );
-        self.emit_element_end(session_reg, &el);
+        self.emit_element_end(surface_reg, session_reg, &el);
         Ok(())
     }
 
-    /// {expression} → evaluate, then emit as "text" element or attribute value
+    /// `{expression}` → evaluate, then emit as `"text"` element via vtable
     fn compile_jsx_expression(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         expr: &Expr,
@@ -458,33 +485,34 @@ impl LlvmGenerator {
             si as u64,
         );
 
-        let el = self.emit_element_begin(session_reg, parent_reg, "text", &sk);
+        let el = self.emit_element_begin(surface_reg, session_reg, parent_reg, "text", &sk);
 
         // Stringify if needed
         if ty == "i8*" {
-            self.emit_surface_call(
-                session_reg,
-                &el,
-                "element_set_text",
-                &[("i8*", &val)],
+            self.emit_vtable_call_void(
+                surface_reg,
+                OFF_ELEMENT_SET_TEXT,
+                "void (i64, i64, i8*)*",
+                &[(session_reg, "i64"), (&el, "i64"), (&val, "i8*")],
             );
         } else {
             let (str_val, _) = self.stringify_value(&val, &ty)?;
-            self.emit_surface_call(
-                session_reg,
-                &el,
-                "element_set_text",
-                &[("i8*", &str_val)],
+            self.emit_vtable_call_void(
+                surface_reg,
+                OFF_ELEMENT_SET_TEXT,
+                "void (i64, i64, i8*)*",
+                &[(session_reg, "i64"), (&el, "i64"), (&str_val, "i8*")],
             );
         }
 
-        self.emit_element_end(session_reg, &el);
+        self.emit_element_end(surface_reg, session_reg, &el);
         Ok(())
     }
 
-    /// <tag attr="val">children</tag> → element_begin → attrs → children → element_end
+    /// `<tag attr="val">children</tag>` → element_begin → attrs → children → element_end
     fn compile_jsx_element(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         tag: &str,
@@ -502,11 +530,11 @@ impl LlvmGenerator {
             si as u64,
         );
 
-        let el = self.emit_element_begin(session_reg, parent_reg, tag, &sk);
+        let el = self.emit_element_begin(surface_reg, session_reg, parent_reg, tag, &sk);
 
-        // Emit attributes
+        // Emit attributes through vtable
         for attr in attributes {
-            self.compile_jsx_attr(session_reg, &el, attr)?;
+            self.compile_jsx_attr(surface_reg, session_reg, &el, attr)?;
         }
 
         // Emit children with the element as parent
@@ -514,21 +542,19 @@ impl LlvmGenerator {
         for child in children {
             let mut child_si = 0usize;
             self.compile_jsx_to_surface(
-                session_reg,
-                &el_clone,
-                child,
-                component_name,
-                &mut child_si,
+                surface_reg, session_reg, &el_clone,
+                child, component_name, &mut child_si,
             )?;
         }
 
-        self.emit_element_end(session_reg, &el);
+        self.emit_element_end(surface_reg, session_reg, &el);
         Ok(())
     }
 
-    /// <ComponentName prop="val" /> → call void @ComponentName_render(session, parent, props...)
+    /// `<ComponentName prop="val" />` → call void @ComponentName_render(surface, session, parent, props...)
     fn compile_jsx_component_call(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         name: &str,
@@ -543,7 +569,8 @@ impl LlvmGenerator {
 
         let mut compiled_args: Vec<(String, String)> = Vec::new();
 
-        // First two args: session_id, parent_id
+        // First three args: surface (i8* => %KainComponentSurface*), session_id (i64), parent_id (i64)
+        compiled_args.push((surface_reg.to_string(), "%KainComponentSurface*".to_string()));
         compiled_args.push((session_reg.to_string(), "i64".to_string()));
         compiled_args.push((parent_reg.to_string(), "i64".to_string()));
 
@@ -573,8 +600,8 @@ impl LlvmGenerator {
             }
         }
 
-        // Children — not passed as a separate arg anymore; if component has no render body,
-        // children are unused (component manages its own children via JSX body).
+        // Children — not passed as a separate arg; component manages its own
+        // children via JSX body.
         let _ = children;
 
         let arg_str = compiled_args
@@ -593,6 +620,7 @@ impl LlvmGenerator {
     /// `for item in items: <jsx>` → runtime loop with index-based stable keys
     fn compile_jsx_for(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         binding: &str,
@@ -656,31 +684,17 @@ impl LlvmGenerator {
             scope.push(binding.to_string());
         }
 
-        // Emit body with sibling_index = current idx
-        let sk = self.emit_stable_key(
-            &format!("{}:for", component_name),
-            parent_reg,
-            0,
-        );
-        let _ = sk; // stable key for the for-container (Phase 3: reconcile_list_begin)
-
-        // Compile body for this item – pass idx as sibling_index for stable key
-        let item_si: usize = 0; // items within for get keyed by the loop index
-        let _si_val = self.next_reg();
-        // Create a temporary "parent" that encodes idx so stable keys are unique
-        // For now, use parent_reg + idx as pseudo-parent
+        // Create a temporary parent that encodes idx so stable keys are unique
         let child_parent = self.next_reg();
         self.emit(&format!(
             "  {} = add i64 {}, {}",
             child_parent, parent_reg, idx
         ));
 
+        let item_si: usize = 0;
         self.compile_jsx_to_surface(
-            session_reg,
-            &child_parent,
-            body,
-            component_name,
-            &mut (item_si as usize),
+            surface_reg, session_reg, &child_parent,
+            body, component_name, &mut (item_si as usize),
         )?;
 
         // Remove binding from scope
@@ -705,6 +719,7 @@ impl LlvmGenerator {
     /// `if cond: <jsx> elif cond2: <jsx> else: <jsx>` → LLVM branches
     fn compile_jsx_if(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         condition: &Expr,
@@ -718,7 +733,7 @@ impl LlvmGenerator {
         let is_true = if cond_ty == "i1" {
             cond_val
         } else {
-            // Bool is lowered to i1; expressions return i64 - coerce
+            // Bool is lowered to i1; expressions return i64 — coerce
             let cmp_reg = self.next_reg();
             self.emit(&format!("  {} = icmp ne i64 {}, 0", cmp_reg, cond_val));
             cmp_reg
@@ -743,11 +758,8 @@ impl LlvmGenerator {
         self.emit_label(&then_block);
         let mut then_si_val = then_si;
         self.compile_jsx_to_surface(
-            session_reg,
-            parent_reg,
-            then_branch,
-            component_name,
-            &mut then_si_val,
+            surface_reg, session_reg, parent_reg,
+            then_branch, component_name, &mut then_si_val,
         )?;
         self.emit(&format!("  br label %{}", done_block));
 
@@ -756,11 +768,8 @@ impl LlvmGenerator {
         if let Some(else_node) = else_branch {
             let mut else_si_val = else_si;
             self.compile_jsx_to_surface(
-                session_reg,
-                parent_reg,
-                else_node,
-                component_name,
-                &mut else_si_val,
+                surface_reg, session_reg, parent_reg,
+                else_node, component_name, &mut else_si_val,
             )?;
         }
         self.emit(&format!("  br label %{}", done_block));
@@ -769,16 +778,18 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    /// Map a JSX attribute to the correct surface call (Contract 11)
+    /// Map a JSX attribute to the correct vtable call (Contract 11)
     fn compile_jsx_attr(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         element_reg: &str,
         attr: &JSXAttribute,
     ) -> KainResult<()> {
-        // Resolve the surface call name and the mapped key
+        // Resolve the vtable offset and mapped key
         let mapped = map_jsx_attr_to_surface_key(&attr.name);
         let is_text_attr = attr.name == "value";
+        let expects_f64 = mapped.vtable_offset == OFF_ELEMENT_SET_ATTR_F64;
 
         // For unknown attributes, use the attr name itself as the key
         let style_key: String = if mapped.style_key.is_empty() && !is_text_attr {
@@ -787,37 +798,67 @@ impl LlvmGenerator {
             mapped.style_key.to_string()
         };
 
+        // Helper to coerce value types for the vtable call
+        let coerce_for_surface = |gen: &mut Self, val: String, ty: String| -> (String, String) {
+            if ty == "i1" {
+                let widened = gen.next_reg();
+                gen.emit(&format!("  {} = zext i1 {} to i64", widened, val));
+                (widened, "i64".to_string())
+            } else if expects_f64 && ty == "i64" {
+                let promoted = gen.next_reg();
+                gen.emit(&format!("  {} = sitofp i64 {} to double", promoted, val));
+                (promoted, "double".to_string())
+            } else {
+                (val, ty)
+            }
+        };
+
         match &attr.value {
             JSXAttrValue::String(value) => {
                 let (val_reg, _) = self.compile_string_literal(value);
                 if is_text_attr {
-                    self.emit_surface_call(
-                        session_reg, element_reg,
-                        "abi_ui_node_set_text",
-                        &[("i8*", &val_reg)],
+                    // element_set_text: void (i64, i64, i8*)* — session, element, text
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_ELEMENT_SET_TEXT,
+                        "void (i64, i64, i8*)*",
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&val_reg, "i8*")],
                     );
                 } else {
-                    self.emit_surface_style_call(
-                        session_reg, element_reg,
-                        mapped.call_name, &style_key,
-                        &[("i8*", &val_reg)],
+                    // Emit style call: element_set_attr_* (i64, i64, i8*, value) — session, element, key, value
+                    let key_str = self.compile_static_c_string_literal(&style_key);
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        mapped.vtable_offset,
+                        mapped.fn_ptr_ty,
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), (&val_reg, "i8*")],
                     );
                 }
             }
             JSXAttrValue::Bool(true) => {
                 if is_text_attr {
-                    // Bare boolean on a text element is unusual, emit set_text with "true"
                     let (val_reg, _) = self.compile_string_literal("true");
-                    self.emit_surface_call(
-                        session_reg, element_reg,
-                        "abi_ui_node_set_text",
-                        &[("i8*", &val_reg)],
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_ELEMENT_SET_TEXT,
+                        "void (i64, i64, i8*)*",
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&val_reg, "i8*")],
+                    );
+                } else if expects_f64 {
+                    let key_str = self.compile_static_c_string_literal(&style_key);
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        mapped.vtable_offset,
+                        mapped.fn_ptr_ty,
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), ("1.0", "double")],
                     );
                 } else {
-                    self.emit_surface_style_call(
-                        session_reg, element_reg,
-                        mapped.call_name, &style_key,
-                        &[("i64", "1")],
+                    let key_str = self.compile_static_c_string_literal(&style_key);
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        mapped.vtable_offset,
+                        mapped.fn_ptr_ty,
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), ("1", "i64")],
                     );
                 }
             }
@@ -826,25 +867,29 @@ impl LlvmGenerator {
             }
             JSXAttrValue::Expr(expr) => {
                 let (val, ty) = self.compile_expr(expr)?;
-                // If value is i1 (bool), coerce to i64 for attr calls
-                let (val_use, ty_use) = if ty == "i1" {
-                    let widened = self.next_reg();
-                    self.emit(&format!("  {} = zext i1 {} to i64", widened, val));
-                    (widened, "i64".to_string())
-                } else {
-                    (val, ty)
-                };
+                let (val_use, _ty_use) = coerce_for_surface(self, val, ty);
                 if is_text_attr {
-                    self.emit_surface_call(
-                        session_reg, element_reg,
-                        "abi_ui_node_set_text",
-                        &[(&ty_use, &val_use)],
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_ELEMENT_SET_TEXT,
+                        "void (i64, i64, i8*)*",
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&val_use, "i8*")],
                     );
                 } else {
-                    self.emit_surface_style_call(
-                        session_reg, element_reg,
-                        mapped.call_name, &style_key,
-                        &[(&ty_use, &val_use)],
+                    let key_str = self.compile_static_c_string_literal(&style_key);
+                    // Determine value type for the call
+                    let val_ty: &str = if mapped.vtable_offset == OFF_ELEMENT_SET_ATTR_F64 {
+                        "double"
+                    } else if mapped.vtable_offset == OFF_ELEMENT_SET_ATTR_I64 {
+                        "i64"
+                    } else {
+                        "i8*"
+                    };
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        mapped.vtable_offset,
+                        mapped.fn_ptr_ty,
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), (&val_use, val_ty)],
                     );
                 }
             }
@@ -853,54 +898,126 @@ impl LlvmGenerator {
     }
 
     // =====================================================================
-    //  Surface trait call helpers
+    //  Vtable call helpers
     // =====================================================================
 
-    /// Emit `element_begin(session, parent, kind, stable_key)` and return the element ID reg.
+    /// Emit a vtable indirect call: `getelementptr` → `load` → `call`.
+    ///
+    /// Returns the result register name (empty string for void return).
+    fn emit_vtable_call(
+        &mut self,
+        surface_reg: &str,
+        offset: u32,
+        fn_ptr_ty: &str,
+        args: &[(&str, &str)], // (reg_or_literal, llvm_type)
+    ) -> String {
+        // Check if the function pointer type returns void
+        let ret_is_void = fn_ptr_ty.trim_start().starts_with("void");
+
+        // getelementptr into the vtable at the given offset (produces i8**)
+        let gep_reg = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainComponentSurface, %KainComponentSurface* {}, i32 0, i32 {}",
+            gep_reg, surface_reg, offset
+        ));
+
+        // Bitcast i8** to the actual function-pointer-pointer type
+        let cast_reg = self.next_reg();
+        let fn_ptr_ptr_ty = format!("{}*", fn_ptr_ty);
+        self.emit(&format!(
+            "  {} = bitcast i8** {} to {}",
+            cast_reg, gep_reg, fn_ptr_ptr_ty
+        ));
+
+        // Load the function pointer
+        let fn_reg = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            fn_reg, fn_ptr_ty, fn_ptr_ptr_ty, cast_reg
+        ));
+
+        let args_str = args
+            .iter()
+            .map(|(val, ty)| format!("{} {}", ty, val))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if ret_is_void {
+            self.emit(&format!(
+                "  call void {}({})",
+                fn_reg, args_str
+            ));
+            String::new()
+        } else {
+            let call_reg = self.next_reg();
+            // Extract return type: everything before the first '(' in fn_ptr_ty
+            let ret_ty = fn_ptr_ty.split('(').next().unwrap_or("i64").trim();
+            self.emit(&format!(
+                "  {} = call {} {}({})",
+                call_reg, ret_ty, fn_reg, args_str
+            ));
+            call_reg
+        }
+    }
+
+    /// Convenience wrapper for `emit_vtable_call` when the return is void.
+    /// Discards the (empty) result register name.
+    fn emit_vtable_call_void(
+        &mut self,
+        surface_reg: &str,
+        offset: u32,
+        fn_ptr_ty: &str,
+        args: &[(&str, &str)],
+    ) {
+        self.emit_vtable_call(surface_reg, offset, fn_ptr_ty, args);
+    }
+
+    // =====================================================================
+    //  Element begin / end
+    // =====================================================================
+
+    /// Emit `element_begin(session, parent, kind, stable_key)` through the
+    /// vtable (offset 2) and return the element ID register.
     fn emit_element_begin(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         parent_reg: &str,
         kind: &str,
         stable_key: &str,
     ) -> String {
         let kind_str = self.compile_static_c_string_literal(kind);
-        let el = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i64 @abi_ui_node_create_and_parent(i64 {}, i64 {}, i8* {}, i8* {})",
-            el, session_reg, parent_reg, kind_str, stable_key
-        ));
-        el
+        self.emit_vtable_call(
+            surface_reg,
+            OFF_ELEMENT_BEGIN,
+            "i64 (i64, i64, i8*, i8*)*",
+            &[
+                (session_reg, "i64"),
+                (parent_reg, "i64"),
+                (&kind_str, "i8*"),
+                (stable_key, "i8*"),
+            ],
+        )
     }
 
-    /// Emit `element_end(session, element_id)`
-    fn emit_element_end(&mut self, session_reg: &str, element_reg: &str) {
-        // element_end is a no-op in the retained-mode surface; skip for now.
-        let _ = session_reg;
-        let _ = element_reg;
-        // In Phase 3: emit actual element_end if needed by the surface backend
-    }
-
-    /// Emit a surface trait call: `call void @surface_fn(i64 sid, i64 el, ...)`
-    fn emit_surface_call(
+    /// Emit `element_end(session, element_id)` through the vtable (offset 3).
+    fn emit_element_end(
         &mut self,
+        surface_reg: &str,
         session_reg: &str,
         element_reg: &str,
-        fn_name: &str,
-        args: &[(&str, &str)], // (llvm_type, reg_or_literal)
     ) {
-        let mut arg_strs = vec![
-            format!("i64 {}", session_reg),
-            format!("i64 {}", element_reg),
-        ];
-        for (ty, val) in args {
-            arg_strs.push(format!("{} {}", ty, val));
-        }
-        self.emit(&format!(
-            "  call void @{}({})",
-            fn_name, arg_strs.join(", ")
-        ));
+        self.emit_vtable_call_void(
+            surface_reg,
+            OFF_ELEMENT_END,
+            "void (i64, i64)*",
+            &[(session_reg, "i64"), (element_reg, "i64")],
+        );
     }
+
+    // =====================================================================
+    //  Stable key computation (Contract 10)
+    // =====================================================================
 
     /// Compute a stable key: `"ComponentName:path:parent_id:sibling_index"`
     fn emit_stable_key(
@@ -909,11 +1026,8 @@ impl LlvmGenerator {
         parent_reg: &str,
         sibling_index: u64,
     ) -> String {
-        // Build key as: path_prefix:PARENT_REG:SIBLING_INDEX
         let prefix_str = self.compile_static_c_string_literal(path_prefix);
         let si_str = self.compile_static_c_string_literal(&format!(":{}", sibling_index));
-
-        // Concat prefix + ":" + parent_as_string + si_str
         let colon = self.compile_static_c_string_literal(":");
 
         // concat prefix + ":"
@@ -954,18 +1068,20 @@ impl LlvmGenerator {
     fn compile_component_state_init(
         &mut self,
         component: &TypedComponent,
+        surface_reg: &str,
         session_reg: &str,
     ) -> KainResult<()> {
         for state in &component.ast.state {
             let key = format!("{}:{}", component.ast.name, state.name);
             let key_str = self.compile_static_c_string_literal(&key);
 
-            // state_get_i64
-            let stored_val = self.next_reg();
-            self.emit(&format!(
-                "  {} = call i64 @abi_ui_surface_state_get_i64(i64 {}, i8* {})",
-                stored_val, session_reg, key_str
-            ));
+            // state_get_i64 through vtable (offset 8)
+            let stored_val = self.emit_vtable_call(
+                surface_reg,
+                OFF_STATE_GET_I64,
+                "i64 (i64, i8*)*",
+                &[(session_reg, "i64"), (&key_str, "i8*")],
+            );
 
             // Check if first frame (get returns 0)
             let is_first = self.next_reg();
@@ -982,64 +1098,33 @@ impl LlvmGenerator {
             ));
 
             self.emit_label(&init_block);
-            // Store initial value
-            let init_name = format!("__init_{}", state.name);
+            // Store initial value through vtable (offset 9)
             let (init_val, _) = self.compile_expr(&state.initial)?;
-            self.emit(&format!(
-                "  call void @abi_ui_surface_state_set_i64(i64 {}, i8* {}, i64 {})",
-                session_reg, key_str, init_val
-            ));
+            self.emit_vtable_call_void(
+                surface_reg,
+                OFF_STATE_SET_I64,
+                "void (i64, i8*, i64)*",
+                &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val, "i64")],
+            );
 
-            // Alloca for the state field
+            // Alloca for the state field (local fast access)
             let addr_reg = format!("%{}.addr", state.name);
             self.emit_entry_alloca(&addr_reg, "i64");
             self.emit(&format!(
                 "  store i64 {}, i64* {}",
                 init_val, addr_reg
             ));
-            // Track in locals so $self.name works; also mark for state_set on write
+            // Track in locals so $self.name works
             self.locals.insert(state.name.clone(), (addr_reg.clone(), "i64".to_string()));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(state.name.clone());
             }
-            // Record the init value name for phi
-            let _init_name_for_phi = init_name;
             self.emit(&format!("  br label %{}", load_block));
 
             self.emit_label(&load_block);
-            // Actually, since we already stored in the alloca and recorded the local,
-            // the phi is not strictly needed for Phase 1. The local already holds the value.
-            // Readers of the state will load from the alloca (which has the value stored above).
+            // Readers of the state will load from the alloca
         }
 
         Ok(())
-    }
-
-    // =====================================================================
-    //  JSX attribute → surface key mapping (Contract 11)
-    // =====================================================================
-
-    /// Emit a surface style call: `call void @fn_name(i64 sid, i64 el, i8* key, ...)`
-    fn emit_surface_style_call(
-        &mut self,
-        session_reg: &str,
-        element_reg: &str,
-        fn_name: &str,
-        style_key: &str,
-        args: &[(&str, &str)],
-    ) {
-        let key_str = self.compile_static_c_string_literal(style_key);
-        let mut arg_strs = vec![
-            format!("i64 {}", session_reg),
-            format!("i64 {}", element_reg),
-            format!("i8* {}", key_str),
-        ];
-        for (ty, val) in args {
-            arg_strs.push(format!("{} {}", ty, val));
-        }
-        self.emit(&format!(
-            "  call void @{}({})",
-            fn_name, arg_strs.join(", ")
-        ));
     }
 }

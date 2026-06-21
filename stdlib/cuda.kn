@@ -111,6 +111,82 @@ pub fn cuda_require_tensor_cores() -> Void
 @extern
 pub fn cuda_require_wgmma() -> Void
 
+// ============================================================================
+//                    TENSOR CORE INTRINSICS (NVIDIA + AMD)
+// ============================================================================
+// These are declared @extern: the PTX backend owns the lowering for NVIDIA,
+// and the SPIR-V or HIP backends own the lowering for AMD.
+// User code gates these behind axiom blocks with capability predicates.
+
+// --- NVIDIA Tensor Core WMMA (Warp Matrix Multiply-Accumulate, sm_70+ Volta) ---
+// Operates on warp-level fragments. Minimum SM 7.0 (Volta).
+@extern
+pub fn cuda_wmma_matmul_f16_f32(
+    a: ptr<Float>, b: ptr<Float>, c: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
+/// Apply activation function to WMMA fragment.
+/// sm_70+ (Volta) tensor core activation utility.
+@extern
+pub fn cuda_wmma_activate_f32(dst: ptr<Float>, src: ptr<Float>) -> Void
+
+/// Store WMMA fragment to linear memory.
+/// sm_70+ (Volta) tensor core store utility.
+@extern
+pub fn cuda_wmma_store_f32(dst: ptr<Float>, src: ptr<Float>, m: UInt, n: UInt) -> Void
+
+// --- NVIDIA Tensor Core MMA (Matrix Multiply-Accumulate, sm_80+ Ampere) ---
+// Ampere/Hopper PTX `mma.sync.aligned` instructions.
+// Minimum SM 8.0 (Ampere).
+
+/// FP16 matrix multiply-accumulate via MMA instructions.
+/// sm_80+ (Ampere) PTX mma.sync.aligned.
+@extern
+pub fn cuda_mma_matmul_f16_f32(
+    d: ptr<Float>, a: ptr<Float>, b: ptr<Float>, c: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
+/// FP32 matrix multiply-accumulate via MMA instructions.
+/// sm_80+ (Ampere) PTX mma.sync.aligned.
+@extern
+pub fn cuda_mma_matmul_f32_f32(
+    d: ptr<Float>, a: ptr<Float>, b: ptr<Float>, c: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
+// --- NVIDIA WGMMA (Warp-Group MMA, sm_90+ Hopper) ---
+// Operates on warp-groups (4 warps = 128 threads).
+// Minimum SM 9.0 (Hopper).
+
+/// FP16 warp-group matrix multiply-accumulate via WGMMA.
+/// sm_90+ (Hopper) PTX wgmma instructions.
+@extern
+pub fn cuda_wgmma_matmul_f16_f32(
+    d: ptr<Float>, a: ptr<Float>, b: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
+// --- AMD Matrix Core (MFMA, CDNA architecture) ---
+// AMD CDNA Matrix Fused Multiply-Add instructions.
+
+/// FP32 matrix fused multiply-add via AMD MFMA.
+/// CDNA architecture matrix core instruction.
+@extern
+pub fn cuda_mfma_f32_f32(
+    dst: ptr<Float>, src_a: ptr<Float>, src_b: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
+/// FP16 matrix fused multiply-add via AMD MFMA.
+/// CDNA architecture matrix core instruction.
+@extern
+pub fn cuda_mfma_f16_f32(
+    dst: ptr<Float>, src_a: ptr<Float>, src_b: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void
+
 @extern
 pub fn abi_cuda_driver_available() -> Bool
 
