@@ -1,0 +1,158 @@
+// vkvg_renderer.kn — GPU-accelerated 2D renderer for reson8's UI
+//
+// Replaces std::ui "software" (GDI) backend with vkvg's Vulkan-accelerated
+// 2D vector graphics. Provides drop-in drawing primitives matching the
+// existing UI component vocabulary.
+//
+// This module bridges between reson8's component tree and the vkvg C bridge.
+// Components don't use vkvg directly — they use these higher-level helpers.
+//
+// Dependency: vkvg_init() must be called first (with Vulkan handles from
+// vulkan_ui.kn) to bootstrap the GPU device.
+
+use bridge::vkvg
+
+// ============================================================================
+//  GLOBAL STATE
+// ============================================================================
+
+struct VkvgRenderer:
+    ctx:        Int      // vkvg context
+    surf:       Int      // vkvg surface
+    width:      Int
+    height:     Int
+    dpi:        Int      // dots per inch (96 default)
+    initialized: Bool
+    body_font:  String   // loaded font name
+    mono_font:  String
+    small_font: String
+
+var g_rnd: VkvgRenderer = VkvgRenderer {
+    ctx: 0, surf: 0,
+    width: 0, height: 0, dpi: 96,
+    initialized: false,
+    body_font: "", mono_font: "", small_font: "",
+}
+
+// ============================================================================
+//  LIFECYCLE
+// ============================================================================
+
+// Bootstrap the vkvg renderer with an existing Vulkan context.
+// Call ONCE after vulkan_ui_init() succeeds.
+pub fn vkvg_renderer_init(
+    vk_instance: Int, vk_phy_dev: Int, vk_device: Int,
+    queue_family: Int, queue_idx: Int,
+    surface_width: Int, surface_height: Int,
+) -> Int:
+    if g_rnd.initialized:
+        return 0
+
+    // Initialize vkvg device from existing Vulkan
+    let dev_ok = vg_init(vk_instance, vk_phy_dev, vk_device, queue_family, queue_idx, 1)
+    if dev_ok != 0:
+        return dev_ok
+
+    vg_set_dpi(96, 96)
+
+    // Create drawing surface
+    let surf = vg_surface_new(surface_width, surface_height)
+    if surf == 0:
+        return -1
+
+    // Create drawing context
+    let ctx = vg_context_new(surf)
+    if ctx == 0:
+        vg_surface_delete(surf)
+        return -2
+
+    g_rnd.ctx = ctx
+    g_rnd.surf = surf
+    g_rnd.width = surface_width
+    g_rnd.height = surface_height
+    g_rnd.dpi = 96
+    g_rnd.initialized = true
+    return 0
+
+pub fn vkvg_renderer_shutdown():
+    if g_rnd.initialized == false:
+        return
+    vg_context_delete(g_rnd.ctx)
+    vg_surface_delete(g_rnd.surf)
+    vg_shutdown()
+    g_rnd.initialized = false
+
+// ============================================================================
+//  FRAME MANAGEMENT
+// ============================================================================
+
+pub fn vkvg_begin_frame():
+    vg_clear(g_rnd.ctx)
+
+pub fn vkvg_end_frame():
+    vg_flush(g_rnd.ctx)
+
+// ============================================================================
+//  DRAWING PRIMITIVES (matching std::ui vocabulary)
+// ============================================================================
+
+// ── Filled rectangle ──
+pub fn vkvg_fill_rect(x: Float, y: Float, w: Float, h: Float,
+                       r: Float, g: Float, b: Float, a: Float):
+    vg_fill_rect(g_rnd.ctx, x, y, w, h, r, g, b, a)
+
+// ── Rounded rectangle ──
+pub fn vkvg_fill_rounded_rect(x: Float, y: Float, w: Float, h: Float,
+                               radius: Float, r: Float, g: Float, b: Float, a: Float):
+    vg_fill_rounded_rect(g_rnd.ctx, x, y, w, h, radius, r, g, b, a)
+
+// ── Rectangle outline ──
+pub fn vkvg_stroke_rect(x: Float, y: Float, w: Float, h: Float,
+                         r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_stroke_rect(g_rnd.ctx, x, y, w, h, r, g, b, a, line_w)
+
+// ── Horizontal line ──
+pub fn vkvg_hline(x1: Float, x2: Float, y: Float,
+                   r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_hline(g_rnd.ctx, x1, x2, y, r, g, b, a, line_w)
+
+// ── Vertical line ──
+pub fn vkvg_vline(x: Float, y1: Float, y2: Float,
+                   r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_vline(g_rnd.ctx, x, y1, y2, r, g, b, a, line_w)
+
+// ── Ellipse (filled) ──
+pub fn vkvg_fill_ellipse(cx: Float, cy: Float, rx: Float, ry: Float,
+                          r: Float, g: Float, b: Float, a: Float):
+    vg_set_rgba(g_rnd.ctx, r, g, b, a)
+    vg_ellipse(g_rnd.ctx, rx, ry, cx, cy, 0.0)
+    vg_fill(g_rnd.ctx)
+
+// ── Circle ──
+pub fn vkvg_fill_circle(cx: Float, cy: Float, radius: Float,
+                         r: Float, g: Float, b: Float, a: Float):
+    vkvg_fill_ellipse(cx, cy, radius, radius, r, g, b, a)
+
+// ── Text ──
+pub fn vkvg_draw_text(text: String, x: Float, y: Float,
+                       r: Float, g: Float, b: Float, a: Float):
+    vg_draw_text(g_rnd.ctx, text, x, y, r, g, b, a)
+
+pub fn vkvg_text_width(text: String) -> Float:
+    return vg_text_width(g_rnd.ctx, text)
+
+// ── Text centered in a box ──
+pub fn vkvg_draw_text_center(text: String, x: Float, y: Float, box_w: Float,
+                              r: Float, g: Float, b: Float, a: Float):
+    let tw = vg_text_width(g_rnd.ctx, text)
+    let cx = x + (box_w - tw) / 2.0
+    vg_draw_text(g_rnd.ctx, text, cx, y, r, g, b, a)
+
+// ── Clipping ──
+pub fn vkvg_push_clip(x: Float, y: Float, w: Float, h: Float):
+    vg_save(g_rnd.ctx)
+    let _ = vg_rectangle(g_rnd.ctx, x, y, w, h)
+    vg_clip(g_rnd.ctx)
+
+pub fn vkvg_pop_clip():
+    vg_restore(g_rnd.ctx)

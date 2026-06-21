@@ -11,9 +11,10 @@ artifact_root = ".kain/out/llvm"
 cache_root = ".kain/cache/build"
 profile = "dev"
 
-# ── C ABI: Vendored third-party audio bridges ──
-# Three bridges: miniaudio (device I/O), VST3 SDK (plugin hosting),
-# CLAP SDK (plugin hosting — pure C, minimal wrapping).
+# ── C ABI: Vendored third-party bridges ──
+# Four bridges: miniaudio (device I/O), VST3 SDK (plugin hosting),
+# CLAP SDK (plugin hosting — pure C, minimal wrapping),
+# vkvg (Vulkan Vector Graphics — 2D GPU drawing).
 #
 # All SDKs are vendored under 3rdparty/ — no system registry needed.
 
@@ -25,6 +26,7 @@ include_paths = [
   "3rdparty/vst3_sdk/public.sdk",
   "3rdparty/clap/include",
   "3rdparty/vulkan/include",
+  "3rdparty/vkvg/3rdparty/vkvg/include",
 ]
 
 # ── Bridge 1: Audio device I/O (miniaudio) ──
@@ -56,3 +58,27 @@ link_libs = ["AudioToolbox", "CoreAudio", "CoreFoundation"]
 # [[c_ffi.libraries]]
 # name = "clap_host_bridge"
 # ...
+#
+# ── Bridge 4: Vulkan Vector Graphics (vkvg) ──
+# GPU-accelerated 2D vector drawing for reson8's UI.
+# Requires vkvg built as a static/shared library (see 3rdparty/vkvg/).
+# vkvg depends on: Vulkan SDK, vkh (submodule), optional freetype/harfbuzz.
+[[c_ffi.libraries]]
+name = "vkvg_bridge"
+header = "src/bridge/native/vkvg_bridge.h"
+sources = ["src/bridge/native/vkvg_bridge.c"]
+include_paths = [
+  "3rdparty/vkvg/3rdparty/vkvg/include",
+  "3rdparty/vulkan/include",
+]
+
+# Platform-specific link libs for vkvg
+[[c_ffi.libraries.target_policies]]
+target = "windows"
+link_libs = ["vkvg", "vulkan-1"]
+[[c_ffi.libraries.target_policies]]
+target = "linux"
+link_libs = ["vkvg", "vulkan"]
+[[c_ffi.libraries.target_policies]]
+target = "macos"
+link_libs = ["vkvg", "vulkan"]

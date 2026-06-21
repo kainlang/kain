@@ -3,6 +3,7 @@ use std::interop
 use std::json
 use std::math
 use std::text
+use std::bytes
 
 pub const GPU_STAGE_VERTEX: Int = 1
 pub const GPU_STAGE_FRAGMENT: Int = 2
@@ -90,7 +91,7 @@ pub const GPU_LAYOUT_RASTER_HWC: String = "raster_hwc"
 
 /// An opaque handle to a registered compute pipeline in a library.
 /// Carries enough information to locate the cached VkPipeline/CUfunction.
-struct PipelineHandle:
+pub struct PipelineHandle:
     id: Int
     library_name: String
     compute_key: String
@@ -98,7 +99,7 @@ struct PipelineHandle:
 
 /// A pipeline library — a named cache of compiled shader pipelines.
 /// Pipelines are registered once and dispatched many times.
-struct PipelineLibrary:
+pub struct PipelineLibrary:
     name: String
     pipeline_count: Int
 
@@ -160,7 +161,7 @@ pub fn gpu_pipeline_library_destroy(lib: PipelineLibrary) -> Int:
 
 /// Dispatch dimensions written by a GPU shader for indirect dispatch.
 /// Compatible with VkDispatchIndirectCommand layout (12 bytes).
-struct DispatchIndirectCommand:
+pub struct DispatchIndirectCommand:
     x: UInt
     y: UInt
     z: UInt

@@ -1,0 +1,358 @@
+// vkvg.kn — Kain facade over vkvg_bridge (Vulkan Vector Graphics)
+//
+// Pattern: src/bridge/clap_host.kn — wraps native C bridge for Kain consumption.
+//
+// vkvg (Vulkan Vector Graphics) is a Cairo-like 2D drawing library with Vulkan
+// hardware acceleration. This facade wires it into reson8's UI rendering pipeline,
+// replacing the std::ui "software" (GDI) backend with GPU-accelerated 2D vector art.
+//
+// The bridge expects an existing Vulkan context from vulkan_ui.kn.
+//
+// Usage:
+//   let dev = vg_init(vk_instance, vk_phy, vk_dev, qfi, qi, 1)
+//   let surf = vg_surface_new(WIN_W, WIN_H)
+//   let ctx = vg_context_new(surf)
+//   vg_set_rgba(ctx, 0.1, 0.1, 0.18, 1.0)
+//   vg_rect(ctx, 0.0, 0.0, WIN_W, WIN_H)
+//   vg_fill(ctx)
+//   vg_flush(ctx)
+
+include "native/vkvg_bridge.h" as vkvg
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+// ── Line caps ──
+pub const CAP_BUTT:   Int = 0
+pub const CAP_ROUND:  Int = 1
+pub const CAP_SQUARE: Int = 2
+
+// ── Line joins ──
+pub const JOIN_MITER: Int = 0
+pub const JOIN_ROUND: Int = 1
+pub const JOIN_BEVEL: Int = 2
+
+// ── Fill rules ──
+pub const FILL_EVEN_ODD: Int = 0
+pub const FILL_NON_ZERO: Int = 1
+
+// ── Operators ──
+pub const OP_CLEAR:      Int = 0
+pub const OP_SOURCE:     Int = 1
+pub const OP_OVER:       Int = 2
+pub const OP_DIFFERENCE: Int = 3
+
+// ── Pattern extend ──
+pub const EXTEND_NONE:    Int = 0
+pub const EXTEND_REPEAT:  Int = 1
+pub const EXTEND_REFLECT: Int = 2
+pub const EXTEND_PAD:     Int = 3
+
+// ── Status ──
+pub const VKVG_OK:           Int = 0
+pub const VKVG_ERR_NOT_INIT: Int = -1
+pub const VKVG_ERR_NULL:     Int = -2
+pub const VKVG_ERR_VKVG:     Int = -3
+
+// ============================================================================
+//  LIFECYCLE
+// ============================================================================
+
+// Initialize vkvg from an existing Vulkan context (set up by vulkan_ui.kn).
+// All Vulkan handles are ptr-sized Ints (cast from opaque pointers).
+pub fn vg_init(
+    vk_instance:         Int,
+    vk_physical_device:  Int,
+    vk_device:           Int,
+    queue_family_index:  Int,
+    queue_index:         Int,
+    multisample:         Int,
+) -> Int:
+    return vkvg_bridge_init(vk_instance, vk_physical_device, vk_device,
+                                  queue_family_index, queue_index, multisample)
+
+pub fn vg_shutdown():
+    vkvg_bridge_shutdown()
+
+pub fn vg_is_init() -> Bool:
+    return vkvg_bridge_is_init() != 0
+
+pub fn vg_set_dpi(hdpi: Int, vdpi: Int):
+    vkvg_bridge_set_dpy(hdpi, vdpi)
+
+// ============================================================================
+//  SURFACE
+// ============================================================================
+
+pub fn vg_surface_new(width: Int, height: Int) -> Int:
+    return vkvg_bridge_surface_create(width, height)
+
+pub fn vg_surface_delete(surf: Int):
+    vkvg_bridge_surface_destroy(surf)
+
+pub fn vg_surface_width(surf: Int) -> Int:
+    return vkvg_bridge_surface_get_width(surf)
+
+pub fn vg_surface_height(surf: Int) -> Int:
+    return vkvg_bridge_surface_get_height(surf)
+
+pub fn vg_surface_vk_image(surf: Int) -> Int:
+    return vkvg_bridge_surface_get_vk_image(surf)
+
+pub fn vg_surface_write_png(surf: Int, path: String) -> Int:
+    return vkvg_bridge_surface_write_to_png(surf, path)
+
+// ============================================================================
+//  CONTEXT
+// ============================================================================
+
+pub fn vg_context_new(surf: Int) -> Int:
+    return vkvg_bridge_context_create(surf)
+
+pub fn vg_context_delete(ctx: Int):
+    vkvg_bridge_context_destroy(ctx)
+
+pub fn vg_status(ctx: Int) -> Int:
+    return vkvg_bridge_context_status(ctx)
+
+pub fn vg_flush(ctx: Int):
+    vkvg_bridge_flush(ctx)
+
+// ============================================================================
+//  COLOR SOURCE
+// ============================================================================
+
+pub fn vg_set_rgba(ctx: Int, r: Float, g: Float, b: Float, a: Float):
+    vkvg_bridge_set_source_rgba(ctx, r, g, b, a)
+
+pub fn vg_set_rgb(ctx: Int, r: Float, g: Float, b: Float):
+    vkvg_bridge_set_source_rgb(ctx, r, g, b)
+
+pub fn vg_set_color_u32(ctx: Int, rgba: Int):
+    vkvg_bridge_set_source_color(ctx, rgba)
+
+pub fn vg_set_surface_source(ctx: Int, surf: Int, x: Float, y: Float):
+    vkvg_bridge_set_source_surface(ctx, surf, x, y)
+
+// ============================================================================
+//  STROKE CONFIG
+// ============================================================================
+
+pub fn vg_set_line_width(ctx: Int, w: Float):
+    vkvg_bridge_set_line_width(ctx, w)
+
+pub fn vg_get_line_width(ctx: Int) -> Float:
+    return vkvg_bridge_get_line_width(ctx)
+
+pub fn vg_set_line_cap(ctx: Int, cap: Int):
+    vkvg_bridge_set_line_cap(ctx, cap)
+
+pub fn vg_set_line_join(ctx: Int, join: Int):
+    vkvg_bridge_set_line_join(ctx, join)
+
+pub fn vg_set_miter_limit(ctx: Int, limit: Float):
+    vkvg_bridge_set_miter_limit(ctx, limit)
+
+pub fn vg_set_opacity(ctx: Int, opacity: Float):
+    vkvg_bridge_set_opacity(ctx, opacity)
+
+pub fn vg_set_fill_rule(ctx: Int, rule: Int):
+    vkvg_bridge_set_fill_rule(ctx, rule)
+
+pub fn vg_set_operator(ctx: Int, op: Int):
+    vkvg_bridge_set_operator(ctx, op)
+
+// ============================================================================
+//  PATH OPS
+// ============================================================================
+
+pub fn vg_new_path(ctx: Int):
+    vkvg_bridge_new_path(ctx)
+
+pub fn vg_new_sub_path(ctx: Int):
+    vkvg_bridge_new_sub_path(ctx)
+
+pub fn vg_close_path(ctx: Int):
+    vkvg_bridge_close_path(ctx)
+
+pub fn vg_move_to(ctx: Int, x: Float, y: Float):
+    vkvg_bridge_move_to(ctx, x, y)
+
+pub fn vg_line_to(ctx: Int, x: Float, y: Float):
+    vkvg_bridge_line_to(ctx, x, y)
+
+pub fn vg_rel_line_to(ctx: Int, dx: Float, dy: Float):
+    vkvg_bridge_rel_line_to(ctx, dx, dy)
+
+pub fn vg_curve_to(ctx: Int, x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float):
+    vkvg_bridge_curve_to(ctx, x1, y1, x2, y2, x3, y3)
+
+pub fn vg_quad_to(ctx: Int, x1: Float, y1: Float, x2: Float, y2: Float):
+    vkvg_bridge_quadratic_to(ctx, x1, y1, x2, y2)
+
+// ── Shapes ──
+
+pub fn vg_rectangle(ctx: Int, x: Float, y: Float, w: Float, h: Float) -> Int:
+    return vkvg_bridge_rectangle(ctx, x, y, w, h)
+
+pub fn vg_rounded_rect(ctx: Int, x: Float, y: Float, w: Float, h: Float, r: Float) -> Int:
+    return vkvg_bridge_rounded_rectangle(ctx, x, y, w, h, r)
+
+pub fn vg_rounded_rect_xy(ctx: Int, x: Float, y: Float, w: Float, h: Float, rx: Float, ry: Float):
+    vkvg_bridge_rounded_rectangle2(ctx, x, y, w, h, rx, ry)
+
+pub fn vg_ellipse(ctx: Int, rx: Float, ry: Float, cx: Float, cy: Float, rotation: Float):
+    vkvg_bridge_ellipse(ctx, rx, ry, cx, cy, rotation)
+
+pub fn vg_arc(ctx: Int, xc: Float, yc: Float, radius: Float, a1: Float, a2: Float):
+    vkvg_bridge_arc(ctx, xc, yc, radius, a1, a2)
+
+// ============================================================================
+//  DRAW OPS
+// ============================================================================
+
+pub fn vg_stroke(ctx: Int):
+    vkvg_bridge_stroke(ctx)
+
+pub fn vg_stroke_preserve(ctx: Int):
+    vkvg_bridge_stroke_preserve(ctx)
+
+pub fn vg_fill(ctx: Int):
+    vkvg_bridge_fill(ctx)
+
+pub fn vg_fill_preserve(ctx: Int):
+    vkvg_bridge_fill_preserve(ctx)
+
+pub fn vg_paint(ctx: Int):
+    vkvg_bridge_paint(ctx)
+
+pub fn vg_clear(ctx: Int):
+    vkvg_bridge_clear(ctx)
+
+// ============================================================================
+//  CLIPPING
+// ============================================================================
+
+pub fn vg_clip(ctx: Int):
+    vkvg_bridge_clip(ctx)
+
+pub fn vg_reset_clip(ctx: Int):
+    vkvg_bridge_reset_clip(ctx)
+
+// ============================================================================
+//  TRANSFORM
+// ============================================================================
+
+pub fn vg_save(ctx: Int):
+    vkvg_bridge_save(ctx)
+
+pub fn vg_restore(ctx: Int):
+    vkvg_bridge_restore(ctx)
+
+pub fn vg_translate(ctx: Int, dx: Float, dy: Float):
+    vkvg_bridge_translate(ctx, dx, dy)
+
+pub fn vg_scale(ctx: Int, sx: Float, sy: Float):
+    vkvg_bridge_scale(ctx, sx, sy)
+
+pub fn vg_rotate(ctx: Int, radians: Float):
+    vkvg_bridge_rotate(ctx, radians)
+
+pub fn vg_identity(ctx: Int):
+    vkvg_bridge_identity_matrix(ctx)
+
+// ============================================================================
+//  TEXT
+// ============================================================================
+
+pub fn vg_select_font(ctx: Int, name: String):
+    vkvg_bridge_select_font_face(ctx, name)
+
+pub fn vg_load_font(ctx: Int, path: String, name: String):
+    vkvg_bridge_load_font_from_path(ctx, path, name)
+
+pub fn vg_set_font_size(ctx: Int, size: Int):
+    vkvg_bridge_set_font_size(ctx, size)
+
+pub fn vg_show_text(ctx: Int, text: String):
+    vkvg_bridge_show_text(ctx, text)
+
+pub fn vg_text_width(ctx: Int, text: String) -> Float:
+    return vkvg_bridge_text_extents_width(ctx, text)
+
+pub fn vg_text_height(ctx: Int, text: String) -> Float:
+    return vkvg_bridge_text_extents_height(ctx, text)
+
+// ============================================================================
+//  GRADIENTS
+// ============================================================================
+
+pub fn vg_gradient_linear(x0: Float, y0: Float, x1: Float, y1: Float) -> Int:
+    return vkvg_bridge_gradient_create_linear(x0, y0, x1, y1)
+
+pub fn vg_gradient_radial(cx0: Float, cy0: Float, r0: Float, cx1: Float, cy1: Float, r1: Float) -> Int:
+    return vkvg_bridge_gradient_create_radial(cx0, cy0, r0, cx1, cy1, r1)
+
+pub fn vg_gradient_add_stop(pat: Int, offset: Float, r: Float, g: Float, b: Float, a: Float) -> Int:
+    return vkvg_bridge_gradient_add_stop(pat, offset, r, g, b, a)
+
+pub fn vg_pattern_set_extend(pat: Int, extend: Int):
+    vkvg_bridge_pattern_set_extend(pat, extend)
+
+pub fn vg_pattern_delete(pat: Int):
+    vkvg_bridge_pattern_destroy(pat)
+
+pub fn vg_set_source(ctx: Int, pat: Int):
+    vkvg_bridge_set_source(ctx, pat)
+
+// ============================================================================
+//  HIGH-LEVEL HELPERS — combine path + fill/stroke for common operations
+// ============================================================================
+
+// Fill a rectangle with solid color (one-shot).
+pub fn vg_fill_rect(ctx: Int, x: Float, y: Float, w: Float, h: Float,
+                       r: Float, g: Float, b: Float, a: Float):
+    vg_set_rgba(ctx, r, g, b, a)
+    let _ = vg_rectangle(ctx, x, y, w, h)
+    vg_fill(ctx)
+
+// Fill a rounded rectangle with solid color (one-shot).
+pub fn vg_fill_rounded_rect(ctx: Int, x: Float, y: Float, w: Float, h: Float,
+                               radius: Float, r: Float, g: Float, b: Float, a: Float):
+    vg_set_rgba(ctx, r, g, b, a)
+    let _ = vg_rounded_rect(ctx, x, y, w, h, radius)
+    vg_fill(ctx)
+
+// Stroke a rectangle outline.
+pub fn vg_stroke_rect(ctx: Int, x: Float, y: Float, w: Float, h: Float,
+                         r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_set_line_width(ctx, line_w)
+    vg_set_rgba(ctx, r, g, b, a)
+    let _ = vg_rectangle(ctx, x, y, w, h)
+    vg_stroke(ctx)
+
+// Draw a horizontal line.
+pub fn vg_hline(ctx: Int, x1: Float, x2: Float, y: Float,
+                   r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_set_line_width(ctx, line_w)
+    vg_set_rgba(ctx, r, g, b, a)
+    vg_move_to(ctx, x1, y)
+    vg_line_to(ctx, x2, y)
+    vg_stroke(ctx)
+
+// Draw a vertical line.
+pub fn vg_vline(ctx: Int, x: Float, y1: Float, y2: Float,
+                   r: Float, g: Float, b: Float, a: Float, line_w: Float):
+    vg_set_line_width(ctx, line_w)
+    vg_set_rgba(ctx, r, g, b, a)
+    vg_move_to(ctx, x, y1)
+    vg_line_to(ctx, x, y2)
+    vg_stroke(ctx)
+
+// Draw text at position with color.
+pub fn vg_draw_text(ctx: Int, text: String, x: Float, y: Float,
+                       r: Float, g: Float, b: Float, a: Float):
+    vg_set_rgba(ctx, r, g, b, a)
+    vg_move_to(ctx, x, y)
+    vg_show_text(ctx, text)
