@@ -349,21 +349,21 @@ ______________________________________________________________________
 
 ## The Merge Story -- How We Got Here
 
-This feature was implemented in parallel by two agents with zero coordination, producing a classic "the wire doesn't connect" divergence:
+This feature was implemented in parallel by two people on the team with zero coordination, producing a classic "the wire doesn't connect" divergence:
 
-**Plumber A (C Runtime)** built the `KainComponentSurface` trait -- 15 function pointers via vtable, a surface registry, and the `native_ui_surface` backend wrapping `ui_system.h`. All in C. All correct.
+**(C Runtime)** built the `KainComponentSurface` trait -- 15 function pointers via vtable, a surface registry, and the `native_ui_surface` backend wrapping `ui_system.h`. All in C. All correct.
 
-**Plumber B (Rust Codegen)** rewrote `compile_jsx` to emit surface calls -- but emitted **direct `abi_ui_*` function calls** instead of calling through the `KainComponentSurface*` trait vtable. The functions Plumber B called didn't match what Plumber A built. The codegen never resolved a surface, never loaded the vtable, and called functions by names that didn't exist in the C runtime.
+**(Rust Codegen)** rewrote `compile_jsx` to emit surface calls -- but emitted **direct `abi_ui_*` function calls** instead of calling through the `KainComponentSurface*` trait vtable. The functions called didn't match what the other built. The codegen never resolved a surface, never loaded the vtable, and called functions by names that didn't exist in the C runtime.
 
 **The reconciliation:**
 
-1. Kept Plumber A's C files as-is (trait was correct)
-1. Rewrote Plumber B's codegen to call through the vtable: `getelementptr` → `bitcast` → `load` → indirect `call`
+1. Kept C files as-is (trait was correct)
+1. Rewrote codegen to call through the vtable: `getelementptr` → `bitcast` → `load` → indirect `call`
 1. Threaded `%KainComponentSurface*` as the first parameter through every render function
 1. Added vtable offset constants (0-14) matching the C struct field order exactly
 1. Moved `native_ui_surface.c` from `blades/kaintana/` to `runtime/native/src/ui/` -- it's a runtime-level backend, not a framework-specific one
 
-**Bugs found during review (4-agent audit):**
+**Bugs found during review:**
 
 - State alloca was never written on frames 2+ (read garbage -- fixed with PHI node)
 - State mutations were never persisted (added write-back loop at end of render)
