@@ -1,0 +1,52 @@
+// Smoke test: tensor core @extern declarations + axiom capability gating
+// Stream CHARLIE — tests stdlib/cuda.kn tensor core intrinsics
+// Expected: passes `kain check`
+
+use std::cuda
+
+// Fallback scalar matmul for when tensor cores are not available
+fn scalar_matmul_fallback(
+    a: ptr<Float>, b: ptr<Float>, c: ptr<Float>,
+    M: UInt, N: UInt, K: UInt
+) -> Void:
+    return
+
+// SM 7.0 (Volta) tensor core axiom — first generation tensor cores
+axiom sm_70_tensorcore:
+    when capability("cuda.sm_70")
+    when capability("cuda.tensorcore")
+    guarantee "sm_70 tensor core WMMA matmul available"
+    fallback scalar_matmul_fallback
+
+// SM 8.0 (Ampere) tensor core axiom — MMA instructions
+axiom sm_80_tensorcore:
+    when capability("cuda.sm_80")
+    when capability("cuda.tensorcore")
+    when capability("cuda.mma")
+    guarantee "sm_80 tensor core MMA matmul available"
+    fallback scalar_matmul_fallback
+
+// SM 9.0 (Hopper) tensor core axiom — WGMMA instructions
+axiom sm_90_tensorcore:
+    when capability("cuda.sm_90")
+    when capability("cuda.tensorcore")
+    when capability("cuda.wgmma")
+    guarantee "sm_90 tensor core WGMMA matmul available"
+    fallback scalar_matmul_fallback
+
+// Generic tensor core axiom — works on any SM >= 7.0
+axiom any_tensorcore:
+    when capability("cuda.tensorcore")
+    guarantee "tensor core matmul available"
+    fallback scalar_matmul_fallback
+
+// Async compute axiom — gates async compute queue usage
+axiom async_compute_available:
+    when capability("gpu.async_compute")
+    guarantee "async compute queue available for concurrent dispatch"
+    fallback scalar_matmul_fallback
+
+fn test_tensor_core_axioms_typecheck() -> Int:
+    // All axioms above typecheck — gating logic is runtime-only
+    // The @extern declarations for tensor core intrinsics are in stdlib/cuda.kn
+    return 0

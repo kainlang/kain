@@ -742,6 +742,7 @@ pub struct ComputeMetadata {
     pub tensor_plans: Vec<ComputeTensorPlan>,
     pub stream_plans: Option<Vec<ComputeStreamPlan>>,
     pub neural_node_plans: Vec<ComputeNeuralNodePlan>,
+    pub spec_constants: Vec<SpecConstantPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -770,6 +771,26 @@ pub struct ComputeNeuralNodePlan {
     pub stateful: bool,
 }
 
+/// Specialization constant plan inside a compute shader's `comptime` block.
+/// Allows host code to override constant values at dispatch time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecConstantPlan {
+    pub name: String,
+    pub ty: String,         // "u32", "f32", "bool", "i32"
+    pub default_value: SpecConstantValue,
+    pub constant_type: String, // always "SPEC" for specialization constants
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpecConstantValue {
+    U32(u32),
+    F32(f32),  // stored as f32 bits
+    Bool(bool),
+    Int(i32),
+}
+
+impl Eq for SpecConstantValue {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComputeMetadataError {
     MissingDispatchPlan,
@@ -777,6 +798,8 @@ pub enum ComputeMetadataError {
     InvalidDispatchShape(String),
     InvalidTensorPlan(String),
     InvalidNeuralNodePlan(String),
+    MissingSpecConstantPlan,
+    InvalidSpecConstant(String),
 }
 
 impl fmt::Display for ComputeMetadataError {
@@ -796,6 +819,12 @@ impl fmt::Display for ComputeMetadataError {
             }
             ComputeMetadataError::InvalidNeuralNodePlan(message) => {
                 write!(f, "invalid neural node plan: {message}")
+            }
+            ComputeMetadataError::MissingSpecConstantPlan => {
+                write!(f, "spec constant plan is missing")
+            }
+            ComputeMetadataError::InvalidSpecConstant(message) => {
+                write!(f, "invalid spec constant: {message}")
             }
         }
     }
@@ -1532,6 +1561,15 @@ pub struct MacroToken {
 
 // === EXPRESSIONS ===
 
+/// Dimensions for a `dispatch` statement
+#[derive(Debug, Clone, PartialEq)]
+pub enum DispatchSize {
+    /// Direct dispatch: `dispatch "key" [x, y, z]` — compile-time expressions
+    Fixed([Expr; 3]),
+    /// Indirect dispatch: `dispatch "key" from expr` — GPU-written buffer pointer
+    Indirect(Box<Expr>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
@@ -1551,10 +1589,20 @@ pub enum Stmt {
     Expr(Expr),
     /// `defer expr`
     Defer { expr: Expr, span: Span },
-    /// `dispatch "compute.key" [x, y, z]`
+    /// `dispatch "compute.key" [x, y, z]` or `dispatch "compute.key" from expr`
     Dispatch {
         compute_key: String,
-        dispatch_size: [Expr; 3],
+        dispatch_size: DispatchSize,
+        span: Span,
+    },
+    /// `subgroup(N) { ... }` — warp-synchronous execution scope inside a GPU shader.
+    /// Only valid inside `shader compute` bodies. The compiler validates:
+    ///   - N matches hardware subgroup size (32 for CUDA, queried for Vulkan)
+    ///   - No nested subgroups (compile error KAIN-SHADER-0042)
+    ///   - No divergent escape (compile error KAIN-SHADER-0043)
+    Subgroup {
+        size: u32,
+        body: Block,
         span: Span,
     },
     /// `return [value]`
@@ -3529,9 +3577,19 @@ fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
             collect_type_names_from_expr(expr, out);
         }
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
-                collect_type_names_from_expr(expr, out);
+            match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => {
+                    collect_type_names_from_expr(x, out);
+                    collect_type_names_from_expr(y, out);
+                    collect_type_names_from_expr(z, out);
+                }
+                DispatchSize::Indirect(expr) => {
+                    collect_type_names_from_expr(expr, out);
+                }
             }
+        }
+        Stmt::Subgroup { body, .. } => {
+            collect_type_names_from_block(body, out);
         }
         Stmt::Return(Some(expr), _) => {
             collect_type_names_from_expr(expr, out);
