@@ -1,9 +1,0 @@
-# build.kn owns package, blade, build, and run authority for kaintana-test.
-
-[c_ffi]
-
-[[c_ffi.libraries]]
-name = "kaintana_desktop_bridge"
-header = "../kaintana/native/kaintana_desktop_bridge.h"
-shared_lib = "../kaintana/.kain/native/kaintana_desktop_bridge.obj"
-link_libs = ["user32", "gdi32"]
