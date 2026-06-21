@@ -230,39 +230,6 @@ ______________________________________________________________________
 | `runtime/native/src/ui/native_ui_surface.c` | `session_create` auto-attaches winit; `present` blits framebuffer |
 | `crates/sys-codegen/src/codegen_llvm/component.rs` | Emits `window_open` (offset 15) + `host_pump` (offset 16); LLVM type 15→17 fields |
 
-### Multi-Backend GPU Presenter (~30 files)
-
-| Stream | Files | Lines |
-|--------|:-----:|:-----:|
-| ALPHA (infrastructure) | 18 | ~1,500 new |
-| BRAVO (Vulkan ABI) | 4 | 2,049 |
-| CHARLIE (D3D12 ABI) | 4 | built |
-| DELTA (WebGPU ABI) | 4 | 870+ |
-| ECHO (migration) | 8 | ~428 deleted, ~300 refactored |
-
-### Documentation (7 files)
-
-| File | Lines |
-|------|:-----:|
-| `X:/docs/NATIVE_UI.MD` | 786 -- KAIN GOD comprehensive audit |
-| `X:/docs/COMPONENT.MD` | updated with vtable architecture + known gaps |
-| `X:/stdlib/README.md` | 23KB -- full taxonomy + when-to-use guide |
-| `X:/blades/window_proof/README.md` | 120 -- architecture + build/verify |
-| `X:/runtime/native/README.md` | +60 -- multi-backend GPU section |
-| `X:/runtime/native/extras/vulkan-abi/README.md` | +35 -- Oracle verification |
-| `X:/research/ui/` | 6 docs -- 5 independent audits + PLUMBER cross-check |
-
-### Research & Audits (12 files)
-
-| File | Type |
-|------|------|
-| `X:/research/stdlib/AGENT1-6_*.md` | 6 stdlib audits (every @extern verified) |
-| `X:/research/ui/ALPHA_UI_SYSTEM_CORE.md` | ui_system.c deep dive |
-| `X:/research/ui/BRAVO_HOST_RENDER.md` | Host adapter + renderer audit |
-| `X:/research/ui/CHARLIE_STDLIB_BRIDGE.md` | std::ui → C bridge audit |
-| `X:/research/ui/DELTA_RENDER_ENGINE.md` | Rendering engine audit |
-| `X:/research/ui/PLUMBER_VERDICT.md` | Cross-document hallucination check (87 claims, 87.4% verified, 0 hallucinations) |
-
 ______________________________________________________________________
 
 ## The Numbers
