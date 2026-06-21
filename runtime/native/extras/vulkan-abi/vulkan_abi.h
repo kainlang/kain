@@ -92,8 +92,25 @@ typedef void     (*KainPfn_vkCmdEndRenderPass)(VkCommandBuffer);
 typedef void     (*KainPfn_vkCmdBindPipeline)(VkCommandBuffer, uint32_t, VkPipeline);
 typedef void     (*KainPfn_vkCmdPushConstants)(VkCommandBuffer, VkPipelineLayout, uint32_t, uint32_t, uint32_t, const void*);
 typedef void     (*KainPfn_vkCmdDraw)(VkCommandBuffer, uint32_t, uint32_t, uint32_t, uint32_t);
+typedef void     (*KainPfn_vkCmdSetViewport)(VkCommandBuffer, uint32_t, uint32_t, const void*);
+typedef void     (*KainPfn_vkCmdSetScissor)(VkCommandBuffer, uint32_t, uint32_t, const void*);
+typedef VkResult (*KainPfn_vkCreateDescriptorSetLayout)(VkDevice, const void*, const void*, VkDescriptorSetLayout*);
+typedef void     (*KainPfn_vkDestroyDescriptorSetLayout)(VkDevice, VkDescriptorSetLayout, const void*);
+typedef VkResult (*KainPfn_vkCreateDescriptorPool)(VkDevice, const void*, const void*, VkDescriptorPool*);
+typedef void     (*KainPfn_vkDestroyDescriptorPool)(VkDevice, VkDescriptorPool, const void*);
+typedef VkResult (*KainPfn_vkAllocateDescriptorSets)(VkDevice, const void*, VkDescriptorSet*);
+typedef void     (*KainPfn_vkUpdateDescriptorSets)(VkDevice, uint32_t, const void*, uint32_t, const void*);
+typedef VkResult (*KainPfn_vkCreateBuffer)(VkDevice, const void*, const void*, VkBuffer*);
+typedef void     (*KainPfn_vkDestroyBuffer)(VkDevice, VkBuffer, const void*);
+typedef void     (*KainPfn_vkGetBufferMemoryRequirements)(VkDevice, VkBuffer, void*);
+typedef VkResult (*KainPfn_vkAllocateMemory)(VkDevice, const void*, const void*, VkDeviceMemory*);
+typedef void     (*KainPfn_vkFreeMemory)(VkDevice, VkDeviceMemory, const void*);
+typedef VkResult (*KainPfn_vkBindBufferMemory)(VkDevice, VkBuffer, VkDeviceMemory, uint64_t);
+typedef VkResult (*KainPfn_vkMapMemory)(VkDevice, VkDeviceMemory, uint64_t, uint64_t, uint32_t, void**);
+typedef void     (*KainPfn_vkUnmapMemory)(VkDevice, VkDeviceMemory);
+typedef void     (*KainPfn_vkGetPhysicalDeviceMemoryProperties)(VkPhysicalDevice, void*);
 
-// ── Raw PFN table — all 57 resolved PFNs accessible to blade bridges ───────
+// ── Raw PFN table — all 74 resolved PFNs accessible to blade bridges ───────
 
 typedef struct KainVulkanPfnTable {
     KainPfn_vkGetInstanceProcAddr                    vkGetInstanceProcAddr;
@@ -148,6 +165,23 @@ typedef struct KainVulkanPfnTable {
     KainPfn_vkCmdBindPipeline                        vkCmdBindPipeline;
     KainPfn_vkCmdPushConstants                       vkCmdPushConstants;
     KainPfn_vkCmdDraw                                vkCmdDraw;
+    KainPfn_vkCmdSetViewport                         vkCmdSetViewport;
+    KainPfn_vkCmdSetScissor                          vkCmdSetScissor;
+    KainPfn_vkCreateDescriptorSetLayout              vkCreateDescriptorSetLayout;
+    KainPfn_vkDestroyDescriptorSetLayout             vkDestroyDescriptorSetLayout;
+    KainPfn_vkCreateDescriptorPool                   vkCreateDescriptorPool;
+    KainPfn_vkDestroyDescriptorPool                  vkDestroyDescriptorPool;
+    KainPfn_vkAllocateDescriptorSets                 vkAllocateDescriptorSets;
+    KainPfn_vkUpdateDescriptorSets                   vkUpdateDescriptorSets;
+    KainPfn_vkCreateBuffer                           vkCreateBuffer;
+    KainPfn_vkDestroyBuffer                          vkDestroyBuffer;
+    KainPfn_vkGetBufferMemoryRequirements            vkGetBufferMemoryRequirements;
+    KainPfn_vkAllocateMemory                         vkAllocateMemory;
+    KainPfn_vkFreeMemory                             vkFreeMemory;
+    KainPfn_vkBindBufferMemory                       vkBindBufferMemory;
+    KainPfn_vkMapMemory                              vkMapMemory;
+    KainPfn_vkUnmapMemory                            vkUnmapMemory;
+    KainPfn_vkGetPhysicalDeviceMemoryProperties      vkGetPhysicalDeviceMemoryProperties;
 } KainVulkanPfnTable;
 
 // ── Public vtable struct — MUST match vulkan_surface_shim.c exactly ────────
@@ -192,6 +226,17 @@ typedef struct KainVulkanSession {
     uint32_t            current_image_index;
     uint32_t            current_frame;
     int64_t             should_close;
+    /* Rendering pipeline */
+    VkRenderPass        render_pass;
+    VkPipeline          pipeline;
+    VkPipelineLayout    pipeline_layout;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorPool    descriptor_pool;
+    VkDescriptorSet     descriptor_sets[KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT];
+    VkBuffer            uniform_buffers[KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT];
+    VkDeviceMemory      uniform_memory[KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT];
+    void*               uniform_mapped[KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT];
+    int                 pipeline_ready;
 #ifdef _WIN32
     void*               hwnd;
     void*               hinstance;
@@ -218,5 +263,11 @@ KAIN_VULKAN_ABI_EXPORT const KainVulkanAbiVtable* kain_vulkan_abi_get_vtable(voi
 
 KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_init(void);
 KAIN_VULKAN_ABI_EXPORT void kain_vulkan_abi_shutdown(void);
+
+// ── Rendering pipeline exports ──────────────────────────────────
+KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_load_shader(int64_t session_id,
+                             const char* spirv_hex);
+KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_set_uniform(int64_t session_id,
+                             uint32_t binding, const void* data, uint64_t size);
 
 #endif // KAIN_VULKAN_ABI_H

@@ -593,6 +593,323 @@ typedef struct VkFramebufferCreateInfo {
     uint32_t                   layers;
 } VkFramebufferCreateInfo;
 
+// ── VkShaderModuleCreateInfo ────────────────────────────────────
+
+typedef uint32_t VkShaderModuleCreateFlags;
+
+typedef uint32_t VkMemoryMapFlags;
+
+typedef struct VkShaderModuleCreateInfo {
+    VkStructureType              sType;
+    const void*                  pNext;
+    VkShaderModuleCreateFlags    flags;
+    size_t                       codeSize;
+    const uint32_t*              pCode;
+} VkShaderModuleCreateInfo;
+
+// ── VkPipelineShaderStageCreateInfo ─────────────────────────────
+
+typedef uint32_t VkPipelineShaderStageCreateFlags;
+typedef uint32_t VkShaderStageFlagBits;
+
+typedef struct VkPipelineShaderStageCreateInfo {
+    VkStructureType                     sType;
+    const void*                         pNext;
+    VkPipelineShaderStageCreateFlags    flags;
+    VkShaderStageFlagBits               stage;
+    VkShaderModule                      module;
+    const char*                         pName;
+    const void*                         pSpecializationInfo;
+} VkPipelineShaderStageCreateInfo;
+
+// ── VkPipelineVertexInputStateCreateInfo ─────────────────────────
+
+typedef uint32_t VkPipelineVertexInputStateCreateFlags;
+
+typedef struct VkPipelineVertexInputStateCreateInfo {
+    VkStructureType                            sType;
+    const void*                                pNext;
+    VkPipelineVertexInputStateCreateFlags      flags;
+    uint32_t                                   vertexBindingDescriptionCount;
+    const void*                                pVertexBindingDescriptions;
+    uint32_t                                   vertexAttributeDescriptionCount;
+    const void*                                pVertexAttributeDescriptions;
+} VkPipelineVertexInputStateCreateInfo;
+
+// ── VkPipelineInputAssemblyStateCreateInfo ───────────────────────
+
+typedef uint32_t VkPipelineInputAssemblyStateCreateFlags;
+typedef uint32_t VkPrimitiveTopology;
+
+typedef struct VkPipelineInputAssemblyStateCreateInfo {
+    VkStructureType                            sType;
+    const void*                                pNext;
+    VkPipelineInputAssemblyStateCreateFlags    flags;
+    VkPrimitiveTopology                        topology;
+    VkBool32                                   primitiveRestartEnable;
+} VkPipelineInputAssemblyStateCreateInfo;
+
+// ── VkViewport ────────────────────────────────────────────────────
+
+typedef struct VkViewport {
+    float    x;
+    float    y;
+    float    width;
+    float    height;
+    float    minDepth;
+    float    maxDepth;
+} VkViewport;
+
+// ── VkPipelineViewportStateCreateInfo ────────────────────────────
+
+typedef uint32_t VkPipelineViewportStateCreateFlags;
+
+typedef struct VkPipelineViewportStateCreateInfo {
+    VkStructureType                      sType;
+    const void*                          pNext;
+    VkPipelineViewportStateCreateFlags   flags;
+    uint32_t                             viewportCount;
+    const VkViewport*                    pViewports;
+    uint32_t                             scissorCount;
+    const VkRect2D*                      pScissors;
+} VkPipelineViewportStateCreateInfo;
+
+// ── VkPipelineRasterizationStateCreateInfo ───────────────────────
+
+typedef uint32_t VkPipelineRasterizationStateCreateFlags;
+typedef uint32_t VkPolygonMode;
+typedef uint32_t VkCullModeFlags;
+typedef uint32_t VkFrontFace;
+
+typedef struct VkPipelineRasterizationStateCreateInfo {
+    VkStructureType                            sType;
+    const void*                                pNext;
+    VkPipelineRasterizationStateCreateFlags    flags;
+    VkBool32                                   depthClampEnable;
+    VkBool32                                   rasterizerDiscardEnable;
+    VkPolygonMode                              polygonMode;
+    VkCullModeFlags                            cullMode;
+    VkFrontFace                                frontFace;
+    VkBool32                                   depthBiasEnable;
+    float                                      depthBiasConstantFactor;
+    float                                      depthBiasClamp;
+    float                                      depthBiasSlopeFactor;
+    float                                      lineWidth;
+} VkPipelineRasterizationStateCreateInfo;
+
+// ── VkPipelineMultisampleStateCreateInfo ─────────────────────────
+
+typedef uint32_t VkPipelineMultisampleStateCreateFlags;
+
+typedef struct VkPipelineMultisampleStateCreateInfo {
+    VkStructureType                          sType;
+    const void*                              pNext;
+    VkPipelineMultisampleStateCreateFlags    flags;
+    VkSampleCountFlagBits                    rasterizationSamples;
+    VkBool32                                 sampleShadingEnable;
+    float                                    minSampleShading;
+    const void*                              pSampleMask;
+    VkBool32                                 alphaToCoverageEnable;
+    VkBool32                                 alphaToOneEnable;
+} VkPipelineMultisampleStateCreateInfo;
+
+// ── VkPipelineColorBlendAttachmentState ──────────────────────────
+
+typedef uint32_t VkBlendFactor;
+typedef uint32_t VkBlendOp;
+typedef uint32_t VkColorComponentFlags;
+
+typedef struct VkPipelineColorBlendAttachmentState {
+    VkBool32                 blendEnable;
+    VkBlendFactor            srcColorBlendFactor;
+    VkBlendFactor            dstColorBlendFactor;
+    VkBlendOp                colorBlendOp;
+    VkBlendFactor            srcAlphaBlendFactor;
+    VkBlendFactor            dstAlphaBlendFactor;
+    VkBlendOp                alphaBlendOp;
+    VkColorComponentFlags    colorWriteMask;
+} VkPipelineColorBlendAttachmentState;
+
+// ── VkPipelineColorBlendStateCreateInfo ──────────────────────────
+
+typedef uint32_t VkPipelineColorBlendStateCreateFlags;
+typedef uint32_t VkLogicOp;
+
+typedef struct VkPipelineColorBlendStateCreateInfo {
+    VkStructureType                               sType;
+    const void*                                   pNext;
+    VkPipelineColorBlendStateCreateFlags          flags;
+    VkBool32                                      logicOpEnable;
+    VkLogicOp                                     logicOp;
+    uint32_t                                      attachmentCount;
+    const VkPipelineColorBlendAttachmentState*    pAttachments;
+    float                                         blendConstants[4];
+} VkPipelineColorBlendStateCreateInfo;
+
+// ── VkPipelineLayoutCreateInfo ───────────────────────────────────
+
+typedef uint32_t VkPipelineLayoutCreateFlags;
+
+typedef struct VkPipelineLayoutCreateInfo {
+    VkStructureType                 sType;
+    const void*                     pNext;
+    VkPipelineLayoutCreateFlags     flags;
+    uint32_t                        setLayoutCount;
+    const VkDescriptorSetLayout*    pSetLayouts;
+    uint32_t                        pushConstantRangeCount;
+    const void*                     pPushConstantRanges;
+} VkPipelineLayoutCreateInfo;
+
+// ── VkGraphicsPipelineCreateInfo ─────────────────────────────────
+
+typedef uint32_t VkPipelineCreateFlags;
+
+typedef struct VkGraphicsPipelineCreateInfo {
+    VkStructureType                                  sType;
+    const void*                                      pNext;
+    VkPipelineCreateFlags                            flags;
+    uint32_t                                         stageCount;
+    const VkPipelineShaderStageCreateInfo*           pStages;
+    const VkPipelineVertexInputStateCreateInfo*      pVertexInputState;
+    const VkPipelineInputAssemblyStateCreateInfo*    pInputAssemblyState;
+    const void*                                      pTessellationState;
+    const VkPipelineViewportStateCreateInfo*         pViewportState;
+    const VkPipelineRasterizationStateCreateInfo*    pRasterizationState;
+    const VkPipelineMultisampleStateCreateInfo*      pMultisampleState;
+    const void*                                      pDepthStencilState;
+    const VkPipelineColorBlendStateCreateInfo*       pColorBlendState;
+    const void*                                      pDynamicState;
+    VkPipelineLayout                                 layout;
+    VkRenderPass                                     renderPass;
+    uint32_t                                         subpass;
+    VkPipeline                                       basePipelineHandle;
+    int32_t                                          basePipelineIndex;
+} VkGraphicsPipelineCreateInfo;
+
+// ── VkDescriptorSetLayoutBinding ──────────────────────────────────
+
+typedef struct VkDescriptorSetLayoutBinding {
+    uint32_t              binding;
+    VkDescriptorType      descriptorType;
+    uint32_t              descriptorCount;
+    VkShaderStageFlags    stageFlags;
+    const void*           pImmutableSamplers;
+} VkDescriptorSetLayoutBinding;
+
+// ── VkDescriptorSetLayoutCreateInfo ───────────────────────────────
+
+typedef uint32_t VkDescriptorSetLayoutCreateFlags;
+
+typedef struct VkDescriptorSetLayoutCreateInfo {
+    VkStructureType                        sType;
+    const void*                            pNext;
+    VkDescriptorSetLayoutCreateFlags       flags;
+    uint32_t                               bindingCount;
+    const VkDescriptorSetLayoutBinding*    pBindings;
+} VkDescriptorSetLayoutCreateInfo;
+
+// ── VkDescriptorPoolSize ──────────────────────────────────────────
+
+typedef struct VkDescriptorPoolSize {
+    VkDescriptorType    type;
+    uint32_t            descriptorCount;
+} VkDescriptorPoolSize;
+
+// ── VkDescriptorPoolCreateInfo ────────────────────────────────────
+
+typedef uint32_t VkDescriptorPoolCreateFlags;
+
+typedef struct VkDescriptorPoolCreateInfo {
+    VkStructureType                sType;
+    const void*                    pNext;
+    VkDescriptorPoolCreateFlags    flags;
+    uint32_t                       maxSets;
+    uint32_t                       poolSizeCount;
+    const VkDescriptorPoolSize*    pPoolSizes;
+} VkDescriptorPoolCreateInfo;
+
+// ── VkDescriptorSetAllocateInfo ───────────────────────────────────
+
+typedef struct VkDescriptorSetAllocateInfo {
+    VkStructureType                 sType;
+    const void*                     pNext;
+    VkDescriptorPool                descriptorPool;
+    uint32_t                        descriptorSetCount;
+    const VkDescriptorSetLayout*    pSetLayouts;
+} VkDescriptorSetAllocateInfo;
+
+// ── VkDescriptorBufferInfo ────────────────────────────────────────
+
+typedef struct VkDescriptorBufferInfo {
+    VkBuffer        buffer;
+    VkDeviceSize    offset;
+    VkDeviceSize    range;
+} VkDescriptorBufferInfo;
+
+// ── VkWriteDescriptorSet ──────────────────────────────────────────
+
+typedef struct VkWriteDescriptorSet {
+    VkStructureType                  sType;
+    const void*                      pNext;
+    VkDescriptorSet                  dstSet;
+    uint32_t                         dstBinding;
+    uint32_t                         dstArrayElement;
+    uint32_t                         descriptorCount;
+    VkDescriptorType                 descriptorType;
+    const void*                      pImageInfo;
+    const VkDescriptorBufferInfo*    pBufferInfo;
+    const void*                      pTexelBufferView;
+} VkWriteDescriptorSet;
+
+// ── VkBufferCreateInfo ────────────────────────────────────────────
+
+typedef struct VkBufferCreateInfo {
+    VkStructureType        sType;
+    const void*            pNext;
+    VkBufferCreateFlags    flags;
+    VkDeviceSize           size;
+    VkBufferUsageFlags     usage;
+    VkSharingMode          sharingMode;
+    uint32_t               queueFamilyIndexCount;
+    const uint32_t*        pQueueFamilyIndices;
+} VkBufferCreateInfo;
+
+// ── VkMemoryRequirements ──────────────────────────────────────────
+
+typedef struct VkMemoryRequirements {
+    VkDeviceSize    size;
+    VkDeviceSize    alignment;
+    uint32_t        memoryTypeBits;
+} VkMemoryRequirements;
+
+// ── VkMemoryAllocateInfo ──────────────────────────────────────────
+
+typedef struct VkMemoryAllocateInfo {
+    VkStructureType    sType;
+    const void*        pNext;
+    VkDeviceSize       allocationSize;
+    uint32_t           memoryTypeIndex;
+} VkMemoryAllocateInfo;
+
+// ── VkMemoryType / VkMemoryHeap / VkPhysicalDeviceMemoryProperties
+
+typedef struct VkMemoryType {
+    VkMemoryPropertyFlags    propertyFlags;
+    uint32_t                 heapIndex;
+} VkMemoryType;
+
+typedef struct VkMemoryHeap {
+    VkDeviceSize         size;
+    VkMemoryHeapFlags    flags;
+} VkMemoryHeap;
+
+typedef struct VkPhysicalDeviceMemoryProperties {
+    uint32_t        memoryTypeCount;
+    VkMemoryType    memoryTypes[32];
+    uint32_t        memoryHeapCount;
+    VkMemoryHeap    memoryHeaps[16];
+} VkPhysicalDeviceMemoryProperties;
+
 // ── Hardcoded sType values (Vulkan 1.3) ───────────────────────────
 
 #define S_TYPE_APPLICATION_INFO                          0
@@ -614,6 +931,22 @@ typedef struct VkFramebufferCreateInfo {
 #define S_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR           1000006000
 #define S_TYPE_WIN32_SURFACE_CREATE_INFO_KHR             1000009000
 #define S_TYPE_MACOS_SURFACE_CREATE_INFO_MVK             1000123000
+#define S_TYPE_SHADER_MODULE_CREATE_INFO                  16
+#define S_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO          18
+#define S_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO    19
+#define S_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO  20
+#define S_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO        22
+#define S_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO   23
+#define S_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO     24
+#define S_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO     26
+#define S_TYPE_GRAPHICS_PIPELINE_CREATE_INFO              28
+#define S_TYPE_PIPELINE_LAYOUT_CREATE_INFO                30
+#define S_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO          32
+#define S_TYPE_DESCRIPTOR_POOL_CREATE_INFO                33
+#define S_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO               34
+#define S_TYPE_WRITE_DESCRIPTOR_SET                       35
+#define S_TYPE_BUFFER_CREATE_INFO                         12
+#define S_TYPE_MEMORY_ALLOCATE_INFO                        5
 
 // ── Hardcoded Vulkan enum values ──────────────────────────────────
 
@@ -721,6 +1054,27 @@ typedef struct VkFramebufferCreateInfo {
 
 #define VK_API_VERSION_1_0    (1u << 22)
 #define VK_API_VERSION_1_3    (1u << 22) | (3u << 12)
+
+#define VK_SHADER_STAGE_VERTEX_BIT                      0x00000001
+#define VK_SHADER_STAGE_FRAGMENT_BIT                    0x00000010
+#define VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST              3
+#define VK_POLYGON_MODE_FILL                             0
+#define VK_CULL_MODE_NONE                                0
+#define VK_FRONT_FACE_COUNTER_CLOCKWISE                  0
+#define VK_SAMPLE_COUNT_1_BIT                            0x00000001
+#define VK_COLOR_COMPONENT_R_BIT                         0x00000001
+#define VK_COLOR_COMPONENT_G_BIT                         0x00000002
+#define VK_COLOR_COMPONENT_B_BIT                         0x00000004
+#define VK_COLOR_COMPONENT_A_BIT                         0x00000008
+#define VK_BLEND_FACTOR_ONE                              1
+#define VK_BLEND_FACTOR_ZERO                             0
+#define VK_BLEND_OP_ADD                                  0
+#define VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER                6
+#define VK_DESCRIPTOR_TYPE_STORAGE_BUFFER                7
+#define VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT               0x00000010
+#define VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT              0x00000002
+#define VK_MEMORY_PROPERTY_HOST_COHERENT_BIT             0x00000004
+#define VK_WHOLE_SIZE                                    0xFFFFFFFFFFFFFFFFULL
 
 // ============================================================================
 //  SECTION 1: Dynamic loader (~180 lines)
@@ -841,6 +1195,23 @@ typedef void     (*PFN_vkCmdEndRenderPass)(VkCommandBuffer);
 typedef void     (*PFN_vkCmdBindPipeline)(VkCommandBuffer, VkPipelineBindPoint, VkPipeline);
 typedef void     (*PFN_vkCmdPushConstants)(VkCommandBuffer, VkPipelineLayout, VkShaderStageFlags, uint32_t, uint32_t, const void*);
 typedef void     (*PFN_vkCmdDraw)(VkCommandBuffer, uint32_t, uint32_t, uint32_t, uint32_t);
+typedef void     (*PFN_vkCmdSetViewport)(VkCommandBuffer, uint32_t, uint32_t, const VkViewport*);
+typedef void     (*PFN_vkCmdSetScissor)(VkCommandBuffer, uint32_t, uint32_t, const VkRect2D*);
+typedef VkResult (*PFN_vkCreateDescriptorSetLayout)(VkDevice, const VkDescriptorSetLayoutCreateInfo*, const void*, VkDescriptorSetLayout*);
+typedef void     (*PFN_vkDestroyDescriptorSetLayout)(VkDevice, VkDescriptorSetLayout, const void*);
+typedef VkResult (*PFN_vkCreateDescriptorPool)(VkDevice, const VkDescriptorPoolCreateInfo*, const void*, VkDescriptorPool*);
+typedef void     (*PFN_vkDestroyDescriptorPool)(VkDevice, VkDescriptorPool, const void*);
+typedef VkResult (*PFN_vkAllocateDescriptorSets)(VkDevice, const VkDescriptorSetAllocateInfo*, VkDescriptorSet*);
+typedef void     (*PFN_vkUpdateDescriptorSets)(VkDevice, uint32_t, const VkWriteDescriptorSet*, uint32_t, const void*);
+typedef VkResult (*PFN_vkCreateBuffer)(VkDevice, const VkBufferCreateInfo*, const void*, VkBuffer*);
+typedef void     (*PFN_vkDestroyBuffer)(VkDevice, VkBuffer, const void*);
+typedef void     (*PFN_vkGetBufferMemoryRequirements)(VkDevice, VkBuffer, VkMemoryRequirements*);
+typedef VkResult (*PFN_vkAllocateMemory)(VkDevice, const VkMemoryAllocateInfo*, const void*, VkDeviceMemory*);
+typedef void     (*PFN_vkFreeMemory)(VkDevice, VkDeviceMemory, const void*);
+typedef VkResult (*PFN_vkBindBufferMemory)(VkDevice, VkBuffer, VkDeviceMemory, VkDeviceSize);
+typedef VkResult (*PFN_vkMapMemory)(VkDevice, VkDeviceMemory, VkDeviceSize, VkDeviceSize, VkMemoryMapFlags, void**);
+typedef void     (*PFN_vkUnmapMemory)(VkDevice, VkDeviceMemory);
+typedef void     (*PFN_vkGetPhysicalDeviceMemoryProperties)(VkPhysicalDevice, VkPhysicalDeviceMemoryProperties*);
 
 static PFN_vkCreateRenderPass        pfn_vkCreateRenderPass = NULL;
 static PFN_vkDestroyRenderPass       pfn_vkDestroyRenderPass = NULL;
@@ -858,6 +1229,32 @@ static PFN_vkCmdEndRenderPass        pfn_vkCmdEndRenderPass = NULL;
 static PFN_vkCmdBindPipeline         pfn_vkCmdBindPipeline = NULL;
 static PFN_vkCmdPushConstants        pfn_vkCmdPushConstants = NULL;
 static PFN_vkCmdDraw                 pfn_vkCmdDraw = NULL;
+static PFN_vkCmdSetViewport          pfn_vkCmdSetViewport = NULL;
+static PFN_vkCmdSetScissor           pfn_vkCmdSetScissor = NULL;
+static PFN_vkCreateDescriptorSetLayout pfn_vkCreateDescriptorSetLayout = NULL;
+static PFN_vkDestroyDescriptorSetLayout pfn_vkDestroyDescriptorSetLayout = NULL;
+static PFN_vkCreateDescriptorPool    pfn_vkCreateDescriptorPool = NULL;
+static PFN_vkDestroyDescriptorPool   pfn_vkDestroyDescriptorPool = NULL;
+static PFN_vkAllocateDescriptorSets  pfn_vkAllocateDescriptorSets = NULL;
+static PFN_vkUpdateDescriptorSets    pfn_vkUpdateDescriptorSets = NULL;
+static PFN_vkCreateBuffer            pfn_vkCreateBuffer = NULL;
+static PFN_vkDestroyBuffer           pfn_vkDestroyBuffer = NULL;
+static PFN_vkGetBufferMemoryRequirements pfn_vkGetBufferMemoryRequirements = NULL;
+static PFN_vkAllocateMemory          pfn_vkAllocateMemory = NULL;
+static PFN_vkFreeMemory              pfn_vkFreeMemory = NULL;
+static PFN_vkBindBufferMemory        pfn_vkBindBufferMemory = NULL;
+static PFN_vkMapMemory               pfn_vkMapMemory = NULL;
+static PFN_vkUnmapMemory             pfn_vkUnmapMemory = NULL;
+static PFN_vkGetPhysicalDeviceMemoryProperties pfn_vkGetPhysicalDeviceMemoryProperties = NULL;
+
+/* Command buffer descriptor set binding */
+typedef void (*PFN_vkCmdBindDescriptorSets)(VkCommandBuffer, VkPipelineBindPoint,
+    VkPipelineLayout, uint32_t, uint32_t, const VkDescriptorSet*,
+    uint32_t, const uint32_t*);
+static PFN_vkCmdBindDescriptorSets pfn_vkCmdBindDescriptorSets = NULL;
+
+static void vulkan_abi_fill_pfn_table(void);
+static int  vulkan_abi_record_draw_commands(KainVulkanSession* session);
 
 static int g_vulkan_loader_opened = 0;
 
@@ -1034,6 +1431,44 @@ static void vulkan_abi_resolve_device_pfns(VkDevice device) {
         pfn_vkGetDeviceProcAddr(device, "vkCmdPushConstants");
     pfn_vkCmdDraw = (PFN_vkCmdDraw)
         pfn_vkGetDeviceProcAddr(device, "vkCmdDraw");
+    pfn_vkCmdSetViewport = (PFN_vkCmdSetViewport)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdSetViewport");
+    pfn_vkCmdSetScissor = (PFN_vkCmdSetScissor)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdSetScissor");
+    pfn_vkCreateDescriptorSetLayout = (PFN_vkCreateDescriptorSetLayout)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateDescriptorSetLayout");
+    pfn_vkDestroyDescriptorSetLayout = (PFN_vkDestroyDescriptorSetLayout)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyDescriptorSetLayout");
+    pfn_vkCreateDescriptorPool = (PFN_vkCreateDescriptorPool)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateDescriptorPool");
+    pfn_vkDestroyDescriptorPool = (PFN_vkDestroyDescriptorPool)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyDescriptorPool");
+    pfn_vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)
+        pfn_vkGetDeviceProcAddr(device, "vkAllocateDescriptorSets");
+    pfn_vkUpdateDescriptorSets = (PFN_vkUpdateDescriptorSets)
+        pfn_vkGetDeviceProcAddr(device, "vkUpdateDescriptorSets");
+    pfn_vkCreateBuffer = (PFN_vkCreateBuffer)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateBuffer");
+    pfn_vkDestroyBuffer = (PFN_vkDestroyBuffer)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyBuffer");
+    pfn_vkGetBufferMemoryRequirements = (PFN_vkGetBufferMemoryRequirements)
+        pfn_vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements");
+    pfn_vkAllocateMemory = (PFN_vkAllocateMemory)
+        pfn_vkGetDeviceProcAddr(device, "vkAllocateMemory");
+    pfn_vkFreeMemory = (PFN_vkFreeMemory)
+        pfn_vkGetDeviceProcAddr(device, "vkFreeMemory");
+    pfn_vkBindBufferMemory = (PFN_vkBindBufferMemory)
+        pfn_vkGetDeviceProcAddr(device, "vkBindBufferMemory");
+    pfn_vkMapMemory = (PFN_vkMapMemory)
+        pfn_vkGetDeviceProcAddr(device, "vkMapMemory");
+    pfn_vkUnmapMemory = (PFN_vkUnmapMemory)
+        pfn_vkGetDeviceProcAddr(device, "vkUnmapMemory");
+    pfn_vkGetPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties)
+        pfn_vkGetDeviceProcAddr(device, "vkGetPhysicalDeviceMemoryProperties");
+
+    /* ── vkCmdBindDescriptorSets ── */
+    pfn_vkCmdBindDescriptorSets = (PFN_vkCmdBindDescriptorSets)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdBindDescriptorSets");
 
     vulkan_abi_fill_pfn_table();  /* re-publish with device-level PFNs */
 }
@@ -1553,6 +1988,11 @@ static int vulkan_abi_begin_frame(KainVulkanSession* session) {
                                        &begin_info);
     if (result != VK_SUCCESS) return -3;
 
+    /* Record draw commands if pipeline is ready */
+    if (session->pipeline_ready) {
+        vulkan_abi_record_draw_commands(session);
+    }
+
     return 0;
 }
 
@@ -1914,6 +2354,42 @@ static void vulkan_session_destroy(int64_t sid) {
             }
         }
 
+        /* ── Destroy rendering pipeline objects ── */
+        if (s->pipeline != (VkPipeline)0) {
+            pfn_vkDestroyPipeline(s->device, s->pipeline, NULL);
+            s->pipeline = (VkPipeline)0;
+        }
+        if (s->pipeline_layout != (VkPipelineLayout)0) {
+            pfn_vkDestroyPipelineLayout(s->device, s->pipeline_layout, NULL);
+            s->pipeline_layout = (VkPipelineLayout)0;
+        }
+        if (s->descriptor_set_layout != (VkDescriptorSetLayout)0) {
+            pfn_vkDestroyDescriptorSetLayout(s->device, s->descriptor_set_layout, NULL);
+            s->descriptor_set_layout = (VkDescriptorSetLayout)0;
+        }
+        if (s->descriptor_pool != (VkDescriptorPool)0) {
+            pfn_vkDestroyDescriptorPool(s->device, s->descriptor_pool, NULL);
+            s->descriptor_pool = (VkDescriptorPool)0;
+        }
+        for (uint32_t i = 0; i < KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT; i++) {
+            if (s->uniform_mapped[i] != NULL) {
+                pfn_vkUnmapMemory(s->device, s->uniform_memory[i]);
+                s->uniform_mapped[i] = NULL;
+            }
+            if (s->uniform_memory[i] != (VkDeviceMemory)0) {
+                pfn_vkFreeMemory(s->device, s->uniform_memory[i], NULL);
+                s->uniform_memory[i] = (VkDeviceMemory)0;
+            }
+            if (s->uniform_buffers[i] != (VkBuffer)0) {
+                pfn_vkDestroyBuffer(s->device, s->uniform_buffers[i], NULL);
+                s->uniform_buffers[i] = (VkBuffer)0;
+            }
+        }
+        if (s->render_pass != (VkRenderPass)0) {
+            pfn_vkDestroyRenderPass(s->device, s->render_pass, NULL);
+            s->render_pass = (VkRenderPass)0;
+        }
+
         /* Destroy command pool (also frees command buffers) */
         if (s->command_pool != (VkCommandPool)0) {
             pfn_vkDestroyCommandPool(s->device, s->command_pool, NULL);
@@ -2152,6 +2628,871 @@ static void vulkan_abi_fill_pfn_table(void) {
     p->vkCmdBindPipeline                        = (KainPfn_vkCmdBindPipeline)pfn_vkCmdBindPipeline;
     p->vkCmdPushConstants                       = (KainPfn_vkCmdPushConstants)pfn_vkCmdPushConstants;
     p->vkCmdDraw                                = (KainPfn_vkCmdDraw)pfn_vkCmdDraw;
+    p->vkCmdSetViewport                         = (KainPfn_vkCmdSetViewport)pfn_vkCmdSetViewport;
+    p->vkCmdSetScissor                          = (KainPfn_vkCmdSetScissor)pfn_vkCmdSetScissor;
+    p->vkCreateDescriptorSetLayout              = (KainPfn_vkCreateDescriptorSetLayout)pfn_vkCreateDescriptorSetLayout;
+    p->vkDestroyDescriptorSetLayout             = (KainPfn_vkDestroyDescriptorSetLayout)pfn_vkDestroyDescriptorSetLayout;
+    p->vkCreateDescriptorPool                   = (KainPfn_vkCreateDescriptorPool)pfn_vkCreateDescriptorPool;
+    p->vkDestroyDescriptorPool                  = (KainPfn_vkDestroyDescriptorPool)pfn_vkDestroyDescriptorPool;
+    p->vkAllocateDescriptorSets                 = (KainPfn_vkAllocateDescriptorSets)pfn_vkAllocateDescriptorSets;
+    p->vkUpdateDescriptorSets                   = (KainPfn_vkUpdateDescriptorSets)pfn_vkUpdateDescriptorSets;
+    p->vkCreateBuffer                           = (KainPfn_vkCreateBuffer)pfn_vkCreateBuffer;
+    p->vkDestroyBuffer                          = (KainPfn_vkDestroyBuffer)pfn_vkDestroyBuffer;
+    p->vkGetBufferMemoryRequirements            = (KainPfn_vkGetBufferMemoryRequirements)pfn_vkGetBufferMemoryRequirements;
+    p->vkAllocateMemory                         = (KainPfn_vkAllocateMemory)pfn_vkAllocateMemory;
+    p->vkFreeMemory                             = (KainPfn_vkFreeMemory)pfn_vkFreeMemory;
+    p->vkBindBufferMemory                       = (KainPfn_vkBindBufferMemory)pfn_vkBindBufferMemory;
+    p->vkMapMemory                              = (KainPfn_vkMapMemory)pfn_vkMapMemory;
+    p->vkUnmapMemory                            = (KainPfn_vkUnmapMemory)pfn_vkUnmapMemory;
+    p->vkGetPhysicalDeviceMemoryProperties      = (KainPfn_vkGetPhysicalDeviceMemoryProperties)pfn_vkGetPhysicalDeviceMemoryProperties;
+}
+
+// ============================================================================
+//  SECTION 10: Shader Module Creation (~80 lines)
+// ============================================================================
+
+/* ── vulkan_abi_create_shader_module ───────────────────────────── */
+
+static VkResult vulkan_abi_create_shader_module(
+    VkDevice         device,
+    const uint32_t*  spirv_bytes,
+    size_t           byte_length,
+    VkShaderModule*  out_module)
+{
+    if (!device || !spirv_bytes || !byte_length || !out_module)
+        return VK_ERROR_INITIALIZATION_FAILED;
+
+    VkShaderModuleCreateInfo info;
+    memset(&info, 0, sizeof(info));
+    info.sType    = S_TYPE_SHADER_MODULE_CREATE_INFO;
+    info.codeSize = byte_length;
+    info.pCode    = spirv_bytes;
+
+    return pfn_vkCreateShaderModule(device, &info, NULL, out_module);
+}
+
+/* ── hex_to_u32 ────────────────────────────────────────────────── */
+/* Converts a hex character to its 4-bit value. Returns -1 on error. */
+
+static int hex_to_u32(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* ── vulkan_abi_decode_spirv_hex ───────────────────────────────── */
+/* Decodes a hex-encoded SPIR-V string (e.g. "07230203...") into
+ * binary uint32_t array. Returns malloc'd buffer; caller frees.
+ * out_word_count is set to the number of uint32_t words. */
+
+static uint32_t* vulkan_abi_decode_spirv_hex(
+    const char* hex_str,
+    size_t*     out_word_count)
+{
+    if (!hex_str || !out_word_count) return NULL;
+
+    size_t hex_len = strlen(hex_str);
+    /* Each uint32_t is 8 hex chars */
+    size_t word_count = hex_len / 8;
+    if (word_count == 0 || (hex_len % 8) != 0) return NULL;
+
+    uint32_t* words = (uint32_t*)malloc(word_count * sizeof(uint32_t));
+    if (!words) return NULL;
+
+    for (size_t i = 0; i < word_count; i++) {
+        uint32_t val = 0;
+        for (int j = 0; j < 8; j++) {
+            int nibble = hex_to_u32(hex_str[i * 8 + j]);
+            if (nibble < 0) { free(words); return NULL; }
+            val = (val << 4) | (uint32_t)nibble;
+        }
+        words[i] = val;
+    }
+
+    *out_word_count = word_count;
+    return words;
+}
+
+// ============================================================================
+//  SECTION 11: Pipeline Creation (~200 lines)
+// ============================================================================
+
+/* Hardcoded fullscreen-triangle vertex shader in SPIR-V.
+ * Compiled from:
+ *   #version 450
+ *   layout(location = 0) out vec2 fragUV;
+ *   void main() {
+ *       vec2 pos[3] = vec2[](vec2(-1,-1), vec2(3,-1), vec2(-1,3));
+ *       vec2 uv[3]  = vec2[](vec2(0,0), vec2(2,0), vec2(0,2));
+ *       gl_Position = vec4(pos[gl_VertexIndex], 0.0, 1.0);
+ *       fragUV = uv[gl_VertexIndex];
+ *   }
+ * 340 bytes, SPIR-V 1.0 */
+
+static const uint32_t g_fullscreen_vert_spirv[] = {
+    0x07230203, 0x00010000, 0x0008000B, 0x0000001E,
+    0x00000000, 0x00020011, 0x00000001, 0x0006000B,
+    0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
+    0x00000000, 0x0003000E, 0x00000000, 0x00000001,
+    0x000A000F, 0x00000000, 0x00000004, 0x6E69616D,
+    0x00000000, 0x0000000D, 0x00000019, 0x0000001B,
+    0x0000001C, 0x0000001D, 0x00030003, 0x00000002,
+    0x00000190, 0x00090004, 0x455F4C47, 0x735F5458,
+    0x636E6574, 0x656C5F6C, 0x79745F67, 0x00006570,
+    0x0000000B, 0x00040005, 0x00000004, 0x6E69616D,
+    0x00000000, 0x00050005, 0x0000000D, 0x67617266,
+    0x00565955, 0x00060005, 0x00000019, 0x505F6C67,
+    0x7469736F, 0x006E6F69, 0x00070005, 0x0000001B,
+    0x736F705F, 0x6E697469, 0x00736F70, 0x00060005,
+    0x0000001C, 0x73755F76, 0x6E697469, 0x00736F70,
+    0x00050048, 0x0000000D, 0x00000000, 0x0000000B,
+    0x00000000, 0x00050048, 0x0000000D, 0x00000001,
+    0x0000000B, 0x00000001, 0x00050048, 0x0000000D,
+    0x00000002, 0x0000000B, 0x00000003, 0x00050048,
+    0x0000000D, 0x00000003, 0x0000000B, 0x00000004,
+    0x00030047, 0x0000000D, 0x00000002, 0x00040047,
+    0x00000019, 0x0000000B, 0x00000000, 0x00040047,
+    0x0000001B, 0x0000000B, 0x00000001, 0x00040047,
+    0x0000001C, 0x0000000B, 0x00000000, 0x00020013,
+    0x00000002, 0x00030021, 0x00000003, 0x00000002,
+    0x00030016, 0x00000006, 0x00000020, 0x00040017,
+    0x00000007, 0x00000006, 0x00000002, 0x00040015,
+    0x00000008, 0x00000020, 0x00000000, 0x0004002B,
+    0x00000008, 0x00000009, 0x00000003, 0x0004001C,
+    0x0000000A, 0x00000007, 0x00000009, 0x00040020,
+    0x0000000B, 0x00000006, 0x0000000A, 0x0004003B,
+    0x0000000B, 0x0000000C, 0x00000006, 0x00040020,
+    0x0000000E, 0x00000001, 0x00000007, 0x0004003B,
+    0x0000000E, 0x0000000D, 0x00000001, 0x00040017,
+    0x00000010, 0x00000006, 0x00000004, 0x00040020,
+    0x00000018, 0x00000003, 0x00000010, 0x0004003B,
+    0x00000018, 0x00000019, 0x00000003, 0x0004002B,
+    0x00000006, 0x0000001A, 0xBF000000, 0x0005002C,
+    0x00000007, 0x0000001B, 0x0000001A, 0x0000001A,
+    0x0004002B, 0x00000006, 0x0000001C, 0x40400000,
+    0x0004002B, 0x00000006, 0x0000001D, 0x00000000,
+    0x0005002C, 0x00000007, 0x0000001E, 0x0000001D,
+    0x0000001D, 0x0005002C, 0x00000007, 0x0000001F,
+    0x0000001C, 0x0000001D, 0x0005002C, 0x00000007,
+    0x00000020, 0x0000001D, 0x0000001C, 0x0009002C,
+    0x0000000A, 0x00000021, 0x0000001B, 0x0000001E,
+    0x0000001F, 0x00000020, 0x0000001E, 0x0000001F,
+    0x00000020, 0x00040020, 0x00000024, 0x00000006,
+    0x00000007, 0x0004002B, 0x00000008, 0x00000029,
+    0x00000042, 0x0004002B, 0x00000008, 0x00000031,
+    0x00000000, 0x0004002B, 0x00000008, 0x00000033,
+    0x00000001, 0x00040020, 0x00000034, 0x00000006,
+    0x00000006, 0x00050036, 0x00000002, 0x00000004,
+    0x00000000, 0x00000003, 0x000200F8, 0x00000005,
+    0x0004003B, 0x00000024, 0x00000025, 0x00000006,
+    0x0004003B, 0x00000024, 0x0000002D, 0x00000006,
+    0x0003003E, 0x0000000C, 0x00000021, 0x00050041,
+    0x00000024, 0x00000026, 0x0000000C, 0x00000009,
+    0x0004003D, 0x00000007, 0x00000027, 0x00000026,
+    0x00050051, 0x00000006, 0x00000028, 0x00000027,
+    0x00000000, 0x00050051, 0x00000006, 0x0000002A,
+    0x00000027, 0x00000001, 0x00050050, 0x00000010,
+    0x0000002B, 0x00000028, 0x0000002A, 0x0005003E,
+    0x00000019, 0x0000002B, 0x0000001D, 0x00000033,
+    0x00050041, 0x00000024, 0x0000002E, 0x0000000C,
+    0x00000029, 0x0004003D, 0x00000007, 0x0000002F,
+    0x0000002E, 0x00050051, 0x00000006, 0x00000030,
+    0x0000002F, 0x00000000, 0x00050051, 0x00000006,
+    0x00000032, 0x0000002F, 0x00000001, 0x0003003E,
+    0x0000000D, 0x00000030, 0x0003003E, 0x00000025,
+    0x00000032, 0x0003003E, 0x0000002D, 0x00000030,
+    0x00050041, 0x00000034, 0x00000035, 0x0000002D,
+    0x00000029, 0x0004003D, 0x00000006, 0x00000036,
+    0x00000035, 0x00050041, 0x00000034, 0x00000037,
+    0x0000002D, 0x00000033, 0x0004003D, 0x00000006,
+    0x00000038, 0x00000037, 0x000200FE, 0x00000038,
+    0x000200FE, 0x00000036
+};
+
+static const size_t g_fullscreen_vert_spirv_len =
+    sizeof(g_fullscreen_vert_spirv);
+
+/* ── vulkan_abi_create_graphics_pipeline ───────────────────────── */
+
+static int vulkan_abi_create_graphics_pipeline(
+    KainVulkanSession* session,
+    const uint32_t*    vert_spirv,
+    size_t             vert_len,
+    const uint32_t*    frag_spirv,
+    size_t             frag_len)
+{
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    VkResult result;
+
+    /* Create vertex + fragment shader modules */
+    VkShaderModule vert_module = (VkShaderModule)0;
+    VkShaderModule frag_module = (VkShaderModule)0;
+
+    result = vulkan_abi_create_shader_module(device, vert_spirv,
+                                              vert_len, &vert_module);
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-50, "vkCreateShaderModule (vertex) failed");
+        return -1;
+    }
+
+    result = vulkan_abi_create_shader_module(device, frag_spirv,
+                                              frag_len, &frag_module);
+    if (result != VK_SUCCESS) {
+        pfn_vkDestroyShaderModule(device, vert_module, NULL);
+        vulkan_abi_set_error(-51, "vkCreateShaderModule (fragment) failed");
+        return -1;
+    }
+
+    /* Build pipeline shader stage create infos */
+    VkPipelineShaderStageCreateInfo vert_stage;
+    memset(&vert_stage, 0, sizeof(vert_stage));
+    vert_stage.sType  = S_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_stage.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+    vert_stage.module = vert_module;
+    vert_stage.pName  = "main";
+
+    VkPipelineShaderStageCreateInfo frag_stage;
+    memset(&frag_stage, 0, sizeof(frag_stage));
+    frag_stage.sType  = S_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    frag_stage.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+    frag_stage.module = frag_module;
+    frag_stage.pName  = "main";
+
+    VkPipelineShaderStageCreateInfo stages[2] = { vert_stage, frag_stage };
+
+    /* Vertex input state (empty — full-screen triangle via gl_VertexIndex) */
+    VkPipelineVertexInputStateCreateInfo vertex_input;
+    memset(&vertex_input, 0, sizeof(vertex_input));
+    vertex_input.sType = S_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    /* Input assembly state */
+    VkPipelineInputAssemblyStateCreateInfo input_assembly;
+    memset(&input_assembly, 0, sizeof(input_assembly));
+    input_assembly.sType    = S_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    /* Viewport state (dynamic — set at draw time) */
+    VkPipelineViewportStateCreateInfo viewport_state;
+    memset(&viewport_state, 0, sizeof(viewport_state));
+    viewport_state.sType         = S_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state.viewportCount = 1;
+    viewport_state.scissorCount  = 1;
+
+    /* Rasterization state */
+    VkPipelineRasterizationStateCreateInfo rasterization;
+    memset(&rasterization, 0, sizeof(rasterization));
+    rasterization.sType       = S_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterization.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization.cullMode    = VK_CULL_MODE_NONE;
+    rasterization.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterization.lineWidth   = 1.0f;
+
+    /* Multisample state */
+    VkPipelineMultisampleStateCreateInfo multisample;
+    memset(&multisample, 0, sizeof(multisample));
+    multisample.sType                = S_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    /* Color blend attachment state */
+    VkPipelineColorBlendAttachmentState blend_attachment;
+    memset(&blend_attachment, 0, sizeof(blend_attachment));
+    blend_attachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+    /* Color blend state */
+    VkPipelineColorBlendStateCreateInfo color_blend;
+    memset(&color_blend, 0, sizeof(color_blend));
+    color_blend.sType           = S_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend.attachmentCount = 1;
+    color_blend.pAttachments    = &blend_attachment;
+
+    /* Pipeline layout (use session's layout which has descriptor set layout) */
+    VkPipelineLayout pipeline_layout = session->pipeline_layout;
+    if (pipeline_layout == (VkPipelineLayout)0) {
+        /* Fallback: empty pipeline layout */
+        VkPipelineLayoutCreateInfo layout_info;
+        memset(&layout_info, 0, sizeof(layout_info));
+        layout_info.sType = S_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        result = pfn_vkCreatePipelineLayout(device, &layout_info, NULL,
+                                             &pipeline_layout);
+        if (result != VK_SUCCESS) {
+            pfn_vkDestroyShaderModule(device, frag_module, NULL);
+            pfn_vkDestroyShaderModule(device, vert_module, NULL);
+            vulkan_abi_set_error(-52, "vkCreatePipelineLayout failed");
+            return -1;
+        }
+        session->pipeline_layout = pipeline_layout;
+    }
+
+    /* Graphics pipeline create info */
+    VkGraphicsPipelineCreateInfo pipeline_info;
+    memset(&pipeline_info, 0, sizeof(pipeline_info));
+    pipeline_info.sType               = S_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_info.stageCount          = 2;
+    pipeline_info.pStages             = stages;
+    pipeline_info.pVertexInputState   = &vertex_input;
+    pipeline_info.pInputAssemblyState = &input_assembly;
+    pipeline_info.pViewportState      = &viewport_state;
+    pipeline_info.pRasterizationState = &rasterization;
+    pipeline_info.pMultisampleState   = &multisample;
+    pipeline_info.pColorBlendState    = &color_blend;
+    pipeline_info.layout              = pipeline_layout;
+    pipeline_info.renderPass          = session->render_pass;
+    pipeline_info.subpass             = 0;
+
+    /* Create pipeline */
+    VkPipeline pipeline = (VkPipeline)0;
+    result = pfn_vkCreateGraphicsPipelines(device, (VkPipelineCache)0,
+                                            1, &pipeline_info, NULL, &pipeline);
+
+    /* Destroy shader modules (no longer needed after pipeline creation) */
+    pfn_vkDestroyShaderModule(device, frag_module, NULL);
+    pfn_vkDestroyShaderModule(device, vert_module, NULL);
+
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-53, "vkCreateGraphicsPipelines failed");
+        return -1;
+    }
+
+    session->pipeline = pipeline;
+    return 0;
+}
+
+// ============================================================================
+//  SECTION 12: Render Pass & Framebuffer Creation (~100 lines)
+// ============================================================================
+
+/* ── vulkan_abi_create_render_pass ─────────────────────────────── */
+
+static int vulkan_abi_create_render_pass(KainVulkanSession* session) {
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    /* ── Attachment description ── */
+    VkAttachmentDescription color_attachment;
+    memset(&color_attachment, 0, sizeof(color_attachment));
+    color_attachment.format         = VK_FORMAT_B8G8R8A8_SRGB;
+    color_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    /* ── Attachment reference ── */
+    VkAttachmentReference color_ref;
+    memset(&color_ref, 0, sizeof(color_ref));
+    color_ref.attachment = 0;
+    color_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    /* ── Subpass description ── */
+    VkSubpassDescription subpass;
+    memset(&subpass, 0, sizeof(subpass));
+    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments    = &color_ref;
+
+    /* ── Render pass create info ── */
+    VkRenderPassCreateInfo rp_info;
+    memset(&rp_info, 0, sizeof(rp_info));
+    rp_info.sType           = 38; /* VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO */
+    rp_info.attachmentCount = 1;
+    rp_info.pAttachments    = &color_attachment;
+    rp_info.subpassCount    = 1;
+    rp_info.pSubpasses      = &subpass;
+
+    VkResult result = pfn_vkCreateRenderPass(device, &rp_info, NULL,
+                                              &session->render_pass);
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-60, "vkCreateRenderPass failed");
+        return -1;
+    }
+
+    /* ── Create framebuffers for each swapchain image view ── */
+    for (uint32_t i = 0; i < session->swapchain_image_count; i++) {
+        VkFramebufferCreateInfo fb_info;
+        memset(&fb_info, 0, sizeof(fb_info));
+        fb_info.sType           = 37; /* VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO */
+        fb_info.renderPass      = session->render_pass;
+        fb_info.attachmentCount = 1;
+        fb_info.pAttachments    = &session->swapchain_image_views[i];
+        fb_info.width           = (uint32_t)session->width;
+        fb_info.height          = (uint32_t)session->height;
+        fb_info.layers          = 1;
+
+        result = pfn_vkCreateFramebuffer(device, &fb_info, NULL,
+                                          &session->framebuffers[i]);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-61, "vkCreateFramebuffer failed");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+// ============================================================================
+//  SECTION 13: Draw Command Recording (~150 lines)
+// ============================================================================
+
+/* ── vulkan_abi_record_draw_commands ───────────────────────────── */
+
+static int vulkan_abi_record_draw_commands(KainVulkanSession* session) {
+    VkCommandBuffer cmd = session->command_buffers[session->current_frame];
+    uint32_t image_index = session->current_image_index;
+    uint32_t frame       = session->current_frame;
+
+    if (session->render_pass == (VkRenderPass)0) return -1;
+    if (session->pipeline == (VkPipeline)0) return -2;
+
+    /* ── Begin render pass ── */
+    VkClearValue clear_value;
+    memset(&clear_value, 0, sizeof(clear_value));
+    clear_value.color.float32[0] = 0.0f;  /* dark ocean blue */
+    clear_value.color.float32[1] = 0.05f;
+    clear_value.color.float32[2] = 0.15f;
+    clear_value.color.float32[3] = 1.0f;
+
+    VkRect2D render_area;
+    memset(&render_area, 0, sizeof(render_area));
+    render_area.offset.x      = 0;
+    render_area.offset.y      = 0;
+    render_area.extent.width  = (uint32_t)session->width;
+    render_area.extent.height = (uint32_t)session->height;
+
+    VkRenderPassBeginInfo rp_begin;
+    memset(&rp_begin, 0, sizeof(rp_begin));
+    rp_begin.sType             = 43; /* VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO */
+    rp_begin.renderPass        = session->render_pass;
+    rp_begin.framebuffer       = session->framebuffers[image_index];
+    rp_begin.renderArea        = render_area;
+    rp_begin.clearValueCount   = 1;
+    rp_begin.pClearValues      = &clear_value;
+
+    pfn_vkCmdBeginRenderPass(cmd, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+
+    /* ── Bind pipeline ── */
+    pfn_vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          session->pipeline);
+
+    /* ── Set viewport ── */
+    VkViewport viewport;
+    viewport.x        = 0.0f;
+    viewport.y        = 0.0f;
+    viewport.width    = (float)session->width;
+    viewport.height   = (float)session->height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    if (pfn_vkCmdSetViewport) {
+        pfn_vkCmdSetViewport(cmd, 0, 1, &viewport);
+    }
+
+    /* ── Set scissor ── */
+    VkRect2D scissor;
+    scissor.offset.x      = 0;
+    scissor.offset.y      = 0;
+    scissor.extent.width  = (uint32_t)session->width;
+    scissor.extent.height = (uint32_t)session->height;
+
+    if (pfn_vkCmdSetScissor) {
+        pfn_vkCmdSetScissor(cmd, 0, 1, &scissor);
+    }
+
+    /* ── Bind descriptor sets (uniforms from ocean.kn) ── */
+    if (session->descriptor_set_layout != (VkDescriptorSetLayout)0 &&
+        session->descriptor_sets[frame] != (VkDescriptorSet)0) {
+        pfn_vkCmdBindDescriptorSets(
+            cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            session->pipeline_layout, 0, 1,
+            &session->descriptor_sets[frame], 0, NULL);
+    }
+
+    /* ── Draw: 3 vertices = full-screen triangle ── */
+    pfn_vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    /* ── End render pass ── */
+    pfn_vkCmdEndRenderPass(cmd);
+
+    return 0;
+}
+
+// ============================================================================
+//  SECTION 14: Descriptor Set Layout & Uniform Buffers (~150 lines)
+// ============================================================================
+
+/* Forward declare vkCmdBindDescriptorSets — resolved at device time
+ * alongside other PFNs. */
+
+#define OCEAN_UNIFORM_BUFFER_SIZE 256
+
+/* ── vulkan_abi_create_descriptor_set_layout ───────────────────── */
+/* Creates descriptor set layout matching ocean.kn's uniforms:
+ *   binding 0: uniform time: Float
+ *   binding 1: uniform resolution: Vec2
+ *   binding 2: uniform mouse: Vec2
+ *   binding 3: StorageBuffer (not used for fullscreen triangle) */
+
+static int vulkan_abi_create_descriptor_set_layout(KainVulkanSession* session) {
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    VkDescriptorSetLayoutBinding bindings[3];
+    memset(bindings, 0, sizeof(bindings));
+
+    /* binding 0: time (Float) */
+    bindings[0].binding         = 0;
+    bindings[0].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[0].descriptorCount = 1;
+    bindings[0].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    /* binding 1: resolution (Vec2) */
+    bindings[1].binding         = 1;
+    bindings[1].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    /* binding 2: mouse (Vec2) */
+    bindings[2].binding         = 2;
+    bindings[2].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[2].descriptorCount = 1;
+    bindings[2].stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layout_info;
+    memset(&layout_info, 0, sizeof(layout_info));
+    layout_info.sType        = S_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = 3;
+    layout_info.pBindings    = bindings;
+
+    VkResult result = pfn_vkCreateDescriptorSetLayout(device, &layout_info,
+                                                       NULL,
+                                                       &session->descriptor_set_layout);
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-70, "vkCreateDescriptorSetLayout failed");
+        return -1;
+    }
+
+    return 0;
+}
+
+/* ── vulkan_abi_create_descriptor_pool_and_sets ────────────────── */
+
+static int vulkan_abi_create_descriptor_pool_and_sets(KainVulkanSession* session) {
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    /* ── Descriptor pool ── */
+    VkDescriptorPoolSize pool_size;
+    memset(&pool_size, 0, sizeof(pool_size));
+    pool_size.type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_size.descriptorCount = 3 * KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT;
+
+    VkDescriptorPoolCreateInfo pool_info;
+    memset(&pool_info, 0, sizeof(pool_info));
+    pool_info.sType         = S_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.maxSets       = KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT;
+    pool_info.poolSizeCount = 1;
+    pool_info.pPoolSizes    = &pool_size;
+
+    VkResult result = pfn_vkCreateDescriptorPool(device, &pool_info, NULL,
+                                                  &session->descriptor_pool);
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-71, "vkCreateDescriptorPool failed");
+        return -1;
+    }
+
+    /* ── Allocate descriptor sets ── */
+    VkDescriptorSetLayout layouts[KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT];
+    for (uint32_t i = 0; i < KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT; i++) {
+        layouts[i] = session->descriptor_set_layout;
+    }
+
+    VkDescriptorSetAllocateInfo alloc_info;
+    memset(&alloc_info, 0, sizeof(alloc_info));
+    alloc_info.sType              = S_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool     = session->descriptor_pool;
+    alloc_info.descriptorSetCount = KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT;
+    alloc_info.pSetLayouts        = layouts;
+
+    result = pfn_vkAllocateDescriptorSets(device, &alloc_info,
+                                           session->descriptor_sets);
+    if (result != VK_SUCCESS) {
+        vulkan_abi_set_error(-72, "vkAllocateDescriptorSets failed");
+        return -1;
+    }
+
+    return 0;
+}
+
+/* ── vulkan_abi_create_uniform_buffers ─────────────────────────── */
+
+static int vulkan_abi_create_uniform_buffers(KainVulkanSession* session) {
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    VkResult result;
+
+    for (uint32_t i = 0; i < KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT; i++) {
+        /* ── Create buffer ── */
+        VkBufferCreateInfo buffer_info;
+        memset(&buffer_info, 0, sizeof(buffer_info));
+        buffer_info.sType       = S_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size        = OCEAN_UNIFORM_BUFFER_SIZE;
+        buffer_info.usage       = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        result = pfn_vkCreateBuffer(device, &buffer_info, NULL,
+                                     &session->uniform_buffers[i]);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-73, "vkCreateBuffer failed");
+            return -1;
+        }
+
+        /* ── Get memory requirements ── */
+        VkMemoryRequirements mem_reqs;
+        memset(&mem_reqs, 0, sizeof(mem_reqs));
+        pfn_vkGetBufferMemoryRequirements(device, session->uniform_buffers[i],
+                                           &mem_reqs);
+
+        /* ── Find host-visible + host-coherent memory type ── */
+        VkPhysicalDeviceMemoryProperties mem_props;
+        memset(&mem_props, 0, sizeof(mem_props));
+        pfn_vkGetPhysicalDeviceMemoryProperties(session->physical_device,
+                                                 &mem_props);
+
+        uint32_t memory_type_index = 0xFFFFFFFF;
+        for (uint32_t j = 0; j < mem_props.memoryTypeCount; j++) {
+            if ((mem_reqs.memoryTypeBits & (1u << j)) &&
+                (mem_props.memoryTypes[j].propertyFlags &
+                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                    (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+                memory_type_index = j;
+                break;
+            }
+        }
+        if (memory_type_index == 0xFFFFFFFF) {
+            /* Fallback: just host-visible */
+            for (uint32_t j = 0; j < mem_props.memoryTypeCount; j++) {
+                if ((mem_reqs.memoryTypeBits & (1u << j)) &&
+                    (mem_props.memoryTypes[j].propertyFlags &
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+                    memory_type_index = j;
+                    break;
+                }
+            }
+        }
+        if (memory_type_index == 0xFFFFFFFF) {
+            vulkan_abi_set_error(-74, "No suitable memory type for uniform buffer");
+            return -1;
+        }
+
+        /* ── Allocate memory ── */
+        VkMemoryAllocateInfo alloc_info;
+        memset(&alloc_info, 0, sizeof(alloc_info));
+        alloc_info.sType          = S_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_reqs.size;
+        alloc_info.memoryTypeIndex = memory_type_index;
+
+        result = pfn_vkAllocateMemory(device, &alloc_info, NULL,
+                                       &session->uniform_memory[i]);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-75, "vkAllocateMemory failed");
+            return -1;
+        }
+
+        /* ── Bind buffer memory ── */
+        result = pfn_vkBindBufferMemory(device, session->uniform_buffers[i],
+                                         session->uniform_memory[i], 0);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-76, "vkBindBufferMemory failed");
+            return -1;
+        }
+
+        /* ── Map memory ── */
+        result = pfn_vkMapMemory(device, session->uniform_memory[i], 0,
+                                  OCEAN_UNIFORM_BUFFER_SIZE, 0,
+                                  &session->uniform_mapped[i]);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-77, "vkMapMemory failed");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/* ── vulkan_abi_update_descriptor_sets ─────────────────────────── */
+/* Writes the uniform buffer descriptors for each frame's descriptor set. */
+
+static int vulkan_abi_update_descriptor_sets(KainVulkanSession* session) {
+    VkDevice device = session->device;
+    if (device == (VkDevice)0) return -1;
+
+    for (uint32_t i = 0; i < KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo buffer_infos[3];
+        VkWriteDescriptorSet writes[3];
+        memset(buffer_infos, 0, sizeof(buffer_infos));
+        memset(writes, 0, sizeof(writes));
+
+        for (uint32_t b = 0; b < 3; b++) {
+            buffer_infos[b].buffer = session->uniform_buffers[i];
+            buffer_infos[b].offset = b * 64; /* 64 bytes per binding */
+            buffer_infos[b].range  = 64;
+
+            writes[b].sType           = S_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[b].dstSet          = session->descriptor_sets[i];
+            writes[b].dstBinding      = b;
+            writes[b].descriptorCount = 1;
+            writes[b].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            writes[b].pBufferInfo     = &buffer_infos[b];
+        }
+
+        pfn_vkUpdateDescriptorSets(device, 3, writes, 0, NULL);
+    }
+
+    return 0;
+}
+
+// ============================================================================
+//  SECTION 15: Exported Helpers & Pipeline Boot (~100 lines)
+// ============================================================================
+
+/* ── kain_vulkan_abi_load_shader ───────────────────────────────── */
+/* Decodes a hex-encoded SPIR-V fragment shader, creates the full
+ * rendering pipeline (render pass, pipeline, descriptor sets,
+ * uniform buffers) and marks the session as pipeline-ready.
+ * The vertex shader is our hardcoded fullscreen triangle. */
+
+KAIN_VULKAN_ABI_EXPORT int kain_vulkan_abi_load_shader(
+    int64_t session_id, const char* spirv_hex)
+{
+    KainVulkanSession* s = vulkan_find_session(session_id);
+    if (!s) {
+        vulkan_abi_set_error(-80, "kain_vulkan_abi_load_shader: invalid session");
+        return -1;
+    }
+    if (s->device == (VkDevice)0) {
+        vulkan_abi_set_error(-81, "kain_vulkan_abi_load_shader: session not attached");
+        return -1;
+    }
+    if (!spirv_hex || !spirv_hex[0]) {
+        vulkan_abi_set_error(-82, "kain_vulkan_abi_load_shader: null/empty hex");
+        return -1;
+    }
+
+    /* Decode hex SPIR-V to binary */
+    size_t frag_word_count = 0;
+    uint32_t* frag_spirv = vulkan_abi_decode_spirv_hex(spirv_hex,
+                                                         &frag_word_count);
+    if (!frag_spirv) {
+        vulkan_abi_set_error(-83, "kain_vulkan_abi_load_shader: hex decode failed");
+        return -1;
+    }
+
+    int rc = 0;
+
+    /* 1. Create render pass (if not already done) */
+    if (s->render_pass == (VkRenderPass)0) {
+        rc = vulkan_abi_create_render_pass(s);
+        if (rc != 0) {
+            free(frag_spirv);
+            return rc;
+        }
+    }
+
+    /* 2. Create descriptor set layout */
+    if (s->descriptor_set_layout == (VkDescriptorSetLayout)0) {
+        rc = vulkan_abi_create_descriptor_set_layout(s);
+        if (rc != 0) {
+            free(frag_spirv);
+            return rc;
+        }
+    }
+
+    /* 3. Create pipeline layout */
+    if (s->pipeline_layout == (VkPipelineLayout)0) {
+        VkPipelineLayoutCreateInfo layout_info;
+        memset(&layout_info, 0, sizeof(layout_info));
+        layout_info.sType          = S_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layout_info.setLayoutCount = 1;
+        layout_info.pSetLayouts    = &s->descriptor_set_layout;
+
+        VkResult result = pfn_vkCreatePipelineLayout(s->device, &layout_info,
+                                                      NULL, &s->pipeline_layout);
+        if (result != VK_SUCCESS) {
+            free(frag_spirv);
+            vulkan_abi_set_error(-84, "vkCreatePipelineLayout failed");
+            return -1;
+        }
+    }
+
+    /* 4. Create graphics pipeline */
+    if (s->pipeline == (VkPipeline)0) {
+        rc = vulkan_abi_create_graphics_pipeline(
+            s,
+            g_fullscreen_vert_spirv, g_fullscreen_vert_spirv_len,
+            frag_spirv, frag_word_count * sizeof(uint32_t));
+        if (rc != 0) {
+            free(frag_spirv);
+            return rc;
+        }
+    }
+
+    /* 5. Create descriptor pool + sets */
+    if (s->descriptor_pool == (VkDescriptorPool)0) {
+        rc = vulkan_abi_create_descriptor_pool_and_sets(s);
+        if (rc != 0) {
+            free(frag_spirv);
+            return rc;
+        }
+    }
+
+    /* 6. Create uniform buffers */
+    if (s->uniform_buffers[0] == (VkBuffer)0) {
+        rc = vulkan_abi_create_uniform_buffers(s);
+        if (rc != 0) {
+            free(frag_spirv);
+            return rc;
+        }
+        /* Write buffer descriptors */
+        vulkan_abi_update_descriptor_sets(s);
+    }
+
+    free(frag_spirv);
+    s->pipeline_ready = 1;
+    vulkan_abi_set_error(0, "kain_vulkan_abi_load_shader: pipeline ready");
+    return 0;
+}
+
+/* ── kain_vulkan_abi_set_uniform ───────────────────────────────── */
+/* Updates a uniform buffer binding for the current frame.
+ * binding: 0=time, 1=resolution, 2=mouse
+ * data/size: raw bytes to copy */
+
+KAIN_VULKAN_ABI_EXPORT int kain_vulkan_abi_set_uniform(
+    int64_t session_id, uint32_t binding, const void* data, uint64_t size)
+{
+    KainVulkanSession* s = vulkan_find_session(session_id);
+    if (!s || !data || !size) return -1;
+    if (binding >= 3) return -1;
+
+    /* Write to ALL frames' uniform buffers so every in-flight frame
+     * gets the same uniform data. */
+    for (uint32_t i = 0; i < KAIN_VULKAN_ABI_MAX_FRAMES_IN_FLIGHT; i++) {
+        if (s->uniform_mapped[i] == NULL) continue;
+        uint64_t max_size = OCEAN_UNIFORM_BUFFER_SIZE - binding * 64;
+        uint64_t copy_size = (size < max_size) ? size : max_size;
+        memcpy((uint8_t*)s->uniform_mapped[i] + binding * 64,
+               data, (size_t)copy_size);
+    }
+    return 0;
 }
 
 // ── Public entry points ────────────────────────────────────────────

@@ -49,6 +49,15 @@ typedef uint32_t VkShaderStageFlags;
 typedef uint32_t VkSubpassContents;
 typedef uint32_t VkCommandBufferResetFlags;
 typedef uintptr_t PFN_vkVoidFunction;
+typedef uintptr_t VkDeviceMemory;
+typedef uintptr_t VkBuffer;
+typedef uint64_t VkDeviceSize;
+typedef uint32_t VkMemoryPropertyFlags;
+typedef uint32_t VkBufferUsageFlags;
+typedef uint32_t VkBufferCreateFlags;
+typedef uint32_t VkMemoryHeapFlags;
+typedef uint32_t VkMemoryAllocateFlags;
+typedef uint32_t VkDescriptorType;
 
 // ── Instance functions ───────────────────────────────────────────
 
@@ -159,5 +168,85 @@ VkResult vkCreateImageView(VkDevice device, const void* pCreateInfo,
                             const void* pAllocator, VkImageView* pView);
 void     vkDestroyImageView(VkDevice device, VkImageView view,
                              const void* pAllocator);
+
+// ── Rendering pipeline ──────────────────────────────────────────
+
+VkResult vkCreateRenderPass(VkDevice device, const void* pCreateInfo,
+                             const void* pAllocator, VkRenderPass* pRenderPass);
+void     vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass,
+                              const void* pAllocator);
+VkResult vkCreateShaderModule(VkDevice device, const void* pCreateInfo,
+                               const void* pAllocator, VkShaderModule* pShaderModule);
+void     vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModule,
+                                const void* pAllocator);
+VkResult vkCreatePipelineLayout(VkDevice device, const void* pCreateInfo,
+                                 const void* pAllocator, VkPipelineLayout* pPipelineLayout);
+void     vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipelineLayout,
+                                  const void* pAllocator);
+VkResult vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache pipelineCache,
+                                    uint32_t createInfoCount, const void* pCreateInfos,
+                                    const void* pAllocator, VkPipeline* pPipelines);
+void     vkDestroyPipeline(VkDevice device, VkPipeline pipeline,
+                            const void* pAllocator);
+VkResult vkCreateFramebuffer(VkDevice device, const void* pCreateInfo,
+                              const void* pAllocator, VkFramebuffer* pFramebuffer);
+void     vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer,
+                               const void* pAllocator);
+
+// ── Command recording ───────────────────────────────────────────
+
+void     vkCmdBeginRenderPass(VkCommandBuffer commandBuffer,
+                               const void* pRenderPassBegin, VkSubpassContents contents);
+void     vkCmdEndRenderPass(VkCommandBuffer commandBuffer);
+void     vkCmdBindPipeline(VkCommandBuffer commandBuffer,
+                            VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline);
+void     vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstViewport,
+                           uint32_t viewportCount, const void* pViewports);
+void     vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstScissor,
+                          uint32_t scissorCount, const void* pScissors);
+void     vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayout layout,
+                             VkShaderStageFlags stageFlags, uint32_t offset,
+                             uint32_t size, const void* pValues);
+void     vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount,
+                    uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+
+// ── Descriptor sets ─────────────────────────────────────────────
+
+VkResult vkCreateDescriptorSetLayout(VkDevice device, const void* pCreateInfo,
+                                      const void* pAllocator,
+                                      VkDescriptorSetLayout* pSetLayout);
+void     vkDestroyDescriptorSetLayout(VkDevice device,
+                                       VkDescriptorSetLayout descriptorSetLayout,
+                                       const void* pAllocator);
+VkResult vkCreateDescriptorPool(VkDevice device, const void* pCreateInfo,
+                                 const void* pAllocator, VkDescriptorPool* pDescriptorPool);
+void     vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool,
+                                  const void* pAllocator);
+VkResult vkAllocateDescriptorSets(VkDevice device, const void* pAllocateInfo,
+                                   VkDescriptorSet* pDescriptorSets);
+void     vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
+                                 const void* pDescriptorWrites,
+                                 uint32_t descriptorCopyCount,
+                                 const void* pDescriptorCopies);
+
+// ── Buffer + memory ─────────────────────────────────────────────
+
+VkResult vkCreateBuffer(VkDevice device, const void* pCreateInfo,
+                         const void* pAllocator, VkBuffer* pBuffer);
+void     vkDestroyBuffer(VkDevice device, VkBuffer buffer, const void* pAllocator);
+void     vkGetBufferMemoryRequirements(VkDevice device, VkBuffer buffer,
+                                        void* pMemoryRequirements);
+VkResult vkAllocateMemory(VkDevice device, const void* pAllocateInfo,
+                           const void* pAllocator, VkDeviceMemory* pMemory);
+void     vkFreeMemory(VkDevice device, VkDeviceMemory memory, const void* pAllocator);
+VkResult vkBindBufferMemory(VkDevice device, VkBuffer buffer,
+                             VkDeviceMemory memory, VkDeviceSize memoryOffset);
+VkResult vkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset,
+                      VkDeviceSize size, uint32_t flags, void** ppData);
+void     vkUnmapMemory(VkDevice device, VkDeviceMemory memory);
+void     vkGetPhysicalDeviceMemoryProperties(VkPhysicalDevice physicalDevice,
+                                              void* pMemoryProperties);
+VkResult vkResetCommandBuffer(VkCommandBuffer commandBuffer,
+                               VkCommandBufferResetFlags flags);
 
 #endif
