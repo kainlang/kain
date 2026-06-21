@@ -1884,6 +1884,27 @@ fn hlsl_function_name(name: &str) -> FunctionMapping {
         "sample" | "sample_lod" | "sample_grad" | "sample_bias" | "sample_cmp" => {
             FunctionMapping::Sample
         }
+        // Wave 2 DELTA: subgroup intrinsics → HLSL WaveActive mappings
+        "cuda_lane_id" => FunctionMapping::Direct("WaveGetLaneIndex"),
+        "cuda_active_mask" => FunctionMapping::Direct("WaveActiveBallot"),
+        "cuda_ballot" => FunctionMapping::Direct("WaveActiveBallot"),
+        "cuda_warp_any" => FunctionMapping::Direct("WaveActiveAnyTrue"),
+        "cuda_warp_all" => FunctionMapping::Direct("WaveActiveAllTrue"),
+        "cuda_warp_reduce_sum_f32" | "cuda_warp_reduce_sum_u32" => {
+            FunctionMapping::Direct("WaveActiveSum")
+        }
+        "cuda_warp_reduce_max_f32" | "cuda_warp_reduce_max_u32" => {
+            FunctionMapping::Direct("WaveActiveMax")
+        }
+        "cuda_warp_reduce_min_f32" | "cuda_warp_reduce_min_u32" => {
+            FunctionMapping::Direct("WaveActiveMin")
+        }
+        "cuda_shfl_xor_u32" | "cuda_shfl_xor_f32" => {
+            FunctionMapping::Direct("WaveReadLaneAt")
+        }
+        "cuda_block_sync" | "cuda_warp_sync" | "cuda_barrier_sync" => {
+            FunctionMapping::Direct("GroupMemoryBarrierWithGroupSync")
+        }
         "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" | "abs" | "floor" | "ceil"
         | "round" | "trunc" | "sqrt" | "rsqrt" | "exp" | "exp2" | "log" | "log2" | "log10"
         | "sign" | "saturate" | "pow" | "min" | "max" | "fmod" | "step" | "clamp"
@@ -1915,6 +1936,26 @@ fn wgsl_function_name(name: &str) -> FunctionMapping {
         "firstbithigh" => FunctionMapping::Direct("firstLeadingBit"),
         "firstbitlow" => FunctionMapping::Direct("firstTrailingBit"),
         "reversebits" => FunctionMapping::Direct("reverseBits"),
+        // Wave 2 DELTA: subgroup intrinsics → WGSL builtins
+        "cuda_lane_id" => FunctionMapping::Direct("subgroup_invocation_id"),
+        "cuda_warp_id" => FunctionMapping::Direct("subgroup_id"),
+        "cuda_warp_reduce_sum_f32" | "cuda_warp_reduce_sum_u32" => {
+            FunctionMapping::Direct("subgroupAdd")
+        }
+        "cuda_warp_reduce_max_f32" | "cuda_warp_reduce_max_u32" => {
+            FunctionMapping::Direct("subgroupMax")
+        }
+        "cuda_warp_reduce_min_f32" | "cuda_warp_reduce_min_u32" => {
+            FunctionMapping::Direct("subgroupMin")
+        }
+        "cuda_ballot" => FunctionMapping::Direct("subgroupBallot"),
+        "cuda_warp_any" => FunctionMapping::Direct("subgroupAny"),
+        "cuda_warp_all" => FunctionMapping::Direct("subgroupAll"),
+        "cuda_shfl_xor_u32" | "cuda_shfl_xor_f32" => {
+            FunctionMapping::Direct("subgroupShuffleXor")
+        }
+        "cuda_block_sync" | "cuda_warp_sync" => FunctionMapping::Direct("subgroupBarrier"),
+        "cuda_barrier_sync" => FunctionMapping::Direct("workgroupBarrier"),
         "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "atan2" | "abs" | "floor" | "ceil"
         | "round" | "trunc" | "sqrt" | "exp" | "exp2" | "log" | "log2" | "sign" | "pow" | "min"
         | "max" | "clamp" | "smoothstep" | "length" | "distance" | "normalize" | "dot"
@@ -2012,6 +2053,11 @@ fn infer_call_return_type(
 
 fn reject_backend_intrinsic(ctx: &TextContext, name: &str, span: Span) -> KainResult<()> {
     if name.starts_with("cuda_") {
+        // Wave 2 DELTA: allow cuda_* subgroup intrinsics when they have
+        // a backend-specific mapping (HLSL → WaveActive*, WGSL → subgroup*).
+        if is_subgroup_intrinsic(name) {
+            return Ok(());
+        }
         return Err(ctx.codegen_error(
             format!(
                 "CUDA/PTX-only intrinsic '{name}' in {} output",
@@ -2024,6 +2070,31 @@ fn reject_backend_intrinsic(ctx: &TextContext, name: &str, span: Span) -> KainRe
         return Err(ctx.codegen_error(format!("HLSL wave intrinsic '{name}' in WGSL output"), span));
     }
     Ok(())
+}
+
+/// Returns true if `name` is a cuda_* subgroup intrinsic that has
+/// backend-appropriate mappings in both HLSL and WGSL.
+fn is_subgroup_intrinsic(name: &str) -> bool {
+    matches!(
+        name,
+        "cuda_lane_id"
+            | "cuda_warp_id"
+            | "cuda_active_mask"
+            | "cuda_ballot"
+            | "cuda_warp_any"
+            | "cuda_warp_all"
+            | "cuda_shfl_xor_u32"
+            | "cuda_shfl_xor_f32"
+            | "cuda_warp_reduce_sum_f32"
+            | "cuda_warp_reduce_sum_u32"
+            | "cuda_warp_reduce_max_f32"
+            | "cuda_warp_reduce_max_u32"
+            | "cuda_warp_reduce_min_f32"
+            | "cuda_warp_reduce_min_u32"
+            | "cuda_block_sync"
+            | "cuda_warp_sync"
+            | "cuda_barrier_sync"
+    )
 }
 
 fn format_float_literal(value: f64) -> String {

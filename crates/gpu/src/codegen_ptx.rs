@@ -885,7 +885,22 @@ fn emit_block(ctx: &mut PtxContext, block: &Block) -> KainResult<()> {
 
 fn emit_stmt(ctx: &mut PtxContext, stmt: &Stmt) -> KainResult<()> {
     match stmt {
-        Stmt::Subgroup { .. } => {}
+        Stmt::Subgroup { size, body, .. } => {
+            // Emit subgroup scope — PTX warp-synchronous execution is implicit,
+            // but we annotate the scope boundary for readability and emit
+            // __syncwarp barriers at scope boundaries as a safety net.
+            ctx.line(format!(
+                "// subgroup scope start (size={})",
+                size
+            ));
+            // Emit reconvergence barrier at scope entry
+            ctx.line("bar.warp.sync 0xFFFFFFFF;");
+            // Emit body — existing cuda_* intrinsic calls map directly to PTX
+            emit_block(ctx, body)?;
+            // Emit implicit reconvergence barrier at scope exit
+            ctx.line("bar.warp.sync 0xFFFFFFFF;");
+            ctx.line("// subgroup scope end");
+        }
         Stmt::Let {
             pattern,
             ty,

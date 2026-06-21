@@ -1271,10 +1271,13 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                 emit_block(ctx, body)?;
 
                 // Emit implicit subgroup barrier at scope exit for convergent safety
-                let scope = ctx.b.constant_u32(
+                let uint_ty = ctx.b.type_int(32, 0);
+                let scope = ctx.b.constant_bit32(
+                    uint_ty,
                     rspirv::spirv::Scope::Subgroup as u32,
                 );
-                let semantics = ctx.b.constant_u32(
+                let semantics = ctx.b.constant_bit32(
+                    uint_ty,
                     (rspirv::spirv::MemorySemantics::ACQUIRE_RELEASE.bits()
                         | rspirv::spirv::MemorySemantics::SUBGROUP_MEMORY.bits()
                         | rspirv::spirv::MemorySemantics::WORKGROUP_MEMORY.bits())
@@ -3378,6 +3381,179 @@ fn uint_one(b: &mut Builder, ty: &Type) -> u32 {
             b.constant_composite(vec, vec![o, o, o, o])
         }
         _ => b.constant_bit32(uint, 1),
+    }
+}
+
+/// Try to emit a subgroup intrinsic as SPIR-V GroupNonUniform instructions.
+/// Returns `Some((result_id, result_type))` if the intrinsic was handled.
+fn try_emit_subgroup_intrinsic(
+    ctx: &mut ShaderContext,
+    name: &str,
+    args: &[CallArg],
+) -> KainResult<Option<(u32, Type)>> {
+    use rspirv::spirv::{BuiltIn, GroupOperation};
+
+    let uint_ty = ctx.b.type_int(32, 0);
+    let float_ty = ctx.b.type_float(32);
+    let bool_ty = ctx.b.type_bool();
+    let uvec4_ty = ctx.b.type_vector(uint_ty, 4);
+    let subgroup_scope = ctx.b.constant_u32(rspirv::spirv::Scope::Subgroup as u32);
+
+    let uint_type = Type::Named {
+        name: "UInt".into(),
+        generics: vec![],
+        span: Span::default(),
+    };
+    let float_type = Type::Named {
+        name: "Float".into(),
+        generics: vec![],
+        span: Span::default(),
+    };
+    let bool_type = Type::Named {
+        name: "Bool".into(),
+        generics: vec![],
+        span: Span::default(),
+    };
+
+    match name {
+        "cuda_lane_id" => {
+            // OpLoad of SubgroupLocalInvocationId builtin
+            let ptr_in = ctx.b.type_pointer(None, rspirv::spirv::StorageClass::Input, uint_ty);
+            let var = ctx.b.variable(
+                ptr_in,
+                None,
+                rspirv::spirv::StorageClass::Input,
+                None,
+            );
+            ctx.b.decorate(
+                var,
+                rspirv::spirv::Decoration::BuiltIn,
+                &[Operand::BuiltIn(BuiltIn::SubgroupLocalInvocationId)],
+            );
+            let val = ctx.b.load(uint_ty, None, var, None, &[]).unwrap();
+            Ok(Some((val, uint_type)))
+        }
+        "cuda_warp_id" => {
+            // OpLoad of SubgroupId builtin
+            let ptr_in = ctx.b.type_pointer(None, rspirv::spirv::StorageClass::Input, uint_ty);
+            let var = ctx.b.variable(
+                ptr_in,
+                None,
+                rspirv::spirv::StorageClass::Input,
+                None,
+            );
+            ctx.b.decorate(
+                var,
+                rspirv::spirv::Decoration::BuiltIn,
+                &[Operand::BuiltIn(BuiltIn::SubgroupId)],
+            );
+            let val = ctx.b.load(uint_ty, None, var, None, &[]).unwrap();
+            Ok(Some((val, uint_type)))
+        }
+        "cuda_active_mask" => {
+            // OpGroupNonUniformBallot(true) -> active lanes
+            let one = ctx.b.constant_bool(bool_ty, true);
+            let ballot = ctx
+                .b
+                .group_non_uniform_ballot(uvec4_ty, subgroup_scope, one)
+                .unwrap();
+            Ok(Some((ballot, Type::Named {
+                name: "UVec4".into(),
+                generics: vec![],
+                span: Span::default(),
+            })))
+        }
+        "cuda_ballot" if args.len() == 1 => {
+            let (pred, _) = emit_expr(ctx, &args[0].value)?;
+            let ballot = ctx
+                .b
+                .group_non_uniform_ballot(uvec4_ty, subgroup_scope, pred)
+                .unwrap();
+            Ok(Some((ballot, Type::Named {
+                name: "UVec4".into(),
+                generics: vec![],
+                span: Span::default(),
+            })))
+        }
+        "cuda_warp_any" if args.len() == 1 => {
+            let (pred, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_any(bool_ty, subgroup_scope, pred)
+                .unwrap();
+            Ok(Some((result, bool_type)))
+        }
+        "cuda_warp_all" if args.len() == 1 => {
+            let (pred, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_all(bool_ty, subgroup_scope, pred)
+                .unwrap();
+            Ok(Some((result, bool_type)))
+        }
+        "cuda_shfl_xor_u32" if args.len() == 2 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let (mask, _) = emit_expr(ctx, &args[1].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_shuffle_xor(uint_ty, subgroup_scope, val, mask)
+                .unwrap();
+            Ok(Some((result, uint_type)))
+        }
+        "cuda_shfl_xor_f32" if args.len() == 2 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let (mask, _) = emit_expr(ctx, &args[1].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_shuffle_xor(float_ty, subgroup_scope, val, mask)
+                .unwrap();
+            Ok(Some((result, float_type)))
+        }
+        "cuda_warp_reduce_sum_f32" if args.len() == 1 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_fadd(float_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .unwrap();
+            Ok(Some((result, float_type)))
+        }
+        "cuda_warp_reduce_sum_u32" if args.len() == 1 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_iadd(uint_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .unwrap();
+            Ok(Some((result, uint_type)))
+        }
+        "cuda_warp_reduce_max_f32" if args.len() == 1 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_fmax(float_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .unwrap();
+            Ok(Some((result, float_type)))
+        }
+        "cuda_warp_reduce_max_u32" if args.len() == 1 => {
+            let (val, _) = emit_expr(ctx, &args[0].value)?;
+            let result = ctx
+                .b
+                .group_non_uniform_umax(uint_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .unwrap();
+            Ok(Some((result, uint_type)))
+        }
+        "cuda_block_sync" | "cuda_warp_sync" | "cuda_barrier_sync" => {
+            // OpControlBarrier(Subgroup, Workgroup, AcquireRelease)
+            let workgroup_scope =
+                ctx.b
+                    .constant_u32(rspirv::spirv::Scope::Workgroup as u32);
+            let zero = ctx.b.constant_u32(0);
+            ctx.b
+                .control_barrier(workgroup_scope, subgroup_scope, zero)
+                .unwrap();
+            // void return — return a dummy
+            Ok(Some((ctx.b.constant_bit32(uint_ty, 0), uint_type)))
+        }
+        _ => Ok(None), // not a subgroup intrinsic — fall through to default lowering
     }
 }
 

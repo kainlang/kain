@@ -17376,9 +17376,19 @@ impl LlvmGenerator {
                         }
                     }
                     DispatchSize::Indirect(buf_expr) => {
-                        // Indirect dispatch: compile the buffer expression to
-                        // an i8* LLVM value and emit abi_gpu_dispatch_indirect.
-                        let (buf_val, _) = self.compile_expr(buf_expr, "i8*")?;
+                        // Indirect dispatch: compile the buffer expression,
+                        // bitcast to i8*, and emit abi_gpu_dispatch_indirect.
+                        let (buf_val, buf_ty) = self.compile_expr(buf_expr)?;
+                        let buf_i8 = if buf_ty != "i8*" {
+                            let cast_reg = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = bitcast {} {} to i8*",
+                                cast_reg, buf_ty, buf_val
+                            ));
+                            cast_reg
+                        } else {
+                            buf_val
+                        };
                         let payload_size_reg = self.next_reg();
                         self.emit(&format!(
                             "  {} = add i64 0, 12",
@@ -17387,7 +17397,7 @@ impl LlvmGenerator {
                         let status = self.next_reg();
                         self.emit(&format!(
                             "  {} = call i64 @abi_gpu_dispatch_indirect(i8* {}, i8* {}, i64 {})",
-                            status, key_ptr, buf_val, payload_size_reg
+                            status, key_ptr, buf_i8, payload_size_reg
                         ));
                     }
                 }
