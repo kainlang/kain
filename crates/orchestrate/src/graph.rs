@@ -1,9 +1,78 @@
 use crate::{
-    OrchestrateFallback, OrchestratePlannerPolicy, OrchestrateResidency, OrchestrateStagePlan,
-    OrchestrateTransfer,
+    infer_barrier_metadata, OrchestrateFallback, OrchestratePlannerPolicy, OrchestrateResidency,
+    OrchestrateStagePlan, OrchestrateTransfer,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+
+// ---------------------------------------------------------------------------
+// Resource Access Types — describe how a shader stage accesses a GPU resource
+// ---------------------------------------------------------------------------
+
+/// Shader stage for resource access tracking.
+/// Mirrors `kain_core::ast::ShaderStage` without pulling in a circular dependency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceStage {
+    Vertex,
+    Fragment,
+    Compute,
+    Surface,
+}
+
+impl ResourceStage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Vertex => "vertex",
+            Self::Fragment => "fragment",
+            Self::Compute => "compute",
+            Self::Surface => "surface",
+        }
+    }
+}
+
+/// Describes how a shader stage accesses a GPU resource (buffer/image).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResourceAccess {
+    /// The binding name, e.g. "src", "dst", "params"
+    pub binding_name: String,
+    /// Which shader stage accesses this resource
+    pub shader_stage: ResourceStage,
+    /// Read, Write, or Read-Write
+    pub access_kind: AccessKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccessKind {
+    Read,
+    Write,
+    ReadWrite,
+}
+
+impl AccessKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::ReadWrite => "read_write",
+        }
+    }
+
+    /// Returns true if this access kind includes write capability.
+    pub fn writes(self) -> bool {
+        matches!(self, Self::Write | Self::ReadWrite)
+    }
+
+    /// Returns true if this access kind includes read capability.
+    pub fn reads(self) -> bool {
+        matches!(self, Self::Read | Self::ReadWrite)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage Graph Metadata
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct OrchestrateStageGraphMetadata {
@@ -21,6 +90,10 @@ pub struct OrchestrateStageGraphMetadata {
     pub requires: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy: Option<OrchestratePlannerPolicy>,
+    /// Per-stage resource access information, keyed by binding name.
+    /// Built during orchestrate plan construction from shader metadata.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub access_map: HashMap<String, Vec<ResourceAccess>>,
 }
 
 impl OrchestrateStageGraphMetadata {
@@ -86,6 +159,31 @@ impl OrchestrateGraphPlan {
 
     pub fn validate(&self) -> OrchestrateGraphValidation {
         OrchestrateGraphValidation::from_plan(self)
+    }
+
+    /// Collect a flat access map across all stages: stage_binding_name → Vec<ResourceAccess>.
+    pub fn collect_access_map(&self) -> HashMap<String, Vec<ResourceAccess>> {
+        let mut map: HashMap<String, Vec<ResourceAccess>> = HashMap::new();
+        for stage in &self.stages {
+            if !stage.metadata.access_map.is_empty() {
+                let mut accesses: Vec<ResourceAccess> = Vec::new();
+                for binding_accesses in stage.metadata.access_map.values() {
+                    accesses.extend(binding_accesses.clone());
+                }
+                map.insert(stage.binding_name.clone(), accesses);
+            }
+        }
+        map
+    }
+
+    /// Serialize barrier metadata as JSON string for the `abi_gpu_dispatch_ext` ABI.
+    /// Returns None if no barriers are needed (e.g., single stage, no dependencies).
+    pub fn barrier_metadata_json(&self) -> Option<String> {
+        let inferred = infer_barrier_metadata(self);
+        if inferred.is_empty() {
+            return None;
+        }
+        serde_json::to_string(&inferred).ok()
     }
 }
 

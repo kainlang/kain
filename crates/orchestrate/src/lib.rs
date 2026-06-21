@@ -3,9 +3,13 @@ mod planner;
 mod stage;
 
 pub use graph::{
-    OrchestrateGraphPlan, OrchestrateGraphValidation, OrchestrateStageGraphMetadata,
+    AccessKind, OrchestrateGraphPlan, OrchestrateGraphValidation,
+    OrchestrateStageGraphMetadata, ResourceAccess, ResourceStage,
 };
-pub use planner::OrchestratePlannerPolicy;
+pub use planner::{
+    infer_barrier_metadata, infer_push_constant_eligibility, BarrierSpec,
+    OrchestratePlannerPolicy,
+};
 pub use stage::{
     OrchestrateFallback, OrchestrateResidency, OrchestrateSelector, OrchestrateStageKind,
     OrchestrateStagePlan, OrchestrateTransfer,

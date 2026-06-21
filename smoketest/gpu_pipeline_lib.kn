@@ -1,0 +1,63 @@
+// Smoke test: PipelineLibrary creation / registration / lookup / destruction
+// Stream CHARLIE — tests stdlib/gpu.kn pipeline library types and functions
+// Expected: passes `kain check`
+
+use std::gpu
+
+fn test_pipeline_library_create_and_register() -> Int:
+    let lib = gpu_pipeline_library_create("test_lib")
+    
+    if lib.name != "test_lib":
+        return 1
+    
+    let handle = gpu_pipeline_library_register(lib, "shader::TestKernel::compute", [256, 1, 1])
+    
+    if handle.id < 0:
+        return 2
+    if handle.library_name != "test_lib":
+        return 3
+    if handle.compute_key != "shader::TestKernel::compute":
+        return 4
+    if handle.dispatch_size[0] != 256:
+        return 5
+    
+    return 0
+
+fn test_pipeline_library_find_not_found() -> Int:
+    let lib = gpu_pipeline_library_create("empty_lib")
+    let found = gpu_pipeline_library_find(lib, "nonexistent::Key::compute")
+    
+    // Not found returns id = -1
+    if found.id < 0:
+        return 0
+    return 1
+
+fn test_pipeline_library_destroy() -> Int:
+    let lib = gpu_pipeline_library_create("destroy_me")
+    let destroy_rc = gpu_pipeline_library_destroy(lib)
+    
+    if destroy_rc != 0:
+        return 1
+    return 0
+
+fn test_dispatch_indirect_command_layout() -> Int:
+    // Verify DispatchIndirectCommand struct compiles with correct fields
+    let cmd = DispatchIndirectCommand {
+        x: 64,
+        y: 1,
+        z: 1
+    }
+    
+    if cmd.x != 64:
+        return 1
+    if cmd.y != 1:
+        return 2
+    if cmd.z != 1:
+        return 3
+    return 0
+
+fn test_gpu_indirect_buffer_zeroed() -> Int:
+    let buf = gpu_indirect_buffer_zeroed()
+    // buf is a ptr<DispatchIndirectCommand> — typecheck proves allocation compiles
+    // The return type is correct: ptr<DispatchIndirectCommand>
+    return 0
