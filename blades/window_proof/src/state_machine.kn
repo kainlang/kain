@@ -1,0 +1,161 @@
+// STATE MACHINE COMPONENT — cycles through modes using world state.
+// Each mode renders different JSX. State transitions via world state fields.
+// No pulse needed — demonstrates the pattern: world state drives component rendering.
+// Prove: world.state → top-level fn → component JSX if/elif branching.
+
+use std::runtime
+
+// ── World: state machine authority ──────────────────────────────
+
+world StateMachineWorld:
+    state mode: Int = 0         // current state: 0=Idle, 1=Loading, 2=Active, 3=Paused, 4=Error
+    state counter: Int = 0      // persistent counter across mode changes
+    state error_code: Int = 0   // error detail (only relevant in Error mode)
+    surface native_ui => StateMachinePanel
+
+// ── Top-level fns — state machine logic + formatting ─────────────
+
+fn mode_count() -> Int:
+    return 5   // Idle(0), Loading(1), Active(2), Paused(3), Error(4)
+
+fn mode_name(mode: Int) -> String:
+    if mode == 0: return "IDLE"
+    elif mode == 1: return "LOADING"
+    elif mode == 2: return "ACTIVE"
+    elif mode == 3: return "PAUSED"
+    return "ERROR"
+
+fn mode_color(mode: Int) -> String:
+    if mode == 0: return "#6b7280"         // gray — Idle
+    elif mode == 1: return "#f59e0b"       // amber — Loading
+    elif mode == 2: return "#10b981"       // green — Active
+    elif mode == 3: return "#3b82f6"       // blue — Paused
+    return "#ef4444"                       // red — Error
+
+fn is_idle() -> Bool:
+    return StateMachineWorld.mode == 0
+
+fn is_loading() -> Bool:
+    return StateMachineWorld.mode == 1
+
+fn is_active() -> Bool:
+    return StateMachineWorld.mode == 2
+
+fn is_paused() -> Bool:
+    return StateMachineWorld.mode == 3
+
+fn is_error() -> Bool:
+    return StateMachineWorld.mode == 4
+
+fn mode_description(mode: Int) -> String:
+    if mode == 0: return "System is waiting for input. No operations in progress."
+    elif mode == 1: return "Processing request... fetching data from upstream."
+    elif mode == 2: return "System is running normally. All operations active."
+    elif mode == 3: return "System is paused. Operations suspended gracefully."
+    return "An error occurred. Check the error log for details."
+
+// Hint: in a real app, patches or pulses would advance the mode.
+// Here we demonstrate the pattern — world state drives UI branching.
+fn status_label() -> String:
+    return "[" + mode_name(StateMachineWorld.mode) + "] mode #" + str(StateMachineWorld.mode)
+
+fn counter_label() -> String:
+    return "Counter: " + str(StateMachineWorld.counter)
+
+fn error_detail() -> String:
+    return "Error code: " + str(StateMachineWorld.error_code)
+
+// ── Component: renders different UI per state ───────────────────
+
+component StateMachinePanel():
+    render <panel title="State Machine Demo">
+        <stack direction="vertical" padding={24} spacing={16}>
+            // Status bar — always visible
+            <stack direction="horizontal" spacing={12}>
+                <text value={status_label()} font_size={16} />
+                <text value={counter_label()} font_size={12} />
+            </stack>
+
+            // Divider
+            <text value="══════════════════════════════════" font_size={10} />
+
+            // Mode-specific content — the state machine dispatch
+            // JSX uses if/else (not elif) — nest for multi-branch dispatch
+            if is_idle():
+                <stack direction="vertical" padding={16} spacing={12}>
+                    <text value="◉  IDLE STATE" font_size={18} />
+                    <text value={mode_description(StateMachineWorld.mode)} font_size={13} />
+                    <stack direction="horizontal" spacing={16}>
+                        <text value="Press START to begin" font_size={12} />
+                        <text value="next → LOADING" font_size={12} />
+                    </stack>
+                </stack>
+            else:
+                if is_loading():
+                    <stack direction="vertical" padding={16} spacing={12}>
+                        <text value="◎  LOADING STATE" font_size={18} />
+                        <text value={mode_description(StateMachineWorld.mode)} font_size={13} />
+                        <stack direction="horizontal" spacing={16}>
+                            <text value="Fetching resources..." font_size={12} />
+                            <text value="next → ACTIVE" font_size={12} />
+                        </stack>
+                        <text value="▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  50%" font_size={12} />
+                    </stack>
+                else:
+                    if is_active():
+                        <stack direction="vertical" padding={16} spacing={12}>
+                            <text value="●  ACTIVE STATE" font_size={18} />
+                            <text value={mode_description(StateMachineWorld.mode)} font_size={13} />
+                            <stack direction="horizontal" spacing={16}>
+                                <text value="Process running..." font_size={12} />
+                                <text value="Commands: PAUSE | STOP | RESET" font_size={12} />
+                            </stack>
+                            <text value="✓ Processing batch 42/100" font_size={12} />
+                            <text value="✓ Throughput: 94%" font_size={12} />
+                            <text value="✓ Errors: 0" font_size={12} />
+                        </stack>
+                    else:
+                        if is_paused():
+                            <stack direction="vertical" padding={16} spacing={12}>
+                                <text value="⏸  PAUSED STATE" font_size={18} />
+                                <text value={mode_description(StateMachineWorld.mode)} font_size={13} />
+                                <stack direction="horizontal" spacing={16}>
+                                    <text value="Operations suspended" font_size={12} />
+                                    <text value="Commands: RESUME | STOP" font_size={12} />
+                                </stack>
+                                <text value="Resume will continue from checkpoint." font_size={11} />
+                            </stack>
+                        else:
+                            <stack direction="vertical" padding={16} spacing={12}>
+                                <text value="✕  ERROR STATE" font_size={18} />
+                                <text value={mode_description(StateMachineWorld.mode)} font_size={13} />
+                                <text value={error_detail()} font_size={12} />
+                                <stack direction="horizontal" spacing={16}>
+                                    <text value="Commands: RETRY | DIAGNOSE | RESET" font_size={12} />
+                                </stack>
+                                <text value="Last known good state: mode " font_size={11} />
+                                <text value="Automatic recovery enabled." font_size={11} />
+                            </stack>
+
+            // Footer — always visible
+            <text value="══════════════════════════════════" font_size={10} />
+            <stack direction="horizontal" spacing={10}>
+                <text value="IDLE" font_size={10} />
+                <text value="→" font_size={10} />
+                <text value="LOADING" font_size={10} />
+                <text value="→" font_size={10} />
+                <text value="ACTIVE" font_size={10} />
+                <text value="→" font_size={10} />
+                <text value="PAUSED" font_size={10} />
+                <text value="→" font_size={10} />
+                <text value="ERROR" font_size={10} />
+            </stack>
+            <text value="5-mode state machine — driven by world state, rendered by component." font_size={10} />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

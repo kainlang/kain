@@ -6,6 +6,13 @@
 //  once at frame-loop init via kain_component_surface_resolve(), then calls
 //  through the vtable every frame.
 //
+//  GPU Backend Routing (2026-06-21):
+//    When the RENDERER_BACKEND env var is set to "vulkan", "d3d12", or
+//    "webgpu", resolving "native_ui" routes through the corresponding
+//    GPU shim → dlopen → ABI library → GPU vtable. The codegen never
+//    knows which backend it's talking to — it always calls through the
+//    same KainComponentSurface vtable.
+//
 //  Registration happens at startup — typically from a blade's init function
 //  or from the platform app host before the main frame loop begins.
 // ============================================================================
@@ -15,6 +22,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+// ── Forward declarations for GPU backend shims ──────────────────
+// These live in src/core/vulkan_surface_shim.c etc. and are
+// build-gated behind KAIN_RUNTIME_HAS_* flags.
+
+#ifdef KAIN_RUNTIME_HAS_VULKAN_LOADER
+extern int64_t kain_vulkan_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
+
+#ifdef KAIN_RUNTIME_HAS_D3D12
+extern int64_t kain_d3d12_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
+
+#ifdef KAIN_RUNTIME_HAS_WEBGPU
+extern int64_t kain_webgpu_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -28,6 +51,50 @@ static struct {
 } g_surface_registry[KAIN_MAX_SURFACES];
 
 static int g_surface_count = 0;
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+/// Resolve a GPU backend by name via its shim. Returns the vtable
+/// pointer on success, NULL if the backend is unavailable or the
+/// shim fails to load the ABI library.
+static const KainComponentSurface* resolve_gpu_backend(const char* backend_id) {
+    if (!backend_id || !backend_id[0]) return NULL;
+
+#ifdef KAIN_RUNTIME_HAS_VULKAN_LOADER
+    if (strcmp(backend_id, "vulkan") == 0) {
+        KainComponentSurface vsurf;
+        if (kain_vulkan_surface_shim_resolve(&vsurf) == 0) {
+            // The shim registers itself as "vulkan" in the registry.
+            // Return the registered entry so the pointer is stable.
+            return kain_component_surface_resolve("vulkan");
+        }
+        return NULL;
+    }
+#endif
+
+#ifdef KAIN_RUNTIME_HAS_D3D12
+    if (strcmp(backend_id, "d3d12") == 0) {
+        KainComponentSurface dsurf;
+        if (kain_d3d12_surface_shim_resolve(&dsurf) == 0) {
+            return kain_component_surface_resolve("d3d12");
+        }
+        return NULL;
+    }
+#endif
+
+#ifdef KAIN_RUNTIME_HAS_WEBGPU
+    if (strcmp(backend_id, "webgpu") == 0) {
+        KainComponentSurface wsurf;
+        if (kain_webgpu_surface_shim_resolve(&wsurf) == 0) {
+            return kain_component_surface_resolve("webgpu");
+        }
+        return NULL;
+    }
+#endif
+
+    (void)backend_id;
+    return NULL;
+}
 
 // ── Public API ─────────────────────────────────────────────────
 
@@ -61,6 +128,29 @@ const KainComponentSurface* kain_component_surface_resolve(const char* name) {
         return NULL;
     }
 
+    // ── GPU backend routing ──────────────────────────────────
+    // When codegen asks for "native_ui", check if the user wants
+    // a GPU backend via the RENDERER_BACKEND env var.
+    // The codegen never knows which backend it gets — it always
+    // calls through the same KainComponentSurface vtable.
+    if (strcmp(name, "native_ui") == 0) {
+        const char* backend = getenv("RENDERER_BACKEND");
+        if (backend && backend[0]) {
+            const KainComponentSurface* gpu_surface =
+                resolve_gpu_backend(backend);
+            if (gpu_surface) {
+                // Overwrite the registry entry so the GDI backend
+                // is never called — all future resolves get the
+                // GPU vtable instead.
+                kain_component_surface_register("native_ui", gpu_surface);
+                return gpu_surface;
+            }
+            // GPU backend requested but unavailable — fall through
+            // to the GDI backend below.
+        }
+    }
+
+    // ── Normal registry lookup ───────────────────────────────
     for (int i = 0; i < g_surface_count; i++) {
         if (strcmp(g_surface_registry[i].name, name) == 0) {
             return g_surface_registry[i].surface;

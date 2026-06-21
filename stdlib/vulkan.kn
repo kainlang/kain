@@ -1,0 +1,170 @@
+// std::vulkan — Kain bridge to the Vulkan ABI library (libkain-vulkan-abi.so/.dll)
+//
+// This module maps Kain function calls to the C ABI symbols exported by the
+// Vulkan ABI library (runtime/native/extras/vulkan-abi/). The library is
+// dlopen'd by the vulkan_surface_shim when RENDERER_BACKEND=vulkan is set.
+//
+// Architecture:
+//   Kain source → std::vulkan → @extern → libkain-vulkan-abi.so → vk* calls
+//
+// The 18-slot KainComponentSurface vtable handles window creation, frame
+// lifecycle, and presentation. This module handles the GPU-specific operations:
+// shader loading, uniform updates, and pipeline management.
+//
+// USE THIS WHEN:
+//   - You have a shader (fragment/compute) compiled to SPIR-V hex
+//   - You need per-frame uniform updates (time, resolution, mouse, custom)
+//   - You're writing a Kain program that targets RENDERER_BACKEND=vulkan
+//
+// DO NOT USE THIS FOR:
+//   - Window creation — the KainComponentSurface vtable handles that
+//   - Component UI rendering — use world + surface native_ui => Component
+//   - General GPU compute — use std::cuda or std::graphics
+
+use std::memory
+use std::fs
+
+// ============================================================================
+//  Raw @extern — direct C ABI from libkain-vulkan-abi.so
+// ============================================================================
+//  These are the 5 symbols exported by the Vulkan ABI library.
+//  kain_vulkan_abi_get_vtable and kain_vulkan_abi_init/shutdown are
+//  called by the runtime shim — most Kain code won't call them directly.
+
+@extern fn kain_vulkan_abi_get_vtable() -> Int
+@extern fn kain_vulkan_abi_init() -> Int
+@extern fn kain_vulkan_abi_shutdown() -> Int
+
+/// Load a fragment shader from hex-encoded SPIR-V.
+/// Creates render pass, descriptor set layout, pipeline layout,
+/// graphics pipeline (with embedded fullscreen-triangle vertex shader),
+/// descriptor pool, uniform buffers, and descriptor writes.
+/// Returns 0 on success, negative on error.
+@extern fn kain_vulkan_abi_load_shader(session_id: Int, spirv_hex: String) -> Int
+
+/// Update a uniform buffer binding before the next frame.
+/// binding: 0=time (Float, 4 bytes), 1=resolution (Vec2, 8 bytes), 2=mouse (Vec2, 8 bytes)
+/// data: pointer to the raw bytes
+/// size: byte count (4 for Float, 8 for Vec2)
+/// Returns 0 on success, negative on error.
+@extern fn kain_vulkan_abi_set_uniform(session_id: Int, binding: Int, data: ptr<Float>, size: Int) -> Int
+
+// ============================================================================
+//  Runtime Capability & Telemetry — @extern from vulkan_surface_shim.c
+// ============================================================================
+//  These are populated by the shim after successful dlopen of the ABI library.
+
+@extern fn abi_vulkan_last_status() -> Int
+@extern fn abi_vulkan_last_error() -> String
+@extern fn abi_vulkan_present_count() -> Int
+@extern fn abi_vulkan_swapchain_recreations() -> Int
+@extern fn kain_vulkan_runtime_capability() -> Int
+
+// ============================================================================
+//  Shader Management
+// ============================================================================
+
+/// Load a fragment shader into the Vulkan pipeline for a session.
+/// The spirv_hex should be the output of `kain build --target spirv shader.kn`
+/// hex-encoded. After loading, the fullscreen triangle pipeline is ready —
+/// every subsequent frame will render the shader.
+///
+/// Example:
+///   let ok = vulkan_load_shader(session, spirv_hex_from_file)
+///   if ok != 0: return ok
+pub fn vulkan_load_shader(session_id: Int, spirv_hex: String) -> Int:
+    return kain_vulkan_abi_load_shader(session_id, spirv_hex)
+
+// ============================================================================
+//  Uniform Updates — Typed Wrappers
+// ============================================================================
+//  These match the 3 uniforms in ocean.kn / blackhole.kn:
+//    uniform time:       Float @0  →  binding 0, 4 bytes
+//    uniform resolution: Vec2  @1  →  binding 1, 8 bytes
+//    uniform mouse:      Vec2  @2  →  binding 2, 8 bytes
+//
+//  Each call allocates a small buffer, stores the value, calls the @extern,
+//  and frees the buffer. For performance-critical code, pre-allocate buffers
+//  and call kain_vulkan_abi_set_uniform directly.
+
+/// Update the time uniform (binding 0, Float, 4 bytes).
+/// Called every frame to animate shaders.
+pub fn vulkan_set_uniform_time(session_id: Int, time: Float) -> Int with Unsafe:
+    let buf: ptr<Float> = alloc(1, "Float")
+    mem_store(buf, time, "Float")
+    let result = kain_vulkan_abi_set_uniform(session_id, 0, buf, 4)
+    decay buf
+    return result
+
+/// Update the resolution uniform (binding 1, Vec2, 8 bytes).
+/// Send once on init or on window resize.
+pub fn vulkan_set_uniform_resolution(session_id: Int, width: Float, height: Float) -> Int with Unsafe:
+    let buf: ptr<Float> = alloc(2, "Float")
+    mem_store(buf, width, "Float")
+    mem_store(ptr_offset(buf, 1, "Float"), height, "Float")
+    let result = kain_vulkan_abi_set_uniform(session_id, 1, buf, 8)
+    decay buf
+    return result
+
+/// Update the mouse uniform (binding 2, Vec2, 8 bytes).
+/// Called every frame for interactive shaders.
+pub fn vulkan_set_uniform_mouse(session_id: Int, x: Float, y: Float) -> Int with Unsafe:
+    let buf: ptr<Float> = alloc(2, "Float")
+    mem_store(buf, x, "Float")
+    mem_store(ptr_offset(buf, 1, "Float"), y, "Float")
+    let result = kain_vulkan_abi_set_uniform(session_id, 2, buf, 8)
+    decay buf
+    return result
+
+// ============================================================================
+//  Convenience — Update All Uniforms At Once
+// ============================================================================
+
+/// Update all 3 standard shader uniforms in one call.
+/// Matches ocean.kn / blackhole.kn uniform signature.
+pub fn vulkan_update_shader_uniforms(
+    session_id: Int,
+    time: Float,
+    resolution_w: Float,
+    resolution_h: Float,
+    mouse_x: Float,
+    mouse_y: Float
+) -> Int with Unsafe:
+    let t = vulkan_set_uniform_time(session_id, time)
+    if t != 0: return t
+    let r = vulkan_set_uniform_resolution(session_id, resolution_w, resolution_h)
+    if r != 0: return r
+    return vulkan_set_uniform_mouse(session_id, mouse_x, mouse_y)
+
+// ============================================================================
+//  SPIR-V Helpers
+// ============================================================================
+
+/// Read a compiled SPIR-V file and return it as a hex string
+/// suitable for vulkan_load_shader.
+///
+/// Build the shader first:  kain build shader.kn --target spirv
+/// Then pass the .spv path: let hex = vulkan_read_spirv("shader.spv")
+/// Then load it:             vulkan_load_shader(session, hex)
+pub fn vulkan_read_spirv(path: String) -> String with IO:
+    // fs_read_bytes_hex encodes the file as hex — exactly what
+    // kain_vulkan_abi_load_shader expects
+    return fs_read_bytes_hex(path)
+
+// ============================================================================
+//  Session & Capability Queries
+// ============================================================================
+
+/// Check whether the Vulkan ABI library is loaded and ready.
+/// Returns 1 if RENDERER_BACKEND=vulkan and the library dlopen'd successfully.
+pub fn vulkan_available() -> Int:
+    return kain_vulkan_runtime_capability()
+
+/// Get the last Vulkan error message from the ABI library.
+/// Returns empty string if no error or Vulkan not loaded.
+pub fn vulkan_last_error() -> String:
+    return abi_vulkan_last_error()
+
+/// Get the Vulkan present count (frames submitted to swapchain).
+pub fn vulkan_present_count() -> Int:
+    return abi_vulkan_present_count()

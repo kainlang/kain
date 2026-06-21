@@ -1,0 +1,179 @@
+// NESTED DASHBOARD — proves 5+ levels of component composition.
+// DashboardRoot → SidebarPanel + ContentPanel → MetricGroup → MetricCard → MetricLabel + MetricValue + MetricSparkline
+// World state provides all data. Top-level fns for formatting.
+// Prove: deep JSX composition works, component→component→component→... chains resolve.
+
+use std::runtime
+
+// ── World: dashboard data authority ─────────────────────────────
+
+world NestedDashWorld:
+    state uptime: Int = 128
+    state connections: Int = 7
+    state throughput: Int = 94
+    state errors: Int = 3
+    state cpu_pct: Int = 42
+    state mem_pct: Int = 68
+    state disk_pct: Int = 31
+    state net_in: Int = 2048
+    state net_out: Int = 1536
+    state users: Int = 1284
+    state sessions: Int = 56
+    state latency: Int = 12
+    state requests: Int = 8901
+    state status_ok: Bool = true
+    surface native_ui => DashboardRoot
+
+// ── Top-level formatting fns ────────────────────────────────────
+
+fn fmt_metric(value: Int, unit: String) -> String:
+    return str(value) + " " + unit
+
+fn fmt_pct(value: Int) -> String:
+    return str(value) + "%"
+
+fn fmt_kb(value: Int) -> String:
+    return str(value) + " KB/s"
+
+fn status_text() -> String:
+    if NestedDashWorld.status_ok: return "● HEALTHY"
+    return "○ DEGRADED"
+
+fn status_ok() -> Bool:
+    return NestedDashWorld.status_ok
+
+fn bar_label(value: Int) -> String:
+    var bars = ""
+    var i: Int = 0
+    while i < value / 10:
+        bars = bars + "█"
+        i = i + 1
+    return bars
+
+fn net_total() -> String:
+    return "In: " + str(NestedDashWorld.net_in) + " / Out: " + str(NestedDashWorld.net_out) + " KB/s"
+
+fn errors_label() -> String:
+    return "Errors: " + str(NestedDashWorld.errors)
+
+fn all_world_fields_read() -> Int:
+    return NestedDashWorld.users + NestedDashWorld.sessions + NestedDashWorld.requests + NestedDashWorld.latency + NestedDashWorld.connections + NestedDashWorld.throughput + NestedDashWorld.uptime + NestedDashWorld.cpu_pct + NestedDashWorld.mem_pct + NestedDashWorld.disk_pct
+
+// ── LEVEL 5: Sparkline leaf ─────────────────────────────────────
+// Deepest component — a mini chart bar inside a card
+
+component MetricSparkline(value: Int, max_val: Int):
+    render <stack direction="horizontal" spacing={2}>
+        <text value={"█ " + fmt_pct(value)} font_size={9} />
+        <text value={"/ " + str(max_val)} font_size={9} />
+    </stack>
+
+// ── LEVEL 4: Label + Value leaves ───────────────────────────────
+
+component MetricLabel(label: String):
+    render <text value={label} font_size={10} />
+
+component MetricValue(value: String):
+    render <text value={value} font_size={18} />
+
+// ── LEVEL 3: MetricCard — composed of L4 labels + values ────────
+
+component MetricCard(label: String, value: Int, unit: String, max_val: Int):
+    render <stack direction="vertical" padding={10} spacing={4}>
+        <MetricLabel label={label} />
+        <MetricValue value={fmt_metric(value, unit)} />
+        <MetricSparkline value={value} max_val={max_val} />
+    </stack>
+
+// ── LEVEL 2: MetricGroup — cluster of cards ─────────────────────
+
+component MetricGroup(title: String, cards: Int):
+    render <stack direction="vertical" padding={8} spacing={8}>
+        <text value={title} font_size={13} />
+        <stack direction="horizontal" spacing={12}>
+            <MetricCard label="CPU" value={NestedDashWorld.cpu_pct} unit="%" max_val={100} />
+            <MetricCard label="Memory" value={NestedDashWorld.mem_pct} unit="%" max_val={100} />
+            <MetricCard label="Disk" value={NestedDashWorld.disk_pct} unit="%" max_val={100} />
+        </stack>
+    </stack>
+
+component NetGroup(title: String):
+    render <stack direction="vertical" padding={8} spacing={8}>
+        <text value={title} font_size={13} />
+        <stack direction="horizontal" spacing={12}>
+            <MetricCard label="IN" value={NestedDashWorld.net_in} unit="KB/s" max_val={3000} />
+            <MetricCard label="OUT" value={NestedDashWorld.net_out} unit="KB/s" max_val={3000} />
+        </stack>
+    </stack>
+
+component TrafficGroup(title: String):
+    render <stack direction="vertical" padding={8} spacing={8}>
+        <text value={title} font_size={13} />
+        <stack direction="horizontal" spacing={12}>
+            <MetricCard label="Users" value={NestedDashWorld.users} unit="active" max_val={2000} />
+            <MetricCard label="Sessions" value={NestedDashWorld.sessions} unit="live" max_val={100} />
+            <MetricCard label="Requests" value={NestedDashWorld.requests} unit="total" max_val={10000} />
+        </stack>
+    </stack>
+
+// ── LEVEL 1: Sidebar + Content panels ───────────────────────────
+
+component SidebarPanel():
+    render <stack direction="vertical" padding={16} spacing={12}>
+        <text value="NAVIGATION" font_size={12} />
+        <text value="├─ Overview" font_size={11} />
+        <text value="├─ Resources" font_size={11} />
+        <text value="├─ Network" font_size={11} />
+        <text value="├─ Traffic" font_size={11} />
+        <text value="├─ Logs" font_size={11} />
+        <text value="└─ Settings" font_size={11} />
+        <text value="─────────────" font_size={10} />
+        <text value="Status:" font_size={11} />
+        <text value={status_text()} font_size={12} />
+        <text value={"Uptime: " + str(NestedDashWorld.uptime) + "h"} font_size={10} />
+        <text value={"Latency: " + str(NestedDashWorld.latency) + "ms"} font_size={10} />
+    </stack>
+
+component ContentPanel():
+    render <stack direction="vertical" padding={16} spacing={20}>
+        <MetricGroup title="RESOURCES" cards={3} />
+        <NetGroup title="NETWORK" />
+        <TrafficGroup title="TRAFFIC" />
+    </stack>
+
+// ── LEVEL 0: Root dashboard — composes L1 panels ────────────────
+
+component DashboardRoot():
+    render <panel title="Nested Dashboard — 5 Levels Deep">
+        <stack direction="vertical" padding={0} spacing={0}>
+            // Header
+            <stack direction="horizontal" padding={16} spacing={16}>
+                <text value="NESTED DASHBOARD" font_size={20} />
+                <text value={status_text()} font_size={12} />
+                <text value={errors_label()} font_size={12} />
+            </stack>
+
+            // Body: sidebar + content side by side
+            <stack direction="horizontal" padding={0} spacing={0}>
+                <SidebarPanel />
+                <ContentPanel />
+            </stack>
+
+            // Footer
+            <text value="─────────────────────────────────────────────" font_size={10} />
+            <stack direction="horizontal" padding={8} spacing={20}>
+                <text value={"Connections: " + str(NestedDashWorld.connections)} font_size={10} />
+                <text value={"Throughput: " + str(NestedDashWorld.throughput) + "%"} font_size={10} />
+                <text value={"Uptime: " + str(NestedDashWorld.uptime) + " hrs"} font_size={10} />
+                <text value={net_total()} font_size={10} />
+            </stack>
+            <text value="Composition depth: DashboardRoot → SidebarPanel/ContentPanel → MetricGroup/NetGroup/TrafficGroup → MetricCard → MetricLabel/MetricValue/MetricSparkline (5 levels)" font_size={9} />
+            <text value={str(all_world_fields_read())} font_size={8} />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

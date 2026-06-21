@@ -1,0 +1,208 @@
+// THEME SHOWCASE — a world with theme state drives styling across components.
+// World holds colors, spacing scale, fonts, and a theme name.
+// Multiple components read theme fields and render styled elements.
+// Prove: one theme world → many styled components → consistent design system.
+
+use std::runtime
+
+// ── Theme World — all styling state lives here ──────────────────
+
+world ThemeWorld:
+    state theme_name: String = "Ocean"
+    state primary_color: String = "#3b82f6"
+    state secondary_color: String = "#8b5cf6"
+    state accent_color: String = "#10b981"
+    state bg_color: String = "#0f172a"
+    state surface_color: String = "#1e293b"
+    state text_color: String = "#e2e8f0"
+    state muted_color: String = "#64748b"
+    state error_color: String = "#ef4444"
+    state warning_color: String = "#f59e0b"
+    state success_color: String = "#10b981"
+    state spacing_sm: Int = 4
+    state spacing_md: Int = 8
+    state spacing_lg: Int = 16
+    state spacing_xl: Int = 24
+    state font_sm: Int = 10
+    state font_md: Int = 14
+    state font_lg: Int = 18
+    state font_xl: Int = 24
+    state radius_sm: Int = 4
+    state radius_md: Int = 8
+    state border_width: Int = 1
+    surface native_ui => ThemeShowcaseRoot
+
+// ── Top-level formatting fns — build strings from theme state ───
+
+fn theme_title() -> String:
+    return "Theme: " + ThemeWorld.theme_name
+
+fn spacing_label(size: Int) -> String:
+    if size == ThemeWorld.spacing_sm: return "sm = " + str(size) + "px"
+    elif size == ThemeWorld.spacing_md: return "md = " + str(size) + "px"
+    elif size == ThemeWorld.spacing_lg: return "lg = " + str(size) + "px"
+    return "xl = " + str(size) + "px"
+
+fn font_label(size: Int) -> String:
+    if size == ThemeWorld.font_sm: return "sm: " + str(size) + "px — captions"
+    elif size == ThemeWorld.font_md: return "md: " + str(size) + "px — body"
+    elif size == ThemeWorld.font_lg: return "lg: " + str(size) + "px — headings"
+    return "xl: " + str(size) + "px — displays"
+
+fn radius_label(size: Int) -> String:
+    if size == ThemeWorld.radius_sm: return "sm: " + str(size) + "px"
+    return "md: " + str(size) + "px"
+
+fn color_swatch(name: String, hex: String) -> String:
+    return name + ": " + hex
+
+fn surface_label() -> String:
+    return "surface: " + ThemeWorld.surface_color
+
+fn bg_label() -> String:
+    return "background: " + ThemeWorld.bg_color
+
+fn padding_xl_label() -> String:
+    return "padding-xl: " + str(ThemeWorld.spacing_xl) + "px"
+
+fn border_info() -> String:
+    return "border: " + str(ThemeWorld.border_width) + "px radius: " + str(ThemeWorld.radius_md) + "px"
+
+fn theme_all_colors_read() -> String:
+    return ThemeWorld.primary_color + ThemeWorld.secondary_color + ThemeWorld.accent_color + ThemeWorld.bg_color + ThemeWorld.surface_color + ThemeWorld.text_color + ThemeWorld.muted_color + ThemeWorld.error_color + ThemeWorld.warning_color + ThemeWorld.success_color
+
+fn theme_system_summary() -> String:
+    return "Theme: " + ThemeWorld.theme_name + " | Colors: 10 | Spacing: 4 scale | Fonts: " + str(ThemeWorld.font_xl) + "px max | Radii: 2 | Border: " + str(ThemeWorld.border_width) + "px"
+
+// ── Theme components — all share ThemeWorld ─────────────────────
+
+component ThemeColorBlock(name: String, hex: String):
+    render <stack direction="vertical" padding={ThemeWorld.spacing_sm} spacing={2}>
+        <text value={name} font_size={ThemeWorld.font_sm} />
+        <text value={hex} font_size={ThemeWorld.font_sm} />
+    </stack>
+
+component ThemePalette():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="COLOR PALETTE" font_size={ThemeWorld.font_lg} />
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+            <ThemeColorBlock name="Primary" hex={ThemeWorld.primary_color} />
+            <ThemeColorBlock name="Secondary" hex={ThemeWorld.secondary_color} />
+            <ThemeColorBlock name="Accent" hex={ThemeWorld.accent_color} />
+        </stack>
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+            <ThemeColorBlock name="Background" hex={ThemeWorld.bg_color} />
+            <ThemeColorBlock name="Surface" hex={ThemeWorld.surface_color} />
+            <ThemeColorBlock name="Text" hex={ThemeWorld.text_color} />
+            <ThemeColorBlock name="Muted" hex={ThemeWorld.muted_color} />
+        </stack>
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+            <ThemeColorBlock name="Error" hex={ThemeWorld.error_color} />
+            <ThemeColorBlock name="Warning" hex={ThemeWorld.warning_color} />
+            <ThemeColorBlock name="Success" hex={ThemeWorld.success_color} />
+        </stack>
+    </stack>
+
+component ThemeSpacingRow(size: Int):
+    render <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+        <text value={spacing_label(size)} font_size={ThemeWorld.font_md} />
+    </stack>
+
+component ThemeSpacingDemo():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="SPACING SCALE" font_size={ThemeWorld.font_lg} />
+        <ThemeSpacingRow size={ThemeWorld.spacing_sm} />
+        <ThemeSpacingRow size={ThemeWorld.spacing_md} />
+        <ThemeSpacingRow size={ThemeWorld.spacing_lg} />
+        <ThemeSpacingRow size={ThemeWorld.spacing_xl} />
+    </stack>
+
+component ThemeFontRow(size: Int):
+    render <stack direction="vertical" spacing={2}>
+        <text value={font_label(size)} font_size={size} />
+    </stack>
+
+component ThemeFontDemo():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="TYPOGRAPHY SCALE" font_size={ThemeWorld.font_lg} />
+        <ThemeFontRow size={ThemeWorld.font_xl} />
+        <ThemeFontRow size={ThemeWorld.font_lg} />
+        <ThemeFontRow size={ThemeWorld.font_md} />
+        <ThemeFontRow size={ThemeWorld.font_sm} />
+    </stack>
+
+component ThemeButton(label: String, color: String):
+    render <stack direction="horizontal" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_sm}>
+        <text value={"[" + label + "]"} font_size={ThemeWorld.font_md} />
+    </stack>
+
+component ThemeButtonRow():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="BUTTON STYLES" font_size={ThemeWorld.font_lg} />
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_md}>
+            <ThemeButton label="  Save  " color={ThemeWorld.primary_color} />
+            <ThemeButton label=" Cancel " color={ThemeWorld.muted_color} />
+            <ThemeButton label=" Delete " color={ThemeWorld.error_color} />
+        </stack>
+        <text value={"border: " + str(ThemeWorld.border_width) + "px  radius: " + str(ThemeWorld.radius_md) + "px"} font_size={ThemeWorld.font_sm} />
+    </stack>
+
+component ThemeCard(title: String, body_text: String):
+    render <stack direction="vertical" padding={ThemeWorld.spacing_lg} spacing={ThemeWorld.spacing_md}>
+        <text value={title} font_size={ThemeWorld.font_lg} />
+        <text value={body_text} font_size={ThemeWorld.font_md} />
+        <ThemeButton label="Action" color={ThemeWorld.primary_color} />
+    </stack>
+
+component ThemeCardRow():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="CARD COMPONENTS" font_size={ThemeWorld.font_lg} />
+        <stack direction="horizontal" spacing={ThemeWorld.spacing_lg}>
+            <ThemeCard title="Info Card" body_text="This card uses theme spacing, fonts, and colors." />
+            <ThemeCard title="Alert Card" body_text="Theme values cascade from world through all components." />
+        </stack>
+        <text value={"surface bg: " + ThemeWorld.surface_color + "  radius: " + str(ThemeWorld.radius_md) + "px"} font_size={ThemeWorld.font_sm} />
+    </stack>
+
+component ThemeInfo():
+    render <stack direction="vertical" padding={ThemeWorld.spacing_md} spacing={ThemeWorld.spacing_md}>
+        <text value="THEME SYSTEM INFO" font_size={ThemeWorld.font_lg} />
+        <text value={theme_system_summary()} font_size={ThemeWorld.font_md} />
+        <text value={theme_title()} font_size={ThemeWorld.font_md} />
+        <text value={theme_all_colors_read()} font_size={ThemeWorld.font_sm} />
+        <text value={border_info()} font_size={ThemeWorld.font_sm} />
+        <text value={padding_xl_label()} font_size={ThemeWorld.font_sm} />
+        <text value="World → Component → Top-level fn → JSX {expr} → Native Elements" font_size={ThemeWorld.font_sm} />
+        <text value="All theme values stored as world state. Change one field, all components update." font_size={ThemeWorld.font_sm} />
+    </stack>
+
+// ── Root component: composes all theme showcase sections ────────
+
+component ThemeShowcaseRoot():
+    render <panel title="Theme Showcase">
+        <stack direction="vertical" padding={ThemeWorld.spacing_xl} spacing={ThemeWorld.spacing_lg}>
+            // Header
+            <text value="THEME SHOWCASE" font_size={ThemeWorld.font_xl} />
+            <text value={theme_title()} font_size={ThemeWorld.font_lg} />
+
+            // Theme sections
+            <ThemePalette />
+            <ThemeSpacingDemo />
+            <ThemeFontDemo />
+            <ThemeButtonRow />
+            <ThemeCardRow />
+            <ThemeInfo />
+
+            // Footer
+            <text value="─────────────────────────────────────────────" font_size={ThemeWorld.font_sm} />
+            <text value="7 theme-aware components sharing 1 ThemeWorld." font_size={ThemeWorld.font_sm} />
+            <text value="ThemeWorld holds 22 state fields: colors, spacing, fonts, radii." font_size={ThemeWorld.font_sm} />
+            <text value="Components read ThemeWorld.field directly in JSX {expr}." font_size={ThemeWorld.font_sm} />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0
