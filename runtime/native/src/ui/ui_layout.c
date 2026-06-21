@@ -102,8 +102,8 @@ static void ui_layout_node(KainNativeUiSession* s, int64_t node_idx, double pare
     if (avail_w < 0.0) avail_w = 0.0;
     if (avail_h < 0.0) avail_h = 0.0;
 
-    double cursor_x = node_x + padding_left;
-    double cursor_y = node_y + padding_top;
+    double cursor_x = node->x + padding_left;
+    double cursor_y = node->y + padding_top;
 
     int64_t i;
     for (i = 0; i < child_count; i++) {
@@ -141,7 +141,7 @@ static void ui_layout_node(KainNativeUiSession* s, int64_t node_idx, double pare
                     double h = ui_layout_style_f64(s, s->nodes[child_indices[j]].id, "height", -1.0);
                     if (h < 0.0) remaining++;
                 }
-                share_h = (remaining > 0) ? ((avail_h - (cursor_y - node_y - padding_top)) / (double)remaining) : 0.0;
+                share_h = (remaining > 0) ? ((avail_h - (cursor_y - node->y - padding_top)) / (double)remaining) : 0.0;
             }
             child->height = share_h;
 
