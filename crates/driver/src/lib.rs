@@ -3559,8 +3559,23 @@ fn typed_program_ptx_eligible(program: &TypedProgram) -> bool {
     for item in &program.items {
         if let TypedItem::Shader(shader) = item {
             saw_shader = true;
-            if shader.ast.stage != ShaderStage::Compute {
-                return false;
+            // PTX only supports compute shaders.
+            // Mesh, task, and ray tracing stages must use SPIR-V or HLSL.
+            match shader.ast.stage {
+                ShaderStage::Compute => {}
+                ShaderStage::Vertex
+                | ShaderStage::Fragment
+                | ShaderStage::Surface
+                | ShaderStage::Mesh
+                | ShaderStage::Task
+                | ShaderStage::RayGen
+                | ShaderStage::AnyHit
+                | ShaderStage::ClosestHit
+                | ShaderStage::Miss
+                | ShaderStage::Intersection
+                | ShaderStage::Callable => {
+                    return false;
+                }
             }
         }
     }
@@ -3847,6 +3862,14 @@ fn shader_stage_name(stage: sys::RustGpuShaderStage) -> &'static str {
         sys::RustGpuShaderStage::Fragment => "fragment",
         sys::RustGpuShaderStage::Compute => "compute",
         sys::RustGpuShaderStage::Surface => "surface",
+        sys::RustGpuShaderStage::Mesh => "mesh",
+        sys::RustGpuShaderStage::Task => "task",
+        sys::RustGpuShaderStage::RayGen => "raygen",
+        sys::RustGpuShaderStage::AnyHit => "anyhit",
+        sys::RustGpuShaderStage::ClosestHit => "closesthit",
+        sys::RustGpuShaderStage::Miss => "miss",
+        sys::RustGpuShaderStage::Intersection => "intersection",
+        sys::RustGpuShaderStage::Callable => "callable",
     }
 }
 

@@ -1326,7 +1326,20 @@ fn emit_block(ctx: &mut TextContext, block: &Block) -> KainResult<String> {
 
 fn emit_stmt(ctx: &mut TextContext, stmt: &Stmt) -> KainResult<String> {
     match stmt {
-        Stmt::Subgroup { .. } => Ok(String::new()),
+        Stmt::Subgroup { size, body, .. } => {
+            // Wave 2 DELTA: subgroup scope — emit comments + body.
+            // Backend-specific intrinsics (WaveActive* / subgroup*) are mapped
+            // in the function name tables above.
+            let mut output = String::new();
+            output.push_str(&format!(
+                "{}// subgroup scope (size={})\n",
+                ctx.indent(),
+                size
+            ));
+            output.push_str(&emit_block(ctx, body)?);
+            output.push_str(&format!("{}// subgroup scope end\n", ctx.indent()));
+            Ok(output)
+        },
         Stmt::Let {
             pattern,
             ty,

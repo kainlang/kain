@@ -589,7 +589,14 @@ impl SourceFormatter {
                     "Kain formatter cannot emit `surface` shader stage because the parser does not currently accept it",
                 ))
             }
-            _ => "compute ",
+            ShaderStage::Mesh => "mesh ",
+            ShaderStage::Task => "task ",
+            ShaderStage::RayGen => "raygen ",
+            ShaderStage::AnyHit => "anyhit ",
+            ShaderStage::ClosestHit => "closesthit ",
+            ShaderStage::Miss => "miss ",
+            ShaderStage::Intersection => "intersection ",
+            ShaderStage::Callable => "callable ",
         };
         let mut header = self.render_callable_head(
             &format!("shader {stage}{}(", value.name),

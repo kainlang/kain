@@ -3,8 +3,10 @@
 #![allow(dead_code, unused_variables)]
 
 use kain_core::ast::{
-    BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, Shader, ShaderStage, Stmt, Type, UnaryOp,
+    BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, Shader, ShaderStage, Stmt, Type,
+    UnaryOp,
 };
+use kain_core::span::Span;
 use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::error::{
     CompilerPhase, DiagnosticReport, DiagnosticSemanticPacket, ErrorKind, KainError, KainResult,
@@ -190,7 +192,62 @@ fn emit_shader(
         None
     };
 
-    // Uniforms
+    // Uniforms — Wave 2 DELTA: classify for push constant eligibility
+    // Push constants are used when all uniforms (excluding samplers and storage buffers)
+    // are plain value types and total size ≤ 128 bytes.
+    let use_push_constants = {
+        let mut total_pc_size: u32 = 0;
+        let mut can_use_push = false;
+        for uniform in &shader.ast.uniforms {
+            if is_local_size_param(&uniform.name) || is_permutation_param(&uniform.name) {
+                continue;
+            }
+            if is_storage_buffer(&uniform.ty)
+                || matches!(&uniform.ty, Type::Named { name, .. } if name == "Sampler2D")
+            {
+                // Storage buffers and samplers cannot be push constants
+                can_use_push = false;
+                break;
+            }
+            if let Some(size) = spirv_type_size_bytes(&uniform.ty) {
+                total_pc_size += size;
+                can_use_push = true;
+            } else {
+                can_use_push = false;
+                break;
+            }
+        }
+        can_use_push && total_pc_size > 0 && total_pc_size <= 128
+    };
+
+    // Push constant preamble: collect member types and emit a single struct
+    let mut push_constant_var: Option<u32> = None;
+    let mut push_constant_member_types: Vec<u32> = Vec::new();
+    let mut push_constant_index: u32 = 0;
+
+    if use_push_constants {
+        for uniform in &shader.ast.uniforms {
+            if is_local_size_param(&uniform.name) || is_permutation_param(&uniform.name) {
+                continue;
+            }
+            if is_storage_buffer(&uniform.ty)
+                || matches!(&uniform.ty, Type::Named { name, .. } if name == "Sampler2D")
+            {
+                continue;
+            }
+            let member_ty = map_ast_type(b, &uniform.ty);
+            push_constant_member_types.push(member_ty);
+        }
+        if !push_constant_member_types.is_empty() {
+            let struct_ty = b.type_struct(push_constant_member_types.clone());
+            b.decorate(struct_ty, Decoration::Block, []);
+            let ptr_ty = b.type_pointer(None, StorageClass::PushConstant, struct_ty);
+            let pc_var = b.variable(ptr_ty, None, StorageClass::PushConstant, None);
+            interface_vars.push(pc_var);
+            push_constant_var = Some(pc_var);
+        }
+    }
+
     for uniform in &shader.ast.uniforms {
         if matches!(shader.ast.stage, ShaderStage::Compute) && is_local_size_param(&uniform.name) {
             let slot = match uniform.name.as_str() {
@@ -229,6 +286,32 @@ fn emit_shader(
                 );
                 continue;
             }
+        }
+
+        // Wave 2 DELTA: push constant uniform access — emit AccessChain into struct
+        if use_push_constants
+            && !is_storage_buffer(&uniform.ty)
+            && !matches!(&uniform.ty, Type::Named { name, .. } if name == "Sampler2D")
+        {
+            let pc_var = push_constant_var.unwrap();
+            let member_type = push_constant_member_types[push_constant_index as usize];
+            let ptr_ty = b.type_pointer(None, StorageClass::PushConstant, member_type);
+            let uint_ty = b.type_int(32, 0);
+            let idx = b.constant_bit32(uint_ty, push_constant_index);
+            push_constant_index += 1;
+            let member_ptr = b
+                .access_chain(ptr_ty, None, pc_var, vec![idx])
+                .unwrap();
+            ctx_vars.insert(
+                uniform.name.clone(),
+                VarBinding {
+                    id: member_ptr,
+                    ty: uniform.ty.clone(),
+                    is_ptr: true,
+                },
+            );
+            struct_uniforms.insert(uniform.name.clone());
+            continue;
         }
 
         let is_sampler = matches!(&uniform.ty, Type::Named { name, .. } if name == "Sampler2D");
@@ -304,6 +387,78 @@ fn emit_shader(
             } else {
                 struct_uniforms.insert(uniform.name.clone());
             }
+        }
+    }
+
+    // Wave 2 DELTA: Emit OpSpecConstant for ComputeMetadata.spec_constants
+    // These are declared in `comptime` metadata blocks and overridable at dispatch time.
+    if let Ok(Some(metadata)) = shader.ast.explicit_compute_metadata() {
+        let mut next_spec_id = shader
+            .ast
+            .uniforms
+            .iter()
+            .filter(|u| is_permutation_param(&u.name))
+            .count() as u32;
+        for spec in &metadata.spec_constants {
+            let const_id = match &spec.default_value {
+                kain_core::ast::SpecConstantValue::U32(val) => {
+                    let uint_ty = b.type_int(32, 0);
+                    b.spec_constant_bit32(uint_ty, *val)
+                }
+                kain_core::ast::SpecConstantValue::F32(val) => {
+                    let float_ty = b.type_float(32);
+                    b.spec_constant_bit32(float_ty, val.to_bits())
+                }
+                kain_core::ast::SpecConstantValue::Int(val) => {
+                    let int_ty = b.type_int(32, 1);
+                    b.spec_constant_bit32(int_ty, *val as u32)
+                }
+                kain_core::ast::SpecConstantValue::Bool(val) => {
+                    let bool_ty = b.type_bool();
+                    if *val {
+                        b.spec_constant_true(bool_ty)
+                    } else {
+                        b.spec_constant_false(bool_ty)
+                    }
+                }
+            };
+            b.decorate(
+                const_id,
+                Decoration::SpecId,
+                vec![Operand::LiteralBit32(next_spec_id)],
+            );
+            next_spec_id += 1;
+
+            let spec_ty = match &spec.default_value {
+                kain_core::ast::SpecConstantValue::U32(_) => Type::Named {
+                    name: "UInt".into(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                kain_core::ast::SpecConstantValue::F32(_) => Type::Named {
+                    name: "Float".into(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                kain_core::ast::SpecConstantValue::Int(_) => Type::Named {
+                    name: "Int".into(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+                kain_core::ast::SpecConstantValue::Bool(_) => Type::Named {
+                    name: "Bool".into(),
+                    generics: vec![],
+                    span: Span::default(),
+                },
+            };
+            ctx_vars.insert(
+                spec.name.clone(),
+                VarBinding {
+                    id: const_id,
+                    ty: spec_ty,
+                    is_ptr: false,
+                },
+            );
         }
     }
 
@@ -3397,7 +3552,9 @@ fn try_emit_subgroup_intrinsic(
     let float_ty = ctx.b.type_float(32);
     let bool_ty = ctx.b.type_bool();
     let uvec4_ty = ctx.b.type_vector(uint_ty, 4);
-    let subgroup_scope = ctx.b.constant_u32(rspirv::spirv::Scope::Subgroup as u32);
+    let subgroup_scope =
+        ctx.b
+            .constant_bit32(uint_ty, rspirv::spirv::Scope::Subgroup as u32);
 
     let uint_type = Type::Named {
         name: "UInt".into(),
@@ -3428,9 +3585,9 @@ fn try_emit_subgroup_intrinsic(
             ctx.b.decorate(
                 var,
                 rspirv::spirv::Decoration::BuiltIn,
-                &[Operand::BuiltIn(BuiltIn::SubgroupLocalInvocationId)],
+                [Operand::BuiltIn(BuiltIn::SubgroupLocalInvocationId)],
             );
-            let val = ctx.b.load(uint_ty, None, var, None, &[]).unwrap();
+            let val = ctx.b.load(uint_ty, None, var, None, []).unwrap();
             Ok(Some((val, uint_type)))
         }
         "cuda_warp_id" => {
@@ -3445,17 +3602,17 @@ fn try_emit_subgroup_intrinsic(
             ctx.b.decorate(
                 var,
                 rspirv::spirv::Decoration::BuiltIn,
-                &[Operand::BuiltIn(BuiltIn::SubgroupId)],
+                [Operand::BuiltIn(BuiltIn::SubgroupId)],
             );
-            let val = ctx.b.load(uint_ty, None, var, None, &[]).unwrap();
+            let val = ctx.b.load(uint_ty, None, var, None, []).unwrap();
             Ok(Some((val, uint_type)))
         }
         "cuda_active_mask" => {
             // OpGroupNonUniformBallot(true) -> active lanes
-            let one = ctx.b.constant_bool(bool_ty, true);
+            let one = ctx.b.constant_true(bool_ty);
             let ballot = ctx
                 .b
-                .group_non_uniform_ballot(uvec4_ty, subgroup_scope, one)
+                .group_non_uniform_ballot(uvec4_ty, None, subgroup_scope, one)
                 .unwrap();
             Ok(Some((ballot, Type::Named {
                 name: "UVec4".into(),
@@ -3467,7 +3624,7 @@ fn try_emit_subgroup_intrinsic(
             let (pred, _) = emit_expr(ctx, &args[0].value)?;
             let ballot = ctx
                 .b
-                .group_non_uniform_ballot(uvec4_ty, subgroup_scope, pred)
+                .group_non_uniform_ballot(uvec4_ty, None, subgroup_scope, pred)
                 .unwrap();
             Ok(Some((ballot, Type::Named {
                 name: "UVec4".into(),
@@ -3479,7 +3636,7 @@ fn try_emit_subgroup_intrinsic(
             let (pred, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_any(bool_ty, subgroup_scope, pred)
+                .group_non_uniform_any(bool_ty, None, subgroup_scope, pred)
                 .unwrap();
             Ok(Some((result, bool_type)))
         }
@@ -3487,7 +3644,7 @@ fn try_emit_subgroup_intrinsic(
             let (pred, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_all(bool_ty, subgroup_scope, pred)
+                .group_non_uniform_all(bool_ty, None, subgroup_scope, pred)
                 .unwrap();
             Ok(Some((result, bool_type)))
         }
@@ -3496,7 +3653,7 @@ fn try_emit_subgroup_intrinsic(
             let (mask, _) = emit_expr(ctx, &args[1].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_shuffle_xor(uint_ty, subgroup_scope, val, mask)
+                .group_non_uniform_shuffle_xor(uint_ty, None, subgroup_scope, val, mask)
                 .unwrap();
             Ok(Some((result, uint_type)))
         }
@@ -3505,7 +3662,7 @@ fn try_emit_subgroup_intrinsic(
             let (mask, _) = emit_expr(ctx, &args[1].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_shuffle_xor(float_ty, subgroup_scope, val, mask)
+                .group_non_uniform_shuffle_xor(float_ty, None, subgroup_scope, val, mask)
                 .unwrap();
             Ok(Some((result, float_type)))
         }
@@ -3513,7 +3670,7 @@ fn try_emit_subgroup_intrinsic(
             let (val, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_fadd(float_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .group_non_uniform_f_add(float_ty, None, subgroup_scope, GroupOperation::Reduce, val, None)
                 .unwrap();
             Ok(Some((result, float_type)))
         }
@@ -3521,7 +3678,7 @@ fn try_emit_subgroup_intrinsic(
             let (val, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_iadd(uint_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .group_non_uniform_i_add(uint_ty, None, subgroup_scope, GroupOperation::Reduce, val, None)
                 .unwrap();
             Ok(Some((result, uint_type)))
         }
@@ -3529,7 +3686,7 @@ fn try_emit_subgroup_intrinsic(
             let (val, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_fmax(float_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .group_non_uniform_f_max(float_ty, None, subgroup_scope, GroupOperation::Reduce, val, None)
                 .unwrap();
             Ok(Some((result, float_type)))
         }
@@ -3537,7 +3694,7 @@ fn try_emit_subgroup_intrinsic(
             let (val, _) = emit_expr(ctx, &args[0].value)?;
             let result = ctx
                 .b
-                .group_non_uniform_umax(uint_ty, subgroup_scope, GroupOperation::Reduce, val)
+                .group_non_uniform_u_max(uint_ty, None, subgroup_scope, GroupOperation::Reduce, val, None)
                 .unwrap();
             Ok(Some((result, uint_type)))
         }
@@ -3545,8 +3702,8 @@ fn try_emit_subgroup_intrinsic(
             // OpControlBarrier(Subgroup, Workgroup, AcquireRelease)
             let workgroup_scope =
                 ctx.b
-                    .constant_u32(rspirv::spirv::Scope::Workgroup as u32);
-            let zero = ctx.b.constant_u32(0);
+                    .constant_bit32(uint_ty, rspirv::spirv::Scope::Workgroup as u32);
+            let zero = ctx.b.constant_bit32(uint_ty, 0);
             ctx.b
                 .control_barrier(workgroup_scope, subgroup_scope, zero)
                 .unwrap();
@@ -3554,6 +3711,28 @@ fn try_emit_subgroup_intrinsic(
             Ok(Some((ctx.b.constant_bit32(uint_ty, 0), uint_type)))
         }
         _ => Ok(None), // not a subgroup intrinsic — fall through to default lowering
+    }
+}
+
+/// Returns the byte size of a SPIR-V type for push constant classification.
+/// Returns None for types that cannot be push constants (storage buffers, samplers).
+fn spirv_type_size_bytes(ty: &Type) -> Option<u32> {
+    match ty {
+        Type::Named { name, .. } => match name.as_str() {
+            "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool" => Some(4),
+            "Vec2" => Some(8),
+            "Vec3" | "Vec3A" => Some(12),
+            "Vec4" => Some(16),
+            "IVec2" | "UVec2" => Some(8),
+            "IVec3" | "UVec3" => Some(12),
+            "IVec4" | "UVec4" => Some(16),
+            "Mat2" => Some(16),
+            "Mat3" => Some(48),
+            "Mat4" => Some(64),
+            "StorageBuffer" | "Sampler2D" | "Sampler" => None,
+            _ => None, // unknown types cannot be push constants
+        },
+        _ => None,
     }
 }
 

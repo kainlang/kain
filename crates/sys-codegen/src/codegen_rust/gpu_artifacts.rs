@@ -24,6 +24,17 @@ pub enum RustGpuShaderStage {
     Fragment,
     Compute,
     Surface,
+    /// Wave 2 DELTA: mesh shading (VK_EXT_mesh_shader)
+    Mesh,
+    /// Wave 2 DELTA: task/amplification shader
+    Task,
+    /// Wave 2 DELTA: ray tracing stages (VK_KHR_ray_tracing)
+    RayGen,
+    AnyHit,
+    ClosestHit,
+    Miss,
+    Intersection,
+    Callable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,8 +187,14 @@ fn map_shader_stage(stage: ShaderStage) -> RustGpuShaderStage {
         ShaderStage::Fragment => RustGpuShaderStage::Fragment,
         ShaderStage::Compute => RustGpuShaderStage::Compute,
         ShaderStage::Surface => RustGpuShaderStage::Surface,
-        // Stream DELTA will add proper mappings for Mesh, Task, RayGen, etc.
-        _ => RustGpuShaderStage::Compute,
+        ShaderStage::Mesh => RustGpuShaderStage::Mesh,
+        ShaderStage::Task => RustGpuShaderStage::Task,
+        ShaderStage::RayGen => RustGpuShaderStage::RayGen,
+        ShaderStage::AnyHit => RustGpuShaderStage::AnyHit,
+        ShaderStage::ClosestHit => RustGpuShaderStage::ClosestHit,
+        ShaderStage::Miss => RustGpuShaderStage::Miss,
+        ShaderStage::Intersection => RustGpuShaderStage::Intersection,
+        ShaderStage::Callable => RustGpuShaderStage::Callable,
     }
 }
 

@@ -223,6 +223,14 @@ fn stage_name(stage: RustGpuShaderStage) -> &'static str {
         RustGpuShaderStage::Fragment => "Fragment",
         RustGpuShaderStage::Compute => "Compute",
         RustGpuShaderStage::Surface => "Surface",
+        RustGpuShaderStage::Mesh => "Mesh",
+        RustGpuShaderStage::Task => "Task",
+        RustGpuShaderStage::RayGen => "RayGen",
+        RustGpuShaderStage::AnyHit => "AnyHit",
+        RustGpuShaderStage::ClosestHit => "ClosestHit",
+        RustGpuShaderStage::Miss => "Miss",
+        RustGpuShaderStage::Intersection => "Intersection",
+        RustGpuShaderStage::Callable => "Callable",
     }
 }
 
