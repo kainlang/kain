@@ -347,10 +347,10 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
     if (strcmp(backend_id, "vulkan") == 0) {
         const KainComponentSurface* surface =
             kain_component_surface_resolve("vulkan");
-        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        if (surface == NULL) return ABI_UI_INVALID_ARGUMENT;
         int64_t vulkan_session = surface->session_create(
             session->window_title, session->width, session->height);
-        if (vulkan_session < 0) return ABI_UI_SESSION_FAILED;
+        if (vulkan_session < 0) return ABI_UI_CAPACITY_EXCEEDED;
         session->host_backend[0] = '\0';
         snprintf(session->host_backend, sizeof(session->host_backend), "vulkan");
         session->component_surface = surface;
@@ -361,10 +361,10 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
     if (strcmp(backend_id, "d3d12") == 0) {
         const KainComponentSurface* surface =
             kain_component_surface_resolve("d3d12");
-        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        if (surface == NULL) return ABI_UI_INVALID_ARGUMENT;
         int64_t d3d12_session = surface->session_create(
             session->window_title, session->width, session->height);
-        if (d3d12_session < 0) return ABI_UI_SESSION_FAILED;
+        if (d3d12_session < 0) return ABI_UI_CAPACITY_EXCEEDED;
         session->host_backend[0] = '\0';
         snprintf(session->host_backend, sizeof(session->host_backend), "d3d12");
         session->component_surface = surface;
@@ -375,10 +375,10 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
     if (strcmp(backend_id, "webgpu") == 0) {
         const KainComponentSurface* surface =
             kain_component_surface_resolve("webgpu");
-        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        if (surface == NULL) return ABI_UI_INVALID_ARGUMENT;
         int64_t webgpu_session = surface->session_create(
             session->window_title, session->width, session->height);
-        if (webgpu_session < 0) return ABI_UI_SESSION_FAILED;
+        if (webgpu_session < 0) return ABI_UI_CAPACITY_EXCEEDED;
         session->host_backend[0] = '\0';
         snprintf(session->host_backend, sizeof(session->host_backend), "webgpu");
         session->component_surface = surface;
