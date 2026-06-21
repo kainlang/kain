@@ -1,0 +1,15 @@
+; webgpu_abi.def — DLL export definitions for libkain-webgpu-abi.dll
+;
+; Only the public entry points are exported. Everything else (internal
+; vtable implementations, helpers, the static g_webgpu_abi_vtable) is
+; hidden via default visibility.
+;
+; The runtime shim (webgpu_surface_shim.c) resolves kain_webgpu_abi_get_vtable
+; via GetProcAddress after LoadLibraryA("libkain-webgpu-abi.dll"). On Linux
+; and macOS, the same symbol is found via dlsym.
+
+LIBRARY libkain-webgpu-abi
+EXPORTS
+    kain_webgpu_abi_get_vtable
+    kain_webgpu_abi_init
+    kain_webgpu_abi_shutdown

@@ -1,0 +1,101 @@
+# BUILD.bazel — libkain-webgpu-abi shared library (native + WASM variants)
+#
+# Build modes:
+#   bazel build //runtime/native/extras/webgpu-abi:kain_webgpu_abi --config=dev      (Windows .dll / Linux .so)
+#   bazel build //runtime/native/extras/webgpu-abi:kain_webgpu_abi --config=release  (optimized)
+#
+# This library NEVER includes <webgpu/webgpu.h> or <wgpu.h> and NEVER links
+# the wgpu-native SDK. All WGPU types are uintptr_t; all WGPU calls are
+# resolved via dlsym/GetProcAddress at runtime.
+#
+# Pattern: cc_binary + linkshared produces a Windows DLL / Linux .so.
+# Runtime headers come from //runtime:runtime_headers_only.
+#
+# The WASM variant (kain_webgpu_abi_wasm) is a separate cc_library compiled
+# only when targeting WebAssembly. It uses emscripten's WebGPU bindings or
+# direct browser API — no dynamic loader. The cc_library output is statically
+# linked into the final Kain WASM executable; the runtime shim's `__wasm__`
+# branch calls kain_webgpu_abi_get_vtable() directly at link time.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+# ── Native path (Windows / Linux / macOS) ─────────────────────────────────
+# dlopen("libwgpu_native.so" / "wgpu_native.dll" / "libwgpu_native.dylib")
+# with fallback to "libdawn.so" / "dawn.dll" / "libdawn.dylib".
+
+cc_binary(
+    name = "kain_webgpu_abi",
+    srcs = [
+        "webgpu_abi.c",
+        "webgpu_abi.h",
+    ],
+    copts = [
+        "/W3",
+        "/std:c11",
+        "/experimental:c11atomics",
+        "/Gy",
+    ],
+    defines = [
+        "WIN32_LEAN_AND_MEAN",
+        "KAIN_RUNTIME_HAS_WEBGPU",
+    ],
+    includes = [
+        ".",  # → this directory for webgpu_abi.h
+    ],
+    win_def_file = "webgpu_abi.def",
+    deps = [
+        "//runtime:runtime_headers_only",
+    ],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+)
+
+# Convenience alias
+alias(
+    name = "kain_webgpu_abi_shared",
+    actual = ":kain_webgpu_abi",
+)
+
+# ── WASM path (browser / navigator.gpu) ──────────────────────────────────
+# No dlopen — the browser provides WebGPU natively. The runtime shim
+# statically links this target and resolves kain_webgpu_abi_get_vtable
+# at link time. The file is gated by `#ifdef __wasm__` so the same source
+# builds cleanly on every host platform; production WASM builds use
+# emcc/clang-wasm and define `__wasm__` via the toolchain.
+
+cc_library(
+    name = "kain_webgpu_abi_wasm",
+    srcs = [
+        "webgpu_abi_wasm.c",
+        "webgpu_abi.h",
+    ],
+    copts = [
+        "-std=c11",
+    ],
+    defines = [
+        "KAIN_RUNTIME_HAS_WEBGPU",
+    ],
+    includes = [
+        ".",  # → this directory for webgpu_abi.h
+    ],
+    deps = [
+        "//runtime:runtime_headers_only",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# ── Sources filegroup (for cross-target references) ──────────────────────
+filegroup(
+    name = "kain_webgpu_abi_sources",
+    srcs = [
+        "webgpu_abi.c",
+        "webgpu_abi_wasm.c",
+        "webgpu_abi.h",
+        "webgpu_abi.def",
+        "BUILD.bazel",
+        "README.md",
+    ],
+    visibility = ["//visibility:public"],
+)

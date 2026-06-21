@@ -17,8 +17,8 @@
 //  vkGetInstanceProcAddr.
 // ============================================================================
 
-#include "../../include/vulkan_loader_subset.h"
-#include "../../include/component_surface.h"
+#include "vulkan_loader_subset.h"
+#include "component_surface.h"
 
 #define KAIN_VULKAN_ABI_VERSION 1
 #define KAIN_VULKAN_ABI_MAX_SWAPCHAIN_IMAGES 4
@@ -77,13 +77,20 @@ typedef struct KainVulkanSession {
     int                 initialized;
 } KainVulkanSession;
 
+// ── Export annotation ────────────────────────────────────────────
+#ifdef _WIN32
+#define KAIN_VULKAN_ABI_EXPORT __declspec(dllexport)
+#else
+#define KAIN_VULKAN_ABI_EXPORT __attribute__((visibility("default")))
+#endif
+
 // ── The ONLY entry point exposed to the runtime shim ───────────────────────
 
-const KainVulkanAbiVtable* kain_vulkan_abi_get_vtable(void);
+KAIN_VULKAN_ABI_EXPORT const KainVulkanAbiVtable* kain_vulkan_abi_get_vtable(void);
 
 // ── Optional: explicit init/shutdown for blade-level control ───────────────
 
-int  kain_vulkan_abi_init(void);
-void kain_vulkan_abi_shutdown(void);
+KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_init(void);
+KAIN_VULKAN_ABI_EXPORT void kain_vulkan_abi_shutdown(void);
 
 #endif // KAIN_VULKAN_ABI_H

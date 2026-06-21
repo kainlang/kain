@@ -1,4 +1,3 @@
-// afl_ext 2024 — MIT License
 // Schwarzschild Black Hole — Gravitational Raymarcher
 // Uses: shader fragment, comptime spec constants, raymarching through curved spacetime
 // Features: gravitational lensing, event horizon, photon ring, accretion disk, relativistic redshift

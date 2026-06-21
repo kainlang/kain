@@ -1,0 +1,50 @@
+# BUILD.bazel — libkain-vulkan-abi shared library
+#
+# Build modes:
+#   bazel build //runtime/native/extras/vulkan-abi:kain_vulkan_abi --config=dev      (Windows .dll)
+#   bazel build //runtime/native/extras/vulkan-abi:kain_vulkan_abi --config=release  (optimized)
+#
+# This library NEVER includes <vulkan/vulkan.h> and NEVER links the Vulkan SDK.
+# All Vulkan types are uintptr_t; all Vulkan calls are resolved via
+# vkGetInstanceProcAddr at runtime.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "kain_vulkan_abi",
+    srcs = ["vulkan_abi.c", "vulkan_abi.h"],
+    copts = [
+        "/W3",
+        "/std:c11",
+        "/experimental:c11atomics",
+        "/Gy",
+    ],
+    defines = [
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    includes = [
+        ".",  # → this directory for vulkan_abi.h
+    ],
+    deps = [
+        "//runtime:runtime_headers_only",
+    ],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+)
+
+# Convenience alias
+alias(
+    name = "kain_vulkan_abi_shared",
+    actual = ":kain_vulkan_abi",
+)
+
+filegroup(
+    name = "kain_vulkan_abi_sources",
+    srcs = [
+        "vulkan_abi.c",
+        "vulkan_abi.h",
+        "BUILD.bazel",
+        "README.md",
+    ],
+    visibility = ["//visibility:public"],
+)

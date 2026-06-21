@@ -1,0 +1,63 @@
+# BUILD.bazel — libkain-d3d12-abi shared library (Windows-only)
+#
+# Build modes:
+#   bazel build //runtime/native/extras/d3d12-abi:kain_d3d12_abi --config=dev
+#
+# This library NEVER includes <d3d12.h> or <dxgi.h>. All D3D12/DXGI types
+# come from d3d12_loader_subset.h (pure typedefs, COM vtable layouts, IID
+# values). The library loads d3d12.dll and dxgi.dll at runtime via
+# LoadLibraryA/GetProcAddress.
+#
+# Pattern: cc_binary + linkshared produces a Windows DLL.
+# Runtime headers come from //runtime:runtime_headers_only.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "kain_d3d12_abi",
+    srcs = [
+        "d3d12_abi.c",
+        "d3d12_abi.h",
+    ],
+    copts = [
+        "/W3",
+        "/std:c11",
+        "/experimental:c11atomics",
+        "/Gy",
+    ],
+    defines = [
+        "WIN32_LEAN_AND_MEAN",
+        "KAIN_RUNTIME_HAS_D3D12",
+    ],
+    includes = [
+        ".",  # → this directory for d3d12_abi.h
+    ],
+    linkopts = [
+        "/DEFAULTLIB:user32.lib",
+    ],
+    win_def_file = "d3d12_abi.def",
+    deps = [
+        "//runtime:runtime_headers_only",
+    ],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+)
+
+# Convenience alias
+alias(
+    name = "kain_d3d12_abi_shared",
+    actual = ":kain_d3d12_abi",
+)
+
+filegroup(
+    name = "kain_d3d12_abi_sources",
+    srcs = [
+        "d3d12_abi.c",
+        "d3d12_abi.h",
+        "BUILD.bazel",
+        "README.md",
+        "d3d12_abi.def",
+        "d3d12_abi_runtime_hdrs.h",
+    ],
+    visibility = ["//visibility:public"],
+)

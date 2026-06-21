@@ -1,0 +1,10 @@
+; d3d12_abi.def — DLL export definitions for libkain-d3d12-abi.dll
+;
+; Only the public entry points are exported. Everything else (internal
+; vtable implementations, helpers) is hidden via default visibility.
+
+LIBRARY libkain-d3d12-abi
+EXPORTS
+    kain_d3d12_abi_get_vtable
+    kain_d3d12_abi_init
+    kain_d3d12_abi_shutdown

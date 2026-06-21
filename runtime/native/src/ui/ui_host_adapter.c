@@ -83,8 +83,6 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
     // ── Input event bridge: translate OS events → universal input format ──
     if (host && host->input_session_id > 0) {
         int64_t isid = host->input_session_id;
-        int x = (int)(short)LOWORD(l_param);
-        int y = (int)(short)HIWORD(l_param);
 
         switch (msg) {
             case WM_KEYDOWN:

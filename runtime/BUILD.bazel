@@ -1,4 +1,4 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load(":native_runtime_rules.bzl", "POSIX_C_COPTS", "WINDOWS_COPTS", "declare_runtime_bundle", "platform_select")
 load(":runtime_manifest_data.bzl", "NATIVE_CORE_RUNTIME", "NATIVE_RUNTIME", "NATIVE_RUNTIME_ACTOR_TESTS", "NATIVE_RUNTIME_OWNERSHIP_TESTS")
 load(":BUILD.freestanding.bzl", "declare_freestanding_core_runtime")
@@ -41,6 +41,18 @@ alias(
 
 # ── Freestanding core runtime (bare metal, no OS, no libc) ────────────
 declare_freestanding_core_runtime()
+
+# ── Header-only library for sub-packages that need runtime headers ───
+#     without linking all runtime object files.
+cc_library(
+    name = "runtime_headers_only",
+    hdrs = glob(
+        ["native/include/**/*.h"],
+        allow_empty = False,
+    ),
+    includes = ["native/include"],
+    visibility = ["//visibility:public"],
+)
 
 cc_test(
     name = "native_test_actor_monitor_link",
