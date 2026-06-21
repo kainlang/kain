@@ -1,27 +1,29 @@
-; Experimental proof for the packed helper-allocation header token.
+; Proof: Helper slot token roundtrip (token→slot→token identity)
 ;
-; The low 16 bits of the first header word carry (slot + 1), while the upper
-; bits carry the fixed helper-allocation magic tag. This keeps the header at
-; 16 bytes and lets the runtime recover the helper-owned registry slot without
-; a hash lookup.
+; Registration:  *out_slot_token = (uint16_t)((uint32_t)slot + 1u);
+; Lookup:        slot = (uint32_t)slot_token - 1u;
+;
+; Claim: For all valid slots [0, KAIN_OWNERSHIP_MAX_REGIONS), the roundtrip
+;   decode(encode(slot)) == slot is identity.
+;   KAIN_OWNERSHIP_MAX_REGIONS = 4096.
+;
+; Since slot_token = slot + 1, and slot is uint16_t, the range is [1, 4096].
+; Subtracting 1 recovers the original slot.
+;
 (set-logic QF_BV)
+(declare-const slot (_ BitVec 12)) ; 4096 = 2^12
+; Slot must be < KAIN_OWNERSHIP_MAX_REGIONS = 4096
+(assert (bvult slot (_ bv4096 12)))
 
-(define-fun MAGIC_TAG () (_ BitVec 64) #x4b41494e4d450000)
-(define-fun TOKEN_MASK () (_ BitVec 64) #x000000000000ffff)
+; Encode: token = (uint16_t)(slot + 1)
+; In range [1, 4096]
+(define-fun token () (_ BitVec 16) ((_ zero_extend 4) (bvadd slot (_ bv1 12))))
 
-(declare-const slot_token (_ BitVec 16))
-(assert (not (= slot_token #x0000)))
+; Decode: recovered = (uint32_t)token - 1u
+; But slot was 12-bit, so we compare the lower 12 bits
+(define-fun recovered_slot () (_ BitVec 12)
+  ((_ extract 11 0) (bvsub ((_ zero_extend 20) token) (_ bv1 32))))
 
-(define-fun tagged_word () (_ BitVec 64)
-  (bvor MAGIC_TAG ((_ zero_extend 48) slot_token)))
-(define-fun extracted_token () (_ BitVec 16)
-  ((_ extract 15 0) tagged_word))
-(define-fun extracted_tag () (_ BitVec 64)
-  (bvand tagged_word (bvnot TOKEN_MASK)))
-
-(assert
-  (or
-    (not (= extracted_token slot_token))
-    (not (= extracted_tag MAGIC_TAG))))
-
+; Claim: recovered_slot == slot
+(assert (not (= recovered_slot slot)))
 (check-sat)

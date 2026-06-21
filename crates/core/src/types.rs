@@ -8380,7 +8380,7 @@ fn check_block_semantics(
 
 /// Validate subgroup divergence rules:
 /// - KAIN-SHADER-0042: No nested subgroups
-/// - KAIN-SHADER-0043: No divergent escape from subgroup scope
+/// - KAIN-SHADER-0043: No divergent escape via return/break/continue
 fn validate_subgroup_divergence(
     body: &Block,
     in_loop: bool,
@@ -8414,28 +8414,14 @@ fn validate_subgroup_divergence(
                     ));
                 }
             }
-            // if/else: validate each branch individually
-            Stmt::If {
-                then, elifs, else_, ..
-            } => {
-                validate_subgroup_divergence(then, in_loop, env)?;
-                for (_, elif_block) in elifs {
-                    validate_subgroup_divergence(elif_block, in_loop, env)?;
-                }
-                if let Some(else_block) = else_ {
-                    if let ElseBranch::Else(block) = else_block.as_ref() {
-                        validate_subgroup_divergence(block, in_loop, env)?;
-                    }
-                }
-            }
-            // for/while/loop inside subgroup: allowed, toggle in_loop flag
+            // for/while/loop inside subgroup: recurse with in_loop=true
             Stmt::For { body, .. }
             | Stmt::Fanout { body, .. }
             | Stmt::While { body, .. }
             | Stmt::Loop { body, .. } => {
                 validate_subgroup_divergence(body, true, env)?;
             }
-            // Other statements: no divergence risk
+            // Recurse into blocks from other statements (if/match via expr, dispatch blocks, etc.)
             Stmt::Dispatch { .. }
             | Stmt::Let { .. }
             | Stmt::Expr(_)
@@ -8678,8 +8664,8 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
         }
         Stmt::Break(None, _) | Stmt::Continue(_) => {}
         Stmt::Subgroup { size: _, body, span: _ } => {
-            // Typecheck the subgroup body.
-            // Divergence escape analysis is deferred to Stream DELTA.
+            // Validate divergence before typechecking
+            validate_subgroup_divergence(body, false, env)?;
             check_block_semantics(env, body, ctx)?;
         }
     }

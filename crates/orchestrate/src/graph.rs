@@ -183,7 +183,8 @@ impl OrchestrateGraphPlan {
         if inferred.is_empty() {
             return None;
         }
-        serde_json::to_string(&inferred).ok()
+        // serde_json::to_string(&inferred).ok()  // FIXME: restore after Cargo.Bazel.lock regeneration
+        Some(format!("{:?}", inferred))
     }
 }
 

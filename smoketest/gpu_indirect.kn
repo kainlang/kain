@@ -1,0 +1,9 @@
+// Smoke test: indirect dispatch syntax
+// Expected: passes `kain check`
+
+use std::gpu
+
+fn test_indirect() with GPU, Unsafe:
+    let buf: ptr<DispatchIndirectCommand> = gpu_indirect_buffer_zeroed()
+    dispatch "shader::TestKernel::compute" from buf
+    return

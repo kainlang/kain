@@ -1917,7 +1917,9 @@ static void kain_actor_table_remove(KainActorId actor_id) {
     actor = g_actor_table.actors[actor_id];
     g_actor_table.actors[actor_id] = NULL;
     word_index = (size_t)(actor_id / KAIN_ACTOR_TABLE_WORD_BITS);
-    bit_mask = 1ULL << (unsigned int)(actor_id % KAIN_ACTOR_TABLE_WORD_BITS);
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/actor-occupancy-shift-mod-to-bitand.smt2 */
+    /* KAIN_ACTOR_TABLE_WORD_BITS = 64 = 2^6, so % is equivalent to & (bits-1) */
+    bit_mask = 1ULL << (unsigned int)(actor_id & (KAIN_ACTOR_TABLE_WORD_BITS - 1u));
     g_actor_table.occupancy_words[word_index] &= ~bit_mask;
 
 #ifdef _WIN32
@@ -3460,7 +3462,9 @@ static unsigned int kain_actor_registry_hash(const char* name) {
     while ((c = *name++)) {
         hash = ((hash << 5) + hash) + c;
     }
-    return hash % KAIN_ACTOR_REGISTRY_SIZE;
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/actor-registry-hash-mod-to-bitand.smt2 */
+    /* KAIN_ACTOR_REGISTRY_SIZE = 256 = 2^8, so % is equivalent to & (size-1) */
+    return hash & (KAIN_ACTOR_REGISTRY_SIZE - 1u);
 }
 
 static void kain_actor_registry_clear(void) {

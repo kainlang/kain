@@ -1,0 +1,23 @@
+// Smoke test: subgroup(N) { } syntax and divergence validation
+// Expected: passes `kain check`
+
+use std::cuda
+
+shader compute SubgroupTest(id: UVec3) -> Void workgroup(32, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    let lane = cuda_lane_id()
+    let val = src[id.x]
+
+    // Valid subgroup scope — all lanes reconverge at block end
+    subgroup(32):
+        let max_val = cuda_warp_reduce_max_f32(val)
+        if lane == 0:
+            dst[id.x] = max_val
+
+    // Outside subgroup — normal divergent execution
+    if lane < 16:
+        dst[id.x] = val
+
+    return

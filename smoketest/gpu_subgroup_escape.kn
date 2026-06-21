@@ -1,0 +1,9 @@
+// Error test: return inside subgroup
+// Expected: FAILS `kain check` with KAIN-SHADER-0043
+
+shader compute DivergentReturnTest(id: UVec3) -> Void:
+    subgroup(32):
+        if id.x == 0:
+            return  // KAIN-SHADER-0043: divergent warp execution
+        let x = id.x
+    return

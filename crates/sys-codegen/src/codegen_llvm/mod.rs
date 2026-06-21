@@ -1327,6 +1327,7 @@ impl LlvmGenerator {
             }
             Stmt::Loop { body, .. } => self.collect_pointer_let_types_from_block(body),
             Stmt::Item(item) => self.collect_pointer_let_types_from_item(item),
+            _ => {}
         }
     }
 
@@ -4965,6 +4966,7 @@ impl LlvmGenerator {
                 | Stmt::Break(None, _)
                 | Stmt::Continue(_)
                 | Stmt::Item(_) => {}
+                _ => {}
             }
         }
     }

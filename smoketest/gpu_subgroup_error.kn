@@ -1,0 +1,9 @@
+// Error test: nested subgroup
+// Expected: FAILS `kain check` with KAIN-SHADER-0042
+
+shader compute NestedSubgroupTest(id: UVec3) -> Void:
+    subgroup(32):
+        // KAIN-SHADER-0042: subgroup cannot be nested
+        subgroup(16):
+            let x = id.x
+    return

@@ -2056,6 +2056,7 @@ impl RustGen {
                 }
             }
             Stmt::Item(item) => self.gen_nested_item(item),
+            _ => {},
         }
     }
 
@@ -2180,6 +2181,7 @@ impl RustGen {
             }
             Stmt::Loop { body, .. } => format!("loop {}", self.gen_block_expr(body)),
             Stmt::Item(_) => "()".to_string(),
+            _ => "()".to_string(),
         }
     }
 

@@ -1,0 +1,17 @@
+// Smoke test: mesh/task/raytracing shader stages
+// Expected: passes `kain check`
+
+shader mesh MeshTest(out positions: Vec3, out indices: UInt) -> Void:
+    return
+
+shader task TaskTest() -> Void:
+    return
+
+shader raygen RayGenTest() -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 1.0)
+
+shader closesthit ClosestHitTest() -> Vec4:
+    return vec4(1.0, 0.0, 0.0, 1.0)
+
+shader miss MissTest() -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 0.0)
