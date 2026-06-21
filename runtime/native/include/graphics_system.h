@@ -37,6 +37,10 @@ const char* abi_graphics_backend_status(const char* backend_id);
 int64_t abi_graphics_backend_select(int64_t session_id, const char* backend_id);
 const char* abi_graphics_active_backend(int64_t session_id);
 
+// Set the available flag for a graphics backend at runtime.
+// Called by surface shims after successful capability probe.
+void abi_graphics_backend_set_available(const char* backend_id, int64_t available);
+
 int64_t abi_graphics_begin_frame(int64_t session_id, double delta_ms);
 int64_t abi_graphics_end_frame(int64_t session_id);
 int64_t abi_graphics_present(int64_t session_id);

@@ -1,6 +1,7 @@
 #ifndef RENDERER_SESSION_H
 #define RENDERER_SESSION_H
 
+#include "component_surface.h"
 #include "graphics_bundle.h"
 #include "platform.h"
 #include "renderer_backend.h"
@@ -15,6 +16,9 @@ typedef enum {
     KAIN_RENDERER_SCENE_EXECUTOR_UNKNOWN = 0,
     KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE,
     KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY,
+    KAIN_RENDERER_SCENE_EXECUTOR_VULKAN_DIRECT,
+    KAIN_RENDERER_SCENE_EXECUTOR_D3D12_DIRECT,
+    KAIN_RENDERER_SCENE_EXECUTOR_WEBGPU_DIRECT,
 } KainRendererSceneExecutorKind;
 
 typedef enum {
@@ -45,6 +49,8 @@ typedef struct {
     char scene_name[RENDERER_SESSION_MAX_SCENE];
     char summary[RENDERER_SESSION_MAX_SUMMARY];
     char diagnostic[RENDERER_SESSION_MAX_DIAGNOSTIC];
+    const KainComponentSurface* active_surface;
+    int64_t                     surface_session_id;
 } KainRuntimeRendererSession;
 
 void renderer_session_init(KainRuntimeRendererSession* session);

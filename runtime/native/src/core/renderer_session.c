@@ -1,7 +1,22 @@
 #include "../../include/renderer_session.h"
+#include "../../include/component_surface.h"
 
 #include <stdio.h>
 #include <string.h>
+
+// ── Forward declarations — surface shim resolve functions. ─────
+// Defined in vulkan_surface_shim.c / d3d12_surface_shim.c / webgpu_surface_shim.c
+// These are build-gated: called only when the corresponding
+// KAIN_RUNTIME_HAS_*_LOADER flag is defined.
+#ifdef KAIN_RUNTIME_HAS_VULKAN_LOADER
+int64_t kain_vulkan_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
+#ifdef KAIN_RUNTIME_HAS_D3D12
+int64_t kain_d3d12_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
+#ifdef KAIN_RUNTIME_HAS_WEBGPU
+int64_t kain_webgpu_surface_shim_resolve(KainComponentSurface* out_surface);
+#endif
 
 static void kain_renderer_session_copy_text(
     char* out,
@@ -163,10 +178,75 @@ int renderer_session_boot(
         "runtime-owned"
     );
 
-    session->executor_kind = kain_renderer_session_executor_for_platform(
-        platform_kind,
-        graphics_bundle_valid
-    );
+    // ── Check if a GPU backend is available and resolve its surface shim. ──
+    // If the shim resolves successfully, set the executor to the corresponding
+    // DIRECT kind and mark the surface as active.
+    if (active_descriptor->kind == KAIN_RENDERER_BACKEND_VULKAN) {
+#ifdef KAIN_RUNTIME_HAS_VULKAN_LOADER
+        KainComponentSurface vulkan_surface;
+        if (kain_vulkan_surface_shim_resolve(&vulkan_surface) == 0) {
+            session->active_surface =
+                kain_component_surface_resolve("vulkan");
+            if (session->active_surface) {
+                session->surface_session_id =
+                    session->active_surface->session_create("kain-app", 800, 600);
+                if (session->surface_session_id >= 0) {
+                    session->executor_kind =
+                        KAIN_RENDERER_SCENE_EXECUTOR_VULKAN_DIRECT;
+                    session->status = KAIN_RENDERER_SESSION_STATUS_READY;
+                    session->scene_execution_available = 1;
+                    session->used_compatibility_executor = 0;
+                }
+            }
+        }
+#endif
+    } else if (active_descriptor->kind == KAIN_RENDERER_BACKEND_D3D12) {
+#ifdef KAIN_RUNTIME_HAS_D3D12
+        KainComponentSurface d3d12_surface;
+        if (kain_d3d12_surface_shim_resolve(&d3d12_surface) == 0) {
+            session->active_surface =
+                kain_component_surface_resolve("d3d12");
+            if (session->active_surface) {
+                session->surface_session_id =
+                    session->active_surface->session_create("kain-app", 800, 600);
+                if (session->surface_session_id >= 0) {
+                    session->executor_kind =
+                        KAIN_RENDERER_SCENE_EXECUTOR_D3D12_DIRECT;
+                    session->status = KAIN_RENDERER_SESSION_STATUS_READY;
+                    session->scene_execution_available = 1;
+                    session->used_compatibility_executor = 0;
+                }
+            }
+        }
+#endif
+    } else if (active_descriptor->kind == KAIN_RENDERER_BACKEND_WEBGPU) {
+#ifdef KAIN_RUNTIME_HAS_WEBGPU
+        KainComponentSurface webgpu_surface;
+        if (kain_webgpu_surface_shim_resolve(&webgpu_surface) == 0) {
+            session->active_surface =
+                kain_component_surface_resolve("webgpu");
+            if (session->active_surface) {
+                session->surface_session_id =
+                    session->active_surface->session_create("kain-app", 800, 600);
+                if (session->surface_session_id >= 0) {
+                    session->executor_kind =
+                        KAIN_RENDERER_SCENE_EXECUTOR_WEBGPU_DIRECT;
+                    session->status = KAIN_RENDERER_SESSION_STATUS_READY;
+                    session->scene_execution_available = 1;
+                    session->used_compatibility_executor = 0;
+                }
+            }
+        }
+#endif
+    }
+
+    // If no GPU surface was resolved, fall back to the platform executor.
+    if (session->executor_kind == KAIN_RENDERER_SCENE_EXECUTOR_UNKNOWN) {
+        session->executor_kind = kain_renderer_session_executor_for_platform(
+            platform_kind,
+            graphics_bundle_valid
+        );
+    }
     session->scene_execution_available =
         session->executor_kind != KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY;
     session->used_compatibility_executor =
@@ -239,7 +319,14 @@ int renderer_session_boot(
 }
 
 void renderer_session_shutdown(KainRuntimeRendererSession* session) {
-    (void)session;
+    if (!session) {
+        return;
+    }
+    if (session->active_surface != NULL) {
+        session->active_surface->session_destroy(session->surface_session_id);
+        session->active_surface = NULL;
+        session->surface_session_id = 0;
+    }
 }
 
 const char* renderer_session_status_name(
@@ -266,6 +353,12 @@ const char* renderer_scene_executor_name(
             return "compatibility-software";
         case KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY:
             return "diagnostics-only";
+        case KAIN_RENDERER_SCENE_EXECUTOR_VULKAN_DIRECT:
+            return "vulkan-direct";
+        case KAIN_RENDERER_SCENE_EXECUTOR_D3D12_DIRECT:
+            return "d3d12-direct";
+        case KAIN_RENDERER_SCENE_EXECUTOR_WEBGPU_DIRECT:
+            return "webgpu-direct";
         case KAIN_RENDERER_SCENE_EXECUTOR_UNKNOWN:
         default:
             return "unknown";
