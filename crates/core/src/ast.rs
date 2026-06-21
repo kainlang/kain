@@ -909,10 +909,10 @@ fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMe
         }
     };
 
-    let (workgroup_size, dispatch_expr, tensor_expr, stream_expr, node_expr) = match tuple_items.as_slice()
+    let (workgroup_size, dispatch_expr, tensor_expr, stream_expr, node_expr, spec_constants_expr) = match tuple_items.as_slice()
     {
         [dispatch_expr, tensor_expr, node_expr] => {
-            (None, dispatch_expr, tensor_expr, None, node_expr)
+            (None, dispatch_expr, tensor_expr, None, node_expr, None)
         }
         [workgroup_expr, dispatch_expr, tensor_expr, stream_expr, node_expr] => (
             Some(parse_workgroup_size_expr(workgroup_expr)?),
@@ -920,10 +920,19 @@ fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMe
             tensor_expr,
             Some(stream_expr),
             node_expr,
+            None,
+        ),
+        [workgroup_expr, dispatch_expr, tensor_expr, stream_expr, node_expr, spec_constants_expr] => (
+            Some(parse_workgroup_size_expr(workgroup_expr)?),
+            dispatch_expr,
+            tensor_expr,
+            Some(stream_expr),
+            node_expr,
+            Some(spec_constants_expr),
         ),
         _ => {
             return Err(ComputeMetadataError::InvalidPlanShape(format!(
-                "expected 3 entries (dispatch, tensors, nodes) or 5 entries (workgroup, dispatch, tensors, streams, nodes), found {}",
+                "expected 3 entries (dispatch, tensors, nodes), 5 entries (workgroup, dispatch, tensors, streams, nodes), or 6 entries (workgroup, dispatch, tensors, streams, nodes, spec_constants), found {}",
                 tuple_items.len()
             )))
         }
@@ -937,6 +946,11 @@ fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMe
         None
     };
     let neural_node_plans = parse_neural_node_plan_list_expr(node_expr)?;
+    let spec_constants = if let Some(expr) = spec_constants_expr {
+        parse_spec_constant_plans_expr(expr)?
+    } else {
+        Vec::new()
+    };
 
     Ok(ComputeMetadata {
         workgroup_size,
@@ -944,6 +958,7 @@ fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMe
         tensor_plans,
         stream_plans,
         neural_node_plans,
+        spec_constants,
     })
 }
 
@@ -1175,6 +1190,113 @@ fn parse_neural_node_plan_expr(expr: &Expr) -> Result<ComputeNeuralNodePlan, Com
         outputs,
         stateful,
     })
+}
+
+fn parse_spec_constant_plans_expr(
+    expr: &Expr,
+) -> Result<Vec<SpecConstantPlan>, ComputeMetadataError> {
+    let items = match expr {
+        Expr::Array(items, _) | Expr::Tuple(items, _) => items,
+        Expr::Paren(inner, _) => return parse_spec_constant_plans_expr(inner),
+        _ => return Ok(Vec::new()),
+    };
+
+    let mut plans = Vec::with_capacity(items.len());
+    for item in items {
+        plans.push(parse_spec_constant_plan_expr(item)?);
+    }
+    Ok(plans)
+}
+
+fn parse_spec_constant_plan_expr(
+    expr: &Expr,
+) -> Result<SpecConstantPlan, ComputeMetadataError> {
+    let fields = match expr {
+        Expr::Tuple(items, _) | Expr::Array(items, _) => items,
+        Expr::Paren(inner, _) => return parse_spec_constant_plan_expr(inner),
+        _ => {
+            return Err(ComputeMetadataError::InvalidSpecConstant(
+                "expected spec constant plan to be a tuple or array".to_string(),
+            ))
+        }
+    };
+
+    if fields.len() < 4 {
+        return Err(ComputeMetadataError::InvalidSpecConstant(
+            "spec constant plan needs name, type, default value, and "SPEC" marker".to_string(),
+        ));
+    }
+
+    let name = expr_to_plan_string(&fields[0])
+        .map_err(|e| ComputeMetadataError::InvalidSpecConstant(e))?;
+    let ty = expr_to_plan_string(&fields[1])
+        .map_err(|e| ComputeMetadataError::InvalidSpecConstant(e))?;
+    let constant_type = expr_to_plan_string(&fields[3])
+        .map_err(|e| ComputeMetadataError::InvalidSpecConstant(e))?;
+
+    if constant_type != "SPEC" {
+        return Err(ComputeMetadataError::InvalidSpecConstant(
+            "spec constant 4th element must be \"SPEC\"".to_string(),
+        ));
+    }
+
+    let default_value = match ty.as_str() {
+        "u32" => match &fields[2] {
+            Expr::Int(v, _) if *v >= 0 && *v <= u32::MAX as i64 => SpecConstantValue::U32(*v as u32),
+            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            _ => return Err(ComputeMetadataError::InvalidSpecConstant(
+                format!("expected non-negative integer literal for u32 spec constant, got {:?}", fields[2])
+            )),
+        },
+        "f32" => match &fields[2] {
+            Expr::Float(v, _) => SpecConstantValue::F32(*v as f32),
+            Expr::Int(v, _) => SpecConstantValue::F32(*v as f32),
+            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            _ => return Err(ComputeMetadataError::InvalidSpecConstant(
+                format!("expected numeric literal for f32 spec constant, got {:?}", fields[2])
+            )),
+        },
+        "bool" => match &fields[2] {
+            Expr::Bool(v, _) => SpecConstantValue::Bool(*v),
+            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            _ => return Err(ComputeMetadataError::InvalidSpecConstant(
+                format!("expected boolean literal for bool spec constant, got {:?}", fields[2])
+            )),
+        },
+        "i32" => match &fields[2] {
+            Expr::Int(v, _) if *v >= i32::MIN as i64 && *v <= i32::MAX as i64 =>
+                SpecConstantValue::Int(*v as i32),
+            Expr::Paren(inner, _) => return parse_spec_constant_value_inner(&ty, inner),
+            _ => return Err(ComputeMetadataError::InvalidSpecConstant(
+                format!("expected integer literal for i32 spec constant, got {:?}", fields[2])
+            )),
+        },
+        _ => return Err(ComputeMetadataError::InvalidSpecConstant(
+            format!("unsupported spec constant type '{}'. Supported: u32, f32, bool, i32", ty)
+        )),
+    };
+
+    Ok(SpecConstantPlan {
+        name,
+        ty,
+        default_value,
+        constant_type,
+    })
+}
+
+fn parse_spec_constant_value_inner(
+    ty: &str,
+    expr: &Expr,
+) -> Result<SpecConstantValue, ComputeMetadataError> {
+    parse_spec_constant_plan_expr(&Expr::Tuple(
+        vec![
+            Expr::String("".to_string(), Span::default()),
+            Expr::String(ty.to_string(), Span::default()),
+            expr.clone(),
+            Expr::String("SPEC".to_string(), Span::default()),
+        ],
+        Span::default(),
+    )).map(|plan| plan.default_value)
 }
 
 fn parse_string_list_expr(expr: &Expr) -> Result<Vec<String>, String> {

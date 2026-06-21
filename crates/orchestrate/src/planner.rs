@@ -1,4 +1,5 @@
-use crate::graph::{AccessKind, OrchestrateGraphPlan, OrchestrateStageKind, ResourceStage};
+use crate::graph::{AccessKind, OrchestrateGraphPlan, ResourceStage};
+use crate::stage::OrchestrateStageKind;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -258,7 +259,7 @@ pub fn infer_push_constant_eligibility(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::OrchestrateStageGraphMetadata;
+    use crate::graph::{AccessKind, OrchestrateStageGraphMetadata, ResourceAccess, ResourceStage};
     use crate::stage::{OrchestrateStageKind, OrchestrateStagePlan};
 
     #[test]
