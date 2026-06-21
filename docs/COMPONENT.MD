@@ -3,7 +3,7 @@
 > *"Components are the UI layer of Kain. They own their render tree, their state, and their composition graph ~~ independently of worlds, functions, or any other language construct. Every interactive surface in Kain ultimately flows through a component."*
 
 **Last updated:** 2026-06-21 (window proof verified via Oracle; 3 working demos; 6 known gaps documented)
-**Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/window_proof/` (3 Oracle-verified demos), `runtime/native/include/component_surface.h` (17-slot vtable trait), `crates/sys-codegen/src/codegen_llvm/component.rs` (vtable codegen offsets 0-16), `RULEBOOK.md` (lines 90–295)
+**Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/window_proof/` (3 Oracle-verified demos), `runtime/native/include/component_surface.h` (18-slot vtable trait, extended 2026-06-21), `crates/sys-codegen/src/codegen_llvm/component.rs` (vtable codegen offsets 0-16), `RULEBOOK.md` (lines 90–295)
 
 ______________________________________________________________________
 
@@ -932,12 +932,13 @@ The **same component** can be rendered through multiple surface kinds – the co
 
 ### 10.1 The KainComponentSurface Vtable (How Rendering Actually Works)
 
-When the compiler encounters `surface native_ui => Component`, it emits a full frame loop that calls through a 17-slot vtable defined in `runtime/native/include/component_surface.h`. The vtable is the ABI contract — the compiler owns the call site, the backend fills the function pointers.
+When the compiler encounters `surface native_ui => Component`, it emits a full frame loop that calls through an 18-slot vtable defined in `runtime/native/include/component_surface.h`. The vtable is the ABI contract — the compiler owns the call site, the backend fills the function pointers.
 
 ```
 Codegen emits:                     Backend implements (e.g., native_ui_surface.c):
   resolve("native_ui")        →    kain_component_surface_resolve("native_ui")
   session_create("W", 1280, 720) → abi_ui_session_create + auto-attach winit host
+  session_attach_platform(sid, hwnd) → store native window handle
   window_open(sid, title, w, h)  → abi_ui_window_open (flags session as open)
   LOOP:
     host_pump(sid)                → PeekMessageA message pump (Win32)
@@ -948,7 +949,7 @@ Codegen emits:                     Backend implements (e.g., native_ui_surface.c
     should_close(sid)             → check close flag
 ```
 
-**Why this matters:** The same 17 vtable slots work for any backend. Swap `native_ui_surface` for a Vulkan presenter and the Kain source doesn't change. The compiler never knows which backend it's talking to. See `blades/window_proof/README.md` for the full vtable slot table and working demos.
+**Why this matters:** The same 18 vtable slots work for any backend. Swap `native_ui_surface` for a Vulkan presenter and the Kain source doesn't change. The compiler never knows which backend it's talking to. Slot 17 (`session_attach_platform`) was added in the 2026-06-21 cycle to enable GPU backends that need native window handles (HWND, Display*, wl_surface*). See `blades/window_proof/README.md` for the full vtable slot table and working demos.
 
 ### 10.2 Known Gaps (2026-06-21)
 
@@ -1291,7 +1292,7 @@ ______________________________________________________________________
 
 | File | What |
 |------|------|
-| `runtime/native/include/component_surface.h` | **KainComponentSurface trait** — 17-slot vtable struct (session_create through host_pump), registry API |
+| `runtime/native/include/component_surface.h` | **KainComponentSurface trait** — 18-slot vtable struct (session_create through session_attach_platform), registry API |
 | `runtime/native/src/core/component_surface.c` | Surface registry — maps names ("native_ui") to vtable pointers |
 | `runtime/native/src/ui/native_ui_surface.c` | **GDI backend** — fills the vtable, auto-attaches winit host on Win32, blits GDI framebuffer on present |
 | `runtime/native/src/ui/ui_host_adapter.c` | **Actual window creation** — RegisterClassA("KainWin32UI") → CreateWindowExA → GDI DIB framebuffer |
