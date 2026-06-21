@@ -307,6 +307,9 @@ static int64_t abi_ui_host_adapter_attach_passive(
 int abi_ui_host_adapter_is_live_backend(const char* backend_id) {
     if (!backend_id) return 0;
     if (strcmp(backend_id, "winit") == 0) return 1;
+    if (strcmp(backend_id, "vulkan") == 0) return 1;
+    if (strcmp(backend_id, "d3d12") == 0) return 1;
+    if (strcmp(backend_id, "webgpu") == 0) return 1;
     (void)backend_id;
     return 0;
 }
@@ -341,6 +344,48 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
         return ABI_UI_OK;
     }
 #endif
+    if (strcmp(backend_id, "vulkan") == 0) {
+        const KainComponentSurface* surface =
+            kain_component_surface_resolve("vulkan");
+        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        int64_t vulkan_session = surface->session_create(
+            session->window_title, session->width, session->height);
+        if (vulkan_session < 0) return ABI_UI_SESSION_FAILED;
+        session->host_backend[0] = '\0';
+        snprintf(session->host_backend, sizeof(session->host_backend), "vulkan");
+        session->component_surface = surface;
+        session->component_session_id = vulkan_session;
+        session->host_attached = 1;
+        return ABI_UI_OK;
+    }
+    if (strcmp(backend_id, "d3d12") == 0) {
+        const KainComponentSurface* surface =
+            kain_component_surface_resolve("d3d12");
+        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        int64_t d3d12_session = surface->session_create(
+            session->window_title, session->width, session->height);
+        if (d3d12_session < 0) return ABI_UI_SESSION_FAILED;
+        session->host_backend[0] = '\0';
+        snprintf(session->host_backend, sizeof(session->host_backend), "d3d12");
+        session->component_surface = surface;
+        session->component_session_id = d3d12_session;
+        session->host_attached = 1;
+        return ABI_UI_OK;
+    }
+    if (strcmp(backend_id, "webgpu") == 0) {
+        const KainComponentSurface* surface =
+            kain_component_surface_resolve("webgpu");
+        if (surface == NULL) return ABI_UI_BACKEND_NOT_FOUND;
+        int64_t webgpu_session = surface->session_create(
+            session->window_title, session->width, session->height);
+        if (webgpu_session < 0) return ABI_UI_SESSION_FAILED;
+        session->host_backend[0] = '\0';
+        snprintf(session->host_backend, sizeof(session->host_backend), "webgpu");
+        session->component_surface = surface;
+        session->component_session_id = webgpu_session;
+        session->host_attached = 1;
+        return ABI_UI_OK;
+    }
     return ABI_UI_INVALID_ARGUMENT;
 }
 
@@ -369,6 +414,9 @@ int64_t abi_ui_host_adapter_present(KainNativeUiSession* session) {
     if (!session) {
         return ABI_UI_INVALID_SESSION;
     }
+    if (session->component_surface != NULL) {
+        session->component_surface->present(session->component_session_id);
+    }
 #ifdef _WIN32
     if (session->host_state && strcmp(session->host_backend, "winit") == 0) {
         KainWin32UiHost* win32_host = (KainWin32UiHost*)session->host_state;
@@ -382,6 +430,11 @@ int64_t abi_ui_host_adapter_present(KainNativeUiSession* session) {
 void abi_ui_host_adapter_shutdown(KainNativeUiSession* session) {
     if (!session) {
         return;
+    }
+    if (session->component_surface != NULL && session->component_session_id > 0) {
+        session->component_surface->session_destroy(session->component_session_id);
+        session->component_surface = NULL;
+        session->component_session_id = 0;
     }
 #ifdef _WIN32
     if (session->host_state && strcmp(session->host_backend, "winit") == 0) {

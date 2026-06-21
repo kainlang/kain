@@ -47,6 +47,7 @@
 #define KAIN_SERVICE_KEY_GFX_RAW_NATIVE         "gfx.raw-native"
 #define KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN     "gfx.backend.vulkan"
 #define KAIN_SERVICE_KEY_GFX_BACKEND_D3D12      "gfx.backend.d3d12"
+#define KAIN_SERVICE_KEY_GFX_BACKEND_WEBGPU     "gfx.backend.webgpu"
 #define KAIN_SERVICE_KEY_GFX_SHADER_SPIRV       "gfx.shader.spirv"
 #define KAIN_SERVICE_KEY_GFX_COMPUTE            "gfx.compute"
 #define KAIN_SERVICE_KEY_SCENE_RUNTIME          "scene.runtime"

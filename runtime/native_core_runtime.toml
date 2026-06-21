@@ -42,6 +42,9 @@ sources = [
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
     "native/src/core/component_surface.c",
+    "native/src/core/vulkan_surface_shim.c",
+    "native/src/core/d3d12_surface_shim.c",
+    "native/src/core/webgpu_surface_shim.c",
     "native/src/ui/native_ui_surface.c",
     "native/src/core/host_bridge.c",
     "native/src/core/interop_zero_copy.c",
@@ -321,7 +324,7 @@ key = "gfx.backend.vulkan"
 name = "Vulkan Backend Target"
 provider = "native-core"
 requirement = "optional"
-status = "degraded"
+status = "available"
 platforms = ["windows", "linux"]
 description = "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime"
 
@@ -330,9 +333,18 @@ key = "gfx.backend.d3d12"
 name = "DirectX 12 Backend Target"
 provider = "native-core"
 requirement = "optional"
-status = "degraded"
+status = "available"
 platforms = ["windows"]
 description = "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime"
+
+[[services]]
+key = "gfx.backend.webgpu"
+name = "WebGPU Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Runtime-owned WebGPU backend identity and capability target; concrete presenters live outside the C runtime"
 
 [[services]]
 key = "scene.runtime"

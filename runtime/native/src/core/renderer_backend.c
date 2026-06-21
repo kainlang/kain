@@ -34,6 +34,15 @@ static const KainRendererBackendDescriptor g_kain_renderer_backend_catalog[] = {
         0
 #endif
     },
+    {
+        KAIN_RENDERER_BACKEND_WEBGPU,
+        "webgpu",
+        "WebGPU Backend Target",
+        "runtime-native",
+        KAIN_SERVICE_KEY_GFX_BACKEND_WEBGPU,
+        "Runtime-owned WebGPU backend identity and capability target; concrete presenters live outside the C runtime",
+        1
+    },
 };
 
 const KainRendererBackendDescriptor* kain_renderer_backend_catalog(void) {

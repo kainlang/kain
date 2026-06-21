@@ -9,6 +9,7 @@ typedef enum {
     KAIN_RENDERER_BACKEND_UNKNOWN = 0,
     KAIN_RENDERER_BACKEND_VULKAN,
     KAIN_RENDERER_BACKEND_D3D12,
+    KAIN_RENDERER_BACKEND_WEBGPU,
 } KainRendererBackendKind;
 
 typedef struct {
