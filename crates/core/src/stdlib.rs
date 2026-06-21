@@ -1065,6 +1065,20 @@ impl StdLib {
             "Inverse square root",
         );
 
+        // Texture sampling
+        lib.add_fn(
+            "sample",
+            &[("sampler", "Sampler2D"), ("uv", "Vec2")],
+            "Vec4",
+            "Sample texture at UV",
+        );
+        lib.add_fn(
+            "sample_lod",
+            &[("sampler", "Sampler2D"), ("uv", "Vec2"), ("lod", "Float")],
+            "Vec4",
+            "Sample texture at UV with explicit LOD",
+        );
+
         // Vector math (for shaders)
         lib.add_fn(
             "vec2",
