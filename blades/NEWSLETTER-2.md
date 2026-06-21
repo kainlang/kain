@@ -1,20 +1,20 @@
 # Kain Language Newsletter - Issue #2
 
 **Date:** 2026-06-21
-**Subject:** Component Surface — The `component` Keyword Finally Reaches Pixels
+**Subject:** Component Surface -- The `component` Keyword Finally Reaches Pixels
 **Philosophy:** Surface-agnostic rendering through a compiler-owned trait vtable. One trait, many backends. The compiler emits calls through the vtable; the backend implements them. Neither side knows the other's internals.
 
----
+______________________________________________________________________
 
 ## Executive Summary
 
-The `component` keyword has parsed and typechecked correctly since day one — but produced **zero visual output**. JSX compiled to dead `i8*` strings. Component `state` was stack-local and died on return. No frame loop called component render functions.
+The `component` keyword has parsed and typechecked correctly since day one -- but produced **zero visual output**. JSX compiled to dead `i8*` strings. Component `state` was stack-local and died on return. No frame loop called component render functions.
 
 **That changes today.** The `component` keyword now compiles to real UI element trees via a surface-agnostic vtable trait (`KainComponentSurface`). Every JSX element emits `element_begin` → attribute calls → children → `element_end` through the vtable. Component state persists across frames. World-surface declarations auto-generate full frame loops with session lifecycle.
 
 **Net language surface change: 0% (zero new keywords).** Everything was done with existing constructs: `component`, `world`, `surface`, `render`. The changes are entirely in codegen and runtime.
 
----
+______________________________________________________________________
 
 ## The Architecture
 
@@ -48,11 +48,11 @@ Surface backends:
   headless   → headless_surface   (future PDF/SVG export)
 ```
 
----
+______________________________________________________________________
 
 ## What Changed
 
-### 1. `KainComponentSurface` Trait — The ABI Contract
+### 1. `KainComponentSurface` Trait -- The ABI Contract
 
 **What it is:** A C struct with 15 function pointers forming the surface-agnostic rendering ABI. The compiler resolves a surface once at frame-loop init, then calls through the vtable every frame. The backend implements the trait; the compiler never knows which backend it's talking to.
 
@@ -79,6 +79,7 @@ Surface backends:
 | 14 | `should_close(sid) → i64` | Check if window should close |
 
 **Registration API:**
+
 ```c
 // Register a surface backend at startup
 void kain_component_surface_register(const char* name,
@@ -88,19 +89,21 @@ void kain_component_surface_register(const char* name,
 const KainComponentSurface* kain_component_surface_resolve(const char* name);
 ```
 
-**Design decision:** All fire-and-forget operations use `void` return in the trait, but the underlying `abi_ui_*` functions return `int64_t` status codes. Trait implementations use thin wrappers that discard the return value — this avoids UB from calling through mismatched function pointer types.
+**Design decision:** All fire-and-forget operations use `void` return in the trait, but the underlying `abi_ui_*` functions return `int64_t` status codes. Trait implementations use thin wrappers that discard the return value -- this avoids UB from calling through mismatched function pointer types.
 
----
+______________________________________________________________________
 
-### 2. World-Surface Frame Loop — Auto-Generated
+### 2. World-Surface Frame Loop -- Auto-Generated
 
 **What it is:** When the compiler encounters `surface native_ui => ComponentName` on a world, it emits a full frame loop function that:
+
 1. Resolves the `KainComponentSurface*` from the registry
-2. Creates a session with the world's name and default dimensions (1280×720)
-3. Loops: `begin_frame` → render root component → `end_frame` → `present` → `should_close`
-4. On close: `session_destroy` and exit
+1. Creates a session with the world's name and default dimensions (1280×720)
+1. Loops: `begin_frame` → render root component → `end_frame` → `present` → `should_close`
+1. On close: `session_destroy` and exit
 
 **The emitted LLVM IR (simplified):**
+
 ```llvm
 define void @__kain_world_surface_loop_App() {
 entry:
@@ -127,23 +130,26 @@ shutdown:
 
 **Injection point:** Frame loop calls are emitted in `main()` after `abi_runtime_init()` (which registers the built-in `native_ui` surface) and before any patch/param setup. Multiple worlds with surfaces → multiple frame loops.
 
-**No new syntax.** `surface native_ui => Component` always parsed correctly — the codegen just didn't do anything with it until now.
+**No new syntax.** `surface native_ui => Component` always parsed correctly -- the codegen just didn't do anything with it until now.
 
----
+______________________________________________________________________
 
-### 3. Component State Persistence — Survives Across Frames
+### 3. Component State Persistence -- Survives Across Frames
 
 **Before (broken):**
-- `state count: Int = 0` lowered to stack `alloca` — died on return
+
+- `state count: Int = 0` lowered to stack `alloca` -- died on return
 - Mutations (`self.count = self.count + 1`) persisted within a single frame, lost on next render
 
 **After (fixed):**
+
 - State loaded via `surface→state_get_i64(session, "ComponentName:field_name")`
 - PHI node merges initial value (first frame) with persisted value (subsequent frames)
-- Stored to entry-block `alloca` — always written before any reader accesses it
+- Stored to entry-block `alloca` -- always written before any reader accesses it
 - Write-back loop at end of render: every state field's current value is persisted via `surface→state_set_i64()`
 
 **The emitted LLVM IR for state init:**
+
 ```llvm
 ; ── Load persisted state value through vtable ──
 %stored = call surface→state_get_i64(%sid, "Counter:count")
@@ -172,13 +178,13 @@ ret void
 
 **Known limitation:** First-frame detection uses `state_get_i64 == 0` as the "unset" sentinel. If your initial value IS 0, the field re-initializes every frame. Future: use a separate init-flag key per field.
 
-**Key format:** `"ComponentName:field_name"` — deterministic, unique per component type. Note: two instances of the same component in the same session share state keys. Instance-scoped prefixes are planned for Phase 2.
+**Key format:** `"ComponentName:field_name"` -- deterministic, unique per component type. Note: two instances of the same component in the same session share state keys. Instance-scoped prefixes are planned for Phase 2.
 
----
+______________________________________________________________________
 
-### 4. Stable Keys — Retained-Mode Element Reconciliation
+### 4. Stable Keys -- Retained-Mode Element Reconciliation
 
-**What it is:** Every element in the tree gets a deterministic, unique stable key so the surface backend can reconcile the element tree across frames — find existing nodes, update them, create new ones.
+**What it is:** Every element in the tree gets a deterministic, unique stable key so the surface backend can reconcile the element tree across frames -- find existing nodes, update them, create new ones.
 
 **Format:** `"ComponentName:element_path:parent_id:sibling_index"`
 
@@ -191,15 +197,16 @@ ret void
 | `<text>` in `if` branch | `"Counter:box:text:7:5"` |
 
 **The reconciliation pattern (in `native_ui_element_begin`):**
+
 ```c
 // Try to find existing node by stable key
 int64_t existing = abi_ui_node_find_by_stable_key(session_id, stable_key);
 if (existing > 0) {
-    // Node survived from previous frame — update parent, reuse
+    // Node survived from previous frame -- update parent, reuse
     abi_ui_node_set_parent(session_id, existing, parent_id);
     return existing;
 }
-// First frame — create new node, set stable key for future frames
+// First frame -- create new node, set stable key for future frames
 int64_t node = abi_ui_node_create(session_id, kind);
 abi_ui_node_set_stable_key(session_id, node, stable_key);
 abi_ui_node_set_parent(session_id, node, parent_id);
@@ -208,11 +215,11 @@ return node;
 
 **Performance note:** `abi_ui_node_set_stable_key` triggers a full hash table rebuild (O(n) for n ≤ 4096 nodes). This is fine for typical UI trees. Large trees (>1000 nodes) may benefit from an incremental rebuild optimization in a future release.
 
----
+______________________________________________________________________
 
 ### 5. JSX Attribute → Surface Call Mapping
 
-**What it is:** A compile-time table in the codegen maps every JSX attribute to the correct vtable call. Unknown attributes pass through with the attribute name as the key — the surface backend decides what to do.
+**What it is:** A compile-time table in the codegen maps every JSX attribute to the correct vtable call. Unknown attributes pass through with the attribute name as the key -- the surface backend decides what to do.
 
 **The full mapping (16 attributes):**
 
@@ -237,9 +244,9 @@ return node;
 
 **Type coercion:** `i1` → `i64` via `zext`, `i64` → `double` via `sitofp`. The codegen automatically promotes types to match the vtable slot.
 
----
+______________________________________________________________________
 
-### 6. Full JSX Construct Support — 7 Node Types
+### 6. Full JSX Construct Support -- 7 Node Types
 
 Every JSX construct now compiles to correct surface vtable calls:
 
@@ -250,10 +257,10 @@ Every JSX construct now compiles to correct surface vtable calls:
 | `value={"Hello " + name}` | Evaluate expression → `element_set_text(session, el, result)` |
 | `for item in items:` | Runtime loop: `runtime_array_get(iter, idx)` → `element_begin` with index-based key |
 | `if cond: ... elif: ... else:` | LLVM branches with distinct sibling_index per arm |
-| `<Fragment>...</Fragment>` | Children emit directly to parent — no wrapper element |
+| `<Fragment>...</Fragment>` | Children emit directly to parent -- no wrapper element |
 | `{expression}` as child | Evaluate → stringify if needed → `element_begin("text")` → `set_text` → `element_end` |
 
----
+______________________________________________________________________
 
 ## What You Can Do Now
 
@@ -290,12 +297,12 @@ fn main() -> Int:
 ### What happens when you run this
 
 1. `runtime_init()` registers `native_ui_surface` in the surface registry
-2. The auto-generated frame loop calls `kain_component_surface_resolve("native_ui")`
-3. The `native_ui_surface` vtable wraps all `abi_ui_*` calls to `ui_system.h`
-4. `Dashboard_render()` is called every frame, emitting elements through the vtable
-5. `state counter` loads from `state_get_i64("Dashboard:counter")` via the vtable
-6. Any mutation to counter is persisted via `state_set_i64` at the end of the frame
-7. The `native_ui_surface` backend wraps `ui_system.h` — the same retained-mode UI runtime that powers Kaintana
+1. The auto-generated frame loop calls `kain_component_surface_resolve("native_ui")`
+1. The `native_ui_surface` vtable wraps all `abi_ui_*` calls to `ui_system.h`
+1. `Dashboard_render()` is called every frame, emitting elements through the vtable
+1. `state counter` loads from `state_get_i64("Dashboard:counter")` via the vtable
+1. Any mutation to counter is persisted via `state_set_i64` at the end of the frame
+1. The `native_ui_surface` backend wraps `ui_system.h` -- the same retained-mode UI runtime that powers Kaintana
 
 ### Declare a component without a world (standalone)
 
@@ -307,7 +314,7 @@ component HelloWidget():
     </panel>
 ```
 
-Components are first-class declarations. They don't need a world to exist. Without a world+surface, they're passive — they emit a render function (`void @HelloWidget_render(surface, session, parent)`) that something external must call.
+Components are first-class declarations. They don't need a world to exist. Without a world+surface, they're passive -- they emit a render function (`void @HelloWidget_render(surface, session, parent)`) that something external must call.
 
 ### Create a custom surface backend (for other platforms)
 
@@ -336,67 +343,69 @@ static void register_my_surface(void) {
 }
 ```
 
-Then in Kain: `surface my_platform => App` — the compiler doesn't care which backend is registered. It always calls through the vtable.
+Then in Kain: `surface my_platform => App` -- the compiler doesn't care which backend is registered. It always calls through the vtable.
 
----
+______________________________________________________________________
 
-## The Merge Story — How We Got Here
+## The Merge Story -- How We Got Here
 
 This feature was implemented in parallel by two agents with zero coordination, producing a classic "the wire doesn't connect" divergence:
 
-**Plumber A (C Runtime)** built the `KainComponentSurface` trait — 15 function pointers via vtable, a surface registry, and the `native_ui_surface` backend wrapping `ui_system.h`. All in C. All correct.
+**Plumber A (C Runtime)** built the `KainComponentSurface` trait -- 15 function pointers via vtable, a surface registry, and the `native_ui_surface` backend wrapping `ui_system.h`. All in C. All correct.
 
-**Plumber B (Rust Codegen)** rewrote `compile_jsx` to emit surface calls — but emitted **direct `abi_ui_*` function calls** instead of calling through the `KainComponentSurface*` trait vtable. The functions Plumber B called didn't match what Plumber A built. The codegen never resolved a surface, never loaded the vtable, and called functions by names that didn't exist in the C runtime.
+**Plumber B (Rust Codegen)** rewrote `compile_jsx` to emit surface calls -- but emitted **direct `abi_ui_*` function calls** instead of calling through the `KainComponentSurface*` trait vtable. The functions Plumber B called didn't match what Plumber A built. The codegen never resolved a surface, never loaded the vtable, and called functions by names that didn't exist in the C runtime.
 
 **The reconciliation:**
+
 1. Kept Plumber A's C files as-is (trait was correct)
-2. Rewrote Plumber B's codegen to call through the vtable: `getelementptr` → `bitcast` → `load` → indirect `call`
-3. Threaded `%KainComponentSurface*` as the first parameter through every render function
-4. Added vtable offset constants (0-14) matching the C struct field order exactly
-5. Moved `native_ui_surface.c` from `blades/kaintana/` to `runtime/native/src/ui/` — it's a runtime-level backend, not a framework-specific one
+1. Rewrote Plumber B's codegen to call through the vtable: `getelementptr` → `bitcast` → `load` → indirect `call`
+1. Threaded `%KainComponentSurface*` as the first parameter through every render function
+1. Added vtable offset constants (0-14) matching the C struct field order exactly
+1. Moved `native_ui_surface.c` from `blades/kaintana/` to `runtime/native/src/ui/` -- it's a runtime-level backend, not a framework-specific one
 
 **Bugs found during review (4-agent audit):**
-- State alloca was never written on frames 2+ (read garbage — fixed with PHI node)
+
+- State alloca was never written on frames 2+ (read garbage -- fixed with PHI node)
 - State mutations were never persisted (added write-back loop at end of render)
-- Sibling elements got identical stable keys (`child_si = 0` reset inside for loop — moved outside)
+- Sibling elements got identical stable keys (`child_si = 0` reset inside for loop -- moved outside)
 - `title` attribute silently dropped by C backend string filter (added to allowlist)
 
----
+______________________________________________________________________
 
 ## Files Touched
 
 | Layer | File | Lines | Action |
 |-------|------|-------|--------|
-| **C Runtime** | `runtime/native/include/component_surface.h` | 80 | CREATE — trait struct + registry API |
-| | `runtime/native/src/core/component_surface.c` | 110 | CREATE — surface registry (16 slots) |
-| | `runtime/native/src/ui/native_ui_surface.c` | 250 | CREATE → MOVED — wraps `ui_system.h` behind trait vtable |
-| | `runtime/native/src/core/stdlib_abi.c` | +3 | EDIT — auto-register `native_ui` surface in `abi_runtime_init()` |
-| | `runtime/native_core_runtime.toml` | +1 | EDIT — add `native_ui_surface.c` to manifest |
-| | `runtime/runtime_manifest_data.bzl` | +1 | EDIT — Bazel mirror of manifest |
-| **Rust Codegen** | `crates/sys-codegen/src/codegen_llvm/component.rs` | 1150 | CREATE — full component→surface codegen via vtable |
-| | `crates/sys-codegen/src/codegen_llvm/mod.rs` | +15 | EDIT — `pending_frame_loops`, `abi_runtime_init()` preamble, component dispatch |
-| **Cascade Fixes** | `crates/fmt/src/lib.rs` | +8 | EDIT — explicit shader stage arms (Mesh→Callable) |
-| | `crates/cli/src/selfhost.rs` | +18 | EDIT — `DispatchSize::Fixed` pattern matching |
-| | `crates/cli/src/import_c.rs` | +20 | EDIT — same |
-| | `crates/cli/src/import_rust.rs` | +20 | EDIT — same |
-| | `crates/gpu/src/codegen_spirv.rs` | ~50 | EDIT — `SpecConstantPlan.span` → `Span::default()` |
-| | 8 other crates | ~30 | EDIT — `ShaderStage`, `Subgroup`, `DispatchSize` cascade |
+| **C Runtime** | `runtime/native/include/component_surface.h` | 80 | CREATE -- trait struct + registry API |
+| | `runtime/native/src/core/component_surface.c` | 110 | CREATE -- surface registry (16 slots) |
+| | `runtime/native/src/ui/native_ui_surface.c` | 250 | CREATE → MOVED -- wraps `ui_system.h` behind trait vtable |
+| | `runtime/native/src/core/stdlib_abi.c` | +3 | EDIT -- auto-register `native_ui` surface in `abi_runtime_init()` |
+| | `runtime/native_core_runtime.toml` | +1 | EDIT -- add `native_ui_surface.c` to manifest |
+| | `runtime/runtime_manifest_data.bzl` | +1 | EDIT -- Bazel mirror of manifest |
+| **Rust Codegen** | `crates/sys-codegen/src/codegen_llvm/component.rs` | 1150 | CREATE -- full component→surface codegen via vtable |
+| | `crates/sys-codegen/src/codegen_llvm/mod.rs` | +15 | EDIT -- `pending_frame_loops`, `abi_runtime_init()` preamble, component dispatch |
+| **Cascade Fixes** | `crates/fmt/src/lib.rs` | +8 | EDIT -- explicit shader stage arms (Mesh→Callable) |
+| | `crates/cli/src/selfhost.rs` | +18 | EDIT -- `DispatchSize::Fixed` pattern matching |
+| | `crates/cli/src/import_c.rs` | +20 | EDIT -- same |
+| | `crates/cli/src/import_rust.rs` | +20 | EDIT -- same |
+| | `crates/gpu/src/codegen_spirv.rs` | ~50 | EDIT -- `SpecConstantPlan.span` → `Span::default()` |
+| | 8 other crates | ~30 | EDIT -- `ShaderStage`, `Subgroup`, `DispatchSize` cascade |
 
 **Total:** ~1,700 lines of new code, ~200 lines of cascade fixes, 0 new keywords.
 
----
+______________________________________________________________________
 
 ## What Did NOT Change
 
 | Idea | Why Rejected | Instead |
 |------|-------------|--------|
-| Direct `abi_ui_*` calls in codegen | Bypasses surface-agnostic trait — locks compiler to one backend | Vtable calls through `KainComponentSurface*` |
-| `native_ui_surface.c` in `blades/kaintana/` | Framework-specific location — surface backends are runtime infrastructure | Moved to `runtime/native/src/ui/` |
-| Separate keywords for surface kinds | The `surface <kind> => Component` syntax already parsed correctly — no new keywords needed | Existing `surface` declaration on worlds |
-| Codegen-embedded UI runtime | Violates surface-agnosticism — the compiler shouldn't know about `ui_system.h` | All UI ops through vtable; compiler only knows `KainComponentSurface*` |
-| `component` state as `world` state | Components are presentation-layer; worlds are state authority — different decision ladder layers | Component state persists via surface trait's `state_get_i64`/`state_set_i64` |
+| Direct `abi_ui_*` calls in codegen | Bypasses surface-agnostic trait -- locks compiler to one backend | Vtable calls through `KainComponentSurface*` |
+| `native_ui_surface.c` in `blades/kaintana/` | Framework-specific location -- surface backends are runtime infrastructure | Moved to `runtime/native/src/ui/` |
+| Separate keywords for surface kinds | The `surface <kind> => Component` syntax already parsed correctly -- no new keywords needed | Existing `surface` declaration on worlds |
+| Codegen-embedded UI runtime | Violates surface-agnosticism -- the compiler shouldn't know about `ui_system.h` | All UI ops through vtable; compiler only knows `KainComponentSurface*` |
+| `component` state as `world` state | Components are presentation-layer; worlds are state authority -- different decision ladder layers | Component state persists via surface trait's `state_get_i64`/`state_set_i64` |
 
----
+______________________________________________________________________
 
 ## Research & Documentation
 
@@ -409,4 +418,4 @@ This feature was implemented in parallel by two agents with zero coordination, p
 - Codegen (all 12 contracts): `crates/sys-codegen/src/codegen_llvm/component.rs`
 - Integration wiring: `crates/sys-codegen/src/codegen_llvm/mod.rs`
 
----
+______________________________________________________________________

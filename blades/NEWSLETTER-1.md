@@ -1,35 +1,37 @@
 # Kain Language Newsletter - Issue #1
 
 **Date:** 2026-06-20
-**Subject:** GPU System Evolution — Subgroup Scope, Mesh/Raytracing Stages, Precise Barriers, and More
+**Subject:** GPU System Evolution -- Subgroup Scope, Mesh/Raytracing Stages, Precise Barriers, and More
 **Philosophy:** Compiler-owned semantics over keyword bloat. 10 features proposed → 9 absorbed into existing constructs → 1 new control-flow keyword.
 
----
+______________________________________________________________________
 
 ## Executive Summary
 
-Kain's GPU surface just got a major upgrade. Ten features were researched, debated, and implemented — but only one new keyword was added. The rest were absorbed into the existing semantic stack: `orchestrate` owns barrier inference and async compute routing, `comptime` owns specialization constants, `converge` owns tensor core fast lanes, and the compiler inference engine now derives push constants and memory visibility from data it already has.
+Kain's GPU surface just got a major upgrade. Ten features were researched, debated, and implemented -- but only one new keyword was added. The rest were absorbed into the existing semantic stack: `orchestrate` owns barrier inference and async compute routing, `comptime` owns specialization constants, `converge` owns tensor core fast lanes, and the compiler inference engine now derives push constants and memory visibility from data it already has.
 
 **Net language surface change: 0.9% (1 keyword / 111 total).**
 
----
+______________________________________________________________________
 
 ## What Changed
 
 ### 1. New Control-Flow Keyword: `subgroup(N) { }`
 
-**What it is:** A block-level scope for warp-synchronous execution inside GPU compute shaders. All threads in a warp (typically 32 on NVIDIA, queryable on Vulkan) execute in lockstep within the block. The compiler validates divergence safety at compile time — no nesting, no divergent escape.
+**What it is:** A block-level scope for warp-synchronous execution inside GPU compute shaders. All threads in a warp (typically 32 on NVIDIA, queryable on Vulkan) execute in lockstep within the block. The compiler validates divergence safety at compile time -- no nesting, no divergent escape.
 
-**Why we added it:** This is the only GPU construct with no CPU analog and no home in Kain's existing semantic ladder. `orchestrate` handles multi-stage pipelines, `converge` handles function-level dispatch — neither can express "lockstep execution of N threads within a larger thread block." The Graphics Programmer in our debate made the decisive argument: if Kain owns GPU semantics the way it owns state semantics through `world`/`patch`/`law`, it needs ownership of warp execution scope too.
+**Why we added it:** This is the only GPU construct with no CPU analog and no home in Kain's existing semantic ladder. `orchestrate` handles multi-stage pipelines, `converge` handles function-level dispatch -- neither can express "lockstep execution of N threads within a larger thread block." The Graphics Programmer in our debate made the decisive argument: if Kain owns GPU semantics the way it owns state semantics through `world`/`patch`/`law`, it needs ownership of warp execution scope too.
 
-**Classification:** Control flow keyword (parallel to `if`/`for`/`while`) — NOT a semantic keyword. No decision ladder entry, no runtime contract, no typechecker rules beyond divergence validation.
+**Classification:** Control flow keyword (parallel to `if`/`for`/`while`) -- NOT a semantic keyword. No decision ladder entry, no runtime contract, no typechecker rules beyond divergence validation.
 
 **Compile-time safety enforced:**
+
 - `KAIN-SHADER-0042`: Nested `subgroup` is illegal
 - `KAIN-SHADER-0043`: `return`/`break`/`continue` that exits the scope without reconvergence is illegal
-- Only valid inside `shader compute` bodies — host code rejected
+- Only valid inside `shader compute` bodies -- host code rejected
 
 **Example:**
+
 ```kn
 use std::cuda
 
@@ -40,14 +42,14 @@ shader compute ReduceMax(id: UVec3) -> Void workgroup(32, 1, 1):
     let lane = cuda_lane_id()
     let val = src[id.x]
 
-    // Warp-synchronous scope — all 32 lanes execute in lockstep
+    // Warp-synchronous scope -- all 32 lanes execute in lockstep
     subgroup(32):
         let max_val = cuda_warp_reduce_max_f32(val)
-        // Only lane 0 writes the result — all lanes reconverge after the block
+        // Only lane 0 writes the result -- all lanes reconverge after the block
         if lane == 0:
             dst[id.x] = max_val
 
-    // Outside subgroup — normal divergent execution allowed
+    // Outside subgroup -- normal divergent execution allowed
     if lane < 16:
         dst[id.x] = val
 
@@ -62,13 +64,13 @@ shader compute ReduceMax(id: UVec3) -> Void workgroup(32, 1, 1):
 | HLSL | Wave scope comments | `cuda_*` → `WaveActiveSum`, `WaveActiveBallot`, `WaveReadLaneAt` |
 | WGSL | Subgroup scope comments | `cuda_*` → `subgroupAdd`, `subgroupBallot`, `subgroupShuffleXor` |
 
----
+______________________________________________________________________
 
 ### 2. Mesh, Task, and Raytracing Shader Stages (4 → 12)
 
-**What it is:** The `ShaderStage` enum expanded from 4 to 12 variants, adding Mesh, Task, RayGen, AnyHit, ClosestHit, Miss, Intersection, and Callable. These are contextual identifiers (not keywords) — parsed the same way `compute` has always been parsed.
+**What it is:** The `ShaderStage` enum expanded from 4 to 12 variants, adding Mesh, Task, RayGen, AnyHit, ClosestHit, Miss, Intersection, and Callable. These are contextual identifiers (not keywords) -- parsed the same way `compute` has always been parsed.
 
-**Why we added it:** Modern GPU pipelines (Vulkan 1.3 with `VK_EXT_mesh_shader`, `VK_KHR_ray_tracing`) need these stages. The parser already handled `shader <stage> Name` generically — extending the enum was a pure data change with zero parser restructuring.
+**Why we added it:** Modern GPU pipelines (Vulkan 1.3 with `VK_EXT_mesh_shader`, `VK_KHR_ray_tracing`) need these stages. The parser already handled `shader <stage> Name` generically -- extending the enum was a pure data change with zero parser restructuring.
 
 **New stages available:**
 
@@ -84,9 +86,10 @@ shader compute ReduceMax(id: UVec3) -> Void workgroup(32, 1, 1):
 | `callable` | `VK_KHR_ray_tracing` | Ray tracing utility dispatch |
 
 **Example:**
+
 ```kn
 shader mesh GenerateGeometry(out positions: Vec3, out indices: UInt) -> Void:
-    // Generate geometry directly on GPU — no vertex shader needed
+    // Generate geometry directly on GPU -- no vertex shader needed
     let idx = global_invocation_id().x
     positions[idx] = vec3(float(idx) * 0.1, 0.0, 0.0)
     indices[idx] = UInt(idx)
@@ -113,15 +116,16 @@ shader closesthit ClosestHit() -> Vec4:
 | Intersection | `IntersectionKHR` | `[shader("intersection")]` | `@intersection` | ❌ Error (use SPIR-V) |
 | Callable | `CallableKHR` | `[shader("callable")]` | `@callable` | ❌ Error (use SPIR-V) |
 
----
+______________________________________________________________________
 
 ### 3. Indirect Dispatch
 
 **What it is:** A grammar variant on the existing `dispatch` keyword. Dispatch dimensions come from a GPU-written buffer instead of compile-time expressions. Same keyword, same semantics, new form.
 
-**Why we added it:** GPU-driven workloads (particle systems, culling, LOD) need the GPU to determine how much work to do next. Without indirect dispatch, the CPU must read back GPU data, decide dimensions, and re-dispatch — a synchronization bottleneck. Now the GPU writes its own dispatch dimensions.
+**Why we added it:** GPU-driven workloads (particle systems, culling, LOD) need the GPU to determine how much work to do next. Without indirect dispatch, the CPU must read back GPU data, decide dimensions, and re-dispatch -- a synchronization bottleneck. Now the GPU writes its own dispatch dimensions.
 
 **Example:**
+
 ```kn
 use std::gpu
 
@@ -135,6 +139,7 @@ dispatch "shader::ActualWork::compute" from buf          // Reads 12 bytes: disp
 ```
 
 **`DispatchIndirectCommand` layout** (matches `VkDispatchIndirectCommand`, 12 bytes):
+
 ```kn
 pub struct DispatchIndirectCommand:
     x: UInt    // 4 bytes
@@ -144,7 +149,7 @@ pub struct DispatchIndirectCommand:
 
 **LLVM ABI:** `call i64 @abi_gpu_dispatch_indirect(i8* key, i8* buf, i64 12)`
 
----
+______________________________________________________________________
 
 ### 4. GPU Barrier Inference (Compiler-Owned)
 
@@ -155,25 +160,27 @@ pub struct DispatchIndirectCommand:
 **No new syntax.** The compiler inference pass runs automatically on every `orchestrate` block containing GPU stages.
 
 **What changed under the hood:**
+
 - `orchestrate` DAG → `access_map` (HashMap of resource → access kind per stage)
 - `infer_barrier_metadata()` → precise `BarrierSpec` per adjacent stage pair
 - `barrier_metadata_json()` → serialized JSON passed to runtime via `abi_gpu_dispatch_ext`
 - Vulkan executor consumes JSON → `vkCmdPipelineBarrier` with exact flags
 - Fallback: when no JSON is available (single-stage, no orchestrate), the old full-pipeline-drain barrier is used
 
-**Impact:** Reduces GPU pipeline stalls. A stage that only reads buffer A and writes buffer B no longer waits for all prior GPU work to complete — it only waits for the specific stages that wrote B.
+**Impact:** Reduces GPU pipeline stalls. A stage that only reads buffer A and writes buffer B no longer waits for all prior GPU work to complete -- it only waits for the specific stages that wrote B.
 
----
+______________________________________________________________________
 
 ### 5. Push Constant Inference (Compiler-Owned, SPIR-V Only)
 
 **What it is:** Small shader uniforms (≤128 bytes total, accessed by a single stage) are automatically lowered to Vulkan push constants (`StorageClass::PushConstant`) instead of descriptor-set uniforms. This eliminates descriptor binding overhead for small parameter blocks.
 
-**Why we added it:** The Vulkan 128-byte `maxPushConstantsSize` is wasted if the compiler doesn't use it. The data is already there — uniform name, type, size, and access stage. The compiler just needed to check the size and emit the right SPIR-V storage class.
+**Why we added it:** The Vulkan 128-byte `maxPushConstantsSize` is wasted if the compiler doesn't use it. The data is already there -- uniform name, type, size, and access stage. The compiler just needed to check the size and emit the right SPIR-V storage class.
 
 **No new syntax.** The existing `uniform name: Type @N` syntax is unchanged. Push constant lowering is an invisible optimization.
 
-**Example — two uniforms that auto-lower to push constants:**
+**Example -- two uniforms that auto-lower to push constants:**
+
 ```kn
 shader compute MyKernel(id: UVec3) -> Void:
     uniform params: Vec4 @0      // 16 bytes → PushConstant
@@ -183,15 +190,16 @@ shader compute MyKernel(id: UVec3) -> Void:
 
 **SPIR-V output:** Single `OpTypeStruct` with `StorageClass::PushConstant` and `Decoration::Block`. No `DescriptorSet` or `Binding` decorations.
 
----
+______________________________________________________________________
 
 ### 6. Specialization Constants in `comptime`
 
 **What it is:** Shader constants that can be overridden at dispatch time without recompiling the SPIR-V module. Declared inside existing `comptime` blocks using the 6-element tuple form.
 
-**Why we added it:** Vulkan specialization constants allow a single compiled shader module to be specialized for different tile sizes, data types, or feature flags at pipeline creation time. The `comptime` metadata block was already carrying tensor plans and stream plans — adding a `spec_constants` entry was a natural extension.
+**Why we added it:** Vulkan specialization constants allow a single compiled shader module to be specialized for different tile sizes, data types, or feature flags at pipeline creation time. The `comptime` metadata block was already carrying tensor plans and stream plans -- adding a `spec_constants` entry was a natural extension.
 
 **Example:**
+
 ```kn
 shader compute MyKernel(id: UVec3) -> Void:
     uniform src: StorageBuffer<Float> @0
@@ -209,13 +217,13 @@ shader compute MyKernel(id: UVec3) -> Void:
 
 **SPIR-V output:** `OpSpecConstant` + `OpDecorate SpecId N` for each spec constant. Host override syntax (`dispatch ... with { tile_size: 64 }`) is planned for a future release.
 
----
+______________________________________________________________________
 
 ### 7. Tensor Core `@extern` Declarations + Axiom Presets
 
-**What it is:** Tensor core operations (NVIDIA WMMA/MMA/WGMMA, AMD MFMA) are available as `@extern` declarations with `axiom` capability gating. No new keywords — the existing `@extern` + `axiom` machinery handles everything.
+**What it is:** Tensor core operations (NVIDIA WMMA/MMA/WGMMA, AMD MFMA) are available as `@extern` declarations with `axiom` capability gating. No new keywords -- the existing `@extern` + `axiom` machinery handles everything.
 
-**Why we added it:** Tensor cores are the fastest math units on modern GPUs (up to 1000+ TFLOPS on H100). Kain already had `cuda_warp_reduce_*` and `cuda_shfl_*` intrinsics — tensor cores are the same pattern, just different PTX instructions.
+**Why we added it:** Tensor cores are the fastest math units on modern GPUs (up to 1000+ TFLOPS on H100). Kain already had `cuda_warp_reduce_*` and `cuda_shfl_*` intrinsics -- tensor cores are the same pattern, just different PTX instructions.
 
 **Available intrinsics (stdlib/cuda.kn):**
 | Function | Instruction Class | Min SM |
@@ -242,7 +250,8 @@ shader compute MyKernel(id: UVec3) -> Void:
 | `cuda.wgmma` | 19 | WGMMA instructions |
 | `gpu.async_compute` | 20 | Async compute queue available |
 
-**Example — gated tensor core matmul with scalar fallback:**
+**Example -- gated tensor core matmul with scalar fallback:**
+
 ```kn
 use std::cuda
 
@@ -262,15 +271,16 @@ fn matmul_dispatch() with GPU, Unsafe:
     return
 ```
 
----
+______________________________________________________________________
 
 ### 8. Async Compute Queue Hints
 
 **What it is:** Orchestrate stages with `policy prefer_async_compute` are routed to a separate hardware compute queue, enabling concurrent graphics and compute work. The runtime auto-detects whether the GPU supports async compute and gracefully degrades to a single queue when unavailable.
 
-**Why we added it:** Modern GPUs (NVIDIA since Maxwell, AMD GCN, Intel Arc) have dedicated async compute hardware. Without it, compute dispatches block the graphics queue. The orchestrate DAG already expresses parallelism — the compiler just needed to hint at queue affinity.
+**Why we added it:** Modern GPUs (NVIDIA since Maxwell, AMD GCN, Intel Arc) have dedicated async compute hardware. Without it, compute dispatches block the graphics queue. The orchestrate DAG already expresses parallelism -- the compiler just needed to hint at queue affinity.
 
 **Example:**
+
 ```kn
 orchestrate frame_pipeline(gfx_cmds: Int, compute_cmds: Int) -> Int:
     stage gfx: gpu submit_graphics(gfx_cmds)
@@ -283,15 +293,16 @@ orchestrate frame_pipeline(gfx_cmds: Int, compute_cmds: Int) -> Int:
 
 **No new keyword.** The `policy prefer_async_compute` clause uses the existing orchestrate policy system.
 
----
+______________________________________________________________________
 
 ### 9. Pipeline Library Types
 
 **What it is:** `std::gpu::PipelineLibrary` and `std::gpu::PipelineHandle` provide runtime pipeline caching and reuse. Pipelines compiled once can be dispatched many times without recompilation.
 
-**Why we added it:** GPU pipeline compilation is expensive (10-100ms). Recompiling on every dispatch wastes GPU time. The pipeline library is a stdlib type, not a language keyword — the runtime owns caching, compilation, and introspection.
+**Why we added it:** GPU pipeline compilation is expensive (10-100ms). Recompiling on every dispatch wastes GPU time. The pipeline library is a stdlib type, not a language keyword -- the runtime owns caching, compilation, and introspection.
 
 **Usage:**
+
 ```kn
 use std::gpu
 
@@ -301,7 +312,7 @@ fn setup_pipelines() -> PipelineHandle:
     return handle
 
 fn dispatch_with_cache(h: PipelineHandle) with GPU, Unsafe:
-    dispatch h [32, 1, 1]     // Uses cached VkPipeline — no recompilation
+    dispatch h [32, 1, 1]     // Uses cached VkPipeline -- no recompilation
 ```
 
 **New types in `stdlib/gpu.kn`:**
@@ -312,6 +323,7 @@ fn dispatch_with_cache(h: PipelineHandle) with GPU, Unsafe:
 | `DispatchIndirectCommand` | `x: UInt, y: UInt, z: UInt` | 12-byte GPU-written dispatch size (matches `VkDispatchIndirectCommand`) |
 
 **New functions:**
+
 - `gpu_pipeline_library_create(name)` → `PipelineLibrary`
 - `gpu_pipeline_library_register(lib, key, dims)` → `PipelineHandle`
 - `gpu_pipeline_library_find(lib, key)` → `PipelineHandle` (id = -1 if not found)
@@ -319,38 +331,39 @@ fn dispatch_with_cache(h: PipelineHandle) with GPU, Unsafe:
 - `gpu_indirect_buffer_zeroed()` → `ptr<DispatchIndirectCommand>`
 - `gpu_indirect_buffer_from_bytes(hex)` → `ptr<DispatchIndirectCommand>`
 
----
+______________________________________________________________________
 
 ### 10. Memory Visibility Inference (Effect Checker)
 
 **What it is:** Functions annotated `with GPU` (no `Unsafe`) are now accepted when the `dispatch` statement is inside an `orchestrate` block. The compiler infers memory access safety from the orchestrate DAG's `access_map`.
 
-**Why we added it:** The `with GPU, Unsafe` annotation was a blunt instrument — any GPU dispatch required the `Unsafe` effect. But when dispatch is wrapped in an orchestrate block, the compiler has full knowledge of resource bindings, read/write access patterns, and residency. It can prove memory safety without the programmer declaring `Unsafe`.
+**Why we added it:** The `with GPU, Unsafe` annotation was a blunt instrument -- any GPU dispatch required the `Unsafe` effect. But when dispatch is wrapped in an orchestrate block, the compiler has full knowledge of resource bindings, read/write access patterns, and residency. It can prove memory safety without the programmer declaring `Unsafe`.
 
 **This is a Phase 1 partial implementation.** Full shrink of `with GPU, Unsafe` toward `with GPU` for all dispatch patterns is future work.
 
 **Example:**
+
 ```kn
-// OLD — required Unsafe:
+// OLD -- required Unsafe:
 fn old_dispatch() with GPU, Unsafe:
     dispatch "key" [1, 1, 1]
 
-// NEW — orchestrate provides safety proof:
+// NEW -- orchestrate provides safety proof:
 fn new_dispatch() with GPU:                    // No Unsafe needed
     orchestrate my_pipeline:
         stage main: gpu dispatch "key" [1, 1, 1]
             residency host policy static
 ```
 
----
+______________________________________________________________________
 
 ## The Absorption Model (Design Philosophy)
 
 The central insight from our GPU debate: Kain GPU improvements should prefer absorption over expansion. Before adding ANY GPU-specific syntax, ask:
 
 1. Does an existing semantic construct already cover this? (`orchestrate`, `converge`, `world`, `patch`, `law`, `axiom`, `comptime`, `dispatch`)
-2. Can a compiler inference pass derive the information from what the programmer already declares?
-3. Is the proposed syntax a *control flow* construct (no CPU analog → maybe new keyword) or a *semantic* construct (should fold into existing ladder)?
+1. Can a compiler inference pass derive the information from what the programmer already declares?
+1. Is the proposed syntax a *control flow* construct (no CPU analog → maybe new keyword) or a *semantic* construct (should fold into existing ladder)?
 
 | GPU Concern | Absorbed Into | Mechanism |
 |---|---|---|
@@ -363,11 +376,11 @@ The central insight from our GPU debate: Kain GPU improvements should prefer abs
 | Indirect dispatch | `dispatch` | Grammar variant (`from buf`) |
 | Tensor cores | `@extern` + `axiom` | FFI + capability gating |
 | Mesh/raytracing | `shader` | Enum extension |
-| Subgroup/warp | **New:** `subgroup(N) { }` | Control flow keyword — no CPU analog |
+| Subgroup/warp | **New:** `subgroup(N) { }` | Control flow keyword -- no CPU analog |
 
 **Net result:** 10 proposals, 1 new keyword. Language surface growth: 0.9%.
 
----
+______________________________________________________________________
 
 ## Implementation Status (Wave 1 + Wave 2 Complete)
 
@@ -382,11 +395,12 @@ The central insight from our GPU debate: Kain GPU improvements should prefer abs
 
 **Total:** ~55 files changed across `crates/`, `runtime/`, `stdlib/`. All crates compile clean. End-to-end barrier JSON flows from compiler inference → LLVM IR → C ABI → Vulkan executor → `vkCmdPipelineBarrier`.
 
----
+______________________________________________________________________
 
 ## What You Can Do Now
 
 ### Use `subgroup(32):` for warp-synchronous reductions
+
 ```kn
 shader compute MaxPool(id: UVec3) -> Void workgroup(32, 1, 1):
     uniform input: StorageBuffer<Float> @0
@@ -400,6 +414,7 @@ shader compute MaxPool(id: UVec3) -> Void workgroup(32, 1, 1):
 ```
 
 ### Use mesh shaders for GPU-driven geometry
+
 ```kn
 shader mesh TerrainGen(out positions: Vec3, out indices: UInt) -> Void:
     // Generate terrain directly on GPU
@@ -409,6 +424,7 @@ shader mesh TerrainGen(out positions: Vec3, out indices: UInt) -> Void:
 ```
 
 ### Use indirect dispatch for GPU-driven workloads
+
 ```kn
 fn gpu_driven_pipeline() with GPU, Unsafe:
     let cull_buf: ptr<DispatchIndirectCommand> = gpu_indirect_buffer_zeroed()
@@ -417,14 +433,16 @@ fn gpu_driven_pipeline() with GPU, Unsafe:
 ```
 
 ### Use orchestrate for parallel graphics + compute
+
 ```kn
 orchestrate frame_pipeline:
     stage gfx: gpu render_scene() residency host policy static
     stage cull: gpu cull_next_frame() residency host policy prefer_async_compute
-    // Render current frame while culling next frame — on separate queues
+    // Render current frame while culling next frame -- on separate queues
 ```
 
 ### Gate tensor cores with axiom
+
 ```kn
 axiom has_tensor_cores:
     when capability("cuda.tensorcore")
@@ -432,7 +450,7 @@ axiom has_tensor_cores:
     fallback cpu_matmul
 ```
 
----
+______________________________________________________________________
 
 ## What Did NOT Change (The Circle in the Sand)
 
@@ -447,23 +465,24 @@ These proposals were debated and deliberately rejected:
 | `async_dispatch` | Parallel orchestrate stages already express this | `policy prefer_async_compute` |
 | `tensor_matmul` | `@extern` + `axiom` is the right approach | `@extern` declarations |
 | `pipeline_library` | Library type in `std::gpu`, not a language keyword | `std::gpu::PipelineLibrary` |
-| `subgroup` as semantic keyword | It's control flow — parallel to `if`/`while`, not to `world`/`orchestrate` | `subgroup(N) { }` as control flow |
+| `subgroup` as semantic keyword | It's control flow -- parallel to `if`/`while`, not to `world`/`orchestrate` | `subgroup(N) { }` as control flow |
 
----
+______________________________________________________________________
 
-## Shader Gallery — Real Kain Shaders in Production
+## Shader Gallery -- Real Kain Shaders in Production
 
 Two SPIR-V validated shaders showcasing the full GPU pipeline:
 
 ### 🌊 Ray-Traced Ocean (`blades/shaderlib/ocean.kn`)
 
-Translated from a Shadertoy GLSL original by afl_ext. Full wave-based ocean simulation with raymarching, atmospheric scattering, ACES tonemapping, and Fresnel reflection — all in pure Kain.
+Translated from a Shadertoy GLSL original by afl_ext. Full wave-based ocean simulation with raymarching, atmospheric scattering, ACES tonemapping, and Fresnel reflection -- all in pure Kain.
 
 **Features exercised:**
+
 - Fragment shader with 4 uniforms (`time`, `resolution`, `mouse`, `StorageBuffer`)
 - 200+ line fully inlined raymarcher with 64-step water column march
 - Wave physics via summed octaves with `pow(E, sin(x)-1.0)` exponential waves
-- Camera orbit via rotation matrix multiplication (no mat3 — hand-rolled)
+- Camera orbit via rotation matrix multiplication (no mat3 -- hand-rolled)
 - Sky/water split with atmospheric scattering (Mie + Rayleigh approximation)
 - Fresnel-based reflection with subsurface scattering
 - ACES filmic tonemapping with gamma correction
@@ -472,7 +491,7 @@ Translated from a Shadertoy GLSL original by afl_ext. Full wave-based ocean simu
 **Key insight:** Kain fragment shaders support all math primitives (`sin`, `cos`, `sqrt`, `pow`, `abs`, `min`, `max`, `FMA`) via GLSL.std.450 extended instruction set. No SPIR-V capabilities beyond `Shader` are needed.
 
 ```kn
-// Simplified wave function — full version at blades/shaderlib/ocean.kn
+// Simplified wave function -- full version at blades/shaderlib/ocean.kn
 shader fragment OceanFragment(uv: Vec2) -> Vec4:
     uniform time: Float @0
     uniform resolution: Vec2 @1
@@ -489,13 +508,14 @@ shader fragment OceanFragment(uv: Vec2) -> Vec4:
 
 **SPIR-V output:** 2,086 lines, 11 while-loops, proper structured control flow (`OpSelectionMerge`/`OpLoopMerge`). Validated against vulkan1.3.
 
----
+______________________________________________________________________
 
 ### 🌀 Schwarzschild Black Hole (`blades/shaderlib/blackhole.kn`)
 
 A gravitational raymarcher that renders a rotating black hole with full general-relativistic light bending. The camera orbits around the black hole at `CAM_DIST = 16.0` Schwarzschild radii, and at each raymarch step, the ray is deflected toward the black hole by an amount proportional to `Rs / r²`.
 
 **Features exercised:**
+
 - Camera orbit with mouse control (phi/theta angles)
 - Full 3D camera basis construction (forward/right/up) from spherical coordinates
 - 512-step maximum raymarch through curved spacetime
@@ -509,7 +529,7 @@ A gravitational raymarcher that renders a rotating black hole with full general-
 - Reinhard tone mapping + gamma correction
 
 ```kn
-// Core raymarch loop — full version at blades/shaderlib/blackhole.kn
+// Core raymarch loop -- full version at blades/shaderlib/blackhole.kn
 var px: Float = cam_x
 var py: Float = cam_y
 var pz: Float = cam_z
@@ -528,19 +548,19 @@ while step_i < 512:
 
 **Artifacts generated:** SPIR-V, HLSL, PTX variants, Rust wrapper, reflection JSON, shader bundle
 
-**What makes this a monster:** 512 iterations of inline raymarching, photon sphere sampling (128-step sub-march for closest approach estimation), 3D camera orbit, and full gravitational lensing physics — all in a single Kain shader body. No nested functions, no closures — all math is inlined as scalar operations on `var Float` variables, because Kain shader bodies only support `let`/`var` on scalar types, `vec2/3/4()` constructors, `while` loops, and `if/else`. Every trig function (sin, cos, sqrt, pow) goes through GLSL.std.450 extended instructions.
+**What makes this a monster:** 512 iterations of inline raymarching, photon sphere sampling (128-step sub-march for closest approach estimation), 3D camera orbit, and full gravitational lensing physics -- all in a single Kain shader body. No nested functions, no closures -- all math is inlined as scalar operations on `var Float` variables, because Kain shader bodies only support `let`/`var` on scalar types, `vec2/3/4()` constructors, `while` loops, and `if/else`. Every trig function (sin, cos, sqrt, pow) goes through GLSL.std.450 extended instructions.
 
 ### Key Takeaways for Shader Authors
 
 1. **No nested functions or closures inside shader bodies.** All math must be inlined. Use `while` loops for iteration, scalar `var Float` for mutable state.
-2. **Use `vec2()`, `vec3()`, `vec4()` constructors, not struct syntax.** `Vec3 {x:1, y:2, z:3}` is host-only. In shaders, use `vec3(1.0, 2.0, 3.0)`.
-3. **Module-level `const` values are NOT accessible from shader bodies.** Inline all constants as literal values inside the shader.
-4. **Available math:** `sin`, `cos`, `sqrt`, `pow`, `abs`, `max`, `min`, `floor`, `ceil` (through GLSL.std.450). NOT `exp`, `atan2`, `acos`, `asin`.
-5. **`StorageBuffer` padding trick:** If a fragment shader's uniforms are under 128 bytes total, the SPIR-V backend attempts push-constant inference which has a known AccessChain bug. Add a dummy `uniform _pad: StorageBuffer<Float> @N` to force descriptor-based binding.
-6. **`var X: Vec3 = ...` is not supported** — Kain shader bodies only support `var` on scalar `Float`, `Int`, `UInt` types. Use separate `var r: Float`, `var g: Float`, `var b: Float` for mutable color state.
-7. **`vec3 + vec3` works in `let` expressions** but NOT on the left side of an assignment to a `var`.
+1. **Use `vec2()`, `vec3()`, `vec4()` constructors, not struct syntax.** `Vec3 {x:1, y:2, z:3}` is host-only. In shaders, use `vec3(1.0, 2.0, 3.0)`.
+1. **Module-level `const` values are NOT accessible from shader bodies.** Inline all constants as literal values inside the shader.
+1. **Available math:** `sin`, `cos`, `sqrt`, `pow`, `abs`, `max`, `min`, `floor`, `ceil` (through GLSL.std.450). NOT `exp`, `atan2`, `acos`, `asin`.
+1. **`StorageBuffer` padding trick:** If a fragment shader's uniforms are under 128 bytes total, the SPIR-V backend attempts push-constant inference which has a known AccessChain bug. Add a dummy `uniform _pad: StorageBuffer<Float> @N` to force descriptor-based binding.
+1. **`var X: Vec3 = ...` is not supported** -- Kain shader bodies only support `var` on scalar `Float`, `Int`, `UInt` types. Use separate `var r: Float`, `var g: Float`, `var b: Float` for mutable color state.
+1. **`vec3 + vec3` works in `let` expressions** but NOT on the left side of an assignment to a `var`.
 
----
+______________________________________________________________________
 
 ## Research & Documentation
 
@@ -551,4 +571,4 @@ while step_i < 512:
 - Codebase maps: `research/gpu/MAP_DELTA.md`, `research/gpu/MAP_ECHO.md`, `research/gpu/MAP_P1_FIXES.md`
 - Stream task files: `research/gpu/tasks.md`, `research/gpu/tasks_syntax.md`, `research/gpu/tasks_inference.md`, `research/gpu/tasks_stdlib.md`, `research/gpu/tasks_codegen.md`, `research/gpu/tasks_runtime.md`
 
----
+______________________________________________________________________
