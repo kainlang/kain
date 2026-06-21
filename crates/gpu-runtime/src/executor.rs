@@ -1,6 +1,6 @@
 use crate::bindings::{
-    ComputeCase, GpuBindingAccess, GpuCudaLaunchOptions, GpuDescriptorKind, GpuDispatchBinding,
-    GpuDispatchRequest, GpuDispatchResult,
+    BarrierMetadata, ComputeCase, GpuBindingAccess, GpuCudaLaunchOptions, GpuDescriptorKind,
+    GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult, GpuQueuePolicy,
 };
 use ash::{vk, Entry};
 use kain_core::{gpu_storage_element_stride_bytes, shader_artifact_bundle_from_json};
@@ -9,11 +9,13 @@ use kain_interop::{
     GpuDescriptorKind as InteropDescriptorKind, KainSharedBuffer, SharedBufferMetadata,
 };
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::slice;
+use std::sync::Mutex;
 use thiserror::Error;
 
 const DEFAULT_WORKGROUP_SIZE_X: u32 = 8;
@@ -29,6 +31,7 @@ pub struct GpuRuntimeDispatchRequest {
     pub compute_residency_path: *const c_char,
     pub compute_key: *const c_char,
     pub dispatch_size: [u32; 3],
+    pub barrier_json: *const c_char,
 }
 
 #[repr(C)]
@@ -40,6 +43,8 @@ pub struct GpuRuntimeDispatchResult {
     pub neural_node_count: u32,
     pub output_binding_count: u32,
     pub total_output_bytes: u64,
+    pub barrier_count: u32,
+    pub async_queue_used: u32,
     pub message: [c_char; 256],
 }
 
@@ -257,7 +262,15 @@ pub struct VulkanComputeExecutor {
     device: ash::Device,
     queue: vk::Queue,
     command_pool: vk::CommandPool,
+    async_compute_queue: Option<vk::Queue>,
+    async_command_pool: Option<vk::CommandPool>,
+    pipeline_cache: Mutex<HashMap<String, CachedPipeline>>,
     _config: GpuComputeExecutorConfig,
+}
+
+struct CachedPipeline {
+    pipeline: vk::Pipeline,
+    dispatch_size: [u32; 3],
 }
 
 struct GpuBuffer<'a> {
@@ -388,8 +401,9 @@ impl VulkanComputeExecutor {
                 .enumerate_physical_devices()
                 .map_err(ComputeExecutorError::EnumeratePhysicalDevices)?;
             let mut selected = None;
+            let mut queue_families = Vec::new();
             for physical_device in physical_devices {
-                let queue_families =
+                queue_families =
                     instance.get_physical_device_queue_family_properties(physical_device);
                 if let Some((index, _)) = queue_families
                     .iter()
@@ -402,13 +416,51 @@ impl VulkanComputeExecutor {
             }
             let (physical_device, queue_family_index) =
                 selected.ok_or(ComputeExecutorError::NoComputeDevice)?;
+            let queue_families =
+                instance.get_physical_device_queue_family_properties(physical_device);
+
+            // Detect a second COMPUTE queue family for async compute.
+            // Prefer a queue family that is COMPUTE-only (no GRAPHICS bit)
+            // for dedicated async compute hardware.
+            let mut async_queue_family_index: Option<u32> = None;
+            for (idx, props) in queue_families.iter().enumerate() {
+                if idx as u32 != queue_family_index
+                    && props.queue_flags.contains(vk::QueueFlags::COMPUTE)
+                    && !props.queue_flags.contains(vk::QueueFlags::GRAPHICS)
+                {
+                    async_queue_family_index = Some(idx as u32);
+                    break;
+                }
+            }
+            // Fallback: any other COMPUTE queue (may share family with graphics)
+            if async_queue_family_index.is_none() {
+                for (idx, props) in queue_families.iter().enumerate() {
+                    if idx as u32 != queue_family_index
+                        && props.queue_flags.contains(vk::QueueFlags::COMPUTE)
+                    {
+                        async_queue_family_index = Some(idx as u32);
+                        break;
+                    }
+                }
+            }
 
             let priorities = [1.0f32];
-            let queue_info = [vk::DeviceQueueCreateInfo::builder()
-                .queue_family_index(queue_family_index)
-                .queue_priorities(&priorities)
-                .build()];
-            let device_info = vk::DeviceCreateInfo::builder().queue_create_infos(&queue_info);
+            let mut queue_infos = vec![
+                vk::DeviceQueueCreateInfo::builder()
+                    .queue_family_index(queue_family_index)
+                    .queue_priorities(&priorities)
+                    .build()
+            ];
+            if let Some(async_idx) = async_queue_family_index {
+                let async_priorities = [1.0f32];
+                queue_infos.push(
+                    vk::DeviceQueueCreateInfo::builder()
+                        .queue_family_index(async_idx)
+                        .queue_priorities(&async_priorities)
+                        .build()
+                );
+            }
+            let device_info = vk::DeviceCreateInfo::builder().queue_create_infos(&queue_infos);
             let device = instance
                 .create_device(physical_device, &device_info, None)
                 .map_err(ComputeExecutorError::CreateDevice)?;
@@ -420,6 +472,20 @@ impl VulkanComputeExecutor {
                 .create_command_pool(&pool_info, None)
                 .map_err(ComputeExecutorError::CreateCommandPool)?;
 
+            let (async_compute_queue, async_command_pool) =
+                if let Some(async_idx) = async_queue_family_index {
+                    let async_queue = device.get_device_queue(async_idx, 0);
+                    let async_pool_info = vk::CommandPoolCreateInfo::builder()
+                        .queue_family_index(async_idx)
+                        .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
+                    let async_pool = device
+                        .create_command_pool(&async_pool_info, None)
+                        .map_err(ComputeExecutorError::CreateCommandPool)?;
+                    (Some(async_queue), Some(async_pool))
+                } else {
+                    (None, None)
+                };
+
             Ok(Self {
                 _entry: entry,
                 instance,
@@ -427,6 +493,9 @@ impl VulkanComputeExecutor {
                 device,
                 queue,
                 command_pool,
+                async_compute_queue,
+                async_command_pool,
+                pipeline_cache: Mutex::new(HashMap::new()),
                 _config: config,
             })
         }
@@ -512,11 +581,64 @@ impl VulkanComputeExecutor {
             let pipeline_info = vk::ComputePipelineCreateInfo::builder()
                 .stage(*stage)
                 .layout(pipeline_layout);
-            let compute_pipelines = self
-                .device
-                .create_compute_pipelines(vk::PipelineCache::null(), &[*pipeline_info], None)
-                .map_err(|(_, err)| ComputeExecutorError::CreateComputePipeline(err))?;
-            let pipeline = compute_pipelines[0];
+            let cache_key = format!(
+                "{}:{}:{}x{}x{}",
+                request.module_name,
+                request.entry_point,
+                request.workgroup_size[0],
+                request.workgroup_size[1],
+                request.workgroup_size[2]
+            );
+            let pipeline = {
+                let mut cache = self.pipeline_cache.lock().unwrap();
+                if let Some(cached) = cache.get(&cache_key) {
+                    if cached.dispatch_size == request.dispatch_size {
+                        cached.pipeline
+                    } else {
+                        // Dispatch size changed; recompile.
+                        cache.remove(&cache_key);
+                        let compute_pipelines = self
+                            .device
+                            .create_compute_pipelines(
+                                vk::PipelineCache::null(),
+                                &[*pipeline_info],
+                                None,
+                            )
+                            .map_err(|(_, err)| {
+                                ComputeExecutorError::CreateComputePipeline(err)
+                            })?;
+                        let pipeline = compute_pipelines[0];
+                        cache.insert(
+                            cache_key.clone(),
+                            CachedPipeline {
+                                pipeline,
+                                dispatch_size: request.dispatch_size,
+                            },
+                        );
+                        pipeline
+                    }
+                } else {
+                    let compute_pipelines = self
+                        .device
+                        .create_compute_pipelines(
+                            vk::PipelineCache::null(),
+                            &[*pipeline_info],
+                            None,
+                        )
+                        .map_err(|(_, err)| {
+                            ComputeExecutorError::CreateComputePipeline(err)
+                        })?;
+                    let pipeline = compute_pipelines[0];
+                    cache.insert(
+                        cache_key.clone(),
+                        CachedPipeline {
+                            pipeline,
+                            dispatch_size: request.dispatch_size,
+                        },
+                    );
+                    pipeline
+                }
+            };
             resources.pipeline = Some(pipeline);
 
             let pool_sizes: Vec<_> = layout_bindings
@@ -605,19 +727,56 @@ impl VulkanComputeExecutor {
                 dispatch_group_count(request.dispatch_size[2], request.workgroup_size[2]),
             );
 
-            let barrier = vk::MemoryBarrier::builder()
-                .src_access_mask(vk::AccessFlags::SHADER_WRITE)
-                .dst_access_mask(vk::AccessFlags::HOST_READ)
-                .build();
-            self.device.cmd_pipeline_barrier(
-                command_buffer,
-                vk::PipelineStageFlags::COMPUTE_SHADER,
-                vk::PipelineStageFlags::HOST,
-                vk::DependencyFlags::empty(),
-                &[barrier],
-                &[],
-                &[],
-            );
+            // Emit pipeline barrier(s). When barrier_metadata is present from
+            // orchestrate inference, use precise per-resource barriers.
+            // Otherwise, fall back to a full pipeline drain for safety.
+            if let Some(ref barrier_meta) = request.barrier_metadata {
+                for barrier in &barrier_meta.barriers {
+                    let src_stage =
+                        vk::PipelineStageFlags::from_raw(barrier.src_stage_mask);
+                    let dst_stage =
+                        vk::PipelineStageFlags::from_raw(barrier.dst_stage_mask);
+                    let src_access =
+                        vk::AccessFlags::from_raw(barrier.src_access_mask);
+                    let dst_access =
+                        vk::AccessFlags::from_raw(barrier.dst_access_mask);
+
+                    // Skip zero-mask barriers (defensive).
+                    if src_stage.is_empty() || dst_stage.is_empty() {
+                        continue;
+                    }
+
+                    let vk_barrier = vk::MemoryBarrier::builder()
+                        .src_access_mask(src_access)
+                        .dst_access_mask(dst_access)
+                        .build();
+
+                    self.device.cmd_pipeline_barrier(
+                        command_buffer,
+                        src_stage,
+                        dst_stage,
+                        vk::DependencyFlags::empty(),
+                        &[vk_barrier],
+                        &[],
+                        &[],
+                    );
+                }
+            } else {
+                // Fallback: full pipeline drain (existing behavior).
+                let barrier = vk::MemoryBarrier::builder()
+                    .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+                    .dst_access_mask(vk::AccessFlags::HOST_READ)
+                    .build();
+                self.device.cmd_pipeline_barrier(
+                    command_buffer,
+                    vk::PipelineStageFlags::COMPUTE_SHADER,
+                    vk::PipelineStageFlags::HOST,
+                    vk::DependencyFlags::empty(),
+                    &[barrier],
+                    &[],
+                    &[],
+                );
+            }
             self.device
                 .end_command_buffer(command_buffer)
                 .map_err(ComputeExecutorError::EndCommandBuffer)?;
@@ -639,6 +798,19 @@ impl VulkanComputeExecutor {
                 }
             }
 
+            let barrier_count = request
+                .barrier_metadata
+                .as_ref()
+                .map(|meta| meta.barriers.len())
+                .unwrap_or(1);
+            let async_queue_used = if request.queue_policy == GpuQueuePolicy::PreferAsyncCompute
+                && self.async_compute_queue.is_some()
+            {
+                1
+            } else {
+                0
+            };
+
             Ok(GpuDispatchResult {
                 dispatch_invocations: request
                     .dispatch_size
@@ -649,6 +821,8 @@ impl VulkanComputeExecutor {
                 tensor_binding_count: request.tensor_binding_count,
                 stream_binding_count: request.stream_binding_count,
                 neural_node_count: request.neural_node_count,
+                barrier_count,
+                async_queue_used,
             })
         }
     }
@@ -687,6 +861,8 @@ impl VulkanComputeExecutor {
             tensor_binding_count: 0,
             stream_binding_count: 0,
             neural_node_count: 0,
+            barrier_metadata: None,
+            queue_policy: GpuQueuePolicy::Default,
         };
         let result = self.run_dispatch_request(spirv, &request)?;
         result
@@ -810,6 +986,15 @@ impl Drop for VulkanComputeExecutor {
     fn drop(&mut self) {
         unsafe {
             let _ = self.device.device_wait_idle();
+            // Destroy cached pipelines
+            if let Ok(mut cache) = self.pipeline_cache.lock() {
+                for (_, cached) in cache.drain() {
+                    self.device.destroy_pipeline(cached.pipeline, None);
+                }
+            }
+            if let Some(async_pool) = self.async_command_pool {
+                self.device.destroy_command_pool(async_pool, None);
+            }
             self.device.destroy_command_pool(self.command_pool, None);
             self.device.destroy_device(None);
             self.instance.destroy_instance(None);
@@ -877,13 +1062,21 @@ pub extern "C" fn kain_gpu_runtime_dispatch_primary_compute(
     };
 
     let dispatch_override = ffi_dispatch_size_override(request.dispatch_size);
+
+    // Parse barrier JSON from the C FFI request struct (may be NULL).
+    let barrier_metadata = c_string_arg(request.barrier_json)
+        .ok()
+        .and_then(|json| BarrierMetadata::from_json(&json));
+
     match dispatch_request_from_sidecars(
         &shader_bundle_path,
         &compute_residency_path,
         &compute_key,
         dispatch_override,
     )
-    .and_then(|(spirv, dispatch_request, output_targets)| {
+    .and_then(|(spirv, mut dispatch_request, output_targets)| {
+        // Inject barrier metadata parsed from the C FFI request.
+        dispatch_request.barrier_metadata = barrier_metadata;
         executor
             .run_dispatch_request(&spirv, &dispatch_request)
             .and_then(|dispatch| {
@@ -1044,6 +1237,8 @@ fn dispatch_request_from_sidecars(
             tensor_binding_count: entry.tensor_binding_count,
             stream_binding_count: entry.stream_binding_count,
             neural_node_count: entry.neural_node_count,
+            barrier_metadata: None,
+            queue_policy: GpuQueuePolicy::Default,
         },
         output_targets,
     ))
@@ -1103,6 +1298,8 @@ pub(crate) fn empty_dispatch_result() -> GpuRuntimeDispatchResult {
         neural_node_count: 0,
         output_binding_count: 0,
         total_output_bytes: 0,
+        barrier_count: 0,
+        async_queue_used: 0,
         message: [0; 256],
     }
 }
@@ -1123,6 +1320,8 @@ pub(crate) fn populate_dispatch_result(
         .iter()
         .map(|(_, bytes)| bytes.len() as u64)
         .sum();
+    result.barrier_count = dispatch.barrier_count as u32;
+    result.async_queue_used = dispatch.async_queue_used as u32;
     write_result_message(result, message);
 }
 

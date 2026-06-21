@@ -14827,6 +14827,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_converge_record_bool(i8*, i8*, i32)");
         self.emit("declare i64 @abi_gpu_dispatch(i8*, i64, i64, i64)");
         self.emit("declare i64 @abi_gpu_dispatch_ext(i8*, i64, i64, i64, i8*)");
+        self.emit("declare i64 @abi_gpu_dispatch_indirect(i8*, i8*, i64)");
         self.emit("declare i64 @abi_cpu_feature_mask()");
         self.emit("declare i64 @abi_cpu_capability_mask_for_key(i8*)");
         self.emit("declare i64 @abi_converge_select_lane_for_key(i64, i64, i64, i64)");
@@ -17374,13 +17375,19 @@ impl LlvmGenerator {
                             ));
                         }
                     }
-                    DispatchSize::Indirect(_buf_expr) => {
-                        // Indirect dispatch: emit abi_gpu_dispatch_indirect.
-                        // ABI handling is in Stream ECHO; here we just emit
-                        // the call site. Marked as TODO for Stream ECHO.
-                        return Err(KainError::codegen(
-                            "indirect dispatch codegen not yet implemented -- see Stream ECHO",
-                            *span,
+                    DispatchSize::Indirect(buf_expr) => {
+                        // Indirect dispatch: compile the buffer expression to
+                        // an i8* LLVM value and emit abi_gpu_dispatch_indirect.
+                        let (buf_val, _) = self.compile_expr(buf_expr, "i8*")?;
+                        let payload_size_reg = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = add i64 0, 12",
+                            payload_size_reg
+                        ));
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @abi_gpu_dispatch_indirect(i8* {}, i8* {}, i64 {})",
+                            status, key_ptr, buf_val, payload_size_reg
                         ));
                     }
                 }

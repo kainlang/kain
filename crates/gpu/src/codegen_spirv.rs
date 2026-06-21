@@ -77,6 +77,9 @@ struct ShaderContext<'a> {
     // Pre-hoisted local variable slots — all OpVariable must be in the first block.
     // Maps binding name -> pre-allocated slots in source discovery order.
     hoisted_vars: HashMap<String, Vec<(u32, u32)>>,
+    // Wave 2 DELTA: subgroup scope tracking
+    in_subgroup_scope: bool,
+    subgroup_size: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -96,11 +99,34 @@ fn emit_shader(
 
     let exec_model = match shader.ast.stage {
         ShaderStage::Vertex => ExecutionModel::Vertex,
-        ShaderStage::Fragment => ExecutionModel::Fragment,
+        ShaderStage::Fragment | ShaderStage::Surface => ExecutionModel::Fragment,
         ShaderStage::Compute => ExecutionModel::GLCompute,
-        ShaderStage::Surface => ExecutionModel::Fragment, // Surface shaders compile to fragment
-        _ => ExecutionModel::GLCompute,
+        ShaderStage::Mesh => ExecutionModel::MeshEXT,
+        ShaderStage::Task => ExecutionModel::TaskEXT,
+        ShaderStage::RayGen => ExecutionModel::RayGenerationNV,
+        ShaderStage::AnyHit => ExecutionModel::AnyHitNV,
+        ShaderStage::ClosestHit => ExecutionModel::ClosestHitNV,
+        ShaderStage::Miss => ExecutionModel::MissNV,
+        ShaderStage::Intersection => ExecutionModel::IntersectionNV,
+        ShaderStage::Callable => ExecutionModel::CallableNV,
     };
+
+    // Add required capabilities for mesh/task shading stages
+    if matches!(shader.ast.stage, ShaderStage::Mesh | ShaderStage::Task) {
+        b.capability(Capability::MeshShadingEXT);
+    }
+    // Add required capabilities for ray tracing stages
+    if matches!(
+        shader.ast.stage,
+        ShaderStage::RayGen
+            | ShaderStage::AnyHit
+            | ShaderStage::ClosestHit
+            | ShaderStage::Miss
+            | ShaderStage::Intersection
+            | ShaderStage::Callable
+    ) {
+        b.capability(Capability::RayTracingKHR);
+    }
 
     // 1. Define Basic Types
     let void = b.type_void();
@@ -513,6 +539,8 @@ fn emit_shader(
         loop_continue_targets: vec![],
         loop_break_targets: vec![],
         hoisted_vars,
+        in_subgroup_scope: false,
+        subgroup_size: None,
     };
 
     emit_block(&mut ctx, &shader.ast.body)?;
@@ -1226,7 +1254,44 @@ fn emit_block(ctx: &mut ShaderContext, block: &Block) -> KainResult<()> {
                 let cont_label = ctx.b.id();
                 ctx.b.begin_block(Some(cont_label)).unwrap();
             }
-            _ => {} // Ignore others for now
+            Stmt::Subgroup { size, body, .. } => {
+                // Add required SPIR-V capabilities for subgroup operations
+                ctx.b.capability(Capability::GroupNonUniform);
+                ctx.b.capability(Capability::GroupNonUniformBallot);
+                ctx.b.capability(Capability::GroupNonUniformArithmetic);
+                ctx.b.capability(Capability::GroupNonUniformShuffle);
+                ctx.b.capability(Capability::GroupNonUniformVote);
+
+                // Record that we're inside a subgroup scope for intrinsic remapping
+                let was_in_subgroup = ctx.in_subgroup_scope;
+                ctx.in_subgroup_scope = true;
+                ctx.subgroup_size = Some(*size);
+
+                // Emit body — all cuda_* intrinsic calls inside will be remapped
+                emit_block(ctx, body)?;
+
+                // Emit implicit subgroup barrier at scope exit for convergent safety
+                let scope = ctx.b.constant_u32(
+                    rspirv::spirv::Scope::Subgroup as u32,
+                );
+                let semantics = ctx.b.constant_u32(
+                    (rspirv::spirv::MemorySemantics::ACQUIRE_RELEASE.bits()
+                        | rspirv::spirv::MemorySemantics::SUBGROUP_MEMORY.bits()
+                        | rspirv::spirv::MemorySemantics::WORKGROUP_MEMORY.bits())
+                        as u32,
+                );
+                ctx.b
+                    .control_barrier(scope, scope, semantics)
+                    .unwrap();
+
+                ctx.in_subgroup_scope = was_in_subgroup;
+                ctx.subgroup_size = None;
+            }
+            Stmt::Dispatch { .. }
+            | Stmt::Fanout { .. }
+            | Stmt::Loop { .. }
+            | Stmt::Defer { .. }
+            | Stmt::Item(_) => {} // Ignore host-only or non-shader constructs
         }
     }
     Ok(())
@@ -1590,6 +1655,13 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
         }
         Expr::Call { callee, args, .. } => {
             if let Expr::Ident(name, _) = &**callee {
+                // Wave 2 DELTA: remap cuda_* subgroup intrinsics when inside subgroup scope
+                if ctx.in_subgroup_scope {
+                    if let Some(result) = try_emit_subgroup_intrinsic(ctx, name, args)? {
+                        return Ok(result);
+                    }
+                }
+
                 if let Some((scalar_kind, width, result_name)) = vector_ctor_spec(name.as_str()) {
                     return emit_vector_constructor(
                         ctx,

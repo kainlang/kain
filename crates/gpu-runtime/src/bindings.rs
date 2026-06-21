@@ -222,6 +222,8 @@ pub struct GpuDispatchResult {
     pub tensor_binding_count: usize,
     pub stream_binding_count: usize,
     pub neural_node_count: usize,
+    pub barrier_count: usize,
+    pub async_queue_used: usize,
 }
 
 #[derive(Clone, Debug)]

@@ -1,6 +1,7 @@
 use crate::bindings::{
-    GpuBindingAccess, GpuCudaGraphPolicy, GpuCudaLaunchOptions, GpuCudaStreamPolicy,
-    GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult,
+    BarrierMetadata, GpuBindingAccess, GpuCudaGraphPolicy, GpuCudaLaunchOptions,
+    GpuCudaStreamPolicy, GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest,
+    GpuDispatchResult, GpuQueuePolicy,
 };
 use crate::executor::{
     c_string_arg, empty_dispatch_result, ffi_dispatch_size_override, populate_dispatch_result,
@@ -283,6 +284,8 @@ impl NvidiaPtxExecutor {
                 tensor_binding_count: request.tensor_binding_count,
                 stream_binding_count: request.stream_binding_count,
                 neural_node_count: request.neural_node_count,
+                barrier_count: 0,
+                async_queue_used: 0,
             })
         }
     }
@@ -421,6 +424,12 @@ fn dispatch_nvidia_ptx_persisted_request(
     };
 
     let dispatch_override = ffi_dispatch_size_override(request.dispatch_size);
+
+    // Parse barrier JSON from the C FFI request struct (may be NULL).
+    let barrier_metadata = c_string_arg(request.barrier_json)
+        .ok()
+        .and_then(|json| BarrierMetadata::from_json(&json));
+
     match ptx_dispatch_plan_from_sidecars(
         &shader_bundle_path,
         &compute_residency_path,
@@ -428,7 +437,9 @@ fn dispatch_nvidia_ptx_persisted_request(
         dispatch_override,
         Some(&executor.device_info),
     )
-    .and_then(|plan| {
+    .and_then(|mut plan| {
+        // Inject barrier metadata parsed from the C FFI request.
+        plan.request.barrier_metadata = barrier_metadata;
         let dispatch = executor.run_dispatch_request(&plan.ptx, &plan.request)?;
         persist_output_bindings_to_sidecars(&plan.output_targets, &dispatch.output_bindings)?;
         Ok(dispatch)
@@ -1175,6 +1186,8 @@ fn ptx_dispatch_plan_from_sidecars(
             tensor_binding_count: entry.tensor_binding_count,
             stream_binding_count: entry.stream_binding_count,
             neural_node_count: entry.neural_node_count,
+            barrier_metadata: None,
+            queue_policy: GpuQueuePolicy::Default,
         },
         output_targets,
     })
@@ -1955,6 +1968,8 @@ mod tests {
                     tensor_binding_count: 0,
                     stream_binding_count: 0,
                     neural_node_count: 0,
+                    barrier_metadata: None,
+                    queue_policy: GpuQueuePolicy::Default,
                 },
             )
             .expect("tiny PTX kernel should launch through the NVIDIA driver");
@@ -2018,6 +2033,8 @@ mod tests {
                     tensor_binding_count: 0,
                     stream_binding_count: 0,
                     neural_node_count: 0,
+                    barrier_metadata: None,
+                    queue_policy: GpuQueuePolicy::Default,
                 },
             )
             .expect("tiny PTX kernel should capture and launch through the NVIDIA driver");
@@ -2206,6 +2223,8 @@ mod tests {
                     tensor_binding_count: 0,
                     stream_binding_count: 0,
                     neural_node_count: 0,
+                    barrier_metadata: None,
+                    queue_policy: GpuQueuePolicy::Default,
                 },
             )
             .expect("uniform-buffer scalar PTX kernel should launch through the NVIDIA driver");
@@ -2688,6 +2707,8 @@ mod tests {
             tensor_binding_count: 0,
             stream_binding_count: 0,
             neural_node_count: 0,
+            barrier_metadata: None,
+            queue_policy: GpuQueuePolicy::Default,
         })
         .expect_err("duplicate slots should fail");
 

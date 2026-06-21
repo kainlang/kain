@@ -587,20 +587,57 @@ fn enriched_codegen_error(
     KainError::rich(enriched)
 }
 
+fn ptx_stage_error(
+    shader: &TypedShader,
+    unsupported_stages: &str,
+    alternative_backend: &str,
+) -> KainError {
+    let report = ShaderDiagnostic::stage_mismatch(format!(
+        "PTX backend does not support {}; shader '{}' uses {:?}",
+        unsupported_stages, shader.ast.name, shader.ast.stage
+    ))
+    .primary_span(shader.ast.span)
+    .help(&format!(
+        "Switch the shader stage to `compute` or use the {} for {} support.",
+        alternative_backend, unsupported_stages
+    ));
+    enriched_codegen_error(
+        report,
+        &shader.ast.name,
+        DiagnosticCode::ShaderStageMismatch,
+        CompilerPhase::Codegen,
+    )
+}
+
 fn prepare_shader(shader: &TypedShader) -> KainResult<PreparedPtxShader> {
-    if shader.ast.stage != ShaderStage::Compute {
-        let report = ShaderDiagnostic::stage_mismatch(format!(
-            "PTX backend only supports compute shaders; shader '{}' uses {:?}",
-            shader.ast.name, shader.ast.stage
-        ))
-        .primary_span(shader.ast.span)
-        .help("Switch the shader stage to `compute` or move this kernel to the SPIR-V backend which supports vertex, fragment, and compute stages.");
-        return Err(enriched_codegen_error(
-            report,
-            &shader.ast.name,
-            DiagnosticCode::ShaderStageMismatch,
-            CompilerPhase::Codegen,
-        ));
+    match shader.ast.stage {
+        ShaderStage::Compute => {}
+        ShaderStage::Vertex | ShaderStage::Fragment | ShaderStage::Surface => {
+            return Err(ptx_stage_error(
+                shader,
+                "vertex, fragment, and surface shaders",
+                "SPIR-V backend",
+            ));
+        }
+        ShaderStage::Mesh | ShaderStage::Task => {
+            return Err(ptx_stage_error(
+                shader,
+                "mesh and task shaders",
+                "SPIR-V backend (via VK_EXT_mesh_shader) or HLSL",
+            ));
+        }
+        ShaderStage::RayGen
+        | ShaderStage::AnyHit
+        | ShaderStage::ClosestHit
+        | ShaderStage::Miss
+        | ShaderStage::Intersection
+        | ShaderStage::Callable => {
+            return Err(ptx_stage_error(
+                shader,
+                "ray tracing shaders",
+                "SPIR-V backend (via VK_KHR_ray_tracing) or HLSL",
+            ));
+        }
     }
 
     validate_supported_shader(shader)?;

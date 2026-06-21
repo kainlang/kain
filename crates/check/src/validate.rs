@@ -706,7 +706,8 @@ fn validate_ownership_in_stmt(
         | Stmt::Return(None, _)
         | Stmt::Break(..)
         | Stmt::Continue(_)
-        | Stmt::Item(_) => {}
+        | Stmt::Item(_)
+        | Stmt::Subgroup { .. } => {}
     }
 }
 

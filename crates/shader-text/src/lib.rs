@@ -592,7 +592,14 @@ pub mod hlsl {
             ShaderStage::Fragment | ShaderStage::Surface => {
                 emit_fragment_shader(&mut ctx, shader, &mut output)?
             }
-            _ => {}
+            ShaderStage::Mesh => emit_mesh_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::Task => emit_task_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::RayGen => emit_raygen_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::AnyHit => emit_anyhit_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::ClosestHit => emit_closesthit_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::Miss => emit_miss_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::Intersection => emit_intersection_shader(&mut ctx, shader, &mut output)?,
+            ShaderStage::Callable => emit_callable_shader(&mut ctx, shader, &mut output)?,
         }
         Ok(output)
     }
@@ -777,6 +784,128 @@ pub mod hlsl {
         output.push_str("}\n");
         Ok(())
     }
+
+    // ── Mesh / Task / Ray tracing shader stubs (HLSL) ──────────────────
+
+    fn emit_mesh_shader(
+        ctx: &mut TextContext,
+        shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        let [x, y, z] = shader.ast.workgroup_size.unwrap_or(DEFAULT_WORKGROUP_SIZE);
+        output.push_str(&format!("[numthreads({x}, {y}, {z})]\n"));
+        output.push_str("[outputtopology(\"triangle\")]\n");
+        output.push_str(&format!("void {}(\n", ctx.shader_name));
+        output.push_str("    out indices uint3 primitive : SV_PrimitiveID,\n");
+        output.push_str("    out vertices float4 position : SV_Position)\n{\n");
+        ctx.push_indent();
+        seed_compute_builtins(ctx, shader, output)?;
+        output.push_str(&emit_block(ctx, &shader.ast.body)?);
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_task_shader(
+        ctx: &mut TextContext,
+        shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        let [x, y, z] = shader.ast.workgroup_size.unwrap_or(DEFAULT_WORKGROUP_SIZE);
+        output.push_str(&format!("[numthreads({x}, {y}, {z})]\n"));
+        output.push_str(&format!("void {}(\n", ctx.shader_name));
+        output.push_str("    out indices uint3 group_id : SV_GroupID)\n{\n");
+        ctx.push_indent();
+        seed_compute_builtins(ctx, shader, output)?;
+        output.push_str(&emit_block(ctx, &shader.ast.body)?);
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_raygen_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"raygeneration\")]\n");
+        output.push_str(&format!("void {}()\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// RayGeneration shader entry — payload access via DispatchRaysIndex()\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_closesthit_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"closesthit\")]\n");
+        output.push_str(&format!("void {}(inout RayPayload payload)\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// ClosestHit shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_anyhit_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"anyhit\")]\n");
+        output.push_str(&format!("void {}(inout RayPayload payload)\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// AnyHit shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_miss_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"miss\")]\n");
+        output.push_str(&format!("void {}(inout RayPayload payload)\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Miss shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_intersection_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"intersection\")]\n");
+        output.push_str(&format!("void {}()\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Intersection shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_callable_shader(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str("[shader(\"callable\")]\n");
+        output.push_str(&format!("void {}(inout CallableData payload)\n{{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Callable shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
 }
 
 pub mod wgsl {
@@ -814,7 +943,14 @@ pub mod wgsl {
             ShaderStage::Fragment | ShaderStage::Surface => {
                 emit_fragment_shader(&mut ctx, shader, &mut output)?
             }
-            _ => {}
+            ShaderStage::Mesh => emit_mesh_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::Task => emit_task_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::RayGen => emit_raygen_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::AnyHit => emit_anyhit_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::ClosestHit => emit_closesthit_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::Miss => emit_miss_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::Intersection => emit_intersection_shader_wgsl(&mut ctx, shader, &mut output)?,
+            ShaderStage::Callable => emit_callable_shader_wgsl(&mut ctx, shader, &mut output)?,
         }
         Ok(output)
     }
@@ -1000,6 +1136,121 @@ pub mod wgsl {
                 ctx.output_type.zero_literal(ctx.backend)
             ));
         }
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    // ── Mesh / Task / Ray tracing shader stubs (WGSL) ──────────────────
+
+    fn emit_mesh_shader_wgsl(
+        ctx: &mut TextContext,
+        shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        let [x, y, z] = shader.ast.workgroup_size.unwrap_or(DEFAULT_WORKGROUP_SIZE);
+        output.push_str(&format!("@mesh @workgroup_size({x}, {y}, {z})\n"));
+        output.push_str(&format!("fn {}(\n", ctx.shader_name));
+        output.push_str("    @builtin(position) position: vec4<f32>,\n");
+        output.push_str("    @builtin(primitive_index) primitive_index: u32\n");
+        output.push_str(") {\n");
+        ctx.push_indent();
+        seed_compute_builtins(ctx, shader, output)?;
+        output.push_str(&emit_block(ctx, &shader.ast.body)?);
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_task_shader_wgsl(
+        ctx: &mut TextContext,
+        shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        let [x, y, z] = shader.ast.workgroup_size.unwrap_or(DEFAULT_WORKGROUP_SIZE);
+        output.push_str(&format!("@task @workgroup_size({x}, {y}, {z})\n"));
+        output.push_str(&format!("fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        seed_compute_builtins(ctx, shader, output)?;
+        output.push_str(&emit_block(ctx, &shader.ast.body)?);
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_raygen_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@raygen fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// RayGeneration shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_closesthit_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@closesthit fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// ClosestHit shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_anyhit_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@anyhit fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// AnyHit shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_miss_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@miss fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Miss shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_intersection_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@intersection fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Intersection shader entry\n", ctx.indent()));
+        ctx.pop_indent();
+        output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_callable_shader_wgsl(
+        ctx: &mut TextContext,
+        _shader: &TypedShader,
+        output: &mut String,
+    ) -> KainResult<()> {
+        output.push_str(&format!("@callable fn {}() {{\n", ctx.shader_name));
+        ctx.push_indent();
+        output.push_str(&format!("{}// Callable shader entry\n", ctx.indent()));
         ctx.pop_indent();
         output.push_str("}\n");
         Ok(())
