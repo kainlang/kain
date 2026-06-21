@@ -824,6 +824,41 @@ static PFN_vkResetFences                            pfn_vkResetFences = NULL;
 static PFN_vkCreateImageView                        pfn_vkCreateImageView = NULL;
 static PFN_vkDestroyImageView                       pfn_vkDestroyImageView = NULL;
 
+/* Rendering pipeline PFNs (for blade-level raw Vulkan consumers) */
+typedef VkResult (*PFN_vkCreateRenderPass)(VkDevice, const VkRenderPassCreateInfo*, const void*, VkRenderPass*);
+typedef void     (*PFN_vkDestroyRenderPass)(VkDevice, VkRenderPass, const void*);
+typedef VkResult (*PFN_vkCreateShaderModule)(VkDevice, const VkShaderModuleCreateInfo*, const void*, VkShaderModule*);
+typedef void     (*PFN_vkDestroyShaderModule)(VkDevice, VkShaderModule, const void*);
+typedef VkResult (*PFN_vkCreatePipelineLayout)(VkDevice, const VkPipelineLayoutCreateInfo*, const void*, VkPipelineLayout*);
+typedef void     (*PFN_vkDestroyPipelineLayout)(VkDevice, VkPipelineLayout, const void*);
+typedef VkResult (*PFN_vkCreateGraphicsPipelines)(VkDevice, VkPipelineCache, uint32_t, const VkGraphicsPipelineCreateInfo*, const void*, VkPipeline*);
+typedef void     (*PFN_vkDestroyPipeline)(VkDevice, VkPipeline, const void*);
+typedef VkResult (*PFN_vkCreateFramebuffer)(VkDevice, const VkFramebufferCreateInfo*, const void*, VkFramebuffer*);
+typedef void     (*PFN_vkDestroyFramebuffer)(VkDevice, VkFramebuffer, const void*);
+typedef VkResult (*PFN_vkResetCommandBuffer)(VkCommandBuffer, VkCommandBufferResetFlags);
+typedef void     (*PFN_vkCmdBeginRenderPass)(VkCommandBuffer, const VkRenderPassBeginInfo*, VkSubpassContents);
+typedef void     (*PFN_vkCmdEndRenderPass)(VkCommandBuffer);
+typedef void     (*PFN_vkCmdBindPipeline)(VkCommandBuffer, VkPipelineBindPoint, VkPipeline);
+typedef void     (*PFN_vkCmdPushConstants)(VkCommandBuffer, VkPipelineLayout, VkShaderStageFlags, uint32_t, uint32_t, const void*);
+typedef void     (*PFN_vkCmdDraw)(VkCommandBuffer, uint32_t, uint32_t, uint32_t, uint32_t);
+
+static PFN_vkCreateRenderPass        pfn_vkCreateRenderPass = NULL;
+static PFN_vkDestroyRenderPass       pfn_vkDestroyRenderPass = NULL;
+static PFN_vkCreateShaderModule      pfn_vkCreateShaderModule = NULL;
+static PFN_vkDestroyShaderModule     pfn_vkDestroyShaderModule = NULL;
+static PFN_vkCreatePipelineLayout    pfn_vkCreatePipelineLayout = NULL;
+static PFN_vkDestroyPipelineLayout   pfn_vkDestroyPipelineLayout = NULL;
+static PFN_vkCreateGraphicsPipelines pfn_vkCreateGraphicsPipelines = NULL;
+static PFN_vkDestroyPipeline         pfn_vkDestroyPipeline = NULL;
+static PFN_vkCreateFramebuffer       pfn_vkCreateFramebuffer = NULL;
+static PFN_vkDestroyFramebuffer      pfn_vkDestroyFramebuffer = NULL;
+static PFN_vkResetCommandBuffer      pfn_vkResetCommandBuffer = NULL;
+static PFN_vkCmdBeginRenderPass      pfn_vkCmdBeginRenderPass = NULL;
+static PFN_vkCmdEndRenderPass        pfn_vkCmdEndRenderPass = NULL;
+static PFN_vkCmdBindPipeline         pfn_vkCmdBindPipeline = NULL;
+static PFN_vkCmdPushConstants        pfn_vkCmdPushConstants = NULL;
+static PFN_vkCmdDraw                 pfn_vkCmdDraw = NULL;
+
 static int g_vulkan_loader_opened = 0;
 
 // ── vulkan_abi_open_loader ────────────────────────────────────────
@@ -863,6 +898,7 @@ static int vulkan_abi_open_loader(void) {
         pfn_vkGetInstanceProcAddr((VkInstance)0, "vkCreateInstance");
 
     g_vulkan_loader_opened = 1;
+    vulkan_abi_fill_pfn_table();  /* publish loader-level PFNs immediately */
     return 1;
 }
 
@@ -964,6 +1000,42 @@ static void vulkan_abi_resolve_device_pfns(VkDevice device) {
         pfn_vkGetDeviceProcAddr(device, "vkCreateImageView");
     pfn_vkDestroyImageView = (PFN_vkDestroyImageView)
         pfn_vkGetDeviceProcAddr(device, "vkDestroyImageView");
+
+    /* Rendering pipeline PFNs (for blade-level raw Vulkan consumers) */
+    pfn_vkCreateRenderPass = (PFN_vkCreateRenderPass)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateRenderPass");
+    pfn_vkDestroyRenderPass = (PFN_vkDestroyRenderPass)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyRenderPass");
+    pfn_vkCreateShaderModule = (PFN_vkCreateShaderModule)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateShaderModule");
+    pfn_vkDestroyShaderModule = (PFN_vkDestroyShaderModule)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyShaderModule");
+    pfn_vkCreatePipelineLayout = (PFN_vkCreatePipelineLayout)
+        pfn_vkGetDeviceProcAddr(device, "vkCreatePipelineLayout");
+    pfn_vkDestroyPipelineLayout = (PFN_vkDestroyPipelineLayout)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyPipelineLayout");
+    pfn_vkCreateGraphicsPipelines = (PFN_vkCreateGraphicsPipelines)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateGraphicsPipelines");
+    pfn_vkDestroyPipeline = (PFN_vkDestroyPipeline)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyPipeline");
+    pfn_vkCreateFramebuffer = (PFN_vkCreateFramebuffer)
+        pfn_vkGetDeviceProcAddr(device, "vkCreateFramebuffer");
+    pfn_vkDestroyFramebuffer = (PFN_vkDestroyFramebuffer)
+        pfn_vkGetDeviceProcAddr(device, "vkDestroyFramebuffer");
+    pfn_vkResetCommandBuffer = (PFN_vkResetCommandBuffer)
+        pfn_vkGetDeviceProcAddr(device, "vkResetCommandBuffer");
+    pfn_vkCmdBeginRenderPass = (PFN_vkCmdBeginRenderPass)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdBeginRenderPass");
+    pfn_vkCmdEndRenderPass = (PFN_vkCmdEndRenderPass)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdEndRenderPass");
+    pfn_vkCmdBindPipeline = (PFN_vkCmdBindPipeline)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdBindPipeline");
+    pfn_vkCmdPushConstants = (PFN_vkCmdPushConstants)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdPushConstants");
+    pfn_vkCmdDraw = (PFN_vkCmdDraw)
+        pfn_vkGetDeviceProcAddr(device, "vkCmdDraw");
+
+    vulkan_abi_fill_pfn_table();  /* re-publish with device-level PFNs */
 }
 
 // ── vulkan_abi_close_loader ───────────────────────────────────────
@@ -2017,12 +2089,70 @@ KainVulkanAbiVtable g_vulkan_abi_vtable = {
         .host_pump               = vulkan_host_pump,
         .session_attach_platform = vulkan_session_attach_platform,
     },
+    .pfns = {0}, /* filled at first get_vtable() call or loader init */
     .abi_version           = KAIN_VULKAN_ABI_VERSION,
     .present_count         = 0,
     .swapchain_recreations = 0,
     .last_status           = 0,
     .last_error            = "",
 };
+
+/* Fill the PFN table from the resolved static PFN variables.
+ * Called after loader + instance + device PFNs are resolved. */
+static void vulkan_abi_fill_pfn_table(void) {
+    KainVulkanPfnTable* p = &g_vulkan_abi_vtable.pfns;
+    p->vkGetInstanceProcAddr                    = (KainPfn_vkGetInstanceProcAddr)pfn_vkGetInstanceProcAddr;
+    p->vkGetDeviceProcAddr                      = (KainPfn_vkGetDeviceProcAddr)pfn_vkGetDeviceProcAddr;
+    p->vkCreateInstance                         = (KainPfn_vkCreateInstance)pfn_vkCreateInstance;
+    p->vkDestroyInstance                        = (KainPfn_vkDestroyInstance)pfn_vkDestroyInstance;
+    p->vkEnumeratePhysicalDevices               = (KainPfn_vkEnumeratePhysicalDevices)pfn_vkEnumeratePhysicalDevices;
+    p->vkGetPhysicalDeviceQueueFamilyProperties = (KainPfn_vkGetPhysicalDeviceQueueFamilyProperties)pfn_vkGetPhysicalDeviceQueueFamilyProperties;
+    p->vkGetPhysicalDeviceSurfaceSupportKHR     = (KainPfn_vkGetPhysicalDeviceSurfaceSupportKHR)pfn_vkGetPhysicalDeviceSurfaceSupportKHR;
+    p->vkCreateDevice                           = (KainPfn_vkCreateDevice)pfn_vkCreateDevice;
+    p->vkDestroyDevice                          = (KainPfn_vkDestroyDevice)pfn_vkDestroyDevice;
+    p->vkGetDeviceQueue                         = (KainPfn_vkGetDeviceQueue)pfn_vkGetDeviceQueue;
+    p->vkDeviceWaitIdle                         = (KainPfn_vkDeviceWaitIdle)pfn_vkDeviceWaitIdle;
+    p->vkCreateWin32SurfaceKHR                  = (KainPfn_vkCreateWin32SurfaceKHR)pfn_vkCreateWin32SurfaceKHR;
+    p->vkDestroySurfaceKHR                      = (KainPfn_vkDestroySurfaceKHR)pfn_vkDestroySurfaceKHR;
+    p->vkGetPhysicalDeviceSurfaceCapabilitiesKHR = (KainPfn_vkGetPhysicalDeviceSurfaceCapabilitiesKHR)pfn_vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+    p->vkGetPhysicalDeviceSurfaceFormatsKHR     = (KainPfn_vkGetPhysicalDeviceSurfaceFormatsKHR)pfn_vkGetPhysicalDeviceSurfaceFormatsKHR;
+    p->vkGetPhysicalDeviceSurfacePresentModesKHR = (KainPfn_vkGetPhysicalDeviceSurfacePresentModesKHR)pfn_vkGetPhysicalDeviceSurfacePresentModesKHR;
+    p->vkCreateSwapchainKHR                     = (KainPfn_vkCreateSwapchainKHR)pfn_vkCreateSwapchainKHR;
+    p->vkDestroySwapchainKHR                    = (KainPfn_vkDestroySwapchainKHR)pfn_vkDestroySwapchainKHR;
+    p->vkGetSwapchainImagesKHR                  = (KainPfn_vkGetSwapchainImagesKHR)pfn_vkGetSwapchainImagesKHR;
+    p->vkAcquireNextImageKHR                    = (KainPfn_vkAcquireNextImageKHR)pfn_vkAcquireNextImageKHR;
+    p->vkQueuePresentKHR                        = (KainPfn_vkQueuePresentKHR)pfn_vkQueuePresentKHR;
+    p->vkCreateCommandPool                      = (KainPfn_vkCreateCommandPool)pfn_vkCreateCommandPool;
+    p->vkDestroyCommandPool                     = (KainPfn_vkDestroyCommandPool)pfn_vkDestroyCommandPool;
+    p->vkAllocateCommandBuffers                 = (KainPfn_vkAllocateCommandBuffers)pfn_vkAllocateCommandBuffers;
+    p->vkResetCommandBuffer                     = (KainPfn_vkResetCommandBuffer)pfn_vkResetCommandBuffer;
+    p->vkBeginCommandBuffer                     = (KainPfn_vkBeginCommandBuffer)pfn_vkBeginCommandBuffer;
+    p->vkEndCommandBuffer                       = (KainPfn_vkEndCommandBuffer)pfn_vkEndCommandBuffer;
+    p->vkQueueSubmit                            = (KainPfn_vkQueueSubmit)pfn_vkQueueSubmit;
+    p->vkCreateSemaphore                        = (KainPfn_vkCreateSemaphore)pfn_vkCreateSemaphore;
+    p->vkDestroySemaphore                       = (KainPfn_vkDestroySemaphore)pfn_vkDestroySemaphore;
+    p->vkCreateFence                            = (KainPfn_vkCreateFence)pfn_vkCreateFence;
+    p->vkDestroyFence                           = (KainPfn_vkDestroyFence)pfn_vkDestroyFence;
+    p->vkWaitForFences                          = (KainPfn_vkWaitForFences)pfn_vkWaitForFences;
+    p->vkResetFences                            = (KainPfn_vkResetFences)pfn_vkResetFences;
+    p->vkCreateImageView                        = (KainPfn_vkCreateImageView)pfn_vkCreateImageView;
+    p->vkDestroyImageView                       = (KainPfn_vkDestroyImageView)pfn_vkDestroyImageView;
+    p->vkCreateRenderPass                       = (KainPfn_vkCreateRenderPass)pfn_vkCreateRenderPass;
+    p->vkDestroyRenderPass                      = (KainPfn_vkDestroyRenderPass)pfn_vkDestroyRenderPass;
+    p->vkCreateShaderModule                     = (KainPfn_vkCreateShaderModule)pfn_vkCreateShaderModule;
+    p->vkDestroyShaderModule                    = (KainPfn_vkDestroyShaderModule)pfn_vkDestroyShaderModule;
+    p->vkCreatePipelineLayout                   = (KainPfn_vkCreatePipelineLayout)pfn_vkCreatePipelineLayout;
+    p->vkDestroyPipelineLayout                  = (KainPfn_vkDestroyPipelineLayout)pfn_vkDestroyPipelineLayout;
+    p->vkCreateGraphicsPipelines                = (KainPfn_vkCreateGraphicsPipelines)pfn_vkCreateGraphicsPipelines;
+    p->vkDestroyPipeline                        = (KainPfn_vkDestroyPipeline)pfn_vkDestroyPipeline;
+    p->vkCreateFramebuffer                      = (KainPfn_vkCreateFramebuffer)pfn_vkCreateFramebuffer;
+    p->vkDestroyFramebuffer                     = (KainPfn_vkDestroyFramebuffer)pfn_vkDestroyFramebuffer;
+    p->vkCmdBeginRenderPass                     = (KainPfn_vkCmdBeginRenderPass)pfn_vkCmdBeginRenderPass;
+    p->vkCmdEndRenderPass                       = (KainPfn_vkCmdEndRenderPass)pfn_vkCmdEndRenderPass;
+    p->vkCmdBindPipeline                        = (KainPfn_vkCmdBindPipeline)pfn_vkCmdBindPipeline;
+    p->vkCmdPushConstants                       = (KainPfn_vkCmdPushConstants)pfn_vkCmdPushConstants;
+    p->vkCmdDraw                                = (KainPfn_vkCmdDraw)pfn_vkCmdDraw;
+}
 
 // ── Public entry points ────────────────────────────────────────────
 

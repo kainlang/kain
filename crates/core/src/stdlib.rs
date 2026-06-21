@@ -1023,6 +1023,48 @@ impl StdLib {
             "Clamp between bounds",
         );
 
+        // Extended trigonometry
+        lib.add_fn("asin", &[("x", "Float")], "Float", "Arc sine");
+        lib.add_fn("acos", &[("x", "Float")], "Float", "Arc cosine");
+        lib.add_fn("atan", &[("x", "Float")], "Float", "Arc tangent");
+        lib.add_fn(
+            "atan2",
+            &[("y", "Float"), ("x", "Float")],
+            "Float",
+            "Arc tangent of y/x",
+        );
+
+        // Exponents and logarithms
+        lib.add_fn("exp", &[("x", "Float")], "Float", "Exponential e^x");
+        lib.add_fn("log", &[("x", "Float")], "Float", "Natural logarithm");
+        lib.add_fn("exp2", &[("x", "Float")], "Float", "Exponential 2^x");
+        lib.add_fn("log2", &[("x", "Float")], "Float", "Base-2 logarithm");
+
+        // Fractional and rounding
+        lib.add_fn("fract", &[("x", "Float")], "Float", "Fractional part");
+        lib.add_fn("trunc", &[("x", "Float")], "Float", "Truncate toward zero");
+        lib.add_fn("sign", &[("x", "Float")], "Float", "Sign of x (-1, 0, 1)");
+
+        // Interpolation and step
+        lib.add_fn(
+            "step",
+            &[("edge", "Float"), ("x", "Float")],
+            "Float",
+            "Step function",
+        );
+
+        // Angle conversion
+        lib.add_fn("radians", &[("degrees", "Float")], "Float", "Degrees to radians");
+        lib.add_fn("degrees", &[("radians", "Float")], "Float", "Radians to degrees");
+
+        // Additional math
+        lib.add_fn(
+            "inversesqrt",
+            &[("x", "Float")],
+            "Float",
+            "Inverse square root",
+        );
+
         // Vector math (for shaders)
         lib.add_fn(
             "vec2",
@@ -1061,6 +1103,18 @@ impl StdLib {
         );
         lib.add_fn("normalize", &[("v", "Vec3")], "Vec3", "Normalize vector");
         lib.add_fn("length", &[("v", "Vec3")], "Float", "Vector length");
+        lib.add_fn(
+            "reflect",
+            &[("I", "Vec3"), ("N", "Vec3")],
+            "Vec3",
+            "Reflect vector I about normal N",
+        );
+        lib.add_fn(
+            "refract",
+            &[("I", "Vec3"), ("N", "Vec3"), ("eta", "Float")],
+            "Vec3",
+            "Refract vector I through surface with normal N and ratio eta",
+        );
         lib.add_fn(
             "distance",
             &[("a", "Vec3"), ("b", "Vec3")],

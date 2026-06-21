@@ -43,6 +43,11 @@ typedef uintptr_t VkShaderModule;
 typedef uintptr_t VkDescriptorSetLayout;
 typedef uintptr_t VkDescriptorPool;
 typedef uintptr_t VkDescriptorSet;
+typedef uintptr_t VkPipelineCache;
+typedef uint32_t VkPipelineBindPoint;
+typedef uint32_t VkShaderStageFlags;
+typedef uint32_t VkSubpassContents;
+typedef uint32_t VkCommandBufferResetFlags;
 typedef uintptr_t PFN_vkVoidFunction;
 
 // ── Instance functions ───────────────────────────────────────────

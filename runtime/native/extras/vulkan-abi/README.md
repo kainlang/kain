@@ -107,3 +107,40 @@ vkAllocateCommandBuffers, vkBeginCommandBuffer, vkEndCommandBuffer,
 vkQueueSubmit, vkCreateSemaphore, vkDestroySemaphore, vkCreateFence,
 vkDestroyFence, vkWaitForFences, vkResetFences, vkCreateImageView,
 vkDestroyImageView.
+
+## Oracle Verification
+
+After building any Kain app that targets Vulkan:
+
+```bash
+# Step 1: Build
+kain build app.kn --target llvm
+
+# Step 2: Scan for the built executable
+oracle scan --dir .kain/out --limit 5
+
+# Step 3: Launch and wait
+oracle launch <freshest.exe> --wait 3000
+
+# Step 4: Prove window created
+oracle debug --pid <pid>
+
+# Step 5: Prove rendering (not black screen)
+oracle matrix --handle <hwnd> --rows 30 --cols 50 --format brightness
+
+# Step 6: Prove render loop alive
+oracle delta --handle <hwnd> --interval 200
+
+# Step 7: End-to-end UI interaction
+oracle verify --handle <hwnd> --do "click:100,100" --wait 500 --expect "pixels>100"
+```
+
+### What failure looks like
+
+| Oracle Says | What Actually Happened |
+|------------|----------------------|
+| `PseudoConsoleWindow, ZERO_SIZE` | Console target, not GUI window |
+| `matrix: is_all_black: true` | Pipeline/swapchain rendering issue |
+| `delta: is_frozen: true` | Render loop dead — static frame |
+| `launch: has_exited: true` | App crashed on startup |
+| `verify: pixels_changed: -1` | Window resized during test |

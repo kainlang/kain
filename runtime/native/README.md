@@ -75,6 +75,81 @@ The Kain native C runtime is the execution substrate for compiled Kain programs.
 
 ---
 
+
+## GPU Backend Architecture (Multi-Backend Layered)
+
+Kain's GPU presentation is split into two layers per backend:
+
+**Layer 1 — Runtime Shims (~650 lines total, in `src/core/`)**
+Each backend has a thin shim that owns Kain-level protocol: capability flag,
+env-var resolution, error/telemetry globals, `KainComponentSurface` vtable
+shape declaration, and `dlopen` of the separately-linked ABI library.
+
+**Layer 2 — ABI Libraries (~2,900 lines total, in `extras/<name>-abi/`)**
+Each backend implements the `KainComponentSurface` vtable in a separately-linked
+shared library. These libraries own the concrete GPU API calls and are dlopen'd
+at runtime by the shims.
+
+### Backends
+
+| Backend | Shim | ABI Library | Platforms |
+|---------|------|-------------|-----------|
+| Vulkan | `vulkan_surface_shim.c` | `libkain-vulkan-abi.so` | Win32, Linux X11, Linux Wayland, macOS (MoltenVK) |
+| D3D12 | `d3d12_surface_shim.c` | `libkain-d3d12-abi.dll` | Windows |
+| WebGPU | `webgpu_surface_shim.c` | `libkain-webgpu-abi.so` | Native (wgpu-native) + WASM (browser) |
+
+### ABI Paths
+
+All three Kain-to-runtime paths converge through `KainComponentSurface`:
+- `std::graphics` → `graphics_system.c` → delegates to component surface
+- `std::ui` → `ui_host_adapter.c` → resolves component surface from registry
+- `surface vulkan => Component` → compiler emits vtable calls directly
+
+### Build Gates
+
+| Gate | Default On | Default Off |
+|------|-----------|-------------|
+| `KAIN_RUNTIME_HAS_VULKAN_LOADER` | Desktop | Wasm, embedded |
+| `KAIN_RUNTIME_HAS_D3D12` | Windows desktop | All others |
+| `KAIN_RUNTIME_HAS_WEBGPU` | All platforms | Embedded (no GPU) |
+
+### Raw PFN Access
+
+The Vulkan ABI library also exposes a `KainVulkanPfnTable` (57 PFNs) via
+`kain_vulkan_abi_get_vtable()->pfns` for blade-level raw Vulkan consumers
+(e.g., chronosim's particle renderer) that need direct API access without
+the component surface abstraction.
+
+### Precedent
+
+This architecture mirrors `cuda_runtime.c` (contract in runtime,
+implementation in `kain-gpu-runtime.dll`). The shim owns the catalog entry and
+`dlopen` plumbing; the library owns the concrete GPU calls.
+
+## GPU Backend ABI Libraries
+
+The `extras/` directory contains the separately-linked GPU ABI libraries:
+
+### extras/vulkan-abi/ (~2,050 lines)
+
+`libkain-vulkan-abi.so` / `.dll` — 43+ Vulkan PFNs dynamically resolved,
+per-platform WSI surfaces (Win32/Xlib/Wayland/MoltenVK), swapchain lifecycle,
+fence/semaphore-based frame submission, and all 18 `KainComponentSurface`
+vtable slots. Also exposes a `KainVulkanPfnTable` with 57 resolved PFNs for
+blade-level raw Vulkan consumers. Never includes `<vulkan/vulkan.h>`.
+
+### extras/d3d12-abi/ 
+
+`libkain-d3d12-abi.dll` — Direct3D 12 backend. Native mesh shader pipeline
+support (`ShaderStage::Mesh` + `ShaderStage::Task`). Windows-only.
+
+### extras/webgpu-abi/ (~870 lines)
+
+`libkain-webgpu-abi.so` — WebGPU via `wgpu-native`. WASM browser fallback.
+Supports WGSL subgroup intrinsics via Kain's `subgroup` keyword.
+
+---
+
 ## Directory Layout
 
 ```
