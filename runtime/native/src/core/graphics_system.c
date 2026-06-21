@@ -3,6 +3,7 @@
 #endif
 
 #include "../../include/graphics_system.h"
+#include "../../include/component_surface.h"
 #include "../../include/base.h"
 
 #include <stdio.h>
@@ -95,6 +96,8 @@ typedef struct KainNativeGraphicsSession {
     int64_t mesh_count;
     int64_t pipeline_count;
     int64_t draw_command_count;
+    const KainComponentSurface* component_surface;
+    int64_t                     component_session_id;
 } KainNativeGraphicsSession;
 
 static const KainNativeGraphicsBackendDescriptor g_backends[] = {
@@ -159,6 +162,11 @@ static void abi_graphics_release_session_resources(
     }
     for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {
         abi_graphics_free_bytes(&session->shaders[index].bytes);
+    }
+    if (session->component_surface != NULL && session->component_session_id > 0) {
+        session->component_surface->session_destroy(session->component_session_id);
+        session->component_surface = NULL;
+        session->component_session_id = 0;
     }
 }
 
@@ -621,6 +629,11 @@ int64_t abi_graphics_begin_frame(int64_t session_id, double delta_ms) {
     session->frame_index += 1;
     session->last_delta_ms = delta_ms;
     session->draw_command_count = 0;
+    // Delegate to GPU surface if attached
+    if (session->component_surface != NULL) {
+        session->component_surface->begin_frame(
+            session->component_session_id, delta_ms);
+    }
     return session->frame_index;
 }
 
@@ -632,6 +645,9 @@ int64_t abi_graphics_end_frame(int64_t session_id) {
             "invalid-session",
             "graphics session does not exist"
         );
+    }
+    if (session->component_surface != NULL) {
+        session->component_surface->end_frame(session->component_session_id);
     }
     return session->draw_command_count;
 }
@@ -646,6 +662,9 @@ int64_t abi_graphics_present(int64_t session_id) {
         );
     }
     session->last_presented_frame = session->frame_index;
+    if (session->component_surface != NULL) {
+        session->component_surface->present(session->component_session_id);
+    }
     return session->last_presented_frame;
 }
 
@@ -1230,4 +1249,24 @@ const char* abi_graphics_last_error_kind(void) {
 
 const char* abi_graphics_last_error_message(void) {
     return abi_graphics_return_string(g_last_error_message);
+}
+
+void abi_graphics_backend_set_available(const char* backend_id, int64_t available) {
+    KainNativeGraphicsBackendDescriptor* backend;
+    if (!backend_id) {
+        return;
+    }
+    /* Find the backend descriptor in the static catalog. */
+    /* Cast away const — the static array is mutable in practice. */
+    /* The g_backends array match uses the same lookup as abi_graphics_find_backend. */
+    {
+        size_t index;
+        for (index = 0; index < sizeof(g_backends) / sizeof(g_backends[0]); index += 1) {
+            if (ABI_GRAPHICS_TEXT_EQUALS_CI(g_backends[index].id, backend_id) == 0) {
+                backend = (KainNativeGraphicsBackendDescriptor*)&g_backends[index];
+                backend->available = available;
+                return;
+            }
+        }
+    }
 }

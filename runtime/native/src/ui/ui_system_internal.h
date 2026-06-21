@@ -3,6 +3,7 @@
 
 #include "base.h"
 #include "ui_system.h"
+#include "../../include/component_surface.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -202,6 +203,8 @@ typedef struct KainNativeUiSession {
     int64_t event_tail;
     int64_t event_count;
     void* host_state;
+    const struct KainComponentSurface* component_surface;
+    int64_t                           component_session_id;
 } KainNativeUiSession;
 
 #endif /* ABI_UI_SYSTEM_INTERNAL_H */
