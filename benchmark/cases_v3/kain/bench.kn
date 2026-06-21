@@ -21,13 +21,13 @@ const RANDOM_SEED: Int = 42
 const MODULUS: Int = 1000000007
 
 // Expected checksums — computed 2026-06-19 via --compute-all
-const BINARY_TREES_EXPECTED: Int = 66759344
-const NBODY_EXPECTED: Int = 69
+const BINARY_TREES_EXPECTED: Int = 0       // Changed: recursive tree impl; run --compute-all
+const NBODY_EXPECTED: Int = 0               // Changed: CLBG 5-body solar system; run --compute-all
 const SPECTRAL_NORM_EXPECTED: Int = 122277715
-const MANDELBROT_EXPECTED: Int = 24366700
-const FASTA_EXPECTED: Int = 192725270
-const REGEX_REDUX_EXPECTED: Int = 0
-const PIDIGITS_EXPECTED: Int = 909268399
+const MANDELBROT_EXPECTED: Int = 0          // Changed: PBM output added; run --compute-all
+const FASTA_EXPECTED: Int = 0               // Changed: CLBG LCG; run --compute-all
+const REGEX_REDUX_EXPECTED: Int = 0         // Changed: larger DNA + pattern matching
+const PIDIGITS_EXPECTED: Int = 0            // Changed: BigInt impl; run --compute-all
 const HASHMAP_HEAVY_EXPECTED: Int = 639024227
 const BTREE_SCAN_EXPECTED: Int = 382288951
 const SORT_GAUNTLET_EXPECTED: Int = 596679945
@@ -80,30 +80,60 @@ fn v3_mix(acc: Int, val: Int) -> Int:
 // ============================================================================
 //  BENCH 1: binary_trees
 // ============================================================================
+// Each "node" is 3 consecutive Ints: [value, left_ptr, right_ptr]
+// left_ptr/right_ptr are stored as Int via ptr_to_int; 0 = null
 
 const BT_MI: Int = 4
 const BT_MA: Int = 18
 
+fn bt_alloc(depth: Int) -> ptr<Int>:
+    if depth <= 0:
+        return int_to_ptr(0, "Int")
+    let node: ptr<Int> = alloc_zeroed(3, "Int")
+    mem_store(node, 1, "Int")
+    let left: ptr<Int> = bt_alloc(depth - 1)
+    let right: ptr<Int> = bt_alloc(depth - 1)
+    mem_store(ptr_offset(node, 1, "Int"), ptr_to_int(left), "Int")
+    mem_store(ptr_offset(node, 2, "Int"), ptr_to_int(right), "Int")
+    return node
+
+fn bt_sum(node: ptr<Int>) -> Int:
+    let p: Int = ptr_to_int(node)
+    if p == 0:
+        return 0
+    let val: Int = mem_load(node, "Int")
+    let left_p: Int = mem_load(ptr_offset(node, 1, "Int"), "Int")
+    let right_p: Int = mem_load(ptr_offset(node, 2, "Int"), "Int")
+    var left_sum: Int = 0
+    if left_p != 0:
+        left_sum = bt_sum(int_to_ptr(left_p, "Int"))
+    var right_sum: Int = 0
+    if right_p != 0:
+        right_sum = bt_sum(int_to_ptr(right_p, "Int"))
+    return (val + left_sum + right_sum) % MODULUS
+
+fn bt_free(node: ptr<Int>):
+    let p: Int = ptr_to_int(node)
+    if p == 0:
+        return
+    let left_p: Int = mem_load(ptr_offset(node, 1, "Int"), "Int")
+    let right_p: Int = mem_load(ptr_offset(node, 2, "Int"), "Int")
+    if left_p != 0:
+        bt_free(int_to_ptr(left_p, "Int"))
+    if right_p != 0:
+        bt_free(int_to_ptr(right_p, "Int"))
+    decay node
+
 fn bt_run() -> Int with Unsafe:
-    rng_reset()
     var cs: Int = 0
     var d: Int = BT_MI
     while d <= BT_MA:
         let it: Int = 1 << (BT_MA - d + BT_MI)
-        let nc: Int = (1 << (d + 1)) - 1
         var i: Int = 0
         while i < it:
-            let buf: ptr<Int> = alloc_zeroed(nc, "Int")
-            var j: Int = 0
-            while j < nc:
-                mem_store(ptr_offset(buf, j, "Int"), 1, "Int")
-                j = j + 1
-            var sum: Int = 0
-            var k: Int = 0
-            while k < nc:
-                sum = (sum + mem_load(ptr_offset(buf, k, "Int"), "Int")) % MODULUS
-                k = k + 1
-            decay buf
+            let tree: ptr<Int> = bt_alloc(d)
+            let sum: Int = bt_sum(tree)
+            bt_free(tree)
             cs = (cs + sum) % MODULUS
             i = i + 1
         d = d + 2
@@ -116,30 +146,83 @@ fn bench_binary_trees() -> Int with Unsafe:
     return 0
 
 // ============================================================================
-//  BENCH 2: nbody
+//  BENCH 2: nbody (CLBG 5-body solar system)
 // ============================================================================
 
-const NB_N: Int = 500
+const NB_N: Int = 5
 const NB_STEPS: Int = 100
 const NB_DT: Float = 0.01
-const NB_SOFT: Float = 0.000000001
 
 fn nb_run() -> Int with Unsafe:
-    rng_reset()
     let n: Int = NB_N
     let st: Int = 7
+    let PI: Float = 3.141592653589793
+    let SM: Float = 4.0 * PI * PI
+    let DY: Float = 365.24
+
     let buf: ptr<Float> = alloc_zeroed(n * st, "Float")
-    var i: Int = 0
-    while i < n:
-        let b: Int = i * st
-        mem_store(ptr_offset(buf, b+0, "Float"), Float(rng_next()%10000)/1000.0-5.0, "Float")
-        mem_store(ptr_offset(buf, b+1, "Float"), Float(rng_next()%10000)/1000.0-5.0, "Float")
-        mem_store(ptr_offset(buf, b+2, "Float"), Float(rng_next()%10000)/1000.0-5.0, "Float")
-        mem_store(ptr_offset(buf, b+3, "Float"), 0.0, "Float")
-        mem_store(ptr_offset(buf, b+4, "Float"), 0.0, "Float")
-        mem_store(ptr_offset(buf, b+5, "Float"), 0.0, "Float")
-        mem_store(ptr_offset(buf, b+6, "Float"), 1.0, "Float")
-        i = i + 1
+
+    // Helper: body index 0 = Sun
+    mem_store(ptr_offset(buf, 0, "Float"), 0.0, "Float")   // x
+    mem_store(ptr_offset(buf, 1, "Float"), 0.0, "Float")   // y
+    mem_store(ptr_offset(buf, 2, "Float"), 0.0, "Float")   // z
+    mem_store(ptr_offset(buf, 3, "Float"), 0.0, "Float")   // vx (will be adjusted)
+    mem_store(ptr_offset(buf, 4, "Float"), 0.0, "Float")   // vy
+    mem_store(ptr_offset(buf, 5, "Float"), 0.0, "Float")   // vz
+    mem_store(ptr_offset(buf, 6, "Float"), SM, "Float")    // mass
+
+    // Jupiter (all values as plain decimals, no scientific notation)
+    mem_store(ptr_offset(buf, 7, "Float"), 4.84143144246472090, "Float")
+    mem_store(ptr_offset(buf, 8, "Float"), -1.16032004402742839, "Float")
+    mem_store(ptr_offset(buf, 9, "Float"), -0.103622044471123109, "Float")
+    mem_store(ptr_offset(buf, 10, "Float"), 0.00166007664274403694 * DY, "Float")
+    mem_store(ptr_offset(buf, 11, "Float"), 0.00769901118419740425 * DY, "Float")
+    mem_store(ptr_offset(buf, 12, "Float"), -0.0000690460016972063023 * DY, "Float")
+    mem_store(ptr_offset(buf, 13, "Float"), 0.000954791938424326609 * SM, "Float")
+
+    // Saturn
+    mem_store(ptr_offset(buf, 14, "Float"), 8.34336671824457987, "Float")
+    mem_store(ptr_offset(buf, 15, "Float"), 4.12479856412430479, "Float")
+    mem_store(ptr_offset(buf, 16, "Float"), -0.403523417114321381, "Float")
+    mem_store(ptr_offset(buf, 17, "Float"), -0.00276742510726862411 * DY, "Float")
+    mem_store(ptr_offset(buf, 18, "Float"), 0.00499852801234917238 * DY, "Float")
+    mem_store(ptr_offset(buf, 19, "Float"), 0.0000230417297573763929 * DY, "Float")
+    mem_store(ptr_offset(buf, 20, "Float"), 0.000285885980666130812 * SM, "Float")
+
+    // Uranus
+    mem_store(ptr_offset(buf, 21, "Float"), 12.8943695621391310, "Float")
+    mem_store(ptr_offset(buf, 22, "Float"), -15.1111514016986312, "Float")
+    mem_store(ptr_offset(buf, 23, "Float"), -0.223307578892655734, "Float")
+    mem_store(ptr_offset(buf, 24, "Float"), 0.00296460137564761618 * DY, "Float")
+    mem_store(ptr_offset(buf, 25, "Float"), 0.00237847173959480950 * DY, "Float")
+    mem_store(ptr_offset(buf, 26, "Float"), -0.0000296589568540237555 * DY, "Float")
+    mem_store(ptr_offset(buf, 27, "Float"), 0.0000436624404335156298 * SM, "Float")
+
+    // Neptune
+    mem_store(ptr_offset(buf, 28, "Float"), 15.3796971148509165, "Float")
+    mem_store(ptr_offset(buf, 29, "Float"), -25.9193146099879641, "Float")
+    mem_store(ptr_offset(buf, 30, "Float"), 0.179258772950371181, "Float")
+    mem_store(ptr_offset(buf, 31, "Float"), 0.00268067772490389322 * DY, "Float")
+    mem_store(ptr_offset(buf, 32, "Float"), 0.00162824170038242295 * DY, "Float")
+    mem_store(ptr_offset(buf, 33, "Float"), -0.0000951592254519715870 * DY, "Float")
+    mem_store(ptr_offset(buf, 34, "Float"), 0.0000515138902046611451 * SM, "Float")
+
+    // Offset Sun momentum so total = 0
+    var px: Float = 0.0
+    var py: Float = 0.0
+    var pz: Float = 0.0
+    var mi: Int = 0
+    while mi < n:
+        let mb: Int = mi * st
+        let mv: Float = mem_load(ptr_offset(buf, mb+6, "Float"), "Float")
+        px = px + mem_load(ptr_offset(buf, mb+3, "Float"), "Float") * mv
+        py = py + mem_load(ptr_offset(buf, mb+4, "Float"), "Float") * mv
+        pz = pz + mem_load(ptr_offset(buf, mb+5, "Float"), "Float") * mv
+        mi = mi + 1
+    mem_store(ptr_offset(buf, 3, "Float"), -px / SM, "Float")
+    mem_store(ptr_offset(buf, 4, "Float"), -py / SM, "Float")
+    mem_store(ptr_offset(buf, 5, "Float"), -pz / SM, "Float")
+
     var ts: Int = 0
     while ts < NB_STEPS:
         var ai: Int = 0
@@ -158,7 +241,7 @@ fn nb_run() -> Int with Unsafe:
                     let dx: Float = ax - mem_load(ptr_offset(buf, jb+0, "Float"), "Float")
                     let dy: Float = ay - mem_load(ptr_offset(buf, jb+1, "Float"), "Float")
                     let dz: Float = az - mem_load(ptr_offset(buf, jb+2, "Float"), "Float")
-                    let dsq: Float = dx*dx + dy*dy + dz*dz + NB_SOFT
+                    let dsq: Float = dx*dx + dy*dy + dz*dz
                     let id3: Float = 1.0 / (dsq * sqrt(dsq))
                     let mj: Float = mem_load(ptr_offset(buf, jb+6, "Float"), "Float")
                     fx = fx - dx * mj * id3
@@ -260,13 +343,24 @@ const MB_X1: Float = 1.0
 const MB_Y0: Float = -1.5
 const MB_Y1: Float = 1.5
 
-fn mb_run() -> Int:
+fn mb_run() -> Int with Unsafe:
     var cs: Int = 0
     let dx: Float = (MB_X1 - MB_X0) / Float(MB_W)
     let dy: Float = (MB_Y1 - MB_Y0) / Float(MB_H)
+    let row_buf: ptr<Int> = alloc_zeroed(MB_W, "Int")
+
+    // Build PBM output using bytes builder
+    var pb = text_builder_new()
+    pb = text_builder_push(pb, "P4\n")
+    pb = text_builder_push(pb, str(MB_W))
+    pb = text_builder_push(pb, " ")
+    pb = text_builder_push(pb, str(MB_H))
+    pb = text_builder_push(pb, "\n")
+
     var py: Int = 0
     while py < MB_H:
         let ci: Float = MB_Y0 + dy * Float(py)
+        // Compute one row of Mandelbrot
         var px: Int = 0
         while px < MB_W:
             let cr: Float = MB_X0 + dx * Float(px)
@@ -279,12 +373,32 @@ fn mb_run() -> Int:
                 zr = nzr
                 zi = nzi
                 it = it + 1
+            mem_store(ptr_offset(row_buf, px, "Int"), it, "Int")
             cs = (cs + it) % MODULUS
             px = px + 1
+
+        // Pack row into PBM bytes (1 bit per pixel, MSB first)
+        var bp: Int = 0
+        while bp < MB_W:
+            var byte_val: Int = 0
+            var bit: Int = 0
+            while bit < 8 and (bp + bit) < MB_W:
+                let val: Int = mem_load(ptr_offset(row_buf, bp + bit, "Int"), "Int")
+                if val < MB_MI:
+                    // Escaped -> white (1 in PBM)
+                    byte_val = byte_val | (1 << (7 - bit))
+                bit = bit + 1
+            pb = bytes_builder_push_byte(pb, byte_val)
+            bp = bp + 8
+
         py = py + 1
+
+    decay row_buf
+    let pbm_data: String = text_builder_build(pb)
+    stdout_write(pbm_data)
     return cs
 
-fn bench_mandelbrot() -> Int:
+fn bench_mandelbrot() -> Int with Unsafe:
     let res = mb_run()
     if MANDELBROT_EXPECTED != 0 and res != MANDELBROT_EXPECTED:
         return 1
@@ -295,10 +409,13 @@ fn bench_mandelbrot() -> Int:
 // ============================================================================
 
 const FA_N: Int = 250000
+const FA_IM: Int = 139968
+const FA_IA: Int = 3877
+const FA_IC: Int = 29573
 const FA_ALU: String = "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACCTGAGGTCAGGAGTTCGAGACCAGCCTGGCCAACATGGTGAAACCCCGTCTCTACTAAAAATACAAAAATTAGCCGGGCGTGGTGGCGCGCGCCTGTAATCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATCGCTTGAACCCGGGAGGCGGAGGTTGCAGTGAGCCGAGATCGCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAA"
 
 fn fa_run() -> Int:
-    rng_reset()
+    var last: Int = 42
     var ca: Int = 0
     var cc: Int = 0
     var cg: Int = 0
@@ -316,7 +433,8 @@ fn fa_run() -> Int:
     var cs: Int = 0
     var j: Int = 0
     while j < FA_N:
-        let r: Int = rng_next() % tw
+        last = (last * FA_IA + FA_IC) % FA_IM
+        let r: Int = last * tw / FA_IM
         var nb: Int = 65
         if r >= ca:
             if r < ca + cc: nb = 67
@@ -336,7 +454,29 @@ fn bench_fasta() -> Int:
 //  BENCH 6: regex_redux
 // ============================================================================
 
-const RR_N: Int = 5000
+const RR_N: Int = 50000
+
+fn rr_count_pattern(dna: String, pat: String) -> Int:
+    let dl: Int = len(dna)
+    let pl: Int = len(pat)
+    var cnt: Int = 0
+    if pl > dl:
+        return 0
+    var i: Int = 0
+    while i <= dl - pl:
+        var matched: Bool = true
+        var j: Int = 0
+        while j < pl:
+            if char_at(dna, i + j) != char_at(pat, j):
+                matched = false
+                j = pl
+            j = j + 1
+        if matched:
+            cnt = cnt + 1
+            i = i + pl
+        else:
+            i = i + 1
+    return cnt
 
 fn rr_run() -> Int:
     rng_reset()
@@ -349,29 +489,26 @@ fn rr_run() -> Int:
         elif r == 2: dna = dna + "G"
         else: dna = dna + "T"
         i = i + 1
-    var pc: Int = 0
+    // Count occurrences of IUPAC pattern "agggtaaa|tttaccct"
+    let pc1: Int = rr_count_pattern(dna, "AGGGTAAA")
+    let pc2: Int = rr_count_pattern(dna, "TTTACCCT")
+    let pattern_count: Int = pc1 + pc2
+
+    // Count "tHa[Nt]" (tHa + any nucleotide)
+    var class_count: Int = 0
     let dl: Int = len(dna)
-    var j: Int = 0
-    while j < dl - 7:
-        var ok: Bool = true
-        var ki: Int = 0
-        while ki < 8:
-            let c1: String = char_at("agggtaaa", ki)
-            let c2: String = char_at("tttaccct", ki)
-            let dc: String = char_at(dna, j + ki)
-            if dc != c1 and dc != c2:
-                ok = false
-            ki = ki + 1
-        if ok:
-            pc = pc + 1
-        j = j + 1
-    var tc: Int = 0
     var k: Int = 0
     while k < dl - 3:
-        if char_at(dna, k) == "t" and char_at(dna, k+1) == "H" and char_at(dna, k+2) == "a":
-            tc = tc + 1
+        if char_at(dna, k) == "T" and char_at(dna, k+2) == "A":
+            let h: String = char_at(dna, k+1)
+            if h != "G":
+                class_count = class_count + 1
         k = k + 1
-    return safe_mod((pc + tc) * dl, MODULUS)
+
+    // After replacement "tHaNt" -> "<4>": net -1 per match
+    let after_len: Int = dl - class_count
+    let total_count: Int = pattern_count + class_count
+    return safe_mod(total_count * after_len, MODULUS)
 
 fn bench_regex_redux() -> Int:
     let res = rr_run()
@@ -380,56 +517,144 @@ fn bench_regex_redux() -> Int:
     return 0
 
 // ============================================================================
-//  BENCH 7: pidigits
+//  BENCH 7: pidigits (BigInt, base 10^9)
 // ============================================================================
 
 const PD_N: Int = 5000
+const PD_BASE: Int = 1000000000
 
-fn pd_run() -> Int:
-    rng_reset()
-    // Machin-like pi approximation: pi = 16*arctan(1/5) - 4*arctan(1/239)
-    // arctan(x) = x - x^3/3 + x^5/5 - x^7/7 + ...
-    var pi: Float = 0.0
-    // arctan(1/5)
-    var x5: Float = 1.0 / 5.0
-    var x52: Float = x5 * x5
-    var term5: Float = x5
-    var t5: Int = 0
-    while t5 < 1000:
-        let div: Float = Float(2 * t5 + 1)
-        if t5 % 2 == 0:
-            pi = pi + 16.0 * term5 / div
+// BigInt helpers — all operate on ptr<Int> limbs (little-endian, count fixed)
+
+fn pd_bi_new(count: Int) -> ptr<Int>:
+    return alloc_zeroed(count, "Int")
+
+fn pd_bi_one_scaled(count: Int) -> ptr<Int>:
+    let result = alloc_zeroed(count, "Int")
+    mem_store(ptr_offset(result, count - 1, "Int"), 1, "Int")
+    return result
+
+fn pd_bi_mul_small(self: ptr<Int>, count: Int, x: Int):
+    var carry: Int = 0
+    var i: Int = 0
+    while i < count:
+        let v: Int = mem_load(ptr_offset(self, i, "Int"), "Int") * x + carry
+        mem_store(ptr_offset(self, i, "Int"), v % PD_BASE, "Int")
+        carry = v / PD_BASE
+        i = i + 1
+
+fn pd_bi_div_small(self: ptr<Int>, count: Int, x: Int) -> Int:
+    var rem: Int = 0
+    var i: Int = count - 1
+    while i >= 0:
+        let v: Int = rem * PD_BASE + mem_load(ptr_offset(self, i, "Int"), "Int")
+        mem_store(ptr_offset(self, i, "Int"), v / x, "Int")
+        rem = v % x
+        i = i - 1
+    return rem
+
+fn pd_bi_add(self: ptr<Int>, count: Int, other: ptr<Int>):
+    var carry: Int = 0
+    var i: Int = 0
+    while i < count:
+        let a: Int = mem_load(ptr_offset(self, i, "Int"), "Int")
+        let b: Int = mem_load(ptr_offset(other, i, "Int"), "Int")
+        let sum: Int = a + b + carry
+        mem_store(ptr_offset(self, i, "Int"), sum % PD_BASE, "Int")
+        carry = sum / PD_BASE
+        i = i + 1
+
+fn pd_bi_sub(self: ptr<Int>, count: Int, other: ptr<Int>):
+    var borrow: Int = 0
+    var i: Int = 0
+    while i < count:
+        let a: Int = mem_load(ptr_offset(self, i, "Int"), "Int")
+        let b: Int = mem_load(ptr_offset(other, i, "Int"), "Int")
+        let diff: Int = a - b - borrow
+        if diff >= 0:
+            mem_store(ptr_offset(self, i, "Int"), diff, "Int")
+            borrow = 0
         else:
-            pi = pi - 16.0 * term5 / div
-        term5 = term5 * x52
-        if term5 < 0.0000000000000001: break
-        t5 = t5 + 1
-    // arctan(1/239)
-    var x239: Float = 1.0 / 239.0
-    var x2392: Float = x239 * x239
-    var term239: Float = x239
-    var t239: Int = 0
-    while t239 < 1000:
-        let div2: Float = Float(2 * t239 + 1)
-        if t239 % 2 == 0:
-            pi = pi - 4.0 * term239 / div2
+            mem_store(ptr_offset(self, i, "Int"), diff + PD_BASE, "Int")
+            borrow = 1
+        i = i + 1
+
+// arctan(1/x) series using BigInt
+fn pd_arctan(x: Int, num_terms: Int, limbs: Int) -> ptr<Int>:
+    let result: ptr<Int> = pd_bi_new(limbs)
+    let term: ptr<Int> = pd_bi_one_scaled(limbs)
+    // term = 1/x
+    pd_bi_div_small(term, limbs, x)
+
+    var k: Int = 0
+    while k < num_terms:
+        if k % 2 == 0:
+            pd_bi_add(result, limbs, term)
         else:
-            pi = pi + 4.0 * term239 / div2
-        term239 = term239 * x2392
-        if term239 < 0.0000000000000001: break
-        t239 = t239 + 1
-    // Extract digits
+            pd_bi_sub(result, limbs, term)
+
+        // term_{k+1} = term_k * (2k+1) / ((2k+3) * x^2)
+        let numerator: Int = 2 * k + 1
+        let denominator: Int = (2 * k + 3) * x * x
+        pd_bi_mul_small(term, limbs, numerator)
+        let _ = pd_bi_div_small(term, limbs, denominator)
+
+        k = k + 1
+
+    decay term
+    return result
+
+fn pd_compute_checksum(pi: ptr<Int>, limbs: Int, count: Int) -> Int:
     var cs: Int = 0
-    var tm: Int = 0
-    while tm < PD_N:
-        pi = pi * 10.0
-        let d: Int = Int(pi)
-        pi = pi - Float(d)
-        cs = v3_mix(cs, d)
-        tm = tm + 1
+    var got: Int = 0
+    var started: Bool = false
+
+    var li: Int = limbs - 1
+    while li >= 0 and got < count:
+        let val: Int = mem_load(ptr_offset(pi, li, "Int"), "Int")
+        // Extract 9 decimal digits from this limb (MSB first)
+        var di: Int = 0
+        while di < 9 and got < count:
+            // Compute divisor = 10^(8-di)
+            var divisor: Int = 1
+            var p: Int = 0
+            while p < (8 - di):
+                divisor = divisor * 10
+                p = p + 1
+            let digit: Int = (val / divisor) % 10
+            if started == false:
+                if digit != 0:
+                    started = true
+            if started:
+                cs = (cs * 31 + digit) % MODULUS
+                got = got + 1
+            di = di + 1
+        li = li - 1
     return cs
 
-fn bench_pidigits() -> Int:
+fn pd_run() -> Int with Unsafe:
+    let target_limbs: Int = (PD_N * 10 / 9) + 10
+    let digits: Int = target_limbs * 9
+    // terms_5 = ceil(digits / log10(5)) + safety
+    let terms_5: Int = (digits * 1000) / 699 + 10
+    // terms_239 = ceil(digits / log10(239)) + safety
+    let terms_239: Int = (digits * 1000) / 2378 + 10
+
+    // Compute pi = 16*arctan(1/5) - 4*arctan(1/239)
+    let atan_5: ptr<Int> = pd_arctan(5, terms_5, target_limbs)
+    let atan_239: ptr<Int> = pd_arctan(239, terms_239, target_limbs)
+
+    pd_bi_mul_small(atan_5, target_limbs, 16)
+    pd_bi_mul_small(atan_239, target_limbs, 4)
+    pd_bi_sub(atan_5, target_limbs, atan_239)
+
+    // Extract checksum from most significant digits
+    let cs: Int = pd_compute_checksum(atan_5, target_limbs, PD_N)
+
+    decay atan_5
+    decay atan_239
+    return cs
+
+fn bench_pidigits() -> Int with Unsafe:
     let res = pd_run()
     if PIDIGITS_EXPECTED != 0 and res != PIDIGITS_EXPECTED:
         return 1

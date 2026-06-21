@@ -40,6 +40,7 @@ python cases_v3/bench.py suite full
 cases_v3/
 ├── README.md              ← This file (also the MKS runner)
 ├── bench.py               ← Python statistical timing runner
+├── suites.json            ← Suite configurations
 ├── kain/
 │   └── bench.kn           ← ONE god file, 30 functions (check-passed, not compiled)
 ├── rust/
@@ -50,6 +51,9 @@ cases_v3/
 │   └── bench.zig          ← ONE god file (compiled: bench.exe, 913 KB)
 ├── go/
 │   └── bench.go           ← ONE god file (compiled: bench.exe, 2.9 MB)
+├── fortran/
+│   ├── bench.f95          ← ONE god file, 16 benchmarks
+│   └── c_ffi.c            ← C FFI support for c_ffi_call_hotloop
 └── markscript/
     └── bench.md           ← 12 mini-language benchmarks (runs via mks.exe)
 ```
@@ -62,6 +66,7 @@ COMPILE (once, parallel):
   clang++ bench.cpp -O3 -march=native          → bench_cpp.exe
   zig build-exe bench.zig -O ReleaseFast       → bench_zig.exe
   go build -ldflags="-s -w" bench.go           → bench_go.exe
+  gfortran -O3 -march=native bench.f95 c_ffi.c → bench_fortran.exe
   kain build bench.kn --target llvm            → bench_kain.exe (NOT YET BUILT)
 
 RUN (parallel across languages):
@@ -69,6 +74,7 @@ RUN (parallel across languages):
   bench_rust.exe binary_trees   # 30 benches
   bench_zig.exe binary_trees    # 24 benches (6 skipped)
   bench_go.exe binary_trees     # 24 benches (7 skipped)
+  bench_fortran.exe binary_trees # 16 benches (14 skipped)
   mks run bench.md              # 12 MKS mini-language benches
 ```
 
@@ -76,40 +82,41 @@ RUN (parallel across languages):
 
 ## Benchmark Table
 
-30 benchmarks across 7 tiers. Each language god file implements a subset:
+30 benchmarks across 7 tiers. Each language god file implements a subset.
+Fortran implements 16 benchmarks, focusing on its strengths: compute-heavy numerics (where it often matches or exceeds C++/Rust), memory allocation, array operations, streaming file I/O, and ISO_C_BINDING FFI.
 
-| # | ID | Tier | C++ | Rust | Zig | Go | Kain | MKS |
-|---|-----|------|-----|------|-----|-----|------|-----|
-| 1 | binary_trees | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 2 | nbody | 1 | ✅ | ✅ | ✅ | - | ✅ | - |
-| 3 | spectral_norm | 1 | ✅ | ✅ | ✅ | - | ✅ | - |
-| 4 | mandelbrot | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 5 | fasta | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 6 | regex_redux | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 7 | pidigits | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 8 | hashmap_heavy | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 9 | btree_scan | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 10 | sort_gauntlet | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 11 | vector_growth | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 12 | graph_bfs | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 13 | alloc_small_churn | 3 | ✅ | ✅ | ✅ | - | ✅ | - |
-| 14 | alloc_large_objects | 3 | ✅ | ✅ | ✅ | - | ✅ | - |
-| 15 | arena_vs_malloc | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 16 | cache_march | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 17 | rc_vs_gc_trace | 3 | ✅ | ✅ | SKIP | - | ✅ | - |
-| 18 | parallel_reduce | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 19 | mutex_contention | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 20 | spsc_queue | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 21 | mpmc_queue | 4 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 22 | actor_spam | 4 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
-| 23 | async_ready_pipeline | 4 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
-| 24 | file_read_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 25 | file_write_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| 26 | tcp_echo_throughput | 5 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
-| 27 | process_spawn_chain | 5 | ✅ | ✅ | SKIP | ✅ | ✅ | - |
-| 28 | c_ffi_call_hotloop | 6 | ✅ | ✅ | ✅ | - | ✅ | - |
-| 29 | c_buffer_handoff | 6 | ✅ | ✅ | SKIP | - | ✅ | - |
-| 30 | build_self_stress | 7 | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| # | ID | Tier | C++ | Rust | Zig | Go | Fortran | Kain | MKS |
+|---|-----|------|-----|------|-----|-----|---------|------|-----|
+| 1 | binary_trees | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 2 | nbody | 1 | ✅ | ✅ | ✅ | - | ✅ | ✅ | - |
+| 3 | spectral_norm | 1 | ✅ | ✅ | ✅ | - | ✅ | ✅ | - |
+| 4 | mandelbrot | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 5 | fasta | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 6 | regex_redux | 1 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | ✅ |
+| 7 | pidigits | 1 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 8 | hashmap_heavy | 2 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 9 | btree_scan | 2 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 10 | sort_gauntlet | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 11 | vector_growth | 2 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 12 | graph_bfs | 2 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 13 | alloc_small_churn | 3 | ✅ | ✅ | ✅ | - | ✅ | ✅ | - |
+| 14 | alloc_large_objects | 3 | ✅ | ✅ | ✅ | - | ✅ | ✅ | - |
+| 15 | arena_vs_malloc | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 16 | cache_march | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 17 | rc_vs_gc_trace | 3 | ✅ | ✅ | SKIP | - | SKIP | ✅ | - |
+| 18 | parallel_reduce | 4 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 19 | mutex_contention | 4 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 20 | spsc_queue | 4 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 21 | mpmc_queue | 4 | ✅ | ✅ | ✅ | ✅ | SKIP | ✅ | - |
+| 22 | actor_spam | 4 | ✅ | ✅ | SKIP | ✅ | SKIP | ✅ | - |
+| 23 | async_ready_pipeline | 4 | ✅ | ✅ | SKIP | ✅ | SKIP | ✅ | - |
+| 24 | file_read_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 25 | file_write_streaming | 5 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
+| 26 | tcp_echo_throughput | 5 | ✅ | ✅ | SKIP | ✅ | SKIP | ✅ | - |
+| 27 | process_spawn_chain | 5 | ✅ | ✅ | SKIP | ✅ | SKIP | ✅ | - |
+| 28 | c_ffi_call_hotloop | 6 | ✅ | ✅ | ✅ | - | ✅ | ✅ | - |
+| 29 | c_buffer_handoff | 6 | ✅ | ✅ | SKIP | - | SKIP | ✅ | - |
+| 30 | build_self_stress | 7 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | - |
 | 31 | scalar_mix | MKS | - | - | - | - | - | ✅ |
 | 32 | recursive_sum | MKS | - | - | - | - | - | ✅ |
 | 33 | branch_dispatch | MKS | - | - | - | - | - | ✅ |
@@ -124,7 +131,7 @@ RUN (parallel across languages):
 | 42 | array_scan | MKS | - | - | - | - | - | ✅ |
 | 43 | string_ops | MKS | - | - | - | - | - | ✅ |
 
-✅ = implemented, SKIP = deliberately skipped (no runtime support), - = not applicable
+✅ = implemented, SKIP = deliberately skipped (no stdlib/runtime support), - = not applicable
 
 ---
 
@@ -162,6 +169,15 @@ go build -ldflags="-s -w"
 ```
 
 24 benchmarks implemented (7 skipped: nbody, spectral_norm, alloc_small_churn, alloc_large_objects, rc_vs_gc_trace, c_ffi_call_hotloop, c_buffer_handoff). Prints raw checksum, exits 0.
+
+### Fortran
+```
+gfortran -O3 -march=native bench.f95 c_ffi.c -o bench
+./bench binary_trees           # single benchmark
+./bench --compute-all          # print all checksums for calibration
+```
+
+16 benchmarks implemented (14 skipped: regex_redux, hashmap_heavy, btree_scan, graph_bfs, rc_vs_gc_trace, all Tier 4, tcp_echo_throughput, process_spawn_chain, c_buffer_handoff). Fortran has no stdlib support for: regex, hash maps, trees, graphs, threads/concurrency, network I/O, or process spawning. Its strengths are compute-heavy numerics (Tier 1), array operations, memory allocation, streaming file I/O, and ISO_C_BINDING FFI.
 
 ### Kain
 ```
@@ -211,6 +227,7 @@ python cases_v3/bench.py suite dev      # Kain-only fast iteration
 | rust/bench.exe | 437 KB | ~1900 lines |
 | zig/bench.exe | 913 KB | ~1677 lines |
 | go/bench.exe | 2.9 MB | ~1395 lines |
+| fortran/bench.f95 | TBD | ~1200 lines |
 | kain/bench.kn | 43 KB | ~1365 lines |
 | mks.exe | 3.2 MB | 17 .kn files, 429 KB |
 

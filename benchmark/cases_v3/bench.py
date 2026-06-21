@@ -43,24 +43,24 @@ REPORT_ROOT = OUT_ROOT / "reports"
 
 BENCHMARKS: list[dict[str, Any]] = [
     # Tier 1: Compute
-    {"id": "binary_trees",         "tier": 1, "title": "Binary Trees",              "metric": "trees/s",         "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
-    {"id": "nbody",                "tier": 1, "title": "N-Body Simulation",          "metric": "GFLOPS",          "work_items": None, "languages": ["kain","rust","cpp","zig"]},
-    {"id": "spectral_norm",        "tier": 1, "title": "Spectral Norm",             "metric": "GFLOPS",          "work_items": None, "languages": ["kain","rust","cpp","zig"]},
-    {"id": "mandelbrot",           "tier": 1, "title": "Mandelbrot Set",            "metric": "pixels/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go","mks"]},
-    {"id": "fasta",                "tier": 1, "title": "FASTA DNA Generation",      "metric": "nucleotides/s",   "work_items": None, "languages": ["kain","rust","cpp","zig","go","mks"]},
+    {"id": "binary_trees",         "tier": 1, "title": "Binary Trees",              "metric": "trees/s",         "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
+    {"id": "nbody",                "tier": 1, "title": "N-Body Simulation",          "metric": "GFLOPS",          "work_items": None, "languages": ["kain","rust","cpp","zig","fortran"]},
+    {"id": "spectral_norm",        "tier": 1, "title": "Spectral Norm",             "metric": "GFLOPS",          "work_items": None, "languages": ["kain","rust","cpp","zig","fortran"]},
+    {"id": "mandelbrot",           "tier": 1, "title": "Mandelbrot Set",            "metric": "pixels/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran","mks"]},
+    {"id": "fasta",                "tier": 1, "title": "FASTA DNA Generation",      "metric": "nucleotides/s",   "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran","mks"]},
     {"id": "regex_redux",          "tier": 1, "title": "Regex Redux",               "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","go","mks"]},
-    {"id": "pidigits",             "tier": 1, "title": "Pi Digits",                 "metric": "digits/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
+    {"id": "pidigits",             "tier": 1, "title": "Pi Digits",                 "metric": "digits/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
     # Tier 2: Data Structures
     {"id": "hashmap_heavy",        "tier": 2, "title": "HashMap Heavy",             "metric": "ops/s",           "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
     {"id": "btree_scan",           "tier": 2, "title": "BTree Scan",                "metric": "ops/s",           "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
-    {"id": "sort_gauntlet",        "tier": 2, "title": "Sort Gauntlet",             "metric": "elements/s",      "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
-    {"id": "vector_growth",        "tier": 2, "title": "Vector Growth",             "metric": "elements/s",      "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
+    {"id": "sort_gauntlet",        "tier": 2, "title": "Sort Gauntlet",             "metric": "elements/s",      "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
+    {"id": "vector_growth",        "tier": 2, "title": "Vector Growth",             "metric": "elements/s",      "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
     {"id": "graph_bfs",            "tier": 2, "title": "Graph BFS",                 "metric": "edges/s",         "work_items": None, "languages": ["kain","rust","cpp","go"]},
     # Tier 3: Memory
-    {"id": "alloc_small_churn",    "tier": 3, "title": "Alloc Small Churn",         "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig"]},
-    {"id": "alloc_large_objects",  "tier": 3, "title": "Alloc Large Objects",       "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig"]},
-    {"id": "arena_vs_malloc",      "tier": 3, "title": "Arena vs Malloc",           "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
-    {"id": "cache_march",          "tier": 3, "title": "Cache March",               "metric": "GB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
+    {"id": "alloc_small_churn",    "tier": 3, "title": "Alloc Small Churn",         "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","fortran"]},
+    {"id": "alloc_large_objects",  "tier": 3, "title": "Alloc Large Objects",       "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","fortran"]},
+    {"id": "arena_vs_malloc",      "tier": 3, "title": "Arena vs Malloc",           "metric": "allocs/s",        "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
+    {"id": "cache_march",          "tier": 3, "title": "Cache March",               "metric": "GB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
     {"id": "rc_vs_gc_trace",       "tier": 3, "title": "RC vs GC Trace",            "metric": "nodes/s",         "work_items": None, "languages": ["kain","rust","cpp"]},
     # Tier 4: Concurrency
     {"id": "parallel_reduce",      "tier": 4, "title": "Parallel Reduce",           "metric": "elements/s",      "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
@@ -70,15 +70,15 @@ BENCHMARKS: list[dict[str, Any]] = [
     {"id": "actor_spam",           "tier": 4, "title": "Actor Spam",                "metric": "msgs/s",          "work_items": None, "languages": ["kain","rust","cpp","go"]},
     {"id": "async_ready_pipeline", "tier": 4, "title": "Async Ready Pipeline",      "metric": "awaits/s",        "work_items": None, "languages": ["kain","rust","cpp","go"]},
     # Tier 5: IO
-    {"id": "file_read_streaming",  "tier": 5, "title": "File Read Streaming",       "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
-    {"id": "file_write_streaming", "tier": 5, "title": "File Write Streaming",      "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
+    {"id": "file_read_streaming",  "tier": 5, "title": "File Read Streaming",       "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
+    {"id": "file_write_streaming", "tier": 5, "title": "File Write Streaming",      "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
     {"id": "tcp_echo_throughput",  "tier": 5, "title": "TCP Echo Throughput",       "metric": "MB/s",            "work_items": None, "languages": ["kain","rust","cpp","go"]},
     {"id": "process_spawn_chain",  "tier": 5, "title": "Process Spawn Chain",       "metric": "spawns/s",        "work_items": None, "languages": ["kain","rust","cpp","go"]},
     # Tier 6: FFI
-    {"id": "c_ffi_call_hotloop",   "tier": 6, "title": "C FFI Call Hotloop",        "metric": "calls/s",         "work_items": None, "languages": ["kain","rust","cpp","zig"]},
+    {"id": "c_ffi_call_hotloop",   "tier": 6, "title": "C FFI Call Hotloop",        "metric": "calls/s",         "work_items": None, "languages": ["kain","rust","cpp","zig","fortran"]},
     {"id": "c_buffer_handoff",     "tier": 6, "title": "C Buffer Handoff",          "metric": "roundtrips/s",    "work_items": None, "languages": ["kain","rust","cpp"]},
     # Tier 7: Compiler
-    {"id": "build_self_stress",    "tier": 7, "title": "Build Self Stress",          "metric": "seconds",         "work_items": None, "languages": ["kain","rust","cpp","zig","go"]},
+    {"id": "build_self_stress",    "tier": 7, "title": "Build Self Stress",          "metric": "seconds",         "work_items": None, "languages": ["kain","rust","cpp","zig","go","fortran"]},
     # MKS-only benchmarks
     {"id": "scalar_mix",           "tier": 1, "title": "Scalar Mix",                "metric": "ops/s",           "work_items": None, "languages": ["mks"]},
     {"id": "recursive_sum",        "tier": 1, "title": "Recursive Sum",             "metric": "ops/s",           "work_items": None, "languages": ["mks"]},
@@ -129,6 +129,13 @@ LANGUAGE_CONFIG: dict[str, dict[str, Any]] = {
         "build_cmd": None,
         "extension": ".go",
     },
+    "fortran": {
+        "label": "Fortran GFortran",
+        "source": CASES_V3 / "fortran" / "bench.f95",
+        "binary": CASES_V3 / "build" / "fortran" / "bench.exe",
+        "build_cmd": None,
+        "extension": ".f95",
+    },
     "mks": {
         "label": "MarkScript VM",
         "source": CASES_V3 / "markscript" / "bench.md",
@@ -138,7 +145,7 @@ LANGUAGE_CONFIG: dict[str, dict[str, Any]] = {
     },
 }
 
-LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "mks"]
+LANGUAGE_ORDER = ["kain", "rust", "cpp", "zig", "go", "fortran", "mks"]
 
 
 # ============================================================================
@@ -249,7 +256,7 @@ def _frictionless_run(build_first: bool, warmups: int, runs: int, timeout: int) 
 
 def cmd_build(args) -> int:
     """Compile god files for selected languages."""
-    languages = [args.language] if args.language else ["kain", "rust", "cpp", "zig", "go"]
+    languages = [args.language] if args.language else ["kain", "rust", "cpp", "zig", "go", "fortran"]
     languages = [l for l in languages if l != "mks"]  # MKS has no build step
 
     BUILD_ROOT.mkdir(parents=True, exist_ok=True)
@@ -287,6 +294,8 @@ def cmd_build(args) -> int:
                 _build_zig(source, binary)
             elif lang == "go":
                 _build_go(source, binary)
+            elif lang == "fortran":
+                _build_fortran(source, binary)
         except Exception as e:
             print(f"[FAIL] {lang}: {e}")
             return 1
@@ -352,6 +361,30 @@ def _build_go(source: Path, binary: Path):
     )
     if result.returncode != 0:
         raise RuntimeError(f"go build failed:\n{result.stderr[-500:]}")
+
+
+def _build_fortran(source: Path, binary: Path):
+    """Compile Fortran god file with gfortran.
+
+    Links the C FFI support object (c_ffi.c) for the c_ffi_call_hotloop benchmark.
+    """
+    gfortran = _find_tool("gfortran")
+    c_ffi_src = source.parent / "c_ffi.c"
+    out_dir = binary.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = [gfortran, "-O3", "-march=native", str(source)]
+    if c_ffi_src.exists():
+        cmd.append(str(c_ffi_src))
+    cmd.extend(["-o", str(binary)])
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=180,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"gfortran failed:\n{result.stderr[-500:]}")
+    if not binary.exists():
+        raise RuntimeError(f"binary not produced at {binary}")
 
 
 # ============================================================================
