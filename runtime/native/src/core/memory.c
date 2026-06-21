@@ -565,20 +565,42 @@ void __kain_volatile_store(void* ptr, const void* value, size_t size) {
     }
 }
 
+/*
+ * Shared lookup tables for memory order code -> C11 memory_order mapping.
+ * Z3 proof: runtime/native/src/core/z3/proofs-experimental/memory-order-switches-to-lut.smt2
+ * Domain: ordering is always one of KAIN_MEMORY_ORDER_RELAXED(0) .. SEQ_CST(4)
+ */
+#define KAIN_MEMORY_ORDER_INDEX_CLAMP(o) ((size_t)(((o) > 4) ? 4 : (o)))
+
+static const memory_order KAIN_MEMORY_ORDER_FROM_CODE_LUT[5] = {
+    memory_order_relaxed,   /* 0 = RELAXED */
+    memory_order_acquire,   /* 1 = ACQUIRE */
+    memory_order_release,   /* 2 = RELEASE */
+    memory_order_acq_rel,   /* 3 = ACQ_REL */
+    memory_order_seq_cst    /* 4 = SEQ_CST */
+};
+
+static const memory_order KAIN_MEMORY_STORE_ORDER_LUT[5] = {
+    memory_order_relaxed,   /* 0 = RELAXED */
+    memory_order_release,   /* 1 = ACQUIRE -> release */
+    memory_order_release,   /* 2 = RELEASE */
+    memory_order_release,   /* 3 = ACQ_REL -> release */
+    memory_order_seq_cst    /* 4 = SEQ_CST */
+};
+
+static const memory_order KAIN_MEMORY_LOAD_ORDER_LUT[5] = {
+    memory_order_relaxed,   /* 0 = RELAXED */
+    memory_order_acquire,   /* 1 = ACQUIRE */
+    memory_order_acquire,   /* 2 = RELEASE -> acquire */
+    memory_order_acquire,   /* 3 = ACQ_REL -> acquire */
+    memory_order_seq_cst    /* 4 = SEQ_CST */
+};
+
+static const int KAIN_MEMORY_SUCCESS_STRENGTH_LUT[5] = {0, 2, 3, 4, 5};
+static const int KAIN_MEMORY_FAILURE_STRENGTH_LUT[5] = {0, 2, 2, 2, 5};
+
 static memory_order kain_memory_order_from_code(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return memory_order_relaxed;
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-        return memory_order_acquire;
-    case KAIN_MEMORY_ORDER_RELEASE:
-        return memory_order_release;
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return memory_order_acq_rel;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return memory_order_seq_cst;
-    }
+    return KAIN_MEMORY_ORDER_FROM_CODE_LUT[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
 static const char* kain_memory_order_name_from_code(int64_t ordering) {
@@ -619,33 +641,13 @@ static void kain_memory_emit_ordering_warning_once(
 }
 
 static int kain_memory_c11_success_strength(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return 0;
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-        return 2;
-    case KAIN_MEMORY_ORDER_RELEASE:
-        return 3;
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return 4;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return 5;
-    }
+    /* Z3 proof: runtime/native/src/core/z3/proofs-experimental/memory-order-success-strength-lut.smt2 */
+    return ordering >= 5 ? 5 : KAIN_MEMORY_SUCCESS_STRENGTH_LUT[(size_t)ordering];
 }
 
 static int kain_memory_c11_failure_strength(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return 0;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-        return 5;
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-    case KAIN_MEMORY_ORDER_RELEASE:
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-    default:
-        return 2;
-    }
+    /* Z3 proof: runtime/native/src/core/z3/proofs-experimental/memory-order-failure-strength-lut.smt2 */
+    return ordering >= 5 ? 2 : KAIN_MEMORY_FAILURE_STRENGTH_LUT[(size_t)ordering];
 }
 
 static int64_t kain_memory_normalize_failure_order_code(int64_t ordering, int* warned_invalid_shape) {
@@ -687,45 +689,15 @@ static int64_t kain_memory_clamp_failure_order_code(
 }
 
 static memory_order kain_memory_load_order_from_code(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return memory_order_relaxed;
-    case KAIN_MEMORY_ORDER_RELEASE:
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return memory_order_acquire;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return memory_order_seq_cst;
-    }
+    return KAIN_MEMORY_LOAD_ORDER_LUT[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
 static memory_order kain_memory_store_order_from_code(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return memory_order_relaxed;
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-    case KAIN_MEMORY_ORDER_RELEASE:
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return memory_order_release;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return memory_order_seq_cst;
-    }
+    return KAIN_MEMORY_STORE_ORDER_LUT[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
 static memory_order kain_memory_failure_order_from_code(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return memory_order_relaxed;
-    case KAIN_MEMORY_ORDER_RELEASE:
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return memory_order_acquire;
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return memory_order_seq_cst;
-    }
+    return KAIN_MEMORY_LOAD_ORDER_LUT[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
 int64_t __kain_atomic_load_ordered(const void* ptr, int64_t ordering) {

@@ -72,24 +72,26 @@ static void kain_ownership_unlock(void) {
     atomic_flag_clear_explicit(&KAIN_OWNERSHIP_REGISTRY_LOCK, memory_order_release);
 }
 
+/*
+ * Proof: runtime/native/src/core/z3/proofs-experimental/ownership-errno-table-lookup.smt2
+ * Table lookup equivalent to switch statement for all status values in [-9, 0].
+ */
+static const int KAIN_OWNERSHIP_ERRNO_TABLE[10] = {
+    0,       /* KAIN_OWNERSHIP_OK */
+    EINVAL,  /* KAIN_OWNERSHIP_ERR_INVALID */
+    EINVAL,  /* KAIN_OWNERSHIP_ERR_NOT_FOUND */
+    ENOMEM,  /* KAIN_OWNERSHIP_ERR_CAPACITY */
+    EBUSY,   /* KAIN_OWNERSHIP_ERR_OBSERVED */
+    EBUSY,   /* KAIN_OWNERSHIP_ERR_COLLAPSED */
+    EINVAL,  /* KAIN_OWNERSHIP_ERR_DECAYED */
+    ENOMEM,  /* KAIN_OWNERSHIP_ERR_OVERFLOW */
+    EINVAL,  /* KAIN_OWNERSHIP_ERR_NOT_OBSERVED */
+    EINVAL,  /* KAIN_OWNERSHIP_ERR_NOT_COLLAPSED */
+};
 static int kain_ownership_errno_from_status(int status) {
-    switch (status) {
-        case KAIN_OWNERSHIP_OK:
-            return 0;
-        case KAIN_OWNERSHIP_ERR_CAPACITY:
-        case KAIN_OWNERSHIP_ERR_OVERFLOW:
-            return ENOMEM;
-        case KAIN_OWNERSHIP_ERR_OBSERVED:
-        case KAIN_OWNERSHIP_ERR_COLLAPSED:
-            return EBUSY;
-        case KAIN_OWNERSHIP_ERR_NOT_FOUND:
-        case KAIN_OWNERSHIP_ERR_DECAYED:
-        case KAIN_OWNERSHIP_ERR_NOT_OBSERVED:
-        case KAIN_OWNERSHIP_ERR_NOT_COLLAPSED:
-        case KAIN_OWNERSHIP_ERR_INVALID:
-        default:
-            return EINVAL;
-    }
+    int idx = -status;
+    if ((unsigned int)idx <= 9u) return KAIN_OWNERSHIP_ERRNO_TABLE[idx];
+    return EINVAL;
 }
 
 static int kain_ownership_fail(int status) {
@@ -361,18 +363,24 @@ static int kain_ownership_region_is_heap(const KainOwnershipRegion* region) {
     return region->kind == KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
 }
 
+/*
+ * Proof: runtime/native/src/core/z3/proofs-experimental/ownership-state-classifier-table.smt2
+ * Domain invariant: observers > 0 => state == OBSERVED
+ * (enforced by begin_observe/end_observe state machine transitions)
+ */
+static const int8_t KAIN_OWNERSHIP_BUSY_TABLE[5] = {
+    [KAIN_OWNERSHIP_STATE_IDLE]      = KAIN_OWNERSHIP_ERR_INVALID,
+    [KAIN_OWNERSHIP_STATE_OBSERVED]  = KAIN_OWNERSHIP_ERR_OBSERVED,
+    [KAIN_OWNERSHIP_STATE_COLLAPSED] = KAIN_OWNERSHIP_ERR_COLLAPSED,
+    [KAIN_OWNERSHIP_STATE_SHARED]    = KAIN_OWNERSHIP_ERR_COLLAPSED,
+    [KAIN_OWNERSHIP_STATE_DECAYED]   = KAIN_OWNERSHIP_ERR_DECAYED,
+};
 static int kain_ownership_status_for_busy_region(const KainOwnershipRegion* region) {
-    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-        return KAIN_OWNERSHIP_ERR_DECAYED;
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_SHARED) {
-        return KAIN_OWNERSHIP_ERR_COLLAPSED;
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
-        return KAIN_OWNERSHIP_ERR_COLLAPSED;
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0) {
+    if (region->observers != 0) {
         return KAIN_OWNERSHIP_ERR_OBSERVED;
+    }
+    if ((unsigned int)region->state < 5u) {
+        return KAIN_OWNERSHIP_BUSY_TABLE[region->state];
     }
     return KAIN_OWNERSHIP_ERR_INVALID;
 }

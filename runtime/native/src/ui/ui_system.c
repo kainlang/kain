@@ -1495,7 +1495,7 @@ int64_t abi_ui_push_event(
     event->y = y;
     event->key_code = key_code;
     abi_ui_copy_text(event->text, sizeof(event->text), text);
-    session->event_tail = (session->event_tail + 1) % ABI_UI_MAX_EVENTS;
+    session->event_tail = (session->event_tail + 1) & (ABI_UI_MAX_EVENTS - 1);
     session->event_count += 1;
     return session->event_count;
 }
@@ -1511,7 +1511,7 @@ int64_t abi_ui_poll_event(int64_t session_id) {
     }
     session->active_event = session->events[session->event_head];
     memset(&session->events[session->event_head], 0, sizeof(session->events[session->event_head]));
-    session->event_head = (session->event_head + 1) % ABI_UI_MAX_EVENTS;
+    session->event_head = (session->event_head + 1) & (ABI_UI_MAX_EVENTS - 1);
     session->event_count -= 1;
     return 1;
 }

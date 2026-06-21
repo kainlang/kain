@@ -91,10 +91,18 @@ pub struct BarrierSpec {
 /// Reference: Vulkan 1.3 Specification, Table 2. "Pipeline stages and access types".
 fn shader_stage_to_pipeline_stage(stage: ResourceStage) -> u32 {
     match stage {
-        ResourceStage::Vertex => 0x00000001,   // VK_PIPELINE_STAGE_VERTEX_SHADER_BIT
-        ResourceStage::Fragment => 0x00000080, // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-        ResourceStage::Compute => 0x00000800,  // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
-        ResourceStage::Surface => 0x00000080,  // treat as fragment
+        ResourceStage::Vertex => 0x00000001,       // VK_PIPELINE_STAGE_VERTEX_SHADER_BIT
+        ResourceStage::Fragment => 0x00000080,      // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+        ResourceStage::Compute => 0x00000800,       // VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+        ResourceStage::Surface => 0x00000080,       // treat as fragment
+        ResourceStage::Mesh => 0x00002000,          // VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
+        ResourceStage::Task => 0x00004000,          // VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT
+        ResourceStage::RayGen => 0x00200000,        // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
+        ResourceStage::AnyHit => 0x00200000,        // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
+        ResourceStage::ClosestHit => 0x00200000,    // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
+        ResourceStage::Miss => 0x00200000,          // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
+        ResourceStage::Intersection => 0x00200000,  // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
+        ResourceStage::Callable => 0x00200000,      // VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR
     }
 }
 

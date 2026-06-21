@@ -18,6 +18,14 @@ pub enum ResourceStage {
     Fragment,
     Compute,
     Surface,
+    Mesh,
+    Task,
+    RayGen,
+    AnyHit,
+    ClosestHit,
+    Miss,
+    Intersection,
+    Callable,
 }
 
 impl ResourceStage {
@@ -27,6 +35,14 @@ impl ResourceStage {
             Self::Fragment => "fragment",
             Self::Compute => "compute",
             Self::Surface => "surface",
+            Self::Mesh => "mesh",
+            Self::Task => "task",
+            Self::RayGen => "raygen",
+            Self::AnyHit => "anyhit",
+            Self::ClosestHit => "closesthit",
+            Self::Miss => "miss",
+            Self::Intersection => "intersection",
+            Self::Callable => "callable",
         }
     }
 }
@@ -183,8 +199,7 @@ impl OrchestrateGraphPlan {
         if inferred.is_empty() {
             return None;
         }
-        // serde_json::to_string(&inferred).ok()  // FIXME: restore after Cargo.Bazel.lock regeneration
-        Some(format!("{:?}", inferred))
+        serde_json::to_string(&inferred).ok()
     }
 }
 

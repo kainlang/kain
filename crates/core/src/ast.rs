@@ -15,6 +15,7 @@ pub use kain_orchestrate::{
     OrchestrateSelector, OrchestrateStageGraphMetadata, OrchestrateStageKind, OrchestrateStagePlan,
     OrchestrateTransfer,
 };
+use kain_orchestrate::ResourceStage;
 use std::fmt;
 
 /// Explicit compute-plan binding names recognized inside a `comptime` block.
@@ -701,6 +702,25 @@ impl ShaderStage {
             "intersection" => Some(Self::Intersection),
             "callable" => Some(Self::Callable),
             _ => None,
+        }
+    }
+}
+
+impl From<ShaderStage> for ResourceStage {
+    fn from(s: ShaderStage) -> Self {
+        match s {
+            ShaderStage::Vertex => ResourceStage::Vertex,
+            ShaderStage::Fragment => ResourceStage::Fragment,
+            ShaderStage::Compute => ResourceStage::Compute,
+            ShaderStage::Surface => ResourceStage::Surface,
+            ShaderStage::Mesh => ResourceStage::Mesh,
+            ShaderStage::Task => ResourceStage::Task,
+            ShaderStage::RayGen => ResourceStage::RayGen,
+            ShaderStage::AnyHit => ResourceStage::AnyHit,
+            ShaderStage::ClosestHit => ResourceStage::ClosestHit,
+            ShaderStage::Miss => ResourceStage::Miss,
+            ShaderStage::Intersection => ResourceStage::Intersection,
+            ShaderStage::Callable => ResourceStage::Callable,
         }
     }
 }

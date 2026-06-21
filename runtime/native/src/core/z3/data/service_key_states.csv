@@ -1,0 +1,51 @@
+key,type,macro,token
+"base.memory","canonical","KAIN_SERVICE_KEY_BASE_MEMORY",0x40ff954815c29c3c
+"memory.ownership","canonical","KAIN_SERVICE_KEY_MEMORY_OWNERSHIP",0x996e110347da4ecb
+"base.diagnostics","canonical","KAIN_SERVICE_KEY_BASE_DIAGNOSTICS",0xc8cb120ba774d42c
+"contract","canonical","KAIN_SERVICE_KEY_CONTRACT",0x698874cc51cd9a1a
+"reflection","canonical","KAIN_SERVICE_KEY_REFLECTION",0xc12b1f6e1af9364e
+"actor.runtime","canonical","KAIN_SERVICE_KEY_ACTOR_RUNTIME",0xe8609817aa70bec8
+"actor.registry","canonical","KAIN_SERVICE_KEY_ACTOR_REGISTRY",0x3d8b22a2108b2abe
+"async.runtime","canonical","KAIN_SERVICE_KEY_ASYNC_RUNTIME",0x6371b1a866d592dc
+"async.timers","canonical","KAIN_SERVICE_KEY_ASYNC_TIMERS",0x3936858b89656917
+"io.net","canonical","KAIN_SERVICE_KEY_IO_NET",0xbadf8e5201528361
+"io.process","canonical","KAIN_SERVICE_KEY_IO_PROCESS",0x316e9b66b64ff4a5
+"audio.device","canonical","KAIN_SERVICE_KEY_AUDIO_DEVICE",0x332425c3a1eb4e0f
+"audio.midi","canonical","KAIN_SERVICE_KEY_AUDIO_MIDI",0x5cacc74e40f17a7e
+"platform.app-host","canonical","KAIN_SERVICE_KEY_PLATFORM_APP_HOST",0x9ddb6ede77c15466
+"platform.input","canonical","KAIN_SERVICE_KEY_PLATFORM_INPUT",0xe093a52140179233
+"gfx.viewport","canonical","KAIN_SERVICE_KEY_GFX_VIEWPORT",0xbdee771d7a52ed8b
+"gfx.raw-native","canonical","KAIN_SERVICE_KEY_GFX_RAW_NATIVE",0x6afe64f6fc93ec0a
+"gfx.backend.vulkan","canonical","KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN",0xe36f7fad9871cc54
+"gfx.backend.d3d12","canonical","KAIN_SERVICE_KEY_GFX_BACKEND_D3D12",0xeaa6564c42ba0b6e
+"gfx.shader.spirv","canonical","KAIN_SERVICE_KEY_GFX_SHADER_SPIRV",0x0fb1512b913fcf4e
+"gfx.compute","canonical","KAIN_SERVICE_KEY_GFX_COMPUTE",0x5c0e2517e24062ee
+"scene.runtime","canonical","KAIN_SERVICE_KEY_SCENE_RUNTIME",0x776dd99f54c1c0ff
+"scene.query","canonical","KAIN_SERVICE_KEY_SCENE_QUERY",0x06bd309e3c1efed3
+"scene.mutation","canonical","KAIN_SERVICE_KEY_SCENE_MUTATION",0xa93bcf1323d0f538
+"runtime.inspection","canonical","KAIN_SERVICE_KEY_RUNTIME_INSPECTION",0xe1abfe67f1428028
+"device.reflection","canonical","KAIN_SERVICE_KEY_DEVICE_REFLECTION",0x28e6497b81e13e6d
+"ui.bundle","canonical","KAIN_SERVICE_KEY_UI_BUNDLE",0xc406578ad44bcf06
+"ui.component","canonical","KAIN_SERVICE_KEY_UI_COMPONENT",0x1f16ff96f558fce0
+"asset.gltf","canonical","KAIN_SERVICE_KEY_ASSET_GLTF",0xbf8f73e53cfc8f2f
+"asset.ingestion","canonical","KAIN_SERVICE_KEY_ASSET_INGESTION",0xe25621a63df6f8ff
+"asset.realtime","canonical","KAIN_SERVICE_KEY_ASSET_REALTIME",0x727f805c552fa603
+"host.bridge","canonical","KAIN_SERVICE_KEY_HOST_BRIDGE",0xeccb11f598278cf6
+"compatibility","canonical","KAIN_SERVICE_KEY_COMPATIBILITY",0x378e0a4d70394a9f
+"native.app-host","alias ->platform.app-host","",0xe967a2e7a5088d07
+"native.input","alias ->platform.input","",0x1c9e242eb4645378
+"native.viewport","alias ->gfx.viewport","",0x8140fe9573cec064
+"native.graphics","alias ->gfx.raw-native","",0x52b4f4dbb3337bfb
+"native.scene","alias ->scene.runtime","",0x9b6bbed0fbf8a1dd
+"native.scene.query","alias ->scene.query","",0xcccf3d4aaed22219
+"native.scene.mutation","alias ->scene.mutation","",0xf26120689e22a9e2
+"native.runtime.inspection","alias ->runtime.inspection","",0xf42f6791bc7ef2bd
+"native.device.reflection","alias ->device.reflection","",0x7a425942690ea4d7
+"native.asset.gltf","alias ->asset.gltf","",0x5b2990da90ab1f38
+"native.asset.ingestion","alias ->asset.ingestion","",0x403bc9addf0d3a57
+"native.ui.compiled-bundle","alias ->ui.bundle","",0xe764215896fc05bb
+"native.compute","alias ->gfx.compute","",0x83303d876aa8e678
+"native.shader.spirv","alias ->gfx.shader.spirv","",0x25be923470113a81
+"native.vulkan","alias ->gfx.backend.vulkan","",0x0d2f647f2745c670
+"native.dx12","alias ->gfx.backend.d3d12","",0x249604c6dc88fc47
+"native.d3d12","alias ->gfx.backend.d3d12","",0x5a3a87a1ea23aab6

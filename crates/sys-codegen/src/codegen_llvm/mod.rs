@@ -19,7 +19,7 @@ use kain_core::error::{DiagnosticReport, DiagnosticSeverity, ErrorKind, Compiler
 use kain_core::DiagnosticCode;
 use kain_core::types::{
     IntSize, ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport,
-    TypedItem, TypedProgram, TypedResonate,
+    TypedItem, TypedProgram, TypedResonate, TypedShader,
 };
 use kain_core::Span;
 use kain_core::{
@@ -13599,6 +13599,7 @@ impl LlvmGenerator {
                 TypedItem::Const(constant) => self.compile_const_initializer(constant)?,
                 TypedItem::Import(import) => self.compile_python_import_initializer(import)?,
                 TypedItem::Mod(module) => self.compile_typed_items(&module.items)?,
+                TypedItem::Shader(shader) => self.compile_shader(shader)?,
                 _ => {}
             }
         }
@@ -16251,7 +16252,9 @@ impl LlvmGenerator {
         &mut self,
         orchestrate: &kain_core::types::TypedOrchestrate,
     ) -> KainResult<()> {
-        self.compile_named_callable(
+        // Wire barrier metadata BEFORE body compilation so dispatch stmts see it.
+        self.orchestrate_barrier_json = orchestrate.graph.barrier_metadata_json();
+        let result = self.compile_named_callable(
             &orchestrate.ast.name,
             &orchestrate.ast.attributes,
             &orchestrate.ast.params,
@@ -16259,7 +16262,10 @@ impl LlvmGenerator {
             &orchestrate.ast.body,
             &orchestrate.resolved_type,
             orchestrate.ast.span,
-        )
+        );
+        // Clear after body to prevent leaking into non-orchestrate dispatch calls.
+        self.orchestrate_barrier_json = None;
+        result
     }
 
     fn emit_machine_stones_entry_preamble(&mut self) {
@@ -16285,6 +16291,23 @@ impl LlvmGenerator {
                 Self::machine_pulse_fire_symbol(&pulse.name)
             ));
         }
+    }
+
+    fn compile_shader(&mut self, shader: &TypedShader) -> KainResult<()> {
+        let resolved_type = ResolvedType::Function {
+            params: shader.input_types.clone(),
+            ret: Box::new(shader.output_type.clone()),
+            effects: EffectSet::new(),
+        };
+        self.compile_named_callable(
+            &shader.ast.name,
+            &[],  // Shader has no attributes
+            &shader.ast.inputs,
+            Some(&shader.ast.outputs),
+            &shader.ast.body,
+            &resolved_type,
+            shader.ast.span,
+        )
     }
 
     fn compile_function(&mut self, func: &TypedFunction) -> KainResult<()> {
