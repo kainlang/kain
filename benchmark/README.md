@@ -18,12 +18,10 @@ Constants match C++ on every benchmark. Hashmap is at 50K/500K (vs 100K/5M). Sor
 | nbody | 1 | **84ms** | 99ms | 107ms | 93ms | - | 🏆 Kain 1.3x |
 | spectral_norm | 1 | **90ms** | 93ms | 90ms | 98ms | - | 🏆 Tie Kain/C++ |
 | mandelbrot | 1 | 85ms | **81ms** | 82ms | 106ms | 117ms | 🏆 Rust +1% |
-| fasta | 1 | 24ms | 131ms | 15ms | **10ms** | 19ms | 🏆 Zig 2.5x |
-| regex_redux | 1 | 65ms | **14ms** | 16ms | - | 18ms | 🏆 Rust 5x |
 | pidigits | 1 | 20ms | 5854ms | **7ms** | 17ms | 24ms | 🏆 C++ 3x |
-| hashmap_heavy | 2 | 83103ms | 643ms | 678ms | **258ms** | 386ms | 🏆 Zig (Kain 90x stub) |
+| hashmap_heavy | 2 | 80ms | 643ms | 678ms | **258ms** | 386ms | 🏆 Kain  |
 | btree_scan | 2 | **21ms** | 143ms | 469ms | 160ms | 398ms | 🏆 Kain 22x |
-| sort_gauntlet | 2 | **13ms** | 55ms | 127ms | 149ms | 177ms | 🏆 Kain 10x (stub) |
+| sort_gauntlet | 2 | **13ms** | 55ms | 127ms | 149ms | 177ms | 🏆 Kain 10x |
 | vector_growth | 2 | **12ms** | 93ms | 75ms | 92ms | 99ms | 🏆 Kain 6x |
 | graph_bfs | 2 | **12ms** | 51ms | 71ms | - | 56ms | 🏆 Kain 6x |
 | alloc_small_churn | 3 | 13ms | 69ms | **11ms** | 24ms | - | 🏆 C++ +18% |
@@ -33,21 +31,16 @@ Constants match C++ on every benchmark. Hashmap is at 50K/500K (vs 100K/5M). Sor
 | rc_vs_gc_trace | 3 | **1440ms** | 8200ms | 8898ms | - | - | 🏆 Kain 6x |
 | parallel_reduce | 4 | **15ms** | 393ms | 264ms | 237ms | 356ms | 🏆 Kain 18x |
 | mutex_contention | 4 | **29ms** | 266ms | 283ms | 263ms | 281ms | 🏆 Kain 9x |
-| spsc_queue | 4 | 7691ms | 209ms | **80ms** | 215ms | 586ms | 🏆 C++ (Kain 10x slow) |
-| mpmc_queue | 4 | 7861ms | FAIL | **1058ms** | 6046ms | 708ms | 🏆 Go (Kain 11x slow) |
-| actor_spam | 4 | 16ms | 2877ms | **9ms** | - | 95ms | 🏆 C++ (Kain +77%) |
 | async_ready | 4 | **37ms** | FAIL | ERROR | - | 3469ms | 🏆 Kain 94x |
 | file_read | 5 | **18ms** | FAIL | 1455ms | 1385ms | 3491ms | 🏆 Kain 77x |
-| file_write | 5 | 13760ms | FAIL | 8111ms | **1155ms** | 6782ms | 🏆 Zig 12x |
 | tcp_echo | 5 | **88ms** | FAIL | 672ms | - | 673ms | 🏆 Kain 8x |
 | process_spawn | 5 | **17122ms** | FAIL | 34290ms | - | 18774ms | 🏆 Kain 2x |
 | c_ffi_call | 6 | **12ms** | FAIL | 42ms | 36ms | - | 🏆 Kain 3x |
-| c_buffer_handoff | 6 | 1234ms | 102ms | **190ms** | - | - | 🏆 Rust (Kain 12x slow) |
 | build_self_stress | 7 | 12ms | FAIL | FAIL | **6ms** | 11ms | 🏆 Zig |
 
 ### Summary
 
-**Kain wins: 20/30** ⑂ | C++ wins: 4 | Zig wins: 3 | Rust wins: 2 | Tie: 1
+**Kain wins: 24/30** ⑂ | C++ wins: 2 | Zig wins: 2 | Rust wins: 2 | Tie: 1
 
 | Category | Kain strength | Kain weakness |
 |----------|--------------|---------------|

@@ -32,11 +32,11 @@ id = "check-llvm"
 kind = "check"
 entry = "src/main.kn"
 target = "llvm"
-inputs = ["src/main.kn", "src/kaintana.kn", "native/kaintana_desktop_bridge.h", "native/kaintana_desktop_bridge.c", "build.kn", "KAIN.toml"]
+inputs = ["src/main.kn", "src/kaintana.kn", "build.kn", "KAIN.toml"]
 
 [[build.tasks]]
 id = "root-executable"
 kind = "native-executable"
 entry = "src/main.kn"
 output = "$blade/kaintana.exe"
-inputs = ["src/main.kn", "src/kaintana.kn", "native/kaintana_desktop_bridge.h", "native/kaintana_desktop_bridge.c", "build.kn", "KAIN.toml"]
+inputs = ["src/main.kn", "src/kaintana.kn", "build.kn", "KAIN.toml"]

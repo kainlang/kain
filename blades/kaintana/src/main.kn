@@ -121,10 +121,6 @@ fn seed_desktop_scene(spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: 
     return kaintana_desktop_emit_text(kaintana_text(headline), 52.0, 102.0, theme.muted, 13)
 
 fn main() -> Int:
-    let runtime_status = native_runtime_init()
-    if runtime_status != 0:
-        return 100 + runtime_status
-
     if kaintana_desktop_probe() != 1:
         return 20
 
@@ -297,12 +293,8 @@ fn main() -> Int:
     let host_status = kaintana_desktop_host_run_window(spec)
     let _action_destroy = kaintana_action_session_destroy(action_session)
     let _session_destroy = kaintana_session_destroy(session)
-    let shutdown = native_runtime_shutdown()
-
     let shape_ok = draw_count >= 24 and presented_draws >= 1 and menu_item_count == 3 and dialog_result != 0 and surface_score > 0 and host_status == 0
 
-    if shutdown != 0:
-        return 200 + shutdown
     if shape_ok == false:
         return 2
     return 0

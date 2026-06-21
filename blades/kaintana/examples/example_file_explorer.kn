@@ -33,8 +33,6 @@ pub fn kaintana_example_file_explorer(ctx: KaintanaContext, rect: KaintanaRect, 
     next = explorer_button(next, kaintana_column_slot(inner, 0.0, 32.0, 5.0), "explorer.path", "blades/kaintana", body_font)
     next = explorer_label(next, kaintana_column_slot(inner, 1.0, 24.0, 4.0), "explorer.src", "[dir] src", body_font)
     next = explorer_label(next, kaintana_column_slot(inner, 2.0, 24.0, 4.0), "explorer.examples", "[dir] examples", body_font)
-    next = explorer_label(next, kaintana_column_slot(inner, 3.0, 24.0, 4.0), "explorer.native", "[dir] native", body_font)
-    next = explorer_label(next, kaintana_column_slot(inner, 4.0, 24.0, 4.0), "explorer.toml", "[file] KAIN.toml", body_font)
-    next = explorer_label(next, kaintana_column_slot(inner, 5.0, 24.0, 4.0), "explorer.run", "[file] run.ps1", body_font)
+    next = explorer_label(next, kaintana_column_slot(inner, 3.0, 24.0, 4.0), "explorer.toml", "[file] KAIN.toml", body_font)
     next = explorer_button(next, kaintana_column_slot(inner, 6.0, 32.0, 5.0), "explorer.refresh", "Refresh tree", body_font)
     return next

@@ -12,7 +12,7 @@
 
 Kaintana is a **blade-owned retained + immediate UI framework** built entirely in Kain, with Kain's compiler-owned semantic stack as its backbone. It is to `std::ui` what React is to the DOM ___ a retained-mode widget system on top of a lower-level immediate-mode host.
 
-It runs on Windows today via a **GDI/GDI+ desktop bridge** written in C (`kaintana_desktop_bridge.c`), with additional platform backends for **Vulkan** (via `std::graphics` + `blades/vulkain`) and **Winit** (via `std::ui`). It supports hot reload, IME, clipboard, menus, dialogs, popovers, focus management, keyboard action binding, agent intent injection, frame/host reporting, screenshot capture, and harness artifacts for regression testing.
+It runs on Windows today via a **GDI/GDI+ desktop bridge**, with additional platform backends for **Vulkan** (via `std::graphics` + `blades/vulkain`) and **Winit** (via `std::ui`). It supports hot reload, IME, clipboard, menus, dialogs, popovers, focus management, keyboard action binding, agent intent injection, frame/host reporting, screenshot capture, and harness artifacts for regression testing.
 
 ---
 
@@ -229,7 +229,6 @@ This is **exactly React's keyed reconciliation** --- same idea, different langua
 
 ### Desktop (Default) 〰 `platform/desktop/desktop_adapter.kn`
 
-- **Bridge:** `native/kaintana_desktop_bridge.{c,h}` – 12 exported C functions
 - **Backend:** Windows GDI/GDI+ via `user32` + `gdi32`
 - **Command buffer:** 2048-command ring buffer (`rect` + `text`)
 - **Window:** `kaintana_desktop_host_run_window` creates a native Win32 window, pumps messages, and renders the command buffer each frame
@@ -438,40 +437,16 @@ capsule_set("kaintana")            → portable single-file amalgamation
 ```
 
 Run with:
-```powershell
-.\blades\ui\kaintana\run.ps1              # build + run
-.\blades\ui\kaintana\run.ps1 -NoRun       # build only
-.\blades\ui\kaintana\run.ps1 -FrameBudget 3  # run with frame budget
+```
+kain run src/main.kn --target llvm
 ```
 
 The test blades:
-```powershell
-.\blades\ui\kaintana-test\run.ps1
-.\blades\ui\kaintana-vulkan-test\run.ps1
+```
+kain test test/
 ```
 
----
 
-## C FFI Bridge (`native/kaintana_desktop_bridge`)
-
-The desktop backend is implemented in C with 12 exported functions:
-
-| C Function | Kain Wrapper | Purpose |
-|-----------|-------------|---------|
-| `kaintana_native_desktop_probe` | `kaintana_desktop_probe()` | Check GDI availability |
-| `kaintana_native_desktop_scene_active` | `kaintana_desktop_scene_active()` | Scene active flag |
-| `kaintana_native_desktop_begin_scene` | `kaintana_desktop_scene_begin(spec)` | Clear window, set background |
-| `kaintana_native_desktop_push_rect` | `kaintana_desktop_emit_fill(rect, color)` | Draw filled rectangle |
-| `kaintana_native_desktop_push_text` | `kaintana_desktop_emit_text(text, x, y, color, size)` | Draw text |
-| `kaintana_native_desktop_run_window` | `kaintana_desktop_host_run_window(spec)` | Create window + run message pump |
-| `kaintana_native_desktop_command_count` | `kaintana_desktop_host_geometry_count(spec)` | Command buffer usage |
-| `kaintana_native_desktop_frames_presented` | `kaintana_desktop_host_frames_presented(spec)` | Frame counter |
-| `kaintana_native_desktop_write_report` | `kaintana_desktop_host_write_report(spec)` | Text report to file |
-| `kaintana_native_desktop_write_bmp` | `kaintana_desktop_host_write_screenshot(spec)` | BMP screenshot to file |
-
-The C side defines a command buffer (`KaintanaDesktopCommand`) with up to 2048 entries, a Win32 window class, and a message loop that renders rect and text commands via GDI (`FillRect`, `DrawText`). Text is rendered using GDI's raster font stack (no DirectWrite dependency).
-
----
 
 ## Examples
 
@@ -609,12 +584,8 @@ Located at `z3/`:
 | `src/platform/desktop/desktop_adapter.kn` | Desktop (GDI) backend :: @extern C FFI bindings |
 | `src/platform/vulkan/vulkan_adapter.kn` | Vulkan backend ‒ graphics_session with SPIR-V |
 | `src/platform/winit/winit_adapter.kn` | Winit backend 〰 std::ui host session |
-| `native/kaintana_desktop_bridge.h` | C header – 12 exported functions |
-| `native/kaintana_desktop_bridge.c` | C implementation <--> Win32 window + GDI rendering |
 | `build.kn` | Build graph - check → compile → certify → capsule_set |
-| `KAIN.toml` | C FFI library config (user32, gdi32) |
-| `run.ps1` | Build + run script |
-| `build-desktop.ps1` | Native desktop bridge C compilation |
+| `KAIN.toml` | Build config |
 | `roadmap.md` | Full gap analysis vs egui and dear imgui |
 | `z3/` | Z3 proof artifacts |
 | `examples/` | 10 example files demonstrating all widgets |

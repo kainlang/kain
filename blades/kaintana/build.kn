@@ -42,8 +42,6 @@ const KAINTANA_ALL_INPUTS = [
     "examples/example_auto_layout.kn",
     "examples/example_comprehensive.kn",
     "examples/example_scroll.kn",
-    "native/kaintana_desktop_bridge.h",
-    "native/kaintana_desktop_bridge.c",
     "build.kn",
     "KAIN.toml",
 ]
@@ -64,7 +62,6 @@ fn build(ctx: BuildContext) -> BuildGraph:
     let sources = source_set("kaintana-sources")
         .glob("src/**/*.kn")
         .glob("examples/**/*.kn")
-        .glob("native/**/*.{h,c}")
         .file("build.kn")
         .file("KAIN.toml")
 
@@ -100,8 +97,6 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .requires("surface-check-llvm", "check-llvm")
         .input("src/main.kn")
         .input("src/kaintana.kn")
-        .input("native/kaintana_desktop_bridge.h")
-        .input("native/kaintana_desktop_bridge.c")
         .input("build.kn")
         .input("KAIN.toml")
 
