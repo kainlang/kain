@@ -697,6 +697,20 @@ int64_t abi_gpu_dispatch(
     );
 }
 
+int64_t abi_gpu_dispatch_ext(
+    const char* compute_key,
+    int64_t dispatch_x,
+    int64_t dispatch_y,
+    int64_t dispatch_z,
+    const char* barrier_json
+) {
+    /* Forward to plain dispatch for now.
+     * TODO(E): Parse barrier_json for pipeline barrier insertion
+     *          when the orchestrate->Vulkan barrier pipeline is plumbed. */
+    (void)barrier_json;
+    return abi_gpu_dispatch(compute_key, dispatch_x, dispatch_y, dispatch_z);
+}
+
 int64_t abi_cuda_last_status(void) {
     return g_cuda_last_status;
 }
