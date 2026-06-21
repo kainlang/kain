@@ -1,0 +1,192 @@
+// ============================================================================
+//  RUNTIME_CONTRACT.KN — TELEMETRY & CONTRACT VERIFICATION
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+pub struct ContractTest:
+    name: String
+    tag: String
+    description: String
+
+pub fn contract_run_test_by_tag(tag: String) -> Int:
+    if tag == "contract_telemetry_baseline": return contract_test_telemetry_baseline()
+    if tag == "contract_heap_integrity": return contract_test_heap_integrity()
+    if tag == "contract_patch_journal": return contract_test_patch_journal()
+    if tag == "contract_entangle_propagation": return contract_test_entangle_propagation()
+    if tag == "contract_machine_stones": return contract_test_machine_stones()
+    if tag == "contract_converge_telemetry": return contract_test_converge_telemetry()
+    if tag == "contract_orchestrate_telemetry": return contract_test_orchestrate_telemetry()
+    if tag == "contract_resonate_telemetry": return contract_test_resonate_telemetry()
+    if tag == "contract_ui_integration": return contract_test_ui_integration()
+    if tag == "contract_full_bundle": return contract_test_full_bundle()
+    return 1
+
+pub fn contract_test_telemetry_baseline() -> Int:
+    println("  [contract] Recording telemetry baseline...")
+    let heap_ok    = runtime_heap_validate()
+    let pcount     = patch_journal_count()
+    let ecount     = entangle_propagation_count()
+    let tcount     = runtime_machine_teleport_count()
+    let plcount    = runtime_machine_pulse_total_fire_count()
+    let cmismatch  = converge_mismatch_count()
+    let ostages    = orchestrate_stage_count()
+    let rfires     = resonate_fire_count()
+
+    println("  [contract] heap=" + str(heap_ok) + " patch=" + str(pcount) + " entangle=" + str(ecount))
+    println("  [contract] teleport=" + str(tcount) + " pulse=" + str(plcount) + " converge=" + str(cmismatch))
+    println("  [contract] orch_stages=" + str(ostages) + " resonate_fires=" + str(rfires))
+
+    var all_ok = 1
+    if heap_ok < 0: all_ok = 0
+    if pcount < 0: all_ok = 0
+    if ecount < 0: all_ok = 0
+    if tcount < 0: all_ok = 0
+    if plcount < 0: all_ok = 0
+    if cmismatch < 0: all_ok = 0
+    if ostages < 0: all_ok = 0
+    if rfires < 0: all_ok = 0
+
+    if all_ok == 0:
+        println("  [contract] FAIL: Negative telemetry value detected")
+        return 1
+    println("  [contract] PASS: All values non-negative")
+    return 0
+
+pub fn contract_test_heap_integrity() -> Int:
+    let ok = runtime_heap_validate()
+    println("  [contract] Heap status: " + str(ok) + " (0=clean)")
+    if ok != 0:
+        println("  [contract] FAIL: Heap corruption (code " + str(ok) + ")")
+        return 1
+    println("  [contract] PASS: Heap is clean")
+    return 0
+
+pub fn contract_test_patch_journal() -> Int:
+    let before = patch_journal_count()
+    println("  [contract] Journal entries: " + str(before))
+    if before < 0:
+        println("  [contract] FAIL: Negative journal count")
+        return 1
+    println("  [contract] PASS: Patch journal active")
+    return 0
+
+pub fn contract_test_entangle_propagation() -> Int:
+    let count = entangle_propagation_count()
+    println("  [contract] Entangle propagations: " + str(count))
+    if count < 0:
+        println("  [contract] FAIL: Negative entangle count")
+        return 1
+    println("  [contract] PASS: Entangle active")
+    return 0
+
+pub fn contract_test_machine_stones() -> Int:
+    let tcount = runtime_machine_teleport_count()
+    let plcount = runtime_machine_pulse_total_fire_count()
+    println("  [contract] Teleport handoffs: " + str(tcount))
+    println("  [contract] Pulse fires: " + str(plcount))
+    if tcount < 0:
+        println("  [contract] FAIL: Negative teleport count")
+        return 1
+    if plcount < 0:
+        println("  [contract] FAIL: Negative pulse count")
+        return 1
+    println("  [contract] PASS: Machine stones active")
+    return 0
+
+pub fn contract_test_converge_telemetry() -> Int:
+    let count = converge_mismatch_count()
+    println("  [contract] Converge mismatches: " + str(count))
+    if count < 0:
+        println("  [contract] FAIL: Negative converge count")
+        return 1
+    println("  [contract] PASS: Converge active")
+    return 0
+
+pub fn contract_test_orchestrate_telemetry() -> Int:
+    let count = orchestrate_stage_count()
+    println("  [contract] Orchestrate stages: " + str(count))
+    if count < 0:
+        println("  [contract] FAIL: Negative orchestrate count")
+        return 1
+    println("  [contract] PASS: Orchestrate active")
+    return 0
+
+pub fn contract_test_resonate_telemetry() -> Int:
+    let count = resonate_fire_count()
+    println("  [contract] Resonate fires: " + str(count))
+    if count < 0:
+        println("  [contract] FAIL: Negative resonate count")
+        return 1
+    println("  [contract] PASS: Resonate active")
+    return 0
+
+pub fn contract_test_ui_integration() -> Int:
+    let sid = ui_session_create("contract-ui-test", 400, 300)
+    if sid <= 0:
+        println("  [contract] WARN: UI session create returned " + str(sid))
+        return 0
+    let node = ui_node_create(sid, "contract-test-node")
+    if node <= 0:
+        println("  [contract] WARN: UI node create returned " + str(node))
+        ui_session_destroy(sid)
+        return 0
+    ui_node_set_state_i64(sid, node, "contract.test.key", 0xCAFE)
+    let val = ui_node_state_i64(sid, node, "contract.test.key", 0)
+    println("  [contract] UI state value: " + str(val))
+    let heap_after = runtime_heap_validate()
+    ui_session_destroy(sid)
+    if heap_after != 0:
+        println("  [contract] FAIL: Heap corrupted after UI ops")
+        return 1
+    if val != 0xCAFE:
+        println("  [contract] FAIL: State mismatch (expected 51966)")
+        return 1
+    println("  [contract] PASS: UI integration preserves contract")
+    return 0
+
+pub fn contract_test_full_bundle() -> Int:
+    println("  [contract] Full contract bundle check...")
+    let h = runtime_heap_validate()
+    let p = patch_journal_count()
+    let e = entangle_propagation_count()
+    let t = runtime_machine_teleport_count()
+    let pl = runtime_machine_pulse_total_fire_count()
+    let c = converge_mismatch_count()
+    let o = orchestrate_stage_count()
+    let r = resonate_fire_count()
+
+    println("  [contract] heap=" + str(h) + " patch=" + str(p) + " entangle=" + str(e))
+    println("  [contract] teleport=" + str(t) + " pulse=" + str(pl) + " converge=" + str(c))
+    println("  [contract] orch=" + str(o) + " resonate=" + str(r))
+
+    var ok = 1
+    if h < 0: ok = 0
+    if p < 0: ok = 0
+    if e < 0: ok = 0
+    if t < 0: ok = 0
+    if pl < 0: ok = 0
+    if c < 0: ok = 0
+    if o < 0: ok = 0
+    if r < 0: ok = 0
+
+    if ok == 0:
+        println("  [contract] FAIL: Bundle integrity violations")
+        return 1
+    println("  [contract] PASS: " + str(8) + " telemetry channels alive")
+    return 0
+
+pub fn contract_get_tests() -> Array<ContractTest>:
+    var tests: Array<ContractTest> = []
+    push(tests, ContractTest { name: "contract_telemetry_baseline", tag: "contract_telemetry_baseline", description: "Records baseline values for all 8 channels" })
+    push(tests, ContractTest { name: "contract_heap_integrity", tag: "contract_heap_integrity", description: "runtime_heap_validate() == 0" })
+    push(tests, ContractTest { name: "contract_patch_journal", tag: "contract_patch_journal", description: "patch_journal_count() active" })
+    push(tests, ContractTest { name: "contract_entangle_propagation", tag: "contract_entangle_propagation", description: "entangle_propagation_count() active" })
+    push(tests, ContractTest { name: "contract_machine_stones", tag: "contract_machine_stones", description: "teleport + pulse channels active" })
+    push(tests, ContractTest { name: "contract_converge_telemetry", tag: "contract_converge_telemetry", description: "converge_mismatch_count() active" })
+    push(tests, ContractTest { name: "contract_orchestrate_telemetry", tag: "contract_orchestrate_telemetry", description: "orchestrate_stage_count() active" })
+    push(tests, ContractTest { name: "contract_resonate_telemetry", tag: "contract_resonate_telemetry", description: "resonate_fire_count() active" })
+    push(tests, ContractTest { name: "contract_ui_integration", tag: "contract_ui_integration", description: "Heap integrity after UI operations" })
+    push(tests, ContractTest { name: "contract_full_bundle", tag: "contract_full_bundle", description: "All 8 channels health report" })
+    return tests

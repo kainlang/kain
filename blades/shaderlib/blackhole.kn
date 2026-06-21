@@ -1,0 +1,281 @@
+// afl_ext 2024 — MIT License
+// Schwarzschild Black Hole — Gravitational Raymarcher
+// Uses: shader fragment, comptime spec constants, raymarching through curved spacetime
+// Features: gravitational lensing, event horizon, photon ring, accretion disk, relativistic redshift
+
+shader fragment BlackHoleFragment(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform resolution: Vec2 @1
+    uniform mouse: Vec2 @2
+    uniform _pad: StorageBuffer<Float> @3
+
+    // Kerr black hole parameters (Schwarzschild limit a=0)
+    let BH_MASS: Float = 1.0
+    let BH_RS: Float = 2.0        // Schwarzschild radius = 2GM
+    let DISK_INNER: Float = 4.0   // Inner edge of accretion disk (3*Rs minimum)
+    let DISK_OUTER: Float = 24.0  // Outer edge
+    let CAM_DIST: Float = 16.0    // Camera distance from center
+    let CAM_THETA: Float = 1.2    // Camera polar angle (radians)
+
+    // --- Compute ray ---
+    let fx = uv.x * resolution.x
+    let fy = uv.y * resolution.y
+    let ux = ((fx / resolution.x) * 2.0 - 1.0) * (resolution.x / resolution.y)
+    let uy = (fy / resolution.y) * 2.0 - 1.0
+
+    // Camera position in 3D
+    let cam_theta: Float = CAM_THETA + (mouse.y - 0.5) * 0.5
+    let cam_phi: Float = time * 0.05 + (mouse.x - 0.5) * 2.0
+    let cam_x: Float = CAM_DIST * sin(cam_theta) * cos(cam_phi)
+    let cam_y: Float = CAM_DIST * cos(cam_theta)
+    let cam_z: Float = CAM_DIST * sin(cam_theta) * sin(cam_phi)
+
+    // Camera basis
+    let forward_len = 1.0 / sqrt(cam_x*cam_x + cam_y*cam_y + cam_z*cam_z)
+    let fw_x: Float = -cam_x * forward_len
+    let fw_y: Float = -cam_y * forward_len
+    let fw_z: Float = -cam_z * forward_len
+
+    // Up vector (world up is (0,1,0))
+    let up_len = 1.0 / sqrt(fw_x*fw_x + fw_y*fw_y + fw_z*fw_z)
+    let up_x: Float = -fw_x  // simple up
+    let up_y: Float = 1.0 - fw_y*fw_y
+    let up_z: Float = -fw_z
+    let up_len2 = 1.0 / sqrt(up_x*up_x + up_y*up_y + up_z*up_z)
+    let s_up_x: Float = up_x * up_len2
+    let s_up_y: Float = up_y * up_len2
+    let s_up_z: Float = up_z * up_len2
+
+    // Right = forward × up
+    let rt_x: Float = fw_y*s_up_z - fw_z*s_up_y
+    let rt_y: Float = fw_z*s_up_x - fw_x*s_up_z
+    let rt_z: Float = fw_x*s_up_y - fw_y*s_up_x
+    let rt_len = 1.0 / sqrt(rt_x*rt_x + rt_y*rt_y + rt_z*rt_z)
+    let r_x: Float = rt_x * rt_len
+    let r_y: Float = rt_y * rt_len
+    let r_z: Float = rt_z * rt_len
+
+    // Ray direction = forward + right*ux + up*uy
+    let rd_x: Float = fw_x + r_x*ux + s_up_x*uy
+    let rd_y: Float = fw_y + r_y*ux + s_up_y*uy
+    let rd_z: Float = fw_z + r_z*ux + s_up_z*uy
+    let rd_len = 1.0 / sqrt(rd_x*rd_x + rd_y*rd_y + rd_z*rd_z)
+    let rx: Float = rd_x * rd_len
+    let ry: Float = rd_y * rd_len
+    let rz: Float = rd_z * rd_len
+
+    // --- Raymarch through curved spacetime ---
+    // Step through space, at each point compute gravitational bending
+    // The Schwarzschild metric creates an effective refractive index:
+    // n(r) = 1 / sqrt(1 - Rs/r)  for r > Rs
+    // This bends light toward the black hole
+
+    var px: Float = cam_x
+    var py: Float = cam_y
+    var pz: Float = cam_z
+    var dx: Float = rx
+    var dy: Float = ry
+    var dz: Float = rz
+    var cr: Float = 0.0
+    var cg: Float = 0.0
+    var cb: Float = 0.0
+    var alpha: Float = 0.0
+    var step_i: Int = 0
+    var hit_disk: Int = 0
+    var hit_horizon: Int = 0
+    var dist: Float = 0.0
+    var step: Float = 0.2
+
+    while step_i < 512:
+        if alpha > 0.99:
+            step_i = 512             // Done accumulating
+        elif hit_horizon == 1:
+            step_i = 512
+
+        let r: Float = sqrt(px*px + py*py + pz*pz)
+
+        // Check event horizon
+        if r < BH_RS * 0.99:
+            hit_horizon = 1
+            cr = 0.0
+            cg = 0.0
+            cb = 0.0
+            alpha = 1.0
+
+        // Check accretion disk (y=0 plane, within inner/outer radius)
+        if hit_disk == 0 and hit_horizon == 0:
+            let rel_y: Float = py * py
+            let r_xy: Float = sqrt(px*px + pz*pz)
+            // Find closest approach to disk plane this step
+            if rel_y < step * step and r_xy >= DISK_INNER and r_xy <= DISK_OUTER:
+                hit_disk = 1
+                alpha = 1.0
+
+                // Temperature: hottest at inner edge, cooler at outer
+                let t_norm: Float = (r_xy - DISK_INNER) / (DISK_OUTER - DISK_INNER)
+                let temp_frac: Float = max(0.0, 1.0 - t_norm)
+
+                // Blackbody color approximation
+                let disk_r: Float = max(0.0, min(1.0, temp_frac * 3.0))
+                let disk_g: Float = max(0.0, min(1.0, (1.0 - abs(temp_frac - 0.4) * 2.5) * 1.5))
+                let disk_b: Float = max(0.0, min(1.0, (1.0 - temp_frac) * 1.5))
+
+                // Gravitational redshift: color shift based on radius
+                let red_shift: Float = 1.0 / sqrt(1.0 - BH_RS / r_xy)
+                let shift_factor: Float = max(0.5, min(2.0, 1.0 / (1.0 + red_shift * 0.1)))
+                let r_shifted: Float = disk_r * (1.0 + shift_factor * 0.5)
+                let g_shifted: Float = disk_g * shift_factor
+                let b_shifted: Float = disk_b * (1.0 - shift_factor * 0.3)
+
+                // Doppler shift from orbital velocity approximation
+                let doppler: Float = 1.0 / sqrt(1.0 - BH_RS / r_xy)
+                let blue_side: Float = if px > 0.0: 1.2 else: 0.8
+
+                cr = r_shifted * blue_side
+                cg = g_shifted * blue_side * 0.8
+                cb = b_shifted * blue_side * 0.6
+
+        // Gravitational lensing: bend ray toward black hole
+        if hit_horizon == 0 and hit_disk == 0:
+            // Schwarzschild metric: light bends proportional to 1/r²
+            if r > BH_RS:
+                let r2 = r * r
+                let bend_str: Float = BH_RS / (r2 * 3.0)
+                // Gravitational acceleration vector components
+                let ax: Float = -px / r * bend_str
+                let ay: Float = -py / r * bend_str
+                let az: Float = -pz / r * bend_str
+
+                // Apply bending to ray direction
+                dx = dx + ax * step
+                dy = dy + ay * step
+                dz = dz + az * step
+
+                // Renormalize
+                let dl = 1.0 / sqrt(dx*dx + dy*dy + dz*dz)
+                dx = dx * dl
+                dy = dy * dl
+                dz = dz * dl
+
+    // --- Starfield background (no atan2/acos needed) ---
+            // Stars: pseudo-random based on ray direction
+            let seed: Float = dx * 12.9898 + dy * 78.233 + dz * 45.164
+            let star_noise: Float = sin(seed * 43758.5453) * 0.5 + 0.5
+            let star_thresh: Float = 0.998
+            let star_val: Float = max(0.0, sin(star_noise * 10000.0) * 0.5 + 0.5 - star_thresh) * 50.0
+            
+            // Milky way band: density modulated by ray direction
+            let milky: Float = max(0.0, 1.0 - abs(dy) * 2.5)
+            let star_color_val: Float = max(0.0, star_val * (0.3 + milky * 0.7))
+            star_color_val = min(1.0, star_color_val)
+            
+            // Accretion disk glow from far away
+            let glow_val: Float = max(0.0, 1.0 - r / DISK_OUTER)
+            let glow_v: Float = glow_val * glow_val * 0.3
+            
+            let scv: Float = min(1.0, star_color_val)
+            cr = cr + scv*0.8 + glow_v
+            cg = cg + scv*0.9 + glow_v*0.6
+            cb = cb + scv + glow_v*0.3
+            alpha = min(1.0, alpha + 0.003 + scv * 0.02 + glow_v * 0.01)
+
+            // Accumulate distant glow each step (slightly increase alpha)
+            if alpha < 1.0:
+                alpha = min(1.0, alpha + 0.0005)
+
+        // March forward
+        px = px + dx * step
+        py = py + dy * step
+        pz = pz + dz * step
+        dist = dist + step
+        step_i = step_i + 1
+
+    // --- Photon ring glow: bright ring at photon sphere (1.5 * Rs) ---
+    // Compute closest approach to photon sphere
+    var min_approach: Float = 1000.0
+    var ap_i: Int = 0
+    var a_px: Float = cam_x
+    var a_py: Float = cam_y
+    var a_pz: Float = cam_z
+    var a_dx: Float = rx
+    var a_dy: Float = ry
+    var a_dz: Float = rz
+    while ap_i < 128:
+        let ar: Float = sqrt(a_px*a_px + a_py*a_py + a_pz*a_pz)
+        let approach: Float = abs(ar - BH_RS * 1.5)
+        if approach < min_approach:
+            min_approach = approach
+        a_px = a_px + a_dx * 0.5
+        a_py = a_py + a_dy * 0.5
+        a_pz = a_pz + a_dz * 0.5
+        let ar2 = ar * ar
+        let b_str: Float = BH_RS / (max(ar2, 4.0) * 3.0)
+        a_dx = a_dx + (-a_px/ar)*b_str*0.5
+        a_dy = a_dy + (-a_py/ar)*b_str*0.5
+        a_dz = a_dz + (-a_pz/ar)*b_str*0.5
+        let adl = 1.0 / sqrt(a_dx*a_dx + a_dy*a_dy + a_dz*a_dz)
+        a_dx = a_dx * adl
+        a_dy = a_dy * adl
+        a_dz = a_dz * adl
+        ap_i = ap_i + 1
+
+    let photon_ring: Float = max(0.0, 1.0 - min_approach * 3.0)
+    let ring_glow: Float = photon_ring * photon_ring * 0.8
+
+    // --- Einstein ring (gravitational lensing of background light) ---
+    // A bright ring at the photon sphere
+    let einstein: Float = max(0.0, 1.0 - abs(min_approach - 0.5) * 4.0)
+    let einstein_glow: Float = einstein * 0.5
+
+    // --- Accretion disk glow even when behind black hole ---
+    // The black hole's gravity bends light from the disk over the top
+    let over_glow_r: Float = max(0.0, 1.0 - abs(ry) * 5.0) * 0.15
+
+    // --- Combine ---
+    // --- Combine (using scalar components) ---
+    var fc_r: Float = cr
+    var fc_g: Float = cg
+    var fc_b: Float = cb
+
+    // Add photon ring
+    fc_r = fc_r + ring_glow * 1.0
+    fc_g = fc_g + ring_glow * 0.7
+    fc_b = fc_b + ring_glow * 0.3
+
+    // Add Einstein ring
+    // Add Einstein ring
+    fc_r = fc_r + einstein_glow * 0.8
+    fc_g = fc_g + einstein_glow * 0.6
+    fc_b = fc_b + einstein_glow * 0.2
+
+    // Add disk glow bleed
+    // Add disk glow bleed
+    fc_r = fc_r + over_glow_r * 1.0
+    fc_g = fc_g + over_glow_r * 0.5
+    fc_b = fc_b + over_glow_r * 0.2
+
+    // Add event horizon glow (just outside event horizon)
+    let horizon_glow: Float = max(0.0, 1.0 - min_approach * 0.5) * 0.3
+    // Add event horizon glow
+    fc_r = fc_r + horizon_glow * 0.5
+    fc_g = fc_g + horizon_glow * 0.3
+    fc_b = fc_b + horizon_glow * 0.1
+
+    // --- Tone mapping (Reinhard) ---
+    // --- Tone mapping (Reinhard) ---
+    let luminance: Float = fc_r * 0.299 + fc_g * 0.587 + fc_b * 0.114
+    let tone_scale: Float = 1.0 / (1.0 + luminance)
+    fc_r = fc_r * tone_scale
+    fc_g = fc_g * tone_scale
+    fc_b = fc_b * tone_scale
+
+    // --- Gamma correction ---
+    // --- Gamma correction ---
+    let g_r = sqrt(sqrt(max(0.0, min(fc_r, 1.0))))
+    let g_g = sqrt(sqrt(max(0.0, min(fc_g, 1.0))))
+    let g_b = sqrt(sqrt(max(0.0, min(fc_b, 1.0))))
+    let out_r: Float = g_r * sqrt(g_r)
+    let out_g: Float = g_g * sqrt(g_g)
+    let out_b: Float = g_b * sqrt(g_b)
+
+    return vec4(out_r, out_g, out_b, 1.0)

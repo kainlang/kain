@@ -1,0 +1,97 @@
+// SPIR-V-only test file — no CUDA intrinsics
+// Tests: subgroup scope, 12-stage mapping, push constants, spec constants
+
+// ===========================================================================
+//  TEST 1: Compute shader with subgroup(32) scope
+//  Verify subgroup block compiles to SPIR-V with proper scope barriers
+// ===========================================================================
+
+shader compute SubgroupSpirvTest(id: UVec3) -> Void workgroup(32, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    let val = src[id.x]
+    let lane = id.x % 32
+
+    subgroup(32):
+        let doubled = val * 2.0
+        if lane == 0:
+            dst[id.x] = doubled
+
+    return
+
+// ===========================================================================
+//  TEST 2: Spec constants in comptime (6-element tuple)
+// ===========================================================================
+
+shader compute SpecConstSpirv(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [32, 1, 1],
+            [("src", "f32", ["grid"], "input", "kain.shared.buffer"),
+             ("dst", "f32", ["grid"], "output", "kain.shared.buffer")],
+            [],
+            [],
+            [("tile_size", "u32", 128, "SPEC"),
+             ("enable_fp16", "bool", true, "SPEC")]
+        )
+
+    dst[id.x] = src[id.x] * 2.0
+    return
+
+// ===========================================================================
+//  TEST 3: Small uniforms (not pushing push constants — keep descriptor path)
+// ===========================================================================
+
+shader compute BasicUniformSpirv(id: UVec3) -> Void workgroup(1, 1, 1):
+    uniform params: Vec4 @0
+    uniform dst: StorageBuffer<Float> @1
+    dst[id.x] = params.x
+    return
+
+// ===========================================================================
+//  TEST 4: Mesh shader → ExecutionModel::MeshEXT
+// ===========================================================================
+
+shader mesh MeshSpirv(positions: Vec3, indices: UInt) -> Void:
+    positions = vec3(0.0, 0.0, 0.0)
+    indices = UInt(0)
+    return
+
+// ===========================================================================
+//  TEST 5: Task shader → ExecutionModel::TaskEXT
+// ===========================================================================
+
+shader task TaskSpirv() -> Void:
+    return
+
+// ===========================================================================
+//  TEST 6: Raytracing → ExecutionModel::RayGenerationKHR
+// ===========================================================================
+
+shader raygen RayGenSpirv() -> Vec4:
+    return vec4(1.0, 0.0, 0.0, 1.0)
+
+shader closesthit ClosestHitSpirv() -> Vec4:
+    return vec4(0.0, 1.0, 0.0, 1.0)
+
+shader miss MissSpirv() -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 0.0)
+
+// ===========================================================================
+//  TEST 7: Fragment + Compute to complete 12-stage coverage
+// ===========================================================================
+
+shader fragment FragmentSpirv(uv: Vec2) -> Vec4:
+    uniform tint: Vec3 @0
+    return vec4(tint.x, tint.y, tint.z, 1.0)
+
+shader compute ComputeSpirv(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    dst[id.x] = src[id.x] + UInt(1)
+    return

@@ -1,5 +1,9 @@
 #include "ui_host_adapter.h"
+#include "ui_system_internal.h"
 #include "../../include/win32.h"
+#include "../../include/ui_renderer.h"
+#include "../../include/ui_layout.h"
+#include "../../include/input_system.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -17,7 +21,55 @@ typedef struct KainWin32UiHost {
     int fb_stride;
     HDC hdc_buffer;
     HBITMAP hbitmap;
+    int64_t session_id;
+    int64_t input_session_id;
 } KainWin32UiHost;
+
+// ── Win32 virtual-key → Kain key code string ────────────────────────
+// Maps common VK_* codes to human-readable key names for the input system.
+static const char* win32_vk_to_key_string(WPARAM vk) {
+    switch (vk) {
+        case VK_RETURN:  return "Enter";
+        case VK_ESCAPE:  return "Escape";
+        case VK_BACK:    return "Backspace";
+        case VK_TAB:     return "Tab";
+        case VK_SPACE:   return "Space";
+        case VK_LEFT:    return "ArrowLeft";
+        case VK_UP:      return "ArrowUp";
+        case VK_RIGHT:   return "ArrowRight";
+        case VK_DOWN:    return "ArrowDown";
+        case VK_SHIFT:   return "Shift";
+        case VK_CONTROL: return "Control";
+        case VK_MENU:    return "Alt";
+        case VK_DELETE:  return "Delete";
+        case VK_HOME:    return "Home";
+        case VK_END:     return "End";
+        case VK_PRIOR:   return "PageUp";
+        case VK_NEXT:    return "PageDown";
+        case VK_F1:      return "F1";
+        case VK_F2:      return "F2";
+        case VK_F3:      return "F3";
+        case VK_F4:      return "F4";
+        case VK_F5:      return "F5";
+        case VK_F6:      return "F6";
+        case VK_F7:      return "F7";
+        case VK_F8:      return "F8";
+        case VK_F9:      return "F9";
+        case VK_F10:     return "F10";
+        case VK_F11:     return "F11";
+        case VK_F12:     return "F12";
+        default: {
+            static char buf[8];
+            char ch = (char)MapVirtualKeyA((UINT)vk, MAPVK_VK_TO_CHAR);
+            if (ch >= 32 && ch < 127) {
+                snprintf(buf, sizeof(buf), "%c", ch);
+            } else {
+                snprintf(buf, sizeof(buf), "VK%d", (int)vk);
+            }
+            return buf;
+        }
+    }
+}
 
 static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_param, LPARAM l_param) {
     KainWin32UiHost* host = (KainWin32UiHost*)GetWindowLongPtrA(hwnd, GWLP_USERDATA);
@@ -26,6 +78,67 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
         CREATESTRUCTA* cs = (CREATESTRUCTA*)l_param;
         SetWindowLongPtrA(hwnd, GWLP_USERDATA, (LONG_PTR)cs->lpCreateParams);
         return DefWindowProcA(hwnd, msg, w_param, l_param);
+    }
+
+    // ── Input event bridge: translate OS events → universal input format ──
+    if (host && host->input_session_id > 0) {
+        int64_t isid = host->input_session_id;
+        int x = (int)(short)LOWORD(l_param);
+        int y = (int)(short)HIWORD(l_param);
+
+        switch (msg) {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                abi_input_push_event(isid, "keyboard", "", "key_down",
+                    win32_vk_to_key_string(w_param), 1.0, "", 1.0);
+                break;
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+                abi_input_push_event(isid, "keyboard", "", "key_up",
+                    win32_vk_to_key_string(w_param), 0.0, "", 1.0);
+                break;
+            case WM_CHAR:
+                if (w_param >= 32 && w_param != 127) {
+                    char text[2] = { (char)w_param, '\0' };
+                    abi_input_push_event(isid, "keyboard", "", "text",
+                        "", 1.0, text, 1.0);
+                }
+                break;
+            case WM_LBUTTONDOWN:
+                abi_input_push_event(isid, "pointer", "", "pointer_down",
+                    "left", 1.0, "", 1.0);
+                break;
+            case WM_LBUTTONUP:
+                abi_input_push_event(isid, "pointer", "", "pointer_up",
+                    "left", 0.0, "", 1.0);
+                break;
+            case WM_RBUTTONDOWN:
+                abi_input_push_event(isid, "pointer", "", "pointer_down",
+                    "right", 1.0, "", 1.0);
+                break;
+            case WM_RBUTTONUP:
+                abi_input_push_event(isid, "pointer", "", "pointer_up",
+                    "right", 0.0, "", 1.0);
+                break;
+            case WM_MBUTTONDOWN:
+                abi_input_push_event(isid, "pointer", "", "pointer_down",
+                    "middle", 1.0, "", 1.0);
+                break;
+            case WM_MBUTTONUP:
+                abi_input_push_event(isid, "pointer", "", "pointer_up",
+                    "middle", 0.0, "", 1.0);
+                break;
+            case WM_MOUSEMOVE:
+                abi_input_push_event(isid, "pointer", "", "pointer_move",
+                    "", 0.0, "", 1.0);
+                break;
+            case WM_MOUSEWHEEL: {
+                double delta = (double)(short)HIWORD(w_param) / (double)WHEEL_DELTA;
+                abi_input_push_event(isid, "pointer", "", "axis",
+                    "wheel", delta, "", 1.0);
+                break;
+            }
+        }
     }
 
     switch (msg) {
@@ -49,7 +162,6 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             if (hdc && host && host->framebuffer) {
-                // Blit the framebuffer to the window
                 HDC hdc_mem = CreateCompatibleDC(hdc);
                 if (hdc_mem) {
                     HBITMAP old = (HBITMAP)SelectObject(hdc_mem, host->hbitmap);
@@ -145,53 +257,23 @@ static void win32_host_destroy(KainWin32UiHost* host) {
     free(host);
 }
 
-static void win32_host_render_framebuffer(KainWin32UiHost* host) {
-    if (!host || !host->hwnd || !host->framebuffer) return;
+static void win32_host_render_framebuffer(KainWin32UiHost* host, KainNativeUiSession* session) {
+    if (!host || !host->hwnd || !host->framebuffer || !session) return;
 
-    // Fill framebuffer with dark background
-    int i;
-    for (i = 0; i < host->width * host->height; i++) {
-        ((uint32_t*)host->framebuffer)[i] = 0xFF1A1A24;  // Dark blue-gray ARGB
-    }
+    // ── Universal render path ──────────────────────────────────────
+    // 1. Resolve layout: compute pixel rects from styles + parent tree
+    ui_layout_resolve(session);
 
-    // Draw a colored gradient
-    int y;
-    for (y = 0; y < host->height; y++) {
-        uint32_t* row = (uint32_t*)host->framebuffer + y * host->width;
-        int x;
-        for (x = 0; x < host->width; x++) {
-            // Simple gradient based on position
-            uint8_t r = (uint8_t)((x * 255) / host->width);
-            uint8_t g = (uint8_t)((y * 255) / host->height);
-            uint8_t b = (uint8_t)(((x + y) * 128) / (host->width + host->height));
-            row[x] = 0xFF000000 | (r << 16) | (g << 8) | b;
-        }
-    }
+    // 2. Render the node tree into the framebuffer
+    ui_render_frame(
+        session,
+        (uint32_t*)host->framebuffer,
+        host->width,
+        host->height,
+        host->fb_stride / 4  // stride in uint32_t elements
+    );
 
-    // Draw some text
-    HDC hdc = GetDC(host->hwnd);
-    if (hdc) {
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(240, 240, 255));
-
-        // Title
-        RECT title_rect = {20, 20, host->width - 20, 60};
-        DrawTextA(hdc, "Kain UI Window (winit backend)", -1, &title_rect, DT_LEFT);
-
-        // Subtitle
-        RECT sub_rect = {20, 60, host->width - 20, 90};
-        DrawTextA(hdc, "Rendered by Pure Kain :: std::ui", -1, &sub_rect, DT_LEFT);
-
-        // Info
-        RECT info_rect = {20, host->height - 40, host->width - 20, host->height - 10};
-        char info[128];
-        snprintf(info, sizeof(info), "Resolution: %dx%d", host->width, host->height);
-        DrawTextA(hdc, info, -1, &info_rect, DT_LEFT);
-
-        ReleaseDC(host->hwnd, hdc);
-    }
-
-    // Trigger WM_PAINT to blit framebuffer
+    // 3. Trigger WM_PAINT to blit framebuffer to screen
     InvalidateRect(host->hwnd, NULL, FALSE);
 }
 
@@ -250,6 +332,9 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
         if (!win32_host) {
             return ABI_UI_INVALID_ARGUMENT;
         }
+        win32_host->session_id = session->id;
+        // Create a companion input session so OS events flow into the universal input system
+        win32_host->input_session_id = abi_input_session_create(session->app_name);
         session->host_state = (void*)win32_host;
         session->host_attached = 1;
         snprintf(session->host_backend, sizeof(session->host_backend), "winit");
@@ -270,6 +355,11 @@ int64_t abi_ui_host_adapter_pump(KainNativeUiSession* session) {
         if (!win32_host->running) {
             session->host_should_close = 1;
         }
+        // Process pending input events for this frame
+        if (win32_host->input_session_id > 0) {
+            double delta = session->last_delta_ms > 0.0 ? session->last_delta_ms : 16.67;
+            abi_input_begin_frame(win32_host->input_session_id, delta);
+        }
     }
 #endif
     return ABI_UI_OK;
@@ -282,7 +372,8 @@ int64_t abi_ui_host_adapter_present(KainNativeUiSession* session) {
 #ifdef _WIN32
     if (session->host_state && strcmp(session->host_backend, "winit") == 0) {
         KainWin32UiHost* win32_host = (KainWin32UiHost*)session->host_state;
-        win32_host_render_framebuffer(win32_host);
+        // Pass session to renderer so it can access the node tree
+        win32_host_render_framebuffer(win32_host, session);
     }
 #endif
     return ABI_UI_OK;
@@ -295,6 +386,9 @@ void abi_ui_host_adapter_shutdown(KainNativeUiSession* session) {
 #ifdef _WIN32
     if (session->host_state && strcmp(session->host_backend, "winit") == 0) {
         KainWin32UiHost* win32_host = (KainWin32UiHost*)session->host_state;
+        if (win32_host->input_session_id > 0) {
+            abi_input_session_destroy(win32_host->input_session_id);
+        }
         win32_host_destroy(win32_host);
         session->host_state = NULL;
     }

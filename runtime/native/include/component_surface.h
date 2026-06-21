@@ -23,6 +23,25 @@
 extern "C" {
 #endif
 
+// ── Platform-native window handle for surface creation. ─────────
+// One of these is non-NULL depending on the target platform.
+// The platform app host provides this after session_create but before
+// the first begin_frame. Compiler codegen never touches this struct.
+typedef struct KainPlatformSurfaceHandle {
+#ifdef _WIN32
+    void*    hinstance;     // HINSTANCE
+    void*    hwnd;          // HWND
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    void*    wl_display;    // struct wl_display*
+    void*    wl_surface;    // struct wl_surface*
+#elif defined(__linux__)
+    void*    x11_display;   // Display*
+    uintptr_t x11_window;   // Window
+#elif defined(__APPLE__)
+    void*    metal_layer;   // CAMetalLayer*
+#endif
+} KainPlatformSurfaceHandle;
+
 typedef struct KainComponentSurface {
     // ── Session lifecycle ──────────────────────────────────────
     int64_t (*session_create) (const char* name, int64_t width, int64_t height);
@@ -55,6 +74,17 @@ typedef struct KainComponentSurface {
     // ── Event pump (opaque — surface decodes its own event type) ─
     int64_t (*poll_event)  (int64_t session_id, void* out_event, int64_t max_size);
     int64_t (*should_close)(int64_t session_id);
+
+    // ── Window lifecycle ──────────────────────────────────────
+    int64_t (*window_open)(int64_t session_id, const char* title,
+                           int64_t width, int64_t height);
+    int64_t (*host_pump)  (int64_t session_id);
+
+    // ── Platform handle attachment (called after session_create, ─
+    //     before first begin_frame; compiler codegen does NOT call ─
+    //     this — only the platform app host does) ────────────────
+    void    (*session_attach_platform)(int64_t session_id,
+                                       void*   platform_handle);
 } KainComponentSurface;
 
 // ── Surface registry ──────────────────────────────────────────
@@ -67,6 +97,11 @@ void kain_component_surface_register(const char* name,
 // Called by codegen at frame-loop init to resolve the surface for a world.
 // Returns NULL if the named surface is not registered.
 const KainComponentSurface* kain_component_surface_resolve(const char* name);
+
+// ── Built-in surface backends ─────────────────────────────────
+// Registered automatically at runtime init.
+// native_ui_surface wraps ui_system.h behind the KainComponentSurface trait.
+extern const KainComponentSurface native_ui_surface;
 
 #ifdef __cplusplus
 }

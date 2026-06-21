@@ -1,0 +1,18 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("gpu-edge-tests")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("GPU Evolution edge-case testing suite.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("gpu-sources")
+        .root("src")
+        .glob("src/**/*.kn")

@@ -10,6 +10,7 @@
 
 #include "../../include/stdlib_abi.h"
 #include "../../include/attrition.h"
+#include "../../include/component_surface.h"
 
 #include "../../include/actor.h"
 #include "../../include/async.h"
@@ -545,6 +546,12 @@ int64_t abi_runtime_init(void) {
     abi_process_reset();
 #endif
     abi_attrition_capture_configure_from_env();
+
+    /* Register built-in surfaces before any frame loop runs.
+     * The codegen emits abi_runtime_init() before draining frame loops
+     * so surface resolution succeeds on first try. */
+    kain_component_surface_register("native_ui", &native_ui_surface);
+
     return 0;
 }
 

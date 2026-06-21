@@ -429,6 +429,7 @@ impl<'a> BuildEvaluator<'a> {
                 | Stmt::Break(_, _)
                 | Stmt::Continue(_)
                 | Stmt::Fanout { .. }
+                | Stmt::Subgroup { .. }
                 | Stmt::While { .. }
                 | Stmt::Loop { .. } => {
                     return Err(EvaluatedBuildError::Message(format!(

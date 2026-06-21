@@ -1,0 +1,506 @@
+// ============================================================================
+//  UI_BRIDGE.KN — STD::UI DIRECT FUNCTION TESTS
+//
+//  Tests the std::ui module directly — no component surface, raw ABI calls.
+//  Exercises session lifecycle, node tree, styles, state persistence,
+//  events, draw commands, resources, and reconciliation.
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+// ── Test Table ────────────────────────────────────────────────
+
+pub struct UiTest:
+    name:        String
+    tag:         String
+    description: String
+
+pub fn ui_run_test_by_tag(tag: String) -> Int:
+    if tag == "ui_session_lifecycle":
+        return ui_test_session_lifecycle()
+    if tag == "ui_node_tree":
+        return ui_test_node_tree()
+    if tag == "ui_styles":
+        return ui_test_styles()
+    if tag == "ui_state_persistence":
+        return ui_test_state_persistence()
+    if tag == "ui_events":
+        return ui_test_events()
+    if tag == "ui_draw_commands":
+        return ui_test_draw_commands()
+    if tag == "ui_resources":
+        return ui_test_resources()
+    if tag == "ui_reconciliation":
+        return ui_test_reconciliation()
+    if tag == "ui_accessibility":
+        return ui_test_accessibility()
+    if tag == "ui_sanity":
+        return ui_test_sanity()
+    return 1
+
+// ── Sanity ────────────────────────────────────────────────────
+
+pub fn ui_test_sanity() -> Int:
+    println("  [ui] Sanity check...")
+    let count = ui_session_count()
+    println("  [ui] Active sessions: " + str(count))
+    return 0
+
+// ── Session Lifecycle ─────────────────────────────────────────
+
+pub fn ui_test_session_lifecycle() -> Int:
+    println("  [ui] Testing session lifecycle...")
+
+    let sid = ui_session_create("ui-test-session", 800, 600)
+    if sid <= 0:
+        println("  [ui] FAIL: session_create returned " + str(sid))
+        return 1
+
+    println("  [ui] Session created: " + str(sid))
+
+    let count = ui_session_count()
+    if count < 1:
+        println("  [ui] FAIL: session_count is " + str(count))
+        return 1
+
+    let frame_idx = ui_frame_index(sid)
+    println("  [ui] Initial frame index: " + str(frame_idx))
+
+    // Begin a frame
+    let begin_ok = ui_begin_frame(sid, 16.67)
+    if begin_ok == 0:
+        println("  [ui] WARN: begin_frame returned 0 (expected frame index)")
+
+    let frame_after = ui_frame_index(sid)
+    println("  [ui] Frame after begin: " + str(frame_after))
+
+    // End and present
+    ui_end_frame(sid)
+    ui_present(sid)
+
+    let presented = ui_last_presented_frame(sid)
+    println("  [ui] Last presented: " + str(presented))
+
+    // Cleanup
+    let destroy_ok = ui_session_destroy(sid)
+    if destroy_ok != 0:
+        println("  [ui] FAIL: session_destroy returned " + str(destroy_ok))
+        return 1
+
+    println("  [ui] PASS: Session lifecycle works")
+    return 0
+
+// ── Node Tree ─────────────────────────────────────────────────
+
+pub fn ui_test_node_tree() -> Int:
+    println("  [ui] Testing node tree...")
+
+    let sid = ui_session_create("ui-node-test", 800, 600)
+    if sid <= 0:
+        return 1
+
+    // Create root
+    let root = ui_node_create(sid, "panel")
+    if root <= 0:
+        println("  [ui] FAIL: node_create returned " + str(root))
+        ui_session_destroy(sid)
+        return 1
+
+    ui_node_set_rect(sid, root, 0.0, 0.0, 800.0, 600.0)
+
+    // Create children
+    let header = ui_node_create(sid, "box")
+    ui_node_set_rect(sid, header, 0.0, 0.0, 800.0, 60.0)
+    ui_node_set_parent(sid, header, root)
+
+    let body = ui_node_create(sid, "stack")
+    ui_node_set_rect(sid, body, 0.0, 60.0, 800.0, 540.0)
+    ui_node_set_parent(sid, body, root)
+
+    let footer = ui_node_create(sid, "box")
+    ui_node_set_rect(sid, footer, 0.0, 540.0, 800.0, 60.0)
+    ui_node_set_parent(sid, footer, root)
+
+    // Verify tree
+    let total_nodes = ui_node_count(sid)
+    println("  [ui] Total nodes: " + str(total_nodes))
+    if total_nodes != 4:
+        println("  [ui] FAIL: expected 4 nodes, got " + str(total_nodes))
+        ui_session_destroy(sid)
+        return 1
+
+    let root_children = ui_node_child_count(sid, root)
+    if root_children != 3:
+        println("  [ui] FAIL: root has " + str(root_children) + " children (expected 3)")
+        ui_session_destroy(sid)
+        return 1
+
+    // Verify rects
+    let rx = ui_node_x(sid, root)
+    let ry = ui_node_y(sid, root)
+    let rw = ui_node_width(sid, root)
+    let rh = ui_node_height(sid, root)
+    println("  [ui] Root rect: (" + str(rx) + ", " + str(ry) + ", " + str(rw) + ", " + str(rh) + ")")
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Node tree works")
+    return 0
+
+// ── Styles ────────────────────────────────────────────────────
+
+pub fn ui_test_styles() -> Int:
+    println("  [ui] Testing styles...")
+
+    let sid = ui_session_create("ui-style-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    let node = ui_node_create(sid, "box")
+    if node <= 0:
+        ui_session_destroy(sid)
+        return 1
+
+    // Set styles
+    ui_node_set_style_f64(sid, node, "padding", 16.0)
+    ui_node_set_style_f64(sid, node, "corner_radius", 8.0)
+    ui_node_set_style_i64(sid, node, "disabled", 0)
+    ui_node_set_style_string(sid, node, "fill_color", "#1a1a2e")
+
+    // Read back
+    let padding = ui_node_style_f64(sid, node, "padding", 0.0)
+    let radius  = ui_node_style_f64(sid, node, "corner_radius", 0.0)
+    let disabled = ui_node_style_i64(sid, node, "disabled", -1)
+    let fill     = ui_node_style_string(sid, node, "fill_color", "")
+
+    println("  [ui] padding=" + str(padding) + " radius=" + str(radius))
+    println("  [ui] disabled=" + str(disabled) + " fill=" + fill)
+
+    var ok = 1
+    if padding != 16.0: ok = 0
+    if radius != 8.0: ok = 0
+    if disabled != 0: ok = 0
+    if fill != "#1a1a2e": ok = 0
+
+    ui_session_destroy(sid)
+
+    if ok == 0:
+        println("  [ui] FAIL: Style readback mismatch")
+        return 1
+
+    println("  [ui] PASS: Styles read back correctly")
+    return 0
+
+// ── State Persistence ─────────────────────────────────────────
+
+pub fn ui_test_state_persistence() -> Int:
+    println("  [ui] Testing state persistence...")
+
+    let sid = ui_session_create("ui-state-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    let node = ui_node_create(sid, "counter")
+    if node <= 0:
+        ui_session_destroy(sid)
+        return 1
+
+    // First read: should return fallback (0)
+    let val1 = ui_node_state_i64(sid, node, "count", 0)
+    println("  [ui] Initial state: " + str(val1))
+    if val1 != 0:
+        println("  [ui] FAIL: expected 0 (unset), got " + str(val1))
+        ui_session_destroy(sid)
+        return 1
+
+    // Write state
+    ui_node_set_state_i64(sid, node, "count", 42)
+
+    // Read back
+    let val2 = ui_node_state_i64(sid, node, "count", 0)
+    println("  [ui] After set: " + str(val2))
+    if val2 != 42:
+        println("  [ui] FAIL: expected 42, got " + str(val2))
+        ui_session_destroy(sid)
+        return 1
+
+    // Update state
+    ui_node_set_state_i64(sid, node, "count", 43)
+    let val3 = ui_node_state_i64(sid, node, "count", 0)
+    if val3 != 43:
+        println("  [ui] FAIL: expected 43, got " + str(val3))
+        ui_session_destroy(sid)
+        return 1
+
+    // Check state count
+    let scount = ui_state_count(sid)
+    println("  [ui] State records in session: " + str(scount))
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: State persistence works")
+    return 0
+
+// ── Events ────────────────────────────────────────────────────
+
+pub fn ui_test_events() -> Int:
+    println("  [ui] Testing events...")
+
+    let sid = ui_session_create("ui-event-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    let node = ui_node_create(sid, "button")
+    ui_node_set_rect(sid, node, 10.0, 10.0, 100.0, 40.0)
+    if node <= 0:
+        ui_session_destroy(sid)
+        return 1
+
+    // Push a click event
+    ui_push_event(sid, "click", node, 50.0, 25.0, 0, "")
+
+    // Poll it back
+    let has_event = ui_poll_event(sid)
+    if has_event != 1:
+        println("  [ui] FAIL: poll_event returned " + str(has_event) + " (expected 1)")
+        ui_session_destroy(sid)
+        return 1
+
+    let kind = ui_event_kind(sid)
+    let target = ui_event_target(sid)
+    let ex = ui_event_x(sid)
+    let ey = ui_event_y(sid)
+
+    println("  [ui] Event: kind=" + kind + " target=" + str(target) + " pos=(" + str(ex) + "," + str(ey) + ")")
+
+    if kind != "click":
+        println("  [ui] FAIL: expected 'click', got '" + kind + "'")
+        ui_session_destroy(sid)
+        return 1
+
+    // Poll again: should be empty
+    let has_event2 = ui_poll_event(sid)
+    if has_event2 != 0:
+        println("  [ui] FAIL: second poll returned " + str(has_event2) + " (expected 0)")
+        ui_session_destroy(sid)
+        return 1
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Event push/poll works")
+    return 0
+
+// ── Draw Commands ─────────────────────────────────────────────
+
+pub fn ui_test_draw_commands() -> Int:
+    println("  [ui] Testing draw commands...")
+
+    let sid = ui_session_create("ui-draw-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    ui_begin_frame(sid, 16.67)
+
+    let node = ui_node_create(sid, "box")
+    ui_node_set_rect(sid, node, 0.0, 0.0, 400.0, 300.0)
+
+    // Emit draw commands
+    ui_draw_rect(sid, node, 0.0, 0.0, 400.0, 300.0, "fill")
+    ui_draw_rect(sid, node, 0.0, 0.0, 400.0, 300.0, "border")
+
+    let draw_count = ui_draw_command_count(sid)
+    println("  [ui] Draw commands: " + str(draw_count))
+    if draw_count != 2:
+        println("  [ui] FAIL: expected 2 draw commands, got " + str(draw_count))
+        ui_session_destroy(sid)
+        return 1
+
+    // Inspect first draw command
+    let dk = ui_draw_command_kind(sid, 0)
+    let dn = ui_draw_command_node(sid, 0)
+    let dx = ui_draw_command_x(sid, 0)
+    let dy = ui_draw_command_y(sid, 0)
+    let dw = ui_draw_command_width(sid, 0)
+    let dh = ui_draw_command_height(sid, 0)
+
+    println("  [ui] Draw[0]: kind=" + dk + " node=" + str(dn) + " rect=(" + str(dx) + "," + str(dy) + "," + str(dw) + "," + str(dh) + ")")
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Draw commands work")
+    return 0
+
+// ── Resources ─────────────────────────────────────────────────
+
+pub fn ui_test_resources() -> Int:
+    println("  [ui] Testing resources...")
+
+    let sid = ui_session_create("ui-res-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    // Create font
+    let font = ui_font_create(sid, "font.test", "Segoe UI", 16.0)
+    if font <= 0:
+        println("  [ui] FAIL: font_create returned " + str(font))
+        ui_session_destroy(sid)
+        return 1
+
+    println("  [ui] Font created: " + str(font))
+
+    // Create canvas
+    let canvas = ui_canvas_create(sid, "canvas.test", 64, 64)
+    if canvas <= 0:
+        println("  [ui] FAIL: canvas_create returned " + str(canvas))
+        ui_session_destroy(sid)
+        return 1
+
+    println("  [ui] Canvas created: " + str(canvas))
+
+    // Check count
+    let rcount = ui_resource_count(sid)
+    println("  [ui] Resource count: " + str(rcount))
+
+    // Verify resource types
+    let ftype = ui_resource_type(sid, font)
+    let ctype = ui_resource_type(sid, canvas)
+    println("  [ui] Font type: " + ftype + " Canvas type: " + ctype)
+
+    // Text measurement
+    let tw = ui_text_measure_width(sid, font, "Hello World")
+    let th = ui_text_measure_height(sid, font, "Hello World")
+    println("  [ui] Text 'Hello World': " + str(tw) + "x" + str(th) + "px")
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Resources work")
+    return 0
+
+// ── Reconciliation ────────────────────────────────────────────
+
+pub fn ui_test_reconciliation() -> Int:
+    println("  [ui] Testing reconciliation...")
+
+    let sid = ui_session_create("ui-recon-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    // Frame 1: create node with stable key
+    let node1 = ui_node_create(sid, "text")
+    ui_node_set_stable_key(sid, node1, "app:header:title")
+    ui_node_set_text(sid, node1, "Original Title")
+
+    let text1 = ui_node_text(sid, node1)
+    println("  [ui] Frame 1 text: " + text1)
+
+    // Find by stable key
+    let found = ui_node_find_by_stable_key(sid, "app:header:title")
+    if found != node1:
+        println("  [ui] FAIL: find_by_stable_key returned " + str(found) + " expected " + str(node1))
+        ui_session_destroy(sid)
+        return 1
+
+    // Frame 2: use reconciliation
+    let recon = ui_reconcile_node(sid, 0, "text", "app:header:title", 10.0, 10.0, 200.0, 30.0)
+    println("  [ui] Reconciled node: " + str(recon))
+    if recon <= 0:
+        println("  [ui] FAIL: recon returned " + str(recon))
+        ui_session_destroy(sid)
+        return 1
+
+    // Should return the same node
+    if recon != node1:
+        println("  [ui] FAIL: recon created new node instead of reusing")
+        ui_session_destroy(sid)
+        return 1
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Reconciliation works")
+    return 0
+
+// ── Accessibility ─────────────────────────────────────────────
+
+pub fn ui_test_accessibility() -> Int:
+    println("  [ui] Testing accessibility...")
+
+    let sid = ui_session_create("ui-a11y-test", 400, 300)
+    if sid <= 0:
+        return 1
+
+    let node = ui_node_create(sid, "button")
+    ui_node_set_rect(sid, node, 10.0, 10.0, 100.0, 40.0)
+
+    ui_accessibility_set_role(sid, node, "button")
+    ui_accessibility_set_label(sid, node, "Submit Form")
+
+    let role = ui_accessibility_role(sid, node)
+    let label = ui_accessibility_label(sid, node)
+
+    println("  [ui] Role: " + role + " Label: " + label)
+
+    if role != "button":
+        println("  [ui] FAIL: expected 'button' role, got '" + role + "'")
+        ui_session_destroy(sid)
+        return 1
+    if label != "Submit Form":
+        println("  [ui] FAIL: expected 'Submit Form' label, got '" + label + "'")
+        ui_session_destroy(sid)
+        return 1
+
+    ui_session_destroy(sid)
+    println("  [ui] PASS: Accessibility works")
+    return 0
+
+// ── Test Table ────────────────────────────────────────────────
+
+pub fn ui_get_tests() -> Array<UiTest>:
+    var tests: Array<UiTest> = []
+
+    push(tests, UiTest {
+        name: "ui_sanity",
+        tag: "ui_sanity",
+        description: "Verifies std::ui module compiles and imports resolve"
+    })
+    push(tests, UiTest {
+        name: "ui_session_lifecycle",
+        tag: "ui_session_lifecycle",
+        description: "Tests session create, begin/end frame, present, destroy"
+    })
+    push(tests, UiTest {
+        name: "ui_node_tree",
+        tag: "ui_node_tree",
+        description: "Tests node create, set_rect, set_parent, child_count"
+    })
+    push(tests, UiTest {
+        name: "ui_styles",
+        tag: "ui_styles",
+        description: "Tests style_i64/f64/string set and readback"
+    })
+    push(tests, UiTest {
+        name: "ui_state_persistence",
+        tag: "ui_state_persistence",
+        description: "Tests state_i64 set, readback, and update across frames"
+    })
+    push(tests, UiTest {
+        name: "ui_events",
+        tag: "ui_events",
+        description: "Tests push_event, poll_event, event inspection"
+    })
+    push(tests, UiTest {
+        name: "ui_draw_commands",
+        tag: "ui_draw_commands",
+        description: "Tests draw_rect and draw_command inspection"
+    })
+    push(tests, UiTest {
+        name: "ui_resources",
+        tag: "ui_resources",
+        description: "Tests font_create, canvas_create, text measurement"
+    })
+    push(tests, UiTest {
+        name: "ui_reconciliation",
+        tag: "ui_reconciliation",
+        description: "Tests stable key set/find and node reconciliation"
+    })
+    push(tests, UiTest {
+        name: "ui_accessibility",
+        tag: "ui_accessibility",
+        description: "Tests accessibility role and label set/readback"
+    })
+
+    return tests

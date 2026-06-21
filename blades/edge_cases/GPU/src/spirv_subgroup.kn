@@ -1,0 +1,11 @@
+// SPIR-V test: subgroup(32) scope
+shader compute SubgroupTest(id: UVec3) -> Void workgroup(32, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    let val = src[id.x]
+    let lane = id.x % 32
+    subgroup(32):
+        let doubled = val * 2.0
+        if lane == 0:
+            dst[id.x] = doubled
+    return

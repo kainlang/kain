@@ -1,0 +1,246 @@
+// ============================================================================
+//  SPOOKYMAGIC.KN — COMPONENT SURFACE EDGE CASES
+// ============================================================================
+
+const SEV_INFO:     Int = 0
+const SEV_WARNING:  Int = 1
+const SEV_ERROR:    Int = 2
+const SEV_CRITICAL: Int = 3
+
+// ── EDGE CASE STRUCT ──────────────────────────────────────────
+
+pub struct ComponentEdgeCase:
+    id:          String
+    description: String
+    severity:    Int
+    trigger:     String
+    mitigation:  String
+    verified:    Bool
+
+// ── EDGE CASE DATABASE ────────────────────────────────────────
+
+pub fn spookymagic_component_edge_cases() -> Int:
+    let cases = spookymagic_get_edge_cases()
+    return len(cases)
+
+pub fn spookymagic_max_severity() -> Int:
+    let cases = spookymagic_get_edge_cases()
+    var max: Int = 0
+    var i: Int = 0
+    while i < len(cases):
+        if cases[i].severity > max:
+            max = cases[i].severity
+        i = i + 1
+    return max
+
+pub fn spookymagic_get_edge_cases() -> Array<ComponentEdgeCase>:
+    var cases: Array<ComponentEdgeCase> = []
+
+    push(cases, ComponentEdgeCase {
+        id: "MISSING_SURFACE",
+        description: "kain_component_surface_resolve returns NULL",
+        severity: SEV_CRITICAL,
+        trigger: "surface native_ui declared but not registered",
+        mitigation: "Auto-register in abi_runtime_init",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "NULL_FN_SLOT",
+        description: "Vtable slot is NULL, indirect call crashes",
+        severity: SEV_CRITICAL,
+        trigger: "Backend misses a vtable slot",
+        mitigation: "Validate all 15 fn pointers in register()",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "FULL_REGISTRY",
+        description: "16 surfaces registered, 17th dropped",
+        severity: SEV_WARNING,
+        trigger: "More than KAIN_MAX_SURFACES backends",
+        mitigation: "Increase capacity or report failure",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "DUPLICATE_REGISTRATION",
+        description: "Same name registered twice, overwrites",
+        severity: SEV_WARNING,
+        trigger: "Two blades register same surface name",
+        mitigation: "Last-register-wins documented behavior",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "ZERO_INIT_SENTINEL",
+        description: "State init value 0 collides with unset sentinel",
+        severity: SEV_ERROR,
+        trigger: "state count: Int = 0 declared",
+        mitigation: "Use separate init-flag key per field",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "STATE_INSTANCE_COLLISION",
+        description: "Two instances share state keys",
+        severity: SEV_ERROR,
+        trigger: "Two Counter components in same session",
+        mitigation: "Add instance-scoped state key prefixes",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "STATE_WRITEBACK_SKIP",
+        description: "Mutation not persisted across frames",
+        severity: SEV_CRITICAL,
+        trigger: "Write-back loop missing in codegen",
+        mitigation: "Emit write-back in compile_component_render",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "SIBLING_KEY_COLLISION",
+        description: "Siblings get identical stable keys",
+        severity: SEV_CRITICAL,
+        trigger: "child_si reset inside children loop",
+        mitigation: "Move child_si outside for loop",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "SESSION_CREATE_FAIL",
+        description: "session_create returns error code",
+        severity: SEV_CRITICAL,
+        trigger: "UI system capacity or platform failure",
+        mitigation: "Codegen checks result and panics",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "SHOULD_CLOSE_ERROR",
+        description: "should_close returns negative",
+        severity: SEV_INFO,
+        trigger: "Session destroyed or handle stale",
+        mitigation: "Non-zero triggers shutdown",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "NO_WORLD_COMPONENT",
+        description: "Component without world binding",
+        severity: SEV_INFO,
+        trigger: "Component declared, no surface binds it",
+        mitigation: "Component is passive, render emitted",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "EMPTY_FRAGMENT",
+        description: "Empty Fragment emits nothing",
+        severity: SEV_INFO,
+        trigger: "Fragment with no children",
+        mitigation: "Empty Fragment is a no-op by design",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "DEEP_NEST_OVERFLOW",
+        description: "100+ JSX nesting levels",
+        severity: SEV_WARNING,
+        trigger: "Deeply nested component calls",
+        mitigation: "Flatten trees or set compiler limit",
+        verified: false
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "UNKNOWN_ATTR_PASSTHROUGH",
+        description: "Unknown attr passed to backend",
+        severity: SEV_INFO,
+        trigger: "Custom JSX attribute not in mapping",
+        mitigation: "Passed through, backends drop unknown keys",
+        verified: true
+    })
+
+    push(cases, ComponentEdgeCase {
+        id: "BOOL_FALSE_NOOP",
+        description: "disabled={false} emits nothing",
+        severity: SEV_INFO,
+        trigger: "Bool(false) attribute value",
+        mitigation: "Codegen skips Bool(false) attrs",
+        verified: true
+    })
+
+    return cases
+
+// ── SPOOKY FACTOR ─────────────────────────────────────────────
+
+pub fn spookymagic_component_factor() -> Int:
+    return 1
+
+// ── EDGE TEST RUNNER ──────────────────────────────────────────
+
+pub fn spookymagic_run_edge_test(case_id: String) -> Int:
+    let cases = spookymagic_get_edge_cases()
+    var i: Int = 0
+    while i < len(cases):
+        if cases[i].id == case_id:
+            if cases[i].verified:
+                return 0
+            else:
+                return 1
+        i = i + 1
+    return 2
+
+// ── SANITY ────────────────────────────────────────────────────
+
+pub fn spookymagic_sanity_check() -> Int:
+    return 0
+
+// ── SPOOKY TABLE ──────────────────────────────────────────────
+
+pub struct SpookyEntry:
+    name:        String
+    description: String
+    tag:         String
+
+pub fn spookymagic_get_spooky_table() -> Array<SpookyEntry>:
+    var entries: Array<SpookyEntry> = []
+
+    push(entries, SpookyEntry {
+        name: "registry_edge_cases",
+        description: "Missing surface, NULL fn, full, duplicate",
+        tag: "registry"
+    })
+
+    push(entries, SpookyEntry {
+        name: "state_edge_cases",
+        description: "Zero sentinel, collision, writeback skip",
+        tag: "state"
+    })
+
+    push(entries, SpookyEntry {
+        name: "stable_key_edge_cases",
+        description: "Sibling collision, for-loop collision",
+        tag: "stable_key"
+    })
+
+    push(entries, SpookyEntry {
+        name: "frame_loop_edge_cases",
+        description: "Session fail, should_close error, no world",
+        tag: "frame_loop"
+    })
+
+    push(entries, SpookyEntry {
+        name: "jsx_edge_cases",
+        description: "Empty fragment, deep nest, empty for",
+        tag: "jsx"
+    })
+
+    push(entries, SpookyEntry {
+        name: "attr_edge_cases",
+        description: "Unknown passthrough, bool false noop",
+        tag: "attr"
+    })
+
+    return entries

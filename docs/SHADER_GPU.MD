@@ -1488,22 +1488,25 @@ ______________________________________________________________________
 
 | Aspect | Detail |
 |--------|--------|
-| **Shader stages** | `compute`, `vertex`, `fragment` |
+| **Shader stages** | `compute`, `vertex`, `fragment`, `mesh`, `task`, `raygen`, `anyhit`, `closesthit`, `miss`, `intersection`, `callable` (12 total) |
 | **Uniform binding** | `uniform name: Type @N` |
 | **Workgroup size** | `workgroup(X, Y, Z)` on compute shader return type |
 | **Compute metadata** | `comptime: let compute = (...)` with dispatch + tensors + streams + nodes |
-| **Host dispatch** | `dispatch "shader::Name::compute" [x, y, z]` :: requires `with GPU, Unsafe` |
+| **Host dispatch** | `dispatch "shader::Name::compute" [x, y, z]` (direct) or `dispatch "key" from buf` (indirect) :: requires `with GPU, Unsafe` |
 | **Compute key convention** | `"shader::KernelName::compute"` |
 | **Standard GPU types** | `Float`, `Int`, `UInt`, `Bool`, `Vec2/3/4`, `IVec2/3/4`, `UVec2/3`, `Mat4`, `StorageBuffer<T>`, `Sampler2D/3D/Cube` |
 | **Text backends** | HLSL via `crates/shader-text` (hlsl), WGSL via `crates/shader-text` (wgsl), USF for UE5 |
 | **Binary backends** | SPIR-V via `crates/gpu/codegen_spirv.rs` (rspirv), PTX via `crates/gpu/codegen_ptx.rs` (direct text) |
-| **GPU runtime** | `VulkanComputeExecutor` + `NvidiaPtxExecutor` through `GpuComputeExecutor` trait |
+| **GPU runtime** | `VulkanComputeExecutor` + `NvidiaPtxExecutor` — barrier metadata consumption, async compute queues, pipeline cache |
 | **Stdlib GPU module** | `std::gpu` :: resource policies, binding plans, shared buffer/image interop |
 | **Stdlib graphics module** | `std::graphics` ... session lifecycle, buffers, SPIR-V shaders, pipelines, meshes, draws |
 | **Stdlib CUDA module** | `std::cuda` |-> runtime state, warp primitives, dispatch, manifest inspection |
 | **CLI command** | `kain gpu-artifacts <file> --target <all/spirv/cuda/hlsl/wgsl>` |
 | **Build task** | `gpu_suite(id)` and `cuda_artifacts(id)` in `build.kn` |
 | **Artifact files** | `.spv`, `.shader_bundle.json`, `.reflect.json`, `.gpu.rs`, `.derived.hlsl`, `.derived.wgsl`, `.derived.ptx`, `.kain_compute_residency.json` |
+| **Subgroup keyword** | `subgroup(N) { ... }` — warp-synchronous scope, compile-time divergence safety |
+| **GPU edge-case tests** | `blades/edge_cases/gpu/` — 12-test GPU evolution suite covering all new features |
+| **GPU SPIR-V tests** | `blades/edge_cases/gpu/src/spirv_test.kn` — validated subgroup, mesh, raytracing, spec constants |
 | **Canonical example** | `benchmark/cases_v2/gpu_cpu_pipeline.kn` --> full semantic fusion benchmark |
 | **Canonical graphics** | `benchmark/cases/gpu_graphics_submit/main.kn` --> graphics session lifecycle |
 | **LLM training kernels** | `library_of_kain/blades_cuda_llm_src_training_kernel.kn` ~ 8 kernels |
@@ -1512,89 +1515,120 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Recommended Improvements (GPU Debate 2026-06-20)
+## GPU Evolution — Wave 1+2 Implementation (IMPLEMENTED 2026-06-20)
 
-**Source:** Structured debate between Graphics Programmer and Bell Labs Compiler Engineer.
-**Full research:** `research/gpu/GPU_DEBATE_RECOMMENDATIONS.md`
+**Status:** All 10 proposals implemented. 1 new keyword, 9 absorbed into existing semantics.
+**Full research:** `research/gpu/GPU_DEBATE_RECOMMENDATIONS.md` | `research/gpu/WAVE1_AUDIT.md`
+**Newsletter:** `blades/NEWSLETTER.md` (full usage examples)
 
-### Philosophy: Absorption Over Expansion
+### New Control-Flow Keyword: `subgroup(N) { }`
 
-Kain's existing semantic stack already provides structural vocabulary for all but one GPU concern.
-The gap is not missing keywords but missing **compiler inference passes** that derive GPU bridge
-metadata from what the programmer already declares.
-
-### The One New Keyword: `subgroup(N) { }`
-
-Warp-synchronous scope inside GPU kernels. Control-flow keyword (parallel to `if`/`for`/`while`),
-NOT a semantic keyword (no decision ladder entry).
+Warp-synchronous execution scope inside GPU compute shaders. All threads in a warp (32 on NVIDIA, queryable on Vulkan) execute in lockstep within the block. Compile-time divergence safety enforced: no nesting (KAIN-SHADER-0042), no divergent escape (KAIN-SHADER-0043).
 
 ```kn
 shader compute MyKernel(id: UVec3) -> Void workgroup(32, 1, 1):
     uniform src: StorageBuffer<Float> @0
     uniform dst: StorageBuffer<Float> @1
+    let val = src[id.x]
+    let lane = id.x % 32
 
     subgroup(32):
-        let max_val = cuda_warp_reduce_max_f32(src[id.x])
-        if cuda_lane_id() == 0:
-            dst[id.x] = max_val
+        let doubled = val * 2.0
+        if lane == 0:
+            dst[id.x] = doubled
     // Outside — normal divergent execution allowed
+    return
 ```
 
-**Design constraints:**
-- No nesting — compile error
-- Size validated against hardware subgroup size
-- Divergence escape analysis — compiler verifies reconvergence at scope boundary
-- Backends: SPIR-V → `OpGroupNonUniform*`, PTX → `__syncwarp` + intrinsics, HLSL → `WaveActive*`, WGSL → `subgroup*`
+**SPIR-V Verified:** Emits `OpGroupNonUniform` + `OpGroupNonUniformBallot` + `OpGroupNonUniformArithmetic` + `OpGroupNonUniformShuffle` + `OpGroupNonUniformVote` capabilities. Scope exit emits `OpControlBarrier(Subgroup, Subgroup, AcquireRelease|UniformMemory|WorkgroupMemory)`.
 
-### Nine Absorbed Proposals (Zero Keywords)
+**Backend support:**
+| Backend | Subgroup Scope | Intrinsic Mapping |
+|---------|---------------|-------------------|
+| SPIR-V | `OpGroupNonUniform*` + `OpControlBarrier` | `cuda_*` → `OpGroupNonUniformFAdd`, `OpGroupNonUniformBallot`, `OpGroupNonUniformShuffleXor` |
+| PTX | `bar.warp.sync` barriers | Existing `cuda_*` intrinsics (already supported) |
+| HLSL | Wave scope comments | `cuda_*` → `WaveActiveSum`, `WaveActiveBallot`, `WaveReadLaneAt` |
+| WGSL | Subgroup scope comments | `cuda_*` → `subgroupAdd`, `subgroupBallot`, `subgroupShuffleXor` |
 
-| Proposal | Absorbed Into | Mechanism |
-|---|---|---|
-| Mesh/task/raytracing stages | `ShaderStage` enum | Extend to 11 variants — parser already handles `shader <stage> Name` |
-| Push constants | `uniform` inference | SPIR-V backend: ≤128 bytes + single-stage → `VkPushConstantRange` |
-| Specialization constants | `comptime` metadata | Add `spec_constant` tuple to compute plans → `OpSpecConstant` |
-| Shader-as-value | `std::gpu` library | `PipelineLibrary` + `PipelineHandle` types |
-| Tensor cores | `@extern` + `axiom` | `capability("cuda.tensorcore")` + `axiom` presets |
-| Async compute | `orchestrate` | Parallel DAG stages + `policy prefer_async_compute` |
-| GPU barriers | `orchestrate` planner | `access_map` inference from DAG stage bindings |
-| Indirect dispatch | `dispatch` grammar variant | `dispatch "key" from buf` — same keyword, one AST variant |
-| Memory visibility | `orchestrate` + ABI | Same `access_map` → `abi_gpu_dispatch_ext` |
+### Extended Shader Stages (4 → 12)
 
-### Key Code Locations for Implementation
+`ShaderStage` enum expanded from 4 to 12 variants. All stages are contextual identifiers (not keywords).
 
-| File | What Changes |
-|------|-------------|
-| `crates/core/src/ast.rs` | `ShagerStage` enum (4→11), `DispatchSize::Fixed \| Indirect` |
-| `crates/core/src/parser.rs` | `subgroup` token + grammar, mesh/task entry tokens |
-| `crates/gpu/src/codegen_spirv.rs` | Push constant inference, `OpSpecConstant`, barrier metadata |
-| `crates/gpu/src/codegen_ptx.rs` | `subgroup` scope → `__syncwarp` + warp intrinsics |
-| `crates/gpu/src/codegen_hlsl.rs` | `subgroup` → `WaveActive*` mapping |
-| `crates/gpu/src/codegen_wgsl.rs` | `subgroup` → `subgroup*` mapping |
-| `crates/orchestrate/src/graph.rs` | `access_map` field on `OrchestrateStageGraphMetadata` |
-| `crates/orchestrate/src/planner.rs` | Barrier/visibility inference pass |
-| `crates/gpu-runtime/src/executor.rs` | Consume barrier metadata instead of full-pipeline-drain |
-| `stdlib/gpu.kn` | `PipelineLibrary`, `PipelineHandle` types |
-| `stdlib/cuda.kn` | Tensor core `@extern` declarations |
+| Stage | Vulkan Extension | Backend Support |
+|-------|-----------------|----------------|
+| `mesh` | `VK_EXT_mesh_shader` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `task` | `VK_EXT_mesh_shader` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `raygen` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `anyhit` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `closesthit` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `miss` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `intersection` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
+| `callable` | `VK_KHR_ray_tracing` | SPIR-V ✅, HLSL ✅, WGSL ✅, PTX ❌ |
 
-### What NOT to Add
+### Indirect Dispatch
 
-| Don't Add | Why |
-|-----------|-----|
-| `gpu_barrier` keyword | Inferrable from orchestrate DAG |
-| `push_constants` keyword | Invisible compiler optimization |
-| `specialize` keyword | `comptime` owns this space |
-| `dispatch_indirect` keyword | Grammar variant on `dispatch` |
-| `async_dispatch` keyword | Parallel orchestrate stages |
-| `tensor_matmul` keyword | `@extern` + `axiom` is correct |
-| `pipeline_library` keyword | Library type in `std::gpu` |
+Grammar variant on existing `dispatch` keyword: `dispatch "key" from buf` reads dispatch dimensions from a GPU-written buffer.
 
-### Net Change to Shader & GPU Pipeline
+```kn
+use std::gpu
+let buf: ptr<DispatchIndirectCommand> = gpu_indirect_buffer_zeroed()
+dispatch "shader::Fill::compute" [1, 1, 1]       // GPU writes [16,1,1]
+dispatch "shader::Work::compute" from buf          // Reads 12 bytes
+```
+
+**`DispatchIndirectCommand` layout (matches `VkDispatchIndirectCommand`, 12 bytes):**
+```kn
+pub struct DispatchIndirectCommand:
+    x: UInt    // 4 bytes
+    y: UInt    // 4 bytes
+    z: UInt    // 4 bytes
+```
+
+**LLVM ABI:** `call i64 @abi_gpu_dispatch_indirect(i8* key, i8* buf, i64 12)`
+
+### Compiler Inference Passes (No New Keywords)
+
+**GPU Barrier Inference:** Compiler derives precise Vulkan pipeline barriers from the `orchestrate` DAG. Replaces the old full-pipeline-drain `COMPUTE_SHADER → HOST` barrier with per-resource `srcStageMask`/`dstStageMask`/`srcAccessMask`/`dstAccessMask`. JSON-serialized metadata flows via `abi_gpu_dispatch_ext` to the Vulkan executor.
+
+**Push Constant Inference:** Small uniforms (≤128 bytes total, single-stage access) auto-lowered to `StorageClass::PushConstant` in SPIR-V backend. No descriptor binding overhead.
+
+**Memory Visibility Inference:** Functions annotated `with GPU` (no `Unsafe`) accepted when dispatch is inside an `orchestrate` block with complete `access_map`.
+
+**Async Compute Queue Hints:** `orchestrate` stages with `policy prefer_async_compute` routed to separate hardware queue. Runtime auto-detects GPU support, gracefully degrades to single queue.
+
+### Spec Constants in `comptime`
+
+6-element tuple form adds `spec_constants` to compute plans:
+
+```kn
+comptime:
+    let compute = (
+        [8, 1, 1],                                     // workgroup
+        [32, 1, 1],                                     // dispatch
+        [("src", "f32", ["grid"], "input", "kain.shared.buffer")],
+        [],                                             // streams
+        [],                                             // nodes
+        [("tile_size", "u32", 128, "SPEC"),              // spec constants
+         ("enable_fp16", "bool", true, "SPEC")]
+    )
+```
+
+SPIR-V emits `OpSpecConstant` + `OpDecorate SpecId N` for each entry.
+
+### Stdlib Additions
+
+**`stdlib/gpu.kn`** — `PipelineLibrary`, `PipelineHandle`, `DispatchIndirectCommand` types + 6 pipeline functions.
+**`stdlib/cuda.kn`** — 8 tensor core `@extern` declarations (WMMA/MMA/WGMMA/MFMA).
+**Capability predicates** — 9 new: `cuda.sm_70` through `cuda.sm_90`, `cuda.tensorcore`, `cuda.wmma`, `cuda.mma`, `cuda.wgmma`, `gpu.async_compute`.
+
+### Net Surface Change
 
 | Metric | Value |
 |--------|-------|
 | New keywords | **1** (`subgroup`) |
 | Grammar variants | 1 (`dispatch "key" from buf`) |
+| Shader stages | 4 → 12 |
 | Compiler inference passes | 4 (barriers, push constants, memory access, staging) |
 | ABI entry points | 2 (`abi_gpu_dispatch_ext`, `abi_gpu_dispatch_indirect`) |
-| Stdlib additions | 3 (`PipelineLibrary`, `PipelineHandle`, `IndirectDispatchBuffer`) |
-| Shader stages | 4 → 11 (adds mesh, task, 5 raytracing, callable) |
+| Stdlib additions | 3 types + 6 functions in `std::gpu`, 8 `@extern` in `std::cuda` |
+| C runtime additions | `PipelineCacheEntry` linked list + `abi_gpu_dispatch_ext`/`abi_gpu_dispatch_indirect` |

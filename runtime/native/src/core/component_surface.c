@@ -12,6 +12,9 @@
 
 #include "component_surface.h"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -65,4 +68,23 @@ const KainComponentSurface* kain_component_surface_resolve(const char* name) {
     }
 
     return NULL; // Codegen checks for NULL, emits runtime error.
+}
+
+// ============================================================================
+//  Runtime helpers — used by component surface codegen
+// ============================================================================
+
+/// Called by the codegen when a surface resolution or session creation
+/// fails. Logs the message and aborts the process.
+void kain_runtime_panic(const char* message) {
+    fprintf(stderr, "KAIN RUNTIME PANIC: %s\n", message ? message : "(null)");
+    fflush(stderr);
+    abort();
+}
+
+/// Returns the frame delta in milliseconds since the last frame.
+/// For now uses a fixed 16.67 ms (60 FPS). Future: use QueryPerformanceCounter.
+double __kain_frame_delta_ms(void) {
+    // Fixed-rate stub for testing. Replace with high-resolution timer.
+    return 16.67;
 }

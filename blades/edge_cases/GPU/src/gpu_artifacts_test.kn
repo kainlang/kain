@@ -1,0 +1,120 @@
+// GPU-only test file for artifact generation
+// Tests: subgroup, 12-stage mapping, push constants, spec constants
+use std::cuda
+
+// ===========================================================================
+//  TEST 1: subgroup(32) with warp intrinsics
+// ===========================================================================
+
+shader compute SubgroupTest(id: UVec3) -> Void workgroup(32, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    let lane = cuda_lane_id()
+    let val = src[id.x]
+    let pred = val > 0.0
+
+    subgroup(32):
+        let sum_val = cuda_warp_reduce_sum_f32(val)
+        let mask = cuda_ballot(pred)
+        let neighbor = cuda_shfl_xor_f32(val, UInt(1))
+        let any_alive = cuda_warp_any(pred)
+        let all_alive = cuda_warp_all(pred)
+
+        if lane == 0:
+            dst[0] = UInt(sum_val)
+            dst[1] = mask
+            if any_alive:
+                dst[2] = UInt(1)
+            if all_alive:
+                dst[3] = UInt(1)
+
+    return
+
+// ===========================================================================
+//  TEST 2: Spec constants in comptime
+// ===========================================================================
+
+shader compute SpecConstantKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+
+    comptime:
+        let compute = (
+            [8, 1, 1],
+            [32, 1, 1],
+            [("src", "f32", ["grid"], "input", "kain.shared.buffer"),
+             ("dst", "f32", ["grid"], "output", "kain.shared.buffer")],
+            [],
+            [],
+            [("tile_size", "u32", 128, "SPEC"),
+             ("enable_fp16", "bool", true, "SPEC"),
+             ("scale", "f32", 1.0, "SPEC")]
+        )
+
+    let val = src[id.x]
+    dst[id.x] = val * 2.0
+    return
+
+// ===========================================================================
+//  TEST 3: Push-constant eligible uniforms (small, single-stage)
+// ===========================================================================
+
+shader compute PushConstantKernel(id: UVec3) -> Void workgroup(1, 1, 1):
+    uniform params: Vec4 @0       // 16 bytes -> PushConstant candidate
+    uniform color: Vec3 @1        // 12 bytes -> PushConstant candidate
+    uniform dst: StorageBuffer<Float> @2
+
+    // Total: 28 bytes <= 128, single stage -> StorageClass::PushConstant
+    dst[id.x] = params.x + color.x
+    return
+
+// ===========================================================================
+//  TEST 4: Mesh + Task shader stages
+// ===========================================================================
+
+shader mesh MeshOutput(positions: Vec3, indices: UInt) -> Void:
+    positions = vec3(0.0, 0.0, 0.0)
+    indices = UInt(0)
+    return
+
+shader task TaskStage() -> Void:
+    return
+
+// ===========================================================================
+//  TEST 5: Raytracing stages
+// ===========================================================================
+
+shader raygen RayGenEntry() -> Vec4:
+    return vec4(1.0, 0.0, 0.0, 1.0)
+
+shader closesthit ClosestHitEval() -> Vec4:
+    return vec4(0.0, 1.0, 0.0, 1.0)
+
+shader miss MissHandler() -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 0.0)
+
+shader anyhit AnyHitTest() -> Vec4:
+    return vec4(0.5, 0.5, 0.5, 0.5)
+
+shader intersection IntersectionTest() -> Vec4:
+    return vec4(0.0, 0.0, 1.0, 1.0)
+
+shader callable CallableHelper() -> Vec4:
+    return vec4(0.0, 1.0, 1.0, 1.0)
+
+// ===========================================================================
+//  TEST 6: Fragment + Compute stages to complete all 12
+// ===========================================================================
+
+shader fragment FragmentTest(uv: Vec2) -> Vec4:
+    uniform tint: Vec3 @0
+    let wave: Float = uv.x * (1.0 - uv.x)
+    return vec4(tint.x * wave, tint.y * wave, tint.z * (0.5 + wave), 1.0)
+
+shader compute ComputeBaseline(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(9)
+    return

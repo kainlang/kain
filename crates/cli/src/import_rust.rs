@@ -1376,17 +1376,29 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             compute_key,
             dispatch_size,
             ..
-        } => write_multiline(
-            output,
-            indent,
-            &format!(
-                "dispatch \"{}\" [{}, {}, {}]",
-                compute_key.replace('"', "\\\""),
-                expr_to_string(&dispatch_size[0]),
-                expr_to_string(&dispatch_size[1]),
-                expr_to_string(&dispatch_size[2])
-            ),
-        ),
+        } => {
+            let (x_str, y_str, z_str) = match dispatch_size {
+                kain_core::ast::DispatchSize::Fixed([x, y, z]) => (
+                    expr_to_string(x),
+                    expr_to_string(y),
+                    expr_to_string(z),
+                ),
+                kain_core::ast::DispatchSize::Indirect(buf) => (
+                    expr_to_string(buf),
+                    String::from("1"),
+                    String::from("1"),
+                ),
+            };
+            write_multiline(
+                output,
+                indent,
+                &format!(
+                    "dispatch \"{}\" [{}, {}, {}]",
+                    compute_key.replace('"', "\\\""),
+                    x_str, y_str, z_str
+                ),
+            )
+        },
         kain_core::ast::Stmt::For {
             binding,
             iter,
@@ -1429,6 +1441,7 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             write_line(output, indent, "loop:")?;
             write_block(output, body, indent + 1)
         }
+        kain_core::ast::Stmt::Subgroup { .. } => write_line(output, indent, "// subgroup scope not emitted by Rust importer"),
         kain_core::ast::Stmt::Item(item) => write_item(output, item, indent),
     }
 }

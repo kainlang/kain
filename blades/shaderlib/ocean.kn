@@ -1,0 +1,335 @@
+// afl_ext 2017-2024 — MIT License
+// Ray-traced ocean — Kain fragment shader
+
+
+shader fragment OceanFragment(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform resolution: Vec2 @1
+    uniform mouse: Vec2 @2
+    uniform _padding: StorageBuffer<Float> @3
+
+    let fx = uv.x * resolution.x
+    let fy = uv.y * resolution.y
+    let ux = ((fx / resolution.x) * 2.0 - 1.0) * (resolution.x / resolution.y)
+    let uy = (fy / resolution.y) * 2.0 - 1.0
+    var rx: Float = ux
+    var ry: Float = uy
+    var rz: Float = 1.5
+    let rl = 1.0 / sqrt(rx*rx + ry*ry + rz*rz)
+    rx = rx * rl
+    ry = ry * rl
+    rz = rz * rl
+
+    if resolution.x >= 600.0:
+        let ya = 3.0 * ((mouse.x + 0.5) * 2.0 - 1.0)
+        let ys = sin(ya)
+        let yc = cos(ya)
+        let yoc = 1.0 - yc
+        let yrx = rx
+        let yry = ry
+        let yrz = rz
+        rx = (yoc*0.0*0.0+yc)*yrx + (yoc*0.0*(-1.0)-0.0*ys)*yry + (yoc*0.0*0.0+(-1.0)*ys)*yrz
+        ry = (yoc*0.0*(-1.0)+0.0*ys)*yrx + (yoc*(-1.0)*(-1.0)+yc)*yry + (yoc*(-1.0)*0.0-0.0*ys)*yrz
+        rz = (yoc*0.0*0.0-(-1.0)*ys)*yrx + (yoc*(-1.0)*0.0+0.0*ys)*yry + (yoc*0.0*0.0+yc)*yrz
+        let m_y: Float = if mouse.y == 0.0: 0.27 else: mouse.y
+        let xa = 0.5 + 1.5 * (m_y * 2.0 - 1.0)
+        let csx = sin(xa)
+        let ccx = cos(xa)
+        let xoc = 1.0 - ccx
+        let xrx = rx
+        let xry = ry
+        let xrz = rz
+        rx = (xoc*1.0*1.0+ccx)*xrx + (xoc*1.0*0.0-0.0*csx)*xry + (xoc*0.0*1.0+0.0*csx)*xrz
+        ry = (xoc*1.0*0.0+0.0*csx)*xrx + (xoc*0.0*0.0+ccx)*xry + (xoc*0.0*0.0-1.0*csx)*xrz
+        rz = (xoc*0.0*1.0-0.0*csx)*xrx + (xoc*0.0*0.0+1.0*csx)*xry + (xoc*0.0*0.0+ccx)*xrz
+
+    if ry >= 0.0:
+        let sdx: Float = -0.0773502691896258
+        let sdy: Float = 0.5 + sin(time * 0.2 + 2.6) * 0.45
+        let sdz: Float = 0.5773502691896258
+        let sdl = 1.0 / sqrt(sdx*sdx + sdy*sdy + sdz*sdz)
+        let sx: Float = sdx * sdl
+        let sy: Float = sdy * sdl
+        let sz: Float = sdz * sdl
+        let st = 1.0 / (ry * 1.0 + 0.1)
+        let st2 = 1.0 / (sy * 11.0 + 1.0)
+        let dsr: Float = rx*sx + ry*sy + rz*sz
+        let raysundt = dsr * dsr
+        var sd: Float = dsr
+        var si: Int = 0
+        while si < 7:
+            sd = sd * dsr
+            si = si + 1
+        sd = max(0.0, sd)
+        let bsk_r = max(0.0, 5.5/22.4*(max(0.0,1.0-5.5/22.4)+(1.0-max(0.0,1.0-5.5/22.4))*st2) - 5.5*0.002*(st+-6.0*sy*sy)) * st * (0.24+raysundt*0.24) * (1.0+1.0*(1.0-ry)*(1.0-ry)*(1.0-ry))
+        let bsk_g = max(0.0, 13.0/22.4*(max(0.0,1.0-13.0/22.4)+(1.0-max(0.0,1.0-13.0/22.4))*st2) - 13.0*0.002*(st+-6.0*sy*sy)) * st * (0.24+raysundt*0.24) * (1.0+1.0*(1.0-ry)*(1.0-ry)*(1.0-ry))
+        let bsk_b = max(0.0, 1.0*(max(0.0,1.0-22.4/22.4)+(1.0-max(0.0,1.0-22.4/22.4))*st2) - 22.4*0.002*(st+-6.0*sy*sy)) * st * (0.24+raysundt*0.24) * (1.0+1.0*(1.0-ry)*(1.0-ry)*(1.0-ry))
+        var spv: Float = max(0.0, dsr)
+        var spi: Int = 0
+        while spi < 9:
+            spv = spv * spv
+            spi = spi + 1
+        var sp512 = spv
+        var sp128: Float = max(0.0, dsr)
+        spi = 0
+        while spi < 7:
+            sp128 = sp128 * sp128
+            spi = spi + 1
+        var sp64: Float = max(0.0, dsr)
+        spi = 0
+        while spi < 6:
+            sp64 = sp64 * sp64
+            spi = spi + 1
+        var sp16: Float = max(0.0, dsr)
+        spi = 0
+        while spi < 4:
+            sp16 = sp16 * sp16
+            spi = spi + 1
+        let sn = sp512 * sp128 * sp64 * sp16 * 210.0
+        let Cr = (bsk_r*0.5+sn) * 2.0
+        let Cg = (bsk_g*0.5+sn) * 2.0
+        let Cb = (bsk_b*0.5+sn) * 2.0
+        let gr = sqrt(sqrt(max(0.0, min(Cr, 1.0))))
+        let gg = sqrt(sqrt(max(0.0, min(Cg, 1.0))))
+        let gb = sqrt(sqrt(max(0.0, min(Cb, 1.0))))
+        return vec4(gr*sqrt(sqrt(gr)), gg*sqrt(sqrt(gg)), gb*sqrt(sqrt(gb)), 1.0)
+
+    let origin_x: Float = time * 0.2
+    let origin_y: Float = 1.5
+    let origin_z: Float = 1.0
+    let plane_denom: Float = ry * 1.0
+    let plane_nt: Float = -(origin_y) / max(0.0001, abs(plane_denom))
+    let hpx: Float = origin_x + rx * plane_nt
+    let hpy: Float = origin_y + ry * plane_nt
+    let hpz: Float = origin_z + rz * plane_nt
+    let plane_lt: Float = -(-1.0 - origin_y) / max(0.0001, abs(plane_denom))
+    let lpx: Float = origin_x + rx * plane_lt
+    let lpy: Float = origin_y + ry * plane_lt
+    let lpz: Float = origin_z + rz * plane_lt
+    let rdx: Float = lpx - hpx
+    let rdy: Float = lpy - hpy
+    let rdz: Float = lpz - hpz
+    let rdl = 1.0 / sqrt(rdx*rdx + rdy*rdy + rdz*rdz)
+    let rnx: Float = rdx * rdl
+    let rny: Float = rdy * rdl
+    let rnz: Float = rdz * rdl
+    var mrpx: Float = hpx
+    var mrpy: Float = hpy
+    var mrpz: Float = hpz
+    var hitDist: Float = -1.0
+    var mi: Int = 0
+    while mi < 64:
+        var msv: Float = 0.0
+        var msw: Float = 0.0
+        var mfreq: Float = 1.0
+        var mtMul: Float = 2.0
+        var mwgt: Float = 1.0
+        var miter: Float = 0.0
+        var mwx: Float = mrpx
+        var mwy: Float = mrpz
+        var mwci: Int = 0
+        while mwci < 12:
+            let mdx = sin(miter)
+            let mdy = cos(miter)
+            let mx = (mdx*mwx + mdy*mwy)*mfreq + time*mtMul + (mwx*mwx+mwy*mwy)*0.1
+            let mv = pow(2.718281828459045, sin(mx) - 1.0)
+            let mdx2 = mv * (-cos(mx))
+            mwx = mwx + mdx*mdx2*mwgt*0.38
+            mwy = mwy + mdy*mdx2*mwgt*0.38
+            msv = msv + mv*mwgt
+            msw = msw + mwgt
+            mwgt = mwgt * 0.8
+            mfreq = mfreq * 1.18
+            mtMul = mtMul * 1.07
+            miter = miter + 1232.399963
+            mwci = mwci + 1
+        let mh = msv/msw * 1.0 - 1.0
+        if mh + 0.01 > mrpy:
+            let dx = mrpx - origin_x
+            let dy = mrpy - origin_y
+            let dz = mrpz - origin_z
+            hitDist = sqrt(dx*dx + dy*dy + dz*dz)
+            mi = 64
+        else:
+            let step = mrpy - mh
+            mrpx = mrpx + rnx*step
+            mrpy = mrpy + rny*step
+            mrpz = mrpz + rnz*step
+            mi = mi + 1
+    if hitDist < 0.0:
+        let dx = hpx - origin_x
+        let dy = hpy - origin_y
+        let dz = hpz - origin_z
+        hitDist = sqrt(dx*dx + dy*dy + dz*dz)
+    let hit_x: Float = origin_x + rx * hitDist
+    let hit_y: Float = origin_y + ry * hitDist
+    let hit_z: Float = origin_z + rz * hitDist
+
+    let ee: Float = 0.01
+    var nsv: Float = 0.0
+    var nsw: Float = 0.0
+    var nfreq: Float = 1.0
+    var ntm: Float = 2.0
+    var nwgt: Float = 1.0
+    var niter: Float = 0.0
+    var nwx: Float = hit_x
+    var nwy: Float = hit_z
+    var nwi: Int = 0
+    while nwi < 36:
+        let ndx = sin(niter)
+        let ndy = cos(niter)
+        let nx = (ndx*nwx + ndy*nwy)*nfreq + time*ntm + (nwx*nwx+nwy*nwy)*0.1
+        let nv = pow(2.718281828459045, sin(nx)-1.0)
+        let ndx2 = nv*(-cos(nx))
+        nwx = nwx + ndx*ndx2*nwgt*0.38
+        nwy = nwy + ndy*ndx2*nwgt*0.38
+        nsv = nsv + nv*nwgt
+        nsw = nsw + nwgt
+        nwgt = nwgt*0.8
+        nfreq = nfreq*1.18
+        ntm = ntm*1.07
+        niter = niter + 1232.399963
+        nwi = nwi + 1
+    let nH = nsv/nsw*1.0
+
+    var n2sv: Float = 0.0
+    var n2sw: Float = 0.0
+    var n2freq: Float = 1.0
+    var n2tm: Float = 2.0
+    var n2wgt: Float = 1.0
+    var n2iter: Float = 0.0
+    var n2wx: Float = hit_x - ee
+    var n2wy: Float = hit_z
+    var n2i: Int = 0
+    while n2i < 36:
+        let n2dx = sin(n2iter)
+        let n2dy = cos(n2iter)
+        let n2x = (n2dx*n2wx + n2dy*n2wy)*n2freq + time*n2tm + (n2wx*n2wx+n2wy*n2wy)*0.1
+        let n2v = pow(2.718281828459045, sin(n2x)-1.0)
+        let n2dx2 = n2v*(-cos(n2x))
+        n2wx = n2wx + n2dx*n2dx2*n2wgt*0.38
+        n2wy = n2wy + n2dy*n2dx2*n2wgt*0.38
+        n2sv = n2sv + n2v*n2wgt
+        n2sw = n2sw + n2wgt
+        n2wgt = n2wgt*0.8
+        n2freq = n2freq*1.18
+        n2tm = n2tm*1.07
+        n2iter = n2iter + 1232.399963
+        n2i = n2i + 1
+    let nHl = n2sv/n2sw*1.0
+
+    var n3sv: Float = 0.0
+    var n3sw: Float = 0.0
+    var n3freq: Float = 1.0
+    var n3tm: Float = 2.0
+    var n3wgt: Float = 1.0
+    var n3iter: Float = 0.0
+    var n3wx: Float = hit_x
+    var n3wy: Float = hit_z + ee
+    var n3i: Int = 0
+    while n3i < 36:
+        let n3dx = sin(n3iter)
+        let n3dy = cos(n3iter)
+        let n3x = (n3dx*n3wx + n3dy*n3wy)*n3freq + time*n3tm + (n3wx*n3wx+n3wy*n3wy)*0.1
+        let n3v = pow(2.718281828459045, sin(n3x)-1.0)
+        let n3dx2 = n3v*(-cos(n3x))
+        n3wx = n3wx + n3dx*n3dx2*n3wgt*0.38
+        n3wy = n3wy + n3dy*n3dx2*n3wgt*0.38
+        n3sv = n3sv + n3v*n3wgt
+        n3sw = n3sw + n3wgt
+        n3wgt = n3wgt*0.8
+        n3freq = n3freq*1.18
+        n3tm = n3tm*1.07
+        n3iter = n3iter + 1232.399963
+        n3i = n3i + 1
+    let nHu = n3sv/n3sw*1.0
+
+    let v1_x = hit_x - (hit_x - ee)
+    let v1_y = nH - nHl
+    let v1_z = hit_z - hit_z
+    let v2_x = hit_x - hit_x
+    let v2_y = nH - nHu
+    let v2_z = hit_z - (hit_z + ee)
+    let cx: Float = v1_y*v2_z - v1_z*v2_y
+    let cy: Float = v1_z*v2_x - v1_x*v2_z
+    let cz: Float = v1_x*v2_y - v1_y*v2_x
+    let cl = 1.0 / max(0.0001, sqrt(cx*cx + cy*cy + cz*cz))
+    var Nx: Float = cx * cl
+    var Ny: Float = cy * cl
+    var Nz: Float = cz * cl
+    let sf = 0.8 * min(1.0, sqrt(hitDist*0.01)*1.1)
+    Nx = Nx * (1.0-sf)
+    Ny = Ny*(1.0-sf) + 1.0*sf
+    Nz = Nz * (1.0-sf)
+
+    let ndr: Float = -(Nx*rx + Ny*ry + Nz*rz)
+    var fp_v: Float = max(0.0, ndr)
+    var fpi: Int = 0
+    while fpi < 4:
+        fp_v = fp_v * ndr
+        fpi = fpi + 1
+    let fresnel = 0.04 + 0.96 * fp_v
+
+    let refl_dot = Nx*rx + Ny*ry + Nz*rz
+    var Rrx: Float = rx - 2.0*refl_dot*Nx
+    var Rry: Float = ry - 2.0*refl_dot*Ny
+    var Rrz: Float = rz - 2.0*refl_dot*Nz
+    Rry = abs(Rry)
+    let rrl = 1.0 / max(0.0001, sqrt(Rrx*Rrx + Rry*Rry + Rrz*Rrz))
+    Rrx = Rrx * rrl
+    Rry = Rry * rrl
+    Rrz = Rrz * rrl
+
+    let sxd: Float = -0.0773502691896258
+    let syd: Float = 0.5 + sin(time*0.2+2.6)*0.45
+    let szd: Float = 0.5773502691896258
+    let sld = 1.0 / sqrt(sxd*sxd + syd*syd + szd*szd)
+    let sxf: Float = sxd*sld
+    let syf: Float = syd*sld
+    let szf: Float = szd*sld
+    let rst = 1.0 / (Rry*1.0 + 0.1)
+    let rdsr = Rrx*sxf + Rry*syf + Rrz*szf
+    let rrays = rdsr * rdsr
+    var rsd: Float = rdsr
+    var rsi: Int = 0
+    while rsi < 7:
+        rsd = rsd * rdsr
+        rsi = rsi + 1
+    rsd = max(0.0, rsd)
+    var rspv: Float = max(0.0, rdsr)
+    var rspi: Int = 0
+    while rspi < 9:
+        rspv = rspv * rspv
+        rspi = rspi + 1
+    var rsp512 = rspv
+    var rsp128: Float = max(0.0, rdsr)
+    rspi = 0
+    while rspi < 7:
+        rsp128 = rsp128 * rsp128
+        rspi = rspi + 1
+    var rsp64: Float = max(0.0, rdsr)
+    rspi = 0
+    while rspi < 6:
+        rsp64 = rsp64 * rsp64
+        rspi = rspi + 1
+    var rsp16: Float = max(0.0, rdsr)
+    rspi = 0
+    while rspi < 4:
+        rsp16 = rsp16 * rsp16
+        rspi = rspi + 1
+    let rsn = rsp512 * rsp128 * rsp64 * rsp16 * 210.0
+    let ratm = rst*(0.24+rrays*0.24)*(1.0+1.0*(1.0-Rry)*(1.0-Rry)*(1.0-Rry)) * 5.5/22.4
+    let ratt_r = ratm * 0.4 + rsn * 0.5
+    let ratt_g = ratm * 0.4 + rsn * 0.5
+    let ratt_b = ratm * 0.4 + rsn * 0.5
+    let depth_frac = (hit_y + 1.0) / 1.0
+    let scat_r = 0.0293 * 0.1 * (0.2 + depth_frac)
+    let scat_g = 0.0698 * 0.1 * (0.2 + depth_frac)
+    let scat_b = 0.1717 * 0.1 * (0.2 + depth_frac)
+    let wCr = fresnel * ratt_r + scat_r
+    let wCg = fresnel * ratt_g + scat_g
+    let wCb = fresnel * ratt_b + scat_b
+    let wgr = sqrt(sqrt(max(0.0, min(wCr*2.0, 1.0))))
+    let wgg = sqrt(sqrt(max(0.0, min(wCg*2.0, 1.0))))
+    let wgb = sqrt(sqrt(max(0.0, min(wCb*2.0, 1.0))))
+    return vec4(wgr*sqrt(sqrt(wgr)), wgg*sqrt(sqrt(wgg)), wgb*sqrt(sqrt(wgb)), 1.0)

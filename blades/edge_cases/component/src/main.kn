@@ -1,0 +1,170 @@
+// ============================================================================
+//  COMPONENT SURFACE — MAIN ENTRY POINT
+//
+//  CLI Flags:
+//    --vm              Run test inside an isolated process (VM wrapper)
+//    --test <name>     Run a specific named test (cause/effect/spookymagic/all)
+//    --list            List all available tests with descriptions
+//    --verbose         Enable verbose diagnostic output
+//    --oracle          Enable Oracle window verification (for GUI tests)
+//    --help            Show usage
+//
+//  Default behavior (no flags): run full diagnostics suite.
+//
+//  Usage:
+//    kain check                                  # typecheck only
+//    kain run                                    # full diagnostics
+//    kain run -- --test cause                    # only cause.kn tests
+//    kain run -- --vm --test spookymagic         # edge cases in isolation
+//    kain run -- --list --verbose                # list all tests
+//    kain build --target llvm                    # emit LLVM IR for inspection
+// ============================================================================
+
+use std::process
+use std::io
+use diagnostics
+use vm
+
+// ===========================================================================
+//  HELP TEXT — Component-specific
+// ===========================================================================
+
+fn print_help():
+    println("COMPONENT SURFACE EDGE CASE SUITE")
+    println("")
+    println("Tests the Kain component keyword end-to-end:")
+    println("  - KainComponentSurface trait (15 vtable slots)")
+    println("  - World-surface frame loop auto-generation")
+    println("  - Component state persistence (load/store across frames)")
+    println("  - JSX → surface vtable call lowering (12 contracts)")
+    println("  - Stable key reconciliation")
+    println("  - JSX attribute → surface call mapping (16 attrs)")
+    println("  - Error handling (missing surface, null fn, capacity)")
+    println("")
+    println("USAGE:")
+    println("  kain check                        Typecheck only (fastest)")
+    println("  kain run                          Run full diagnostics suite")
+    println("  kain run -- --test cause          Run only cause.kn tests")
+    println("  kain run -- --test effect         Run only effect.kn tests")
+    println("  kain run -- --test spookymagic    Run only edge case analysis")
+    println("  kain run -- --vm --test all       Run in isolated process")
+    println("  kain run -- --list                List all available tests")
+    println("  kain run -- --verbose             Enable verbose output")
+    println("  kain build --target llvm          Emit LLVM IR for inspection")
+    println("  kain run -- --help                Show this help")
+    println("")
+    println("TEST FILES:")
+    println("  cause.kn        11 component semantic tests")
+    println("  effect.kn       7 downstream pipeline verifications")
+    println("  spookymagic.kn  22 edge cases across 6 categories")
+    println("")
+    println("REFERENCE:")
+    println("  reference/component_minimal/   Pre-built component + Win32 GDI")
+    println("  reference/component_shader/    Component + shader integration")
+    println("  reference/component_fuzz/      Fuzzing harness template")
+    println("")
+    println("DOCS:")
+    println("  research/component/MERGE_PLAN.md")
+    println("  research/component/WIRING_CONTRACT.md")
+    println("  research/component/IMPLEMENTATION_PLAN.md")
+    println("  blades/NEWSLETTER-2.md")
+    println("  runtime/native/include/component_surface.h")
+
+// ===========================================================================
+//  PARSE CLI FLAGS
+// ===========================================================================
+
+struct CliFlags:
+    use_vm:     Bool
+    test_name:  String
+    list_tests: Bool
+    verbose:    Bool
+    show_help:  Bool
+    use_oracle: Bool
+
+fn parse_flags(args: Array<String>) -> CliFlags:
+    var flags = CliFlags {
+        use_vm: false,
+        test_name: "",
+        list_tests: false,
+        verbose: false,
+        show_help: false,
+        use_oracle: false
+    }
+
+    var i: Int = 0
+    while i < len(args):
+        let arg = args[i]
+
+        if arg == "--vm":
+            flags.use_vm = true
+        elif arg == "--test":
+            i = i + 1
+            if i < len(args):
+                flags.test_name = args[i]
+        elif arg == "--list":
+            flags.list_tests = true
+        elif arg == "--verbose" or arg == "-v":
+            flags.verbose = true
+        elif arg == "--oracle":
+            flags.use_oracle = true
+        elif arg == "--help" or arg == "-h":
+            flags.show_help = true
+
+        i = i + 1
+
+    return flags
+
+// ===========================================================================
+//  MAIN
+// ===========================================================================
+
+fn main(args: Array<String>) -> Int:
+    let user_args = process_user_args()
+
+    if len(user_args) == 0:
+        println("=== COMPONENT SURFACE DIAGNOSTICS ===")
+        let result = run_diagnostics("all", false)
+        return result
+
+    let flags = parse_flags(user_args)
+
+    if flags.show_help:
+        print_help()
+        return 0
+
+    if flags.list_tests:
+        list_tests(flags.verbose)
+        return 0
+
+    if flags.use_vm:
+        var filter = flags.test_name
+        if filter == "":
+            filter = "all"
+
+        println("=== COMPONENT SURFACE — VM ISOLATION ===")
+        println("[VM] Running test '" + filter + "' in isolated process...")
+        println("")
+
+        let exit_code = run_in_vm(filter, flags.verbose)
+
+        println("")
+        println("[VM] Isolation complete. Exit code: " + str(exit_code))
+        return exit_code
+
+    var filter = flags.test_name
+    if filter == "":
+        filter = "all"
+
+    println("=== COMPONENT SURFACE — DIRECT EXECUTION ===")
+    println("[RUN] Test: " + filter)
+
+    if flags.use_oracle:
+        println("[RUN] Oracle verification enabled")
+    println("")
+
+    let exit_code = run_diagnostics(filter, flags.verbose)
+
+    println("")
+    println("[RUN] Complete. Exit code: " + str(exit_code))
+    return exit_code

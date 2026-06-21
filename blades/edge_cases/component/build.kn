@@ -1,0 +1,47 @@
+// ============================================================================
+//  COMPONENT SURFACE EDGE CASE BUILD AUTHORITY
+//
+//  Supports the full component surface testing suite:
+//    - cause.kn:   11 component semantic tests
+//    - effect.kn:  7 downstream pipeline verifications
+//    - spookymagic.kn: 22 edge cases across 6 categories
+//    - diagnostics.kn: orchestrator with telemetry evidence
+//
+//  CLI Flags:
+//    --vm              Run inside isolated process
+//    --test <name>     Run a specific test (cause/effect/spookymagic/all)
+//    --list            List all available tests
+//    --verbose         Enable verbose output
+//    --oracle          Enable Oracle window verification (for GUI tests)
+//    --help            Show usage
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("component-edge-cases")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("Comprehensive component surface edge case testing suite with telemetry evidence.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("component-edge-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+        .file("readme.md")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .inputs(sources)
+
+    return build_graph()
+        .project(app)
+        .sources(sources)
+        .task(check)

@@ -1,0 +1,74 @@
+// KAIN COMPONENT DASHBOARD — proves: multi-component composition, world state reading,
+// JSX for/if control flow, nested components, deep composition tree.
+// All logic in top-level fns (component methods not yet callable from JSX expressions).
+
+use std::runtime
+
+// ── World state ─────────────────────────────────────────────────
+
+world DashWorld:
+    state uptime: Int = 128
+    state connections: Int = 7
+    state throughput: Int = 94
+    state errors: Int = 3
+    state theme: String = "dark"
+    surface native_ui => Dashboard
+
+// ── Formatting helpers (top-level fns — callable from JSX {expr}) ──
+
+fn fmt_metric(value: Int, unit: String) -> String:
+    return str(value) + " " + unit
+
+fn online_label(connections: Int) -> String:
+    if connections > 0: return "● ONLINE"
+    return "○ OFFLINE"
+
+// ── Leaf components ─────────────────────────────────────────────
+
+component MetricCard(label: String, value: Int, unit: String):
+    render <stack direction="vertical" padding={8} spacing={4}>
+        <text value={label} font_size={11} />
+        <text value={fmt_metric(value, unit)} font_size={24} />
+    </stack>
+
+component SectionHeader(title: String):
+    render <text value={"── " + title + " ──"} font_size={14} />
+
+// ── Dashboard root ──────────────────────────────────────────────
+
+component Dashboard():
+    render <panel title="Kain Component Dashboard">
+        <stack direction="vertical" padding={24} spacing={16}>
+            // Header
+            <stack direction="horizontal" spacing={12}>
+                <text value="KAIN DASHBOARD" font_size={20} />
+                <text value={online_label(DashWorld.connections)} font_size={12} />
+            </stack>
+
+            // Metrics row
+            <SectionHeader title="METRICS" />
+            <stack direction="horizontal" spacing={20}>
+                <MetricCard label="Uptime" value={DashWorld.uptime} unit="hrs" />
+                <MetricCard label="Connections" value={DashWorld.connections} unit="live" />
+                <MetricCard label="Throughput" value={DashWorld.throughput} unit="%" />
+                <MetricCard label="Errors" value={DashWorld.errors} unit="total" />
+            </stack>
+
+            // System info
+            <SectionHeader title="SYSTEM" />
+            <stack direction="vertical" spacing={8}>
+                <stack direction="horizontal" spacing={8}>
+                    <text value="Theme:" font_size={12} />
+                    <text value={DashWorld.theme} font_size={12} />
+                </stack>
+                <text value="world → surface → component → JSX → vtable → GDI framebuffer → BitBlt" font_size={10} />
+                <text value="No C bridge. No @extern. Pure Kain. 17 lines of vtable dispatch." font_size={10} />
+            </stack>
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

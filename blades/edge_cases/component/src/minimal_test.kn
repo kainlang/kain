@@ -1,0 +1,8 @@
+use std::runtime
+
+fn main() -> Int:
+    let init = runtime_init()
+    println("runtime_init: " + str(init))
+    let shutdown = runtime_shutdown()
+    println("runtime_shutdown: " + str(shutdown))
+    return 0

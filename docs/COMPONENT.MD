@@ -2,8 +2,8 @@
 
 > *"Components are the UI layer of Kain. They own their render tree, their state, and their composition graph ~~ independently of worlds, functions, or any other language construct. Every interactive surface in Kain ultimately flows through a component."*
 
-**Last updated:** 2026-06-08
-**Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/kain/component_minimal/src/app.kn`, `blades/kain/component_fuzz/src/components.kn`, `RULEBOOK.md` (lines 90–295)
+**Last updated:** 2026-06-21 (window proof verified via Oracle; 3 working demos; 6 known gaps documented)
+**Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/window_proof/` (3 Oracle-verified demos), `runtime/native/include/component_surface.h` (17-slot vtable trait), `crates/sys-codegen/src/codegen_llvm/component.rs` (vtable codegen offsets 0-16), `RULEBOOK.md` (lines 90–295)
 
 ______________________________________________________________________
 
@@ -910,23 +910,56 @@ ______________________________________________________________________
 
 A world's `surface` declaration selects the rendering backend for the component:
 
-| Surface Kind | Typical Backend | Use Case |
-|-------------|-----------------|----------|
-| `native_ui` | Desktop native (Win32/Vulkan/Kaintana desktop) | Main application window |
-| `web` | WASM / web target | Browser-based UI |
-| `viewport3d` | 3D viewport (via `crates/3d`) | In-world 3D UI, HUD, debug overlays |
-| `ue5` | Unreal Engine 5 integration | Game engine editor panels |
+| Surface Kind | Status | Backend | Use Case |
+|-------------|--------|---------|----------|
+| `native_ui` | ✅ Working (Win32 only) | `native_ui_surface.c` → GDI framebuffer | Main application window |
+| `web` | 🔜 Planned | WASM / web target | Browser-based UI |
+| `viewport3d` | 🔜 Planned | 3D viewport (via `crates/3d`) | In-world 3D UI, HUD, debug overlays |
+| `ue5` | 🔜 Planned | Unreal Engine 5 integration | Game engine editor panels |
+
+**Platform availability:** `native_ui` creates real OS windows on Win32 only. Linux and macOS lack `APP_HOST` and `INPUT` services — only core filesystem/process/timer/network services are available. See `runtime/native/src/platform/platform.c` for the platform capability matrix.
 
 ```kn
 world MultiSurfaceWorld:
     state value: Int = 0
 
-    surface native_ui => App          // Desktop window
-    surface web => App                // Same component, web target
-    surface viewport3d => "HUD"       // 3D viewport (string key)
+    surface native_ui => App          // Desktop window (Win32, working)
+    surface web => App                // Same component, web target (planned)
+    surface viewport3d => "HUD"       // 3D viewport (planned)
 ```
 
 The **same component** can be rendered through multiple surface kinds – the component author doesn't need to know which backend renders it.
+
+### 10.1 The KainComponentSurface Vtable (How Rendering Actually Works)
+
+When the compiler encounters `surface native_ui => Component`, it emits a full frame loop that calls through a 17-slot vtable defined in `runtime/native/include/component_surface.h`. The vtable is the ABI contract — the compiler owns the call site, the backend fills the function pointers.
+
+```
+Codegen emits:                     Backend implements (e.g., native_ui_surface.c):
+  resolve("native_ui")        →    kain_component_surface_resolve("native_ui")
+  session_create("W", 1280, 720) → abi_ui_session_create + auto-attach winit host
+  window_open(sid, title, w, h)  → abi_ui_window_open (flags session as open)
+  LOOP:
+    host_pump(sid)                → PeekMessageA message pump (Win32)
+    begin_frame(sid, delta_ms)    → abi_ui_begin_frame
+    Component_render(surface, sid, 0) → emits element tree via vtable
+    end_frame(sid)                → abi_ui_end_frame
+    present(sid)                  → GDI framebuffer → BitBlt to screen
+    should_close(sid)             → check close flag
+```
+
+**Why this matters:** The same 17 vtable slots work for any backend. Swap `native_ui_surface` for a Vulkan presenter and the Kain source doesn't change. The compiler never knows which backend it's talking to. See `blades/window_proof/README.md` for the full vtable slot table and working demos.
+
+### 10.2 Known Gaps (2026-06-21)
+
+| # | Issue | Symptom | Workaround |
+|---|-------|---------|------------|
+| 1 | Component methods from `{expr}` | `Runtime error: Undefined` — `_self` not auto-passed in codegen | Use top-level `fn` with explicit args |
+| 2 | `pulse` runtime | Process exits immediately | Not yet available |
+| 3 | JSX `if` with operators | `==`, `<`, `>` rejected by parser | Use top-level fn returning Bool |
+| 4 | JSX `for` with ranges | `0..N` syntax rejected | Needs array iterable |
+| 5 | GDI backend ignores element styles | `background`, `color` stored but not rendered | Vulkan backend will fix |
+| 6 | Ternary `? :` in JSX | Parser rejects | Use if/else in top-level fn |
 
 ______________________________________________________________________
 
@@ -1242,7 +1275,11 @@ ______________________________________________________________________
 
 | File | What |
 |------|------|
-| `blades/kain/component_minimal/src/app.kn` | **GOLD MINE**: 280+ line Win32 GDI app with components, `include <windows.h> as win`, manual memory, `@extern`, full message pump |
+| `blades/window_proof/src/main.kn` | **CANONICAL PROOF**: 17-line minimal window — Oracle-verified GUI window from `world` + `surface native_ui => Component` |
+| `blades/window_proof/src/world_read.kn` | World state reading from component JSX |
+| `blades/window_proof/src/dashboard.kn` | Multi-component dashboard with nested composition |
+| `blades/window_proof/README.md` | Full architecture doc, vtable slot table, known gaps |
+| `blades/kain/component_minimal/src/app.kn` | **GOLD MINE**: 280+ line Win32 GDI app with components, `include <windows.h> as win`, manual memory, `@extern`, full message pump (OLD manual bridge approach — window_proof is the new canonical path) |
 | `blades/kain/component_fuzz/src/components.kn` | Component fuzz test 〰 40+ components across 10 categories (naked, stateful, computational, recursive, fragments, pointer-laden, actor-aware, deeply nested, world-surface, singularity) |
 | `blades/kain/component_fuzz/src/main.kn` | Fuzz main entry - demonstrates that components live in JSX only |
 | `blades/kain/component_shader/` | Component + shader integration example |
@@ -1250,12 +1287,15 @@ ______________________________________________________________________
 | `blades/templates/python/pygame/src/world.kn` | Template using world + component + Python interop |
 | `blades/templates/python/ursina/src/world.kn` | Template using world + component + Ursina engine |
 
-### Smoketests
+### Runtime / Vtable Architecture
 
 | File | What |
 |------|------|
-| `smoketest/src/semantics/teleport.kn` | Component in smoke test context: `SmokeTeleportPanel` with world surfaces |
-| `benchmark/cases_v2/keyword_crucible.kn` | Component keyword exercised alongside 108 others >> `CrucibleView` component |
+| `runtime/native/include/component_surface.h` | **KainComponentSurface trait** — 17-slot vtable struct (session_create through host_pump), registry API |
+| `runtime/native/src/core/component_surface.c` | Surface registry — maps names ("native_ui") to vtable pointers |
+| `runtime/native/src/ui/native_ui_surface.c` | **GDI backend** — fills the vtable, auto-attaches winit host on Win32, blits GDI framebuffer on present |
+| `runtime/native/src/ui/ui_host_adapter.c` | **Actual window creation** — RegisterClassA("KainWin32UI") → CreateWindowExA → GDI DIB framebuffer |
+| `crates/sys-codegen/src/codegen_llvm/component.rs` | **Codegen** — vtable offsets 0-16, JSX → vtable call lowering, frame loop emission, state persistence |
 
 ### Documentation
 

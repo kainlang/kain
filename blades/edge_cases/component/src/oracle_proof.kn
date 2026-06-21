@@ -1,0 +1,29 @@
+use std::runtime
+use std::ui
+use std::os
+
+fn main() -> Int:
+    let init = runtime_init()
+    let sid = ui_session_create("oracle-proof", 800, 600)
+
+    // Attach the winit host backend to create a real OS window
+    ui_host_attach(sid, "winit")
+
+    let win = ui_window_open(sid, "Kain Component Surface — Oracle Proof", 800, 600)
+    if win != 0:
+        return 1
+
+    var i: Int = 0
+    while i < 600:
+        ui_begin_frame(sid, 16.67)
+        ui_end_frame(sid)
+        ui_present(sid)
+        ui_host_pump(sid)
+        if ui_host_should_close(sid) != 0:
+            i = 600
+        os_sleep_millis(16)
+        i = i + 1
+
+    ui_session_destroy(sid)
+    runtime_shutdown()
+    return 0

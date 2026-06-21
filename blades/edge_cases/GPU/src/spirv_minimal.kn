@@ -1,0 +1,6 @@
+// Minimal SPIR-V test — StorageBuffer only (no push constants, no subgroup, no mesh)
+shader compute SimpleSpirv(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    dst[id.x] = src[id.x] * 2.0
+    return

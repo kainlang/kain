@@ -8,8 +8,8 @@ use crate::selfhost_report::{
 use chrono::Utc;
 pub use kain_commands::selfhost::SelfHostCommand;
 use kain_core::ast::{
-    Attribute, Block, CallArg, ElseBranch, EnumVariantFields, Expr, Generic, Item, MatchArm, Param,
-    Pattern, Program, Stmt, Type, Use, VariantPatternFields, Visibility,
+    Attribute, Block, CallArg, DispatchSize, ElseBranch, EnumVariantFields, Expr, Generic, Item,
+    MatchArm, Param, Pattern, Program, Stmt, Type, Use, VariantPatternFields, Visibility,
 };
 use kain_core::parser::RESERVED_KEYWORDS;
 use kain_core::tooling_config::apply_cargo_command_defaults;
@@ -1356,8 +1356,10 @@ fn collect_macro_calls_from_stmt(
         Stmt::Expr(expr) => collect_macro_calls_from_expr(expr, required, counts),
         Stmt::Defer { expr, .. } => collect_macro_calls_from_expr(expr, required, counts),
         Stmt::Dispatch { dispatch_size, .. } => {
-            for expr in dispatch_size {
-                collect_macro_calls_from_expr(expr, required, counts);
+            if let DispatchSize::Fixed(exprs) = dispatch_size {
+                for expr in exprs {
+                    collect_macro_calls_from_expr(expr, required, counts);
+                }
             }
         }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
@@ -1377,7 +1379,7 @@ fn collect_macro_calls_from_stmt(
         }
         Stmt::Loop { body, .. } => collect_macro_calls_from_block(body, required, counts),
         Stmt::Item(item) => collect_macro_calls_from_item(item, required, counts),
-        Stmt::Continue(_) => {}
+        Stmt::Subgroup { .. } | Stmt::Continue(_) => {}
     }
 }
 
@@ -5316,17 +5318,29 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
             compute_key,
             dispatch_size,
             ..
-        } => write_line(
-            output,
-            indent,
-            &format!(
-                "dispatch \"{}\" [{}, {}, {}]",
-                compute_key.replace('"', "\\\""),
-                inline_expr_to_string(&dispatch_size[0]),
-                inline_expr_to_string(&dispatch_size[1]),
-                inline_expr_to_string(&dispatch_size[2])
-            ),
-        ),
+        } => {
+            let (x_str, y_str, z_str) = match dispatch_size {
+                DispatchSize::Fixed([x, y, z]) => (
+                    inline_expr_to_string(x),
+                    inline_expr_to_string(y),
+                    inline_expr_to_string(z),
+                ),
+                DispatchSize::Indirect(buf) => (
+                    inline_expr_to_string(buf),
+                    String::from("1"),
+                    String::from("1"),
+                ),
+            };
+            write_line(
+                output,
+                indent,
+                &format!(
+                    "dispatch \"{}\" [{}, {}, {}]",
+                    compute_key.replace('"', "\\\""),
+                    x_str, y_str, z_str
+                ),
+            )
+        },
         Stmt::For {
             binding,
             iter,
@@ -5377,6 +5391,7 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
             write_line(output, indent, "loop:")?;
             write_block(output, body, indent + 1)
         }
+        Stmt::Subgroup { .. } => write_line(output, indent, "// subgroup scope"),
         Stmt::Item(item) => write_item(output, item, indent),
     }
 }

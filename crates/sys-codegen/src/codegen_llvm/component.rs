@@ -28,6 +28,8 @@ const OFF_END_FRAME: u32 = 11;
 const OFF_PRESENT: u32 = 12;
 const OFF_POLL_EVENT: u32 = 13;
 const OFF_SHOULD_CLOSE: u32 = 14;
+const OFF_WINDOW_OPEN: u32 = 15;
+const OFF_HOST_PUMP: u32 = 16;
 
 // ── JSX attribute → surface call mapping (Contract 11) ──────────────────
 struct AttrMapping {
@@ -75,10 +77,10 @@ impl LlvmGenerator {
         }
         self.surface_trait_declared = true;
 
-        // Sized trait type with 15 pointer-sized fields (one per vtable slot).
+        // Sized trait type with 17 pointer-sized fields (one per vtable slot).
         // The exact function pointer types differ per slot; we use i8* as a
         // uniform placeholder and bitcast before loading the real fn pointer.
-        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
+        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
 
         // Registry — resolve a named surface backend
         self.emit("declare %KainComponentSurface* @kain_component_surface_resolve(i8*)");
@@ -292,10 +294,10 @@ impl LlvmGenerator {
             session_err, session_id
         ));
         let session_fail = self.next_label();
-        let frame_loop_label = self.next_label();
+        let window_init_label = self.next_label();
         self.emit(&format!(
             "  br i1 {}, label %{}, label %{}",
-            session_err, session_fail, frame_loop_label
+            session_err, session_fail, window_init_label
         ));
 
         self.emit_label(&session_fail);
@@ -304,8 +306,51 @@ impl LlvmGenerator {
         self.emit(&format!("  call void @kain_runtime_panic(i8* {})", fail_str));
         self.emit("  unreachable");
 
+        // ── Window init (run once, then enter frame loop) ─────────
+        self.emit_label(&window_init_label);
+
+        // window_open (vtable offset 15) — flag session as open.
+        // On Win32 the OS window was already created by the auto-attached
+        // winit host adapter in native_ui_session_create.
+        let window_title_str = self.compile_static_c_string_literal(world_name);
+        let _window_ok = self.emit_vtable_call(
+            &surface_reg,
+            OFF_WINDOW_OPEN,
+            "i64 (i64, i8*, i64, i64)*",
+            &[
+                (&session_id, "i64"),
+                (&window_title_str, "i8*"),
+                ("1280", "i64"),
+                ("720", "i64"),
+            ],
+        );
+
+        // Fall through to frame loop
+        let frame_loop_label = self.next_label();
+        self.emit(&format!("  br label %{}", frame_loop_label));
+
         // ── Frame loop ─────────────────────────────────────────────
         self.emit_label(&frame_loop_label);
+
+        // host_pump (vtable offset 16) — process OS messages
+        // On Win32: PeekMessageA → TranslateMessage → DispatchMessageA
+        // Keeps the window responsive (close, resize, input).
+        let _pump_ok = self.emit_vtable_call(
+            &surface_reg,
+            OFF_HOST_PUMP,
+            "i64 (i64)*",
+            &[(&session_id, "i64")],
+        );
+
+        // poll_event (vtable offset 13) — drain input events into the
+        // component event system. The host adapter pushes OS events into
+        // the universal input format during pump; this flushes them.
+        let _polled = self.emit_vtable_call(
+            &surface_reg,
+            OFF_POLL_EVENT,
+            "i64 (i64)*",
+            &[(&session_id, "i64")],
+        );
 
         // begin_frame (vtable offset 10)
         let delta = self.next_reg();

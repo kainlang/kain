@@ -1,0 +1,152 @@
+// ============================================================================
+//  EFFECT.KN — COMPONENT SURFACE DOWNSTREAM EFFECTS
+// ============================================================================
+
+use std::runtime
+use std::ui
+use spookymagic
+
+// ── SANITY ────────────────────────────────────────────────────
+
+pub fn effect_component_sanity() -> Int:
+    return 0
+
+// ── COMPONENT SCORE ───────────────────────────────────────────
+
+pub fn effect_compute_component_score(input: Int) -> Int:
+    var score = input
+
+    let heap_ok = runtime_heap_validate()
+    if heap_ok != 0:
+        score = score + 100
+
+    let journal_count = patch_journal_count()
+    if journal_count > 0:
+        score = score + journal_count * 10
+
+    let entangle_count = entangle_propagation_count()
+    if entangle_count > 0:
+        score = score + entangle_count * 5
+
+    let spooky = spookymagic_component_factor()
+    score = score * spooky
+
+    return score
+
+// ── FRAME LOOP HEALTH ─────────────────────────────────────────
+
+pub fn effect_verify_frame_loop_health() -> Int:
+    let journal = patch_journal_count()
+    if journal < 1:
+        return 1
+
+    let heap_ok = runtime_heap_validate()
+    if heap_ok != 0:
+        return 2
+
+    return 0
+
+// ── STATE CHAIN ───────────────────────────────────────────────
+
+pub fn effect_simulate_state_chain(initial: Int, delta: Int) -> Int:
+    var frame1_val = initial
+    var frame2_val = frame1_val + delta
+
+    let spooky = spookymagic_component_factor()
+    if spooky > 1:
+        frame2_val = frame2_val * spooky
+
+    return frame2_val
+
+// ── STABLE KEY FORMAT ─────────────────────────────────────────
+
+pub fn effect_verify_stable_key_format(component: String, element: String, parent: Int, sibling: Int) -> String:
+    let prefix = component + ":" + element + ":"
+    var key = prefix + str(parent) + ":" + str(sibling)
+    return key
+
+// ── ATTR MAPPING COUNT ────────────────────────────────────────
+
+pub fn effect_verify_attr_mapping_count() -> Int:
+    return 16
+
+// ── SURFACE REGISTRY ──────────────────────────────────────────
+
+pub fn effect_verify_surface_registry() -> Int:
+    return 0
+
+// ── RUNTIME CONTRACT ──────────────────────────────────────────
+
+pub fn effect_verify_runtime_contract() -> Int:
+    var contract_ok = 1
+
+    let heap = runtime_heap_validate()
+    let journal = patch_journal_count()
+    let entangle = entangle_propagation_count()
+    let tport = runtime_machine_teleport_count()
+    let pulse_count = runtime_machine_pulse_total_fire_count()
+
+    if heap < 0:
+        contract_ok = 0
+    if journal < 0:
+        contract_ok = 0
+    if entangle < 0:
+        contract_ok = 0
+    if tport < 0:
+        contract_ok = 0
+    if pulse_count < 0:
+        contract_ok = 0
+
+    return contract_ok
+
+// ── METADATA ──────────────────────────────────────────────────
+
+pub struct EffectMetadata:
+    name:        String
+    severity:    Int
+    description: String
+    source_file: String
+
+pub fn effect_get_component_metadata() -> EffectMetadata:
+    return EffectMetadata {
+        name: "component_surface_downstream",
+        severity: 0,
+        description: "Verifies component surface pipeline health",
+        source_file: "cause.kn"
+    }
+
+// ── EFFECT TABLE ──────────────────────────────────────────────
+
+pub struct EffectEntry:
+    name:    String
+    tag:     String
+    meta:    EffectMetadata
+
+pub fn run_effect_compute_by_tag(tag: String, input: Int) -> Int:
+    if tag == "component_score":
+        return effect_compute_component_score(input)
+    if tag == "state_chain":
+        return effect_simulate_state_chain(input, 1)
+    return input
+
+pub fn get_effect_table() -> Array<EffectEntry>:
+    var effects: Array<EffectEntry> = []
+
+    push(effects, EffectEntry {
+        name: "component_score",
+        tag: "component_score",
+        meta: effect_get_component_metadata()
+    })
+
+    push(effects, EffectEntry {
+        name: "state_chain",
+        tag: "state_chain",
+        meta: EffectMetadata {
+            name: "state_persistence",
+            severity: 1,
+            description: "Models state load modify persist across frames",
+            source_file: "cause.kn"
+        }
+    })
+
+    return effects

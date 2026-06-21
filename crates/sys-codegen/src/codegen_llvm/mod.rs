@@ -15369,6 +15369,11 @@ impl LlvmGenerator {
             self.emit("  call void @kain_actor_runtime_init()");
         }
         if is_main {
+            // Register built-in surfaces (native_ui, etc.) before any frame loop
+            // drains so kain_component_surface_resolve() succeeds.
+            self.emit("  %_abi_init = call i64 @abi_runtime_init()");
+        }
+        if is_main {
             self.emit_machine_stones_entry_preamble();
         }
         if is_main && self.debug_info_enabled {

@@ -1,0 +1,31 @@
+use std::runtime
+use std::ui
+
+fn main() -> Int:
+    let init = runtime_init()
+    let sid = ui_session_create("win-test", 800, 600)
+    println("session: " + str(sid))
+
+    let win = ui_window_open(sid, "Kain Window Test", 800, 600)
+    println("window: " + str(win))
+
+    if win != 0:
+        ui_session_destroy(sid)
+        runtime_shutdown()
+        return 1
+
+    // Run a few frames
+    var i: Int = 0
+    while i < 60:
+        ui_begin_frame(sid, 16.67)
+        ui_end_frame(sid)
+        ui_present(sid)
+        ui_host_pump(sid)
+        if ui_host_should_close(sid) != 0:
+            i = 60
+        i = i + 1
+
+    ui_session_destroy(sid)
+    runtime_shutdown()
+    println("done, frames: " + str(i))
+    return 0

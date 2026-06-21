@@ -1,0 +1,21 @@
+// SIMPLE COUNTER — reads world state, no pulse. Prove world state is accessible from component.
+
+use std::runtime
+
+world CounterWorld:
+    state value: Int = 42
+    surface native_ui => CounterPanel
+
+component CounterPanel():
+    render <panel title="World State Reader">
+        <stack direction="vertical" padding={24} spacing={12}>
+            <text value={"World state value: " + str(CounterWorld.value)} font_size={24} />
+            <text value="This reads a world state field from inside a component." font_size={12} />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

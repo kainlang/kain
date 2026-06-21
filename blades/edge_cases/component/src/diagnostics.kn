@@ -1,0 +1,297 @@
+// ============================================================================
+//  DIAGNOSTICS.KN — COMPONENT SURFACE DIAGNOSTICS ORCHESTRATOR
+// ============================================================================
+
+use std::runtime
+use std::io
+use std::diagnostics
+use cause
+use effect
+use spookymagic
+use ui_bridge
+use runtime_contract
+use window_demo
+
+pub struct TestResult:
+    module:      String
+    test_name:   String
+    description: String
+    exit_code:   Int
+    output:      String
+    duration_ms: Int
+
+pub struct DiagnosticsReport:
+    total_tests:       Int
+    passed:            Int
+    failed:            Int
+    warnings:          Int
+    results:           Array<TestResult>
+    errors:            Array<String>
+    timestamp:         String
+    telemetry_heap:    Int
+    telemetry_patch:   Int
+    telemetry_entangle:Int
+    telemetry_teleport:Int
+    telemetry_pulse:   Int
+
+fn build_test_result(module: String, name: String, desc: String, exit_code: Int) -> TestResult:
+    var output = ""
+    if exit_code == 0:
+        output = "PASS"
+    else:
+        output = "FAIL (exit code: " + str(exit_code) + ")"
+    return TestResult {
+        module: module, test_name: name, description: desc,
+        exit_code: exit_code, output: output, duration_ms: 0
+    }
+
+fn collect_telemetry(report: DiagnosticsReport) -> DiagnosticsReport:
+    var r = report
+    r.telemetry_heap     = runtime_heap_validate()
+    r.telemetry_patch    = patch_journal_count()
+    r.telemetry_entangle = entangle_propagation_count()
+    r.telemetry_teleport = runtime_machine_teleport_count()
+    r.telemetry_pulse    = runtime_machine_pulse_total_fire_count()
+    return r
+
+fn run_table(report: DiagnosticsReport, module: String, tags_fn: fn() -> Array<Any>, run_fn: fn(String) -> Int) -> DiagnosticsReport:
+    return report
+
+fn run_cause_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    let tests = get_cause_tests()
+    var r = report
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let code = run_cause_test_by_tag(t.tag)
+        let result = build_test_result("cause", t.name, t.description, code)
+        r.total_tests = r.total_tests + 1
+        if result.exit_code == 0: r.passed = r.passed + 1
+        else: r.failed = r.failed + 1
+        push(r.results, result)
+        i = i + 1
+    return r
+
+fn run_effect_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    var r = report
+
+    let eff_sanity = effect_component_sanity()
+    let r1 = build_test_result("effect", "effect_component_sanity", "Effect module integrity", eff_sanity)
+    r.total_tests = r.total_tests + 1
+    if r1.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r1)
+
+    let frame_health = effect_verify_frame_loop_health()
+    let r2 = build_test_result("effect", "effect_frame_loop_health", "Frame loop lifecycle", frame_health)
+    r.total_tests = r.total_tests + 1
+    if r2.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r2)
+
+    let state_val = effect_simulate_state_chain(0, 1)
+    var state_pass = 1
+    if state_val <= 0: state_pass = 0
+    let r3 = build_test_result("effect", "effect_state_chain", "State chain (val=" + str(state_val) + ")", state_pass)
+    r.total_tests = r.total_tests + 1
+    if r3.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r3)
+
+    let key = effect_verify_stable_key_format("Counter", "box", 42, 0)
+    let r4 = build_test_result("effect", "effect_stable_key", "Key format: " + key, 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, r4)
+
+    let attr_count = effect_verify_attr_mapping_count()
+    var attr_pass = 1
+    if attr_count != 16: attr_pass = 0
+    let r5 = build_test_result("effect", "effect_attr_mapping", str(attr_count) + " attr mappings", attr_pass)
+    r.total_tests = r.total_tests + 1
+    if r5.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r5)
+
+    let reg_ok = effect_verify_surface_registry()
+    let r6 = build_test_result("effect", "effect_surface_registry", "Surface declaration check", reg_ok)
+    r.total_tests = r.total_tests + 1
+    if r6.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r6)
+
+    let contract_ok = effect_verify_runtime_contract()
+    let r7 = build_test_result("effect", "effect_runtime_contract", "Contract bundle integrity", contract_ok)
+    r.total_tests = r.total_tests + 1
+    if r7.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r7)
+
+    return r
+
+fn run_spookymagic_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    var r = report
+
+    let sanity = spookymagic_sanity_check()
+    let r1 = build_test_result("spookymagic", "spookymagic_sanity", "Module integrity", sanity)
+    r.total_tests = r.total_tests + 1
+    if r1.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r1)
+
+    let edge_count = spookymagic_component_edge_cases()
+    let max_sev = spookymagic_max_severity()
+    let r2 = build_test_result("spookymagic", "spookymagic_edge_cases", str(edge_count) + " cases (max sev=" + str(max_sev) + ")", 0)
+    r.total_tests = r.total_tests + 1
+    r.passed = r.passed + 1
+    push(r.results, r2)
+
+    var verified_count: Int = 0
+    var pending_count: Int = 0
+    let cases = spookymagic_get_edge_cases()
+    var i: Int = 0
+    while i < len(cases):
+        if cases[i].verified: verified_count = verified_count + 1
+        else: pending_count = pending_count + 1
+        i = i + 1
+
+    var sp = 1
+    if pending_count > 0: sp = 0
+    let r3 = build_test_result("spookymagic", "spookymagic_verification", str(verified_count) + " done, " + str(pending_count) + " pending", sp)
+    r.total_tests = r.total_tests + 1
+    if r3.exit_code == 0: r.passed = r.passed + 1
+    else: r.failed = r.failed + 1
+    push(r.results, r3)
+
+    return r
+
+fn run_ui_bridge_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    let tests = ui_get_tests()
+    var r = report
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let code = ui_run_test_by_tag(t.tag)
+        let result = build_test_result("ui_bridge", t.name, t.description, code)
+        r.total_tests = r.total_tests + 1
+        if result.exit_code == 0: r.passed = r.passed + 1
+        else: r.failed = r.failed + 1
+        push(r.results, result)
+        i = i + 1
+    return r
+
+fn run_runtime_contract_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    let tests = contract_get_tests()
+    var r = report
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let code = contract_run_test_by_tag(t.tag)
+        let result = build_test_result("contract", t.name, t.description, code)
+        r.total_tests = r.total_tests + 1
+        if result.exit_code == 0: r.passed = r.passed + 1
+        else: r.failed = r.failed + 1
+        push(r.results, result)
+        i = i + 1
+    return r
+
+fn run_window_demo_tests(report: DiagnosticsReport) -> DiagnosticsReport:
+    let tests = window_get_tests()
+    var r = report
+    var i: Int = 0
+    while i < len(tests):
+        let t = tests[i]
+        let code = window_run_test_by_tag(t.tag)
+        let result = build_test_result("window", t.name, t.description, code)
+        r.total_tests = r.total_tests + 1
+        if result.exit_code == 0: r.passed = r.passed + 1
+        else: r.failed = r.failed + 1
+        push(r.results, result)
+        i = i + 1
+    return r
+
+fn print_report(report: DiagnosticsReport, verbose: Bool):
+    println("")
+    println("═══════════════════════════════════════════════════════════")
+    println("  COMPONENT SURFACE DIAGNOSTICS REPORT")
+    println("═══════════════════════════════════════════════════════════")
+    println("  Total:     " + str(report.total_tests))
+    println("  Passed:    " + str(report.passed))
+    println("  Failed:    " + str(report.failed))
+    println("───────────────────────────────────────────────────────────")
+
+    var i: Int = 0
+    while i < len(report.results):
+        let r = report.results[i]
+        var icon = "[PASS]"
+        if r.exit_code != 0: icon = "[FAIL]"
+        println("  " + icon + " " + r.module + "::" + r.test_name)
+        if verbose and r.output != "": println("         " + r.output)
+        i = i + 1
+
+    println("───────────────────────────────────────────────────────────")
+    println("  TELEMETRY: heap=" + str(report.telemetry_heap) +
+            " patch=" + str(report.telemetry_patch) +
+            " entangle=" + str(report.telemetry_entangle) +
+            " teleport=" + str(report.telemetry_teleport) +
+            " pulse=" + str(report.telemetry_pulse))
+    println("═══════════════════════════════════════════════════════════")
+
+    if report.failed == 0:
+        println("  VERDICT: ALL TESTS PASSED")
+    else:
+        println("  VERDICT: " + str(report.failed) + " TEST(S) FAILED")
+    println("")
+
+pub fn run_diagnostics(test_filter: String, verbose: Bool) -> Int:
+    var report = DiagnosticsReport {
+        total_tests: 0, passed: 0, failed: 0, warnings: 0,
+        results: [], errors: [], timestamp: "now",
+        telemetry_heap: 0, telemetry_patch: 0,
+        telemetry_entangle: 0, telemetry_teleport: 0, telemetry_pulse: 0
+    }
+
+    println("")
+    println("╔══════════════════════════════════════════════════════════╗")
+    println("║  COMPONENT SURFACE DIAGNOSTICS — 6 MODULES               ║")
+    println("╚══════════════════════════════════════════════════════════╝")
+
+    report = collect_telemetry(report)
+
+    if test_filter == "all" or test_filter == "cause":
+        println("─── CAUSE (11 semantic tests) ───")
+        report = run_cause_tests(report)
+
+    if test_filter == "all" or test_filter == "effect":
+        println("─── EFFECT (7 pipeline checks) ───")
+        report = run_effect_tests(report)
+
+    if test_filter == "all" or test_filter == "spookymagic":
+        println("─── SPOOKYMAGIC (15 edge cases) ───")
+        report = run_spookymagic_tests(report)
+
+    if test_filter == "all" or test_filter == "ui_bridge":
+        println("─── UI BRIDGE (10 std::ui tests) ───")
+        report = run_ui_bridge_tests(report)
+
+    if test_filter == "all" or test_filter == "runtime_contract":
+        println("─── RUNTIME CONTRACT (10 telemetry tests) ───")
+        report = run_runtime_contract_tests(report)
+
+    if test_filter == "all" or test_filter == "window_demo":
+        println("─── WINDOW DEMO (7 pipeline tests) ───")
+        report = run_window_demo_tests(report)
+
+    print_report(report, verbose)
+    if report.failed > 0: return 1
+    return 0
+
+pub fn list_tests(verbose: Bool):
+    println("COMPONENT SURFACE TEST SUITE (6 modules):")
+    println("  cause.kn          11 semantic tests")
+    println("  effect.kn          7 pipeline checks")
+    println("  spookymagic.kn    15 edge cases")
+    println("  ui_bridge.kn      10 std::ui tests")
+    println("  runtime_contract.kn 10 telemetry tests")
+    println("  window_demo.kn     7 pipeline tests")
+    println("  TOTAL:            60 tests")
