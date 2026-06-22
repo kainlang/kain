@@ -81,8 +81,9 @@ typedef struct KainComponentSurface {
     int64_t (*host_pump)  (int64_t session_id);
 
     // ── Platform handle attachment (called after session_create, ─
-    //     before first begin_frame; compiler codegen does NOT call ─
-    //     this — only the platform app host does) ────────────────
+    //     before first begin_frame. Codegen emits this with a       ─
+    //     zero-initialized handle; backends that own their window   ─
+    //     create it here when hwnd is NULL.) ──────────────────────
     void    (*session_attach_platform)(int64_t session_id,
                                        void*   platform_handle);
 } KainComponentSurface;

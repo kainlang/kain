@@ -1,0 +1,119 @@
+// ============================================================================
+//  telemetry.kn — Shared telemetry collection and JSON output for regression harness
+// ============================================================================
+//  Every proof file imports this module to collect and dump telemetry.
+//  Produces: out/<test_name>_telemetry.json for each test,
+//            out/regression_report.json for the aggregate.
+
+use std::os
+use std::json
+use std::intent
+use std::runtime
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const OUT_DIR: String = "out"
+
+// ============================================================================
+//  TYPES
+// ============================================================================
+
+struct TelemetrySnapshot:
+    patch_journal_count:     Int
+    entangle_propagation_count: Int
+    heap_valid:              Int
+    teleport_count:          Int
+    pulse_fire_count:        Int
+    converge_mismatch_count: Int
+    orchestrate_stage_count: Int
+    resonate_fire_count:     Int
+
+// ============================================================================
+//  CAPTURE: Snapshot all telemetry counters
+// ============================================================================
+
+pub fn telemetry_capture() -> TelemetrySnapshot:
+    return TelemetrySnapshot{
+        patch_journal_count:       patch_journal_count(),
+        entangle_propagation_count: entangle_propagation_count(),
+        heap_valid:                runtime_heap_validate(),
+        teleport_count:            runtime_machine_teleport_count(),
+        pulse_fire_count:          runtime_machine_pulse_total_fire_count(),
+        converge_mismatch_count:   converge_mismatch_count(),
+        orchestrate_stage_count:   orchestrate_stage_count(),
+        resonate_fire_count:       resonate_fire_count(),
+    }
+
+// ============================================================================
+//  BUILD: Construct a JSON object from a telemetry snapshot
+// ============================================================================
+
+pub fn telemetry_to_json(snapshot: TelemetrySnapshot) -> JsonObject:
+    let obj = json_object()
+    let obj = json_object_set_int(obj, "patch_journal_count", snapshot.patch_journal_count)
+    let obj = json_object_set_int(obj, "entangle_propagation_count", snapshot.entangle_propagation_count)
+    let obj = json_object_set_int(obj, "heap_valid", snapshot.heap_valid)
+    let obj = json_object_set_int(obj, "teleport_count", snapshot.teleport_count)
+    let obj = json_object_set_int(obj, "pulse_fire_count", snapshot.pulse_fire_count)
+    let obj = json_object_set_int(obj, "converge_mismatch_count", snapshot.converge_mismatch_count)
+    let obj = json_object_set_int(obj, "orchestrate_stage_count", snapshot.orchestrate_stage_count)
+    let obj = json_object_set_int(obj, "resonate_fire_count", snapshot.resonate_fire_count)
+    return obj
+
+// ============================================================================
+//  PRINT: Dump telemetry to stdout (visible during `kain test`)
+// ============================================================================
+
+pub fn telemetry_print(test_name: String, snapshot: TelemetrySnapshot) -> Int:
+    let _ = test_name  // silence unused warning
+    // Print each counter to stdout for immediate visibility
+    let _ = json_stringify(telemetry_to_json(snapshot))
+    return 0
+
+// ============================================================================
+//  WRITE: Ensure out/ directory exists
+// ============================================================================
+
+pub fn telemetry_ensure_out_dir() -> Int:
+    let ok = os_makedirs(OUT_DIR)
+    if ok:
+        return 0
+    return -1
+
+// ============================================================================
+//  WRITE: Dump telemetry JSON to out/<test_name>_telemetry.json
+// ============================================================================
+
+pub fn telemetry_write_json(test_name: String, snapshot: TelemetrySnapshot, status: String, failures: Int) -> Int:
+    let _ = telemetry_ensure_out_dir()
+
+    let telemetry_obj = telemetry_to_json(snapshot)
+
+    let root = json_object()
+    let root = json_object_set_string(root, "test_name", test_name)
+    let root = json_object_set_string(root, "status", status)
+    let root = json_object_set_int(root, "timestamp_ms", os_now_millis())
+    let root = json_object_set_int(root, "failures", failures)
+    let root = json_object_set_object(root, "telemetry", telemetry_obj)
+
+    let json_text = json_stringify(root)
+
+    let path = OUT_DIR + "/" + test_name + "_telemetry.json"
+    let ok = os_write_text(path, json_text)
+    if ok:
+        return 0
+    return -2
+
+// ============================================================================
+//  WRITE: Aggregate report — out/regression_report.json
+// ============================================================================
+
+pub fn telemetry_write_aggregate(report_json: String) -> Int:
+    let _ = telemetry_ensure_out_dir()
+    let path = OUT_DIR + "/regression_report.json"
+    let ok = os_write_text(path, report_json)
+    if ok:
+        return 0
+    return -3

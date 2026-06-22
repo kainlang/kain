@@ -2190,21 +2190,67 @@ static void vulkan_session_attach_platform(int64_t sid, void* platform_handle) {
     }
 
     KainPlatformSurfaceHandle* handle = (KainPlatformSurfaceHandle*)platform_handle;
+
+    /* ── Option D: codegen passes a zero-initialized handle. ──
+     *     If the handle is NULL or hwnd is NULL, the backend owns
+     *     its window and creates it here. If a real handle is provided
+     *     (blade app host path), the backend uses the external window. */
+
+    int owns_window = 0;
+#ifdef _WIN32
+    if (handle && handle->hwnd) {
+        /* External window provided (blade app host path) */
+        s->hwnd      = handle->hwnd;
+        s->hinstance = handle->hinstance;
+    } else {
+        /* Codegen path: create our own window */
+        HINSTANCE inst = GetModuleHandleA(NULL);
+
+        WNDCLASSA wc;
+        memset(&wc, 0, sizeof(wc));
+        wc.lpfnWndProc   = DefWindowProcA;
+        wc.hInstance     = inst;
+        wc.hCursor       = LoadCursorA(NULL, IDC_ARROW);
+        wc.lpszClassName = "KainVulkanUI";
+
+        /* RegisterClassA may fail if already registered — ignore error */
+        RegisterClassA(&wc);
+
+        DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+        RECT  rect  = { 0, 0, (LONG)s->width, (LONG)s->height };
+        AdjustWindowRect(&rect, style, 0);
+        int win_w = rect.right - rect.left;
+        int win_h = rect.bottom - rect.top;
+
+        HWND hwnd = CreateWindowExA(
+            0, "KainVulkanUI", s->name ? s->name : "Kain Vulkan",
+            style,
+            CW_USEDEFAULT, CW_USEDEFAULT, win_w, win_h,
+            NULL, NULL, inst, NULL);
+
+        if (!hwnd) {
+            vulkan_abi_set_error(-3, "vulkan: CreateWindowExA failed");
+            return;
+        }
+
+        s->hwnd      = hwnd;
+        s->hinstance = inst;
+        owns_window  = 1;
+
+        ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
+    }
+#else
     if (!handle) {
-        vulkan_abi_set_error(-3, "vulkan: null platform handle");
+        vulkan_abi_set_error(-3, "vulkan: platform handle required on non-Win32 targets");
         return;
     }
-
-    /* Store platform handles on the session */
-#ifdef _WIN32
-    s->hwnd      = handle->hwnd;
-    s->hinstance = handle->hinstance;
-#elif defined(__linux__)
+    /* Platform-specific: X11, Wayland, macOS */
     s->x11_display = handle->x11_display;
     s->x11_window  = handle->x11_window;
-#elif defined(__APPLE__)
-    s->x11_display = handle->metal_layer; /* reused field */
 #endif
+
+    s->owns_window = owns_window;
 
     /* ── Boot sequence: open loader if needed ── */
     if (!g_vulkan_loader_opened) {
@@ -2418,6 +2464,14 @@ static void vulkan_session_destroy(int64_t sid) {
         pfn_vkDestroyInstance(s->instance, NULL);
         s->instance = (VkInstance)0;
     }
+
+    /* ── Destroy window if we own it ── */
+#ifdef _WIN32
+    if (s->owns_window && s->hwnd) {
+        DestroyWindow((HWND)s->hwnd);
+        s->hwnd = NULL;
+    }
+#endif
 
     s->initialized = 0;
     vulkan_abi_set_error(0, "vulkan: session destroyed");

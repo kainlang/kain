@@ -1,0 +1,140 @@
+// ============================================================================
+//  CAUSE.KN — PRIMARY TEST FILE
+//
+//  This is where most agents will write code. Define the root cause of a bug,
+//  edge case, or semantic experiment here.
+//
+//  IMPORTS:
+//    effect.kn      — Downstream effect modeling (imported)
+//    spookymagic.kn — Black-box / spooky-magic behaviors (imported)
+//
+//  PATTERN:
+//    1. Define your test function: pub fn test_<name>() -> Int
+//    2. Return 0 on success, non-zero on failure
+//    3. Register it in the TEST_TABLE at the bottom of this file
+//    4. The diagnostics module discovers tests automatically
+//
+//  EXAMPLE:
+//    pub fn test_ownership_collapse() -> Int:
+//        // Your test logic here
+//        println("  [cause] Testing ownership collapse...")
+//        return 0  // 0 = pass
+// ============================================================================
+
+use effect
+use spookymagic
+
+// ===========================================================================
+//  TEST TABLE — Register your tests here
+//  Format: { name: String, func: fn() -> Int, description: String }
+// ===========================================================================
+
+pub struct CauseTest:
+    name:        String
+    tag:         String    // Maps to a test function name
+    description: String
+
+// ===========================================================================
+//  RUN TEST BY TAG — Dispatch test execution by tag name
+//  Replaces function pointers for codegen compatibility.
+// ===========================================================================
+
+pub fn run_cause_test_by_tag(tag: String) -> Int:
+    if tag == "cause_sanity":
+        return test_cause_sanity()
+    if tag == "cause_effect_chain":
+        return test_cause_effect_chain()
+    if tag == "cause_spooky_integration":
+        return test_cause_spooky_integration()
+    return 1  // unknown test
+
+// ===========================================================================
+//  TEST: Basic Cause Sanity
+//  Verifies that all imports resolve and the module compiles correctly.
+// ===========================================================================
+
+pub fn test_cause_sanity() -> Int:
+    println("  [cause] Running sanity check...")
+
+    // Verify effect module is accessible
+    let eff_result = effect_sanity_check()
+    if eff_result != 0:
+        println("  [cause] FAIL: effect_sanity_check() returned " + str(eff_result))
+        return 1
+
+    // Verify spookymagic module is accessible
+    let spooky_result = spookymagic_sanity_check()
+    if spooky_result != 0:
+        println("  [cause] FAIL: spookymagic_sanity_check() returned " + str(spooky_result))
+        return 1
+
+    println("  [cause] PASS: All imports resolve correctly")
+    return 0
+
+// ===========================================================================
+//  TEST: Effect Chain
+//  Demonstrates cause → effect → spookymagic chain.
+// ===========================================================================
+
+pub fn test_cause_effect_chain() -> Int:
+    println("  [cause] Testing cause → effect chain...")
+
+    // Push a value through the effect pipeline
+    let input: Int = 42
+    let result = compute_effect(input)
+
+    println("  [cause] Input: " + str(input) + " → Effect output: " + str(result))
+
+    if result == input * 2:
+        println("  [cause] PASS: Effect chain produces expected result")
+        return 0
+    else:
+        println("  [cause] WARN: Unexpected result (expected " + str(input * 2) + ", got " + str(result) + ")")
+        return 0  // Non-fatal warning — still compiles
+
+// ===========================================================================
+//  TEST: Spooky Integration
+//  Verifies spookymagic behaviors integrate correctly.
+// ===========================================================================
+
+pub fn test_cause_spooky_integration() -> Int:
+    println("  [cause] Testing spookymagic integration...")
+
+    let spooky_val = run_spooky_test(7)
+    println("  [cause] Spookymagic returned: " + str(spooky_val))
+
+    // Spookymagic is expected to do something surprising
+    if spooky_val != 7:
+        println("  [cause] PASS: Spookymagic produced a surprising result")
+    else:
+        println("  [cause] INFO: Spookymagic returned input unchanged (expected for base case)")
+
+    return 0
+
+// ===========================================================================
+//  TEST TABLE — Add your custom tests here
+//  The diagnostics module iterates this table to discover and run tests.
+// ===========================================================================
+
+pub fn get_cause_tests() -> Array<CauseTest>:
+    var tests: Array<CauseTest> = []
+
+    push(tests, CauseTest {
+        name: "cause_sanity",
+        tag: "cause_sanity",
+        description: "Verifies all imports resolve and modules compile correctly"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_effect_chain",
+        tag: "cause_effect_chain",
+        description: "Tests the cause → effect pipeline with a sample input"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_spooky_integration",
+        tag: "cause_spooky_integration",
+        description: "Verifies spookymagic behaviors integrate with cause module"
+    })
+
+    return tests

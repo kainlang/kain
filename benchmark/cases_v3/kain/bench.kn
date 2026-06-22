@@ -52,14 +52,10 @@ const C_FFI_HOTLOOP_EXPECTED: Int = 979343833
 const C_BUFFER_HANDOFF_EXPECTED: Int = 0
 const BUILD_SELF_STRESS_EXPECTED: Int = 42
 
-// Minimal component for world surface requirement
-component V3BenchPanel():
-    render <panel title="V3 Bench" />
-
-// RNG state as world (module-level var not supported)
+// RNG state as world — pure state authority, no surface needed.
+// (Worlds without surfaces are valid; no frame loop is emitted, no window created.)
 world V3Rng:
     state s: Int = RANDOM_SEED
-    surface native_ui => V3BenchPanel
 
 fn rng_next() -> Int:
     V3Rng.s = (V3Rng.s * 1103515245 + 12345) & 0x7fffffff

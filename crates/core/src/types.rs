@@ -6695,29 +6695,13 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
         let world_ty = ResolvedType::Struct(world.name.clone(), state_types);
         env.types.insert(world.name.clone(), world_ty.clone());
         env.define_global(world.name.clone(), world_ty);
-        if world.surfaces.is_empty() {
-            if env.relaxed_checks {
-                // In interpret mode, worlds without surfaces are allowed.
-                // The tree-walk interpreter handles world state without
-                // requiring surface projections (which are materialization
-                // concepts for LLVM codegen).
-                eprintln!(
-                    "note: world '{}' has no surface projections (tolerated in interpret mode)",
-                    world.name
-                );
-            } else {
-                let report = env
-                    .type_report(
-                        DiagnosticCode::TypeWorldMissingSurface,
-                        format!("world '{}' must declare at least one surface", world.name),
-                        world.span,
-                        "world has no surface projections",
-                    )
-                    .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
-                    .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
-                return Err(KainError::rich(report));
-            }
-        }
+        // Worlds without surfaces are valid: they are pure state authorities.
+        // The codegen emits no frame loop when there are no surfaces, so no
+        // window is created. Use this for benchmarks, CI, server-mode, or any
+        // world that only holds state for entangle/patch/law/orchestrate.
+        // When a surface IS declared, it controls rendering intent — the
+        // surface kind (native_ui, web, viewport3d, ue5) determines which
+        // backend the frame loop resolves at runtime.
         for surface in &world.surfaces {
             if !seen_surface_kinds.insert(surface.kind) {
                 return Err(env.type_error(

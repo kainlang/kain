@@ -28,6 +28,10 @@ cc_binary(
     deps = [
         "//runtime:runtime_headers_only",
     ],
+    linkopts = [
+        "user32.lib",
+        "gdi32.lib",
+    ],
     linkshared = True,
     visibility = ["//visibility:public"],
 )

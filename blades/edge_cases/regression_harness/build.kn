@@ -1,0 +1,39 @@
+use std::build
+
+// ============================================================================
+//  Regression Harness — build graph for the Kain compiler/runtime regression suite
+// ============================================================================
+//  Covers: Newsletter #1-#4 (GPU System Evolution, Component Surface,
+//  Multi-Backend GPU Presenter, Vulkan Rendering Pipeline).
+//  Each proof file is a standalone test with telemetry guards.
+//
+//  Run:  kain test src/ --target llvm
+//  Check: kain check src/regression_suite.kn --json
+// ============================================================================
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let project = project("regression-harness")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Regression test harness for Kain compiler & runtime changes — covers 4 newsletters, 8 subsystems, 21 source files")
+        .entry("src/regression_suite.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(project)
+        .target("llvm")
+
+    let exe = native_executable("regression-suite")
+        .project(project)
+        .output("$blade/regression_suite.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(project)
+        .task(check)
+        .task(exe)

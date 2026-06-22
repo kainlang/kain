@@ -30,6 +30,7 @@ const OFF_POLL_EVENT: u32 = 13;
 const OFF_SHOULD_CLOSE: u32 = 14;
 const OFF_WINDOW_OPEN: u32 = 15;
 const OFF_HOST_PUMP: u32 = 16;
+const OFF_SESSION_ATTACH_PLATFORM: u32 = 17;
 
 // ── JSX attribute → surface call mapping (Contract 11) ──────────────────
 struct AttrMapping {
@@ -310,8 +311,9 @@ impl LlvmGenerator {
         self.emit_label(&window_init_label);
 
         // window_open (vtable offset 15) — flag session as open.
-        // On Win32 the OS window was already created by the auto-attached
-        // winit host adapter in native_ui_session_create.
+        // The OS window was created by native_ui_session_create which
+        // auto-attaches the winit host adapter (RegisterClassA + CreateWindowExA).
+        // The rendering intent comes from the Kain source: `surface native_ui => Component`.
         let window_title_str = self.compile_static_c_string_literal(world_name);
         let _window_ok = self.emit_vtable_call(
             &surface_reg,
@@ -338,16 +340,6 @@ impl LlvmGenerator {
         let _pump_ok = self.emit_vtable_call(
             &surface_reg,
             OFF_HOST_PUMP,
-            "i64 (i64)*",
-            &[(&session_id, "i64")],
-        );
-
-        // poll_event (vtable offset 13) — drain input events into the
-        // component event system. The host adapter pushes OS events into
-        // the universal input format during pump; this flushes them.
-        let _polled = self.emit_vtable_call(
-            &surface_reg,
-            OFF_POLL_EVENT,
             "i64 (i64)*",
             &[(&session_id, "i64")],
         );

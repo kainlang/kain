@@ -100,7 +100,9 @@ fn main() -> Int:
 }
 
 #[test]
-fn typecheck_world_missing_surface_includes_semantic_surface_guidance() {
+fn typecheck_world_without_surface_is_valid_pure_state_authority() {
+    // Worlds without surfaces are now valid: they are pure state authorities.
+    // No frame loop is emitted, no window is created.
     let source = r#"world Demo:
     state hp: Int = 3
 
@@ -108,30 +110,8 @@ fn main() -> Int:
     return 0
 "#;
 
-    let err =
-        parse_and_typecheck(source).expect_err("typecheck should reject world without surface");
-    let rendered = render_error(source, "world.kn", &err);
-
-    assert!(
-        rendered.contains("world 'Demo' must declare at least one surface"),
-        "expected world error headline, got: {rendered}"
-    );
-    assert!(
-        rendered.contains("This world declaration is missing a surface clause."),
-        "expected semantic explanation, got: {rendered}"
-    );
-    assert!(
-        rendered.contains("Add a 'surface native_ui => ...' or 'surface web => ...' clause"),
-        "expected semantic repair help, got: {rendered}"
-    );
-
-    let json = err
-        .diagnostic_json()
-        .expect("rich world diagnostics should expose JSON");
-    assert_eq!(
-        json["diagnostics"][0]["semantic"]["failure_mode"],
-        "missing_surface"
-    );
+    // Should succeed — world without surface is a valid pure state authority
+    parse_and_typecheck(source).expect("world without surface should typecheck as pure state authority");
 }
 
 #[test]

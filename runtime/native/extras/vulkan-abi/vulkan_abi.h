@@ -245,6 +245,7 @@ typedef struct KainVulkanSession {
     void*               x11_display;
     uintptr_t           x11_window;
 #endif
+    int                 owns_window;   /* 1 if we created the window, 0 if external */
     int                 initialized;
 } KainVulkanSession;
 

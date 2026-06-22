@@ -237,18 +237,16 @@ entangle Physics.player_health <-> UI.health_display with single_writer
 }
 
 #[test]
-fn typecheck_rejects_world_without_any_surface() {
-    let source = r#"world Broken:
+fn typecheck_allows_world_without_surface_pure_state() {
+    // Worlds without surfaces are now valid: pure state authorities.
+    let source = r#"world Demo:
     state counter: Int = 0
 
-component App():
-    render <panel />
+fn main() -> Int:
+    return 0
 "#;
 
-    let error = parse_and_typecheck(source).expect_err("worlds without surfaces should fail");
-    assert!(error
-        .to_string()
-        .contains("must declare at least one surface"));
+    parse_and_typecheck(source).expect("world without surface should typecheck as pure state authority");
 }
 
 #[test]

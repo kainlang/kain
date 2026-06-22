@@ -22,6 +22,7 @@
 
 #include "ui_system.h"
 #include "component_surface.h"
+#include <stdlib.h>
 #include <string.h>
 
 // ============================================================================
@@ -187,25 +188,31 @@ static void wrap_end_frame(int64_t session_id) {
 }
 
 // ============================================================================
-//  session_create wrapper — auto-attaches winit backend on Win32.
+//  session_create wrapper — auto-attach winit host on Win32.
 // ============================================================================
 //  abi_ui_session_create sets host_backend = "memory" (no OS window).
-//  On Win32, we immediately attach the "winit" host adapter which calls
-//  RegisterClassA + CreateWindowExA to create a real visible HWND.
-//  Without this, the session is a headless memory buffer — the codegen's
-//  frame loop renders into it but nothing appears on screen.
+//  We then attach the "winit" host to create a real visible HWND.
+//
+//  This function is only called from compiler-emitted frame loops, which are
+//  only emitted for worlds that declare `surface native_ui => Component`.
+//  The Kain source IS the rendering intent — no env var needed.
+//
+//  For GPU backends (Vulkan, D3D12, WebGPU), the component_surface.c
+//  registry swaps the entire KainComponentSurface vtable at resolve time
+//  (based on RENDERER_BACKEND env var or ABI library availability). Those
+//  backends have their own session_create that creates swapchain windows.
+//  This function handles the GDI software path exclusively.
+//
+//  Programs that don't want a window simply don't declare a surface on
+//  their world. No surface → no frame loop → this function is never called.
 
 static int64_t native_ui_session_create(const char* name, int64_t width, int64_t height) {
     int64_t sid = abi_ui_session_create(name, width, height);
     if (sid <= 0) return sid;
 
+    // Render intent is declared in Kain source via `surface native_ui => Component`.
+    // Attach the winit host to create a real OS window.
 #ifdef _WIN32
-    // Auto-attach the "winit" backend to create a real OS window.
-    // This calls: abi_ui_host_attach → abi_ui_host_adapter_attach("winit")
-    //           → win32_host_create → RegisterClassA("KainWin32UI")
-    //           → CreateWindowExA(WS_OVERLAPPEDWINDOW | WS_VISIBLE)
-    //           → CreateDIBSection (GDI software framebuffer)
-    // The window appears immediately after this call.
     abi_ui_host_attach(sid, "winit");
 #endif
     return sid;
