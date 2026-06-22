@@ -6,6 +6,7 @@ mod model;
 mod platform;
 mod system_registry;
 mod port_overrides;
+mod vcpkg;
 mod vcpkg_plan;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
