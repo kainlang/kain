@@ -1897,10 +1897,6 @@ fn build_cache_hash(
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(resolved.import_name.as_bytes());
-    // Hash header content via fingerprint SHA-256 (not path, for cross-machine reuse)
-    if let Some(fp) = fingerprints.first() {
-        hasher.update(fp.sha256.as_bytes());
-    }
     // Hash shared library content if present
     if let Some(path) = &resolved.shared_lib_path {
         if let Ok(content) = std::fs::read(path) {
