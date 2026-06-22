@@ -274,19 +274,6 @@ pub fn prepare_native_link_inputs(
             .push(resolve_linkable_shared_library(shared)?);
     }
 
-    // If we ended up with no link inputs at all, that's unusual but not a build-blocker.
-    // The LLVM linker will surface unresolved symbols with actual names.
-    if inputs.link_inputs.is_empty()
-        && inputs.link_libs.is_empty()
-        && !resolved.config.toolchain_default_link
-    {
-        eprintln!(
-            "note: C FFI import '{}' resolved but produced no native-link inputs or link libraries; \
-             upstream link errors will name the specific missing symbols",
-            resolved.import_name
-        );
-    }
-
     Ok(inputs)
 }
 
@@ -301,10 +288,17 @@ pub fn augment_source_for_runtime(
     if AUGMENT_GUARD.with(|g| g.get()) {
         return Ok(source.to_string());
     }
-    AUGMENT_GUARD.with(|g| g.set(true));
-    let result = augment_source_for_runtime_inner(source, target, prepare);
-    AUGMENT_GUARD.with(|g| g.set(false));
-    result
+    {
+        struct AugmentGuard;
+        impl Drop for AugmentGuard {
+            fn drop(&mut self) {
+                AUGMENT_GUARD.with(|g| g.set(false));
+            }
+        }
+        AUGMENT_GUARD.with(|g| g.set(true));
+        let _guard = AugmentGuard;
+        augment_source_for_runtime_inner(source, target, prepare)
+    }
 }
 
 fn augment_source_for_runtime_inner(
@@ -3139,6 +3133,7 @@ fn main() -> Int:
         .expect("manifest");
 
         let source = "use c::beacon_math\nfn main() -> String:\n    assert(beacon_add(2, 3) == 5, \"expected add\")\n    assert(beacon_is_even(8), \"expected even\")\n    assert(beacon_scale(1.5, 4.0) == 6.0, \"expected scale\")\n    return beacon_label(7)\n";
+        eprintln!("[DIAG] augment start");
         let augmented = augment_source_for_runtime(
             source,
             CompileTarget::Interpret,
@@ -3148,17 +3143,29 @@ fn main() -> Int:
             },
         )
         .expect("augment");
+        eprintln!("[DIAG] augment done, len={}", augmented.len());
 
         let stdlib = kain_core::stdlib::load_stdlib_for_target(CompileTarget::Interpret);
+        eprintln!("[DIAG] stdlib loaded, len={}", stdlib.len());
         let full_source = format!("{stdlib}\n{augmented}");
+        eprintln!("[DIAG] lex start");
         let tokens = Lexer::new(&full_source).tokenize().expect("tokens");
+        eprintln!("[DIAG] lex done, {} tokens", tokens.len());
         let span_mapper = SpanMapper::new(&full_source);
+        eprintln!("[DIAG] parse start");
         let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
             .parse()
             .expect("parse");
+        eprintln!("[DIAG] parse done, {} items", ast.items.len());
+        eprintln!("[DIAG] comptime start");
         kain_core::comptime::eval_program(&mut ast).expect("comptime");
+        eprintln!("[DIAG] comptime done");
+        eprintln!("[DIAG] typecheck start");
         let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+        eprintln!("[DIAG] typecheck done, {} items", typed.items.len());
+        eprintln!("[DIAG] interpret start");
         let result = interpret(&typed).expect("interpret");
+        eprintln!("[DIAG] interpret done");
         match result {
             Value::String(value) => assert_eq!(value, "beacon-7"),
             other => panic!("expected String(\"beacon-7\"), got {other:?}"),
