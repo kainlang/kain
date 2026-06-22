@@ -29,7 +29,7 @@ use std::intent
 use std::memory
 
 // Frameless desktop window host — compiles kauri_host.c alongside
-include "../kauri_host.h" as host
+include "kauri_host.h" as host
 
 // ============================================================================
 //  CONSTANTS
