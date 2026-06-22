@@ -884,8 +884,26 @@ fn resolve_library_spec(
         return Ok(resolved);
     }
 
+    // Strategy 6: vcpkg on-demand fetch (when version constraint is present)
+    if let Some(version) = &spec.version {
+        let auto_fetch = std::env::var("KAIN_C_FFI_AUTO_FETCH")
+            .map(|v| v != "0" && v != "false")
+            .unwrap_or(true);
+        if auto_fetch {
+            // TODO: thread actual CompileTarget through call chain for
+            // correct triple selection when cross-compiling.
+            let target = CompileTarget::Llvm;
+            if let Some(mut resolved) =
+                crate::vcpkg::resolve_vcpkg_fetch(spec, &start_dir, version, target)?
+            {
+                resolved.0.version = spec.version.clone();
+                return Ok(resolved);
+            }
+        }
+    }
+
     Err(KainError::runtime(format!(
-        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml, discovered blades, local headers, or runtime/native/include"
+        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml, discovered blades, local headers, runtime/native/include, or vcpkg"
     )))
 }
 
