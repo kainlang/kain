@@ -57,7 +57,7 @@ fn triple_for_target(_target: CompileTarget) -> &'static str {
 /// 1. `KAIN_VCPKG_EXE` — explicit path to vcpkg binary
 /// 2. `VCPKG_ROOT` + `/vcpkg.exe` (Windows) or `/vcpkg` (Unix)
 /// 3. Well-known paths: `~/.kain/vcpkg/vcpkg.exe`, and the system PATH.
-fn find_vcpkg_binary() -> Result<PathBuf, KainError> {
+pub fn find_vcpkg_binary() -> Result<PathBuf, KainError> {
     // 1. KAIN_VCPKG_EXE override
     if let Ok(exe) = env::var("KAIN_VCPKG_EXE") {
         let path = PathBuf::from(&exe);

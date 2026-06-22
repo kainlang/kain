@@ -5248,6 +5248,16 @@ fn print_doctor(active_launcher: LauncherKind) {
         if cfg!(feature = "sys") { "on" } else { "off" },
     );
 
+    // vcpkg detection (for versioned C includes)
+    match kain_c_ffi::vcpkg::find_vcpkg_binary() {
+        Ok(path) => println!(" vcpkg Binary: {}", path.display()),
+        Err(_) => println!(" vcpkg Binary: <not found> (set KAIN_VCPKG_EXE or VCPKG_ROOT)"),
+    }
+    println!(
+        " vcpkg Root: {}",
+        kain_c_ffi::vcpkg::resolve_vcpkg_root().display()
+    );
+
     println!(
         " PATH Match Status (kain): {}",
         doctor_path_status(current_exe.as_deref(), kain_path_command.as_deref(), "kain")
