@@ -244,6 +244,7 @@ pub fn prepare_native_link_inputs(
     let mut inputs = CNativeLinkInputs {
         link_inputs: Vec::new(),
         link_libs: collect_link_libs(resolved),
+        library_search_paths: Vec::new(),
     };
 
     // Runtime-owned imports are linked by the native runtime itself.
@@ -274,6 +275,32 @@ pub fn prepare_native_link_inputs(
             .link_inputs
             .push(resolve_linkable_shared_library(shared)?);
     }
+
+    // Collect library search paths from parent directories of every link input.
+    // This enables vcpkg (and any non-system-tree) libraries to be discovered
+    // by the linker when -l<name> is emitted.
+    let mut library_search_paths = Vec::new();
+    for path in inputs.link_inputs.iter().chain(
+        resolved.static_lib_paths.iter()
+            .chain(resolved.object_paths.iter())
+            .chain(resolved.bitcode_paths.iter())
+    ) {
+        if let Some(parent) = path.parent() {
+            let parent = parent.to_path_buf();
+            if !library_search_paths.contains(&parent) {
+                library_search_paths.push(parent);
+            }
+        }
+    }
+    if let Some(shared) = &resolved.shared_lib_path {
+        if let Some(parent) = shared.parent() {
+            let parent = parent.to_path_buf();
+            if !library_search_paths.contains(&parent) {
+                library_search_paths.push(parent);
+            }
+        }
+    }
+    inputs.library_search_paths = library_search_paths;
 
     Ok(inputs)
 }

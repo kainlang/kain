@@ -153,6 +153,7 @@ struct NativeRuntimeCompiledArtifacts {
 struct CffiNativeLinkInputs {
     link_inputs: Vec<PathBuf>,
     link_libs: Vec<String>,
+    library_search_paths: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1858,7 +1859,7 @@ fn run_source_with_session(
                             loose_objects: cffi_link_inputs.link_inputs.clone(),
                             static_archives: Vec::new(),
                             link_libs: cffi_link_inputs.link_libs.clone(),
-                            library_search_paths: Vec::new(),
+                            library_search_paths: cffi_link_inputs.library_search_paths.clone(),
                         }
                     } else {
                         // Runtime needed — combine runtime artifacts + C FFI inputs
@@ -1876,7 +1877,7 @@ fn run_source_with_session(
                             loose_objects: loose,
                             static_archives: runtime_artifacts.static_archives.clone(),
                             link_libs: libs,
-                            library_search_paths: Vec::new(),
+                            library_search_paths: cffi_link_inputs.library_search_paths.clone(),
                         }
                     };
 
@@ -5922,6 +5923,7 @@ fn resolve_c_ffi_native_link_inputs(
 
     let mut link_inputs = Vec::new();
     let mut link_libs = Vec::new();
+    let mut library_search_paths = Vec::new();
     let compile_args = native_toolchain_tuning.clang_compile_args();
     for spec in import_specs {
         let output = kain_c_ffi::import_library_for_spec(
@@ -5937,6 +5939,7 @@ fn resolve_c_ffi_native_link_inputs(
             .map_err(|err| err.to_string())?;
         link_inputs.extend(inputs.link_inputs);
         link_libs.extend(inputs.link_libs);
+        library_search_paths.extend(inputs.library_search_paths);
     }
     for import_name in project_import_names {
         let output = kain_c_ffi::import_library(
@@ -5952,11 +5955,13 @@ fn resolve_c_ffi_native_link_inputs(
             .map_err(|err| err.to_string())?;
         link_inputs.extend(inputs.link_inputs);
         link_libs.extend(inputs.link_libs);
+        library_search_paths.extend(inputs.library_search_paths);
     }
 
     Ok(CffiNativeLinkInputs {
         link_inputs,
         link_libs: unique_link_libs(link_libs),
+        library_search_paths,
     })
 }
 

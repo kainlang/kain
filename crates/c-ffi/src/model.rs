@@ -400,4 +400,5 @@ pub struct ImportCOutput {
 pub struct CNativeLinkInputs {
     pub link_inputs: Vec<PathBuf>,
     pub link_libs: Vec<String>,
+    pub library_search_paths: Vec<PathBuf>,
 }
