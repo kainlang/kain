@@ -105,7 +105,7 @@ pub fn collect_versioned_includes(source: &str) -> Vec<(String, String)> {
 
 /// Compare two version strings numerically (dotted-decimal), falling back to
 /// lexicographic when segments are not parseable as integers.
-fn version_gt(a: &str, b: &str) -> bool {
+pub fn version_gt(a: &str, b: &str) -> bool {
     let a_segs: Vec<u64> = a.split('.').filter_map(|s| s.parse().ok()).collect();
     let b_segs: Vec<u64> = b.split('.').filter_map(|s| s.parse().ok()).collect();
     // If both are fully numeric dotted-decimal, compare integer segments

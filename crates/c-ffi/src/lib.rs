@@ -5,9 +5,9 @@ mod libclang_extract;
 mod model;
 mod platform;
 mod system_registry;
-mod port_overrides;
-mod vcpkg;
-mod vcpkg_plan;
+pub mod port_overrides;
+pub mod vcpkg;
+pub mod vcpkg_plan;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
