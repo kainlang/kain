@@ -1,6 +1,7 @@
 pub const BUILD_KIND_CHECK: String = "check"
 pub const BUILD_KIND_NATIVE_EXECUTABLE: String = "native-executable"
-pub const BUILD_KIND_TEST: String = "test"
+pub const BUILD_KIND_NATIVE_LIBRARY:   String = "native-library"
+pub const BUILD_KIND_TEST:              String = "test"
 pub const BUILD_KIND_PROOF: String = "proof"
 pub const BUILD_KIND_BENCHMARK: String = "benchmark"
 pub const BUILD_KIND_ATTRITION: String = "attrition"
@@ -243,6 +244,12 @@ pub fn root_executable(id: String) -> BuildTaskSpec:
 
 pub fn build_native_executable(id: String) -> BuildTaskSpec:
     return native_executable(id)
+
+pub fn native_library(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_NATIVE_LIBRARY)
+
+pub fn shared_library(id: String) -> BuildTaskSpec:
+    return native_library(id)
 
 pub fn exec_task(id: String) -> BuildTaskSpec:
     return build_task_of_kind(id, BUILD_KIND_EXEC)

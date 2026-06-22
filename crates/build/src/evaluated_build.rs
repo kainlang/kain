@@ -1839,6 +1839,7 @@ fn simple_task_kind(name: &str) -> Option<&'static str> {
         "native_executable" | "root_executable" | "build_native_executable" => {
             Some("native-executable")
         }
+        "native_library" | "shared_library" => Some("native-library"),
         "test_task" | "test_suite" | "source_tests" => Some("test"),
         "proof_task" | "proof_obligation" | "z3_proof" => Some("proof"),
         "bench_task" | "bench_case" | "benchmark_task" => Some("benchmark"),

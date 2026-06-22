@@ -7,6 +7,19 @@ use crate::omni::OmniCommand;
 use crate::repair::DoctorRepairArgs;
 use crate::selfhost::SelfHostCommand;
 
+/// Output artifact type for native builds.
+#[derive(ValueEnum, Clone, Debug)]
+pub enum EmitMode {
+    /// Standalone executable (default)
+    Exe,
+    /// Shared library / DLL
+    SharedLib,
+    /// Static library
+    StaticLib,
+    /// Object file
+    Object,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum AmalgamateCommand {
     /// Inspect a Kain capsule and print its metadata, file inventory, and symbol index
@@ -574,6 +587,10 @@ pub enum KainCommand {
         /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
         #[arg(long)]
         embed: bool,
+
+        /// Output artifact type for native builds. Implies --target llvm.
+        #[arg(long, value_enum)]
+        emit: Option<EmitMode>,
     },
 
     /// Run a file, blade, manifest, or workspace through the unified run pipeline

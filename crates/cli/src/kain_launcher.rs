@@ -35,8 +35,8 @@ use kain_c_ffi::{
     PrepareContext as CPrepareContext,
 };
 use kain_commands::kain::{
-    BridgeCommand, BuildCommand, ImportCommand, KainCli as Args, KainCommand as Commands,
-    NativeUiCommand, RegistryCommand, RunCommand,
+    BridgeCommand, BuildCommand, EmitMode, ImportCommand, KainCli as Args,
+    KainCommand as Commands, NativeUiCommand, RegistryCommand, RunCommand,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use kain_fmt::{format_source_with_options, FormatOptions};
@@ -417,6 +417,15 @@ fn parse_build_lane(value: Option<&str>) -> Result<Option<kain_build::BuildLane>
             })
         })
         .transpose()
+}
+
+fn resolve_emit_mode(mode: Option<EmitMode>) -> kain_build::NativeEmit {
+    match mode {
+        Some(EmitMode::SharedLib) => kain_build::NativeEmit::SharedLib,
+        Some(EmitMode::StaticLib) => kain_build::NativeEmit::StaticLib,
+        Some(EmitMode::Object) => kain_build::NativeEmit::Object,
+        Some(EmitMode::Exe) | None => kain_build::NativeEmit::Exe,
+    }
 }
 
 fn read_source_from_path(input: &Path) -> Result<String, String> {
@@ -3130,6 +3139,7 @@ fn run_project_build_command(
     target_overrides: Option<Vec<String>>,
     lane: Option<kain_build::BuildLane>,
     clean: bool,
+    emit: kain_build::NativeEmit,
 ) -> Result<(), String> {
     if project_build_uses_build_authority(&project_root, target_overrides.as_ref()) {
         let mut options = kain_build::BladeBuildOptions::new(project_root);
@@ -3142,6 +3152,7 @@ fn run_project_build_command(
     }
 
     let mut options = kain_build::KainProjectBuildOptions::new(project_root);
+    options.emit = emit;
     options.target_overrides = target_overrides;
     options.lane = lane;
     options.clean = clean;
@@ -4093,6 +4104,7 @@ pub fn main_entry() {
                     ue5,
                     r#rust,
                     embed,
+                    emit,
                 }) => {
                     let lane = match parse_build_lane(lane.as_deref()) {
                         Ok(lane) => lane,
@@ -4250,6 +4262,7 @@ pub fn main_entry() {
                                         };
                                         let mut options =
                                             kain_build::KainFileBuildOptions::new(file, resolved_target);
+                                        options.emit = resolve_emit_mode(emit.clone());
                                         options.output = output.clone();
                                         options.lane = lane;
                                         options.clean = clean;
@@ -4280,6 +4293,7 @@ pub fn main_entry() {
                                             target_overrides,
                                             lane,
                                             clean,
+                                            resolve_emit_mode(emit.clone()),
                                         ) {
                                             eprintln!(" Build failed: {}", e);
                                             std::process::exit(1);
@@ -4303,6 +4317,7 @@ pub fn main_entry() {
                                     target_overrides,
                                     lane,
                                     clean,
+                                    resolve_emit_mode(emit.clone()),
                                 ) {
                                     eprintln!(" Build failed: {}", e);
                                     std::process::exit(1);

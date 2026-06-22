@@ -227,6 +227,7 @@ pub enum BuildTaskKind {
     BladeCheck,
     KainCheck,
     KainCompile,
+    KainNativeLibrary,
     NativeExecutable,
     Test,
     Proof,
@@ -252,6 +253,7 @@ impl BuildTaskKind {
             Self::BladeCheck => "blade-check",
             Self::KainCheck => "kain-check",
             Self::KainCompile => "kain-compile",
+            Self::KainNativeLibrary => "kain-native-library",
             Self::NativeExecutable => "native-executable",
             Self::Test => "test",
             Self::Proof => "proof",
@@ -569,6 +571,7 @@ pub struct KainProjectBuildOptions {
     pub path: PathBuf,
     pub target_overrides: Option<Vec<String>>,
     pub rust_only: bool,
+    pub emit: NativeEmit,
     pub profile: Option<String>,
     pub lane: Option<BuildLane>,
     pub dry_run: bool,
@@ -583,6 +586,7 @@ impl KainProjectBuildOptions {
             path: path.into(),
             target_overrides: None,
             rust_only: false,
+            emit: NativeEmit::default(),
             profile: None,
             lane: None,
             dry_run: false,
@@ -1184,7 +1188,7 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 adapter: BuildTaskAdapter::KainCompile {
                     source: entry.clone(),
                     target,
-                    emit: NativeEmit::default(),
+                    emit: options.emit,
                     primary_output,
                     materialized_primary_output: None,
                     root_component: None,
@@ -1775,6 +1779,8 @@ const BUILD_TASK_CONSTRUCTORS: &[(&str, Option<&str>)] = &[
     ("native_executable", Some("native-executable")),
     ("root_executable", Some("native-executable")),
     ("build_native_executable", Some("native-executable")),
+    ("native_library", Some("native-library")),
+    ("shared_library", Some("native-library")),
     ("test_task", Some("test")),
     ("test_suite", Some("test")),
     ("proof_task", Some("proof")),
@@ -2341,6 +2347,7 @@ fn build_explicit_task(
         "native-executable" | "root-executable" | "executable" | "exe" => {
             BuildTaskKind::NativeExecutable
         }
+        "native-library" | "shared-library" | "dylib" => BuildTaskKind::KainNativeLibrary,
         "test" | "kain-test" | "std-test" | "std::test" => BuildTaskKind::Test,
         "proof" | "prove" | "z3" | "smt" => BuildTaskKind::Proof,
         "benchmark" | "bench" => BuildTaskKind::Benchmark,
@@ -2432,6 +2439,37 @@ fn build_explicit_task(
                 script_path,
                 report_path: default_evidence_report.clone(),
                 verify_llvm: !task.args.iter().any(|arg| arg == "--no-verify-llvm"),
+            }
+        }
+        BuildTaskKind::KainNativeLibrary => {
+            let entry = task.entry.as_ref().ok_or_else(|| {
+                BuildError::Config(format!(
+                    "native library task '{}' requires entry",
+                    task.id
+                ))
+            })?;
+            let entry = resolve_build_graph_path(&config.workspace_root, root, &task_root, entry);
+            let target = task
+                .target
+                .as_deref()
+                .and_then(CompileTarget::from_str)
+                .unwrap_or(CompileTarget::Llvm);
+            let primary_output = task_root.join(format!(
+                "{}.{}",
+                entry.file_stem().and_then(|s| s.to_str()).unwrap_or("output"),
+                kain_driver::target_extension(target)
+            ));
+            let mut outputs = kain_compile_expected_outputs(target, &primary_output, None);
+            outputs.push(artifact_manifest_path(&task_root));
+            append_native_runtime_cache_inputs(&mut inputs, root)?;
+            BuildTaskAdapter::KainCompile {
+                source: entry,
+                target,
+                emit: NativeEmit::SharedLib,
+                primary_output,
+                materialized_primary_output: None,
+                root_component: None,
+                debug_info: false,
             }
         }
         BuildTaskKind::Test | BuildTaskKind::Proof => {

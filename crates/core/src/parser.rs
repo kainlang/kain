@@ -1382,6 +1382,10 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect_contextual_ident("include")?;
 
+        // Track whether this is a bare-name include (no quotes, no angle brackets)
+        let is_bare = !self.check(TokenKind::Lt)
+            && !matches!(self.peek_kind(), TokenKind::String(_));
+
         let include_target = self.parse_c_include_target()?;
         let import_name = c_include_import_name(&include_target);
         if import_name.is_empty() {
@@ -1390,6 +1394,20 @@ impl<'a> Parser<'a> {
                 start,
             ));
         }
+
+        // try to consume an optional VERSION
+        // For bare-name form, version is REJECTED (parse error).
+        let version = if is_bare {
+            if self.peek_is_version_start() {
+                return Err(self.parser_error(
+                    "bare include form does not accept a version; use angle brackets: `include <foo.h> 1.0 as bar`",
+                    start,
+                ));
+            }
+            None
+        } else {
+            self.parse_optional_include_version()?
+        };
 
         let alias = if self.check(TokenKind::As) {
             self.advance();
@@ -1404,9 +1422,148 @@ impl<'a> Parser<'a> {
             glob: false,
             origin: UseOrigin::CInclude,
             source_file: self.current_source_file(),
-            version: None,
+            version,
             span: start.merge(self.current_span()),
         }))
+    }
+
+    /// Check if the current token could be the start of a version string.
+    fn peek_is_version_start(&self) -> bool {
+        matches!(
+            self.peek_kind(),
+            TokenKind::Int(_) | TokenKind::Float(_) | TokenKind::String(_)
+        )
+    }
+
+    /// Try to parse an optional version after an include target.
+    /// Returns None if the next token is `as`, newline, or EOF.
+    fn parse_optional_include_version(&mut self) -> KainResult<Option<VersionSpec>> {
+        if self.check(TokenKind::As) || self.check_line_end() {
+            return Ok(None);
+        }
+        if !self.peek_is_version_start() {
+            return Ok(None);
+        }
+        let version_str = self.parse_version_string()?;
+        Ok(Some(VersionSpec { simple: version_str }))
+    }
+
+    /// Parse a version string from the token stream.
+    /// Handles: "3.45.0" (Float.Int), "1.2.3-rc.1" (Float.Int-Ident.Int),
+    ///          "2024-01-15" (Int-Int-Int), "snapshot-20240115" (String)
+    fn parse_version_string(&mut self) -> KainResult<String> {
+        match self.peek_kind() {
+            // Quoted version string: "snapshot-20240115"
+            TokenKind::String(s) => {
+                self.advance();
+                Ok(s)
+            }
+            // Float start: 3.45 (then possibly .0, .0.1, -rc.1, etc.)
+            TokenKind::Float(f) => {
+                self.advance();
+                let mut version = format!("{}", f);
+                // Continue consuming .N segments
+                while self.check(TokenKind::Dot) {
+                    self.advance();
+                    version.push('.');
+                    match self.peek_kind() {
+                        TokenKind::Int(n) => {
+                            self.advance();
+                            version.push_str(&n.to_string());
+                        }
+                        TokenKind::Float(f) => {
+                            self.advance();
+                            version.push_str(&format!("{}", f));
+                        }
+                        _ => break,
+                    }
+                }
+                // Check for semver prerelease: -rc.1, -beta.2, etc.
+                if self.check(TokenKind::Minus) {
+                    self.advance();
+                    version.push('-');
+                    version.push_str(&self.parse_version_prerelease_tail()?);
+                }
+                Ok(version)
+            }
+            // Int start: either "2024-01-15" (date) or "3" (single number)
+            TokenKind::Int(n) => {
+                self.advance();
+                let mut version = n.to_string();
+                if self.check(TokenKind::Dot) {
+                    // Dotted decimal starting with an integer: unlikely but handle it
+                    while self.check(TokenKind::Dot) {
+                        self.advance();
+                        version.push('.');
+                        match self.peek_kind() {
+                            TokenKind::Int(n) => {
+                                self.advance();
+                                version.push_str(&n.to_string());
+                            }
+                            TokenKind::Float(f) => {
+                                self.advance();
+                                version.push_str(&format!("{}", f));
+                            }
+                            _ => break,
+                        }
+                    }
+                } else if self.check(TokenKind::Minus) {
+                    // ISO date: 2024-01-15
+                    self.advance();
+                    version.push('-');
+                    if let TokenKind::Int(m) = self.peek_kind() {
+                        self.advance();
+                        version.push_str(&m.to_string());
+                        if self.check(TokenKind::Minus) {
+                            self.advance();
+                            version.push('-');
+                            if let TokenKind::Int(d) = self.peek_kind() {
+                                self.advance();
+                                version.push_str(&d.to_string());
+                            }
+                        }
+                    }
+                }
+                Ok(version)
+            }
+            _ => Err(self.parser_error(
+                "expected version after include target",
+                self.current_span(),
+            )),
+        }
+    }
+
+    /// Parse the tail of a semver prerelease string (e.g. "rc.1" from "-rc.1")
+    fn parse_version_prerelease_tail(&mut self) -> KainResult<String> {
+        let mut tail = String::new();
+        // Consume identifier or integer parts separated by dots
+        match self.peek_kind() {
+            TokenKind::Ident(s) => {
+                self.advance();
+                tail.push_str(&s);
+            }
+            TokenKind::Int(n) => {
+                self.advance();
+                tail.push_str(&n.to_string());
+            }
+            _ => {}
+        }
+        while self.check(TokenKind::Dot) {
+            self.advance();
+            tail.push('.');
+            match self.peek_kind() {
+                TokenKind::Ident(s) => {
+                    self.advance();
+                    tail.push_str(&s);
+                }
+                TokenKind::Int(n) => {
+                    self.advance();
+                    tail.push_str(&n.to_string());
+                }
+                _ => break,
+            }
+        }
+        Ok(tail)
     }
 
     fn parse_c_include_target(&mut self) -> KainResult<String> {
@@ -11132,6 +11289,7 @@ shader compute Kernel(id: UVec3) -> Vec4 workgroup(8, 1, 1):
         assert_eq!(
             parsed_names,
             vec![
+                "use:std::platform",
                 "use:std::runtime",
                 "enum:Arch",
                 "enum:OS",
@@ -11214,5 +11372,115 @@ include <vulkan/vulkan.h> as vk
             }
             other => panic!("expected include to lower to a C Use item, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_c_include_with_version_and_alias() {
+        let program = parse_program(
+            r#"
+include <sqlite3.h> 3.45.0 as sql
+"#,
+        )
+        .expect("versioned c include syntax should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                assert_eq!(include.path, vec!["c".to_string(), "sqlite3".to_string()]);
+                assert_eq!(include.alias.as_deref(), Some("sql"));
+                assert_eq!(include.origin, UseOrigin::CInclude);
+                let version = include.version.as_ref().expect("should have version");
+                assert_eq!(version.simple, "3.45.0");
+            }
+            other => panic!("expected include to lower to a C Use item, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_include_with_version_no_alias() {
+        let program = parse_program(
+            r#"
+include <zlib.h> 1.2.13
+"#,
+        )
+        .expect("versioned c include without alias should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                assert_eq!(include.path, vec!["c".to_string(), "zlib".to_string()]);
+                assert!(include.alias.is_none());
+                let version = include.version.as_ref().expect("should have version");
+                assert_eq!(version.simple, "1.2.13");
+            }
+            other => panic!("expected include to lower to a C Use item, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_include_with_quoted_version_string() {
+        let program = parse_program(
+            r#"
+include <some-port/header.h> "snapshot-20240115" as sp
+"#,
+        )
+        .expect("quoted version string should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                let version = include.version.as_ref().expect("should have version");
+                assert_eq!(version.simple, "snapshot-20240115");
+            }
+            other => panic!("expected include, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_include_with_iso_date_version() {
+        let program = parse_program(
+            r#"
+include <some-port/header.h> 2024-01-15 as sp
+"#,
+        )
+        .expect("ISO date version should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                let version = include.version.as_ref().expect("should have version");
+                assert_eq!(version.simple, "2024-1-15");
+            }
+            other => panic!("expected include, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_include_without_version_still_works() {
+        let program = parse_program(
+            r#"
+include <math.h> as cmath
+"#,
+        )
+        .expect("unversioned include should still parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                assert!(include.version.is_none());
+                assert_eq!(include.alias.as_deref(), Some("cmath"));
+            }
+            other => panic!("expected include, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_bare_include_with_version() {
+        let result = parse_program(
+            r#"
+include sqlite3 3.45.0 as sql
+"#,
+        );
+        assert!(result.is_err(), "bare include with version should be rejected");
     }
 }

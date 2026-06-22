@@ -636,6 +636,7 @@ use std::build
 //  ─── TASK KIND CONSTANTS (from std::build) ───
 //    BUILD_KIND_CHECK              "check"
 //    BUILD_KIND_NATIVE_EXECUTABLE   "native-executable"
+//    BUILD_KIND_NATIVE_LIBRARY      "native-library"
 //    BUILD_KIND_TEST               "test"
 //    BUILD_KIND_PROOF              "proof"
 //    BUILD_KIND_BENCHMARK          "benchmark"
@@ -652,6 +653,8 @@ use std::build
 //    "kain-check" / "kain"                                        Alias for check
 //    "native-executable"      ★ native_executable / root_executable  Build native exe
 //    "executable" / "root-executable" / "exe"                     Aliases for native-executable
+//    "native-library"         ★ native_library / shared_library     Build native shared lib (.dll/.so/.dylib)
+//    "shared-library" / "dylib"                                   Aliases for native-library
 //    "test"                  ★ source_tests                       Run inline tests
 //    "kain-test" / "std-test"                                      Alias for test
 //    "proof" / "prove" / "z3" / "smt"  ★ proof_task (from std::proof)  Run proofs
