@@ -1,0 +1,507 @@
+// ============================================================================
+//  main.kn — Kauri Entry Point
+//
+//  Kauri = Kain backend + TypeScript frontend, zero bloat.
+//  No C code. No build dependencies. Just Kain stdlib.
+//
+//  Architecture:
+//    - HTTP server on localhost via std::net
+//    - API routed to actors via http_route_actor
+//    - Static files served from frontend/ directory
+//    - Webview auto-launched via os_system
+//    - World state with entangled mirror (compiler-owned)
+//
+//  Frontend: any TS/React app in frontend/ communicating over HTTP/JSON.
+//    ./kauri-client.ts wraps fetch() for the bridge.
+//
+//  Build:  kain build --target llvm
+//  Run:    kauri.exe
+//  Dev:    kain run src/main.kn --target llvm -- --dashboard
+// ============================================================================
+
+use std::runtime
+use std::net
+use std::actor
+use std::os
+use std::process
+use std::intent
+use std::memory
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const KAURI_VERSION: String = "0.1.0"
+pub const KAURI_DEFAULT_PORT: Int = 9090
+pub const FRONTEND_DIR: String = "frontend"
+
+// ============================================================================
+//  WORLD STATE — compiler-owned, entangled dual-world for lock-free reads
+// ============================================================================
+
+world KauriState:
+    state total_requests: Int = 0
+    state epoch: Int = 0
+
+patch increment_requests() -> Int:
+    KauriState.total_requests = KauriState.total_requests + 1
+    KauriState.epoch = KauriState.epoch + 1
+    return KauriState.epoch
+
+// ============================================================================
+//  CONFIG
+// ============================================================================
+
+pub struct KauriConfig:
+    port: Int
+    show_dashboard: Bool
+    auto_launch: Bool
+    app_mode: String
+
+pub fn default_cfg() -> KauriConfig:
+    return KauriConfig { port: KAURI_DEFAULT_PORT, show_dashboard: false, auto_launch: true, app_mode: "browser" }
+
+// ============================================================================
+//  CLI
+// ============================================================================
+
+pub fn parse_args(argv: Array<String>) -> KauriConfig:
+    var cfg = default_cfg()
+    var done: Bool = false
+    var i: Int = 0
+    while i < len(argv):
+        let a = argv[i]
+        if a == "--": done = true
+        if done == false:
+            if a == "--port" or a == "-p":
+                if i + 1 < len(argv):
+                    let n = int_or(argv[i + 1], KAURI_DEFAULT_PORT)
+                    if n > 0: cfg.port = n
+                    i = i + 1
+            elif a == "--dashboard" or a == "-d":
+                cfg.show_dashboard = true
+            elif a == "--no-launch":
+                cfg.auto_launch = false
+            elif a == "--app-mode":
+                if i + 1 < len(argv):
+                    cfg.app_mode = argv[i + 1]
+                    i = i + 1
+        i = i + 1
+    return cfg
+
+pub fn usage():
+    println("Kauri v" + KAURI_VERSION + " — Kain + TypeScript app server")
+    println("  -p, --port <N>     HTTP port (default: " + str(KAURI_DEFAULT_PORT) + ")")
+    println("  -d, --dashboard    Live terminal dashboard")
+    println("      --no-launch    Don't open webview")
+    println("      --app-mode <m> edge, browser, none")
+
+// ============================================================================
+//  MIME + STATIC FILES
+// ============================================================================
+
+pub fn mime_for(path: String) -> String:
+    var ext: String = ""
+    var dot: Int = -1
+    var i: Int = 0
+    while i < len(path):
+        if char_at(path, i) == ".": dot = i
+        i = i + 1
+    if dot >= 0:
+        var j: Int = dot + 1
+        while j < len(path):
+            ext = ext + char_at(path, j)
+            j = j + 1
+    if ext == "html" or ext == "htm": return "text/html; charset=utf-8"
+    if ext == "css": return "text/css; charset=utf-8"
+    if ext == "js" or ext == "mjs": return "application/javascript; charset=utf-8"
+    if ext == "json": return "application/json"
+    if ext == "png": return "image/png"
+    if ext == "svg": return "image/svg+xml"
+    if ext == "ico": return "image/x-icon"
+    return "application/octet-stream"
+
+pub fn serve_file(dir: String, req_path: String) -> (Int, String, String):
+    var p: String = req_path
+    if p == "/" or p == "": p = "/index.html"
+    // strip /
+    var clean: String = ""
+    var started: Bool = false
+    var i: Int = 0
+    while i < len(p):
+        if started == false:
+            if char_at(p, i) != "/":
+                started = true
+                clean = clean + char_at(p, i)
+        else:
+            clean = clean + char_at(p, i)
+        i = i + 1
+
+    // Try multiple possible frontend root locations
+    var roots: Array<String> = []
+    let cwd = os_getcwd()
+    let exe_dir = os_dirname(process_current_executable_path())
+    let parent = os_dirname(cwd)
+    push(roots, dir)                                    // 1. relative to CWD
+    push(roots, cwd + "/" + dir)                        // 2. CWD + frontend
+    push(roots, parent + "/" + dir)                     // 3. parent of CWD + frontend
+    push(roots, os_dirname(parent) + "/" + dir)         // 4. grandparent + frontend
+    push(roots, exe_dir + "/" + dir)                    // 5. exe dir + frontend
+
+    var ri: Int = 0
+    while ri < len(roots):
+        let root = roots[ri]
+        let full = root + "/" + clean
+
+        // security: reject ..
+        var safe: Bool = true
+        var j: Int = 0
+        while j < len(full) - 1:
+            if char_at(full, j) == "." and char_at(full, j + 1) == ".":
+                safe = false
+                j = len(full)
+            j = j + 1
+        if safe == false:
+            ri = ri + 1
+            continue
+
+        if os_isfile(full):
+            let content = os_read_text(full)
+            return (200, mime_for(full), content)
+        ri = ri + 1
+
+    return (404, "text/plain", "Not Found: " + req_path + " (tried " + str(len(roots)) + " roots)")
+
+pub fn os_dirname(path: String) -> String:
+    var last_sep: Int = -1
+    var i: Int = 0
+    while i < len(path):
+        if char_at(path, i) == "/" or char_at(path, i) == "\\":
+            last_sep = i
+        i = i + 1
+    if last_sep < 0:
+        return "."
+    var result: String = ""
+    var j: Int = 0
+    while j < last_sep:
+        result = result + char_at(path, j)
+        j = j + 1
+    return result
+
+pub fn launch_webview(port: Int, mode: String) -> Int:
+    let url = "http://127.0.0.1:" + str(port)
+    if mode == "edge":
+        return os_system("start msedge --app=" + url + " --no-first-run --no-default-browser-check")
+    if mode == "browser":
+        if os_is_windows(): return os_system("start " + url)
+        if os_is_macos(): return os_system("open " + url)
+        return os_system("xdg-open " + url)
+    return 0
+
+// ============================================================================
+//  INT OR — safe string to int
+// ============================================================================
+
+pub fn int_or(s: String, fallback: Int) -> Int:
+    if s == "": return fallback
+    var r: Int = 0
+    var i: Int = 0
+    while i < len(s):
+        let c = char_at(s, i)
+        if c == "0": r = r * 10
+        elif c == "1": r = r * 10 + 1
+        elif c == "2": r = r * 10 + 2
+        elif c == "3": r = r * 10 + 3
+        elif c == "4": r = r * 10 + 4
+        elif c == "5": r = r * 10 + 5
+        elif c == "6": r = r * 10 + 6
+        elif c == "7": r = r * 10 + 7
+        elif c == "8": r = r * 10 + 8
+        elif c == "9": r = r * 10 + 9
+        else: return fallback
+        i = i + 1
+    return r
+
+// ============================================================================
+//  HTTP REQUEST HANDLER — manual pump for full control
+//
+//  Two APIs:
+//    1. api_handle(server, port) — process ONE request and route it
+//    2. api_run(server, port, cfg) — pump loop
+//
+//  API routes:  /api/counter, /api/increment, /api/echo, /api/telemetry
+//  Static:      /* → frontend/ files with SPA fallback
+// ============================================================================
+
+// ============================================================================
+//  START
+// ============================================================================
+
+pub fn start(cfg: KauriConfig) -> (Int, Int):
+    if net_platform_available() != 1:
+        println("kauri: network unavailable")
+        return (-1, -1)
+    let server = http_server_create_localhost(cfg.port)
+    if server <= 0:
+        println("kauri: server create failed")
+        return (-2, -2)
+    if http_server_listen(server) != 0:
+        println("kauri: listen failed")
+        return (-3, -3)
+    let port = http_server_local_port(server)
+    if port <= 0:
+        println("kauri: no port")
+        return (-4, -4)
+
+    println("")
+    println("  \xF0\x9F\x8C\x8A Kauri v" + KAURI_VERSION + "  Kain + TypeScript")
+    println("  HTTP:  http://127.0.0.1:" + str(port))
+    println("  API:   /api/counter, /api/increment, /api/echo, /api/telemetry")
+    println("  Dir:   " + FRONTEND_DIR + "/")
+
+    if cfg.auto_launch:
+        let _ = launch_webview(port, cfg.app_mode)
+    return (server, port)
+
+// ============================================================================
+//  RUN — manual pump loop, no http_route_actor needed
+// ============================================================================
+
+pub fn run(server: Int, port: Int, cfg: KauriConfig) -> Int:
+    var tick: Int = 0
+    loop:
+        // http_server_pump blocks until a request arrives (up to 100ms) and
+        // returns the request_id. The timeout is just an upper bound — if a
+        // request arrives sooner, pump returns immediately with the request.
+        let req_id = http_server_pump(server, 100)
+        if req_id > 0:
+            handle_request(req_id)
+            // Drain any additional queued requests
+            var more: Int = http_server_next_request(server)
+            while more > 0:
+                handle_request(more)
+                more = http_server_next_request(server)
+
+        // Dashboard tick (every loop iteration, ~100ms when idle)
+        if cfg.show_dashboard:
+            tick = tick + 1
+            if tick % 10 == 0:
+                let sec = tick / 10
+                let dash: String = "\r[kauri " + str(sec) + "s]  reqs=" + str(KauriState.total_requests) + "  ep=" + str(KauriState.epoch)
+                if sec <= 1:
+                    println(dash)
+                else:
+                    print(dash)
+
+    return 0
+
+// ============================================================================
+//  HANDLE A SINGLE REQUEST — read path, route, respond
+// ============================================================================
+
+pub fn handle_request(req_id: Int):
+    let method = http_request_method(req_id)
+    let path = http_request_path(req_id)
+
+    if path == "/api/counter":
+        let body: String = "{\"counter\": " + str(KauriState.total_requests) + ", \"epoch\": " + str(KauriState.epoch) + "}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    if path == "/api/increment":
+        let _ = increment_requests()
+        let body: String = "{\"counter\": " + str(KauriState.total_requests) + ", \"incremented\": 1}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    if path == "/api/echo":
+        let req_body = http_request_body_text(req_id)
+        let body: String = "{\"echo\": \"" + req_body + "\", \"server\": \"kauri v" + KAURI_VERSION + "\"}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    if path == "/api/telemetry":
+        let body: String = "{"
+        body = body + "\"counter\": " + str(KauriState.total_requests)
+        body = body + ", \"epoch\": " + str(KauriState.epoch)
+        body = body + ", \"patch_count\": " + str(patch_journal_count())
+        body = body + "}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    // ---- KAURI DEMO: Full system snapshot ----
+    if path == "/api/system":
+        let body: String = "{"
+        body = body + "\"os_name\": \"" + os_name() + "\""
+        body = body + ", \"os_platform\": \"" + os_platform_name() + "\""
+        body = body + ", \"os_arch\": \"" + os_arch_name() + "\""
+        body = body + ", \"cpu_count\": " + str(os_cpu_count())
+        body = body + ", \"cpu_cores\": " + str(os_cpu_core_count())
+        body = body + ", \"pid\": " + str(os_getpid())
+        body = body + ", \"cwd\": \"" + os_getcwd() + "\""
+        body = body + ", \"server_version\": \"kauri " + KAURI_VERSION + "\""
+        body = body + "}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    // ---- KAURI DEMO: Runtime counters across all semantic layers ----
+    if path == "/api/runtime":
+        let body: String = "{"
+        body = body + "\"patch_journal\": " + str(patch_journal_count())
+        body = body + ", \"entangle_propagation\": " + str(entangle_propagation_count())
+        body = body + ", \"converge_mismatch\": " + str(converge_mismatch_count())
+        body = body + ", \"pulse_fires\": " + str(runtime_machine_pulse_total_fire_count())
+        body = body + ", \"actor_queue_depth\": " + str(actor_scheduler_queue_depth())
+        body = body + ", \"actor_busy_workers\": " + str(actor_scheduler_busy_workers())
+        body = body + ", \"actor_worker_count\": " + str(actor_scheduler_worker_count())
+        body = body + ", \"actor_active_workers\": " + str(actor_scheduler_active_workers())
+        body = body + ", \"world_counter\": " + str(KauriState.total_requests)
+        body = body + ", \"world_epoch\": " + str(KauriState.epoch)
+        body = body + "}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    // ---- KAURI DEMO: Ownership lifecycle (collapse → observe → decay) ----
+    if path == "/api/ownership/demo":
+        // This is a raw memory ownership demo using Unsafe operations.
+        // Allocates a pointer, collapses to write, observes to read, decays.
+        let body = run_ownership_demo()
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    // ---- KAURI DEMO: World state action (bump counter, set value) ----
+    if path == "/api/world":
+        let body: String = "{"
+        body = body + "\"counter\": " + str(KauriState.total_requests)
+        body = body + ", \"epoch\": " + str(KauriState.epoch)
+        body = body + ", \"patch_count\": " + str(patch_journal_count())
+        body = body + "}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    if path == "/api/world/bump":
+        let _ = increment_requests()
+        let _ = increment_requests()
+        let _ = increment_requests()
+        let body: String = "{\"counter\": " + str(KauriState.total_requests) + ", \"epoch\": " + str(KauriState.epoch) + ", \"bumped\": 3}"
+        let _ = http_response_set_header_for_request(req_id, "Content-Type", "application/json")
+        let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+        let _ = http_respond_text(req_id, 200, body)
+        return
+
+    // Static file
+    let (status, ctype, content) = serve_file(FRONTEND_DIR, path)
+
+    // SPA fallback: 404 non-.html → index.html
+    if status == 404:
+        var is_html: Bool = false
+        if len(path) >= 5:
+            var end: String = ""
+            var k: Int = len(path) - 5
+            while k < len(path):
+                end = end + char_at(path, k)
+                k = k + 1
+            if end == ".html" or end == ".htm":
+                is_html = true
+        if is_html == false:
+            let (s2, ct2, b2) = serve_file(FRONTEND_DIR, "/index.html")
+            let _ = http_response_set_header_for_request(req_id, "Content-Type", ct2)
+            let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+            let _ = http_respond_text(req_id, s2, b2)
+            return
+
+    let _ = http_response_set_header_for_request(req_id, "Content-Type", ctype)
+    let _ = http_response_set_header_for_request(req_id, "Access-Control-Allow-Origin", "*")
+    let _ = http_respond_text(req_id, status, content)
+
+// ============================================================================
+//  OWNERSHIP DEMO — demonstrates Kain's raw memory lifecycle
+// ============================================================================
+
+pub fn run_ownership_demo() -> String:
+    // Step 1: Allocate a pointer to a single Int
+    let mut ptr: ptr<Int> = alloc_zeroed(1, "Int")
+    var result: Int = 0
+
+    // Step 2: Collapse — exclusive mutation scope
+    collapse ptr:
+        mem_store(ptr, 42, "Int")
+        0
+
+    // Step 3: Observe — read-only borrow
+    let observed: Int = observe ptr:
+        mem_load(ptr, "Int")
+
+    // Step 4: Collapse again to modify
+    collapse ptr:
+        mem_store(ptr, observed * 2 + 7, "Int")
+        0
+
+    // Step 5: Observe final value
+    let final_val: Int = observe ptr:
+        mem_load(ptr, "Int")
+
+    result = final_val
+
+    // Step 6: Decay — release memory
+    decay ptr
+
+    let body: String = "{"
+    body = body + "\"initial\": 42"
+    body = body + ", \"observed\": " + str(observed)
+    body = body + ", \"transformed\": " + str(result)
+    body = body + ", \"status\": \"decayed\""
+    body = body + ", \"step\": \"alloc → collapse → observe → collapse → observe → decay\""
+    body = body + "}"
+    return body
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    let argv = process_user_args()
+    let argc = len(argv)
+    var cfg = default_cfg()
+
+    if argc == 0:
+        cfg = default_cfg()
+    else:
+        let first = argv[0]
+        if first == "--help" or first == "-h":
+            usage()
+            return 1
+        cfg = parse_args(argv)
+
+    let init = runtime_init()
+    if init != 0:
+        println("runtime_init: " + str(init))
+        return 100 + init
+    let _ = net_reset()
+
+    let (sid, port) = start(cfg)
+    if sid <= 0:
+        let _ = runtime_shutdown()
+        return port + 10
+
+    let rc = run(sid, port, cfg)
+    if cfg.show_dashboard:
+        println("")
+    let _ = runtime_shutdown()
+    return rc

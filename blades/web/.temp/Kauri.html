@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!-- saved from url=(0022)http://127.0.0.1:9090/ -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kauri</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #app {
+            width: min(90vw, 600px);
+            padding: 32px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #58a6ff;
+        }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .card h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b949e;
+            margin-bottom: 12px;
+        }
+        .counter {
+            font-size: 48px;
+            font-weight: 700;
+            color: #f0f6fc;
+            text-align: center;
+            padding: 16px 0;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        button {
+            background: #238636;
+            border: 1px solid #2ea043;
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #2ea043; }
+        button:active { background: #1e7a32; }
+        button.secondary {
+            background: #21262d;
+            border-color: #30363d;
+        }
+        button.secondary:hover { background: #30363d; }
+
+        .status {
+            font-size: 12px;
+            color: #8b949e;
+            text-align: center;
+            margin-top: 12px;
+        }
+        .status.error { color: #f85149; }
+        .status.ok { color: #3fb950; }
+
+        .telemetry {
+            font-size: 12px;
+            color: #8b949e;
+            line-height: 1.6;
+        }
+        .telemetry span { color: #e6edf3; }
+
+        .echo-box {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e6edf3;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>� Kauri</h1>
+
+        <div class="card">
+            <h2>Counter</h2>
+            <div class="counter" id="counter">13</div>
+            <div class="row">
+                <button id="btn-increment">+1</button>
+                <button id="btn-increment-10" class="secondary">+10</button>
+            </div>
+            <div class="row">
+                <button id="btn-decrement" class="secondary">-1</button>
+                <button id="btn-reset" class="secondary">Reset</button>
+            </div>
+            <div class="status" id="counter-status">decrement via API</div>
+        </div>
+
+        <div class="card">
+            <h2>Echo</h2>
+            <div class="row">
+                <input type="text" id="echo-input" class="echo-box" placeholder="Type something...">
+                <button id="btn-echo">Send</button>
+            </div>
+            <div class="echo-box" id="echo-result" style="margin-top:8px; min-height:20px;">{
+  "echo": "WOAH THIS works ",
+  "server": "kauri v0.1.0"
+}</div>
+        </div>
+
+        <div class="card">
+            <h2>Telemetry</h2>
+            <div class="telemetry" id="telemetry">
+                <div>requests: <span id="t-reqs">--</span></div>
+                <div>connections: <span id="t-conns">--</span></div>
+                <div>workers: <span id="t-workers">?/?</span></div>
+                <div>restarts: <span id="t-restarts">--</span></div>
+                <div>patch count: <span id="t-patches">26</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./Kauri_files/kauri-client.js.download"></script>
+    <script type="module" src="./Kauri_files/app.js.download"></script>
+
+
+</body></html>

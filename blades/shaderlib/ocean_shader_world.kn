@@ -1,0 +1,17 @@
+// ocean_shader_world.kn — End-to-end test for surface shader SPIR-V embedding.
+// Verifies: parser → typechecker → SPIR-V codegen → hex embedding → load_shader call.
+
+use std::runtime
+
+world OceanWorld:
+    surface shader => OceanFragment
+
+shader fragment OceanFragment(uv: Vec2) -> Vec4:
+    // Minimal ocean gradient: tests the full SPIR-V embedding pipeline
+    let wave = uv.x * (1.0 - uv.x) * uv.y * (1.0 - uv.y) * 4.0
+    return vec4(0.1 + wave * 0.3, 0.3 + wave * 0.5, 0.6 + wave * 0.2, 1.0)
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    return 0

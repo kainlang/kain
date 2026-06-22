@@ -380,13 +380,24 @@ impl LlvmGenerator {
             "  {} = load i64 (i64, i8*)*, i64 (i64, i8*)** {}",
             load_fn, load_cast
         ));
-        // TODO: embed SPIR-V hex as a static global for the shader fragment
-        let _shader_name_str = self.compile_static_c_string_literal(shader_fragment_name);
+        // Embed SPIR-V hex from the global emitted in the codegen preamble
+        let spirv_ptr = if let Some(hex) = self.shader_spirv_hexes.get(shader_fragment_name) {
+            let global_name = format!("@__kain_spirv_{}", shader_fragment_name);
+            let byte_len = hex.len() + 1; // +1 for null terminator
+            let gep = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+                gep, byte_len, byte_len, global_name
+            ));
+            gep
+        } else {
+            // Fallback: empty string (shader fragment not found in collected hexes)
+            self.compile_static_c_string_literal("")
+        };
         let _load_result = self.next_reg();
-        let spirv_placeholder = self.compile_static_c_string_literal("");
         self.emit(&format!(
-            "  {} = call i64 {}(i64 {}, i8* {}) ; SPIR-V placeholder (TODO: embed real hex)",
-            _load_result, load_fn, session_id, spirv_placeholder
+            "  {} = call i64 {}(i64 {}, i8* {})",
+            _load_result, load_fn, session_id, spirv_ptr
         ));
 
         // Frame loop

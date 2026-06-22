@@ -26,6 +26,7 @@ use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
 use kain_semantic::enrich_codegen_error;
+use gpu;
 use std::collections::{HashMap, HashSet};
 
 const ATTR_SECTION: &str = "section";
@@ -689,6 +690,8 @@ struct LlvmGenerator {
     current_component_parent: Option<String>,
     /// Pending world-surface frame loop function names to call from main
     pending_frame_loops: Vec<String>,
+    /// Hex-encoded SPIR-V strings for shader surfaces, keyed by shader fragment name.
+    shader_spirv_hexes: HashMap<String, String>,
     actor_state_initializers: HashMap<String, HashMap<String, Expr>>,
     actor_message_reply_types: HashMap<(String, String), String>,
     /// Current basic block label (for Phi nodes)
@@ -895,6 +898,7 @@ impl LlvmGenerator {
             current_component_session: None,
             current_component_parent: None,
             pending_frame_loops: Vec::new(),
+            shader_spirv_hexes: HashMap::new(),
             actor_state_initializers: HashMap::new(),
             actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
@@ -14262,6 +14266,11 @@ impl LlvmGenerator {
         self.emit_runtime();
         self.compile_entangle_registration_function();
 
+        // Collect shader SPIR-V hexes for surface shader codegen (before item compilation
+        // so globals are available when compile_shader_surface_loop references them).
+        self.collect_shader_spirv_hexes(&program.items)?;
+        self.emit_shader_spirv_globals();
+
         // 4. Compile Items
         self.compile_typed_items(&program.items)?;
         for deferred in self.deferred_function_defs.clone() {
@@ -15190,6 +15199,77 @@ impl LlvmGenerator {
         self.current_return_type = None;
         self.current_impl_target = None;
         Ok(())
+    }
+
+    fn find_shader_by_name<'a>(items: &'a [TypedItem], name: &str) -> Option<&'a TypedShader> {
+        for item in items {
+            match item {
+                TypedItem::Shader(s) if s.ast.name == name => return Some(s),
+                TypedItem::Mod(m) => {
+                    if let Some(s) = Self::find_shader_by_name(&m.items, name) {
+                        return Some(s);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn collect_shader_spirv_hexes(&mut self, items: &[TypedItem]) -> KainResult<()> {
+        for item in items {
+            match item {
+                TypedItem::World(world) => {
+                    for surface in &world.ast.surfaces {
+                        if surface.kind == kain_core::ast::WorldSurfaceKind::Shader {
+                            if let Expr::Ident(shader_name, _) = &surface.expr {
+                                if self.shader_spirv_hexes.contains_key(shader_name.as_str()) {
+                                    continue;
+                                }
+                                if let Some(shader) = Self::find_shader_by_name(items, shader_name) {
+                                    let hex = gpu::compile_fragment_to_spirv_hex(shader)?;
+                                    self.shader_spirv_hexes.insert(shader_name.clone(), hex);
+                                }
+                            }
+                        }
+                    }
+                }
+                TypedItem::Mod(module) => {
+                    self.collect_shader_spirv_hexes(&module.items)?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn emit_shader_spirv_globals(&mut self) {
+        if self.shader_spirv_hexes.is_empty() { return; }
+        self.emit("; SPIR-V shader hex globals (embedded for surface shader codegen)");
+        let hexes: Vec<(String, String)> = self
+            .shader_spirv_hexes
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        for (name, hex) in &hexes {
+            let global_name = format!("@__kain_spirv_{}", name);
+            let byte_len = hex.len() + 1; // +1 for null terminator
+            let mut escaped = String::with_capacity(hex.len() + 4);
+            for b in hex.bytes() {
+                // Hex chars are printable ASCII (0-9, A-F), so this passes through literally
+                if b >= 32 && b < 127 && b != b'"' && b != b'\\' {
+                    escaped.push(b as char);
+                } else {
+                    escaped.push_str(&format!("\\{:02X}", b));
+                }
+            }
+            escaped.push_str("\\00");
+            self.emit(&format!(
+                "{} = private unnamed_addr constant [{} x i8] c\"{}\", align 1",
+                global_name, byte_len, escaped
+            ));
+        }
+        self.emit("");
     }
 
     fn compile_entangle_registration_function(&mut self) {

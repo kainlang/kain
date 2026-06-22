@@ -1,0 +1,37 @@
+# Header-to-vcpkg-port overrides.
+# Only needed for headers where the port name differs from the header stem.
+# The default heuristic (stem of header path = port name) handles 90%+ of cases.
+#
+# Format: header_pattern = "port_name"
+
+[overrides]
+"nlohmann/json.hpp" = "nlohmann-json"
+"catch2/catch_test_macros.hpp" = "catch2"
+"catch2/catch_all.hpp" = "catch2"
+"gtest/gtest.h" = "gtest"
+"gmock/gmock.h" = "gtest"
+"yaml-cpp/yaml.h" = "yaml-cpp"
+"civetweb/civetweb.h" = "civetweb"
+"spdlog/spdlog.h" = "spdlog"
+"imgui/imgui.h" = "imgui"
+"glm/glm.hpp" = "glm"
+"stb/stb_image.h" = "stb"
+"stb/stb_image_write.h" = "stb"
+"json/json.h" = "jsoncpp"
+"tinyxml2/tinyxml2.h" = "tinyxml2"
+"asio/asio.hpp" = "asio"
+"eigen3/Eigen/Dense" = "eigen3"
+"opencv2/opencv.hpp" = "opencv"
+"opencv2/core.hpp" = "opencv"
+"protobuf/message.h" = "protobuf"
+"grpc/grpc.h" = "grpc"
+"grpcpp/grpcpp.h" = "grpc"
+"absl/strings/string_view.h" = "abseil"
+"re2/re2.h" = "re2"
+"lz4/lz4.h" = "lz4"
+"zstd/zstd.h" = "zstd"
+"freetype2/ft2build.h" = "freetype"
+"harfbuzz/hb.h" = "harfbuzz"
+"SDL2/SDL.h" = "sdl2"
+"GLFW/glfw3.h" = "glfw3"
+"portaudio/portaudio.h" = "portaudio"

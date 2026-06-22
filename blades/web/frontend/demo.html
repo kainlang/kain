@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kauri — Kain Alive Demo</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e17;
+            color: #e6edf3;
+            min-height: 100vh;
+            padding: 32px;
+        }
+        .header {
+            max-width: 1200px;
+            margin: 0 auto 32px;
+            text-align: center;
+        }
+        .header h1 { font-size: 36px; color: #58a6ff; margin-bottom: 8px; }
+        .header .subtitle { color: #8b949e; font-size: 14px; }
+        .header .badge {
+            display: inline-block;
+            background: #1f6feb22;
+            border: 1px solid #1f6feb44;
+            color: #58a6ff;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin: 0 4px;
+        }
+
+        .grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .card {
+            background: #111827;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #8b949e;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2 .icon { font-size: 18px; }
+        .card.full { grid-column: 1 / -1; }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stat {
+            background: #0d1117;
+            padding: 10px 14px;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+        .stat .label { font-size: 11px; color: #8b949e; }
+        .stat .value { font-size: 22px; font-weight: 700; color: #f0f6fc; font-variant-numeric: tabular-nums; }
+        .stat.pulse .value { color: #d2a8ff; }
+        .stat.patch .value { color: #7ee787; }
+        .stat.entangle .value { color: #79c0ff; }
+        .stat.converge .value { color: #ffa657; }
+        .stat.actor .value { color: #ff7b72; }
+
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        button {
+            background: #1f6feb;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+        button:hover { background: #388bfd; }
+        button:active { transform: scale(0.97); }
+        button.green { background: #238636; }
+        button.green:hover { background: #2ea043; }
+        button.purple { background: #6e40c9; }
+        button.purple:hover { background: #7c4dff; }
+        button.orange { background: #9e6a03; }
+        button.orange:hover { background: #bb8009; }
+        button.gray { background: #21262d; }
+        button.gray:hover { background: #30363d; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge.ok { background: #23863633; color: #7ee787; }
+        .status-badge.err { background: #da363333; color: #ff7b72; }
+
+        .log-box {
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #8b949e;
+            min-height: 60px;
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .log-box .highlight { color: #e6edf3; }
+
+        .echo-row { display: flex; gap: 8px; margin-top: 8px; }
+        .echo-row input {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #e6edf3;
+            font-size: 14px;
+            outline: none;
+        }
+        .echo-row input:focus { border-color: #1f6feb; }
+
+        .world-bar {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 8px;
+        }
+        .world-bar .bar {
+            flex: 1; height: 8px; background: #0d1117; border-radius: 4px; overflow: hidden;
+        }
+        .world-bar .bar .fill {
+            height: 100%; background: #58a6ff; border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .badge-row .tag {
+            background: #1f6feb11;
+            border: 1px solid #1f6feb22;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #58a6ff;
+        }
+
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>🌊 Kauri</h1>
+    <div class="subtitle">
+        <span class="badge">Kain v0.1.0</span>
+        <span class="badge">LLVM native</span>
+        <span class="badge">Zero deps</span>
+        <span class="badge">HTTP live</span>
+    </div>
+</div>
+
+<div class="grid">
+    <!-- SYSTEM INFO -->
+    <div class="card">
+        <h2><span class="icon">🖥️</span> System</h2>
+        <div class="stat-grid">
+            <div class="stat"><div class="label">OS</div><div class="value" id="sys-os">--</div></div>
+            <div class="stat"><div class="label">Arch</div><div class="value" id="sys-arch">--</div></div>
+            <div class="stat"><div class="label">CPU Cores</div><div class="value" id="sys-cpu">--</div></div>
+            <div class="stat"><div class="label">PID</div><div class="value" id="sys-pid">--</div></div>
+        </div>
+    </div>
+
+    <!-- RUNTIME COUNTERS -->
+    <div class="card">
+        <h2><span class="icon">⚡</span> Semantic Layer Counters</h2>
+        <div class="stat-grid">
+            <div class="stat patch"><div class="label">📝 Patch Journal</div><div class="value" id="rt-patch">--</div></div>
+            <div class="stat entangle"><div class="label">🔗 Entangle Prop</div><div class="value" id="rt-entangle">--</div></div>
+            <div class="stat converge"><div class="label">🎯 Converge Mismatch</div><div class="value" id="rt-converge">--</div></div>
+            <div class="stat pulse"><div class="label">💓 Pulse Fires</div><div class="value" id="rt-pulse">--</div></div>
+        </div>
+    </div>
+
+    <!-- ACTOR LAB -->
+    <div class="card">
+        <h2><span class="icon">🎭</span> Actor Scheduler</h2>
+        <div class="stat-grid">
+            <div class="stat actor"><div class="label">Queue Depth</div><div class="value" id="act-queue">--</div></div>
+            <div class="stat actor"><div class="label">Busy Workers</div><div class="value" id="act-busy">--</div></div>
+            <div class="stat actor"><div class="label">Total Workers</div><div class="value" id="act-total">--</div></div>
+            <div class="stat actor"><div class="label">Active Workers</div><div class="value" id="act-active">--</div></div>
+        </div>
+    </div>
+
+    <!-- WORLD STATE -->
+    <div class="card">
+        <h2><span class="icon">🌐</span> World State <span class="status-badge ok" id="world-status">live</span></h2>
+        <div class="stat-grid">
+            <div class="stat"><div class="label">Counter (total_requests)</div><div class="value" id="world-counter">0</div></div>
+            <div class="stat"><div class="label">Epoch</div><div class="value" id="world-epoch">0</div></div>
+            <div class="stat" style="grid-column: 1 / -1;">
+                <div class="label">Patch Journal</div>
+                <div class="world-bar">
+                    <div class="bar"><div class="fill" id="world-bar" style="width:0%"></div></div>
+                    <span id="world-patches" style="font-size:14px; font-weight:600;">0</span>
+                </div>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="green" onclick="api.increment()">+1 Counter</button>
+            <button class="orange" onclick="api.bumpWorld()">+3 Bump</button>
+            <button class="gray" onclick="api.refreshRuntime()">⟳ Refresh</button>
+        </div>
+        <div class="badge-row">
+            <span class="tag">world</span>
+            <span class="tag">patch</span>
+            <span class="tag">law-ready</span>
+        </div>
+    </div>
+
+    <!-- OWNERSHIP DEMO -->
+    <div class="card">
+        <h2><span class="icon">🔬</span> Ownership Lifecycle</h2>
+        <div class="stat-grid">
+            <div class="stat" style="grid-column: 1 / -1;">
+                <div class="label">Status</div>
+                <div class="value" id="own-status" style="font-size:16px;">Ready</div>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="purple" onclick="api.ownershipDemo()">▶ Run Ownership Demo</button>
+        </div>
+        <div class="log-box" id="own-log">Click the button to run a full ownership cycle: alloc → collapse → observe → collapse → observe → decay</div>
+        <div class="badge-row">
+            <span class="tag">collapse</span>
+            <span class="tag">observe</span>
+            <span class="tag">decay</span>
+            <span class="tag">unsafe</span>
+        </div>
+    </div>
+
+    <!-- ECHO -->
+    <div class="card">
+        <h2><span class="icon">📡</span> IPC Echo</h2>
+        <div class="echo-row">
+            <input type="text" id="echo-input" placeholder="Type a message to the Kain backend..." />
+            <button onclick="api.echo()">Send</button>
+        </div>
+        <div class="log-box" id="echo-log">Response will appear here.</div>
+        <div class="badge-row">
+            <span class="tag">HTTP/JSON</span>
+            <span class="tag">actor-ready</span>
+        </div>
+    </div>
+
+    <!-- LAYER BADGES -->
+    <div class="card full" style="text-align:center;">
+        <h2 style="justify-content:center;"><span class="icon">🏗️</span> Kain Decision Ladder — All Layers Live</h2>
+        <div class="badge-row" style="justify-content:center;">
+            <span class="tag">L0 plain code</span>
+            <span class="tag">L1 world</span>
+            <span class="tag">L2 patch · law</span>
+            <span class="tag">L3 converge</span>
+            <span class="tag">L4 orchestrate</span>
+            <span class="tag">L5 pulse</span>
+            <span class="tag">L6 teleport · shatter</span>
+            <span class="tag">L7 actor · ownership</span>
+        </div>
+        <div style="margin-top:12px; color:#8b949e; font-size:12px;">
+            System running for <span id="uptime">0</span>s · 
+            <a href="/api/runtime" style="color:#58a6ff;">/api/runtime</a> · 
+            <a href="/api/system" style="color:#58a6ff;">/api/system</a> · 
+            <a href="/api/world" style="color:#58a6ff;">/api/world</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Kauri API Client (inline, no import needed) ──
+const BASE = 'http://127.0.0.1:9090';
+
+async function apiFetch(path, opts = {}) {
+    const r = await fetch(`${BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
+    try { return JSON.parse(text); } catch { return text; }
+}
+
+const api = {
+    // System
+    async refreshSystem() {
+        const d = await apiFetch('/api/system');
+        document.getElementById('sys-os').textContent = d.os_name || '--';
+        document.getElementById('sys-arch').textContent = d.os_arch || '--';
+        document.getElementById('sys-cpu').textContent = d.cpu_cores ?? '--';
+        document.getElementById('sys-pid').textContent = d.pid ?? '--';
+    },
+    // Runtime
+    async refreshRuntime() {
+        const d = await apiFetch('/api/runtime');
+        document.getElementById('rt-patch').textContent = d.patch_journal ?? '--';
+        document.getElementById('rt-entangle').textContent = d.entangle_propagation ?? '--';
+        document.getElementById('rt-converge').textContent = d.converge_mismatch ?? '--';
+        document.getElementById('rt-pulse').textContent = d.pulse_fires ?? '--';
+        document.getElementById('act-queue').textContent = d.actor_queue_depth ?? '--';
+        document.getElementById('act-busy').textContent = d.actor_busy_workers ?? '--';
+        document.getElementById('act-total').textContent = d.actor_worker_count ?? '--';
+        document.getElementById('act-active').textContent = d.actor_active_workers ?? '--';
+        document.getElementById('world-counter').textContent = d.world_counter ?? '--';
+        document.getElementById('world-epoch').textContent = d.world_epoch ?? '--';
+        // Patch bar
+        const pc = d.patch_journal ?? 0;
+        document.getElementById('world-patches').textContent = pc;
+        document.getElementById('world-bar').style.width = Math.min(pc, 100) + '%';
+    },
+    // Increment world counter
+    async increment() {
+        const d = await apiFetch('/api/increment', { method: 'POST' });
+        document.getElementById('world-counter').textContent = d.counter;
+        await this.refreshRuntime();
+    },
+    // Bump world 3x
+    async bumpWorld() {
+        const d = await apiFetch('/api/world/bump', { method: 'POST' });
+        document.getElementById('world-counter').textContent = d.counter;
+        await this.refreshRuntime();
+    },
+    // Ownership demo
+    async ownershipDemo() {
+        const log = document.getElementById('own-log');
+        log.innerHTML = '<span class="highlight">⏳ Running ownership demo...</span>';
+        try {
+            const d = await apiFetch('/api/ownership/demo');
+            document.getElementById('own-status').textContent =
+                `initial=${d.initial} → observed=${d.observed} → transformed=${d.transformed} ✅ ${d.status}`;
+            log.innerHTML =
+                `<span class="highlight">✅ ${d.step}</span>\n` +
+                `   alloc(1, "Int") → ptr<Int>\n` +
+                `   collapse → mem_store(ptr, ${d.initial})\n` +
+                `   observe → mem_load → ${d.observed}\n` +
+                `   collapse → mem_store(×2+7) → ${d.transformed}\n` +
+                `   decay → released\n` +
+                `   <span class="highlight">Memory ownership lifecycle: COMPLETE</span>`;
+        } catch (e) {
+            log.innerHTML = `<span style="color:#ff7b72;">❌ ${e.message}</span>`;
+        }
+    },
+    // Echo
+    async echo() {
+        const input = document.getElementById('echo-input');
+        const log = document.getElementById('echo-log');
+        const text = input.value || 'hello from kauri';
+        try {
+            const d = await apiFetch('/api/echo', {
+                method: 'POST',
+                body: text,
+            });
+            log.innerHTML = `<span class="highlight">📤 ${text}</span>\n📥 ${JSON.stringify(d, null, 2)}`;
+        } catch (e) {
+            log.innerHTML = `<span style="color:#ff7b72;">❌ ${e.message}</span>`;
+        }
+    },
+};
+
+// ── Auto-refresh everything ──
+let uptime = 0;
+setInterval(() => {
+    uptime++;
+    document.getElementById('uptime').textContent = uptime;
+}, 1000);
+
+async function refreshAll() {
+    try { await api.refreshSystem(); } catch {}
+    try { await api.refreshRuntime(); } catch {}
+}
+
+// Init
+refreshAll();
+setInterval(refreshAll, 2000);
+
+// Enter to echo
+document.getElementById('echo-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') api.echo();
+});
+</script>
+</body>
+</html>
