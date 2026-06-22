@@ -1612,7 +1612,7 @@ pub struct TypeAlias {
 
 /// Version constraint for C includes with vcpkg integration.
 /// Represents the inline version in `include <sqlite3.h> 3.45.0 as sql`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct VersionSpec {
     /// The version string (e.g. "3.45.0", "2024-01-15", "snapshot-20240115")
     pub simple: String,
