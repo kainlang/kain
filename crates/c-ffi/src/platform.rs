@@ -396,6 +396,7 @@ fn resolved_library_for_platform_package(
         tier: CInteropTier::Dynamic,
         runtime_owned: false,
         version: None,
+        vcpkg_lock_sha256: None,
     }
 }
 

@@ -61,6 +61,7 @@ pub struct ResolvedCLibrary {
     pub tier: CInteropTier,
     pub runtime_owned: bool,
     pub version: Option<String>,
+    pub vcpkg_lock_sha256: Option<String>,
 }
 
 impl ResolvedCLibrary {

@@ -1002,6 +1002,7 @@ fn resolve_natural_local_include(
             tier: config::CInteropTier::Inline,
             runtime_owned: false,
             version: None,
+            vcpkg_lock_sha256: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1176,6 +1177,7 @@ fn resolve_system_include(
             tier: config::CInteropTier::Static,
             runtime_owned: false,
             version: None,
+            vcpkg_lock_sha256: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1658,6 +1660,7 @@ fn resolve_library_from_manifest_root(
             tier,
             runtime_owned,
             version: None,
+            vcpkg_lock_sha256: None,
         },
         model::ManifestContext {
             root_dir: Some(manifest_root.to_path_buf()),
@@ -1749,6 +1752,7 @@ fn resolve_runtime_owned_header(
             tier: config::CInteropTier::Static,
             runtime_owned: true,
             version: None,
+            vcpkg_lock_sha256: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1893,12 +1897,27 @@ fn build_cache_hash(
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(resolved.import_name.as_bytes());
-    hasher.update(resolved.header_path.display().to_string().as_bytes());
+    // Hash header content via fingerprint SHA-256 (not path, for cross-machine reuse)
+    if let Some(fp) = fingerprints.first() {
+        hasher.update(fp.sha256.as_bytes());
+    }
+    // Hash shared library content if present
     if let Some(path) = &resolved.shared_lib_path {
-        hasher.update(path.display().to_string().as_bytes());
+        if let Ok(content) = std::fs::read(path) {
+            hasher.update(&content);
+        }
+    }
+    // Hash static library content for each static lib
+    for lib_path in &resolved.static_lib_paths {
+        if let Ok(content) = std::fs::read(lib_path) {
+            hasher.update(&content);
+        }
     }
     if let Some(version) = &resolved.version {
         hasher.update(version.as_bytes());
+    }
+    if let Some(lock_sha) = &resolved.vcpkg_lock_sha256 {
+        hasher.update(lock_sha.as_bytes());
     }
     hasher.update(format_version.as_bytes());
     hasher.update(format!("{:?}", resolved.tier).as_bytes());

@@ -297,6 +297,7 @@ fn build_resolved(
         tier: CInteropTier::Static,
         runtime_owned: false,
         version: Some(version.to_string()),
+        vcpkg_lock_sha256: None,
     };
 
     let manifest_ctx = ManifestContext {
