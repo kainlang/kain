@@ -3133,7 +3133,6 @@ fn main() -> Int:
         .expect("manifest");
 
         let source = "use c::beacon_math\nfn main() -> String:\n    assert(beacon_add(2, 3) == 5, \"expected add\")\n    assert(beacon_is_even(8), \"expected even\")\n    assert(beacon_scale(1.5, 4.0) == 6.0, \"expected scale\")\n    return beacon_label(7)\n";
-        eprintln!("[DIAG] augment start");
         let augmented = augment_source_for_runtime(
             source,
             CompileTarget::Interpret,
@@ -3143,29 +3142,17 @@ fn main() -> Int:
             },
         )
         .expect("augment");
-        eprintln!("[DIAG] augment done, len={}", augmented.len());
 
         let stdlib = kain_core::stdlib::load_stdlib_for_target(CompileTarget::Interpret);
-        eprintln!("[DIAG] stdlib loaded, len={}", stdlib.len());
         let full_source = format!("{stdlib}\n{augmented}");
-        eprintln!("[DIAG] lex start");
         let tokens = Lexer::new(&full_source).tokenize().expect("tokens");
-        eprintln!("[DIAG] lex done, {} tokens", tokens.len());
         let span_mapper = SpanMapper::new(&full_source);
-        eprintln!("[DIAG] parse start");
         let mut ast = Parser::new(&tokens, &span_mapper, "<test>")
             .parse()
             .expect("parse");
-        eprintln!("[DIAG] parse done, {} items", ast.items.len());
-        eprintln!("[DIAG] comptime start");
         kain_core::comptime::eval_program(&mut ast).expect("comptime");
-        eprintln!("[DIAG] comptime done");
-        eprintln!("[DIAG] typecheck start");
         let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
-        eprintln!("[DIAG] typecheck done, {} items", typed.items.len());
-        eprintln!("[DIAG] interpret start");
         let result = interpret(&typed).expect("interpret");
-        eprintln!("[DIAG] interpret done");
         match result {
             Value::String(value) => assert_eq!(value, "beacon-7"),
             other => panic!("expected String(\"beacon-7\"), got {other:?}"),
