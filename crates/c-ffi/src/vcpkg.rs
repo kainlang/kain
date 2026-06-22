@@ -16,8 +16,9 @@ use std::process::Command;
 use kain_core::error::KainError;
 
 /// Map a Kain compile target to a vcpkg triplet string.
-fn triple_for_target(target: CompileTarget) -> &'static str {
-    match target {
+fn triple_for_target(_target: CompileTarget) -> &'static str {
+    let _ = _target;
+    match _target {
         CompileTarget::Llvm | CompileTarget::Interpret | CompileTarget::Test => {
             if cfg!(target_os = "windows") {
                 "x64-windows"
@@ -231,11 +232,15 @@ pub fn resolve_vcpkg_fetch(
 
     let triple = triple_for_target(target);
 
-    // Install the port via vcpkg
-    let installed_tree = match ensure_installed(&port, triple, version) {
-        Ok(tree) => tree,
-        Err(_) => return Ok(None), // vcpkg couldn't install; let other strategies try
-    };
+    // Check if vcpkg binary exists before attempting install.
+    // If vcpkg is not installed, fall through to let other strategies try.
+    if find_vcpkg_binary().is_err() {
+        return Ok(None);
+    }
+
+    // Install the port via vcpkg. Propagate errors (network, permissions, etc.)
+    // so the user sees actionable diagnostics.
+    let installed_tree = ensure_installed(&port, triple, version)?;
 
     // Resolve header path within the installed tree
     let header_path = installed_tree.join("include").join(&include_target);
