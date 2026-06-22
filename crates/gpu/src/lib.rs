@@ -12,3 +12,14 @@ pub use codegen_ptx::{
 };
 pub use codegen_spirv::generate as generate_spirv;
 pub use codegen_wgsl::generate as generate_wgsl;
+
+use kain_core::shader_artifact::bytes_to_hex;
+use kain_core::error::KainResult;
+use kain_core::types::TypedShader;
+
+/// Compile a single fragment shader to hex-encoded SPIR-V.
+/// Returns the hex string suitable for embedding as an LLVM global constant.
+pub fn compile_fragment_to_spirv_hex(shader: &TypedShader) -> KainResult<String> {
+    let spirv_bytes = codegen_spirv::generate_fragment(shader)?;
+    Ok(bytes_to_hex(&spirv_bytes))
+}

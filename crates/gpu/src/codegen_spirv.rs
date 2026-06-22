@@ -63,6 +63,39 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Compile a single fragment shader to SPIR-V bytes.
+/// This is the single-shader variant of `generate()` for embed workflows.
+pub fn generate_fragment(shader: &TypedShader) -> KainResult<Vec<u8>> {
+    let mut builder = Builder::new();
+    let mut storage_buffer_type_cache: HashMap<String, u32> = HashMap::new();
+    let mut uniform_wrapper_type_cache: HashMap<String, u32> = HashMap::new();
+
+    builder.capability(Capability::Shader);
+    builder.memory_model(AddressingModel::Logical, MemoryModel::GLSL450);
+
+    emit_shader(
+        &mut builder,
+        shader,
+        &mut storage_buffer_type_cache,
+        &mut uniform_wrapper_type_cache,
+    )?;
+
+    let module = builder.module();
+    if module.entry_points.is_empty() {
+        return Err(KainError::codegen(
+            "SPIR-V fragment emission produced no entry points".to_string(),
+            shader.ast.span,
+        ));
+    }
+    let bytes: Vec<u8> = module
+        .assemble()
+        .iter()
+        .flat_map(|w| w.to_le_bytes())
+        .collect();
+    Ok(bytes)
+}
+
+
 struct ShaderContext<'a> {
     b: &'a mut Builder,
     // Name -> (SPIR-V ID, AST Type, IsPointer)
