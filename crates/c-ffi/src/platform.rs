@@ -395,6 +395,7 @@ fn resolved_library_for_platform_package(
         global_config: CFfiConfig::default(),
         tier: CInteropTier::Dynamic,
         runtime_owned: false,
+        version: None,
     }
 }
 

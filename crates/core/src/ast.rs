@@ -1610,6 +1610,20 @@ pub struct TypeAlias {
     pub span: Span,
 }
 
+/// Version constraint for C includes with vcpkg integration.
+/// Represents the inline version in `include <sqlite3.h> 3.45.0 as sql`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionSpec {
+    /// The version string (e.g. "3.45.0", "2024-01-15", "snapshot-20240115")
+    pub simple: String,
+}
+
+impl VersionSpec {
+    pub fn display(&self) -> String {
+        self.simple.clone()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Use {
     pub path: Vec<String>,
@@ -1617,6 +1631,7 @@ pub struct Use {
     pub glob: bool,
     pub origin: UseOrigin,
     pub source_file: Option<String>,
+    pub version: Option<VersionSpec>,
     pub span: Span,
 }
 

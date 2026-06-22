@@ -8,11 +8,12 @@
 //    - HTTP server on localhost via std::net
 //    - API routed to actors via http_route_actor
 //    - Static files served from frontend/ directory
-//    - Webview auto-launched via os_system
+//    - Frameless desktop window via include kauri_host.h
 //    - World state with entangled mirror (compiler-owned)
 //
 //  Frontend: any TS/React app in frontend/ communicating over HTTP/JSON.
-//    ./kauri-client.ts wraps fetch() for the bridge.
+//  The C host (kauri_host.h/kauri_host.c) creates a borderless Win32 window
+//  with an embedded WebBrowser control pointing at the Kain HTTP server.
 //
 //  Build:  kain build --target llvm
 //  Run:    kauri.exe
@@ -26,6 +27,9 @@ use std::os
 use std::process
 use std::intent
 use std::memory
+
+// Frameless desktop window host — compiles kauri_host.c alongside
+include "../kauri_host.h" as host
 
 // ============================================================================
 //  CONSTANTS
@@ -253,14 +257,22 @@ pub fn start(cfg: KauriConfig) -> (Int, Int):
         println("kauri: no port")
         return (-4, -4)
 
+    let url = "http://127.0.0.1:" + str(port)
+
+    // Launch frameless desktop window via C host
+    if cfg.auto_launch:
+        let host_rc = host_init(url, 960, 720)
+        if host_rc != 0:
+            println("kauri: host window init failed with code " + str(host_rc))
+            // Fallback: open in browser
+            let _ = launch_webview(port, cfg.app_mode)
+
     println("")
     println("  \xF0\x9F\x8C\x8A Kauri v" + KAURI_VERSION + "  Kain + TypeScript")
     println("  HTTP:  http://127.0.0.1:" + str(port))
     println("  API:   /api/counter, /api/increment, /api/echo, /api/telemetry")
     println("  Dir:   " + FRONTEND_DIR + "/")
 
-    if cfg.auto_launch:
-        let _ = launch_webview(port, cfg.app_mode)
     return (server, port)
 
 // ============================================================================
@@ -292,6 +304,14 @@ pub fn run(server: Int, port: Int, cfg: KauriConfig) -> Int:
                     println(dash)
                 else:
                     print(dash)
+
+        // Poll the C host's Win32 message loop (non-blocking)
+        // Returns nonzero when window is closed — break and shutdown
+        if cfg.auto_launch:
+            let host_closed = host_poll()
+            if host_closed != 0:
+                println("kauri: host window closed")
+                break
 
     return 0
 

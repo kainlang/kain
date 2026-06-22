@@ -5,6 +5,8 @@ mod libclang_extract;
 mod model;
 mod platform;
 mod system_registry;
+mod port_overrides;
+mod vcpkg_plan;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
@@ -18,6 +20,8 @@ pub use platform::{
     import_platform_package, ImportPlatformOptions, PlatformBlockedSymbol, PlatformImportOutput,
     PlatformPackageLock, PlatformResolvedFile, PlatformSymbol, PLATFORM_LOCK_SCHEMA_VERSION,
 };
+pub use port_overrides::header_to_port;
+pub use vcpkg_plan::{VcpkgPlan, VcpkgPlanError, build_plan, collect_versioned_includes};
 
 use extract::extract_binding_bundle;
 use generate::write_generated_artifacts;
@@ -52,6 +56,7 @@ pub struct CLibraryImportSpec {
     pub origin: CLibraryImportOrigin,
     pub include_target: Option<String>,
     pub include_search: Option<CIncludeSearch>,
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +79,7 @@ impl CLibraryImportSpec {
             origin: CLibraryImportOrigin::UseC,
             include_target: None,
             include_search: None,
+            version: None,
         }
     }
 }
@@ -341,7 +347,7 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
     });
     static INCLUDE_REGEX: Lazy<Regex> = Lazy::new(|| {
         Regex::new(
-            r#"(?m)^\s*include\s+(?:"([^"]+)"|<([^>]+)>|([A-Za-z_][A-Za-z0-9_]*(?:[./-][A-Za-z_][A-Za-z0-9_]*)*(?:\.h)?))(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?"#,
+            r#"(?m)^\s*include\s+(?:"([^"]+)"|<([^>]+)>|([A-Za-z_][A-Za-z0-9_]*(?:[./-][A-Za-z_][A-Za-z0-9_]*)*(?:\.h)?))(?:\s+((?:\d+(?:\.\d+)*(?:-[A-Za-z0-9._-]+)?|\d+-\d+-\d+|"[^"]+")))?(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?"#
         )
         .expect("regex")
     });
@@ -356,6 +362,7 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
                     origin: CLibraryImportOrigin::UseC,
                     include_target: None,
                     include_search: None,
+                    version: None,
                 },
             ));
         }
@@ -375,7 +382,7 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
             captures.get(0).map(|m| m.start()).unwrap_or(usize::MAX),
             CLibraryImportSpec {
                 import_name,
-                alias: captures.get(4).map(|value| value.as_str().to_string()),
+                alias: captures.get(5).map(|value| value.as_str().to_string()),
                 origin: CLibraryImportOrigin::Include,
                 include_target: Some(include_target.to_string()),
                 include_search: Some(if captures.get(2).is_some() {
@@ -383,6 +390,7 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
                 } else {
                     CIncludeSearch::Local
                 }),
+                version: captures.get(4).map(|m| m.as_str().trim_matches('\"').to_string()),
             },
         ));
     }
@@ -825,7 +833,8 @@ fn resolve_library_spec(
         .or_else(|| prepare.current_dir.clone())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     if let Some(manifest_root) = find_kain_manifest_root(&start_dir) {
-        if let Some(resolved) = resolve_library_from_manifest_root(import_name, &manifest_root)? {
+        if let Some(mut resolved) = resolve_library_from_manifest_root(import_name, &manifest_root)? {
+            resolved.0.version = spec.version.clone();
             return Ok(resolved);
         }
     }
@@ -837,20 +846,24 @@ fn resolve_library_spec(
             ))
         })?
     {
-        if let Some(resolved) = resolve_library_from_manifest_root(import_name, &blade.root)? {
+        if let Some(mut resolved) = resolve_library_from_manifest_root(import_name, &blade.root)? {
+            resolved.0.version = spec.version.clone();
             return Ok(resolved);
         }
     }
 
-    if let Some(resolved) = resolve_natural_local_include(spec, &start_dir)? {
+    if let Some(mut resolved) = resolve_natural_local_include(spec, &start_dir)? {
+        resolved.0.version = spec.version.clone();
         return Ok(resolved);
     }
 
-    if let Some(resolved) = resolve_system_include(spec, &start_dir)? {
+    if let Some(mut resolved) = resolve_system_include(spec, &start_dir)? {
+        resolved.0.version = spec.version.clone();
         return Ok(resolved);
     }
 
-    if let Some(resolved) = resolve_runtime_owned_header(import_name, &start_dir) {
+    if let Some(mut resolved) = resolve_runtime_owned_header(import_name, &start_dir) {
+        resolved.0.version = spec.version.clone();
         return Ok(resolved);
     }
 
@@ -926,6 +939,7 @@ fn resolve_natural_local_include(
             global_config: global_config.clone(),
             tier: config::CInteropTier::Inline,
             runtime_owned: false,
+            version: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1099,6 +1113,7 @@ fn resolve_system_include(
             global_config: global_config.clone(),
             tier: config::CInteropTier::Static,
             runtime_owned: false,
+            version: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1580,6 +1595,7 @@ fn resolve_library_from_manifest_root(
             global_config: config.clone(),
             tier,
             runtime_owned,
+            version: None,
         },
         model::ManifestContext {
             root_dir: Some(manifest_root.to_path_buf()),
@@ -1670,6 +1686,7 @@ fn resolve_runtime_owned_header(
             global_config: global_config.clone(),
             tier: config::CInteropTier::Static,
             runtime_owned: true,
+            version: None,
         },
         model::ManifestContext {
             root_dir: None,
@@ -1817,6 +1834,9 @@ fn build_cache_hash(
     hasher.update(resolved.header_path.display().to_string().as_bytes());
     if let Some(path) = &resolved.shared_lib_path {
         hasher.update(path.display().to_string().as_bytes());
+    }
+    if let Some(version) = &resolved.version {
+        hasher.update(version.as_bytes());
     }
     hasher.update(format_version.as_bytes());
     hasher.update(format!("{:?}", resolved.tier).as_bytes());

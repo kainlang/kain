@@ -1849,6 +1849,7 @@ fn run_source_with_session(
                             loose_objects: cffi_link_inputs.link_inputs.clone(),
                             static_archives: Vec::new(),
                             link_libs: cffi_link_inputs.link_libs.clone(),
+                            library_search_paths: Vec::new(),
                         }
                     } else {
                         // Runtime needed — combine runtime artifacts + C FFI inputs
@@ -1866,6 +1867,7 @@ fn run_source_with_session(
                             loose_objects: loose,
                             static_archives: runtime_artifacts.static_archives.clone(),
                             link_libs: libs,
+                            library_search_paths: Vec::new(),
                         }
                     };
 

@@ -1351,6 +1351,7 @@ impl<'a> Parser<'a> {
                     glob: true,
                     origin: UseOrigin::Use,
                     source_file: self.current_source_file(),
+                    version: None,
                     span: start.merge(self.current_span()),
                 }));
             }
@@ -1372,6 +1373,7 @@ impl<'a> Parser<'a> {
             glob: false,
             origin: UseOrigin::Use,
             source_file: self.current_source_file(),
+            version: None,
             span: start.merge(self.current_span()),
         }))
     }
@@ -1402,6 +1404,7 @@ impl<'a> Parser<'a> {
             glob: false,
             origin: UseOrigin::CInclude,
             source_file: self.current_source_file(),
+            version: None,
             span: start.merge(self.current_span()),
         }))
     }

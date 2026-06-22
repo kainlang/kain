@@ -2498,6 +2498,7 @@ impl RustTransformer {
                             origin: UseOrigin::Use,
                             span: S,
                             source_file: None,
+                            version: None,
                         }));
                     }
                 } else {
@@ -2513,6 +2514,7 @@ impl RustTransformer {
                             origin: UseOrigin::Use,
                             span: S,
                             source_file: None,
+                            version: None,
                         }));
                     }
                 }
@@ -2531,6 +2533,7 @@ impl RustTransformer {
                         origin: UseOrigin::Use,
                         span: S,
                         source_file: None,
+                        version: None,
                     }));
                 }
                 Ok(())
@@ -2544,6 +2547,7 @@ impl RustTransformer {
                         origin: UseOrigin::Use,
                         span: S,
                         source_file: None,
+                        version: None,
                     }));
                 }
                 Ok(())
@@ -4423,6 +4427,7 @@ impl RustTransformer {
                     origin: UseOrigin::Use,
                     span: S,
                     source_file: None,
+                    version: None,
                 })
             })
             .collect::<Vec<_>>();

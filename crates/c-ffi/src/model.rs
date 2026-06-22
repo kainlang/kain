@@ -60,6 +60,7 @@ pub struct ResolvedCLibrary {
     pub global_config: CFfiConfig,
     pub tier: CInteropTier,
     pub runtime_owned: bool,
+    pub version: Option<String>,
 }
 
 impl ResolvedCLibrary {

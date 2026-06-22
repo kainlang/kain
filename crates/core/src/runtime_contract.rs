@@ -1104,9 +1104,13 @@ fn collect_runtime_items(
                         .get(1..)
                         .unwrap_or(&use_def.ast.path)
                         .join("/");
+                    let mut label_parts = include_name;
+                    if let Some(version) = &use_def.ast.version {
+                        label_parts = format!("{} {}", label_parts, version.display());
+                    }
                     match &use_def.ast.alias {
-                        Some(alias) => format!("{include_name} as {alias}"),
-                        None => include_name,
+                        Some(alias) => format!("{label_parts} as {alias}"),
+                        None => label_parts,
                     }
                 } else {
                     use_def.ast.path.join("::")

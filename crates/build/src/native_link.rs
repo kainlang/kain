@@ -78,6 +78,8 @@ pub struct NativeRuntimeArtifacts {
     pub static_archives: Vec<PathBuf>,
     /// Link library names (e.g. `["user32", "kernel32"]`).
     pub link_libs: Vec<String>,
+    /// Library search paths (passed as `-L`).
+    pub library_search_paths: Vec<PathBuf>,
 }
 
 // ── Link request ─────────────────────────────────────────────────────
@@ -309,6 +311,11 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
     #[cfg(windows)]
     cmd.arg("-Wl,/OPT:REF");
 
+    // Emit library search paths before the link libraries
+    for search_path in &req.runtime_artifacts.library_search_paths {
+        cmd.arg(format!("-L{}", search_path.display()));
+    }
+
     // Default runtime link libraries for the platform
     if req.compile_target != CompileTarget::BareMetal {
         for lib in platform_link_libs() {
@@ -379,6 +386,11 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
     cmd.arg("-Wl,-dead_strip");
     #[cfg(windows)]
     cmd.arg("-Wl,/OPT:REF");
+
+    // Emit library search paths before the link libraries
+    for search_path in &req.runtime_artifacts.library_search_paths {
+        cmd.arg(format!("-L{}", search_path.display()));
+    }
 
     // Default runtime link libraries for the platform
     if req.compile_target != CompileTarget::BareMetal {
