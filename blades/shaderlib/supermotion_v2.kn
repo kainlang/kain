@@ -67,6 +67,7 @@ shader compute SupermotionCompute(id: UVec3) -> Void workgroup(32, 1, 1):
              ("params_b", "vec4", ["instance_count"], "input",  "kain.shared.buffer"),
              ("params_c", "vec4", ["instance_count"], "input",  "kain.shared.buffer")],
             [],
+            [],
             [("LOCAL_SIZE_X",      "u32", 32,    "SPEC"),
              ("LOCAL_SIZE_Y",      "u32", 1,     "SPEC"),
              ("LOCAL_SIZE_Z",      "u32", 1,     "SPEC"),
@@ -97,305 +98,405 @@ shader compute SupermotionCompute(id: UVec3) -> Void workgroup(32, 1, 1):
     let h1: Float = fract(sin(fi * 9.137  + random_seed * 17.113) * 22578.1459)
     let h2: Float = fract(sin(fi * 5.731  + random_seed * 99.271) * 11939.7791)
 
-    var pos: Vec3 = p0.xyz
-    var rot: Vec3 = r0.xyz
-    var scl: Vec3 = s0.xyz
+    // ── Scalar decomposition (Vec3 ops not supported in shader kernel) ────
+    let mut pos_x: Float = p0.x
+    let mut pos_y: Float = p0.y
+    let mut pos_z: Float = p0.z
+    let mut rot_x: Float = r0.x
+    let mut rot_y: Float = r0.y
+    let mut rot_z: Float = r0.z
+    let mut scl_x: Float = s0.x
+    let mut scl_y: Float = s0.y
+    let mut scl_z: Float = s0.z
 
     // ══════════════════════════════════════════════════════════════════════
-    //  MODE DISPATCH — 50 modes across 7 logical groups
+    //  MODE DISPATCH — 50 modes across 8 groups
     // ══════════════════════════════════════════════════════════════════════
 
     // ── GROUP A (00-04): Fundamental Oscillators ─────────────────────────
     if mode == 0:
         // 00 — orbit: circular path in XZ plane
         let rr: Float = t * a.x * 0.62831853
-        pos = vec3(pos.x + cos(rr) * a.y, pos.y, pos.z + sin(rr) * a.y)
-        rot = vec3(rot.x, rot.y + rr, rot.z)
+        pos_x = pos_x + cos(rr) * a.y
+        rot_y = rot_y + rr
+        pos_z = pos_z + sin(rr) * a.y
     elif mode == 1:
         // 01 — float: vertical sine bob
-        pos = vec3(pos.x, pos.y + sin(t * a.x + b.x) * a.y, pos.z)
+        pos_y = pos_y + sin(t * a.x + b.x) * a.y
     elif mode == 2:
         // 02 — pulse: rhythmic scale breathing
         let pul: Float = 1.0 + sin(t * a.x) * a.y
-        scl = scl * max(pul, 0.001)
+        let pul_c: Float = max(pul, 0.001)
+        scl_x = scl_x * pul_c
+        scl_y = scl_y * pul_c
+        scl_z = scl_z * pul_c
     elif mode == 3:
         // 03 — shake: high-frequency position jitter
         let f: Float = a.x
-        let n0: Float = fract(sin((t * f + h0) * 17.3) * 15731.3) - 0.5
-        let n1: Float = fract(sin((t * f + h1) * 11.9) * 12653.8) - 0.5
-        let n2: Float = fract(sin((t * f + h2) * 23.7) * 19483.1) - 0.5
-        pos = pos + vec3(n0, n1, n2) * a.y
+        let n0: Float = (fract(sin((t * f + h0) * 17.3) * 15731.3) - 0.5) * a.y
+        let n1: Float = (fract(sin((t * f + h1) * 11.9) * 12653.8) - 0.5) * a.y
+        let n2: Float = (fract(sin((t * f + h2) * 23.7) * 19483.1) - 0.5) * a.y
+        pos_x = pos_x + n0
+        pos_y = pos_y + n1
+        pos_z = pos_z + n2
     elif mode == 4:
         // 04 — elastic: squash-and-stretch with volume preservation
         let stretch: Float = 1.0 + sin(t * a.x) * a.y
         let sq: Float = 1.0 / sqrt(max(stretch, 0.1))
-        scl = vec3(sq, stretch, sq)
+        scl_x = sq
+        scl_y = stretch
+        scl_z = sq
 
     // ── GROUP B (05-09): Rotational ──────────────────────────────────────
     elif mode == 5:
         // 05 — pendulum: Z-axis swing
-        rot = vec3(rot.x, rot.y, rot.z + sin(t * a.x) * a.y)
+        rot_z = rot_z + sin(t * a.x) * a.y
     elif mode == 6:
         // 06 — wobble: dual-axis rotation with phase offset
-        rot = vec3(rot.x + sin(t * a.x) * a.y, rot.y, rot.z + cos(t * a.x * 1.3) * a.y)
+        rot_x = rot_x + sin(t * a.x) * a.y
+        rot_z = rot_z + cos(t * a.x * 1.3) * a.y
     elif mode == 7:
         // 07 — figure8: infinity path in XZ
-        pos = vec3(pos.x + cos(t * a.x) * a.y, pos.y, pos.z + sin(t * a.x * 2.0) * b.x)
+        pos_x = pos_x + cos(t * a.x) * a.y
+        pos_z = pos_z + sin(t * a.x * 2.0) * b.x
     elif mode == 8:
         // 08 — heartbeat: double-kick scale impulse
         let bt: Float = fract(t * a.x)
-        let kick_a: Float = if bt < 0.15: sin(bt * 20.94395) else: 0.0
-        let kick_b: Float = if bt > 0.25 && bt < 0.4: sin((bt - 0.25) * 20.94395) * 0.6 else: 0.0
-        scl = scl * (1.0 + (kick_a + kick_b) * a.y)
+        var kick_a: Float = 0.0
+        var kick_b: Float = 0.0
+        if bt < 0.15:
+            kick_a = sin(bt * 20.94395)
+        if bt > 0.25 && bt < 0.4:
+            kick_b = sin((bt - 0.25) * 20.94395) * 0.6
+        let kick_t: Float = 1.0 + (kick_a + kick_b) * a.y
+        scl_x = scl_x * kick_t
+        scl_y = scl_y * kick_t
+        scl_z = scl_z * kick_t
     elif mode == 9:
         // 09 — bounce: squashed landing with stretch recovery
         let by: Float = abs(sin(t * a.x)) * a.y
-        pos = vec3(pos.x, pos.y + by, pos.z)
+        pos_y = pos_y + by
         let sf: Float = 1.0 + max(0.0, 0.2 - by) * b.x
-        scl = vec3(1.0 + sf * 0.2, 1.0 / max(sf, 0.2), 1.0 + sf * 0.2)
+        let sf_safe: Float = 1.0 / max(sf, 0.2)
+        scl_x = 1.0 + sf * 0.2
+        scl_y = sf_safe
+        scl_z = 1.0 + sf * 0.2
 
     // ── GROUP C (10-14): Continuous Transforms ───────────────────────────
     elif mode == 10:
         // 10 — tumble: constant angular velocity on all axes
-        rot = rot + vec3(a.x, a.y, a.z) * t
+        rot_x = rot_x + a.x * t
+        rot_y = rot_y + a.y * t
+        rot_z = rot_z + a.z * t
     elif mode == 11:
         // 11 — strobe: binary visibility gate
-        scl = scl * (if sin(t * a.x) < b.x: 0.0 else: 1.0)
+        var st_g: Float = 1.0
+        if sin(t * a.x) < b.x:
+            st_g = 0.0
+        scl_x = scl_x * st_g
+        scl_y = scl_y * st_g
+        scl_z = scl_z * st_g
     elif mode == 12:
         // 12 — corkscrew: spiral rise with rotation
-        pos = vec3(pos.x, pos.y + sin(t * a.x) * a.y, pos.z)
-        rot = vec3(rot.x, rot.y + t * b.x, rot.z)
+        pos_y = pos_y + sin(t * a.x) * a.y
+        rot_y = rot_y + t * b.x
     elif mode == 13:
         // 13 — shiver: high-frequency scale jitter
-        let sh: Float = (fract(sin((t * a.x + h0) * 91.0) * 104729.0) - 0.5) * a.y
-        scl = scl * (1.0 + sh)
+        let sh: Float = 1.0 + (fract(sin((t * a.x + h0) * 91.0) * 104729.0) - 0.5) * a.y
+        scl_x = scl_x * sh
+        scl_y = scl_y * sh
+        scl_z = scl_z * sh
     elif mode == 14:
         // 14 — sway: gentle dual-axis rock
-        rot = vec3(rot.x + cos(t * a.x * 0.7) * b.x, rot.y, rot.z + sin(t * a.x) * a.y)
+        rot_x = rot_x + cos(t * a.x * 0.7) * b.x
+        rot_z = rot_z + sin(t * a.x) * a.y
 
     // ── GROUP D (15-19): Yo-yo / Reciprocating ───────────────────────────
     elif mode == 15:
         // 15 — yoyo: downward absolute sine
-        pos = vec3(pos.x, pos.y - abs(sin(t * a.x)) * a.y, pos.z)
+        pos_y = pos_y - abs(sin(t * a.x)) * a.y
     elif mode == 16:
         // 16 — crab: lateral sine slide
-        pos = vec3(pos.x + sin(t * a.x) * a.y, pos.y, pos.z)
+        pos_x = pos_x + sin(t * a.x) * a.y
     elif mode == 17:
         // 17 — lissajous: 3D frequency-coupled orbit
-        pos = vec3(pos.x + a.y * sin(a.x * t),
-                   pos.y + a.y * sin(b.x * t),
-                   pos.z + a.y * sin(c.x * t))
+        pos_x = pos_x + a.y * sin(a.x * t)
+        pos_y = pos_y + a.y * sin(b.x * t)
+        pos_z = pos_z + a.y * sin(c.x * t)
     elif mode == 18:
         // 18 — flip: smoothstep rotation burst
         let ft: Float = fract(t * a.x)
         let ea: Float = ft * ft * (3.0 - 2.0 * ft)
-        rot = vec3(rot.x + ea * 6.2831853, rot.y, rot.z)
+        rot_x = rot_x + ea * 6.2831853
     elif mode == 19:
         // 19 — tremor: chaotic three-axis micro-rotation
-        rot = vec3(rot.x + (h0 - 0.5) * a.y * sin(t * a.x),
-                   rot.y + (h1 - 0.5) * a.y * cos(t * a.x * 1.7),
-                   rot.z + (h2 - 0.5) * a.y * sin(t * a.x * 2.3))
+        rot_x = rot_x + (h0 - 0.5) * a.y * sin(t * a.x)
+        rot_y = rot_y + (h1 - 0.5) * a.y * cos(t * a.x * 1.7)
+        rot_z = rot_z + (h2 - 0.5) * a.y * sin(t * a.x * 2.3)
 
     // ── GROUP E (20-24): Scanning / Bending ──────────────────────────────
     elif mode == 20:
         // 20 — scan: lateral sine sweep
-        pos = vec3(pos.x + sin(t * a.x) * a.y, pos.y, pos.z)
+        pos_x = pos_x + sin(t * a.x) * a.y
     elif mode == 21:
         // 21 — warp: Z-wave with inverse-scale distortion
         let wv: Float = sin(t * a.x)
-        pos = vec3(pos.x, pos.y, pos.z + wv * a.y)
+        pos_z = pos_z + wv * a.y
         let ws: Float = 1.0 + abs(cos(t * a.x)) * b.x
         let inv: Float = 1.0 / sqrt(max(ws, eps))
-        scl = vec3(scl.x * inv, scl.y * inv, scl.z * ws)
+        scl_x = scl_x * inv
+        scl_y = scl_y * inv
+        scl_z = scl_z * ws
     elif mode == 22:
         // 22 — drift: noise-driven position wander
         let d0: Float = (fract(sin((t * a.x + h0) * 37.1) * 31337.7) - 0.5) * a.y
         let d1: Float = (fract(sin((t * a.x + h1) * 41.3) * 27183.5) - 0.5) * a.y
         let d2: Float = (fract(sin((t * a.x + h2) * 29.7) * 19997.1) - 0.5) * a.y
-        pos = pos + vec3(d0, d1, d2)
+        pos_x = pos_x + d0
+        pos_y = pos_y + d1
+        pos_z = pos_z + d2
     elif mode == 23:
         // 23 — bobble: floating bounce with rotation wobble
-        let by: Float = abs(sin(t * a.x))
-        pos = vec3(pos.x, pos.y + by * b.x, pos.z)
-        rot = vec3(rot.x, rot.y, rot.z + cos(t * a.x) * a.y)
+        let bob_by: Float = abs(sin(t * a.x))
+        pos_y = pos_y + bob_by * b.x
+        rot_z = rot_z + cos(t * a.x) * a.y
     elif mode == 24:
         // 24 — twist: continuous Y-axis winding
-        rot = vec3(rot.x, rot.y + sin(t * a.x) * a.y, rot.z)
+        rot_y = rot_y + sin(t * a.x) * a.y
 
     // ── GROUP F (25-29): Helical / Spiral ────────────────────────────────
     elif mode == 25:
         // 25 — helix_rise: ascending spiral
-        let ang: Float = t * a.x
-        pos = pos + vec3(cos(ang) * a.y, fract(t * b.x) * c.x, sin(ang) * a.y)
+        let h_ang: Float = t * a.x
+        pos_x = pos_x + cos(h_ang) * a.y
+        pos_y = pos_y + fract(t * b.x) * c.x
+        pos_z = pos_z + sin(h_ang) * a.y
     elif mode == 26:
         // 26 — gyro_spin: triaxial gyroscopic rotation
-        rot = rot + vec3(sin(t * a.x), cos(t * b.x), sin(t * c.x)) * a.y
+        rot_x = rot_x + sin(t * a.x) * a.y
+        rot_y = rot_y + cos(t * b.x) * a.y
+        rot_z = rot_z + sin(t * c.x) * a.y
     elif mode == 27:
         // 27 — inhale: rhythmic breath with vertical lift
         let breath: Float = 1.0 + sin(t * a.x) * a.y
-        scl = scl * max(breath, 0.05)
-        pos = vec3(pos.x, pos.y + sin(t * b.x) * c.x, pos.z)
+        let br_c: Float = max(breath, 0.05)
+        scl_x = scl_x * br_c
+        scl_y = scl_y * br_c
+        scl_z = scl_z * br_c
+        pos_y = pos_y + sin(t * b.x) * c.x
     elif mode == 28:
         // 28 — jitter_pulse: gated noise burst
-        let gate: Float = if sin(t * a.x) > b.x: 1.0 else: 0.0
-        let jx: Float = (fract(sin((t + h0) * 53.0) * 9187.0) - 0.5) * a.y
-        let jy: Float = (fract(sin((t + h1) * 61.0) * 6719.0) - 0.5) * a.y
-        let jz: Float = (fract(sin((t + h2) * 47.0) * 7331.0) - 0.5) * a.y
-        pos = pos + vec3(jx, jy, jz) * gate
+        var gate: Float = 0.0
+        if sin(t * a.x) > b.x:
+            gate = 1.0
+        let jx: Float = (fract(sin((t + h0) * 53.0) * 9187.0) - 0.5) * a.y * gate
+        let jy: Float = (fract(sin((t + h1) * 61.0) * 6719.0) - 0.5) * a.y * gate
+        let jz: Float = (fract(sin((t + h2) * 47.0) * 7331.0) - 0.5) * a.y * gate
+        pos_x = pos_x + jx
+        pos_y = pos_y + jy
+        pos_z = pos_z + jz
     elif mode == 29:
         // 29 — spiral_sink: descending spiral to center
-        let ang: Float = t * a.x
-        pos = pos + vec3(cos(ang) * a.y, -abs(sin(t * b.x)) * c.x, sin(ang) * a.y)
+        let s_ang: Float = t * a.x
+        pos_x = pos_x + cos(s_ang) * a.y
+        pos_y = pos_y - abs(sin(t * b.x)) * c.x
+        pos_z = pos_z + sin(s_ang) * a.y
 
     // ── GROUP G (30-39): Complex / Compound ──────────────────────────────
     elif mode == 30:
         // 30 — saw_bounce: triangle-wave bounce with rotation kick
         let tri: Float = abs(fract(t * a.x) * 2.0 - 1.0)
-        pos = vec3(pos.x, pos.y + tri * a.y, pos.z)
-        rot = vec3(rot.x + tri * b.x, rot.y, rot.z)
+        pos_y = pos_y + tri * a.y
+        rot_x = rot_x + tri * b.x
     elif mode == 31:
         // 31 — ribbon: multi-frequency spacial wave (phase per instance)
         let tt: Float = t * a.x + fi * b.x
-        pos = pos + vec3(sin(tt) * a.y, cos(tt * 2.0) * b.y, sin(tt * 3.0) * c.x)
+        pos_x = pos_x + sin(tt) * a.y
+        pos_y = pos_y + cos(tt * 2.0) * b.y
+        pos_z = pos_z + sin(tt * 3.0) * c.x
     elif mode == 32:
         // 32 — cork_orbit: orbiting with secondary rotation
-        let ang: Float = t * a.x
-        pos = pos + vec3(cos(ang) * a.y, sin(t * b.x) * c.x, sin(ang) * a.y)
-        rot = vec3(rot.x, rot.y + ang * b.y, rot.z + sin(ang * 2.0) * c.y)
+        let c_ang: Float = t * a.x
+        pos_x = pos_x + cos(c_ang) * a.y
+        pos_y = pos_y + sin(t * b.x) * c.x
+        pos_z = pos_z + sin(c_ang) * a.y
+        rot_y = rot_y + c_ang * b.y
+        rot_z = rot_z + sin(c_ang * 2.0) * c.y
     elif mode == 33:
         // 33 — phase_march: stepped positional hold/release
         let ph: Float = fract(t * a.x)
-        let hold: Float = if ph < b.x: 0.0 else: 1.0
-        pos = pos + vec3((hold - 0.5) * a.y, sin(t * c.x) * b.y, 0.0)
+        var hold: Float = 1.0
+        if ph < b.x:
+            hold = 0.0
+        pos_x = pos_x + (hold - 0.5) * a.y
+        pos_y = pos_y + sin(t * c.x) * b.y
     elif mode == 34:
         // 34 — quake: seismic noise on position + rotation
         let q0: Float = (fract(sin((t * a.x + h0) * 131.0) * 104729.0) - 0.5) * a.y
         let q1: Float = (fract(sin((t * a.x + h1) * 173.0) * 130363.0) - 0.5) * a.y
         let q2: Float = (fract(sin((t * a.x + h2) * 197.0) * 156007.0) - 0.5) * a.y
-        pos = pos + vec3(q0, q1, q2)
-        rot = rot + vec3(q2, q0, q1) * b.x
+        pos_x = pos_x + q0
+        pos_y = pos_y + q1
+        pos_z = pos_z + q2
+        rot_x = rot_x + q2 * b.x
+        rot_y = rot_y + q0 * b.x
+        rot_z = rot_z + q1 * b.x
     elif mode == 35:
         // 35 — spring_twist: squash-stretch with Y-axis twist
         let stretch: Float = 1.0 + sin(t * a.x) * a.y
         let invs: Float = 1.0 / sqrt(max(stretch, 0.05))
-        scl = vec3(scl.x * invs, scl.y * stretch, scl.z * invs)
-        rot = vec3(rot.x, rot.y + sin(t * b.x) * c.x, rot.z)
+        scl_x = scl_x * invs
+        scl_y = scl_y * stretch
+        scl_z = scl_z * invs
+        rot_y = rot_y + sin(t * b.x) * c.x
     elif mode == 36:
         // 36 — vortex_pull: radial pull toward center with spin
         let pull: Float = max(0.0, 1.0 - abs(sin(t * a.x)) * b.x)
-        pos = pos * pull
-        rot = rot + vec3(0.0, t * c.x, 0.0)
+        pos_x = pos_x * pull
+        pos_y = pos_y * pull
+        pos_z = pos_z * pull
+        rot_y = rot_y + t * c.x
     elif mode == 37:
         // 37 — lantern: circular path with lift and rotation
-        pos = vec3(pos.x + sin(t * a.x) * a.y,
-                   pos.y + abs(sin(t * b.x)) * b.y,
-                   pos.z + cos(t * a.x) * a.y)
-        rot = vec3(rot.x, rot.y + sin(t * c.x) * c.y, rot.z)
+        pos_x = pos_x + sin(t * a.x) * a.y
+        pos_y = pos_y + abs(sin(t * b.x)) * b.y
+        pos_z = pos_z + cos(t * a.x) * a.y
+        rot_y = rot_y + sin(t * c.x) * c.y
     elif mode == 38:
         // 38 — zigzag: triangle-wave lateral jolt
         let zz: Float = abs(fract(t * a.x) * 2.0 - 1.0) * 2.0 - 1.0
-        pos = vec3(pos.x + zz * a.y, pos.y, pos.z)
+        pos_x = pos_x + zz * a.y
     elif mode == 39:
         // 39 — boomerang: throw-and-return with rotation
         let bo: Float = sin(t * a.x)
-        pos = vec3(pos.x, pos.y, pos.z + bo * a.y)
-        rot = vec3(rot.x + bo * b.x, rot.y, rot.z)
+        pos_z = pos_z + bo * a.y
+        rot_x = rot_x + bo * b.x
 
     // ── GROUP H (40-49): Exotic / Chaos ──────────────────────────────────
     elif mode == 40:
         // 40 — roll_wave: travelling wave on Y with roll
         let rw: Float = sin(t * a.x)
-        pos = vec3(pos.x, pos.y + rw * a.y, pos.z)
-        rot = vec3(rot.x + rw * b.x, rot.y + cos(t * a.x) * c.x, rot.z)
+        pos_y = pos_y + rw * a.y
+        rot_x = rot_x + rw * b.x
+        rot_y = rot_y + cos(t * a.x) * c.x
     elif mode == 41:
         // 41 — cardioid: heart-shaped orbital path
-        let ang: Float = t * a.x
-        let ca: Float = cos(ang)
-        let sa: Float = sin(ang)
-        let rad: Float = a.y * (1.0 - ca)
-        pos = vec3(pos.x + rad * ca, pos.y, pos.z + rad * sa)
+        let cd_ang: Float = t * a.x
+        let cd_ca: Float = cos(cd_ang)
+        let cd_sa: Float = sin(cd_ang)
+        let cd_rad: Float = a.y * (1.0 - cd_ca)
+        pos_x = pos_x + cd_rad * cd_ca
+        pos_z = pos_z + cd_rad * cd_sa
     elif mode == 42:
         // 42 — screwdrive: helical + secondary rotation
-        let ang: Float = t * a.x
-        pos = vec3(pos.x + cos(ang) * a.y,
-                   pos.y + sin(t * b.x) * b.y,
-                   pos.z + sin(ang) * a.y)
-        rot = vec3(rot.x, rot.y + ang * c.x, rot.z + sin(ang * 3.0) * c.y)
+        let sd_ang: Float = t * a.x
+        pos_x = pos_x + cos(sd_ang) * a.y
+        pos_y = pos_y + sin(t * b.x) * b.y
+        pos_z = pos_z + sin(sd_ang) * a.y
+        rot_y = rot_y + sd_ang * c.x
+        rot_z = rot_z + sin(sd_ang * 3.0) * c.y
     elif mode == 43:
         // 43 — glitch_snap: intermittent positional snap
-        let g: Float = if fract(t * a.x) > b.x: 1.0 else: 0.0
-        let ox: Float = (h0 - 0.5) * a.y * g
-        let oy: Float = (h1 - 0.5) * a.y * g
-        let oz: Float = (h2 - 0.5) * a.y * g
-        pos = pos + vec3(ox, oy, oz)
-        rot = rot + vec3(oz, ox, oy) * c.x
+        var gs_g: Float = 0.0
+        if fract(t * a.x) > b.x:
+            gs_g = 1.0
+        let gs_ox: Float = (h0 - 0.5) * a.y * gs_g
+        let gs_oy: Float = (h1 - 0.5) * a.y * gs_g
+        let gs_oz: Float = (h2 - 0.5) * a.y * gs_g
+        pos_x = pos_x + gs_ox
+        pos_y = pos_y + gs_oy
+        pos_z = pos_z + gs_oz
+        rot_x = rot_x + gs_oz * c.x
+        rot_y = rot_y + gs_ox * c.x
+        rot_z = rot_z + gs_oy * c.x
     elif mode == 44:
         // 44 — orbit_lissajous: multi-harmonic spatial orbit
-        let u: Float = t * a.x
-        pos = pos + vec3(sin(3.0 * u) * a.y,
-                         sin(2.0 * u + b.x) * b.y,
-                         sin(5.0 * u + c.x) * c.y)
+        let ol_u: Float = t * a.x
+        pos_x = pos_x + sin(3.0 * ol_u) * a.y
+        pos_y = pos_y + sin(2.0 * ol_u + b.x) * b.y
+        pos_z = pos_z + sin(5.0 * ol_u + c.x) * c.y
     elif mode == 45:
         // 45 — squash_run: hopping squash-stretch
-        let tr: Float = abs(sin(t * a.x))
-        pos = vec3(pos.x, pos.y + tr * b.x, pos.z + cos(t * a.x) * c.x)
-        let sy: Float = 1.0 + tr * a.y
-        let sxz: Float = 1.0 / sqrt(max(sy, 0.05))
-        scl = vec3(scl.x * sxz, scl.y * sy, scl.z * sxz)
+        let sq_tr: Float = abs(sin(t * a.x))
+        pos_y = pos_y + sq_tr * b.x
+        pos_z = pos_z + cos(t * a.x) * c.x
+        let sq_sy: Float = 1.0 + sq_tr * a.y
+        let sq_sxz: Float = 1.0 / sqrt(max(sq_sy, 0.05))
+        scl_x = scl_x * sq_sxz
+        scl_y = scl_y * sq_sy
+        scl_z = scl_z * sq_sxz
     elif mode == 46:
         // 46 — turbulence_ramp: noise amplitude ramped by secondary wave
-        let n0: Float = (fract(sin((t * a.x + h0) * 17.1) * 99173.0) - 0.5) * a.y
-        let n1: Float = (fract(sin((t * a.x * 2.0 + h1) * 31.7) * 66361.0) - 0.5) * a.y
-        let n2: Float = (fract(sin((t * a.x * 4.0 + h2) * 57.3) * 44449.0) - 0.5) * a.y
-        let ramp: Float = min(1.0, abs(sin(t * b.x)) + c.x)
-        pos = pos + vec3(n0, n1, n2) * ramp
+        let tr_n0: Float = (fract(sin((t * a.x + h0) * 17.1) * 99173.0) - 0.5) * a.y
+        let tr_n1: Float = (fract(sin((t * a.x * 2.0 + h1) * 31.7) * 66361.0) - 0.5) * a.y
+        let tr_n2: Float = (fract(sin((t * a.x * 4.0 + h2) * 57.3) * 44449.0) - 0.5) * a.y
+        let tr_ramp: Float = min(1.0, abs(sin(t * b.x)) + c.x)
+        pos_x = pos_x + tr_n0 * tr_ramp
+        pos_y = pos_y + tr_n1 * tr_ramp
+        pos_z = pos_z + tr_n2 * tr_ramp
     elif mode == 47:
         // 47 — precession: gyroscopic axis drift
-        let pr: Float = sin(t * a.x) * a.y
-        rot = rot + vec3(pr, cos(t * b.x) * b.y, sin(t * c.x) * c.y)
+        let pr_pr: Float = sin(t * a.x) * a.y
+        rot_x = rot_x + pr_pr
+        rot_y = rot_y + cos(t * b.x) * b.y
+        rot_z = rot_z + sin(t * c.x) * c.y
     elif mode == 48:
         // 48 — lattice: spatial standing wave pattern
-        let lx: Float = sin(t * a.x + fi * 0.11) * a.y
-        let ly: Float = sin(t * b.x + fi * 0.17) * b.y
-        let lz: Float = sin(t * c.x + fi * 0.23) * c.y
-        pos = pos + vec3(lx, ly, lz)
+        let lt_lx: Float = sin(t * a.x + fi * 0.11) * a.y
+        let lt_ly: Float = sin(t * b.x + fi * 0.17) * b.y
+        let lt_lz: Float = sin(t * c.x + fi * 0.23) * c.y
+        pos_x = pos_x + lt_lx
+        pos_y = pos_y + lt_ly
+        pos_z = pos_z + lt_lz
     elif mode == 49:
         // 49 — overdrive: full chaos — orbit + noise + feedback stretch
-        let ang: Float = t * a.x
-        let sw: Float = sin(ang)
-        let cw: Float = cos(ang * 1.7)
-        pos = pos + vec3(cos(ang) * a.y + (h0 - 0.5) * b.y,
-                         sw * b.x,
-                         sin(ang * 1.3) * c.x)
-        rot = rot + vec3(sw * c.y, cw * a.y, sin(ang * 2.3) * b.y)
-        let boost: Float = 1.0 + abs(sw) * a.y
-        scl = scl * max(boost, 0.05)
+        let ov_ang: Float = t * a.x
+        let ov_sw: Float = sin(ov_ang)
+        let ov_cw: Float = cos(ov_ang * 1.7)
+        pos_x = pos_x + cos(ov_ang) * a.y + (h0 - 0.5) * b.y
+        pos_y = pos_y + ov_sw * b.x
+        pos_z = pos_z + sin(ov_ang * 1.3) * c.x
+        rot_x = rot_x + ov_sw * c.y
+        rot_y = rot_y + ov_cw * a.y
+        rot_z = rot_z + sin(ov_ang * 2.3) * b.y
+        let ov_boost: Float = 1.0 + abs(ov_sw) * a.y
+        let ov_bc: Float = max(ov_boost, 0.05)
+        scl_x = scl_x * ov_bc
+        scl_y = scl_y * ov_bc
+        scl_z = scl_z * ov_bc
 
     // ── Global FBM turbulence overlay (always-on) ────────────────────────
     // 4 octaves of gradient-like noise for "nuts" polish across all modes
-    subgroup(32):
-        var turb: Vec3 = vec3(0.0, 0.0, 0.0)
-        var octave: Int = 0
-        var gain: Float = 1.0
-        var freq: Float = 1.0
-        while octave < 4:
-            let nx: Float = (fract(sin((t * freq + fi * 0.17 + h0) * 13.7) * 15731.9) - 0.5) * gain
-            let ny: Float = (fract(sin((t * freq + fi * 0.31 + h1) * 19.1) * 26317.3) - 0.5) * gain
-            let nz: Float = (fract(sin((t * freq + fi * 0.47 + h2) * 23.3) * 39821.1) - 0.5) * gain
-            turb = turb + vec3(nx, ny, nz)
-            freq = freq * 2.03
-            gain = gain * 0.5
-            octave = octave + 1
+    var turb_x: Float = 0.0
+    var turb_y: Float = 0.0
+    var turb_z: Float = 0.0
+    var octave: Int = 0
+    var gain: Float = 1.0
+    var freq: Float = 1.0
+    while octave < 4:
+        let nx: Float = (fract(sin((t * freq + fi * 0.17 + h0) * 13.7) * 15731.9) - 0.5) * gain
+        let ny: Float = (fract(sin((t * freq + fi * 0.31 + h1) * 19.1) * 26317.3) - 0.5) * gain
+        let nz: Float = (fract(sin((t * freq + fi * 0.47 + h2) * 23.3) * 39821.1) - 0.5) * gain
+        turb_x = turb_x + nx
+        turb_y = turb_y + ny
+        turb_z = turb_z + nz
+        freq = freq * 2.03
+        gain = gain * 0.5
+        octave = octave + 1
 
-        // Lane 0 writes converged turbulence for the warp
-        if id.x % 32 == 0:
-            pos = pos + turb * (0.025 * global_intensity)
-            rot = rot + turb * (0.01 * global_intensity)
+    let turb_scale: Float = 0.025 * global_intensity
+    let rot_turb_scale: Float = 0.01 * global_intensity
+    pos_x = pos_x + turb_x * turb_scale
+    pos_y = pos_y + turb_y * turb_scale
+    pos_z = pos_z + turb_z * turb_scale
+    rot_x = rot_x + turb_x * rot_turb_scale
+    rot_y = rot_y + turb_y * rot_turb_scale
+    rot_z = rot_z + turb_z * rot_turb_scale
 
     // ── Write output transforms ──────────────────────────────────────────
-    out_pos[i] = vec4(pos.x, pos.y, pos.z, 1.0)
-    out_rot[i] = vec4(rot.x, rot.y, rot.z, 1.0)
-    out_scl[i] = vec4(max(scl.x, 0.001), max(scl.y, 0.001), max(scl.z, 0.001), 1.0)
+    out_pos[i] = vec4(pos_x, pos_y, pos_z, 1.0)
+    out_rot[i] = vec4(rot_x, rot_y, rot_z, 1.0)
+    out_scl[i] = vec4(max(scl_x, 0.001), max(scl_y, 0.001), max(scl_z, 0.001), 1.0)
 
     return
 
@@ -423,12 +524,15 @@ shader vertex SupermotionVertex(position: Vec3, uv: Vec2) -> Vec4:
             []
         )
 
-    let ip: Vec4 = instance_pos[instance_id]
-    let ir: Vec4 = instance_rot[instance_id]
-    let isc: Vec4 = instance_scl[instance_id]
-
-    // Apply scale, then rotation (Euler approx), then translation
-    let scaled: Vec3 = position * isc.xyz
+    let ip = instance_pos[instance_id]
+    let ir = instance_rot[instance_id]
+    let isc = instance_scl[instance_id]
+    let sx_f: Float = isc.x
+    let sy_f: Float = isc.y
+    let sz_f: Float = isc.z
+    let scaled_x: Float = position.x * sx_f
+    let scaled_y: Float = position.y * sy_f
+    let scaled_z: Float = position.z * sz_f
 
     // Simplified Euler rotation (XYZ order)
     let cx: Float = cos(ir.x)
@@ -438,13 +542,15 @@ shader vertex SupermotionVertex(position: Vec3, uv: Vec2) -> Vec4:
     let cz: Float = cos(ir.z)
     let sz: Float = sin(ir.z)
 
-    let rot_x: Float = scaled.x * (cy * cz) + scaled.y * (-cx * sz + sx * sy * cz) + scaled.z * (sx * sz + cx * sy * cz)
-    let rot_y: Float = scaled.x * (cy * sz) + scaled.y * (cx * cz + sx * sy * sz) + scaled.z * (-sx * cz + cx * sy * sz)
-    let rot_z: Float = scaled.x * (-sy)   + scaled.y * (sx * cy)                + scaled.z * (cx * cy)
+    let rot_x: Float = scaled_x * (cy * cz) + scaled_y * (-cx * sz + sx * sy * cz) + scaled_z * (sx * sz + cx * sy * cz)
+    let rot_y: Float = scaled_x * (cy * sz) + scaled_y * (cx * cz + sx * sy * sz) + scaled_z * (-sx * cz + cx * sy * sz)
+    let rot_z: Float = scaled_x * (-sy)     + scaled_y * (sx * cy)                + scaled_z * (cx * cy)
 
-    let world_pos: Vec3 = vec3(rot_x, rot_y, rot_z) + ip.xyz
+    let world_x: Float = rot_x + ip.x
+    let world_y: Float = rot_y + ip.y
+    let world_z: Float = rot_z + ip.z
 
-    return vec4(world_pos.x, world_pos.y, world_pos.z, 1.0)
+    return vec4(world_x, world_y, world_z, 1.0)
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -490,10 +596,10 @@ shader fragment SupermotionFragment(uv: Vec2) -> Vec4:
     let i_clamped: UInt = min(idx, instance_count - 1)
 
     // Pull instance data
-    let ip: Vec4 = instance_pos[i_clamped]
-    let ir: Vec4 = instance_rot[i_clamped]
-    let isc: Vec4 = instance_scl[i_clamped]
-    let mode: Int = mod_type[i_clamped]
+    let ip = instance_pos[i_clamped]
+    let ir = instance_rot[i_clamped]
+    let isc = instance_scl[i_clamped]
+    let mode = mod_type[i_clamped]
 
     // Mode-based color mapping (hue wheel across 50 modes)
     let mode_frac: Float = Float(mode) / 49.0
@@ -517,11 +623,11 @@ shader fragment SupermotionFragment(uv: Vec2) -> Vec4:
     let streak: Float = max(0.0, 1.0 - abs(streak_x) * 3.0) * max(0.0, 1.0 - abs(ay) * 8.0)
 
     // Pulse from position Y
-    let pulse: Float = sin(ip.y * 10.0 + time * 2.0) * 0.5 + 0.5
+    let pulse_val: Float = sin(ip.y * 10.0 + time * 2.0) * 0.5 + 0.5
 
-    let final_r: Float = max(0.0, min(1.0, cm_r * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse * 0.3))
-    let final_g: Float = max(0.0, min(1.0, cm_g * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse * 0.2))
-    let final_b: Float = max(0.0, min(1.0, cm_b * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse * 0.1))
+    let final_r: Float = max(0.0, min(1.0, cm_r * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse_val * 0.3))
+    let final_g: Float = max(0.0, min(1.0, cm_g * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse_val * 0.2))
+    let final_b: Float = max(0.0, min(1.0, cm_b * (core * 1.5 + glow * 0.5 + particle * 0.8) + streak * pulse_val * 0.1))
 
     return vec4(final_r, final_g, final_b, 1.0)
 

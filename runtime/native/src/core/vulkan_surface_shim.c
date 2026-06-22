@@ -314,4 +314,9 @@ int64_t abi_vulkan_swapchain_recreations(void) {
 void kain_vulkan_surface_shim_shutdown(void) {
 }
 
+const KainGpuSurfaceExtension* vulkan_get_gpu_extension(int64_t session_id) {
+    (void)session_id;
+    return NULL;
+}
+
 #endif /* KAIN_RUNTIME_HAS_VULKAN_LOADER */

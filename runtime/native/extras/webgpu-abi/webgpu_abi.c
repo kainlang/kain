@@ -836,6 +836,12 @@ void kain_webgpu_abi_shutdown(void) {
 //  This is the only symbol the runtime shim looks up via dlsym/GetProcAddress.
 // ============================================================================
 
+
+/* GPU extension: WebGPU pipeline not yet implemented */
+static const KainGpuSurfaceExtension* webgpu_get_gpu_extension(int64_t session_id) {
+    (void)session_id;
+    return NULL;
+}
 KainWebgpuAbiVtable g_webgpu_abi_vtable = {
     .surface = {
         .session_create          = webgpu_session_create,
@@ -856,6 +862,7 @@ KainWebgpuAbiVtable g_webgpu_abi_vtable = {
         .window_open             = webgpu_window_open,
         .host_pump               = webgpu_host_pump,
         .session_attach_platform = webgpu_session_attach_platform,
+        .get_gpu_extension       = webgpu_get_gpu_extension,
     },
     .abi_version     = KAIN_WEBGPU_ABI_VERSION,
     .present_count   = 0,

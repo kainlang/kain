@@ -2245,6 +2245,10 @@ impl<'a> Parser<'a> {
                 self.advance();
                 WorldSurfaceKind::Ue5
             }
+            TokenKind::Ident(ref value) if value == "shader" => {
+                self.advance();
+                WorldSurfaceKind::Shader
+            }
             _ => {
                 let span = self.current_span();
                 let report = self
@@ -2257,7 +2261,7 @@ impl<'a> Parser<'a> {
                     .note(
                         "A surface declaration starts with a built-in surface kind, not an arbitrary identifier.",
                     )
-                    .help("Use one of: native_ui, viewport3d, web, ue5.")
+                    .help("Use one of: native_ui, viewport3d, web, ue5, shader.")
                     .help("Example: surface native_ui => MyPanel");
                 return Err(self.rich_parser_report(report));
             }

@@ -150,6 +150,27 @@ const KainComponentSurface* kain_component_surface_resolve(const char* name) {
         }
     }
 
+    // ── GPU backend routing: "shader" surface ──────────────────────────────
+    // When codegen asks for "shader", route through the GPU backend.
+    // Unlike "native_ui", there is NO GDI/software fallback ── shader
+    // surfaces require a GPU backend. The codegen will panic if NULL
+    // is returned.
+    if (strcmp(name, "shader") == 0) {
+        const char* backend = getenv("RENDERER_BACKEND");
+        if (backend && backend[0]) {
+            const KainComponentSurface* gpu_surface =
+                resolve_gpu_backend(backend);
+            if (gpu_surface) {
+                // Register for future lookups ── avoids env lookup on
+                // every resolve.
+                kain_component_surface_register("shader", gpu_surface);
+                return gpu_surface;
+            }
+        }
+        // No GPU backend available ── return NULL (codegen will panic)
+        return NULL;
+    }
+
     // ── Normal registry lookup ───────────────────────────────
     for (int i = 0; i < g_surface_count; i++) {
         if (strcmp(g_surface_registry[i].name, name) == 0) {

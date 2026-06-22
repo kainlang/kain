@@ -13,7 +13,7 @@
 //    5. Command list + frame submission: CreateCommandAllocator +
 //       CreateCommandList + Reset/ClearRenderTargetView/Close +
 //       ExecuteCommandLists + Present + Signal fence
-//    6. KainComponentSurface vtable fill: ALL 18 slots
+//    6. KainComponentSurface vtable fill: ALL 19 slots
 //    7. Error handling: HRESULT → string table
 //    8. Window class registration (HWND creation when not pre-attached)
 //    9. Static vtable instance + public entry point
@@ -927,6 +927,12 @@ static int64_t d3d12_surface_host_pump(int64_t session_id) {
 //  SECTION 9: Static vtable + public entry point
 // ============================================================================
 
+
+/* GPU extension: D3D12 pipeline not yet implemented */
+static const KainGpuSurfaceExtension* d3d12_get_gpu_extension(int64_t session_id) {
+    (void)session_id;
+    return NULL;
+}
 static KainD3D12AbiVtable g_d3d12_abi_vtable = {
     .surface = {
         .session_create           = d3d12_surface_session_create,
@@ -947,6 +953,7 @@ static KainD3D12AbiVtable g_d3d12_abi_vtable = {
         .window_open              = d3d12_surface_window_open,
         .host_pump                = d3d12_surface_host_pump,
         .session_attach_platform  = d3d12_surface_session_attach_platform,
+        .get_gpu_extension       = d3d12_get_gpu_extension,
     },
     .abi_version = KAIN_D3D12_ABI_VERSION,
     .present_count = 0,

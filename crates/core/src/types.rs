@@ -6993,6 +6993,16 @@ fn check_world_surface_projection(
                 surface.span,
             )),
         },
+        WorldSurfaceKind::Shader => match &surface.expr {
+            Expr::Ident(_, _) => Ok(()),
+            other => Err(env.type_error(
+                format!(
+                    "world surface 'shader' expects a shader fragment identifier, found {:?}",
+                    other
+                ),
+                surface.span,
+            )),
+        },
         WorldSurfaceKind::Viewport3d | WorldSurfaceKind::Ue5 => match &surface.expr {
             Expr::Ident(_, _) | Expr::String(_, _) => Ok(()),
             other => Err(env.type_error(
