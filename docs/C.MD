@@ -160,6 +160,31 @@ include "path/to/header.h" as alias # Quoted local header
 include bare_name as alias           # Bare import name (resolved automatically)
 ```
 
+#### Versioned Includes (vcpkg Source-Owned Manifest)
+
+Kain supports inline version constraints for C headers. The `include` statement IS the package manager — no TOML, no external manifests:
+
+```kain
+include <sqlite3.h> 3.45.0 as sql
+include <openssl/ssl.h> 3.0.8 as ssl
+include <vulkan/vulkan.h> 1.3.296.0 as vk
+```
+
+When a version is specified, the compiler detects it at parse time and invokes **vcpkg** to fetch the required library on demand. This is controlled by the `KAIN_C_FFI_AUTO_FETCH` environment variable (enabled by default; set to `0` or `false` to disable).
+
+**Version schemes supported:**
+- Dotted decimal: `3.45.0`, `1.2.3-rc.1`
+- ISO date: `2024-01-15`
+- Quoted string: `"snapshot-20240115"`
+
+**vcpkg binary discovery** (checked in order):
+1. `KAIN_VCPKG_EXE` env var
+2. `VCPKG_ROOT` env var + `vcpkg.exe`
+3. `~/.kain/vcpkg/vcpkg.exe`
+4. System PATH
+
+Run `kain doctor` to verify vcpkg is detected.
+
 These are parsed at `crates/core/src/parser.rs:1379-1406` and produce `Use { path: ["c", "import_name"], alias: Some("alias"), origin: UseOrigin::CInclude }` in the AST.
 
 The `import_name` is derived from the file stem via `c_include_import_name()` at parser.rs:228-234 ‒ `windows.h` → `"windows"`, `vulkan/vulkan.h` → `"vulkan"`.
