@@ -3,7 +3,7 @@
 
 use crate::port_overrides::header_to_port;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// A single vcpkg dependency derived from versioned includes.
 #[derive(Debug, Clone)]
@@ -103,6 +103,22 @@ pub fn collect_versioned_includes(source: &str) -> Vec<(String, String)> {
     results
 }
 
+/// Compare two version strings numerically (dotted-decimal), falling back to
+/// lexicographic when segments are not parseable as integers.
+fn version_gt(a: &str, b: &str) -> bool {
+    let a_segs: Vec<u64> = a.split('.').filter_map(|s| s.parse().ok()).collect();
+    let b_segs: Vec<u64> = b.split('.').filter_map(|s| s.parse().ok()).collect();
+    // If both are fully numeric dotted-decimal, compare integer segments
+    if a_segs.len() == a.split('.').count() && b_segs.len() == b.split('.').count()
+        && !a_segs.is_empty() && !b_segs.is_empty()
+    {
+        a_segs > b_segs
+    } else {
+        // Fall back to lexicographic (works for dates, snapshots)
+        a > b
+    }
+}
+
 /// Build a vcpkg plan from collected (include_target, version, source_file) tuples.
 pub fn build_plan(
     entries: &[(String, String, PathBuf)],
@@ -125,9 +141,10 @@ pub fn build_plan(
 
         entry.sources.push(source_ref);
 
-        // Pick the highest version (simple string comparison for now;
-        // a real semver compare would be better but this handles 95% of cases)
-        if version.as_str() > entry.version.as_str() {
+        // Pick the highest version using integer-segment comparison.
+        // Numeric dotted-decimal versions (e.g. "3.10.0" vs "3.9.0") are
+        // compared segment-wise. Non-numeric versions fall back to lexicographic.
+        if version_gt(version.as_str(), entry.version.as_str()) {
             entry.version = version.clone();
         }
     }
@@ -202,6 +219,18 @@ include nuklear as nk
         assert_eq!(plan.dependencies.len(), 1);
         assert_eq!(plan.dependencies[0].port_name, "openssl");
         assert_eq!(plan.dependencies[0].version, "3.0.9");
+    }
+
+    #[test]
+    fn test_version_gt_numeric_segments() {
+        // Segments are compared as integers, not lexicographically
+        assert!(version_gt("3.10.0", "3.9.0"));
+        assert!(!version_gt("3.9.0", "3.10.0"));
+        assert!(!version_gt("3.9.0", "3.9.0"));
+        assert!(version_gt("10.0.0", "9.0.0"));
+        // Non-numeric falls back to lexicographic
+        assert!(version_gt("2024-02-15", "2024-01-15"));
+        assert!(!version_gt("snapshot-20240115", "snapshot-20240116"));
     }
 
     #[test]
