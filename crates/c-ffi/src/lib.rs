@@ -22,7 +22,7 @@ pub use platform::{
     PlatformPackageLock, PlatformResolvedFile, PlatformSymbol, PLATFORM_LOCK_SCHEMA_VERSION,
 };
 pub use port_overrides::header_to_port;
-pub use vcpkg_plan::{VcpkgPlan, VcpkgPlanError, build_plan, collect_versioned_includes};
+pub use vcpkg_plan::{VcpkgPlan, build_plan, collect_versioned_includes};
 
 use extract::extract_binding_bundle;
 use generate::write_generated_artifacts;

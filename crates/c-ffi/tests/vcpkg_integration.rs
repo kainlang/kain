@@ -37,7 +37,7 @@ fn test_vcpkg_plan_deduplicates_by_highest_version() {
             PathBuf::from("c.kn"),
         ),
     ];
-    let plan = kain_c_ffi::vcpkg_plan::build_plan(&entries).unwrap();
+    let plan = kain_c_ffi::vcpkg_plan::build_plan(&entries);
     assert_eq!(plan.dependencies.len(), 1);
     // 3.10.1 should win over 3.0.8 and 3.9.0
     assert_eq!(plan.dependencies[0].version, "3.10.1");
@@ -64,7 +64,7 @@ fn test_vcpkg_plan_multiple_ports() {
             PathBuf::from("c.kn"),
         ),
     ];
-    let plan = kain_c_ffi::vcpkg_plan::build_plan(&entries).unwrap();
+    let plan = kain_c_ffi::vcpkg_plan::build_plan(&entries);
     assert_eq!(plan.dependencies.len(), 3);
 }
 
@@ -76,8 +76,7 @@ fn test_vcpkg_json_emits_version_constraint() {
         "sqlite3.h".to_string(),
         "3.45.0".to_string(),
         PathBuf::from("main.kn"),
-    )])
-    .unwrap();
+    )]);
     let json = plan.to_vcpkg_json(None);
     assert!(json.contains("\"name\": \"sqlite3\""));
     assert!(json.contains("\"version>=\": \"3.45.0\""));

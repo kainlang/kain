@@ -122,7 +122,7 @@ pub fn version_gt(a: &str, b: &str) -> bool {
 /// Build a vcpkg plan from collected (include_target, version, source_file) tuples.
 pub fn build_plan(
     entries: &[(String, String, PathBuf)],
-) -> Result<VcpkgPlan, VcpkgPlanError> {
+) -> VcpkgPlan {
     let mut by_port: BTreeMap<String, VcpkgDependency> = BTreeMap::new();
 
     for (include_target, version, source_file) in entries {
@@ -149,47 +149,10 @@ pub fn build_plan(
         }
     }
 
-    Ok(VcpkgPlan {
+    VcpkgPlan {
         dependencies: by_port.into_values().collect(),
-    })
-}
-
-/// Error from plan building.
-#[derive(Debug)]
-pub enum VcpkgPlanError {
-    /// Two includes for the same port use incompatible version schemes.
-    SchemeConflict {
-        port: String,
-        source_a: PathBuf,
-        version_a: String,
-        source_b: PathBuf,
-        version_b: String,
-    },
-}
-
-impl std::fmt::Display for VcpkgPlanError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SchemeConflict {
-                port,
-                source_a,
-                version_a,
-                source_b,
-                version_b,
-            } => write!(
-                f,
-                "version-scheme conflict for port '{}': {} ({}) vs {} ({})",
-                port,
-                version_a,
-                source_a.display(),
-                version_b,
-                source_b.display(),
-            ),
-        }
     }
 }
-
-impl std::error::Error for VcpkgPlanError {}
 
 #[cfg(test)]
 mod tests {
@@ -215,7 +178,7 @@ include nuklear as nk
             ("openssl/ssl.h".to_string(), "3.0.8".to_string(), PathBuf::from("a.kn")),
             ("openssl/err.h".to_string(), "3.0.9".to_string(), PathBuf::from("b.kn")),
         ];
-        let plan = build_plan(&entries).unwrap();
+        let plan = build_plan(&entries);
         assert_eq!(plan.dependencies.len(), 1);
         assert_eq!(plan.dependencies[0].port_name, "openssl");
         assert_eq!(plan.dependencies[0].version, "3.0.9");
