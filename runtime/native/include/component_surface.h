@@ -18,6 +18,7 @@
 // ============================================================================
 
 #include <stdint.h>
+#include "gpu_surface_extension.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,6 +87,16 @@ typedef struct KainComponentSurface {
     //     create it here when hwnd is NULL.) ──────────────────────
     void    (*session_attach_platform)(int64_t session_id,
                                        void*   platform_handle);
+
+    //
+    // GPU extension discovery (slot 18)
+    //
+    /// Slot 18: Get the GPU surface extension for this backend.
+    /// Returns NULL if the backend does not support GPU operations
+    /// (software/GDI backends). GPU backends (Vulkan, D3D12, WebGPU)
+    /// return a pointer to a KainGpuSurfaceExtension with at least
+    /// load_shader and set_uniform populated.
+    const KainGpuSurfaceExtension* (*get_gpu_extension)(int64_t session_id);
 } KainComponentSurface;
 
 // ── Surface registry ──────────────────────────────────────────

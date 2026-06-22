@@ -1,0 +1,52 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let ws = workspace_defaults()
+        .search_root(".")
+        .generated_root(".kain/generated")
+
+    let pkg = package("runtime-smoke")
+        .version("0.1.0")
+        .description("Single-file regression test for the entire Kain native runtime.")
+
+    let spec = blade("runtime-smoke")
+        .kind("kain_executable")
+        .entry("runtime_smoke.kn")
+        .source_root(".")
+        .module_root(".")
+        .build_target("llvm")
+
+    let defaults = build_defaults()
+        .entry("runtime_smoke.kn")
+        .artifact_root(".kain/out/llvm")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let check = build_check("check-llvm")
+        .entry("runtime_smoke.kn")
+        .target("llvm")
+        .input("runtime_smoke.kn")
+        .input("build.kn")
+
+    let root_exe = native_executable("root-executable")
+        .entry("runtime_smoke.kn")
+        .root_output("$root/kain-runtime-smoke.exe")
+        .requires("check-llvm")
+        .input("runtime_smoke.kn")
+        .input("build.kn")
+
+    let run = exec_task("run-smoke")
+        .command("$root/kain-runtime-smoke.exe")
+        .cwd("$root")
+        .requires("root-executable")
+
+    let g = build_graph("runtime-smoke-v0.1")
+        .workspace(ws, defaults)
+        .package(pkg)
+        .task(spec)
+        .task(check)
+        .task(root_exe)
+        .task(run)
+
+    return g

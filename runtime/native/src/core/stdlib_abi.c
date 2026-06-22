@@ -3748,3 +3748,45 @@ const char* abi_fs_last_error_kind(void) {
 const char* abi_fs_last_error_message(void) {
     return string_new(g_kain_native_fs_last_error_message);
 }
+
+// ============================================================================
+//  Vulkan ABI stubs — proxy symbols until vulkan_stubs.c is linked
+//  These are also defined in vulkan_surface_shim.c + vulkan_stubs.c but
+//  those files are gated behind KAIN_RUNTIME_HAS_VULKAN_LOADER which may
+//  not be active in all build configurations.
+// ============================================================================
+
+int64_t kain_vulkan_runtime_capability(void) {
+    return 0;
+}
+
+int64_t abi_vulkan_last_status(void) {
+    return 0;
+}
+
+const char* abi_vulkan_last_error(void) {
+    return string_new("vulkan not loaded");
+}
+
+int64_t abi_vulkan_present_count(void) {
+    return 0;
+}
+
+int64_t abi_vulkan_swapchain_recreations(void) {
+    return 0;
+}
+
+int64_t kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
+    (void)session_id;
+    (void)spirv_hex;
+    return -1;
+}
+
+int64_t kain_vulkan_abi_set_uniform(int64_t session_id, int64_t binding,
+                                     const void* data, int64_t size) {
+    (void)session_id;
+    (void)binding;
+    (void)data;
+    (void)size;
+    return -1;
+}

@@ -2621,6 +2621,16 @@ static int64_t vulkan_host_pump(int64_t sid) {
 //  SECTION 9: Static vtable instance (~40 lines)
 // ============================================================================
 
+
+static const KainGpuSurfaceExtension g_vulkan_gpu_extension = {
+    .load_shader = kain_vulkan_abi_load_shader,
+    .set_uniform = kain_vulkan_abi_set_uniform,
+};
+
+static const KainGpuSurfaceExtension* vulkan_get_gpu_extension(int64_t session_id) {
+    (void)session_id;
+    return &g_vulkan_gpu_extension;
+}
 KainVulkanAbiVtable g_vulkan_abi_vtable = {
     .surface = {
         .session_create          = vulkan_session_create,
@@ -2641,6 +2651,7 @@ KainVulkanAbiVtable g_vulkan_abi_vtable = {
         .window_open             = vulkan_window_open,
         .host_pump               = vulkan_host_pump,
         .session_attach_platform = vulkan_session_attach_platform,
+        .get_gpu_extension      = vulkan_get_gpu_extension,
     },
     .pfns = {0}, /* filled at first get_vtable() call or loader init */
     .load_shader_fn        = kain_vulkan_abi_load_shader,
