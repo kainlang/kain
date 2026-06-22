@@ -1,0 +1,14 @@
+// vcpkg inline smoke test — end-to-end verification of versioned C includes
+// Build: kain build blades/c/vcpkg_inline_smoke/main.kn --target llvm
+// Prereq: vcpkg must be installed and KAIN_C_FFI_AUTO_FETCH=1 set
+//
+// This blade exercises the full source-owned manifest pipeline:
+//   Parser → version detection → vcpkg plan builder → Strategy 6 → vcpkg subprocess → link paths
+
+include <sqlite3.h> 3.45.0 as sql
+
+fn main() -> Int with Unsafe, IO:
+    let v = sql_libversion_number()
+    if v < 3045000:
+        return 1
+    return 0

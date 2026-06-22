@@ -858,6 +858,7 @@ fn compile_c_sources_to_bitcode(
     Ok(compiled)
 }
 
+#[cfg(test)]
 fn resolve_library(
     import_name: &str,
     prepare: &PrepareContext,
