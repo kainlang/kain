@@ -57,6 +57,7 @@ NATIVE_CORE_RUNTIME = {
         'native/src/core/async.c',
         'native/src/core/compatibility.c',
         'native/src/core/component_surface.c',
+        'native/src/core/vulkan_stubs.c',
         'native/src/ui/native_ui_surface.c',
         'native/src/core/host_bridge.c',
         'native/src/core/interop_zero_copy.c',

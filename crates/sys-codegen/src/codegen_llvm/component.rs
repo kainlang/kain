@@ -78,10 +78,10 @@ impl LlvmGenerator {
         }
         self.surface_trait_declared = true;
 
-        // Sized trait type with 17 pointer-sized fields (one per vtable slot).
+        // Sized trait type with 18 pointer-sized fields (one per vtable slot).
         // The exact function pointer types differ per slot; we use i8* as a
         // uniform placeholder and bitcast before loading the real fn pointer.
-        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
+        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
 
         // Registry — resolve a named surface backend
         self.emit("declare %KainComponentSurface* @kain_component_surface_resolve(i8*)");
@@ -307,8 +307,22 @@ impl LlvmGenerator {
         self.emit(&format!("  call void @kain_runtime_panic(i8* {})", fail_str));
         self.emit("  unreachable");
 
-        // ── Window init (run once, then enter frame loop) ─────────
+        // ── Attach platform (vtable offset 17) ────────────────────
+        // Allocate a zero-initialized 8-byte platform handle on the stack.
+        // Backends that own their window (Vulkan, D3D12) create it here
+        // when hwnd is NULL. Backends that receive a host-created window
+        // (native_ui via winit) have it set by the host adapter.
         self.emit_label(&window_init_label);
+
+        let handle_reg = self.next_reg();
+        self.emit(&format!("  {} = alloca [8 x i8], align 8", handle_reg));
+        self.emit(&format!("  call void @llvm.memset.p0i8.i64(i8* {}, i8 0, i64 8, i1 false)", handle_reg));
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_SESSION_ATTACH_PLATFORM,
+            "void (i64, i8*)*",
+            &[(&session_id, "i64"), (&handle_reg, "i8*")],
+        );
 
         // window_open (vtable offset 15) — flag session as open.
         // The OS window was created by native_ui_session_create which

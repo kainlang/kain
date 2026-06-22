@@ -1873,10 +1873,11 @@ static int vulkan_abi_recreate_swapchain(KainVulkanSession* session) {
     /* Wait for device idle before tearing down */
     pfn_vkDeviceWaitIdle(session->device);
 
-    /* Destroy old image views */
+    /* Destroy old framebuffers + image views */
     for (uint32_t i = 0; i < session->swapchain_image_count; i++) {
         if (session->framebuffers[i] != (VkFramebuffer)0) {
-            /* Framebuffers will be destroyed in session_destroy */
+            pfn_vkDestroyFramebuffer(session->device,
+                                      session->framebuffers[i], NULL);
             session->framebuffers[i] = (VkFramebuffer)0;
         }
         if (session->swapchain_image_views[i] != (VkImageView)0) {
@@ -1889,6 +1890,25 @@ static int vulkan_abi_recreate_swapchain(KainVulkanSession* session) {
     /* Recreate swapchain */
     int rc = vulkan_abi_create_swapchain(session);
     if (rc != 0) return rc;
+
+    /* Recreate framebuffers for new image views */
+    VkFramebufferCreateInfo fb_info;
+    memset(&fb_info, 0, sizeof(fb_info));
+    fb_info.sType           = S_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fb_info.renderPass      = session->render_pass;
+    fb_info.attachmentCount = 1;
+    fb_info.width           = session->width;
+    fb_info.height          = session->height;
+    fb_info.layers          = 1;
+    for (uint32_t i = 0; i < session->swapchain_image_count; i++) {
+        fb_info.pAttachments = &session->swapchain_image_views[i];
+        VkResult result = pfn_vkCreateFramebuffer(session->device, &fb_info,
+                                                   NULL, &session->framebuffers[i]);
+        if (result != VK_SUCCESS) {
+            vulkan_abi_set_error(-7, "recreate_swapchain: vkCreateFramebuffer failed");
+            return -7;
+        }
+    }
 
     /* Increment telemetry counter */
     /* g_vulkan_abi_vtable.swapchain_recreations++ is done by caller */
@@ -2120,6 +2140,10 @@ static int64_t           g_next_session_id = 1;
 static int64_t vulkan_session_create(const char* name, int64_t width, int64_t height);
 static void    vulkan_session_attach_platform(int64_t sid, void* platform_handle);
 static void    vulkan_session_destroy(int64_t sid);
+
+/* Forward declarations for public ABI exports (referenced by static vtable init) */
+KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex);
+KAIN_VULKAN_ABI_EXPORT int  kain_vulkan_abi_set_uniform(int64_t session_id, uint32_t binding, const void* data, uint64_t size);
 static int64_t vulkan_element_begin(int64_t sid, int64_t parent_id,
                                      const char* kind, const char* stable_key);
 static void    vulkan_element_end(int64_t sid, int64_t element_id);
@@ -2368,9 +2392,8 @@ static void vulkan_session_destroy(int64_t sid) {
         /* Destroy framebuffers */
         for (uint32_t i = 0; i < s->swapchain_image_count; i++) {
             if (s->framebuffers[i] != (VkFramebuffer)0) {
-                /* No destroy function in our subset — framebuffer
-                 * destruction requires render pass context which
-                 * we don't track in MVP. Let the driver clean up. */
+                pfn_vkDestroyFramebuffer(s->device,
+                                          s->framebuffers[i], NULL);
                 s->framebuffers[i] = (VkFramebuffer)0;
             }
         }
@@ -2620,6 +2643,8 @@ KainVulkanAbiVtable g_vulkan_abi_vtable = {
         .session_attach_platform = vulkan_session_attach_platform,
     },
     .pfns = {0}, /* filled at first get_vtable() call or loader init */
+    .load_shader_fn        = kain_vulkan_abi_load_shader,
+    .set_uniform_fn        = kain_vulkan_abi_set_uniform,
     .abi_version           = KAIN_VULKAN_ABI_VERSION,
     .present_count         = 0,
     .swapchain_recreations = 0,

@@ -189,6 +189,8 @@ typedef struct KainVulkanPfnTable {
 typedef struct KainVulkanAbiVtable {
     KainComponentSurface surface;
     KainVulkanPfnTable   pfns;         /* All 57 resolved PFNs */
+    int64_t (*load_shader_fn)(int64_t, const char*);
+    int64_t (*set_uniform_fn)(int64_t, uint32_t, const void*, uint64_t);
     int64_t              abi_version;
     int64_t              present_count;
     int64_t              swapchain_recreations;

@@ -3133,9 +3133,12 @@ pub(crate) fn resolve_world_selection(
 
 fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfaceKind> {
     match target {
+        // LLVM, Rust, C, C++, BareMetal: surfaces are OPTIONAL.
+        // A world without a surface is a pure state authority (benchmarks, CI, servers).
+        // When a surface IS declared, it controls rendering intent.
         CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
         | CompileTarget::BareMetal | CompileTarget::Cpp => {
-            Some(WorldSurfaceKind::NativeUi)
+            None
         }
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
             Some(WorldSurfaceKind::Web)

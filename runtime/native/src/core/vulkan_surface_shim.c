@@ -33,23 +33,19 @@ typedef void* KainVulkanAbiLibrary;
 #define KAIN_VULKAN_STATUS_MESSAGE_MAX 512u
 #define KAIN_VULKAN_PATH_MAX 1024u
 
-// ── ABI library vtable shape (declaration only — BRAVO fills the contents) ──
-
-typedef struct KainVulkanAbiVtable {
-    KainComponentSurface surface;
-    int64_t              abi_version;
-    int64_t              present_count;
-    int64_t              swapchain_recreations;
-    int64_t              last_status;
-    char                 last_error[KAIN_VULKAN_STATUS_MESSAGE_MAX];
-} KainVulkanAbiVtable;
+// ── ABI library vtable shape ───────────────────────────────────
+// Must match vulkan_abi.h exactly. Including the header to guarantee
+// the struct layout is the same — the local typedef in this file had
+// 6 fields missing KainVulkanPfnTable pfns (57 fn ptrs, 456 bytes),
+// which caused all telemetry reads to return garbage.
+#include "../../extras/vulkan-abi/vulkan_abi.h"
 
 typedef const KainVulkanAbiVtable* (*KainVulkanAbiGetVtableFn)(void);
 
 // ── Telemetry globals ────────────────────────────────────────────
 
 static KainVulkanAbiLibrary       g_vulkan_abi_library = NULL;
-static const KainVulkanAbiVtable* g_vulkan_vtable = NULL;
+const KainVulkanAbiVtable*        g_vulkan_vtable = NULL;
 static int64_t                    g_vulkan_capability_probed = 0;
 static int64_t                    g_vulkan_capability_available = 0;
 

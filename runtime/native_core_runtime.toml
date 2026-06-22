@@ -43,6 +43,7 @@ sources = [
     "native/src/core/compatibility.c",
     "native/src/core/component_surface.c",
     "native/src/core/vulkan_surface_shim.c",
+    "native/src/core/vulkan_stubs.c",
     "native/src/core/d3d12_surface_shim.c",
     "native/src/core/webgpu_surface_shim.c",
     "native/src/ui/native_ui_surface.c",
