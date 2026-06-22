@@ -33,7 +33,7 @@ pub fn kc_diag_bag_new() -> KcDiagnosticBag:
 pub fn kc_diag_bag_has_errors(bag: KcDiagnosticBag) -> Bool:
     return len(bag.errors) > 0
 
-pub struct Token:
+pub struct KcToken:
     kind:    Int
     text:    String
     line_no: Int
@@ -111,16 +111,16 @@ pub fn build_config_default() -> BuildConfig:
 
 // ── Forward stub types for upstream modules ──
 
-pub struct LexerState:
+pub struct KcLexerState:
     source:    String
     file_path: String
 
-pub struct LexTokensResult:
-    tokens: Array<Token>
+pub struct KcLexTokensResult:
+    tokens: Array<KcToken>
     errors: KcDiagnosticBag
 
 pub struct ParserState:
-    tokens:   Array<Token>
+    tokens:   Array<KcToken>
     errors:   KcDiagnosticBag
     prog:     AstProgram
 
@@ -133,13 +133,13 @@ pub struct TypeEnv:
 
 // ── Stub functions (resolved at ouroboros combine time) ──
 
-pub fn lexer_new(source: String, file_path: String) -> LexerState:
-    return LexerState { source: source, file_path: file_path }
+pub fn lexer_new(source: String, file_path: String) -> KcLexerState:
+    return KcLexerState { source: source, file_path: file_path }
 
-pub fn lexer_tokenize_all(state: LexerState) -> LexTokensResult:
-    return LexTokensResult { tokens: [], errors: kc_diag_bag_new() }
+pub fn lexer_tokenize_all(state: KcLexerState) -> KcLexTokensResult:
+    return KcLexTokensResult { tokens: [], errors: kc_diag_bag_new() }
 
-pub fn parser_new(tokens: Array<Token>, file_path: String, source: String) -> ParserState:
+pub fn parser_new(tokens: Array<KcToken>, file_path: String, source: String) -> ParserState:
     return ParserState { tokens: tokens, errors: kc_diag_bag_new(),
         prog: AstProgram { root: 0, nodes: [] } }
 
@@ -253,11 +253,11 @@ pub fn driver_session_compile(session: DriverSession, source: String,
 
     // ── Phase 1: Lex ──
     r = emit_progress(r, PHASE_LEX)
-    let lexer_state: LexerState = lexer_new(r.source, r.file_path)
-    let toks_result: LexTokensResult = lexer_tokenize_all(lexer_state)
+    let lexer_state: KcLexerState = lexer_new(r.source, r.file_path)
+    let toks_result: KcLexTokensResult = lexer_tokenize_all(lexer_state)
     if kc_diag_bag_has_errors(toks_result.errors):
         return compile_result_error(toks_result.errors)
-    let tokens: Array<Token> = toks_result.tokens
+    let tokens: Array<KcToken> = toks_result.tokens
 
     // ── Phase 2: Parse ──
     r = emit_progress(r, PHASE_PARSE)
@@ -299,8 +299,8 @@ pub fn driver_session_check(session: DriverSession, source: String,
     r.source = source
     r.file_path = source_path
 
-    let lexer_state: LexerState = lexer_new(r.source, r.file_path)
-    let toks_result: LexTokensResult = lexer_tokenize_all(lexer_state)
+    let lexer_state: KcLexerState = lexer_new(r.source, r.file_path)
+    let toks_result: KcLexTokensResult = lexer_tokenize_all(lexer_state)
     if kc_diag_bag_has_errors(toks_result.errors):
         return KcCheckResult { success: false, diagnostics: toks_result.errors }
 

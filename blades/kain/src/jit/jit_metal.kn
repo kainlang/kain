@@ -41,7 +41,7 @@ pub fn jit_compile_and_run(code_bytes: Array<Int>, code_size: Int) -> Int with U
     // Step 4: Transition RW → RX (W^X enforcement — pages are no longer writable)
     let prot: Int = vm_protect_execute_read(pages, alloc_size)
     if prot != 0:
-        decay pages
+        let _unused: Int = vm_unmap(pages, alloc_size)
         return -2  // ERR_JIT_PROTECT_FAILED
 
     // Step 5: Flush instruction cache — clflush every cache line
