@@ -33,6 +33,7 @@ use libloading::{Library, Symbol};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -41,6 +42,10 @@ use std::sync::{Once, RwLock};
 static REGISTER_EXTENSION_ONCE: Once = Once::new();
 static LOADED_BRIDGES: Lazy<RwLock<BTreeMap<PathBuf, LoadedBridge>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
+
+thread_local! {
+    static AUGMENT_GUARD: Cell<bool> = Cell::new(false);
+}
 
 type RegisterBridgeFn = unsafe extern "C" fn(*mut Env);
 
@@ -286,6 +291,23 @@ pub fn prepare_native_link_inputs(
 }
 
 pub fn augment_source_for_runtime(
+    source: &str,
+    target: CompileTarget,
+    prepare: &PrepareContext,
+) -> Result<String, KainError> {
+    // Re-entrancy guard: the generated FFI bridge source must not trigger
+    // another call to augment_source_for_runtime. If we detect re-entrancy,
+    // return the source unchanged — the caller already augmented it.
+    if AUGMENT_GUARD.with(|g| g.get()) {
+        return Ok(source.to_string());
+    }
+    AUGMENT_GUARD.with(|g| g.set(true));
+    let result = augment_source_for_runtime_inner(source, target, prepare);
+    AUGMENT_GUARD.with(|g| g.set(false));
+    result
+}
+
+fn augment_source_for_runtime_inner(
     source: &str,
     target: CompileTarget,
     prepare: &PrepareContext,
