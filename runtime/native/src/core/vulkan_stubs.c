@@ -16,6 +16,8 @@
 //  the stubs return -1 gracefully rather than crashing.
 // ============================================================================
 
+#include <stdint.h>
+
 #ifdef KAIN_RUNTIME_HAS_VULKAN_LOADER
 
 #include "../../extras/vulkan-abi/vulkan_abi.h"
