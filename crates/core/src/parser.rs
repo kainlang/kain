@@ -1459,9 +1459,10 @@ impl<'a> Parser<'a> {
                 Ok(s)
             }
             // Float start: 3.45 (then possibly .0, .0.1, -rc.1, etc.)
-            TokenKind::Float(f) => {
+            TokenKind::Float(_) => {
+                let float_span = self.current_span();
                 self.advance();
-                let mut version = format!("{}", f);
+                let mut version = self.span_mapper.source()[float_span.start..float_span.end].to_string();
                 // Continue consuming .N segments
                 while self.check(TokenKind::Dot) {
                     self.advance();
@@ -1471,9 +1472,10 @@ impl<'a> Parser<'a> {
                             self.advance();
                             version.push_str(&n.to_string());
                         }
-                        TokenKind::Float(f) => {
+                        TokenKind::Float(_) => {
+                            let sub_span = self.current_span();
                             self.advance();
-                            version.push_str(&format!("{}", f));
+                            version.push_str(&self.span_mapper.source()[sub_span.start..sub_span.end]);
                         }
                         _ => break,
                     }
@@ -1511,15 +1513,17 @@ impl<'a> Parser<'a> {
                     // ISO date: 2024-01-15
                     self.advance();
                     version.push('-');
-                    if let TokenKind::Int(m) = self.peek_kind() {
+                    if matches!(self.peek_kind(), TokenKind::Int(_)) {
+                        let m_span = self.current_span();
                         self.advance();
-                        version.push_str(&m.to_string());
+                        version.push_str(&self.span_mapper.source()[m_span.start..m_span.end]);
                         if self.check(TokenKind::Minus) {
                             self.advance();
                             version.push('-');
-                            if let TokenKind::Int(d) = self.peek_kind() {
+                            if matches!(self.peek_kind(), TokenKind::Int(_)) {
+                                let d_span = self.current_span();
                                 self.advance();
-                                version.push_str(&d.to_string());
+                                version.push_str(&self.span_mapper.source()[d_span.start..d_span.end]);
                             }
                         }
                     }
@@ -11449,7 +11453,7 @@ include <some-port/header.h> 2024-01-15 as sp
         match &program.items[0] {
             Item::Use(include) => {
                 let version = include.version.as_ref().expect("should have version");
-                assert_eq!(version.simple, "2024-1-15");
+                assert_eq!(version.simple, "2024-01-15");
             }
             other => panic!("expected include, got {other:?}"),
         }
