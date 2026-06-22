@@ -8,6 +8,7 @@ mod system_registry;
 pub mod port_overrides;
 pub mod vcpkg;
 pub mod vcpkg_plan;
+pub mod vcpkg_setup;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
@@ -912,21 +913,21 @@ fn resolve_library_spec(
         return Ok(resolved);
     }
 
-    // Strategy 6: vcpkg on-demand fetch (when version constraint is present)
-    if let Some(version) = &spec.version {
-        let auto_fetch = std::env::var("KAIN_C_FFI_AUTO_FETCH")
-            .map(|v| v != "0" && v != "false")
-            .unwrap_or(true);
-        if auto_fetch {
-            // TODO: thread actual CompileTarget through call chain for
-            // correct triple selection when cross-compiling.
-            let target = CompileTarget::Llvm;
-            if let Some(mut resolved) =
-                crate::vcpkg::resolve_vcpkg_fetch(spec, &start_dir, version, target)?
-            {
-                resolved.0.version = spec.version.clone();
-                return Ok(resolved);
-            }
+    // Strategy 6: vcpkg on-demand fetch.
+    // Triggered when KAIN_C_FFI_AUTO_FETCH is on (default: true).
+    // Version constraint is optional — unversioned includes fall through
+    // to vcpkg's baseline (classic mode).
+    let auto_fetch = std::env::var("KAIN_C_FFI_AUTO_FETCH")
+        .map(|v| v != "0" && v != "false")
+        .unwrap_or(true);
+    if auto_fetch {
+        let target = CompileTarget::Llvm;
+        let version_arg = spec.version.as_deref().unwrap_or("");
+        if let Some(mut resolved) =
+            crate::vcpkg::resolve_vcpkg_fetch(spec, &start_dir, version_arg, target)?
+        {
+            resolved.0.version = spec.version.clone();
+            return Ok(resolved);
         }
     }
 
@@ -1085,13 +1086,10 @@ fn resolve_system_include(
         return Ok(None);
     };
     let normalized_target = include_target.replace('\\', "/");
-    let family = system_registry::family_for_include(&normalized_target).ok_or_else(|| {
-        KainError::runtime(format!(
-            "System C include '<{}>' is not supported yet; the current system-header registry for this target understands: {}",
-            include_target,
-            system_registry::supported_family_summary()
-        ))
-    })?;
+    let family = match system_registry::family_for_include(&normalized_target) {
+        Some(f) => f,
+        None => return Ok(None),
+    };
     let header_name = system_registry::system_header_file_name(&normalized_target);
     let manifest_root =
         find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
@@ -1109,13 +1107,10 @@ fn resolve_system_include(
         push_existing_unique_path(&mut include_paths, include_dir);
         header_path
     } else {
-        find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(|| {
-            KainError::runtime(format!(
-                "System C include '<{}>' could not be resolved from include roots: {}",
-                include_target,
-                render_searched_paths(&include_paths)
-            ))
-        })?
+        match find_system_header_under_roots(&normalized_target, &include_paths) {
+            Some(p) => p,
+            None => return Ok(None),
+        }
     };
     let (shared_lib_path, static_lib_paths) = resolve_system_library_artifacts(family);
     let link_libs =

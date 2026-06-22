@@ -1191,6 +1191,23 @@ pub enum KainCommand {
         command: FabricCommand,
     },
 
+    /// Install C/C++ toolchain extras: auto-resolves vcpkg dependencies, sets up
+    /// C build tooling, and materializes headers + libs into .kain/toolchain.
+    #[command(name = "install-c-extras")]
+    InstallCextras {
+        /// Specific packages to install (space-separated). If omitted, resolves all
+        /// C FFI dependencies declared in the current workspace.
+        packages: Vec<String>,
+
+        /// Target triple to resolve packages for
+        #[arg(long, default_value = "host")]
+        target: String,
+
+        /// Dry run: print the resolved package plan without installing
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Runtime-contributed command fallback.
     #[command(external_subcommand)]
     External(Vec<String>),

@@ -3754,6 +3754,19 @@ pub fn main_entry() {
                     }
                 },
                 Some(Commands::Install { package, version }) => {
+                    // Special: "c-extras" triggers vcpkg bootstrap
+                    if package == "c-extras" {
+                        match kain_c_ffi::vcpkg_setup::setup_vcpkg(
+                            &kain_c_ffi::vcpkg_setup::default_vcpkg_root(),
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => {
+                                eprintln!(" vcpkg setup failed: {e}");
+                                std::process::exit(1);
+                            }
+                        }
+                        return;
+                    }
                     match packages::install(&package, version) {
                         Ok(report) => {
                             println!(" Installed {} v{}", report.name, report.version);
@@ -3973,6 +3986,16 @@ pub fn main_entry() {
                 Some(Commands::Fabric { command }) => {
                     if let Err(e) = fabric::run(command) {
                         eprintln!(" Fabric command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::InstallCextras {
+                    packages,
+                    target,
+                    dry_run,
+                }) => {
+                    if let Err(e) = packages::install_c_extras(&packages, &target, dry_run) {
+                        eprintln!(" install-c-extras failed: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -5251,7 +5274,7 @@ fn print_doctor(active_launcher: LauncherKind) {
     // vcpkg detection (for versioned C includes)
     match kain_c_ffi::vcpkg::find_vcpkg_binary() {
         Ok(path) => println!(" vcpkg Binary: {}", path.display()),
-        Err(_) => println!(" vcpkg Binary: <not found> (set KAIN_VCPKG_EXE or VCPKG_ROOT)"),
+        Err(_) => println!(" vcpkg Binary: <not found> — run `kain install c-extras` to bootstrap"),
     }
     println!(
         " vcpkg Root: {}",

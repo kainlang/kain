@@ -762,6 +762,19 @@ fn write_text_file(path: impl AsRef<Path>, content: String) -> Result<(), String
     fs::write(path, content).map_err(|err| format!("failed to write '{}': {err}", path.display()))
 }
 
+pub fn install_c_extras(
+    _packages: &[String],
+    _target: &str,
+    dry_run: bool,
+) -> Result<(), String> {
+    if dry_run {
+        println!("Would bootstrap vcpkg into ~/.kain/vcpkg/");
+        return Ok(());
+    }
+    kain_c_ffi::vcpkg_setup::setup_vcpkg(&kain_c_ffi::vcpkg_setup::default_vcpkg_root())
+        .map_err(|e| format!("vcpkg setup failed: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

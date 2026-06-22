@@ -156,7 +156,11 @@ pub fn ensure_installed(
     let installed_tree = root.join("installed").join(triple);
 
     // Sentinel file for idempotent installs
-    let sentinel_name = format!(".kain-fetch-marker-{}-{}", package, version);
+    let sentinel_name = if version.is_empty() {
+        format!(".kain-fetch-marker-{}", package)
+    } else {
+        format!(".kain-fetch-marker-{}-{}", package, version)
+    };
     let sentinel = installed_tree.join(&sentinel_name);
 
     if sentinel.is_file() {
@@ -177,7 +181,6 @@ pub fn ensure_installed(
     let mut cmd = Command::new(&vcpkg_bin);
     cmd.arg("install")
         .arg(format!("{}:{}", package, triple))
-        .arg(format!("--version={}", version))
         .arg("--vcpkg-root")
         .arg(&root)
         .arg("--x-install-root")
