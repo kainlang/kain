@@ -46,6 +46,7 @@ mod compute_residency;
 pub mod llvm_ir;
 #[cfg(feature = "sys")]
 mod native_app;
+pub mod progress;
 #[cfg(feature = "tauri")]
 mod tauri_app;
 
