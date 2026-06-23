@@ -147,7 +147,7 @@ fn value_to_expr(val: Value, span: Span) -> Expr {
 
 Five types survive the bake: `Int`, `Float`, `Bool`, `String`, `Unit`. Everything else becomes a debug string. This means:
 
-- **Arrays, structs, pointers** ___ cannot be baked (they become `<unrepresentable comptime value: ...>` strings)
+- **Arrays, structs, pointers** \_\_\_ cannot be baked (they become `<unrepresentable comptime value: ...>` strings)
 - **Function pointers** ... cannot be baked
 - **World references, actor handles, GPU buffers** ~> cannot be baked
 
@@ -467,7 +467,7 @@ Comptime evaluates values, not generates code. For hygienic code generation, use
 
 ### ❌ Access Runtime-Only Constructs
 
-World state, actor handles, GPU buffers, network connections <--> these don't exist at compile time.
+World state, actor handles, GPU buffers, network connections \<--> these don't exist at compile time.
 
 ______________________________________________________________________
 
@@ -626,7 +626,7 @@ fn init_graphics() with IO, GPU, Unsafe:
 ### Why These Ideas AREN'T Used Today
 
 1. **No one knows comptime can do this.** The docs focus on GPU metadata. The only example (`comptime.kn`) declares two integer constants.
-1. **`value_to_expr` only bakes 5 types.** Arrays, structs, and pointers become debug strings ___ you can compute a lookup table at compile time but can't bake it as an `[Int; 256]` literal.
+1. **`value_to_expr` only bakes 5 types.** Arrays, structs, and pointers become debug strings \_\_\_ you can compute a lookup table at compile time but can't bake it as an `[Int; 256]` literal.
 1. **No filesystem access.** Zig's `@embedFile` makes comptime great for embedding assets --> Kain can't do that.
 1. **No type reflection.** Zig's `@typeInfo` enables generic comptime code --> Kain can't inspect types.
 
@@ -817,7 +817,7 @@ ______________________________________________________________________
 | **Expression syntax** | `comptime: <expression>` |
 | **GPU metadata syntax** | `comptime:\n    let compute = (workgroup, dispatch, tensors, streams, nodes)` |
 | **AST nodes** | `Item::Comptime(ComptimeBlock)` and `Expr::Comptime(Box<Expr>, Span)` |
-| **Typecheck** | `TypedComptime { ast: Block }` ___ wraps the body, no evaluation |
+| **Typecheck** | `TypedComptime { ast: Block }` \_\_\_ wraps the body, no evaluation |
 | **Evaluator** | `crates/core/src/comptime.rs` |-> 201 lines, runs interpreter before typecheck |
 | **Pipeline phase** | `CompilerPhase::Comptime` >> BEFORE typecheck, in `driver/src/lib.rs` |
 | **value_to_expr** | Converts Int, Float, Bool, String, Unit === other types become debug strings |
@@ -834,7 +834,7 @@ ______________________________________________________________________
 | **Can allocate memory** | ✅ Yes (interpreter alloc) |
 | **Can access types** | ❌ No ~ comptime runs BEFORE typecheck |
 | **Can read files** | ❌ No |
-| **Can generate code** | ❌ No <--> use `macro` |
+| **Can generate code** | ❌ No \<--> use `macro` |
 | **Real usage** | ~58 GPU metadata blocks, 3 constant declarations, 0 compile-time computations |
 | **Source** | `crates/core/src/comptime.rs` (evaluator), `crates/core/src/ast.rs:647-800` (GPU metadata extraction) |
 | **Bakeable types** | Int, Float, Bool, String, Unit only |

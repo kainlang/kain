@@ -416,7 +416,7 @@ pub fn smoke_sqlite_ping_signature(seed: Int, rounds: Int) -> String:
 
 ### 4.4 When SQLite Has Complex Return Types
 
-For functions that return `const char*` strings, the alias extern surface carries `@c_string_return` on the generated thunk. The LLVM lane materializes the raw `i8*` into owned Kain string storage automatically ___ so `ping_signature(seed, rounds)` returns a real Kain `String`, not a borrowed native pointer.
+For functions that return `const char*` strings, the alias extern surface carries `@c_string_return` on the generated thunk. The LLVM lane materializes the raw `i8*` into owned Kain string storage automatically \_\_\_ so `ping_signature(seed, rounds)` returns a real Kain `String`, not a borrowed native pointer.
 
 For functions that need custom setup (e.g. `sqlite3_open` with a `sqlite3**`), write a small C wrapper in a companion `.c` that does the pointer dance, and call the wrapper from Kain. This keeps the Kain side safe.
 
@@ -840,7 +840,7 @@ ______________________________________________________________________
 
 ## Strategy 11 – The Full Win32 GDI App Pattern
 
-The most comprehensive C interop example in the repo is `blades/kain/component_minimal/src/app.kn` ___ a 250+ line Win32 GDI application with:
+The most comprehensive C interop example in the repo is `blades/kain/component_minimal/src/app.kn` \_\_\_ a 250+ line Win32 GDI application with:
 
 ### 11.1 Window Creation
 
@@ -914,7 +914,7 @@ fn draw_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Uns
     return win_TextOutA(hdc, x, y, text, len(text))
 ```
 
-This proves that a full Win32 application (window, GDI painting, message loop, user input, sphere rendering) can be written in Kain with **zero `use c::`, zero manual externs, zero manifest ceremony** <--> just `include <windows.h> as win`.
+This proves that a full Win32 application (window, GDI painting, message loop, user input, sphere rendering) can be written in Kain with **zero `use c::`, zero manual externs, zero manifest ceremony** \<--> just `include <windows.h> as win`.
 
 ______________________________________________________________________
 

@@ -22,7 +22,7 @@ ______________________________________________________________________
 | `await` | Contextual | Core Control & Binding | L0 | ~> |
 | `axiom` | Contextual | Machine Stones ->> L6 | L6 | `AXIOM.MD` |
 | `break` | Hard Lexer | Core Control & Binding | L0 | --> |
-| `by` | Contextual | Stage Graph <--> L4 | L4 | `ORCHESTRATE.MD` |
+| `by` | Contextual | Stage Graph \<--> L4 | L4 | `ORCHESTRATE.MD` |
 | `capability` | Contextual | Dispatch ->> L3 | L3 | `CONVERGE.MD` |
 | `collapse` | Contextual | Systems :: L7 | L7 | `OWNERSHIP.MD` |
 | `component` | Contextual | Components & UI | UI | `COMPONENT.MD` |
@@ -34,7 +34,7 @@ ______________________________________________________________________
 | `dampen` | Contextual | Temporal ‒ L5 | L5 | `RESONATE.MD` |
 | `decay` | Contextual | Systems --> L7 | L7 | `OWNERSHIP.MD` |
 | `defer` | Contextual | Core Control & Binding | L0 | :: |
-| `deps` | Contextual | Stage Graph ___ L4 | L4 | `ORCHESTRATE.MD` |
+| `deps` | Contextual | Stage Graph \_\_\_ L4 | L4 | `ORCHESTRATE.MD` |
 | `dispatch` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
 | `else` | Hard Lexer | Core Control & Binding | L0 | ->> |
 | `elif` | Hard Lexer | Core Control & Binding | L0 | ... |
@@ -44,7 +44,7 @@ ______________________________________________________________________
 | `every` | Contextual | Temporal ~ L5 | L5 | `PULSE.MD` |
 | `fallback` | Contextual | Stage Graph ~> L4 | L4 | `ORCHESTRATE.MD` |
 | `false` | Hard Lexer | Built-in Literals | L0 | ~> |
-| `fanout` | Contextual | Systems ___ L7 | L7 | `OWNERSHIP.MD` |
+| `fanout` | Contextual | Systems \_\_\_ L7 | L7 | `OWNERSHIP.MD` |
 | `fast` | Contextual | Dispatch ~> L3 | L3 | `CONVERGE.MD` |
 | `fn` | Hard Lexer | Core Control & Binding | L0 | >> |
 | `for` | Hard Lexer | Core Control & Binding | L0 | ⁓ |
@@ -53,13 +53,13 @@ ______________________________________________________________________
 | `GPU` | Hard Lexer | Effects | L0 | `EFFECTS.MD`, `SHADER_GPU.MD` |
 | `guarantee` | Contextual | Machine Stones ‒ L6 | L6 | `AXIOM.MD` |
 | `guarded` | Contextual | Stage Graph * * * L4 | L4 | `ORCHESTRATE.MD` |
-| `if` | Hard Lexer | Core Control & Binding | L0 | ___ |
+| `if` | Hard Lexer | Core Control & Binding | L0 | \_\_\_ |
 | `impl` | Hard Lexer | Types, Modules & Visibility | L0 | ~~ |
 | `import` | Contextual | Foreign & Import | L0 | `PYTHON.MD` |
 | `in` | Hard Lexer | Core Control & Binding | L0 | |-> |
 | `include` | Contextual | Foreign & Import | L0 | `C.MD` |
 | `IO` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `jitter` | Contextual | Temporal <--> L5 | L5 | `PULSE.MD` |
+| `jitter` | Contextual | Temporal \<--> L5 | L5 | `PULSE.MD` |
 | `law` | Contextual | State Integrity |-> L2 | L2 | `LAW.MD` |
 | `let` | Hard Lexer | Core Control & Binding | L0 | ‒ |
 | `loop` | Hard Lexer | Core Control & Binding | L0 | :: |
@@ -102,14 +102,14 @@ ______________________________________________________________________
 | `teleport` | Contextual | Machine Stones 〰 L6 | L6 | `TELEPORT.MD` |
 | `test` | Contextual | Testing | L0 | ->> |
 | `to` | Contextual | Machine Stones ->> L6 | L6 | `TELEPORT.MD` |
-| `trait` | Hard Lexer | Types, Modules & Visibility | L0 | ___ |
+| `trait` | Hard Lexer | Types, Modules & Visibility | L0 | \_\_\_ |
 | `transfer` | Contextual | Stage Graph ⁓ L4 | L4 | `ORCHESTRATE.MD` |
 | `true` | Hard Lexer | Built-in Literals | L0 | – |
 | `type` | Hard Lexer | Types, Modules & Visibility | L0 | |-> |
 | `ue5` | Contextual | State Authority --> L1 | L1 | --- |
 | `uniform` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
 | `Unsafe` | Hard Lexer | Effects | L0 | `EFFECTS.MD` |
-| `use` | Hard Lexer | Types, Modules & Visibility | L0 | <--> |
+| `use` | Hard Lexer | Types, Modules & Visibility | L0 | \<--> |
 | `var` | Hard Lexer | Core Control & Binding | L0 | ~> |
 | `verify` | Contextual | Dispatch >> L3 | L3 | `CONVERGE.MD` |
 | `vertex` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
@@ -117,8 +117,8 @@ ______________________________________________________________________
 | `viewport3d` | Contextual | State Authority ... L1 | L1 | ‒ |
 | `web` | Contextual | State Authority -- L1 | L1 | ~ |
 | `weak` | Contextual | Systems ‒ L7 | L7 | `OWNERSHIP.MD` |
-| `when` | Contextual | Dispatch <--> L3 / Machine Stones |-> L6 | L3/L6 | `CONVERGE.MD`, `AXIOM.MD` |
-| `where` | Contextual | Types, Modules & Visibility | L0 | ___ |
+| `when` | Contextual | Dispatch \<--> L3 / Machine Stones |-> L6 | L3/L6 | `CONVERGE.MD`, `AXIOM.MD` |
+| `where` | Contextual | Types, Modules & Visibility | L0 | \_\_\_ |
 | `while` | Hard Lexer | Core Control & Binding | L0 | ... |
 | `with` | Hard Lexer | Core Control & Binding | L0 | ~ |
 | `workgroup` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
@@ -1148,7 +1148,7 @@ ______________________________________________________________________
 ## `viewport3d`
 
 **Kind:** Contextual
-**Category:** State Authority <--> L1
+**Category:** State Authority \<--> L1
 **Layer:** L1
 
 3D viewport surface target. Used in `surface viewport3d => Component` to bind a world to a 3D rendering viewport. Indicates the surface targets the 3D renderer runtime rather than 2D UI.
@@ -1353,7 +1353,7 @@ ______________________________________________________________________
 Guard introducer for conditional clauses. Used in two contexts:
 
 - **Converge fast lanes:** `fast label when target("llvm")` – selects a fast lane when the target matches.
-- **Axiom predicates:** `when target("llvm")`, `when arch("x86_64")`, `when capability("memory.shatter")` <--> declares capability assumptions.
+- **Axiom predicates:** `when target("llvm")`, `when arch("x86_64")`, `when capability("memory.shatter")` \<--> declares capability assumptions.
 
 ```kn
 // In converge
@@ -1470,7 +1470,7 @@ ______________________________________________________________________
 ## `deps`
 
 **Kind:** Contextual
-**Category:** Stage Graph ___ L4
+**Category:** Stage Graph \_\_\_ L4
 **Layer:** L4
 
 Explicit dependency list for orchestrate stages. Declares that the current stage depends on the output of one or more named stages. The runtime ensures all dependencies complete before the stage executes.
@@ -2051,7 +2051,7 @@ ______________________________________________________________________
 ## `fanout`
 
 **Kind:** Contextual
-**Category:** Systems ___ L7
+**Category:** Systems \_\_\_ L7
 **Layer:** L7
 
 Parallel write lane within a `share` block. Each `fanout` iteration writes to a disjoint region of the shared pointer. The runtime guarantees non-overlapping access ranges, enabling safe parallel writes without data races.

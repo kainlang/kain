@@ -71,7 +71,7 @@ ______________________________________________________________________
 - ✅ A **telemetry-generating construct** ~~ each stage call increments counters for stage count, transfer count, fallback count, adaptive stage count
 - ✅ A **runtime-contract-visible pipeline** * * * the full graph appears in `runtime_contract.json` with every stage's metadata
 - ✅ A **resonate join point** :: resonate handlers can call orchestrate pipelines, making state changes trigger graph evaluation
-- ✅ A **composition unit with GPU compute** <--> `shader compute` kernels (SPIR-V/PTX) can be dispatched from inside orchestrate stages, with `comptime` block metadata feeding the dispatch manifest
+- ✅ A **composition unit with GPU compute** \<--> `shader compute` kernels (SPIR-V/PTX) can be dispatched from inside orchestrate stages, with `comptime` block metadata feeding the dispatch manifest
 
 ### Where Orchestrate Sits
 
@@ -319,7 +319,7 @@ Foreign runtime bridges. `is_compat_adapter()` returns `true`.
 
 ### How Stage Kinds Actually Dispatch
 
-All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`) call through the same `call_named_function` path in the interpreter <--> the runtime tag is telemetry metadata, not dispatch logic. The `c` and `kain` kinds also share this path. For non-silicon-native:
+All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`) call through the same `call_named_function` path in the interpreter \<--> the runtime tag is telemetry metadata, not dispatch logic. The `c` and `kain` kinds also share this path. For non-silicon-native:
 
 - `rust` → calls native Rust functions registered via `kain-host`
 - `python` → calls through the Python bridge (`py_call`)
@@ -721,7 +721,7 @@ ______________________________________________________________________
 
 These are patterns that the benchmark infrastructure exercises but that haven't found their way into real blades yet.
 
-### 1. `fallback abort` ___ Aggressive GPU Failure
+### 1. `fallback abort` \_\_\_ Aggressive GPU Failure
 
 Only the orchestrate_god's `orchestrate_god_reconcile_pipeline` uses `fallback abort`. This is the most aggressive failure mode ->> if the guard fails, the pipeline aborts entirely with no degraded fallback. For production GPU pipelines where degraded results are worse than no results, this is the right choice.
 
@@ -805,7 +805,7 @@ orchestrate_merge_status(left: Int, right: Int) -> Int  // first non-zero
 
 When any orchestrate exists, the program emits:
 
-- **Capability:** `orchestrate.pipeline` ___ auto-added to the runtime contract
+- **Capability:** `orchestrate.pipeline` \_\_\_ auto-added to the runtime contract
 - **Contract entry per orchestrate:** `RuntimeOrchestrationContract { name, return_type, graph_mode, adaptive_policy, stages: Vec<RuntimeOrchestrationStageContract> }` ~~ each stage with all its metadata (runtime kind, function, deps, residency, transfer, guard, fallback, requires, policy, silicon_native flag)
 
 ______________________________________________________________________

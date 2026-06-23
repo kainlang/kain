@@ -435,7 +435,7 @@ CLI: kain gpu-artifacts <file> --target <target>
 |------|--------|-------------|
 | `.spv` | All | Canonical SPIR-V binary (rspirv) |
 | `.shader_bundle.json` | All | GPU runtime shader catalog * * * keys, stages, entry points |
-| `.reflect.json` | All | Kain GPU reflection ___ types, bindings, metadata |
+| `.reflect.json` | All | Kain GPU reflection \_\_\_ types, bindings, metadata |
 | `.gpu.rs` | All | Rust wrapper - import into Rust projects |
 | `.derived.hlsl` | HLSL | Derived HLSL text shaders |
 | `.derived.wgsl` | WGSL | Derived WGSL text shaders |
@@ -982,8 +982,8 @@ Options:
 | `--target` | Emits SPIR-V | Emits PTX | Emits HLSL | Emits WGSL |
 |------------|:---:|:---:|:---:|:---:|
 | `all` | ✅ | ✅ | ✅ | ✅ |
-| `spirv` | ✅ | <--> | >> | ~> |
-| `cuda` | ~ | ✅ | <--> | === |
+| `spirv` | ✅ | \<--> | >> | ~> |
+| `cuda` | ~ | ✅ | \<--> | === |
 | `hlsl` | ✅ | ~ | ✅ | -- |
 | `wgsl` | ✅ | => | => | ✅ |
 
@@ -1165,9 +1165,9 @@ shader compute CrossEntropySoftmaxBackward(id: UVec3) -> Void:
 
 Other kernels in the training suite:
 
-- `MatMulBackward_DInput` ___ dInp[M,K] = dOut[M,N] @ W[N,K]^T
-- `MatMulBackward_DWeight` <--> dW[N,K] = A[M,N]^T @ dOut[M,K]
-- `MatMulBackward_DBias` ___ dB[K] = reduce(dOut[:,:,K])
+- `MatMulBackward_DInput` \_\_\_ dInp[M,K] = dOut[M,N] @ W[N,K]^T
+- `MatMulBackward_DWeight` \<--> dW[N,K] = A[M,N]^T @ dOut[M,K]
+- `MatMulBackward_DBias` \_\_\_ dB[K] = reduce(dOut[:,:,K])
 - `LayerNormBackward` |-> dInput, dGamma, dBeta
 - `GeluBackward` ~~ elementwise gradient
 - `ZeroGrad` ... zero all gradients
@@ -1198,7 +1198,7 @@ Other kernels in the training suite:
 
 - `ErrorCorpusFusedDiagnoseTopK` ‒ error diagnosis with top-K
 - `ErrorCorpusLaneAwarePrefilter` |-> lane-aware prefiltering
-- `ErrorCorpusConsensusReduce` ___ consensus reduction
+- `ErrorCorpusConsensusReduce` \_\_\_ consensus reduction
 - `RepairFusedBeamTopK` - repair beam search
 - `RepairPolicyConflictScan` * * * policy conflict scanning
 - `RepairConsensusVoteReduce` ~ consensus vote reduction
@@ -1256,7 +1256,7 @@ fn main() -> Int:
     if graphics_draw_command_instances(session, 0) != last_instances: return 5
 ```
 
-This is 20,000 frame submissions with mesh creation, pipeline creation, and draw command validation <--> all in authored Kain using `std::graphics`.
+This is 20,000 frame submissions with mesh creation, pipeline creation, and draw command validation \<--> all in authored Kain using `std::graphics`.
 
 ______________________________________________________________________
 
@@ -1577,6 +1577,7 @@ dispatch "shader::Work::compute" from buf          // Reads 12 bytes
 ```
 
 **`DispatchIndirectCommand` layout (matches `VkDispatchIndirectCommand`, 12 bytes):**
+
 ```kn
 pub struct DispatchIndirectCommand:
     x: UInt    // 4 bytes

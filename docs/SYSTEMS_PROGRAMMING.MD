@@ -963,7 +963,7 @@ ______________________________________________________________________
 
 ## 4. The Machine Surface ... std::machine
 
-`std::machine` exposes **38 public symbols** <--> the curated kit of CPU-level operations that don't require `Unsafe` unless noted (most do).
+`std::machine` exposes **38 public symbols** \<--> the curated kit of CPU-level operations that don't require `Unsafe` unless noted (most do).
 
 ### 4.1 Fences & Barriers
 
@@ -1119,7 +1119,7 @@ These operate directly on raw pointers and are suitable for lightweight synchron
 | `atomic_fence_acqrel()` | Acquire+Release fence |
 | `atomic_fence_seqcst()` | Sequentially Consistent fence |
 
-### 6.2 std::atomic ___ Rich Atomics
+### 6.2 std::atomic \_\_\_ Rich Atomics
 
 Provides `AtomicInt`, `AtomicBool`, and `AtomicPtr` with wait/notify support:
 
@@ -1403,7 +1403,7 @@ let ptr: ptr<Int> = int_to_ptr(addr)
 let byte_ptr: ptr<Byte> = bitcast(ptr)
 ```
 
-### 9.6 Real Code ___ Full Ownership Lifecycle (from `metal.kn` case 2)
+### 9.6 Real Code \_\_\_ Full Ownership Lifecycle (from `metal.kn` case 2)
 
 ```kn
 fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
@@ -1699,7 +1699,7 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 ### 10.5 Virtual Memory from Kain (from `metal.kn` case 5)
 
-**The pattern:** Full VM lifecycle ~~ reserve → commit → protect_none → protect_rw → protect_rwx → lock → unlock → decommit → unmap <--> with `collapse` blocks inside mapped pages.
+**The pattern:** Full VM lifecycle ~~ reserve → commit → protect_none → protect_rw → protect_rwx → lock → unlock → decommit → unmap \<--> with `collapse` blocks inside mapped pages.
 
 **Why it's hidden:** This is NOT a C wrapper. `vm_reserve`/`vm_commit`/etc. call the OS kernel directly through the Kain native runtime. You can write to mapped pages with `mem_store` inside `collapse` blocks.
 

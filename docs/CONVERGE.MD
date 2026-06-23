@@ -65,15 +65,15 @@ ______________________________________________________________________
 - ✅ A **specification-plus-alternatives** declaration ->> one `spec`, one or more `fast` lanes
 - ✅ A **compile-time and runtime selector** * * * `target("...")` is compile-time, `capability("...")` can be runtime
 - ✅ A **verification contract** - `verify random(N)` tests all lanes against the spec
-- ✅ An **autotune cache** ___ the native C runtime caches lane selections per `(converge_key, shape_key, cpu_fingerprint)`
-- ✅ A **telemetry surface** <--> `converge_mismatch_count()` reports lane divergence
+- ✅ An **autotune cache** \_\_\_ the native C runtime caches lane selections per `(converge_key, shape_key, cpu_fingerprint)`
+- ✅ A **telemetry surface** \<--> `converge_mismatch_count()` reports lane divergence
 - ✅ A **semantic dispatch layer** => spec is truth, fast lanes are optimizations, verify is the proof
 
 ### The Relationship View
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `converge` | "Performance lane selector (SIMD)" | **Strategy selector** ___ any spec + alternative(s) with verification. Maze-solving strategy picker. Algorithm selector. Quality-of-service lane. A/B test framework. |
+| `converge` | "Performance lane selector (SIMD)" | **Strategy selector** \_\_\_ any spec + alternative(s) with verification. Maze-solving strategy picker. Algorithm selector. Quality-of-service lane. A/B test framework. |
 
 ______________________________________________________________________
 
@@ -164,7 +164,7 @@ Parser rules:
 
 ______________________________________________________________________
 
-## How It Works ___ Full Pipeline
+## How It Works \_\_\_ Full Pipeline
 
 ### Source to Runtime Flow
 
@@ -207,7 +207,7 @@ The typechecker (`types.rs: check_converge`) performs:
 1. **Spec checking** ~~ type-checks the spec lane body as a function with that signature
 1. **Fast lane checking** - type-checks each fast lane body
 1. **Signature matching** >> verifies each fast lane's signature matches the dispatcher signature
-1. **Verify type support** ___ if `verify random(N)` is present, ensures the return type supports equality comparison
+1. **Verify type support** \_\_\_ if `verify random(N)` is present, ensures the return type supports equality comparison
 
 ```rust
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
@@ -230,7 +230,7 @@ ______________________________________________________________________
 
 ## The Two-Level Architecture
 
-Converge has a **two-level architecture** <--> an interpreter/runtime path for the Kain interpreter and a native LLVM path for compiled code.
+Converge has a **two-level architecture** \<--> an interpreter/runtime path for the Kain interpreter and a native LLVM path for compiled code.
 
 ### Level 1: Interpreter Lane Selection
 
@@ -652,7 +652,7 @@ orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: R
 
 ______________________________________________________________________
 
-## Creative Semantic Abuse <--> Under-Utilized Ideas
+## Creative Semantic Abuse \<--> Under-Utilized Ideas
 
 ### 1. Converge as A/B Test Framework
 
@@ -1067,7 +1067,7 @@ ______________________________________________________________________
 | `blades/experiments/convergence/src/orchestrate.kn` | `quantum_maze_run` converge + `rat_frame_step` orchestrate |
 | `blades/experiments/convergence/src/main.kn` | Main loop: oracle → orchestrate → converge → archivist → visualize |
 | `blades/experiments/convergence/src/patch.kn` | `commit_search` – records converge winner in journal |
-| `blades/experiments/convergence/src/world.kn` | `RatTelemetry` <--> best_lane telemetry |
+| `blades/experiments/convergence/src/world.kn` | `RatTelemetry` \<--> best_lane telemetry |
 | `blades/experiments/convergence/src/actors.kn` | Simulation agents that consume converge results |
 | `blades/experiments/convergence/src/shatter.kn` | TrailSample struct (SoA) |
 | `blades/experiments/convergence/src/laws.kn` | 9 domain laws including `rat_lane_kind_valid` (0,1,2) |
@@ -1185,7 +1185,7 @@ ______________________________________________________________________
 | **Syntax** | `converge name(params) -> Type: spec lane: body [fast lane when selector: body]... [verify random(N)]` |
 | **Spec lanes** | Exactly 1 required |
 | **Fast lanes** | At least 1 required |
-| **Selectors** | `target("llvm"|"interpret"|"cpp"|"wasm")` – compile-time; `capability("...")` <--> runtime |
+| **Selectors** | `target("llvm"|"interpret"|"cpp"|"wasm")` – compile-time; `capability("...")` \<--> runtime |
 | **No selector** | Lane is always eligible |
 | **Selection order** | Fast lanes scanned in declaration order, first match wins |
 | **Fallback** | Spec lane is always eligible (fallback) |

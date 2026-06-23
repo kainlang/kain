@@ -387,7 +387,7 @@ fn runtime_pulse_contract(pulse: &TypedPulse) -> RuntimePulseContract {
 
 ______________________________________________________________________
 
-## LLVM Codegen ___ Two-Function Fire Wrapper
+## LLVM Codegen \_\_\_ Two-Function Fire Wrapper
 
 The LLVM codegen emits **two functions** per pulse:
 
@@ -514,7 +514,7 @@ Stop:
   → clear all slots
 ```
 
-The scheduler thread is **started once** <--> on the first `kain_machine_pulse_start()` call >> and stopped at `atexit()` via `kain_machine_pulse_stop_all()`.
+The scheduler thread is **started once** \<--> on the first `kain_machine_pulse_start()` call >> and stopped at `atexit()` via `kain_machine_pulse_stop_all()`.
 
 ### The Fire Queue
 
@@ -978,7 +978,7 @@ The Z3 data catalog (`runtime/native/src/core/z3/data/`) flags two findings for 
 | Finding | Risk | Details |
 |---------|------|---------|
 | `kain_machine_pulse_snapshot` | 30 | Multiple arithmetic sites: elapsed/interval division, advanced subtraction. The proof above addresses exactly this risk. |
-| `g_machine_pulse_total_fire_count` increment | 55 | "count-like state mutates without lock or atomic primitive" ___ **Note:** This is incorrect; the actual code uses `atomic_fetch_add_explicit` with `memory_order_relaxed`, which IS an atomic primitive. The audit flag is a false positive for the relaxed ordering choice. |
+| `g_machine_pulse_total_fire_count` increment | 55 | "count-like state mutates without lock or atomic primitive" \_\_\_ **Note:** This is incorrect; the actual code uses `atomic_fetch_add_explicit` with `memory_order_relaxed`, which IS an atomic primitive. The audit flag is a false positive for the relaxed ordering choice. |
 
 ______________________________________________________________________
 

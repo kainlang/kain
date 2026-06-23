@@ -13,7 +13,7 @@ ______________________________________________________________________
 1. [The Mailbox System](#5-the-mailbox-system)
 1. [Reply Ports and `ask` - The Request/Response Protocol](#6-reply-ports-and-ask--the-requestresponse-protocol)
 1. [Supervision Trees ‒ Fault Tolerance at Scale](#7-supervision-trees--fault-tolerance-at-scale)
-1. [Monitors and Links ___ Failure Propagation](#8-monitors-and-links--failure-propagation)
+1. [Monitors and Links \_\_\_ Failure Propagation](#8-monitors-and-links--failure-propagation)
 1. [Actor Registry and Addressing](#9-actor-registry-and-addressing)
 1. [The Scheduler * * * Fairness, Lanes, and Worker Pools](#10-the-scheduler--fairness-lanes-and-worker-pools)
 1. [Ownership and Lifecycle](#11-ownership-and-lifecycle)
@@ -67,7 +67,7 @@ Kain actors are **not** just async tasks. They are a first-class language constr
 
 The design draws from four lineages:
 
-1. **Erlang/OTP** ___ supervision trees, let-it-crash philosophy, mailbox isolation.
+1. **Erlang/OTP** \_\_\_ supervision trees, let-it-crash philosophy, mailbox isolation.
 1. **Akka** => typed actor contracts, restart policies, mailbox configuration.
 1. **BEAM VM internals** ~> lightweight process scheduling, preemptive fairness.
 1. **Kain's own semantic graph** => actors can participate in world state, entangle propagation, shatter/teleport zero-copy transfers, and converge fast-lane dispatch.
@@ -278,7 +278,7 @@ If `send` fails (e.g., mailbox full), the sender **retains ownership** and must 
 
 ______________________________________________________________________
 
-## 6. Reply Ports and `ask` ___ The Request/Response Protocol
+## 6. Reply Ports and `ask` \_\_\_ The Request/Response Protocol
 
 ### How `ask` Works Under the Hood
 
@@ -705,7 +705,7 @@ law fusion_signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < FUSION_MODULUS
 ```
 
-### The Fusion Chain ___ All Together
+### The Fusion Chain \_\_\_ All Together
 
 The `FUSION CHAIN` benchmark runs all of these simultaneously in a single scenario:
 

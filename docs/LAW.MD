@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 ## What Is Law?
 
-`law` is a **top-level declaration** in Kain that defines an **invariant predicate** ___ a function that returns `Bool` and represents a correctness constraint that the compiler, runtime, and orchestrate engine can all see and reason about.
+`law` is a **top-level declaration** in Kain that defines an **invariant predicate** \_\_\_ a function that returns `Bool` and represents a correctness constraint that the compiler, runtime, and orchestrate engine can all see and reason about.
 
 ```kn
 law value_in_range(v: Int) -> Bool:
@@ -46,12 +46,12 @@ ______________________________________________________________________
 ### What Law IS NOT
 
 - ❌ Not an assertion - `law` doesn't abort, crash, or halt. It returns `Bool`, and you decide what to do with the result.
-- ❌ Not a runtime guard <--> the compiler doesn't insert automatic checks before every world write. You call laws explicitly.
+- ❌ Not a runtime guard \<--> the compiler doesn't insert automatic checks before every world write. You call laws explicitly.
 - ❌ Not a `patch` >> a law has no mutation, no journal, no undo mode. It's a pure predicate.
 - ❌ Not a `converge` ~~ there's no spec/fast lane selection, no capability gating, no verification.
 - ❌ Not an `axiom` => there's no architecture/capability predicates, no guarantees, no fallback.
 - ❌ Not a Z3 proof |-> law returns `Bool` at runtime. It doesn't feed Z3 assertions (that's `std::proof` / `std::z3`).
-- ❌ Not a native C construct <--> there's zero `law.h`, `law.c`, or `abi_law_*` code in the entire native runtime.
+- ❌ Not a native C construct \<--> there's zero `law.h`, `law.c`, or `abi_law_*` code in the entire native runtime.
 
 ### What Law IS
 
@@ -195,7 +195,7 @@ fn guarded_set(authority: Authority, value: Int) -> Int:
 
 ### Pattern 2: Domain Invariant (The Rat Experiment)
 
-From the convergence rat experiment in `blades/experiments/convergence/src/` ___ **9 laws that validate the simulation's domain model**:
+From the convergence rat experiment in `blades/experiments/convergence/src/` \_\_\_ **9 laws that validate the simulation's domain model**:
 
 ```kn
 law rat_cell_in_bounds(index: Int, cell_count: Int) -> Bool:
@@ -299,7 +299,7 @@ law signal_in_bounds(value: Int) -> Bool:
 //     // i.e., the law implementation is correct
 ```
 
-A law that is also Z3-provable would be the highest expression of Kain's semantic stack <--> a compile-time verified invariant, not just a runtime predicate.
+A law that is also Z3-provable would be the highest expression of Kain's semantic stack \<--> a compile-time verified invariant, not just a runtime predicate.
 
 ### 2. Law as an Entangle Pre-Propagation Filter
 
@@ -879,4 +879,4 @@ ______________________________________________________________________
 | `crates/semantic/symbol_corpus/main.kn` (13 variants) | Semantic crucible: checksum-folding pattern |
 | `blades/experiments/convergence/src/*.kn` | Rat experiment: 9 domain-model laws |
 | `blades/python/24_tet/src/resonate_py_effects.kn` | 24-tet effects: law in orchestrate with `requires` |
-| `docs/RULEBOOK.md` | "State Integrity" section ___ law + patch + orchestrate |
+| `docs/RULEBOOK.md` | "State Integrity" section \_\_\_ law + patch + orchestrate |

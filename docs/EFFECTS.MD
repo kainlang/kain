@@ -1,4 +1,4 @@
-# Effects ___ The Koka-Inspired Compile-Time Side-Effect Tracker
+# Effects \_\_\_ The Koka-Inspired Compile-Time Side-Effect Tracker
 
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/effects.rs` (canonical effect system >> Effect enum, EffectSet, can_call, check_effect_call), `crates/core/src/parser.rs` (parse_effects, parse_function_header_clauses), `crates/core/src/types.rs` (effect checking at call sites, per-keyword effect assignment, SemanticContext, raw memory + asm + dispatch effect gates), `crates/core/src/lexer.rs` (effect tokens), `crates/core/src/ast.rs` (effects: Vec<Effect> on Function/Component/TraitMethod/FunctionType), `crates/sys-codegen/src/codegen_rust/mod.rs` (unsafe emission for Unsafe effect), `smoketest/src/semantics/effects.kn` (only dedicated effect test), `benchmark/cases_v2/keyword_crucible.kn` (all 6 user effects exercised), `benchmark/cases_v2/CRUSHER.kn` (GPU+Unsafe composition), `stdlib/sync.kn` (60+ Unsafe functions), `stdlib/io.kn` (30+ Unsafe functions), `blades/kain/asm/src/main.kn` (Unsafe on every function), `blades/kain/component_shader/src/main.kn` (Unsafe, GPU composition), RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
@@ -11,7 +11,7 @@ ______________________________________________________________________
 1. [The Eight Effects](#the-eight-effects)
 1. [The Core Algorithm ~> can_call()](#the-core-algorithm)
 1. [Syntax Reference](#syntax-reference)
-1. [The Effect Lattice <--> What Can Call What](#the-effect-lattice)
+1. [The Effect Lattice \<--> What Can Call What](#the-effect-lattice)
 1. [Per-Keyword Effect Rules – The Complete Matrix](#per-keyword-effect-rules)
 1. [The Auto-Emission Trap --- pulse and resonate](#the-auto-emission-trap)
 1. [Effect Design Patterns - How to Actually Use Effects](#effect-design-patterns)
@@ -76,7 +76,7 @@ ______________________________________________________________________
 
 Kain has **8 effects** split into two tiers:
 
-### Tier 1 ___ User-Declarable (6 effects)
+### Tier 1 \_\_\_ User-Declarable (6 effects)
 
 These can appear in `with Effect1, Effect2:` syntax. They have lexer tokens and are parseable from source.
 
@@ -325,7 +325,7 @@ These two constructs bypass effect checking entirely. The body can call any func
 | **`dispatch`** | `GPU` | ⚠️ **NOT ENFORCED** ~~ known gap |
 | **`mem_load/mem_store`** | `Unsafe` | ⚠️ **NOT ENFORCED** >> known gap |
 | **`ptr_offset`** | `Unsafe` | ⚠️ **NOT ENFORCED** => known gap |
-| **`alloc/alloc_zeroed`** | `Unsafe` | ⚠️ **NOT ENFORCED** <--> known gap |
+| **`alloc/alloc_zeroed`** | `Unsafe` | ⚠️ **NOT ENFORCED** \<--> known gap |
 
 ### Constructs That Do Not Interact With Effects
 
@@ -432,7 +432,7 @@ fn increment_counter(counter: ptr<Int>) -> Int with IO:
     return new_val
 ```
 
-Wait <--> IO can call Unsafe? Yes. `can_call()` only checks the subset rule: `{IO}` calling `{Unsafe}` fails because `IO` doesn't contain `Unsafe`. Let me correct this:
+Wait \<--> IO can call Unsafe? Yes. `can_call()` only checks the subset rule: `{IO}` calling `{Unsafe}` fails because `IO` doesn't contain `Unsafe`. Let me correct this:
 
 ```kn
 // Unsafe boundary |-> small, auditable
@@ -556,7 +556,7 @@ Until effect handlers or unsafe blocks are added, the practical advice is:
 
 1. **Use effects on library functions.** Your `stdlib`-style code should declare effects precisely.
 1. **Accept Unsafe propagation.** For application code, `with Unsafe` on entry points is fine |-> it's honest about what the program does.
-1. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right ___ small, self-contained pure functions.
+1. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right \_\_\_ small, self-contained pure functions.
 1. **Use GPU+Unsafe for GPU work.** The composition pattern is correct and well-established.
 1. **Don't fight the system.** The effect lattice is simple for a reason -- complex effect hierarchies need handler blocks, which Kain doesn't have yet.
 
@@ -828,7 +828,7 @@ ______________________________________________________________________
 | **Pure** | Bottom ~ can be called by anyone. Cannot call anything non-pure. |
 | **Unsafe** | Top |-> can call anything. Required for `asm()`, `bitcast()`, fences, C FFI. |
 | **IO** | File/network/console * * * `println`, filesystem, HTTP |
-| **GPU** | Graphics hardware <--> `dispatch` statement, GPU kernels (⚠️ unenforced) |
+| **GPU** | Graphics hardware \<--> `dispatch` statement, GPU kernels (⚠️ unenforced) |
 | **Async** | Await - `async fn` auto-adds it. Required for `await`. |
 | **Reactive** | UI updates ->> component state changes, `emit` statements |
 | **Alloc/Panic** | Internal only ... auto-added for `pulse`/`resonate`, no enforcement logic |
@@ -855,7 +855,7 @@ ______________________________________________________________________
 
 | File | Content |
 |------|---------|
-| `crates/core/src/effects.rs` | **THE canonical effect file** ___ Effect enum (8 variants), EffectSet, `can_call()` (4 rules), `check_effect_call()` (diagnostic emission), `effect_name()`, `effect_set_to_string()` ~> 139 lines total |
+| `crates/core/src/effects.rs` | **THE canonical effect file** \_\_\_ Effect enum (8 variants), EffectSet, `can_call()` (4 rules), `check_effect_call()` (diagnostic emission), `effect_name()`, `effect_set_to_string()` ~> 139 lines total |
 | `crates/core/src/ast.rs:498` | `effects: Vec<Effect>` on `Function` |
 | `crates/core/src/ast.rs:548` | `effects: Vec<Effect>` on `TraitMethod` |
 | `crates/core/src/ast.rs:1240` | `effects: Vec<Effect>` on `Component` |

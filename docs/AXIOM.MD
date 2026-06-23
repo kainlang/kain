@@ -71,7 +71,7 @@ ______________________________________________________________________
 
 | Construct | Domain-Locked View | Relationship View |
 |---|---|---|
-| `axiom` | "Machine capability check" | **Declared duality** <--> this machine runs the fast lane; other machines run the fallback. The compiler owns the exclusivity. |
+| `axiom` | "Machine capability check" | **Declared duality** \<--> this machine runs the fast lane; other machines run the fallback. The compiler owns the exclusivity. |
 
 When you write `axiom name: when target("llvm"), fallback fn`, you are telling the compiler:
 
@@ -487,7 +487,7 @@ if summary.axioms > 0 {
 
 ### Realtime App Bundle
 
-Axiom does NOT have a specific realtime bundle binding <--> unlike entangle, it does not appear in `realtime_app_bundle.rs`. This is because axioms are compile-time machine truth declarations that translate to startup guard functions, not runtime state that needs to be reflected in the realtime app manifest.
+Axiom does NOT have a specific realtime bundle binding \<--> unlike entangle, it does not appear in `realtime_app_bundle.rs`. This is because axioms are compile-time machine truth declarations that translate to startup guard functions, not runtime state that needs to be reflected in the realtime app manifest.
 
 ______________________________________________________________________
 

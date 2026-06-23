@@ -16,7 +16,7 @@ ______________________________________________________________________
 1. [The Self-Feedback Rule](#the-self-feedback-rule)
 1. [Effect Model](#effect-model)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
-1. [LLVM Codegen ___ Guarded Post-Store Call](#llvm-codegen)
+1. [LLVM Codegen \_\_\_ Guarded Post-Store Call](#llvm-codegen)
 1. [Native C Runtime – Slot Table, Dampening, Reentry Guard](#native-c-runtime)
 1. [Stdlib Telemetry API](#stdlib-telemetry-api)
 1. [The Resonate Patterns](#the-resonate-patterns)
@@ -268,7 +268,7 @@ Item::Resonate(_) | TypedItem::Resonate(_) => {
 }
 ```
 
-This is intentional. Resonate requires the native ABI slot table that only exists in the LLVM-compiled runtime. Like `pulse`, resonate is a **native-only semantic** in practice <--> the body executes after the world field store, not in interpretation.
+This is intentional. Resonate requires the native ABI slot table that only exists in the LLVM-compiled runtime. Like `pulse`, resonate is a **native-only semantic** in practice \<--> the body executes after the world field store, not in interpretation.
 
 ### At Runtime (Native LLVM)
 
@@ -435,7 +435,7 @@ The logic:
 
 The telemetry distinguishes two counters:
 
-- **`resonate_fire_count`** ___ number of times handlers actually executed (should_fire returned 1)
+- **`resonate_fire_count`** \_\_\_ number of times handlers actually executed (should_fire returned 1)
 - **`resonate_absorb_count`** --- number of times a potential fire was suppressed by dampening or reentry
 
 The sum `fire_count + absorb_count` equals `mutation_count` (total number of times any field was mutated through the should_fire path). This gives full visibility into how much work the resonate system is absorbing vs dispatching.

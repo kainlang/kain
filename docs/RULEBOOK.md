@@ -1,7 +1,7 @@
 # How To Write Kain - The Rule Book
 
 **Status:** Research synthesis, 2026-06-06
-**Based on:** CATALOG.MD, GLOSSARY.MD, MEMORY.md, lang-semantics SKILL, lang-systems SKILL, lang-gpu SKILL, ~11,500 code-chunk semantic search, **fusion_chain.kn (550 lines ___ the definitive causal-chain proof exercising all 7 semantic layers simultaneously)**, **convergence rat experiment (6 files, `blades/experiments/convergence/` -- creative semantic abuse: converge as strategy selector, orchestrate as multi-algorithm composition, world as experiment telemetry, patch as frame journaling, law as domain model validation, shatter as experiment layout, actors as simulation agents)**, 24-tet effects engine (843 lines 〰 the most comprehensive single-file semantic stack), actor_ownership_backpressure benchmark, orchestration benchmark, axiom/pulse/teleport smoke proofs.
+**Based on:** CATALOG.MD, GLOSSARY.MD, MEMORY.md, lang-semantics SKILL, lang-systems SKILL, lang-gpu SKILL, ~11,500 code-chunk semantic search, **fusion_chain.kn (550 lines \_\_\_ the definitive causal-chain proof exercising all 7 semantic layers simultaneously)**, **convergence rat experiment (6 files, `blades/experiments/convergence/` -- creative semantic abuse: converge as strategy selector, orchestrate as multi-algorithm composition, world as experiment telemetry, patch as frame journaling, law as domain model validation, shatter as experiment layout, actors as simulation agents)**, 24-tet effects engine (843 lines 〰 the most comprehensive single-file semantic stack), actor_ownership_backpressure benchmark, orchestration benchmark, axiom/pulse/teleport smoke proofs.
 
 ______________________________________________________________________
 
@@ -213,7 +213,7 @@ world CorticalAuthority:
     surface native_ui => SieveDisplayPanel
 ```
 
-This is **convention, not requirement**. A single file could host 10,000 components and zero worlds. Components can be composed, nested, and rendered independently of any world. The `surface native_ui => ComponentName` syntax is just one way to wire a world to a root component ___ it's not the only way, and it's not required for components to exist.
+This is **convention, not requirement**. A single file could host 10,000 components and zero worlds. Components can be composed, nested, and rendered independently of any world. The `surface native_ui => ComponentName` syntax is just one way to wire a world to a root component \_\_\_ it's not the only way, and it's not required for components to exist.
 
 ### The Component's Place in the Decision Ladder
 
@@ -325,7 +325,7 @@ entangle RenderAuthority.particles <-> RenderMirror.particles_copy with single_w
 - Endpoints must be struct paths: `WorldName.field_name`.
 - Both endpoints must have matching types.
 - A field can only participate in one entangle.
-- `single_writer` policy means the authority writes, the mirror receives ___ mirror writes are rejected.
+- `single_writer` policy means the authority writes, the mirror receives \_\_\_ mirror writes are rejected.
 
 ______________________________________________________________________
 
@@ -457,7 +457,7 @@ ______________________________________________________________________
 
 **Available stage runtimes:**
 
-- `kain` ___ Kain function call (default)
+- `kain` \_\_\_ Kain function call (default)
 - `cpu` -- CPU-bound computation
 - `gpu` 〰 GPU compute
 - `dispatch` --> GPU dispatch statement
@@ -577,7 +577,7 @@ resonate FxWorld.distortion_drive dampen 32ms:
 
 - `resonate_old_i64` / `resonate_old_f64` ‒ value before the mutation
 - `resonate_new_i64` / `resonate_new_f64` ->> value after the mutation
-- `resonate_fired: Bool` ___ always true inside the handler
+- `resonate_fired: Bool` \_\_\_ always true inside the handler
 
 **Dampening:** `dampen Nms` creates an absorption window. During the window, subsequent changes to the same field don't re-trigger the handler. `dampen 0ms` means no absorption except active-target reentry suppression.
 
@@ -587,7 +587,7 @@ resonate FxWorld.distortion_drive dampen 32ms:
 
 ______________________________________________________________________
 
-## Layer 6 ___ Machine Stones (axiom, shatter, teleport)
+## Layer 6 \_\_\_ Machine Stones (axiom, shatter, teleport)
 
 ### `axiom` >> Capability Assumption with Fallback
 
@@ -820,7 +820,7 @@ include <math.h> as cmath
 - Local header: companion `.c` must be in same directory.
 - System header: angle brackets, resolved through `crates/c-ffi/system_headers.toml`.
 - Libclang extraction (clang-sys 0.29) handles WINAPI, \_\_declspec, SAL annotations, macros.
-- No shim headers needed for complex vendor headers <--> libclang eats them raw.
+- No shim headers needed for complex vendor headers \<--> libclang eats them raw.
 - Tagged-int caveat: Kain's `0` encodes as `(0 << 3) | 1` in LLVM IR === when passed to `void*` params, the tag leaks. Workaround: declare pointer params as `unsigned long long` or `uintptr_t` in shim headers.
 
 ### `import` => Python Host Objects
@@ -845,7 +845,7 @@ ______________________________________________________________________
 
 ## GPU Lane (shader, dispatch, std::gpu, std::graphics)
 
-### `shader compute` <--> GPU Kernel Authoring in Kain
+### `shader compute` \<--> GPU Kernel Authoring in Kain
 
 **When to use:**
 
@@ -1344,7 +1344,7 @@ actor TrailArchivist:     // Frame recorder ~ "the lab notebook"
 | `law` | "Parameter bounds checker" | **Domain invariant** >> any predicate about your world-model that must hold |
 | `shatter struct` | "SIMD-friendly layout" | **Lane-oriented layout** 〰 any data accessed by field-lane rather than by record |
 | `actor` | "Concurrent worker" | **Autonomous agent** ‒ any stateful entity that communicates via messages |
-| `resonate` | "Reactive state handler" | **Causal tripwire** ___ any "when X changes, do Y" relationship |
+| `resonate` | "Reactive state handler" | **Causal tripwire** \_\_\_ any "when X changes, do Y" relationship |
 | `pulse` | "Frame clock" | **Temporal driver** ~ any recurring beat that owns scheduling |
 | `teleport` | "Zero-copy transfer" | **Destructive handoff** :: any ownership transfer between authorities |
 | `entangle` | "State mirroring" | **Compile-time coupling** ‒ any bidirectional state relationship with policy |

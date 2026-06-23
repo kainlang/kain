@@ -11,7 +11,7 @@ ______________________________________________________________________
 1. [The Core Idea === Journaled Transactional Mutation](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
 1. [How It Works ⁓ Full Pipeline](#how-it-works)
-1. [The Patch Patterns ___ How to Use It](#the-patch-patterns)
+1. [The Patch Patterns \_\_\_ How to Use It](#the-patch-patterns)
 1. [Patch + Law](#patch--law)
 1. [Journal and Undo Semantics](#journal-and-undo-semantics)
 1. [Undo Mode Inference](#undo-mode-inference)
@@ -55,7 +55,7 @@ ______________________________________________________________________
 - ❌ Not a raw world assignment 〰 writing `World.field = value` outside a patch is allowed but is **not journaled**. There is no undo, no telemetry counter, no replay history.
 - ❌ Not a database transaction === patches are in-memory journal entries, not ACID SQL transactions. There is no rollback to arbitrary points, only `undo_last`.
 - ❌ Not a concurrent-safe primitive 〰 the native C journal has a proven concurrent slot-overwrite race (see Z3 Proofs). Patch journaling is single-threaded by design.
-- ❌ Not a `patch` file format <--> despite the name, there is no relationship to `.patch` diff files. This is a Kain language construct.
+- ❌ Not a `patch` file format \<--> despite the name, there is no relationship to `.patch` diff files. This is a Kain language construct.
 
 ### What Patch IS
 
@@ -67,8 +67,8 @@ ______________________________________________________________________
 - ✅ **Auto-inferred undo mode** ~> the typechecker infers `Reversible` or `BestEffort` from the body structure
 - ✅ **A runtime contract item** * * * patches appear in `RuntimePatchContract` with mutation paths, undo mode, and collaboration events
 - ✅ **An orchestrate stage kind** * * * `stage name: patch fn_name(args)` is a first-class pipeline stage
-- ✅ **Entangle-triggering** ___ writing to a world field in a patch automatically triggers entangle propagation
-- ✅ **Capped at 256 journal entries** <--> a Z3-proven constant in the native runtime
+- ✅ **Entangle-triggering** \_\_\_ writing to a world field in a patch automatically triggers entangle propagation
+- ✅ **Capped at 256 journal entries** \<--> a Z3-proven constant in the native runtime
 
 ### Where Patch Sits in the Decision Ladder
 
@@ -88,7 +88,7 @@ The RULEBOOK says: *"A `patch` is not 'a function that writes to a world.' It is
 |---|---|---|
 | `patch` | "Journaled world mutation" | **Transactional mutation unit** => begin/record/commit semantics, undoable, Z3-proven bounded journal, telemetry counter, auto-inferred undo mode, entangle-triggering, orchestrate-compatible |
 | `law` | "Invariant predicate" | **Guard** 〰 patches call `law_status(law())` before mutating, ensuring invariants hold before journaled writes |
-| `fn` | "Plain computation" | **No journal** ___ a `fn` that mutates world state does so without journaling, undo, or telemetry |
+| `fn` | "Plain computation" | **No journal** \_\_\_ a `fn` that mutates world state does so without journaling, undo, or telemetry |
 | `world` | "Global named state" | **Mutation target** ~~ patches write to world fields, which are the only mutable storage for patches |
 
 ______________________________________________________________________
@@ -274,8 +274,8 @@ rf undone_patch_records: Vec<ReplayablePatchRecord> ->> undone records
 
 **Lifecycle of a patch call in the interpreter:**
 
-1. **`register_patch_value()`** ___ on program load, the patch is registered in the `patches` HashMap and defined as `Value::Patch(name)` in the environment
-1. **Call-time dispatch** ___ when the patch name is called as a function, the interpreter looks up `Value::Patch(name)`, retrieves the `PatchDef`, and interprets the body
+1. **`register_patch_value()`** \_\_\_ on program load, the patch is registered in the `patches` HashMap and defined as `Value::Patch(name)` in the environment
+1. **Call-time dispatch** \_\_\_ when the patch name is called as a function, the interpreter looks up `Value::Patch(name)`, retrieves the `PatchDef`, and interprets the body
 1. **`begin_active_patch()`** --- before body execution, pushes an `ActivePatchFrame` with the patch name, undo mode, and an empty changes list
 1. **`record_patch_change()`** -- during body execution, every world field write calls this, recording the path, target, old value, and new value
 1. **`finish_active_patch()`** ~~ after body execution, pops the frame, sorts+deduplicates mutation paths, creates a `PatchRuntimeRecord` and a `ReplayablePatchRecord`, pushes them to their respective histories, clears the undone records stack, and records a collaboration event (`"patch.{name}.applied"`)
@@ -369,7 +369,7 @@ patch commit_signal(authority: Authority, value: Int) -> Int:
 
 **Why epoch matters:**
 
-- Resonate handlers fire on field writes <--> if you write the same value to `signal` repeatedly, the resonate handler may not fire. An epoch bump guarantees a visible state change.
+- Resonate handlers fire on field writes \<--> if you write the same value to `signal` repeatedly, the resonate handler may not fire. An epoch bump guarantees a visible state change.
 - Entangle propagation records the propagation count ~ epoch bumps increment the counter.
 - Telemetry deltas (`patch_journal_count()`) prove the patch fired.
 - Orchestrate stages can depend on epoch increments as pipeline progress signals.
@@ -439,7 +439,7 @@ orchestrate crucible_signal_pipeline(value: Int, epoch: Int) -> Int:
 
 - `patch crucible_commit_ack(CrucibleAuthority)` ... the stage kind is `patch`, and the call passes the world as argument
 - `deps [world_score, gpu_tune]` ->> patch stage depends on prior computation stages
-- `requires law_check` <--> the law stage must pass before the patch runs
+- `requires law_check` \<--> the law stage must pass before the patch runs
 - `residency host` === patches run on the host (they need access to world state)
 - `fallback degrade` --- if the patch fails, use a degrade function
 
@@ -821,7 +821,7 @@ fn prove_patches_fired(expected: Int) -> Int:
     return count
 ```
 
-This is the standard pattern in all fusion chain benchmarks ___ every patch-dependent test guards its correctness with `patch_journal_count()` deltas.
+This is the standard pattern in all fusion chain benchmarks \_\_\_ every patch-dependent test guards its correctness with `patch_journal_count()` deltas.
 
 ______________________________________________________________________
 
@@ -1679,10 +1679,10 @@ ______________________________________________________________________
 | **Entangle trigger** | Every field write in a patch triggers entangle propagation for entangled fields |
 | **Error code (fusion chain)** | `-13` ‒ patch journal overflow / journal never grew |
 | **Canonical example** | `smoketest/src/semantics/patch.kn` |
-| **Fusion example** | `benchmark/cases_v2/fusion_chain.kn` <--> patches in 7-layer causal chain with telemetry deltas |
+| **Fusion example** | `benchmark/cases_v2/fusion_chain.kn` \<--> patches in 7-layer causal chain with telemetry deltas |
 | **Crucible example** | `benchmark/cases_v2/keyword_crucible.kn` ... `crucible_semantic_full_checksum` with patch journal telemetry |
 | **Apex example** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` ‒ `commit_pulse` called 54000 times in hot loop |
-| **Best-effort test** | `crates/core/tests/compiler_owned_intent_test.rs` <--> `best_effort_patch_source()` |
+| **Best-effort test** | `crates/core/tests/compiler_owned_intent_test.rs` \<--> `best_effort_patch_source()` |
 
 ______________________________________________________________________
 
@@ -1705,7 +1705,7 @@ ______________________________________________________________________
 | `crates/core/src/types.rs` | 5750-5765 | `check_patch()` ‒ `in_patch=true`, function view, mutation paths, undo mode inference |
 | `crates/core/src/types.rs` | 6292-6340+ | `collect_patch_mutation_paths_from_block/from_stmt/from_expr` 〰 walks body for field assignments |
 
-### Core Crate ___ Runtime (Interpreter)
+### Core Crate \_\_\_ Runtime (Interpreter)
 
 | File | Lines | Content |
 |------|-------|---------|
@@ -1713,7 +1713,7 @@ ______________________________________________________________________
 | `crates/core/src/runtime.rs` | 509-535 | `patches`, `patch_undo_modes`, `active_patch_frames`, `patch_records`, `patch_replay_catalog`, `replayable_patch_history`, `undone_patch_records` |
 | `crates/core/src/runtime.rs` | 3956-3960 | `register_patch_value()` ... inserts into patches + patch_undo_modes, defines as Value::Patch |
 | `crates/core/src/runtime.rs` | 4020-4030 | `begin_active_patch()` ~ pushes ActivePatchFrame |
-| `crates/core/src/runtime.rs` | 4032-4037 | `record_patch_change()` ___ records path, old_value, new_value |
+| `crates/core/src/runtime.rs` | 4032-4037 | `record_patch_change()` \_\_\_ records path, old_value, new_value |
 | `crates/core/src/runtime.rs` | 4039-4090+ | `finish_active_patch()` ⁓ sorts paths, creates PatchRuntimeRecord + ReplayablePatchRecord, pushes history |
 | `crates/core/src/runtime.rs` | 7812-7840 | `infer_patch_undo_mode()`, `block_contains_runtime_best_effort_effects()` |
 | `crates/core/src/runtime.rs` | 8624-8626 | `runtime_patch_record_value()` ~ wraps PatchRuntimeRecord as Value for inspection |
@@ -1726,7 +1726,7 @@ ______________________________________________________________________
 | `crates/core/src/runtime_contract.rs` | 127-133 | `RuntimePatchContract` struct: name, mutation_paths, replay_log_schema, invalidation_keys, collaboration_event, undo_mode |
 | `crates/core/src/runtime_contract.rs` | 355 | `collect_patch_contracts()` called during bundle construction |
 | `crates/core/src/runtime_contract.rs` | 1184-1215 | `collect_patch_contracts()`, `collect_patch_contracts_into()`, `runtime_patch_contract()` |
-| `crates/core/src/runtime_contract.rs` | 1395-1410 | `patch_invalidation_keys()` ___ extracts root path segments from mutation paths |
+| `crates/core/src/runtime_contract.rs` | 1395-1410 | `patch_invalidation_keys()` \_\_\_ extracts root path segments from mutation paths |
 
 ### Core Crate --> Realtime App Bundle
 
@@ -1755,7 +1755,7 @@ ______________________________________________________________________
 | `runtime/native/src/core/stdlib_abi.c` | 1294-1309 | `abi_patch_record_i64()` ... records entry with capacity guard, returns -3 if full |
 | `runtime/native/src/core/stdlib_abi.c` | 1313-1325 | `abi_patch_commit()` --> marks matching entries committed, clears active slot |
 | `runtime/native/src/core/stdlib_abi.c` | 1328-1337 | `abi_patch_undo_last()` --> reverse scan for committed+undone, returns old_value |
-| `runtime/native/src/core/stdlib_abi.c` | 1340-1342 | `abi_patch_journal_count()` <--> returns monotonic count |
+| `runtime/native/src/core/stdlib_abi.c` | 1340-1342 | `abi_patch_journal_count()` \<--> returns monotonic count |
 | `runtime/native/src/core/stdlib_abi.c` | 1344-1348 | `abi_patch_last_path()` === returns last entry's path or empty string |
 
 ### Stdlib
@@ -1780,7 +1780,7 @@ ______________________________________________________________________
 |------|-------|
 | `smoketest/src/semantics/patch.kn` | Canonical smoke test: patch + entangle + law + journal count verification |
 | `benchmark/cases_v2/fusion_chain.kn` | `fusion_strike_signal`, `fusion_strike_ack`, `fusion_land_teleport`, `fusion_reset_world_state` ... 4 patches in 7-layer causal chain with telemetry deltas |
-| `benchmark/cases_v2/keyword_crucible.kn` | `crucible_commit_signal`, `crucible_commit_ack`, `crucible_land_teleport`, `crucible_reset` ___ patches in semantic full case + orchestrate stage |
+| `benchmark/cases_v2/keyword_crucible.kn` | `crucible_commit_signal`, `crucible_commit_ack`, `crucible_land_teleport`, `crucible_reset` \_\_\_ patches in semantic full case + orchestrate stage |
 | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | `commit_pulse` ~~ apex hot-loop patch called 54000 times |
 | `crates/core/tests/compiler_owned_intent_test.rs` | Test suite: patch typechecking, undo mode inference, runtime recording, contract emission, realtime bundle |
 | `library_of_kain/patch.kn` | Minimal patch example |

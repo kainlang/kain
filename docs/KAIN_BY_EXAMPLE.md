@@ -93,7 +93,7 @@ while i < iterations:
     i = i + 1
 ```
 
-### loop / break / continue <--> Loop with Break Value
+### loop / break / continue \<--> Loop with Break Value
 
 ```kn
 var odd_sum = 0
@@ -112,7 +112,7 @@ let result: Int = loop:
     step()
 ```
 
-### return <--> Early Exit
+### return \<--> Early Exit
 
 ```kn
 fn clamp(v: Int, lo: Int, hi: Int) -> Int:
@@ -435,7 +435,7 @@ entangle PongAuthority.swarm_energy <-> PongMirror.mirrored_swarm_energy with si
 entangle PongAuthority.drift_total <-> PongMirror.mirrored_drift_total with single_writer
 ```
 
-### surface targets ___ native_ui / web / viewport3d / ue5
+### surface targets \_\_\_ native_ui / web / viewport3d / ue5
 
 ```kn
 world RenderWorld:
@@ -506,6 +506,7 @@ law start_target_distinct(start: Int, target: Int, cell_count: Int) -> Bool:
        and cell_in_bounds(target, cell_count)
        and start != target
 ```
+
 > **One compilable snippet per feature. No prose, no theory - just proof that it compiles.**
 > Part 2 covers LAYER 3 (converge), LAYER 4 (orchestrate), LAYER 5 (pulse, resonate), LAYER 6 (axiom, shatter, teleport).
 
@@ -617,7 +618,7 @@ resonate Authority.signal dampen 0 ms:
 ```
 
 > **Handler locals:** `resonate_new_i64`, `resonate_old_i64`, `resonate_fired`
-> **Key pattern:** Resonate calls an orchestrate pipeline ___ the compiler-owned causal chain: patch → resonate → orchestrate → world update.
+> **Key pattern:** Resonate calls an orchestrate pipeline \_\_\_ the compiler-owned causal chain: patch → resonate → orchestrate → world update.
 > **Anti-self-feedback:** cannot write to own trigger field.
 
 ______________________________________________________________________
@@ -670,7 +671,7 @@ let score_after = shard_score(moved)
 // score_before == score_after: zero-copy integrity preserved
 ```
 
-> **One compilable snippet per feature. No prose, no theory ___ just proof that it compiles.**
+> **One compilable snippet per feature. No prose, no theory \_\_\_ just proof that it compiles.**
 > Part 3 covers LAYER 7 (actors, ownership), Foreign & Import, GPU & Shaders, Raw Memory, Atomics, Inline ASM, Virtual Memory, CPU Intrinsics, Testing, Runtime Telemetry, and Full Fusion.
 
 ______________________________________________________________________
@@ -944,7 +945,7 @@ fn dispatch_pipeline_checksum(iterations: Int, modulus: Int) -> Int with GPU, Un
 
 > `dispatch "shader::KernelName::compute" [X, Y, Z]` 〰 workgroup counts, NOT thread counts. Compute key MUST be a string literal.
 
-### std::graphics <--> Host Graphics Command Recording
+### std::graphics \<--> Host Graphics Command Recording
 
 ```kn
 use std::graphics
@@ -1430,4 +1431,3 @@ LAYER 0: None of the above?     → fn, struct, let, etc.
 ______________________________________________________________________
 
 *End of Kain By Example Part 3 · Every feature has one compilable snippet · Extracted from blades/pong, blades/component_fuzz, benchmark/cases_v2/fusion_chain.kn, benchmark/cases_v2/metal.kn, benchmark/cases_v2/keyword_crucible.kn, benchmark/cases_v2/classic_systems.kn, benchmark/cases_v2/orchestrate_god.kn*
-

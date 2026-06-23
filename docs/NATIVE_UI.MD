@@ -4,7 +4,7 @@
 **Status:** BRUTALLY HONEST. No aspirations. Code on disk only.
 **Total source:** 10,254 lines across 17 files (8 C sources, 5 C headers, 1 Kain stdlib, 3 docs)
 
----
+______________________________________________________________________
 
 ## 1. Executive Summary
 
@@ -25,19 +25,19 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 ### What Actually Works End-to-End
 
 1. **Window creation** — `world` + `surface native_ui => Component` creates a real Win32 HWND with a GDI framebuffer. Oracle-verified.
-2. **Node tree mutation** — The component surface vtable stores elements, styles, text, rects, stable keys in System A's data structures.
-3. **State persistence** — Component `state` fields survive across frames via a hidden `__kain_state_root` node.
-4. **Hardcoded rendering** — The GDI host adapter paints a gradient + text, proving the window is alive. But it renders NOTHING from the node tree.
+1. **Node tree mutation** — The component surface vtable stores elements, styles, text, rects, stable keys in System A's data structures.
+1. **State persistence** — Component `state` fields survive across frames via a hidden `__kain_state_root` node.
+1. **Hardcoded rendering** — The GDI host adapter paints a gradient + text, proving the window is alive. But it renders NOTHING from the node tree.
 
 ### What Does NOT Work
 
 1. **No renderer reads the node tree** — `win32_host_render_framebuffer` ignores session->nodes, session->styles, session->draw_commands. Every pixel is hardcoded.
-2. **Style attributes are write-only** — `fill_color`, `border_color`, `ink_color`, `title` are stored via `abi_ui_node_set_style_string` but never consumed by any renderer.
-3. **System B has no renderer at all** — The compiled bundle system has focus routing, editable controls, event routing, but zero pixel output.
-4. **Draw commands are never consumed** — `abi_ui_draw_rect` / `abi_ui_draw_text` produce `KainNativeUiDrawCommand` records. Nothing reads them to produce pixels.
-5. **Most `native_ui_set_attr_string` keys are silently dropped** — Only 4 keys (`fill_color`, `border_color`, `ink_color`, `title`) are forwarded to style storage. All others (including `background`, `color`, `border`, etc.) are silently ignored at the C surface layer.
+1. **Style attributes are write-only** — `fill_color`, `border_color`, `ink_color`, `title` are stored via `abi_ui_node_set_style_string` but never consumed by any renderer.
+1. **System B has no renderer at all** — The compiled bundle system has focus routing, editable controls, event routing, but zero pixel output.
+1. **Draw commands are never consumed** — `abi_ui_draw_rect` / `abi_ui_draw_text` produce `KainNativeUiDrawCommand` records. Nothing reads them to produce pixels.
+1. **Most `native_ui_set_attr_string` keys are silently dropped** — Only 4 keys (`fill_color`, `border_color`, `ink_color`, `title`) are forwarded to style storage. All others (including `background`, `color`, `border`, etc.) are silently ignored at the C surface layer.
 
----
+______________________________________________________________________
 
 ## 2. File-by-File Inventory
 
@@ -56,7 +56,7 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 | Style system | `node_set_style_i64`, `node_set_style_f64`, `node_set_style_string`, plus getters | 8192-slot style array, keyed by (node_id, key). Values can be i64, f64, or string (up to 256 chars) |
 | State system | `node_set_state_i64/f64/string`, plus getters | 8192-slot state array, identical structure to styles but separate namespace. Persisted for component state across frames |
 | Draw commands | `draw_rect`, `draw_text`, `draw_resource`, plus getters | 8192-slot draw command array. Records rect/text/resource with full position, size, style_key, text, resource_id metadata. **These are stored but never consumed by a renderer** |
-| Events | `push_event`, `poll_event`, `event_kind/target/x/y/key_code/text` | 1024-slot ring buffer. **Events are pushed from Kain code, NOT from the Win32 message pump** — the host adapter handles WM_* messages internally but does not translate them into ui_system events |
+| Events | `push_event`, `poll_event`, `event_kind/target/x/y/key_code/text` | 1024-slot ring buffer. **Events are pushed from Kain code, NOT from the Win32 message pump** — the host adapter handles WM\_\* messages internally but does not translate them into ui_system events |
 | Resources | `resource_create`, `font_create`, `texture_create`, `canvas_create`, `shader_create`, `resource_set_bytes/hex`, plus getters | 2048-slot resource array. Fonts store family+size in aux/scalar_value. Textures store format in aux + raw bytes. Shaders store stage in aux + raw bytes |
 | Menus | `menu_create`, `menu_add_item`, `menu_open`, plus getters | 256-slot menu array + 2048-slot menu item array. Menu items have key, label, command_id |
 | Dialogs | `dialog_request`, `dialog_respond`, `dialog_poll_response`, plus getters | 128-slot dialog array with kind, title, message, result, response_text |
@@ -99,11 +99,12 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 - `win32_host_create(width, height)` — Registers window class "KainWin32UI", creates `WS_OVERLAPPEDWINDOW | WS_VISIBLE` window, creates a 32-bit BGRA GDI DIB section as a software framebuffer. The framebuffer is `width * height * 4` bytes of `uint32_t` ARGB pixels. Returns a `KainWin32UiHost` struct stored in `session->host_state`.
 
 - `win32_host_render_framebuffer(host)` — **THE CRITICAL FUNCTION.** Fills the framebuffer with:
+
   1. Dark blue-gray background (`0xFF1A1A24` for every pixel)
-  2. Position-based gradient (r from x, g from y, b from x+y) overwriting every pixel
-  3. Three hardcoded `DrawTextA` GDI calls: "Kain UI Window (winit backend)", "Rendered by Pure Kain :: std::ui", "Resolution: WxH"
-  4. Calls `InvalidateRect` to trigger `WM_PAINT` → `BitBlt`
-  **It does NOT read `session->nodes`, `session->styles`, `session->draw_commands`, or any session data other than width/height.**
+  1. Position-based gradient (r from x, g from y, b from x+y) overwriting every pixel
+  1. Three hardcoded `DrawTextA` GDI calls: "Kain UI Window (winit backend)", "Rendered by Pure Kain :: std::ui", "Resolution: WxH"
+  1. Calls `InvalidateRect` to trigger `WM_PAINT` → `BitBlt`
+     **It does NOT read `session->nodes`, `session->styles`, `session->draw_commands`, or any session data other than width/height.**
 
 - `win32_host_pump_messages(host)` — Standard `PeekMessageA` → `TranslateMessage` → `DispatchMessageA` loop. Sets `host->running = 0` on `WM_QUIT`. **Does not translate messages into ui_system events.**
 
@@ -231,7 +232,7 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 
 **What it connects to:** The `ui_runtime.c` system — it reloads `KainUiRuntimeState` from `KainUiCompiledBundle`. It does NOT connect to the retained-mode `ui_system.c` at all. The hot reload in `ui_system.c` (`abi_ui_hot_reload_begin/commit`) is a separate, simpler mechanism using just a generation counter.
 
----
+______________________________________________________________________
 
 ### 2.9 `X:/runtime/native/include/ui_system.h` — 261 lines
 
@@ -285,9 +286,10 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 
 1. **Layer 1 — Raw @extern declarations (lines 1-340):** ~123 `@extern fn abi_ui_*` declarations mapping every C function in `ui_system.h` to Kain. Types are translated: `int64_t` → `Int`, `double` → `Float`, `const char*` → `String`, `const uint8_t*` → (not exposed — `resource_set_bytes_hex` takes hex string instead).
 
-2. **Layer 2 — Thin wrappers (lines 341-1350):** `pub fn native_ui_*` functions that are direct passthroughs to the `@extern` functions. This is boilerplate to make the raw externs available as public API.
+1. **Layer 2 — Thin wrappers (lines 341-1350):** `pub fn native_ui_*` functions that are direct passthroughs to the `@extern` functions. This is boilerplate to make the raw externs available as public API.
 
-3. **Layer 3 — Higher-level helpers (lines 1350-1569):**
+1. **Layer 3 — Higher-level helpers (lines 1350-1569):**
+
    - `ui_host_session_create` — Creates session + opens window + attaches host in one call
    - `ui_frame_begin` / `ui_frame_submit` — Begin frame + present to host
    - `ui_node_from_stable_key` / `ui_reconcile_node` / `ui_reconcile_text_node` / `ui_reconcile_labeled_node` / `ui_reconcile_focusable_node` — Stable-key-based node reconciliation with optional text, accessibility role/label, focusable flag
@@ -319,9 +321,9 @@ The **17-slot vtable** that connects the Rust codegen's `KainComponentSurface*` 
 
 ### 2.17 `X:/blades/NEWSLETTER-2.md` — 414 lines
 
-**What it actually does:** The merge story for the component surface pipeline. Documents the "Plumber A vs Plumber B" divergence (C runtime built the trait, Rust codegen emitted direct abi_ui_* calls instead of vtable calls), the reconciliation, bugs found during audit, files touched, and what didn't change.
+**What it actually does:** The merge story for the component surface pipeline. Documents the "Plumber A vs Plumber B" divergence (C runtime built the trait, Rust codegen emitted direct abi_ui\_\* calls instead of vtable calls), the reconciliation, bugs found during audit, files touched, and what didn't change.
 
----
+______________________________________________________________________
 
 ## 3. The Node Tree
 
@@ -385,7 +387,7 @@ Draw commands are recorded per-frame via:
 
 These are cleared at `begin_frame` (`draw_command_count = 0`). They accumulate during the frame. They are hashed in `host_present` for dirty detection. **They are never read by any renderer.**
 
----
+______________________________________________________________________
 
 ## 4. The Render Path
 
@@ -465,10 +467,10 @@ Component JSX     →  vtable calls  →  ui_system.c nodes/styles/draw_commands
 For `win32_host_render_framebuffer` to actually render the node tree, it would need to:
 
 1. Access `session->nodes[]` to get each node's rect, kind, text, flags
-2. Access `session->styles[]` to get `fill_color`, `border_color`, `ink_color`, `font_size`, etc.
-3. Walk the tree in some order (e.g., parent-first with child z-ordering)
-4. For each node, fill its rect with `fill_color`, draw border with `border_color`, draw text with `ink_color` and `font_size`
-5. Optionally process `session->draw_commands[]` for explicit draw calls
+1. Access `session->styles[]` to get `fill_color`, `border_color`, `ink_color`, `font_size`, etc.
+1. Walk the tree in some order (e.g., parent-first with child z-ordering)
+1. For each node, fill its rect with `fill_color`, draw border with `border_color`, draw text with `ink_color` and `font_size`
+1. Optionally process `session->draw_commands[]` for explicit draw calls
 
 **None of this exists today.** The renderer has zero awareness of the node tree.
 
@@ -490,13 +492,14 @@ Renderer:     NEVER READ. win32_host_render_framebuffer uses hardcoded colors.
 ```
 
 For keys NOT in the allowlist (background, color, border, padding, spacing, font_size, corner_radius, opacity, direction, width, height as strings):
+
 ```
 JSX attribute → codegen → element_set_attr_string → native_ui_set_attr_string → SILENTLY IGNORED
 ```
 
 Note: many of these are routed through `element_set_attr_f64` or `element_set_attr_i64` by the codegen, not through `element_set_attr_string`. The 4-key allowlist only applies to string-valued attributes that happen to be routed through the string slot.
 
----
+______________________________________________________________________
 
 ## 5. What's Connected vs What's Disconnected
 
@@ -584,7 +587,7 @@ Purpose: Dynamic per-frame            Purpose: Static compile-time
 
 **These systems do not exchange data.** A node created in System A via `abi_ui_node_create` is invisible to System B's `KainUiRuntimeState`. A bundle loaded in System B via `kain_ui_compiled_bundle_load_from_json` is invisible to System A's session nodes.
 
----
+______________________________________________________________________
 
 ## 6. The std::ui Module
 
@@ -630,7 +633,7 @@ The module provides ~60 higher-level Kain functions that compose `@extern` calls
 - No scroll view
 - No window management (multiple windows per session not supported)
 
----
+______________________________________________________________________
 
 ## 7. Gap Analysis
 
@@ -639,12 +642,14 @@ The module provides ~60 higher-level Kain functions that compose `@extern` calls
 **Current state:** `win32_host_render_framebuffer` fills a hardcoded gradient and draws 3 hardcoded strings via GDI `DrawTextA`. It receives `session` but does not read from it.
 
 **Gap 1 — No tree walker:** There is no function that iterates the node tree in paint order. You would need to write a recursive or iterative walker that:
+
 - Finds the root node (parent_id == 0)
 - Visits children in some order
 - For each visible node (not hidden), computes its absolute position (parent-relative or absolute?)
 - Issues draw calls based on node kind, style, and text
 
 **Gap 2 — No style-to-pixel mapping:** Even if you read `session->styles`, the values are raw strings/i64s/f64s. There is no code that:
+
 - Parses `"#FF0000"` into RGB bytes
 - Maps `fill_color` to a `FillRect` or pixel loop
 - Maps `border_color` to a border drawing routine
@@ -653,6 +658,7 @@ The module provides ~60 higher-level Kain functions that compose `@extern` calls
 - Maps `opacity` to alpha blending
 
 **Gap 3 — No font management:** `abi_ui_font_create` stores a font family string and size, but the renderer uses GDI's default system font. There is no:
+
 - `CreateFontA` call based on the stored font resource
 - Font cache
 - Text measurement using actual font metrics (the current `text_measure_width` uses a hardcoded 0.56 multiplier)
@@ -674,9 +680,10 @@ The module provides ~60 higher-level Kain functions that compose `@extern` calls
 **Gap:** There is no bridge that takes a `KainUiCompiledBundle` and creates corresponding `KainNativeUiNode` entries in a `KainNativeUiSession`. The compiled bundle has layout information (dock, split_ratio, tab groups) that has no equivalent in System A.
 
 **To connect them, you would need:**
+
 1. A function that iterates `KainUiCompiledNode` entries and calls `abi_ui_node_create` + `abi_ui_node_set_rect` + `abi_ui_node_set_style_*` for each
-2. A layout solver that converts layout metadata (dock placement, split ratios, tab groups) into absolute rects
-3. Event routing that translates System A's `KainNativeUiEvent` into System B's `KainUiRuntimeEvent` and back
+1. A layout solver that converts layout metadata (dock placement, split ratios, tab groups) into absolute rects
+1. Event routing that translates System A's `KainNativeUiEvent` into System B's `KainUiRuntimeEvent` and back
 
 ### 7.3 Known Gaps (From window_proof/README.md + COMPONENT.MD)
 
@@ -693,7 +700,7 @@ The module provides ~60 higher-level Kain functions that compose `@extern` calls
 | 9 | Text measurement uses hardcoded 0.56 multiplier | No actual font metrics | `runtime/native/src/ui/ui_system.c:abi_ui_text_measure_width` |
 | 10 | System A and System B don't connect | Two parallel architectures | Architecture decision needed |
 
----
+______________________________________________________________________
 
 ## 8. Research Doc Cross-Reference — Claims vs Code
 
@@ -728,7 +735,7 @@ This section cross-references the claims made in the research documents (`X:/res
 | Phase 1.4: Codegen emits `surface->element_begin()` etc. | **Done.** `component.rs` emits vtable calls with correct offsets | ✅ |
 | Phase 1.5: World-surface frame loop auto-emitted | **Done.** Injected into `main()` via `pending_frame_loops` drain | ✅ |
 | Phase 1.6: State persistence via `state_get_i64`/`state_set_i64` | **Done.** With the 0-sentinel limitation | ✅ |
-| Phase 2: Layout resolver `native_ui_layout_resolve` | **NOT IMPLEMENTED.** No layout resolver exists anywhere. No code walks the node tree post-reconciliation to compute pixel rects from layout.* style keys. The only rect-setting happens through `abi_ui_node_set_rect` called from Kain code | ❌ |
+| Phase 2: Layout resolver `native_ui_layout_resolve` | **NOT IMPLEMENTED.** No layout resolver exists anywhere. No code walks the node tree post-reconciliation to compute pixel rects from layout.\* style keys. The only rect-setting happens through `abi_ui_node_set_rect` called from Kain code | ❌ |
 | Phase 2: JSX Attribute → Style Key Mapping table | **Partially implemented in codegen.** The codegen maps attribute names to vtable calls (f64/i64/string). But the C backend (`native_ui_set_attr_string`) only forwards 4 string keys. The plan listed 16 attributes; 12 are handled by i64/f64 slots correctly, 4 by the string allowlist. `direction` as string (`width="fill"`) → i64 mapping is NOT in the string path | ⚠️ |
 | Phase 3.1: Event dispatch from frame loop | **NOT IMPLEMENTED.** The plan describes `surface->poll_event` → hit-test → dispatch to component handler. None of this exists. The frame loop doesn't call poll_event, and there is no event-to-component dispatch logic | ❌ |
 | Phase 3.2: List reconciliation (`reconcile_list_begin/item/end`) | **NOT IMPLEMENTED.** No such functions exist in any C file. `for` loops create/destroy nodes every frame with index-based stable keys | ❌ |
@@ -764,7 +771,7 @@ Minimal — just an index pointing to IMPLEMENTATION_PLAN.md and WIRING_CONTRACT
 
 **Key discrepancy:** The README claims `ui_host_adapter.c` translates platform events into component updates. It does not. The host adapter is a pure window-creation + message-pump layer. The only "event translation" is `WM_CLOSE` → close flag. No keyboard, mouse, or other input events are translated.
 
----
+______________________________________________________________________
 
 ## 9. Summary Verdict
 
@@ -776,6 +783,7 @@ The Kain native UI runtime is a **data-rich, render-poor** system. It has:
 - **A working state persistence system:** Component state survives across frames via hidden node state
 
 **What it lacks:**
+
 - **A renderer that reads the node tree** — the single biggest gap. Every style, text, and draw command is stored but invisible to pixels.
 - **Integration between its two parallel subsystems** — retained-mode nodes and compiled bundles are separate worlds.
 - **Real font/text measurement** — uses hardcoded multipliers instead of actual font metrics.

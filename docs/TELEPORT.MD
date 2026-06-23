@@ -8,7 +8,7 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What is Teleport?](#what-is-teleport)
-1. [The Core Idea <--> Destructive Zero-Copy Handoff](#the-core-idea)
+1. [The Core Idea \<--> Destructive Zero-Copy Handoff](#the-core-idea)
 1. [Syntax Reference](#syntax-reference)
 1. [How It Works ~> Full Pipeline](#how-it-works)
 1. [Teleport vs Entangle](#teleport-vs-entangle)
@@ -48,7 +48,7 @@ ______________________________________________________________________
 
 - ❌ Not a copy ... no memory is duplicated; the data stays in place
 - ❌ Not a `send` or message :: actor messages are copied mailbox payloads; teleport is a direct pointer handoff
-- ❌ Not a synchronization primitive ___ teleport does not imply ordering, fencing, or memory barriers
+- ❌ Not a synchronization primitive \_\_\_ teleport does not imply ordering, fencing, or memory barriers
 - ❌ Not a continuous coupling ~~ that's `entangle` (automatically propagates every write)
 - ❌ Not a top-level declaration ⁓ `teleport` is an expression, evaluable anywhere within a function body
 - ❌ Not a cross-process or cross-machine transfer * * * worlds are in the same process address space
@@ -60,7 +60,7 @@ ______________________________________________________________________
 - ✅ A **zero-copy cross-world handoff** ~~ the pointer is relocated, not copied
 - ✅ A **provenance-tracked transfer** |-> the runtime records source, target, channel in a token hash
 - ✅ A **telemetry-counted operation** === `kain_machine_teleport_count()` increments atomically on every teleport
-- ✅ An **expression that returns the moved value** <--> the teleport site now owns the value for the target world
+- ✅ An **expression that returns the moved value** \<--> the teleport site now owns the value for the target world
 - ✅ A **compiler-owned move** ⁓ the typechecker marks the source identifier as moved (`env.mark_moved(name)`)
 - ✅ A **Z3-proven exclusive handoff** - after teleport, only the destination has a live reference to the data
 - ✅ A **capability-gated operation** * * * requires `KAIN_MACHINE_CAP_WORLD_TELEPORT` (always available in the native runtime)
@@ -155,7 +155,7 @@ The typechecker enforces:
 1. **Both worlds must exist** ‒ `ensure_teleport_world_reference()` validates that `source_world` and `target_world` resolve to declared worlds
 1. **Distinct worlds** === teleporting to the same world is rejected: `"teleport requires distinct source and target worlds"`
 1. **Channel non-empty** -- if `via` is provided, the channel name cannot be empty: `"teleport channel cannot be empty"`
-1. **Source reference invalidated** ___ if the value is an `Expr::Ident(name, _)`, `env.mark_moved(name)` marks it as moved, making subsequent access a compile error: `"Identifier '{}' was moved by teleport and cannot be used again"`
+1. **Source reference invalidated** \_\_\_ if the value is an `Expr::Ident(name, _)`, `env.mark_moved(name)` marks it as moved, making subsequent access a compile error: `"Identifier '{}' was moved by teleport and cannot be used again"`
 
 ```rust
 // types.rs ~~ teleport inference
@@ -469,7 +469,7 @@ fn pipeline(value: MyData) -> MyData:
     return b
 ```
 
-Note: teleport returns the value, so you can chain them. But the compiler marks `value` as moved after the first teleport <--> you cannot refer to the original binding after the handoff.
+Note: teleport returns the value, so you can chain them. But the compiler marks `value` as moved after the first teleport \<--> you cannot refer to the original binding after the handoff.
 
 ______________________________________________________________________
 

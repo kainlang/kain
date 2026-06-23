@@ -6,26 +6,26 @@ Amalgamate is Kain's **capsule pipeline** -- a first-class package distribution 
 
 Amalgamate turns Kain code into a **durable digital asset**. Every `pub fn` ever written is one `kain amalgamate` away from being importable by every other Kain project. Forever.
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [The Three Big Problems Amalgamate Solves](#1-the-three-big-problems-amalgamate-solves)
-2. [The Capsule Format](#2-the-capsule-format)
-3. [Storage Modes: Editable vs Archive](#3-storage-modes-editable-vs-archive)
-4. [Content Policies: Five Capsule Flavors](#4-content-policies-five-capsule-flavors)
-5. [The Companion Capsule System](#5-the-companion-capsule-system)
-6. [CLI Reference -- All Commands & Flags](#6-cli-reference----all-commands--flags)
-7. [build.kn Integration](#7-buildkn-integration)
-8. [The Package System: add / install / publish](#8-the-package-system-add--install--publish)
-9. [Materialization: How Capsules Become Imports](#9-materialization-how-capsules-become-imports)
-10. [Capsule Augmentation: Reshape & Merge](#10-capsule-augmentation-reshape--merge)
-11. [Proven Scale: 2,594 Modules, 15 MB, 3 Seconds](#11-proven-scale-2594-modules-15-mb-3-seconds)
-12. [Common Workflows](#12-common-workflows)
-13. [Capsule Format On-Disk Structure](#13-capsule-format-on-disk-structure)
-14. [CRATE MAP: Where Everything Lives](#14-crate-map-where-everything-lives)
+1. [The Capsule Format](#2-the-capsule-format)
+1. [Storage Modes: Editable vs Archive](#3-storage-modes-editable-vs-archive)
+1. [Content Policies: Five Capsule Flavors](#4-content-policies-five-capsule-flavors)
+1. [The Companion Capsule System](#5-the-companion-capsule-system)
+1. [CLI Reference -- All Commands & Flags](#6-cli-reference----all-commands--flags)
+1. [build.kn Integration](#7-buildkn-integration)
+1. [The Package System: add / install / publish](#8-the-package-system-add--install--publish)
+1. [Materialization: How Capsules Become Imports](#9-materialization-how-capsules-become-imports)
+1. [Capsule Augmentation: Reshape & Merge](#10-capsule-augmentation-reshape--merge)
+1. [Proven Scale: 2,594 Modules, 15 MB, 3 Seconds](#11-proven-scale-2594-modules-15-mb-3-seconds)
+1. [Common Workflows](#12-common-workflows)
+1. [Capsule Format On-Disk Structure](#13-capsule-format-on-disk-structure)
+1. [CRATE MAP: Where Everything Lives](#14-crate-map-where-everything-lives)
 
----
+______________________________________________________________________
 
 ## 1. The Three Big Problems Amalgamate Solves
 
@@ -43,7 +43,7 @@ You built a killer `collision.kn` in one blade. You want to use it in another bl
 
 You updated a dependency three months ago. What exact source did you use? With capsules, the `sha256` digest in the capsule metadata IS the provenance. Store the capsule in your repo. Tag the digest. Forever reproducible.
 
----
+______________________________________________________________________
 
 ## 2. The Capsule Format
 
@@ -91,9 +91,10 @@ A capsule is a **valid Kain source file**. The Kain parser sees comment blocks a
 
 1. **Header (optional, configurable):** Human-readable preview showing name, kind, digest, file count, module count, and a public symbol directory. Configured via `--header` (rich, minimal, or off).
 
-2. **Metadata Block:** TOML-encoded metadata behind `//!kain-capsule` / `//!end-kain-capsule` sentinels. Contains schema version, kind, storage mode, content policy, digest, creation timestamp, file/module counts, capsule_set name, entry points, authors, tags, and custom metadata.
+1. **Metadata Block:** TOML-encoded metadata behind `//!kain-capsule` / `//!end-kain-capsule` sentinels. Contains schema version, kind, storage mode, content policy, digest, creation timestamp, file/module counts, capsule_set name, entry points, authors, tags, and custom metadata.
 
-3. **Content Blocks:**
+1. **Content Blocks:**
+
    - **Editable storage:** Each file is a `//!kain-file` block with inline content between `//!kain-file-content` and `//!end-kain-file`. Text files are stored as-is. Binary files are base64-encoded.
    - **Archive storage:** A single `//!kain-capsule-payload` block containing a zstd-compressed (or raw) base64 blob: a JSON archive with all files, their paths, sizes, SHA-256 digests, and base64-encoded contents.
 
@@ -104,7 +105,7 @@ A capsule is a **valid Kain source file**. The Kain parser sees comment blocks a
 | v1 | Initial format: editable file blocks, minimal metadata |
 | v2 (current) | Archive mode, capsule_set companion discovery, content policies, zstd compression, custom metadata, symbol preview indexing |
 
----
+______________________________________________________________________
 
 ## 3. Storage Modes: Editable vs Archive
 
@@ -124,7 +125,7 @@ All files are serialized into a single JSON archive, then zstd-compressed (level
 
 **Trade-off:** Not human-readable. Must be unpacked to inspect individual files.
 
----
+______________________________________________________________________
 
 ## 4. Content Policies: Five Capsule Flavors
 
@@ -157,7 +158,7 @@ Amalgamate automatically classifies build task outputs based on `build.kn` task 
 | `exec`, `build`, `native_executable`, `amalgamate` | Artifacts |
 | Any task with `telemetry` channel containing "evidence" words | Evidence |
 
----
+______________________________________________________________________
 
 ## 5. The Companion Capsule System
 
@@ -178,6 +179,7 @@ When you **materialize** (unpack + import) the source capsule, the system automa
 ### Companion Naming Convention
 
 Given output capsule path `my-package.kn`:
+
 - Artifacts companion: `my-package.artifacts.kn`
 - Evidence companion: `my-package.evidence.kn`
 
@@ -190,7 +192,7 @@ When re-packing source, existing companion capsules with matching `capsule_set` 
 - Companions are applied in priority order: source > assets > artifacts > evidence
 - The merged workspace is the full project tree -- source code, binaries, and evidence all in one directory
 
----
+______________________________________________________________________
 
 ## 6. CLI Reference -- All Commands & Flags
 
@@ -337,7 +339,7 @@ kain amalgamate unpack mylib.kn
 kain amalgamate unpack mylib.kn -o ./vendor/mylib/
 ```
 
----
+______________________________________________________________________
 
 ## 7. build.kn Integration
 
@@ -422,7 +424,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .task(artifact_capsule)
 ```
 
----
+______________________________________________________________________
 
 ## 8. The Package System: add / install / publish
 
@@ -488,6 +490,7 @@ kain install <PACKAGE>
 ```
 
 Installs a package into `~/.kain/packages/<name>/<version>/`, storing:
+
 - `source.kn` -- source capsule
 - `artifacts.kn` -- artifacts capsule (if available)
 - `evidence.kn` -- evidence capsule (if available)
@@ -528,7 +531,7 @@ capsule_set = "mylib"
 
 The lockfile pins exact capsule digests -- the same digest in the capsule metadata block. No version range resolution. No network fetches. The digest IS the truth.
 
----
+______________________________________________________________________
 
 ## 9. Materialization: How Capsules Become Imports
 
@@ -552,6 +555,7 @@ capsule .kn file
 ### 9.2 Automatic Materialization
 
 The compiler automatically materializes capsules when they appear as:
+
 - An input path to `kain check`/`kain build`/`kain run`
 - A dependency in `KAIN.lock`
 - A `build.kn` entry point
@@ -561,6 +565,7 @@ The materialization root is `.kain/cache/amalgamate/` in the working directory.
 ### 9.3 Caching
 
 Materialization is **content-addressed**. The state hash is computed from:
+
 - The primary capsule path
 - The primary capsule digest
 - All companion capsule digests
@@ -577,7 +582,7 @@ src/main.kn          ->  ./src/main.kn (Windows)
 lib/core/math.kn     ->  ./lib/core/math.kn (all platforms)
 ```
 
----
+______________________________________________________________________
 
 ## 10. Capsule Augmentation: Reshape & Merge
 
@@ -590,7 +595,7 @@ The `kain amalgamate reshape` command (in development) will provide:
 
 These operations work without unpacking -- they operate on the capsule's internal JSON archive directly.
 
----
+______________________________________________________________________
 
 ## 11. Proven Scale: 2,594 Modules, 15 MB, 3 Seconds
 
@@ -608,7 +613,7 @@ The Amalgamate system has been battle-tested at extreme scale:
 
 **The import scaling is flat:** 6 modules or 2,594 modules -- the compiler doesn't care. Module resolution is the same. Typechecking is the same. Import syntax is the same.
 
----
+______________________________________________________________________
 
 ## 12. Common Workflows
 
@@ -669,7 +674,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 Now `kain run` auto-emits the capsule alongside the binary.
 
----
+______________________________________________________________________
 
 ## 13. Capsule Format On-Disk Structure
 
@@ -760,7 +765,7 @@ The archive payload is a base64-encoded, optionally zstd-compressed JSON documen
 }
 ```
 
----
+______________________________________________________________________
 
 ## 14. CRATE MAP: Where Everything Lives
 
@@ -779,6 +784,6 @@ The archive payload is a base64-encoded, optionally zstd-compressed JSON documen
 | **Examples & proofs** | `blades/edge_cases/amalgamate/` | Kain |
 | **build.kn stdlib** | `stdlib/build.kn` (§BUILD_KIND_AMALGAMATE) | Kain |
 
----
+______________________________________________________________________
 
 *Document generated 2026-06-22 from source analysis of `crates/amalgamate/`, `crates/cli/`, `crates/commands/`, `crates/blades/`, `crates/build/`, and `blades/edge_cases/amalgamate/`.*

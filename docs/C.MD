@@ -4,7 +4,7 @@
 > **Files inspected**:
 >
 > - `crates/core/src/parser.rs` (11056 lines) -- `parse_include()`, `parse_c_include_target()`, `parse_c_system_include_target()`, parser tests
-> - `crates/core/src/ast.rs` (3806 lines) <--> `UseOrigin::CInclude`, `PointerProvenance::ImportedC`, `InlineAsmOptions`
+> - `crates/core/src/ast.rs` (3806 lines) \<--> `UseOrigin::CInclude`, `PointerProvenance::ImportedC`, `InlineAsmOptions`
 > - `crates/core/src/low_level_abi.rs` (400 lines) ⁓ `CAbiPolicy`, `CAbiKind`, `CCompilerFlavor`, LP64 vs LLP64
 > - `crates/core/src/runtime_contract.rs` --> `"include"` kind emission for C includes in runtime contract JSON
 > - `crates/core/src/types.rs` ~~ `ATTR_LINK_NAME`, `ATTR_CALLCONV` attribute validation
@@ -18,7 +18,7 @@
 > - `crates/c-ffi/src/system_registry.rs` (387 lines) ⁓ System header registry loader
 > - `crates/c-ffi/system_headers.toml` ~> 6 families: vulkan, c-runtime-math, c-runtime, ffmpeg, posix, windows-sdk
 > - `crates/import/src/c/parser.rs` (983 lines) :: C11 parsing via `lang-c` crate
-> - `crates/import/src/c/transformer.rs` (4070 lines) ___ C AST → Kain AST (~4000 lines)
+> - `crates/import/src/c/transformer.rs` (4070 lines) \_\_\_ C AST → Kain AST (~4000 lines)
 > - `crates/import/src/c/types.rs` (95 lines) ⁓ C type → Kain type mapping
 > - `crates/import/src/common/c_registry.rs` (341 lines) ->> Type aliases: int→Int, float→Float, char→Char, void→Unit
 > - `crates/foreign-abi/src/lib.rs` (904 lines) ... `ForeignBaseKind`, `ForeignDirection`, `ForeignOwnershipPolicy`, `ForeignCallingConvention`
@@ -71,7 +71,7 @@ Kain's C interop is a **four-layer, compiler-owned pipeline** ~> not a thin `ext
 1. **A surface syntax** :: `include <windows.h> as win`, `include "sqlite3.h" as sql`, `include native/nuklear.h as nk` :: three forms parsed at `crates/core/src/parser.rs:1379`.
 1. **A C header extraction engine** --- `crates/c-ffi/` (~6500 lines total) with three-tier extraction: **libclang** (full C AST via `clang-sys`), **lang-c** (C11 parser crate), and **regex fallback**. Extracts 605 Win32 functions, 755 Vulkan functions, and all C standard library functions through the `system_headers.toml` registry.
 1. **A native runtime bridge** ~> `runtime/native/src/core/host_bridge.c` registers bridge DLLs, manages `KainHostBridgeRegistry` with module/service descriptors, and supports five foreign runtime lanes (Rust, Python, Node, C, Zig).
-1. **Three codegen backends** <--> LLVM IR (extern symbol resolution + `@extern` `@link_name` FFI), Rust ( `unsafe extern "C" { ... }`), and C ( `#include <std*.h>` preamble).
+1. **Three codegen backends** \<--> LLVM IR (extern symbol resolution + `@extern` `@link_name` FFI), Rust ( `unsafe extern "C" { ... }`), and C ( `#include <std*.h>` preamble).
 
 **The libclang path is the hot path for rich headers.** When you `include <windows.h> as win`, libclang walks the full C AST, extracts 6,294 function declarations with full type resolution, and generates a `.kn` module with `@extern` functions. The `lang-c` path handles simpler C11 headers, and the regex path is the last-resort fallback.
 
@@ -173,15 +173,17 @@ include <vulkan/vulkan.h> 1.3.296.0 as vk
 When a version is specified, the compiler detects it at parse time and invokes **vcpkg** to fetch the required library on demand. This is controlled by the `KAIN_C_FFI_AUTO_FETCH` environment variable (enabled by default; set to `0` or `false` to disable).
 
 **Version schemes supported:**
+
 - Dotted decimal: `3.45.0`, `1.2.3-rc.1`
 - ISO date: `2024-01-15`
 - Quoted string: `"snapshot-20240115"`
 
 **vcpkg binary discovery** (checked in order):
+
 1. `KAIN_VCPKG_EXE` env var
-2. `VCPKG_ROOT` env var + `vcpkg.exe`
-3. `~/.kain/vcpkg/vcpkg.exe`
-4. System PATH
+1. `VCPKG_ROOT` env var + `vcpkg.exe`
+1. `~/.kain/vcpkg/vcpkg.exe`
+1. System PATH
 
 Run `kain doctor` to verify vcpkg is detected.
 
@@ -373,7 +375,7 @@ static INCLUDE_REGEX: Lazy<Regex> = Lazy::new(|| {
 This regex captures:
 
 1. **Group 1** – Quoted path: `"sqlite3.h"`
-1. **Group 2** <--> System path: `<vulkan/vulkan.h>`
+1. **Group 2** \<--> System path: `<vulkan/vulkan.h>`
 1. **Group 3** --> Bare name: `native/nuklear`
 1. **Group 4** ~ Alias: `as nk`
 
@@ -579,7 +581,7 @@ pub enum ForeignAbiType {
 
 Key enums:
 
-- `ForeignBaseKind` ___ `Scalar`, `Typedef`, `Struct`, `Enum`
+- `ForeignBaseKind` \_\_\_ `Scalar`, `Typedef`, `Struct`, `Enum`
 - `ForeignDirection` ~ `In`, `Out`, `InOut`, `Return`, `Unknown`
 - `ForeignOwnershipPolicy` 〰 `Borrowed`, `Owned`, `Shared`, `Pinned`, `External`, `Unknown`
 - `ForeignCallingConvention` --- `C`, `Stdcall`, `Fastcall`, `Thiscall`, `Vectorcall`, `Unknown`
@@ -625,10 +627,10 @@ For complex platform SDKs like Vulkan and Windows SDK, `platform.rs` provides:
 The `ImportPlatformOptions` struct controls:
 
 - `package_name` / `provider` - Which platform package
-- `sdk_root` <--> Override SDK installation path
-- `target_triple` ___ Cross-compilation target
+- `sdk_root` \<--> Override SDK installation path
+- `target_triple` \_\_\_ Cross-compilation target
 - `dry_run` ~> Discovery without generation
-- `header_path` <--> Specific header override
+- `header_path` \<--> Specific header override
 
 ______________________________________________________________________
 
@@ -1826,7 +1828,7 @@ ______________________________________________________________________
 | `src/low_level_abi.rs` | 58-76 | `CCompilerFlavor` enum (Generic, Gcc, Clang, Msvc) |
 | `src/low_level_abi.rs` | 80-121 | 12 policy entries table |
 | `src/low_level_abi.rs` | 125-143 | Flavor selection from env var |
-| `src/low_level_abi.rs` | 145-155 | `c_abi_kind_for_target()` ___ LP64 vs LLP64 |
+| `src/low_level_abi.rs` | 145-155 | `c_abi_kind_for_target()` \_\_\_ LP64 vs LLP64 |
 | `src/low_level_abi.rs` | 170-174 | `promoted_integer_bits()` – C integer promotion |
 | `src/runtime_contract.rs` | 1074-1096 | `"include"` kind emission for C includes |
 | `src/runtime_contract.rs` | 3014-3028 | Contract test for `include native/nuklear.h as nk` |
@@ -1869,7 +1871,7 @@ ______________________________________________________________________
 | `src/generate.rs` | 600-800 | `render_bridge_source()` ->> Rust bridge |
 | `src/model.rs` | 1-103 | `ResolvedCLibrary`, `CFunctionBinding`, `BridgeType` |
 | `src/model.rs` | 80-103 | `BindingReport` ⁓ full report structure |
-| `src/model.rs` | 176-184 | `BridgeType::render_kain()` ___ C type → Kain type |
+| `src/model.rs` | 176-184 | `BridgeType::render_kain()` \_\_\_ C type → Kain type |
 | `src/config.rs` | 1-78 | `CFfiConfig`, `CInteropTier`, `CLibraryConfig` |
 | `src/platform.rs` | 1-961 | `import_platform_package()`, SDK discovery, lock files |
 | `src/system_registry.rs` | 1-100 | `SystemHeaderRegistry` loading from TOML |
@@ -1953,7 +1955,7 @@ ______________________________________________________________________
 ### Performance Guidelines
 
 1. **Prefer `@extern` + `@link_name`** for 1-3 functions -- avoids the full extraction pipeline.
-1. **Use `CInteropTier::Inline`** for local C code ___ zero bridge overhead, bitcode-linked.
+1. **Use `CInteropTier::Inline`** for local C code \_\_\_ zero bridge overhead, bitcode-linked.
 1. **Use `CInteropTier::Static`** for runtime shims === no DLL loading at startup.
 1. **Use `CInteropTier::Dynamic`** for system libraries |-> matches OS distribution model.
 1. **Cache-aware workflow**: Generated artifacts live in `.kain/cache/c_ffi/{hash}/`. Clear this when switching SDK versions.

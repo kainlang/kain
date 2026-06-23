@@ -80,10 +80,10 @@ ______________________________________________________________________
 - A **composition unit** ... `<Button />` calls another component
 - A **render tree factory** |-> `render <box>...</box>`
 - A **world surface** :: `surface native_ui => Component` wires world to component
-- A **first-class language declaration** ___ parsed as `ast::Component`, not a struct wrapper
+- A **first-class language declaration** \_\_\_ parsed as `ast::Component`, not a struct wrapper
 - An **effect-capable** declaration ⁓ `with Reactive`, `with Unsafe`
 - A **recursive structure** 〰 components can call themselves via conditional rendering
-- A **pointer-aware container** <--> components manage raw memory, GPU buffers, shared resources
+- A **pointer-aware container** \<--> components manage raw memory, GPU buffers, shared resources
 
 ### What Component IS NOT
 
@@ -195,7 +195,7 @@ component BoundedCounter(limit: Int):
 - `weak` state (from actors) is NOT available in components -- it is actor-only
 - State persists for the component's lifetime
 
-### 3.3 Methods ___ Functions with `_self: Self_`
+### 3.3 Methods \_\_\_ Functions with `_self: Self_`
 
 Methods are regular `fn` declarations that receive `_self: Self_` as their first parameter. `_self` gives access to both props and state.
 
@@ -620,7 +620,7 @@ ______________________________________________________________________
 |---|---|---|
 | Define a reusable UI widget with its own state | `component` | Owns render tree, state, methods |
 | Track app-level state across frames | `world` + `surface native_ui => Component` | World is authority; component is view |
-| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition ___ uppercase tags dispatch to components |
+| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition \_\_\_ uppercase tags dispatch to components |
 | Bind a world to a root UI view | `surface native_ui => ComponentName` on world | Canonical world→UI wiring |
 | Do computation with no UI output | `fn` | Components are for rendering; functions are for logic |
 | Render data from a world inside a component | Read `world.field` inside JSX `{expr}` | Components have read access to world state (via surface projection) |
@@ -662,7 +662,7 @@ ______________________________________________________________________
 
 ## 9. Component Patterns
 
-### 9.1 Simple Widget <--> Leaf Component
+### 9.1 Simple Widget \<--> Leaf Component
 
 ```kn
 component Atom():
@@ -675,7 +675,7 @@ component ExprOnly(value: Int):
     render <text value={value} />
 ```
 
-### 9.2 Stateful Widget <--> Interactive Component
+### 9.2 Stateful Widget \<--> Interactive Component
 
 ```kn
 component TrafficLight():
@@ -749,7 +749,7 @@ component Dashboard():
     </panel>
 ```
 
-### 9.5 Recursive Component <--> Self-Referencing Tree
+### 9.5 Recursive Component \<--> Self-Referencing Tree
 
 ```kn
 component RecursiveTree(depth: Int, label: String):
@@ -815,7 +815,7 @@ component MemoryWidget(cell_count: Int) with Unsafe:
     </box>
 ```
 
-### 9.7 World-Bound Component ___ Full Authority + View
+### 9.7 World-Bound Component \_\_\_ Full Authority + View
 
 ```kn
 // ── State Authority ──
@@ -902,7 +902,7 @@ component Dashboard():
     </panel>
 ```
 
-The full file also includes `fill_rect()`, `draw_text()`, `fast_invsqrt()`, `create_window()`, and a Win32 message pump with `PeekMessageA`/`TranslateMessage`/`DispatchMessageA` via `@extern` ___ all in one file with components as the UI layer.
+The full file also includes `fill_rect()`, `draw_text()`, `fast_invsqrt()`, `create_window()`, and a Win32 message pump with `PeekMessageA`/`TranslateMessage`/`DispatchMessageA` via `@extern` \_\_\_ all in one file with components as the UI layer.
 
 ______________________________________________________________________
 
@@ -949,7 +949,7 @@ Codegen emits:                     Backend implements (e.g., native_ui_surface.c
     should_close(sid)             → check close flag
 ```
 
-**Why this matters:** The same 18 vtable slots work for any backend. Swap `native_ui_surface` for a Vulkan presenter and the Kain source doesn't change. The compiler never knows which backend it's talking to. Slot 17 (`session_attach_platform`) was added in the 2026-06-21 cycle to enable GPU backends that need native window handles (HWND, Display*, wl_surface*). See `blades/window_proof/README.md` for the full vtable slot table and working demos.
+**Why this matters:** The same 18 vtable slots work for any backend. Swap `native_ui_surface` for a Vulkan presenter and the Kain source doesn't change. The compiler never knows which backend it's talking to. Slot 17 (`session_attach_platform`) was added in the 2026-06-21 cycle to enable GPU backends that need native window handles (HWND, Display\*, wl_surface\*). See `blades/window_proof/README.md` for the full vtable slot table and working demos.
 
 ### 10.2 Known Gaps (2026-06-21)
 
@@ -989,7 +989,7 @@ pub component Divider():
 
 ### 11.2 Computational Components
 
-Components can do real work in their methods * * * sieves, factorials, sequence generation ___ and render the result:
+Components can do real work in their methods * * * sieves, factorials, sequence generation \_\_\_ and render the result:
 
 ```kn
 component PrimeSieve(limit: Int):

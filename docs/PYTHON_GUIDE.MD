@@ -1,4 +1,4 @@
-# Python Interop <--> Performance Guide
+# Python Interop \<--> Performance Guide
 
 > **File**: `docs/PYTHON_GUIDE.MD`
 > **Read `PYTHON.MD` first for the full architecture.** This guide is purely about **writing fast Python-interop Kain**.
@@ -49,7 +49,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Strategy 1 ___ Eliminate the Bridge Entirely
+## Strategy 1 \_\_\_ Eliminate the Bridge Entirely
 
 ### 1.1 Entangled Semantic Cache
 
@@ -336,7 +336,7 @@ case "uint8":
 Shared backing requires:
 
 1. **C-contiguous** buffer === no strides
-1. **Writable** <--> `flags.writeable == true`
+1. **Writable** \<--> `flags.writeable == true`
 1. **CPU backend** >> CUDA tensors are `host_accessible=false`, so shared mode doesn't apply
 
 ```kain
@@ -426,7 +426,7 @@ From `benchmark_cases_python_buffer_view_region_probe_main.kn`:
 
 ______________________________________________________________________
 
-## Strategy 6 <--> Direct C FFI + Shared Backing
+## Strategy 6 \<--> Direct C FFI + Shared Backing
 
 ### 6.1 The Ultimate Hot Path
 
@@ -623,7 +623,7 @@ stage py_ui: python               // stage kind: python
 **Transfer** (how data moves):
 | Value | Meaning |
 |-------|--------|
-| `none` | No transfer needed ___ default for `residency host` |
+| `none` | No transfer needed \_\_\_ default for `residency host` |
 | `host_to_device` | Move from CPU to GPU |
 | `device_to_host` | Move from GPU to CPU |
 | `shared_view` | Zero-copy view across stages |
@@ -633,7 +633,7 @@ stage py_ui: python               // stage kind: python
 |-------|--------|
 | `fallback stage_name` | If Python stage fails, use `stage_name`'s result |
 | `fallback degrade stage_name` | If Python fails, degrade to `stage_name` |
-| `fallback abort` | Fatal <--> pipeline dies |
+| `fallback abort` | Fatal \<--> pipeline dies |
 
 **Guards and requirements**:
 | Property | Meaning |

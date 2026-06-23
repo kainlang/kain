@@ -1007,7 +1007,7 @@ profile = "debug"
 
 ______________________________________________________________________
 
-### 9.3 Full Workspace ___ `smoketest/build.kn`
+### 9.3 Full Workspace \_\_\_ `smoketest/build.kn`
 
 The largest build graph in the repo: album-edition workspace with 9 module roots, GPU artifacts, WASM, telemetry runners, and certification.
 
@@ -1236,7 +1236,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 ______________________________________________________________________
 
-### 9.5 GPU + C FFI Blade <--> `blades/c/vulkan_v2/build.kn`
+### 9.5 GPU + C FFI Blade \<--> `blades/c/vulkan_v2/build.kn`
 
 A more complex project combining GPU compute shaders, C FFI, and `source_set()` glob patterns.
 
@@ -1293,7 +1293,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 ______________________________________________________________________
 
-### 9.6 UI Framework Blade ___ `blades/ui/kaintana/build.kn`
+### 9.6 UI Framework Blade \_\_\_ `blades/ui/kaintana/build.kn`
 
 A larger library project with multiple source/module roots, certification, and capsule sets.
 

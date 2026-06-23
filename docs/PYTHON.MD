@@ -30,7 +30,7 @@ ______________________________________________________________________
 1. [CPython Discovery and Loading](#8-cpython-discovery-and-loading)
 1. [GIL Management](#9-gil-management)
 1. [Buffer Protocol ~ Zero-Copy Adoption](#10-buffer-protocol--zero-copy-adoption)
-1. [GPU Integration ___ CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
+1. [GPU Integration \_\_\_ CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
 1. [Async Future Engine](#12-async-future-engine)
 1. [Actor Callback Integration](#13-actor-callback-integration)
 1. [Region API --- Cached Batched Operations](#14-region-api--cached-batched-operations)
@@ -43,7 +43,7 @@ ______________________________________________________________________
 1. [Native C Speed with Python](#21-native-c-speed-with-python)
 1. [Python for Window Management](#22-python-for-window-management)
 1. [Full API Reference](#23-full-api-reference)
-1. [Orchestrate Integration ___ Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
+1. [Orchestrate Integration \_\_\_ Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
 1. [When to Use Python](#25-when-to-use-python)
 
 ______________________________________________________________________
@@ -674,7 +674,7 @@ static long long kain_py_residue_sum37_mod(long long iterations, long long modul
 }
 ```
 
-This avoids `iterations` Python calls ___ it's a single buffer borrow + O(1) math.
+This avoids `iterations` Python calls \_\_\_ it's a single buffer borrow + O(1) math.
 
 ______________________________________________________________________
 
@@ -1031,7 +1031,7 @@ python_region_fast_call_count(region)         // Fast path calls (f64→i64)
 
 ______________________________________________________________________
 
-## 15. Shared Contracts <--> Cross-Runtime Data Exchange
+## 15. Shared Contracts \<--> Cross-Runtime Data Exchange
 
 ### 15.1 KainSharedBuffer
 
@@ -1165,7 +1165,7 @@ Resolution logic (Rust layer): if the target has `.vertices` and `.faces` attrs,
 
 ______________________________________________________________________
 
-## 17. Materialization <--> Ownership Modes
+## 17. Materialization \<--> Ownership Modes
 
 ### 17.1 Three Modes (Rust Layer)
 
@@ -1495,7 +1495,7 @@ fn main():
 
 ### 21.3 Performance Benefit
 
-The C functions run at **native CPU speed** <--> no Python interpreter involved, no GIL contention. The data stays in shared memory (Py_buffer backed). This is the ideal pattern for:
+The C functions run at **native CPU speed** \<--> no Python interpreter involved, no GIL contention. The data stays in shared memory (Py_buffer backed). This is the ideal pattern for:
 
 - Hot numerical loops
 - Signal processing
@@ -1707,7 +1707,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 24. Orchestrate Integration <--> Python as a First-Class Stage
+## 24. Orchestrate Integration \<--> Python as a First-Class Stage
 
 ### 24.1 The Orchestrate Stage System
 
@@ -1762,7 +1762,7 @@ Every Python stage in an orchestrate pipeline supports the full set of stage met
 
 ### 24.3 Canonical Example: Resonate/Py
 
-From `benchmark/cases_v2/resonate_py.kn` <--> Python stages interleaved with Kain, C, GPU, converge, law, world, and patch:
+From `benchmark/cases_v2/resonate_py.kn` \<--> Python stages interleaved with Kain, C, GPU, converge, law, world, and patch:
 
 ```kain
 orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority) -> Int:
@@ -1798,7 +1798,7 @@ orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority)
 
 ### 24.4 Cross-Runtime Pipeline: Python → C → Converge → GPU
 
-From `benchmark/cases_v2/orchestrate_god.kn` <--> a fused pipeline exercising all stage kinds including Python:
+From `benchmark/cases_v2/orchestrate_god.kn` \<--> a fused pipeline exercising all stage kinds including Python:
 
 ```kain
 orchestrate orchestrate_god_preflight(seed: Int, authority: OrchestrateGodAuthority) -> Int:

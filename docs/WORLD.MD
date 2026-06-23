@@ -1,4 +1,4 @@
-# World <--> Compiler-Owned State Authority
+# World \<--> Compiler-Owned State Authority
 
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/machine_stones.h`, `stdlib/intent.kn`, `smoketest/src/semantics/world.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/convergence/src/world.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, GLOSSARY.MD, RULEBOOK.MD, CATALOG.MD
@@ -14,7 +14,7 @@ ______________________________________________________________________
 1. [Surface Projections](#surface-projections)
 1. [The World Patterns](#the-world-patterns)
 1. [World + Entangle](#world--entangle)
-1. [Under-Utilized Ideas ___ Creative Semantic Abuse](#under-utilized-ideas)
+1. [Under-Utilized Ideas \_\_\_ Creative Semantic Abuse](#under-utilized-ideas)
 1. [Combining with Other Keywords](#combining-with-other-keywords)
 1. [Stdlib Telemetry API](#stdlib-telemetry-api)
 1. [Runtime Contract Metadata](#runtime-contract-metadata)
@@ -61,10 +61,10 @@ ______________________________________________________________________
 ### What World IS
 
 - ✅ A **compiler-owned state authority** ‒ the compiler registers, initializes, and tracks the world's lifecycle. The programmer declares what state exists; the compiler ensures it exists correctly.
-- ✅ A **named container of typed state slots** ___ each `state field: Type = initial` is a typed, initialized field validated at compile time.
+- ✅ A **named container of typed state slots** \_\_\_ each `state field: Type = initial` is a typed, initialized field validated at compile time.
 - ✅ A **surface projection host** :: every world must declare at least one surface (`native_ui`, `viewport3d`, `web`, `ue5`) that binds its state to a component or render target.
 - ✅ An **entangle participant** => world fields can be coupled to fields in other worlds via `entangle`, creating a compiler-owned propagation graph.
-- ✅ A **patch target** <--> `patch` declarations can mutate world fields, journal the mutation, and trigger entangle propagation.
+- ✅ A **patch target** \<--> `patch` declarations can mutate world fields, journal the mutation, and trigger entangle propagation.
 - ✅ A **resonate root** ⁓ `resonate` handlers can be attached to world state slots, firing on mutation.
 - ✅ A **teleport boundary** ‒ `teleport` expressions can move values from one world to another via a typed bus.
 - ✅ A **runtime contract entity** ->> worlds appear in the program's runtime contract bundle with all state slots and surfaces enumerated.
@@ -255,7 +255,7 @@ The typechecker `check_world()` in `types.rs` performs:
    - Note: `"Worlds currently need at least one surface projection so they can materialize into a runtime-facing view."`
    - Help: `"Add a line like 'surface native_ui => MyPanel' inside the world body."`
 1. **Duplicate surface detection** :: a `HashSet<WorldSurfaceKind>` tracks seen surface kinds; duplicate kinds produce: `"world 'Name' declares duplicate 'native_ui' surface"`
-1. **Surface validation** ___ `check_world_surface_projection()` validates the expression based on the surface kind:
+1. **Surface validation** \_\_\_ `check_world_surface_projection()` validates the expression based on the surface kind:
    - `NativeUi` / `Web` → expects a component identifier or call expression
    - `Viewport3d` / `Ue5` → expects an identifier or string literal
 1. **Global registration** ~~ the world name is registered both as a `ResolvedType::Struct` and as a `global_origins` entry (kind: `"world"`), making it available for `entangle`, `resonate`, and field access.
@@ -289,7 +289,7 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
 
 The interpreter runtime (`runtime.rs`) handles worlds through:
 
-- **`register_world_value()`** ___ on program load, evaluates each state slot's initializer and stores the resulting `HashMap<String, Value>` behind an `Arc<RwLock<>>`. The world value is then registered as `Value::Struct(world_name, world_value)` in the environment, making world fields accessible via `WorldName.field_name` dotted access.
+- **`register_world_value()`** \_\_\_ on program load, evaluates each state slot's initializer and stores the resulting `HashMap<String, Value>` behind an `Arc<RwLock<>>`. The world value is then registered as `Value::Struct(world_name, world_value)` in the environment, making world fields accessible via `WorldName.field_name` dotted access.
 
 ```rust
 fn register_world_value(&mut self, world: &WorldDef) -> KainResult<()> {
@@ -306,7 +306,7 @@ fn register_world_value(&mut self, world: &WorldDef) -> KainResult<()> {
 ```
 
 - **World field reads** --> the interpreter resolves `WorldName.field` by looking up the world value, acquiring the read lock, and retrieving the field from the HashMap.
-- **World field writes** ___ the interpreter resolves the world, acquires the write lock, mutates the field, and checks entangle write permissions before allowing the write.
+- **World field writes** \_\_\_ the interpreter resolves the world, acquires the write lock, mutates the field, and checks entangle write permissions before allowing the write.
 
 ### At Runtime (LLVM Codegen)
 
@@ -707,10 +707,10 @@ The left and right endpoints must be dotted paths with at least 2 segments: `Wor
 
 ### What Entangle Enables for Worlds
 
-1. **Authority-Mirror coupling** <--> one world writes, the other receives. The mirror is guaranteed fresh by the propagation graph.
+1. **Authority-Mirror coupling** \<--> one world writes, the other receives. The mirror is guaranteed fresh by the propagation graph.
 1. **Multi-surface projection** ->> authority has `native_ui`, mirror has `web`. Same state, different render targets.
 1. **Read-safe observation** >> actors and components can read from mirrors without worrying about write conflicts.
-1. **Zero-cost propagation** <--> the compiler emits GEP + store + telemetry call at the LLVM level. No heap observer, no callback, no message queue.
+1. **Zero-cost propagation** \<--> the compiler emits GEP + store + telemetry call at the LLVM level. No heap observer, no callback, no message queue.
 
 ### What Entangle Restricts on Worlds
 
@@ -1197,12 +1197,12 @@ World-specific C runtime support exists for:
 
 1. **World init function calls** * * * the machine stones entry preamble calls `__kain_init_world_*()` for each declared world
 1. **Entangle propagation** ... the C entangle registry (`entangle.c`) tracks which worlds participate in entangle via their endpoint paths
-1. **Teleport** <--> the teleport API (`machine_stones.c`) moves values between world globals
+1. **Teleport** \<--> the teleport API (`machine_stones.c`) moves values between world globals
 1. **Telemetry counters** ... the ABI functions (`stdlib_abi.c`) track world-touching operations
 
 ### No Dedicated World Registry
 
-Unlike entangle (which has `entangle_registry_register()`, `entangle_registry_get()`, etc.), worlds do NOT have a separate C-level registry. Worlds are LLVM globals ___ the init functions, the globals themselves, and the field access patterns are all handled at the LLVM level, not the C level.
+Unlike entangle (which has `entangle_registry_register()`, `entangle_registry_get()`, etc.), worlds do NOT have a separate C-level registry. Worlds are LLVM globals \_\_\_ the init functions, the globals themselves, and the field access patterns are all handled at the LLVM level, not the C level.
 
 The absence of a `world.h` / `world.c` is deliberate: worlds are LLVM-level constructs with no C runtime overhead beyond their initialization.
 
@@ -1219,7 +1219,7 @@ There are no dedicated Z3 proofs for world as a standalone construct. Unlike:
 | Pulse | Missed-beat bounds |
 | **World** | **None (standalone)** |
 
-World doesn't need standalone proofs because it is the substrate <--> other constructs have proofs that implicitly cover world behavior:
+World doesn't need standalone proofs because it is the substrate \<--> other constructs have proofs that implicitly cover world behavior:
 
 - **Entangle propagation proofs** verify that world-to-world propagation doesn't overflow the registry
 - **Patch journal proofs** verify that world mutation journals stay within bounds
@@ -1499,7 +1499,7 @@ ______________________________________________________________________
 
 | File | Lines | Content |
 |------|-------|---------|
-| `crates/core/src/parser.rs` | 690-705 | `is_contextual_item_start_name()` ___ world in contextual keyword list |
+| `crates/core/src/parser.rs` | 690-705 | `is_contextual_item_start_name()` \_\_\_ world in contextual keyword list |
 | `crates/core/src/parser.rs` | 2035-2095 | `parse_world()` |-> full world parser with state/surface dispatch |
 | `crates/core/src/ast.rs` | 390-432 | `WorldDef`, `WorldStateSlot`, `WorldSurfaceProjection`, `WorldSurfaceKind` |
 
@@ -1535,8 +1535,8 @@ ______________________________________________________________________
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 49-54 | `WorldGlobalInfo { global_symbol, init_flag_symbol, init_fn_name }` |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 640-645 | `world_globals: HashMap<String, WorldGlobalInfo>` field in codegen struct |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13460-13490 | `register_world_type_and_global()` ‒ struct type, global, init flag emission |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15953-16030 | `compile_world_initializer()` <--> init function with lazy guard + GEP stores |
-| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 19698-19701 | World load codegen <--> init call + global load |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 15953-16030 | `compile_world_initializer()` \<--> init function with lazy guard + GEP stores |
+| `crates/sys-codegen/src/codegen_llvm/mod.rs` | 19698-19701 | World load codegen \<--> init call + global load |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 13374 | `TypedItem::World` dispatch to `compile_world_initializer()` |
 | `crates/sys-codegen/src/codegen_llvm/mod.rs` | 11086-11092 | `native_world_field_path()` * * * entangle codegen world field lookup |
 

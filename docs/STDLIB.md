@@ -35,7 +35,7 @@ ______________________________________________________________________
 
 The Kain standard library (`std`) is the canonical surface for all Kain application and systems authoring. It is organized into 67 top-level modules, each corresponding to a single `.kn` file in `stdlib/`. Every public symbol in the stdlib is backed by one of three mechanisms:
 
-- **Pure Kain** ___ implemented entirely in Kain, no native runtime dependency
+- **Pure Kain** \_\_\_ implemented entirely in Kain, no native runtime dependency
 - **`@extern` ABI** |-> declared in Kain, implemented in native C code in the Kain runtime (`runtime/native/`)
 - **Rust builtin** === built into the `kain` compiler binary itself, with no stdlib `.kn` source
 
@@ -232,7 +232,7 @@ fn measure() with Pure:
 ### `std::result`
 
 **Import:** `use std::result`
-**Purpose:** Sentinels for operation outcomes <--> ok, cancelled, invalid argument, not found, capacity exceeded, runtime unavailable.
+**Purpose:** Sentinels for operation outcomes \<--> ok, cancelled, invalid argument, not found, capacity exceeded, runtime unavailable.
 
 **Key Symbols:**
 
@@ -737,7 +737,7 @@ fn use_queue() with Pure:
 ### `std::io`
 
 **Import:** `use std::io`
-**Purpose:** Low-level I/O primitives <--> ring buffers, string builders, buffered readers/writers.
+**Purpose:** Low-level I/O primitives \<--> ring buffers, string builders, buffered readers/writers.
 
 **Key Symbols:**
 
@@ -953,7 +953,7 @@ fn read_config() with Pure:
 - `os_exists`, `os_isfile`, `os_isdir`
 - `os_read_text`, `os_write_text`, `os_append_text`, `os_atomic_write_text`
 
-**Key Symbols <--> Low-Level:**
+**Key Symbols \<--> Low-Level:**
 
 - `os_syscall(nr, a1..a6) -> Int` ->> raw syscall interface
 - `os_mmap_anon(byte_count) -> Int`
@@ -1077,7 +1077,7 @@ ______________________________________________________________________
 **Import:** `use std::net`
 **Purpose:** TCP networking, HTTP client/server, HTTP/1.1 request/response.
 
-**Key Symbols ___ TCP:**
+**Key Symbols \_\_\_ TCP:**
 
 - `tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int`
 - `tcp_listen(host: String, port: Int) -> Int`
@@ -1251,7 +1251,7 @@ ______________________________________________________________________
 | `mat4_orthographic` | `fn mat4_orthographic(left, right, bottom, top, near, far) -> Mat4` |
 | `mat4_look_at` | `fn mat4_look_at(eye, target, up) -> Mat4` |
 
-**Key Symbols ___ Affine Transforms:**
+**Key Symbols \_\_\_ Affine Transforms:**
 
 - `affine2_identity()`, `affine2_transform_point`
 - `affine3_identity()`, `affine3_from_trs`, `affine3_transform_point`, `affine3_transform_vector`, `affine3_to_mat4`, `affine3_mul`
@@ -1630,7 +1630,7 @@ ______________________________________________________________________
 - `python_actor_callback(actor_id, message_name) -> Any`
 - `python_actor_callback_callable(callback) -> Any`
 
-**Key Symbols <--> GPU Bridge:**
+**Key Symbols \<--> GPU Bridge:**
 
 - `python_shared_buffer(target: Any) -> Any`
 - `python_shared_image(target: Any) -> Any`
@@ -1711,7 +1711,7 @@ ______________________________________________________________________
 **Import:** `use std::machine`
 **Purpose:** Low-level machine primitives >> fences, prefetch, cache flush, spin loops, CPU topology, virtual memory, RD TSC, CPUID.
 
-**Key Symbols ___ Fences & Barriers:**
+**Key Symbols \_\_\_ Fences & Barriers:**
 | Symbol | Signature |
 |---|---|
 | `pause` | `fn pause() -> Int` |
@@ -1721,7 +1721,7 @@ ______________________________________________________________________
 | `cache_flush` | `fn cache_flush(address: ptr<Int>) -> Unit` |
 | `spin_loop_hint` | `fn spin_loop_hint() -> Unit` |
 
-**Key Symbols ___ Timers & CPUID:**
+**Key Symbols \_\_\_ Timers & CPUID:**
 | Symbol | Signature |
 |---|---|
 | `rdtsc` | `fn rdtsc() -> Int` |
@@ -2027,7 +2027,7 @@ ______________________________________________________________________
 ### `std::kain`
 
 **Import:** `use std::kain`
-**Purpose:** Compiler/LSP bridge ___ open workspace, open/update/check documents, hover, go-to-definition, references, completions, semantic tokens, formatting.
+**Purpose:** Compiler/LSP bridge \_\_\_ open workspace, open/update/check documents, hover, go-to-definition, references, completions, semantic tokens, formatting.
 
 **Key Types:**
 
@@ -2465,7 +2465,7 @@ The Kain runtime exposes 48 native runtime services with availability on declare
 - `base.memory` ~~ core allocation, retain/release, memory management
 - `contract` --> runtime contract bundle loading and validation
 - `memory.ownership` 〰 native collapse/observe/decay guards
-- `platform.app-host` (Windows) ___ raw Win32 app/window host substrate
+- `platform.app-host` (Windows) \_\_\_ raw Win32 app/window host substrate
 - `platform.input` (Windows) ~~ canonical Kain input sessions
 
 **Platform Services:**
@@ -2549,7 +2549,7 @@ fn main() with IO:
 
 ______________________________________________________________________
 
-> **Note about naming:** All stdlib functions use flat naming <--> `fs_read_text()` not `fs.read_text()`, `json_parse_text()` not `json.parse_text()`, `vec3()` not `math.vec3()`. The `use std::module` import brings names into the current scope without a namespace prefix.
+> **Note about naming:** All stdlib functions use flat naming \<--> `fs_read_text()` not `fs.read_text()`, `json_parse_text()` not `json.parse_text()`, `vec3()` not `math.vec3()`. The `use std::module` import brings names into the current scope without a namespace prefix.
 
 > **Generated from:** `X:\stdlib\STDLIB_MAP.llm.md` (auto-generated by `kain stdlib-map`)
 > **Stdlib location:** `X:\stdlib\*.kn` (67 source files)

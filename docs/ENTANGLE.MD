@@ -1,4 +1,4 @@
-# Entangle <-> Compiler-Owned State Coupling
+# Entangle \<-> Compiler-Owned State Coupling
 
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/entangle/src/lib.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/entangle.h`, `runtime/native/src/core/entangle.c`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`, `smoketest/src/semantics/entangle.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/cortical_sieve/`, `blades/python/24_tet/src/resonate_py_effects.kn`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
@@ -170,10 +170,10 @@ ______________________________________________________________________
 
 The typechecker (`types.rs: check_entangle`) performs these checks:
 
-1. **Endpoint uniqueness** <--> each endpoint participates in at most one entangle
+1. **Endpoint uniqueness** \<--> each endpoint participates in at most one entangle
 1. **Endpoint exists** :: each endpoint root must be a declared world
 1. **Endpoint fields exist** ->> each field segment must resolve to a valid struct field
-1. **Type matching** <--> both endpoint types must match (after `peel_shared_refs`)
+1. **Type matching** \<--> both endpoint types must match (after `peel_shared_refs`)
 1. **No self-entanglement** => `A.x <-> A.x` is rejected as duplicate endpoint
 
 ```rust
@@ -206,7 +206,7 @@ fn check_entangle(env: &mut TypeEnv, entangle: &EntangleDef) -> KainResult<Typed
 The interpreter runtime (`runtime.rs`) handles entangle through:
 
 - **`register_entangle_value`** |-> registers the binding in the `EntangleGraph` on program load
-- **`propagate_entangled_write`** ___ called after any world field write, propagates to all mirrors
+- **`propagate_entangled_write`** \_\_\_ called after any world field write, propagates to all mirrors
 - **`ensure_entangle_write_allowed`** --> called before any world field write, blocks mirror writes
 - **`assign_entangled_endpoint`** * * * performs the actual value assignment on the mirror
 
@@ -285,7 +285,7 @@ The `EntangleBindingDescriptor` already carries a generic policy field, and the 
 
 ______________________________________________________________________
 
-## Endpoint Resolution <--> Type Matching
+## Endpoint Resolution \<--> Type Matching
 
 ### How Endpoints Are Resolved
 
@@ -800,7 +800,7 @@ orchestrate fx_pipeline():
 
 ### 3. Entangle + Law: Invariant-Protected Coupling
 
-Current entangle has no law gates. An authority writes, entangle propagates, the mirror receives <--> no validation. But a law could pre-validate the value before propagation (conceptually):
+Current entangle has no law gates. An authority writes, entangle propagates, the mirror receives \<--> no validation. But a law could pre-validate the value before propagation (conceptually):
 
 ```kn
 law signal_in_bounds(value: Int) -> Bool:
@@ -1138,7 +1138,7 @@ ______________________________________________________________________
 | **Intepreter** | `propagate_entangled_write()` after every authority field assignment |
 | **Runtime contract** | `RuntimeEntangleContract { authority, mirror, policy, type_name }` |
 | **Z3 proofs** | String copy fits destination; register count within capacity |
-| **Canonical example** | `benchmark/cases_v2/fusion_chain.kn` ___ full causal chain with telemetry deltas |
+| **Canonical example** | `benchmark/cases_v2/fusion_chain.kn` \_\_\_ full causal chain with telemetry deltas |
 | **Canonical pattern** | Dual-world authority+mirror with `surface native_ui` / `surface web` |
 | **Stdlib module** | `std::intent` |-> all telemetry functions |
 | **Source** | `crates/entangle/src/lib.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs` |

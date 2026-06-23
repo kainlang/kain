@@ -4,34 +4,34 @@
 > **Generated:** 2026-06-22
 > **Scope:** Every CLI command, compilation target, manifest format, config key, output artifact, and env var
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 [Quick Reference: Every CLI Command](#quick-reference-every-cli-command)
 [Global Flags](#global-flags)
-3. [Core Commands](#3-core-commands)
-4. [Package Commands](#4-package-commands)
-5. [Import Commands](#5-import-commands)
-6. [Tooling Commands](#6-tooling-commands)
-7. [Runtime & Platform Commands](#7-runtime--platform-commands)
-8. [Specialized Commands](#8-specialized-commands)
-9. [Compilation Targets (Complete)](#9-compilation-targets-complete)
-10. [Compiler Pipeline & Backends](#10-compiler-pipeline--backends)
-11. [Native Build Pipeline](#11-native-build-pipeline)
-12. [GPU Artifact Pipeline](#12-gpu-artifact-pipeline)
-13. [Sidecar Artifacts](#13-sidecar-artifacts)
-14. [Manifest Formats](#14-manifest-formats)
-15. [Tooling Config (config.toml)](#15-tooling-config-configtoml)
-16. [Install Layout (KAIN_HOME)](#16-install-layout-kain_home)
-17. [Package System](#17-package-system)
-18. [Capsule Format](#18-capsule-format)
-19. [Fabric Polyglot System](#19-fabric-polyglot-system)
-20. [Environment Variables](#20-environment-variables)
-21. [Output File Extensions Quick Reference](#21-output-file-extensions-quick-reference)
-22. [Error Handling & Exit Codes](#22-error-handling--exit-codes)
+3\. [Core Commands](#3-core-commands)
+4\. [Package Commands](#4-package-commands)
+5\. [Import Commands](#5-import-commands)
+6\. [Tooling Commands](#6-tooling-commands)
+7\. [Runtime & Platform Commands](#7-runtime--platform-commands)
+8\. [Specialized Commands](#8-specialized-commands)
+9\. [Compilation Targets (Complete)](#9-compilation-targets-complete)
+10\. [Compiler Pipeline & Backends](#10-compiler-pipeline--backends)
+11\. [Native Build Pipeline](#11-native-build-pipeline)
+12\. [GPU Artifact Pipeline](#12-gpu-artifact-pipeline)
+13\. [Sidecar Artifacts](#13-sidecar-artifacts)
+14\. [Manifest Formats](#14-manifest-formats)
+15\. [Tooling Config (config.toml)](#15-tooling-config-configtoml)
+16\. [Install Layout (KAIN_HOME)](#16-install-layout-kain_home)
+17\. [Package System](#17-package-system)
+18\. [Capsule Format](#18-capsule-format)
+19\. [Fabric Polyglot System](#19-fabric-polyglot-system)
+20\. [Environment Variables](#20-environment-variables)
+21\. [Output File Extensions Quick Reference](#21-output-file-extensions-quick-reference)
+22\. [Error Handling & Exit Codes](#22-error-handling--exit-codes)
 
----
+______________________________________________________________________
 
 ## Quick Reference: Every CLI Command
 
@@ -82,7 +82,6 @@ Controls the native linker output for `--target llvm`:
 | `staticlib` | `.lib` | `.a` | Static library |
 | `object` | `.obj` | `.o` | Object file (no linking) |
 
-
 ```bash
 kain build file.kn --emit sharedlib    # → .dll / .so / .dylib
 kain build file.kn --emit staticlib    # → .lib / .a
@@ -90,10 +89,9 @@ kain build file.kn --emit object       # → .obj / .o
 kain build file.kn                     # → .exe (default)
 ```
 
-
 ### C Addon
 
-| `kain install c-extras` | Auto-resolve and install C/C++ toolchain extras via vcpkg into `.kain/vcpkg`. `--target`, `--dry-run` | 
+| `kain install c-extras` | Auto-resolve and install C/C++ toolchain extras via vcpkg into `.kain/vcpkg`. `--target`, `--dry-run` |
 
 ### Run Subcommands
 
@@ -121,6 +119,7 @@ kain amalgamate src/ -o mylib.kn --archive --compression zstd        # compresse
 kain amalgamate inspect mylib.kn                                     # inspect
 kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 ```
+
 ### Package
 
 | Command | Aliases | What It Does |
@@ -182,7 +181,7 @@ kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 | `kain selfhost bootstrap/phase1/phase2` | Self-host bootstrap workflows | now deprecated self hosting pipeline
 | `kain native-ui dev <input>` | Launch native desktop dev loop with hot reload |
 
----
+______________________________________________________________________
 
 ## Global Flags
 
@@ -210,13 +209,13 @@ Available **before any subcommand**:
 ### Default Behavior (No Subcommand)
 
 1. **File + native target** → compile + run as native script (`kn` launcher)
-2. **File + other target** → compile to target
-3. **Inline `-c` code** → run or compile by target
-4. **Piped stdin** → run or compile by target
-5. **Nothing** → REPL (`kn`), or error `"No input file provided"` (`kain`)
-6. **Legacy `blades`/`equip`** → blocked with migration hint, exit 2
+1. **File + other target** → compile to target
+1. **Inline `-c` code** → run or compile by target
+1. **Piped stdin** → run or compile by target
+1. **Nothing** → REPL (`kn`), or error `"No input file provided"` (`kain`)
+1. **Legacy `blades`/`equip`** → blocked with migration hint, exit 2
 
----
+______________________________________________________________________
 
 ### Launcher Architecture (brief)
 
@@ -227,8 +226,6 @@ Available **before any subcommand**:
 | `blade` | `blade.exe` | Standalone blade workspace tool |
 
 Detected by binary filename. `main_entry()` → config load → clap parse → dispatch.
-
-
 
 ## 3. Core Commands
 
@@ -252,7 +249,7 @@ kain check [OPTIONS] <INPUT>
 
 **JSON output** includes per-file diagnostic envelopes with: severity, kind, code, title, message, file, location, labels, notes, help, phase.
 
----
+______________________________________________________________________
 
 ### 3.2 `build` — Build File, Project, or Build Authority
 
@@ -300,7 +297,7 @@ kain build native-ui [OPTIONS] <INPUT> () **⚠ Legacy — not actively tested**
 | `--tauri-bundle-id <ID>` | String | None | Tauri bundle ID |
 | `--tauri-window-label <LABEL>` | String | None | Tauri window label |
 
----
+______________________________________________________________________
 
 ### 3.3 `run` — Run Through Unified Pipeline
 
@@ -335,7 +332,7 @@ Prints the resolved run plan without executing.
 
 Additional flags: `--json` for JSON output.
 
----
+______________________________________________________________________
 
 ### 3.4 `test` — Run Kain Source Tests
 
@@ -357,7 +354,7 @@ kain test [OPTIONS] <INPUT>
 
 Uses compiletest-style directives (`//@ check-pass`, `//@ run-fail`, etc.).
 
----
+______________________________________________________________________
 
 ### 3.5 `doctor` — Binary/Diagnostics/Environment Inspection
 
@@ -376,7 +373,7 @@ kain doctor [OPTIONS]
 
 Shows: binary version, build info, git state, sync status, runtime path, environment diagnostics.
 
----
+______________________________________________________________________
 
 ### 3.6 `clean` — Clean Build Artifacts
 
@@ -393,7 +390,7 @@ kain clean [OPTIONS] [PATH]
 | `--dry-run` | bool | false | Print clean plan without removing |
 | `--json` | bool | false | JSON output |
 
----
+______________________________________________________________________
 
 ### 3.7 `format` — Canonical Source Formatting
 
@@ -411,7 +408,7 @@ kain format [OPTIONS] [INPUTS]...
 
 Without `--check` or `--write`, prints formatted source to stdout.
 
----
+______________________________________________________________________
 
 ### 3.8 `repl` — Interactive REPL
 
@@ -421,7 +418,7 @@ kain repl
 
 Launches the terminal REPL. No arguments.
 
----
+______________________________________________________________________
 
 ### 3.9 `watch` — Watch & Rerun
 
@@ -431,7 +428,7 @@ kain watch [OPTIONS] [INPUT] [-- <ARGS>...]
 
 Same flags as `run` (see [Section 5.3](#53-run)). Watches inputs for changes and re-runs automatically.
 
----
+______________________________________________________________________
 
 ### 3.10 `init` — Initialize a New Project
 
@@ -448,7 +445,7 @@ kain init [OPTIONS] [PATH]
 
 Creates a starter directory structure with a minimal `KAIN.toml` or `build.kn`.
 
----
+______________________________________________________________________
 
 ## 4. Package Commands
 
@@ -466,7 +463,7 @@ kain add [OPTIONS] <PACKAGE>
 
 Records the dependency in `KAIN.lock`.
 
----
+______________________________________________________________________
 
 ### 4.2 `install` — Install Global Package
 
@@ -481,7 +478,7 @@ kain install [OPTIONS] <PACKAGE>
 
 Installs into `{KAIN_HOME}/packages/`.
 
----
+______________________________________________________________________
 
 ### 4.3 `publish` — Publish Source Capsules
 
@@ -501,7 +498,7 @@ kain publish [OPTIONS] <INPUT>
 
 Default output: `<input>/.kain/publish/<name>-<version>.kn`
 
----
+______________________________________________________________________
 
 ### 4.4 `amalgamate` — Pack/Inspect/Unpack Capsules
 
@@ -548,7 +545,7 @@ kain amalgamate unpack [OPTIONS] <INPUT>                # Unpack
 | `<INPUT>` | `PathBuf` | Required | Capsule artifact path |
 | `-o` / `--output` | `PathBuf` | None | Output directory (default: `<capsule>.unpacked`) |
 
----
+______________________________________________________________________
 
 ## 5. Import Commands
 
@@ -573,7 +570,7 @@ kain import platform [OPTIONS] <PACKAGE>
 
 Default output: `.kain/platform/<package>/<target-triple>/`
 
----
+______________________________________________________________________
 
 ### 5.2 `import crates` — Rust Crate Bundle Import
 
@@ -593,7 +590,7 @@ kain import crates [OPTIONS] [PATH]
 | `--exclude <FILTER>` | Comma-sep | — | Exclude paths containing filter |
 | `--fail-fast` | bool | false | Stop on first failure |
 
----
+______________________________________________________________________
 
 ### 5.3 `import-c` — C Source Import (libclang)
 
@@ -616,7 +613,7 @@ kain import-c [OPTIONS] <INPUT>
 
 Uses libclang for parsing. Supports `include <windows.h> as win`, `include <vulkan/vulkan.h> as vk`.
 
----
+______________________________________________________________________
 
 ### 5.4 `import-rust` — Rust Source Import (Ouroboros)
 
@@ -635,7 +632,7 @@ kain import-rust [OPTIONS] <INPUT>
 | `--fail-fast` | bool | false | Stop on first failure |
 | `--report-json <FILE>` | `PathBuf` | None | Import report JSON |
 
----
+______________________________________________________________________
 
 ### 5.5 `import-crate` — Rust Crate FFI Import
 
@@ -655,7 +652,7 @@ kain import-crate [OPTIONS] <CRATE_NAME>
 | `--all-features` | bool | false | Enable all |
 | `--no-default-features` | bool | false | Disable defaults |
 
----
+______________________________________________________________________
 
 ### 5.6 `import-asm` — Legacy Assembly Import
 
@@ -672,7 +669,7 @@ kain import-asm [OPTIONS] <INPUT>
 
 Supports: `6502/Furby`, `LR35902/Game Boy`, `Z80/Spectrum/MSX`.
 
----
+______________________________________________________________________
 
 ### 5.7 `import-ts` — TypeScript Import
 
@@ -693,7 +690,7 @@ kain import-ts [OPTIONS] <INPUT>
 
 **Requires:** `typescript-import` feature. Falls back to error message if disabled.
 
----
+______________________________________________________________________
 
 ## 6. Tooling Commands
 
@@ -704,9 +701,10 @@ kain lsp
 ```
 
 **Status:** Stub. Prints deprecation notice:
+
 > "KAIN's historical Rust LSP is deprecated... Use kain-service-api as the compiler service layer."
 
----
+______________________________________________________________________
 
 ### 6.2 `config` — Config Control Plane
 
@@ -738,7 +736,7 @@ kain config init [--path <FILE>] [--force]
 
 **`config init`** writes a starter config file.
 
----
+______________________________________________________________________
 
 ### 6.3 `selfhost` — Self-Host Bootstrap Workflows
 
@@ -784,7 +782,7 @@ kain selfhost phase2 [OPTIONS]
 | `--all-crates` | bool | false | All crates |
 | `--force` | bool | false | Force regeneration |
 
----
+______________________________________________________________________
 
 ### 6.4 `stdlib-map` — Stdlib Symbol Atlas
 
@@ -803,7 +801,7 @@ kain stdlib-map [OPTIONS]
 | `--check` | bool | false | Fail if generated files are stale |
 | `--json` | bool | false | Print JSON instead of LLM markdown |
 
----
+______________________________________________________________________
 
 ### 6.5 `commands` — Command Registry Inspection
 
@@ -821,7 +819,7 @@ kain commands help [--bin <NAME>] [--runtime]
 | `packs` | List command packs loaded into registry |
 | `help` | Render help from dynamic Clap builder |
 
----
+______________________________________________________________________
 
 ## 7. Runtime & Platform Commands
 
@@ -850,7 +848,7 @@ kain runtime validate [OPTIONS]
 | `--skip-fixtures` | bool | false | Skip native fixture suite |
 | `--skip-conformance` | bool | false | Skip conformance suite |
 
----
+______________________________________________________________________
 
 ### 7.2 `native-ui` — Native Desktop App Dev Loop
 
@@ -860,7 +858,7 @@ kain native-ui dev [OPTIONS] <INPUT>
 
 Same flags as `build native-ui` (see [Section 5.2](#52-build)). Launches with watch + hot reload.
 
----
+______________________________________________________________________
 
 ### 7.3 `bridge` — Resident Kain Bridge
 
@@ -875,7 +873,7 @@ kain bridge serve --entry <FILE> [--dispatch-function <NAME>]
 
 Runs a JSON-lines bridge process for programmatic Kain integration.
 
----
+______________________________________________________________________
 
 ### 7.4 `codebase` — Workspace Codebase Control
 
@@ -886,7 +884,7 @@ kain codebase run [OPTIONS]
 
 Operators on the current workspace for trusted local codebase inspection and package/runtime operations.
 
----
+______________________________________________________________________
 
 ## 8. Specialized Commands
 
@@ -906,7 +904,7 @@ kain gpu-artifacts [OPTIONS] <INPUT>
 
 Generates: `.spv`, `.gpu.rs`, `.reflect.json`, `.shader_bundle.json` + optional `.derived.hlsl`, `.derived.wgsl`, `.derived.ptx`.
 
----
+______________________________________________________________________
 
 ### 8.2 `inject` — Inject Kain into Existing Plugin
 
@@ -923,7 +921,7 @@ kain inject [OPTIONS] <INPUTS>...
 | `--dry-run` | bool | false | Show what would happen |
 | `--ue5` | bool | false | Use UE5 codegen **⚠ Legacy** |
 
----
+______________________________________________________________________
 
 ### 8.3 `omni` — Omni Polyglot Project Management
 
@@ -934,7 +932,7 @@ kain omni build [OPTIONS] [PATH]
 
 **`omni init`** creates an Omni project from template. **`omni build`** stages imports and compiles to all declared targets.
 
----
+______________________________________________________________________
 
 ### 8.4 `fabric` — Fabric Multi-Runtime Pipeline
 
@@ -946,7 +944,7 @@ kain fabric run [OPTIONS]
 
 **`fabric init`** creates a Fabric manifest from template (`local` or `polyglot`). **`fabric validate`** validates the manifest. **`fabric run`** executes the step DAG.
 
----
+______________________________________________________________________
 
 ### 8.5 `install-c-extras` — C/C++ Toolchain Extras
 
@@ -963,7 +961,7 @@ kain install-c-extras [OPTIONS] [PACKAGES]...
 Auto-resolves C/C++ dependencies via vcpkg, downloads and builds them,
 and materializes headers + libraries into `.kain/toolchain/c-extras/<target>/`.
 
----
+______________________________________________________________________
 
 ## 9. Compilation Targets (Complete)
 
@@ -1042,7 +1040,7 @@ For `--target llvm`, the `--emit` flag controls the final artifact produced by t
 | `LLVM_TARGET_MACOS_ARM64` | `arm64-apple-darwin` | macOS Apple Silicon |
 | `LLVM_TARGET_BAREMETAL_X64` | `x86_64-unknown-none` | Freestanding x64 |
 
----
+______________________________________________________________________
 
 ## 10. Compiler Pipeline & Backends
 
@@ -1079,7 +1077,7 @@ Resolve → Parse → Comptime → Typecheck → Monomorphize → Codegen → In
 | **Hybrid** | `kain-web::generate_hybrid()` | WASM + JS + TS bundle |
 | **USF ⚠ Legacy** | `kain-ue5-shaders` | `.usf` + C++ header + implementation |
 
----
+______________________________________________________________________
 
 ## 11. Native Build Pipeline
 
@@ -1107,10 +1105,11 @@ For `Llvm`, `C`, and `BareMetal` targets:
 Controlled by `KAIN_NATIVE_LLVM_IR_SLICING` (default: `true`).
 
 Algorithm:
+
 1. Parse all `define`/`declare` functions in LLVM IR
-2. Start reachability from `main` + top-level references
-3. Transitively follow `call`/`invoke` targets
-4. Keep only reachable functions + required declarations
+1. Start reachability from `main` + top-level references
+1. Transitively follow `call`/`invoke` targets
+1. Keep only reachable functions + required declarations
 
 ### Native Toolchain Tuning Profiles
 
@@ -1125,19 +1124,21 @@ Algorithm:
 If no reachable functions make external calls, the runtime library can be elided entirely. Controlled by `KAIN_NATIVE_RUNTIME_ELISION` (default: `true`).
 
 Runtime lib search order:
+
 1. `KAIN_RUNTIME_LIB_PATH` env var
-2. `~/.kain/lib/libkain_runtime.a` (or `kain_runtime.lib` on Windows)
-3. `{KAIN_HOME}/lib/`
-4. Compile runtime from source if none found
+1. `~/.kain/lib/libkain_runtime.a` (or `kain_runtime.lib` on Windows)
+1. `{KAIN_HOME}/lib/`
+1. Compile runtime from source if none found
 
 ### Native Executable Cache
 
 Cache key = SHA-256(fingerprint + source). Controlled by `KAIN_NATIVE_EXEC_CACHE` (default: `true`).
 
 Cache directory: `{cache_root}/kain/native-exec/{key}/` containing:
+
 - `fingerprint.txt`, `source.kn`, `artifact.{ll,c}`, executable, `sidecars/`
 
----
+______________________________________________________________________
 
 ## 12. GPU Artifact Pipeline
 
@@ -1169,7 +1170,7 @@ For GPU shader source via `kain gpu-artifacts`:
 | `hlsl` | `.spv`, `.gpu.rs`, `.reflect.json`, `.shader_bundle.json`, `.derived.hlsl` |
 | `wgsl` | `.spv`, `.gpu.rs`, `.reflect.json`, `.shader_bundle.json`, `.derived.wgsl` |
 
----
+______________________________________________________________________
 
 ## 13. Sidecar Artifacts
 
@@ -1205,7 +1206,7 @@ Contains: per-shader compute info — workgroup/dispatch sizes, shared memory, C
 | `app_manifest.json` | App manifest |
 | `runtime_snapshot.json` | Runtime snapshot |
 
----
+______________________________________________________________________
 
 ## 14. Manifest Formats
 
@@ -1224,6 +1225,7 @@ Kain has **6 manifest formats** plus a config file:
 ### Manifest Discovery
 
 A directory is recognized as a workspace marker if it contains any of:
+
 - `KAIN.toml` or `kain.toml`
 - `build.kn` or `platform.kn`
 - `Cargo.toml`
@@ -1335,6 +1337,7 @@ output = "src/imports/local_crate.kn"
 ```
 
 Target kinds: `Rust`, `JavaScript`, `TypeScript`, `C++`, `HLSL`, `SPIR-V`, `GpuArtifacts`, `RustBundle`
+
 > **UE5** and **USF** targets also available but legacy (no longer actively tested).
 
 ### 14.4 KAIN.fabric.toml — Fabric Polyglot Manifest
@@ -1372,17 +1375,17 @@ emit_jsonl_events = true
 Runtimes: `kain`, `python`, `rust_crate`, `c_abi`, `node`, `gpu_compute`
 Contracts: `value`, `shared_buffer`, `shared_image`, `compute_plan`
 
----
+______________________________________________________________________
 
 ## 15. Tooling Config (config.toml)
 
 ### Config Load Order
 
 1. `--config <PATH>` CLI flag
-2. `KAIN_CONFIG` environment variable
-3. `{KAIN_HOME}/config.toml`
-4. `{cwd}/.kain/config.toml` (walking up from CWD)
-5. Defaults (no file)
+1. `KAIN_CONFIG` environment variable
+1. `{KAIN_HOME}/config.toml`
+1. `{cwd}/.kain/config.toml` (walking up from CWD)
+1. Defaults (no file)
 
 ### Schema
 
@@ -1429,15 +1432,15 @@ store_ansi = false
 | `"glacier"` | `"arctic"` |
 | `"ember"` | `"sandstone"` |
 
----
+______________________________________________________________________
 
 ## 16. Install Layout (KAIN_HOME)
 
 ### Resolution Order
 
 1. `KAIN_HOME` env var
-2. Nearest `.kain/` ancestor (checks for `config.toml` or `install_manifest.json`)
-3. `$HOME/.kain/` (Unix) / `$USERPROFILE/.kain/` (Windows)
+1. Nearest `.kain/` ancestor (checks for `config.toml` or `install_manifest.json`)
+1. `$HOME/.kain/` (Unix) / `$USERPROFILE/.kain/` (Windows)
 
 ### Layout
 
@@ -1464,23 +1467,23 @@ store_ansi = false
 │   └── publish/                # Published capsules
 ```
 
----
+______________________________________________________________________
 
 ## 17. Package System
 
 ### `kain add` Flow
 
 1. Resolves the package name/version
-2. If a capsule path or local root, materializes it
-3. Creates/updates `KAIN.lock` with pinned version
-4. Stores workspace in `{KAIN_HOME}/packages/{name}/versions/{version}/workspace/`
+1. If a capsule path or local root, materializes it
+1. Creates/updates `KAIN.lock` with pinned version
+1. Stores workspace in `{KAIN_HOME}/packages/{name}/versions/{version}/workspace/`
 
 ### `kain publish` Flow
 
 1. Scans workspace for source files
-2. Creates a capsule with metadata (name, version, authors)
-3. Optionally creates companion capsules for artifacts and evidence
-4. Writes to `.kain/publish/<name>-<version>.kn`
+1. Creates a capsule with metadata (name, version, authors)
+1. Optionally creates companion capsules for artifacts and evidence
+1. Writes to `.kain/publish/<name>-<version>.kn`
 
 ### Package Store
 
@@ -1494,7 +1497,7 @@ store_ansi = false
             └── package-install.json  # Install metadata
 ```
 
----
+______________________________________________________________________
 
 ## 18. Capsule Format
 
@@ -1565,7 +1568,7 @@ fn main() -> Int:
 | `artifacts` | Build outputs (`.exe`, `.dll`, `.spv`, `.ll`, etc.) |
 | `evidence` | Test/proof/benchmark outputs |
 
----
+______________________________________________________________________
 
 ## 19. Fabric Polyglot System
 
@@ -1574,10 +1577,10 @@ The Fabric system executes a **multi-runtime step DAG** with typed contract bind
 ### Execution Lifecycle
 
 1. **Validate** — Load and validate manifest
-2. **Resolve** — Resolve entries and manifests from workspace
-3. **Plan** — Topological sort of steps (respects `depends_on`)
-4. **Execute** — Run each step, passing outputs as inputs to dependents
-5. **Report** — Write execution report + optional JSONL event stream
+1. **Resolve** — Resolve entries and manifests from workspace
+1. **Plan** — Topological sort of steps (respects `depends_on`)
+1. **Execute** — Run each step, passing outputs as inputs to dependents
+1. **Report** — Write execution report + optional JSONL event stream
 
 ### Contract Kinds
 
@@ -1588,7 +1591,7 @@ The Fabric system executes a **multi-runtime step DAG** with typed contract bind
 | `shared_image` | Image buffer | `width`, `height`, `channels`, `pixel_format`, `color_space` |
 | `compute_plan` | GPU dispatch | `compute_key`, `dispatch_invocations`, `tensor_binding_count` |
 
----
+______________________________________________________________________
 
 ## 20. Environment Variables
 
@@ -1663,7 +1666,7 @@ The Fabric system executes a **multi-runtime step DAG** with typed contract bind
 | `KAIN_SYNC_ROOT` | Sync state root |
 | `KAIN_SYNC_STAMP_PATH` | Override sync stamp JSON |
 
----
+______________________________________________________________________
 
 ## 21. Output File Extensions Quick Reference
 
@@ -1723,7 +1726,7 @@ The Fabric system executes a **multi-runtime step DAG** with typed contract bind
 |----------|---------|
 | `//!kain-capsule` ... `//!end-kain-capsule` | Self-describing `.kn` capsule |
 
----
+______________________________________________________________________
 
 ## 22. Error Handling & Exit Codes
 
@@ -1746,7 +1749,7 @@ When `[diagnostics].capture = "failures"`, compiler errors are appended to a JSO
 
 First capture triggers a one-time notification: "Diagnostic capture active — events written to: {path}"
 
----
+______________________________________________________________________
 
 ## Appendix: Complete Command Index
 
@@ -1787,6 +1790,6 @@ First capture triggers a one-time notification: "Diagnostic capture active — e
 | `fabric` | `init`, `validate`, `run` | — | Specialized |
 | *(external)* | — | — | Fallback |
 
----
+______________________________________________________________________
 
 *End of document. Generated 2026-06-22 from source code analysis of `crates/cli/`, `crates/commands/`, `crates/driver/`, `crates/blades/`, `crates/omni/`, `crates/amalgamate/`, `crates/core/`, and related crates.*

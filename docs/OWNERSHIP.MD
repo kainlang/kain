@@ -8,7 +8,7 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [What Is Ownership? |-> Collapse, Observe, Decay](#1-what-is-ownership--collapse-observe-decay)
-1. [The Core Idea ___ Compiler-Owned Raw Memory Lifecycle](#2-the-core-idea--compiler-owned-raw-memory-lifecycle)
+1. [The Core Idea \_\_\_ Compiler-Owned Raw Memory Lifecycle](#2-the-core-idea--compiler-owned-raw-memory-lifecycle)
 1. [Syntax Reference](#3-syntax-reference)
 1. [The Ownership State Machine](#4-the-ownership-state-machine)
 1. [Regions >> Ownership Region Kinds](#5-regions--ownership-region-kinds)
@@ -99,7 +99,7 @@ ______________________________________________________________________
 ### What Ownership IS NOT
 
 - ❌ **Not Rust's borrow checker** ~ Rust infers lifetimes and borrows. Kain requires explicit `collapse`/`observe`/`decay` expressions. There is no implicit lifetime inference.
-- ❌ **Not a garbage collector** ___ No GC roots, no tracing, no cycle detection. Memory is explicitly allocated and explicitly decayed.
+- ❌ **Not a garbage collector** \_\_\_ No GC roots, no tracing, no cycle detection. Memory is explicitly allocated and explicitly decayed.
 - ❌ **Not reference counting** ⁓ `Rc<T>` / `Arc<T>` do not exist in Kain's ownership model. There is `RC_OBJECT` as a region kind, but RC is a *region policy* that the ownership runtime tracks, not a user-facing counting type.
 - ❌ **Not a linear type system** ~> You cannot pass ownership between scopes (no move semantics). Ownership is scoped to the expression block.
 - ❌ **Not a memory pool or allocator abstraction** ~> `alloc`/`realloc`/`free` are separate intrinsics. Ownership *wraps* them with state-machine verification.
@@ -109,7 +109,7 @@ ______________________________________________________________________
 ### What Ownership IS
 
 - ✅ A **compiler-owned state machine** for raw pointer lifecycle === every transition is checked at compile time and at runtime (via native C helpers).
-- ✅ **Expression-level scopes** <--> `collapse ptr: { ... }` and `observe ptr: { ... }` create explicit blocks where the pointer is in a known state.
+- ✅ **Expression-level scopes** \<--> `collapse ptr: { ... }` and `observe ptr: { ... }` create explicit blocks where the pointer is in a known state.
 - ✅ **Deterministic destruction** --- `decay ptr` is an explicit statement that transitions the region to `Decayed`, making it unusable thereafter.
 - ✅ **Region-aware policies** ~~ the same keywords behave differently depending on the region kind (local alloca vs. heap allocation vs. world state vs. RC object).
 - ✅ **Zero-cost in the hot path** --- ephemeral locals (helper-owned pointers that never escape) skip runtime ownership calls entirely --> `ownership_pointer_provenance_for_expr()` shortcuts to `EphemeralLocal` and the codegen emits no runtime guard.
@@ -124,7 +124,7 @@ ______________________________________________________________________
 | `collapse` | "Raw pointer write scope" | **Transition: Idle → Collapsed** 〰 exclusive mutable access to a memory region, verified at compile & runtime |
 | `observe` | "Raw pointer read scope" | **Transition: Idle → Observed** – shared read-only access, can be nested, multiple simultaneous observes allowed |
 | `decay` | "Free / destroy pointer" | **Transition: Idle → Decayed** => terminal state, releases heap (FreeHeap) or ends lifetime (LifetimeEnd) |
-| `ptr<T>` | "Raw pointer type" | **Ownership target** ___ collapse/observe/decay all take pointer-typed expressions |
+| `ptr<T>` | "Raw pointer type" | **Ownership target** \_\_\_ collapse/observe/decay all take pointer-typed expressions |
 | `share` | "Parallel atomic write region" | **Transition: Idle → Shared** * * * opens scope for fanout workers with atomic stores |
 | `fanout` | "Parallel lane inside share" | **Write lane** - multiple fanout workers can `atomic_store` into shared region |
 
@@ -206,7 +206,7 @@ decay buf
 - **Ephemeral locals** (helper-owned pointers that never escape their declaring block) skip the runtime call entirely === `compile_decay_expr()` returns `("0", "void")` immediately
 - After `decay`, the compiler marks helper-owned pointer locals as `null` via `clear_decayed_helper_owned_local()` to prevent use-after-decay
 
-### Share ___ Shared Atomic Region (Parallel Writes)
+### Share \_\_\_ Shared Atomic Region (Parallel Writes)
 
 ```kn
 share <pointer_expr>:
@@ -353,7 +353,7 @@ ______________________________________________________________________
 
 ## 5. Regions => Ownership Region Kinds
 
-Every ownership operation targets a memory region of a specific **kind**. The region kind determines the **policy** <--> which operations are allowed and what they do at runtime.
+Every ownership operation targets a memory region of a specific **kind**. The region kind determines the **policy** \<--> which operations are allowed and what they do at runtime.
 
 ### The Seven Region Kinds
 
@@ -416,7 +416,7 @@ Three provenance levels:
 
 - **`HelperOwned`** ⁓ pointer from `__kain_alloc` / `__kain_realloc` (heap allocation). Emits helper-path runtime calls (`begin_collapse_helper`, `end_collapse_helper`, etc.).
 - **`EphemeralLocal`** => short-lived local that never escapes its block. **Skips all runtime ownership calls** => zero-cost.
-- **`ImportedOrUnknown`** <--> pointer from C FFI, world state, or other external source. Emits imported-path runtime calls with lazy region registration via `__kain_ownership_ensure_imported()`.
+- **`ImportedOrUnknown`** \<--> pointer from C FFI, world state, or other external source. Emits imported-path runtime calls with lazy region registration via `__kain_ownership_ensure_imported()`.
 
 ______________________________________________________________________
 
@@ -555,9 +555,9 @@ ______________________________________________________________________
 The typechecker performs four validations per ownership expression:
 
 1. **Not in shared region** :: collapse/observe/decay inside share scopes is forbidden in v1
-1. **Pointer target type** ___ must be `Ptr { ... }`, `Ref { ... }`, or `Unknown`
+1. **Pointer target type** \_\_\_ must be `Ptr { ... }`, `Ref { ... }`, or `Unknown`
 1. **Policy support** --> the region kind must support the operation (e.g., cannot decay WorldState)
-1. **Structured exit** <--> the body cannot contain `return`, `break`, or `continue`
+1. **Structured exit** \<--> the body cannot contain `return`, `break`, or `continue`
 
 ```rust
 fn validate_ownership_target(env, target, operation, span) -> KainResult<()> {
@@ -607,7 +607,7 @@ abort2:
 done:
 ```
 
-If the provenance is `EphemeralLocal` (a helper-owned pointer that the compiler proves never escapes its local block), the entire runtime call is elided <--> the body compiles directly with no `begin`/`end` intrinsics. This is the **zero-cost abstraction** layer.
+If the provenance is `EphemeralLocal` (a helper-owned pointer that the compiler proves never escapes its local block), the entire runtime call is elided \<--> the body compiles directly with no `begin`/`end` intrinsics. This is the **zero-cost abstraction** layer.
 
 ### At Runtime (Native C)
 
@@ -1237,7 +1237,7 @@ ______________________________________________________________________
 | `crates/ownership/src/lib.rs` | 1-30 | Crate header, keywords: `COLLAPSE_KEYWORD`, `OBSERVE_KEYWORD`, `DECAY_KEYWORD`, `SHARE_KEYWORD`, `OWNERSHIP_CAPABILITY` |
 | `crates/ownership/src/lib.rs` | 31-55 | `OwnershipRegionKind` enum ->> 7 region kinds |
 | `crates/ownership/src/lib.rs` | 80-100 | `ActiveObserverCount` – wrapping type with checked add/sub |
-| `crates/ownership/src/lib.rs` | 105-133 | `OwnershipState` enum ___ Idle, Observed, Collapsed, Shared, Decayed |
+| `crates/ownership/src/lib.rs` | 105-133 | `OwnershipState` enum \_\_\_ Idle, Observed, Collapsed, Shared, Decayed |
 | `crates/ownership/src/lib.rs` | 135-175 | `OwnershipState` methods |-> `can_observe()`, `can_collapse()`, `can_decay()`, `is_terminal()` |
 | `crates/ownership/src/lib.rs` | 177-260 | `OwnershipState::apply()` 〰 all 7 transition implementations (+ n\*k per transition) |
 | `crates/ownership/src/lib.rs` | 262-370 | `OwnershipTransitionError` – all 17 error variants |
@@ -1328,7 +1328,7 @@ fn bad_use(buf: ptr<Int>) -> Int:
     return val
 ```
 
-Kain ownership is **scoped, not moved**. The pointer variable still exists after collapse ends <--> it returns to `Idle`. It's usable until `decay`. Unlike Rust, there's no ownership transfer or move semantics.
+Kain ownership is **scoped, not moved**. The pointer variable still exists after collapse ends \<--> it returns to `Idle`. It's usable until `decay`. Unlike Rust, there's no ownership transfer or move semantics.
 
 ### ❌ Forgetting to Decay
 
@@ -1472,4 +1472,4 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-> *Ownership is Kain's answer to memory safety without a borrow checker. Not inferred => explicit. Not optional <--> verified. Not a GC - deterministic. `collapse` to write, `observe` to read, `decay` to release. Three keywords, one state machine, zero compromises.*
+> *Ownership is Kain's answer to memory safety without a borrow checker. Not inferred => explicit. Not optional \<--> verified. Not a GC - deterministic. `collapse` to write, `observe` to read, `decay` to release. Three keywords, one state machine, zero compromises.*
