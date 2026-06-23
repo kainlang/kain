@@ -7,6 +7,7 @@ use crate::model::{
 use heck::ToSnakeCase;
 use kain_core::error::KainError;
 use kain_fs as kfs;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const BRIDGE_FORMAT_VERSION: &str = "c-ffi-v2";
@@ -253,13 +254,20 @@ fn render_prelude_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) ->
         "# Generated import shim for C library {}\n",
         resolved.import_name
     ));
+    // Dedup by prefixed alias name: libclang may extract the same function
+    // from multiple internal headers, producing duplicate entries that
+    // would collide as duplicate `use c::module::sym as sym` lines.
+    let mut seen: BTreeMap<&str, &CFunctionBinding> = BTreeMap::new();
     for binding in &bundle.functions {
         if let Some(prefixed) = binding.exported_aliases.get(1) {
-            output.push_str(&format!(
-                "use c::{}::{} as {}\n",
-                resolved.import_name, prefixed, prefixed
-            ));
+            seen.entry(prefixed.as_str()).or_insert(binding);
         }
+    }
+    for (prefixed, _binding) in &seen {
+        output.push_str(&format!(
+            "use c::{}::{} as {}\n",
+            resolved.import_name, prefixed, prefixed
+        ));
     }
     output
 }

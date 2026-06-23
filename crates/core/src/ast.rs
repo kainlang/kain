@@ -432,7 +432,7 @@ pub enum WorldSurfaceKind {
     Viewport3d,
     Web,
     Ue5,
-    Shader,  // NEW: fullscreen shader output
+    ShaderCanvas,  // fullscreen shader output on a GPU canvas
 }
 
 impl WorldSurfaceKind {
@@ -442,7 +442,7 @@ impl WorldSurfaceKind {
             Self::Viewport3d => "viewport3d",
             Self::Web => "web",
             Self::Ue5 => "ue5",
-            Self::Shader => "shader",
+            Self::ShaderCanvas => "shader_canvas",
         }
     }
 }

@@ -15221,7 +15221,7 @@ impl LlvmGenerator {
             match item {
                 TypedItem::World(world) => {
                     for surface in &world.ast.surfaces {
-                        if surface.kind == kain_core::ast::WorldSurfaceKind::Shader {
+                        if surface.kind == kain_core::ast::WorldSurfaceKind::ShaderCanvas {
                             if let Expr::Ident(shader_name, _) = &surface.expr {
                                 if self.shader_spirv_hexes.contains_key(shader_name.as_str()) {
                                     continue;

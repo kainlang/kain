@@ -244,7 +244,7 @@ impl LlvmGenerator {
         self.emit_label("entry");
 
         // Resolve surface
-        let surface_name_str = self.compile_static_c_string_literal("shader");
+        let surface_name_str = self.compile_static_c_string_literal("shader_canvas");
         let surface_reg = self.next_reg();
         self.emit(&format!(
             "  {} = call %KainComponentSurface* @kain_component_surface_resolve(i8* {})",
@@ -265,7 +265,7 @@ impl LlvmGenerator {
 
         // Error: surface not registered
         self.emit_label(&null_block);
-        let err_msg = format!("surface shader not registered for world {}", world_name);
+        let err_msg = format!("surface shader_canvas not registered for world {}", world_name);
         let err_str = self.compile_static_c_string_literal(&err_msg);
         self.emit(&format!("  call void @kain_runtime_panic(i8* {})", err_str));
         self.emit("  unreachable");
@@ -590,7 +590,7 @@ impl LlvmGenerator {
         self.declare_surface_trait_types();
 
         // Branch: shader surfaces emit a GPU shader loop (no component render)
-        if surface_kind == "shader" {
+        if surface_kind == "shader_canvas" {
             return self.compile_shader_surface_loop(world_name, root_component_name);
         }
 

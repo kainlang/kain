@@ -2409,9 +2409,9 @@ impl<'a> Parser<'a> {
                 self.advance();
                 WorldSurfaceKind::Ue5
             }
-            TokenKind::Ident(ref value) if value == "shader" => {
+            TokenKind::Ident(ref value) if value == "shader_canvas" => {
                 self.advance();
-                WorldSurfaceKind::Shader
+                WorldSurfaceKind::ShaderCanvas
             }
             _ => {
                 let span = self.current_span();

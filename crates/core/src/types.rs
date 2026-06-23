@@ -6993,11 +6993,11 @@ fn check_world_surface_projection(
                 surface.span,
             )),
         },
-        WorldSurfaceKind::Shader => match &surface.expr {
+        WorldSurfaceKind::ShaderCanvas => match &surface.expr {
             Expr::Ident(_, _) => Ok(()),
             other => Err(env.type_error(
                 format!(
-                    "world surface 'shader' expects a shader fragment identifier, found {:?}",
+                    "world surface 'shader_canvas' expects a shader fragment identifier, found {:?}",
                     other
                 ),
                 surface.span,

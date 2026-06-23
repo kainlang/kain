@@ -335,12 +335,6 @@ fn augment_source_for_runtime_inner(
     target: CompileTarget,
     prepare: &PrepareContext,
 ) -> Result<String, KainError> {
-    // Idempotency: if the source already contains a generated include alias
-    // surface marker, it has been augmented already. Re-augmenting would
-    // duplicate all generated @extern fn declarations.
-    if source.contains("# Generated include alias surface") {
-        return Ok(source.to_string());
-    }
     let imports = detect_c_library_import_specs(source);
     if imports.is_empty() {
         return Ok(source.to_string());
@@ -523,7 +517,13 @@ fn render_include_alias_source(
         return None;
     }
 
-    let mut rendered_aliases = Vec::new();
+    // Dedupe by alias_name: libclang may emit multiple @extern fn lines for
+    // the same effective symbol (e.g. `gzgetc` and a `#define z_gzgetc` macro
+    // both extract to a function candidate). Both map to the same alias via
+    // `include_alias_function_name` and would otherwise produce flat-scope
+    // duplicate declarations that fail typecheck as `z_gzgetc` collides with
+    // itself. First one wins.
+    let mut rendered_aliases: BTreeMap<String, String> = BTreeMap::new();
     let generated_prefix = format!("c_{}_", output.resolved.import_name);
     let mut pending_attributes = Vec::new();
     for line in output.canonical_module_source.lines() {
@@ -551,6 +551,10 @@ fn render_include_alias_source(
             pending_attributes.clear();
             continue;
         };
+        if rendered_aliases.contains_key(&alias_name) {
+            pending_attributes.clear();
+            continue;
+        }
         if demanded_aliases.is_some_and(|demands| !demands.contains(&alias_name)) {
             pending_attributes.clear();
             continue;
@@ -565,7 +569,7 @@ fn render_include_alias_source(
             "@link_name(\"{}\")\n@extern fn {}{}",
             raw_name, alias_name, signature_tail
         ));
-        rendered_aliases.push(alias_decl);
+        rendered_aliases.insert(alias_name, alias_decl);
         pending_attributes.clear();
     }
 
@@ -578,7 +582,7 @@ fn render_include_alias_source(
         "# Generated include alias surface for {} as {}\n",
         output.resolved.import_name, alias
     ));
-    output_source.push_str(&rendered_aliases.join("\n"));
+    output_source.push_str(&rendered_aliases.values().cloned().collect::<Vec<_>>().join("\n"));
     output_source.push('\n');
     Some(output_source)
 }

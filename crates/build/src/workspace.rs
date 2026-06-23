@@ -3134,11 +3134,19 @@ fn execute_plan(
     kfs::atomic_write_text(&report_path, &encoded)?;
     if failed {
         let failed_count = report.tasks.iter().filter(|e| e.status == BuildTaskStatus::Failed).count();
-        Err(BuildError::Command(format!(
+        let mut msg = format!(
             "project build failed ({} task(s) failed); full report at {}",
             failed_count,
             report_path.display()
-        )))
+        );
+        for task in &report.tasks {
+            if task.status == BuildTaskStatus::Failed {
+                if let Some(error) = &task.error {
+                    msg.push_str(&format!("\n  {} failed: {}", task.id, error));
+                }
+            }
+        }
+        Err(BuildError::Command(msg))
     } else {
         Ok(report)
     }

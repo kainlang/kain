@@ -1806,7 +1806,7 @@ struct ItemSummary {
     world_viewport3d: usize,
     world_web: usize,
     world_ue5: usize,
-    world_shader: usize,
+    world_shader_canvas: usize,
     shaders: usize,
     compute_shaders: usize,
     compute_plan_shaders: usize,
@@ -2642,7 +2642,7 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                         WorldSurfaceKind::Viewport3d => summary.world_viewport3d += 1,
                         WorldSurfaceKind::Web => summary.world_web += 1,
                         WorldSurfaceKind::Ue5 => summary.world_ue5 += 1,
-                        WorldSurfaceKind::Shader => summary.world_shader += 1,
+                        WorldSurfaceKind::ShaderCanvas => summary.world_shader_canvas += 1,
                     }
                 }
             }
