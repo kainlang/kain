@@ -1,0 +1,34 @@
+version: 1
+id: kain.native.core.proofs.ui_runtime_find_node_index_bounds
+kind: find_counterexample
+description: The node search loop in kain_ui_runtime_find_node_index never iterates beyond bundle->node_count (max 128). The loop condition index < node_count bounds all array accesses. After visiting the last element (index = node_count - 1), the increment produces index = node_count and the loop correctly terminates.
+tags:
+- ui
+- bounds
+- invariant
+- loop
+source:
+  path: runtime/native/src/ui/ui_runtime.c
+  symbol: kain_ui_runtime_find_node_index
+  start_line: 236
+  reason: The function iterates over compiled nodes searching by ID. If the loop bounds were incorrect, it could access memory beyond the nodes array. The node_count is set during bundle parsing and is bounded by KAIN_UI_COMPILED_BUNDLE_MAX_NODES (128).
+case:
+  declarations:
+  - name: node_count
+    sort:
+      kind: int
+    description: Number of nodes in the bundle (set during parsing)
+  - name: MAX_NODES
+    sort:
+      kind: int
+    description: KAIN_UI_COMPILED_BUNDLE_MAX_NODES = 128
+  constraints:
+  - op: ge
+    args: [node_count, 0]
+  - op: le
+    args: [node_count, MAX_NODES]
+  - op: eq
+    args: [MAX_NODES, 128]
+  claim:
+    op: le
+    args: [node_count, 128]

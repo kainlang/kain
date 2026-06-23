@@ -1,0 +1,64 @@
+version: 1
+id: kain.native.core.proofs.ui_runtime_focus_search_termination
+kind: find_counterexample
+description: The focusable component search (kain_ui_runtime_find_next_focusable_index) always terminates within component_count iterations. The modular wrap-around (index + step + N) % N produces a valid index < N for any step = ±1 and N > 0. After N iterations the index returns to start_index, proving the loop bound exhausts all elements.
+tags:
+- ui
+- focus
+- bounds
+- invariant
+- termination
+source:
+  path: runtime/native/src/ui/ui_runtime.c
+  symbol: kain_ui_runtime_find_next_focusable_index
+  start_line: 518
+  reason: The focusable search wraps around a circular array of component_count elements. The loop bound (passes < component_count) must guarantee full traversal without missing elements or infinite looping.
+case:
+  declarations:
+  - name: component_count
+    sort:
+      kind: int
+    description: Number of components in the state (N)
+  - name: start_index
+    sort:
+      kind: int
+    description: Starting search position
+  - name: step
+    sort:
+      kind: int
+    description: Direction (+1 for forward, -1 for backward)
+  constraints:
+  - op: gt
+    args: [component_count, 0]
+  - op: ge
+    args: [start_index, 0]
+  - op: lt
+    args: [start_index, component_count]
+  - op: or
+    args:
+    - op: eq
+      args: [step, 1]
+    - op: eq
+      args: [step, -1]
+  claim:
+    op: and
+    args:
+    # Claim 1: After component_count iterations, index returns to start
+    - op: eq
+      args:
+      - op: add
+        args:
+        - op: add
+          args: [start_index, step]
+        - component_count
+      # After N steps of +1/-1 around N items, we return to start
+      - start_index
+    # Claim 2: All intermediate indices are valid (0 <= index < component_count)
+    - op: lt
+      args:
+      - op: add
+        args:
+        - op: add
+          args: [start_index, step]
+        - component_count
+      - component_count

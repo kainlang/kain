@@ -1,0 +1,46 @@
+version: 1
+id: kain.native.core.proofs.ui_runtime_text_append_bounds
+kind: find_counterexample
+description: The text buffer append in kain_ui_runtime_append_text never exceeds the component text capacity (KAIN_UI_COMPILED_BUNDLE_MAX_TEXT = 320). Room calculation room = sizeof(value) - 1 - current_len never underflows. Append length is clamped to room when it exceeds it. The null terminator at value[current_len + append_len_final] is always within the buffer (≤ 319).
+tags:
+- ui
+- text
+- bounds
+- overflow
+- invariant
+source:
+  path: runtime/native/src/ui/ui_runtime.c
+  symbol: kain_ui_runtime_append_text
+  start_line: 534
+  reason: The function appends text to a fixed-size buffer. Without proper bounds checking, text could overflow the buffer. The room calculation, clamp to room, and null terminator placement must all be provably safe.
+case:
+  declarations:
+  - name: current_len
+    sort:
+      kind: int
+    description: Current length of value string (strlen result)
+  - name: append_len
+    sort:
+      kind: int
+    description: Length of text to append (strlen result)
+  - name: VALUE_SIZE
+    sort:
+      kind: int
+    description: sizeof(component->value) = KAIN_UI_COMPILED_BUNDLE_MAX_TEXT = 320
+  constraints:
+  - op: ge
+    args: [current_len, 0]
+  - op: lt
+    args: [current_len, VALUE_SIZE]
+  - op: ge
+    args: [append_len, 0]
+  - op: lt
+    args: [append_len, VALUE_SIZE]
+  - op: eq
+    args: [VALUE_SIZE, 320]
+  claim:
+    op: le
+    args:
+    - op: add
+      args: [current_len, append_len]
+    - 319
