@@ -267,9 +267,9 @@ Service keys link stdlib modules to C runtime services (`runtime/native/include/
 | `gfx.raw-native` | graphics | All | ✅ available |
 | `gfx.shader.spirv` | graphics, gpu | All | ✅ available |
 | `gfx.compute` | cuda | All | ✅ available |
-| `gfx.compute.cuda` | cuda | All | ⚠️ degraded |
-| `gfx.backend.vulkan` | graphics | All | ⚠️ degraded (catalog only) |
-| `gfx.backend.d3d12` | graphics | Win32 only | ⚠️ degraded (catalog only) |
+| `gfx.compute.cuda` | cuda | All | |✅ available
+| `gfx.backend.vulkan` | graphics | All | ✅ available |
+| `gfx.backend.d3d12` | graphics | Win32 only | ✅ available|
 | `ui.component` | ui | All | ✅ available |
 | `ui.bundle` | ui | All | ✅ available |
 | `cpu.capabilities` | machine | All | ✅ available |
@@ -279,14 +279,3 @@ Service keys link stdlib modules to C runtime services (`runtime/native/include/
 | `data.json` | json | All | ✅ available |
 
 ---
-
-## Audit Sources
-
-| Agent | File | Scope |
-|-------|------|-------|
-| Agent 1 | `X:/research/stdlib/AGENT1_RUNTIME_CORE.md` | runtime, time, os, process, thread, sync, atomic, platform, target, kain, diagnostics, reload, no_std, actor |
-| Agent 2 | `X:/research/stdlib/AGENT2_DATA.md` | collections, bytes, bits, memory, alloc, hash, fmt, text, result, json, semver, base64, crypto |
-| Agent 3 | `X:/research/stdlib/AGENT3_IO_NET.md` | fs, io, net, http, http2, path, os_path, uri, compress, zip, tar, elf, mmio |
-| Agent 4 | `X:/research/stdlib/AGENT4_GPU.md` | gpu, graphics, graphics_shared, cuda, simd, machine, math, random |
-| Agent 5 | `X:/research/stdlib/AGENT5_UI_INTEROP.md` | ui, input, audio/*, interop, python, js, wasm, markscript, mcp, python::venv |
-| Agent 6 | `X:/research/stdlib/AGENT6_TESTING_META.md` | test, bench, proof, certify, attrition, build, z3, intent, reflect, unicode, gen_server, mks |
