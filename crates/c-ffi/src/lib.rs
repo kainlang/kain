@@ -335,6 +335,12 @@ fn augment_source_for_runtime_inner(
     target: CompileTarget,
     prepare: &PrepareContext,
 ) -> Result<String, KainError> {
+    // Idempotency: if the source already contains a generated include alias
+    // surface marker, it has been augmented already. Re-augmenting would
+    // duplicate all generated @extern fn declarations.
+    if source.contains("# Generated include alias surface") {
+        return Ok(source.to_string());
+    }
     let imports = detect_c_library_import_specs(source);
     if imports.is_empty() {
         return Ok(source.to_string());

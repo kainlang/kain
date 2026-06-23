@@ -153,18 +153,21 @@ pub fn ensure_installed(
     version: &str,
 ) -> Result<PathBuf, KainError> {
     let root = resolve_vcpkg_root();
-    let installed_tree = root.join("installed").join(triple);
+    // --x-install-root points to <root>/installed; vcpkg appends <triple>/ internally,
+    // producing the real tree at <root>/installed/<triple>/{include,lib}/...
+    let installed_tree = root.join("installed");
+    let install_path = installed_tree.join(triple);
 
-    // Sentinel file for idempotent installs
+    // Sentinel file for idempotent installs (lives at <root>/installed/<triple>/)
     let sentinel_name = if version.is_empty() {
         format!(".kain-fetch-marker-{}", package)
     } else {
         format!(".kain-fetch-marker-{}-{}", package, version)
     };
-    let sentinel = installed_tree.join(&sentinel_name);
+    let sentinel = install_path.join(&sentinel_name);
 
     if sentinel.is_file() {
-        return Ok(installed_tree);
+        return Ok(install_path);
     }
 
     // Ensure the root directory exists
@@ -212,7 +215,7 @@ pub fn ensure_installed(
         ))
     })?;
 
-    Ok(installed_tree)
+    Ok(install_path)
 }
 
 /// Attempt to resolve a versioned include via vcpkg on-demand fetch.
