@@ -3812,9 +3812,7 @@ fn run_kain_compile(
                     artifacts.push(record_artifact("native-binary", &exe_path)?);
                 }
                 Err(err) => {
-                    eprintln!(" Native link skipped: {err}");
-                    eprintln!("   Ensure clang is installed and the Kain runtime library is available.");
-                    eprintln!("   Ensure a precompiled runtime archive exists at $KAIN_HOME/lib/kain_runtime.lib (or set KAIN_RUNTIME_LIB_PATH).");
+                    return Err(BuildError::Config(format!("native link failed: {err}")));
                 }
             }
         }

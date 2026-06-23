@@ -211,24 +211,9 @@ pub fn bare_metal_link_libs() -> Vec<&'static str> {
 pub fn link_native_binary(req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let clang = find_clang().unwrap_or_else(|| "clang".to_string());
 
-    let uses_runtime = source_uses_runtime(req.source_text);
-    let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
-        || !req.runtime_artifacts.static_archives.is_empty();
-
-    let needs_libc = if has_artifacts {
-        // Caller supplied explicit runtime artifacts.
-        true
-    } else if uses_runtime {
-        // Source uses runtime features but no artifacts supplied.
-        // Try to find the precompiled runtime archive in the toolchain.
-        false // Will be resolved inside the emit-specific linker
-    } else {
-        false // Pure compute, no runtime needed
-    };
-
     match req.emit {
-        NativeEmit::Exe => link_exe(&clang, req, uses_runtime, needs_libc),
-        NativeEmit::SharedLib => link_shared_lib(&clang, req, uses_runtime, needs_libc),
+        NativeEmit::Exe => link_exe(&clang, req),
+        NativeEmit::SharedLib => link_shared_lib(&clang, req),
         NativeEmit::StaticLib => link_static_lib(&clang, req),
         NativeEmit::Object => link_object(&clang, req),
     }
@@ -244,7 +229,7 @@ fn base_clang_command(clang: &str, _req: &NativeLinkRequest<'_>) -> Command {
     cmd
 }
 
-fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_libc: bool) -> Result<PathBuf, String> {
+fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
 
     // Append caller-supplied extra args (toolchain tuning, etc.)
@@ -264,13 +249,6 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
 
     if req.compile_target == CompileTarget::BareMetal {
         // Already added -nostdlib -ffreestanding above; skip the normal host-OS branch
-    } else if !uses_runtime && !has_artifacts {
-        // Pure compute — no C runtime needed
-        cmd.arg("-nostdlib");
-        #[cfg(windows)]
-        cmd.arg("-Wl,/entry:main");
-        #[cfg(not(windows))]
-        cmd.arg("-Wl,-e,main");
     } else if has_artifacts {
         // Explicit runtime artifacts supplied
         for obj in &req.runtime_artifacts.loose_objects {
@@ -279,9 +257,10 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
         for archive in &req.runtime_artifacts.static_archives {
             cmd.arg(archive);
         }
-    } else if uses_runtime {
-        // Source uses runtime but no artifacts supplied.
-        // Try the precompiled archive from the toolchain.
+    } else {
+        // Always link the runtime archive. The LLVM codegen unconditionally
+        // emits runtime init calls for main(). Dead-stripping (/OPT:REF,
+        // --gc-sections) removes unused functions.
         if let Some(archive) = resolve_precompiled_runtime_archive() {
             cmd.arg(&archive);
         } else {
@@ -331,7 +310,7 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
     run_clang(cmd, req.output_path)
 }
 
-fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_libc: bool) -> Result<PathBuf, String> {
+fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
     cmd.arg("-shared");
 
@@ -352,9 +331,6 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
 
     if req.compile_target == CompileTarget::BareMetal {
         // Already added -nostdlib above
-    } else if !uses_runtime && !has_artifacts {
-        cmd.arg("-nostdlib");
-        cmd.arg("-Wl,-noentry");
     } else if has_artifacts {
         for obj in &req.runtime_artifacts.loose_objects {
             cmd.arg(obj);
@@ -362,7 +338,10 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
         for archive in &req.runtime_artifacts.static_archives {
             cmd.arg(archive);
         }
-    } else if uses_runtime {
+    } else {
+        // Always link the runtime archive. The LLVM codegen unconditionally
+        // emits runtime init calls for main(). Dead-stripping (/OPT:REF,
+        // --gc-sections) removes unused functions.
         if let Some(archive) = resolve_precompiled_runtime_archive() {
             cmd.arg(&archive);
         } else {
