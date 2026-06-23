@@ -202,6 +202,14 @@ uint8_t ui_color_a(uint32_t color) { return (uint8_t)((color >> 24) & 0xFF); }
 
 // ── Alpha blending (src OVER dst, straight alpha) ─────────────────────
 
+/* Z3-proven bit-split: div255(v) ≡ v/255 for v in [0, 130050] (ui-branchless-alpha-blend.smt2: UNSAT) */
+/* Uses shift+add instead of DIV: ~5 cycles vs ~25 cycles */
+static uint8_t div255_fast(uint32_t v) {
+    uint32_t hi = v >> 8;
+    uint32_t sum_hl = hi + (v & 0xFF);
+    return (uint8_t)(hi + ((sum_hl + 1 + (sum_hl >> 8)) >> 8));
+}
+
 uint32_t ui_color_blend(uint32_t src, uint32_t dst) {
     uint8_t sa = ui_color_a(src);
     if (sa == 0) return dst;
@@ -211,9 +219,9 @@ uint32_t ui_color_blend(uint32_t src, uint32_t dst) {
     uint8_t dr = ui_color_r(dst), dg = ui_color_g(dst), db = ui_color_b(dst);
 
     int inv_a = 255 - sa;
-    uint8_t r = (uint8_t)((sr * sa + dr * inv_a) / 255);
-    uint8_t g = (uint8_t)((sg * sa + dg * inv_a) / 255);
-    uint8_t b = (uint8_t)((sb * sa + db * inv_a) / 255);
+    uint8_t r = div255_fast((uint32_t)(sr * sa + dr * inv_a));
+    uint8_t g = div255_fast((uint32_t)(sg * sa + dg * inv_a));
+    uint8_t b = div255_fast((uint32_t)(sb * sa + db * inv_a));
 
     return ((uint32_t)255 << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
 }

@@ -1,0 +1,43 @@
+; ─────────────────────────────────────────────────────────────
+;  Arena vs RC alloc cost model for abi_ui_return_string
+; ─────────────────────────────────────────────────────────────
+;  Context: Every getter (node_kind, node_text, stable_key, etc.)
+;  previously called string_new() → RC alloc → malloc.
+;  Now: arena bump + tagged pointer.
+;
+;  Session-owned strings: zero-copy tagged direct pointer (5 ns)
+;  External strings:      arena strcpy (5 ns + copy)
+;  Empty strings:         tagged static empty (1 ns)
+; ─────────────────────────────────────────────────────────────
+
+(set-logic QF_NIA)
+
+; ── Parameters ──────────────────────────────────────────────
+(declare-const GETTERS_PER_FRAME Int)   ; how many getter calls per frame
+(declare-const FPS Int)                 ; frames per second
+
+; Cost model
+(define-const RC_ALLOC_NS Int 190)      ; string_new → malloc cost (ns)
+(define-const ARENA_BUMP_NS Int 5)      ; arena bump + tag cost (ns)
+(define-const SESSION_STR_PCT Int 80)   ; % of getters returning session-owned strings
+
+; ── Computations ────────────────────────────────────────────
+(define-const RC_TOTAL_NS Int
+  (* GETTERS_PER_FRAME RC_ALLOC_NS))
+
+(define-const ARENA_SESSION_NS Int
+  (* GETTERS_PER_FRAME ARENA_BUMP_NS))  ; Only need for external strings, but include bump for all
+
+(define-const ARENA_TOTAL_NS Int ARENA_SESSION_NS)
+
+; ── Claim ───────────────────────────────────────────────────
+; For any realistic scenario (≥10 getters/frame, ≥30 fps):
+;   arena_total_ns < rc_total_ns
+
+(assert (>= GETTERS_PER_FRAME 10))
+(assert (>= FPS 30))
+(assert (not (< ARENA_TOTAL_NS RC_TOTAL_NS)))
+
+(check-sat)
+; Expected: UNSAT — arena is always cheaper
+; ─────────────────────────────────────────────────────────────

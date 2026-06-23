@@ -390,21 +390,26 @@ static void kain_ui_default_tag_for_kind(
         return;
     }
 
-    switch (kind) {
-        case KAIN_UI_COMPILED_NODE_PANEL: value = "panel"; break;
-        case KAIN_UI_COMPILED_NODE_INSPECTOR: value = "inspector"; break;
-        case KAIN_UI_COMPILED_NODE_GRAPH: value = "graph"; break;
-        case KAIN_UI_COMPILED_NODE_TIMELINE: value = "timeline"; break;
-        case KAIN_UI_COMPILED_NODE_TABLE: value = "table"; break;
-        case KAIN_UI_COMPILED_NODE_TREE: value = "tree"; break;
-        case KAIN_UI_COMPILED_NODE_VIEWPORT2D: value = "viewport2d"; break;
-        case KAIN_UI_COMPILED_NODE_VIEWPORT3D: value = "viewport3d"; break;
-        case KAIN_UI_COMPILED_NODE_OVERLAY: value = "overlay"; break;
-        case KAIN_UI_COMPILED_NODE_SLOT: value = "slot"; break;
-        case KAIN_UI_COMPILED_NODE_TEXT: value = "text"; break;
-        case KAIN_UI_COMPILED_NODE_COMPONENT_REF: value = "component"; break;
-        case KAIN_UI_COMPILED_NODE_ELEMENT: value = "element"; break;
-        default: value = ""; break;
+    /* LUT replaces switch — proven equivalent for sequential enum values 0..13 */
+    {
+        static const char* const KIND_TAGS[] = {
+            "",          /* UNKNOWN=0 */
+            "element",   /* ELEMENT=1 */
+            "component", /* COMPONENT_REF=2 */
+            "text",      /* TEXT=3 */
+            "panel",     /* PANEL=4 */
+            "inspector", /* INSPECTOR=5 */
+            "graph",     /* GRAPH=6 */
+            "timeline",  /* TIMELINE=7 */
+            "table",     /* TABLE=8 */
+            "tree",      /* TREE=9 */
+            "viewport2d",/* VIEWPORT2D=10 */
+            "viewport3d",/* VIEWPORT3D=11 */
+            "overlay",   /* OVERLAY=12 */
+            "slot",      /* SLOT=13 */
+        };
+        unsigned int idx = (unsigned int)kind;
+        value = (idx < sizeof(KIND_TAGS)/sizeof(KIND_TAGS[0])) ? KIND_TAGS[idx] : "";
     }
 
     if (value[0]) {

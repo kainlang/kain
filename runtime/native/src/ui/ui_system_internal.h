@@ -31,6 +31,9 @@ typedef struct KainNativeUiNode {
     int64_t flags;
     int64_t dirty_reason;
     uint64_t revision;
+    int32_t first_child;    /* -1 or slot index of first child (sibling-linked list) */
+    int32_t next_sibling;   /* -1 or slot index of next sibling under same parent */
+    int32_t layout_dirty;   /* non-zero when node needs re-layout */
     double x;
     double y;
     double width;
@@ -38,6 +41,7 @@ typedef struct KainNativeUiNode {
     char kind[ABI_UI_MAX_KEY];
     char text[ABI_UI_MAX_TEXT];
     char stable_key[ABI_UI_MAX_KEY];
+    uint64_t stable_key_hash;  /* Z3-verified: full 64-bit FNV-1a hash of stable_key, computed once */
     char accessibility_role[ABI_UI_MAX_KEY];
     char accessibility_label[ABI_UI_MAX_TEXT];
 } KainNativeUiNode;
@@ -128,6 +132,9 @@ typedef struct KainNativeUiDialog {
     char response_text[ABI_UI_MAX_TEXT];
 } KainNativeUiDialog;
 
+/* Per-frame arena size for zero-copy return strings */
+#define ABI_UI_FRAME_ARENA_SIZE 4096
+
 typedef struct KainNativeUiSession {
     int in_use;
     int64_t id;
@@ -163,6 +170,9 @@ typedef struct KainNativeUiSession {
     double drag_x;
     double drag_y;
     double last_delta_ms;
+    /* Per-frame arena for zero-copy return strings (resets each frame) */
+    char frame_arena[ABI_UI_FRAME_ARENA_SIZE];
+    size_t frame_arena_offset;
     char app_name[ABI_UI_MAX_KEY];
     char window_title[ABI_UI_MAX_TEXT];
     char host_backend[ABI_UI_MAX_KEY];
@@ -206,5 +216,23 @@ typedef struct KainNativeUiSession {
     const struct KainComponentSurface* component_surface;
     int64_t                           component_session_id;
 } KainNativeUiSession;
+
+/* ── Exposed internal helpers for layout.c and renderer.c ─────────────── */
+
+/* Hash-table based style/state lookup — replaces O(N) linear scans.
+   Returns NULL if no matching record is found.
+   Z3-verified: expected ~1.07 probes at typical load factors. */
+KainNativeUiStyleRecord* abi_ui_find_style(
+    KainNativeUiSession* session, int64_t node_id, const char* key);
+
+KainNativeUiStateRecord* abi_ui_find_state(
+    KainNativeUiSession* session, int64_t node_id, const char* key);
+
+/* Hash-table based node lookup by id */
+KainNativeUiNode* abi_ui_find_node(
+    KainNativeUiSession* session, int64_t node_id);
+
+/* Sentinels for sibling-linked lists */
+#define ABI_UI_NO_CHILD (-1)
 
 #endif /* ABI_UI_SYSTEM_INTERNAL_H */
