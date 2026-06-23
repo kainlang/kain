@@ -1,0 +1,42 @@
+version: 1
+id: kain.native.core.proofs.ui_color_hex_nibble_expand
+kind: find_counterexample
+description: >-
+  Hex nibble expansion in #RGB shorthand is correct: for each nibble in [0,15],
+  nibble * 17 == (nibble << 4) | nibble, expanding a 4-bit value to an 8-bit
+  byte with the nibble duplicated in both nybbles. This proves the three-digit
+  hex color parsing in ui_parse_color_hex is arithmetically correct.
+tags:
+- ui
+- color
+- hex
+- arithmetic
+- invariant
+source:
+  path: runtime/native/src/ui/ui_color.c
+  symbol: ui_parse_color_hex
+  start_line: 10
+  reason: >-
+    The #RGB shorthand multiplies each parsed nibble by 17 to expand it to
+    a full byte. This proof confirms the arithmetic works for all valid
+    nibble values, ensuring #RGB colors map to the correct 0xRRGGBB values.
+case:
+  declarations:
+  - name: nibble
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args: [nibble, 0]
+  - op: le
+    args: [nibble, 15]
+  claim:
+    op: eq
+    args:
+    - op: mul
+      args: [nibble, 17]
+    - op: add
+      args:
+      - op: shl
+        args: [nibble, 4]
+      - nibble

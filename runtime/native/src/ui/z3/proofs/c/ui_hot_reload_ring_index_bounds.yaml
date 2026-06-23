@@ -1,0 +1,49 @@
+version: 1
+id: ui.kain_ui_hot_reload_ring_index_bounds
+kind: find_counterexample
+description: Ring index computed as (seq & KAIN_UI_HOT_RELOAD_RING_MASK) is always less than KAIN_UI_HOT_RELOAD_RING_CAPACITY for any 64-bit sequence number
+tags:
+- hot-reload
+- ring-buffer
+- bounds
+- invariant
+source:
+  path: runtime/native/src/ui/ui_hot_reload.c
+  language: c
+  symbol: kain_ui_hot_reload_channel_push_event
+  start_line: 149
+  end_line: 163
+  template_id: generic-size-add
+  template_origin: custom
+  reason: Ring index computed via bitwise mask must stay within ring array bounds
+case:
+  size_bits: 64
+  declarations:
+  - name: seq
+    sort:
+      kind: bv64
+  - name: ring_capacity
+    sort:
+      kind: int
+      value: 128
+  - name: ring_mask
+    sort:
+      kind: int
+      value: 127
+  constraints:
+  - op: eq
+    args:
+    - ring_mask
+    - 127
+  - op: eq
+    args:
+    - ring_capacity
+    - 128
+  claim:
+    op: lt
+    args:
+    - op: bvand
+      args:
+      - seq
+      - ring_mask
+    - ring_capacity

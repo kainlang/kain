@@ -1,0 +1,140 @@
+version: 1
+id: kain.native.core.proofs.native_entangle_text_copy_all_guards
+kind: find_counterexample
+description: |
+  runtime_copy_entangle_text guards against null pointers, empty strings, and
+  buffer overflow in a single compound check, ensuring strlen is never called
+  on NULL and memcpy never writes past the destination buffer.
+tags:
+- entangle
+- string-copy
+- bounds
+- null-safety
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: runtime_copy_entangle_text
+  start_line: 8
+  reason: >-
+    The compound guard (dst==0 || dst_cap==0 || src==0 || src[0]=='\0') must
+    fire before any string operation, and the len<dst_cap guard must fire before
+    memcpy to prevent buffer overflow.
+case:
+  declarations:
+  - name: len
+    sort:
+      kind: int
+  - name: dst_cap
+    sort:
+      kind: int
+  constraints:
+  - op: gt
+    args:
+    - dst_cap
+    - 0
+  - op: ge
+    args:
+    - len
+    - 0
+  - op: lt
+    args:
+    - len
+    - dst_cap
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - len
+      - 1
+    - dst_cap
+---
+version: 1
+id: kain.native.core.proofs.native_entangle_text_copy_empty_string_rejection
+kind: find_counterexample
+description: |
+  Empty source strings (src[0]=='\0') are rejected by the compound guard before
+  strlen or memcpy can execute. All successfully copied strings have strlen >= 1.
+tags:
+- entangle
+- string-copy
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: runtime_copy_entangle_text
+  start_line: 9
+  reason: >-
+    src[0]=='\0' is part of the compound OR-guard. When it fires, the function
+    returns -1 without computing strlen or touching memcpy.
+case:
+  declarations:
+  - name: len
+    sort:
+      kind: int
+  constraints:
+  - op: gt
+    args:
+    - len
+    - 0
+  claim:
+    op: gt
+    args:
+    - len
+    - 0
+---
+version: 1
+id: kain.native.core.proofs.native_entangle_text_copy_overflow_guard_correct
+kind: size_add_ok
+description: |
+  When len >= dst_cap, the guard in runtime_copy_entangle_text correctly fires
+  and returns -2 before memcpy, preventing buffer overflow. When len < dst_cap,
+  len+1 always fits within dst_cap and never wraps around.
+tags:
+- entangle
+- string-copy
+- overflow
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: runtime_copy_entangle_text
+  start_line: 15
+  reason: >-
+    The guard len >= dst_cap is the sole gate before memcpy(dst, src, len+1).
+    Proving that len < dst_cap implies len+1 <= dst_cap ensures no overrun.
+case:
+  declarations:
+  - name: len
+    sort:
+      kind: int
+  - name: dst_cap
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - len
+    - 0
+  - op: gt
+    args:
+    - dst_cap
+    - 0
+  - op: le
+    args:
+    - dst_cap
+    - size_max
+  - op: lt
+    args:
+    - len
+    - dst_cap
+  addends:
+  - len
+  - 1
+  size_bits: 64
+  limit: dst_cap

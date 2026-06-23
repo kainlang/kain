@@ -6,6 +6,7 @@
 private/
 *.zip
 *.rar
+.logs/
 .pi/
 .agents/
 AGENTS.md

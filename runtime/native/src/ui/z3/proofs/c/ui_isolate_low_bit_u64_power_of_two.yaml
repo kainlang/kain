@@ -1,0 +1,32 @@
+version: 1
+id: ui.abi_ui_isolate_low_bit_u64_power_of_two
+kind: check_smt2
+description: abi_ui_isolate_low_bit_u64 returns either 0 or a power of two (2^k for some k).
+  The formula value & -value (two's complement) isolates the lowest set bit.
+tags:
+- native-ui
+- occupancy
+- bitset
+- bitwise
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: abi_ui_isolate_low_bit_u64
+  signature: "static uint64_t abi_ui_isolate_low_bit_u64(uint64_t value) {"
+  start_line: 29
+  end_line: 31
+  reason: The occupancy bitset allocator relies on this function to find free slots. If it produced a non-power-of-two value, the de Bruijn lookup would return an incorrect index.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-fun value () (_ BitVec 64))
+    (assert (not (= value #x0000000000000000)))
+    (define-const neg_value (_ BitVec 64) (bvsub #x0000000000000000 value))
+    (define-const result (_ BitVec 64) (bvand value neg_value))
+    (define-const result_minus_one (_ BitVec 64) (bvsub result #x0000000000000001))
+    (define-const is_power_of_two (_ BitVec 64) (bvand result result_minus_one))
+    (assert (not (= is_power_of_two #x0000000000000000)))
+    (check-sat)
+  include_model: false
+  include_stats: false

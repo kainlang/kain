@@ -1,0 +1,50 @@
+version: 1
+id: kain.native.core.proofs.ownership_occupancy_word_bounds
+kind: find_counterexample
+description: The occupancy bitfield uses word_index = slot / 64 and word_bit = slot % 64.
+  With MAX_REGIONS = 4096, slot is always in [0, 4095], so word_index is always in [0, 63]
+  which is within the WORD_COUNT = 64 occupancy word array.
+tags:
+- ownership
+- occupancy
+- bounds
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_find_free_slot
+  start_line: 219
+  reason: occupancy word array access must stay within bounds
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 0
+  - op: lt
+    args:
+    - slot
+    - 4096
+  claim:
+    op: and
+    args:
+    - op: lt
+      args:
+      - op: div
+        args:
+        - slot
+        - 64
+      - 64
+    - op: lt
+      args:
+      - op: mod
+        args:
+        - slot
+        - 64
+      - 64
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-occupancy-word-bounds.smt2

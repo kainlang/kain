@@ -1,0 +1,31 @@
+version: 1
+id: ui.abi_ui_event_head_tail_mask_bounds
+kind: check_smt2
+description: The event ring buffer head and tail pointers always stay in [0, ABI_UI_MAX_EVENTS-1]
+  because both are computed as (ptr + 1) & (ABI_UI_MAX_EVENTS - 1), where ABI_UI_MAX_EVENTS
+  is a power of two (1024).
+tags:
+- native-ui
+- event-system
+- ring-buffer
+- bounds
+- bitwise
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: "abi_ui_push_event, abi_ui_poll_event"
+  start_line: 1504
+  end_line: 1548
+  reason: The AND-mask wrapping is a standard ring-buffer technique. Since capacity is a power of two, the mask (capacity-1) guarantees the result is always < capacity.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-const MASK (_ BitVec 64) #x00000000000003FF)
+    (define-const MAX_EVENTS (_ BitVec 64) #x0000000000000400)
+    (declare-fun ptr () (_ BitVec 64))
+    (define-const ptr_after_inc (_ BitVec 64) (bvand (bvadd ptr #x0000000000000001) MASK))
+    (assert (bvuge ptr_after_inc MAX_EVENTS))
+    (check-sat)
+  include_model: false
+  include_stats: false

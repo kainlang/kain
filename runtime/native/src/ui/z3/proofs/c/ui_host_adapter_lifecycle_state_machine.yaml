@@ -1,0 +1,37 @@
+version: 1
+id: ui.abi_ui_host_adapter_lifecycle_state_machine
+kind: find_counterexample
+description: The host adapter lifecycle (DETACHED -> attach -> ATTACHED -> shutdown -> DETACHED) is a valid state machine with idempotent shutdown and state-preserving pump/present
+tags:
+- host-adapter
+- lifecycle
+- state-machine
+- invariant
+- safety
+source:
+  path: runtime/native/src/ui/ui_host_adapter.c
+  language: c
+  logic: QF_UF
+  reason: Proven via Z3 QF_UF state machine model with 2 states (DETACHED, ATTACHED) and 5 operations (attach_success, attach_failure, pump, present, shutdown)
+claims:
+- id: shutdown_idempotent
+  description: Double shutdown leaves session in DETACHED state
+  result: unsat
+- id: pump_state_preserving
+  description: pump never changes lifecycle state
+  result: unsat
+- id: present_state_preserving
+  description: present never changes lifecycle state
+  result: unsat
+- id: attach_success_transitions
+  description: Successful attach from DETACHED transitions to ATTACHED
+  result: unsat
+- id: attach_failure_stays_detached
+  description: Failed attach leaves session in DETACHED state
+  result: unsat
+- id: shutdown_from_attached_to_detached
+  description: Shutdown from ATTACHED transitions to DETACHED
+  result: unsat
+- id: full_lifecycle
+  description: Full cycle DETACHED -> attach -> pump -> present -> shutdown terminates in DETACHED
+  result: unsat

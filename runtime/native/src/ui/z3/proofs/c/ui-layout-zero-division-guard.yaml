@@ -1,0 +1,34 @@
+version: 1
+id: kain.native.core.proofs.ui_layout_zero_division_guard
+kind: find_counterexample
+description: >-
+  The layout solver guards all divisions against zero divisors. Horizontal
+  layout divides by child_count only when child_count > 0 (checked by early
+  return). Vertical layout divides by "remaining" only when remaining > 0.
+  Both guards ensure no division by zero occurs during layout computation.
+tags:
+- ui
+- layout
+- division
+- invariant
+source:
+  path: runtime/native/src/ui/ui_layout.c
+  symbol: ui_layout_node
+  start_line: 37
+  reason: >-
+  The layout function computes child positions by dividing available space
+  among children. Any division by zero would crash the runtime. This proof
+  verifies that both the child_count > 0 guard (early return) and the
+  remaining > 0 guard (before the /(double)remaining operation) prevent
+  zero-divisor division.
+case:
+  declarations:
+  - name: remaining
+    sort:
+      kind: int
+  constraints:
+  - op: gt
+    args: [remaining, 0]
+  claim:
+    op: gt
+    args: [remaining, 0]

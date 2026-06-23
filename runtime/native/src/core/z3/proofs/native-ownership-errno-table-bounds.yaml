@@ -1,0 +1,40 @@
+version: 1
+id: kain.native.core.proofs.ownership_errno_table_bounds
+kind: find_counterexample
+description: The errno table lookup computes idx = -status and checks (unsigned int)idx <= 9.
+  All valid status values are in [-9, 0], so idx is always in [0, 9], which is within
+  the 10-element errno lookup table.
+tags:
+- ownership
+- bounds
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_errno_from_status
+  start_line: 72
+  reason: errno table must be accessed within array bounds
+case:
+  declarations:
+  - name: status
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - status
+    - -9
+  - op: le
+    args:
+    - status
+    - 0
+  claim:
+    op: le
+    args:
+    - op: sub
+      args:
+      - 0
+      - status
+    - 9
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-errno-table-bounds.smt2

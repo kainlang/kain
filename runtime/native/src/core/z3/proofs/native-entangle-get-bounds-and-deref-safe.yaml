@@ -1,0 +1,97 @@
+version: 1
+id: kain.native.core.proofs.native_entangle_get_bounds_and_deref_safe
+kind: find_counterexample
+description: |
+  entangle_registry_get guards against null output pointer and out-of-bounds
+  index in a single compound check. When both guards pass, index is guaranteed
+  to be less than the binding count (which is at most MAX_BINDINGS = 128),
+  ensuring the array dereference and output pointer write are safe.
+tags:
+- entangle
+- registry
+- bounds
+- null-safety
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: entangle_registry_get
+  start_line: 79
+  reason: >-
+    The compound guard (out_binding==0 || index >= count) catches both null
+    pointer dereference and out-of-bounds array access before the store to
+    *out_binding occurs. After the guard passes, index < count <= 128.
+case:
+  declarations:
+  - name: index
+    sort:
+      kind: int
+  - name: count
+    sort:
+      kind: int
+  - name: max_bindings
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_bindings
+    - 128
+  - op: ge
+    args:
+    - count
+    - 0
+  - op: le
+    args:
+    - count
+    - max_bindings
+  - op: ge
+    args:
+    - index
+    - 0
+  - op: lt
+    args:
+    - index
+    - count
+  claim:
+    op: lt
+    args:
+    - index
+    - max_bindings
+---
+version: 1
+id: kain.native.core.proofs.native_entangle_get_count_readonly
+kind: find_counterexample
+description: |
+  entangle_registry_get is a pure read-only operation: it never modifies the
+  binding count or the bindings array. It only writes to the caller-provided
+  output pointer.
+tags:
+- entangle
+- registry
+- readonly
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: entangle_registry_get
+  start_line: 79
+  reason: >-
+  The function contains no assignments to g_kain_entangle_binding_count or
+  g_kain_entangle_bindings. The only mutation is *out_binding.
+case:
+  declarations:
+  - name: count
+    sort:
+      kind: int
+  - name: count_after
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - count
+    - count_after
+  claim:
+    op: eq
+    args:
+    - count
+    - count_after

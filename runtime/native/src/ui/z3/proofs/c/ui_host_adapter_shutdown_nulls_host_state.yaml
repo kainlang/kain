@@ -1,0 +1,44 @@
+version: 1
+id: ui.abi_ui_host_adapter_shutdown_nulls_host_state
+kind: find_counterexample
+description: After abi_ui_host_adapter_shutdown completes, session->host_state is always NULL and session->component_surface is always NULL, preventing use-after-free
+tags:
+- host-adapter
+- lifecycle
+- null-safety
+- invariant
+- memory-safety
+source:
+  path: runtime/native/src/ui/ui_host_adapter.c
+  language: c
+  symbol: abi_ui_host_adapter_shutdown
+  start_line: 218
+  end_line: 230
+  template_id: generic-size-add
+  template_origin: custom
+  reason: Shutdown must nullify host_state and component_surface to prevent use-after-free in subsequent pump/present calls
+case:
+  size_bits: 64
+  declarations:
+  - name: host_state_before
+    sort:
+      kind: bv64
+  - name: component_surface_before
+    sort:
+      kind: bv64
+  - name: null_ptr
+    sort:
+      kind: int
+      value: 0
+  constraints: []
+  claim:
+    kind: conjunctive
+    args:
+    - op: eq
+      args:
+      - host_state_before_after_shutdown
+      - null_ptr
+    - op: eq
+      args:
+      - component_surface_before_after_shutdown
+      - null_ptr

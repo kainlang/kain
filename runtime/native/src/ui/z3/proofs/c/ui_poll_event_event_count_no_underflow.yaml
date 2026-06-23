@@ -1,0 +1,30 @@
+version: 1
+id: ui.abi_ui_poll_event_event_count_no_underflow
+kind: check_smt2
+description: The event ring buffer count never underflows because abi_ui_poll_event
+  only decrements when event_count > 0.
+tags:
+- native-ui
+- event-system
+- ring-buffer
+- bounds
+- underflow
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: abi_ui_poll_event
+  signature: "int64_t abi_ui_poll_event(int64_t session_id) {"
+  start_line: 1533
+  end_line: 1548
+  reason: The poll function checks session->event_count <= 0 before dequeuing. If the count is zero, it returns immediately without decrementing, preventing unsigned underflow.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-fun count () (_ BitVec 64))
+    (assert (bvugt count #x0000000000000000))
+    (define-const count_after_poll (_ BitVec 64) (bvsub count #x0000000000000001))
+    (assert (bvuge count_after_poll count))
+    (check-sat)
+  include_model: false
+  include_stats: false

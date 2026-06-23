@@ -1,0 +1,88 @@
+version: 1
+id: kain.native.core.proofs.ui_color_rgba_bitfield_no_overlap
+kind: find_counterexample
+description: >-
+  The RGBA color packing into uint32_t uses non-overlapping bit positions:
+  Alpha in bits 24-31, Red in bits 16-23, Green in bits 8-15, Blue in bits 0-7.
+  Each 8-bit lane is isolated, so component extraction recovers original values
+  and modifying one component does not affect others.
+tags:
+- ui
+- color
+- bitfield
+- invariant
+source:
+  path: runtime/native/src/ui/ui_color.c
+  symbol: ui_parse_color
+  start_line: 1
+  reason: >-
+    Every color parsing function and color accessor relies on the 0xAARRGGBB
+    layout. Proving the bit positions are non-overlapping guarantees that
+    component extraction (ui_color_r/g/b/a) and opacity application
+    (ui_color_with_opacity) produce correct results for all valid inputs.
+case:
+  declarations:
+  - name: r
+    sort:
+      kind: int
+  - name: g
+    sort:
+      kind: int
+  - name: b
+    sort:
+      kind: int
+  - name: a
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args: [r, 0]
+  - op: le
+    args: [r, 255]
+  - op: ge
+    args: [g, 0]
+  - op: le
+    args: [g, 255]
+  - op: ge
+    args: [b, 0]
+  - op: le
+    args: [b, 255]
+  - op: ge
+    args: [a, 0]
+  - op: le
+    args: [a, 255]
+  claim:
+    op: and
+    args:
+    - op: eq
+      args:
+      - op: extract
+        args:
+        - ui_color_r
+        - op: pack_rgba
+          args: [a, r, g, b]
+      - r
+    - op: eq
+      args:
+      - op: extract
+        args:
+        - ui_color_g
+        - op: pack_rgba
+          args: [a, r, g, b]
+      - g
+    - op: eq
+      args:
+      - op: extract
+        args:
+        - ui_color_b
+        - op: pack_rgba
+          args: [a, r, g, b]
+      - b
+    - op: eq
+      args:
+      - op: extract
+        args:
+        - ui_color_a
+        - op: pack_rgba
+          args: [a, r, g, b]
+      - a

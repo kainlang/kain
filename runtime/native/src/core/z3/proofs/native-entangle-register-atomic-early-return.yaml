@@ -1,0 +1,182 @@
+version: 1
+id: kain.native.core.proofs.native_entangle_register_atomic_early_return
+kind: find_counterexample
+description: |
+  entangle_registry_register only modifies global state (count and bindings
+  array) after all four text copy operations succeed. Any copy failure causes
+  an early return with no side effects on global state.
+tags:
+- entangle
+- registry
+- atomicity
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: entangle_registry_register
+  start_line: 31
+  reason: >-
+    The four runtime_copy_entangle_text calls each have their own error check.
+    If any returns non-zero, the function returns immediately without executing
+    the array store or count increment. Only when all four succeed is global
+    state modified.
+case:
+  declarations:
+  - name: pre_count
+    sort:
+      kind: int
+  declarations:
+  - name: auth_ok
+    sort:
+      kind: bool
+  - name: mirror_ok
+    sort:
+      kind: bool
+  - name: policy_ok
+    sort:
+      kind: bool
+  - name: type_ok
+    sort:
+      kind: bool
+  constraints:
+  - op: eq
+    args:
+    - pre_count
+    - 0
+  - op: eq
+    args:
+    - auth_ok
+    - false
+  claim:
+    op: eq
+    args:
+    - pre_count
+    - 0
+---
+version: 1
+id: kain.native.core.proofs.native_entangle_register_count_post_invariant
+kind: find_counterexample
+description: |
+  After a successful registration (all four copies succeed and count < 128),
+  the new count equals old_count + 1 and is at most 128 (MAX_BINDINGS).
+tags:
+- entangle
+- registry
+- capacity
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: entangle_registry_register
+  start_line: 31
+  reason: >-
+    The count guard (count >= MAX_BINDINGS -> -3) plus the four copy-atom checks
+    ensure count only advances when there is capacity remaining. After increment,
+    count cannot exceed MAX_BINDINGS.
+case:
+  declarations:
+  - name: count
+    sort:
+      kind: int
+  - name: max_bindings
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_bindings
+    - 128
+  - op: ge
+    args:
+    - count
+    - 0
+  - op: lt
+    args:
+    - count
+    - max_bindings
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - count
+      - 1
+    - max_bindings
+---
+version: 1
+id: kain.native.core.proofs.native_entangle_register_return_codes_distinct
+kind: find_counterexample
+description: |
+  The three error return codes (-1, -2, -3) and the success code (0) from
+  entangle_registry_register are all distinct. Callers can differentiate
+  between "invalid parameter" (-1), "string too long" (-2), and "registry
+  full" (-3).
+tags:
+- entangle
+- registry
+- error-handling
+- invariant
+source:
+  path: runtime/native/src/core/entangle.c
+  symbol: entangle_registry_register
+  start_line: 39
+  reason: >-
+    -1 is returned by runtime_copy_entangle_text for null/empty inputs,
+    -2 for strings exceeding the buffer, and -3 when the registry is full.
+    Distinct codes enable precise error diagnosis.
+case:
+  declarations:
+  - name: err_registry_full
+    sort:
+      kind: int
+  - name: err_text_too_long
+    sort:
+      kind: int
+  - name: err_invalid_param
+    sort:
+      kind: int
+  - name: ok_success
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - err_registry_full
+    - -3
+  - op: eq
+    args:
+    - err_text_too_long
+    - -2
+  - op: eq
+    args:
+    - err_invalid_param
+    - -1
+  - op: eq
+    args:
+    - ok_success
+    - 0
+  claim:
+    op: and
+    args:
+    - op: ne
+      args:
+      - err_registry_full
+      - err_text_too_long
+    - op: ne
+      args:
+      - err_registry_full
+      - err_invalid_param
+    - op: ne
+      args:
+      - err_registry_full
+      - ok_success
+    - op: ne
+      args:
+      - err_text_too_long
+      - err_invalid_param
+    - op: ne
+      args:
+      - err_text_too_long
+      - ok_success
+    - op: ne
+      args:
+      - err_invalid_param
+      - ok_success

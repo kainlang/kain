@@ -1,0 +1,39 @@
+version: 1
+id: kain.native.core.proofs.ownership_observer_count_underflow_guard
+kind: find_counterexample
+description: end_observe_slot_unlocked decrements observers only when observers > 0,
+  so the next count cannot underflow (wrap to UINT32_MAX).
+tags:
+- ownership
+- state-machine
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_end_observe_slot_unlocked
+  start_line: 268
+  reason: observer count underflow guard before observers--
+case:
+  declarations:
+  - name: observers
+    sort:
+      kind: int
+  constraints:
+  - op: gt
+    args:
+    - observers
+    - 0
+  - op: le
+    args:
+    - observers
+    - 4294967295
+  claim:
+    op: lt
+    args:
+    - op: sub
+      args:
+      - observers
+      - 1
+    - observers
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-observer-count-underflow-guard.smt2

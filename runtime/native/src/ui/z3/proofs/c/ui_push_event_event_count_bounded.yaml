@@ -1,0 +1,30 @@
+version: 1
+id: ui.abi_ui_push_event_event_count_bounded
+kind: check_smt2
+description: The event ring buffer count never exceeds ABI_UI_MAX_EVENTS (1024)
+  because abi_ui_push_event guards the push with a capacity check.
+tags:
+- native-ui
+- event-system
+- ring-buffer
+- bounds
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: abi_ui_push_event
+  signature: "int64_t abi_ui_push_event(\n    int64_t session_id,\n    const char* kind,\n    int64_t target_node_id,\n    double x,\n    double y,\n    int64_t key_code,\n    const char* text\n) {"
+  start_line: 1504
+  end_line: 1531
+  reason: The event ring buffer is a fixed-size circular buffer. Without guarding the push, an overflow would overwrite unprocessed events. The guard session->event_count >= ABI_UI_MAX_EVENTS prevents this.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-const MAX_EVENTS (_ BitVec 64) #x0000000000000400)
+    (declare-fun count () (_ BitVec 64))
+    (assert (bvult count MAX_EVENTS))
+    (define-const count_after_push (_ BitVec 64) (bvadd count #x0000000000000001))
+    (assert (bvugt count_after_push MAX_EVENTS))
+    (check-sat)
+  include_model: false
+  include_stats: false

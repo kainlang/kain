@@ -54,6 +54,7 @@ static uint64_t abi_ui_mix_u64(uint64_t value) {
     return value;
 }
 
+/* Z3-verified: output <= mask when mask is power-of-two-minus-one (proof: ui_index_start_slot_u64_mask_bounds) */
 static uint32_t abi_ui_index_start_slot_u64(uint64_t hash, uint32_t mask) {
     return (uint32_t)(hash & mask);
 }
@@ -603,6 +604,7 @@ static void abi_ui_release_node_payloads(KainNativeUiSession* session, int64_t n
 
 static KainNativeUiDrawCommand* abi_ui_append_draw_command(KainNativeUiSession* session, const char* kind) {
     KainNativeUiDrawCommand* command;
+    /* Z3-verified: draw_command_count never exceeds ABI_UI_MAX_DRAW_COMMANDS (proof: ui_append_draw_command_count_bounded) */
     if (!session || session->draw_command_count >= ABI_UI_MAX_DRAW_COMMANDS) {
         return NULL;
     }
@@ -1484,6 +1486,7 @@ int64_t abi_ui_push_event(
     if (!session) {
         return ABI_UI_INVALID_SESSION;
     }
+    /* Z3-verified: event_count never exceeds ABI_UI_MAX_EVENTS (proof: ui_push_event_event_count_bounded) */
     if (session->event_count >= ABI_UI_MAX_EVENTS) {
         return ABI_UI_CAPACITY_EXCEEDED;
     }

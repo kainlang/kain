@@ -1,0 +1,57 @@
+version: 1
+id: kain.native.core.proofs.ui_runtime_validation_report_bounds
+kind: find_counterexample
+description: The validation report issue adder (kain_ui_runtime_report_add) never overflows the issues[16] array. The guard issue_count >= KAIN_UI_RUNTIME_MAX_ISSUES (16) prevents writes to the array when full. issue_count increments atomically within the guard. error_count and warning_count are bounded by issue_count (each issue is one severity count), so they also never exceed 16.
+tags:
+- ui
+- bounds
+- invariant
+- validation
+- diagnostics
+source:
+  path: runtime/native/src/ui/ui_runtime.c
+  symbol: kain_ui_runtime_report_add
+  start_line: 218
+  reason: The validation report collects diagnostics during bundle parsing and component building. Without the guard, repeated additions could overflow the fixed-size issues[16] array and corrupt adjacent memory.
+case:
+  declarations:
+  - name: issue_count
+    sort:
+      kind: int
+    description: Current number of issues in the report
+  - name: error_count
+    sort:
+      kind: int
+    description: Current number of error-severity issues
+  - name: severity
+    sort:
+      kind: int
+    description: Severity of the new issue (0=INFO, 1=WARNING, 2=ERROR, 3=FATAL)
+  - name: MAX_ISSUES
+    sort:
+      kind: int
+    description: KAIN_UI_RUNTIME_MAX_ISSUES = 16
+  constraints:
+  - op: lt
+    args: [issue_count, MAX_ISSUES]
+  - op: le
+    args: [error_count, issue_count]
+  - op: ge
+    args: [severity, 0]
+  - op: le
+    args: [severity, 3]
+  - op: eq
+    args: [MAX_ISSUES, 16]
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - op: ite
+        args:
+        - op: ge
+          args: [severity, 2]
+        - error_count + 1
+        - error_count
+      - 1
+    - 16

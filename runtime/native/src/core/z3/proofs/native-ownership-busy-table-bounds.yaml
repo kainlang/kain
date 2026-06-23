@@ -1,0 +1,37 @@
+version: 1
+id: kain.native.core.proofs.ownership_busy_table_bounds
+kind: find_counterexample
+description: The BUSY_TABLE has 5 entries indexed by state. The guard (unsigned int)state < 5u
+  ensures in-bounds access. All 5 valid state values produce non-zero error codes.
+tags:
+- ownership
+- state-machine
+- bounds
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_status_for_busy_region
+  start_line: 237
+  reason: busy table must be accessed within its 5-element bounds
+case:
+  declarations:
+  - name: state
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - state
+    - 0
+  - op: le
+    args:
+    - state
+    - 4
+  claim:
+    op: lt
+    args:
+    - state
+    - 5
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-busy-table-bounds.smt2

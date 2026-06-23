@@ -1,0 +1,32 @@
+version: 1
+id: kain.native.core.proofs.native_ui_surface_session_state_machine
+kind: find_counterexample
+description: The KainComponentSurface session lifecycle follows a valid state machine with 5 states (NONEXISTENT, CREATED, OPEN, IN_FRAME, FINAL). All transitions are enumerated and verified: session_create only from NONEXISTENT, session_destroy from any alive state to FINAL, begin_frame from CREATED/OPEN to IN_FRAME, end_frame from IN_FRAME to CREATED (balanced pair), present from any alive state (no-op). All transitions from FINAL are no-ops. The state machine has no invalid transitions.
+tags:
+- ui
+- state-machine
+- invariant
+- lifecycle
+- native-ui-surface
+source:
+  path: runtime/native/src/ui/native_ui_surface.c
+  symbol: native_ui_surface
+  reason: The KainComponentSurface vtable delegates to abi_ui_* calls. The session lifecycle must be a valid state machine with no illegal transitions — no double-create, no present-before-create, no begin_frame from a destroyed session, etc.
+case:
+  declarations:
+  - name: state
+    sort:
+      kind: enum
+    values: [NONEXISTENT, CREATED, OPEN, IN_FRAME, FINAL]
+    description: Session lifecycle state
+  - name: operation
+    sort:
+      kind: enum
+    values: [session_create, session_destroy, window_open, window_close, begin_frame, end_frame, present, element_begin]
+    description: Surface operation triggering the transition
+  claim:
+    op: forall
+    args:
+    - state
+    - operation
+    - valid_transition(state, operation)

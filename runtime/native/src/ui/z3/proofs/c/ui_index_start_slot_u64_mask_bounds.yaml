@@ -1,0 +1,33 @@
+version: 1
+id: ui.abi_ui_index_start_slot_u64_mask_bounds
+kind: check_smt2
+description: abi_ui_index_start_slot_u64 always produces an index in [0, mask]
+  because it computes hash & mask, where mask is always a power-of-two-minus-one
+  (e.g., ABI_UI_NODE_INDEX_MASK = 4095, ABI_UI_STYLE_INDEX_MASK = 8191).
+tags:
+- native-ui
+- index-table
+- bounds
+- bitwise
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: abi_ui_index_start_slot_u64
+  signature: "static uint32_t abi_ui_index_start_slot_u64(uint64_t hash, uint32_t mask) {"
+  start_line: 88
+  end_line: 90
+  reason: All index tables (node, style, state, resource, menu, dialog, stable_key) use this function to compute the start slot. The AND-mask with a power-of-two-minus-one guarantees the result is always within bounds.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-fun hash () (_ BitVec 64))
+    (declare-fun mask () (_ BitVec 64))
+    (define-const mask_plus_one (_ BitVec 64) (bvadd mask #x0000000000000001))
+    (assert (not (= mask_plus_one #x0000000000000000)))
+    (assert (= (bvand mask_plus_one mask) #x0000000000000000))
+    (define-const result (_ BitVec 64) (bvand hash mask))
+    (assert (bvugt result mask))
+    (check-sat)
+  include_model: false
+  include_stats: false

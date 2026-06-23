@@ -1,0 +1,55 @@
+version: 1
+id: kain.native.core.proofs.ownership_pointer_index_probe_in_bounds
+kind: find_counterexample
+description: The pointer index table uses open-addressing probing where candidate_index =
+  (index + probe) & INDEX_MASK. Since INDEX_CAPACITY = 8192 is a power of two, the mask
+  guarantees every probe stays within [0, 8191], ensuring no out-of-bounds array access.
+tags:
+- ownership
+- pointer-index
+- bounds
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_index_insert_unlocked
+  start_line: 118
+  reason: hash probe must always produce in-bounds array index
+case:
+  declarations:
+  - name: index
+    sort:
+      kind: int
+  - name: probe
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - index
+    - 0
+  - op: le
+    args:
+    - index
+    - 8191
+  - op: ge
+    args:
+    - probe
+    - 0
+  - op: le
+    args:
+    - probe
+    - 8191
+  claim:
+    op: lt
+    args:
+    - op: band
+      args:
+      - op: add
+        args:
+        - index
+        - probe
+      - 8191
+    - 8192
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-pointer-index-probe-bounds.smt2

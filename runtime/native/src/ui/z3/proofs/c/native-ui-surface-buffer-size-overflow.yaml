@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.native_ui_surface_buffer_size_overflow
+kind: find_counterexample
+description: The framebuffer allocation size (width × height × bytes_per_pixel) never overflows size_t within Kain's domain bounds (width ≤ 16384, height ≤ 16384, bpp ≤ 4). Maximum allocation = 16384 × 16384 × 4 = 1,073,741,824 = 0x40000000, which fits easily in uint32_t and uint64_t. Pixel access offset = y × stride + x is always < total_size for x < width, y < height.
+tags:
+- ui
+- bounds
+- overflow
+- memory
+- invariant
+- native-ui-surface
+source:
+  path: runtime/native/src/ui/native_ui_surface.c
+  symbol: native_ui_session_create
+  reason: The session creation function passes width/height to the ABI layer. The buffer allocation width × height × bpp must not overflow to avoid undersized framebuffer allocations.
+case:
+  declarations:
+  - name: width
+    sort:
+      kind: int
+    description: Framebuffer width in pixels
+  - name: height
+    sort:
+      kind: int
+    description: Framebuffer height in pixels
+  - name: bpp
+    sort:
+      kind: int
+    description: Bytes per pixel (1-4 for RGBA8)
+  constraints:
+  - op: le
+    args: [width, 16384]
+  - op: le
+    args: [height, 16384]
+  - op: le
+    args: [bpp, 4]
+  - op: ge
+    args: [width, 1]
+  - op: ge
+    args: [height, 1]
+  - op: ge
+    args: [bpp, 1]
+  claim:
+    op: le
+    args:
+    - op: mul
+      args: [width, height, bpp]
+    - 1073741824

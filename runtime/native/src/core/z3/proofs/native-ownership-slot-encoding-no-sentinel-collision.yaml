@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.ownership_slot_encoding_no_sentinel_collision
+kind: find_counterexample
+description: The pointer index table encodes slots as slot+1. For all valid slots in
+  [0, 4095], the encoded value is never 0 (empty sentinel) and never UINT32_MAX (INDEX_TOMBSTONE).
+tags:
+- ownership
+- pointer-index
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_index_insert_unlocked
+  start_line: 118
+  reason: slot+1 encoding must not collide with sentinel values 0 or UINT32_MAX
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 0
+  - op: lt
+    args:
+    - slot
+    - 4096
+  claim:
+    op: and
+    args:
+    - op: ne
+      args:
+      - op: add
+        args:
+        - slot
+        - 1
+      - 0
+    - op: ne
+      args:
+      - op: add
+        args:
+        - slot
+        - 1
+      - 4294967295
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-slot-encoding-no-sentinel-collision.smt2

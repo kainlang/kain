@@ -1,0 +1,44 @@
+version: 1
+id: kain.native.core.proofs.ui_compiled_bundle_node_count_bounded
+kind: find_counterexample
+description: >-
+  The compiled bundle node count is bounded by KAIN_UI_COMPILED_BUNDLE_MAX_NODES
+  (128). The JSON parse loop guards against exceeding this limit before any
+  array store, and all subsequent node-count-based loops (find_node_index_by_id,
+  compute_node_depth, find_first_kind) iterate within [0, node_count).
+tags:
+- ui
+- bundle
+- bounds
+- invariant
+source:
+  path: runtime/native/src/ui/ui_compiled_bundle.c
+  symbol: kain_ui_compiled_bundle_load_from_json
+  start_line: 198
+  reason: >-
+    The bundle contains a fixed-size nodes[KAIN_UI_COMPILED_BUNDLE_MAX_NODES]
+    array. Every access to nodes[] is guarded by the node_count bound, either
+    by the parse loop guard (node_count < KAIN_UI_COMPILED_BUNDLE_MAX_NODES)
+    or by the linear search loops that iterate index < bundle->node_count.
+    Since node_count <= MAX_NODES and index < node_count, all array accesses
+    are within bounds.
+case:
+  declarations:
+  - name: node_count
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args: [node_count, 0]
+  - op: le
+    args: [node_count, 127]
+  claim:
+    op: and
+    args:
+    - op: le
+      args:
+      - op: add
+        args: [node_count, 1]
+      - 128
+    - op: le
+      args: [node_count, 128]

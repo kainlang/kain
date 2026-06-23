@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.ownership_deferred_decay_ring_bounded
+kind: find_counterexample
+description: The deferred decay ring buffer checks count < MAX_REGIONS before enqueuing,
+  and advances tail with modulo arithmetic that always produces a valid index.
+  Dequeue checks count > 0 before reading, and the head advance is also bounded.
+tags:
+- ownership
+- deferred-decay
+- bounds
+- invariant
+source:
+  path: runtime/native/src/core/ownership.c
+  symbol: kain_ownership_enqueue_deferred_decay_unlocked
+  start_line: 163
+  reason: ring buffer must not overflow MAX_REGIONS or access out-of-bounds
+case:
+  declarations:
+  - name: count
+    sort:
+      kind: int
+  - name: max_regions
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_regions
+    - 4096
+  - op: ge
+    args:
+    - count
+    - 0
+  - op: lt
+    args:
+    - count
+    - 4096
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - count
+      - 1
+    - 4096
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/ownership-deferred-decay-ring-bounded.smt2

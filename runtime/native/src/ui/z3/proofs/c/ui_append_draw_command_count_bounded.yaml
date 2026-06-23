@@ -1,0 +1,29 @@
+version: 1
+id: ui.abi_ui_append_draw_command_count_bounded
+kind: check_smt2
+description: The draw command count never exceeds ABI_UI_MAX_DRAW_COMMANDS (8192)
+  because abi_ui_append_draw_command guards the append with a capacity check.
+tags:
+- native-ui
+- draw-commands
+- bounds
+- invariant
+source:
+  path: X:/runtime/native/src/ui/ui_system.c
+  language: c
+  symbol: abi_ui_append_draw_command
+  signature: "static KainNativeUiDrawCommand* abi_ui_append_draw_command(KainNativeUiSession* session, const char* kind) {"
+  start_line: 662
+  end_line: 676
+  reason: The draw command array is statically allocated. Without the guard, appending past the end would cause a buffer overflow. The guard checks session->draw_command_count >= ABI_UI_MAX_DRAW_COMMANDS before appending.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-const MAX_DC (_ BitVec 64) #x0000000000002000)
+    (declare-fun count () (_ BitVec 64))
+    (assert (bvult count MAX_DC))
+    (define-const count_after_append (_ BitVec 64) (bvadd count #x0000000000000001))
+    (assert (bvugt count_after_append MAX_DC))
+    (check-sat)
+  include_model: false
+  include_stats: false
