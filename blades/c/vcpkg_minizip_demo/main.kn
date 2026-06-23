@@ -1,0 +1,49 @@
+// ============================================================================
+// vcpkg + minizip demo — create a zip file, proves pipeline end-to-end
+// ============================================================================
+//
+// Proves the full source-owned manifest pipeline:
+//   1. vcpkg fetches minizip 1.3.2 (transitively pulls zlib) via Strategy 6
+//   2. libclang extracts the header from the vcpkg-installed path
+//   3. Kain calls zipOpen → zipOpenNewFileInZip → zipCloseFileInZip → zipClose
+//   4. A real .zip file is created, exercising the full link chain
+//   5. Everything links against minizip.lib + z.lib → native .exe
+//
+// Build:
+//   KAIN_VCPKG_EXE=C:/Users/zenta/.kain/vcpkg/vcpkg.exe KAIN_C_FFI_AUTO_FETCH=1
+//   kain build X:/blades/c/vcpkg_minizip_demo/main.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+// vcpkg fetch: minizip 1.3.2 (has .lib, links against z.lib transitively)
+include <minizip/zip.h> 1.3.2
+
+const ZIP_FILENAME:   String = "kain_minizip_test.zip\0"
+const INNER_FILENAME: String = "hello.txt\0"
+
+fn main() -> Int with Unsafe:
+    let _ = runtime_init()
+
+    // ── Create a zip and add an entry ──
+    // zipOpen(pathname, append=0 means create new)
+    let zf: Any = zipOpen(ZIP_FILENAME, 0)
+    if zf == ptr_to_int(0):
+        runtime_shutdown()
+        return 1
+
+    // Open a new file entry inside the zip
+    // zipOpenNewFileInZip(file, filename, zipfi, extrafield, sizeextrafield,
+    //                     method, level, raw, windowBits, memLevel, strategy)
+    let ok: Int = zipOpenNewFileInZip(zf, INNER_FILENAME,
+        ptr_to_int(0), ptr_to_int(0), 0, ptr_to_int(0), 0, ptr_to_int(0), 0, 0, 0)
+    if ok != 0:
+        zipClose(zf, ptr_to_int(0))
+        runtime_shutdown()
+        return 2
+
+    let _ = zipCloseFileInZip(zf)
+    let _ = zipClose(zf, ptr_to_int(0))
+
+    runtime_shutdown()
+    return 0

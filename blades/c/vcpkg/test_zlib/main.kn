@@ -1,0 +1,14 @@
+// vcpkg inline test — zlib (no version for first smoke test)
+// `kain build blades/c/vcpkg/test_zlib/main.kn --target llvm`
+//
+// Demonstrates the source-owned manifest pipeline without a version pin
+// (vcpkg baseline resolves the port). Uses the `include ... as <alias>`
+// alias surface: `zlibCompileFlags` becomes `z_CompileFlags` at top level.
+
+include <zlib.h> as z
+
+fn main() -> Int with Unsafe, IO:
+    let flags = z_CompileFlags()
+    if flags == 0:
+        return 1
+    return 0

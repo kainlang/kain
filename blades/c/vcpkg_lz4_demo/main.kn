@@ -1,0 +1,34 @@
+// vcpkg + LZ4 demo — compresses and decompresses data
+// Build: KAIN_VCPKG_EXE=... KAIN_C_FFI_AUTO_FETCH=1
+//   kain build X:/blades/c/vcpkg_lz4_demo/main.kn --target llvm
+
+use std::runtime
+
+include <lz4.h> 1.10.0
+
+fn main() -> Int with Unsafe:
+    let _ = runtime_init()
+
+    let src: String = "Hello from Kain + vcpkg + LZ4!\0"
+    let src_size: Int = src.len() as Int
+    let dst_size: Int = LZ4_compressBound(src_size)
+
+    let dst: ptr<Int> = alloc_zeroed(dst_size, "Int")
+    let compressed: Int = LZ4_compress_default(ptr_to_int(0), ptr_to_int(dst), src_size, dst_size)
+    if compressed < 0:
+        decay dst
+        runtime_shutdown()
+        return 1
+
+    let out: ptr<Int> = alloc_zeroed(src_size, "Int")
+    let decompressed: Int = LZ4_decompress_safe(ptr_to_int(dst), ptr_to_int(out), compressed, src_size)
+    if decompressed < 0:
+        decay dst
+        decay out
+        runtime_shutdown()
+        return 2
+
+    decay dst
+    decay out
+    runtime_shutdown()
+    return 0
