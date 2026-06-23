@@ -219,6 +219,9 @@ typedef struct KainNativeUiSession {
 
 /* ── Exposed internal helpers for layout.c and renderer.c ─────────────── */
 
+/* Session lookup by ID — exposed for test/diagnostic access. */
+KainNativeUiSession* abi_ui_find_session(int64_t session_id);
+
 /* Hash-table based style/state lookup — replaces O(N) linear scans.
    Returns NULL if no matching record is found.
    Z3-verified: expected ~1.07 probes at typical load factors. */

@@ -159,17 +159,15 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
-            if (hdc && host && host->framebuffer) {
-                HDC hdc_mem = CreateCompatibleDC(hdc);
-                if (hdc_mem) {
-                    HBITMAP old = (HBITMAP)SelectObject(hdc_mem, host->hbitmap);
-                    BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top,
-                           ps.rcPaint.right - ps.rcPaint.left,
-                           ps.rcPaint.bottom - ps.rcPaint.top,
-                           hdc_mem, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
-                    SelectObject(hdc_mem, old);
-                    DeleteDC(hdc_mem);
-                }
+            if (hdc && host && host->hdc_buffer) {
+                // BitBlt from the permanent DC that already has the DIB selected.
+                // Do NOT create a temp DC — GDI cannot SelectObject the same bitmap
+                // into two DCs, and the second SelectObject silently fails, leaving
+                // a default 1x1 monochrome bitmap selected instead of the DIB.
+                BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top,
+                       ps.rcPaint.right - ps.rcPaint.left,
+                       ps.rcPaint.bottom - ps.rcPaint.top,
+                       host->hdc_buffer, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
             }
             EndPaint(hwnd, &ps);
             return 0;
@@ -200,11 +198,12 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
         return NULL;
     }
 
-    // Create window
+    // Create window — use explicit position, CW_USEDEFAULT can produce
+    // off-screen coordinates on high-DPI/multi-monitor systems.
     host->hwnd = CreateWindowExA(
         0, "KainWin32UI", "Kain UI",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        100, 100,
         width, height,
         NULL, NULL,
         GetModuleHandleA(NULL), host
@@ -215,14 +214,25 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
         return NULL;
     }
 
-    // Create framebuffer
+    // Get actual client rect — DPI scaling may produce a different size
+    // than requested. The DIB must match the client area exactly.
+    RECT client_rect;
+    GetClientRect(host->hwnd, &client_rect);
+    int actual_w = client_rect.right - client_rect.left;
+    int actual_h = client_rect.bottom - client_rect.top;
+    if (actual_w <= 0) actual_w = width;
+    if (actual_h <= 0) actual_h = height;
+    host->width = actual_w;
+    host->height = actual_h;
+
+    // Create framebuffer at actual client size
     HDC hdc_screen = GetDC(NULL);
     host->hdc_buffer = CreateCompatibleDC(hdc_screen);
     if (host->hdc_buffer) {
         BITMAPINFO bmi = {0};
         bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth = width;
-        bmi.bmiHeader.biHeight = -height;  // top-down
+        bmi.bmiHeader.biWidth = actual_w;
+        bmi.bmiHeader.biHeight = -actual_h;  // top-down
         bmi.bmiHeader.biPlanes = 1;
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
@@ -231,7 +241,7 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
                                          (void**)&host->framebuffer, NULL, 0);
         if (host->hbitmap) {
             SelectObject(host->hdc_buffer, host->hbitmap);
-            host->fb_stride = width * 4;
+            host->fb_stride = actual_w * 4;
         }
     }
     ReleaseDC(NULL, hdc_screen);

@@ -183,7 +183,7 @@ static int abi_ui_find_free_slot_u64(
     return 0;
 }
 
-static KainNativeUiSession* abi_ui_find_session(int64_t session_id) {
+KainNativeUiSession* abi_ui_find_session(int64_t session_id) {
     int64_t index;
     if (session_id <= 0) {
         return NULL;
@@ -586,8 +586,8 @@ static KainNativeUiStateRecord* abi_ui_ensure_state(KainNativeUiSession* session
     return &session->state[slot];
 }
 
-/* Fallback: full node index rebuild (used as escape hatch if incremental update degrades) */
-__attribute__((unused)) static void abi_ui_rebuild_node_index(KainNativeUiSession* session) {
+/* Fallback: full node index rebuild (incremental is preferred) */
+static void abi_ui_rebuild_node_index(KainNativeUiSession* session) {
     uint32_t slot;
     if (!session) {
         return;
@@ -606,8 +606,8 @@ __attribute__((unused)) static void abi_ui_rebuild_node_index(KainNativeUiSessio
     }
 }
 
-/* Fallback: full stable key index rebuild (used as escape hatch if incremental update degrades) */
-__attribute__((unused)) static void abi_ui_rebuild_stable_key_index(
+/* Fallback: full stable key index rebuild (incremental is preferred) */
+static void abi_ui_rebuild_stable_key_index(
     KainNativeUiSession* session,
     int32_t single_slot
 ) {

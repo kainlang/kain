@@ -67,6 +67,9 @@ sources = [
     "native/src/ui/ui_compiled_bundle.c",
     "native/src/ui/ui_system.c",
     "native/src/ui/ui_host_adapter.c",
+    "native/src/ui/ui_layout.c",
+    "native/src/ui/ui_color.c",
+    "native/src/ui/ui_renderer.c",
     "native/src/ui/ui_runtime.c",
     "native/src/ui/ui_hot_reload.c",
 ]
