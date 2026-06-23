@@ -93,7 +93,7 @@ kain build file.kn                     # → .exe (default)
 
 ### C Addon
 
-| `kain install-c-extras [packages]` | — | Auto-resolve and install C/C++ toolchain extras via vcpkg into `.kain/vcpkg`. `--target`, `--dry-run` | 
+| `kain install c-extras` | Auto-resolve and install C/C++ toolchain extras via vcpkg into `.kain/vcpkg`. `--target`, `--dry-run` | 
 
 ### Run Subcommands
 
@@ -114,6 +114,13 @@ Kain's **capsule pipeline** — packs any number of modules into a single portab
 | `amalgamate inspect <capsule>` | **Inspect** — metadata + file inventory | `--json` |
 | `amalgamate unpack <capsule>` | **Unpack** — extract to directory | `-o` |
 
+```bash
+kain amalgamate src/ -o mylib.kn                                    # pack
+kain amalgamate . -o mylib.kn --name MyLib --tag math                # with metadata
+kain amalgamate src/ -o mylib.kn --archive --compression zstd        # compressed
+kain amalgamate inspect mylib.kn                                     # inspect
+kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
+```
 ### Package
 
 | Command | Aliases | What It Does |
@@ -152,15 +159,6 @@ Kain's **capsule pipeline** — packs any number of modules into a single portab
 | `kain bridge serve --entry <file>` | Run resident Kain JSON-lines bridge process |
 | `kain codebase inspect/run` | Trusted workspace codebase operations |
 
-
-```bash
-kain amalgamate src/ -o mylib.kn                                    # pack
-kain amalgamate . -o mylib.kn --name MyLib --tag math                # with metadata
-kain amalgamate src/ -o mylib.kn --archive --compression zstd        # compressed
-kain amalgamate inspect mylib.kn                                     # inspect
-kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
-```
-
 ### Specialized
 
 | Command | Aliases | What It Does |
@@ -171,9 +169,9 @@ kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 
 | Target | CLI Alias | Produces |
 |--------|-----------|----------|
-| UE5 C++ | `ue5`, `unreal`, `u` | `.h` + `.cpp` for Unreal Engine. **⚠ Legacy — not actively tested.** |
-| UE5 Editor | `ue5editor`, `editor` | `.h` + `.cpp` for Slate editor UI. **⚠ Legacy — not actively tested.** |
-| USF shader | `usf` | `.usf` + C++ reflection header/impl. **⚠ Legacy — not actively tested.** |
+| UE5 C++ | `ue5`, `unreal`, `u` | `.h` + `.cpp` for Unreal Engine. |
+| UE5 Editor | `ue5editor`, `editor` | `.h` + `.cpp` for Slate editor UI. |
+| USF shader | `usf` | `.usf` + C++ reflection header/impl. |
 | `kain inject <inputs...>` | — | Inject Kain source into existing UE5 plugin |
 | `kain omni init/build` | — | Omni polyglot project management |
 | `kain fabric init/validate/run` | — | Multi-runtime step DAG pipeline |
