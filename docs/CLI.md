@@ -57,21 +57,19 @@
 | LLVM native | `llvm`, `native`, `n` | `.ll` → clang → `.exe`/ELF. Primary native backend. |
 | WebAssembly | `wasm`, `w` | `.wasm` binary |
 | Bare metal | `baremetal`, `kernel` | `.ll` for `x86_64-unknown-none`, no libc/OS |
-| Rust | `rust`, `rs` | `.rs` source + GPU host wrappers + reflection JSON |
-| C | `c` | `.c` source |
-| C++ | `cpp`, `c++` | `.cpp` source |
-| JavaScript | `js`, `javascript`, `j` | `.js` source |
-| TypeScript | `ts`, `typescript` | `.ts` source |
-| KainScript | `ks`, `kainscript` | `.ks` (JS + JSDoc types) |
 | SPIR-V | `spirv`, `gpu`, `s` | `.spv` binary (canonical GPU format) |
 | PTX/CUDA | `cuda`, `ptx`, `nvptx` | `.ptx` with multi-variant modules |
 | HLSL | `hlsl`, `h` | `.hlsl` shader text |
 | WGSL | `wgsl`, `webgpu` | `.wgsl` shader text (WebGPU) |
-| Hybrid web | `hybrid`, `web` | `.hybrid` descriptor + `.wasm` + `.js` + `.ts` |
 | Interpret | `run`, `interpret`, `i` | Execute in Rust interpreter, no file output |
 | Test | `test`, `t` | Test harness mode, runs inline `test` blocks |
-
-Use `kain build file.kn --target rust` or `kain build --targets llvm,wasm,rust file.kn` for multi-target. `kain build native-ui <input>` also builds native desktop apps via the Qt/Tauri backend.
+| Rust | `rust`, `rs` | `.rs` source + GPU host wrappers + reflection JSON ⚠ Experimental
+| C | `c` | `.c` source ⚠ Experimental
+| C++ | `cpp`, `c++` | `.cpp` source ⚠ Experimental
+| JavaScript | `js`, `javascript`, `j` | `.js` source ⚠ Experimental
+| TypeScript | `ts`, `typescript` | `.ts` source ⚠ Experimental
+| KainScript | `ks`, `kainscript` | `.ks` (JS + JSDoc types) ⚠ Experimental
+| Hybrid web | `hybrid`, `web` | `.hybrid` descriptor + `.wasm` + `.js` + `.ts` ⚠ Experimental
 
 #### Native Emit Modes (`--emit`)
 
@@ -84,6 +82,7 @@ Controls the native linker output for `--target llvm`:
 | `staticlib` | `.lib` | `.a` | Static library |
 | `object` | `.obj` | `.o` | Object file (no linking) |
 
+
 ```bash
 kain build file.kn --emit sharedlib    # → .dll / .so / .dylib
 kain build file.kn --emit staticlib    # → .lib / .a
@@ -91,7 +90,10 @@ kain build file.kn --emit object       # → .obj / .o
 kain build file.kn                     # → .exe (default)
 ```
 
----
+
+### C Addon
+
+| `kain install-c-extras [packages]` | — | Auto-resolve and install C/C++ toolchain extras via vcpkg into `.kain/vcpkg`. `--target`, `--dry-run` | 
 
 ### Run Subcommands
 
@@ -101,6 +103,16 @@ kain build file.kn                     # → .exe (default)
 | `kain run <file> --target llvm` | **Compile to native + execute** — the primary run path. Full semantic stack support (LLVM IR → clang → native binary). `--debug` for DWARF, `-- <args>` for program args. |
 | `kain run dev <input>` | Dev loop — watch + re-run on changes |
 | `kain run plan <input>` | Print resolved run plan w/o executing. `--json` |
+
+### Amalgamate
+
+Kain's **capsule pipeline** — packs any number of modules into a single portable `.kn` file. Compiler resolves imports directly from capsules. No unpack, no install, no network.
+
+| Subcommand | What It Does | Key Flags |
+|-----------|-------------|-----------|
+| `amalgamate <input> -o <out>` | **Pack** — create capsule | `--name`, `--version`, `--author`, `--tag`, `--contents`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index` |
+| `amalgamate inspect <capsule>` | **Inspect** — metadata + file inventory | `--json` |
+| `amalgamate unpack <capsule>` | **Unpack** — extract to directory | `-o` |
 
 ### Package
 
@@ -116,20 +128,18 @@ kain build file.kn                     # → .exe (default)
 | Command | What It Does |
 |---------|-------------|
 | `kain import platform <pkg>` | Import native SDK (Vulkan, etc.) via libclang. `--sdk`, `--header` |
-| `kain import crates [path]` | Bundle Rust workspace crates into Kain. `--blades`, `--flat` |
-| `kain import-c <input>` | Import C source via libclang. `-I`, `-D` for preprocessor |
-| `kain import-rust <input>` | Import Rust source (Ouroboros). `--flat`, `--fail-fast` |
-| `kain import-crate <name>` | Import a Rust crate via FFI layer. `--features`, `--all-features` |
-| `kain import-asm <input>` | Import legacy assembly (6502, Z80, LR35902). `--format` |
-| `kain import-ts <input>` | Import TypeScript source. Requires `typescript-import` feature |
+| `kain import crates [path]` | Bundle Rust workspace crates into Kain. `--blades`, `--flat` ⚠ Experimental
+| `kain import-c <input>` | Import C source via libclang. `-I`, `-D` for preprocessor ⚠ Experimental
+| `kain import-rust <input>` | Import Rust source (Ouroboros). `--flat`, `--fail-fast` ⚠ Experimental
+| `kain import-crate <name>` | Import a Rust crate via FFI layer. `--features`, `--all-features` ⚠ Experimental
+| `kain import-asm <input>` | Import legacy assembly (6502, Z80, LR35902). `--format` ⚠ Experimental
+| `kain import-ts <input>` | Import TypeScript source. Requires `typescript-import` feature ⚠ Experimental
 
 ### Tooling
 
 | Command | What It Does |
 |---------|-------------|
-| `kain lsp` | Language Server (stub — use kain-service-api instead) |
 | `kain config show/set/init` | Config control plane. `show --json`, `set key value`, `init` |
-| `kain selfhost bootstrap/phase1/phase2` | Self-host bootstrap workflows (ouroboros pipeline) |
 | `kain stdlib-map` | Generate/check the stdlib symbol atlas. `--write`, `--check`, `--json` |
 | `kain commands list/export/packs/help` | Inspect the command registry |
 
@@ -139,19 +149,9 @@ kain build file.kn                     # → .exe (default)
 |---------|-------------|
 | `kain runtime build` | Build manifest-driven native runtime bundle |
 | `kain runtime validate` | Run native runtime validation lane |
-| `kain native-ui dev <input>` | Launch native desktop dev loop with hot reload |
 | `kain bridge serve --entry <file>` | Run resident Kain JSON-lines bridge process |
 | `kain codebase inspect/run` | Trusted workspace codebase operations |
 
-### Amalgamate (Detailed)
-
-Kain's **capsule pipeline** — packs any number of modules into a single portable `.kn` file. Compiler resolves imports directly from capsules. No unpack, no install, no network.
-
-| Subcommand | What It Does | Key Flags |
-|-----------|-------------|-----------|
-| `amalgamate <input> -o <out>` | **Pack** — create capsule | `--name`, `--version`, `--author`, `--tag`, `--contents`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index` |
-| `amalgamate inspect <capsule>` | **Inspect** — metadata + file inventory | `--json` |
-| `amalgamate unpack <capsule>` | **Unpack** — extract to directory | `-o` |
 
 ```bash
 kain amalgamate src/ -o mylib.kn                                    # pack
@@ -166,17 +166,23 @@ kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 | Command | Aliases | What It Does |
 |---------|---------|-------------|
 | `kain gpu-artifacts <input>` | — | Generate SPIR-V/PTX/HLSL/WGSL sidecars with reflection |
-| `kain inject <inputs...>` | — | Inject Kain source into existing UE5 plugin **⚠ Legacy** |
-| `kain omni init/build` | — | Omni polyglot project management |
-| `kain fabric init/validate/run` | — | Multi-runtime step DAG pipeline |
 
-### Legacy UE5 Targets (deprecated, no longer tested)
+### Legacy commands (deprecated, no longer tested)
 
 | Target | CLI Alias | Produces |
 |--------|-----------|----------|
 | UE5 C++ | `ue5`, `unreal`, `u` | `.h` + `.cpp` for Unreal Engine. **⚠ Legacy — not actively tested.** |
 | UE5 Editor | `ue5editor`, `editor` | `.h` + `.cpp` for Slate editor UI. **⚠ Legacy — not actively tested.** |
 | USF shader | `usf` | `.usf` + C++ reflection header/impl. **⚠ Legacy — not actively tested.** |
+| `kain inject <inputs...>` | — | Inject Kain source into existing UE5 plugin |
+| `kain omni init/build` | — | Omni polyglot project management |
+| `kain fabric init/validate/run` | — | Multi-runtime step DAG pipeline |
+| `kain native-ui dev <input>` | Launch native desktop dev loop with hot reload |
+| `kain bridge serve --entry <file>` | Run resident Kain JSON-lines bridge process |
+| `kain codebase inspect/run` | Trusted workspace codebase operations |
+| `kain lsp` | Language Server (stub — use kain-service-api instead) | moved LSP out of compiler, now a package in blades/
+| `kain selfhost bootstrap/phase1/phase2` | Self-host bootstrap workflows | now deprecated self hosting pipeline
+| `kain native-ui dev <input>` | Launch native desktop dev loop with hot reload |
 
 ---
 
@@ -256,7 +262,6 @@ kain check [OPTIONS] <INPUT>
 
 ```
 kain build [OPTIONS] [INPUT]
-kain build native-ui [OPTIONS] <INPUT>
 ```
 
 | Arg/Flag | Type | Default | Description |
@@ -276,7 +281,7 @@ kain build native-ui [OPTIONS] <INPUT>
 #### `build native-ui` Subcommand
 
 ```
-kain build native-ui [OPTIONS] <INPUT>
+kain build native-ui [OPTIONS] <INPUT> () **⚠ Legacy — not actively tested**
 ```
 
 | Flag | Type | Default | Description |
@@ -942,6 +947,23 @@ kain fabric run [OPTIONS]
 ```
 
 **`fabric init`** creates a Fabric manifest from template (`local` or `polyglot`). **`fabric validate`** validates the manifest. **`fabric run`** executes the step DAG.
+
+---
+
+### 8.5 `install-c-extras` — C/C++ Toolchain Extras
+
+```
+kain install-c-extras [OPTIONS] [PACKAGES]...
+```
+
+| Arg/Flag | Type | Default | Description |
+|----------|------|---------|-------------|
+| `[PACKAGES]...` | `Vec<String>` | None | Specific packages to install. If empty, resolves all C FFI deps from the workspace. |
+| `--target <TARGET>` | String | `"host"` | Target triple to resolve packages for |
+| `--dry-run` | bool | false | Print the resolved package plan without installing |
+
+Auto-resolves C/C++ dependencies via vcpkg, downloads and builds them,
+and materializes headers + libraries into `.kain/toolchain/c-extras/<target>/`.
 
 ---
 
