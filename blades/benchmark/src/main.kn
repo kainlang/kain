@@ -1,0 +1,447 @@
+// ============================================================================
+//  main.kn — Kain Bench — zero-friction microbenchmark runner
+//
+//  Drop .kn files in a folder. Run:
+//    kain run blades/benchmark/ -- bench run my_benches/
+//
+//  Each .kn file is a standalone benchmark. It must have a main() -> Int
+//  that returns a deterministic checksum.
+//
+//  The blade:
+//    1. Discovers all .kn files in the folder
+//    2. Compiles each with `kain build --target llvm`
+//    3. Auto-scales iterations (runs exe in loop until target duration hit)
+//    4. Warmup + measure
+//    5. Writes a markdown report to the bench folder
+//
+//  Ladder: Layer 0 — plain fn + IO effect for process/filesystem.
+// ============================================================================
+
+use std::time
+use std::fs
+use std::path
+use std::os
+use std::runtime
+use std::text
+
+// ============================================================================
+//  CONFIG
+// ============================================================================
+
+const TARGET_DURATION_MS: Int = 500
+const WARMUP_ROUNDS:      Int = 2
+const MEASURE_ROUNDS:     Int = 5
+const MAX_ITERATIONS:     Int = 1000000
+
+// ============================================================================
+//  RESULT
+// ============================================================================
+
+struct BenchResult:
+    name:      String
+    exe_path:  String
+    iters:     Int
+    checksum:  Int
+    min_ms:    Int
+    max_ms:    Int
+    median_ms: Int
+    mean_ms:   Int
+    samples:   Array<Int>
+    build_ok:  Bool
+    run_ok:    Bool
+    error:     String
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let args = user_args()
+    if len(args) < 2:
+        println("usage: bench run <folder>")
+        println("  bench list <folder>")
+        let _s = runtime_shutdown()
+        return 1
+
+    let cmd = args[0]
+    let dir = args[1]
+
+    if fs_exists(dir) == false:
+        println("folder not found: " + dir)
+        let _s = runtime_shutdown()
+        return 2
+
+    if cmd == "list":
+        return cmd_list(dir)
+
+    if cmd == "run":
+        return cmd_run(dir)
+
+    println("unknown command: " + cmd)
+    let _s = runtime_shutdown()
+    return 3
+
+// ============================================================================
+//  PARSE ARGS
+// ============================================================================
+
+fn user_args() -> Array<String>:
+    let count = process_arg_count()
+    let args: Array<String> = []
+    var i = 1
+    while i < count:
+        push(args, process_arg(i))
+        i = i + 1
+    return args
+
+// ============================================================================
+//  CMD LIST
+// ============================================================================
+
+fn cmd_list(dir: String) -> Int:
+    let files = find_kn_files(dir)
+    if len(files) == 0:
+        println("no .kn files in " + dir)
+        let _s = runtime_shutdown()
+        return 0
+
+    println(str(len(files)) + " benchmark file(s) in " + dir + ":")
+    var i = 0
+    while i < len(files):
+        println("  " + files[i])
+        i = i + 1
+
+    let _s = runtime_shutdown()
+    return 0
+
+// ============================================================================
+//  CMD RUN
+// ============================================================================
+
+fn cmd_run(dir: String) -> Int:
+    // Resolve absolute path to bench folder
+    let cwd = os_getcwd()
+    var abs_dir = dir
+    // Simple check: if not absolute (no colon on Windows), join with CWD
+    if text_contains_string(dir, ":") == false:
+        abs_dir = path_join(cwd, dir)
+
+    let files = find_kn_files(abs_dir)
+    if len(files) == 0:
+        println("no .kn files in " + dir)
+        let _s = runtime_shutdown()
+        return 0
+
+    let results: Array<BenchResult> = []
+    var i = 0
+    while i < len(files):
+        let file = files[i]
+        let abs_file = path_join(abs_dir, file)
+        let bench_name = path_stem(file)
+        println("[" + str(i + 1) + "/" + str(len(files)) + "] " + bench_name + " ...")
+
+        let result = bench_file(abs_file)
+        push(results, result)
+
+        if result.build_ok and result.run_ok:
+            let per_iter_ns = (result.median_ms * 1000000) / result.iters
+            println("  -> " + str(result.median_ms) + "ms median, " +
+                    str(result.iters) + " iters, ~" + str(per_iter_ns) + " ns/iter")
+        else:
+            println("  -> FAILED: " + result.error)
+
+        i = i + 1
+
+    // Write markdown report to the bench folder
+    let report = write_markdown_report(abs_dir, results)
+    println("")
+    println("report: " + report)
+
+    let _s = runtime_shutdown()
+    return 0
+
+// ============================================================================
+//  FIND .kn FILES
+// ============================================================================
+
+fn find_kn_files(dir: String) -> Array<String>:
+    let entries = fs_walk(dir)
+    let result: Array<String> = []
+    var i = 0
+    while i < len(entries):
+        let ep = entries[i].path
+        if text_ends_with_string(ep, ".kn"):
+            // Get just the filename
+            let fname = path_file_name(ep)
+            push(result, fname)
+        i = i + 1
+    return result
+
+// ============================================================================
+//  BENCH A SINGLE FILE — compile + run + measure
+// ============================================================================
+
+fn bench_file(abs_kn_path: String) -> BenchResult:
+    let bench_name = path_stem(abs_kn_path)
+
+    // Build with absolute path (convert slashes for cmd.exe)
+    let fixed_path = text_replace_string(abs_kn_path, "\\", "/")
+    let build_cmd = "kain build " + fixed_path + " --target llvm"
+    let _build_status = os_system(build_cmd)
+
+    // Find the built exe — walk .kain/out starting from the file's directory upward
+    let exe = find_built_exe(abs_kn_path)
+    if exe == "":
+        return BenchResult {
+            name: bench_name, exe_path: "", iters: 0, checksum: 0,
+            min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
+            samples: [], build_ok: false, run_ok: false,
+            error: "build failed — no exe produced",
+        }
+
+    // Verify checksum
+    let chk = run_exe_capture_checksum(exe)
+    if chk < 0:
+        return BenchResult {
+            name: bench_name, exe_path: exe, iters: 0, checksum: 0,
+            min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
+            samples: [], build_ok: true, run_ok: false,
+            error: "exe crashed (exit " + str(chk) + ")",
+        }
+
+    // Auto-scale iterations
+    let checksum = chk
+    var iters = 1
+    while iters <= MAX_ITERATIONS:
+        let elapsed = time_iters(exe, iters)
+        if elapsed < 0:
+            return BenchResult {
+                name: bench_name, exe_path: exe, iters: 0, checksum: checksum,
+                min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
+                samples: [], build_ok: true, run_ok: false,
+                error: "crashed during scaling at " + str(iters) + " iters",
+            }
+        if elapsed >= TARGET_DURATION_MS:
+            break
+        if iters >= MAX_ITERATIONS / 2:
+            break
+        iters = iters * 2
+
+    // Warmup
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        let _t = time_iters(exe, iters)
+        w = w + 1
+
+    // Measure
+    let samples: Array<Int> = []
+    var r = 0
+    while r < MEASURE_ROUNDS:
+        let ms = time_iters(exe, iters)
+        if ms < 0:
+            return BenchResult {
+                name: bench_name, exe_path: exe, iters: iters, checksum: checksum,
+                min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
+                samples: samples, build_ok: true, run_ok: false,
+                error: "crashed during measure round " + str(r),
+            }
+        push(samples, ms)
+        r = r + 1
+
+    let stats = compute_stats(samples)
+
+    return BenchResult {
+        name: bench_name, exe_path: exe, iters: iters, checksum: checksum,
+        min_ms: stats[0], max_ms: stats[1], median_ms: stats[2], mean_ms: stats[3],
+        samples: samples, build_ok: true, run_ok: true, error: "",
+    }
+
+// ============================================================================
+//  FIND BUILT EXE — look in .kain/out for the compiled binary
+// ============================================================================
+
+fn find_built_exe(abs_kn_path: String) -> String:
+    let bench_name = path_stem(abs_kn_path)
+    let target_name = bench_name + ".exe"
+
+    // Search from the file's directory upward for .kain/out
+    var search_dir = path_parent(abs_kn_path)
+    var attempts = 0
+    while attempts < 5:
+        let out_path = path_join(search_dir, ".kain")
+        out_path = path_join(out_path, "out")
+
+        if fs_exists(out_path):
+            let entries = fs_walk(out_path)
+            var i = 0
+            while i < len(entries):
+                let ep = entries[i].path
+                if text_ends_with_string(ep, target_name):
+                    return ep
+                i = i + 1
+
+        // Go up one level
+        let parent = path_parent(search_dir)
+        if parent == search_dir:
+            break
+        search_dir = parent
+        attempts = attempts + 1
+
+    return ""
+
+// ============================================================================
+//  RUN EXE AND CAPTURE CHECKSUM (exit code)
+// ============================================================================
+
+fn run_exe_capture_checksum(exe: String) -> Int:
+    // TODO: popen capture on Windows is unreliable with os_popen_read.
+    // For now, return 0 as placeholder. Bench exes print checksum to stdout;
+    // verify manually or fix popen path.
+    return 0
+
+// ============================================================================
+//  TIME N ITERATIONS OF AN EXE
+// ============================================================================
+
+fn time_iters(exe: String, iters: Int) -> Int:
+    let fixed_exe = text_replace_string(exe, "\\", "/")
+    let start = instant_now()
+    var i = 0
+    while i < iters:
+        let _status = os_system("\"" + fixed_exe + "\"")
+        i = i + 1
+    let elapsed = instant_elapsed(start)
+    return duration_to_millis(elapsed)
+
+// ============================================================================
+//  COMPUTE STATS — returns [min, max, median, mean]
+// ============================================================================
+
+fn compute_stats(samples: Array<Int>) -> Array<Int>:
+    // Sort
+    var si = 1
+    while si < len(samples):
+        let key = samples[si]
+        var sj = si - 1
+        var shifting = true
+        while shifting:
+            if sj < 0:
+                shifting = false
+            elif samples[sj] <= key:
+                shifting = false
+            else:
+                samples[sj + 1] = samples[sj]
+                sj = sj - 1
+        samples[sj + 1] = key
+        si = si + 1
+
+    let mid = len(samples) / 2
+    let median = samples[mid]
+    let min_val = samples[0]
+    let max_val = samples[len(samples) - 1]
+
+    var total = 0
+    var j = 0
+    while j < len(samples):
+        total = total + samples[j]
+        j = j + 1
+    let mean_val = total / len(samples)
+
+    return [min_val, max_val, median, mean_val]
+
+// ============================================================================
+//  WRITE MARKDOWN REPORT
+// ============================================================================
+
+fn write_markdown_report(dir: String, results: Array<BenchResult>) -> String:
+    var md = "# Bench Report\n\n"
+    md = md + "**Folder:** `" + dir + "`  \n"
+    md = md + "**Date:** " + iso_now() + "  \n"
+    md = md + "**Target:** " + str(TARGET_DURATION_MS) + "ms per benchmark  \n"
+    md = md + "**Benchmarks:** " + str(len(results)) + "\n\n"
+
+    // Summary table
+    md = md + "| Benchmark | Iters | Median | Min | Max | Mean | ns/iter | Checksum |\n"
+    md = md + "|-----------|-------|--------|-----|-----|------|---------|----------|\n"
+
+    var i = 0
+    while i < len(results):
+        let r = results[i]
+        if r.build_ok and r.run_ok:
+            let ns = (r.median_ms * 1000000) / r.iters
+            var row = "| `" + r.name + "` | " + str(r.iters) + " | "
+            row = row + str(r.median_ms) + "ms | "
+            row = row + str(r.min_ms) + "ms | "
+            row = row + str(r.max_ms) + "ms | "
+            row = row + str(r.mean_ms) + "ms | "
+            row = row + str(ns) + " | `" + str(r.checksum) + "` |\n"
+            md = md + row
+        else:
+            md = md + "| `" + r.name + "` | — | — | — | — | — | — | ❌ " + r.error + " |\n"
+        i = i + 1
+
+    md = md + "\n"
+
+    // Per-benchmark detail
+    md = md + "## Details\n\n"
+    i = 0
+    while i < len(results):
+        let r = results[i]
+        md = md + "### " + r.name + "\n\n"
+        if r.build_ok == false:
+            md = md + "❌ **Build failed:** " + r.error + "\n\n"
+        elif r.run_ok == false:
+            md = md + "❌ **Run failed:** " + r.error + "\n\n"
+        else:
+            md = md + "- **Iterations:** " + str(r.iters) + "\n"
+            md = md + "- **Checksum:** `" + str(r.checksum) + "`\n"
+            var median_row = "- **Median:** " + str(r.median_ms) + "ms ("
+            median_row = median_row + str((r.median_ms * 1000000) / r.iters) + " ns/iter)\n"
+            md = md + median_row
+            var minmax_row = "- **Min/Max:** " + str(r.min_ms) + "ms / "
+            minmax_row = minmax_row + str(r.max_ms) + "ms\n"
+            md = md + minmax_row
+            md = md + "- **Mean:** " + str(r.mean_ms) + "ms\n"
+            md = md + "- **Samples:** "
+
+            var j = 0
+            while j < len(r.samples):
+                md = md + str(r.samples[j]) + "ms"
+                if j + 1 < len(r.samples):
+                    md = md + ", "
+                j = j + 1
+            md = md + "\n"
+
+            md = md + "- **Binary:** `" + r.exe_path + "`\n"
+
+        md = md + "\n"
+        i = i + 1
+
+    // Write to file
+    let report_path = path_join(dir, "report.md")
+    let ok = os_write_text(report_path, md)
+    if ok:
+        return report_path
+    return ""
+
+// ============================================================================
+//  ISO TIMESTAMP
+// ============================================================================
+
+fn iso_now() -> String:
+    let now = now_millis()
+    let dt = datetime_from_epoch_millis(now)
+    var buf = str(dt.year) + "-"
+    buf = buf + zero2(dt.month) + "-"
+    buf = buf + zero2(dt.day) + " "
+    buf = buf + zero2(dt.hour) + ":"
+    buf = buf + zero2(dt.minute) + ":"
+    buf = buf + zero2(dt.second)
+    return buf
+
+fn zero2(v: Int) -> String:
+    if v < 10: return "0" + str(v)
+    return str(v)

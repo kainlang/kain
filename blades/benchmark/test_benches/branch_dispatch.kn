@@ -1,0 +1,16 @@
+fn main() -> Int:
+    var sum = 0
+    var i = 0
+    while i < 100000:
+        let v = i % 8
+        if v == 0:      sum = sum + 1
+        elif v == 1:    sum = sum + 2
+        elif v == 2:    sum = sum + 3
+        elif v == 3:    sum = sum + 5
+        elif v == 4:    sum = sum + 7
+        elif v == 5:    sum = sum + 11
+        elif v == 6:    sum = sum + 13
+        else:           sum = sum + 17
+        i = i + 1
+    println(str(sum))
+    return 0
