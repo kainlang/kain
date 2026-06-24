@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_slot_mod_wordbits_to_mask
+kind: check_smt2
+description: >
+  The occupancy bit computations in ownership.c use
+  `slot % KAIN_OWNERSHIP_WORD_BITS` where WORD_BITS=64
+  is a power of two. This modulo can be replaced with
+  `slot & (WORD_BITS - 1)` = `slot & 63`, replacing a div
+  instruction with a single AND. Three sites use this pattern
+  for computing the bit position within a 64-bit occupancy word.
+tags:
+- native-runtime
+- ownership
+- occupancy
+- bitmask
+- modulo
+source:
+  path: X:\runtime\native\src\core\ownership.c
+  symbol: kain_ownership_clear_slot_unlocked
+  start_line: 244
+  reason: >
+    Three sites in ownership.c compute bit index within a 64-bit
+    occupancy word using `slot % 64`. Since 64 is a power of two,
+    `slot & 63` is equivalent and faster. This proof verifies the
+    identity for all 32-bit slot values.
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Prove: for all 32-bit unsigned values slot,
+    ;   slot % 64 == slot & 63
+    ;
+    ; Used in ownership.c for bit index computation within 64-bit
+    ; occupancy words. Three sites:
+    ;   ~(UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS));
+    ;   uint64_t bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const slot (_ BitVec 32))
+
+    ; Prove: slot % 64 == slot & 63 for all 32-bit values
+    ; 64 = 2^6, a power of two.
+    ; 63 = 64 - 1 = 0x0000003F
+    (assert (not (= (bvurem slot (_ bv64 32)) (bvand slot (_ bv63 32)))))
+    (check-sat)
+  include_model: false
+  include_stats: false
