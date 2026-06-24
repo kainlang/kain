@@ -1,0 +1,43 @@
+version: 1
+id: kain.native.core.proofs.native_event_djb2_hash_mask_equivalence
+kind: check_smt2
+description: >
+  The DJB2 hash in kain_event_hash reduces the hash modulo
+  KAIN_EVENT_BUS_BUCKETS (256). Since 256 is a power of two,
+  `hash % 256` is equivalent to `hash & 255` for all 32-bit
+  unsigned values. This replaces an unsigned div instruction
+  (10-30 cycles on x86-64) with a single AND (1 cycle).
+tags:
+- native-runtime
+- event-bus
+- hashing
+- bitmask
+- modulo
+source:
+  path: X:\runtime\native\src\core\event.c
+  symbol: kain_event_hash
+  start_line: 48
+  reason: >
+    DJB2 hash uses `hash % 256` where KAIN_EVENT_BUS_BUCKETS = 256.
+    256 is a power of two (2^8), so `& 255` is equivalent and faster.
+    The proof verifies this identity for all 32-bit unsigned values.
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Prove: for all 32-bit unsigned value hash,
+    ;   hash % 256 == hash & 255
+    ;
+    ; 256 = 2^8, a power of two. The modulo with power-of-two can be
+    ; replaced by a bitwise AND with (divisor - 1).
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const hash (_ BitVec 32))
+
+    ; Prove: hash % 256 == hash & 255 for all 32-bit values
+    ; If unsat, no counterexample exists → proof holds
+    (assert (not (= (bvurem hash (_ bv256 32)) (bvand hash (_ bv255 32)))))
+    (check-sat)
+  include_model: false
+  include_stats: false
