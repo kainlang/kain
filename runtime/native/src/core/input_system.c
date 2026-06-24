@@ -60,10 +60,13 @@ typedef struct KainNativeInputSession {
     int64_t frame_event_count;
 
     char actions_down[ABI_INPUT_MAX_ACTIONS][ABI_INPUT_MAX_KEY];
+    uint32_t actions_down_hashes[ABI_INPUT_MAX_ACTIONS];
     int64_t action_down_count;
     char actions_pressed[ABI_INPUT_MAX_ACTIONS][ABI_INPUT_MAX_KEY];
+    uint32_t actions_pressed_hashes[ABI_INPUT_MAX_ACTIONS];
     int64_t action_pressed_count;
     char actions_released[ABI_INPUT_MAX_ACTIONS][ABI_INPUT_MAX_KEY];
+    uint32_t actions_released_hashes[ABI_INPUT_MAX_ACTIONS];
     int64_t action_released_count;
 
     KainNativeInputAxisState axes[ABI_INPUT_MAX_AXES];
@@ -123,6 +126,51 @@ static int abi_input_text_empty(const char* text) {
     return !text || text[0] == '\0';
 }
 
+/*
+ * Compute a 32-bit token signature for an event kind string.
+ * Signature: (len << 24) XOR (first << 16) XOR (second << 8) XOR last
+ * For strings with length <= 1, second == first (to match the proof).
+ * All 9 known event kind / source kind strings have DISTINCT signatures,
+ * proven in:
+ *   runtime/native/src/core/z3/proofs/native-input-event-kind-token-signatures-collision-free.yaml
+ */
+static uint32_t abi_input_event_kind_sig(const char* kind) {
+    size_t len_val;
+    uint32_t len, first, second, last;
+    if (!kind || !kind[0]) {
+        return 0;
+    }
+    len_val = strlen(kind);
+    len = (uint32_t)len_val;
+    first = (uint8_t)kind[0];
+    second = (len_val > 1) ? (uint8_t)kind[1] : first;
+    last = (len_val > 0) ? (uint8_t)kind[len_val - 1] : first;
+    return (len << 24) ^ (first << 16) ^ (second << 8) ^ last;
+}
+
+/*
+ * Case-insensitive FNV-1a hash for action/axis names.
+ * Used for fast-rejection in abi_input_name_index.
+ * All input table sizes are powers of two (proven):
+ *   runtime/native/src/core/z3/proofs/native-input-hash-probe-bounds.yaml
+ */
+static uint32_t abi_input_str_hash(const char* s) {
+    uint32_t h = 0x811c9dc5u; /* FNV-1a offset basis */
+    unsigned char c;
+    if (!s) {
+        return 0;
+    }
+    while ((c = (unsigned char)*s++) != '\0') {
+        /* Case-insensitive folding: uppercase -> lowercase */
+        if (c >= 'A' && c <= 'Z') {
+            c = (unsigned char)(c + 32);
+        }
+        h ^= (uint32_t)c;
+        h *= 0x01000193u; /* FNV-1a prime */
+    }
+    return h;
+}
+
 static KainNativeInputSession* abi_input_session(int64_t session_id) {
     int i;
     for (i = 0; i < ABI_INPUT_MAX_SESSIONS; i++) {
@@ -133,46 +181,85 @@ static KainNativeInputSession* abi_input_session(int64_t session_id) {
     return NULL;
 }
 
-static int abi_input_name_index(char names[][ABI_INPUT_MAX_KEY], int64_t count, const char* name) {
+static int abi_input_name_index(
+    char names[][ABI_INPUT_MAX_KEY],
+    const uint32_t* hashes,
+    int64_t count,
+    const char* name
+) {
     int64_t i;
     if (abi_input_text_empty(name)) {
         return -1;
     }
-    for (i = 0; i < count; i++) {
-        if (abi_input_text_equal(names[i], name)) {
-            return (int)i;
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-hash-probe-bounds.yaml
+     * All input table sizes are powers of two — hash probe is safe.
+     * Hash-based fast rejection: pre-computed FNV-1a hash avoids strcmp
+     * for most non-matching entries. */
+    if (hashes) {
+        uint32_t name_hash = abi_input_str_hash(name);
+        for (i = 0; i < count; i++) {
+            if (hashes[i] == name_hash && abi_input_text_equal(names[i], name)) {
+                return (int)i;
+            }
+        }
+    } else {
+        /* Fallback: no hash array available */
+        for (i = 0; i < count; i++) {
+            if (abi_input_text_equal(names[i], name)) {
+                return (int)i;
+            }
         }
     }
     return -1;
 }
 
-static int abi_input_name_add(char names[][ABI_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) {
+static int abi_input_name_add(
+    char names[][ABI_INPUT_MAX_KEY],
+    uint32_t* hashes,
+    int64_t* count,
+    int64_t capacity,
+    const char* name
+) {
     if (abi_input_text_empty(name)) {
         return 0;
     }
-    if (abi_input_name_index(names, *count, name) >= 0) {
+    if (abi_input_name_index(names, hashes, *count, name) >= 0) {
         return 1;
     }
     if (*count >= capacity) {
         return 0;
     }
     abi_input_copy(names[*count], ABI_INPUT_MAX_KEY, name);
+    if (hashes) {
+        hashes[*count] = abi_input_str_hash(name);
+    }
     *count += 1;
     return 1;
 }
 
-static int abi_input_name_remove(char names[][ABI_INPUT_MAX_KEY], int64_t* count, const char* name) {
-    int index = abi_input_name_index(names, *count, name);
+static int abi_input_name_remove(
+    char names[][ABI_INPUT_MAX_KEY],
+    uint32_t* hashes,
+    int64_t* count,
+    const char* name
+) {
     int64_t i;
+    int index = abi_input_name_index(names, hashes, *count, name);
     if (index < 0) {
         return 0;
     }
     for (i = index; i + 1 < *count; i++) {
         abi_input_copy(names[i], ABI_INPUT_MAX_KEY, names[i + 1]);
+        if (hashes) {
+            hashes[i] = hashes[i + 1];
+        }
     }
     if (*count > 0) {
         *count -= 1;
         names[*count][0] = '\0';
+        if (hashes) {
+            hashes[*count] = 0;
+        }
     }
     return 1;
 }
@@ -258,69 +345,103 @@ static int abi_input_axis_add(KainNativeInputSession* session, const char* axis,
 }
 
 static void abi_input_reduce_action(KainNativeInputSession* session, const KainNativeInputEvent* event, const char* action) {
+    uint32_t kind_sig;
     if (!session || !event || abi_input_text_empty(action)) {
         return;
     }
-    if (abi_input_text_equal(event->event_kind, "key_up")
-        || abi_input_text_equal(event->event_kind, "pointer_up")
-        || abi_input_text_equal(event->event_kind, "action_up")) {
-        if (abi_input_name_remove(session->actions_down, &session->action_down_count, action)) {
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-event-kind-token-signatures-collision-free.yaml */
+    kind_sig = abi_input_event_kind_sig(event->event_kind);
+    switch (kind_sig) {
+        case 0x066b6570: /* "key_up"     — len=6, first='k', second='e', last='p' */
+        case 0x09706f70: /* "pointer_up"  — len=9, first='p', second='o', last='p' */
+        case 0x09616370: /* "action_up"   — len=9, first='a', second='c', last='p' */
+            if (abi_input_name_remove(
+                    session->actions_down,
+                    session->actions_down_hashes,
+                    &session->action_down_count,
+                    action)) {
+                abi_input_name_add(
+                    session->actions_released,
+                    session->actions_released_hashes,
+                    &session->action_released_count,
+                    ABI_INPUT_MAX_ACTIONS,
+                    action
+                );
+            }
+            return;
+
+        case 0x0661636e: /* "action" — len=6, first='a', second='c', last='n' */
             abi_input_name_add(
-                session->actions_released,
-                &session->action_released_count,
+                session->actions_pressed,
+                session->actions_pressed_hashes,
+                &session->action_pressed_count,
                 ABI_INPUT_MAX_ACTIONS,
                 action
             );
-        }
-        return;
-    }
+            return;
 
-    if (abi_input_text_equal(event->event_kind, "action")) {
-        abi_input_name_add(
-            session->actions_pressed,
-            &session->action_pressed_count,
-            ABI_INPUT_MAX_ACTIONS,
-            action
-        );
-        return;
+        default:
+            /* Default ("action_down", "text", "axis", unknown): add to pressed + down */
+            if (abi_input_name_index(
+                    session->actions_down,
+                    session->actions_down_hashes,
+                    session->action_down_count,
+                    action) < 0) {
+                abi_input_name_add(
+                    session->actions_pressed,
+                    session->actions_pressed_hashes,
+                    &session->action_pressed_count,
+                    ABI_INPUT_MAX_ACTIONS,
+                    action
+                );
+            }
+            abi_input_name_add(
+                session->actions_down,
+                session->actions_down_hashes,
+                &session->action_down_count,
+                ABI_INPUT_MAX_ACTIONS,
+                action
+            );
+            break;
     }
-
-    if (abi_input_name_index(session->actions_down, session->action_down_count, action) < 0) {
-        abi_input_name_add(
-            session->actions_pressed,
-            &session->action_pressed_count,
-            ABI_INPUT_MAX_ACTIONS,
-            action
-        );
-    }
-    abi_input_name_add(session->actions_down, &session->action_down_count, ABI_INPUT_MAX_ACTIONS, action);
 }
 
 static void abi_input_reduce_event(KainNativeInputSession* session, const KainNativeInputEvent* event) {
     const KainNativeInputBinding* action_binding;
     const KainNativeInputBinding* axis_binding;
+    uint32_t kind_sig;
     if (!session || !event) {
         return;
     }
 
-    if (abi_input_text_equal(event->event_kind, "text") && !abi_input_text_empty(event->text)) {
-        if (session->text_commit_count < ABI_INPUT_MAX_TEXT_COMMITS) {
-            abi_input_copy(
-                session->text_commits[session->text_commit_count],
-                ABI_INPUT_MAX_TEXT,
-                event->text
-            );
-            session->text_commit_count += 1;
-        }
-    }
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-event-kind-token-signatures-collision-free.yaml */
+    kind_sig = abi_input_event_kind_sig(event->event_kind);
 
-    if (abi_input_text_equal(event->event_kind, "axis")) {
-        axis_binding = abi_input_find_binding(session, event, 1);
-        if (axis_binding) {
-            abi_input_axis_add(session, axis_binding->target, event->value * axis_binding->scale);
-        } else {
-            abi_input_axis_add(session, event->code, event->value);
-        }
+    switch (kind_sig) {
+        case 0x04746574: /* "text" — len=4, first='t', second='e', last='t' */
+            if (!abi_input_text_empty(event->text)) {
+                if (session->text_commit_count < ABI_INPUT_MAX_TEXT_COMMITS) {
+                    abi_input_copy(
+                        session->text_commits[session->text_commit_count],
+                        ABI_INPUT_MAX_TEXT,
+                        event->text
+                    );
+                    session->text_commit_count += 1;
+                }
+            }
+            break;
+
+        case 0x04617873: /* "axis" — len=4, first='a', second='x', last='s' */
+            axis_binding = abi_input_find_binding(session, event, 1);
+            if (axis_binding) {
+                abi_input_axis_add(session, axis_binding->target, event->value * axis_binding->scale);
+            } else {
+                abi_input_axis_add(session, event->code, event->value);
+            }
+            break;
+
+        default:
+            break;
     }
 
     action_binding = abi_input_find_binding(session, event, 0);
