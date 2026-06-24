@@ -334,6 +334,6 @@ blades/edge_cases/QUARANTINEZONE/README.md
 blades/experiments/challenger/build_storm.ps1
 blades/shaderz/README.md
 packages/vscode-kain/test/syntax_test.kn
-stdlib/ui.kn
 blades/window_proof/src/FINDINGS.md
 blades/web/test_kauri.ps1
+stdlib/STDLIB_MAP.llm.md

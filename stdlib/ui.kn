@@ -188,6 +188,18 @@ fn abi_ui_host_pump(session_id: Int) -> Int
 fn abi_ui_host_present(session_id: Int) -> Int
 
 @extern
+fn abi_ui_framebuffer_ptr(session_id: Int) -> Int
+
+@extern
+fn abi_ui_framebuffer_width(session_id: Int) -> Int
+
+@extern
+fn abi_ui_framebuffer_height(session_id: Int) -> Int
+
+@extern
+fn abi_ui_framebuffer_stride(session_id: Int) -> Int
+
+@extern
 fn abi_ui_host_presented_draw_count(session_id: Int) -> Int
 
 @extern
@@ -591,6 +603,36 @@ pub fn native_ui_host_should_close(session_id: Int) -> Int:
 
 pub fn native_ui_host_backend(session_id: Int) -> String:
     return abi_ui_host_backend(session_id)
+
+pub fn native_ui_framebuffer_ptr(session_id: Int) -> Int:
+    return abi_ui_framebuffer_ptr(session_id)
+
+pub fn native_ui_framebuffer_width(session_id: Int) -> Int:
+    return abi_ui_framebuffer_width(session_id)
+
+pub fn native_ui_framebuffer_height(session_id: Int) -> Int:
+    return abi_ui_framebuffer_height(session_id)
+
+pub fn native_ui_framebuffer_stride(session_id: Int) -> Int:
+    return abi_ui_framebuffer_stride(session_id)
+
+@extern
+fn abi_ui_invalidate_window(session_id: Int) -> Int
+
+pub fn native_ui_invalidate_window(session_id: Int) -> Int:
+    return abi_ui_invalidate_window(session_id)
+
+pub fn ui_fb_ptr(session_id: Int) -> Int:
+    return native_ui_framebuffer_ptr(session_id)
+
+pub fn ui_fb_width(session_id: Int) -> Int:
+    return native_ui_framebuffer_width(session_id)
+
+pub fn ui_fb_height(session_id: Int) -> Int:
+    return native_ui_framebuffer_height(session_id)
+
+pub fn ui_fb_stride(session_id: Int) -> Int:
+    return native_ui_framebuffer_stride(session_id)
 
 pub fn native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int:
     return abi_ui_node_set_stable_key(session_id, node_id, stable_key)
