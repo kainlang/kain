@@ -320,3 +320,4 @@ blades/edge_cases/py/tasks.md
 /_scratch_dll
 *.tmp
 /benchmark/cases_v3/out/reports
+runtime/native/src/ui/TEST/oracle_client.png

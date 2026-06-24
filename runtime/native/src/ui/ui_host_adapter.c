@@ -443,6 +443,46 @@ int64_t abi_ui_host_adapter_present(KainNativeUiSession* session) {
     return ABI_UI_OK;
 }
 
+// ── Framebuffer accessors for direct pixel rendering from Kain ──────
+// These expose the DIB framebuffer to Kain code so it can write pixels
+// directly, bypassing the node tree renderer and layout engine.
+
+int64_t abi_ui_framebuffer_ptr(int64_t session_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    if (!session || !session->host_state) return 0;
+    KainWin32UiHost* host = (KainWin32UiHost*)session->host_state;
+    return (int64_t)(uintptr_t)host->framebuffer;
+}
+
+int64_t abi_ui_framebuffer_width(int64_t session_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    if (!session || !session->host_state) return 0;
+    KainWin32UiHost* host = (KainWin32UiHost*)session->host_state;
+    return host->width;
+}
+
+int64_t abi_ui_framebuffer_height(int64_t session_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    if (!session || !session->host_state) return 0;
+    KainWin32UiHost* host = (KainWin32UiHost*)session->host_state;
+    return host->height;
+}
+
+int64_t abi_ui_framebuffer_stride(int64_t session_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    if (!session || !session->host_state) return 0;
+    KainWin32UiHost* host = (KainWin32UiHost*)session->host_state;
+    return host->fb_stride / 4;  // stride in uint32_t elements
+}
+
+int64_t abi_ui_invalidate_window(int64_t session_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    if (!session || !session->host_state) return -1;
+    KainWin32UiHost* host = (KainWin32UiHost*)session->host_state;
+    InvalidateRect(host->hwnd, NULL, FALSE);
+    return 0;
+}
+
 void abi_ui_host_adapter_shutdown(KainNativeUiSession* session) {
     if (!session) {
         return;

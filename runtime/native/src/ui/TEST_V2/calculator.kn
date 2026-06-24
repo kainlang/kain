@@ -1,0 +1,181 @@
+// ============================================================================
+//  calculator.kn — Kain std::ui Calculator
+//  ============================================================================
+//  Uses the proven std::ui pipeline. Maps 1:1 to C calculator.c layout.
+//  Same window size, colors, button grid, calculator logic.
+//  Frame loop with ui_frame_begin/submit/host_present.
+//
+//  Compile:  kain build calculator.kn --target llvm
+//  ============================================================================
+
+use std::runtime
+use std::ui
+use std::time
+
+// ── Color palette (matches C calculator.c) ─────────────────────────────
+
+fn col_bg() -> String:
+    return "#1A1A24"
+
+fn col_header() -> String:
+    return "#1E1E32"
+
+fn col_btn() -> String:
+    return "#303050"
+
+fn col_display() -> String:
+    return "#0A0A14"
+
+fn col_accent() -> String:
+    return "#21D4A1"
+
+fn col_op() -> String:
+    return "#4A90D9"
+
+fn col_clear() -> String:
+    return "#E84A5F"
+
+// ── Calculator state ───────────────────────────────────────────────────
+
+var g_display_val: Int = 0
+var g_memory: Int = 0
+var g_pending_op: Int = 0
+var g_new_input: Int = 1
+var g_has_error: Int = 0
+
+// ── Calculator logic ───────────────────────────────────────────────────
+
+fn calc_display_str() -> String:
+    if g_has_error == 1:
+        return "Error"
+    return str(g_display_val)
+
+fn calc_input_digit(d: Int):
+    if g_has_error == 1:
+        g_display_val = 0
+        g_has_error = 0
+    if g_new_input == 1:
+        g_display_val = 0
+        g_new_input = 0
+    g_display_val = g_display_val * 10 + d
+    if g_display_val > 999999999:
+        g_display_val = 999999999
+
+fn calc_equals():
+    if g_has_error == 1:
+        return
+    if g_pending_op == 0:
+        return
+    let a = g_memory
+    let b = g_display_val
+    if g_pending_op == 1:
+        g_display_val = a + b
+    if g_pending_op == 2:
+        g_display_val = a - b
+    if g_pending_op == 3:
+        g_display_val = a * b
+    if g_pending_op == 4:
+        if b == 0:
+            g_has_error = 1
+            return
+        g_display_val = a / b
+    g_pending_op = 0
+    g_new_input = 1
+
+fn calc_set_op(op: Int):
+    if g_has_error == 1:
+        return
+    if g_pending_op != 0 and g_new_input == 0:
+        calc_equals()
+    g_memory = g_display_val
+    g_pending_op = op
+    g_new_input = 1
+
+fn calc_clear():
+    g_display_val = 0
+    g_memory = 0
+    g_pending_op = 0
+    g_new_input = 1
+    g_has_error = 0
+
+// ── Helper: create a styled button panel ───────────────────────────────
+
+fn make_btn(session: Int, parent: Int, x: Float, y: Float, w: Float, h: Float,
+            label: String, fill: String):
+    let node = ui_reconcile_node(session, parent, "btn", label, x, y, w, h)
+    let _ = native_ui_node_set_style_string(session, node, "fill_color", fill)
+    let _ = native_ui_node_set_style_string(session, node, "border_color", "#3A3A5C")
+    let _ = native_ui_node_set_style_f64(session, node, "corner_radius", 6.0)
+
+// ── Main ───────────────────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let win_w: Int = 420
+    let win_h: Int = 560
+    let p: Float = 8.0
+    let fw: Float = 420.0
+    let fh: Float = 560.0
+
+    // Create session with REAL window
+    let session = ui_host_session_create("calc", "Kain Calculator", win_w, win_h, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+    let root = ui_reconcile_node(session, 0, "root", "calc.root", 0.0, 0.0, fw, fh)
+    let _ = native_ui_node_set_style_string(session, root, "fill_color", col_bg())
+
+    // Header bar
+    make_btn(session, root, 0.0, 0.0, fw, 60.0, "header", col_header())
+    // Green accent line
+    make_btn(session, root, 0.0, 58.0, fw, 2.0, "accent", col_accent())
+    // Display area
+    make_btn(session, root, p, 68.0, fw - p * 2.0, 56.0, "display", col_display())
+
+    // Button grid: 4 columns x 5 rows
+    // Row 0: 7 8 9 /
+    make_btn(session, root, 8.0, 136.0, 97.0, 64.0, "7", col_btn())
+    make_btn(session, root, 109.0, 136.0, 97.0, 64.0, "8", col_btn())
+    make_btn(session, root, 210.0, 136.0, 97.0, 64.0, "9", col_btn())
+    make_btn(session, root, 311.0, 136.0, 97.0, 64.0, "/", col_op())
+    // Row 1: 4 5 6 *
+    make_btn(session, root, 8.0, 204.0, 97.0, 64.0, "4", col_btn())
+    make_btn(session, root, 109.0, 204.0, 97.0, 64.0, "5", col_btn())
+    make_btn(session, root, 210.0, 204.0, 97.0, 64.0, "6", col_btn())
+    make_btn(session, root, 311.0, 204.0, 97.0, 64.0, "*", col_op())
+    // Row 2: 1 2 3 -
+    make_btn(session, root, 8.0, 272.0, 97.0, 64.0, "1", col_btn())
+    make_btn(session, root, 109.0, 272.0, 97.0, 64.0, "2", col_btn())
+    make_btn(session, root, 210.0, 272.0, 97.0, 64.0, "3", col_btn())
+    make_btn(session, root, 311.0, 272.0, 97.0, 64.0, "-", col_op())
+    // Row 3: 0 . C +
+    make_btn(session, root, 8.0, 340.0, 97.0, 64.0, "0", col_btn())
+    make_btn(session, root, 109.0, 340.0, 97.0, 64.0, ".", col_btn())
+    make_btn(session, root, 210.0, 340.0, 97.0, 64.0, "C", col_clear())
+    make_btn(session, root, 311.0, 340.0, 97.0, 64.0, "+", col_op())
+    // Row 4: =
+    make_btn(session, root, 8.0, 408.0, 400.0, 64.0, "=", col_op())
+
+    let _ = print("Nodes: " + str(ui_node_count(session)) + "\n")
+
+    // Frame loop
+    var frame: Int = 0
+    while ui_host_should_close(session) == 0:
+        let _begin = ui_frame_begin(session, 16.0)
+        let _submit = ui_frame_submit(session)
+        let _present = ui_host_present(session)
+        let _pump = ui_host_pump(session)
+        frame = frame + 1
+        if frame % 60 == 0:
+            let _ = print("Frame " + str(frame) + "\n")
+        sleep_millis(16)
+
+    let _destroy = ui_session_destroy(session)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0
+

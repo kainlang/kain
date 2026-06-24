@@ -18,4 +18,17 @@ int abi_ui_host_adapter_clipboard_get_text(
     size_t out_text_cap
 );
 
+// ── Framebuffer accessors ────────────────────────────────────
+// Expose DIB framebuffer metadata so Kain can write pixels directly.
+// Returns 0 on error (session not found, no winit host attached).
+int64_t abi_ui_framebuffer_ptr(int64_t session_id);
+int64_t abi_ui_framebuffer_width(int64_t session_id);
+int64_t abi_ui_framebuffer_height(int64_t session_id);
+int64_t abi_ui_framebuffer_stride(int64_t session_id);
+
+// ── Window invalidation ────────────────────────────────────
+// Trigger WM_PAINT to BitBlt the framebuffer to screen.
+// Returns 0 on success, -1 on invalid session.
+int64_t abi_ui_invalidate_window(int64_t session_id);
+
 #endif /* ABI_UI_HOST_ADAPTER_H */
