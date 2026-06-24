@@ -1,4 +1,7 @@
 #include "../../include/buddy.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 _Static_assert((KAIN_BUDDY_IS_USED_MASK & KAIN_BUDDY_NEXT_FREE_MASK) == 0u, "buddy used/next overlap");
 _Static_assert((KAIN_BUDDY_IS_USED_MASK & KAIN_BUDDY_PREV_FREE_MASK) == 0u, "buddy used/prev overlap");
@@ -15,27 +18,31 @@ static int kain_buddy_is_power_of_two(uint32_t value) {
     return value != 0u && (value & (value - 1u)) == 0u;
 }
 
+/* Proof: runtime/native/src/core/z3/proofs/native-buddy-log2-clz-equivalence.yaml */
 static uint8_t kain_buddy_log2_exact(uint32_t value) {
-    uint8_t height = 0u;
-    while (value > 1u) {
-        value >>= 1u;
-        height += 1u;
-    }
-    return height;
+#if defined(_MSC_VER)
+    unsigned long index;
+    _BitScanReverse(&index, value);
+    return (uint8_t)index;
+#else
+    return (uint8_t)(31u - (uint32_t)__builtin_clz(value));
+#endif
 }
 
 static uint32_t kain_buddy_units_for_height(uint32_t height) {
     return 1u << height;
 }
 
+/* Proof: runtime/native/src/core/z3/proofs/native-buddy-log2-clz-equivalence.yaml */
 static uint32_t kain_buddy_required_height(uint32_t unit_count) {
-    uint32_t rounded_units = 1u;
-    uint32_t height = 0u;
-    while (rounded_units < unit_count) {
-        rounded_units <<= 1u;
-        height += 1u;
-    }
-    return height;
+    if (unit_count <= 1u) return 0u;
+#if defined(_MSC_VER)
+    unsigned long index;
+    _BitScanReverse(&index, unit_count - 1u);
+    return (uint32_t)(index + 1u);
+#else
+    return 32u - (uint32_t)__builtin_clz(unit_count - 1u);
+#endif
 }
 
 static void kain_buddy_node_clear(KainBuddyNode* node) {
