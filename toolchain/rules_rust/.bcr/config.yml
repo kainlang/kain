@@ -1,7 +1,0 @@
-moduleRoots:
-  - "."
-  - "extensions/bindgen"
-  - "extensions/mdbook"
-  - "extensions/prost"
-  - "extensions/pyo3"
-  - "extensions/wasm_bindgen"

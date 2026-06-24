@@ -6,6 +6,8 @@ This folder stores the vendored compiler toolchain required for Kain's native la
 
 - `llvm/` is the full LLVM toolchain drop used by the native build pipeline.
 
+- `rules_rust/` a fork of the official repository to make it actually work on windows// long file paths etc along with clean up some of the questionable design choices the original repo had. 
+
 ## Notes
 
 - The LLVM binaries in `toolchain/llvm/bin/` are expected and should remain intact.
