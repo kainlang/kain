@@ -1,0 +1,48 @@
+version: 1
+id: kain.native.core.proofs.stbtt_find_table_valid
+kind: find_counterexample
+description: >-
+  stbtt__find_table() searches the TrueType table directory with correct
+  bounds and validation. num_tables is read as uint16 and practically
+  bounded by 60 (TrueType spec maximum). Each 16-byte directory entry
+  access (tabledir + 16*i) is within range and doesn't overflow 32-bit
+  arithmetic. Tag comparison matches all 4 bytes. Returned table offset
+  is non-zero when a table is found (zero means table not present).
+tags:
+- stb-truetype
+- bounds
+- memory-safety
+- invariant
+- font-parsing
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt__find_table
+  start_line: 1306
+  reason: >-
+    The table directory search is the entry point for all font table access.
+    If the directory iteration overflows, reads past the directory end, or
+    returns a zero (invalid) table offset, the font initialization and all
+    subsequent glyph rendering will be corrupted or crash.
+case:
+  declarations:
+  - name: num_tables
+    sort:
+      kind: int
+    description: Number of tables in the TrueType font directory (uint16)
+  - name: fontstart
+    sort:
+      kind: int
+    description: Offset to the start of the font data within the file
+  constraints:
+  - op: ge
+    args: [num_tables, 0]
+  - op: le
+    args: [num_tables, 60]
+  - op: ge
+    args: [fontstart, 0]
+  claim:
+    op: le
+    args:
+    - op: mul
+      args: [num_tables, 16]
+    - 960
