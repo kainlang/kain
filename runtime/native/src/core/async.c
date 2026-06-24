@@ -34,6 +34,30 @@
 #define KAIN_ASYNC_TIMER_INDEX_MASK (KAIN_ASYNC_TIMER_INDEX_CAPACITY - 1u)
 #define KAIN_ASYNC_BATCH_QUEUE_CAPACITY 4096u
 #define KAIN_ASYNC_REF_INVALID_SLOT UINT32_MAX
+
+/* Packed flags for KainAsyncTaskRecord */
+#define KAIN_ASYNC_FLAG_IN_USE              0x00000001u
+#define KAIN_ASYNC_FLAG_CANCEL_REQUESTED    0x00000002u
+#define KAIN_ASYNC_FLAG_RUN_ENQUEUED         0x00000004u
+#define KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED  0x00000008u
+#define KAIN_ASYNC_FLAG_COMPLETION_FIRED     0x00000010u
+#define KAIN_ASYNC_FLAG_COMPLETION_DEFERRED  0x00000020u
+#define KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED 0x00000040u
+#define KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE    0x00000080u
+#define KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE 0x00000100u
+
+/*
+ * Blocked mask: single-bit-test replacement for the 4-way OR in
+ * kain_async_task_is_blocked_locked. Packs continuation_blocked,
+ * dependency_wait_active, child_wait_active, and completion_deferred
+ * into one uint32_t test.
+ * Proof: z3/proofs-experimental/async-packed-flags-blocked-mask.smt2 (unsat)
+ */
+#define KAIN_ASYNC_FLAG_BLOCKED_MASK \
+    (KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED | \
+     KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE | \
+     KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE | \
+     KAIN_ASYNC_FLAG_COMPLETION_DEFERRED)
 #if (KAIN_ASYNC_MAX_TASKS % KAIN_ASYNC_SLOT_WORD_BITS) != 0
 #error "KAIN_ASYNC_MAX_TASKS must be divisible by 64 for occupancy-word indexing."
 #endif
@@ -85,18 +109,10 @@ typedef enum {
 } KainAsyncBatchOpKind;
 
 typedef struct KainAsyncTaskRecord {
-    int in_use;
+    uint32_t flags;
     KainTaskId id;
     KainTaskSpawnConfig config;
     KainTaskState state;
-    int cancel_requested;
-    int run_enqueued;
-    int completion_enqueued;
-    int completion_fired;
-    int completion_deferred;
-    int continuation_blocked;
-    int child_wait_active;
-    int dependency_wait_active;
     void* result;
     KainFutureContext future_context;
     KainTaskRuntimeState runtime_state;
@@ -267,7 +283,7 @@ static KainAsyncTaskRecord* kain_async_task_from_ref_locked(KainAsyncTaskRef ref
     if (!kain_async_task_ref_is_valid(ref) || ref.slot >= KAIN_ASYNC_MAX_TASKS) {
         return NULL;
     }
-    if (!g_async_tasks[ref.slot].in_use || g_async_tasks[ref.slot].id != ref.id) {
+    if (!(g_async_tasks[ref.slot].flags & KAIN_ASYNC_FLAG_IN_USE) || g_async_tasks[ref.slot].id != ref.id) {
         return NULL;
     }
     return &g_async_tasks[ref.slot];
@@ -320,20 +336,21 @@ static void kain_async_task_sync_runtime_flags_locked(KainAsyncTaskRecord* task)
         memory_order_release);
     atomic_store_explicit(
         &task->runtime_state.continuation_blocked,
-        task->continuation_blocked != 0,
+        (task->flags & KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED) != 0,
         memory_order_release);
     atomic_store_explicit(
         &task->runtime_state.completion_deferred,
-        task->completion_deferred != 0,
+        (task->flags & KAIN_ASYNC_FLAG_COMPLETION_DEFERRED) != 0,
         memory_order_release);
 }
 
 static int kain_async_task_is_blocked_locked(const KainAsyncTaskRecord* task) {
+    /*
+     * Proof: z3/proofs-experimental/async-packed-flags-blocked-mask.smt2 (unsat)
+     * BLOCKED_MASK = CONTINUATION_BLOCKED|DEPENDENCY_WAIT_ACTIVE|CHILD_WAIT_ACTIVE|COMPLETION_DEFERRED
+     */
     return task != NULL &&
-           (task->continuation_blocked ||
-            task->dependency_wait_active ||
-            task->child_wait_active ||
-            task->completion_deferred);
+           (task->flags & KAIN_ASYNC_FLAG_BLOCKED_MASK) != 0;
 }
 
 static void kain_async_task_mark_ready_locked(KainAsyncTaskRecord* task) {
@@ -357,16 +374,16 @@ static void kain_async_batch_drain_entry(const KainBatchQueueEntry* entry, void*
 
 static int kain_async_schedule_task_run_locked(KainAsyncTaskRecord* task) {
     KainBatchQueueEntry entry;
-    if (task == NULL || task->run_enqueued || kain_async_task_is_terminal(task->state)) {
+    if (task == NULL || (task->flags & KAIN_ASYNC_FLAG_RUN_ENQUEUED) || kain_async_task_is_terminal(task->state)) {
         return 0;
     }
-    task->run_enqueued = 1;
+    task->flags |= KAIN_ASYNC_FLAG_RUN_ENQUEUED;
     entry.kind = KAIN_ASYNC_BATCH_OP_RUN_TASK;
     entry.arg0 = (uint64_t)task->id;
     entry.arg1 = 0u;
     entry.ptr0 = NULL;
     if (kain_batch_queue_enqueue(&g_async_batch_queue, &entry) != 0) {
-        task->run_enqueued = 0;
+        task->flags &= ~KAIN_ASYNC_FLAG_RUN_ENQUEUED;
         return -1;
     }
     return 0;
@@ -374,16 +391,17 @@ static int kain_async_schedule_task_run_locked(KainAsyncTaskRecord* task) {
 
 static int kain_async_schedule_task_completion_locked(KainAsyncTaskRecord* task) {
     KainBatchQueueEntry entry;
-    if (task == NULL || task->completion_enqueued || task->completion_fired == 1) {
+    if (task == NULL || (task->flags & KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED) ||
+        (task->flags & KAIN_ASYNC_FLAG_COMPLETION_FIRED)) {
         return 0;
     }
-    task->completion_enqueued = 1;
+    task->flags |= KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED;
     entry.kind = KAIN_ASYNC_BATCH_OP_COMPLETE_TASK;
     entry.arg0 = (uint64_t)task->id;
     entry.arg1 = 0u;
     entry.ptr0 = NULL;
     if (kain_batch_queue_enqueue(&g_async_batch_queue, &entry) != 0) {
-        task->completion_enqueued = 0;
+        task->flags &= ~KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED;
         return -1;
     }
     return 0;
@@ -574,7 +592,7 @@ static void kain_async_rebuild_task_index(void) {
     uint32_t slot;
     memset(g_async_task_index, 0, sizeof(g_async_task_index));
     for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
-        if (g_async_tasks[slot].in_use) {
+        if (g_async_tasks[slot].flags & KAIN_ASYNC_FLAG_IN_USE) {
             (void)kain_async_index_insert(
                 g_async_task_index,
                 KAIN_ASYNC_TASK_INDEX_CAPACITY,
@@ -590,7 +608,7 @@ static void kain_async_rebuild_timer_index(void) {
     uint32_t slot;
     memset(g_async_timer_index, 0, sizeof(g_async_timer_index));
     for (slot = 0u; slot < KAIN_ASYNC_MAX_TIMERS; ++slot) {
-        if (g_async_timers[slot].in_use) {
+        if (g_async_timers[slot].in_use) {  /* timer uses its own in_use, not packed */
             (void)kain_async_index_insert(
                 g_async_timer_index,
                 KAIN_ASYNC_TIMER_INDEX_CAPACITY,
@@ -620,7 +638,7 @@ static KainAsyncTaskRecord* kain_async_find_task_locked(KainTaskId task_id) {
         }
         slot = encoded_slot - 1u;
         if (slot < KAIN_ASYNC_MAX_TASKS &&
-            g_async_tasks[slot].in_use &&
+            (g_async_tasks[slot].flags & KAIN_ASYNC_FLAG_IN_USE) &&
             g_async_tasks[slot].id == task_id) {
             return &g_async_tasks[slot];
         }
@@ -673,7 +691,7 @@ static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
     uint64_t bit;
     KainAsyncTaskRef released_ref;
     uint32_t scan_slot;
-    if (task == NULL || !task->in_use) {
+    if (task == NULL || !(task->flags & KAIN_ASYNC_FLAG_IN_USE)) {
         return;
     }
     slot = (uint32_t)(task - g_async_tasks);
@@ -695,7 +713,7 @@ static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
     }
     for (scan_slot = 0u; scan_slot < KAIN_ASYNC_MAX_TASKS; ++scan_slot) {
         KainAsyncTaskRecord* other = &g_async_tasks[scan_slot];
-        if (!other->in_use || other == task) {
+        if (!(other->flags & KAIN_ASYNC_FLAG_IN_USE) || other == task) {
             continue;
         }
         kain_async_mutex_lock(&other->lock);
@@ -708,24 +726,24 @@ static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
             other->continuation_ref.slot == released_ref.slot &&
             other->continuation_ref.id == released_ref.id) {
             other->continuation_ref = kain_async_task_ref_invalid();
-            other->continuation_blocked = 0;
+            other->flags &= ~KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED;
         }
         if (kain_async_task_bitset_clear(other->wait_dependency_bits, slot)) {
             if (other->dependency_wait_count != 0u) {
                 other->dependency_wait_count -= 1u;
             }
             if (other->dependency_wait_count == 0u) {
-                other->dependency_wait_active = 0;
+                other->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
             }
         }
         if (kain_async_task_bitset_clear(other->live_child_bits, slot) &&
             other->live_child_count != 0u) {
             other->live_child_count -= 1u;
-            if (other->child_wait_active &&
+            if ((other->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE) &&
                 (other->live_child_count == 0u ||
                  (other->child_wait_mode == KAIN_TASK_WAIT_MODE_ANY &&
                   other->completed_child_count != 0u))) {
-                other->child_wait_active = 0;
+                other->flags &= ~KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE;
             }
         }
         kain_async_task_sync_runtime_flags_locked(other);
@@ -790,7 +808,7 @@ static KainAsyncTaskRecord* kain_async_allocate_task_record(void) {
     if (kain_async_find_free_task_slot(&slot)) {
         record = &g_async_tasks[slot];
         memset(record, 0, sizeof(*record));
-        record->in_use = 1;
+        record->flags = KAIN_ASYNC_FLAG_IN_USE;
         record->id = g_async_next_task_id++;
         record->state = KAIN_TASK_STATE_READY;
         record->handle.id = record->id;
@@ -928,9 +946,12 @@ static KainPollResult kain_async_sleep_task_fn(
 }
 
 static int kain_async_task_is_terminal(KainTaskState state) {
-    return state == KAIN_TASK_STATE_COMPLETED ||
-           state == KAIN_TASK_STATE_CANCELLED ||
-           state == KAIN_TASK_STATE_FAILED;
+    /*
+     * Proof: z3/proofs-experimental/async-terminal-state-branchless.smt2 (unsat)
+     * Terminal states: COMPLETED=3, CANCELLED=4, FAILED=5.
+     * All > RUNNING=2. Single compare replaces 3-way OR.
+     */
+    return state > KAIN_TASK_STATE_RUNNING;
 }
 
 static void kain_async_complete_task_locked(
@@ -954,10 +975,10 @@ static void kain_async_complete_task_locked(
     } else {
         task->result = produced_result;
     }
-    task->completion_deferred = 0;
-    task->child_wait_active = 0;
-    task->dependency_wait_active = 0;
-    task->continuation_blocked = 0;
+    task->flags &= ~(KAIN_ASYNC_FLAG_COMPLETION_DEFERRED |
+                      KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE |
+                      KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE |
+                      KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED);
     task->state = final_state;
     kain_async_task_sync_runtime_flags_locked(task);
     atomic_store_explicit(&task->runtime_state.state_snapshot, final_state, memory_order_release);
@@ -1016,7 +1037,7 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
         return KAIN_POLL_PENDING;
     }
 
-    if ((task->cancel_requested ||
+    if (((task->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED) ||
          atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) &&
         task->state != KAIN_TASK_STATE_RUNNING) {
         kain_async_complete_task_locked(task, KAIN_TASK_STATE_CANCELLED, NULL, result);
@@ -1031,13 +1052,14 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
         return KAIN_POLL_ERROR;
     }
 
-    if (task->completion_deferred && !task->child_wait_active) {
+    if ((task->flags & KAIN_ASYNC_FLAG_COMPLETION_DEFERRED) &&
+        !(task->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE)) {
         kain_async_complete_task_locked(task, KAIN_TASK_STATE_COMPLETED, task->result, result);
         kain_async_mutex_unlock(&task->lock);
         return KAIN_POLL_READY;
     }
 
-    if (task->continuation_blocked || task->dependency_wait_active || task->child_wait_active) {
+    if (task->flags & KAIN_ASYNC_FLAG_BLOCKED_MASK) {
         if (result) {
             *result = NULL;
         }
@@ -1058,7 +1080,9 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
     g_async_current_task_id = KAIN_TASK_ID_INVALID;
     kain_async_mutex_lock(&task->lock);
 
-    if (task->cancel_requested || atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) {
+    if ((task->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED) ||
+        atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) {
+        task->flags |= KAIN_ASYNC_FLAG_CANCEL_REQUESTED;
         atomic_store_explicit(&task->runtime_state.cancelled, 1, memory_order_release);
         kain_async_complete_task_locked(task, KAIN_TASK_STATE_CANCELLED, produced_result, result);
         kain_async_mutex_unlock(&task->lock);
@@ -1073,9 +1097,9 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
     }
 
     if (poll_result == KAIN_POLL_READY) {
-        if (task->child_wait_active) {
+        if (task->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE) {
             task->result = produced_result;
-            task->completion_deferred = 1;
+            task->flags |= KAIN_ASYNC_FLAG_COMPLETION_DEFERRED;
             kain_async_task_sync_runtime_flags_locked(task);
             if (result) {
                 *result = NULL;
@@ -1136,7 +1160,7 @@ static int kain_async_task_signal_handle(void* wake_handle, KainDiagnostic* diag
 
     task = handle->owner;
     kain_async_mutex_lock(&task->lock);
-    if (task->id != handle->id || !task->in_use) {
+    if (task->id != handle->id || !(task->flags & KAIN_ASYNC_FLAG_IN_USE)) {
         kain_async_mutex_unlock(&task->lock);
         atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
         kain_attrition_note_async_task_stale_reject((uint64_t)handle->id);
@@ -1216,12 +1240,12 @@ static void* kain_async_timer_thread_proc(void* parameter) {
 
 static void kain_async_destroy_new_task_record(KainAsyncTaskRecord* task) {
     KainTaskId task_id;
-    if (task == NULL || !task->in_use) {
+    if (task == NULL || !(task->flags & KAIN_ASYNC_FLAG_IN_USE)) {
         return;
     }
     task_id = task->id;
     kain_async_mutex_lock(&g_async_global_lock);
-    if (task->in_use && task->id == task_id) {
+    if ((task->flags & KAIN_ASYNC_FLAG_IN_USE) && task->id == task_id) {
         kain_async_release_task_record_locked(task);
     }
     kain_async_mutex_unlock(&g_async_global_lock);
@@ -1247,14 +1271,15 @@ static void kain_async_handle_task_completion(KainTaskId task_id) {
         return;
     }
     kain_async_mutex_lock(&task->lock);
-    if (!kain_async_task_is_terminal(task->state) || task->completion_fired) {
-        task->completion_enqueued = 0;
+    if (!kain_async_task_is_terminal(task->state) ||
+        (task->flags & KAIN_ASYNC_FLAG_COMPLETION_FIRED)) {
+        task->flags &= ~KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED;
         kain_async_mutex_unlock(&task->lock);
         kain_async_mutex_unlock(&g_async_global_lock);
         return;
     }
-    task->completion_fired = 1;
-    task->completion_enqueued = 0;
+    task->flags |= KAIN_ASYNC_FLAG_COMPLETION_FIRED;
+    task->flags &= ~KAIN_ASYNC_FLAG_COMPLETION_ENQUEUED;
     completion_callback = task->completion_callback;
     completion_user_data = task->completion_user_data;
     completion_result = task->result;
@@ -1265,7 +1290,7 @@ static void kain_async_handle_task_completion(KainTaskId task_id) {
     for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
         KainAsyncTaskRecord* other = &g_async_tasks[slot];
         int touched = 0;
-        if (!other->in_use || other == task) {
+        if (!(other->flags & KAIN_ASYNC_FLAG_IN_USE) || other == task) {
             continue;
         }
         kain_async_mutex_lock(&other->lock);
@@ -1275,10 +1300,10 @@ static void kain_async_handle_task_completion(KainTaskId task_id) {
                 other->live_child_count -= 1u;
             }
             other->completed_child_count += 1u;
-            if (other->child_wait_active &&
+            if ((other->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE) &&
                 (other->child_wait_mode == KAIN_TASK_WAIT_MODE_ANY ||
                  other->live_child_count == 0u)) {
-                other->child_wait_active = 0;
+                other->flags &= ~KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE;
             }
             touched = 1;
         }
@@ -1287,23 +1312,23 @@ static void kain_async_handle_task_completion(KainTaskId task_id) {
             other->continuation_ref.slot == completed_ref.slot &&
             other->continuation_ref.id == completed_ref.id) {
             other->continuation_ref = kain_async_task_ref_invalid();
-            other->continuation_blocked = 0;
+            other->flags &= ~KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED;
             touched = 1;
         }
 
-        if (other->dependency_wait_active &&
+        if ((other->flags & KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE) &&
             kain_async_task_bitset_test(other->wait_dependency_bits, completed_slot)) {
             if (other->dependency_wait_mode == KAIN_TASK_WAIT_MODE_ANY) {
                 memset(other->wait_dependency_bits, 0, sizeof(other->wait_dependency_bits));
                 other->dependency_wait_count = 0u;
-                other->dependency_wait_active = 0;
+                other->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
             } else {
                 if (kain_async_task_bitset_clear(other->wait_dependency_bits, completed_slot) &&
                     other->dependency_wait_count != 0u) {
                     other->dependency_wait_count -= 1u;
                 }
                 if (other->dependency_wait_count == 0u) {
-                    other->dependency_wait_active = 0;
+                    other->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
                 }
             }
             touched = 1;
@@ -1311,11 +1336,13 @@ static void kain_async_handle_task_completion(KainTaskId task_id) {
 
         if (touched) {
             kain_async_task_sync_runtime_flags_locked(other);
-            if (other->completion_deferred && !other->child_wait_active) {
+            if ((other->flags & KAIN_ASYNC_FLAG_COMPLETION_DEFERRED) &&
+                !(other->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE)) {
                 kain_async_complete_task_locked(other, KAIN_TASK_STATE_COMPLETED, other->result, NULL);
             } else if (!kain_async_task_is_terminal(other->state) &&
                        other->state != KAIN_TASK_STATE_RUNNING &&
-                       (other->cancel_requested || !kain_async_task_is_blocked_locked(other))) {
+                       ((other->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED) ||
+                        !kain_async_task_is_blocked_locked(other))) {
                 kain_async_task_mark_ready_locked(other);
                 (void)kain_async_schedule_task_run_locked(other);
             }
@@ -1341,7 +1368,7 @@ static void kain_async_batch_drain_entry(const KainBatchQueueEntry* entry, void*
             return;
         }
         kain_async_mutex_lock(&task->lock);
-        task->run_enqueued = 0;
+        task->flags &= ~KAIN_ASYNC_FLAG_RUN_ENQUEUED;
         kain_async_mutex_unlock(&task->lock);
         (void)kain_async_execute_task(task, NULL, NULL);
     } else if (entry->kind == KAIN_ASYNC_BATCH_OP_COMPLETE_TASK) {
@@ -1474,17 +1501,19 @@ int kain_task_add_child(
         if (kain_async_task_bitset_set(parent->live_child_bits, kain_async_task_slot(child))) {
             parent->live_child_count += 1u;
         }
-        parent->child_wait_active =
-            wait_mode == KAIN_TASK_WAIT_MODE_ANY
-                ? (parent->completed_child_count == 0u && parent->live_child_count != 0u)
-                : (parent->live_child_count != 0u);
-        if (parent->child_wait_active && parent->state != KAIN_TASK_STATE_RUNNING) {
+        parent->flags = (parent->flags & ~KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE) |
+            (wait_mode == KAIN_TASK_WAIT_MODE_ANY
+                ? ((parent->completed_child_count == 0u && parent->live_child_count != 0u)
+                   ? KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE : 0u)
+                : (parent->live_child_count != 0u
+                   ? KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE : 0u));
+        if ((parent->flags & KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE) && parent->state != KAIN_TASK_STATE_RUNNING) {
             kain_async_task_mark_pending_locked(parent);
         }
     } else {
         parent->completed_child_count += 1u;
         if (wait_mode == KAIN_TASK_WAIT_MODE_ANY) {
-            parent->child_wait_active = 0;
+            parent->flags &= ~KAIN_ASYNC_FLAG_CHILD_WAIT_ACTIVE;
         }
     }
     kain_async_task_sync_runtime_flags_locked(parent);
@@ -1568,8 +1597,12 @@ int kain_task_add_continuation(
 
     continuation->continuation_ref = kain_async_task_ref_from_task(antecedent);
     antecedent_terminal = kain_async_task_is_terminal(antecedent->state);
-    continuation->continuation_blocked = antecedent_terminal ? 0 : 1;
-    if (continuation->continuation_blocked) {
+    if (antecedent_terminal) {
+        continuation->flags &= ~KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED;
+    } else {
+        continuation->flags |= KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED;
+    }
+    if (continuation->flags & KAIN_ASYNC_FLAG_CONTINUATION_BLOCKED) {
         kain_async_task_mark_pending_locked(continuation);
     } else if (!kain_async_task_is_terminal(continuation->state) &&
                continuation->state != KAIN_TASK_STATE_RUNNING &&
@@ -1651,7 +1684,7 @@ int kain_task_add_wait_dependencies(
     memset(waiter->wait_dependency_bits, 0, sizeof(waiter->wait_dependency_bits));
     waiter->dependency_wait_mode = wait_mode;
     waiter->dependency_wait_count = 0u;
-    waiter->dependency_wait_active = 0;
+    waiter->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
 
     for (index = 0u; index < dependency_task_count; ++index) {
         KainAsyncTaskRecord* dependency;
@@ -1682,11 +1715,15 @@ int kain_task_add_wait_dependencies(
     if (wait_mode == KAIN_TASK_WAIT_MODE_ANY && any_terminal) {
         memset(waiter->wait_dependency_bits, 0, sizeof(waiter->wait_dependency_bits));
         waiter->dependency_wait_count = 0u;
-        waiter->dependency_wait_active = 0;
+        waiter->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
     } else {
-        waiter->dependency_wait_active = waiter->dependency_wait_count != 0u;
+        if (waiter->dependency_wait_count != 0u) {
+            waiter->flags |= KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
+        } else {
+            waiter->flags &= ~KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE;
+        }
     }
-    if (waiter->dependency_wait_active) {
+    if (waiter->flags & KAIN_ASYNC_FLAG_DEPENDENCY_WAIT_ACTIVE) {
         kain_async_task_mark_pending_locked(waiter);
     } else if (!kain_async_task_is_terminal(waiter->state) &&
                waiter->state != KAIN_TASK_STATE_RUNNING &&
@@ -1738,7 +1775,7 @@ KainTaskId kain_task_spawn(
     kain_async_mutex_lock(&task->lock);
     task->config = *config;
     task->state = KAIN_TASK_STATE_READY;
-    task->cancel_requested = 0;
+    task->flags &= ~KAIN_ASYNC_FLAG_CANCEL_REQUESTED;
     task->result = NULL;
     task->dependency_wait_mode = KAIN_TASK_WAIT_MODE_ALL;
     task->child_wait_mode = config->child_wait_mode;
@@ -1920,14 +1957,14 @@ int kain_task_cancel(
             KainAsyncTaskRecord* parent = NULL;
             KainAsyncTaskRecord* antecedent = NULL;
             int should_cancel = 0;
-            if (!other->in_use) {
+            if (!(other->flags & KAIN_ASYNC_FLAG_IN_USE)) {
                 continue;
             }
 
             kain_async_mutex_lock(&other->lock);
             if (slot == kain_async_task_slot(task)) {
                 should_cancel = 1;
-            } else if (!other->cancel_requested) {
+            } else if (!(other->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED)) {
                 parent = kain_async_task_from_ref_locked(other->parent_ref);
                 antecedent = kain_async_task_from_ref_locked(other->continuation_ref);
                 should_cancel =
@@ -1937,9 +1974,10 @@ int kain_task_cancel(
                      atomic_load_explicit(&antecedent->runtime_state.cancelled, memory_order_acquire) != 0);
             }
 
-            if (should_cancel && !other->cancel_requested && !kain_async_task_is_terminal(other->state)) {
+            if (should_cancel && !(other->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED) &&
+                !kain_async_task_is_terminal(other->state)) {
                 KainTimerId timer_id_to_cancel = KAIN_TIMER_ID_INVALID;
-                other->cancel_requested = 1;
+                other->flags |= KAIN_ASYNC_FLAG_CANCEL_REQUESTED;
                 atomic_store_explicit(&other->runtime_state.cancelled, 1, memory_order_release);
                 if (other->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
                     timer_id_to_cancel = other->sleep_state.timer_id;
@@ -1961,7 +1999,7 @@ int kain_task_cancel(
                 }
                 changed = 1;
             } else if (slot == kain_async_task_slot(task) && !kain_async_task_is_terminal(other->state)) {
-                other->cancel_requested = 1;
+                other->flags |= KAIN_ASYNC_FLAG_CANCEL_REQUESTED;
                 atomic_store_explicit(&other->runtime_state.cancelled, 1, memory_order_release);
                 kain_async_task_sync_runtime_flags_locked(other);
                 if (other->state != KAIN_TASK_STATE_RUNNING) {
@@ -2171,7 +2209,7 @@ KainTaskId kain_async_sleep(
     task->sleep_state.timer_id = KAIN_TIMER_ID_INVALID;
     task->sleep_state.armed = 0;
     task->state = KAIN_TASK_STATE_READY;
-    task->cancel_requested = 0;
+    task->flags &= ~KAIN_ASYNC_FLAG_CANCEL_REQUESTED;
     task->result = NULL;
     atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_READY, memory_order_release);
 
@@ -2209,7 +2247,7 @@ int kain_attrition_async_dispose_task(KainTaskId task_id) {
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
     task = kain_async_find_task_locked(task_id);
-    if (task == NULL || !task->in_use || task->id != task_id) {
+    if (task == NULL || !(task->flags & KAIN_ASYNC_FLAG_IN_USE) || task->id != task_id) {
         kain_async_mutex_unlock(&g_async_global_lock);
         atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
         kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
@@ -2287,10 +2325,10 @@ void kain_attrition_async_fill_snapshot(KainAttritionSnapshot* snapshot) {
     }
     for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
         KainAsyncTaskRecord* task = &g_async_tasks[slot];
-        if (!task->in_use) {
+        if (!(task->flags & KAIN_ASYNC_FLAG_IN_USE)) {
             continue;
         }
-        if (task->cancel_requested) {
+        if (task->flags & KAIN_ASYNC_FLAG_CANCEL_REQUESTED) {
             async_task_cancel_requested_count += 1u;
         }
         if (task->sleep_state.armed) {
