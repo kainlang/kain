@@ -1,0 +1,118 @@
+// ============================================================================
+//  bench_actor_spam.kn — Baseline for actor.c super-optimizations
+// ============================================================================
+
+use std::time
+use std::runtime
+
+const BENCH_NAME:        String = "actor_spam_throughput"
+const BENCH_DESCRIPTION: String = "Actor hot path: spawn 4 actors, send 20 rounds of ask/reply per iteration. Exercises actor spawn (slot allocation via de Bruijn/popcount), mailbox enqueue/dequeue, reply port generation (generation-tagged refs), scheduler dequeue, and ref resolution. Targets P0/P1 actor.c super-optimizations: popcount SWAR→POPCNT (10-15×), restart policy branch→bitwise (5×), borrowed message memmove (5-10×), ref packed compare."
+const TARGET_MS:         Int    = 500
+const WARMUP_ROUNDS:     Int    = 2
+const MEASURE_ROUNDS:    Int    = 5
+const MAX_ITERS:         Int    = 500
+
+const MODULUS: Int = 1000000007
+
+fn meta(key: String, value: String):
+    println("META:" + BENCH_NAME + "|" + key + "=" + value)
+
+actor BenchWorker:
+    state bias: Int = 1
+
+    on Multiply(reply_to: P, factor: Int):
+        self.bias = (self.bias * factor + 17) % MODULUS
+        send reply_to.Reply(value = self.bias)
+
+actor Worker2:
+    state bias: Int = 2
+
+    on Multiply(reply_to: P, factor: Int):
+        self.bias = (self.bias * factor + 23) % MODULUS
+        send reply_to.Reply(value = self.bias)
+
+actor Worker3:
+    state bias: Int = 3
+
+    on Multiply(reply_to: P, factor: Int):
+        self.bias = (self.bias * factor + 29) % MODULUS
+        send reply_to.Reply(value = self.bias)
+
+actor Worker4:
+    state bias: Int = 5
+
+    on Multiply(reply_to: P, factor: Int):
+        self.bias = (self.bias * factor + 31) % MODULUS
+        send reply_to.Reply(value = self.bias)
+
+fn run_iteration(acc: Int) -> Int:
+    let a1 = spawn BenchWorker()
+    let a2 = spawn Worker2()
+    let a3 = spawn Worker3()
+    let a4 = spawn Worker4()
+
+    var checksum = 0
+    var round = 0
+    while round < 20:
+        let r1 = ask(a1, "Multiply", 31)
+        let r2 = ask(a2, "Multiply", 37)
+        let r3 = ask(a3, "Multiply", 41)
+        let r4 = ask(a4, "Multiply", 43)
+        checksum = (checksum + r1 + r2 + r3 + r4) % MODULUS
+        round = round + 1
+
+    return acc + checksum
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    println("DESCRIPTION:" + BENCH_NAME + "|" + BENCH_DESCRIPTION)
+    meta("actors_per_iter", "4")
+    meta("messages_per_iter", "80 (4 actors × 20 rounds)")
+    meta("optimization_targets", "popcount→POPCNT, restart→bitwise, memmove, ref-packed-compare")
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+        println("BENCH:" + BENCH_NAME + "|ITERS:" + str(iters) + "|ROUND:" + str(r) + "|ELAPSED_MS:" + str(elapsed_ms) + "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0

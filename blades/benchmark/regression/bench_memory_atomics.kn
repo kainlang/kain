@@ -1,0 +1,118 @@
+// ============================================================================
+//  bench_memory_atomics.kn — Baseline for memory.c super-optimizations
+//
+//  Targets: &&→& bitwise, OR flatten, LUT for ordering, strength checks
+// ============================================================================
+
+use std::time
+use std::runtime
+use std::atomic
+
+const BENCH_NAME:        String = "memory_atomic_ops"
+const BENCH_DESCRIPTION: String = "Memory hot path: ordered atomic load/store/fence operations + pointer chains. Exercises `atomic_load_seqcst`, `atomic_store_seqcst`, `atomic_fence_seqcst`, raw pointer offset chains (`ptr_offset`), and `mem_load`/`mem_store` through collapse/observe/decay. Targets P0/P1 memory.c super-optimizations: `&&`→`&` bitwise (2×), deferred decay OR flatten (1.2×), ordering LUT branchless (2×), strength checks."
+const TARGET_MS:         Int    = 500
+const WARMUP_ROUNDS:     Int    = 2
+const MEASURE_ROUNDS:    Int    = 5
+const MAX_ITERS:         Int    = 5000
+
+const MODULUS: Int = 1000000007
+
+fn meta(key: String, value: String):
+    println("META:" + BENCH_NAME + "|" + key + "=" + value)
+
+fn run_iteration(acc: Int) -> Int with Unsafe:
+    let modulus = MODULUS
+
+    // Allocate a small raw buffer for atomic ops + pointer chains
+    let buf: ptr<Int> = alloc_zeroed(8, "Int")
+    var checksum = 0
+
+    var round = 0
+    while round < 50:
+        // Atomic store → fence → atomic load chain
+        collapse buf:
+            // Write via raw mem_store (exercises memory.c alloc header checks)
+            var j = 0
+            while j < 8:
+                mem_store(ptr_offset(buf, j, "Int"), (round * 31 + j * 7 + acc) % modulus, "Int")
+                j = j + 1
+
+            // Atomic fence + store + load pattern
+            atomic_fence_seqcst()
+            atomic_store_seqcst(ptr_offset(buf, 0, "Int"), round + 42)
+
+            // Pointer offset chain (exercises ptr_offset bounds)
+            let p0 = ptr_offset(buf, 0, "Int")
+            let p1 = ptr_offset(buf, 4, "Int")
+            let v0 = atomic_load_seqcst(p0)
+            let v1 = atomic_load_seqcst(p1)
+
+            checksum = (checksum + v0 * 3 + v1 * 7) % modulus
+            0
+
+        // Observe + decay
+        let v = observe buf:
+            mem_load(ptr_offset(buf, round % 8, "Int"), "Int")
+        decay buf
+
+        checksum = (checksum + v) % modulus
+
+        // Re-allocate for next round (exercises buddy alloc/free cycle)
+        buf = alloc_zeroed(8, "Int")
+        round = round + 1
+
+    return acc + checksum
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    println("DESCRIPTION:" + BENCH_NAME + "|" + BENCH_DESCRIPTION)
+    meta("atomic_ops_per_iter", "4 (2 stores + 2 loads)")
+    meta("alloc_cycles_per_iter", "50 (alloc/collapse/observe/decay)")
+    meta("optimization_targets", "&&→&, OR-flatten, ordering-LUT, strength-checks")
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+        println("BENCH:" + BENCH_NAME + "|ITERS:" + str(iters) + "|ROUND:" + str(r) + "|ELAPSED_MS:" + str(elapsed_ms) + "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0
