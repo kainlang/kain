@@ -1,0 +1,107 @@
+// ============================================================================
+//  bench_ownership.kn — Baseline for ownership.c + buddy.c super-optimization
+//
+//  Targets:
+//    P0: buddy.c log2 → CLZ (10-30× on alloc/free)
+//    P0: ownership.c % 4096 → & 4095 (2-5×)
+//    P1: ownership.c free slot scan → summary word + ctz (16-64×)
+//    P1: ownership.c linear scan → LRU cache (4096× worst case)
+//
+//  Exercises collapse/observe/decay hot path with rapid alloc/free cycling.
+// ============================================================================
+
+use std::time
+use std::runtime
+
+const BENCH_NAME:      String = "ownership_alloc_churn"
+const TARGET_MS:       Int    = 500
+const WARMUP_ROUNDS:   Int    = 2
+const MEASURE_ROUNDS:  Int    = 5
+const MAX_ITERS:       Int    = 5000
+
+// Allocate, collapse-write, observe-read, decay — repeat many times.
+// Exercises buddy allocator log2 (CLZ target), ownership deferred decay
+// ringbuffer modulo (bitmask target), and free slot allocation (ctz target).
+
+fn run_iteration(acc: Int) -> Int:
+    let modulus = 1000000007
+    var checksum = 0
+
+    // Rapid alloc/collapse/observe/decay cycle — 200 rounds
+    var round = 0
+    while round < 200:
+        let ptr: ptr<Int> = alloc_zeroed(16, "Int")
+
+        collapse ptr:
+            var j = 0
+            while j < 16:
+                mem_store(ptr_offset(ptr, j, "Int"), (round * 31 + j * 7 + acc) % modulus, "Int")
+                j = j + 1
+            0
+
+        let v = observe ptr:
+            mem_load(ptr_offset(ptr, round % 16, "Int"), "Int")
+
+        decay ptr
+        checksum = (checksum + v) % modulus
+        round = round + 1
+
+    return acc + checksum
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+
+        println("BENCH:" + BENCH_NAME +
+                "|ITERS:" + str(iters) +
+                "|ROUND:" + str(r) +
+                "|ELAPSED_MS:" + str(elapsed_ms) +
+                "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0

@@ -1,0 +1,169 @@
+// ============================================================================
+//  shatter_ecs.kn — ECS query benchmark over shatter struct (SoA layout)
+//
+//  1 million entities, each with position, velocity, health, flags.
+//  Query loop: filter active entities, integrate velocity, drain health,
+//  accumulate checksum. Data-dependent branching defeats optimizer collapse.
+//
+//  The `shatter struct` keyword tells the compiler to emit Structure-of-Arrays
+//  layout — pos_x for all entities contiguous, pos_y contiguous, etc.
+//  This is SIMD-friendly: a vector load hits consecutive field values.
+//
+//  Copy to bench folder and run:
+//    kain run blades/benchmark/ -- run folder/
+// ============================================================================
+
+use std::time
+use std::runtime
+
+// ============================================================================
+//  CONFIG
+// ============================================================================
+
+const BENCH_NAME:      String = "shatter_ecs_query"
+const TARGET_MS:       Int    = 500
+const WARMUP_ROUNDS:   Int    = 2
+const MEASURE_ROUNDS:  Int    = 5
+const MAX_ITERS:       Int    = 100000
+
+// ============================================================================
+//  SHATTER STRUCT — ECS component data
+//
+//  The compiler lays out each field as a contiguous lane:
+//    pos_x[0], pos_x[1], ..., pos_x[N-1], pos_y[0], pos_y[1], ...
+//  This is the classic SoA (Structure-of-Arrays) layout used by
+//  high-performance ECS frameworks like EnTT and Flecs.
+// ============================================================================
+
+shatter struct Entity:
+    pos_x:  Int       // scaled position (x * 1000 for integer math)
+    pos_y:  Int
+    vel_x:  Int       // scaled velocity
+    vel_y:  Int
+    health: Int
+    flags:  Int       // bit 0 = active
+
+// ============================================================================
+//  WORKLOAD — how many entities per call to run_iteration
+// ============================================================================
+
+const ENTITY_COUNT: Int = 50000
+
+// ============================================================================
+//  RUN ITERATION — accumulator pattern defeats DCE
+//
+//  For each entity:
+//    - Read all 6 fields (exercises SoA lane access)
+//    - Branch on flag (data-dependent, defeats loop collapse)
+//    - Update pos += vel, dec health (write-back exercises SoA stores)
+//    - Accumulate checksum (read-after-write exercises cache coherency)
+// ============================================================================
+
+fn run_iteration(acc: Int) -> Int:
+    // Build an array of entities with deterministic pseudo-random initial state
+    let entities: Array<Entity> = []
+    var i = 0
+    while i < ENTITY_COUNT:
+        // Deterministic seed per entity
+        let seed = i * 6364136223846793005 + 1442695040888963407
+        let r1 = seed % 10000
+        let r2 = (seed >> 17) % 10000
+        let r3 = (seed >> 33) % 10000
+        let r4 = (seed >> 49) % 10000
+
+        let e = Entity {
+            pos_x:  (r1 - 5000) / 10,
+            pos_y:  (r2 - 5000) / 10,
+            vel_x:  (r3 % 201) - 100,
+            vel_y:  (r4 % 201) - 100,
+            health: (r1 * 7 + r2 * 13) % 1000,
+            flags:  (i * 7 + 1) % 7,   // 0,1,2,3,4,5,6 — flag 1 = active
+        }
+        push(entities, e)
+        i = i + 1
+
+    // ECS query: filter active, integrate, accumulate (READ-ONLY for codegen compat)
+    var checksum = 0
+    var alive_count = 0
+    i = 0
+    while i < ENTITY_COUNT:
+        let e = entities[i]
+        let flag = e.flags
+
+        // Filter: only process active entities (flag == 1, ~1/7 of entities)
+        if flag == 1:
+            // Simulate velocity integration (read all lanes, compute, accumulate)
+            let new_px = e.pos_x + e.vel_x
+            let new_py = e.pos_y + e.vel_y
+            let new_health = e.health
+            if e.health > 0:
+                new_health = e.health - 1
+
+            checksum = (checksum + new_px + new_py + new_health) % 1000000007
+            alive_count = alive_count + 1
+
+        // Accumulate checksum from ALL entities (reads all 6 SoA lanes)
+        checksum = (checksum + e.pos_x + e.pos_y + e.vel_x + e.vel_y + e.health + e.flags) % 1000000007
+        i = i + 1
+
+    // Mix in alive count so dead-entity-only runs produce different checksums
+    let result = (checksum * 31 + alive_count) % 1000000007
+    return acc + result
+
+// ============================================================================
+//  MAIN — timing harness (from template)
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+
+        println("BENCH:" + BENCH_NAME +
+                "|ITERS:" + str(iters) +
+                "|ROUND:" + str(r) +
+                "|ELAPSED_MS:" + str(elapsed_ms) +
+                "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0

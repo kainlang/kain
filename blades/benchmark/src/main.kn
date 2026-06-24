@@ -1,18 +1,12 @@
 // ============================================================================
 //  main.kn — Kain Bench — zero-friction microbenchmark runner
 //
-//  Drop .kn files in a folder. Run:
-//    kain run blades/benchmark/ -- bench run my_benches/
+//  Drop .kn files in a folder. Each file self-times using the template at:
+//    blades/benchmark/template.kn
 //
-//  Each .kn file is a standalone benchmark. It must have a main() -> Int
-//  that returns a deterministic checksum.
-//
-//  The blade:
-//    1. Discovers all .kn files in the folder
-//    2. Compiles each with `kain build --target llvm`
-//    3. Auto-scales iterations (runs exe in loop until target duration hit)
-//    4. Warmup + measure
-//    5. Writes a markdown report to the bench folder
+//  Usage:
+//    kain run blades/benchmark/ -- run my_benches/
+//    kain run blades/benchmark/ -- list my_benches/
 //
 //  Ladder: Layer 0 — plain fn + IO effect for process/filesystem.
 // ============================================================================
@@ -23,33 +17,31 @@ use std::path
 use std::os
 use std::runtime
 use std::text
+use std::ascii
 
 // ============================================================================
 //  CONFIG
 // ============================================================================
 
-const TARGET_DURATION_MS: Int = 500
-const WARMUP_ROUNDS:      Int = 2
-const MEASURE_ROUNDS:     Int = 5
-const MAX_ITERATIONS:     Int = 1000000
+const TARGET_DURATION_MS: Int = 1000
 
 // ============================================================================
 //  RESULT
 // ============================================================================
 
 struct BenchResult:
-    name:      String
-    exe_path:  String
-    iters:     Int
-    checksum:  Int
-    min_ms:    Int
-    max_ms:    Int
-    median_ms: Int
-    mean_ms:   Int
-    samples:   Array<Int>
-    build_ok:  Bool
-    run_ok:    Bool
-    error:     String
+    bench_name: String
+    exe_path:   String
+    iters:      Int
+    checksum:   Int
+    min_ms:     Int
+    max_ms:     Int
+    median_ms:  Int
+    mean_ms:    Int
+    samples:    Array<Int>
+    build_ok:   Bool
+    run_ok:     Bool
+    error:      String
 
 // ============================================================================
 //  MAIN
@@ -75,18 +67,15 @@ fn main() -> Int:
         return 2
 
     if cmd == "list":
+        let _s = runtime_shutdown()
         return cmd_list(dir)
-
     if cmd == "run":
+        let _s = runtime_shutdown()
         return cmd_run(dir)
 
     println("unknown command: " + cmd)
     let _s = runtime_shutdown()
     return 3
-
-// ============================================================================
-//  PARSE ARGS
-// ============================================================================
 
 fn user_args() -> Array<String>:
     let count = process_arg_count()
@@ -102,19 +91,19 @@ fn user_args() -> Array<String>:
 // ============================================================================
 
 fn cmd_list(dir: String) -> Int:
-    let files = find_kn_files(dir)
+    let cwd = os_getcwd()
+    var abs_dir = dir
+    if text_contains_string(dir, ":") == false:
+        abs_dir = path_join(cwd, dir)
+    let files = find_kn_files(abs_dir)
     if len(files) == 0:
         println("no .kn files in " + dir)
-        let _s = runtime_shutdown()
         return 0
-
     println(str(len(files)) + " benchmark file(s) in " + dir + ":")
     var i = 0
     while i < len(files):
         println("  " + files[i])
         i = i + 1
-
-    let _s = runtime_shutdown()
     return 0
 
 // ============================================================================
@@ -122,17 +111,14 @@ fn cmd_list(dir: String) -> Int:
 // ============================================================================
 
 fn cmd_run(dir: String) -> Int:
-    // Resolve absolute path to bench folder
     let cwd = os_getcwd()
     var abs_dir = dir
-    // Simple check: if not absolute (no colon on Windows), join with CWD
     if text_contains_string(dir, ":") == false:
         abs_dir = path_join(cwd, dir)
 
     let files = find_kn_files(abs_dir)
     if len(files) == 0:
         println("no .kn files in " + dir)
-        let _s = runtime_shutdown()
         return 0
 
     let results: Array<BenchResult> = []
@@ -140,27 +126,21 @@ fn cmd_run(dir: String) -> Int:
     while i < len(files):
         let file = files[i]
         let abs_file = path_join(abs_dir, file)
-        let bench_name = path_stem(file)
-        println("[" + str(i + 1) + "/" + str(len(files)) + "] " + bench_name + " ...")
-
+        let bname = path_stem(file)
+        println("[" + str(i + 1) + "/" + str(len(files)) + "] " + bname + " ...")
         let result = bench_file(abs_file)
         push(results, result)
-
         if result.build_ok and result.run_ok:
-            let per_iter_ns = (result.median_ms * 1000000) / result.iters
+            let ns = (result.median_ms * 1000000) / result.iters
             println("  -> " + str(result.median_ms) + "ms median, " +
-                    str(result.iters) + " iters, ~" + str(per_iter_ns) + " ns/iter")
+                    str(result.iters) + " iters, ~" + str(ns) + " ns/iter")
         else:
             println("  -> FAILED: " + result.error)
-
         i = i + 1
 
-    // Write markdown report to the bench folder
     let report = write_markdown_report(abs_dir, results)
     println("")
     println("report: " + report)
-
-    let _s = runtime_shutdown()
     return 0
 
 // ============================================================================
@@ -174,183 +154,189 @@ fn find_kn_files(dir: String) -> Array<String>:
     while i < len(entries):
         let ep = entries[i].path
         if text_ends_with_string(ep, ".kn"):
-            // Get just the filename
-            let fname = path_file_name(ep)
-            push(result, fname)
+            push(result, path_file_name(ep))
         i = i + 1
     return result
 
 // ============================================================================
-//  BENCH A SINGLE FILE — compile + run + measure
+//  BENCH A SINGLE FILE — build, run once, parse BENCH: stdout lines
 // ============================================================================
 
 fn bench_file(abs_kn_path: String) -> BenchResult:
-    let bench_name = path_stem(abs_kn_path)
+    let bname = path_stem(abs_kn_path)
 
-    // Build with absolute path (convert slashes for cmd.exe)
+    // Build
     let fixed_path = text_replace_string(abs_kn_path, "\\", "/")
-    let build_cmd = "kain build " + fixed_path + " --target llvm"
-    let _build_status = os_system(build_cmd)
+    let _bs = os_system("kain build " + fixed_path + " --target llvm")
 
-    // Find the built exe — walk .kain/out starting from the file's directory upward
+    // Find built exe
     let exe = find_built_exe(abs_kn_path)
     if exe == "":
-        return BenchResult {
-            name: bench_name, exe_path: "", iters: 0, checksum: 0,
-            min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
-            samples: [], build_ok: false, run_ok: false,
-            error: "build failed — no exe produced",
-        }
+        return fail_result(bname, "", false, "build failed — no exe produced")
 
-    // Verify checksum
-    let chk = run_exe_capture_checksum(exe)
-    if chk < 0:
-        return BenchResult {
-            name: bench_name, exe_path: exe, iters: 0, checksum: 0,
-            min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
-            samples: [], build_ok: true, run_ok: false,
-            error: "exe crashed (exit " + str(chk) + ")",
-        }
+    // Run once, capture stdout
+    let fixed_exe = text_replace_string(exe, "\\", "/")
+    let output = os_popen_read(fixed_exe, 300000)
+    if output == "":
+        return fail_result(bname, exe, true, "exe produced no output")
 
-    // Auto-scale iterations
-    let checksum = chk
-    var iters = 1
-    while iters <= MAX_ITERATIONS:
-        let elapsed = time_iters(exe, iters)
-        if elapsed < 0:
-            return BenchResult {
-                name: bench_name, exe_path: exe, iters: 0, checksum: checksum,
-                min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
-                samples: [], build_ok: true, run_ok: false,
-                error: "crashed during scaling at " + str(iters) + " iters",
-            }
-        if elapsed >= TARGET_DURATION_MS:
-            break
-        if iters >= MAX_ITERATIONS / 2:
-            break
-        iters = iters * 2
-
-    // Warmup
-    var w = 0
-    while w < WARMUP_ROUNDS:
-        let _t = time_iters(exe, iters)
-        w = w + 1
-
-    // Measure
+    // Parse BENCH: lines  (format: BENCH:<name>|ITERS:<n>|ROUND:<r>|ELAPSED_MS:<ms>|CHECKSUM:<c>)
     let samples: Array<Int> = []
-    var r = 0
-    while r < MEASURE_ROUNDS:
-        let ms = time_iters(exe, iters)
-        if ms < 0:
-            return BenchResult {
-                name: bench_name, exe_path: exe, iters: iters, checksum: checksum,
-                min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
-                samples: samples, build_ok: true, run_ok: false,
-                error: "crashed during measure round " + str(r),
-            }
-        push(samples, ms)
-        r = r + 1
+    var checksum = 0
+    var iters = 0
+
+    let lines = split_lines(output)
+    var li = 0
+    while li < len(lines):
+        let ln = text_trim_string(lines[li])
+        if text_starts_with_string(ln, "BENCH:"):
+            let ms = parse_int_field(ln, "ELAPSED_MS:")
+            if ms >= 0: push(samples, ms)
+            let it = parse_int_field(ln, "ITERS:")
+            if it >= 0: iters = it
+            let chk = parse_int_field(ln, "CHECKSUM:")
+            if chk >= 0: checksum = chk
+        li = li + 1
+
+    if len(samples) == 0:
+        return fail_result(bname, exe, true, "no BENCH: lines in output")
 
     let stats = compute_stats(samples)
-
     return BenchResult {
-        name: bench_name, exe_path: exe, iters: iters, checksum: checksum,
+        bench_name: bname, exe_path: exe,
+        iters: iters, checksum: checksum,
         min_ms: stats[0], max_ms: stats[1], median_ms: stats[2], mean_ms: stats[3],
         samples: samples, build_ok: true, run_ok: true, error: "",
     }
 
 // ============================================================================
-//  FIND BUILT EXE — look in .kain/out for the compiled binary
+//  FIND BUILT EXE — walk upward from file dir looking for .kain/out/<name>.exe
 // ============================================================================
 
 fn find_built_exe(abs_kn_path: String) -> String:
-    let bench_name = path_stem(abs_kn_path)
-    let target_name = bench_name + ".exe"
+    let bname = path_stem(abs_kn_path)
+    let target_name = bname + ".exe"
 
-    // Search from the file's directory upward for .kain/out
+    // 1. Walk .kain/out (fresh build from kain build command)
     var search_dir = path_parent(abs_kn_path)
     var attempts = 0
     while attempts < 5:
-        let out_path = path_join(search_dir, ".kain")
-        out_path = path_join(out_path, "out")
-
+        let out_path = path_join(path_join(search_dir, ".kain"), "out")
         if fs_exists(out_path):
             let entries = fs_walk(out_path)
             var i = 0
             while i < len(entries):
-                let ep = entries[i].path
-                if text_ends_with_string(ep, target_name):
-                    return ep
+                if text_ends_with_string(entries[i].path, target_name):
+                    return entries[i].path
                 i = i + 1
-
-        // Go up one level
-        let parent = path_parent(search_dir)
-        if parent == search_dir:
-            break
-        search_dir = parent
+        let up = path_parent(search_dir)
+        if up == search_dir: break
+        search_dir = up
         attempts = attempts + 1
+
+    // 2. Check sibling (next to .kn file)
+    let parent = path_parent(abs_kn_path)
+    let sibling = path_join(parent, target_name)
+    if fs_exists(sibling):
+        return sibling
+
+    // 3. Check repo root
+    let cwd = os_getcwd()
+    let root_exe = path_join(cwd, target_name)
+    if fs_exists(root_exe):
+        return root_exe
 
     return ""
 
 // ============================================================================
-//  RUN EXE AND CAPTURE CHECKSUM (exit code)
+//  PARSE HELPERS
 // ============================================================================
 
-fn run_exe_capture_checksum(exe: String) -> Int:
-    // TODO: popen capture on Windows is unreliable with os_popen_read.
-    // For now, return 0 as placeholder. Bench exes print checksum to stdout;
-    // verify manually or fix popen path.
-    return 0
+fn fail_result(bname: String, exe: String, built: Bool, msg: String) -> BenchResult:
+    return BenchResult {
+        bench_name: bname, exe_path: exe,
+        iters: 0, checksum: 0,
+        min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
+        samples: [], build_ok: built, run_ok: false, error: msg,
+    }
 
-// ============================================================================
-//  TIME N ITERATIONS OF AN EXE
-// ============================================================================
-
-fn time_iters(exe: String, iters: Int) -> Int:
-    let fixed_exe = text_replace_string(exe, "\\", "/")
-    let start = instant_now()
+fn parse_int_field(ln: String, key: String) -> Int:
+    // Find "|KEY:" in ln, parse trailing integer
     var i = 0
-    while i < iters:
-        let _status = os_system("\"" + fixed_exe + "\"")
+    while i <= len(ln) - len(key) - 1:
+        if char_at(ln, i) != "|":
+            i = i + 1
+            continue
+        var matched = true
+        var j = 0
+        while j < len(key):
+            if char_at(ln, i + 1 + j) != char_at(key, j):
+                matched = false
+                break
+            j = j + 1
+        if matched:
+            var start = i + 1 + len(key)
+            var val = 0
+            var sign = 1
+            if start < len(ln) and char_at(ln, start) == "-":
+                sign = -1
+                start = start + 1
+            var k = start
+            while k < len(ln):
+                let c = char_at(ln, k)
+                let code = ascii_char_code(c)
+                if code >= 48 and code <= 57:
+                    val = val * 10 + (code - 48)
+                else:
+                    break
+                k = k + 1
+            return val * sign
         i = i + 1
-    let elapsed = instant_elapsed(start)
-    return duration_to_millis(elapsed)
+    return -1
+
+fn split_lines(text: String) -> Array<String>:
+    let result: Array<String> = []
+    var current = ""
+    var i = 0
+    while i < len(text):
+        let c = char_at(text, i)
+        if c == "\n":
+            push(result, current)
+            current = ""
+        elif c != "\r":
+            current = current + c
+        i = i + 1
+    if current != "": push(result, current)
+    return result
 
 // ============================================================================
 //  COMPUTE STATS — returns [min, max, median, mean]
 // ============================================================================
 
 fn compute_stats(samples: Array<Int>) -> Array<Int>:
-    // Sort
     var si = 1
     while si < len(samples):
         let key = samples[si]
         var sj = si - 1
         var shifting = true
         while shifting:
-            if sj < 0:
-                shifting = false
-            elif samples[sj] <= key:
-                shifting = false
+            if sj < 0: shifting = false
+            elif samples[sj] <= key: shifting = false
             else:
                 samples[sj + 1] = samples[sj]
                 sj = sj - 1
         samples[sj + 1] = key
         si = si + 1
-
     let mid = len(samples) / 2
     let median = samples[mid]
     let min_val = samples[0]
     let max_val = samples[len(samples) - 1]
-
     var total = 0
     var j = 0
     while j < len(samples):
         total = total + samples[j]
         j = j + 1
-    let mean_val = total / len(samples)
-
-    return [min_val, max_val, median, mean_val]
+    return [min_val, max_val, median, total / len(samples)]
 
 // ============================================================================
 //  WRITE MARKDOWN REPORT
@@ -363,34 +349,27 @@ fn write_markdown_report(dir: String, results: Array<BenchResult>) -> String:
     md = md + "**Target:** " + str(TARGET_DURATION_MS) + "ms per benchmark  \n"
     md = md + "**Benchmarks:** " + str(len(results)) + "\n\n"
 
-    // Summary table
     md = md + "| Benchmark | Iters | Median | Min | Max | Mean | ns/iter | Checksum |\n"
     md = md + "|-----------|-------|--------|-----|-----|------|---------|----------|\n"
-
     var i = 0
     while i < len(results):
         let r = results[i]
         if r.build_ok and r.run_ok:
             let ns = (r.median_ms * 1000000) / r.iters
-            var row = "| `" + r.name + "` | " + str(r.iters) + " | "
-            row = row + str(r.median_ms) + "ms | "
-            row = row + str(r.min_ms) + "ms | "
-            row = row + str(r.max_ms) + "ms | "
-            row = row + str(r.mean_ms) + "ms | "
+            var row = "| `" + r.bench_name + "` | " + str(r.iters) + " | "
+            row = row + str(r.median_ms) + "ms | " + str(r.min_ms) + "ms | "
+            row = row + str(r.max_ms) + "ms | " + str(r.mean_ms) + "ms | "
             row = row + str(ns) + " | `" + str(r.checksum) + "` |\n"
             md = md + row
         else:
-            md = md + "| `" + r.name + "` | — | — | — | — | — | — | ❌ " + r.error + " |\n"
+            md = md + "| `" + r.bench_name + "` | — | — | — | — | — | — | ❌ " + r.error + " |\n"
         i = i + 1
 
-    md = md + "\n"
-
-    // Per-benchmark detail
-    md = md + "## Details\n\n"
+    md = md + "\n## Details\n\n"
     i = 0
     while i < len(results):
         let r = results[i]
-        md = md + "### " + r.name + "\n\n"
+        md = md + "### " + r.bench_name + "\n\n"
         if r.build_ok == false:
             md = md + "❌ **Build failed:** " + r.error + "\n\n"
         elif r.run_ok == false:
@@ -398,48 +377,32 @@ fn write_markdown_report(dir: String, results: Array<BenchResult>) -> String:
         else:
             md = md + "- **Iterations:** " + str(r.iters) + "\n"
             md = md + "- **Checksum:** `" + str(r.checksum) + "`\n"
-            var median_row = "- **Median:** " + str(r.median_ms) + "ms ("
-            median_row = median_row + str((r.median_ms * 1000000) / r.iters) + " ns/iter)\n"
-            md = md + median_row
-            var minmax_row = "- **Min/Max:** " + str(r.min_ms) + "ms / "
-            minmax_row = minmax_row + str(r.max_ms) + "ms\n"
-            md = md + minmax_row
+            var med_line = "- **Median:** " + str(r.median_ms) + "ms ("
+            med_line = med_line + str((r.median_ms * 1000000) / r.iters) + " ns/iter)\n"
+            md = md + med_line
+            md = md + "- **Min/Max:** " + str(r.min_ms) + "ms / " + str(r.max_ms) + "ms\n"
             md = md + "- **Mean:** " + str(r.mean_ms) + "ms\n"
             md = md + "- **Samples:** "
-
             var j = 0
             while j < len(r.samples):
                 md = md + str(r.samples[j]) + "ms"
-                if j + 1 < len(r.samples):
-                    md = md + ", "
+                if j + 1 < len(r.samples): md = md + ", "
                 j = j + 1
             md = md + "\n"
-
             md = md + "- **Binary:** `" + r.exe_path + "`\n"
-
         md = md + "\n"
         i = i + 1
 
-    // Write to file
     let report_path = path_join(dir, "report.md")
     let ok = os_write_text(report_path, md)
-    if ok:
-        return report_path
+    if ok: return report_path
     return ""
-
-// ============================================================================
-//  ISO TIMESTAMP
-// ============================================================================
 
 fn iso_now() -> String:
     let now = now_millis()
     let dt = datetime_from_epoch_millis(now)
-    var buf = str(dt.year) + "-"
-    buf = buf + zero2(dt.month) + "-"
-    buf = buf + zero2(dt.day) + " "
-    buf = buf + zero2(dt.hour) + ":"
-    buf = buf + zero2(dt.minute) + ":"
-    buf = buf + zero2(dt.second)
+    var buf = str(dt.year) + "-" + zero2(dt.month) + "-" + zero2(dt.day)
+    buf = buf + " " + zero2(dt.hour) + ":" + zero2(dt.minute) + ":" + zero2(dt.second)
     return buf
 
 fn zero2(v: Int) -> String:

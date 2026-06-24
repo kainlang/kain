@@ -1,0 +1,109 @@
+// ============================================================================
+//  template.kn — Copy-paste benchmark template for the Kain bench blade
+//
+//  DROP-IN: copy, rename, fill in run_iteration() and BENCH_NAME.
+//  Run with `kain run blades/benchmark/ -- run folder/`.
+//
+//  Self-times internally. Prints BENCH: lines to stdout for the blade.
+//
+//  WHAT YOU CHANGE:
+//    1. BENCH_NAME
+//    2. run_iteration() — returns a deterministic Int checksum.
+//    3. WORK_PER_ITER — how much work per call (tune so scaling finds <10000 iters).
+//    4. Imports — add std:: modules as needed.
+// ============================================================================
+
+use std::time
+use std::runtime
+
+// ============================================================================
+//  CONFIG
+// ============================================================================
+
+const BENCH_NAME:      String = "template"
+const TARGET_MS:       Int    = 100
+const WARMUP_ROUNDS:   Int    = 1
+const MEASURE_ROUNDS:  Int    = 3
+const MAX_ITERS:       Int    = 100000
+
+// ============================================================================
+//  YOUR HOT LOOP — replace everything inside this function.
+//  Must be deterministic. Must return an Int checksum.
+//  The accumulator parameter ensures the call is NOT dead-code-eliminated.
+//  Pass any value; the function adds its checksum to it and returns the sum.
+// ============================================================================
+
+fn run_iteration(acc: Int) -> Int:
+    // Example: scalar integer mix (100K inner loop)
+    let modulus = 1000000007
+    var result = 0
+    var i = 0
+    while i < 100000:
+        let a_val = (i * 31 + 7) % modulus
+        let b_val = (a_val * 17 + 13) % modulus
+        result = (result + a_val * b_val) % modulus
+        i = i + 1
+    return acc + result
+
+// ============================================================================
+//  MAIN — timing harness (DO NOT MODIFY)
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    // Verify checksum
+    let checksum = run_iteration(0)
+
+    // Auto-scale iterations
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    // Warmup
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    // Measure — print BENCH: lines
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+
+        println("BENCH:" + BENCH_NAME +
+                "|ITERS:" + str(iters) +
+                "|ROUND:" + str(r) +
+                "|ELAPSED_MS:" + str(elapsed_ms) +
+                "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    // Use accumulated result to prevent DCE of the entire timing loop
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0

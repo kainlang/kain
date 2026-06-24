@@ -1,0 +1,105 @@
+// ============================================================================
+//  bench_json_parse.kn — Baseline for json.c super-optimization targets
+//
+//  Targets:
+//    P0: json_object_get_value → perfect hash field lookup (5-10× expected)
+//    P2: json_parse_number → skip strtod for integers (2-3× expected)
+//
+//  Exercises std::json parse + field access hot path.
+// ============================================================================
+
+use std::time
+use std::runtime
+use std::json
+
+const BENCH_NAME:      String = "json_parse_field_access"
+const TARGET_MS:       Int    = 200
+const WARMUP_ROUNDS:   Int    = 1
+const MEASURE_ROUNDS:  Int    = 3
+const MAX_ITERS:       Int    = 5000
+
+const JSON_PAYLOAD: String = "{\"name\":\"player1\",\"health\":100,\"x\":42.5,\"y\":-17.3,\"active\":true,\"team\":\"blue\",\"score\":9500,\"items\":[1,2,3]}"
+
+fn run_iteration(acc: Int) -> Int:
+    let obj = json_parse_text(JSON_PAYLOAD)
+
+    // 8 field lookups — each hits json_object_get_value (linear scan over 8 fields)
+    let name   = json_string_or(obj, "name", "?")
+    let health = json_int_or(obj, "health", 0)
+    let x      = json_float_or(obj, "x", 0.0)
+    let y      = json_float_or(obj, "y", 0.0)
+    let active = json_bool_or(obj, "active", false)
+    let team   = json_string_or(obj, "team", "?")
+    let score  = json_int_or(obj, "score", 0)
+
+    var checksum = len(name) + health + ftoi(x) + ftoi(y)
+    if active: checksum = checksum + 1
+    checksum = checksum + len(team) + score
+    return acc + (checksum % 1000000007)
+
+fn ftoi(v: Float) -> Int:
+    if v < 0.0: return -ftoi(-v)
+    var r = v
+    var i = 0
+    while r >= 1.0:
+        i = i + 1
+        r = r - 1.0
+    return i
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+
+        println("BENCH:" + BENCH_NAME +
+                "|ITERS:" + str(iters) +
+                "|ROUND:" + str(r) +
+                "|ELAPSED_MS:" + str(elapsed_ms) +
+                "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0

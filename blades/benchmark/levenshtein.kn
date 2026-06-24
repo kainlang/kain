@@ -1,0 +1,188 @@
+// ============================================================================
+//  levenshtein.kn — Kain Levenshtein distance benchmark
+//
+//  Raw memory DP rows via collapse/observe/decay.
+//  Pattern from benchmark/cases/ownership_memory/main.kn:
+//    collapse ptr: ... mem_store + mem_load ... 0
+//    observe ptr: mem_load
+//    decay ptr
+//
+//  Two-row DP: collapse on the "current" row (writes), observe on "previous"
+//  row (reads). Swap which is which each iteration.
+// ============================================================================
+
+use std::time
+use std::runtime
+
+const BENCH_NAME:      String = "levenshtein_kain"
+const TARGET_MS:       Int    = 100
+const WARMUP_ROUNDS:   Int    = 1
+const MEASURE_ROUNDS:  Int    = 3
+const MAX_ITERS:       Int    = 10000
+
+const CORPUS: Array<String> = [
+    "kitten",
+    "sitting",
+    "algorithm",
+    "altruistic",
+    "levenshtein",
+    "distance",
+    "dynamic",
+    "programming",
+    "optimization",
+    "performance",
+]
+
+// ============================================================================
+//  LEVENSHTEIN — collapse on curr row, observe on prev row each iteration
+//
+//  We allocate two raw rows. Each DP iteration:
+//    - collapse on the current row for writes
+//    - observe on the previous row for reads
+//    - swap which is which
+// ============================================================================
+
+fn levenshtein(a: String, b: String) -> Int:
+    var first = a
+    var second = b
+    if len(a) > len(b):
+        first = b
+        second = a
+
+    let m = len(first)
+    let n = len(second)
+    if m == 0: return n
+    if n == 0: return m
+
+    let row_size = m + 1
+
+    // Allocate: one raw row for writes, one plain array for reads
+    let row_size = m + 1
+    let raw_row: ptr<Int> = alloc_zeroed(row_size, "Int")
+    var prev: Array<Int> = []
+    var j = 0
+    while j < row_size:
+        push(prev, j)
+        j = j + 1
+
+    var i = 1
+    while i <= n:
+        // Phase 1: collapse raw_row to fill it with the new DP row
+        collapse raw_row:
+            mem_store(raw_row, i, "Int")
+
+            var j = 1
+            while j <= m:
+                let cost: Int = 1
+                if char_at(first, j - 1) == char_at(second, i - 1):
+                    cost = 0
+
+                // prev is a plain array — no ownership needed
+                let del = prev[j] + 1
+                let sub = prev[j - 1] + cost
+                // raw_row[j-1] is the previous cell in current row (just computed)
+                let ins = mem_load(ptr_offset(raw_row, j - 1, "Int"), "Int") + 1
+
+                var best = del
+                if ins < best: best = ins
+                if sub < best: best = sub
+
+                mem_store(ptr_offset(raw_row, j, "Int"), best, "Int")
+                j = j + 1
+            0
+
+        // Phase 2: observe to copy raw_row into prev array for next iteration
+        j = 0
+        while j < row_size:
+            let v = observe raw_row:
+                mem_load(ptr_offset(raw_row, j, "Int"), "Int")
+            prev[j] = v
+            j = j + 1
+
+        i = i + 1
+
+    decay raw_row
+    return prev[m]
+
+// ============================================================================
+//  PAIRWISE
+// ============================================================================
+
+fn pairwise_min(strings: Array<String>) -> Int:
+    var min_dist = 999999
+    let sz = len(strings)
+    var i = 0
+    while i < sz:
+        var j = i + 1
+        while j < sz:
+            let d = levenshtein(strings[i], strings[j])
+            if d < min_dist: min_dist = d
+            j = j + 1
+        i = i + 1
+    return min_dist
+
+// ============================================================================
+//  RUN ITERATION
+// ============================================================================
+
+fn run_iteration(acc: Int) -> Int:
+    let result = pairwise_min(CORPUS)
+    return acc + result
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let checksum = run_iteration(0)
+
+    var iters = 1
+    while iters <= MAX_ITERS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        if elapsed_ms >= TARGET_MS: break
+        if iters >= MAX_ITERS / 2: break
+        iters = iters * 2
+
+    var w = 0
+    while w < WARMUP_ROUNDS:
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        w = w + 1
+
+    var r = 0
+    var total_acc = 0
+    while r < MEASURE_ROUNDS:
+        let start = instant_now()
+        var i = 0
+        var acc = 0
+        while i < iters:
+            acc = run_iteration(acc)
+            i = i + 1
+        let elapsed = instant_elapsed(start)
+        let elapsed_ms = duration_to_millis(elapsed)
+        total_acc = total_acc + acc
+
+        println("BENCH:" + BENCH_NAME +
+                "|ITERS:" + str(iters) +
+                "|ROUND:" + str(r) +
+                "|ELAPSED_MS:" + str(elapsed_ms) +
+                "|CHECKSUM:" + str(checksum))
+        r = r + 1
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    if total_acc < 0: return 999
+    return 0
