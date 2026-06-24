@@ -1,0 +1,59 @@
+version: 1
+id: kain.native.core.proofs.stbtt_IsGlyphEmpty_nonneg
+kind: find_counterexample
+description: >-
+  Glyph bounding box queries always return non-negative widths and heights
+  for valid glyphs. Per the TrueType spec, glyf entries satisfy xMin <= xMax
+  and yMin <= yMax. Empty glyphs (numberOfContours == 0) have all-zero
+  bounding boxes. Invalid glyph indices return g < 0 from GetGlyfOffset,
+  causing IsGlyphEmpty to return 1 (empty/safe). All ttSHORT bbox reads
+  are within the glyf entry (minimum size 10 bytes, max read offset g+9).
+tags:
+- stb-truetype
+- bounds
+- glyph
+- invariant
+- font-parsing
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt_IsGlyphEmpty
+  start_line: 1646
+  reason: >-
+    The caller stbtt_GetGlyphBitmapBoxSubpixel computes bitmap dimensions
+    (ix1-ix0, iy1-iy0) from the glyph bbox. If the bbox has x0 > x1 or
+    y0 > y1, the resulting bitmap width or height would be negative,
+    causing allocation failures or crashes.
+case:
+  declarations:
+  - name: xMin
+    sort:
+      kind: int
+    description: Glyph bounding box X minimum (FWORD, signed 16-bit)
+  - name: xMax
+    sort:
+      kind: int
+    description: Glyph bounding box X maximum (FWORD, signed 16-bit)
+  - name: yMin
+    sort:
+      kind: int
+    description: Glyph bounding box Y minimum (FWORD, signed 16-bit)
+  - name: yMax
+    sort:
+      kind: int
+    description: Glyph bounding box Y maximum (FWORD, signed 16-bit)
+  constraints:
+  - op: ge
+    args: [xMin, -32768]
+  - op: le
+    args: [xMax, 32767]
+  - op: ge
+    args: [yMin, -32768]
+  - op: le
+    args: [yMax, 32767]
+  claim:
+    op: and
+    args:
+    - op: le
+      args: [xMin, xMax]
+    - op: le
+      args: [yMin, yMax]

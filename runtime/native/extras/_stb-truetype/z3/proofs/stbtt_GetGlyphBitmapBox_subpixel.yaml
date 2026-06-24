@@ -1,0 +1,29 @@
+version: 1
+id: stb-truetype.GetGlyphBitmapBox_subpixel.non_negative_dimensions
+kind: find_counterexample
+description: >
+  The glyph bitmap box dimensions (width = ix1 - ix0, height = iy1 - iy0)
+  are always non-negative for any valid glyph bbox at any positive scale.
+  This holds because ceil(x1*scale + shift) ≥ floor(x0*scale + shift)
+  whenever x0 ≤ x1 and scale > 0.
+tags:
+- stb_truetype
+- glyph-metrics
+- bitmap-box
+- bounds
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt_GetGlyphBitmapBoxSubpixel
+  start_line: 2721
+  end_line: 2737
+  reason: >
+    Negative bitmap dimensions would cause downstream allocation errors
+    or rendering artifacts. The floor/ceil asymmetry combined with the
+    y-axis flip in the glyph coordinate system must always yield
+    non-negative width and height.
+case:
+  smt2_file: stbtt_GetGlyphBitmapBox_subpixel.smt2
+  include_model: false
+  include_stats: false
