@@ -1,0 +1,58 @@
+version: 1
+id: kain.native.core.proofs.converge-telemetry-ring-bounds
+kind: check_smt2
+description: >
+  Proves that the telemetry ring buffer index computed as
+  `cursor & (KAIN_CONVERGE_TELEMETRY_CAP - 1)` is always in [0, 63]
+  for all 64-bit cursor values. Also proves that the bitwise-AND mask
+  is equivalent to modulo KAIN_CONVERGE_TELEMETRY_CAP when the capacity
+  is a power of two (64 = 2^6). Even after 2^64 - 1 record operations
+  (cursor wraps to 0), the ring index remains valid.
+tags:
+- native-runtime
+- converge
+- telemetry
+- ring-buffer
+source:
+  path: X:\runtime\native\src\core\converge.c
+  symbol: abi_converge_record_telemetry
+  start_line: 150
+  reason: >
+    The telemetry ring buffer uses an atomic cursor that monotonically
+    increases. The slot index is computed as `cursor & (CAP - 1)` to avoid
+    an expensive modulus operation. We prove that this mask-based indexing
+    is always correct: the result stays within [0, CAP-1] and is equivalent
+    to modulo CAP for all possible 64-bit cursor values.
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    (define-const CAPACITY (_ BitVec 64) #x0000000000000040)  ; 64
+    (define-const MASK (_ BitVec 64) #x000000000000003F)      ; CAP - 1 = 63
+
+    ; ── Claim 1: ring_index is always < CAPACITY ──
+    (declare-const cursor (_ BitVec 64))
+    (define-fun ring_index () (_ BitVec 64) (bvand cursor MASK))
+    (push)
+    (assert (not (bvult ring_index CAPACITY)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat — ring_index always < 64 ✓
+
+    ; ── Claim 2: AND-mask is equivalent to modulo for power-of-two CAP ──
+    (push)
+    (assert (not (= (bvand cursor MASK) (bvurem cursor CAPACITY))))
+    (check-sat)
+    (pop)
+    ; Expected: unsat — AND-mask ≡ modulo for all cursor ✓
+
+    ; ── Claim 3: Even at max cursor value, ring index is valid ──
+    (define-const MAX_U64 (_ BitVec 64) #xFFFFFFFFFFFFFFFF)
+    (define-fun ring_at_max () (_ BitVec 64) (bvand MAX_U64 MASK))
+    (push)
+    (assert (not (bvult ring_at_max CAPACITY)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat — ring_at_max < 64 ✓
+  include_model: false
+  include_stats: false

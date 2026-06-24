@@ -1,0 +1,66 @@
+version: 1
+id: kain.native.core.proofs.converge-cache-key-odd-guarantee
+kind: check_smt2
+description: >
+  Proves that the tune cache key computed by kain_converge_cache_key is
+  always odd (LSB = 1) and never zero. The | 1ull in the cache key
+  computation guarantees an odd stride for the hash probe sequence,
+  which means gcd(stride, KAIN_CONVERGE_TUNE_CACHE_CAP) = 1, ensuring
+  the probe visits all 64 cache slots before repeating.
+tags:
+- native-runtime
+- converge
+- hash-probe
+- open-addressing
+source:
+  path: X:\runtime\native\src\core\converge.c
+  symbol: kain_converge_cache_key (static)
+  start_line: 40
+  reason: >
+    The tune cache uses open-addressing with linear probing over a
+    power-of-two hash table (64 entries). The probe stride is derived
+    from the cache key with | 1ull to guarantee oddness. An odd stride
+    is coprime with 64 (since 64 = 2^6), which guarantees full coverage
+    of the slot array. Without this guarantee, the probe sequence could
+    cycle through only a subset of slots, causing premature eviction
+    and reduced cache hit rate.
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    ; Inline the mix64 function from converge.c
+    (define-fun mix64 ((value (_ BitVec 64))) (_ BitVec 64)
+      (let ((a (bvxor (bvadd value #x9e3779b97f4a7c15)
+                      (bvlshr (bvadd value #x9e3779b97f4a7c15) (_ bv30 64)))))
+      (let ((b (bvmul a #xbf58476d1ce4e5b9)))
+      (let ((c (bvxor b (bvlshr b (_ bv27 64)))))
+      (let ((d (bvmul c #x94d049bb133111eb)))
+      (bvxor d (bvlshr d (_ bv31 64))))))))
+
+    ; cache_key = mix64(input) | 1
+    (define-fun cache_key ((input (_ BitVec 64))) (_ BitVec 64)
+      (bvor (mix64 input) (_ bv1 64)))
+
+    (declare-const converge_key (_ BitVec 64))
+    (declare-const shape_key (_ BitVec 64))
+    (declare-const cpu_fp (_ BitVec 64))
+
+    (define-fun mix_input () (_ BitVec 64)
+      (bvxor converge_key (bvxor (bvadd shape_key #x9e3779b97f4a7c15) cpu_fp)))
+
+    (define-fun key_result () (_ BitVec 64)
+      (cache_key mix_input))
+
+    ; Claim 1: Cache key is always odd (LSB = 1)
+    (push)
+    (assert (= ((_ extract 0 0) key_result) #b0))
+    (check-sat)
+    (pop)
+
+    ; Claim 2: Cache key is never zero (|1 guarantees non-zero)
+    (push)
+    (assert (= key_result (_ bv0 64)))
+    (check-sat)
+    (pop)
+  include_model: false
+  include_stats: false

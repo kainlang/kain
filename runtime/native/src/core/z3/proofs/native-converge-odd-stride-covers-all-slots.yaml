@@ -1,0 +1,52 @@
+version: 1
+id: kain.native.core.proofs.converge-odd-stride-covers-all-slots
+kind: check_smt2
+description: >
+  Proves that an odd stride modulo a power-of-two cache capacity (64 = 2^6)
+  guarantees the hash probe sequence visits all 64 slots before repeating.
+  The stride is always odd because the cache_key has | 1ull and the stride
+  computation has | 1ull. An odd stride is coprime with 64 (gcd(odd, 2^6) = 1),
+  so multiplication by stride modulo 64 is a bijection (invertible).
+tags:
+- native-runtime
+- converge
+- hash-probe
+- open-addressing
+source:
+  path: X:\runtime\native\src\core\converge.c
+  symbol: abi_converge_select_lane_for_key
+  start_line: 67
+  reason: >
+    The tune cache uses open-addressing with a probe sequence:
+      slot = (base + i * stride) & (CAP - 1)
+    If stride is even (shares factor 2 with CAP=64), the probe only visits
+    a subset of slots, causing premature eviction. The | 1ull in both the
+    cache key and stride computation guarantees oddness. This proof verifies
+    that non-zero odd stride is always invertible modulo 64, so the full
+    probe sequence covers all 64 slots.
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    ; 6-bit bitvectors model modulo-64 arithmetic
+    (declare-const a (_ BitVec 6))
+    (declare-const b (_ BitVec 6))
+    (declare-const stride (_ BitVec 6))
+
+    ; a and b are distinct indices
+    (assert (not (= a b)))
+
+    ; stride is odd (LSB = 1) and non-zero
+    (assert (= ((_ extract 0 0) stride) #b1))
+    (assert (not (= stride #b000000)))
+
+    ; Negate injectivity: a*stride == b*stride (mod 64)
+    ; In 6-bit BV, multiplication wraps modulo 64 automatically.
+    (assert (= (bvmul a stride) (bvmul b stride)))
+
+    (check-sat)
+    ; unsat = stride is invertible modulo 64
+    ; Therefore: for all a != b, a*stride mod 64 != b*stride mod 64
+    ; The probe visits all 64 slots before repeating.
+  include_model: false
+  include_stats: false

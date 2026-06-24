@@ -192,8 +192,9 @@ static void kain_attrition_record_event_locked(uint32_t kind, uint32_t aux, uint
     event->arg0 = arg0;
     event->arg1 = arg1;
     event->arg2 = arg2;
+    /* Proof: runtime/native/src/core/z3/proofs/native-attrition-ring-modulo-mask-equivalence.yaml */
     g_kain_attrition_state.event_next_index =
-        (g_kain_attrition_state.event_next_index + 1u) % KAIN_ATTRITION_EVENT_RING_CAPACITY;
+        (g_kain_attrition_state.event_next_index + 1u) & (KAIN_ATTRITION_EVENT_RING_CAPACITY - 1u);
     g_kain_attrition_state.event_write_count += 1u;
 }
 
@@ -235,8 +236,9 @@ static void kain_attrition_fragmentation_noise_locked(void) {
     kain_attrition_update_peak_u64(
         &g_kain_attrition_state.fragmentation_noise_peak_bytes,
         g_kain_attrition_state.fragmentation_noise_live_bytes);
+    /* Proof: runtime/native/src/core/z3/proofs/native-attrition-ring-modulo-mask-equivalence.yaml */
     g_kain_attrition_state.fragmentation_head =
-        (g_kain_attrition_state.fragmentation_head + 1u) % KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY;
+        (g_kain_attrition_state.fragmentation_head + 1u) & (KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY - 1u);
 }
 
 #ifdef _WIN32
@@ -394,11 +396,12 @@ size_t kain_attrition_runtime_copy_events(KainAttritionEvent* out_events, size_t
             : KAIN_ATTRITION_EVENT_RING_CAPACITY
     );
     count = available < max_events ? available : max_events;
+    /* Proof: runtime/native/src/core/z3/proofs/native-attrition-ring-modulo-mask-equivalence.yaml */
     start_index = (g_kain_attrition_state.event_next_index + KAIN_ATTRITION_EVENT_RING_CAPACITY - count)
-        % KAIN_ATTRITION_EVENT_RING_CAPACITY;
+        & (KAIN_ATTRITION_EVENT_RING_CAPACITY - 1u);
     for (i = 0u; i < count; ++i) {
         out_events[i] = g_kain_attrition_state.events[
-            (start_index + i) % KAIN_ATTRITION_EVENT_RING_CAPACITY
+            (start_index + i) & (KAIN_ATTRITION_EVENT_RING_CAPACITY - 1u)
         ];
     }
     kain_attrition_unlock();

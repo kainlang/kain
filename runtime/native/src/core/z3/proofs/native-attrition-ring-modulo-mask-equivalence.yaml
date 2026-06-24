@@ -1,0 +1,107 @@
+version: 1
+id: kain.native.core.proofs.native_attrition_ring_modulo_mask_equivalence
+kind: check_smt2
+description: >
+  The attrition ring buffers use modulo operations with power-of-two
+  capacities: EVENT_RING_CAPACITY=1024 (2^10) and
+  FRAGMENTATION_RING_CAPACITY=256 (2^8). These modulo operations
+  can be replaced with bitwise AND masks: `% 1024 → & 1023` and
+  `% 256 → & 255`. Three sites: event ring head advance, frag ring
+  head advance, and event ring windowed copy index computation.
+tags:
+- native-runtime
+- attrition
+- ring-buffer
+- bitmask
+- modulo
+source:
+  path: X:\runtime\native\src\core\attrition.c
+  symbol: kain_attrition_record_event_locked
+  start_line: 196
+  reason: >
+    Three modulo operations in attrition.c use power-of-two ring buffer
+    capacities. Each can be replaced with a single AND instruction
+    instead of a DIV. Sites: event ring head (line 196),
+    frag ring head (line 239), event ring snapshot indexing
+    (lines 398, 401).
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Claim 1: for all x in [0, 1023], (x + 1) % 1024 == (x + 1) & 1023
+    ;
+    ; Used at: event ring head advance (line 196)
+    ;   KAIN_ATTRITION_EVENT_RING_CAPACITY = 1024 = 2^10
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const x (_ BitVec 32))
+    (assert (bvult x #x00000400))                ; x ∈ [0, 1023]
+
+    (define-fun x_plus_one () (_ BitVec 32)
+      (bvadd x #x00000001))
+
+    (define-fun modulo_result () (_ BitVec 32)
+      (bvurem x_plus_one #x00000400))            ; (x+1) % 1024
+
+    (define-fun mask_result () (_ BitVec 32)
+      (bvand x_plus_one #x000003ff))              ; (x+1) & 1023
+
+    (assert (not (= modulo_result mask_result)))
+    (check-sat)
+
+    ;
+    ; =========================================================================
+    ; Claim 2: for all x in [0, 255], (x + 1) % 256 == (x + 1) & 255
+    ;
+    ; Used at: frag ring head advance (line 239)
+    ;   KAIN_ATTRITION_FRAGMENTATION_RING_CAPACITY = 256 = 2^8
+    ; =========================================================================
+    (reset)
+    (set-logic QF_BV)
+
+    (declare-const x (_ BitVec 32))
+    (assert (bvult x #x00000100))                ; x ∈ [0, 255]
+
+    (define-fun x_plus_one () (_ BitVec 32)
+      (bvadd x #x00000001))
+
+    (define-fun modulo_result () (_ BitVec 32)
+      (bvurem x_plus_one #x00000100))            ; (x+1) % 256
+
+    (define-fun mask_result () (_ BitVec 32)
+      (bvand x_plus_one #x000000ff))              ; (x+1) & 255
+
+    (assert (not (= modulo_result mask_result)))
+    (check-sat)
+
+    ;
+    ; =========================================================================
+    ; Claim 3: for all start_idx, i in [0, 1023],
+    ;   (start_idx + i) % 1024 == (start_idx + i) & 1023
+    ;
+    ; Used at: event ring snapshot copy (lines 398, 401)
+    ; Only valid when sum is computed modulo 1024 (both operands < 1024)
+    ; =========================================================================
+    (reset)
+    (set-logic QF_BV)
+
+    (declare-const start_idx (_ BitVec 32))
+    (declare-const i (_ BitVec 32))
+
+    (assert (bvult start_idx #x00000400))         ; start_idx ∈ [0, 1023]
+    (assert (bvult i #x00000400))                 ; i ∈ [0, 1023]
+
+    (define-fun sum () (_ BitVec 32)
+      (bvadd start_idx i))
+
+    (define-fun modulo_result () (_ BitVec 32)
+      (bvurem sum #x00000400))                    ; (start_idx + i) % 1024
+
+    (define-fun mask_result () (_ BitVec 32)
+      (bvand sum #x000003ff))                      ; (start_idx + i) & 1023
+
+    (assert (not (= modulo_result mask_result)))
+    (check-sat)
+  include_model: false
+  include_stats: false
