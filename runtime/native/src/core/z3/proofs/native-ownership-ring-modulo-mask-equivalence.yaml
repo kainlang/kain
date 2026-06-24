@@ -1,0 +1,51 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_ring_modulo_mask_equivalence
+kind: check_smt2
+description: >
+  The deferred decay ring buffer uses `(tail + 1) % 4096` and
+  `(head + 1) % 4096`. Since KAIN_OWNERSHIP_MAX_REGIONS = 4096
+  is a power of two, the modulo can be replaced with a bitmask:
+  `(head + 1) & 4095`. For x in [0, 4095] the two forms are
+  identical, replacing a div instruction with a single AND.
+tags:
+- native-runtime
+- ownership
+- ring-buffer
+- bitmask
+- modulo
+source:
+  path: X:\runtime\native\src\core\ownership.c
+  symbol: kain_ownership_enqueue_deferred_decay_unlocked
+                   / kain_ownership_flush_deferred_decay
+  reason: >
+    Two locations use `% KAIN_OWNERSHIP_MAX_REGIONS` where
+    4096 is a power of two. x86 DIV is ~10-30 cycles; AND is 1 cycle.
+    Every deferred decay enqueue and dequeue hits this function.
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Prove: for all x ∈ [0, 4095],
+    ;   (x + 1) % 4096 == (x + 1) & 4095
+    ;
+    ; Uses QF_BV with a free variable x constrained to [0, 4095].
+    ; The solver proves equivalence for all 4096 values symbolically.
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const x (_ BitVec 32))
+    (assert (bvult x #x00001000))        ; x ∈ [0, 4095]
+
+    (define-fun x_plus_one () (_ BitVec 32)
+      (bvadd x #x00000001))
+
+    (define-fun modulo_result () (_ BitVec 32)
+      (bvurem x_plus_one #x00001000))     ; (x+1) % 4096
+
+    (define-fun mask_result () (_ BitVec 32)
+      (bvand x_plus_one #x00000fff))      ; (x+1) & 4095
+
+    (assert (not (= modulo_result mask_result)))
+    (check-sat)
+  include_model: false
+  include_stats: false
