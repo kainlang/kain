@@ -1,0 +1,50 @@
+version: 1
+id: kain.native.core.proofs.stbtt_ScaleForPixelHeight_math
+kind: find_counterexample
+description: >-
+  stbtt_ScaleForPixelHeight() computes scale = pixels / (ascent - descent)
+  without division by zero. In TrueType, ascent is non-negative and descent
+  is non-positive (typically ascent > 0, descent < 0), so ascent - descent > 0
+  always holds for valid fonts. The difference fits in int16 (max 65535) and
+  the float division is safe.
+tags:
+- stb-truetype
+- division
+- arithmetic
+- invariant
+- font-metrics
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt_ScaleForPixelHeight
+  start_line: 2660
+  reason: >-
+    The scale factor is fundamental to all glyph rendering. If ascent == descent,
+    the division-by-zero would crash the runtime. This proof verifies that
+    ascent > descent for every valid TrueType font, preventing the division-by-zero.
+case:
+  declarations:
+  - name: ascent
+    sort:
+      kind: int
+    description: Typographic ascent from hhea table (FWORD, signed 16-bit)
+  - name: descent
+    sort:
+      kind: int
+    description: Typographic descent from hhea table (FWORD, signed 16-bit)
+  constraints:
+  - op: ge
+    args: [ascent, -32768]
+  - op: le
+    args: [ascent, 32767]
+  - op: ge
+    args: [descent, -32768]
+  - op: le
+    args: [descent, 32767]
+  - op: gt
+    args: [ascent, descent]
+  claim:
+    op: gt
+    args:
+    - op: sub
+      args: [ascent, descent]
+    - 0
