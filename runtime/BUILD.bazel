@@ -26,8 +26,10 @@ config_setting(
 )
 
 # Detect clang-cl on Windows (used for clang-cl compatible flags)
+# Compound: matches Windows + clang-cl simultaneously
 config_setting(
-    name = "clang_cl_compiler",
+    name = "windows_and_clang_cl",
+    constraint_values = ["@platforms//os:windows"],
     flag_values = {
         "@bazel_tools//tools/cpp:compiler": "clang-cl",
     },

@@ -101,12 +101,14 @@ def _runtime_cpp_srcs(manifest):
 
 
 def _windows_copts(base_copts, clang_cl_copts):
-    """Returns platform+compiler-conditional copts for Windows."""
+    """Returns platform+compiler-conditional copts for Windows.
+
+    Uses a flat select with compound config_setting (windows + clang-cl)
+    because Bazel does not support nested select() in attribute values.
+    """
     return select({
-        ":windows": select({
-            ":clang_cl_compiler": clang_cl_copts,
-            "//conditions:default": base_copts,
-        }),
+        ":windows_and_clang_cl": clang_cl_copts,
+        ":windows": base_copts,
         ":linux": base_copts,
         ":macos": base_copts,
         "//conditions:default": base_copts,
