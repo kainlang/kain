@@ -1,0 +1,122 @@
+version: 1
+id: kain.native.core.proofs.converge_debruijn_ctz_8bit
+kind: check_smt2
+description: >
+  Converge's lane selection uses a de Bruijn-based count-trailing-zeros
+  (CTZ) over an 8-bit eligible_mask (KAIN_CONVERGE_LANE_MAX == 8).
+  This proof verifies that the de Bruijn CTZ with magic constant
+  0x03f79d71b4cb0a89 produces the same result as the explicit bit-scan
+  loop for all non-zero 8-bit masks, using the canonical 64-entry table.
+tags:
+- native-runtime
+- converge
+- lane-selection
+- debruijn
+- ctz
+source:
+  path: X:\runtime\native\src\core\converge.c
+  symbol: abi_converge_select_lane_for_key
+  reason: >
+    The de Bruijn CTZ replacement for lane selection must match the
+    reference bit-scan algorithm for all possible 8-bit eligible masks
+    (lane indices 0..7 only). This proof confirms the magic constant
+    and lookup table produce correct results for all 255 non-zero masks.
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/converge-debruijn-ctz-8bit.smt2
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    (define-fun DEBRUIJN_MULTIPLIER () (_ BitVec 64) #x03f79d71b4cb0a89)
+
+    (define-fun debruijn_table ((idx (_ BitVec 6))) (_ BitVec 6)
+      (ite (= idx #b000000) #b000000
+      (ite (= idx #b000001) #b000001
+      (ite (= idx #b000010) #b110000
+      (ite (= idx #b000011) #b000010
+      (ite (= idx #b000100) #b111001
+      (ite (= idx #b000101) #b110001
+      (ite (= idx #b000110) #b011100
+      (ite (= idx #b000111) #b000011
+      (ite (= idx #b001000) #b111101
+      (ite (= idx #b001001) #b111010
+      (ite (= idx #b001010) #b110010
+      (ite (= idx #b001011) #b101010
+      (ite (= idx #b001100) #b100110
+      (ite (= idx #b001101) #b011101
+      (ite (= idx #b001110) #b010001
+      (ite (= idx #b001111) #b000100
+      (ite (= idx #b010000) #b111110
+      (ite (= idx #b010001) #b110111
+      (ite (= idx #b010010) #b111011
+      (ite (= idx #b010011) #b100100
+      (ite (= idx #b010100) #b110101
+      (ite (= idx #b010101) #b110011
+      (ite (= idx #b010110) #b101011
+      (ite (= idx #b010111) #b010110
+      (ite (= idx #b011000) #b101101
+      (ite (= idx #b011001) #b100111
+      (ite (= idx #b011010) #b100001
+      (ite (= idx #b011011) #b011110
+      (ite (= idx #b011100) #b011000
+      (ite (= idx #b011101) #b010010
+      (ite (= idx #b011110) #b001100
+      (ite (= idx #b011111) #b000101
+      (ite (= idx #b100000) #b111111
+      (ite (= idx #b100001) #b101111
+      (ite (= idx #b100010) #b111000
+      (ite (= idx #b100011) #b011011
+      (ite (= idx #b100100) #b111100
+      (ite (= idx #b100101) #b101001
+      (ite (= idx #b100110) #b100101
+      (ite (= idx #b100111) #b010000
+      (ite (= idx #b101000) #b110110
+      (ite (= idx #b101001) #b100011
+      (ite (= idx #b101010) #b110100
+      (ite (= idx #b101011) #b010101
+      (ite (= idx #b101100) #b101100
+      (ite (= idx #b101101) #b100000
+      (ite (= idx #b101110) #b010111
+      (ite (= idx #b101111) #b001011
+      (ite (= idx #b110000) #b101110
+      (ite (= idx #b110001) #b011010
+      (ite (= idx #b110010) #b101000
+      (ite (= idx #b110011) #b001111
+      (ite (= idx #b110100) #b100010
+      (ite (= idx #b110101) #b010100
+      (ite (= idx #b110110) #b011111
+      (ite (= idx #b110111) #b001010
+      (ite (= idx #b111000) #b011001
+      (ite (= idx #b111001) #b001110
+      (ite (= idx #b111010) #b010011
+      (ite (= idx #b111011) #b001001
+      (ite (= idx #b111100) #b001101
+      (ite (= idx #b111101) #b001000
+      (ite (= idx #b111110) #b000111
+      #b000110
+      )))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+
+    (define-fun ctz_reference ((m (_ BitVec 64))) (_ BitVec 6)
+      (ite (= ((_ extract 0 0) m) #b1) #b000000
+      (ite (= ((_ extract 1 1) m) #b1) #b000001
+      (ite (= ((_ extract 2 2) m) #b1) #b000010
+      (ite (= ((_ extract 3 3) m) #b1) #b000011
+      (ite (= ((_ extract 4 4) m) #b1) #b000100
+      (ite (= ((_ extract 5 5) m) #b1) #b000101
+      (ite (= ((_ extract 6 6) m) #b1) #b000110
+      (ite (= ((_ extract 7 7) m) #b1) #b000111
+      #b001000
+      )))))))))
+
+    (define-fun ctz_debruijn ((m (_ BitVec 64))) (_ BitVec 6)
+      (let ((lowbit (bvand m (bvneg m))))
+        (debruijn_table ((_ extract 63 58) (bvmul lowbit DEBRUIJN_MULTIPLIER)))))
+
+    (declare-var mask (_ BitVec 64))
+    (assert (= ((_ extract 63 8) mask) #x00000000000000))
+    (assert (not (= mask #x0000000000000000)))
+    (assert (not (= (ctz_reference mask) (ctz_debruijn mask))))
+    (check-sat)
+  include_model: false
+  include_stats: false
