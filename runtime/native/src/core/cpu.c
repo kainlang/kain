@@ -6,6 +6,19 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * 64-bit token signature for capability key dispatch.
+ * Packs (len, first, second, second_last, last) into 40 bits at bits 24-63.
+ * XOR is equivalent to OR when fields don't overlap; using XOR matches the
+ * Z3 proof semantics.
+ *
+ * Proof: runtime/native/src/core/z3/proofs/native-cpu-capability-token-signatures-are-collision-free.yaml
+ */
+#define CPU_CAP_SIG64(len, first, second, second_last, last) \
+    (((uint64_t)(len) << 56) ^ ((uint64_t)(first) << 48) ^ \
+     ((uint64_t)(second) << 40) ^ ((uint64_t)(second_last) << 32) ^ \
+     ((uint64_t)(last) << 24))
+
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -86,6 +99,23 @@ static uint64_t abi_xgetbv0(void) {
 #endif
 }
 #endif
+
+/*
+ * Compute the extended 5-field token signature for a capability key string.
+ * For keys shorter than 2 bytes, missing fields are zero-padded.
+ */
+static uint64_t cpu_cap_sig64(const char* key) {
+    size_t len = strlen(key);
+    unsigned char first = len > 0 ? (unsigned char)key[0] : 0;
+    unsigned char second = len > 1 ? (unsigned char)key[1] : 0;
+    unsigned char second_last = len > 1 ? (unsigned char)key[len - 2] : 0;
+    unsigned char last = len > 0 ? (unsigned char)key[len - 1] : 0;
+    return (((uint64_t)len << 56) ^
+            ((uint64_t)first << 48) ^
+            ((uint64_t)second << 40) ^
+            ((uint64_t)second_last << 32) ^
+            ((uint64_t)last << 24));
+}
 
 static uint64_t abi_cpu_detect_feature_mask(void) {
 #if CPU_X86
@@ -168,63 +198,118 @@ uint64_t abi_cpu_feature_fingerprint(void) {
     return mixed;
 }
 
+/*
+ * Proof: runtime/native/src/core/z3/proofs/native-cpu-capability-token-signatures-are-collision-free.yaml
+ *
+ * The Z3 proof verifies that all 30 capability keys (10 feature groups x 3
+ * alias forms each) produce unique extended 5-param sig64 values.  We dispatch
+ * by computed sig64 first, then strcmp-verify only the matched group's alias
+ * strings as a defensive measure against novel keys that happen to share the
+ * same (len, first, second, second_last, last) tuple.
+ */
 uint64_t abi_cpu_capability_mask_for_key(const char* capability_key) {
+    uint64_t sig;
+
     if (capability_key == 0) {
         return 0;
     }
 
-    if (abi_text_equals(capability_key, "cpu.x86.sse2") ||
-        abi_text_equals(capability_key, "x86.sse2") ||
-        abi_text_equals(capability_key, "sse2")) {
-        return KAIN_CPU_FEATURE_X86_SSE2;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx") ||
-        abi_text_equals(capability_key, "x86.avx") ||
-        abi_text_equals(capability_key, "avx")) {
-        return KAIN_CPU_FEATURE_X86_AVX;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx2") ||
-        abi_text_equals(capability_key, "x86.avx2") ||
-        abi_text_equals(capability_key, "avx2")) {
-        return KAIN_CPU_FEATURE_X86_AVX2;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx512f") ||
-        abi_text_equals(capability_key, "x86.avx512f") ||
-        abi_text_equals(capability_key, "avx512f")) {
-        return KAIN_CPU_FEATURE_X86_AVX512F;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx512dq") ||
-        abi_text_equals(capability_key, "x86.avx512dq") ||
-        abi_text_equals(capability_key, "avx512dq")) {
-        return KAIN_CPU_FEATURE_X86_AVX512DQ;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx512bw") ||
-        abi_text_equals(capability_key, "x86.avx512bw") ||
-        abi_text_equals(capability_key, "avx512bw")) {
-        return KAIN_CPU_FEATURE_X86_AVX512BW;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx512vl") ||
-        abi_text_equals(capability_key, "x86.avx512vl") ||
-        abi_text_equals(capability_key, "avx512vl")) {
-        return KAIN_CPU_FEATURE_X86_AVX512VL;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.avx512") ||
-        abi_text_equals(capability_key, "x86.avx512") ||
-        abi_text_equals(capability_key, "avx512")) {
-        return KAIN_CPU_FEATURE_X86_AVX512F;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.fma") ||
-        abi_text_equals(capability_key, "x86.fma") ||
-        abi_text_equals(capability_key, "fma")) {
-        return KAIN_CPU_FEATURE_X86_FMA;
-    }
-    if (abi_text_equals(capability_key, "cpu.x86.bmi2") ||
-        abi_text_equals(capability_key, "x86.bmi2") ||
-        abi_text_equals(capability_key, "bmi2")) {
-        return KAIN_CPU_FEATURE_X86_BMI2;
-    }
+    sig = cpu_cap_sig64(capability_key);
 
-    return 0;
+    switch (sig) {
+    case CPU_CAP_SIG64(12, 'c', 'p', 'e', '2'):
+    case CPU_CAP_SIG64(8,  'x', '8', 'e', '2'):
+    case CPU_CAP_SIG64(4,  's', 's', 'e', '2'):
+        if (abi_text_equals(capability_key, "cpu.x86.sse2") ||
+            abi_text_equals(capability_key, "x86.sse2") ||
+            abi_text_equals(capability_key, "sse2"))
+            return KAIN_CPU_FEATURE_X86_SSE2;
+        return 0;
+
+    case CPU_CAP_SIG64(11, 'c', 'p', 'v', 'x'):
+    case CPU_CAP_SIG64(7,  'x', '8', 'v', 'x'):
+    case CPU_CAP_SIG64(3,  'a', 'v', 'v', 'x'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx") ||
+            abi_text_equals(capability_key, "x86.avx") ||
+            abi_text_equals(capability_key, "avx"))
+            return KAIN_CPU_FEATURE_X86_AVX;
+        return 0;
+
+    case CPU_CAP_SIG64(12, 'c', 'p', 'x', '2'):
+    case CPU_CAP_SIG64(8,  'x', '8', 'x', '2'):
+    case CPU_CAP_SIG64(4,  'a', 'v', 'x', '2'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx2") ||
+            abi_text_equals(capability_key, "x86.avx2") ||
+            abi_text_equals(capability_key, "avx2"))
+            return KAIN_CPU_FEATURE_X86_AVX2;
+        return 0;
+
+    case CPU_CAP_SIG64(15, 'c', 'p', '2', 'f'):
+    case CPU_CAP_SIG64(11, 'x', '8', '2', 'f'):
+    case CPU_CAP_SIG64(7,  'a', 'v', '2', 'f'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx512f") ||
+            abi_text_equals(capability_key, "x86.avx512f") ||
+            abi_text_equals(capability_key, "avx512f"))
+            return KAIN_CPU_FEATURE_X86_AVX512F;
+        return 0;
+
+    case CPU_CAP_SIG64(16, 'c', 'p', 'd', 'q'):
+    case CPU_CAP_SIG64(12, 'x', '8', 'd', 'q'):
+    case CPU_CAP_SIG64(8,  'a', 'v', 'd', 'q'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx512dq") ||
+            abi_text_equals(capability_key, "x86.avx512dq") ||
+            abi_text_equals(capability_key, "avx512dq"))
+            return KAIN_CPU_FEATURE_X86_AVX512DQ;
+        return 0;
+
+    case CPU_CAP_SIG64(16, 'c', 'p', 'b', 'w'):
+    case CPU_CAP_SIG64(12, 'x', '8', 'b', 'w'):
+    case CPU_CAP_SIG64(8,  'a', 'v', 'b', 'w'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx512bw") ||
+            abi_text_equals(capability_key, "x86.avx512bw") ||
+            abi_text_equals(capability_key, "avx512bw"))
+            return KAIN_CPU_FEATURE_X86_AVX512BW;
+        return 0;
+
+    case CPU_CAP_SIG64(16, 'c', 'p', 'v', 'l'):
+    case CPU_CAP_SIG64(12, 'x', '8', 'v', 'l'):
+    case CPU_CAP_SIG64(8,  'a', 'v', 'v', 'l'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx512vl") ||
+            abi_text_equals(capability_key, "x86.avx512vl") ||
+            abi_text_equals(capability_key, "avx512vl"))
+            return KAIN_CPU_FEATURE_X86_AVX512VL;
+        return 0;
+
+    case CPU_CAP_SIG64(14, 'c', 'p', '1', '2'):
+    case CPU_CAP_SIG64(10, 'x', '8', '1', '2'):
+    case CPU_CAP_SIG64(6,  'a', 'v', '1', '2'):
+        if (abi_text_equals(capability_key, "cpu.x86.avx512") ||
+            abi_text_equals(capability_key, "x86.avx512") ||
+            abi_text_equals(capability_key, "avx512"))
+            return KAIN_CPU_FEATURE_X86_AVX512F;
+        return 0;
+
+    case CPU_CAP_SIG64(11, 'c', 'p', 'm', 'a'):
+    case CPU_CAP_SIG64(7,  'x', '8', 'm', 'a'):
+    case CPU_CAP_SIG64(3,  'f', 'm', 'm', 'a'):
+        if (abi_text_equals(capability_key, "cpu.x86.fma") ||
+            abi_text_equals(capability_key, "x86.fma") ||
+            abi_text_equals(capability_key, "fma"))
+            return KAIN_CPU_FEATURE_X86_FMA;
+        return 0;
+
+    case CPU_CAP_SIG64(12, 'c', 'p', 'i', '2'):
+    case CPU_CAP_SIG64(8,  'x', '8', 'i', '2'):
+    case CPU_CAP_SIG64(4,  'b', 'm', 'i', '2'):
+        if (abi_text_equals(capability_key, "cpu.x86.bmi2") ||
+            abi_text_equals(capability_key, "x86.bmi2") ||
+            abi_text_equals(capability_key, "bmi2"))
+            return KAIN_CPU_FEATURE_X86_BMI2;
+        return 0;
+
+    default:
+        return 0;
+    }
 }
 
 int64_t abi_cpu_has_capability(const char* capability_key) {
