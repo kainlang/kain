@@ -614,10 +614,15 @@ int64_t abi_input_push_event(
     abi_input_copy(event->source_id, sizeof(event->source_id), source_id ? source_id : "");
     abi_input_copy(event->event_kind, sizeof(event->event_kind), event_kind);
     abi_input_copy(event->code, sizeof(event->code), code ? code : "");
-    if (abi_input_text_equal(event_kind, "action")
-        || abi_input_text_equal(event_kind, "action_down")
-        || abi_input_text_equal(event_kind, "action_up")) {
-        abi_input_copy(event->action, sizeof(event->action), code ? code : "");
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-event-kind-token-signatures-collision-free.yaml */
+    switch (abi_input_event_kind_sig(event_kind)) {
+        case 0x0661636e: /* "action" */
+        case 0x0b61636e: /* "action_down" */
+        case 0x09616370: /* "action_up" */
+            abi_input_copy(event->action, sizeof(event->action), code ? code : "");
+            break;
+        default:
+            break;
     }
     abi_input_copy(event->text, sizeof(event->text), text ? text : "");
     abi_input_trace_append(session, event);
@@ -738,19 +743,37 @@ const char* abi_input_event_text(int64_t session_id, int64_t event_index) {
 int64_t abi_input_action_pressed(int64_t session_id, const char* action) {
     KainNativeInputSession* session = abi_input_session(session_id);
     if (!session) return 0;
-    return abi_input_name_index(session->actions_pressed, session->action_pressed_count, action) >= 0 ? 1 : 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-hash-probe-bounds.yaml */
+    return abi_input_name_index(
+        session->actions_pressed,
+        session->actions_pressed_hashes,
+        session->action_pressed_count,
+        action
+    ) >= 0 ? 1 : 0;
 }
 
 int64_t abi_input_action_down(int64_t session_id, const char* action) {
     KainNativeInputSession* session = abi_input_session(session_id);
     if (!session) return 0;
-    return abi_input_name_index(session->actions_down, session->action_down_count, action) >= 0 ? 1 : 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-hash-probe-bounds.yaml */
+    return abi_input_name_index(
+        session->actions_down,
+        session->actions_down_hashes,
+        session->action_down_count,
+        action
+    ) >= 0 ? 1 : 0;
 }
 
 int64_t abi_input_action_released(int64_t session_id, const char* action) {
     KainNativeInputSession* session = abi_input_session(session_id);
     if (!session) return 0;
-    return abi_input_name_index(session->actions_released, session->action_released_count, action) >= 0 ? 1 : 0;
+    /* Proof: runtime/native/src/core/z3/proofs/native-input-hash-probe-bounds.yaml */
+    return abi_input_name_index(
+        session->actions_released,
+        session->actions_released_hashes,
+        session->action_released_count,
+        action
+    ) >= 0 ? 1 : 0;
 }
 
 double abi_input_axis_value(int64_t session_id, const char* axis) {
