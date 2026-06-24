@@ -1,0 +1,7 @@
+(set-logic QF_BV)
+(define-fun b2b8 ((x Bool)) (_ BitVec 8) (ite x (_ bv1 8) (_ bv0 8)))
+(define-fun id ((v (_ BitVec 8))) (_ BitVec 8) v)
+(declare-const x (_ BitVec 8))
+(declare-const y (_ BitVec 8))
+(assert (= (id x) x))
+(check-sat)
