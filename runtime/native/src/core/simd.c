@@ -85,20 +85,40 @@ static int64_t kain_simd_affine_fold_mod(
     int64_t phase_mod,
     int64_t modulus
 ) {
+    /* Replaces phase % bias_mod and phase % phase_mod with running counters
+     * that increment and wrap. Each IDIV (20-80 cycles) becomes
+     * INC + CMP + CMOV (<5 cycles).
+     *
+     * Proof: runtime/native/src/core/z3/proofs-experimental/
+     *   simd-affine-fold-wrapping-counter-equivalence.smt2
+     * Domain: bias_mod > 0, phase_mod > 0 (validated before call) */
     int64_t acc = 0;
+    int64_t bias = 0;
+    int64_t phase_rem = 0;
     int64_t phase = 0;
     while (phase < passes) {
-        const int64_t bias = phase % bias_mod;
         const int64_t inner = (stats.base_dot + (bias * stats.sum_right)) % modulus;
-        acc = (acc + inner + (phase % phase_mod)) % modulus;
+        acc = (acc + inner + phase_rem) % modulus;
+        /* Advance running counters — compilers emit CMOVcc here */
+        bias = (bias + 1 < bias_mod) ? bias + 1 : 0;
+        phase_rem = (phase_rem + 1 < phase_mod) ? phase_rem + 1 : 0;
         phase += 1;
     }
     return acc;
 }
 
 static int kain_simd_mask_is_pow2_minus_one(int64_t mask) {
-    const uint64_t unsigned_mask = (uint64_t)mask;
-    return mask >= 0 && (unsigned_mask & (unsigned_mask + 1u)) == 0u;
+    /* Branchless: (mask >= 0) AND ((uint64_t)mask & (uint64_t)(mask+1)) == 0
+     * Replaces two comparisons + && branch with bit arithmetic:
+     *   sign_ok = ~(x >> 63)   — all-1s if mask >= 0
+     *   pow2_ok = ~(x & (x+1) | -(x & (x+1)))  — all-1s if x & (x+1) == 0
+     *   result = (sign_ok & pow2_ok) >> 63
+     * Proof: runtime/native/src/core/z3/proofs-experimental/
+     *   simd-mask-pow2-minus-one-branchless.smt2 */
+    const uint64_t x = (uint64_t)mask;
+    const uint64_t t = x & (x + 1u);
+    const uint64_t ok = (~(x >> 63)) & ~(t | -t);
+    return (int)(ok >> 63);
 }
 
 int64_t abi_simd_i64_dot_i32_domain_scalar_mod(
