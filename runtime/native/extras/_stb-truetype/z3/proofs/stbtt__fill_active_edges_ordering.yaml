@@ -1,0 +1,28 @@
+version: 1
+id: stb-truetype.fill_active_edges_ordering.sorted_preserved
+kind: find_counterexample
+description: >
+  Active edge list ordering invariants: (1) x-ordering of edges with consistent
+  slopes is preserved across scanline advancement, (2) the bubble sort swap
+  correctly resolves inversions, (3) one pass of bubble sort pushes the maximum
+  element to the end of the active edge list.
+tags:
+- stb_truetype
+- rasterizer
+- active-edges
+- sorting
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt__rasterize_sorted_edges
+  start_line: 2924
+  end_line: 3010
+  reason: >
+    The active edge list must remain sorted by x for the XOR winding rule
+    to correctly identify filled regions. Edge advancement and insertion
+    must preserve sorted order.
+case:
+  smt2_file: stbtt__fill_active_edges_ordering.smt2
+  include_model: false
+  include_stats: false

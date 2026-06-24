@@ -1,0 +1,28 @@
+version: 1
+id: stb-truetype.clip_line_no_overflow.index_bounds
+kind: find_counterexample
+description: >
+  Edge clipping to scanline bounds preserves pixel index validity.
+  After top and bottom clipping in stbtt__handle_clipped_edge, the clipped
+  edge endpoints stay within the original segment range, ensuring the pixel
+  index used for scanline[x] access is always within [0, width).
+tags:
+- stb_truetype
+- rasterizer
+- clipping
+- bounds
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt__handle_clipped_edge
+  start_line: 3028
+  end_line: 3063
+  reason: >
+    The scanline and scanline_fill arrays are accessed with pixel column
+    indices derived from the clipped edge coordinates. An out-of-bounds
+    index would produce a buffer overflow write.
+case:
+  smt2_file: stbtt__clip_line_no_overflow.smt2
+  include_model: false
+  include_stats: false
