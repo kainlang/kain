@@ -24,32 +24,32 @@
 
 extern const KainVulkanAbiVtable* g_vulkan_vtable;
 
-int64_t kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
+int kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
     if (g_vulkan_vtable == NULL) return -1;
     return g_vulkan_vtable->load_shader_fn
-        ? g_vulkan_vtable->load_shader_fn(session_id, spirv_hex)
+        ? (int)g_vulkan_vtable->load_shader_fn(session_id, spirv_hex)
         : -2;
 }
 
-int64_t kain_vulkan_abi_set_uniform(int64_t session_id, int64_t binding,
-                                     const void* data, int64_t size) {
+int kain_vulkan_abi_set_uniform(int64_t session_id, uint32_t binding,
+                                 const void* data, uint64_t size) {
     if (g_vulkan_vtable == NULL) return -1;
     return g_vulkan_vtable->set_uniform_fn
-        ? g_vulkan_vtable->set_uniform_fn(session_id, (uint32_t)binding,
-                                           data, (uint64_t)size)
+        ? (int)g_vulkan_vtable->set_uniform_fn(session_id, binding,
+                                                data, size)
         : -2;
 }
 
 #else /* !KAIN_RUNTIME_HAS_VULKAN_LOADER */
 
-int64_t kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
+int kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
     (void)session_id;
     (void)spirv_hex;
     return -1;
 }
 
-int64_t kain_vulkan_abi_set_uniform(int64_t session_id, int64_t binding,
-                                     const void* data, int64_t size) {
+int kain_vulkan_abi_set_uniform(int64_t session_id, uint32_t binding,
+                                 const void* data, uint64_t size) {
     (void)session_id;
     (void)binding;
     (void)data;

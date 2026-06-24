@@ -28,6 +28,7 @@ typedef void* KainVulkanAbiLibrary;
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define KAIN_VULKAN_STATUS_MESSAGE_MAX 512u
@@ -75,12 +76,12 @@ static int vulkan_resolve_env_path(const char* env_name,
                                     const char* fallback_env,
                                     const char* file_name,
                                     char* out, size_t out_cap) {
-    const char* env_value = kain_get_env(env_name);
+    const char* env_value = getenv(env_name);
     if (env_value && env_value[0]) {
         snprintf(out, out_cap, "%s/%s", env_value, file_name);
         return vulkan_file_exists(out);
     }
-    env_value = kain_get_env(fallback_env);
+    env_value = getenv(fallback_env);
     if (env_value && env_value[0]) {
         snprintf(out, out_cap, "%s/%s", env_value, file_name);
         return vulkan_file_exists(out);
