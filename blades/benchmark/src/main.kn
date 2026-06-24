@@ -30,18 +30,20 @@ const TARGET_DURATION_MS: Int = 1000
 // ============================================================================
 
 struct BenchResult:
-    bench_name: String
-    exe_path:   String
-    iters:      Int
-    checksum:   Int
-    min_ms:     Int
-    max_ms:     Int
-    median_ms:  Int
-    mean_ms:    Int
-    samples:    Array<Int>
-    build_ok:   Bool
-    run_ok:     Bool
-    error:      String
+    bench_name:  String
+    exe_path:    String
+    description: String
+    meta_fields: Array<String>
+    iters:       Int
+    checksum:    Int
+    min_ms:      Int
+    max_ms:      Int
+    median_ms:   Int
+    mean_ms:     Int
+    samples:     Array<Int>
+    build_ok:    Bool
+    run_ok:      Bool
+    error:       String
 
 // ============================================================================
 //  MAIN
@@ -180,16 +182,22 @@ fn bench_file(abs_kn_path: String) -> BenchResult:
     if output == "":
         return fail_result(bname, exe, true, "exe produced no output")
 
-    // Parse BENCH: lines  (format: BENCH:<name>|ITERS:<n>|ROUND:<r>|ELAPSED_MS:<ms>|CHECKSUM:<c>)
+    // Parse BENCH:/DESCRIPTION:/META: lines
     let samples: Array<Int> = []
     var checksum = 0
     var iters = 0
+    var description = ""
+    let meta_fields: Array<String> = []
 
     let lines = split_lines(output)
     var li = 0
     while li < len(lines):
         let ln = text_trim_string(lines[li])
-        if text_starts_with_string(ln, "BENCH:"):
+        if text_starts_with_string(ln, "DESCRIPTION:"):
+            description = parse_description(ln)
+        elif text_starts_with_string(ln, "META:"):
+            push(meta_fields, parse_meta_value(ln))
+        elif text_starts_with_string(ln, "BENCH:"):
             let ms = parse_int_field(ln, "ELAPSED_MS:")
             if ms >= 0: push(samples, ms)
             let it = parse_int_field(ln, "ITERS:")
@@ -203,7 +211,8 @@ fn bench_file(abs_kn_path: String) -> BenchResult:
 
     let stats = compute_stats(samples)
     return BenchResult {
-        bench_name: bname, exe_path: exe,
+        bench_name: bname, exe_path: exe, description: description,
+        meta_fields: meta_fields,
         iters: iters, checksum: checksum,
         min_ms: stats[0], max_ms: stats[1], median_ms: stats[2], mean_ms: stats[3],
         samples: samples, build_ok: true, run_ok: true, error: "",
@@ -254,7 +263,7 @@ fn find_built_exe(abs_kn_path: String) -> String:
 
 fn fail_result(bname: String, exe: String, built: Bool, msg: String) -> BenchResult:
     return BenchResult {
-        bench_name: bname, exe_path: exe,
+        bench_name: bname, exe_path: exe, description: "", meta_fields: [],
         iters: 0, checksum: 0,
         min_ms: 0, max_ms: 0, median_ms: 0, mean_ms: 0,
         samples: [], build_ok: built, run_ok: false, error: msg,
@@ -293,6 +302,33 @@ fn parse_int_field(ln: String, key: String) -> Int:
             return val * sign
         i = i + 1
     return -1
+
+fn parse_description(ln: String) -> String:
+    // Format: DESCRIPTION:<name>|<text>
+    let prefix = "DESCRIPTION:"
+    var i = len(prefix)
+    // Skip the bench name (until first |)
+    while i < len(ln) and char_at(ln, i) != "|":
+        i = i + 1
+    if i < len(ln): i = i + 1  // skip the |
+    var text = ""
+    while i < len(ln):
+        text = text + char_at(ln, i)
+        i = i + 1
+    return text
+
+fn parse_meta_value(ln: String) -> String:
+    // Format: META:<name>|<key>=<value>
+    let prefix = "META:"
+    var i = len(prefix)
+    while i < len(ln) and char_at(ln, i) != "|":
+        i = i + 1
+    if i < len(ln): i = i + 1
+    var val = ""
+    while i < len(ln):
+        val = val + char_at(ln, i)
+        i = i + 1
+    return val
 
 fn split_lines(text: String) -> Array<String>:
     let result: Array<String> = []
@@ -375,6 +411,9 @@ fn write_markdown_report(dir: String, results: Array<BenchResult>) -> String:
         elif r.run_ok == false:
             md = md + "❌ **Run failed:** " + r.error + "\n\n"
         else:
+            // Description block (shown above metrics)
+            if r.description != "":
+                md = md + r.description + "\n\n"
             md = md + "- **Iterations:** " + str(r.iters) + "\n"
             md = md + "- **Checksum:** `" + str(r.checksum) + "`\n"
             var med_line = "- **Median:** " + str(r.median_ms) + "ms ("
@@ -390,6 +429,13 @@ fn write_markdown_report(dir: String, results: Array<BenchResult>) -> String:
                 j = j + 1
             md = md + "\n"
             md = md + "- **Binary:** `" + r.exe_path + "`\n"
+            // Custom telemetry (META fields)
+            if len(r.meta_fields) > 0:
+                md = md + "\n**Custom telemetry:**\n"
+                var m = 0
+                while m < len(r.meta_fields):
+                    md = md + "- `" + r.meta_fields[m] + "`\n"
+                    m = m + 1
         md = md + "\n"
         i = i + 1
 

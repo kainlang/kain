@@ -1,52 +1,62 @@
 // ============================================================================
-//  bench_ownership.kn — Baseline for ownership.c + buddy.c super-optimization
+//  bench_ownership.kn — OPTIMIZER-PROOF baseline for buddy.c + ownership.c
 //
-//  Targets:
-//    P0: buddy.c log2 → CLZ (10-30× on alloc/free)
-//    P0: ownership.c % 4096 → & 4095 (2-5×)
-//    P1: ownership.c free slot scan → summary word + ctz (16-64×)
-//    P1: ownership.c linear scan → LRU cache (4096× worst case)
+//  Anti-DCE measures:
+//    1. Each collapse writes values dependent on the previous observe-read
+//    2. Checksum chains across all 200 cycles (data-dependent, cannot collapse)
+//    3. Allocation size varies per iteration
+//    4. Memory pattern: write→read→decay→realloc, each step feeds the next
 //
-//  Exercises collapse/observe/decay hot path with rapid alloc/free cycling.
+//  This exercises: buddy allocator log2, ownership % ringbuffer, free slot scan.
+//  If 17ns/cycle is real, this benchmark proves the ownership subsystem is
+//  operating at near-theoretical minimum latency.
 // ============================================================================
 
 use std::time
 use std::runtime
 
-const BENCH_NAME:      String = "ownership_alloc_churn"
+const BENCH_NAME:        String = "ownership_alloc_churn"
+const BENCH_DESCRIPTION: String = "Ownership hot path: 200 rapid alloc/collapse/observe/decay cycles per iteration. Each cycle allocates 4-16 Int cells via `alloc_zeroed`, writes data-dependent values inside `collapse`, reads one cell back via `observe`, then `decay`s the allocation. The read value feeds into the next cycle's write pattern via a multiplicative checksum chain. Allocation sizes vary per round to prevent size-based caching. This exercises three P0/P1 optimization targets: buddy allocator `kain_buddy_log2_exact()` (CLZ replacement, 10-30× expected), ownership ringbuffer `% 4096` (bitmask replacement, 2-5× expected), and ownership free-slot scan (summary word + ctz, 16-64× expected)."
 const TARGET_MS:       Int    = 500
 const WARMUP_ROUNDS:   Int    = 2
 const MEASURE_ROUNDS:  Int    = 5
-const MAX_ITERS:       Int    = 5000
+const MAX_ITERS:       Int    = 10000
+const MODULUS:         Int    = 1000000007
 
-// Allocate, collapse-write, observe-read, decay — repeat many times.
-// Exercises buddy allocator log2 (CLZ target), ownership deferred decay
-// ringbuffer modulo (bitmask target), and free slot allocation (ctz target).
+fn meta(key: String, value: String):
+    println("META:" + BENCH_NAME + "|" + key + "=" + value)
 
-fn run_iteration(acc: Int) -> Int:
-    let modulus = 1000000007
-    var checksum = 0
-
-    // Rapid alloc/collapse/observe/decay cycle — 200 rounds
+fn run_iteration(seed: Int) -> Int:
+    var checksum = seed
     var round = 0
-    while round < 200:
-        let ptr: ptr<Int> = alloc_zeroed(16, "Int")
 
+    while round < 200:
+        // Vary allocation size per round — prevents size-based caching
+        let alloc_size = 4 + (round % 13)  // 4 to 16 Int cells
+
+        let ptr: ptr<Int> = alloc_zeroed(alloc_size, "Int")
+
+        // Write pattern depends on previous checksum (data dependency chain)
         collapse ptr:
             var j = 0
-            while j < 16:
-                mem_store(ptr_offset(ptr, j, "Int"), (round * 31 + j * 7 + acc) % modulus, "Int")
+            while j < alloc_size:
+                let val = (checksum * 31 + round * 7 + j * 13) % MODULUS
+                mem_store(ptr_offset(ptr, j, "Int"), val, "Int")
                 j = j + 1
             0
 
-        let v = observe ptr:
-            mem_load(ptr_offset(ptr, round % 16, "Int"), "Int")
+        // Read back — value feeds into next iteration's checksum
+        let read_idx = round % alloc_size
+        let val = observe ptr:
+            mem_load(ptr_offset(ptr, read_idx, "Int"), "Int")
 
         decay ptr
-        checksum = (checksum + v) % modulus
+
+        // Chain: this iteration's read feeds next iteration's write
+        checksum = (checksum * 17 + val + read_idx) % MODULUS
         round = round + 1
 
-    return acc + checksum
+    return checksum
 
 // ============================================================================
 //  MAIN
@@ -56,7 +66,19 @@ fn main() -> Int:
     let init = runtime_init()
     if init != 0: return 100 + init
 
-    let checksum = run_iteration(0)
+    println("DESCRIPTION:" + BENCH_NAME + "|" + BENCH_DESCRIPTION)
+    meta("alloc_cycles_per_iter", "200")
+    meta("alloc_size_range", "4-16 Int cells")
+    meta("ownership_ops", "collapse + observe + decay per cycle")
+    meta("optimization_targets", "buddy.c log2→CLZ, ownership.c %→&, free-slot→ctz")
+
+    let c1 = run_iteration(42)
+    let c2 = run_iteration(42)
+    if c1 != c2:
+        println("CHECKSUM MISMATCH: " + str(c1) + " vs " + str(c2))
+        return 1
+
+    let checksum = c1
 
     var iters = 1
     while iters <= MAX_ITERS:
@@ -64,7 +86,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         let elapsed = instant_elapsed(start)
         let elapsed_ms = duration_to_millis(elapsed)
@@ -77,7 +99,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         w = w + 1
 
@@ -88,7 +110,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         let elapsed = instant_elapsed(start)
         let elapsed_ms = duration_to_millis(elapsed)

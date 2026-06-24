@@ -1,17 +1,17 @@
 # Bench Report
 
 **Folder:** `X:/blades/benchmark/test_benches`  
-**Date:** 2026-06-24 02:26:28  
+**Date:** 2026-06-24 03:14:29  
 **Target:** 1000ms per benchmark  
 **Benchmarks:** 5
 
 | Benchmark | Iters | Median | Min | Max | Mean | ns/iter | Checksum |
 |-----------|-------|--------|-----|-----|------|---------|----------|
-| `bench_json_parse` | 4096 | 27ms | 27ms | 28ms | 27ms | 6591 | `9637` |
-| `bench_ownership` | 4096 | 14ms | 13ms | 14ms | 13ms | 3417 | `627176` |
-| `levenshtein` | 64 | 158ms | 149ms | 296ms | 201ms | 2468750 | `3` |
-| `scalar_template` | 65536 | 15538ms | 15536ms | 15710ms | 15594ms | 237091 | `522933064` |
-| `shatter_ecs` | 4 | 632ms | 536ms | 637ms | 607ms | 158000000 | `0` |
+| `bench_json_parse` | 4096 | 29ms | 28ms | 29ms | 28ms | 7080 | `9637` |
+| `bench_ownership` | 8192 | 223ms | 218ms | 231ms | 223ms | 27221 | `390689129` |
+| `levenshtein` | 64 | 137ms | 131ms | 289ms | 185ms | 2140625 | `3` |
+| `scalar_template` | 65536 | 15575ms | 15348ms | 15693ms | 15538ms | 237655 | `522933064` |
+| `shatter_ecs` | 8 | 823ms | 799ms | 833ms | 816ms | 102875000 | `0` |
 
 ## Details
 
@@ -19,49 +19,57 @@
 
 - **Iterations:** 4096
 - **Checksum:** `9637`
-- **Median:** 27ms (6591 ns/iter)
-- **Min/Max:** 27ms / 28ms
-- **Mean:** 27ms
-- **Samples:** 27ms, 27ms, 28ms
-- **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\bench_json_parse\compile\bench_json_parse.exe`
+- **Median:** 29ms (7080 ns/iter)
+- **Min/Max:** 28ms / 29ms
+- **Mean:** 28ms
+- **Samples:** 28ms, 29ms, 29ms
+- **Binary:** `X:\bench_json_parse.exe`
 
 ### bench_ownership
 
-- **Iterations:** 4096
-- **Checksum:** `627176`
-- **Median:** 14ms (3417 ns/iter)
-- **Min/Max:** 13ms / 14ms
-- **Mean:** 13ms
-- **Samples:** 13ms, 13ms, 14ms, 14ms, 14ms
+Ownership hot path: 200 rapid alloc/collapse/observe/decay cycles per iteration. Each cycle allocates 4-16 Int cells via `alloc_zeroed`, writes data-dependent values inside `collapse`, reads one cell back via `observe`, then `decay`s the allocation. The read value feeds into the next cycle's write pattern via a multiplicative checksum chain. Allocation sizes vary per round to prevent size-based caching. This exercises three P0/P1 optimization targets: buddy allocator `kain_buddy_log2_exact()` (CLZ replacement, 10-30× expected), ownership ringbuffer `% 4096` (bitmask replacement, 2-5× expected), and ownership free-slot scan (summary word + ctz, 16-64× expected).
+
+- **Iterations:** 8192
+- **Checksum:** `390689129`
+- **Median:** 223ms (27221 ns/iter)
+- **Min/Max:** 218ms / 231ms
+- **Mean:** 223ms
+- **Samples:** 218ms, 221ms, 223ms, 224ms, 231ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\bench_ownership\compile\bench_ownership.exe`
+
+**Custom telemetry:**
+- `alloc_cycles_per_iter=200`
+- `alloc_size_range=4-16 Int cells`
+- `ownership_ops=collapse + observe + decay per cycle`
+- `optimization_targets=buddy.c log2→CLZ, ownership.c %→&, free-slot→ctz`
 
 ### levenshtein
 
 - **Iterations:** 64
 - **Checksum:** `3`
-- **Median:** 158ms (2468750 ns/iter)
-- **Min/Max:** 149ms / 296ms
-- **Mean:** 201ms
-- **Samples:** 149ms, 158ms, 296ms
+- **Median:** 137ms (2140625 ns/iter)
+- **Min/Max:** 131ms / 289ms
+- **Mean:** 185ms
+- **Samples:** 131ms, 137ms, 289ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\levenshtein\compile\levenshtein.exe`
 
 ### scalar_template
 
 - **Iterations:** 65536
 - **Checksum:** `522933064`
-- **Median:** 15538ms (237091 ns/iter)
-- **Min/Max:** 15536ms / 15710ms
-- **Mean:** 15594ms
-- **Samples:** 15536ms, 15538ms, 15710ms
+- **Median:** 15575ms (237655 ns/iter)
+- **Min/Max:** 15348ms / 15693ms
+- **Mean:** 15538ms
+- **Samples:** 15348ms, 15575ms, 15693ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\scalar_template\compile\scalar_template.exe`
 
 ### shatter_ecs
 
-- **Iterations:** 4
+- **Iterations:** 8
 - **Checksum:** `0`
-- **Median:** 632ms (158000000 ns/iter)
-- **Min/Max:** 536ms / 637ms
-- **Mean:** 607ms
-- **Samples:** 536ms, 599ms, 632ms, 635ms, 637ms
+- **Median:** 823ms (102875000 ns/iter)
+- **Min/Max:** 799ms / 833ms
+- **Mean:** 816ms
+- **Samples:** 799ms, 800ms, 823ms, 828ms, 833ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\shatter_ecs\compile\shatter_ecs.exe`
 

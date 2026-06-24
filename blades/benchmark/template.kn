@@ -1,40 +1,56 @@
 // ============================================================================
 //  template.kn — Copy-paste benchmark template for the Kain bench blade
 //
-//  DROP-IN: copy, rename, fill in run_iteration() and BENCH_NAME.
-//  Run with `kain run blades/benchmark/ -- run folder/`.
-//
-//  Self-times internally. Prints BENCH: lines to stdout for the blade.
+//  Self-times internally. Prints BENCH: lines + DESCRIPTION: line to stdout.
+//  The blade parses everything and renders a rich markdown report.
 //
 //  WHAT YOU CHANGE:
-//    1. BENCH_NAME
-//    2. run_iteration() — returns a deterministic Int checksum.
-//    3. WORK_PER_ITER — how much work per call (tune so scaling finds <10000 iters).
-//    4. Imports — add std:: modules as needed.
+//    1. BENCH_NAME — short identifier
+//    2. BENCH_DESCRIPTION — markdown description shown in report
+//    3. run_iteration() — your hot loop, returns deterministic Int checksum
+//    4. META fields — add any custom telemetry via `meta()` calls
+//    5. Imports — add std:: modules as needed
 // ============================================================================
 
 use std::time
 use std::runtime
 
 // ============================================================================
-//  CONFIG
+//  CONFIG — change these for each benchmark
 // ============================================================================
 
-const BENCH_NAME:      String = "template"
-const TARGET_MS:       Int    = 100
-const WARMUP_ROUNDS:   Int    = 1
-const MEASURE_ROUNDS:  Int    = 3
-const MAX_ITERS:       Int    = 100000
+const BENCH_NAME:        String = "template"
+const BENCH_DESCRIPTION: String = "Template benchmark — replace with your own description."
+const TARGET_MS:         Int    = 100
+const WARMUP_ROUNDS:     Int    = 1
+const MEASURE_ROUNDS:    Int    = 3
+const MAX_ITERS:         Int    = 100000
+
+// ============================================================================
+//  WILDCARD TELEMETRY — add META fields to appear in the report
+//
+//  Use: meta("allocations_per_iter", str(200))
+//       meta("cells_touched", str(2400))
+//       meta("ownership_transitions", str(600))
+//
+//  All meta calls before the first BENCH: line are collected into the report.
+// ============================================================================
+
+fn meta(key: String, value: String):
+    println("META:" + BENCH_NAME + "|" + key + "=" + value)
 
 // ============================================================================
 //  YOUR HOT LOOP — replace everything inside this function.
-//  Must be deterministic. Must return an Int checksum.
-//  The accumulator parameter ensures the call is NOT dead-code-eliminated.
-//  Pass any value; the function adds its checksum to it and returns the sum.
+//
+//  Rules:
+//    - MUST be deterministic (same inputs → same checksum every run)
+//    - MUST return an Int checksum
+//    - SHOULD do enough work per call that auto-scaling finds <10000 iters
+//    - CAN use any Kain construct: actors, pulse, world, shatter, etc.
 // ============================================================================
 
 fn run_iteration(acc: Int) -> Int:
-    // Example: scalar integer mix (100K inner loop)
+    // Example: scalar integer mix (1M inner loop)
     let modulus = 1000000007
     var result = 0
     var i = 0
@@ -53,10 +69,17 @@ fn main() -> Int:
     let init = runtime_init()
     if init != 0: return 100 + init
 
-    // Verify checksum
+    // Print description once (blade captures it for report header)
+    println("DESCRIPTION:" + BENCH_NAME + "|" + BENCH_DESCRIPTION)
+
+    // Fire wildcard telemetry
+    meta("target_ms", str(TARGET_MS))
+    meta("warmup_rounds", str(WARMUP_ROUNDS))
+    meta("measure_rounds", str(MEASURE_ROUNDS))
+
     let checksum = run_iteration(0)
 
-    // Auto-scale iterations
+    // Auto-scale
     var iters = 1
     while iters <= MAX_ITERS:
         let start = instant_now()
@@ -81,7 +104,7 @@ fn main() -> Int:
             i = i + 1
         w = w + 1
 
-    // Measure — print BENCH: lines
+    // Measure
     var r = 0
     var total_acc = 0
     while r < MEASURE_ROUNDS:
@@ -102,7 +125,7 @@ fn main() -> Int:
                 "|CHECKSUM:" + str(checksum))
         r = r + 1
 
-    // Use accumulated result to prevent DCE of the entire timing loop
+    // Prevent DCE
     let shutdown = runtime_shutdown()
     if shutdown != 0: return 200 + shutdown
     if total_acc < 0: return 999

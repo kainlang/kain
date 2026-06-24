@@ -1,29 +1,50 @@
 // ============================================================================
-//  bench_json_parse.kn — Baseline for json.c super-optimization targets
+//  bench_json_parse.kn — OPTIMIZER-PROOF baseline for json.c
 //
-//  Targets:
-//    P0: json_object_get_value → perfect hash field lookup (5-10× expected)
-//    P2: json_parse_number → skip strtod for integers (2-3× expected)
+//  Anti-DCE measures:
+//    1. Payload varies per iteration (counter embedded in JSON)
+//    2. All 8 fields feed into checksum via data-dependent path
+//    3. Checksum feeds back into next iteration's payload
+//    4. Final checksum printed and verifiable against expected value
 //
-//  Exercises std::json parse + field access hot path.
+//  If the optimizer can still eat this, we genuinely have faster-than-possible code.
 // ============================================================================
 
 use std::time
 use std::runtime
 use std::json
 
-const BENCH_NAME:      String = "json_parse_field_access"
-const TARGET_MS:       Int    = 200
-const WARMUP_ROUNDS:   Int    = 1
-const MEASURE_ROUNDS:  Int    = 3
-const MAX_ITERS:       Int    = 5000
+const BENCH_NAME:        String = "json_parse_field_access"
+const BENCH_DESCRIPTION: String = "JSON parse + field lookup hot path. Parses a varying JSON payload (8 fields, mixed types) then performs 8 field lookups via `json_string_or`/`json_int_or`/`json_bool_or`. Each lookup hits `json_object_get_value` which does a linear `strcmp` scan over all 8 object fields. Characters from parsed string fields are hashed into the checksum via data-dependent mixing. This exercises the P0 optimization target: replacing the linear field scan with a perfect hash (expected 5-10× speedup)."
+const TARGET_MS:       Int    = 500
+const WARMUP_ROUNDS:   Int    = 2
+const MEASURE_ROUNDS:  Int    = 5
+const MAX_ITERS:       Int    = 10000
+const MODULUS:         Int    = 1000000007
 
-const JSON_PAYLOAD: String = "{\"name\":\"player1\",\"health\":100,\"x\":42.5,\"y\":-17.3,\"active\":true,\"team\":\"blue\",\"score\":9500,\"items\":[1,2,3]}"
+fn meta(key: String, value: String):
+    println("META:" + BENCH_NAME + "|" + key + "=" + value)
 
 fn run_iteration(acc: Int) -> Int:
-    let obj = json_parse_text(JSON_PAYLOAD)
+    // Vary payload per iteration — "health" field changes, cannot precompute
+    let health_val = 50 + (acc % 200)
+    let x_val = 10 + (acc % 80)
+    let y_val = -5 - (acc % 30)
 
-    // 8 field lookups — each hits json_object_get_value (linear scan over 8 fields)
+    // Build JSON with varying values each iteration
+    var payload = "{\"name\":\"player" + str(acc % 1000) + "\""
+    payload = payload + ",\"health\":" + str(health_val)
+    payload = payload + ",\"x\":" + str(x_val) + ".5"
+    payload = payload + ",\"y\":" + str(y_val) + ".3"
+    payload = payload + ",\"active\":true"
+    payload = payload + ",\"team\":\"blue\""
+    payload = payload + ",\"score\":" + str(9500 + acc % 5000)
+    payload = payload + ",\"items\":[" + str(1 + acc % 10) + "," + str(2 + acc % 10) + "," + str(3 + acc % 10) + "]"
+    payload = payload + "}"
+
+    let obj = json_parse_text(payload)
+
+    // 8 field lookups — each hits json_object_get_value linear scan
     let name   = json_string_or(obj, "name", "?")
     let health = json_int_or(obj, "health", 0)
     let x      = json_float_or(obj, "x", 0.0)
@@ -32,10 +53,24 @@ fn run_iteration(acc: Int) -> Int:
     let team   = json_string_or(obj, "team", "?")
     let score  = json_int_or(obj, "score", 0)
 
-    var checksum = len(name) + health + ftoi(x) + ftoi(y)
-    if active: checksum = checksum + 1
-    checksum = checksum + len(team) + score
-    return acc + (checksum % 1000000007)
+    // Compute real checksum from parsed values — data-dependent on ALL fields
+    var checksum = 0
+    // Mix name bytes (data-dependent length)
+    var ni = 0
+    while ni < len(name):
+        checksum = (checksum * 31 + ascii_char_code(char_at(name, ni))) % MODULUS
+        ni = ni + 1
+    checksum = (checksum + health * 7) % MODULUS
+    checksum = (checksum + ftoi(x * 100.0) * 13) % MODULUS
+    checksum = (checksum + ftoi(y.abs() * 200.0)) % MODULUS
+    if active: checksum = (checksum + 17) % MODULUS
+    var ti = 0
+    while ti < len(team):
+        checksum = (checksum * 37 + ascii_char_code(char_at(team, ti))) % MODULUS
+        ti = ti + 1
+    checksum = (checksum + score * 19) % MODULUS
+
+    return checksum
 
 fn ftoi(v: Float) -> Int:
     if v < 0.0: return -ftoi(-v)
@@ -54,7 +89,20 @@ fn main() -> Int:
     let init = runtime_init()
     if init != 0: return 100 + init
 
-    let checksum = run_iteration(0)
+    // Description + custom telemetry
+    println("DESCRIPTION:" + BENCH_NAME + "|" + BENCH_DESCRIPTION)
+    meta("json_fields_per_lookup", "8")
+    meta("json_payload_size", "~180 bytes")
+    meta("optimization_target", "json_object_get_value → perfect hash")
+
+    // Verify checksum is stable — run twice, must match
+    let c1 = run_iteration(42)
+    let c2 = run_iteration(42)
+    if c1 != c2:
+        println("CHECKSUM MISMATCH: " + str(c1) + " vs " + str(c2))
+        return 1
+
+    let checksum = c1
 
     var iters = 1
     while iters <= MAX_ITERS:
@@ -62,7 +110,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         let elapsed = instant_elapsed(start)
         let elapsed_ms = duration_to_millis(elapsed)
@@ -75,7 +123,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         w = w + 1
 
@@ -86,7 +134,7 @@ fn main() -> Int:
         var i = 0
         var acc = 0
         while i < iters:
-            acc = run_iteration(acc)
+            acc = run_iteration(acc + i)
             i = i + 1
         let elapsed = instant_elapsed(start)
         let elapsed_ms = duration_to_millis(elapsed)
