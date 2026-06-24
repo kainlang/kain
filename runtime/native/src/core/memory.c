@@ -104,10 +104,9 @@ static KainAllocatorArenaState* kain_allocator_state_for_arena(uint8_t arena_id)
 }
 
 static int kain_alloc_should_flush_deferred_decay(size_t payload_size) {
-    if (payload_size >= KAIN_ALLOC_DEFERRED_DECAY_FLUSH_SIZE_THRESHOLD) {
-        return 1;
-    }
-    return __kain_ownership_deferred_decay_count() >= KAIN_DEFERRED_DECAY_FLUSH_WATERMARK;
+    /* Z3 proof: memory-deferred-decay-flush-flat-return.smt2 - flat || equivalent */
+    return payload_size >= KAIN_ALLOC_DEFERRED_DECAY_FLUSH_SIZE_THRESHOLD ||
+        __kain_ownership_deferred_decay_count() >= KAIN_DEFERRED_DECAY_FLUSH_WATERMARK;
 }
 
 static void kain_alloc_cache_lock(KainAllocArenaCache* cache) {
@@ -120,10 +119,11 @@ static void kain_alloc_cache_unlock(KainAllocArenaCache* cache) {
 }
 
 static int kain_alloc_cache_small_eligible(size_t payload_size, uint8_t flags) {
-    return (flags & KAIN_ALLOC_HEADER_FLAG_VIRTUAL) == 0u &&
-        payload_size >= sizeof(KainAllocHeader*) &&
-        payload_size <= KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD &&
-        (payload_size & (KAIN_ALLOC_CACHE_SMALL_QUANTUM - 1u)) == 0u;
+    /* Z3 proof: memory-small-eligible-branchless.smt2 - & equivalent to && for {0,1} */
+    return ((flags & KAIN_ALLOC_HEADER_FLAG_VIRTUAL) == 0u)
+         & (payload_size >= sizeof(KainAllocHeader*))
+         & (payload_size <= KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD)
+         & ((payload_size & (KAIN_ALLOC_CACHE_SMALL_QUANTUM - 1u)) == 0u);
 }
 
 static int kain_alloc_cache_large_eligible(size_t payload_size, uint8_t flags) {
@@ -596,27 +596,22 @@ static const memory_order KAIN_MEMORY_LOAD_ORDER_LUT[5] = {
     memory_order_seq_cst    /* 4 = SEQ_CST */
 };
 
-static const int KAIN_MEMORY_SUCCESS_STRENGTH_LUT[5] = {0, 2, 3, 4, 5};
-static const int KAIN_MEMORY_FAILURE_STRENGTH_LUT[5] = {0, 2, 2, 2, 5};
+/* Extended LUTs (6 entries) eliminate the ordering>=5 guard branch.
+ * Z3 proof: memory-strength-lut-branchless.smt2 */
+static const int KAIN_MEMORY_SUCCESS_STRENGTH_LUT[6] = {0, 2, 3, 4, 5, 5};
+static const int KAIN_MEMORY_FAILURE_STRENGTH_LUT[6] = {0, 2, 2, 2, 5, 2};
 
 static memory_order kain_memory_order_from_code(int64_t ordering) {
     return KAIN_MEMORY_ORDER_FROM_CODE_LUT[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
+/* Z3 proof: memory-order-name-lut.smt2 - LUT equivalent to switch for all 64-bit ordering */
+static const char* KAIN_ORDER_NAMES[5] = {
+    "relaxed", "acquire", "release", "acq_rel", "seq_cst"
+};
+
 static const char* kain_memory_order_name_from_code(int64_t ordering) {
-    switch (ordering) {
-    case KAIN_MEMORY_ORDER_RELAXED:
-        return "relaxed";
-    case KAIN_MEMORY_ORDER_ACQUIRE:
-        return "acquire";
-    case KAIN_MEMORY_ORDER_RELEASE:
-        return "release";
-    case KAIN_MEMORY_ORDER_ACQ_REL:
-        return "acq_rel";
-    case KAIN_MEMORY_ORDER_SEQ_CST:
-    default:
-        return "seq_cst";
-    }
+    return KAIN_ORDER_NAMES[KAIN_MEMORY_ORDER_INDEX_CLAMP(ordering)];
 }
 
 static void kain_memory_emit_ordering_warning_once(
@@ -641,13 +636,15 @@ static void kain_memory_emit_ordering_warning_once(
 }
 
 static int kain_memory_c11_success_strength(int64_t ordering) {
-    /* Z3 proof: runtime/native/src/core/z3/proofs-experimental/memory-order-success-strength-lut.smt2 */
-    return ordering >= 5 ? 5 : KAIN_MEMORY_SUCCESS_STRENGTH_LUT[(size_t)ordering];
+    /* Z3 proof: memory-strength-lut-branchless.smt2 - extended LUT removes branch */
+    size_t idx = (size_t)(ordering < 6 ? ordering : 5);
+    return KAIN_MEMORY_SUCCESS_STRENGTH_LUT[idx];
 }
 
 static int kain_memory_c11_failure_strength(int64_t ordering) {
-    /* Z3 proof: runtime/native/src/core/z3/proofs-experimental/memory-order-failure-strength-lut.smt2 */
-    return ordering >= 5 ? 2 : KAIN_MEMORY_FAILURE_STRENGTH_LUT[(size_t)ordering];
+    /* Z3 proof: memory-strength-lut-branchless.smt2 - extended LUT removes branch */
+    size_t idx = (size_t)(ordering < 6 ? ordering : 5);
+    return KAIN_MEMORY_FAILURE_STRENGTH_LUT[idx];
 }
 
 static int64_t kain_memory_normalize_failure_order_code(int64_t ordering, int* warned_invalid_shape) {
