@@ -3750,11 +3750,13 @@ const char* abi_fs_last_error_message(void) {
 }
 
 // ============================================================================
-//  Vulkan ABI stubs — proxy symbols until vulkan_stubs.c is linked
-//  These are also defined in vulkan_surface_shim.c + vulkan_stubs.c but
-//  those files are gated behind KAIN_RUNTIME_HAS_VULKAN_LOADER which may
-//  not be active in all build configurations.
+//  Vulkan ABI stubs — fallback symbols when the Vulkan loader is not built.
+//  When KAIN_RUNTIME_HAS_VULKAN_LOADER is defined, the real proxy implementations
+//  in vulkan_stubs.c provide these symbols. These stubs only compile when the
+//  loader path is disabled.
 // ============================================================================
+
+#ifndef KAIN_RUNTIME_HAS_VULKAN_LOADER
 
 int64_t kain_vulkan_runtime_capability(void) {
     return 0;
@@ -3776,17 +3778,19 @@ int64_t abi_vulkan_swapchain_recreations(void) {
     return 0;
 }
 
-int64_t kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
+int kain_vulkan_abi_load_shader(int64_t session_id, const char* spirv_hex) {
     (void)session_id;
     (void)spirv_hex;
     return -1;
 }
 
-int64_t kain_vulkan_abi_set_uniform(int64_t session_id, int64_t binding,
-                                     const void* data, int64_t size) {
+int kain_vulkan_abi_set_uniform(int64_t session_id, uint32_t binding,
+                                 const void* data, uint64_t size) {
     (void)session_id;
     (void)binding;
     (void)data;
     (void)size;
     return -1;
 }
+
+#endif /* !KAIN_RUNTIME_HAS_VULKAN_LOADER */

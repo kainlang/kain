@@ -4,9 +4,11 @@
 #define KAIN_HANDLE_MAGIC_MASK UINT64_C(0x00ffffff00000000)
 #define KAIN_HANDLE_KIND_MASK UINT64_C(0xff00000000000000)
 
+/* Proof: runtime/native/src/core/z3/proofs/native-handle-nonzero-magic-branchless.yaml */
 static uint32_t kain_handle_nonzero_magic(uint32_t magic) {
-    magic &= 0x00ffffffu;
-    return magic == 0u ? 1u : magic;
+    uint32_t m = magic & 0x00ffffffu;
+    /* Branchless: (m == 0) → 1, else m. Uses SETcc + OR on x86, no branch. */
+    return m | (uint32_t)(m == 0u);
 }
 
 KainRuntimeHandle kain_handle_make(uint32_t kind, uint32_t slot, uint32_t magic) {
@@ -19,9 +21,11 @@ uint32_t kain_handle_kind(KainRuntimeHandle handle) {
     return (uint32_t)((handle & KAIN_HANDLE_KIND_MASK) >> 56u);
 }
 
+/* Proof: runtime/native/src/core/z3/proofs/native-handle-slot-branchless.yaml */
 uint32_t kain_handle_slot(KainRuntimeHandle handle) {
     uint32_t encoded = (uint32_t)(handle & KAIN_HANDLE_SLOT_MASK);
-    return encoded == 0u ? UINT32_MAX : encoded - 1u;
+    /* Branchless: encoded=0 wraps to UINT32_MAX (sentinel), else encoded-1 */
+    return encoded - 1u;
 }
 
 uint32_t kain_handle_magic(KainRuntimeHandle handle) {

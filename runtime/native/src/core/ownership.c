@@ -340,8 +340,9 @@ static void kain_ownership_clear_slot_unlocked(int slot) {
      */
     region->occupied = 0;
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
     KAIN_OWNERSHIP_OCCUPANCY_WORDS[(uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS] &=
-        ~(UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS));
+        ~(UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u)));
 }
 
 static int kain_ownership_find_free_slot(void) {
@@ -455,7 +456,8 @@ static int kain_ownership_upsert_unlocked(
     region->occupied = 1;
     if (is_new_slot) {
         uint32_t word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
-        uint64_t bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);
+        /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
+        uint64_t bit = UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u));
         int index_status;
         KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
         index_status = kain_ownership_index_insert_unlocked(ptr, slot);
@@ -498,7 +500,8 @@ static int kain_ownership_register_helper_allocation_unlocked(
     region->decay_queued = 0u;
     region->occupied = 1;
     word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
-    bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
+    bit = UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u));
     KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
     index_status = kain_ownership_index_insert_unlocked(ptr, slot);
     if (index_status != KAIN_OWNERSHIP_OK) {
