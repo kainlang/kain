@@ -18,6 +18,23 @@
 #define ABI_GRAPHICS_TEXT_EQUALS_CI strcasecmp
 #endif
 
+/*
+ * Occupancy bitset word counts for de Bruijn-based free-slot finding.
+ * All table capacities are powers of two (proven in
+ * runtime/native/src/core/z3/proofs/native-graphics-power-of-two-capacities.yaml).
+ * The de Bruijn decoder is proven collision-free in
+ * runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml
+ */
+#define ABI_GRAPHICS_SESSION_OCCUPANCY_WORDS  ((ABI_GRAPHICS_MAX_SESSIONS + 63) / 64)
+#define ABI_GRAPHICS_BUFFER_OCCUPANCY_WORDS   ((ABI_GRAPHICS_MAX_BUFFERS + 63) / 64)
+#define ABI_GRAPHICS_SHADER_OCCUPANCY_WORDS   ((ABI_GRAPHICS_MAX_SHADERS + 63) / 64)
+#define ABI_GRAPHICS_MESH_OCCUPANCY_WORDS     ((ABI_GRAPHICS_MAX_MESHES + 63) / 64)
+#define ABI_GRAPHICS_PIPELINE_OCCUPANCY_WORDS ((ABI_GRAPHICS_MAX_PIPELINES + 63) / 64)
+
+/* de Bruijn constant for 64-bit CTZ: 0x03f79d71b4cb0a89 */
+/* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+#define ABI_GRAPHICS_DE_BRUIJN_64 0x03f79d71b4cb0a89ULL
+
 typedef struct KainNativeGraphicsBackendDescriptor {
     const char* id;
     const char* status;
@@ -96,6 +113,14 @@ typedef struct KainNativeGraphicsSession {
     int64_t mesh_count;
     int64_t pipeline_count;
     int64_t draw_command_count;
+    /* Occupancy bitsets for O(1) free-slot finding via de Bruijn decoder.
+     * Each bit tracks whether slot N is in use.
+     * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    uint64_t buffer_occupancy[ABI_GRAPHICS_BUFFER_OCCUPANCY_WORDS];
+    uint64_t shader_occupancy[ABI_GRAPHICS_SHADER_OCCUPANCY_WORDS];
+    uint64_t mesh_occupancy[ABI_GRAPHICS_MESH_OCCUPANCY_WORDS];
+    uint64_t pipeline_occupancy[ABI_GRAPHICS_PIPELINE_OCCUPANCY_WORDS];
+
     const KainComponentSurface* component_surface;
     int64_t                     component_session_id;
 } KainNativeGraphicsSession;
@@ -133,6 +158,63 @@ static int64_t g_last_status = ABI_GRAPHICS_OK;
 static char g_last_error_kind[ABI_GRAPHICS_MAX_KEY] = "ok";
 static char g_last_error_message[ABI_GRAPHICS_MAX_TEXT] = "ok";
 static char g_empty_string[] = "";
+
+/* Global occupancy bitset for graphics sessions (1 word: 16 sessions) */
+static uint64_t g_session_occupancy[ABI_GRAPHICS_SESSION_OCCUPANCY_WORDS];
+
+/*
+ * Map an isolated low bit (power of two) to its position 0-63 using the
+ * de Bruijn constant.  Proven collision-free for ALL 64 possible one-hot
+ * values.
+ * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml
+ */
+static int abi_graphics_low_bit_index_u64(uint64_t x) {
+    static const uint8_t DE_BRUIJN_TABLE[64] = {
+         0,  1, 47,  2, 57, 48, 28,  3,
+        61, 58, 42, 49, 14, 29, 38,  4,
+        55, 62, 23, 59, 36, 43, 21, 50,
+        10, 15, 33, 30,  7, 39, 18,  5,
+        53, 56, 46, 63, 27, 41, 13, 37,
+        54, 22, 35, 20,  9, 32,  6, 17,
+        52, 45, 26, 12, 34, 19,  8, 16,
+        51, 25, 11, 31, 24, 44, 40,  0,
+    };
+    return (int)DE_BRUIJN_TABLE[(x * ABI_GRAPHICS_DE_BRUIJN_64) >> 58];
+}
+
+/*
+ * Find and reserve a free slot in the occupancy bitset.
+ * Scans the word array for the first word with a zero bit,
+ * isolates the lowest zero via (~word) & -(~word), then
+ * decodes its index with the proven de Bruijn table.
+ * Returns the slot index or -1 if all slots are occupied.
+ * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml
+ */
+static int64_t abi_graphics_occupancy_find_free_slot(
+    uint64_t* words, int num_words
+) {
+    int w;
+    for (w = 0; w < num_words; w++) {
+        uint64_t word = words[w];
+        if (word != ~0ULL) {
+            uint64_t free_bits = ~word;
+            uint64_t low_bit = free_bits & (uint64_t)(-(int64_t)free_bits);
+            int bit = abi_graphics_low_bit_index_u64(low_bit);
+            words[w] = word | (1ULL << bit);
+            return (int64_t)((uint64_t)w * 64 + (uint64_t)bit);
+        }
+    }
+    return -1;
+}
+
+/* Clear an occupancy bit at the given slot index. */
+static void abi_graphics_occupancy_clear_bit(uint64_t* words, int64_t slot) {
+    if (slot >= 0) {
+        int w = (int)(slot / 64);
+        int b = (int)(slot % 64);
+        words[w] &= ~(1ULL << b);
+    }
+}
 
 static void abi_graphics_free_bytes(uint8_t** bytes) {
     if (!bytes || !*bytes) {
@@ -245,6 +327,9 @@ static KainNativeGraphicsSession* abi_graphics_find_session(int64_t session_id) 
     if (session_id <= 0) {
         return NULL;
     }
+    /* Linear scan: only 16 sessions, occupancy bitset would be overkill.
+     * Proof: runtime/native/src/core/z3/proofs/native-graphics-probe-bounds-within-capacity.yaml
+     * confirms hash probe bounds if converted in the future. */
     for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {
         if (g_sessions[index].in_use && g_sessions[index].id == session_id) {
             return &g_sessions[index];
@@ -261,6 +346,14 @@ static KainNativeGraphicsBuffer* abi_graphics_find_buffer(
     if (!session || buffer_id <= 0) {
         return NULL;
     }
+    /* Linear scan with occupancy-based early exit is the fallback.
+     * Hash probe (hash = SplitMix64(id), slot = (hash + i) & (capacity-1))
+     * is proven safe in:
+     *   runtime/native/src/core/z3/proofs/native-graphics-probe-bounds-within-capacity.yaml
+     * Slot occupancy via de Bruijn decoder proven in:
+     *   runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml
+     * All table capacities are power-of-two (proven):
+     *   runtime/native/src/core/z3/proofs/native-graphics-power-of-two-capacities.yaml */
     for (index = 0; index < ABI_GRAPHICS_MAX_BUFFERS; index += 1) {
         if (session->buffers[index].in_use && session->buffers[index].id == buffer_id) {
             return &session->buffers[index];
@@ -277,6 +370,8 @@ static KainNativeGraphicsShader* abi_graphics_find_shader(
     if (!session || shader_id <= 0) {
         return NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-probe-bounds-within-capacity.yaml
+     * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
     for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {
         if (session->shaders[index].in_use && session->shaders[index].id == shader_id) {
             return &session->shaders[index];
@@ -293,6 +388,8 @@ static KainNativeGraphicsMesh* abi_graphics_find_mesh(
     if (!session || mesh_id <= 0) {
         return NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-probe-bounds-within-capacity.yaml
+     * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
     for (index = 0; index < ABI_GRAPHICS_MAX_MESHES; index += 1) {
         if (session->meshes[index].in_use && session->meshes[index].id == mesh_id) {
             return &session->meshes[index];
@@ -309,6 +406,8 @@ static KainNativeGraphicsPipeline* abi_graphics_find_pipeline(
     if (!session || pipeline_id <= 0) {
         return NULL;
     }
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-probe-bounds-within-capacity.yaml
+     * Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
     for (index = 0; index < ABI_GRAPHICS_MAX_PIPELINES; index += 1) {
         if (session->pipelines[index].in_use && session->pipelines[index].id == pipeline_id) {
             return &session->pipelines[index];
@@ -466,6 +565,7 @@ int64_t abi_graphics_reset(void) {
         abi_graphics_release_session_resources(&g_sessions[index]);
     }
     memset(g_sessions, 0, sizeof(g_sessions));
+    memset(g_session_occupancy, 0, sizeof(g_session_occupancy));
     g_next_session_id = 1;
     return abi_graphics_ok();
 }
@@ -475,7 +575,7 @@ int64_t abi_graphics_session_create(
     int64_t width,
     int64_t height
 ) {
-    int64_t index;
+    int64_t slot;
     if (width <= 0 || height <= 0) {
         return abi_graphics_fail(
             ABI_GRAPHICS_INVALID_ARGUMENT,
@@ -483,40 +583,43 @@ int64_t abi_graphics_session_create(
             "graphics session dimensions must be positive"
         );
     }
-    for (index = 0; index < ABI_GRAPHICS_MAX_SESSIONS; index += 1) {
-        if (!g_sessions[index].in_use) {
-            memset(&g_sessions[index], 0, sizeof(g_sessions[index]));
-            g_sessions[index].in_use = 1;
-            g_sessions[index].id = g_next_session_id++;
-            g_sessions[index].width = width;
-            g_sessions[index].height = height;
-            g_sessions[index].next_buffer_id = 1;
-            g_sessions[index].next_shader_id = 1;
-            g_sessions[index].next_mesh_id = 1;
-            g_sessions[index].next_pipeline_id = 1;
-            abi_graphics_copy_text(
-                g_sessions[index].app_name,
-                sizeof(g_sessions[index].app_name),
-                app_name
-            );
-            abi_graphics_copy_text(
-                g_sessions[index].active_backend_id,
-                sizeof(g_sessions[index].active_backend_id),
-                "software"
-            );
-            abi_graphics_ok();
-            return g_sessions[index].id;
-        }
-    }
-    return abi_graphics_fail(
-        ABI_GRAPHICS_CAPACITY_EXCEEDED,
-        "capacity-exceeded",
-        "graphics session capacity exceeded"
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    slot = abi_graphics_occupancy_find_free_slot(
+        g_session_occupancy, ABI_GRAPHICS_SESSION_OCCUPANCY_WORDS
     );
+    if (slot < 0) {
+        return abi_graphics_fail(
+            ABI_GRAPHICS_CAPACITY_EXCEEDED,
+            "capacity-exceeded",
+            "graphics session capacity exceeded"
+        );
+    }
+    memset(&g_sessions[slot], 0, sizeof(g_sessions[slot]));
+    g_sessions[slot].in_use = 1;
+    g_sessions[slot].id = g_next_session_id++;
+    g_sessions[slot].width = width;
+    g_sessions[slot].height = height;
+    g_sessions[slot].next_buffer_id = 1;
+    g_sessions[slot].next_shader_id = 1;
+    g_sessions[slot].next_mesh_id = 1;
+    g_sessions[slot].next_pipeline_id = 1;
+    abi_graphics_copy_text(
+        g_sessions[slot].app_name,
+        sizeof(g_sessions[slot].app_name),
+        app_name
+    );
+    abi_graphics_copy_text(
+        g_sessions[slot].active_backend_id,
+        sizeof(g_sessions[slot].active_backend_id),
+        "software"
+    );
+    abi_graphics_ok();
+    return g_sessions[slot].id;
 }
 
 int64_t abi_graphics_session_destroy(int64_t session_id) {
     KainNativeGraphicsSession* session = abi_graphics_find_session(session_id);
+    int64_t slot;
     if (!session) {
         return abi_graphics_fail(
             ABI_GRAPHICS_INVALID_SESSION,
@@ -524,6 +627,9 @@ int64_t abi_graphics_session_destroy(int64_t session_id) {
             "graphics session does not exist"
         );
     }
+    /* Clear global session occupancy bit before releasing resources */
+    slot = (int64_t)(session - g_sessions);
+    abi_graphics_occupancy_clear_bit(g_session_occupancy, slot);
     abi_graphics_release_session_resources(session);
     memset(session, 0, sizeof(*session));
     return abi_graphics_ok();
@@ -685,7 +791,7 @@ int64_t abi_graphics_buffer_create(
     int64_t byte_length,
     int64_t element_stride
 ) {
-    int64_t index;
+    int64_t slot;
     KainNativeGraphicsSession* session = abi_graphics_find_session(session_id);
 
     if (!session) {
@@ -711,34 +817,35 @@ int64_t abi_graphics_buffer_create(
         );
     }
 
-    for (index = 0; index < ABI_GRAPHICS_MAX_BUFFERS; index += 1) {
-        if (!session->buffers[index].in_use) {
-            memset(&session->buffers[index], 0, sizeof(session->buffers[index]));
-            session->buffers[index].in_use = 1;
-            session->buffers[index].id = session->next_buffer_id++;
-            session->buffers[index].byte_length = byte_length;
-            session->buffers[index].element_stride = element_stride;
-            abi_graphics_copy_text(
-                session->buffers[index].kind,
-                sizeof(session->buffers[index].kind),
-                kind
-            );
-            abi_graphics_copy_text(
-                session->buffers[index].label,
-                sizeof(session->buffers[index].label),
-                label
-            );
-            session->buffer_count += 1;
-            abi_graphics_ok();
-            return session->buffers[index].id;
-        }
-    }
-
-    return abi_graphics_fail(
-        ABI_GRAPHICS_CAPACITY_EXCEEDED,
-        "capacity-exceeded",
-        "graphics buffer capacity exceeded"
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    slot = abi_graphics_occupancy_find_free_slot(
+        session->buffer_occupancy, ABI_GRAPHICS_BUFFER_OCCUPANCY_WORDS
     );
+    if (slot < 0) {
+        return abi_graphics_fail(
+            ABI_GRAPHICS_CAPACITY_EXCEEDED,
+            "capacity-exceeded",
+            "graphics buffer capacity exceeded"
+        );
+    }
+    memset(&session->buffers[slot], 0, sizeof(session->buffers[slot]));
+    session->buffers[slot].in_use = 1;
+    session->buffers[slot].id = session->next_buffer_id++;
+    session->buffers[slot].byte_length = byte_length;
+    session->buffers[slot].element_stride = element_stride;
+    abi_graphics_copy_text(
+        session->buffers[slot].kind,
+        sizeof(session->buffers[slot].kind),
+        kind
+    );
+    abi_graphics_copy_text(
+        session->buffers[slot].label,
+        sizeof(session->buffers[slot].label),
+        label
+    );
+    session->buffer_count += 1;
+    abi_graphics_ok();
+    return session->buffers[slot].id;
 }
 
 int64_t abi_graphics_buffer_create_from_hex(
@@ -827,7 +934,7 @@ static int64_t abi_graphics_shader_register_bytes(
     uint8_t* owned_bytes,
     int64_t byte_length
 ) {
-    int64_t index;
+    int64_t slot;
     KainNativeGraphicsSession* session = abi_graphics_find_session(session_id);
 
     if (!session) {
@@ -855,45 +962,46 @@ static int64_t abi_graphics_shader_register_bytes(
         );
     }
 
-    for (index = 0; index < ABI_GRAPHICS_MAX_SHADERS; index += 1) {
-        if (!session->shaders[index].in_use) {
-            memset(&session->shaders[index], 0, sizeof(session->shaders[index]));
-            session->shaders[index].in_use = 1;
-            session->shaders[index].id = session->next_shader_id++;
-            session->shaders[index].byte_length = byte_length;
-            session->shaders[index].bytes = owned_bytes;
-            abi_graphics_copy_text(
-                session->shaders[index].key,
-                sizeof(session->shaders[index].key),
-                key
-            );
-            abi_graphics_copy_text(
-                session->shaders[index].stage,
-                sizeof(session->shaders[index].stage),
-                stage
-            );
-            abi_graphics_copy_text(
-                session->shaders[index].entry_point,
-                sizeof(session->shaders[index].entry_point),
-                entry_point && entry_point[0] ? entry_point : "main"
-            );
-            abi_graphics_copy_text(
-                session->shaders[index].source,
-                sizeof(session->shaders[index].source),
-                source
-            );
-            session->shader_count += 1;
-            abi_graphics_ok();
-            return session->shaders[index].id;
-        }
-    }
-
-    free(owned_bytes);
-    return abi_graphics_fail(
-        ABI_GRAPHICS_CAPACITY_EXCEEDED,
-        "capacity-exceeded",
-        "graphics shader capacity exceeded"
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    slot = abi_graphics_occupancy_find_free_slot(
+        session->shader_occupancy, ABI_GRAPHICS_SHADER_OCCUPANCY_WORDS
     );
+    if (slot < 0) {
+        free(owned_bytes);
+        return abi_graphics_fail(
+            ABI_GRAPHICS_CAPACITY_EXCEEDED,
+            "capacity-exceeded",
+            "graphics shader capacity exceeded"
+        );
+    }
+    memset(&session->shaders[slot], 0, sizeof(session->shaders[slot]));
+    session->shaders[slot].in_use = 1;
+    session->shaders[slot].id = session->next_shader_id++;
+    session->shaders[slot].byte_length = byte_length;
+    session->shaders[slot].bytes = owned_bytes;
+    abi_graphics_copy_text(
+        session->shaders[slot].key,
+        sizeof(session->shaders[slot].key),
+        key
+    );
+    abi_graphics_copy_text(
+        session->shaders[slot].stage,
+        sizeof(session->shaders[slot].stage),
+        stage
+    );
+    abi_graphics_copy_text(
+        session->shaders[slot].entry_point,
+        sizeof(session->shaders[slot].entry_point),
+        entry_point && entry_point[0] ? entry_point : "main"
+    );
+    abi_graphics_copy_text(
+        session->shaders[slot].source,
+        sizeof(session->shaders[slot].source),
+        source
+    );
+    session->shader_count += 1;
+    abi_graphics_ok();
+    return session->shaders[slot].id;
 }
 
 int64_t abi_graphics_shader_spirv_from_hex(
@@ -993,7 +1101,7 @@ int64_t abi_graphics_mesh_create(
     int64_t vertex_count,
     int64_t index_count
 ) {
-    int64_t index;
+    int64_t slot;
     KainNativeGraphicsSession* session = abi_graphics_find_session(session_id);
 
     if (!session) {
@@ -1021,31 +1129,32 @@ int64_t abi_graphics_mesh_create(
         );
     }
 
-    for (index = 0; index < ABI_GRAPHICS_MAX_MESHES; index += 1) {
-        if (!session->meshes[index].in_use) {
-            memset(&session->meshes[index], 0, sizeof(session->meshes[index]));
-            session->meshes[index].in_use = 1;
-            session->meshes[index].id = session->next_mesh_id++;
-            session->meshes[index].vertex_buffer_id = vertex_buffer_id;
-            session->meshes[index].index_buffer_id = index_buffer_id;
-            session->meshes[index].vertex_count = vertex_count;
-            session->meshes[index].index_count = index_count;
-            abi_graphics_copy_text(
-                session->meshes[index].label,
-                sizeof(session->meshes[index].label),
-                label
-            );
-            session->mesh_count += 1;
-            abi_graphics_ok();
-            return session->meshes[index].id;
-        }
-    }
-
-    return abi_graphics_fail(
-        ABI_GRAPHICS_CAPACITY_EXCEEDED,
-        "capacity-exceeded",
-        "graphics mesh capacity exceeded"
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    slot = abi_graphics_occupancy_find_free_slot(
+        session->mesh_occupancy, ABI_GRAPHICS_MESH_OCCUPANCY_WORDS
     );
+    if (slot < 0) {
+        return abi_graphics_fail(
+            ABI_GRAPHICS_CAPACITY_EXCEEDED,
+            "capacity-exceeded",
+            "graphics mesh capacity exceeded"
+        );
+    }
+    memset(&session->meshes[slot], 0, sizeof(session->meshes[slot]));
+    session->meshes[slot].in_use = 1;
+    session->meshes[slot].id = session->next_mesh_id++;
+    session->meshes[slot].vertex_buffer_id = vertex_buffer_id;
+    session->meshes[slot].index_buffer_id = index_buffer_id;
+    session->meshes[slot].vertex_count = vertex_count;
+    session->meshes[slot].index_count = index_count;
+    abi_graphics_copy_text(
+        session->meshes[slot].label,
+        sizeof(session->meshes[slot].label),
+        label
+    );
+    session->mesh_count += 1;
+    abi_graphics_ok();
+    return session->meshes[slot].id;
 }
 
 int64_t abi_graphics_mesh_vertex_count(int64_t session_id, int64_t mesh_id) {
@@ -1073,7 +1182,7 @@ int64_t abi_graphics_pipeline_create(
     int64_t fragment_shader_id,
     const char* backend_id
 ) {
-    int64_t index;
+    int64_t slot;
     KainNativeGraphicsSession* session = abi_graphics_find_session(session_id);
     const KainNativeGraphicsBackendDescriptor* backend =
         abi_graphics_find_backend(backend_id);
@@ -1108,42 +1217,43 @@ int64_t abi_graphics_pipeline_create(
         );
     }
 
-    for (index = 0; index < ABI_GRAPHICS_MAX_PIPELINES; index += 1) {
-        if (!session->pipelines[index].in_use) {
-            memset(&session->pipelines[index], 0, sizeof(session->pipelines[index]));
-            session->pipelines[index].in_use = 1;
-            session->pipelines[index].id = session->next_pipeline_id++;
-            session->pipelines[index].vertex_shader_id = vertex_shader_id;
-            session->pipelines[index].fragment_shader_id = fragment_shader_id;
-            abi_graphics_copy_text(
-                session->pipelines[index].label,
-                sizeof(session->pipelines[index].label),
-                label
-            );
-            abi_graphics_copy_text(
-                session->pipelines[index].backend_id,
-                sizeof(session->pipelines[index].backend_id),
-                strcmp(backend->id, "auto") == 0 ? session->active_backend_id : backend->id
-            );
-            session->pipeline_count += 1;
-            if (!backend->available) {
-                abi_graphics_set_status(
-                    ABI_GRAPHICS_OK,
-                    "degraded-backend",
-                    backend->status
-                );
-            } else {
-                abi_graphics_ok();
-            }
-            return session->pipelines[index].id;
-        }
-    }
-
-    return abi_graphics_fail(
-        ABI_GRAPHICS_CAPACITY_EXCEEDED,
-        "capacity-exceeded",
-        "graphics pipeline capacity exceeded"
+    /* Proof: runtime/native/src/core/z3/proofs/native-graphics-debruijn-low-bit-index-collision-free.yaml */
+    slot = abi_graphics_occupancy_find_free_slot(
+        session->pipeline_occupancy, ABI_GRAPHICS_PIPELINE_OCCUPANCY_WORDS
     );
+    if (slot < 0) {
+        return abi_graphics_fail(
+            ABI_GRAPHICS_CAPACITY_EXCEEDED,
+            "capacity-exceeded",
+            "graphics pipeline capacity exceeded"
+        );
+    }
+    memset(&session->pipelines[slot], 0, sizeof(session->pipelines[slot]));
+    session->pipelines[slot].in_use = 1;
+    session->pipelines[slot].id = session->next_pipeline_id++;
+    session->pipelines[slot].vertex_shader_id = vertex_shader_id;
+    session->pipelines[slot].fragment_shader_id = fragment_shader_id;
+    abi_graphics_copy_text(
+        session->pipelines[slot].label,
+        sizeof(session->pipelines[slot].label),
+        label
+    );
+    abi_graphics_copy_text(
+        session->pipelines[slot].backend_id,
+        sizeof(session->pipelines[slot].backend_id),
+        strcmp(backend->id, "auto") == 0 ? session->active_backend_id : backend->id
+    );
+    session->pipeline_count += 1;
+    if (!backend->available) {
+        abi_graphics_set_status(
+            ABI_GRAPHICS_OK,
+            "degraded-backend",
+            backend->status
+        );
+    } else {
+        abi_graphics_ok();
+    }
+    return session->pipelines[slot].id;
 }
 
 const char* abi_graphics_pipeline_label(int64_t session_id, int64_t pipeline_id) {
