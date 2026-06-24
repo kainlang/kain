@@ -1,0 +1,83 @@
+version: 1
+id: kain.native.core.proofs.stbtt_GetCodepointHMetrics_bounds
+kind: find_counterexample
+description: >-
+  Glyph advance width and left-side bearing lookups in stbtt_GetGlyphHMetrics()
+  always access the hmtx table within bounds. The code guards reads by
+  checking glyph_index against numOfLongHorMetrics. For glyph_index <
+  numOfLongHorMetrics, the 4-byte entry access is within the first N entries.
+  For glyph_index >= numOfLongHorMetrics, the advance width falls back to the
+  last long metric entry (which exists since N >= 1) and the LSB is read from
+  the short-metrics tail. All computed offsets are within the hmtx table size
+  of 4*N + 2*(numGlyphs-N).
+tags:
+- stb-truetype
+- bounds
+- font-metrics
+- invariant
+- memory-safety
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt_GetGlyphHMetrics
+  start_line: 2305
+  reason: >-
+    Out-of-bounds reads from the hmtx table would cause undefined behavior.
+    The hmtx table has a variable-length structure where glyphs beyond
+    numOfLongHorMetrics have only 2-byte LSB entries. The code must correctly
+    handle both cases without reading past the table end.
+case:
+  declarations:
+  - name: glyph_index
+    sort:
+      kind: int
+    description: Glyph index (0-based)
+  - name: numGlyphs
+    sort:
+      kind: int
+    description: Total number of glyphs in font (uint16)
+  - name: numOfLongHorMetrics
+    sort:
+      kind: int
+    description: Number of glyphs with full long metrics (uint16, >= 1)
+  constraints:
+  - op: lt
+    args: [glyph_index, numGlyphs]
+  - op: le
+    args: [numOfLongHorMetrics, numGlyphs]
+  - op: gt
+    args: [numOfLongHorMetrics, 0]
+  - op: le
+    args: [numGlyphs, 65535]
+  claim:
+    op: lt
+    args:
+    - op: add
+      args:
+      - op: if
+        args:
+        - op: lt
+          args: [glyph_index, numOfLongHorMetrics]
+        - op: add
+          args:
+          - op: mul
+            args: [glyph_index, 4]
+          - 2
+        - op: add
+          args:
+          - op: mul
+            args: [numOfLongHorMetrics, 4]
+          - op: mul
+            args:
+            - op: sub
+              args: [glyph_index, numOfLongHorMetrics]
+            - 2
+      - 1
+    - op: add
+      args:
+      - op: mul
+        args: [numOfLongHorMetrics, 4]
+      - op: mul
+        args:
+        - op: sub
+          args: [numGlyphs, numOfLongHorMetrics]
+        - 2
