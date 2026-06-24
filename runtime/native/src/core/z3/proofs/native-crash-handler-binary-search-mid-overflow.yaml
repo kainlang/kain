@@ -1,0 +1,108 @@
+version: 1
+id: kain.native.core.proofs.crash-handler-binary-search-mid-overflow
+kind: check_smt2
+description: >
+  Proves that the midpoint calculation `lo + (hi - lo) / 2` in
+  lookup_crash_entry never overflows uint64_t and that `mid` always
+  satisfies `lo <= mid < hi`. This guarantees loop termination and
+  safe array indexing for any valid binary search range, including
+  the universal case (any 64-bit lo < hi).
+tags:
+- native-runtime
+- crash-handler
+- binary-search
+source:
+  path: X:\runtime\native\src\core\crash_handler.c
+  symbol: lookup_crash_entry (static)
+  start_line: 24
+  reason: >
+    The binary search is called once per callstack frame during crash
+    reporting. While crashes are rare, the binary search invariant must
+    hold for correctness — an overflow or out-of-bounds read during crash
+    handling would prevent the developer from seeing the root cause.
+    Proving mid < hi guarantees the loop terminates in O(log N) steps;
+    proving lo <= mid guarantees the lower bound is preserved.
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    ; ── 64-bit bitvector model of size_t ──
+    (declare-const lo (_ BitVec 64))
+    (declare-const hi (_ BitVec 64))
+
+    ; Precondition: 0 <= lo < hi <= 4096 (crash_table_count max)
+    (assert (bvult lo hi))
+    (assert (bvule hi (_ bv4096 64)))
+
+    ; Midpoint calculation
+    (define-fun diff () (_ BitVec 64) (bvsub hi lo))
+    (define-fun half_diff () (_ BitVec 64) (bvlshr diff (_ bv1 64)))
+    (define-fun mid () (_ BitVec 64) (bvadd lo half_diff))
+
+    ; Claim 1: mid does not overflow (mid >= lo, no wrap)
+    (push)
+    (assert (not (bvuge mid lo)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 2: mid < hi (ensuring loop progress)
+    (push)
+    (assert (not (bvult mid hi)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 3: lo <= mid (preserving lower bound)
+    (push)
+    (assert (not (bvuge mid lo)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 4: mid <= hi - 1 (worst-case: mid == hi-1 when lo = hi-1)
+    (push)
+    (assert (not (bvule mid (bvsub hi (_ bv1 64)))))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 5A: upper-half branch shrinks interval (lo' = mid + 1)
+    (define-fun lo_prime_A () (_ BitVec 64) (bvadd mid (_ bv1 64)))
+    (define-fun diff_prime_A () (_ BitVec 64) (bvsub hi lo_prime_A))
+    (push)
+    (assert (bvugt diff (_ bv1 64)))
+    (assert (not (bvult diff_prime_A diff)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 5B: lower-half branch shrinks interval (hi' = mid)
+    (define-fun hi_prime_B () (_ BitVec 64) mid)
+    (define-fun diff_prime_B () (_ BitVec 64) (bvsub hi_prime_B lo))
+    (push)
+    (assert (bvugt diff (_ bv1 64)))
+    (assert (not (bvult diff_prime_B diff)))
+    (check-sat)
+    (pop)
+    ; Expected: unsat ✓
+
+    ; Claim 6: Universal safety for ANY 64-bit lo < hi
+    ; (the formula is overflow-proof for all unsigned ranges)
+    (declare-const lo_any (_ BitVec 64))
+    (declare-const hi_any (_ BitVec 64))
+    (assert (bvult lo_any hi_any))
+    (define-fun diff_any () (_ BitVec 64) (bvsub hi_any lo_any))
+    (define-fun half_any () (_ BitVec 64) (bvlshr diff_any (_ bv1 64)))
+    (define-fun mid_any () (_ BitVec 64) (bvadd lo_any half_any))
+    (push)
+    (assert (not (bvuge mid_any lo_any)))
+    (check-sat)
+    (pop)
+    (push)
+    (assert (not (bvult mid_any hi_any)))
+    (check-sat)
+    (pop)
+    ; Expected: both unsat ✓ → formula is universally safe
+  include_model: false
+  include_stats: false
