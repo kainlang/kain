@@ -5,21 +5,24 @@ WINDOWS_RUNTIME_DEFINES = [
     "_WINDOWS",
 ]
 
-WINDOWS_COPTS = select({
-    "//runtime:clang_cl_compiler": [
-        "/W3",
-        "/std:c11",
-        "/Gy",  # Function-level linking (clang-cl compatible)
-    ],
-    "//conditions:default": [
-        "/W3",
-        "/std:c11",
-        "/experimental:c11atomics",
-        "/Gy",  # Enable function-level linking for linker GC
-    ],
-})
+WINDOWS_COPTS = [
+    "/W3",
+    "/std:c11",
+    "/experimental:c11atomics",
+    "/Gy",  # Enable function-level linking for linker GC
+]
+
+CLANG_CL_WINDOWS_COPTS = [
+    "/W3",
+    "/std:c11",
+    "/Gy",  # Function-level linking (clang-cl compatible)
+]
 
 WINDOWS_CPP_COPTS = WINDOWS_COPTS + [
+    "/std:c++20",
+]
+
+CLANG_CL_WINDOWS_CPP_COPTS = CLANG_CL_WINDOWS_COPTS + [
     "/std:c++20",
 ]
 
@@ -97,6 +100,19 @@ def _runtime_cpp_srcs(manifest):
     )
 
 
+def _windows_copts(base_copts, clang_cl_copts):
+    """Returns platform+compiler-conditional copts for Windows."""
+    return select({
+        ":windows": select({
+            ":clang_cl_compiler": clang_cl_copts,
+            "//conditions:default": base_copts,
+        }),
+        ":linux": base_copts,
+        ":macos": base_copts,
+        "//conditions:default": base_copts,
+    })
+
+
 def declare_runtime_bundle(name, manifest, target_compatible_with = []):
     runtime_headers = _runtime_headers(manifest)
 
@@ -104,11 +120,7 @@ def declare_runtime_bundle(name, manifest, target_compatible_with = []):
         name = name + "_c",
         srcs = _runtime_c_srcs(manifest),
         hdrs = runtime_headers,
-        copts = platform_select(
-            windows = WINDOWS_COPTS,
-            linux = POSIX_C_COPTS,
-            macos = POSIX_C_COPTS,
-        ),
+        copts = _windows_copts(WINDOWS_COPTS, CLANG_CL_WINDOWS_COPTS),
         defines = _runtime_defines(manifest),
         includes = manifest["includes"],
         alwayslink = True,
@@ -123,11 +135,7 @@ def declare_runtime_bundle(name, manifest, target_compatible_with = []):
             name = name + "_cpp",
             srcs = _runtime_cpp_srcs(manifest),
             hdrs = runtime_headers,
-            copts = platform_select(
-                windows = WINDOWS_CPP_COPTS,
-                linux = POSIX_CPP_COPTS,
-                macos = POSIX_CPP_COPTS,
-            ),
+            copts = _windows_copts(WINDOWS_CPP_COPTS, CLANG_CL_WINDOWS_CPP_COPTS),
             defines = _runtime_defines(manifest),
             includes = manifest["includes"],
             alwayslink = True,
