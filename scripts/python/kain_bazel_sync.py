@@ -1778,7 +1778,19 @@ def _resolve_bazel_output_dir(context: SyncContext) -> Path | None:
 
 
 def _find_lib_exe() -> str | None:
-    """Find MSVC lib.exe, trying PATH first, then common installation paths."""
+    """Find a librarian (archiver) tool for Windows .obj → .lib bundling.
+
+    Tries llvm-lib (LLVM archiver, used with clang-cl) first via PATH,
+    then falls back to MSVC lib.exe (Microsoft Librarian) via PATH and
+    common Visual Studio installation paths.
+
+    Returns the full path to the tool, or None if neither is available.
+    """
+    # llvm-lib uses the same /OUT: syntax as MSVC's lib.exe
+    exe = shutil.which("llvm-lib")
+    if exe:
+        return exe
+    # Fall back to MSVC lib.exe
     exe = shutil.which("lib.exe")
     if exe:
         return exe
@@ -1820,8 +1832,9 @@ def sync_runtime_library(
     linker can dead-strip unused functions when --gc-sections is enabled.
 
     On POSIX, Bazel cc_library produces a .a file directly at a known path.
-    On Windows (MSVC), cc_library produces .obj files in _objs/; we
-    archive them into a .lib using the MSVC librarian (lib.exe).
+    On Windows, cc_library produces .obj files in _objs/; we
+    archive them into a .lib using llvm-lib (clang-cl) or lib.exe (MSVC).
+    The .bazelrc.local file on this machine sets --compiler=clang-cl.
     """
     if not skip_build:
         env = bazel_env(context)
@@ -1850,7 +1863,8 @@ def sync_runtime_library(
     lib_dir.mkdir(parents=True, exist_ok=True)
 
     if is_windows:
-        # MSVC: cc_library produces .obj files in _objs/ — archive into .lib
+        # Windows: cc_library produces .obj files in _objs/ — archive into .lib
+        # Works with both clang-cl (llvm-lib) and MSVC (lib.exe).
         obj_dir = bazel_bin / "runtime" / "_objs" / "native_core_runtime_c"
         obj_files = sorted(obj_dir.glob("*.obj")) if obj_dir.exists() else []
         if not obj_files:
@@ -1863,14 +1877,15 @@ def sync_runtime_library(
         lib_exe = _find_lib_exe()
         if lib_exe is None:
             raise SyncError(
-                "lib.exe not found on PATH or in standard MSVC installation paths. "
-                "Install Visual Studio Build Tools or run from a Developer Command Prompt."
+                "llvm-lib or lib.exe not found on PATH or in standard installation paths. "
+                "Install LLVM (for llvm-lib) or Visual Studio Build Tools (for lib.exe), "
+                "or run from a Developer Command Prompt."
             )
         cmd = [lib_exe, "/OUT:" + str(temp_path)] + [str(f) for f in obj_files]
         result = run_capture(cmd, context.repo_root)
         if result.exit_code != 0:
             raise SyncError(
-                f"lib.exe failed with exit code {result.exit_code}: {result.output_text[:200]}"
+                f"{os.path.basename(lib_exe)} failed with exit code {result.exit_code}: {result.output_text[:200]}"
             )
         os.replace(temp_path, dst_path)
         size_str = f"{sum(f.stat().st_size for f in obj_files)} bytes (archived)"
