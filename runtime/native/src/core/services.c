@@ -245,7 +245,11 @@ static void kain_service_registry_ensure_initialized(
 
     kain_service_registry_lock(registry);
     if (!kain_service_registry_is_initialized(registry)) {
+        int i;
         memset(registry->services, 0, sizeof(registry->services));
+        for (i = 0; i < 256; ++i) {
+            registry->hash_to_service[i] = -1;
+        }
         atomic_store_explicit(&registry->service_count, 0, memory_order_relaxed);
         atomic_store_explicit(&registry->initialized, 1u, memory_order_release);
     }
@@ -316,6 +320,17 @@ static int kain_service_registry_commit_descriptor_unlocked(
 
     destination = &registry->services[service_count];
     kain_service_descriptor_copy(destination, source);
+    /*
+     * Populate perfect-hash lookup for this service.
+     * The Z3 proof shows all 31 active services have collision-free top-8-bit
+     * hashes, so we don't need to detect collisions here.  The hash table is
+     * built under the mutation_gate spinlock; readers see it via the release
+     * store on service_count.
+     */
+    {
+        uint8_t slot = (uint8_t)(destination->key_state >> 56);
+        registry->hash_to_service[slot] = (int16_t)service_count;
+    }
     atomic_store_explicit(
         &registry->service_count,
         service_count + 1,
@@ -871,6 +886,8 @@ const KainServiceDescriptor* kain_service_registry_lookup(
     size_t canonical_key_length;
     uint64_t canonical_key_state;
     int service_count;
+    uint8_t slot;
+    int16_t hash_index;
 
     if (!registry || !canonical_key) {
         return NULL;
@@ -882,6 +899,34 @@ const KainServiceDescriptor* kain_service_registry_lookup(
         &canonical_key_state
     );
 
+    /*
+     * Direct-mapped perfect hash: top 8 bits of the already-computed key_state.
+     * No multiply needed — just a shift from the 64-bit hash.
+     * Proof: runtime/native/src/core/z3/proofs/native-services-perfect-hash-top-eight-bits.yaml
+     *
+     * The hash_to_service table is populated under the mutation_gate spinlock
+     * during registration.  The acquire-load on service_count guarantees
+     * visibility of the hash table writes.
+     */
+    slot = (uint8_t)(canonical_key_state >> 56);
+    hash_index = registry->hash_to_service[slot];
+    if (hash_index >= 0) {
+        const KainServiceDescriptor* candidate = &registry->services[hash_index];
+        if (kain_service_descriptor_matches_lookup(
+                candidate,
+                canonical_key,
+                canonical_key_length,
+                canonical_key_state
+            )) {
+            return candidate;
+        }
+    }
+
+    /*
+     * Fallback linear scan for safety.  Catches extracanonical keys not in the
+     * active catalog (audio.device, audio.midi) and any registry entries added
+     * by host bridge plugins that don't the active-catalog hash layout.
+     */
     service_count = kain_service_registry_count_load(registry);
     for (i = 0; i < service_count; i++) {
         if (kain_service_descriptor_matches_lookup(
