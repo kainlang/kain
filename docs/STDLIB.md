@@ -2476,7 +2476,7 @@ The Kain runtime exposes 48 native runtime services with availability on declare
 - `machine.virtual-memory` * * * page-size, map/unmap, protection (Windows, Linux, macOS)
 - `platform.library` ‒ dynamic library open/resolve/close (Windows, Linux, macOS)
 - `memory.atomic-seqcst`, `memory.atomic-v2` |-> atomic operations (Windows, Linux, macOS)
-- `gfx.backend.d3d12` (degraded, Windows), `gfx.backend.vulkan` (degraded, Windows, Linux)
+- `gfx.backend.d3d12` (available, Windows), `gfx.backend.vulkan` (available, Windows, Linux), `gfx.backend.webgpu` (available, Windows, Linux, macOS)
 - `gfx.compute.cuda` (degraded, Windows, Linux)
 
 **Optional Services (all platforms):**

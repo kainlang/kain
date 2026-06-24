@@ -425,9 +425,9 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN,
         "Vulkan Backend Target",
-        "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime",
+        "Runtime-owned Vulkan backend identity and capability target with surface shim + ABI library; concrete presenters live outside the C runtime",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         RUNTIME_ABI_VERSION_CURRENT,
         NULL
@@ -435,9 +435,19 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_BACKEND_D3D12,
         "DirectX 12 Backend Target",
-        "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime",
+        "Runtime-owned DirectX 12 backend identity and capability target with surface shim + ABI library; concrete presenters live outside the C runtime",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_WEBGPU,
+        "WebGPU Backend Target",
+        "Runtime-owned WebGPU backend identity and capability target with surface shim + ABI library; concrete presenters live outside the C runtime",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         RUNTIME_ABI_VERSION_CURRENT,
         NULL

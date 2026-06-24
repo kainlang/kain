@@ -481,8 +481,9 @@ The service registry (`services.h`/`services.c`) defines the canonical runtime c
 | `gfx.shader.spirv` | native-core | ✅ available | Shader payload registration |
 | `gfx.compute` | native-core | ✅ available | Compute dispatch validation and handoff |
 | `gfx.compute.cuda` | native-core | ⚠️ degraded | CUDA PTX dispatch bridge |
-| `gfx.backend.vulkan` | native-core | ⚠️ degraded | Vulkan backend identity |
-| `gfx.backend.d3d12` | native-core | ⚠️ degraded | DirectX 12 backend identity |
+| `gfx.backend.vulkan` | native-core | ✅ available | Vulkan backend via `vulkan_surface_shim.c` + `libkain-vulkan-abi.so` — 57 PFNs, per-platform WSI surfaces, swapchain lifecycle |
+| `gfx.backend.d3d12` | native-core | ✅ available | DirectX 12 backend via `d3d12_surface_shim.c` + `libkain-d3d12-abi.dll` — native mesh shader pipeline support |
+| `gfx.backend.webgpu` | native-core | ✅ available | WebGPU backend via `webgpu_surface_shim.c` + `libkain-webgpu-abi.so` — wgpu-native, WASM browser fallback, WGSL subgroup intrinsics |
 | `gfx.viewport` | platform-win32 | ⚠️ degraded | Window handles and presenter attachment |
 | `scene.runtime` | native-core | ✅ available | Scene handles and state access |
 | `scene.query` | native-core | ✅ available | Picking, raycast, bounds, visibility |

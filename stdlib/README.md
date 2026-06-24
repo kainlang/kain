@@ -46,7 +46,7 @@
 → **`use std::audio::dsp`** — 1,224 lines of pure Kain. No C dependency. Oscillators (sine/saw/square/triangle), biquad/SVF filters, FFT, convolution, dynamics (compressor/limiter/gate), reverb, delay, modulation (chorus/flanger/phaser/tremolo).
 
 ### "I need GPU compute (CUDA, SPIR-V, pipelines)"
-→ **`use std::graphics`** — 47 @extern for graphics sessions, buffers, shaders, meshes, pipelines, draw commands. All backed by real C in `graphics_system.c`. **⚠️ Vulkan/D3D12 backends are catalog-only (listed as "degraded"). Only the software path exists.** For GPU types and pipeline library: `use std::gpu` (pure Kain policy layer). For CUDA: `use std::cuda` — 19 runtime @extern (real C in `cuda_runtime.c`), 18 device-side PTX intrinsics (no C contract — lowered by GPU backend).
+→ **`use std::graphics`** — 47 @extern for graphics sessions, buffers, shaders, meshes, pipelines, draw commands. All backed by real C in `graphics_system.c`. **✅ Vulkan, D3D12, and WebGPU backends are fully functional via the multi-backend layered architecture (runtime shims + ABI libraries). See `runtime/native/src/core/vulkan_surface_shim.c`, `d3d12_surface_shim.c`, `webgpu_surface_shim.c`.** For GPU types and pipeline library: `use std::gpu` (pure Kain policy layer). For CUDA: `use std::cuda` — 19 runtime @extern (real C in `cuda_runtime.c`), 18 device-side PTX intrinsics (no C contract — lowered by GPU backend).
 
 ### "I need math (vectors, matrices, quaternions, colors)"
 → **`use std::math`** — 3,100 lines of pure Kain. Largest self-contained module. Zero C dependency. Vec2/3/4, Mat3/4, Quat, Affine2/3, Ray3, Aabb, Obb, Frustum, ColorRgb/Rgba, Hsv/Hsl, Complex, DualQuat, noise (Perlin/Simplex/Worley), easing (30+ functions), physics (spring/PID), tonemapping (ACES/Reinhard/Uncharted2), spherical harmonics, half-float packing.
@@ -145,7 +145,7 @@
 | **std::fs** | 50+ | `stdlib_abi.c`, `core.c` | ✅ All verified; Z3 proofs on text builder |
 | **std::net** | ~60 | `net_system.c` | ✅ All verified; Z3-proven overflow guards |
 | **std::crypto** | 4 | `stdlib_abi.c` | ✅ Hand-rolled SHA-256, HMAC-SHA256, BLAKE3 |
-| **std::graphics** | 47 | `graphics_system.c` | ✅ All verified; Vulkan/D3D12 backends catalog-only |
+| **std::graphics** | 47 | `graphics_system.c` | ✅ All verified; Vulkan/D3D12/WebGPU backends functional via ABI libraries |
 | **std::machine** | 24 | `cpu.c`, `virtual_alloc.c` | ✅ All verified; Z3-proven |
 | **std::ui** | 83 | `ui_system.c`, `ui_host_adapter.c` | ✅ All verified; Z3-proven; **renderer ignores node tree** |
 | **std::input** | 26 | `input_system.c` | ✅ All verified; CBMC-verified |
