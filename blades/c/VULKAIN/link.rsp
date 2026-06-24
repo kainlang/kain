@@ -1,9 +1,0 @@
-/NOLOGO
-/SUBSYSTEM:CONSOLE
-/OUT:X:\blades\c\VULKAIN\vulkan_window_demo.exe
-X:\blades\c\VULKAIN\.kain\out\vulkan_window_demo.obj
-C:\VulkanSDK\1.4.350.0\Lib\vulkan-1.lib
-X:\.kain\lib\kain_runtime.lib
-/LIBPATH:C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\lib\x64
-/LIBPATH:C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64
-/LIBPATH:C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\um\x64

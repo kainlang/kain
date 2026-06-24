@@ -1,32 +1,6 @@
 // ============================================================================
 // component_composition.kn — DEEP COMPONENT NESTING (6 LEVELS)
 // ============================================================================
-//
-// WHAT THIS PROVES:
-//   1. Deep component nesting works: root → sidebar + content → section →
-//      group → card → label + value. 6 levels of JSX composition.
-//   2. All data flows from world state → top-level fns → JSX {expr}.
-//   3. Components at different tree levels all read the same world.
-//   4. The uppercase/lowercase tag dispatch: <ComponentName /> calls components,
-//      <text /> / <stack /> / <panel /> are native elements.
-//
-// COMPOSITION TREE (6 levels):
-//   LEVEL 0: PipelineDashboard  ← world surface
-//   LEVEL 1: PipelineSidebar + PipelineContent
-//   LEVEL 2: PipelineSection (inside PipelineContent)
-//   LEVEL 3: StageGroup (inside PipelineSection)
-//   LEVEL 4: StageCard (inside StageGroup)
-//   LEVEL 5: StageLabel + StageValue + StageBar (inside StageCard)
-//
-// DOMAIN: CI/CD Pipeline Monitor — tracks build, test, and deploy stages.
-//   Different from nested_dashboard.kn (server monitoring) to prove
-//   the composition pattern is domain-agnostic.
-//
-// RULES FOLLOWED:
-//   ✅ Top-level fns with explicit args (NOT component methods from JSX)
-//   ✅ World state via WorldName.field
-//   ✅ No pulse, no operators in JSX if
-//   ✅ Self-contained with fn main()
 // ============================================================================
 
 use std::runtime
