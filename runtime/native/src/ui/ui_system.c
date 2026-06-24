@@ -885,8 +885,18 @@ int64_t abi_ui_window_open(int64_t session_id, const char* title, int64_t width,
         return ABI_UI_INVALID_SESSION;
     }
     session->open = 1;
-    session->width = width;
-    session->height = height;
+    // If a live host is already attached (e.g. winit after win32_host_create
+    // resolved the actual DPI-scaled client rect), preserve the host's
+    // dimensions. window_open is called after host_attach in the compiler-emitted
+    // frame loop, and the original width/height are request-size parameters
+    // from Kain code, NOT the actual client rect. Overwriting with the
+    // request size causes pixel-address overflow in ui_draw_fill_rect.
+    if (abi_ui_host_adapter_is_live_backend(session->host_backend)) {
+        // Host dimensions are authoritative -- keep them.
+    } else {
+        session->width = width;
+        session->height = height;
+    }
     abi_ui_copy_text(session->window_title, sizeof(session->window_title), title);
     return ABI_UI_OK;
 }
