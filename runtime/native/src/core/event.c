@@ -45,7 +45,8 @@ static unsigned int kain_event_hash(const char* name) {
     while ((c = (unsigned char)*name++) != '\0') {
         hash = ((hash << 5) + hash) ^ c;  /* hash * 33 ^ c */
     }
-    return (unsigned int)(hash % KAIN_EVENT_BUS_BUCKETS);
+    /* Proof: runtime/native/src/core/z3/proofs/native-event-djb2-hash-mask-equivalence.yaml */
+    return (unsigned int)(hash & (KAIN_EVENT_BUS_BUCKETS - 1u));
 }
 
 /* ──────────────────────────────────────────────────────────────────────
