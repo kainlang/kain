@@ -1,0 +1,29 @@
+version: 1
+id: stb-truetype.rasterize_scanline_aa.coverage_clamped
+kind: find_counterexample
+description: >
+  Anti-aliased scanline coverage contribution never exceeds max_weight (≤255)
+  in stbtt__fill_active_edges. Each fixed-point coverage computation —
+  same-pixel, left-partial, right-partial, or full — produces a value that
+  fits in a uint8 without overflow.
+tags:
+- stb_truetype
+- rasterizer
+- coverage
+- anti-aliasing
+- bounds
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt__fill_active_edges
+  start_line: 2882
+  end_line: 2922
+  reason: >
+    Each coverage contribution is cast to uint8. Without the bound proof,
+    accumulated or per-contribution overflow would produce visual artifacts
+    (wrapped coverage values).
+case:
+  smt2_file: stbtt__rasterize_scanline_aa.smt2
+  include_model: false
+  include_stats: false

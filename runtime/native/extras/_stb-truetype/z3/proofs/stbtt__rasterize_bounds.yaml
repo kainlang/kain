@@ -1,0 +1,68 @@
+version: 1
+id: kain.native.core.proofs.stbtt_rasterize_bounds
+kind: find_counterexample
+description: >-
+  Glyph bitmap bounds in stbtt_GetGlyphBitmapBoxSubpixel() produce non-negative
+  width and height. Since the TrueType glyph bounding box satisfies x0 <= x1
+  and y0 <= y1 (for valid glyphs), and scale_x,scale_y are positive, the
+  pixel-aligned bounds satisfy ix0 <= ix1 and iy0 <= iy1. For empty glyphs
+  (space), all bounds are set to zero, producing a zero-size bitmap.
+tags:
+- stb-truetype
+- bounds
+- overflow
+- invariant
+- rasterizer
+- glyph
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt_GetGlyphBitmapBoxSubpixel
+  start_line: 2721
+  reason: >-
+    The bitmap bounds computation feeds into glyph rendering. If ix0 > ix1 or
+    iy0 > iy1, the resulting bitmap would have negative width/height, causing
+    downstream memory allocation failures, crashes, or rendering artifacts.
+    This proof verifies that for any valid glyph and positive scale, the
+    computed bitmap bounds are correctly ordered.
+case:
+  declarations:
+  - name: x0
+    sort:
+      kind: int
+    description: Glyph bounding box left edge (unscaled)
+  - name: x1
+    sort:
+      kind: int
+    description: Glyph bounding box right edge (unscaled)
+  - name: scale_x
+    sort:
+      kind: float
+    description: Horizontal scale factor
+  - name: shift_x
+    sort:
+      kind: float
+    description: Horizontal subpixel shift
+  constraints:
+  - op: le
+    args: [x0, x1]
+  - op: gt
+    args: [scale_x, 0.0]
+  - op: ge
+    args: [shift_x, 0.0]
+  claim:
+    op: le
+    args:
+    - op: floor
+      args:
+      - op: add
+        args:
+        - op: mul
+          args: [x0, scale_x]
+        - shift_x
+    - op: ceil
+      args:
+      - op: add
+        args:
+        - op: mul
+          args: [x1, scale_x]
+        - shift_x
