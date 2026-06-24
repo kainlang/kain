@@ -1,0 +1,86 @@
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Create session with REAL window
+    let session = ui_host_session_create("window_proof", "Kain UI — Pipeline Fixed", 1280, 720, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    // Create root node filling the window
+    let root = ui_reconcile_node(session, 0, "root", "proof.root", 0.0, 0.0, 1280.0, 720.0)
+
+    // Set fill_color as a STRING style — renderer looks for literal "fill_color" key
+    let _root_fill = native_ui_node_set_style_string(session, root, "fill_color", "#1a1a2e")
+
+    // Header bar
+    let header = ui_reconcile_node(session, root, "panel", "proof.header",
+        0.0, 0.0, 1280.0, 56.0)
+    let _header_fill = native_ui_node_set_style_string(session, header, "fill_color", "#16213e")
+
+    // Green accent bar
+    let accent = ui_reconcile_node(session, root, "bar", "proof.accent",
+        0.0, 54.0, 1280.0, 2.0)
+    let _accent_fill = native_ui_node_set_style_string(session, accent, "fill_color", "#21d4a1")
+
+    // Content panel with rounded corners
+    let panel = ui_reconcile_node(session, root, "panel", "proof.panel",
+        40.0, 80.0, 600.0, 400.0)
+    let _panel_fill = native_ui_node_set_style_string(session, panel, "fill_color", "#0f3460")
+    let _panel_border = native_ui_node_set_style_string(session, panel, "border_color", "#3a3a5c")
+    let _panel_radius = native_ui_node_set_style_f64(session, panel, "corner_radius", 8.0)
+    let _panel_width = native_ui_node_set_style_f64(session, panel, "border_width", 1.0)
+
+    // A green card inside the panel
+    let card = ui_reconcile_node(session, panel, "card", "proof.card",
+        20.0, 20.0, 200.0, 100.0)
+    let _card_fill = native_ui_node_set_style_string(session, card, "fill_color", "#21d4a1")
+    let _card_radius = native_ui_node_set_style_f64(session, card, "corner_radius", 12.0)
+
+    // A small dot indicator
+    let dot = ui_reconcile_node(session, root, "dot", "proof.dot",
+        12.0, 16.0, 24.0, 24.0)
+    let _dot_fill = native_ui_node_set_style_string(session, dot, "fill_color", "#21d4a1")
+    let _dot_radius = native_ui_node_set_style_f64(session, dot, "corner_radius", 12.0)
+
+    // An orange card
+    let card2 = ui_reconcile_node(session, panel, "card", "proof.card2",
+        240.0, 20.0, 200.0, 100.0)
+    let _card2_fill = native_ui_node_set_style_string(session, card2, "fill_color", "#e8914a")
+    let _card2_radius = native_ui_node_set_style_f64(session, card2, "corner_radius", 12.0)
+
+    // A blue card
+    let card3 = ui_reconcile_node(session, panel, "card", "proof.card3",
+        20.0, 140.0, 420.0, 60.0)
+    let _card3_fill = native_ui_node_set_style_string(session, card3, "fill_color", "#4a90d9")
+    let _card3_radius = native_ui_node_set_style_f64(session, card3, "corner_radius", 6.0)
+
+    // Status bar at bottom
+    let status = ui_reconcile_node(session, root, "status", "proof.status",
+        0.0, 692.0, 1280.0, 28.0)
+    let _status_fill = native_ui_node_set_style_string(session, status, "fill_color", "#16213e")
+
+    print("Node count: " + str(ui_node_count(session)) + "\n")
+
+    // Frame loop — 300 frames then exit
+    var frame: Int = 0
+    while ui_host_should_close(session) == 0 and frame < 300:
+        let _begin = ui_frame_begin(session, 16.0)
+        let _submit = ui_frame_submit(session)
+        let _present = ui_host_present(session)
+        let _pump = ui_host_pump(session)
+        frame = frame + 1
+        sleep_millis(16)
+
+    let _destroy = ui_session_destroy(session)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

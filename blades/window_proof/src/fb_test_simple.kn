@@ -1,0 +1,33 @@
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let session = ui_host_session_create("test", "FB Test", 400, 300, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    let _ = print("Session: " + str(session) + "\n")
+
+    let ptr = native_ui_framebuffer_ptr(session)
+    let w = native_ui_framebuffer_width(session)
+    let h = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    let _ = print("FB: ptr=" + str(ptr) + " w=" + str(w) + " h=" + str(h) + " stride=" + str(stride) + "\n")
+
+    var frame: Int = 0
+    while ui_host_should_close(session) == 0 and frame < 120:
+        let _b = ui_frame_begin(session, 16.0)
+        let _s = ui_frame_submit(session)
+        let _pu = native_ui_host_pump(session)
+        frame = frame + 1
+        sleep_millis(16)
+
+    ui_session_destroy(session)
+    runtime_shutdown()
+    return 0

@@ -1,0 +1,78 @@
+use std::runtime
+use std::ui
+use std::memory
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let session = ui_host_session_create("fb_demo", "Kain Direct FB", 800, 600, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    let ptr = native_ui_framebuffer_ptr(session)
+    let w = native_ui_framebuffer_width(session)
+    let h = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+    let _ = print("FB: " + str(w) + "x" + str(h) + " stride=" + str(stride) + "\n")
+
+    if ptr != 0 and w > 0 and h > 0:
+        let fb: ptr<Int> = int_to_ptr(ptr, "Int")
+
+        // Clear to dark blue
+        var i: Int = 0
+        let total: Int = stride * h / 2
+        let bg: Int = (0xFF1A1A24 << 32) | 0xFF1A1A24
+        while i < total:
+            mem_store(ptr_offset(fb, i, "Int"), bg, "Int")
+            i = i + 1
+        let _ = print("Cleared " + str(h) + " rows\n")
+
+        // Green box at (20,20)-(180,60)
+        var r: Int = 20
+        while r < 60:
+            var c: Int = 20
+            while c < 180:
+                mem_store(ptr_offset(fb, (r * stride + c) / 2, "Int"),
+                          (0xFF00FF00 << 32) | 0xFF00FF00, "Int")
+                c = c + 2
+            r = r + 1
+
+        // Red box at (300,100)-(500,200)
+        var r2: Int = 100
+        while r2 < 200:
+            var c2: Int = 300
+            while c2 < 500:
+                mem_store(ptr_offset(fb, (r2 * stride + c2) / 2, "Int"),
+                          (0xFF0000FF << 32) | 0xFF0000FF, "Int")
+                c2 = c2 + 2
+            r2 = r2 + 1
+
+        // Blue box at (50,300)-(350,400)
+        var r3: Int = 300
+        while r3 < 400:
+            var c3: Int = 50
+            while c3 < 350:
+                mem_store(ptr_offset(fb, (r3 * stride + c3) / 2, "Int"),
+                          (0xFFFF0000 << 32) | 0xFFFF0000, "Int")
+                c3 = c3 + 2
+            r3 = r3 + 1
+        let _ = print("Drew boxes\n")
+
+        // Frame loop
+        var frame: Int = 0
+        while ui_host_should_close(session) == 0:
+            let _b = ui_frame_begin(session, 16.0)
+            let _s = ui_frame_submit(session)
+            // Skip ui_host_present (clears framebuffer via ui_render_frame)
+            // Just pump messages and invalidate to show our pixels
+            let _pu = native_ui_host_pump(session)
+            native_ui_invalidate_window(session)
+            frame = frame + 1
+            sleep_millis(16)
+
+    ui_session_destroy(session)
+    runtime_shutdown()
+    return 0

@@ -1,0 +1,39 @@
+// ============================================================================
+// minimal_fixed.kn — final test: just host_present after draws
+// ============================================================================
+
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let session = ui_host_session_create("min", "MIN", 640, 480, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    let root = ui_reconcile_node(session, 0, "root", "min.root", 0.0, 0.0, 640.0, 480.0)
+    let _ = native_ui_node_set_style_string(session, root, "fill_color", "#1A1A24")
+
+    // frame_begin followed by draws + host_present
+    let _ = ui_frame_begin(session, 16.0)
+    let _ = native_ui_draw_rect(session, root, 0, 0, 640, 480, "fill_color")
+
+    // Only host_present WITHOUT end_frame, present, etc.
+    let hp = native_ui_host_present(session)
+    let _ = print("host_present=" + str(hp) + "\n")
+
+    // Keep window alive by pumping
+    var frame: Int = 0
+    while ui_host_should_close(session) == 0 and frame < 60:
+        ui_host_pump(session)
+        frame = frame + 1
+        sleep_millis(16)
+
+    let _destroy = ui_session_destroy(session)
+    let _shutdown = runtime_shutdown()
+    return 0

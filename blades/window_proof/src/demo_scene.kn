@@ -1,0 +1,141 @@
+// ============================================================================
+// demo_scene.kn — Kain std::ui Colored UI Demo (FIXED)
+// ============================================================================
+// Uses ui_render_box_at to record draw commands with EXPLICIT positions
+// that bypass the layout engine's position overwriting.
+//
+// Each frame:
+//   1. ui_frame_begin — clears draw commands
+//   2. ui_render_box_at — RECORDS draw commands with explicit positions + style_key
+//   3. ui_frame_submit — end_frame → present → host_present
+//      host_present calls win32_host_render_framebuffer which calls:
+//        ui_layout_resolve (overwrites node positions — we don't care)
+//        ui_render_frame (clears fb, renders node tree, THEN renders draw commands
+//                         using COMMAND's own x/y/w/h, looking up colors by style_key)
+//   4. ui_host_pump — processes window messages
+//
+// The draw command rendering path (in ui_render_frame, second loop) is the key:
+//   cmd->x, cmd->y, cmd->width, cmd->height are the EXPLICIT positions
+//   fill_str = style_string(node_id, style_key) looks up fill_color style
+// ============================================================================
+
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── Create session with REAL win32 window ────────────────────────
+    let session = ui_host_session_create("demotest", "DEMO SCENE — FIXED", 800, 600, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    // ── Create node tree (for style storage only) ────────────────────
+    // Nodes are needed because styles are stored on nodes, and draw
+    // commands reference node_id for style lookup.
+    let root = ui_reconcile_node(session, 0, "root", "demo.root", 0.0, 0.0, 800.0, 600.0)
+    let _ = native_ui_node_set_style_string(session, root, "fill_color", "#1A1A24")  // dark background
+
+    // Panel — teal (#21D4A1) with rounded corners
+    let panel = ui_reconcile_node(session, root, "panel", "demo.panel", 50.0, 50.0, 300.0, 200.0)
+    let _ = native_ui_node_set_style_string(session, panel, "fill_color", "#21D4A1")
+    let _ = native_ui_node_set_style_string(session, panel, "border_color", "#FFFFFF")
+    let _ = native_ui_node_set_style_f64(session, panel, "corner_radius", 12.0)
+    let _ = native_ui_node_set_style_f64(session, panel, "border_width", 2.0)
+
+    // Bright card — coral red (#E84A5F)
+    let card = ui_reconcile_node(session, root, "card", "demo.card", 400.0, 50.0, 200.0, 150.0)
+    let _ = native_ui_node_set_style_string(session, card, "fill_color", "#E84A5F")
+    let _ = native_ui_node_set_style_f64(session, card, "corner_radius", 8.0)
+
+    // Small indicator dot — blue (#4A90D9), round (corner_radius=20 = 40/2)
+    let dot = ui_reconcile_node(session, root, "dot", "demo.dot", 100.0, 300.0, 40.0, 40.0)
+    let _ = native_ui_node_set_style_string(session, dot, "fill_color", "#4A90D9")
+    let _ = native_ui_node_set_style_f64(session, dot, "corner_radius", 20.0)
+
+    // Extra: green accent stripe
+    let stripe = ui_reconcile_node(session, root, "stripe", "demo.stripe", 50.0, 290.0, 300.0, 6.0)
+    let _ = native_ui_node_set_style_string(session, stripe, "fill_color", "#E8914A")
+
+    // Extra: info text background
+    let infobox = ui_reconcile_node(session, root, "infobox", "demo.info", 400.0, 250.0, 350.0, 90.0)
+    let _ = native_ui_node_set_style_string(session, infobox, "fill_color", "#252540")
+    let _ = native_ui_node_set_style_f64(session, infobox, "corner_radius", 6.0)
+
+    // Bottom status bar
+    let status = ui_reconcile_node(session, root, "status", "demo.status", 0.0, 570.0, 800.0, 30.0)
+    let _ = native_ui_node_set_style_string(session, status, "fill_color", "#1E1E32")
+    let _ = native_ui_node_set_style_string(session, status, "border_color", "#21D4A1")
+    let _ = native_ui_node_set_style_f64(session, status, "border_width", 1.0)
+
+    let _ = print("Demo scene ready — starting frame loop\n")
+    let _ = print("Nodes: " + str(ui_node_count(session)) + "\n")
+
+    // ── Frame loop ──────────────────────────────────────────────────
+    // KEY INSIGHT: draw commands must be recorded AFTER ui_frame_begin
+    // (which clears them) and BEFORE ui_frame_submit (which presents).
+    // ui_render_box_at records a draw command with EXPLICIT x/y/w/h and
+    // a style key. The renderer looks up the fill_color style on the
+    // referenced node and draws it at the command's own position.
+    // This completely bypasses the layout engine's position overwriting.
+
+    var frame: Int = 0
+    while ui_host_should_close(session) == 0 and frame < 600:
+        // ── BEGIN FRAME (clears draw commands) ──────────────────
+        let _begin = ui_frame_begin(session, 16.0)
+
+        // ── RECORD DRAW COMMANDS ────────────────────────────────
+        // These use their OWN positions (stored in the command),
+        // NOT the node positions (which layout overwrites).
+        // The style_key "fill_color" looks up the fill_color style
+        // we set on each node above.
+
+        // Root background (dark)
+        let _ = ui_render_box_at(session, root, 0, 0, 800, 600, "fill_color")
+
+        // Teal panel with rounded corners
+        let _ = ui_render_box_at(session, panel, 50, 50, 300, 200, "fill_color")
+
+        // Coral card
+        let _ = ui_render_box_at(session, card, 400, 50, 200, 150, "fill_color")
+
+        // Blue dot at static position
+        let _ = ui_render_box_at(session, dot, 100, 300, 40, 40, "fill_color")
+
+        // Orange accent stripe
+        let _ = ui_render_box_at(session, stripe, 50, 290, 300, 6, "fill_color")
+
+        // Info panel
+        let _ = ui_render_box_at(session, infobox, 400, 250, 350, 90, "fill_color")
+
+        // Status bar
+        let _ = ui_render_box_at(session, status, 0, 570, 800, 30, "fill_color")
+
+        // ── Animated extra: moving accent dot ───────────────────
+        let dot2_x = 500 + (frame * 2 % 250)
+        let dot2 = ui_render_box_at(session, dot, dot2_x, 350, 16, 16, "fill_color")
+        let _ = dot2  // reuse for different color by using a different style key? not needed
+
+        // ── SUBMIT + PRESENT ─────────────────────────────────────
+        // ui_frame_submit calls end_frame → present → host_present.
+        // host_present triggers win32_host_render_framebuffer which:
+        //   1. ui_layout_resolve — overwrites node positions (we don't care)
+        //   2. ui_render_frame — clears fb, then renders draw commands
+        //      using our EXPLICIT positions from the draw commands
+        let _submit = ui_frame_submit(session)
+        let _present = ui_host_present(session)
+        let _pump = ui_host_pump(session)
+
+        frame = frame + 1
+        if frame % 60 == 0:
+            let _ = print("Frame " + str(frame) + "\n")
+
+        sleep_millis(16)
+
+    let _destroy = ui_session_destroy(session)
+    let _shutdown = runtime_shutdown()
+    return 0

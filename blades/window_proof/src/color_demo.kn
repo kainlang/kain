@@ -1,0 +1,219 @@
+// ============================================================================
+// color_demo.kn — Colored Rectangle Demo with std::ui
+// ============================================================================
+// Renders a colorful UI using ui_render_box_at for explicit-position draw
+// commands that bypass the layout engine.
+//
+// This demonstrates multiple approaches working together:
+//   1. Draw commands for explicit-position rectangle rendering
+//   2. Style strings for color lookup (fill_color, border_color)
+//   3. Style f64 for corner_radius, border_width
+//   4. Animated positions using frame counter
+// ============================================================================
+// Build:
+//   cd X:/blades/window_proof
+//   kain build src/color_demo.kn --target llvm
+//   .kain/out/color_demo.exe
+// ============================================================================
+
+use std::runtime
+use std::ui
+use std::time
+
+// ── Color palette (uses 0xAABBGGRR directly as uint32) ────────────────
+const C_BG:      Int = 0xFF0F172A   // deep navy
+const C_SURFACE: Int = 0xFF1E293B   // blue-gray surface
+const C_CARD:    Int = 0xFF252540   // card surface
+const C_ACCENT1: Int = 0xFF21D4A1   // green
+const C_ACCENT2: Int = 0xFF4A90D9   // blue
+const C_ACCENT3: Int = 0xFFE8914A   // orange
+const C_ACCENT4: Int = 0xFFE84A5F   // red
+const C_HEADER:  Int = 0xFF1A1A2E   // header
+const C_STATUS:  Int = 0xFF1E1E32   // status bar
+
+// ── Main ────────────────────────────────────────────────────────────────
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let _ = print("=== Color Demo — Kain std::ui ===\n")
+    let _ = print("Build: fix-approaches\n")
+
+    // ── Session ─────────────────────────────────────────────────────
+    let sid = ui_host_session_create("colordemo", "Color Demo — Kain std::ui", 800, 600, "winit")
+    if sid <= 0:
+        runtime_shutdown()
+        return 1
+
+    // ── Nodes (style containers, positions don't matter) ────────────
+    let root   = ui_reconcile_node(sid, 0, "root",   "cd.root",   0.0, 0.0, 800.0, 600.0)
+    let header = ui_reconcile_node(sid, root, "header", "cd.header", 0.0, 0.0, 800.0, 56.0)
+    let sb     = ui_reconcile_node(sid, root, "sidebar", "cd.sidebar", 0.0, 56.0, 200.0, 514.0)
+    let main   = ui_reconcile_node(sid, root, "main",   "cd.main",   200.0, 56.0, 600.0, 514.0)
+    let status = ui_reconcile_node(sid, root, "status", "cd.status", 0.0, 570.0, 800.0, 30.0)
+
+    // Card nodes for the main content area
+    let card1 = ui_reconcile_node(sid, main, "card", "cd.card1", 10.0, 10.0, 140.0, 80.0)
+    let card2 = ui_reconcile_node(sid, main, "card", "cd.card2", 160.0, 10.0, 140.0, 80.0)
+    let card3 = ui_reconcile_node(sid, main, "card", "cd.card3", 310.0, 10.0, 140.0, 80.0)
+    let card4 = ui_reconcile_node(sid, main, "card", "cd.card4", 460.0, 10.0, 140.0, 80.0)
+
+    // Graph area
+    let graph = ui_reconcile_node(sid, main, "graph", "cd.graph", 10.0, 100.0, 580.0, 200.0)
+
+    // Sidebar items
+    let sbi1 = ui_reconcile_node(sid, sb, "sbitem", "cd.sbi1", 8.0, 10.0, 184.0, 36.0)
+    let sbi2 = ui_reconcile_node(sid, sb, "sbitem", "cd.sbi2", 8.0, 54.0, 184.0, 36.0)
+    let sbi3 = ui_reconcile_node(sid, sb, "sbitem", "cd.sbi3", 8.0, 98.0, 184.0, 36.0)
+
+    // Info panel
+    let info = ui_reconcile_node(sid, main, "info", "cd.info", 10.0, 320.0, 580.0, 60.0)
+
+    // ── Set styles (fill_color, border_color, corner_radius, border_width) ──
+    let _ = native_ui_node_set_style_string(sid, root,   "fill_color", "#0F172A")
+    let _ = native_ui_node_set_style_string(sid, header, "fill_color", "#1A1A2E")
+    let _ = native_ui_node_set_style_string(sid, sb,     "fill_color", "#16162A")
+    let _ = native_ui_node_set_style_string(sid, main,   "fill_color", "#0F172A")
+    let _ = native_ui_node_set_style_string(sid, status, "fill_color", "#1E1E32")
+    let _ = native_ui_node_set_style_string(sid, status, "border_color", "#21D4A1")
+    let _ = native_ui_node_set_style_f64(sid, status, "border_width", 1.0)
+
+    // Cards with different colors
+    let _ = native_ui_node_set_style_string(sid, card1, "fill_color", "#21D4A1")  // teal
+    let _ = native_ui_node_set_style_f64(sid, card1, "corner_radius", 6.0)
+    let _ = native_ui_node_set_style_string(sid, card2, "fill_color", "#4A90D9")  // blue
+    let _ = native_ui_node_set_style_f64(sid, card2, "corner_radius", 6.0)
+    let _ = native_ui_node_set_style_string(sid, card3, "fill_color", "#E8914A")  // orange
+    let _ = native_ui_node_set_style_f64(sid, card3, "corner_radius", 6.0)
+    let _ = native_ui_node_set_style_string(sid, card4, "fill_color", "#E84A5F")  // red
+    let _ = native_ui_node_set_style_f64(sid, card4, "corner_radius", 6.0)
+
+    // Graph area
+    let _ = native_ui_node_set_style_string(sid, graph, "fill_color", "#1E293B")
+    let _ = native_ui_node_set_style_f64(sid, graph, "corner_radius", 4.0)
+
+    // Sidebar items
+    let _ = native_ui_node_set_style_string(sid, sbi1, "fill_color", "#2A2A4E")
+    let _ = native_ui_node_set_style_string(sid, sbi2, "fill_color", "#252540")
+    let _ = native_ui_node_set_style_string(sid, sbi3, "fill_color", "#252540")
+    let _ = native_ui_node_set_style_f64(sid, sbi1, "corner_radius", 4.0)
+    let _ = native_ui_node_set_style_f64(sid, sbi2, "corner_radius", 4.0)
+    let _ = native_ui_node_set_style_f64(sid, sbi3, "corner_radius", 4.0)
+
+    // Info panel
+    let _ = native_ui_node_set_style_string(sid, info, "fill_color", "#1E293B")
+    let _ = native_ui_node_set_style_f64(sid, info, "corner_radius", 4.0)
+
+    // ── Bar data nodes (for the graph) ──────────────────────────────
+    let b0 = ui_reconcile_node(sid, graph, "bar", "cd.bar0", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b0, "fill_color", "#21D4A1")
+    let b1 = ui_reconcile_node(sid, graph, "bar", "cd.bar1", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b1, "fill_color", "#4A90D9")
+    let b2 = ui_reconcile_node(sid, graph, "bar", "cd.bar2", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b2, "fill_color", "#E8914A")
+    let b3 = ui_reconcile_node(sid, graph, "bar", "cd.bar3", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b3, "fill_color", "#E84A5F")
+    let b4 = ui_reconcile_node(sid, graph, "bar", "cd.bar4", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b4, "fill_color", "#21D4A1")
+    let b5 = ui_reconcile_node(sid, graph, "bar", "cd.bar5", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b5, "fill_color", "#4A90D9")
+    let b6 = ui_reconcile_node(sid, graph, "bar", "cd.bar6", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b6, "fill_color", "#E8914A")
+    let b7 = ui_reconcile_node(sid, graph, "bar", "cd.bar7", 0.0, 0.0, 30.0, 1.0)
+    let _ = native_ui_node_set_style_string(sid, b7, "fill_color", "#E84A5F")
+
+    let _ = print("Ready. " + str(ui_node_count(sid)) + " nodes.\n")
+
+    // ── Frame loop ──────────────────────────────────────────────────
+    var frame: Int = 0
+    while ui_host_should_close(sid) == 0 and frame < 600:
+        let _begin = ui_frame_begin(sid, 16.0)
+
+        // ── BACKGROUND LAYERS ──────────────────────────────────
+        let _ = ui_render_box_at(sid, root,   0, 0,   800, 600, "fill_color")     // full bg
+        let _ = ui_render_box_at(sid, header, 0, 0,   800, 56,  "fill_color")     // header bar
+        let _ = ui_render_box_at(sid, sb,     0, 56,  200, 514, "fill_color")     // sidebar
+        let _ = ui_render_box_at(sid, main,   200, 56, 600, 514, "fill_color")    // main area
+        let _ = ui_render_box_at(sid, status, 0, 570, 800, 30,  "fill_color")     // status bar
+
+        // ── HEADER ACCENT LINE ─────────────────────────────────
+        // Just reuse root style but draw at header bottom
+        let _ = ui_render_box_at(sid, root, 0, 54, 800, 2, "fill_color")
+        // Actually reuse header style and draw a green accent line
+        let _ = ui_render_box_at(sid, header, 0, 54, 800, 2, "fill_color")
+
+        // ── SIDEBAR ITEMS ──────────────────────────────────────
+        let _ = ui_render_box_at(sid, sbi1, 12, 66,  176, 36, "fill_color")
+        let _ = ui_render_box_at(sid, sbi2, 12, 110, 176, 36, "fill_color")
+        let _ = ui_render_box_at(sid, sbi3, 12, 154, 176, 36, "fill_color")
+
+        // ── ACCENT DOTS ON SIDEBAR ITEMS ───────────────────────
+        let _ = ui_render_box_at(sid, card1, 20, 78,  8, 8, "fill_color")  // green dot
+        let _ = ui_render_box_at(sid, card2, 20, 122, 8, 8, "fill_color")  // blue dot
+        let _ = ui_render_box_at(sid, card3, 20, 166, 8, 8, "fill_color")  // orange dot
+
+        // ── CARD ROW ───────────────────────────────────────────
+        let _ = ui_render_box_at(sid, card1, 212, 66, 140, 80, "fill_color")
+        let _ = ui_render_box_at(sid, card2, 360, 66, 140, 80, "fill_color")
+        let _ = ui_render_box_at(sid, card3, 508, 66, 140, 80, "fill_color")
+        let _ = ui_render_box_at(sid, card4, 656, 66, 140, 80, "fill_color")
+
+        // ── GRAPH AREA ─────────────────────────────────────────
+        let _ = ui_render_box_at(sid, graph, 212, 158, 580, 200, "fill_color")
+
+        // ── ANIMATED GRAPH BARS ────────────────────────────────
+        // Bar 0 — teal
+        let h0 = 20 + ((frame * 3 + 0) % 160)
+        let _ = ui_render_box_at(sid, b0, 220, 354 - h0, 62, h0, "fill_color")
+        // Bar 1 — blue
+        let h1 = 20 + ((frame * 3 + 37) % 160)
+        let _ = ui_render_box_at(sid, b1, 292, 354 - h1, 62, h1, "fill_color")
+        // Bar 2 — orange
+        let h2 = 20 + ((frame * 3 + 74) % 160)
+        let _ = ui_render_box_at(sid, b2, 364, 354 - h2, 62, h2, "fill_color")
+        // Bar 3 — red
+        let h3 = 20 + ((frame * 3 + 111) % 160)
+        let _ = ui_render_box_at(sid, b3, 436, 354 - h3, 62, h3, "fill_color")
+        // Bar 4 — teal
+        let h4 = 20 + ((frame * 3 + 148) % 160)
+        let _ = ui_render_box_at(sid, b4, 508, 354 - h4, 62, h4, "fill_color")
+        // Bar 5 — blue
+        let h5 = 20 + ((frame * 3 + 185) % 160)
+        let _ = ui_render_box_at(sid, b5, 580, 354 - h5, 62, h5, "fill_color")
+        // Bar 6 — orange
+        let h6 = 20 + ((frame * 3 + 222) % 160)
+        let _ = ui_render_box_at(sid, b6, 652, 354 - h6, 62, h6, "fill_color")
+        // Bar 7 — red
+        let h7 = 20 + ((frame * 3 + 259) % 160)
+        let _ = ui_render_box_at(sid, b7, 724, 354 - h7, 62, h7, "fill_color")
+
+        // ── INFO PANEL ─────────────────────────────────────────
+        let _ = ui_render_box_at(sid, info, 212, 370, 580, 60, "fill_color")
+
+        // ── ANIMATED ORBS ──────────────────────────────────────
+        // Two floating orbs that move in a pattern
+        let orb1_x = 250 + (frame * 2 % 450)
+        let orb1_y = 450 + (frame * 3 % 80)
+        let _ = native_ui_node_set_style_string(sid, card1, "fill_color", "#21D4A1")
+        let _ = ui_render_box_at(sid, card1, orb1_x, orb1_y, 20, 20, "fill_color")
+
+        let orb2_x = 550 - (frame * 2 % 350)
+        let orb2_y = 440 + (frame * 2 % 100)
+        let _ = native_ui_node_set_style_string(sid, card2, "fill_color", "#E84A5F")
+        let _ = ui_render_box_at(sid, card2, orb2_x, orb2_y, 16, 16, "fill_color")
+
+        // ── SUBMIT + PRESENT ───────────────────────────────────
+        let _submit = ui_frame_submit(sid)
+        let _present = ui_host_present(sid)
+        let _pump = ui_host_pump(sid)
+
+        frame = frame + 1
+        if frame % 60 == 0:
+            let _ = print("Frame " + str(frame) + "\n")
+
+        sleep_millis(16)
+
+    let _destroy = ui_session_destroy(sid)
+    let _shutdown = runtime_shutdown()
+    return 0

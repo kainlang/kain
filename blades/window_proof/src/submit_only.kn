@@ -1,0 +1,14 @@
+use std::runtime
+use std::ui
+
+fn main() -> Int:
+    let _init = runtime_init()
+    let s = ui_host_session_create("so", "SO", 400, 300, "winit")
+    if s <= 0:
+        return 1
+
+    let _b = ui_frame_begin(s, 16.0)
+    let _x = ui_frame_submit(s)
+
+    let _d = ui_session_destroy(s)
+    return runtime_shutdown()

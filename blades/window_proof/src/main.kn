@@ -1,13 +1,9 @@
-// Minimal Kain GUI window proof — exercises the full component surface pipeline.
-// Compile: kain build src/main.kn --target llvm
-// Verify:  oracle scan --dir .kain/out && oracle launch <exe> && oracle matrix --handle <hwnd>
-
 use std::runtime
 
 component HelloWindow():
-    render <panel title="Kain Window Proof">
-        <text value="Hello from the Kain component surface!" font_size={18} />
-        <text value="If you can see this, the pipeline works." font_size={14} />
+    render <panel title="Kain Window Proof" fill_color="#1a1a2e">
+        <text value="Hello from the Kain component surface!" font_size={18} fill_color="#21d4a1" />
+        <text value="If you can see this, the pipeline works." font_size={14} fill_color="#e8e8f0" />
     </panel>
 
 world ProofWorld:
@@ -17,6 +13,4 @@ fn main() -> Int:
     let init = runtime_init()
     if init != 0:
         return 100 + init
-    // Frame loop auto-generated: resolve native_ui → session_create → window_open
-    // → LOOP: host_pump → begin_frame → HelloWindow_render → end_frame → present → should_close
     return 0

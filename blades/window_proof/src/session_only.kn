@@ -1,0 +1,25 @@
+use std::runtime
+use std::ui
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    print("Creating session...\n")
+    let session = ui_host_session_create("session_only", "Kain UI — Session Only", 800, 600, "winit")
+    if session <= 0:
+        print("Session create failed!\n")
+        runtime_shutdown()
+        return 1
+
+    print("Session: " + str(session) + "\n")
+    print("Closing...\n")
+
+    let _destroy = ui_session_destroy(session)
+    print("Destroyed\n")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

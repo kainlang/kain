@@ -1,0 +1,33 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let project = project("window-proof")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kain std::ui test suite — exercises all public UI functions")
+        .entry("src/std_ui_host.kn")
+        .source_roots(["src"])
+        .module_roots(["src"])
+        .generated_root("telemetry")
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+
+    let sources = source_set("wp-sources")
+        .root("src")
+        .glob("src/**/*.kn")
+
+    let check = check_task("check-llvm")
+        .project(project)
+        .target("llvm")
+        .inputs(sources)
+        .telemetry("wp.evidence")
+
+    let exe = native_executable("root-executable")
+        .project(project)
+        .output("$blade/window_proof.exe")
+        .requires(check)
+
+    return build_graph(project)
+        .sources(sources)
+        .tasks(check, exe)

@@ -1,0 +1,39 @@
+use std::runtime
+use std::ui
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return -100 + init
+
+    let r1 = ui_reset()
+    let s1 = ui_session_count()
+
+    let session = ui_session_create("diag", 640, 480)
+    let s2 = ui_session_count()
+    let w = ui_window_open(session, "Diag", 640, 480)
+    let a = ui_host_attach(session, "software")
+    let bk = ui_host_backend(session)
+    let bk_len = len(bk)
+    let close = ui_host_should_close(session)
+    let shost = ui_host_session_create("diag2", "Diag2", 320, 240, "software")
+    let bk2 = ui_host_backend(shost)
+    let bk2_len = len(bk2)
+
+    let node = ui_node_create(session, "root")
+    let _sp = ui_node_set_parent(session, node, 0)
+    let _sr = ui_node_set_rect(session, node, 0.0, 0.0, 640.0, 480.0)
+    let _st = ui_node_set_text(session, node, "hello world")
+    let nt = ui_node_text(session, node)
+    let nt_len = len(nt)
+
+    // Pack diagnostic nibbles
+    let code = r1 | (s1 << 4) | (s2 << 8) | ((session & 15) << 12) | ((w & 15) << 16) | ((a & 15) << 20) | ((bk_len & 15) << 24) | ((close & 15) << 28)
+
+    let _session_d = ui_session_destroy(session)
+    let _shost_d = ui_session_destroy(shost)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return -200 + shutdown
+
+    return code + nt_len

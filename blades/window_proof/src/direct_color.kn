@@ -1,0 +1,20 @@
+use std::runtime
+use std::ui
+
+fn main() -> Int:
+    let _init = runtime_init()
+    let s = ui_host_session_create("dc", "DC", 400, 300, "winit")
+    if s <= 0:
+        return 1
+
+    let root = ui_reconcile_node(s, 0, "root", "dc.root", 0.0, 0.0, 400.0, 300.0)
+
+    # Try setting style AFTER begin_frame (like the C test does)
+    let _b = ui_frame_begin(s, 16.0)
+    let _f = native_ui_node_set_style_string(s, root, "fill_color", "#ff0000")
+    let _d = native_ui_end_frame(s)
+    let _p = native_ui_present(s)
+    let _h = native_ui_host_present(s)
+
+    let _d2 = ui_session_destroy(s)
+    return runtime_shutdown()

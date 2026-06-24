@@ -1,0 +1,44 @@
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    print("Creating session...\n")
+    let session = ui_host_session_create("submit_steps", "Kain UI — Steps", 800, 600, "winit")
+    if session <= 0:
+        print("Session create failed!\n")
+        runtime_shutdown()
+        return 1
+
+    let root = ui_reconcile_node(session, 0, "root", "st.root", 0.0, 0.0, 800.0, 600.0)
+    let _root_fill = native_ui_node_set_style_string(session, root, "fill_color", "#1a1a2e")
+
+    print("Frame begin...\n")
+    let _begin = ui_frame_begin(session, 16.0)
+    print("Frame begin done\n")
+
+    print("Calling native_ui_end_frame...\n")
+    let _end = native_ui_end_frame(session)
+    print("End frame done\n")
+
+    print("Calling native_ui_present...\n")
+    let _p = native_ui_present(session)
+    print("Present done\n")
+
+    print("Calling native_ui_host_present...\n")
+    let _hp = native_ui_host_present(session)
+    print("Host present done\n")
+
+    print("Calling native_ui_host_pump...\n")
+    let _pump = native_ui_host_pump(session)
+    print("Host pump done\n")
+
+    let _destroy = ui_session_destroy(session)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

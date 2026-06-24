@@ -1,0 +1,44 @@
+use std::runtime
+use std::ui
+use std::time
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    print("Creating session...\n")
+    let session = ui_host_session_create("minimal", "Kain UI — Minimal", 800, 600, "winit")
+    if session <= 0:
+        runtime_shutdown()
+        return 1
+
+    print("Session: " + str(session) + "\n")
+
+    let root = ui_reconcile_node(session, 0, "root", "min.root", 0.0, 0.0, 800.0, 600.0)
+    let _root_fill = native_ui_node_set_style_string(session, root, "fill_color", "#1a1a2e")
+
+    print("Nodes: " + str(ui_node_count(session)) + "\n")
+
+    print("Frame begin...\n")
+    let _begin = ui_frame_begin(session, 16.0)
+    print("Frame begin done\n")
+
+    print("Frame submit...\n")
+    let _submit = ui_frame_submit(session)
+    print("Frame submit done\n")
+
+    print("Host present...\n")
+    let _present = ui_host_present(session)
+    print("Host present done\n")
+
+    print("Host pump...\n")
+    let _pump = ui_host_pump(session)
+    print("Host pump done\n")
+
+    let _destroy = ui_session_destroy(session)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

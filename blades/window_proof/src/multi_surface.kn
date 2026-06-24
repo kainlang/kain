@@ -1,0 +1,248 @@
+// ============================================================================
+// multi_surface.kn — DUAL-SURFACE WORLD (native_ui + web) WITH ONE COMPONENT
+// ============================================================================
+//
+// WHAT THIS PROVES:
+//   1. A single world can project the SAME component to multiple surface kinds.
+//      The component author never knows or cares which backend renders it.
+//
+//   2. Surface-agnostic rendering: the same 18-slot KainComponentSurface vtable
+//      works for `native_ui` (Win32 GDI or Vulkan GPU) and `web` (WASM browser).
+//      The compiler emits the SAME vtable calls regardless of surface kind.
+//
+//   3. World state is shared across all surfaces. Mutate `MultiWorld.counter` and
+//      both the native_ui AND web component views see the update.
+//
+// ARCHITECTURE:
+//   MultiWorld
+//     ├── surface native_ui => MultiDashboard
+//     │     → kain_component_surface_resolve("native_ui")
+//     │     → RENDERER_BACKEND routing (vulkan/d3d12/webgpu/gdi)
+//     │     → frame loop A: MultiDashboard_render → GDI framebuffer or GPU swapchain
+//     │
+//     └── surface web => MultiDashboard
+//           → kain_component_surface_resolve("web")
+//           → WASM/JS canvas rendering (planned — web surface backend)
+//           → frame loop B: MultiDashboard_render → HTML canvas
+//
+//   The SAME component render function (MultiDashboard_render) is called from
+//   BOTH frame loops. The component's JSX tree is emitted through whichever
+//   vtable the current surface backend provides.
+//
+// STATUS:
+//   native_ui: ✅ Working (Win32 GDI, Oracle-verified)
+//   web:       🔜 Planned (WASM target, web_surface backend)
+//   viewport3d: 🔜 Planned (3D viewport)
+//   ue5:       🔜 Planned (Unreal Engine 5)
+//
+// HOW TO RUN:
+//   kain build src/multi_surface.kn --target llvm && .kain/out/multi_surface.exe
+// ============================================================================
+
+use std::runtime
+
+// ============================================================================
+// WORLD — dual-surface state authority
+// ============================================================================
+// WHY world: This is the compiler-owned state container. All surfaces read
+// from the same world state. The world is the single source of truth.
+//
+// WHY two surfaces: The native_ui surface creates a desktop window (Win32 GDI
+// or Vulkan GPU). The web surface (planned) creates a browser canvas. Both
+// project the same component — proving surface-agnostic rendering.
+
+world MultiWorld:
+    state counter: Int = 0
+    state active_connections: Int = 12
+    state cpu_usage: Int = 23
+    state memory_mb: Int = 147
+    state fps: Int = 60
+    state hostname: String = "kain-local"
+    state uptime_hours: Int = 72
+    state status: String = "healthy"
+
+    // WHY native_ui: Desktop window surface. This is the proven path —
+    // Oracle-verified GUI windows via the 18-slot vtable.
+    surface native_ui => MultiDashboard
+
+    // WHY web: Browser surface (planned). The same component renders here.
+    // When the web_surface backend is implemented, this will create a WASM
+    // canvas and render the component through the same vtable contract.
+    surface web => MultiDashboard
+
+// ============================================================================
+// FORMATTING HELPERS — top-level functions for JSX {expr}
+// ============================================================================
+// WHY top-level fn: Component methods from JSX {expr} are not yet supported.
+// Top-level functions with explicit args ARE supported and are the proven
+// pattern from dashboard.kn.
+
+fn fmt_bytes(mb: Int) -> String:
+    return str(mb) + " MB"
+
+fn fmt_pct(val: Int) -> String:
+    return str(val) + "%"
+
+fn fmt_fps(fps: Int) -> String:
+    return str(fps) + " FPS"
+
+fn status_label(status: String) -> String:
+    if status == "healthy":
+        return "● HEALTHY"
+    if status == "degraded":
+        return "◐ DEGRADED"
+    return "○ OFFLINE"
+
+fn uptime_label(hours: Int) -> String:
+    let days: Int = hours / 24
+    let rem: Int = hours
+    if days > 0:
+        rem = hours - days * 24
+    return str(days) + "d " + str(rem) + "h"
+
+fn connections_label(count: Int) -> String:
+    if count > 0:
+        return str(count) + " active"
+    return "none"
+
+fn surface_count_label() -> String:
+    // WHY hardcoded: This is documentation — the world declares 2 surfaces.
+    // In the future, runtime could expose surface_count() via the intent APIs.
+    return "2 surfaces (native_ui + web)"
+
+// WHY helper fn: The dead-state validator requires at least one top-level
+// function to directly read each world state field. JSX {expr} reads via
+// `MultiWorld.memory_mb` aren't tracked yet.
+fn read_memory_mb() -> Int:
+    return MultiWorld.memory_mb
+
+// ============================================================================
+// LEAF COMPONENTS — composable dashboard widgets
+// ============================================================================
+// WHY separate components: Breaking the dashboard into leaf components
+// demonstrates JSX composition. Each leaf component is a reusable widget
+// with typed props. The uppercase tag (<MetricBox />) dispatches to the
+// component declaration.
+
+component MetricBox(label: String, value: String):
+    render <stack direction="vertical" padding={8} spacing={4}>
+        <text value={label} font_size={10} />
+        <text value={value} font_size={20} />
+    </stack>
+
+component SectionDivider(title: String):
+    render <stack direction="vertical" spacing={4}>
+        <text value={"── " + title + " ──"} font_size={13} />
+    </stack>
+
+// ============================================================================
+// ROOT COMPONENT — multi-surface dashboard
+// ============================================================================
+// WHY this component reads MultiWorld.* directly: The world's surface
+// declaration makes the world state visible to the component's JSX {expr}
+// via `MultiWorld.field`. This is the proven pattern from world_read.kn
+// and dashboard.kn.
+
+component MultiDashboard():
+    render <panel title="Kain Multi-Surface Dashboard">
+        <stack direction="vertical" padding={24} spacing={16}>
+            // Header
+            <stack direction="horizontal" spacing={12}>
+                <text value="MULTI-SURFACE DASHBOARD" font_size={20} />
+                <text value={status_label(MultiWorld.status)} font_size={12} />
+            </stack>
+
+            // Surface info — proves dual-surface architecture
+            <SectionDivider title="SURFACES" />
+            <stack direction="vertical" spacing={4}>
+                <text value={"Host: " + MultiWorld.hostname} font_size={14} />
+                <text value={surface_count_label()} font_size={12} />
+                <text value="native_ui → Win32 GDI or Vulkan GPU (18-slot KainComponentSurface vtable)" font_size={10} />
+                <text value="web       → WASM canvas or browser WebGPU (planned)" font_size={10} />
+                <text value="Same component · same world state · different backends" font_size={10} />
+            </stack>
+
+            // Live metrics — reads world state
+            <SectionDivider title="LIVE METRICS" />
+            <stack direction="horizontal" spacing={20}>
+                <MetricBox label="Uptime" value={uptime_label(MultiWorld.uptime_hours)} />
+                <MetricBox label="CPU" value={fmt_pct(MultiWorld.cpu_usage)} />
+                <MetricBox label="Memory" value={fmt_bytes(read_memory_mb())} />
+                <MetricBox label="FPS" value={fmt_fps(MultiWorld.fps)} />
+                <MetricBox label="Connections" value={connections_label(MultiWorld.active_connections)} />
+            </stack>
+
+            // Counter — proves world state is readable
+            <SectionDivider title="FRAME COUNTER" />
+            <stack direction="horizontal" spacing={12}>
+                <text value={"Counter: " + str(MultiWorld.counter)} font_size={18} />
+                <text value="(shared across all surfaces)" font_size={10} />
+            </stack>
+
+            // Architecture diagram
+            <SectionDivider title="ARCHITECTURE" />
+            <stack direction="vertical" spacing={4}>
+                <text value="MultiWorld (state authority)" font_size={11} />
+                <text value="  ├── surface native_ui => MultiDashboard" font_size={11} />
+                <text value="  │     → native_ui_surface.c (GDI) or libkain-vulkan-abi.so (GPU)" font_size={11} />
+                <text value="  │     → frame loop → MultiDashboard_render(surface, session, 0)" font_size={11} />
+                <text value="  └── surface web => MultiDashboard" font_size={11} />
+                <text value="        → web_surface.c (planned — WASM backend)" font_size={11} />
+                <text value="        → frame loop → MultiDashboard_render(surface, session, 0)" font_size={11} />
+                <text value="" font_size={11} />
+                <text value="Both surfaces call the SAME render function through the SAME 18-slot vtable." font_size={10} />
+                <text value="The component never knows which backend renders it." font_size={10} />
+            </stack>
+
+            // Surface kind reference
+            <SectionDivider title="SURFACE KINDS" />
+            <stack direction="vertical" spacing={4}>
+                <text value="native_ui   ✅ Working (Win32, Oracle-verified)" font_size={10} />
+                <text value="web         🔜 Planned (WASM browser)" font_size={10} />
+                <text value="viewport3d  🔜 Planned (3D viewport)" font_size={10} />
+                <text value="ue5         🔜 Planned (Unreal Engine 5)" font_size={10} />
+                <text value="vulkan      🔜 Proposed — shader surface (see shader_host.kn)" font_size={10} />
+            </stack>
+        </stack>
+    </panel>
+
+// ============================================================================
+// ENTRY POINT
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // WHY: The dead-state validator doesn't track JSX {expr} reads of world
+    // state. These calls register each field as "read" so the validator
+    // passes. The values are also read inside the component JSX.
+    let _memory_mb: Int = read_memory_mb()
+    let _counter: Int = MultiWorld.counter
+    let _active_conn: Int = MultiWorld.active_connections
+    let _cpu_usage: Int = MultiWorld.cpu_usage
+    let _fps: Int = MultiWorld.fps
+    let _hostname: String = MultiWorld.hostname
+    let _uptime: Int = MultiWorld.uptime_hours
+    let _status: String = MultiWorld.status
+
+    // The compiler auto-generates TWO frame loops for MultiWorld:
+    //
+    //   LOOP A (native_ui):
+    //     surface = kain_component_surface_resolve("native_ui")
+    //     session = surface→session_create("MultiWorld", 1280, 720)
+    //     surface→window_open(session, "MultiWorld", 1280, 720)
+    //     WHILE not should_close:
+    //       host_pump → begin_frame → MultiDashboard_render → end_frame → present
+    //
+    //   LOOP B (web, planned):
+    //     surface = kain_component_surface_resolve("web")
+    //     session = surface→session_create("MultiWorld", 1280, 720)
+    //     WHILE not should_close:
+    //       begin_frame → MultiDashboard_render → end_frame → present
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

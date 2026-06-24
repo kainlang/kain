@@ -32,6 +32,9 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .output("$blade/three-kn.exe")
         .requires(gpu)
 
+    let lib = native_library("three")
+       .output("$blade/three.dll")
+
     return build_graph(album)
         .sources(sources)
         .tasks(gpu, exe)
