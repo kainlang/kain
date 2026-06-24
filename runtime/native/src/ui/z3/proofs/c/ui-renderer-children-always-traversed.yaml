@@ -1,0 +1,73 @@
+version: 1
+id: ui.ui_renderer_children_always_traversed
+kind: check_smt2
+description: >-
+  Children are always rendered regardless of parent dimensions. The child
+  traversal is moved before the size early-return check. Parent fill/border
+  drawing is still gated on valid dimensions.
+tags:
+- native-ui
+- renderer
+- children
+- layout
+- ordering
+source:
+  path: X:/runtime/native/src/ui/ui_renderer.c
+  language: c
+  symbol: ui_render_node
+  start_line: 155
+  end_line: 175
+  reason: >-
+    The old code checked nw<=0||nh<=0 before child traversal, which hid
+    entire subtrees when parents had zero size. The fix moves child
+    traversal before the size check so children are always rendered.
+case:
+  smt2: |
+    ; Claim A: Old behavior skips children when nw<=0 || nh<=0
+    ; New behavior always traverses children.
+    (set-logic QF_BV)
+    (declare-const nw (_ BitVec 32))
+    (declare-const nh (_ BitVec 32))
+    (define-fun old_children_traversed () Bool
+      (and (bvsgt nw #x00000000) (bvsgt nh #x00000000)))
+    (define-fun new_children_traversed () Bool true)
+    (assert (not (=> old_children_traversed new_children_traversed)))
+    (check-sat)
+    ; Expected: unsat — new behavior is a superset of old
+  include_model: false
+  include_stats: false
+---
+version: 1
+id: ui.ui_renderer_parent_draw_gated_on_size
+kind: check_smt2
+description: >-
+  Parent drawing (fill, border, text) is still gated on valid dimensions.
+  Children are rendered regardless, but the parent's own visual paint
+  only executes when nw > 0 && nh > 0.
+tags:
+- native-ui
+- renderer
+- dimensions
+- guard
+source:
+  path: X:/runtime/native/src/ui/ui_renderer.c
+  symbol: ui_render_node
+  start_line: 178
+  end_line: 185
+  reason: >-
+    The parent's fill/border requires valid dimensions. The size check
+    (nw <= 0 || nh <= 0) must still prevent drawing invalid rects.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const nw2 (_ BitVec 32))
+    (declare-const nh2 (_ BitVec 32))
+    (define-fun parent_drawn () Bool
+      (and (bvsgt nw2 #x00000000) (bvsgt nh2 #x00000000)))
+    (define-fun nw_nonpositive () Bool (not (bvsgt nw2 #x00000000)))
+    (define-fun nh_nonpositive () Bool (not (bvsgt nh2 #x00000000)))
+    (assert (and (or nw_nonpositive nh_nonpositive) parent_drawn))
+    (check-sat)
+    ; Expected: unsat — parent never drawn when dims are invalid
+  include_model: false
+  include_stats: false

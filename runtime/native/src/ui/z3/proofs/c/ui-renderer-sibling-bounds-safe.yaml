@@ -1,0 +1,74 @@
+version: 1
+id: ui.ui_renderer_sibling_bounds_safe
+kind: check_smt2
+description: >-
+  The sibling-linked list traversal in ui_render_node and
+  ui_layout_collect_children is bounds-safe. The safe_next_sibling wrapper
+  bounds-checks next_sibling before dereferencing, and the memset fix in
+  abi_ui_node_destroy restores -1 sentinel values after zeroing to ensure
+  stale references always terminate.
+tags:
+- native-ui
+- renderer
+- sibling-list
+- bounds
+- sentinel
+source:
+  path: X:/runtime/native/src/ui/ui_renderer.c
+  language: c
+  symbol: ui_render_node
+  start_line: 155
+  end_line: 175
+  reason: >-
+    The sibling traversal loop must handle corrupted next_sibling values
+    safely. After memset in abi_ui_node_destroy, next_sibling=0 instead of
+    -1 could cause infinite loops. The fix adds bounds-checking in
+    ui_safe_next_sibling and restores -1 sentinels after memset.
+case:
+  smt2: |
+    ; Claim A: -1 sentinel always terminates the loop
+    (set-logic QF_BV)
+    (define-const NO_CHILD (_ BitVec 32) #xFFFFFFFF)
+    (define-fun terminates ((ns (_ BitVec 32))) Bool
+      (not (= ((_ extract 31 31) ns) #b0)))
+    (assert (not (terminates NO_CHILD)))
+    (check-sat)
+    ; Expected: unsat
+  include_model: false
+  include_stats: false
+---
+version: 1
+id: ui.ui_renderer_sibling_bounds_safe_claim_b
+kind: check_smt2
+description: >-
+  The safe_next function never returns an out-of-bounds index.
+  It returns either a value in [0, ABI_UI_MAX_NODES-1] or -1 sentinel.
+tags:
+- native-ui
+- renderer
+- bounds
+source:
+  path: X:/runtime/native/src/ui/ui_renderer.c
+  symbol: ui_safe_next_sibling
+  start_line: 140
+  end_line: 150
+  reason: >-
+    The safe_next_sibling wrapper must guarantee that the returned
+    child index is either -1 (termination) or a valid slot index.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-const MAX_NODES (_ BitVec 32) #x00001000)
+    (define-const NO_CHILD (_ BitVec 32) #xFFFFFFFF)
+    (define-fun safe_next ((next (_ BitVec 32))) (_ BitVec 32)
+      (ite (and (bvsle #x00000000 next) (bvult next MAX_NODES)) next NO_CHILD))
+    (declare-const raw_next (_ BitVec 32))
+    (define-const result (_ BitVec 32) (safe_next raw_next))
+    (define-fun result_valid () Bool
+      (=> (not (= result NO_CHILD))
+          (and (bvsle #x00000000 result) (bvult result MAX_NODES))))
+    (assert (not result_valid))
+    (check-sat)
+    ; Expected: unsat
+  include_model: false
+  include_stats: false

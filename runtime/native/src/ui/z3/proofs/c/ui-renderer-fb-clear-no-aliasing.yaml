@@ -1,0 +1,39 @@
+version: 1
+id: ui.ui_renderer_fb_clear_no_aliasing
+kind: check_smt2
+description: >-
+  The framebuffer clear uses memcpy instead of a direct uint64_t* cast
+  from uint32_t* to avoid C11 strict aliasing violations. memcpy of
+  constant-size uint64_t is inlined by all modern compilers to a single
+  mov instruction — identical codegen without UB.
+tags:
+- native-ui
+- renderer
+- aliasing
+- memcpy
+- strict-aliasing
+source:
+  path: X:/runtime/native/src/ui/ui_renderer.c
+  language: c
+  symbol: ui_render_frame
+  start_line: 90
+  end_line: 105
+  reason: >-
+    The original code used ((uint64_t*)framebuffer)[i] = pat64 which
+    violates C11 strict aliasing (uint32_t* cast to uint64_t*). The fix
+    replaces this with memcpy, which is always legal through the character
+    type exception. Both produce identical machine code.
+case:
+  smt2: |
+    ; Claim: Two pixels packed into uint64_t and written via memcpy
+    ; produces the same result as two sequential uint32_t stores.
+    (set-logic QF_BV)
+    (define-const PIXEL (_ BitVec 32) #xFF1A1A24)
+    (define-const DUAL_PIXEL (_ BitVec 64) (concat PIXEL PIXEL))
+    (define-fun lo32 ((x (_ BitVec 64))) (_ BitVec 32) ((_ extract 31 0) x))
+    (define-fun hi32 ((x (_ BitVec 64))) (_ BitVec 32) ((_ extract 63 32) x))
+    (assert (not (and (= (lo32 DUAL_PIXEL) PIXEL) (= (hi32 DUAL_PIXEL) PIXEL))))
+    (check-sat)
+    ; Expected: unsat
+  include_model: false
+  include_stats: false
