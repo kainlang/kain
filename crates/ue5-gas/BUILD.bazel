@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "ue5-gas",
+    version = "0.8.0",
     crate_name = "ue5_gas",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -38,6 +39,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":ue5-gas",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -50,6 +52,7 @@ rust_test(
 
 rust_test(
     name = "ability_integration_tests_test",
+    version = "0.8.0",
     crate_name = "ability_integration_tests",
     crate_root = "tests/ability_integration_tests.rs",
     srcs = [
@@ -70,6 +73,7 @@ rust_test(
 
 rust_test(
     name = "ability_ir_tests_test",
+    version = "0.8.0",
     crate_name = "ability_ir_tests",
     crate_root = "tests/ability_ir_tests.rs",
     srcs = [
@@ -90,6 +94,7 @@ rust_test(
 
 rust_test(
     name = "attribute_set_integration_tests_test",
+    version = "0.8.0",
     crate_name = "attribute_set_integration_tests",
     crate_root = "tests/attribute_set_integration_tests.rs",
     srcs = [
@@ -110,6 +115,7 @@ rust_test(
 
 rust_test(
     name = "cue_integration_tests_test",
+    version = "0.8.0",
     crate_name = "cue_integration_tests",
     crate_root = "tests/cue_integration_tests.rs",
     srcs = [
@@ -130,6 +136,7 @@ rust_test(
 
 rust_test(
     name = "cue_ir_tests_test",
+    version = "0.8.0",
     crate_name = "cue_ir_tests",
     crate_root = "tests/cue_ir_tests.rs",
     srcs = [
@@ -150,6 +157,7 @@ rust_test(
 
 rust_test(
     name = "effect_integration_tests_test",
+    version = "0.8.0",
     crate_name = "effect_integration_tests",
     crate_root = "tests/effect_integration_tests.rs",
     srcs = [
@@ -170,6 +178,7 @@ rust_test(
 
 rust_test(
     name = "effect_ir_tests_test",
+    version = "0.8.0",
     crate_name = "effect_ir_tests",
     crate_root = "tests/effect_ir_tests.rs",
     srcs = [
@@ -190,6 +199,7 @@ rust_test(
 
 rust_test(
     name = "integration_test_test",
+    version = "0.8.0",
     crate_name = "integration_test",
     crate_root = "tests/integration_test.rs",
     srcs = [
@@ -210,6 +220,7 @@ rust_test(
 
 rust_test(
     name = "tags_tests_test",
+    version = "0.8.0",
     crate_name = "tags_tests",
     crate_root = "tests/tags_tests.rs",
     srcs = [
@@ -230,6 +241,7 @@ rust_test(
 
 rust_test(
     name = "target_integration_tests_test",
+    version = "0.8.0",
     crate_name = "target_integration_tests",
     crate_root = "tests/target_integration_tests.rs",
     srcs = [
@@ -250,6 +262,7 @@ rust_test(
 
 rust_test(
     name = "target_ir_tests_test",
+    version = "0.8.0",
     crate_name = "target_ir_tests",
     crate_root = "tests/target_ir_tests.rs",
     srcs = [

@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_proc_macro(
     name = "unreal_asset_proc_macro",
+    version = "0.8.0",
     crate_name = "unreal_asset_proc_macro",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),

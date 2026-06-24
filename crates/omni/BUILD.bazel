@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-omni",
+    version = "0.8.0",
     crate_name = "kain_omni",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -51,6 +52,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-omni",
     edition = "2021",
     crate_features = [

@@ -38,6 +38,7 @@ cargo_build_script(
 
 rust_library(
     name = "unreal_asset",
+    version = "0.8.0",
     crate_name = "unreal_asset",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -60,6 +61,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":unreal_asset",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),

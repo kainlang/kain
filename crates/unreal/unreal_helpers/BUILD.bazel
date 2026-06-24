@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "unreal_helpers",
+    version = "0.8.0",
     crate_name = "unreal_helpers",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -42,6 +43,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":unreal_helpers",
     edition = "2021",
     crate_features = [
@@ -58,6 +60,7 @@ rust_test(
 
 rust_test(
     name = "bitvec_test",
+    version = "0.8.0",
     crate_name = "bitvec",
     crate_root = "tests/bitvec.rs",
     srcs = [
@@ -83,6 +86,7 @@ rust_test(
 
 rust_test(
     name = "bool_test",
+    version = "0.8.0",
     crate_name = "bool",
     crate_root = "tests/bool.rs",
     srcs = [
@@ -108,6 +112,7 @@ rust_test(
 
 rust_test(
     name = "fstring_test",
+    version = "0.8.0",
     crate_name = "fstring",
     crate_root = "tests/fstring.rs",
     srcs = [
@@ -133,6 +138,7 @@ rust_test(
 
 rust_test(
     name = "path_test",
+    version = "0.8.0",
     crate_name = "path",
     crate_root = "tests/path.rs",
     srcs = [

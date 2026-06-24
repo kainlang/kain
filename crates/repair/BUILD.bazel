@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-repair",
+    version = "0.8.0",
     crate_name = "kain_repair",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -36,6 +37,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-repair",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -46,6 +48,7 @@ rust_test(
 
 rust_test(
     name = "repair_fixtures_test",
+    version = "0.8.0",
     crate_name = "repair_fixtures",
     crate_root = "tests/repair_fixtures.rs",
     srcs = [

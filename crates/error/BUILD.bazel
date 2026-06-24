@@ -39,6 +39,7 @@ cargo_build_script(
 
 rust_library(
     name = "kain-error",
+    version = "0.8.0",
     crate_name = "kain_error",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -57,6 +58,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-error",
     edition = "2021",
     crate_features = [
@@ -73,6 +75,7 @@ rust_test(
 
 rust_test(
     name = "integration_test",
+    version = "0.8.0",
     crate_name = "integration",
     crate_root = "tests/integration.rs",
     srcs = [

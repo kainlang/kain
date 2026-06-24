@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-actor",
+    version = "0.8.0",
     crate_name = "kain_actor",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -36,6 +37,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-actor",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),

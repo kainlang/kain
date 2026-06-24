@@ -38,6 +38,7 @@ cargo_build_script(
 
 rust_library(
     name = "cli",
+    version = "0.8.0",
     crate_name = "cli",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -97,6 +98,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":cli",
     edition = "2021",
     crate_features = [
@@ -154,6 +156,7 @@ rust_test(
 
 rust_binary(
     name = "kain",
+    version = "0.8.0",
     crate_name = "kain",
     crate_root = "src/main.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -215,6 +218,7 @@ rust_binary(
 
 rust_binary(
     name = "kn",
+    version = "0.8.0",
     crate_name = "kn",
     crate_root = "src/bin/kn.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -276,6 +280,7 @@ rust_binary(
 
 rust_binary(
     name = "blade_bin",
+    version = "0.8.0",
     crate_name = "blade",
     crate_root = "src/bin/blade.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -341,6 +346,7 @@ alias(
 
 rust_test(
     name = "codegen_verify_test",
+    version = "0.8.0",
     crate_name = "codegen_verify",
     crate_root = "tests/codegen_verify.rs",
     srcs = [
@@ -406,6 +412,7 @@ rust_test(
 
 rust_test(
     name = "dependency_resolver_test_test",
+    version = "0.8.0",
     crate_name = "dependency_resolver_test",
     crate_root = "tests/dependency_resolver_test.rs",
     srcs = [
@@ -471,6 +478,7 @@ rust_test(
 
 rust_test(
     name = "factory_plugin_compilation_bug_test_test",
+    version = "0.8.0",
     crate_name = "factory_plugin_compilation_bug_test",
     crate_root = "tests/factory_plugin_compilation_bug_test.rs",
     srcs = [
@@ -536,6 +544,7 @@ rust_test(
 
 rust_test(
     name = "factory_plugin_preservation_test_test",
+    version = "0.8.0",
     crate_name = "factory_plugin_preservation_test",
     crate_root = "tests/factory_plugin_preservation_test.rs",
     srcs = [
@@ -601,6 +610,7 @@ rust_test(
 
 rust_test(
     name = "import_asm_test_test",
+    version = "0.8.0",
     crate_name = "import_asm_test",
     crate_root = "tests/import_asm_test.rs",
     srcs = [
@@ -666,6 +676,7 @@ rust_test(
 
 rust_test(
     name = "launcher_kn_test_test",
+    version = "0.8.0",
     crate_name = "launcher_kn_test",
     crate_root = "tests/launcher_kn_test.rs",
     srcs = [
@@ -731,6 +742,7 @@ rust_test(
 
 rust_test(
     name = "packager_regression_fixtures_test",
+    version = "0.8.0",
     crate_name = "packager_regression_fixtures",
     crate_root = "tests/packager_regression_fixtures.rs",
     srcs = [
@@ -796,6 +808,7 @@ rust_test(
 
 rust_test(
     name = "test_uplugin_shader_support_test",
+    version = "0.8.0",
     crate_name = "test_uplugin_shader_support",
     crate_root = "tests/test_uplugin_shader_support.rs",
     srcs = [
@@ -861,6 +874,7 @@ rust_test(
 
 rust_test(
     name = "typescript_codegen_test_test",
+    version = "0.8.0",
     crate_name = "typescript_codegen_test",
     crate_root = "tests/typescript_codegen_test.rs",
     srcs = [

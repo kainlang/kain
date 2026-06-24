@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-core",
+    version = "0.8.0",
     crate_name = "kain_core",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -52,6 +53,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-core",
     edition = "2021",
     crate_features = [
@@ -78,6 +80,7 @@ rust_test(
 
 rust_test(
     name = "actor_contract_test_test",
+    version = "0.8.0",
     crate_name = "actor_contract_test",
     crate_root = "tests/actor_contract_test.rs",
     srcs = [
@@ -112,6 +115,7 @@ rust_test(
 
 rust_test(
     name = "bitwise_ops_test_test",
+    version = "0.8.0",
     crate_name = "bitwise_ops_test",
     crate_root = "tests/bitwise_ops_test.rs",
     srcs = [
@@ -146,6 +150,7 @@ rust_test(
 
 rust_test(
     name = "compiler_owned_intent_test_test",
+    version = "0.8.0",
     crate_name = "compiler_owned_intent_test",
     crate_root = "tests/compiler_owned_intent_test.rs",
     srcs = [
@@ -180,6 +185,7 @@ rust_test(
 
 rust_test(
     name = "compute_metadata_test_test",
+    version = "0.8.0",
     crate_name = "compute_metadata_test",
     crate_root = "tests/compute_metadata_test.rs",
     srcs = [
@@ -214,6 +220,7 @@ rust_test(
 
 rust_test(
     name = "material_graph_test_test",
+    version = "0.8.0",
     crate_name = "material_graph_test",
     crate_root = "tests/material_graph_test.rs",
     srcs = [
@@ -248,6 +255,7 @@ rust_test(
 
 rust_test(
     name = "mod_parser_test_test",
+    version = "0.8.0",
     crate_name = "mod_parser_test",
     crate_root = "tests/mod_parser_test.rs",
     srcs = [
@@ -282,6 +290,7 @@ rust_test(
 
 rust_test(
     name = "monomorphize_test_test",
+    version = "0.8.0",
     crate_name = "monomorphize_test",
     crate_root = "tests/monomorphize_test.rs",
     srcs = [
@@ -316,6 +325,7 @@ rust_test(
 
 rust_test(
     name = "ownership_keywords_test_test",
+    version = "0.8.0",
     crate_name = "ownership_keywords_test",
     crate_root = "tests/ownership_keywords_test.rs",
     srcs = [
@@ -350,6 +360,7 @@ rust_test(
 
 rust_test(
     name = "parser_graph_editor_tests_test",
+    version = "0.8.0",
     crate_name = "parser_graph_editor_tests",
     crate_root = "tests/parser_graph_editor_tests.rs",
     srcs = [
@@ -384,6 +395,7 @@ rust_test(
 
 rust_test(
     name = "ptr_type_test_test",
+    version = "0.8.0",
     crate_name = "ptr_type_test",
     crate_root = "tests/ptr_type_test.rs",
     srcs = [
@@ -418,6 +430,7 @@ rust_test(
 
 rust_test(
     name = "reflection_payload_test_test",
+    version = "0.8.0",
     crate_name = "reflection_payload_test",
     crate_root = "tests/reflection_payload_test.rs",
     srcs = [
@@ -452,6 +465,7 @@ rust_test(
 
 rust_test(
     name = "semantic_typecheck_test_test",
+    version = "0.8.0",
     crate_name = "semantic_typecheck_test",
     crate_root = "tests/semantic_typecheck_test.rs",
     srcs = [
@@ -486,6 +500,7 @@ rust_test(
 
 rust_test(
     name = "test_graph_runtime_parser_test",
+    version = "0.8.0",
     crate_name = "test_graph_runtime_parser",
     crate_root = "tests/test_graph_runtime_parser.rs",
     srcs = [
@@ -520,6 +535,7 @@ rust_test(
 
 rust_test(
     name = "test_import_path_keywords_test",
+    version = "0.8.0",
     crate_name = "test_import_path_keywords",
     crate_root = "tests/test_import_path_keywords.rs",
     srcs = [
@@ -554,6 +570,7 @@ rust_test(
 
 rust_test(
     name = "test_network_sync_parser_test",
+    version = "0.8.0",
     crate_name = "test_network_sync_parser",
     crate_root = "tests/test_network_sync_parser.rs",
     srcs = [
@@ -588,6 +605,7 @@ rust_test(
 
 rust_test(
     name = "test_parser_error_format_test",
+    version = "0.8.0",
     crate_name = "test_parser_error_format",
     crate_root = "tests/test_parser_error_format.rs",
     srcs = [
@@ -622,6 +640,7 @@ rust_test(
 
 rust_test(
     name = "test_parser_error_quality_test",
+    version = "0.8.0",
     crate_name = "test_parser_error_quality",
     crate_root = "tests/test_parser_error_quality.rs",
     srcs = [
@@ -656,6 +675,7 @@ rust_test(
 
 rust_test(
     name = "test_state_machine_parser_test",
+    version = "0.8.0",
     crate_name = "test_state_machine_parser",
     crate_root = "tests/test_state_machine_parser.rs",
     srcs = [
@@ -690,6 +710,7 @@ rust_test(
 
 rust_test(
     name = "test_target_actor_parser_test",
+    version = "0.8.0",
     crate_name = "test_target_actor_parser",
     crate_root = "tests/test_target_actor_parser.rs",
     srcs = [

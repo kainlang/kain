@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-c-ffi",
+    version = "0.8.0",
     crate_name = "kain_c_ffi",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -43,6 +44,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-c-ffi",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -60,6 +62,7 @@ rust_test(
 
 rust_test(
     name = "vcpkg_integration_test",
+    version = "0.8.0",
     crate_name = "vcpkg_integration",
     crate_root = "tests/vcpkg_integration.rs",
     srcs = [

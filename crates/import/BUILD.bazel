@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-import",
+    version = "0.8.0",
     crate_name = "kain_import",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -45,6 +46,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-import",
     edition = "2021",
     crate_features = [
@@ -64,6 +66,7 @@ rust_test(
 
 rust_test(
     name = "c_abi_conformance_test",
+    version = "0.8.0",
     crate_name = "c_abi_conformance",
     crate_root = "tests/c_abi_conformance.rs",
     srcs = [
@@ -91,6 +94,7 @@ rust_test(
 
 rust_test(
     name = "c_abi_corpus_test",
+    version = "0.8.0",
     crate_name = "c_abi_corpus",
     crate_root = "tests/c_abi_corpus.rs",
     srcs = [

@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "ue5-config",
+    version = "0.8.0",
     crate_name = "ue5_config",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -39,6 +40,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":ue5-config",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -52,6 +54,7 @@ rust_test(
 
 rust_test(
     name = "blueprint_accessor_tests_test",
+    version = "0.8.0",
     crate_name = "blueprint_accessor_tests",
     crate_root = "tests/blueprint_accessor_tests.rs",
     srcs = [
@@ -73,6 +76,7 @@ rust_test(
 
 rust_test(
     name = "config_ir_tests_test",
+    version = "0.8.0",
     crate_name = "config_ir_tests",
     crate_root = "tests/config_ir_tests.rs",
     srcs = [
@@ -94,6 +98,7 @@ rust_test(
 
 rust_test(
     name = "cvar_tests_test",
+    version = "0.8.0",
     crate_name = "cvar_tests",
     crate_root = "tests/cvar_tests.rs",
     srcs = [
@@ -115,6 +120,7 @@ rust_test(
 
 rust_test(
     name = "developer_settings_tests_test",
+    version = "0.8.0",
     crate_name = "developer_settings_tests",
     crate_root = "tests/developer_settings_tests.rs",
     srcs = [
@@ -136,6 +142,7 @@ rust_test(
 
 rust_test(
     name = "ini_file_tests_test",
+    version = "0.8.0",
     crate_name = "ini_file_tests",
     crate_root = "tests/ini_file_tests.rs",
     srcs = [
@@ -157,6 +164,7 @@ rust_test(
 
 rust_test(
     name = "integration_tests_test",
+    version = "0.8.0",
     crate_name = "integration_tests",
     crate_root = "tests/integration_tests.rs",
     srcs = [
@@ -178,6 +186,7 @@ rust_test(
 
 rust_test(
     name = "parser_tests_test",
+    version = "0.8.0",
     crate_name = "parser_tests",
     crate_root = "tests/parser_tests.rs",
     srcs = [

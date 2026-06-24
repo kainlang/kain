@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "ue5",
+    version = "0.8.0",
     crate_name = "ue5",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -39,6 +40,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":ue5",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -52,6 +54,7 @@ rust_test(
 
 rust_test(
     name = "array_method_tests_test",
+    version = "0.8.0",
     crate_name = "array_method_tests",
     crate_root = "tests/array_method_tests.rs",
     srcs = [
@@ -73,6 +76,7 @@ rust_test(
 
 rust_test(
     name = "generic_codegen_tests_test",
+    version = "0.8.0",
     crate_name = "generic_codegen_tests",
     crate_root = "tests/generic_codegen_tests.rs",
     srcs = [
@@ -94,6 +98,7 @@ rust_test(
 
 rust_test(
     name = "match_codegen_tests_test",
+    version = "0.8.0",
     crate_name = "match_codegen_tests",
     crate_root = "tests/match_codegen_tests.rs",
     srcs = [
@@ -115,6 +120,7 @@ rust_test(
 
 rust_test(
     name = "member_access_tests_test",
+    version = "0.8.0",
     crate_name = "member_access_tests",
     crate_root = "tests/member_access_tests.rs",
     srcs = [
@@ -136,6 +142,7 @@ rust_test(
 
 rust_test(
     name = "network_sync_integration_test_test",
+    version = "0.8.0",
     crate_name = "network_sync_integration_test",
     crate_root = "tests/network_sync_integration_test.rs",
     srcs = [
@@ -157,6 +164,7 @@ rust_test(
 
 rust_test(
     name = "state_machine_integration_test_test",
+    version = "0.8.0",
     crate_name = "state_machine_integration_test",
     crate_root = "tests/state_machine_integration_test.rs",
     srcs = [
@@ -178,6 +186,7 @@ rust_test(
 
 rust_test(
     name = "validation_rules_test_test",
+    version = "0.8.0",
     crate_name = "validation_rules_test",
     crate_root = "tests/validation_rules_test.rs",
     srcs = [

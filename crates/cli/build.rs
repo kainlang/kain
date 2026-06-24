@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -25,10 +27,36 @@ fn env_override(key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+/// Load build tracking info from a `data/build_info.env` file written by the
+/// sync script (kain_bazel_sync.py) before invoking Bazel.  This is the
+/// primary delivery mechanism since Bazel's --action_env does not reliably
+/// propagate to cargo_build_script actions in all rules_rust versions.
+fn load_build_info_file() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    // In Bazel, CARGO_MANIFEST_DIR points to the execroot package directory.
+    // The data/**/* glob ensures build_info.env is available as a runfile.
+    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        let info_path = Path::new(&manifest_dir).join("data/build_info.env");
+        if let Ok(content) = fs::read_to_string(&info_path) {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    map.insert(key.trim().to_string(), value.trim().to_string());
+                }
+            }
+        }
+    }
+    map
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=data/build_info.env");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_NUMBER");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_TRACKING_MODE");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_GIT_SHA");
@@ -36,9 +64,20 @@ fn main() {
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_GIT_DIRTY");
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
 
-    let unix_time = env::var("SOURCE_DATE_EPOCH")
-        .ok()
+    // Load build info from sync-script-generated file (primary delivery
+    // mechanism for Bazel builds where --action_env doesn't propagate).
+    let info_file = load_build_info_file();
+
+    let from_file = |key: &str| info_file.get(key).cloned().filter(|v| !v.is_empty());
+
+    // Timestamp: file > env var > current time
+    let unix_time = from_file("SOURCE_DATE_EPOCH")
         .and_then(|v| v.parse::<u64>().ok())
+        .or_else(|| {
+            env::var("SOURCE_DATE_EPOCH")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+        })
         .unwrap_or_else(|| {
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -46,27 +85,38 @@ fn main() {
                 .unwrap_or(0)
         });
 
-    // Resolve git info early so it can be reused for build-number derivation.
-    let git_sha = env_override("KAIN_BUILD_GIT_SHA")
+    // Resolve git info: file > env var > git command (Bazel sandbox fallback)
+    let git_sha = from_file("KAIN_BUILD_GIT_SHA")
+        .or_else(|| env_override("KAIN_BUILD_GIT_SHA"))
         .or_else(|| git_output(&["rev-parse", "--short=12", "HEAD"]));
-    let git_commit_count = env_override("KAIN_BUILD_GIT_COMMIT_COUNT")
+    let git_commit_count = from_file("KAIN_BUILD_GIT_COMMIT_COUNT")
+        .or_else(|| env_override("KAIN_BUILD_GIT_COMMIT_COUNT"))
         .or_else(|| git_output(&["rev-list", "--count", "HEAD"]));
-    let git_dirty = env_override("KAIN_BUILD_GIT_DIRTY").unwrap_or_else(|| {
-        match git_output(&["status", "--porcelain"]) {
-            Some(status) if status.is_empty() => "clean".to_string(),
-            Some(_) => "dirty".to_string(),
-            None => "unknown".to_string(),
-        }
-    });
+    let git_dirty = from_file("KAIN_BUILD_GIT_DIRTY")
+        .or_else(|| env_override("KAIN_BUILD_GIT_DIRTY"))
+        .unwrap_or_else(|| {
+            match git_output(&["status", "--porcelain"]) {
+                Some(status) if status.is_empty() => "clean".to_string(),
+                Some(_) => "dirty".to_string(),
+                None => "unknown".to_string(),
+            }
+        });
 
-    let managed_build_number = env::var("KAIN_BUILD_NUMBER")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    let build_tracking_mode = env::var("KAIN_BUILD_TRACKING_MODE")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+    // Build number: file > env var > auto-derive from git
+    let managed_build_number = from_file("KAIN_BUILD_NUMBER")
+        .or_else(|| {
+            env::var("KAIN_BUILD_NUMBER")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        });
+    let build_tracking_mode = from_file("KAIN_BUILD_TRACKING_MODE")
+        .or_else(|| {
+            env::var("KAIN_BUILD_TRACKING_MODE")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        });
 
     let (build_number, tracking_mode) = match managed_build_number {
         Some(number) => (

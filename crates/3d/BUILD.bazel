@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-3d",
+    version = "0.8.0",
     crate_name = "kain_3d",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -40,6 +41,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-3d",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -54,6 +56,7 @@ rust_test(
 
 rust_binary(
     name = "generic_scene_smoke",
+    version = "0.8.0",
     crate_name = "generic_scene_smoke",
     crate_root = "src/bin/generic_scene_smoke.rs",
     srcs = glob(["src/**/*.rs"]),

@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-sys-codegen",
+    version = "0.8.0",
     crate_name = "kain_sys_codegen",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -42,6 +43,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-sys-codegen",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -58,6 +60,7 @@ rust_test(
 
 rust_test(
     name = "c_codegen_test_test",
+    version = "0.8.0",
     crate_name = "c_codegen_test",
     crate_root = "tests/c_codegen_test.rs",
     srcs = [
@@ -82,6 +85,7 @@ rust_test(
 
 rust_test(
     name = "cpp_helper_documentation_test_test",
+    version = "0.8.0",
     crate_name = "cpp_helper_documentation_test",
     crate_root = "tests/cpp_helper_documentation_test.rs",
     srcs = [
@@ -106,6 +110,7 @@ rust_test(
 
 rust_test(
     name = "dwarf_debug_metadata_test_test",
+    version = "0.8.0",
     crate_name = "dwarf_debug_metadata_test",
     crate_root = "tests/dwarf_debug_metadata_test.rs",
     srcs = [
@@ -130,6 +135,7 @@ rust_test(
 
 rust_test(
     name = "gpu_artifacts_test_test",
+    version = "0.8.0",
     crate_name = "gpu_artifacts_test",
     crate_root = "tests/gpu_artifacts_test.rs",
     srcs = [
@@ -154,6 +160,7 @@ rust_test(
 
 rust_test(
     name = "llvm_codegen_test_test",
+    version = "0.8.0",
     crate_name = "llvm_codegen_test",
     crate_root = "tests/llvm_codegen_test.rs",
     srcs = [

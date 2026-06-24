@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-orchestrate",
+    version = "0.8.0",
     crate_name = "kain_orchestrate",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -38,10 +39,13 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-orchestrate",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal = True, normal_dev = True),
+    deps = all_crate_deps(normal = True, normal_dev = True) + [
+        "@crates//:serde_json",
+    ],
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
 )

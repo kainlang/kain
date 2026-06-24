@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "ue5-blueprints",
+    version = "0.8.0",
     crate_name = "ue5_blueprints",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -44,6 +45,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":ue5-blueprints",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),

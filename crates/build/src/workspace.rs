@@ -861,10 +861,25 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
         unit,
         kain_driver::target_extension(options.target)
     ));
-    let materialized_primary_output = options
-        .output
-        .as_ref()
-        .map(|path| resolve_materialized_output_path(path, options.target, &config.workspace_root));
+    let materialized_primary_output = options.output.as_ref().map(|path| {
+        if matches!(
+            options.target,
+            CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal
+        ) {
+            // For native targets, -o specifies the native binary path,
+            // not the intermediate .ll file. Don't force the extension.
+            // Resolve relative paths against CWD, not workspace_root.
+            if path.is_relative() {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join(path)
+            } else {
+                path.clone()
+            }
+        } else {
+            resolve_materialized_output_path(path, options.target, &config.workspace_root)
+        }
+    });
     let mut outputs = kain_compile_expected_outputs(
         options.target,
         &primary_output,
@@ -3796,6 +3811,7 @@ fn run_kain_compile(
             // For LLVM target + any emit mode, link the native binary.
             // For sharedlib/staticlib/object, always link.
             // For exe with C target, the C compiler handles linking.
+            // Always link to the cache path first (for rebuild detection).
             let native_output = resolve_native_output_path(source_path, primary_output, emit);
             let link_req = NativeLinkRequest {
                 emit,
@@ -3810,6 +3826,29 @@ fn run_kain_compile(
                 Ok(exe_path) => {
                     eprintln!(" Native binary: {}", exe_path.display());
                     artifacts.push(record_artifact("native-binary", &exe_path)?);
+
+                    // Materialize the native binary to the user-facing path.
+                    // If -o was specified, use that. Otherwise copy to cwd
+                    // (like clang/rustc/go do by default).
+                    let user_path = if let Some(mat) = materialized_primary_output {
+                        mat.clone()
+                    } else {
+                        let stem = source_path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("output");
+                        std::env::current_dir()
+                            .unwrap_or_else(|_| PathBuf::from("."))
+                            .join(format!("{}.{}", stem, emit.extension()))
+                    };
+
+                    if user_path != exe_path {
+                        if let Some(parent) = user_path.parent() {
+                            kfs::create_dir_all(parent)?;
+                        }
+                        kfs::copy_file(&exe_path, &user_path)?;
+                    }
+                    artifacts.push(record_artifact("materialized-primary", &user_path)?);
                 }
                 Err(err) => {
                     return Err(BuildError::Config(format!("native link failed: {err}")));
@@ -3818,8 +3857,13 @@ fn run_kain_compile(
         }
     }
 
+    // Materialize the primary output to the user-specified path.
+    // For native targets (Llvm, C, BareMetal), the native binary has already
+    // been materialized in the linking block above; skip the .ll copy.
     if let Some(materialized) = materialized_primary_output {
-        if materialized != primary_output {
+        let is_native =
+            matches!(target, CompileTarget::Llvm | CompileTarget::C | CompileTarget::BareMetal);
+        if !is_native && materialized != primary_output {
             if let Some(parent) = materialized.parent() {
                 kfs::create_dir_all(parent)?;
             }

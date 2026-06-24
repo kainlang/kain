@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-stdlib-map",
+    version = "0.8.0",
     crate_name = "kain_stdlib_map",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -38,6 +39,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-stdlib-map",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -50,6 +52,7 @@ rust_test(
 
 rust_binary(
     name = "kain_stdlib_map_tool",
+    version = "0.8.0",
     crate_name = "kain_stdlib_map_tool",
     crate_root = "src/main.rs",
     srcs = glob(["src/**/*.rs"]),

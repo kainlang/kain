@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "kain-driver",
+    version = "0.8.0",
     crate_name = "kain_driver",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -60,6 +61,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-driver",
     edition = "2021",
     crate_features = [

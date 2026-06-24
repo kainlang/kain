@@ -40,6 +40,7 @@ cargo_build_script(
 
 rust_library(
     name = "kain-semantic",
+    version = "0.8.0",
     crate_name = "kain_semantic",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -58,6 +59,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
+    version = "0.8.0",
     crate = ":kain-semantic",
     edition = "2021",
     crate_features = [

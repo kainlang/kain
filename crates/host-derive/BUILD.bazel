@@ -24,6 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_proc_macro(
     name = "kain-host-derive",
+    version = "0.8.0",
     crate_name = "kain_host_derive",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
