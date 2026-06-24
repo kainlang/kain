@@ -23,6 +23,7 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
 
 // ── Win32 virtual-key → Kain key code string ────────────────────────
@@ -148,12 +149,49 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
             if (host) host->running = 0;
             PostQuitMessage(0);
             return 0;
-        case WM_SIZE:
-            if (host) {
-                host->width = LOWORD(l_param);
-                host->height = HIWORD(l_param);
+        case WM_SIZE: {
+            if (!host) return 0;
+
+            int new_w = LOWORD(l_param);
+            int new_h = HIWORD(l_param);
+
+            if (host->hbitmap) {
+                // Replace with a temporary 1x1 bitmap so we can delete the old DIB.
+                // GetStockObject has no DEFAULT_BITMAP, so we create a tiny temp.
+                HBITMAP temp_bmp = CreateBitmap(1, 1, 1, 1, NULL);
+                SelectObject(host->hdc_buffer, temp_bmp);
+                DeleteObject(host->hbitmap);
+                host->hbitmap = temp_bmp;
+                host->framebuffer = NULL;
             }
+
+            BITMAPINFO bmi = {0};
+            bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+            bmi.bmiHeader.biWidth = new_w;
+            bmi.bmiHeader.biHeight = -new_h; // top-down
+            bmi.bmiHeader.biPlanes = 1;
+            bmi.bmiHeader.biBitCount = 32;
+            bmi.bmiHeader.biCompression = BI_RGB;
+
+            HDC hdc_screen = GetDC(NULL);
+            host->hbitmap = CreateDIBSection(hdc_screen, &bmi, DIB_RGB_COLORS, (void**)&host->framebuffer, NULL, 0);
+            ReleaseDC(NULL, hdc_screen);
+
+            if (host->hbitmap && host->hdc_buffer) {
+                SelectObject(host->hdc_buffer, host->hbitmap);
+            }
+
+            // Clear the garbage memory immediately
+            if (host->framebuffer) {
+                memset(host->framebuffer, 0, (size_t)new_w * new_h * 4);
+            }
+
+            host->width = new_w;
+            host->height = new_h;
+            host->fb_stride = new_w * 4;
+
             return 0;
+        }
         case WM_ERASEBKGND:
             return 1;  // Don't erase, we paint everything
         case WM_PAINT: {
@@ -170,6 +208,19 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
                        host->hdc_buffer, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
             }
             EndPaint(hwnd, &ps);
+            return 0;
+        }
+        case WM_DPICHANGED: {
+            // Windows hands you the perfect RECT for the new monitor's scale
+            RECT* suggested_rect = (RECT*)l_param;
+            SetWindowPos(hwnd,
+                         NULL,
+                         suggested_rect->left,
+                         suggested_rect->top,
+                         suggested_rect->right - suggested_rect->left,
+                         suggested_rect->bottom - suggested_rect->top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+            // SetWindowPos automatically triggers WM_SIZE, which reallocates the DIBSection
             return 0;
         }
     }
@@ -198,6 +249,19 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
         return NULL;
     }
 
+    // Defensively load the V2 DPI API before window creation
+    {
+        typedef BOOL(WINAPI *SetProcessDpiAwarenessContext_fn)(DPI_AWARENESS_CONTEXT);
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        if (user32) {
+            SetProcessDpiAwarenessContext_fn set_dpi_aware =
+                (SetProcessDpiAwarenessContext_fn)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+            if (set_dpi_aware) {
+                set_dpi_aware(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            }
+        }
+    }
+
     // Create window — use explicit position, CW_USEDEFAULT can produce
     // off-screen coordinates on high-DPI/multi-monitor systems.
     host->hwnd = CreateWindowExA(
@@ -224,6 +288,11 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
     if (actual_h <= 0) actual_h = height;
     host->width = actual_w;
     host->height = actual_h;
+
+    // Grab the initial baseline DPI before WM_DPICHANGED ever fires
+    HDC hdc_screen2 = GetDC(NULL);
+    host->dpi_scale = (float)GetDeviceCaps(hdc_screen2, LOGPIXELSX) / 96.0f;
+    ReleaseDC(NULL, hdc_screen2);
 
     // Create framebuffer at actual client size
     HDC hdc_screen = GetDC(NULL);
@@ -357,6 +426,8 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
         // overflows in ui_draw_fill_rect and crashes in ui_render_frame.
         session->width = win32_host->width;
         session->height = win32_host->height;
+        // Push DPI scale from host to session for the renderer
+        session->dpi_scale = (double)win32_host->dpi_scale;
         return ABI_UI_OK;
     }
 #endif
