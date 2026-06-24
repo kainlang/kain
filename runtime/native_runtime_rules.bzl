@@ -5,11 +5,19 @@ WINDOWS_RUNTIME_DEFINES = [
     "_WINDOWS",
 ]
 
-WINDOWS_COPTS = [
-    "/W3",
-    "/std:c11",
-    "/Gy",  # Enable function-level linking for linker GC (clang-cl compatible)
-]
+WINDOWS_COPTS = select({
+    "//runtime:clang_cl_compiler": [
+        "/W3",
+        "/std:c11",
+        "/Gy",  # Function-level linking (clang-cl compatible)
+    ],
+    "//conditions:default": [
+        "/W3",
+        "/std:c11",
+        "/experimental:c11atomics",
+        "/Gy",  # Enable function-level linking for linker GC
+    ],
+})
 
 WINDOWS_CPP_COPTS = WINDOWS_COPTS + [
     "/std:c++20",

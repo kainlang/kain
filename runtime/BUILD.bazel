@@ -25,6 +25,14 @@ config_setting(
     constraint_values = ["@platforms//os:macos"],
 )
 
+# Detect clang-cl on Windows (used for clang-cl compatible flags)
+config_setting(
+    name = "clang_cl_compiler",
+    flag_values = {
+        "@bazel_tools//tools/cpp:compiler": "clang-cl",
+    },
+)
+
 RUNTIME_TEST_LINUX_DEFINES = [
     "_POSIX_C_SOURCE=200809L",
 ]
