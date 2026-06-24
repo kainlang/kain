@@ -1,0 +1,28 @@
+version: 1
+id: stb-truetype.rasterize_sorted_edges.winding_rule_correct
+kind: find_counterexample
+description: >
+  Non-zero winding rule accumulation in stbtt__fill_active_edges correctly
+  tracks entering/exiting edges. Winding count stays in {-1, 0, +1} for
+  simple closed outlines, alternating direction on each crossing, ensuring
+  pixels between crossing pairs are correctly identified as filled regions.
+tags:
+- stb_truetype
+- rasterizer
+- winding-rule
+- coverage
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt__fill_active_edges
+  start_line: 2882
+  end_line: 2922
+  reason: >
+    The non-zero winding fill determines which pixels are inside the glyph.
+    An incorrect winding accumulation would fill the wrong pixels, producing
+    broken glyph rendering.
+case:
+  smt2_file: stbtt__rasterize_sorted_edges_coverage.smt2
+  include_model: false
+  include_stats: false
