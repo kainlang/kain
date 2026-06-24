@@ -1,0 +1,54 @@
+version: 1
+id: kain.native.core.proofs.native_handle_slot_branchless
+kind: check_smt2
+description: >
+  The kain_handle_slot function extracts the slot from a handle
+  using a branch to check for encoded==0 (sentinel). This proof
+  shows that the branchless form `encoded - 1u` is equivalent for
+  all 32-bit encoded values, because unsigned wraparound maps
+  0 → UINT32_MAX (the sentinel), matching the conditional.
+  This eliminates a branch on every handle extraction path.
+tags:
+- native-runtime
+- handle
+- branchless
+- invariant
+source:
+  path: X:\runtime\native\src\core\handle.c
+  symbol: kain_handle_slot
+  start_line: 22
+  reason: >
+    kain_handle_slot uses `encoded == 0 ? UINT32_MAX : encoded - 1`.
+    The branchless `encoded - 1` is equivalent because unsigned
+    wraparound gives the same result for all encoded values.
+    Eliminates a predictable-but-unnecessary branch on the hot path.
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Prove: for all 32-bit encoded values,
+    ;   (encoded == 0 ? UINT32_MAX : encoded - 1) == (encoded - 1)
+    ;
+    ; The branchless version relies on unsigned integer wraparound:
+    when encoded = 0:  0 - 1 = UINT32_MAX = 0xFFFFFFFF (sentinel)
+    ; when encoded > 0:  encoded - 1 = encoded - 1 (correct index)
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const encoded (_ BitVec 32))
+
+    ; Original: encoded == 0 ? 0xFFFFFFFF : encoded - 1
+    (define-fun orig () (_ BitVec 32)
+      (ite (= encoded (_ bv0 32))
+           (_ bv4294967295 32)    ; UINT32_MAX = 0xFFFFFFFF
+           (bvsub encoded (_ bv1 32))))
+
+    ; Branchless: encoded - 1 (unsigned wraparound)
+    (define-fun branchless () (_ BitVec 32)
+      (bvsub encoded (_ bv1 32)))
+
+    ; Prove equivalence
+    (assert (not (= orig branchless)))
+    (check-sat)
+  include_model: false
+  include_stats: false

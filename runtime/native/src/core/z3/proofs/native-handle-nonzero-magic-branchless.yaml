@@ -1,0 +1,62 @@
+version: 1
+id: kain.native.core.proofs.native_handle_nonzero_magic_branchless
+kind: check_smt2
+description: >
+  The kain_handle_nonzero_magic function ensures magic values are
+  never zero (for sentinel detection). It uses a branch to check
+  whether masked magic is zero. This proof shows the branchless
+  form `m | (uint32_t)(m == 0)` is equivalent for all 24-bit
+  masked values. The expression uses bitwise OR with the comparison
+  result, compiling to SETcc + OR on x86 — no branch.
+tags:
+- native-runtime
+- handle
+- branchless
+- invariant
+source:
+  path: X:\runtime\native\src\core\handle.c
+  symbol: kain_handle_nonzero_magic
+  start_line: 7
+  reason: >
+    kain_handle_nonzero_magic uses a branch to map 0→1.
+    The branchless form uses `m | (m == 0)`: when m=0, result=1;
+    when m≠0, result=m. Eliminates branch on every acquire/release.
+case:
+  smt2: |
+    ;
+    ; =========================================================================
+    ; Prove: for all 32-bit magic values,
+    ;   (m == 0 ? 1 : m) == (m | (uint32_t)(m == 0))
+    ;
+    ; where m = magic & 0x00FFFFFF (24-bit mask).
+    ;
+    ; The branchless version uses bitwise OR with the comparison result:
+    ;   m == 0 → m | (uint32_t)(true)  = m | 1 = 1
+    ;   m != 0 → m | (uint32_t)(false) = m | 0 = m
+    ; =========================================================================
+    (set-logic QF_BV)
+
+    (declare-const magic (_ BitVec 32))
+
+    ; 24-bit mask: 0x00FFFFFF = 16777215
+    (define-fun m () (_ BitVec 32)
+      (bvand magic (_ bv16777215 32)))
+
+    ; Original: m == 0 ? 1 : m
+    (define-fun orig () (_ BitVec 32)
+      (ite (= m (_ bv0 32))
+           (_ bv1 32)
+           m))
+
+    ; Branchless: m | (uint32_t)(m == 0)
+    ; (bvcomp returns 1 if equal, 0 if not—as a 1-bit value)
+    ; Zero-extend to 32 bits before OR
+    (define-fun branchless () (_ BitVec 32)
+      (bvor m
+            ((_ zero_extend 31) (bvcomp m (_ bv0 32)))))
+
+    ; Prove equivalence
+    (assert (not (= orig branchless)))
+    (check-sat)
+  include_model: false
+  include_stats: false
