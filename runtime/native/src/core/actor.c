@@ -23,6 +23,7 @@
 
 #if defined(_MSC_VER)
 #define KAIN_THREAD_LOCAL __declspec(thread)
+#include <intrin.h>
 #else
 #define KAIN_THREAD_LOCAL _Thread_local
 #endif
@@ -146,10 +147,18 @@ static atomic_uint_least64_t g_attrition_reply_port_live_count = 0;
 static atomic_uint_least64_t g_attrition_reply_port_peak_count = 0;
 
 static uint64_t kain_attrition_actor_popcount_u64(uint64_t value) {
+#if defined(__clang__) || defined(__GNUC__)
+    /* POPCNT instruction (single cycle on modern x86) */
+    return (uint64_t)__builtin_popcountll(value);
+#elif defined(_MSC_VER) && defined(_M_X64)
+    return (uint64_t)__popcnt64(value);
+#else
+    /* Fallback: SWAR popcount for non-x86 platforms */
     value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
     value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
     value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
     return (value * UINT64_C(0x0101010101010101)) >> 56u;
+#endif
 }
 
 static void kain_attrition_actor_update_peak(
@@ -436,12 +445,18 @@ static int kain_actor_borrowed_message_release_match(const void* message_data) {
     if (message_data == NULL || g_actor_borrowed_message_depth == 0u) {
         return 0;
     }
+    /* Bounded stack: KAIN_ACTOR_BORROWED_MESSAGE_STACK_CAPACITY = 64.
+     * Linear backward scan, then memmove to close the gap (avoids manual
+     * element-by-element shift loop). */
     for (index = g_actor_borrowed_message_depth; index > 0u; --index) {
         if (g_actor_borrowed_message_stack[index - 1u] == message_data) {
-            unsigned int tail_index;
-            for (tail_index = index; tail_index < g_actor_borrowed_message_depth; ++tail_index) {
-                g_actor_borrowed_message_stack[tail_index - 1u] =
-                    g_actor_borrowed_message_stack[tail_index];
+            size_t bytes_to_move = (g_actor_borrowed_message_depth - index) * sizeof(const void*);
+            if (bytes_to_move > 0u) {
+                memmove(
+                    (void**)&g_actor_borrowed_message_stack[index - 1u],
+                    (void**)&g_actor_borrowed_message_stack[index],
+                    bytes_to_move
+                );
             }
             g_actor_borrowed_message_stack[g_actor_borrowed_message_depth - 1u] = NULL;
             g_actor_borrowed_message_depth--;
@@ -1916,10 +1931,10 @@ static void kain_actor_table_remove(KainActorId actor_id) {
 
     actor = g_actor_table.actors[actor_id];
     g_actor_table.actors[actor_id] = NULL;
-    word_index = (size_t)(actor_id / KAIN_ACTOR_TABLE_WORD_BITS);
-    /* Proof: runtime/native/src/core/z3/proofs-experimental/actor-occupancy-shift-mod-to-bitand.smt2 */
-    /* KAIN_ACTOR_TABLE_WORD_BITS = 64 = 2^6, so % is equivalent to & (bits-1) */
-    bit_mask = 1ULL << (unsigned int)(actor_id & (KAIN_ACTOR_TABLE_WORD_BITS - 1u));
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/actor-table-remove-div-to-shift.smt2 */
+    /* KAIN_ACTOR_TABLE_WORD_BITS = 64 = 2^6, so /64 == >>6 and %64 == &63 */
+    word_index = (size_t)(actor_id >> 6u);
+    bit_mask = 1ULL << (unsigned int)(actor_id & 63u);
     g_actor_table.occupancy_words[word_index] &= ~bit_mask;
 
 #ifdef _WIN32
@@ -4195,22 +4210,19 @@ static int kain_actor_should_restart(KainActorState_Internal* child) {
     KainRestartPolicy policy = child->supervisor.restart_policy;
     KainActorExitReason exit_reason = child->exit_reason;
 
-    switch (policy) {
-        case KAIN_RESTART_POLICY_PERMANENT:
-            /* Always restart, regardless of exit reason */
-            return 1;
-
-        case KAIN_RESTART_POLICY_TEMPORARY:
-            /* Never restart */
-            return 0;
-
-        case KAIN_RESTART_POLICY_TRANSIENT:
-            /* Restart only on abnormal exit */
-            return (exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
-                    exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN);
-
-        default:
-            return 0;
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/actor-restart-policy-branchless.smt2
+     * Branchless predicate replacing switch:
+     *   PERMANENT (0) → always restart (1)
+     *   TEMPORARY (1) → never restart (0)
+     *   TRANSIENT (2) → restart on abnormal exit (exit_reason > SHUTDOWN)
+     *   default       → 0 (same as TEMPORARY)
+     *
+     * Predicate: (policy == 0) | ((policy == 2) & (exit_reason > 1))
+     */
+    {
+        int abnormal = exit_reason > KAIN_ACTOR_EXIT_SHUTDOWN;
+        return (policy == KAIN_RESTART_POLICY_PERMANENT) |
+               ((policy == KAIN_RESTART_POLICY_TRANSIENT) & abnormal);
     }
 }
 
