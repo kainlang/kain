@@ -1,0 +1,55 @@
+version: 1
+id: kain.native.core.proofs.wire-total-records-overflow-guard
+kind: check_smt2
+description: >
+  Proves that the overflow guard in abi_wire_zero_copy_binary_checksum
+  correctly prevents int64_t overflow in the calculation
+  total_records = iterations * 64. When the guard passes
+  (iterations <= INT64_MAX / 64), the multiplication never overflows.
+  Conversely, when the guard fails (iterations > INT64_MAX / 64), the
+  multiplication always overflows — proving the guard is both sound and
+  complete.
+tags:
+- native-runtime
+- wire
+- overflow
+- int64
+source:
+  path: X:\runtime\native\src\core\wire.c
+  symbol: abi_wire_zero_copy_binary_checksum
+  start_line: 46
+  reason: >
+    The total_records calculation is the first arithmetic operation in the
+    periodic fold checksum. If it overflowed, subsequent modulus arithmetic
+    would produce incorrect results. The guard check prevents this by
+    validating the input before multiplication. Z3 proves the guard is
+    correct — no missed overflow cases and no false positives.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+
+    (declare-const iterations Int)
+
+    (define-const PACKET_COUNT Int 64)
+    (define-const INT64_MAX Int 9223372036854775807)
+
+    ; ── Part 1: Guard passes → no overflow ──
+    (assert (>= iterations 0))
+    (assert (<= iterations INT64_MAX))
+    (assert (<= iterations (div INT64_MAX PACKET_COUNT)))
+    (assert (> (* iterations PACKET_COUNT) INT64_MAX))
+    (check-sat)
+    ; Expected: unsat — overflow cannot happen when guard passes
+
+    (reset)
+
+    ; ── Part 2: Guard fails → overflow guaranteed ──
+    (declare-const iterations2 Int)
+    (assert (>= iterations2 0))
+    (assert (<= iterations2 INT64_MAX))
+    (assert (> iterations2 (div INT64_MAX PACKET_COUNT)))
+    (assert (not (> (* iterations2 PACKET_COUNT) INT64_MAX)))
+    (check-sat)
+    ; Expected: unsat — all inputs that fail the guard do overflow
+  include_model: false
+  include_stats: false
