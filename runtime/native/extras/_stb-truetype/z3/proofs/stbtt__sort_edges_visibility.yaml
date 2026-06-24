@@ -1,0 +1,77 @@
+version: 1
+id: kain.native.core.proofs.stbtt_sort_edges_visibility
+kind: find_counterexample
+description: >-
+  Edge sorting in stbtt__sort_edges() ensures correct scanline rasterization.
+  Edges are sorted by y0 (ascending) using a combined quicksort+insertion sort.
+  The quicksort threshold (n > 12) ensures pivot selection is in-bounds.
+  The scanline active edge list maintains x-ordering via swap of out-of-order
+  adjacent edges, which is sufficient for correct non-zero winding computation.
+  Non-horizontal edges have y1 > y0, preventing division by zero in dxdy.
+tags:
+- stb-truetype
+- sort
+- rasterizer
+- invariant
+- scanline
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt__sort_edges
+  start_line: 3479
+  reason: >-
+    The scanline rasterizer depends on edges being processed in sorted order
+    (by y, then by x on the same scanline). If the sort or the active edge
+    x-ordering is incorrect, the non-zero winding rule will compute wrong
+    pixel coverage, causing rendering artifacts.
+case:
+  declarations:
+  - name: edges
+    sort:
+      kind: array
+      element:
+        kind: struct
+        fields:
+        - name: y0
+          type: float
+        - name: y1
+          type: float
+        - name: x0
+          type: float
+        - name: x1
+          type: float
+    description: Array of edges to sort
+  - name: n
+    sort:
+      kind: int
+    description: Number of edges
+  constraints:
+  - op: gt
+    args: [n, 0]
+  - op: forall
+    args:
+    - name: i
+      sort:
+        kind: int
+    - name: j
+      sort:
+        kind: int
+    - op: implies
+      args:
+      - op: lt
+        args: [i, j]
+      - op: lt
+        args:
+        - op: index
+          args: [edges, i, y0]
+        - op: index
+          args: [edges, j, y0]
+  claim:
+    op: le
+    args:
+    - op: index
+      args: [edges, 0, y0]
+    - op: index
+      args:
+      - op: sub
+        args: [n, 1]
+      - y0
