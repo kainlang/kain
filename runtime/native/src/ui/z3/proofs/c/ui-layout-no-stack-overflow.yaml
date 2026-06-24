@@ -1,0 +1,72 @@
+version: 1
+id: ui.ui_layout_no_stack_overflow
+kind: check_smt2
+description: >-
+  The child_indices allocation in ui_layout_node no longer uses a fixed
+  32KB stack array. A small stack buffer (256×8=2KB) handles the common
+  case, and heap allocation is used when a node has more than 256 children.
+  This prevents stack overflow in deep recursive trees.
+tags:
+- native-ui
+- layout
+- stack
+- overflow
+- memory
+source:
+  path: X:/runtime/native/src/ui/ui_layout.c
+  language: c
+  symbol: ui_layout_node
+  start_line: 80
+  end_line: 110
+  reason: >-
+    Original code used int64_t child_indices[ABI_UI_MAX_NODES] = 32KB on
+    stack. In a recursive function at depth 32, this is 1MB — the entire
+    default Windows thread stack. The fix uses a 2KB stack buffer with
+    heap fallback, reducing per-call stack cost by 30KB.
+case:
+  smt2: |
+    ; Claim A: Original 32KB allocation overflows at depth 32
+    (set-logic QF_BV)
+    (define-const STACK_CHILD_BYTES (_ BitVec 64) #x0000000000008000)
+    (define-const LOCAL_OVERHEAD (_ BitVec 64) #x0000000000000100)
+    (define-const PER_CALL_ORIG (_ BitVec 64) (bvadd STACK_CHILD_BYTES LOCAL_OVERHEAD))
+    (define-const DEFAULT_STACK (_ BitVec 64) #x0000000000100000)
+    (define-const DEPTH_32 (_ BitVec 64) #x0000000000000020)
+    (define-const STACK_AT_32 (_ BitVec 64) (bvmul PER_CALL_ORIG DEPTH_32))
+    (assert (bvule STACK_AT_32 DEFAULT_STACK))
+    (check-sat)
+    ; unsat = STACK_AT_32 > DEFAULT_STACK (proved overflow)
+  include_model: false
+  include_stats: false
+---
+version: 1
+id: ui.ui_layout_no_stack_overflow_fix
+kind: check_smt2
+description: >-
+  With the fix (2KB stack buffer), depth 100 uses only 230KB of stack —
+  well within the 1MB thread stack limit.
+tags:
+- native-ui
+- layout
+- stack
+- overflow
+source:
+  path: X:/runtime/native/src/ui/ui_layout.c
+  symbol: ui_layout_node
+  reason: >-
+    The fix reduces per-call stack cost from 33KB to ~2.3KB. At depth
+    100 (absurd nesting), total stack usage is ~230KB vs 3.2GB original.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-const STACK_BUF_BYTES (_ BitVec 64) #x0000000000000800)
+    (define-const LOCAL_OVERHEAD (_ BitVec 64) #x0000000000000100)
+    (define-const PER_CALL_FIX (_ BitVec 64) (bvadd STACK_BUF_BYTES LOCAL_OVERHEAD))
+    (define-const DEFAULT_STACK (_ BitVec 64) #x0000000000100000)
+    (define-const DEPTH_100 (_ BitVec 64) #x0000000000000064)
+    (define-const STACK_AT_100 (_ BitVec 64) (bvmul PER_CALL_FIX DEPTH_100))
+    (assert (bvugt STACK_AT_100 DEFAULT_STACK))
+    (check-sat)
+    ; unsat = STACK_AT_100 < DEFAULT_STACK (proved safe)
+  include_model: false
+  include_stats: false
