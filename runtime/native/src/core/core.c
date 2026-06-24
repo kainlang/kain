@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 
 #ifdef _WIN32
 #include <shellapi.h>
@@ -472,11 +473,11 @@ void map_free_elems(void* ptr);
 
 double kain_clampd(double value, double min_value, double max_value) {
     /* Branchless: fmax(fmin(v, hi), lo) — 0 branches.
-     * Uses Clang/GCC __builtin_fmax/__builtin_fmin which
-     * compile to SSE maxsd/minsd (branchless on x86-64).
+     * Uses standard C99 fmax/fmin from <math.h> which compile to
+     * SSE maxsd/minsd (branchless on x86-64) with both Clang and MSVC.
      * Proof: runtime/native/src/core/z3/proofs-experimental/core-clampd-branchless.smt2
      * Z3: unsat — equivalent for all finite doubles with lo <= hi (0.19s). */
-    return __builtin_fmax(__builtin_fmin(value, max_value), min_value);
+    return fmax(fmin(value, max_value), min_value);
 }
 
 long long kain_floor_i64(double value) {
