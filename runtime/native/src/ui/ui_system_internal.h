@@ -100,6 +100,7 @@ typedef struct KainNativeUiResource {
     char resource_type[ABI_UI_MAX_KEY];
     char key[ABI_UI_MAX_KEY];
     char aux[ABI_UI_MAX_TEXT];
+    void* font_data;              /* stbtt_fontinfo + glyph cache (font resources only) */
 } KainNativeUiResource;
 
 typedef struct KainNativeUiMenu {
