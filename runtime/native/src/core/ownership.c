@@ -101,18 +101,16 @@ static int kain_ownership_fail(int status) {
     return status;
 }
 
-static uint64_t kain_ownership_mix_pointer(const void* ptr) {
-    uint64_t x = (uint64_t)(uintptr_t)ptr;
-    x ^= x >> 30u;
-    x *= UINT64_C(0xbf58476d1ce4e5b9);
-    x ^= x >> 27u;
-    x *= UINT64_C(0x94d049bb133111eb);
-    x ^= x >> 31u;
-    return x;
-}
-
+/* Golden ratio Fibonacci hash for pointer-to-slot mapping.
+ * Uses a single multiply + extract-top-13-bits instead of splitmix64 (5 ops).
+ * Proof: runtime/native/src/core/z3/proofs-experimental/ownership-pointer-golden-hash.smt2
+ * Multiplier 0x9e3779b97f4a7c15 = 2^64 / phi where phi = (1+sqrt(5))/2.
+ * This is Knuth's multiplicative hashing (TAOCP Vol 3) — proved to distribute
+ * consecutive keys across distant hash buckets.
+ */
 static uint32_t kain_ownership_pointer_index_slot(const void* ptr) {
-    return (uint32_t)(kain_ownership_mix_pointer(ptr) & KAIN_OWNERSHIP_INDEX_MASK);
+    uint64_t x = (uint64_t)(uintptr_t)ptr;
+    return (uint32_t)((x * UINT64_C(0x9e3779b97f4a7c15)) >> (64u - 13u));
 }
 
 static int kain_ownership_try_range_limit(uintptr_t base, size_t size, uintptr_t* out_limit) {
@@ -343,12 +341,12 @@ static void kain_ownership_clear_slot_unlocked(int slot) {
      */
     region->occupied = 0;
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
+    uint32_t clear_word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
+    uint64_t clear_bit = UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u));
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
-    KAIN_OWNERSHIP_OCCUPANCY_WORDS[(uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS] &=
-        ~(UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u)));
+    KAIN_OWNERSHIP_OCCUPANCY_WORDS[clear_word_index] &= ~clear_bit;
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
-    KAIN_OWNERSHIP_FREE_SUMMARY |=
-        (UINT64_C(1) << ((uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS));
+    KAIN_OWNERSHIP_FREE_SUMMARY |= (UINT64_C(1) << clear_word_index);
 }
 
 /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
@@ -392,6 +390,34 @@ static int kain_ownership_status_for_busy_region(const KainOwnershipRegion* regi
         return KAIN_OWNERSHIP_BUSY_TABLE[region->state];
     }
     return KAIN_OWNERSHIP_ERR_INVALID;
+}
+
+/*
+ * State transition check table.
+ * Maps [operation][current_state] -> error_code (0 = OK, negative = error).
+ * Operations: 0=begin_observe, 1=begin_collapse, 2=begin_share, 3=decay.
+ * States are in {0..4} (IDLE, OBSERVED, COLLAPSED, SHARED, DECAYED).
+ * Error codes: OK=0, ERR_OBSERVED=-4, ERR_COLLAPSED=-5, ERR_DECAYED=-6.
+ *
+ * Collapses 12+ if-statements across 4 functions into a single 4x5 lookup.
+ * Proof: runtime/native/src/core/z3/proofs-experimental/ownership-state-transition-table.smt2
+ */
+static const int8_t KAIN_OWNERSHIP_STATE_CHECK[4][5] = {
+    {  0,  0, -5, -5, -6 },  /* begin_observe: IDLE/OK, OBSERVED/OK, COLLAPSED/COL_ERR, SHARED/COL_ERR, DECAYED/DEC_ERR */
+    {  0, -4, -5, -5, -6 },  /* begin_collapse: IDLE/OK, OBSERVED/OBS_ERR, ... */
+    {  0, -4, -5, -5, -6 },  /* begin_share (same as collapse) */
+    {  0, -4, -5, -5, -6 },  /* decay (same as collapse) */
+};
+
+static int kain_ownership_check_state_transition(const KainOwnershipRegion* region, unsigned int op) {
+    if (op >= 4u || (unsigned int)region->state >= 5u) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+    }
+    int err = (int)KAIN_OWNERSHIP_STATE_CHECK[op][region->state];
+    if (err < 0) {
+        return kain_ownership_fail(err);
+    }
+    return KAIN_OWNERSHIP_OK;
 }
 
 static int kain_ownership_helper_slot_from_token_unlocked(const void* ptr, uint16_t slot_token) {
@@ -710,15 +736,11 @@ static int kain_ownership_begin_observe_slot_unlocked(int slot) {
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
-    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_SHARED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
+    /* Table check: DECAYED/SHARED/COLLAPSED all return error.
+     * Only IDLE and OBSERVED pass through. */
+    int err = kain_ownership_check_state_transition(region, 0u);
+    if (err != KAIN_OWNERSHIP_OK) return err;
+
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-observer-count-does-not-overflow-when-guard-passes.yaml */
     if (region->observers == UINT32_MAX) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_OVERFLOW);
@@ -804,18 +826,8 @@ static int kain_ownership_begin_collapse_slot_unlocked(int slot) {
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
-    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_SHARED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_OBSERVED);
-    }
+    int err = kain_ownership_check_state_transition(region, 1u);
+    if (err != KAIN_OWNERSHIP_OK) return err;
 
     region->state = KAIN_OWNERSHIP_STATE_COLLAPSED;
     return KAIN_OWNERSHIP_OK;
@@ -894,18 +906,8 @@ static int kain_ownership_begin_share_slot_unlocked(int slot) {
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-share-requires-idle-region.yaml */
-    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_SHARED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0u) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_OBSERVED);
-    }
+    int err = kain_ownership_check_state_transition(region, 2u);
+    if (err != KAIN_OWNERSHIP_OK) return err;
 
     region->state = KAIN_OWNERSHIP_STATE_SHARED;
     return KAIN_OWNERSHIP_OK;
@@ -995,6 +997,7 @@ static int kain_ownership_decay_slot_unlocked(
     int* out_release_immediately
 ) {
     (void)reclaim_helper_slot;
+    (void)ptr;
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -1008,18 +1011,8 @@ static int kain_ownership_decay_slot_unlocked(
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-decay-free-only-for-idle-heap-region.yaml */
-    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_DECAYED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_SHARED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_COLLAPSED);
-    }
-    if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_OBSERVED);
-    }
+    int err = kain_ownership_check_state_transition(region, 3u);
+    if (err != KAIN_OWNERSHIP_OK) return err;
 
     if (kain_ownership_region_is_heap(region)) {
         KainOwnershipRegion deferred_region = *region;
@@ -1050,24 +1043,6 @@ static int kain_ownership_decay_slot_unlocked(
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
     region->observers = 0;
     return KAIN_OWNERSHIP_OK;
-}
-
-static int kain_ownership_decay_registered_unlocked(void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
-    if (slot < 0) {
-        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
-    }
-    return kain_ownership_decay_slot_unlocked(ptr, slot, 0, NULL, NULL);
-}
-
-static int kain_ownership_decay_helper_unlocked(void* ptr) {
-    return kain_ownership_decay_slot_unlocked(
-        ptr,
-        kain_ownership_find_helper_slot_unlocked(ptr),
-        1,
-        NULL,
-        NULL
-    );
 }
 
 int __kain_ownership_decay(void* ptr) {
