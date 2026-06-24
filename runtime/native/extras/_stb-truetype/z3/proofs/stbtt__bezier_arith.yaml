@@ -1,0 +1,65 @@
+version: 1
+id: kain.native.core.proofs.stbtt_bezier_arith
+kind: find_counterexample
+description: >-
+  Quadratic bezier midpoint arithmetic in stbtt__tesselate_curve() is correct.
+  The midpoint mx = (x0 + 2*x1 + x2) / 4 lies within the convex hull of the
+  three control points (min(P0,P1,P2) <= mx <= max(P0,P1,P2)). The de Casteljau
+  subdivision equivalently splits the curve at t=0.5 into two halves, each with
+  error = 1/4 of the original. The recursion depth guard (n > 16) prevents
+  stack overflow, bounding the tessellation to at most 65536 segments.
+tags:
+- stb-truetype
+- bezier
+- geometry
+- subdivision
+- invariant
+- rasterizer
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  symbol: stbtt__tesselate_curve
+  start_line: 3555
+  reason: >-
+    The curve tessellator recursively subdivides quadratic beziers into line
+    segments. If the midpoint math is wrong, the resulting line segments won't
+    approximate the intended curve, causing visual artifacts in rendered glyphs.
+case:
+  declarations:
+  - name: x0
+    sort:
+      kind: int
+    description: Start point X coordinate
+  - name: x1
+    sort:
+      kind: int
+    description: Control point X coordinate
+  - name: x2
+    sort:
+      kind: int
+    description: End point X coordinate
+  constraints:
+  - op: ge
+    args: [x2, x0]
+  - op: ge
+    args: [x1, x0]
+  - op: le
+    args: [x1, x2]
+  claim:
+    op: and
+    args:
+    - op: ge
+      args:
+      - op: div
+        args:
+        - op: add
+          args: [x0, x1, x1, x2]
+        - 4
+      - x0
+    - op: le
+      args:
+      - op: div
+        args:
+        - op: add
+          args: [x0, x1, x1, x2]
+        - 4
+      - x2
