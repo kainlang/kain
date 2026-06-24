@@ -8,8 +8,7 @@ WINDOWS_RUNTIME_DEFINES = [
 WINDOWS_COPTS = [
     "/W3",
     "/std:c11",
-    "/experimental:c11atomics",
-    "/Gy",  # Enable function-level linking for linker GC
+    "/Gy",  # Enable function-level linking for linker GC (clang-cl compatible)
 ]
 
 WINDOWS_CPP_COPTS = WINDOWS_COPTS + [
