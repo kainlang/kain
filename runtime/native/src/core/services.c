@@ -786,10 +786,14 @@ const char* kain_service_registry_canonicalize_key(const char* key) {
 }
 
 void kain_service_registry_init(KainServiceRegistry* registry) {
+    int i;
     if (!registry) {
         return;
     }
     ZeroMemory(registry, sizeof(*registry));
+    for (i = 0; i < 256; ++i) {
+        registry->hash_to_service[i] = -1;
+    }
     atomic_init(&registry->initialized, 1u);
     atomic_init(&registry->mutation_gate, 0u);
     atomic_init(&registry->service_count, 0);
