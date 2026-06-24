@@ -1,5 +1,6 @@
 #include "../../include/ui_renderer.h"
 #include "../../include/ui_color.h"
+#include "../../include/ui_font.h"
 #include "ui_system_internal.h"
 
 #include <string.h>
@@ -132,6 +133,146 @@ static double ui_render_style_f64(
     return (r && r->value_kind == ABI_UI_STYLE_F64) ? r->f64_value : fallback;
 }
 
+// ── UTF-8 codepoint decoder ─────────────────────────────────────────
+/* Decode a single UTF-8 codepoint from text[0..*len-1].
+ * Returns the decoded codepoint and sets *len to the byte count (1-4).
+ * Returns -1 on invalid byte sequence (consumes 1 byte). */
+static int ui_decode_utf8(const char* text, int* len) {
+    unsigned char c = (unsigned char)text[0];
+    if (c <= 0x7F) { *len = 1; return c; }
+    if (c >= 0xC2 && c <= 0xDF &&
+        (unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF) {
+        *len = 2;
+        return ((int)(c & 0x1F) << 6) | (int)(text[1] & 0x3F);
+    }
+    if (c >= 0xE0 && c <= 0xEF &&
+        (unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF &&
+        (unsigned char)text[2] >= 0x80 && (unsigned char)text[2] <= 0xBF) {
+        *len = 3;
+        return ((int)(c & 0x0F) << 12) | ((int)(text[1] & 0x3F) << 6) | (int)(text[2] & 0x3F);
+    }
+    if (c >= 0xF0 && c <= 0xF4 &&
+        (unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF &&
+        (unsigned char)text[2] >= 0x80 && (unsigned char)text[2] <= 0xBF &&
+        (unsigned char)text[3] >= 0x80 && (unsigned char)text[3] <= 0xBF) {
+        *len = 4;
+        return ((int)(c & 0x07) << 18) | ((int)(text[1] & 0x3F) << 12) |
+               ((int)(text[2] & 0x3F) << 6) | (int)(text[3] & 0x3F);
+    }
+    *len = 1;
+    return -1;
+}
+
+// ── Glyph text renderer (stb_truetype-backed) ────────────────────────
+/* Renders a text string into the framebuffer using glyphs from the
+ * given font resource. Blends each glyph's alpha mask over the
+ * background at the specified position.
+ * Returns the x-advance (width consumed) on success, 0 on error.
+ * Penned from (pen_x, pen_y) where pen_y is the baseline. */
+static int ui_render_glyph_text(
+    uint32_t* fb, int fb_w, int fb_h, int fb_stride,
+    int pen_x, int pen_y,
+    const char* text,
+    uint32_t color,
+    int64_t session_id,
+    int64_t font_resource_id
+) {
+    if (!fb || !text || !text[0] || font_resource_id <= 0) return 0;
+
+    int x = pen_x;
+    int y = pen_y;
+    int start_x = x;
+
+    /* Get font vertical metrics for newline advance */
+    int line_height = 0;
+    {
+        int ascent = 0, descent = 0, line_gap = 0;
+        if (kain_ui_font_get_vmetrics(session_id, font_resource_id,
+                                       &ascent, &descent, &line_gap) == 0) {
+            line_height = ascent - descent + line_gap;
+            if (line_height <= 0) line_height = 20; /* fallback */
+        } else {
+            line_height = 20;
+        }
+    }
+
+    const char* p = text;
+    while (*p) {
+        /* Decode UTF-8 codepoint */
+        int cp_len;
+        int codepoint = ui_decode_utf8(p, &cp_len);
+        if (codepoint < 0) { codepoint = '?'; cp_len = 1; }
+        p += cp_len;
+
+        /* Handle control characters */
+        if (codepoint == '\n') {
+            x = start_x;
+            y += line_height;
+            continue;
+        }
+        if (codepoint == '\r') {
+            x = start_x;
+            continue;
+        }
+        if (codepoint == '\t') {
+            x += line_height * 3 / 4; /* tab ~3/4 em */
+            continue;
+        }
+        if (codepoint == ' ') {
+            /* Use font's space advance — query via 'X' as proxy if no explicit space */
+            KainUiGlyph* space_glyph = abi_ui_font_get_glyph(session_id, font_resource_id, ' ');
+            if (space_glyph) {
+                x += space_glyph->advance;
+                abi_ui_font_release_glyph(space_glyph);
+            } else {
+                x += line_height / 3;
+            }
+            continue;
+        }
+
+        /* Get glyph bitmap from font cache */
+        KainUiGlyph* glyph = abi_ui_font_get_glyph(session_id, font_resource_id, codepoint);
+        if (!glyph) {
+            /* Glyph not found — advance by approximate width */
+            x += line_height / 2;
+            continue;
+        }
+
+        /* Compute destination position in framebuffer */
+        int dst_x = x + glyph->x_offset;
+        int dst_y = y + glyph->y_offset;
+
+        /* Blend each pixel of the glyph bitmap into the framebuffer */
+        if (glyph->bitmap && glyph->width > 0 && glyph->height > 0) {
+            int row;
+            for (row = 0; row < glyph->height; row++) {
+                int fb_row = dst_y + row;
+                if (fb_row < 0 || fb_row >= fb_h) continue;
+                uint32_t* dst = fb + fb_row * fb_stride;
+                const uint8_t* src_row = glyph->bitmap + (size_t)row * glyph->width;
+                int col;
+                for (col = 0; col < glyph->width; col++) {
+                    int fb_col = dst_x + col;
+                    if (fb_col < 0 || fb_col >= fb_w) continue;
+                    unsigned char alpha = src_row[col];
+                    if (alpha == 0) continue;
+                    /* Modulate the glyph's alpha with the text color's alpha */
+                    uint32_t src_color = (color & 0xFFFFFF00) | (uint32_t)(((double)(color & 0xFF) * alpha) / 255.0);
+                    dst[fb_col] = ui_color_blend(src_color, dst[fb_col]);
+                }
+            }
+        }
+
+        /* Advance pen position by glyph advance width */
+        x += glyph->advance;
+
+        /* Release glyph (decrement pin count) */
+        abi_ui_font_release_glyph(glyph);
+    }
+
+    return x - start_x;
+}
+
 // ── Recursive render ────────────────────────────────────────────────────
 
 /* ── SAFE SIBLING TRAVERSAL ──────────────────────────────────────────
@@ -221,14 +362,32 @@ static void ui_render_node(
                             nx, ny, nw, nh, border_color, (int)border_width);
     }
 
-    // ── Draw text (deferred — font subsystem not yet integrated) ──
-    // TODO: integrate ui_font glyph rasterization for text rendering
-#if 0
+    // ── Draw text via stb_truetype glyph rasterization ──────────────
     if (ink_str && node->text[0]) {
         uint32_t ink_color = ui_parse_color(ink_str);
-        ui_draw_text(fb, fb_w, fb_h, fb_stride, nx + 4, ny + 4, node->text, ink_color);
+        ink_color = ui_color_with_opacity(ink_color, opacity);
+
+        /* Look up font resource via node style "font" (i64 = resource id) */
+        int64_t font_id = ui_render_style_f64(s, node->id, "font", 0.0);
+        if (font_id <= 0) {
+            /* Try session default font (first font resource) */
+            int64_t ri;
+            for (ri = 0; ri < ABI_UI_MAX_RESOURCES; ri++) {
+                if (s->resources[ri].in_use &&
+                    strcmp(s->resources[ri].resource_type, "font") == 0 &&
+                    s->resources[ri].font_data) {
+                    font_id = s->resources[ri].id;
+                    break;
+                }
+            }
+        }
+
+        if (font_id > 0) {
+            ui_render_glyph_text(fb, fb_w, fb_h, fb_stride,
+                                 nx + 4, ny + (int)node->height - 4,  /* baseline near bottom */
+                                 node->text, ink_color, s->id, font_id);
+        }
     }
-#endif
 }
 
 // ── Public entry point ──────────────────────────────────────────────────
@@ -291,7 +450,17 @@ int64_t ui_render_frame(
                               (int)cmd->width, (int)cmd->height,
                               fill_color);
         }
-        // text and resource draw commands deferred to font/resource subsystems
+        // ── Text draw commands via stb_truetype glyphs ────────────
+        if (strcmp(cmd->kind, "text") == 0 && fill_str && cmd->text[0]) {
+            uint32_t ink_color = ui_parse_color(fill_str);
+            if (cmd->font_resource_id > 0) {
+                ui_render_glyph_text(framebuffer, fb_width, fb_height, fb_stride,
+                                     (int)cmd->x, (int)cmd->y,
+                                     cmd->text, ink_color,
+                                     session->id, cmd->font_resource_id);
+            }
+        }
+        // resource draw commands deferred to resource subsystem
     }
 
     return (int64_t)(fb_width * fb_height);

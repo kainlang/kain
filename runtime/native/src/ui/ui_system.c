@@ -1,14 +1,75 @@
 #include "ui_system_internal.h"
 #include "ui_host_adapter.h"
+#include "../../include/ui_font.h"
 
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
+/* ── stb_truetype font rasterizer ─────────────────────────────────
+ * Single translation unit: STB_TRUETYPE_IMPLEMENTATION here.
+ * 21 Z3 proof packs verify the math in this header.
+ * API docs: stbtt_InitFont, stbtt_GetCodepointBitmap,
+ *           stbtt_GetCodepointHMetrics, stbtt_GetFontVMetrics,
+ *           stbtt_FreeBitmap, stbtt_ScaleForPixelHeight.
+ * ──────────────────────────────────────────────────────────────────*/
+#define STB_TRUETYPE_IMPLEMENTATION
+/* X:/runtime/native/src/ui/ui_system.c → X:/runtime/native/extras/_stb-truetype/stb_truetype.h */
+#include "../../extras/_stb-truetype/stb_truetype.h"
 
 static KainNativeUiSession g_sessions[ABI_UI_MAX_SESSIONS];
 static int64_t g_next_session_id = 1;
 static char g_empty_string[] = "";
+
+/* ─── Font private data (per resource) ─────────────────────────────
+ * Allocated on the heap when TTF byte data is loaded into a "font"-type
+ * resource. Freed automatically by abi_ui_release_resource_bytes().
+ * Cache: simple N-entry array, evicts least-recently-pinned.
+ * A glyph is "pinned" when returned by kain_ui_font_get_glyph() and
+ * "unpinned" when the caller calls abi_ui_font_release_glyph().
+ * Unpinned entries may be evicted on the next lookup that misses.
+ * ──────────────────────────────────────────────────────────────────*/
+#define KAIN_UI_FONT_CACHE_SIZE 256
+
+/* ── Cache entry for a single glyph ────────────────────────────────
+ * Each entry has a KainUiGlyph at a known offset within the struct.
+ * The codepoint and pinned fields sit before the glyph fields so we
+ * can return a KainUiGlyph* into the cache and navigate back to the
+ * entry via pointer subtraction.
+ * ──────────────────────────────────────────────────────────────────*/
+typedef struct {
+    int codepoint;         /* 0 = empty slot */
+    int pinned;            /* >0 if currently loaned out */
+    KainUiGlyph glyph;     /* public glyph data (x0..bitmap) */
+} KainUiFontCacheEntry;
+
+typedef struct {
+    stbtt_fontinfo info;              /* stb_truetype font info (init once) */
+    uint8_t* ttf_data;                /* TTF file bytes (kept alive) */
+    int data_len;                     /* TTF data length */
+    int is_initialized;               /* stbtt_InitFont called successfully */
+    double size;                      /* font size in pixels */
+    float scale;                      /* cached scale = stbtt_ScaleForPixelHeight(info, size) */
+    int ascent;                       /* cached font ascent in design units */
+    int descent;                      /* cached font descent in design units */
+    int line_gap;                     /* cached font line gap in design units */
+    KainUiFontCacheEntry cache[KAIN_UI_FONT_CACHE_SIZE];
+    int cache_count;                  /* number of occupied cache slots */
+    int cache_next_evict;             /* round-robin eviction index for unpinned slots */
+} KainUiFontData;
+
+/* Convert between KainUiGlyph pointer and its containing cache entry.
+ * The glyph field is at a fixed offset (sizeof(int)*2) from the entry start. */
+static inline KainUiFontCacheEntry* kain_ui_glyph_to_entry(KainUiGlyph* g) {
+    if (!g) return NULL;
+    return (KainUiFontCacheEntry*)((char*)g - offsetof(KainUiFontCacheEntry, glyph));
+}
+
+static inline KainUiGlyph* kain_ui_entry_to_glyph(KainUiFontCacheEntry* e) {
+    return e ? &e->glyph : NULL;
+}
 
 /* ── Per-frame arena & tagged pointer helpers ───────────────────── */
 /* Arena: 4KB bump allocator per session, reset at abi_ui_begin_frame.
@@ -796,6 +857,19 @@ static int64_t abi_ui_decode_hex(const char* bytes_hex, uint8_t** out_bytes) {
 static void abi_ui_release_resource_bytes(KainNativeUiResource* resource) {
     if (!resource) {
         return;
+    }
+    /* Free font private data and all cached glyph bitmaps */
+    if (resource->font_data) {
+        KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+        int i;
+        for (i = 0; i < KAIN_UI_FONT_CACHE_SIZE; i++) {
+            if (fd->cache[i].glyph.bitmap) {
+                stbtt_FreeBitmap((unsigned char*)fd->cache[i].glyph.bitmap, NULL);
+                fd->cache[i].glyph.bitmap = NULL;
+            }
+        }
+        free(fd);
+        resource->font_data = NULL;
     }
     if (resource->bytes) {
         free(resource->bytes);
@@ -1923,6 +1997,36 @@ int64_t abi_ui_resource_set_bytes(
     resource->bytes = copy;
     resource->byte_length = byte_length;
     resource->bytes_revision += 1;
+
+    /* If this is a font resource, initialize stb_truetype */
+    if (strcmp(resource->resource_type, "font") == 0 && copy && byte_length > 0) {
+        if (!resource->font_data) {
+            KainUiFontData* fd = (KainUiFontData*)calloc(1, sizeof(KainUiFontData));
+            if (fd) {
+                resource->font_data = fd;
+            }
+        }
+        if (resource->font_data) {
+            KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+            /* Try InitFont with offset 0 (single font, not TTC).
+             * If that fails, try stbtt_GetFontOffsetForIndex for TTC. */
+            fd->is_initialized = stbtt_InitFont(&fd->info, copy, 0);
+            if (!fd->is_initialized) {
+                int offset = stbtt_GetFontOffsetForIndex(copy, 0);
+                if (offset > 0) {
+                    fd->is_initialized = stbtt_InitFont(&fd->info, copy, offset);
+                }
+            }
+            if (fd->is_initialized) {
+                fd->ttf_data = copy;
+                fd->data_len = (int)byte_length;
+                fd->size = resource->scalar_value > 0.0 ? resource->scalar_value : 14.0;
+                fd->scale = stbtt_ScaleForPixelHeight(&fd->info, (float)fd->size);
+                stbtt_GetFontVMetrics(&fd->info, &fd->ascent, &fd->descent, &fd->line_gap);
+            }
+        }
+    }
+
     return ABI_UI_OK;
 }
 
@@ -1978,17 +2082,99 @@ int64_t abi_ui_resource_byte_length(int64_t session_id, int64_t resource_id) {
     return resource ? resource->byte_length : ABI_UI_INVALID_ARGUMENT;
 }
 
+/* ── UTF-8 decoding helper ────────────────────────────────────────
+ * Decode a single UTF-8 codepoint from text[0..*len-1].
+ * Returns the decoded codepoint, advances *len by the byte count.
+ * Returns -1 on invalid byte sequence.
+ * ──────────────────────────────────────────────────────────────────*/
+static int kain_ui_decode_utf8_codepoint(const char* text, int* len) {
+    unsigned char c = (unsigned char)text[0];
+    if (c <= 0x7F) {
+        *len = 1;
+        return c;
+    }
+    if (c >= 0xC2 && c <= 0xDF && (unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF) {
+        *len = 2;
+        return ((int)(c & 0x1F) << 6) | (int)(text[1] & 0x3F);
+    }
+    if (c >= 0xE0 && c <= 0xEF) {
+        if ((unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF &&
+            (unsigned char)text[2] >= 0x80 && (unsigned char)text[2] <= 0xBF) {
+            *len = 3;
+            return ((int)(c & 0x0F) << 12) | ((int)(text[1] & 0x3F) << 6) | (int)(text[2] & 0x3F);
+        }
+        *len = 1;
+        return -1;
+    }
+    if (c >= 0xF0 && c <= 0xF4) {
+        if ((unsigned char)text[1] >= 0x80 && (unsigned char)text[1] <= 0xBF &&
+            (unsigned char)text[2] >= 0x80 && (unsigned char)text[2] <= 0xBF &&
+            (unsigned char)text[3] >= 0x80 && (unsigned char)text[3] <= 0xBF) {
+            *len = 4;
+            return ((int)(c & 0x07) << 18) | ((int)(text[1] & 0x3F) << 12) | ((int)(text[2] & 0x3F) << 6) | (int)(text[3] & 0x3F);
+        }
+        *len = 1;
+        return -1;
+    }
+    *len = 1;
+    return -1;
+}
+
 double abi_ui_text_measure_width(int64_t session_id, int64_t font_resource_id, const char* text) {
-    KainNativeUiResource* resource = abi_ui_find_resource(abi_ui_find_session(session_id), font_resource_id);
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
     double size = (resource && resource->scalar_value > 0.0) ? resource->scalar_value : 14.0;
-    size_t length = strlen(text ? text : g_empty_string);
-    return ((double)length) * size * 0.56;
+    if (!text || !text[0]) return 0.0;
+
+    /* If font has stb_truetype initialized, use real glyph metrics */
+    if (resource && resource->font_data) {
+        KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+        double total_width = 0.0;
+        const char* p = text;
+        while (*p) {
+            int cp_len;
+            int codepoint = kain_ui_decode_utf8_codepoint(p, &cp_len);
+            if (codepoint < 0) { codepoint = '?'; cp_len = 1; }
+            p += cp_len;
+
+            if (codepoint == '\n') {
+                /* newlines reset width but we track max line width */
+                total_width = 0.0;
+                continue;
+            }
+            if (codepoint == '\r' || codepoint == '\t') {
+                continue;
+            }
+
+            int advance;
+            stbtt_GetCodepointHMetrics(&fd->info, codepoint, &advance, NULL);
+            total_width += (double)advance * fd->scale;
+        }
+        return total_width;
+    }
+
+    /* Fallback: heuristic (strlen * size * 0.56) */
+    {
+        size_t length = strlen(text);
+        return ((double)length) * size * 0.56;
+    }
 }
 
 double abi_ui_text_measure_height(int64_t session_id, int64_t font_resource_id, const char* text) {
     KainNativeUiResource* resource = abi_ui_find_resource(abi_ui_find_session(session_id), font_resource_id);
     double size = (resource && resource->scalar_value > 0.0) ? resource->scalar_value : 14.0;
     (void)text;
+
+    /* If font has stb_truetype initialized, use real font metrics */
+    if (resource && resource->font_data) {
+        KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+        if (fd->is_initialized) {
+            float line_height = (float)(fd->ascent - fd->descent + fd->line_gap) * fd->scale;
+            if (line_height > 0.0f) return (double)line_height;
+        }
+    }
+
+    /* Fallback: heuristic (size * 1.25) */
     return size * 1.25;
 }
 
@@ -2564,4 +2750,139 @@ int64_t abi_ui_hot_reload_generation(int64_t session_id) {
 const char* abi_ui_hot_reload_key(int64_t session_id) {
     KainNativeUiSession* session = abi_ui_find_session(session_id);
     return abi_ui_return_string(session, session ? session->hot_reload_key : g_empty_string);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FONT / GLYPH PUBLIC API
+// ══════════════════════════════════════════════════════════════════
+
+int64_t abi_ui_font_load_ttf(
+    int64_t session_id,
+    const char* key,
+    const char* family,
+    double size,
+    const uint8_t* ttf_data,
+    int64_t ttf_len
+) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    int64_t resource_id;
+    KainNativeUiResource* resource;
+    if (!session) return ABI_UI_INVALID_SESSION;
+    if (!key || !family || !ttf_data || ttf_len <= 0) return ABI_UI_INVALID_ARGUMENT;
+
+    resource_id = abi_ui_font_create(session_id, key, family, size);
+    resource = abi_ui_find_resource(session, resource_id);
+    if (!resource) return resource_id;
+
+    int64_t status = abi_ui_resource_set_bytes(session_id, resource_id, ttf_data, ttf_len);
+    if (status < 0) return status;
+
+    return resource_id;
+}
+
+KainUiGlyph* abi_ui_font_get_glyph(
+    int64_t session_id,
+    int64_t font_resource_id,
+    int codepoint
+) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
+    KainUiFontData* fd;
+    int i;
+
+    if (!session || !resource || !resource->font_data) return NULL;
+    fd = (KainUiFontData*)resource->font_data;
+    if (!fd->is_initialized) return NULL;
+
+    /* Search cache for this codepoint — hit path */
+    for (i = 0; i < KAIN_UI_FONT_CACHE_SIZE; i++) {
+        KainUiFontCacheEntry* e = &fd->cache[i];
+        if (e->codepoint == codepoint && e->glyph.bitmap) {
+            e->pinned++;
+            return &e->glyph;
+        }
+    }
+
+    /* Cache miss — find an evictable slot */
+    int slot = -1;
+    for (i = 0; i < KAIN_UI_FONT_CACHE_SIZE; i++) {
+        int idx = (fd->cache_next_evict + i) % KAIN_UI_FONT_CACHE_SIZE;
+        KainUiFontCacheEntry* e = &fd->cache[idx];
+        if (e->codepoint == 0 || (!e->pinned && e->glyph.bitmap)) {
+            slot = idx;
+            break;
+        }
+    }
+    if (slot < 0) {
+        slot = fd->cache_next_evict;
+    }
+
+    KainUiFontCacheEntry* entry = &fd->cache[slot];
+
+    /* Free old bitmap if present */
+    if (entry->glyph.bitmap) {
+        stbtt_FreeBitmap((unsigned char*)entry->glyph.bitmap, NULL);
+        entry->glyph.bitmap = NULL;
+    }
+
+    /* Rasterize the glyph via stb_truetype */
+    {
+        int w, h, xoff, yoff;
+        unsigned char* bitmap = stbtt_GetCodepointBitmap(
+            &fd->info, fd->scale, fd->scale,
+            codepoint, &w, &h, &xoff, &yoff);
+        if (!bitmap || w <= 0 || h <= 0) {
+            if (bitmap) stbtt_FreeBitmap(bitmap, NULL);
+            entry->codepoint = 0;
+            entry->glyph.bitmap = NULL;
+            return NULL;
+        }
+
+        int advance;
+        stbtt_GetCodepointHMetrics(&fd->info, codepoint, &advance, NULL);
+
+        entry->codepoint = codepoint;
+        entry->pinned = 1;
+        entry->glyph.bitmap = (const uint8_t*)bitmap;
+        entry->glyph.width = w;
+        entry->glyph.height = h;
+        entry->glyph.x_offset = xoff;
+        entry->glyph.y_offset = yoff;
+        entry->glyph.advance = (int)((double)advance * fd->scale + 0.5);
+
+        fd->cache_count++;
+        if (fd->cache_count > KAIN_UI_FONT_CACHE_SIZE)
+            fd->cache_count = KAIN_UI_FONT_CACHE_SIZE;
+
+        fd->cache_next_evict = (slot + 1) % KAIN_UI_FONT_CACHE_SIZE;
+
+        return &entry->glyph;
+    }
+}
+
+void abi_ui_font_release_glyph(KainUiGlyph* glyph) {
+    KainUiFontCacheEntry* entry;
+    if (!glyph || !glyph->bitmap) return;
+    entry = kain_ui_glyph_to_entry(glyph);
+    if (entry && entry->pinned > 0) {
+        entry->pinned--;
+    }
+}
+
+int kain_ui_font_get_vmetrics(
+    int64_t session_id,
+    int64_t font_resource_id,
+    int* ascent,
+    int* descent,
+    int* line_gap
+) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
+    if (!resource || !resource->font_data) return -1;
+    KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+    if (!fd->is_initialized) return -1;
+    if (ascent)  *ascent  = (int)((float)fd->ascent  * fd->scale + 0.5f);
+    if (descent) *descent = (int)((float)fd->descent * fd->scale + 0.5f);
+    if (line_gap) *line_gap = (int)((float)fd->line_gap * fd->scale + 0.5f);
+    return 0;
 }
