@@ -1,45 +1,28 @@
 version: 1
-id: kain.native.core.proofs.stbtt_sort_edges_stable
+id: stb-truetype.sort_edges_stable.valid_total_order
 kind: find_counterexample
-description: >-
-  The edge sort comparator STBTT__COMPARE(a,b) = ((a)->y0 < (b)->y0) is a valid
-  strict total order on edges when the original array index is used as a tiebreaker.
-  Combined with the insertion sort finishing pass, the sort is stable and
-  produces a deterministic ordering regardless of the initial unsorted state.
+description: >
+  The edge sort comparator STBTT__COMPARE(a,b) = (a)->y0 < (b)->y0 is a valid
+  strict total order. It is irreflexive, asymmetric, and transitive. Edges
+  with equal y0 values compare false both ways, enabling stable sorting that
+  preserves their original relative order.
 tags:
-- stb-truetype
-- sort
-- invariant
+- stb_truetype
 - rasterizer
+- sorting
+- comparator
+- invariant
 source:
   path: extras/_stb-truetype/stb_truetype.h
+  language: c
   symbol: stbtt__sort_edges
   start_line: 3479
-  reason: >-
-    The scanline rasterizer depends on deterministic edge ordering by y0.
-    If the comparator is not a strict total order (e.g., NaN floating-point),
-    the quicksort could fail to terminate or produce incorrect ordering.
-    STBTT__COMPARE uses simple float comparison, which is a total order
-    when no NaN values occur (edge y0 values are always finite floats).
+  end_line: 3483
+  reason: >
+    The sort comparator must define a valid total order for quicksort to
+    partition correctly. Equal y0 edges must not receive arbitrary ordering,
+    as the insertion sort pass preserves their original positions (stable sort).
 case:
-  declarations:
-  - name: y0_a
-    sort:
-      kind: float
-    description: Starting Y coordinate of first edge
-  - name: y0_b
-    sort:
-      kind: float
-    description: Starting Y coordinate of second edge
-  - name: y0_c
-    sort:
-      kind: float
-    description: Starting Y coordinate of third edge
-  constraints:
-  - op: lt
-    args: [y0_a, y0_b]
-  - op: lt
-    args: [y0_b, y0_c]
-  claim:
-    op: lt
-    args: [y0_a, y0_c]
+  smt2_file: stbtt__sort_edges_stable.smt2
+  include_model: false
+  include_stats: false

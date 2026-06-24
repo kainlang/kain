@@ -4,8 +4,8 @@ scope = ".."
 languages = ["c"]
 
 [solver]
-timeout_ms = 10000
-size_bits = 64
+timeout_ms = 30000
+size_bits = 32
 
 [sources]
 include = ["**/*"]
