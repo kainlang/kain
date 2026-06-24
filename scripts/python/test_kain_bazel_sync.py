@@ -77,7 +77,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=repo / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=repo / ".kain",
                 repo_kain_config=repo / ".kain" / "config.toml",
                 clang_path=None,
@@ -127,7 +127,8 @@ class KainBazelSyncTests(unittest.TestCase):
                 encoding="utf-8",
             )
             context = sync.resolve_sync_context(repo)
-            self.assertEqual(context.binary_names, ("kain", "kn"))
+            # kn is no longer a separate binary; it is an alias for kain
+            self.assertEqual(context.binary_names, ("kain",))
 
     def test_bazel_output_binary_name_uses_configured_value(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -135,7 +136,7 @@ class KainBazelSyncTests(unittest.TestCase):
             context = sync.SyncContext(
                 repo_root=root,
                 policy={},
-                sync_policy={"bazel_binary_output_names": {"kn": "kn_custom"}},
+                sync_policy={},
                 state_root=root / ".kain" / "state",
                 stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
                 bazel_config="dev",
@@ -143,13 +144,12 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
                 python_path=None,
             )
-            self.assertEqual(sync.bazel_output_binary_name(context, "kn"), "kn_custom")
             self.assertEqual(sync.bazel_output_binary_name(context, "kain"), "kain")
 
     def test_runtime_env_forces_repo_state_temp_root(self) -> None:
@@ -166,7 +166,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -244,12 +244,13 @@ class KainBazelSyncTests(unittest.TestCase):
             self.assertTrue((repo_cache / "new").exists())
             self.assertEqual(warnings, ())
 
-    def test_sibling_bazel_build_binary_pairs_kain_and_kn(self) -> None:
-        self.assertEqual(sync.sibling_bazel_build_binary("kain"), "kn")
-        self.assertEqual(sync.sibling_bazel_build_binary("kn"), "kain")
+    def test_sibling_bazel_build_binary_returns_none(self) -> None:
+        # kn is now an alias for kain — no separate sibling binary
+        self.assertIsNone(sync.sibling_bazel_build_binary("kain"))
         self.assertIsNone(sync.sibling_bazel_build_binary("blade"))
 
-    def test_invoke_bazel_build_falls_back_to_sibling_target_when_output_is_locked(self) -> None:
+    def test_invoke_bazel_build_raises_on_locked_output_without_sibling(self) -> None:
+        # kn is now an alias — no sibling fallback. A locked output should raise.
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             context = sync.SyncContext(
@@ -263,7 +264,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -276,12 +277,11 @@ class KainBazelSyncTests(unittest.TestCase):
                     "ERROR: failed to delete output files before executing action: bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe (Permission denied)",
                 ),
             )
-            success = sync.CommandResult(0, ("Target //:kn up-to-date",))
             with mock.patch.object(
-                sync, "run_bazel_build_target", side_effect=[locked, success]
+                sync, "run_bazel_build_target", return_value=locked
             ):
-                chosen = sync.invoke_bazel_build(context, "kain")
-            self.assertEqual(chosen, "kn")
+                with self.assertRaises(sync.SyncError):
+                    sync.invoke_bazel_build(context, "kain")
 
     def test_sync_launchers_retries_when_source_stamp_changes_mid_run(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -297,7 +297,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -343,9 +343,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 seen,
                 [
                     ("kain", "stamp-a"),
-                    ("kn", "stamp-a"),
                     ("kain", "stamp-b"),
-                    ("kn", "stamp-b"),
                 ],
             )
 
@@ -363,7 +361,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -405,7 +403,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -476,7 +474,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -484,15 +482,11 @@ class KainBazelSyncTests(unittest.TestCase):
             )
             sync.install_launcher_files(context, shim)
             self.assertTrue((context.launcher_dir / "kain.exe").exists())
-            self.assertTrue((context.launcher_dir / "kn.exe").exists())
             self.assertEqual(
                 (context.launcher_dir / "kain").read_text(encoding="utf-8"),
                 sync._wsl_launcher_shim_text("kain"),
             )
-            self.assertEqual(
-                (context.launcher_dir / "kn").read_text(encoding="utf-8"),
-                sync._wsl_launcher_shim_text("kn"),
-            )
+            self.assertFalse((context.launcher_dir / "kn.exe").exists())
             self.assertFalse((context.launcher_dir / "blade.exe").exists())
             self.assertFalse((context.launcher_dir / "blade.cmd").exists())
 
@@ -513,7 +507,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn"),
+                binary_names=("kain",),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,

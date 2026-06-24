@@ -223,10 +223,12 @@ ______________________________________________________________________
 | Launcher | Binary | Behavior |
 |----------|--------|----------|
 | `kain` | `kain.exe` | Full compiler CLI — explicit commands, no menu |
-| `kn` | `kn.exe` | Interpret-first — quick-start menu, REPL, stdin, native script mode |
+| `kn` | `kain.exe` (argv[0] alias) | Interpret-first — quick-start menu, REPL, stdin, native script mode |
 | `blade` | `blade.exe` | Standalone blade workspace tool |
 
-Detected by binary filename. `main_entry()` → config load → clap parse → dispatch.
+`kn` is the same binary as `kain` — detected by binary filename (argv[0]).
+Copy or symlink `kain.exe` to `kn.exe` and it automatically acts as `kn`.
+`main_entry()` → config load → clap parse → dispatch.
 
 ## 3. Core Commands
 
@@ -1455,7 +1457,7 @@ ______________________________________________________________________
 
 ```
 {KAIN_HOME}/
-├── bin/                        # Executables (kain.exe, kn.exe)
+├── bin/                        # Executables (kain.exe; kn is an argv[0] alias)
 ├── lib/                        # Libraries (kain_runtime.lib, libkain_runtime.a)
 ├── stdlib/                     # Standard library source
 ├── runtime/                    # Runtime C source

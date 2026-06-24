@@ -40,8 +40,9 @@ The Kain repo uses **Bazel** as its build system. The build produces:
 | Binary | Source | Bazel Target | Installed To |
 |--------|--------|-------------|-------------|
 | kain.exe | crates/cli/ | //:kain | ~/.kain/bin/kain.exe |
-| kn.exe | crates/cli/ | //:kn | ~/.kain/bin/kn.exe |
 | blade.exe | crates/cli/ | //:blade | ~/.kain/bin/blade.exe |
+
+**Note:** `kn` is an alias for `kain`. Built as `//:kain`; copy/symlink to `kn.exe` for argv[0] alias detection.
 | kain_runtime.lib | runtime/native/ | //runtime:native_core_runtime | ~/.kain/lib/kain_runtime.lib |
 
 **The build flow:**
@@ -96,7 +97,7 @@ bazel build //:kain --config=dev
 ### Key Targets
 
 - //:kain - Compiler CLI (--config=dev or --config=release)
-- //:kn - Launcher binary
+  (kn is an argv[0] alias — same //:kain binary)
 - //:blade - Blade runner
 - //runtime:all - Native runtime C libs
 - //:developer_smoke_tests - Sanity tests
@@ -135,7 +136,7 @@ This will:
 1. Look for existing kain.exe in bazel-out/
 1. Build //:kain --config=dev if source stamp changed
 1. Copy to ~/.kain/bin/kain.exe (with .bak backup)
-1. Also sync kn.exe if found
+1. (kn is an argv[0] alias — no separate binary needed)
 1. Verify with kain doctor
 
 ### Using /kain-sync (interactive)

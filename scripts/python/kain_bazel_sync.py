@@ -25,7 +25,7 @@ PYTHON_POLLUTION_ENV_KEYS = (
     "__PYVENV_LAUNCHER__",
 )
 
-DEFAULT_BINARY_NAMES = ("kain", "kn")
+DEFAULT_BINARY_NAMES = ("kain",)
 SUPPORTED_BINARY_NAMES = frozenset(DEFAULT_BINARY_NAMES)
 MAX_SYNC_STAMP_ATTEMPTS = 3
 DEFAULT_SOURCE_WATCH_PATHS = (
@@ -748,10 +748,7 @@ def bazel_output_binary_name(context: SyncContext, binary_name: str) -> str:
 
 
 def sibling_bazel_build_binary(binary_name: str) -> str | None:
-    if binary_name == "kain":
-        return "kn"
-    if binary_name == "kn":
-        return "kain"
+    # kn is now an alias for kain via argv[0] detection — no separate binary needed.
     return None
 
 

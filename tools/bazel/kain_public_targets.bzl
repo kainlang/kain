@@ -2,7 +2,7 @@
 
 _RUST_PUBLIC_ALIASES = {
     "kain": "//crates/cli:kain",
-    "kn": "//crates/cli:kn",
+    "kn": "//crates/cli:kain",  # kn is an alias for kain (argv[0] detection)
     "kain_actor": "//crates/actor:kain-actor",
     "kain_blades": "//crates/blades:blade",
     "kain_build": "//crates/build:kain-build",
