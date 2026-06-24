@@ -21,6 +21,18 @@ impl LauncherKind {
 }
 
 pub fn detect_launcher_from_path(path: Option<&std::path::Path>) -> LauncherKind {
+    // Allow KAIN_LAUNCHER_KIND env var to override detection.
+    // This lets `kain.exe` be invoked as `kn` via argv[0] alias without
+    // requiring a separate binary — a single copy/symlink suffices.
+    // Also used in tests to simulate the `kn` launcher.
+    if let Ok(kind) = std::env::var("KAIN_LAUNCHER_KIND") {
+        match kind.to_ascii_lowercase().as_str() {
+            "kn" => return LauncherKind::Kn,
+            "blade" => return LauncherKind::Blade,
+            "kain" => return LauncherKind::Kain,
+            _ => {}
+        }
+    }
     let stem = path
         .and_then(|value| value.file_stem())
         .and_then(|value| value.to_str())

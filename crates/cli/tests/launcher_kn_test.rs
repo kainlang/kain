@@ -4,11 +4,17 @@ use std::process::Stdio;
 
 use tempfile::tempdir;
 
+fn kn_command() -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_kain"));
+    cmd.env("KAIN_LAUNCHER_KIND", "kn");
+    cmd
+}
+
 #[test]
 fn kn_without_args_shows_quick_start_menu() {
-    let output = Command::new(env!("CARGO_BIN_EXE_kn"))
+    let output = kn_command()
         .output()
-        .expect("failed to execute kn binary");
+        .expect("failed to execute kn alias (kain binary)");
 
     assert!(
         output.status.success(),
@@ -40,11 +46,11 @@ fn kn_runs_input_file_by_default() {
     )
     .expect("failed to write Kain source");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_kn"))
+    let output = kn_command()
         .arg(&input_path)
         .current_dir(temp.path())
         .output()
-        .expect("failed to execute kn binary");
+        .expect("failed to execute kn alias (kain binary)");
 
     assert!(
         output.status.success(),
@@ -67,12 +73,12 @@ fn kn_runs_input_file_by_default() {
 #[test]
 fn kn_runs_inline_code_with_c_flag() {
     let temp = tempdir().expect("failed to create temp dir");
-    let output = Command::new(env!("CARGO_BIN_EXE_kn"))
+    let output = kn_command()
         .arg("-c")
         .arg("use std::fs\nfn main() -> Int:\n    fs_write_text(\"kn_inline.txt\", \"hello from inline\")\n    return 0\n")
         .current_dir(temp.path())
         .output()
-        .expect("failed to execute kn binary");
+        .expect("failed to execute kn alias (kain binary)");
 
     assert!(
         output.status.success(),
@@ -94,13 +100,13 @@ fn kn_runs_inline_code_with_c_flag() {
 #[test]
 fn kn_runs_piped_stdin_and_ignores_shebang() {
     let temp = tempdir().expect("failed to create temp dir");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_kn"))
+    let mut child = kn_command()
         .current_dir(temp.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to spawn kn binary");
+        .expect("failed to spawn kn alias (kain binary)");
 
     {
         let stdin = child.stdin.as_mut().expect("expected piped stdin");

@@ -10,10 +10,6 @@ name = "kain"
 path = "src/main.rs"
 
 [[bin]]
-name = "kn"
-path = "src/bin/kn.rs"
-
-[[bin]]
 name = "blade"
 path = "src/bin/blade.rs"
 
