@@ -116,11 +116,13 @@ NATIVE_CORE_RUNTIME = {
         'WIN32_LEAN_AND_MEAN',
         '_WIN32_WINNT=0x0A00',
         '_CRT_DECLARE_NONSTDC_NAMES=0',
+        'KAIN_RUNTIME_HAS_VULKAN_LOADER',
     ],
     "linux_defines": [
         '_GNU_SOURCE',
         '_POSIX_C_SOURCE=200112',
         '_FILE_OFFSET_BITS=64',
+        'KAIN_RUNTIME_HAS_VULKAN_LOADER',
     ],
     "macos_defines": [
     ],
