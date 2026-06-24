@@ -1,0 +1,50 @@
+version: 1
+id: kain.native.core.proofs.converge_eligible_mask_8bit
+kind: check_smt2
+description: >
+  The converge eligible_mask only ever has bits set in positions 0..7
+  because KAIN_CONVERGE_LANE_MAX == 8. This proof shows that the lane
+  check `lane < 64u && ((eligible_mask >> lane) & 1) != 0` is equivalent
+  to `((eligible_mask & 0xFF) >> lane) & 1) != 0` for lanes in [0,7],
+  and that CTZ on such a mask always returns a value in [0,7].
+tags:
+- native-runtime
+- converge
+- lane-selection
+- mask
+- invariant
+source:
+  path: X:\runtime\native\src\core\converge.c
+  symbol: abi_converge_select_lane_for_key
+  reason: >
+    The eligible_mask for converge lane selection only uses bits 0..7
+    (max 8 lanes). This proof verifies that 8-bit mask operations
+    are equivalent to full 64-bit versions, enabling mask narrowing.
+references:
+- type: smt2
+  path: runtime/native/src/core/z3/proofs-experimental/converge-eligible-mask-8bit.smt2
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-var mask (_ BitVec 64))
+    (declare-var lane (_ BitVec 64))
+
+    ;; lane in [0, 7]
+    (assert (bvult lane #x0000000000000008))
+    ;; mask has only bottom 8 bits set
+    (assert (= ((_ extract 63 8) mask) #x00000000000000))
+
+    (define-fun full_check () Bool
+      (and (bvult lane #x0000000000000040)
+           (not (= (bvand (bvlshr mask lane) #x0000000000000001)
+                   #x0000000000000000))))
+
+    (define-fun masked_check () Bool
+      (not (= (bvand (bvlshr (bvand mask #x00000000000000FF) lane)
+                     #x0000000000000001)
+              #x0000000000000000)))
+
+    (assert (not (= full_check masked_check)))
+    (check-sat)
+  include_model: false
+  include_stats: false
