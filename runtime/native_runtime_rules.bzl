@@ -115,6 +115,9 @@ def _windows_copts(base_copts, clang_cl_copts):
     })
 
 
+VULKAN_ABI_HEADERS = "//runtime/native/extras/vulkan-abi:vulkan_abi_headers"
+
+
 def declare_runtime_bundle(name, manifest, target_compatible_with = []):
     runtime_headers = _runtime_headers(manifest)
 
@@ -125,6 +128,7 @@ def declare_runtime_bundle(name, manifest, target_compatible_with = []):
         copts = _windows_copts(WINDOWS_COPTS, CLANG_CL_WINDOWS_COPTS),
         defines = _runtime_defines(manifest),
         includes = manifest["includes"],
+        deps = [VULKAN_ABI_HEADERS],
         alwayslink = True,
         target_compatible_with = target_compatible_with,
         visibility = ["//visibility:private"],

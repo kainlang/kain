@@ -8,7 +8,7 @@
 # All Vulkan types are uintptr_t; all Vulkan calls are resolved via
 # vkGetInstanceProcAddr at runtime.
 
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
 cc_binary(
     name = "kain_vulkan_abi",
@@ -40,6 +40,14 @@ cc_binary(
 alias(
     name = "kain_vulkan_abi_shared",
     actual = ":kain_vulkan_abi",
+)
+
+# Header-only library so the runtime shim can declare vulkan_abi.h as a dependency.
+cc_library(
+    name = "vulkan_abi_headers",
+    hdrs = ["vulkan_abi.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
 )
 
 filegroup(
