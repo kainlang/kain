@@ -395,14 +395,20 @@ int test_contract_integration(void) {
     }
 
     if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN) !=
-            KAIN_SERVICE_STATUS_DEGRADED) {
-        TEST_FAIL("gfx.backend.vulkan should be degraded");
+            KAIN_SERVICE_STATUS_AVAILABLE) {
+        TEST_FAIL("gfx.backend.vulkan should be available");
         return 0;
     }
 
     if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_BACKEND_D3D12) !=
-            KAIN_SERVICE_STATUS_DEGRADED) {
-        TEST_FAIL("gfx.backend.d3d12 should be degraded");
+            KAIN_SERVICE_STATUS_AVAILABLE) {
+        TEST_FAIL("gfx.backend.d3d12 should be available");
+        return 0;
+    }
+
+    if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_BACKEND_WEBGPU) !=
+            KAIN_SERVICE_STATUS_AVAILABLE) {
+        TEST_FAIL("gfx.backend.webgpu should be available");
         return 0;
     }
 

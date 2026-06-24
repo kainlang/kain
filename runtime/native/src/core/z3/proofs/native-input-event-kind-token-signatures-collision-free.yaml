@@ -1,0 +1,74 @@
+version: 1
+id: kain.native.core.proofs.native_input_event_kind_token_signatures_collision_free
+kind: check_smt2
+description: >
+  The input system's event dispatch code compares event kind strings
+  ("key_up", "pointer_up", "action_up", "action", "action_down", "text",
+  "axis", "agent.intent", plus the wildcard "*") using
+  abi_input_text_equal. A compact 32-bit token signature
+  (len << 24 | first << 16 | second << 8 | last) can be used for a
+  switch dispatch instead of the string comparison cascade — this proves
+  the token signatures are collision-free for all 9 known event kinds.
+tags:
+- native-runtime
+- input
+- token-signature
+- collision-free
+- dispatch
+source:
+  path: X:\runtime\native\src\core\input_system.c
+  symbol: abi_input_reduce_event
+  start_line: 299
+  reason: >
+    The event reduction function uses a cascade of abi_input_text_equal
+    calls to dispatch by event kind ("key_up", "pointer_up", "action_up",
+    "action", "text", "axis"). A token-signature switch (as in
+    machine_stones.c) would replace 6+ strcmp calls with a single
+    jump-table dispatch.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    ; Token signature function matching machine_stones.c pattern:
+    ; (len << 24) XOR (first << 16) XOR (second << 8) XOR last
+    (define-fun sig ((len (_ BitVec 32)) (first (_ BitVec 32))
+                     (second (_ BitVec 32)) (last (_ BitVec 32))) (_ BitVec 32)
+      (bvxor (bvshl len #x00000018)
+             (bvxor (bvshl first #x00000010)
+                    (bvxor (bvshl second #x00000008) last))))
+
+    ; 9 event kind / source kind strings used in input_system.c:
+    ; "*" — wildcard source kind (len=1, first='*'=0x2a, second='*', last='*')
+    (define-fun t_wildcard () (_ BitVec 32)
+      (sig #x00000001 #x0000002a #x0000002a #x0000002a))
+    ; "key_up"
+    (define-fun t_key_up () (_ BitVec 32)
+      (sig #x00000006 #x0000006b #x00000065 #x00000070))
+    ; "pointer_up"
+    (define-fun t_pointer_up () (_ BitVec 32)
+      (sig #x00000009 #x00000070 #x0000006f #x00000070))
+    ; "action_up"
+    (define-fun t_action_up () (_ BitVec 32)
+      (sig #x00000009 #x00000061 #x00000063 #x00000070))
+    ; "action"
+    (define-fun t_action () (_ BitVec 32)
+      (sig #x00000006 #x00000061 #x00000063 #x0000006e))
+    ; "action_down"
+    (define-fun t_action_down () (_ BitVec 32)
+      (sig #x0000000b #x00000061 #x00000063 #x0000006e))
+    ; "text"
+    (define-fun t_text () (_ BitVec 32)
+      (sig #x00000004 #x00000074 #x00000065 #x00000074))
+    ; "axis"
+    (define-fun t_axis () (_ BitVec 32)
+      (sig #x00000004 #x00000061 #x00000078 #x00000073))
+    ; "agent.intent"
+    (define-fun t_agent_intent () (_ BitVec 32)
+      (sig #x0000000c #x00000061 #x00000067 #x00000074))
+
+    ; Negative assertion: NOT all distinct → expects unsat = collision-free
+    (assert (not (distinct
+      t_wildcard t_key_up t_pointer_up t_action_up t_action
+      t_action_down t_text t_axis t_agent_intent)))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -758,6 +758,11 @@ const char* kain_service_registry_canonicalize_key(const char* key) {
                 return KAIN_SERVICE_KEY_GFX_BACKEND_D3D12;
             }
             break;
+        case 0x0c640679c3e22ec0ULL:
+            if (key_length == 13u && kain_text_equals_ci(key, "native.webgpu")) {
+                return KAIN_SERVICE_KEY_GFX_BACKEND_WEBGPU;
+            }
+            break;
         default:
             break;
     }

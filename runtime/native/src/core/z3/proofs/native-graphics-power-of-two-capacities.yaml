@@ -1,0 +1,41 @@
+version: 1
+id: kain.native.core.proofs.native_graphics_power_of_two_capacities
+kind: check_smt2
+description: >
+  All six graphics-system capacity constants
+  (ABI_GRAPHICS_MAX_SESSIONS=16, ABI_GRAPHICS_MAX_BUFFERS=4096,
+  ABI_GRAPHICS_MAX_SHADERS=1024, ABI_GRAPHICS_MAX_MESHES=2048,
+  ABI_GRAPHICS_MAX_PIPELINES=1024, ABI_GRAPHICS_MAX_DRAW_COMMANDS=8192)
+  are powers of two, so every `% capacity` in linear scans can be
+  replaced with `& (capacity - 1)` without changing semantics.
+tags:
+- native-runtime
+- graphics
+- power-of-two
+- capacity
+source:
+  path: X:\runtime\native\src\core\graphics_system.c
+  symbol: abi_graphics_find_backend
+  start_line: 222
+  reason: >
+    Every find_* function linear-scans with `index < ABI_GRAPHICS_MAX_*`.
+    A hash-table replacement would mask with `(capacity - 1)` — this proves
+    that mask is always valid because capacity is always a power of two.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun max_sessions () (_ BitVec 64) #x0000000000000010)
+    (define-fun max_buffers () (_ BitVec 64) #x0000000000001000)
+    (define-fun max_shaders () (_ BitVec 64) #x0000000000000400)
+    (define-fun max_meshes () (_ BitVec 64) #x0000000000000800)
+    (define-fun max_pipelines () (_ BitVec 64) #x0000000000000400)
+    (define-fun max_draw_commands () (_ BitVec 64) #x0000000000002000)
+    (define-fun is_pow2 ((v (_ BitVec 64))) Bool
+      (and (not (= v #x0000000000000000))
+           (= (bvand v (bvsub v #x0000000000000001)) #x0000000000000000)))
+    (assert (not (and (is_pow2 max_sessions) (is_pow2 max_buffers)
+                      (is_pow2 max_shaders) (is_pow2 max_meshes)
+                      (is_pow2 max_pipelines) (is_pow2 max_draw_commands))))
+    (check-sat)
+  include_model: false
+  include_stats: false

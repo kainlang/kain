@@ -1,0 +1,108 @@
+version: 1
+id: kain.native.core.proofs.native_graphics_debruijn_low_bit_index_collision_free
+kind: check_smt2
+description: >
+  The de Bruijn magic constant 0x03f79d71b4cb0a89 produces a distinct 6-bit
+  index for every 64-bit one-hot (power-of-two) value. This proves the
+  kain_graphics_low_bit_index_u64 decoder can correctly map any isolated
+  low bit to its bit position 0–63 without collisions — enabling bitset
+  occupancy tracking for all five find_* functions.
+tags:
+- native-runtime
+- graphics
+- debruijn
+- bitset
+- collision-free
+source:
+  path: X:\runtime\native\src\core\graphics_system.c
+  symbol: abi_graphics_find_buffer
+  start_line: 256
+  reason: >
+    All five abi_graphics_find_* functions (buffer, shader, mesh, pipeline,
+    session) currently do O(n) linear scans over fixed-size arrays. The
+    proven pattern from net_system.c and process_system.c uses a 64-bit
+    occupancy bitset + de Bruijn decoder for O(1) find-free-slot. This proof
+    validates the same magic constant for graphics usage.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun magic () (_ BitVec 64) #x03f79d71b4cb0a89)
+
+    (define-fun debruijn ((x (_ BitVec 64))) (_ BitVec 6)
+      ((_ extract 63 58) (bvmul x magic)))
+
+    ; Enumerate all 64 one-hot values and assert they map to distinct indices
+    (define-fun h0 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv0 64))))
+    (define-fun h1 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv1 64))))
+    (define-fun h2 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv2 64))))
+    (define-fun h3 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv3 64))))
+    (define-fun h4 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv4 64))))
+    (define-fun h5 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv5 64))))
+    (define-fun h6 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv6 64))))
+    (define-fun h7 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv7 64))))
+    (define-fun h8 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv8 64))))
+    (define-fun h9 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv9 64))))
+    (define-fun ha () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv10 64))))
+    (define-fun hb () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv11 64))))
+    (define-fun hc () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv12 64))))
+    (define-fun hd () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv13 64))))
+    (define-fun he () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv14 64))))
+    (define-fun hf () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv15 64))))
+    (define-fun h10 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv16 64))))
+    (define-fun h11 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv17 64))))
+    (define-fun h12 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv18 64))))
+    (define-fun h13 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv19 64))))
+    (define-fun h14 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv20 64))))
+    (define-fun h15 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv21 64))))
+    (define-fun h16 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv22 64))))
+    (define-fun h17 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv23 64))))
+    (define-fun h18 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv24 64))))
+    (define-fun h19 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv25 64))))
+    (define-fun h1a () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv26 64))))
+    (define-fun h1b () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv27 64))))
+    (define-fun h1c () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv28 64))))
+    (define-fun h1d () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv29 64))))
+    (define-fun h1e () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv30 64))))
+    (define-fun h1f () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv31 64))))
+    (define-fun h20 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv32 64))))
+    (define-fun h21 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv33 64))))
+    (define-fun h22 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv34 64))))
+    (define-fun h23 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv35 64))))
+    (define-fun h24 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv36 64))))
+    (define-fun h25 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv37 64))))
+    (define-fun h26 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv38 64))))
+    (define-fun h27 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv39 64))))
+    (define-fun h28 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv40 64))))
+    (define-fun h29 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv41 64))))
+    (define-fun h2a () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv42 64))))
+    (define-fun h2b () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv43 64))))
+    (define-fun h2c () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv44 64))))
+    (define-fun h2d () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv45 64))))
+    (define-fun h2e () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv46 64))))
+    (define-fun h2f () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv47 64))))
+    (define-fun h30 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv48 64))))
+    (define-fun h31 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv49 64))))
+    (define-fun h32 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv50 64))))
+    (define-fun h33 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv51 64))))
+    (define-fun h34 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv52 64))))
+    (define-fun h35 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv53 64))))
+    (define-fun h36 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv54 64))))
+    (define-fun h37 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv55 64))))
+    (define-fun h38 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv56 64))))
+    (define-fun h39 () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv57 64))))
+    (define-fun h3a () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv58 64))))
+    (define-fun h3b () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv59 64))))
+    (define-fun h3c () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv60 64))))
+    (define-fun h3d () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv61 64))))
+    (define-fun h3e () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv62 64))))
+    (define-fun h3f () (_ BitVec 6) (debruijn (bvshl (_ bv1 64) (_ bv63 64))))
+
+    ; If this is unsat, all 64 indices are distinct
+    (assert (not (distinct
+      h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 ha hb hc hd he hf
+      h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h1a h1b h1c h1d h1e h1f
+      h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h2a h2b h2c h2d h2e h2f
+      h30 h31 h32 h33 h34 h35 h36 h37 h38 h39 h3a h3b h3c h3d h3e h3f)))
+    (check-sat)
+  include_model: false
+  include_stats: false

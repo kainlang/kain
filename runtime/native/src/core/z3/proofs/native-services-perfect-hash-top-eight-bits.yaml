@@ -1,0 +1,86 @@
+version: 1
+id: kain.native.core.proofs.native_services_perfect_hash_top_eight_bits
+kind: check_smt2
+description: >
+  The service registry lookup scans linearly through all registered entries
+  (currently 31).  Each service key already has a 64-bit magic polynomial
+  state computed via kain_service_magic_prefix_state.  This proof shows that
+  the top 8 bits ((state >> 56) & 0xFF) are collision-free for the 31-entry
+  active catalog.  Two extracanonical keys (audio.device, audio.midi) are
+  defined in services.h but not in the current active catalog — audio.midi
+  hashes to the same top byte as gfx.compute (0x5c), so the proof excludes
+  them.  If new services are added, re-run this proof.
+
+  A no-multiply perfect hash was chosen over the magic-multiplier variant
+  ((state * 0xBAE) >> 58) because it requires zero multiply hardware — just
+  a shift from the already-computed key_state.  256 slots for 31 entries is
+  ~8× density headroom.
+tags:
+- native-runtime
+- services
+- perfect-hash
+- direct-mapped
+source:
+  path: X:\runtime\native\src\core\services.c
+  symbol: kain_service_registry_lookup
+  reason: linear scan of up to 31 services can be replaced with direct-mapped 256-slot hash table using key_state >> 56
+case:
+  smt2: |
+    (set-logic QF_BV)
+    ; Perfect hash: extract the top 8 bits of the 64-bit key_state.
+    ; No multiply — just a shift from the already-computed hash.
+    ; Direct index into a 256-slot table.
+    (define-fun phash ((x (_ BitVec 64))) (_ BitVec 8)
+      ((_ extract 63 56) x))
+
+    ; 31 active canonical service keys in g_kain_native_runtime_service_catalog[]
+    (define-fun can_00 () (_ BitVec 64) #x40ff954815c29c3c) ; base.memory
+    (define-fun can_01 () (_ BitVec 64) #x996e110347da4ecb) ; memory.ownership
+    (define-fun can_02 () (_ BitVec 64) #xc8cb120ba774d42c) ; base.diagnostics
+    (define-fun can_03 () (_ BitVec 64) #x698874cc51cd9a1a) ; contract
+    (define-fun can_04 () (_ BitVec 64) #x9ddb6ede77c15466) ; platform.app-host
+    (define-fun can_05 () (_ BitVec 64) #xe093a52140179233) ; platform.input
+    (define-fun can_06 () (_ BitVec 64) #xbdee771d7a52ed8b) ; gfx.viewport
+    (define-fun can_07 () (_ BitVec 64) #x6afe64f6fc93ec0a) ; gfx.raw-native
+    (define-fun can_08 () (_ BitVec 64) #x0fb1512b913fcf4e) ; gfx.shader.spirv
+    (define-fun can_09 () (_ BitVec 64) #xe36f7fad9871cc54) ; gfx.backend.vulkan
+    (define-fun can_10 () (_ BitVec 64) #xeaa6564c42ba0b6e) ; gfx.backend.d3d12
+    (define-fun can_11 () (_ BitVec 64) #x776dd99f54c1c0ff) ; scene.runtime
+    (define-fun can_12 () (_ BitVec 64) #x06bd309e3c1efed3) ; scene.query
+    (define-fun can_13 () (_ BitVec 64) #xa93bcf1323d0f538) ; scene.mutation
+    (define-fun can_14 () (_ BitVec 64) #xbf8f73e53cfc8f2f) ; asset.gltf
+    (define-fun can_15 () (_ BitVec 64) #xe25621a63df6f8ff) ; asset.ingestion
+    (define-fun can_16 () (_ BitVec 64) #x727f805c552fa603) ; asset.realtime
+    (define-fun can_17 () (_ BitVec 64) #xc406578ad44bcf06) ; ui.bundle
+    (define-fun can_18 () (_ BitVec 64) #xc12b1f6e1af9364e) ; reflection
+    (define-fun can_19 () (_ BitVec 64) #xe1abfe67f1428028) ; runtime.inspection
+    (define-fun can_20 () (_ BitVec 64) #x28e6497b81e13e6d) ; device.reflection
+    (define-fun can_21 () (_ BitVec 64) #xe8609817aa70bec8) ; actor.runtime
+    (define-fun can_22 () (_ BitVec 64) #x3d8b22a2108b2abe) ; actor.registry
+    (define-fun can_23 () (_ BitVec 64) #x6371b1a866d592dc) ; async.runtime
+    (define-fun can_24 () (_ BitVec 64) #x3936858b89656917) ; async.timers
+    (define-fun can_25 () (_ BitVec 64) #xbadf8e5201528361) ; io.net
+    (define-fun can_26 () (_ BitVec 64) #x316e9b66b64ff4a5) ; io.process
+    (define-fun can_27 () (_ BitVec 64) #x5c0e2517e24062ee) ; gfx.compute
+    (define-fun can_28 () (_ BitVec 64) #x1f16ff96f558fce0) ; ui.component
+    (define-fun can_29 () (_ BitVec 64) #x378e0a4d70394a9f) ; compatibility
+    (define-fun can_30 () (_ BitVec 64) #xeccb11f598278cf6) ; host.bridge
+
+    ; Note: audio.device (#x332425c3a1eb4e0f, top=0x33) and audio.midi
+    ; (#x5cacc74e40f17a7e, top=0x5c) are defined in services.h but not
+    ; in the active catalog.  audio.midi collides with gfx.compute (0x5c)
+    ; so they are excluded from this proof.  If added to the catalog,
+    ; re-run this proof with a wider mask or magic multiplier.
+
+    (assert (not (distinct
+      (phash can_00) (phash can_01) (phash can_02) (phash can_03) (phash can_04)
+      (phash can_05) (phash can_06) (phash can_07) (phash can_08) (phash can_09)
+      (phash can_10) (phash can_11) (phash can_12) (phash can_13) (phash can_14)
+      (phash can_15) (phash can_16) (phash can_17) (phash can_18) (phash can_19)
+      (phash can_20) (phash can_21) (phash can_22) (phash can_23) (phash can_24)
+      (phash can_25) (phash can_26) (phash can_27) (phash can_28) (phash can_29)
+      (phash can_30)
+    )))
+    (check-sat)
+  include_model: false
+  include_stats: false

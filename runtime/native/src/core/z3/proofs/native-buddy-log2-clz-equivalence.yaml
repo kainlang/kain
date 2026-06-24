@@ -1,0 +1,248 @@
+version: 1
+id: kain.native.core.proofs.native_buddy_log2_clz_equivalence
+kind: check_smt2
+description: >
+  The while-loop in kain_buddy_log2_exact can be replaced by
+  31 - __builtin_clz(value) for all power-of-two inputs. And
+  kain_buddy_required_height can be computed as
+  32 - __builtin_clz(unit_count - 1) for unit_count > 1.
+  Together these collapse a loop of up to 32 iterations into
+  2-3 instructions on every buddy alloc/free.
+tags:
+- native-runtime
+- memory
+- buddy
+- clz
+- branchless
+source:
+  path: X:\runtime\native\src\core\buddy.c
+  symbol: kain_buddy_log2_exact / kain_buddy_required_height
+  reason: >
+    Every buddy alloc and free calls both functions. The while-loop in
+    log2_exact iterates up to 32 times per call. Replacing with CLZ
+    eliminates the loop entirely on x86 (LZCNT) and ARM (CLZ).
+case:
+  smt2: |
+    (set-logic QF_BV)
+
+    ;
+    ; CLZ model for 32-bit bit-vectors
+    ; Implements the portable binary-search CLZ algorithm:
+    ;   int clz(uint32_t x) {
+    ;       int n = 32;
+    ;       uint32_t y;
+    ;       y = x >> 16; if (y) { n -= 16; x = y; }
+    ;       y = x >> 8;  if (y) { n -= 8;  x = y; }
+    ;       y = x >> 4;  if (y) { n -= 4;  x = y; }
+    ;       y = x >> 2;  if (y) { n -= 2;  x = y; }
+    ;       y = x >> 1;  if (y) { n -= 1; }
+    ;       return n - 1;
+    ;   }
+    ; Returns CLZ(x) for x > 0. For x = 0 returns 31 (matching GCC's
+    ; undefined behavior — our domain excludes x = 0).
+    ;
+    (define-fun clz32 ((x (_ BitVec 32))) (_ BitVec 32)
+      (let ((tmp16 (bvlshr x #x00000010)))
+      (let ((n1 (ite (= tmp16 #x00000000) #x00000000 #x00000010))
+            (x1 (ite (= tmp16 #x00000000) x tmp16)))
+      (let ((tmp8 (bvlshr x1 #x00000008)))
+      (let ((n2 (ite (= tmp8 #x00000000) #x00000000 #x00000008))
+            (x2 (ite (= tmp8 #x00000000) x1 tmp8)))
+      (let ((tmp4 (bvlshr x2 #x00000004)))
+      (let ((n3 (ite (= tmp4 #x00000000) #x00000000 #x00000004))
+            (x3 (ite (= tmp4 #x00000000) x2 tmp4)))
+      (let ((tmp2 (bvlshr x3 #x00000002)))
+      (let ((n4 (ite (= tmp2 #x00000000) #x00000000 #x00000002))
+            (x4 (ite (= tmp2 #x00000000) x3 tmp2)))
+      (let ((tmp1 (bvlshr x4 #x00000001)))
+      (let ((n5 (ite (= tmp1 #x00000000) #x00000000 #x00000001)))
+        (bvsub #x0000001f (bvadd n1 n2 n3 n4 n5))))))))))))
+
+    ;
+    ; =========================================================================
+    ; CLAIM 1: For all 32 power-of-two values v (1, 2, 4, ..., 2^31),
+    ;   log2_exact(v) = 31 - clz(v)
+    ;
+    ; The log2_exact while-loop for v = 2^k shifts right k times then exits
+    ; with height = k. CLZ(2^k) = 31 - k, so 31 - CLZ(v) = k = log2_exact(v).
+    ;
+    ; We verify by checking each of the 32 possible power-of-two values.
+    ; =========================================================================
+
+    (define-fun log2_by_clz ((v (_ BitVec 32))) (_ BitVec 32)
+      (bvsub #x0000001f (clz32 v)))
+
+    (assert (not (and
+      (= (log2_by_clz #x00000001) #x00000000)
+      (= (log2_by_clz #x00000002) #x00000001)
+      (= (log2_by_clz #x00000004) #x00000002)
+      (= (log2_by_clz #x00000008) #x00000003)
+      (= (log2_by_clz #x00000010) #x00000004)
+      (= (log2_by_clz #x00000020) #x00000005)
+      (= (log2_by_clz #x00000040) #x00000006)
+      (= (log2_by_clz #x00000080) #x00000007)
+      (= (log2_by_clz #x00000100) #x00000008)
+      (= (log2_by_clz #x00000200) #x00000009)
+      (= (log2_by_clz #x00000400) #x0000000a)
+      (= (log2_by_clz #x00000800) #x0000000b)
+      (= (log2_by_clz #x00001000) #x0000000c)
+      (= (log2_by_clz #x00002000) #x0000000d)
+      (= (log2_by_clz #x00004000) #x0000000e)
+      (= (log2_by_clz #x00008000) #x0000000f)
+      (= (log2_by_clz #x00010000) #x00000010)
+      (= (log2_by_clz #x00020000) #x00000011)
+      (= (log2_by_clz #x00040000) #x00000012)
+      (= (log2_by_clz #x00080000) #x00000013)
+      (= (log2_by_clz #x00100000) #x00000014)
+      (= (log2_by_clz #x00200000) #x00000015)
+      (= (log2_by_clz #x00400000) #x00000016)
+      (= (log2_by_clz #x00800000) #x00000017)
+      (= (log2_by_clz #x01000000) #x00000018)
+      (= (log2_by_clz #x02000000) #x00000019)
+      (= (log2_by_clz #x04000000) #x0000001a)
+      (= (log2_by_clz #x08000000) #x0000001b)
+      (= (log2_by_clz #x10000000) #x0000001c)
+      (= (log2_by_clz #x20000000) #x0000001d)
+      (= (log2_by_clz #x40000000) #x0000001e)
+      (= (log2_by_clz #x80000000) #x0000001f)
+    )))
+    (check-sat)
+
+    (reset)
+
+    ;
+    ; =========================================================================
+    ; CLAIM 2: For n > 1, kain_buddy_required_height(n) = 32 - clz(n - 1)
+    ;
+    ; The required_height loop doubles rounded_units until >= unit_count.
+    ; For n=1 it returns 0; for n>1 the ceiling log2 equals 32 - clz(n-1)
+    ; because clz(x) = 31 - floor(log2(x)) for x > 0, so
+    ;   32 - clz(n-1) = 32 - (31 - floor(log2(n-1)))
+    ;                 = 1 + floor(log2(n-1))
+    ;                 = ceil(log2(n))   for n > 1
+    ;
+    ; We model the original loop body unrolled 32 times (enough for 32-bit)
+    ; and the CLZ formula, then prove equivalence for all n in [0, 2^20]
+    ; (the practical range: KAIN_BUDDY_MAX_HEIGHT = 20).
+    ;
+    ; Symbolic BV solver: a single free variable n proves the identity
+    ; across the entire range via the solver, not enumeration.
+    ; =========================================================================
+
+    (set-logic QF_BV)
+
+    (define-fun clz32 ((x (_ BitVec 32))) (_ BitVec 32)
+      (let ((tmp16 (bvlshr x #x00000010)))
+      (let ((n1 (ite (= tmp16 #x00000000) #x00000000 #x00000010))
+            (x1 (ite (= tmp16 #x00000000) x tmp16)))
+      (let ((tmp8 (bvlshr x1 #x00000008)))
+      (let ((n2 (ite (= tmp8 #x00000000) #x00000000 #x00000008))
+            (x2 (ite (= tmp8 #x00000000) x1 tmp8)))
+      (let ((tmp4 (bvlshr x2 #x00000004)))
+      (let ((n3 (ite (= tmp4 #x00000000) #x00000000 #x00000004))
+            (x3 (ite (= tmp4 #x00000000) x2 tmp4)))
+      (let ((tmp2 (bvlshr x3 #x00000002)))
+      (let ((n4 (ite (= tmp2 #x00000000) #x00000000 #x00000002))
+            (x4 (ite (= tmp2 #x00000000) x3 tmp2)))
+      (let ((tmp1 (bvlshr x4 #x00000001)))
+      (let ((n5 (ite (= tmp1 #x00000000) #x00000000 #x00000001)))
+        (bvsub #x0000001f (bvadd n1 n2 n3 n4 n5))))))))))))
+
+    ;
+    ; Model the original while-loop:
+    ;   rounded_units = 1; height = 0;
+    ;   while (rounded_units < unit_count) {
+    ;       rounded_units <<= 1; height += 1;
+    ;   }
+    ;
+    ; Unrolled 32 times -- each iteration conditionally shifts/doubles
+    ; only if current rounded_units < unit_count.
+    ;
+    (define-fun required_height_loop ((n (_ BitVec 32))) (_ BitVec 32)
+      (let ((u0 #x00000001) (h0 #x00000000))
+      (let ((u1 (ite (bvult u0 n) (bvshl u0 #x00000001) u0))
+            (h1 (ite (bvult u0 n) (bvadd h0 #x00000001) h0)))
+      (let ((u2 (ite (bvult u1 n) (bvshl u1 #x00000001) u1))
+            (h2 (ite (bvult u1 n) (bvadd h1 #x00000001) h1)))
+      (let ((u3 (ite (bvult u2 n) (bvshl u2 #x00000001) u2))
+            (h3 (ite (bvult u2 n) (bvadd h2 #x00000001) h2)))
+      (let ((u4 (ite (bvult u3 n) (bvshl u3 #x00000001) u3))
+            (h4 (ite (bvult u3 n) (bvadd h3 #x00000001) h3)))
+      (let ((u5 (ite (bvult u4 n) (bvshl u4 #x00000001) u4))
+            (h5 (ite (bvult u4 n) (bvadd h4 #x00000001) h4)))
+      (let ((u6 (ite (bvult u5 n) (bvshl u5 #x00000001) u5))
+            (h6 (ite (bvult u5 n) (bvadd h5 #x00000001) h5)))
+      (let ((u7 (ite (bvult u6 n) (bvshl u6 #x00000001) u6))
+            (h7 (ite (bvult u6 n) (bvadd h6 #x00000001) h6)))
+      (let ((u8 (ite (bvult u7 n) (bvshl u7 #x00000001) u7))
+            (h8 (ite (bvult u7 n) (bvadd h7 #x00000001) h7)))
+      (let ((u9 (ite (bvult u8 n) (bvshl u8 #x00000001) u8))
+            (h9 (ite (bvult u8 n) (bvadd h8 #x00000001) h8)))
+      (let ((u10 (ite (bvult u9 n) (bvshl u9 #x00000001) u9))
+            (h10 (ite (bvult u9 n) (bvadd h9 #x00000001) h9)))
+      (let ((u11 (ite (bvult u10 n) (bvshl u10 #x00000001) u10))
+            (h11 (ite (bvult u10 n) (bvadd h10 #x00000001) h10)))
+      (let ((u12 (ite (bvult u11 n) (bvshl u11 #x00000001) u11))
+            (h12 (ite (bvult u11 n) (bvadd h11 #x00000001) h11)))
+      (let ((u13 (ite (bvult u12 n) (bvshl u12 #x00000001) u12))
+            (h13 (ite (bvult u12 n) (bvadd h12 #x00000001) h12)))
+      (let ((u14 (ite (bvult u13 n) (bvshl u13 #x00000001) u13))
+            (h14 (ite (bvult u13 n) (bvadd h13 #x00000001) h13)))
+      (let ((u15 (ite (bvult u14 n) (bvshl u14 #x00000001) u14))
+            (h15 (ite (bvult u14 n) (bvadd h14 #x00000001) h14)))
+      (let ((u16 (ite (bvult u15 n) (bvshl u15 #x00000001) u15))
+            (h16 (ite (bvult u15 n) (bvadd h15 #x00000001) h15)))
+      (let ((u17 (ite (bvult u16 n) (bvshl u16 #x00000001) u16))
+            (h17 (ite (bvult u16 n) (bvadd h16 #x00000001) h16)))
+      (let ((u18 (ite (bvult u17 n) (bvshl u17 #x00000001) u17))
+            (h18 (ite (bvult u17 n) (bvadd h17 #x00000001) h17)))
+      (let ((u19 (ite (bvult u18 n) (bvshl u18 #x00000001) u18))
+            (h19 (ite (bvult u18 n) (bvadd h18 #x00000001) h18)))
+      (let ((u20 (ite (bvult u19 n) (bvshl u19 #x00000001) u19))
+            (h20 (ite (bvult u19 n) (bvadd h19 #x00000001) h19)))
+      (let ((u21 (ite (bvult u20 n) (bvshl u20 #x00000001) u20))
+            (h21 (ite (bvult u20 n) (bvadd h20 #x00000001) h20)))
+      (let ((u22 (ite (bvult u21 n) (bvshl u21 #x00000001) u21))
+            (h22 (ite (bvult u21 n) (bvadd h21 #x00000001) h21)))
+      (let ((u23 (ite (bvult u22 n) (bvshl u22 #x00000001) u22))
+            (h23 (ite (bvult u22 n) (bvadd h22 #x00000001) h22)))
+      (let ((u24 (ite (bvult u23 n) (bvshl u23 #x00000001) u23))
+            (h24 (ite (bvult u23 n) (bvadd h23 #x00000001) h23)))
+      (let ((u25 (ite (bvult u24 n) (bvshl u24 #x00000001) u24))
+            (h25 (ite (bvult u24 n) (bvadd h24 #x00000001) h24)))
+      (let ((u26 (ite (bvult u25 n) (bvshl u25 #x00000001) u25))
+            (h26 (ite (bvult u25 n) (bvadd h25 #x00000001) h25)))
+      (let ((u27 (ite (bvult u26 n) (bvshl u26 #x00000001) u26))
+            (h27 (ite (bvult u26 n) (bvadd h26 #x00000001) h26)))
+      (let ((u28 (ite (bvult u27 n) (bvshl u27 #x00000001) u27))
+            (h28 (ite (bvult u27 n) (bvadd h27 #x00000001) h27)))
+      (let ((u29 (ite (bvult u28 n) (bvshl u28 #x00000001) u28))
+            (h29 (ite (bvult u28 n) (bvadd h28 #x00000001) h28)))
+      (let ((u30 (ite (bvult u29 n) (bvshl u29 #x00000001) u29))
+            (h30 (ite (bvult u29 n) (bvadd h29 #x00000001) h29)))
+      (let ((u31 (ite (bvult u30 n) (bvshl u30 #x00000001) u30))
+            (h31 (ite (bvult u30 n) (bvadd h30 #x00000001) h30)))
+      (ite (bvult u31 n) #x00000020 h31)
+      ))))))))))))))))))))))))))))))))
+
+    ;
+    ; CLZ formula: required_height(n) = n <= 1 ? 0 : 32 - clz(n - 1)
+    ;
+    (define-fun required_height_clz ((n (_ BitVec 32))) (_ BitVec 32)
+      (ite (bvule n #x00000001)
+           #x00000000
+           (bvsub #x00000020 (clz32 (bvsub n #x00000001)))))
+
+    ;
+    ; Free variable: any 32-bit n
+    ;
+    (declare-const n (_ BitVec 32))
+
+    ;
+    ; Prove equivalence for all n in [0, 2^31] (the maximum practical range:
+    ; total_units ≤ 2^20 per KAIN_BUDDY_MAX_HEIGHT=20, but we prove wider)
+    ;
+    (assert (not (= (required_height_loop n) (required_height_clz n))))
+    (check-sat)
+  include_model: false
+  include_stats: false
