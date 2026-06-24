@@ -1169,6 +1169,13 @@ int64_t abi_ui_node_destroy(int64_t session_id, int64_t node_id) {
     abi_ui_release_node_payloads(session, node_id);
     session->node_occupancy_bits[node_slot >> 6] &= ~(UINT64_C(1) << (node_slot & 63u));
     memset(node, 0, sizeof(*node));
+    /* ── Restore sentinel values after zeroing ──────────────────────── */
+    /* memset zeros everything, including next_sibling = 0 (not -1).    */
+    /* If any stale sibling reference still points to this slot, a      */
+    /* next_sibling of 0 (valid slot index) creates an infinite loop.   */
+    /* Always set -1 sentinels after memset to guarantee termination.   */
+    node->first_child = ABI_UI_NO_CHILD;
+    node->next_sibling = ABI_UI_NO_CHILD;
     session->node_count -= 1;
     return ABI_UI_OK;
 }

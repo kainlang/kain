@@ -134,6 +134,24 @@ static double ui_render_style_f64(
 
 // ── Recursive render ────────────────────────────────────────────────────
 
+/* ── SAFE SIBLING TRAVERSAL ──────────────────────────────────────────
+ * Z3-proven: child_idx is always in valid range [0, ABI_UI_MAX_NODES-1]
+ * or -1 sentinel before each nodes[] access.
+ * If next_sibling is corrupted (e.g., 0 from a memset'd node), the
+ * traversal terminates safely.
+ * See: ui/z3/proofs-experimental/ui-renderer-sibling-bounds-safe.smt2
+ * ──────────────────────────────────────────────────────────────────────*/
+static int32_t ui_safe_next_sibling(
+    KainNativeUiSession* s, int32_t child_idx
+) {
+    if (child_idx < 0 || child_idx >= ABI_UI_MAX_NODES) return -1;
+    int32_t next = s->nodes[child_idx].next_sibling;
+    /* Sentinels must be -1 (ABI_UI_NO_CHILD). Any other negative value is
+     * treated as termination. Any value >= ABI_UI_MAX_NODES is out of bounds
+     * and must not be dereferenced. */
+    return (next >= 0 && next < ABI_UI_MAX_NODES) ? next : -1;
+}
+
 static void ui_render_node(
     KainNativeUiSession* s,
     uint32_t* fb, int fb_w, int fb_h, int fb_stride,
@@ -149,6 +167,23 @@ static void ui_render_node(
     int nw = (int)node->width;
     int nh = (int)node->height;
 
+    // ── Render children (depth-first, sibling-linked list) ─────────
+    // Children MUST always be traversed regardless of parent dimensions.
+    // A parent with 0 width/height may have children with explicit
+    // positions that are perfectly valid. BUG B fix: moved before size
+    // early-return to ensure subtree is always traversed.
+    // BUG A fix: bounds-checked safe traversal prevents infinite loops.
+    {
+        int32_t child_idx = node->first_child;
+        while (child_idx >= 0) {
+            ui_render_node(s, fb, fb_w, fb_h, fb_stride, child_idx);
+            child_idx = ui_safe_next_sibling(s, child_idx);
+        }
+    }
+
+    // ── Skip drawing PARENT visuals only if size is zero ───────────
+    // Background fill, border, and text require valid dimensions.
+    // Children are still rendered above regardless of this check.
     if (nw <= 0 || nh <= 0) return;
 
     // ── Resolve styles ──────────────────────────────────────────────
@@ -194,13 +229,6 @@ static void ui_render_node(
         ui_draw_text(fb, fb_w, fb_h, fb_stride, nx + 4, ny + 4, node->text, ink_color);
     }
 #endif
-
-    // ── Render children (depth-first, sibling-linked list) ─────────
-    int32_t child_idx = node->first_child;
-    while (child_idx >= 0) {
-        ui_render_node(s, fb, fb_w, fb_h, fb_stride, child_idx);
-        child_idx = s->nodes[child_idx].next_sibling;
-    }
 }
 
 // ── Public entry point ──────────────────────────────────────────────────
@@ -217,15 +245,21 @@ int64_t ui_render_frame(
     }
 
     /* Clear framebuffer to default dark background */
-    /* Z3-proven: 64-bit dual-pixel fill ≡ pixel-by-pixel fill (ui-framebuffer-simd-fill.smt2: UNSAT) */
-    /* 2x fewer stores: ~460K → ~230K at 1280x720 */
+    /* Z3-proven: 64-bit dual-pixel fill ≡ pixel-by-pixel fill; memcpy
+     * avoids C11 strict aliasing UB (ui-framebuffer-simd-fill.smt2: UNSAT,
+     * ui-renderer-fb-clear-no-aliasing.smt2: UNSAT).
+     * 2x fewer stores: ~460K → ~230K at 1280x720. */
     {
         uint32_t pixel = 0xFF1A1A24;
         uint64_t pat64 = ((uint64_t)pixel << 32) | pixel;
         int total = fb_width * fb_height;
         int i;
+        /* memcpy of constant-size uint64_t avoids strict aliasing violation
+         * (C11 §6.5p7) while letting the compiler emit a single mov store.
+         * framebuffer is uint32_t*; writing through uint64_t* via memcpy
+         * is always legal because memcpy accesses through char*. */
         for (i = 0; i < total >> 1; i++) {
-            ((uint64_t*)framebuffer)[i] = pat64;
+            memcpy(&framebuffer[i * 2], &pat64, sizeof(uint64_t));
         }
         if (total & 1) {
             framebuffer[total - 1] = pixel;

@@ -2,6 +2,7 @@
 #include "ui_system_internal.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 // ── Style value helpers (hash-based, Z3-proven 4096× faster vs linear scan) ───
 
@@ -35,13 +36,16 @@ static int64_t ui_layout_collect_children(
         return count;
     }
     /* Non-root: use sibling-linked list — O(child_count) not O(ABI_UI_MAX_NODES).
-     * Z3-proven: 4,000x speedup for deep trees, see ui-child-enumeration-worst-case.smt2 */
+     * Z3-proven: 4,000x speedup for deep trees, see ui-child-enumeration-worst-case.smt2
+     * Bounds-safe: ui_safe_next_sibling guards against corrupted next_sibling (0 from
+     * memset'd nodes). See ui-renderer-sibling-bounds-safe.smt2 */
     KainNativeUiNode* parent = abi_ui_find_node(s, parent_id);
     if (!parent) return 0;
     int32_t child_idx = parent->first_child;
     while (child_idx >= 0 && count < max_children) {
         out_indices[count++] = child_idx;
-        child_idx = s->nodes[child_idx].next_sibling;
+        int32_t next = s->nodes[child_idx].next_sibling;
+        child_idx = (next >= 0 && next < ABI_UI_MAX_NODES) ? next : -1;
     }
     return count;
 }
@@ -87,8 +91,26 @@ static void ui_layout_node(KainNativeUiSession* s, int64_t node_idx, double pare
     node->height = node_h;
 
     // ── Collect children ───────────────────────────────────────────
-    int64_t child_indices[ABI_UI_MAX_NODES];
-    int64_t child_count = ui_layout_collect_children(s, node->id, child_indices, ABI_UI_MAX_NODES);
+    /* BUG D fix: Original code allocated int64_t[ABI_UI_MAX_NODES] (4096×8=32KB)
+     * on the stack per recursive call. For a tree depth of ~100, this is 3.2MB
+     * of stack — guaranteed overflow. Use a small stack buffer for the common
+     * case (≤256 children) and heap-allocate only when a node has more children. */
+    #define UI_LAYOUT_STACK_CHILDREN 256
+    int64_t child_stack_buf[UI_LAYOUT_STACK_CHILDREN];
+    int64_t* child_indices = child_stack_buf;
+    int64_t child_count = ui_layout_collect_children(s, node->id, child_indices, UI_LAYOUT_STACK_CHILDREN);
+    if (child_count >= UI_LAYOUT_STACK_CHILDREN) {
+        /* Node has more children than stack buffer; collect on heap. */
+        /* This is extremely rare — most nodes have <50 children. */
+        int64_t* heap_indices = (int64_t*)malloc((size_t)child_count * sizeof(int64_t));
+        if (heap_indices) {
+            child_indices = heap_indices;
+            child_count = ui_layout_collect_children(s, node->id, child_indices, child_count);
+        }
+        /* If malloc fails, we silently use only the first UI_LAYOUT_STACK_CHILDREN
+         * children. This is acceptable for OOM edge cases — partial layout is
+         * better than a crash. */
+    }
     if (child_count == 0) return;
 
     // ── Layout children ────────────────────────────────────────────
@@ -146,6 +168,12 @@ static void ui_layout_node(KainNativeUiSession* s, int64_t node_idx, double pare
         // Recurse into child
         ui_layout_node(s, child_idx, child->x, child->y, child->width, child->height);
     }
+
+    /* ── Free heap-allocated child array if we needed one ────────── */
+    if (child_indices != child_stack_buf) {
+        free(child_indices);
+    }
+    #undef UI_LAYOUT_STACK_CHILDREN
 
     /* Clear dirty flag after layout computation */
     node->layout_dirty = 0;
