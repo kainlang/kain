@@ -54,6 +54,8 @@ static KainOwnershipRegion KAIN_OWNERSHIP_REGIONS[KAIN_OWNERSHIP_MAX_REGIONS];
 static uint64_t KAIN_OWNERSHIP_OCCUPANCY_WORDS[KAIN_OWNERSHIP_WORD_COUNT];
 static uint32_t KAIN_OWNERSHIP_POINTER_INDEX[KAIN_OWNERSHIP_INDEX_CAPACITY];
 static KainDeferredDecayRecord KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_MAX_REGIONS];
+/* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+static uint64_t KAIN_OWNERSHIP_FREE_SUMMARY = UINT64_MAX;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT = 0u;
@@ -245,8 +247,9 @@ static int kain_ownership_enqueue_deferred_decay_unlocked(const KainOwnershipReg
     KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL].ptr = region->ptr;
     KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL].relocation_handle =
         region->relocation_handle;
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-ring-modulo-mask-equivalence.yaml */
     KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL =
-        (KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
+        (KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL + 1u) & (KAIN_OWNERSHIP_MAX_REGIONS - 1u);
     KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT += 1u;
     atomic_fetch_add_explicit(
         &KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC,
@@ -343,19 +346,24 @@ static void kain_ownership_clear_slot_unlocked(int slot) {
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
     KAIN_OWNERSHIP_OCCUPANCY_WORDS[(uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS] &=
         ~(UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u)));
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+    KAIN_OWNERSHIP_FREE_SUMMARY |=
+        (UINT64_C(1) << ((uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS));
 }
 
+/* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
 static int kain_ownership_find_free_slot(void) {
-    for (uint32_t word_index = 0u; word_index < KAIN_OWNERSHIP_WORD_COUNT; ++word_index) {
-        uint64_t free_mask = ~KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index];
-        if (free_mask != 0u) {
-            uint64_t low_bit = kain_ownership_isolate_low_bit_u64(free_mask);
-            unsigned int bit_index = kain_ownership_low_bit_index_u64(low_bit);
-            uint32_t slot = word_index * KAIN_OWNERSHIP_WORD_BITS + bit_index;
-            if (slot < KAIN_OWNERSHIP_MAX_REGIONS) {
-                return (int)slot;
-            }
-        }
+    if (KAIN_OWNERSHIP_FREE_SUMMARY == 0u) {
+        return -1;
+    }
+    uint64_t low_word_bit = kain_ownership_isolate_low_bit_u64(KAIN_OWNERSHIP_FREE_SUMMARY);
+    unsigned int word_index = kain_ownership_low_bit_index_u64(low_word_bit);
+    uint64_t free_mask = ~KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index];
+    uint64_t low_slot_bit = kain_ownership_isolate_low_bit_u64(free_mask);
+    unsigned int bit_index = kain_ownership_low_bit_index_u64(low_slot_bit);
+    uint32_t slot = word_index * KAIN_OWNERSHIP_WORD_BITS + bit_index;
+    if (slot < KAIN_OWNERSHIP_MAX_REGIONS) {
+        return (int)slot;
     }
     return -1;
 }
@@ -460,10 +468,16 @@ static int kain_ownership_upsert_unlocked(
         uint64_t bit = UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u));
         int index_status;
         KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
+        /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+        if (KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] == UINT64_MAX) {
+            KAIN_OWNERSHIP_FREE_SUMMARY &= ~(UINT64_C(1) << word_index);
+        }
         index_status = kain_ownership_index_insert_unlocked(ptr, slot);
         if (index_status != KAIN_OWNERSHIP_OK) {
             region->occupied = 0;
             KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] &= ~bit;
+            /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+            KAIN_OWNERSHIP_FREE_SUMMARY |= (UINT64_C(1) << word_index);
             return kain_ownership_fail(index_status);
         }
     }
@@ -503,10 +517,16 @@ static int kain_ownership_register_helper_allocation_unlocked(
     /* Proof: runtime/native/src/core/z3/proofs/native-ownership-slot-mod-wordbits-to-mask.yaml */
     bit = UINT64_C(1) << ((uint32_t)slot & (KAIN_OWNERSHIP_WORD_BITS - 1u));
     KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
+    /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+    if (KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] == UINT64_MAX) {
+        KAIN_OWNERSHIP_FREE_SUMMARY &= ~(UINT64_C(1) << word_index);
+    }
     index_status = kain_ownership_index_insert_unlocked(ptr, slot);
     if (index_status != KAIN_OWNERSHIP_OK) {
         region->occupied = 0;
         KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] &= ~bit;
+        /* Proof: runtime/native/src/core/z3/proofs/native-ownership-free-summary-word-invariant.yaml */
+        KAIN_OWNERSHIP_FREE_SUMMARY |= (UINT64_C(1) << word_index);
         return kain_ownership_fail(index_status);
     }
     if (out_slot != NULL) {
@@ -1156,8 +1176,9 @@ void __kain_ownership_flush_deferred_decay(void) {
         KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD].ptr = NULL;
         KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD].relocation_handle =
             KAIN_RUNTIME_HANDLE_INVALID;
+        /* Proof: runtime/native/src/core/z3/proofs/native-ownership-ring-modulo-mask-equivalence.yaml */
         KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD =
-            (KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
+            (KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD + 1u) & (KAIN_OWNERSHIP_MAX_REGIONS - 1u);
         KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT -= 1u;
         atomic_fetch_sub_explicit(
             &KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC,
