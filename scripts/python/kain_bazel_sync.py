@@ -1260,8 +1260,56 @@ def cargo_bazel_repin(
         release_lock(lock_handle)
 
 
+def build_counter_path(repo_root: Path) -> Path:
+    """Path to the persisted build counter file (outside Bazel sandbox)."""
+    return (repo_root / ".kain" / "build_counter").resolve()
+
+
+def read_build_counter(file_path: Path) -> int:
+    """Read the current build counter value. Initializes to 8000 if absent."""
+    try:
+        val = int(file_path.read_text().strip())
+        return val
+    except (FileNotFoundError, ValueError, OSError):
+        return 8000
+
+
+def write_build_info_file(
+    context: SyncContext,
+    counter_value: int,
+    short_sha: str,
+    commit_count: str,
+    tracking_mode: str,
+) -> None:
+    """Write data/build_info.env for the CLI crate so build.rs can read it.
+
+    This is the primary delivery mechanism for build tracking metadata into
+    the Rust build script, since Bazel's --action_env does not reliably
+    propagate to cargo_build_script actions in all rules_rust versions.
+    """
+    info_path = context.repo_root / "crates" / "cli" / "data" / "build_info.env"
+    build_number = f"{tracking_mode}-{counter_value}-{short_sha}"
+    source_date_epoch = str(int(time.time()))
+    lines = [
+        f"KAIN_BUILD_NUMBER={build_number}",
+        f"KAIN_BUILD_TRACKING_MODE={tracking_mode}",
+        f"KAIN_BUILD_GIT_SHA={short_sha}",
+        f"KAIN_BUILD_GIT_COMMIT_COUNT={commit_count}",
+        f"KAIN_BUILD_GIT_DIRTY=clean",
+        f"SOURCE_DATE_EPOCH={source_date_epoch}",
+    ]
+    write_text_atomic(info_path, "\n".join(lines) + "\n")
+
+
 def bazel_build_tracking_args(context: SyncContext) -> tuple[str, ...]:
-    """Return --action_env flags that embed build tracking into the binary."""
+    """Return --action_env flags that embed build tracking into the binary.
+
+    Note: --action_env does not reliably propagate to cargo_build_script
+    actions in all rules_rust versions, so the primary delivery mechanism
+    is write_build_info_file() which produces data/build_info.env read by
+    build.rs.  These --action_env flags are retained as a secondary channel
+    for any actions that do receive them.
+    """
     tracking_mode = context.sync_policy.get(
         "build_tracking_mode", f"bazel-{context.bazel_config}"
     )
@@ -1269,17 +1317,28 @@ def bazel_build_tracking_args(context: SyncContext) -> tuple[str, ...]:
         tracking_mode = f"bazel-{context.bazel_config}"
     repo_sha = repo_head_sha(context.repo_root)
     short_sha = repo_sha[:12] if len(repo_sha) >= 12 else repo_sha
-    build_number = f"{tracking_mode}-{short_sha}"
-    # Pass SOURCE_DATE_EPOCH with current Unix time so build.rs always
-    # embeds a fresh timestamp. Without this, Bazel caches the build-script
-    # output and the binary claims a frozen build date even on fresh compiles.
-    # build.rs already has rerun-if-env-changed=SOURCE_DATE_EPOCH, so this
-    # forces re-evaluation only when the timestamp actually changes.
+
+    # Read and increment build counter
+    counter_path = build_counter_path(context.repo_root)
+    counter_value = read_build_counter(counter_path)
+    next_counter = counter_value + 1
+    write_text_atomic(counter_path, str(next_counter))
+
+    # Get git commit count
+    commit_lines = git_lines(context.repo_root, ("rev-list", "--count", "HEAD"))
+    commit_count = commit_lines[0] if commit_lines else "0"
+
+    # Write build info file for build.rs to consume
+    write_build_info_file(context, counter_value, short_sha, commit_count, tracking_mode)
+
+    build_number = f"{tracking_mode}-{counter_value}-{short_sha}"
     source_date_epoch = str(int(time.time()))
     return (
         f"--action_env=SOURCE_DATE_EPOCH={source_date_epoch}",
         f"--action_env=KAIN_BUILD_NUMBER={build_number}",
         f"--action_env=KAIN_BUILD_TRACKING_MODE={tracking_mode}",
+        f"--action_env=KAIN_BUILD_GIT_SHA={short_sha}",
+        f"--action_env=KAIN_BUILD_GIT_COMMIT_COUNT={commit_count}",
     )
 
 

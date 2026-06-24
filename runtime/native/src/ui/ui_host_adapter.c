@@ -349,6 +349,14 @@ int64_t abi_ui_host_adapter_attach(KainNativeUiSession* session, const char* bac
         session->host_state = (void*)win32_host;
         session->host_attached = 1;
         snprintf(session->host_backend, sizeof(session->host_backend), "winit");
+        // Sync session dimensions with actual DPI-scaled client rect.
+        // win32_host_create uses GetClientRect after CreateWindowExA to get the
+        // real pixel dimensions (which may differ from the requested size on
+        // high-DPI displays). If we don't sync these, the layout engine and
+        // renderer disagree on the coordinate space, causing pixel offset
+        // overflows in ui_draw_fill_rect and crashes in ui_render_frame.
+        session->width = win32_host->width;
+        session->height = win32_host->height;
         return ABI_UI_OK;
     }
 #endif
