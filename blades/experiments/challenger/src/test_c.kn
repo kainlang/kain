@@ -1,0 +1,6 @@
+// minimal test: C include + @extern
+include storm_ui as ui
+
+fn main() -> Int:
+    let result = ui.storm_init()
+    return result

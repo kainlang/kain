@@ -1,0 +1,24 @@
+// fresh_probe.kn — benchmark pattern: component FIRST, world SECOND
+use std::runtime
+
+component ProbeWindow():
+    render <panel title="Fresh Probe">
+        <text value="Component BEFORE world — benchmark-proven pattern." font_size={14} />
+        <text value="If you can see this: order matters." font_size={12} />
+    </panel>
+
+world ProbeWorld:
+    state frame: Int = 0
+    surface native_ui => ProbeWindow
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let _frame: Int = ProbeWorld.frame
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

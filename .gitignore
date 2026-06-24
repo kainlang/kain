@@ -317,3 +317,6 @@ blades/kaintana/examples/example_component_window.kn
 blades/kaintana/examples/example_bridge_test.kn
 blades/kaintana/build.kn
 blades/edge_cases/py/tasks.md
+/_scratch_dll
+*.tmp
+/benchmark/cases_v3/out/reports

@@ -1,0 +1,24 @@
+// vcpkg + zlib compress/uncompress demo
+// Build: KAIN_VCPKG_EXE=... KAIN_C_FFI_AUTO_FETCH=1
+//   kain build X:/blades/c/vcpkg_zlib_compress/main.kn --target llvm
+
+use std::runtime
+
+include <zlib.h> 1.2.13 as z
+
+fn main() -> Int with Unsafe:
+    let _ = runtime_init()
+
+    // Get zlib version string via the extracted zlibVersion() call
+    let ver: Int = z_zlibCompileFlags()
+    if ver == 0:
+        runtime_shutdown()
+        return 1
+
+    let ver2: Int = z_zlibVersion()
+    if ver2 == 0:
+        runtime_shutdown()
+        return 2
+
+    runtime_shutdown()
+    return 0

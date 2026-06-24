@@ -1,0 +1,31 @@
+// quarantine_leak_test.kn — minimal reproduction: world + component surface
+// Used by python harness to measure per-second memory growth
+use std::runtime
+
+component LeakProbe():
+    render <panel title="Leak Probe">
+        <text value="Element A — literal text" font_size={14} />
+        <text value="Element B — literal text" font_size={12} />
+        <text value="Element C — literal text" font_size={11} />
+        <text value="Element D — literal text" font_size={10} />
+        <text value="Element E — literal text" font_size={13} />
+        <text value="Element F — literal text" font_size={12} />
+        <text value="Element G — literal text" font_size={11} />
+        <text value="Element H — literal text" font_size={10} />
+        <text value="Element I — literal text" font_size={13} />
+        <text value="Element J — literal text" font_size={12} />
+    </panel>
+
+world LeakWorld:
+    state frame: Int = 0
+    surface native_ui => LeakProbe
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    let _frame: Int = LeakWorld.frame
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

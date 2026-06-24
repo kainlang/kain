@@ -1,0 +1,33 @@
+use std::runtime
+
+// Export a simple arithmetic function with C ABI
+// so Rust can call it via FFI.
+@callconv("win64")
+@link_name("kain_add")
+fn kain_add(a: Int, b: Int) -> Int:
+    return a + b
+
+// Export fibonacci — Rust will call this
+@callconv("win64")
+@link_name("kain_fib")
+fn kain_fib(n: Int) -> Int:
+    if n <= 1:
+        return n
+    return kain_fib(n - 1) + kain_fib(n - 2)
+
+// Export string reverse — tests pointer passing
+@callconv("win64")
+@link_name("kain_multiply")
+fn kain_multiply(a: Int, b: Int) -> Int:
+    return a * b
+
+fn run_self_test() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    // Self-test
+    let _ = print("kain_add(5, 7) = " + str(kain_add(5, 7)) + " (expect 12)\n")
+    let _ = print("kain_fib(10) = " + str(kain_fib(10)) + " (expect 55)\n")
+    let _ = print("kain_multiply(6, 7) = " + str(kain_multiply(6, 7)) + " (expect 42)\n")
+    runtime_shutdown()
+    return 0

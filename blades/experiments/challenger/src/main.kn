@@ -1,0 +1,431 @@
+// ============================================================================
+//  PSYCHIC RESONANCE STORM
+//  pulse + resonate + actor ONLY | NO converge/orchestrate/shatter/teleport
+// ============================================================================
+//
+//  A self-organizing chaotic storm that feeds on itself through a 6-layer
+//  reactive cascade. The only semantic constructs used beyond basic Kain
+//  are: pulse (temporal heartbeat), resonate (cascading state tripwires),
+//  and actor (storm particle entities).
+//
+//  THE CASCADE (doubled dampen windows = natural frequency division):
+//    pulse (8ms) writes chaos_seed
+//      -> resonate chaos_seed (0ms) writes intensity
+//        -> resonate intensity (4ms) writes turbulence
+//          -> resonate turbulence (8ms) writes warp
+//            -> resonate warp (16ms) writes phase
+//              -> resonate phase (32ms) writes wisp_count
+//                -> actors aggregate -> resonate storm_state (16ms) feeds BACK
+//                   to cascade_depth, completing the self-eating loop
+//
+//  Each dampen window is DOUBLED at each cascade level, creating a
+//  POLYRHYTHMIC hierarchy: fast ripples at the bottom become slow tidal
+//  waves at the top. The storm evolves unpredictably because each pulse
+//  tick propagates through the entire cascade, and the feedback loop at
+//  L5 modulates how much chaos feeds into each subsequent iteration.
+//
+// ============================================================================
+
+use std::runtime
+use std::intent
+use std::actor
+
+// C FFI: @extern declarations + .c files linked by build system
+@extern
+fn storm_init() -> Int
+
+@extern
+fn storm_poll() -> Int
+
+@extern
+fn storm_frame(
+    intensity: Int, turbulence: Int, chaos_seed: Int,
+    wisp_count: Int, wisp_energy: Int, phase: Int,
+    cascade_depth: Int, cycle: Int,
+    pulse_fires: Int, resonate_fires: Int
+)
+
+@extern
+fn storm_exit()
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const STORM_MODULUS:   Int = 1000000007
+const WISP_COUNT:      Int = 8
+const CHAOS_SCALE:     Int = 53
+const STORM_DEPTH_MAX: Int = 7
+const PACK_SHIFT:      Int = 100000
+
+// ============================================================================
+//  UTILITY — Pure integer math
+// ============================================================================
+
+fn storm_mod(v: Int, m: Int) -> Int:
+    let r = v % m
+    if r < 0:
+        return r + m
+    return r
+
+fn storm_chaos(tick: Int, seed: Int) -> Int:
+    // Deterministic chaos — pure function, no external deps
+    let a = storm_mod(tick * CHAOS_SCALE + seed * 31 + 7, STORM_MODULUS)
+    let b = storm_mod(a * a + tick * 13 + seed * 17, STORM_MODULUS)
+    return storm_mod(b * 3 + a * 11 + tick, STORM_MODULUS)
+
+fn storm_pack(a: Int, b: Int) -> Int:
+    return storm_mod(a + b * PACK_SHIFT, STORM_MODULUS)
+
+fn storm_unpack_a(packed: Int) -> Int:
+    return packed % PACK_SHIFT
+
+fn storm_unpack_b(packed: Int) -> Int:
+    return packed / PACK_SHIFT
+
+fn storm_abs(v: Int) -> Int:
+    if v < 0:
+        return -v
+    return v
+
+// ============================================================================
+//  (UI rendering via microui C FFI — no Kain component used)
+
+// ============================================================================
+//  WORLD — Global Storm State
+// ============================================================================
+
+world StormWorld:
+    state chaos_seed:      Int = 7
+    state intensity:       Int = 0
+    state turbulence:      Int = 0
+    state warp:            Int = 0
+    state phase:           Int = 0
+    state storm_state:     Int = 0
+    state wisp_count:      Int = 0
+    state cycle:           Int = 0
+    state cascade_depth:   Int = 0
+    state wisp_energy_sum: Int = 0
+
+// ============================================================================
+//  STORM WISP ACTOR
+// ============================================================================
+//
+//  A "wisp" is a storm particle with energy, position, and phase.
+//  Wisps communicate through ask/send calls from the main loop.
+//
+//  Messages:
+//    Init    — Birth:  (id, seed) packed → sets energy/position/phase
+//    Pulse   — Life:   (intensity, turbulence) packed → updates state
+//    Status  — Report: returns (energy, phase) packed
+//    Kill    — Death:  dissolves the wisp
+//
+//  WHEN ENERGY = 0:  The wisp dies (alive = false)
+//  WHEN ENERGY HIGH: Phase advances faster (more chaotic)
+//  POSITION DRIFTS:  With turbulence, creating storm-like swirling
+//
+
+actor StormWisp:
+    state id:       Int = 0
+    state energy:   Int = 100
+    state position: Int = 0
+    state phase:    Int = 0
+    state alive:    Bool = true
+
+    on Init(reply_to: P, value: Int):
+        let wisp_id = storm_unpack_a(value)
+        let seed = storm_unpack_b(value)
+        self.id = wisp_id
+        self.energy = storm_mod(seed * 17 + wisp_id * 31, 200) + 50
+        self.position = storm_mod(seed * 7 + wisp_id * 13, 1024)
+        self.phase = storm_mod(seed + wisp_id, 360)
+        self.alive = true
+        send reply_to.Reply(value = self.id)
+
+    on Pulse(reply_to: P, value: Int):
+        let intensity = storm_unpack_a(value)
+        let turbulence = storm_unpack_b(value)
+        if self.alive:
+            let energy_delta = storm_mod(intensity * 3 + turbulence * 2, 50)
+            let drain = (turbulence * intensity) / 32
+            self.energy = self.energy + energy_delta - drain
+            if self.energy < 0:
+                self.energy = 0
+            if self.energy > 500:
+                self.energy = 500
+            let drift = storm_mod(turbulence * 7 + intensity * 3, 32) - 16
+            self.position = storm_mod(self.position + drift, 1024)
+            self.phase = storm_mod(self.phase + (self.energy / 10) + 1, 360)
+            if self.energy == 0:
+                self.alive = false
+        send reply_to.Reply(value = storm_pack(self.energy, self.phase))
+
+    on Status(reply_to: P, value: Int):
+        let _ = value
+        send reply_to.Reply(value = storm_pack(self.energy, self.phase))
+
+    on Kill(reply_to: P, value: Int):
+        let _ = value
+        self.alive = false
+        self.energy = 0
+        send reply_to.Reply(value = self.id)
+
+// ============================================================================
+//  LAYER 1: MASTER PULSE (8ms) — The Storm Heartbeat
+// ============================================================================
+//
+//  Every 8ms the pulse fires. It computes a chaos value from pulse_tick
+//  and writes to chaos_seed. This is the ONLY timed entry point.
+//  Everything else is reactive cascade through resonate.
+//
+//  pulse_tick   = monotonic counter (starts at 0, never decrements)
+//  pulse_dt_ms  = actual elapsed time since last beat (~8ms)
+//  pulse_missed = missed beats (0 in normal conditions, non-zero when overloaded)
+//
+
+pulse storm_heartbeat every 8ms jitter 1ms:
+    let tick_val: Int = pulse_tick
+    let new_seed = storm_chaos(tick_val, StormWorld.chaos_seed)
+    StormWorld.chaos_seed = new_seed
+
+// ============================================================================
+//  LAYER 2: RESONATE CASCADE (Doubled Dampen Windows)
+// ============================================================================
+//
+//  Each resonate fires reactively when its watched field changes, writing
+//  to the NEXT field in the cascade. The dampen windows DOUBLE at each
+//  cascade level, creating a frequency divider:
+//
+//    L0 (0ms):      chaos_seed ---> intensity      — immediate fire
+//    L1 (4ms):      intensity  ---> turbulence      — fast ripple
+//    L2 (8ms):      turbulence ---> warp            — medium wave
+//    L3 (16ms):     warp       ---> phase           — slow swell
+//    L4 (32ms):     phase      ---> wisp_count      — tidal shift
+//    L5 (16ms):     storm_state -> cascade_depth    — FEEDBACK LOOP
+//    L6 (64ms):     wisp_count  -> depth adjust     — glacial
+//
+//  BODY LOCALS (auto-injected by the compiler):
+//    resonate_old_i64  = field value BEFORE the write
+//    resonate_new_i64  = field value AFTER the write
+//    resonate_fired    = always true inside handler (guard already passed)
+//
+
+// L0: chaos_seed -> intensity (0ms dampen — EVERY change fires)
+resonate StormWorld.chaos_seed dampen 0 ms:
+    let new_seed: Int = resonate_new_i64
+    let old_seed: Int = resonate_old_i64
+    let delta: Int = new_seed - old_seed
+    let abs_delta = storm_abs(delta)
+    let new_intensity: Int = storm_mod(
+        (storm_mod(abs_delta, 256) * 3) + (storm_mod(new_seed, 100) / 2),
+        100
+    )
+    StormWorld.intensity = new_intensity
+    StormWorld.cycle = StormWorld.cycle + 1
+
+// L1: intensity -> turbulence (4ms dampen — absorbs rapid flickers)
+resonate StormWorld.intensity dampen 4 ms:
+    let i: Int = resonate_new_i64
+    StormWorld.turbulence = storm_mod(i * 7 + storm_mod(i * i, 64), 64)
+
+// L2: turbulence -> warp (8ms dampen)
+resonate StormWorld.turbulence dampen 8 ms:
+    let t: Int = resonate_new_i64
+    StormWorld.warp = storm_mod(t * t + t, STORM_MODULUS)
+
+// L3: warp -> phase (16ms dampen — slow tidal changes)
+resonate StormWorld.warp dampen 16 ms:
+    let w: Int = resonate_new_i64
+    StormWorld.phase = storm_mod(w, 360)
+
+// L4: phase -> wisp_count (32ms dampen — population is glacial)
+resonate StormWorld.phase dampen 32 ms:
+    let p: Int = resonate_new_i64
+    let target_pop: Int = storm_mod(p * 32, WISP_COUNT + 1)
+    StormWorld.wisp_count = target_pop
+
+// L5: storm_state -> cascade_depth FEEDBACK LOOP (16ms dampen)
+//
+//  THE STORM EATS ITSELF.
+//  storm_state accumulates wisp energy. When it gets high, it boosts
+//  cascade_depth, which amplifies the chaos in subsequent iterations.
+//  This creates a self-modifying chaotic system where the storm's own
+//  intensity feeds back into its evolution.
+//
+resonate StormWorld.storm_state dampen 16 ms:
+    let s: Int = resonate_new_i64
+    StormWorld.cascade_depth = storm_mod(
+        StormWorld.cascade_depth + storm_mod(s / 17, STORM_DEPTH_MAX + 1),
+        STORM_DEPTH_MAX + 1
+    )
+
+// L6: wisp_count -> depth adjustment (64ms dampen — glacial shifts)
+resonate StormWorld.wisp_count dampen 64 ms:
+    let w: Int = resonate_new_i64
+    if w > 6:
+        StormWorld.cascade_depth = storm_mod(
+            StormWorld.cascade_depth + 1,
+            STORM_DEPTH_MAX + 1
+        )
+    elif w < 2 and StormWorld.cascade_depth > 0:
+        StormWorld.cascade_depth = StormWorld.cascade_depth - 1
+
+// ============================================================================
+//  MAIN — The Storm Begins
+// ============================================================================
+//
+//  Flow:
+//    1. Init runtime
+//    2. Spawn 8 storm wisps (actors)
+//    3. Initialize each wisp with a unique (id, seed)
+//    4. Loop 100 iterations:
+//       a. Read world state (pulse updates chaos_seed async, cascade propagated)
+//       b. Send Pulse message to each wisp with current intensity+turbulence
+//       c. Aggregate wisp energy into storm_state (triggers resonate L5)
+//       d. Track storm evolution in checksum
+//    5. Kill all wisps
+//    6. Verify pulse fired and resonate cascade triggered
+//    7. Return storm checksum
+//
+//  SEMANTIC CONSTRUCTS USED: pulse, resonate, actor
+//  NOT USED: converge, orchestrate, shatter, teleport, patch, law, entangle
+//            collapse, observe, decay, share, fanout
+//
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Dead-state validator: explicit top-level fn reads of world fields.
+    let _chaos_seed:      Int = StormWorld.chaos_seed
+    let _intensity:       Int = StormWorld.intensity
+    let _turbulence:      Int = StormWorld.turbulence
+    let _warp:            Int = StormWorld.warp
+    let _phase:           Int = StormWorld.phase
+    let _storm_state:     Int = StormWorld.storm_state
+    let _wisp_count:      Int = StormWorld.wisp_count
+    let _cycle:           Int = StormWorld.cycle
+    let _cascade_depth:   Int = StormWorld.cascade_depth
+    let _wisp_energy_sum: Int = StormWorld.wisp_energy_sum
+
+    // Create the storm window via C FFI
+    let window_ok = storm_init()
+    if window_ok != 0:
+        return 300 + window_ok
+
+    // Snapshot telemetry before the storm
+    let pulse_before = runtime_machine_pulse_total_fire_count()
+    let resonate_before = resonate_fire_count()
+
+    // Spawn the wisp swarm (8 actors)
+    let w0 = spawn StormWisp(id = 0, energy = 100, position = 0, phase = 0, alive = true)
+    let w1 = spawn StormWisp(id = 1, energy = 100, position = 0, phase = 0, alive = true)
+    let w2 = spawn StormWisp(id = 2, energy = 100, position = 0, phase = 0, alive = true)
+    let w3 = spawn StormWisp(id = 3, energy = 100, position = 0, phase = 0, alive = true)
+    let w4 = spawn StormWisp(id = 4, energy = 100, position = 0, phase = 0, alive = true)
+    let w5 = spawn StormWisp(id = 5, energy = 100, position = 0, phase = 0, alive = true)
+    let w6 = spawn StormWisp(id = 6, energy = 100, position = 0, phase = 0, alive = true)
+    let w7 = spawn StormWisp(id = 7, energy = 100, position = 0, phase = 0, alive = true)
+
+    // Initialize each wisp
+    let _i0 = ask(w0, "Init", storm_pack(0, 7))
+    let _i1 = ask(w1, "Init", storm_pack(1, 31))
+    let _i2 = ask(w2, "Init", storm_pack(2, 53))
+    let _i3 = ask(w3, "Init", storm_pack(3, 97))
+    let _i4 = ask(w4, "Init", storm_pack(4, 131))
+    let _i5 = ask(w5, "Init", storm_pack(5, 173))
+    let _i6 = ask(w6, "Init", storm_pack(6, 211))
+    let _i7 = ask(w7, "Init", storm_pack(7, 251))
+
+    // Main render loop — runs until window is closed
+    var acc: Int = 0
+    var tick: Int = 0
+    var running: Int = 0
+    while running == 0:
+        // Poll window events (returns 1 when window is closed)
+        running = storm_poll()
+
+        // Read world state — pulse updates chaos_seed async, cascade propagated
+        let intensity  = StormWorld.intensity
+        let turbulence = StormWorld.turbulence
+        let chaos      = StormWorld.chaos_seed
+        let phase      = StormWorld.phase
+        let cascade_depth = StormWorld.cascade_depth
+        let cycle      = StormWorld.cycle
+
+        // Send Pulse to each wisp
+        let r0 = ask(w0, "Pulse", storm_pack(
+            intensity + tick, turbulence + storm_mod(tick, turbulence + 1)))
+        let r1 = ask(w1, "Pulse", storm_pack(
+            intensity + tick + 1, turbulence + storm_mod(tick + 1, turbulence + 2)))
+        let r2 = ask(w2, "Pulse", storm_pack(
+            intensity + tick + 2, turbulence + storm_mod(tick + 2, turbulence + 3)))
+        let r3 = ask(w3, "Pulse", storm_pack(
+            intensity + tick + 3, turbulence + storm_mod(tick + 3, turbulence + 4)))
+        let r4 = ask(w4, "Pulse", storm_pack(
+            intensity + tick + 4, turbulence + storm_mod(tick + 4, turbulence + 5)))
+        let r5 = ask(w5, "Pulse", storm_pack(
+            intensity + tick + 5, turbulence + storm_mod(tick + 5, turbulence + 6)))
+        let r6 = ask(w6, "Pulse", storm_pack(
+            intensity + tick + 6, turbulence + storm_mod(tick + 6, turbulence + 7)))
+        let r7 = ask(w7, "Pulse", storm_pack(
+            intensity + tick + 7, turbulence + storm_mod(tick + 7, turbulence + 8)))
+
+        // Aggregate wisp energy into storm_state (triggers resonate L5 feedback)
+        let e0 = storm_unpack_a(r0)
+        let e1 = storm_unpack_a(r1)
+        let e2 = storm_unpack_a(r2)
+        let e3 = storm_unpack_a(r3)
+        let e4 = storm_unpack_a(r4)
+        let e5 = storm_unpack_a(r5)
+        let e6 = storm_unpack_a(r6)
+        let e7 = storm_unpack_a(r7)
+        let total_energy = storm_mod(e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7, STORM_MODULUS)
+        StormWorld.wisp_energy_sum = total_energy
+        StormWorld.storm_state = total_energy
+
+        // Render the storm frame via C FFI (GDI + microui)
+        let pulse_fires = runtime_machine_pulse_total_fire_count()
+        let resonate_fires = resonate_fire_count()
+        storm_frame(
+            intensity, turbulence, chaos % 100,
+            StormWorld.wisp_count, total_energy, phase,
+            cascade_depth, cycle,
+            pulse_fires, resonate_fires
+        )
+
+        // Track storm evolution in checksum
+        acc = storm_mod(
+            acc + intensity + turbulence + phase + chaos + cascade_depth + total_energy,
+            STORM_MODULUS
+        )
+        tick = tick + 1
+
+    // Kill all wisps
+    let _k0 = ask(w0, "Kill", 0)
+    let _k1 = ask(w1, "Kill", 0)
+    let _k2 = ask(w2, "Kill", 0)
+    let _k3 = ask(w3, "Kill", 0)
+    let _k4 = ask(w4, "Kill", 0)
+    let _k5 = ask(w5, "Kill", 0)
+    let _k6 = ask(w6, "Kill", 0)
+    let _k7 = ask(w7, "Kill", 0)
+
+    // Cleanup window
+    storm_exit()
+
+    // Verify the semantic stack fired
+    let pulse_delta = runtime_machine_pulse_total_fire_count() - pulse_before
+    let resonate_delta = resonate_fire_count() - resonate_before
+
+    if pulse_delta < 1:
+        return -1
+    if resonate_delta < 1:
+        return -2
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return acc

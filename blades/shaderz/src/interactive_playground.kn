@@ -1,0 +1,317 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  interactive_playground.kn — World + Shader + Component + Input Fusion
+//
+//  THE BIG DEMO: A single world projects to BOTH a GPU fragment shader AND
+//  a component UI. Mouse and keyboard input modify shader parameters in
+//  real-time. The component overlay shows live telemetry.
+//
+//  ARCHITECTURE:
+//    PlaygroundWorld
+//      ├── surface shader_canvas => PlaygroundFragment   (GPU fullscreen quad)
+//      └── surface native_ui => PlaygroundHUD         (component overlay)
+//
+//    std::input session captures mouse/keyboard events
+//    World state is the bridge: input → world fields → shader uniforms
+//
+//  RUN:
+//    # Typecheck (always works):
+//    kain check src/interactive_playground.kn
+//
+//    # GDI fallback (window + component renders, shader is text-only):
+//    kain build src/interactive_playground.kn --target llvm
+//
+//    # Vulkan GPU path (full shader rendering):
+//    $env:RENDERER_BACKEND = "vulkan"
+//    kain build src/interactive_playground.kn --target llvm
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::runtime
+use std::input
+use std::math
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORLD — single source of truth for both shader and component
+// ═══════════════════════════════════════════════════════════════════════════
+// WHY world: The shader uniforms AND the component HUD both read from the
+// same state. Mouse position, color palette, speed, and mode live here.
+// The input system writes to world fields; the shader reads them as uniforms;
+// the component reads them for display.
+
+world PlaygroundWorld:
+    // Shader parameters (mapped to fragment shader uniforms)
+    state sim_time: Float = 0.0
+    state mouse_x: Float = 0.5
+    state mouse_y: Float = 0.5
+    state color_r: Float = 0.2
+    state color_g: Float = 0.5
+    state color_b: Float = 0.9
+    state speed: Float = 1.0
+    state distortion: Float = 0.5
+    state mode: Int = 0              // 0=plasma, 1=waves, 2=spiral, 3=kaleidoscope
+
+    // HUD state
+    state frames: Int = 0
+    state input_events: Int = 0
+    state active_mode_name: String = "plasma"
+
+    // Surfaces: one GPU shader, one component overlay
+    surface shader_canvas => PlaygroundFragment
+    surface native_ui => PlaygroundHUD
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  FRAGMENT SHADER — the animated GPU visual
+// ═══════════════════════════════════════════════════════════════════════════
+// WHY shader fragment: This runs on the GPU via the fullscreen triangle
+// pipeline. Uniforms match the Vulkan ABI descriptor set layout.
+// The shader switches between 4 visual modes based on uniforms.
+
+shader fragment PlaygroundFragment(uv: Vec2) -> Vec4:
+    uniform time: Float @0
+    uniform resolution: Vec2 @1
+    uniform mouse: Vec2 @2
+    uniform params: Vec4 @3           // .x=speed, .y=distortion, .z=mode, .w=unused
+    uniform _pad: StorageBuffer<Float> @4
+
+    let px: Float = uv.x
+    let py: Float = uv.y
+    let mx: Float = mouse.x
+    let my: Float = mouse.y
+    let t: Float = time
+    let spd: Float = params.x
+    let dist: Float = params.y
+    let mode_val: Float = params.z
+
+    var r: Float = 0.0
+    var g: Float = 0.0
+    var b: Float = 0.0
+
+    // ── MODE 0: Animated Plasma ──────────────────────────────────
+    // Classic demo-scene plasma effect. Three sine rings interact
+    // based on time, mouse position, and speed.
+    let d1: Float = sqrt((px - 0.5)*(px - 0.5) + (py - 0.3)*(py - 0.3))
+    let d2: Float = sqrt((px - 0.7)*(px - 0.7) + (py - 0.6)*(py - 0.6))
+    let d3: Float = sqrt((px - 0.3)*(px - 0.3) + (py - 0.7)*(py - 0.7))
+    let plasma_r: Float = sin(d1 * 8.0 + t * spd) * 0.5 + 0.5
+    let plasma_g: Float = sin(d2 * 7.0 + t * spd * 1.3 + mx * 3.0) * 0.5 + 0.5
+    let plasma_b: Float = sin(d3 * 6.0 + t * spd * 0.7 + my * 3.0) * 0.5 + 0.5
+
+    // ── MODE 1: Animated Waves ───────────────────────────────────
+    // Horizontal sine waves that ripple based on mouse Y and time.
+    let wave1: Float = sin(py * 20.0 + t * spd * 2.0 + mx * 4.0) * 0.5 + 0.5
+    let wave2: Float = sin(py * 15.0 - t * spd * 1.5 + my * 3.0) * 0.5 + 0.5
+    let wave_r: Float = wave1 * (0.7 + mx * 0.3)
+    let wave_g: Float = wave2 * (0.6 + my * 0.4)
+    let wave_b: Float = (wave1 + wave2) * 0.5 * dist
+
+    // ── MODE 2: Spiral Vortex ────────────────────────────────────
+    // Rotating spiral arms that pulse with time and mouse distance.
+    let cx: Float = px - mx
+    let cy: Float = py - my
+    let angle: Float = atan2(cy, cx)
+    let radius: Float = sqrt(cx*cx + cy*cy)
+    let spiral_dist: Float = radius * 5.0
+    let spiral_phase: Float = angle * 4.0 - spiral_dist + t * spd * 2.0
+    let spiral_val: Float = sin(spiral_phase) * 0.5 + 0.5
+    let spiral_r: Float = spiral_val * (1.0 - radius * 0.7)
+    let spiral_g: Float = spiral_val * (1.0 - radius * 0.5) * (0.5 + mx * 0.5)
+    let spiral_b: Float = spiral_val * (1.0 - radius * 0.3) * (0.5 + my * 0.5)
+
+    // ── MODE 3: Kaleidoscope ─────────────────────────────────────
+    // Mirror-folded UV space with rotation, creating symmetric patterns.
+    let kx: Float = abs(px * 2.0 - 1.0)
+    let ky: Float = abs(py * 2.0 - 1.0)
+    let kt: Float = t * spd * 0.7
+    let k_cos: Float = cos(kt)
+    let k_sin: Float = sin(kt)
+    let krx: Float = kx * k_cos - ky * k_sin
+    let kry: Float = kx * k_sin + ky * k_cos
+    let k_dist: Float = sqrt(krx*krx + kry*kry)
+    let kaleid_r: Float = sin(krx * 12.0 + t * spd) * 0.5 + 0.5
+    let kaleid_g: Float = sin(kry * 10.0 + t * spd * 1.4) * 0.5 + 0.5
+    let kaleid_b: Float = sin(k_dist * 8.0 + t * spd * 0.6 + mx * 5.0) * 0.5 + 0.5
+
+    // ── Mode selection (branchless blend via mode_val) ────────────
+    // The mode_val uniform (0-3) selects which color to use.
+    // We use step() and mix-style blending to switch without branches.
+    let mode_0: Float = step(mode_val, 0.0)              // 1.0 if mode==0, else 0
+    let mode_1: Float = step(mode_val, 0.99) - mode_0   // 1.0 if mode==1
+    let mode_2: Float = step(mode_val, 1.99) - mode_0 - mode_1  // 1.0 if mode==2
+    let mode_3: Float = 1.0 - mode_0 - mode_1 - mode_2  // remainder = mode 3
+
+    r = mode_0*plasma_r + mode_1*wave_r + mode_2*spiral_r + mode_3*kaleid_r
+    g = mode_0*plasma_g + mode_1*wave_g + mode_2*spiral_g + mode_3*kaleid_g
+    b = mode_0*plasma_b + mode_1*wave_b + mode_2*spiral_b + mode_3*kaleid_b
+
+    // ── Post-processing ──────────────────────────────────────────
+    // Vignette: darken edges
+    let edge_dist: Float = sqrt((px - 0.5)*(px - 0.5) + (py - 0.5)*(py - 0.5))
+    let vignette: Float = 1.0 - edge_dist * 0.5
+
+    // Mouse influence: add a subtle glow near cursor
+    let mouse_dist: Float = sqrt((px - mx)*(px - mx) + (py - my)*(py - my))
+    let glow: Float = max(0.0, 1.0 - mouse_dist * 4.0) * 0.15
+
+    let out_r: Float = max(0.0, min(1.0, r * vignette + glow))
+    let out_g: Float = max(0.0, min(1.0, g * vignette + glow * 0.7))
+    let out_b: Float = max(0.0, min(1.0, b * vignette + glow * 0.4))
+
+    return vec4(out_r, out_g, out_b, 1.0)
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TOP-LEVEL FUNCTIONS — data flow bridge: world → JSX {expr}
+// ═══════════════════════════════════════════════════════════════════════════
+// WHY top-level fn: Component methods from JSX are not yet supported.
+// These functions compute display strings from world state.
+
+fn mode_name(m: Int) -> String:
+    if m == 0: return "Plasma"
+    elif m == 1: return "Waves"
+    elif m == 2: return "Spiral"
+    return "Kaleidoscope"
+
+fn mode_label() -> String:
+    return "Shader: " + mode_name(PlaygroundWorld.mode)
+
+fn frame_label() -> String:
+    return "Frame " + str(PlaygroundWorld.frames)
+
+fn mouse_label() -> String:
+    return "Mouse: (" + str(PlaygroundWorld.mouse_x) + ", " + str(PlaygroundWorld.mouse_y) + ")"
+
+fn speed_label() -> String:
+    return "Speed: " + str(PlaygroundWorld.speed)
+
+fn input_label() -> String:
+    return "Input events: " + str(PlaygroundWorld.input_events)
+
+fn color_info() -> String:
+    return "Color: (" + str(PlaygroundWorld.color_r) + ", " + str(PlaygroundWorld.color_g) + ", " + str(PlaygroundWorld.color_b) + ")"
+
+fn distortion_label() -> String:
+    return "Distortion: " + str(PlaygroundWorld.distortion)
+
+fn controls_text() -> String:
+    return "1-4: Switch mode | Mouse: Move cursor | Arrow keys: Adjust speed"
+
+fn backend_info() -> String:
+    return "GPU: surface shader_canvas => PlaygroundFragment | UI: surface native_ui => PlaygroundHUD"
+
+fn read_all_fields() -> Int:
+    let a: Float = PlaygroundWorld.sim_time + PlaygroundWorld.mouse_x + PlaygroundWorld.mouse_y
+    let b: Float = PlaygroundWorld.color_r + PlaygroundWorld.color_g + PlaygroundWorld.color_b
+    let c: Float = PlaygroundWorld.speed + PlaygroundWorld.distortion
+    let d: Int = PlaygroundWorld.mode + PlaygroundWorld.frames + PlaygroundWorld.input_events
+    return d
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENT — HUD overlay showing live shader state
+// ═══════════════════════════════════════════════════════════════════════════
+
+component PlaygroundHUD():
+    render <panel title="Kain Interactive Shader Playground">
+        <stack direction="vertical" padding={20} spacing={12}>
+            // Header
+            <stack direction="horizontal" spacing={12}>
+                <text value="INTERACTIVE SHADER PLAYGROUND" font_size={18} />
+                <text value={mode_label()} font_size={13} />
+            </stack>
+
+            // Live telemetry
+            <text value="── LIVE ──" font_size={14} />
+            <stack direction="vertical" spacing={6}>
+                <text value={frame_label()} font_size={22} />
+                <text value={mouse_label()} font_size={12} />
+                <text value={speed_label()} font_size={12} />
+                <text value={color_info()} font_size={12} />
+                <text value={distortion_label()} font_size={12} />
+                <text value={input_label()} font_size={12} />
+            </stack>
+
+            // Controls
+            <text value="── CONTROLS ──" font_size={14} />
+            <stack direction="vertical" spacing={4}>
+                <text value={controls_text()} font_size={11} />
+                <text value="Mode 0: Animated plasma · Mode 1: Sine waves" font_size={10} />
+                <text value="Mode 2: Spiral vortex · Mode 3: Kaleidoscope" font_size={10} />
+            </stack>
+
+            // Architecture
+            <text value="── ARCHITECTURE ──" font_size={14} />
+            <stack direction="vertical" spacing={4}>
+                <text value={backend_info()} font_size={10} />
+                <text value="World state → input system → shader uniforms + component text" font_size={10} />
+                <text value="One world, two surfaces: GPU fragment shader + native UI component" font_size={10} />
+                <text value="Set RENDERER_BACKEND=vulkan for full GPU rendering" font_size={10} />
+            </stack>
+
+            // Footer
+            <text value="─────────────────────────────────────────────" font_size={10} />
+            <stack direction="horizontal" spacing={16}>
+                <text value="shaderz/interactive_playground.kn" font_size={9} />
+                <text value="world + surface shader_canvas + surface native_ui + std::input" font_size={9} />
+            </stack>
+            <text value={str(read_all_fields())} font_size={7} />
+        </stack>
+    </panel>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ENTRY POINT — sets up input bindings and initializes world state
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── Input session setup ──────────────────────────────────────
+    // Create an input session for this playground. The session
+    // captures keyboard and mouse events from the OS.
+    let sid: Int = input_session_create("playground_input")
+    if sid <= 0:
+        return 200 + sid
+
+    // Bind keyboard actions: keys 1-4 switch shader modes
+    let _b0: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "Digit1", "mode_0")
+    let _b1: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "Digit2", "mode_1")
+    let _b2: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "Digit3", "mode_2")
+    let _b3: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "Digit4", "mode_3")
+
+    // Bind keyboard actions: arrow keys adjust speed
+    let _b_plus: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "ArrowUp", "speed_up")
+    let _b_minus: Int = input_bind_action(sid, input_source_keyboard(), "key_down", "ArrowDown", "speed_down")
+
+    // Bind axis: mouse position mapped to "mouse_x" and "mouse_y" axes
+    let _ax: Int = input_bind_axis(sid, input_source_pointer(), "axis", "mouse_x", "mouse_x", 1.0)
+    let _ay: Int = input_bind_axis(sid, input_source_pointer(), "axis", "mouse_y", "mouse_y", 1.0)
+
+    // Dead-state validator reads
+    let _time: Float = PlaygroundWorld.sim_time
+    let _mx: Float = PlaygroundWorld.mouse_x
+    let _my: Float = PlaygroundWorld.mouse_y
+    let _cr: Float = PlaygroundWorld.color_r
+    let _cg: Float = PlaygroundWorld.color_g
+    let _cb: Float = PlaygroundWorld.color_b
+    let _spd: Float = PlaygroundWorld.speed
+    let _dist: Float = PlaygroundWorld.distortion
+    let _mode: Int = PlaygroundWorld.mode
+    let _frames: Int = PlaygroundWorld.frames
+    let _events: Int = PlaygroundWorld.input_events
+    let _mode_name: String = PlaygroundWorld.active_mode_name
+
+    // The compiler auto-generates TWO frame loops for PlaygroundWorld:
+    //
+    // LOOP A (surface shader_canvas):
+    //   resolve("shader_canvas") → get_gpu_extension → load_shader
+    //   WHILE: set_uniform(0, &time) → set_uniform(1, &resolution)
+    //          → set_uniform(2, &mouse) → set_uniform(3, &params)
+    //          → begin_frame → vkCmdDraw(3) → end_frame → present
+    //
+    // LOOP B (surface native_ui):
+    //   resolve("native_ui") → session_create → window_open
+    //   WHILE: host_pump → begin_frame → PlaygroundHUD_render
+    //          → end_frame → present
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 300 + shutdown
+    return 0
