@@ -1,0 +1,28 @@
+version: 1
+id: stb-truetype.rasterize_AA_coverage_bounds.uint8_clamp
+kind: find_counterexample
+description: >
+  The final 8-bit pixel coverage value is always in [0, 255] due to the
+  explicit clamp after float-to-int conversion. The clamp `if (m > 255)
+  m = 255` guarantees unsigned byte safety regardless of overlap magnitude.
+tags:
+- stb_truetype
+- rasterizer
+- coverage
+- anti-aliasing
+- bounds
+- invariant
+source:
+  path: extras/_stb-truetype/stb_truetype.h
+  language: c
+  symbol: stbtt__rasterize_sorted_edges
+  start_line: 3297
+  end_line: 3370
+  reason: >
+    The pixel output is an unsigned char. Without the clamp, overlapping
+    glyph shapes could produce coverage > 1.0, leading to k > 255 and
+    truncation when casting to uint8.
+case:
+  smt2_file: stbtt__rasterize_AA_coverage_bounds.smt2
+  include_model: false
+  include_stats: false
