@@ -853,6 +853,10 @@ pub enum KainCommand {
         #[arg(long)]
         archive: bool,
 
+        /// Emit raw Kain source without capsule sentinels (no //!kain-file wrapping)
+        #[arg(long)]
+        raw: bool,
+
         /// Header rendering mode: minimal, rich, or off
         #[arg(long, default_value = "rich")]
         header: String,
@@ -1693,6 +1697,28 @@ mod tests {
                 assert!(!archive);
                 assert_eq!(header, "rich");
                 assert_eq!(preview_symbols, 16);
+            }
+            other => panic!("expected amalgamate pack command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_amalgamate_raw_flag() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "amalgamate",
+            "./capsule-probe",
+            "-o",
+            "capsule.kn",
+            "--raw",
+        ]);
+        match cli.command {
+            Some(KainCommand::Amalgamate {
+                command: None,
+                raw,
+                ..
+            }) => {
+                assert!(raw);
             }
             other => panic!("expected amalgamate pack command, got {other:?}"),
         }

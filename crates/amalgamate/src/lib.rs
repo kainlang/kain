@@ -332,6 +332,7 @@ pub struct PackOptions {
     pub compression: CapsuleCompression,
     pub api_index: CapsuleIndexMode,
     pub module_index: CapsuleIndexMode,
+    pub raw_output: bool,
 }
 
 impl PackOptions {
@@ -353,6 +354,7 @@ impl PackOptions {
             compression: CapsuleCompression::Zstd,
             api_index: CapsuleIndexMode::Auto,
             module_index: CapsuleIndexMode::Auto,
+            raw_output: false,
         }
     }
 }
@@ -528,14 +530,23 @@ pub fn pack_capsule(options: &PackOptions) -> CapsuleResult<PackReport> {
         tags: options.tags.clone(),
         meta: options.meta.clone(),
     };
-    let rendered = render_capsule_text(
-        &metadata,
-        &snapshot,
-        &archive,
-        payload_bytes.as_deref(),
-        options.header_style,
-        options.preview_symbol_limit,
-    )?;
+    let rendered: String = if options.raw_output {
+        render_raw_text(
+            &metadata,
+            &snapshot,
+            &archive,
+            options.preview_symbol_limit,
+        )
+    } else {
+        render_capsule_text(
+            &metadata,
+            &snapshot,
+            &archive,
+            payload_bytes.as_deref(),
+            options.header_style,
+            options.preview_symbol_limit,
+        )?
+    };
     kfs::atomic_write_text(&options.output, &rendered)?;
     Ok(PackReport {
         output_path: options.output.clone(),
@@ -1425,6 +1436,74 @@ fn render_capsule_text(
         CapsuleStorage::Editable => render_editable_file_blocks(&mut output, &snapshot.files)?,
     }
     Ok(output)
+}
+
+fn render_raw_text(
+    metadata: &CapsuleMetadata,
+    snapshot: &SourceSnapshot,
+    archive: &CapsuleArchive,
+    preview_symbol_limit: usize,
+) -> String {
+    let mut output = String::new();
+
+    // Rich comment header with name, kind, contents, structure
+    push_comment_line(
+        &mut output,
+        Some(&format!(
+            "-- KAIN RAW AMALGAMATION -- {} ----------------------------------------------------------",
+            metadata.name.as_deref().unwrap_or(&snapshot.root_label)
+        )),
+    );
+    push_comment_line(&mut output, Some(&format!("kind:       {}", metadata.display_kind())));
+    push_comment_line(&mut output, Some(&format!("contents:   {}", metadata.contents)));
+    push_comment_line(&mut output, Some(&format!(
+        "structure:  {} files | {} modules",
+        metadata.file_count, metadata.module_count
+    )));
+    push_comment_line(&mut output, None);
+
+    // Public interface directory
+    if !archive.preview.sections.is_empty() {
+        push_comment_line(&mut output, Some("-- PUBLIC INTERFACE DIRECTORY -----------------------------------------------"));
+        push_comment_line(&mut output, None);
+        let mut shown = 0usize;
+        for section in &archive.preview.sections {
+            if shown >= preview_symbol_limit {
+                break;
+            }
+            push_comment_line(&mut output, Some(&format!("[{}]", section.title)));
+            for symbol in &section.symbols {
+                if shown >= preview_symbol_limit {
+                    break;
+                }
+                push_comment_line(&mut output, Some(&format!("  {symbol}")));
+                shown += 1;
+            }
+        }
+        push_comment_line(&mut output, None);
+    }
+
+    // File contents: plain Kain source with a separator comment per file
+    for file in &snapshot.files {
+        if !file.rel_path.ends_with(".kn") {
+            continue;
+        }
+        let text = match std::str::from_utf8(&file.bytes) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        output.push_str("// ============================================================================\n");
+        output.push_str(&format!("// {}\n", file.rel_path));
+        output.push_str("// ============================================================================\n");
+        let body = text.trim_end();
+        if !body.is_empty() {
+            output.push_str(body);
+            output.push('\n');
+        }
+        output.push('\n');
+    }
+
+    output
 }
 
 fn render_header(

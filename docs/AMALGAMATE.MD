@@ -87,6 +87,41 @@ A capsule is a **valid Kain source file**. The Kain parser sees comment blocks a
 // More //!kain-file blocks...
 ```
 
+### Raw Output (--raw mode)
+
+When `--raw` is used, the capsule wrapping sentinels (`//!kain-file`, `//!kain-file-content`, `//!end-kain-file`, etc.) are **omitted entirely**. The output is a valid Kain source file with:
+
+1. **Comment header** -- same rich preview: name, kind, digest, file count, module count, public interface directory (all `//` comments)
+2. **File contents** -- each file rendered as plain Kain source with a `// path/to/file.kn` separator comment above it
+
+No metadata block. No sentinel markers. No base64. The file is fully readable in any editor, `grep`-able, and parseable by any tool that understands `.kn` files. Designed for cross-ecosystem interop (C build scripts, Rust FFI, TypeScript bundlers).
+
+**Example raw output:**
+
+```
+// -- KAIN RAW AMALGAMATION -- mylib -- ...
+// kind:       blade
+// contents:   source
+// digest:     sha256:abc123...
+// structure:  2 files | 1 modules
+// ---------------------------------------------------------------------------
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+// [functions]
+//   main, vec3_add
+// ---------------------------------------------------------------------------
+// -- FILES -------------------------------------------------------------------
+
+// src/main.kn
+//
+fn main() -> Int:
+    return 0
+
+// src/math.kn
+//
+fn vec3_add(a: Vec3, b: Vec3) -> Vec3:
+    return Vec3 { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
+```
+
 ### Capsule Structure (Top to Bottom)
 
 1. **Header (optional, configurable):** Human-readable preview showing name, kind, digest, file count, module count, and a public symbol directory. Configured via `--header` (rich, minimal, or off).
@@ -219,6 +254,7 @@ Pack a file or directory into a portable Kain capsule.
 | `--contents` | String | `"source"` | Content policy: `source`, `snapshot`, `assets`, `artifacts`, `evidence` |
 | `--capsule-set` | String | Auto | Sibling capsule set name for companion discovery |
 | `--archive` | bool | false | Store as compressed archive payload instead of editable blocks |
+| `--raw` | bool | false | Emit raw Kain source without capsule sentinels. All files concatenated as plain `.kn` with comment separators. The metadata header and symbol preview are preserved as comments. Designed for interop with non-Kain tooling (C, Rust, TS build scripts) |
 | `--header` | String | `"rich"` | Header rendering: `minimal`, `rich`, `off` |
 | `--preview-symbols` | usize | 40 | Max preview symbols shown in header |
 | `--compression` | String | `"zstd"` | Archive payload compression: `zstd` or `none` |
@@ -242,6 +278,9 @@ kain amalgamate . -o mylib.artifacts.kn --contents artifacts
 
 # Pack with capsule_set for companion discovery
 kain amalgamate src/ -o mylib.kn --capsule-set "mylib"
+
+# Raw mode: plain Kain source, no sentinels, for cross-ecosystem interop
+kain amalgamate src/ -o three.kn --raw
 
 # Minimal header for smaller file
 kain amalgamate src/ -o mylib.kn --header minimal
@@ -673,6 +712,17 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ```
 
 Now `kain run` auto-emits the capsule alongside the binary.
+
+### Workflow 5: Plain Source Distribution
+
+```powershell
+# Pack as a regular .kn file for direct use without capsule tooling
+kain amalgamate --raw src/ -o mylib.kn
+
+# Now use it like any other Kain source file
+kain check mylib.kn
+# Drop into any project and `use mylib`
+```
 
 ______________________________________________________________________
 

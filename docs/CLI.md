@@ -108,7 +108,7 @@ Kain's **capsule pipeline** — packs any number of modules into a single portab
 
 | Subcommand | What It Does | Key Flags |
 |-----------|-------------|-----------|
-| `amalgamate <input> -o <out>` | **Pack** — create capsule | `--name`, `--version`, `--author`, `--tag`, `--contents`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index` |
+| `amalgamate <input> -o <out>` | **Pack** — create capsule | `--name`, `--version`, `--author`, `--raw`, `--tag`, `--contents`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index` |
 | `amalgamate inspect <capsule>` | **Inspect** — metadata + file inventory | `--json` |
 | `amalgamate unpack <capsule>` | **Unpack** — extract to directory | `-o` |
 
@@ -116,6 +116,7 @@ Kain's **capsule pipeline** — packs any number of modules into a single portab
 kain amalgamate src/ -o mylib.kn                                    # pack
 kain amalgamate . -o mylib.kn --name MyLib --tag math                # with metadata
 kain amalgamate src/ -o mylib.kn --archive --compression zstd        # compressed
+kain amalgamate --raw src/ -o bundle.kn                              # raw: plain .kn without capsule wrapping
 kain amalgamate inspect mylib.kn                                     # inspect
 kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 ```
@@ -127,7 +128,7 @@ kain amalgamate unpack mylib.kn -o ./vendor/                          # unpack
 | `kain add <package>` | — | Record capsule-backed dependency in KAIN.lock |
 | `kain install <package>` | — | Install package into global Kain package store |
 | `kain publish <input>` | — | Publish portable source capsule(s). `--artifacts`, `--evidence` |
-| `kain amalgamate [input]` | `a` | **Capsule packager** — pack source trees into portable `.kn` files. `-o`, `--name`, `--version`, `--author`, `--tag`, `--contents source|snapshot|artifacts|evidence`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index`, `--preview-symbols`. Sub: `inspect`, `unpack`. |
+| `kain amalgamate [input]` | `a` | **Capsule packager** — pack source trees into portable `.kn` files. `-o`, `--name`, `--version`, `--author`, `--tag`, `--contents source|snapshot|artifacts|evidence`, `--archive`, `--capsule-set`, `--header`, `--compression`, `--api-index`, `--module-index`, `--preview-symbols`, `--raw`. Sub: `inspect`, `unpack`. |
 
 ### Import
 
@@ -527,6 +528,7 @@ kain amalgamate unpack [OPTIONS] <INPUT>                # Unpack
 | `--archive` | bool | false | Compressed archive payload |
 | `--header <MODE>` | String | `"rich"` | Header: `minimal`, `rich`, `off` |
 | `--preview-symbols <N>` | usize | 40 | Max preview symbols in header |
+| `--raw` | bool | false | Emit a plain concatenated .kn file instead of a capsule (no sentinel markers, no TOML metadata, no per-file archival info). The output is valid Kain source with a comment header, public interface directory, and concatenated .kn file contents with visual separators. |
 | `--compression <MODE>` | String | `"zstd"` | Payload compression: `zstd` or `none` |
 | `--api-index <MODE>` | String | `"auto"` | Public API index: `auto` or `off` |
 | `--module-index <MODE>` | String | `"auto"` | Module index: `auto` or `off` |
@@ -544,6 +546,13 @@ kain amalgamate unpack [OPTIONS] <INPUT>                # Unpack
 |------|------|---------|-------------|
 | `<INPUT>` | `PathBuf` | Required | Capsule artifact path |
 | `-o` / `--output` | `PathBuf` | None | Output directory (default: `<capsule>.unpacked`) |
+
+**Examples:**
+
+```bash
+# Raw: plain .kn without capsule wrapping
+kain amalgamate --raw src/ -o bundle.kn
+```
 
 ______________________________________________________________________
 

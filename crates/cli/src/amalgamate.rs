@@ -21,6 +21,7 @@ pub fn run(
     contents: String,
     capsule_set: Option<String>,
     archive: bool,
+    raw: bool,
     header: String,
     preview_symbols: usize,
     compression: String,
@@ -46,6 +47,7 @@ pub fn run(
             options.meta = parse_meta_items(meta)?;
             options.contents = parse_contents(&contents)?;
             options.capsule_set = capsule_set;
+            options.raw_output = raw;
             options.storage = if archive {
                 CapsuleStorage::Archive
             } else {

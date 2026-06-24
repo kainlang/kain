@@ -1,7 +1,7 @@
 # World \<--> Compiler-Owned State Authority
 
-**Status:** Research synthesis, 2026-06-08
-**Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/machine_stones.h`, `stdlib/intent.kn`, `smoketest/src/semantics/world.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/convergence/src/world.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, GLOSSARY.MD, RULEBOOK.MD, CATALOG.MD
+**Status:** Research synthesis, 2026-06-24
+**Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `crates/sys-codegen/src/codegen_llvm/component.rs`, `runtime/native/include/machine_stones.h`, `runtime/native/include/component_surface.h`, `runtime/native/include/gpu_surface_extension.h`, `runtime/native/src/core/component_surface.c`, `runtime/native/src/ui/native_ui_surface.c`, `stdlib/intent.kn`, `smoketest/src/semantics/world.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/convergence/src/world.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, GLOSSARY.MD, RULEBOOK.MD, CATALOG.MD
 
 ______________________________________________________________________
 
@@ -160,16 +160,17 @@ state_slot:
     "state" <ident> ":" <type> "=" <expr>
 
 surface_projection:
-    "surface" ("native_ui" | "viewport3d" | "web" | "ue5") "=>" <expr>
+    "surface" ("native_ui" | "viewport3d" | "web" | "ue5" | "shader_canvas") "=>" <expr>
 ```
 
-The parser (`parse_world()` at line ~2035 in `crates/core/src/parser.rs`):
+The parser (`parse_world_surface_projection()` at line ~2393 in `crates/core/src/parser.rs`):
 
 1. Expects contextual keyword `world` (registered in `is_contextual_item_start_name` at line 702)
 1. Parses the world name as an identifier
 1. Expects `:` then an indented block
 1. Within the block, dispatches on `TokenKind::State` → `parse_world_state_slot()` or on the ident `"surface"` → `parse_world_surface_projection()`
-1. Anything else produces an error: `"Expected 'state' or 'surface' inside world block"`
+1. The surface kind is matched from five identifiers: `native_ui`, `viewport3d`, `web`, `ue5`, `shader_canvas`
+1. Anything else produces: `ParseInvalidWorldSurfaceKind` with help text listing the five valid kinds
 1. Returns `Item::World(WorldDef { name, states, surfaces, visibility, attributes, span })`
 
 ### AST Types (from ast.rs)
@@ -202,6 +203,7 @@ pub enum WorldSurfaceKind {
     Viewport3d,
     Web,
     Ue5,
+    ShaderCanvas,  // fullscreen shader output on a GPU canvas
 }
 ```
 
@@ -249,15 +251,12 @@ The typechecker `check_world()` in `types.rs` performs:
 
 1. **State slot type resolution** ~> each `state ty` is resolved via `resolve_type_in_env()`
 1. **Initializer type checking** >> each `initial` expression type is inferred and compared against the declared state type via `ensure_type_compatible()`
-1. **Surface requirement** * * * if no surfaces are declared, the typechecker produces a diagnostic with:
-   - Code: `TypeWorldMissingSurface`
-   - Message: `"world 'Name' must declare at least one surface"`
-   - Note: `"Worlds currently need at least one surface projection so they can materialize into a runtime-facing view."`
-   - Help: `"Add a line like 'surface native_ui => MyPanel' inside the world body."`
-1. **Duplicate surface detection** :: a `HashSet<WorldSurfaceKind>` tracks seen surface kinds; duplicate kinds produce: `"world 'Name' declares duplicate 'native_ui' surface"`
-1. **Surface validation** \_\_\_ `check_world_surface_projection()` validates the expression based on the surface kind:
-   - `NativeUi` / `Web` → expects a component identifier or call expression
-   - `Viewport3d` / `Ue5` → expects an identifier or string literal
+1. **Surface validation** (optional) -- worlds without surfaces are valid pure-state authorities. When surfaces ARE declared, they are validated for:
+   - No duplicate surface kinds per world
+   - Valid expression shape per kind:
+     - `NativeUi` / `Web` → component identifier or call expression
+     - `ShaderCanvas` → shader fragment identifier
+     - `Viewport3d` / `Ue5` → identifier or string literal
 1. **Global registration** ~~ the world name is registered both as a `ResolvedType::Struct` and as a `global_origins` entry (kind: `"world"`), making it available for `entangle`, `resonate`, and field access.
 
 ```rust
@@ -362,14 +361,17 @@ ______________________________________________________________________
 
 ## Surface Projections
 
-### The Four Surface Kinds
+### The Five Surface Kinds
 
-| Kind | Key | Expected Expression | Use Case |
-|------|-----|--------------------|----------|
-| `native_ui` | `WorldSurfaceKind::NativeUi` | Component identifier or call | Native desktop/mobile UI |
-| `web` | `WorldSurfaceKind::Web` | Component identifier or call | Web browser rendering |
-| `viewport3d` | `WorldSurfaceKind::Viewport3d` | Identifier or string literal | 3D viewport / scene graph |
-| `ue5` | `WorldSurfaceKind::Ue5` | Identifier or string literal | Unreal Engine 5 integration |
+| Kind | Enum Variant | Expected Expression | Status | Use Case |
+|------|-------------|--------------------|--------|----------|
+| `native_ui` | `WorldSurfaceKind::NativeUi` | Component identifier or call | ✅ Working (18-slot vtable, GDI + GPU backends) | Native desktop window |
+| `shader_canvas` | `WorldSurfaceKind::ShaderCanvas` | Shader fragment identifier | 🟡 Codegen done, blocked on SPIR-V hex embedding | Fullscreen GPU shader |
+| `viewport3d` | `WorldSurfaceKind::Viewport3d` | Identifier or string literal | ❌ Parsed only, no codegen | 3D viewport |
+| `web` | `WorldSurfaceKind::Web` | Component identifier or call | ❌ Parsed only, no codegen | Web browser |
+| `ue5` | `WorldSurfaceKind::Ue5` | Identifier or string literal | ❌ Parsed only, no codegen | Unreal Engine 5 |
+
+For the complete surface pipeline reference covering every surface kind, the vtable architecture, GPU backend routing, and the SPIR-V hex embedding blocker, see `X:/docs/WORLD_SURFACES.MD`.
 
 ### How Surfaces Bind State to Rendering
 
@@ -381,6 +383,7 @@ world TelemetryWorld:
     state frame: Int = 0
     surface native_ui => TelemetryPanel          // Native UI component
     surface web => TelemetryPanel                 // Same component, web projection
+    surface shader_canvas => OceanFragment        // GPU shader canvas
 
 world Scene:
     state camera_x: Float = 0.0
@@ -404,34 +407,25 @@ For `viewport3d` and `ue5` surfaces, the expression is a string literal or ident
 
 ### Surface Capabilities
 
-Each surface kind implies a capability that appears in the program's runtime contract:
+Each surface kind implies a capability in the runtime contract:
 
-| Surface Kind | Implied Capability |
-|-------------|-------------------|
+| Surface Kind | Capability Key |
+|-------------|---------------|
 | `native_ui` | `ui.native` |
-| `web` | `ui.web` |
+| `shader_canvas` | `ui.shader-canvas` |
 | `viewport3d` | `gpu.viewport` |
+| `web` | `ui.web` |
 | `ue5` | `editor.ue5` |
 
 The program's capability manifest is derived from the union of all surface kinds across all declared worlds.
 
-### Surface Requirement ⁓ Why It Exists
+### Surface Requirement — Optional (as of 2026-06)
 
-The typechecker **requires** at least one surface per world. This is not an arbitrary restriction :: it ensures that every world has a materialization path to a runtime-facing view. Without a surface, a world would be an orphan state container with no observable output, which violates Kain's principle that all state should be projectable.
+Worlds **no longer require** at least one surface. The typechecker permits worlds with zero surfaces — they are pure state authorities. The codegen emits no frame loop when there are no surfaces, so no window is created. Use this for benchmarks, CI, server-mode, or any world that only holds state for entangle/patch/law/orchestrate.
 
-The error message when missing surfaces:
+When a surface IS declared, it controls rendering intent — the surface kind determines which backend the frame loop resolves at runtime.
 
-```
-Error: world 'OrphanWorld' must declare at least one surface
-  ┌─ main.kn:2:1
-  │
-2 │ world OrphanWorld:
-  │ ^^^^ world has no surface projections
-  │
-  = note: Worlds currently need at least one surface projection so they
-          can materialize into a runtime-facing view.
-  = help: Add a line like `surface native_ui => MyPanel` inside the world body.
-```
+The `TypeWorldMissingSurface` diagnostic was removed. Worlds with zero surfaces are silent and correct.
 
 ______________________________________________________________________
 
@@ -1348,17 +1342,6 @@ world AppState:
 
 **Why:** A `struct` cannot participate in entangle, doesn't get LLVM init guards, has no surface projection, and isn't visible in the runtime contract.
 
-### ❌ Declaring a World Without a Surface
-
-```kn
-// WRONG: compiler rejects this
-world Orphan:
-    state value: Int = 0
-    // no surface!
-```
-
-The typechecker enforces at least one surface per world. Every world must have a projection path to the runtime.
-
 ### ❌ Duplicate Surface Kinds
 
 ```kn
@@ -1452,15 +1435,15 @@ world Misc:
 ### ❌ Not Using Surfaces for Sidecar Debugging
 
 ```kn
-// WRONG: world with no debug surface
+// CONSIDER: world with no debug surface
 world Engine:
     state fps: Int = 60
     state draw_calls: Int = 1000
-    // no debug surface ___ how does the developer see this?
+    // no surface -- state invisible at runtime without telemetry
     surface native_ui => EnginePanel
 ```
 
-Every world should have at least one surface, even if it's just a debug panel. Without a surface, the world's state is invisible at runtime.
+While worlds without surfaces are valid, adding a surface (even a debug panel) makes state observable at runtime for development.
 
 ______________________________________________________________________
 
@@ -1469,8 +1452,8 @@ ______________________________________________________________________
 | Aspect | Detail |
 |--------|--------|
 | **Syntax** | `[pub] world <Name>:\n  state <field>: <Type> = <Expr>\n  ...\n  surface <Kind> => <Expr>` |
-| **Minimum surfaces** | 1 (enforced by typechecker, `TypeWorldMissingSurface`) |
-| **Surface kinds** | `native_ui`, `web`, `viewport3d`, `ue5` |
+| **Minimum surfaces** | 0 (worlds without surfaces are valid pure-state authorities) |
+| **Surface kinds** | `native_ui`, `shader_canvas`, `viewport3d`, `web`, `ue5` |
 | **State slots** | Typed fields with compile-time validated initializers |
 | **Duplicate surfaces** | Rejected per world |
 | **Parser** | `parse_world()` at line ~2035 in `crates/core/src/parser.rs` |
