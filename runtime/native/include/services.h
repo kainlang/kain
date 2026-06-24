@@ -128,6 +128,13 @@ typedef struct {
     atomic_uint mutation_gate;
     atomic_int service_count;
     KainServiceDescriptor services[KAIN_SERVICE_REGISTRY_MAX_SERVICES];
+    /*
+     * Direct-mapped perfect-hash lookup table.
+     * Indexed by (key_state >> 56), the top 8 bits of the 64-bit magic hash.
+     * Entry is the services[] index, or -1 if the slot is vacant.
+     * Proof: runtime/native/src/core/z3/proofs/native-services-perfect-hash-top-eight-bits.yaml
+     */
+    int16_t hash_to_service[256];
 } KainServiceRegistry;
 
 /*
