@@ -1,0 +1,88 @@
+;; ============================================================
+;; Proof: kain_u64_decimal_digit_count branchless
+;;
+;; Original: 20-branch ladder (branched)
+;; Candidate: 1 + sum(v >= 10^i) for i=1..19 (branchless ADD)
+;;
+;; Strategy: prove equivalence for ALL v in [0, 2^64-1] by
+;; showing the branchless accumulation produces the same result
+;; as the ladder at every decision boundary.
+;; ============================================================
+(set-logic QF_BV)
+
+;; 10^i for i=1..19 (all fit in uint64)
+(define-const T1  (_ BitVec 64) #x000000000000000a)
+(define-const T2  (_ BitVec 64) #x0000000000000064)
+(define-const T3  (_ BitVec 64) #x00000000000003e8)
+(define-const T4  (_ BitVec 64) #x0000000000002710)
+(define-const T5  (_ BitVec 64) #x00000000000186a0)
+(define-const T6  (_ BitVec 64) #x00000000000f4240)
+(define-const T7  (_ BitVec 64) #x0000000000989680)
+(define-const T8  (_ BitVec 64) #x0000000005f5e100)
+(define-const T9  (_ BitVec 64) #x000000003b9aca00)
+(define-const T10 (_ BitVec 64) #x00000002540be400)
+(define-const T11 (_ BitVec 64) #x000000174876e800)
+(define-const T12 (_ BitVec 64) #x000000e8d4a51000)
+(define-const T13 (_ BitVec 64) #x000009184e72a000)
+(define-const T14 (_ BitVec 64) #x00005af3107a4000)
+(define-const T15 (_ BitVec 64) #x00038d7ea4c68000)
+(define-const T16 (_ BitVec 64) #x002386f26fc10000)
+(define-const T17 (_ BitVec 64) #x016345785d8a0000)
+(define-const T18 (_ BitVec 64) #x0de0b6b3a7640000)
+(define-const T19 (_ BitVec 64) #x8ac7230489e80000)
+
+;; === BRANCHED (original) ===
+(define-fun orig ((v (_ BitVec 64))) (_ BitVec 8)
+  (ite (bvult v T1)  (_ bv1 8)
+  (ite (bvult v T2)  (_ bv2 8)
+  (ite (bvult v T3)  (_ bv3 8)
+  (ite (bvult v T4)  (_ bv4 8)
+  (ite (bvult v T5)  (_ bv5 8)
+  (ite (bvult v T6)  (_ bv6 8)
+  (ite (bvult v T7)  (_ bv7 8)
+  (ite (bvult v T8)  (_ bv8 8)
+  (ite (bvult v T9)  (_ bv9 8)
+  (ite (bvult v T10) (_ bv10 8)
+  (ite (bvult v T11) (_ bv11 8)
+  (ite (bvult v T12) (_ bv12 8)
+  (ite (bvult v T13) (_ bv13 8)
+  (ite (bvult v T14) (_ bv14 8)
+  (ite (bvult v T15) (_ bv15 8)
+  (ite (bvult v T16) (_ bv16 8)
+  (ite (bvult v T17) (_ bv17 8)
+  (ite (bvult v T18) (_ bv18 8)
+  (ite (bvult v T19) (_ bv19 8)
+    (_ bv20 8)
+  ))))))))))))))))))))
+
+;; === BRANCHLESS (candidate) ===
+;; sum_{i=1..19} (v >= 10^i), converted to 0/1 via ite, then +1
+(define-fun cand ((v (_ BitVec 64))) (_ BitVec 8)
+  (bvadd (_ bv1 8)
+    (bvadd (ite (not (bvult v T1))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T2))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T3))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T4))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T5))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T6))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T7))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T8))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T9))  (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T10)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T11)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T12)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T13)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T14)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T15)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T16)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T17)) (_ bv1 8) (_ bv0 8))
+    (bvadd (ite (not (bvult v T18)) (_ bv1 8) (_ bv0 8))
+         (ite (not (bvult v T19)) (_ bv1 8) (_ bv0 8))
+    ))))))))))))))))))))
+)
+
+;; Propose counterexample
+(declare-const v (_ BitVec 64))
+(assert (not (= (orig v) (cand v))))
+(check-sat)
+(get-model)
