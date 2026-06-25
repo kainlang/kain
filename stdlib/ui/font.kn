@@ -28,12 +28,11 @@
 //   glyph_*() accessor functions directly.
 
 use std::fs
+use std::ui { abi_ui_text_measure_width, abi_ui_text_measure_height }
 
 // ============================================================================
-// ⚠  Temporary @extern declarations — will move to stdlib/ui.kn
+// @extern declarations — consolidated from std::ui and std::ui::font
 // ============================================================================
-// These belong in the parent module std::ui but are declared here for
-// self-containment until Stream A Task A.4 adds them to stdlib/ui.kn.
 
 @extern
 fn abi_ui_font_load_ttf(
@@ -86,16 +85,6 @@ fn abi_ui_font_descent(session_id: Int, font_id: Int) -> Int
 
 @extern
 fn abi_ui_font_line_gap(session_id: Int, font_id: Int) -> Int
-
-// ── Text measurement (mirrors existing @extern in std::ui) ──────────────
-// Redeclared here so font.kn is self-contained. Remove when switching to
-// use std::ui qualified calls.
-
-@extern
-fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
-
-@extern
-fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 // ============================================================================
 // T Y P E S

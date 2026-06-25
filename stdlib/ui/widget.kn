@@ -1,0 +1,184 @@
+// widget.kn — std::ui::widget — Immediate-mode widget library
+//
+// Layer: L0 (plain code — wraps C ABI from std::ui @extern declarations)
+//
+// Provides idiomatic Kain wrappers for all widget functions from the C
+// widget library (ui_widget.h). Each function takes a WidgetContext
+// (opaque Int pointer to C KainUiWidgetContext) and returns meaningful
+// state: buttons return Bool, sliders return SliderResult, etc.
+//
+// ── Architecture ────────────────────────────────────────────────────────
+//   Kain code → widget_*() wrappers → @extern → C abi_ui_widget_* → Kain UI ABI
+//
+// ── Color Format ───────────────────────────────────────────────────────
+// The C widget library uses 0xAARRGGBB format (standard hex).
+// When setting custom colors, use ui_style_color_rgba() from std::ui.
+//
+// ── Usage ──────────────────────────────────────────────────────────────
+//   use std::ui::widget
+//
+//   let ctx = widget::create(session_id)
+//   widget::begin_frame(ctx)
+//   widget::panel_begin(ctx, "Controls", 10.0, 10.0, 300.0, 400.0)
+//   if widget::button(ctx, "Click"):
+//       # handle click
+//   widget::label(ctx, "Hello!")
+//   widget::panel_end(ctx)
+//   widget::end_frame(ctx)
+
+use std::ui
+
+// ============================================================================
+// ── Types ──────────────────────────────────────────────────────────────────
+// ============================================================================
+
+/// Opaque pointer to the C KainUiWidgetContext.
+/// Created via create() and passed to all widget functions.
+pub type WidgetContext = Int
+
+/// Result of a checkbox interaction.
+pub struct CheckboxResult:
+    /// True if the checkbox was toggled this frame.
+    toggled: Bool
+    /// The current checkbox value after any toggle.
+    value: Bool
+
+/// Result of a slider interaction.
+pub struct SliderResult:
+    /// True if the slider value changed this frame.
+    changed: Bool
+    /// The current slider value, clamped to [lo, hi].
+    value: Float
+
+// ============================================================================
+// ── Lifecycle ──────────────────────────────────────────────────────────────
+// ============================================================================
+
+/// Create a new widget context bound to the given session.
+/// Returns an opaque WidgetContext pointer, or 0 on failure.
+pub fn create(session_id: Int) -> WidgetContext:
+    return abi_ui_widget_create(session_id)
+
+/// Destroy a widget context previously created with create().
+/// Safe to call with 0 (no-op).
+pub fn destroy(ctx: WidgetContext):
+    if ctx == 0: return
+    abi_ui_widget_destroy(ctx)
+
+/// Begin a new frame. Must be called once per frame before any widget calls.
+/// Updates mouse state and resets the widget ID counter.
+pub fn begin_frame(ctx: WidgetContext):
+    abi_ui_widget_begin_frame(ctx)
+
+/// End the current frame. Must be called once per frame after all widget calls.
+pub fn end_frame(ctx: WidgetContext):
+    abi_ui_widget_end_frame(ctx)
+
+// ============================================================================
+// ── Font Loading ───────────────────────────────────────────────────────────
+// ============================================================================
+
+/// Load a TrueType font from filepath at the given size (in points).
+/// Returns the font resource ID (> 0) on success, or 0 on failure.
+pub fn load_font(ctx: WidgetContext, path: String, size: Float) -> Int:
+    return abi_ui_widget_load_font(ctx, path, size)
+
+/// Load the default system font at the given size.
+/// Searches platform-specific paths for a suitable font.
+/// Returns the font resource ID (> 0) on success, or 0 on failure.
+pub fn load_default_font(ctx: WidgetContext, size: Float) -> Int:
+    return abi_ui_widget_load_default_font(ctx, size)
+
+// ============================================================================
+// ── Widgets ────────────────────────────────────────────────────────────────
+// ============================================================================
+
+/// Button with hover/press states.
+/// Returns true on the frame the button was clicked (press + release).
+pub fn button(ctx: WidgetContext, label: String) -> Bool:
+    return abi_ui_widget_button(ctx, label)
+
+/// Static text label.
+/// Returns the node_id for reference.
+pub fn label(ctx: WidgetContext, text: String) -> Int:
+    return abi_ui_widget_label(ctx, text)
+
+/// Checkbox with label. Toggles value on click.
+/// Returns CheckboxResult with the current value and whether it toggled.
+pub fn checkbox(ctx: WidgetContext, label: String, value: Bool) -> CheckboxResult:
+    let packed = abi_ui_widget_checkbox(ctx, label, if value: 1 else: 0)
+    // Packed: bit0 = new_value, bit1 = toggled
+    let new_val = (packed & 1) != 0
+    let toggled = (packed & 2) != 0
+    return CheckboxResult {
+        toggled: toggled,
+        value: new_val,
+    }
+
+/// Horizontal slider with draggable thumb.
+/// value is the current position, clamped to [lo, hi].
+/// Returns SliderResult with the changed flag and new value.
+pub fn slider(ctx: WidgetContext, value: Float, lo: Float, hi: Float) -> SliderResult:
+    let packed = abi_ui_widget_slider(ctx, value, lo, hi)
+    // Packed: bit63 = changed, bits 0-62 = value * 1000
+    let changed = (packed >> 63) != 0
+    let int_val = packed & 0x7FFFFFFFFFFFFFFF
+    let result_val = to_float(int_val) * 0.001
+    return SliderResult {
+        changed: changed,
+        value: result_val,
+    }
+
+/// Single-line text input.
+/// Takes the current text and max length, returns the (potentially modified) text.
+pub fn textbox(ctx: WidgetContext, text: String, max_len: Int) -> String:
+    return abi_ui_widget_textbox(ctx, text, max_len)
+
+/// Begin a titled panel container at the given position and size.
+/// Returns the panel node_id. Must be paired with panel_end().
+pub fn panel_begin(ctx: WidgetContext, title: String, x: Float, y: Float, w: Float, h: Float) -> Int:
+    return abi_ui_widget_panel_begin(ctx, title, x, y, w, h)
+
+/// End the current panel (pops the container stack).
+pub fn panel_end(ctx: WidgetContext):
+    abi_ui_widget_panel_end(ctx)
+
+/// Progress bar showing value/max progress.
+/// Returns the node_id for reference.
+pub fn progress(ctx: WidgetContext, label: String, value: Float, max: Float) -> Int:
+    if max <= 0.0: return 0
+    return abi_ui_widget_progress(ctx, label, value, max)
+
+/// Draggable, closable window container.
+/// x, y are the initial position (in logical pixels). Drag updates them.
+/// open is the initial visibility state.
+/// Returns the new open state (false if closed by user).
+pub fn window(ctx: WidgetContext, title: String, x: Float, y: Float, w: Float, h: Float, open: Bool) -> Bool:
+    return abi_ui_widget_window(ctx, title, x, y, w, h, if open: 1 else: 0)
+
+// ============================================================================
+// ── Layout ─────────────────────────────────────────────────────────────────
+// ============================================================================
+
+/// Begin a row layout with the given column widths.
+/// After calling this, each widget auto-advances to the next column.
+pub fn layout_row(ctx: WidgetContext, count: Int, widths: [Int]):
+    let _begin = abi_ui_widget_layout_begin(ctx, count, 0)  # 0 = row
+    var i = 0
+    while i < count:
+        let _size = abi_ui_widget_layout_set_size(ctx, i, widths[i])
+        i = i + 1
+
+/// Begin a column layout with the given row heights.
+/// After calling this, each widget auto-advances to the next row.
+pub fn layout_column(ctx: WidgetContext, count: Int, heights: [Int]):
+    let _begin = abi_ui_widget_layout_begin(ctx, count, 1)  # 1 = column
+    var i = 0
+    while i < count:
+        let _size = abi_ui_widget_layout_set_size(ctx, i, heights[i])
+        i = i + 1
+
+/// Set the size of the next widget (width, height in logical pixels).
+/// Use this for manual layout control or to override the current row/column size.
+pub fn layout_set_next(ctx: WidgetContext, w: Int, h: Int):
+    abi_ui_widget_layout_set_next(ctx, w, h)

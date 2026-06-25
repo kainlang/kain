@@ -296,10 +296,10 @@ fn abi_ui_resource_height(session_id: Int, resource_id: Int) -> Int
 fn abi_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int
 
 @extern
-fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
+pub fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 @extern
-fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
+pub fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
 
 @extern
 fn abi_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
@@ -618,6 +618,71 @@ pub fn native_ui_framebuffer_stride(session_id: Int) -> Int:
 
 @extern
 fn abi_ui_invalidate_window(session_id: Int) -> Int
+
+// ── Widget Library @extern (from widgets/ui_widget.h) ──────────────────
+
+@extern
+fn abi_ui_widget_create(session_id: Int) -> Int
+
+@extern
+fn abi_ui_widget_destroy(ctx_ptr: Int)
+
+@extern
+fn abi_ui_widget_begin_frame(ctx_ptr: Int)
+
+@extern
+fn abi_ui_widget_end_frame(ctx_ptr: Int)
+
+@extern
+fn abi_ui_widget_load_font(ctx_ptr: Int, filepath: String, size: Float) -> Int
+
+@extern
+fn abi_ui_widget_load_default_font(ctx_ptr: Int, size: Float) -> Int
+
+@extern
+fn abi_ui_widget_button(ctx_ptr: Int, label: String) -> Bool
+
+@extern
+fn abi_ui_widget_label(ctx_ptr: Int, text: String) -> Int
+
+@extern
+fn abi_ui_widget_checkbox(ctx_ptr: Int, label: String, current_value: Int) -> Int
+
+@extern
+fn abi_ui_widget_slider(ctx_ptr: Int, current_value: Float, lo: Float, hi: Float) -> Int
+
+@extern
+fn abi_ui_widget_textbox_poll(ctx_ptr: Int, buf_ptr: Int, buf_size: Int) -> Int
+
+@extern
+fn abi_ui_widget_textbox(ctx_ptr: Int, text: String, max_len: Int) -> String
+
+@extern
+fn abi_ui_widget_panel_begin(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float) -> Int
+
+@extern
+fn abi_ui_widget_panel_end(ctx_ptr: Int)
+
+@extern
+fn abi_ui_widget_progress(ctx_ptr: Int, label: String, value: Float, max: Float) -> Int
+
+@extern
+fn abi_ui_widget_window(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float, open: Int) -> Bool
+
+@extern
+fn abi_ui_widget_layout_row(ctx_ptr: Int, count: Int, widths: ptr<Int>) -> Int
+
+@extern
+fn abi_ui_widget_layout_column(ctx_ptr: Int, count: Int, heights: ptr<Int>) -> Int
+
+@extern
+fn abi_ui_widget_layout_set_next(ctx_ptr: Int, w: Int, h: Int) -> Int
+
+@extern
+fn abi_ui_widget_layout_begin(ctx_ptr: Int, count: Int, layout_type: Int) -> Int
+
+@extern
+fn abi_ui_widget_layout_set_size(ctx_ptr: Int, index: Int, size: Int) -> Int
 
 pub fn native_ui_invalidate_window(session_id: Int) -> Int:
     return abi_ui_invalidate_window(session_id)
