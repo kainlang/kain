@@ -145,6 +145,46 @@ def sanitize_binary_names(values: Sequence[str]) -> tuple[str, ...]:
     return filtered if filtered else DEFAULT_BINARY_NAMES
 
 
+def get_host_triple() -> str:
+    """Detect the host platform target triple string.
+
+    Mirrors `TargetTriple::host()` from ``crates/target-triple/src/triple.rs``.
+    Returns e.g. ``"x86_64-pc-windows-msvc"``, ``"x86_64-unknown-linux-gnu"``,
+    or ``"arm64-apple-darwin"``.
+    """
+    machine = platform.machine().lower()
+    system = platform.system().lower()
+
+    if machine in ("x86_64", "amd64", "x64"):
+        arch = "x86_64"
+    elif machine in ("aarch64", "arm64"):
+        arch = "aarch64"
+    else:
+        arch = "unknown"
+
+    if system == "windows":
+        return f"{arch}-pc-windows-msvc"
+    elif system == "linux":
+        return f"{arch}-unknown-linux-gnu"
+    elif system == "darwin":
+        return f"{arch}-apple-darwin"
+    else:
+        return f"{arch}-unknown-unknown"
+
+
+def get_runtime_lib_name(target_triple: str) -> str:
+    """Return the native runtime library filename for a target triple.
+
+    Mirrors ``TargetTriple::runtime_lib_name()`` from
+    ``crates/target-triple/src/triple.rs``.
+    Windows targets produce ``"kain_runtime.lib"`` (COFF static library);
+    all other targets produce ``"libkain_runtime.a"``.
+    """
+    if "windows" in target_triple.lower():
+        return "kain_runtime.lib"
+    return "libkain_runtime.a"
+
+
 def bool_from_policy(value: object, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
@@ -680,9 +720,9 @@ def sanitized_python_env(base: dict[str, str]) -> dict[str, str]:
 def runtime_env(context: SyncContext) -> dict[str, str]:
     env = sanitized_python_env(os.environ.copy())
     temp_root = sync_temp_root(context)
-    kain_lib_dir = context.repo_kain_home / "lib"
-    is_windows = platform.system().lower() == "windows"
-    runtime_lib_name = "kain_runtime.lib" if is_windows else "libkain_runtime.a"
+    host_triple = get_host_triple()
+    kain_lib_dir = context.repo_kain_home / "lib" / host_triple
+    runtime_lib_name = get_runtime_lib_name(host_triple)
     runtime_lib_path = kain_lib_dir / runtime_lib_name
     env.update(
         {
@@ -1718,9 +1758,9 @@ def persist_windows_user_env(context: SyncContext) -> None:
             "winreg is unavailable; cannot persist Windows user env"
         ) from error
 
-    is_windows = platform.system().lower() == "windows"
-    runtime_lib_name = "kain_runtime.lib" if is_windows else "libkain_runtime.a"
-    runtime_lib_path = context.repo_kain_home / "lib" / runtime_lib_name
+    host_triple = get_host_triple()
+    runtime_lib_name = get_runtime_lib_name(host_triple)
+    runtime_lib_path = context.repo_kain_home / "lib" / host_triple / runtime_lib_name
     values = {
         "KAIN_REPO_ROOT": str(context.repo_root),
         "KAIN_HOME": str(context.repo_kain_home),
@@ -1821,9 +1861,10 @@ def _find_lib_exe() -> str | None:
 def sync_runtime_library(
     context: SyncContext,
     *,
+    target_triple: str | None = None,
     skip_build: bool = False,
 ) -> None:
-    """Build the native C runtime as a static library and copy it to ~/.kain/lib/.
+    """Build the native C runtime as a static library and install it per-target.
 
     The library is compiled with -ffunction-sections -fdata-sections so the
     linker can dead-strip unused functions when --gc-sections is enabled.
@@ -1832,7 +1873,17 @@ def sync_runtime_library(
     On Windows, cc_library produces .obj files in _objs/; we
     archive them into a .lib using llvm-lib (clang-cl) or lib.exe (MSVC).
     The .bazelrc.local file on this machine sets --compiler=clang-cl.
+
+    Args:
+        context: Sync context with repo paths and config.
+        target_triple: Target triple for the runtime library
+            (e.g. ``"x86_64-unknown-linux-gnu"``).
+            Defaults to the host triple if not provided.
+        skip_build: If True, skip the Bazel build step (use existing artifacts).
     """
+    effective_triple = target_triple if target_triple else get_host_triple()
+    runtime_lib_name = get_runtime_lib_name(effective_triple)
+
     if not skip_build:
         env = bazel_env(context)
         build_args = [
@@ -1855,10 +1906,11 @@ def sync_runtime_library(
             "Ensure Bazel has completed a build of //runtime:native_core_runtime."
         )
 
-    is_windows = platform.system().lower() == "windows"
-    lib_dir = context.repo_kain_home / "lib"
-    lib_dir.mkdir(parents=True, exist_ok=True)
+    # Install to ~/.kain/lib/<target-triple>/<runtime_lib_name>
+    install_dir = context.repo_kain_home / "lib" / effective_triple
+    install_dir.mkdir(parents=True, exist_ok=True)
 
+    is_windows = platform.system().lower() == "windows"
     if is_windows:
         # Windows: cc_library produces .obj files in _objs/ — archive into .lib
         # Works with both clang-cl (llvm-lib) and MSVC (lib.exe).
@@ -1869,7 +1921,7 @@ def sync_runtime_library(
                 f"no .obj files found at {obj_dir}. "
                 f"Ensure bazel build //runtime:native_core_runtime completed successfully."
             )
-        dst_path = lib_dir / "kain_runtime.lib"
+        dst_path = install_dir / runtime_lib_name
         temp_path = dst_path.with_name(f"{dst_path.name}.tmp.{os.getpid()}")
         lib_exe = _find_lib_exe()
         if lib_exe is None:
@@ -1894,11 +1946,13 @@ def sync_runtime_library(
                 f"static library not found at {src_path}. "
                 f"Ensure bazel build //runtime:native_core_runtime completed successfully."
             )
-        dst_path = lib_dir / "libkain_runtime.a"
+        dst_path = install_dir / runtime_lib_name
         copy_file_atomic(src_path, dst_path)
         size_str = f"{src_path.stat().st_size} bytes"
 
     print(f"  [runtime] {dst_path} ({size_str})")
+
+    return effective_triple
 
 
 def sync_launchers(
@@ -1907,6 +1961,7 @@ def sync_launchers(
     skip_build: bool = False,
     managed_sync: bool = False,
     persist_user_env: bool = False,
+    target_triple: str | None = None,
 ) -> int:
     if not managed_sync:
         print("=" * 76)
@@ -1926,7 +1981,9 @@ def sync_launchers(
             print(f"BAZEL_SH  : {bash_path}")
         print()
 
-    sync_runtime_library(context, skip_build=skip_build)
+    installed_triple = sync_runtime_library(
+        context, target_triple=target_triple, skip_build=skip_build
+    )
 
     for attempt in range(1, MAX_SYNC_STAMP_ATTEMPTS + 1):
         source_data = source_stamp_data(
@@ -1973,6 +2030,10 @@ def sync_launchers(
     pending_replacements = install_launcher_files(context, shim_path)
     if persist_user_env:
         persist_windows_user_env(context)
+
+    # ── Update install_manifest.json ───────────────────────────────────────
+    _update_install_manifest(context, installed_triple, managed=managed_sync)
+
     if not managed_sync:
         print(f"  [shim] {shim_path}")
         print(f"  [installed] {context.launcher_dir}")
@@ -1980,6 +2041,67 @@ def sync_launchers(
         for pending in pending_replacements:
             print(f"  [pending] {pending}")
     return 0
+
+
+def _update_install_manifest(
+    context: SyncContext,
+    installed_triple: str,
+    managed: bool = False,
+) -> None:
+    """Update ``install_manifest.json`` with host triple and installed targets.
+
+    Creates or upgrades the manifest to schema_version 2, recording which
+    triples have runtime libraries installed and preserving all existing
+    environment metadata.
+    """
+    manifest_path = context.repo_kain_home / "install_manifest.json"
+    existing = read_json(manifest_path)
+
+    host_triple = get_host_triple()
+    installed_targets: list[str] = list(
+        existing.get("installed_targets", [])
+    )
+    if installed_triple not in installed_targets:
+        installed_targets.append(installed_triple)
+        installed_targets.sort()
+
+    binaries: list[str] = list(
+        existing.get("binaries", [])
+    )
+    # Auto-discover binaries from the launcher dir
+    for binary_name in context.binary_names:
+        exe_name = binary_name + (".exe" if platform.system().lower() == "windows" else "")
+        binary_path = context.launcher_dir / exe_name
+        if binary_path.exists() and str(binary_path) not in binaries:
+            binaries.append(str(binary_path))
+
+    manifest: dict[str, object] = {
+        "schema_version": 2,
+        "host_platform": platform.system().lower(),
+        "host_triple": host_triple,
+        "installed_targets": installed_targets,
+        "kain_home": str(context.repo_kain_home),
+        "bin_dir": str(context.launcher_dir),
+        "stdlib_dir": str(context.repo_kain_home / "stdlib"),
+        "runtime_dir": str(context.repo_kain_home / "lib"),
+        "toolchain_bin": str(
+            context.repo_kain_home / "toolchain" / "llvm" / "bin"
+        ),
+        "bundled_clang": str(context.clang_path) if context.clang_path else "",
+        "binaries": sorted(set(binaries)),
+        "resource_env": {
+            "KAIN_HOME": str(context.repo_kain_home),
+            "KAIN_STDLIB_PATH": str(context.repo_kain_home / "stdlib"),
+            "KAIN_RUNTIME_MANIFEST_PATH": str(
+                context.repo_kain_home / "runtime" / "native_core_runtime.toml"
+            ),
+            "KAIN_CLANG_PATH": str(context.clang_path) if context.clang_path else "",
+        },
+    }
+
+    write_json_atomic(manifest_path, manifest)
+    if not managed:
+        print(f"  [manifest] {manifest_path} (schema v2, {len(installed_targets)} target(s))")
 
 
 def launcher_status(context: SyncContext, *, json_output: bool = False) -> int:
@@ -2067,6 +2189,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     sync.add_argument("--skip-build", action="store_true")
     sync.add_argument("--managed-sync", action="store_true")
     sync.add_argument("--persist-user-env", action="store_true")
+    sync.add_argument(
+        "--target-triple",
+        default=None,
+        help="Target triple for runtime library installation "
+        "(e.g. x86_64-unknown-linux-gnu). Defaults to host triple.",
+    )
 
     status = subparsers.add_parser(
         "status", help="Explain launcher freshness without building."
@@ -2115,6 +2243,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 skip_build=args.skip_build,
                 managed_sync=args.managed_sync,
                 persist_user_env=args.persist_user_env,
+                target_triple=args.target_triple,
             )
         if args.command == "status":
             return launcher_status(context, json_output=args.json)
