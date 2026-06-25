@@ -1468,3 +1468,83 @@ int64_t abi_ui_widget_window(int64_t ctx_ptr, const char* title, double x, doubl
     // Pack results: returns 1 if still open, 0 if closed
     return result ? (int64_t)(is_open & 1) : 0;
 }
+
+int64_t abi_ui_widget_layout_row(int64_t ctx_ptr, int64_t count, const int64_t* widths) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    int cnt = (int)count;
+    if (cnt < 0) cnt = 0;
+    if (cnt > UI_MAX_LAYOUT_ITEMS) cnt = UI_MAX_LAYOUT_ITEMS;
+    int w[UI_MAX_LAYOUT_ITEMS];
+    for (int i = 0; i < cnt; i++) {
+        w[i] = (int)widths[i];
+    }
+    ui_layout_row(ctx, cnt, w);
+    return 0;
+}
+
+int64_t abi_ui_widget_layout_column(int64_t ctx_ptr, int64_t count, const int64_t* heights) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    int cnt = (int)count;
+    if (cnt < 0) cnt = 0;
+    if (cnt > UI_MAX_LAYOUT_ITEMS) cnt = UI_MAX_LAYOUT_ITEMS;
+    int h[UI_MAX_LAYOUT_ITEMS];
+    for (int i = 0; i < cnt; i++) {
+        h[i] = (int)heights[i];
+    }
+    ui_layout_column(ctx, cnt, h);
+    return 0;
+}
+
+int64_t abi_ui_widget_layout_set_next(int64_t ctx_ptr, int64_t w, int64_t h) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    ui_layout_set_next(ctx, (int)w, (int)h);
+    return 0;
+}
+
+const char* abi_ui_widget_textbox(int64_t ctx_ptr, const char* text, int64_t max_len) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    KainNativeUiSession* session = (KainNativeUiSession*)ctx->session;
+    if (!session) {
+        return (const char*)((uintptr_t)"" | (uintptr_t)1u);
+    }
+    // Create stack buffer and call ui_textbox
+    char buf[256];
+    int buf_sz = (int)(max_len > 0 ? max_len : 255);
+    if (buf_sz > 255) buf_sz = 255;
+    strncpy(buf, text ? text : "", (size_t)buf_sz);
+    buf[buf_sz] = '\0';
+    ui_textbox(ctx, buf, buf_sz + 1);
+    // Copy result into session frame arena (tagged pointer avoids RC)
+    size_t result_len = strlen(buf) + 1u;
+    size_t offset = session->frame_arena_offset;
+    if (offset + result_len > ABI_UI_FRAME_ARENA_SIZE) {
+        // Arena full — return empty, textbox changes lost
+        return (const char*)((uintptr_t)"" | (uintptr_t)1u);
+    }
+    memcpy(session->frame_arena + offset, buf, result_len);
+    session->frame_arena_offset = offset + result_len;
+    return (const char*)((uintptr_t)(session->frame_arena + offset) | (uintptr_t)1u);
+}
+
+int64_t abi_ui_widget_layout_begin(int64_t ctx_ptr, int64_t count, int64_t layout_type) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    int cnt = (int)count;
+    if (cnt < 0) cnt = 0;
+    if (cnt > UI_MAX_LAYOUT_ITEMS) cnt = UI_MAX_LAYOUT_ITEMS;
+    ctx->layout_type = (int)layout_type;  // 0 = row, 1 = column
+    ctx->layout_count = cnt;
+    ctx->layout_item = 0;
+    ctx->layout_size_count = 0;
+    return 0;
+}
+
+int64_t abi_ui_widget_layout_set_size(int64_t ctx_ptr, int64_t index, int64_t size) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    if (index >= 0 && index < UI_MAX_LAYOUT_ITEMS) {
+        ctx->layout_sizes[(int)index] = (int)size;
+        if ((int)index + 1 > ctx->layout_size_count) {
+            ctx->layout_size_count = (int)index + 1;
+        }
+    }
+    return 0;
+}

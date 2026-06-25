@@ -213,6 +213,9 @@ int64_t abi_ui_resource_height(int64_t session_id, int64_t resource_id);
 int64_t abi_ui_resource_byte_length(int64_t session_id, int64_t resource_id);
 double abi_ui_text_measure_width(int64_t session_id, int64_t font_resource_id, const char* text);
 double abi_ui_text_measure_height(int64_t session_id, int64_t font_resource_id, const char* text);
+int64_t abi_ui_font_ascent(int64_t session_id, int64_t font_resource_id);
+int64_t abi_ui_font_descent(int64_t session_id, int64_t font_resource_id);
+int64_t abi_ui_font_line_gap(int64_t session_id, int64_t font_resource_id);
 int64_t abi_ui_draw_resource(int64_t session_id, int64_t node_id, int64_t resource_id, double x, double y, double width, double height, const char* style_key);
 
 int64_t abi_ui_clipboard_set_text(int64_t session_id, const char* text);
@@ -270,6 +273,38 @@ int64_t abi_ui_widget_panel_begin(int64_t ctx_ptr, const char* title, double x, 
 void    abi_ui_widget_panel_end(int64_t ctx_ptr);
 int64_t abi_ui_widget_progress(int64_t ctx_ptr, const char* label, double value, double max_val);
 int64_t abi_ui_widget_window(int64_t ctx_ptr, const char* title, double x, double y, double w, double h, int64_t open);
+int64_t abi_ui_widget_layout_row(int64_t ctx_ptr, int64_t count, const int64_t* widths);
+int64_t abi_ui_widget_layout_column(int64_t ctx_ptr, int64_t count, const int64_t* heights);
+int64_t abi_ui_widget_layout_set_next(int64_t ctx_ptr, int64_t w, int64_t h);
+const char* abi_ui_widget_textbox(int64_t ctx_ptr, const char* text, int64_t max_len);
+int64_t abi_ui_widget_layout_begin(int64_t ctx_ptr, int64_t count, int64_t layout_type);
+int64_t abi_ui_widget_layout_set_size(int64_t ctx_ptr, int64_t index, int64_t size);
+
+// ── Font ABI (load / glyph access) ──────────────────────────────────
+// Also declared in ui_font.h. Forward-declare KainUiGlyph here so
+// ui_system.h is self-contained for code that only includes this header.
+struct KainUiGlyph;
+typedef struct KainUiGlyph KainUiGlyph;
+
+int64_t abi_ui_font_load_ttf(
+    int64_t session_id,
+    const char* key,
+    const char* family,
+    double size,
+    const uint8_t* ttf_data,
+    int64_t ttf_len
+);
+KainUiGlyph* abi_ui_font_get_glyph(int64_t session_id, int64_t font_id, int codepoint);
+void abi_ui_font_release_glyph(KainUiGlyph* glyph);
+
+// ── Framebuffer accessors (DIB direct pixel access) ──────────────────
+int64_t abi_ui_framebuffer_ptr(int64_t session_id);
+int64_t abi_ui_framebuffer_width(int64_t session_id);
+int64_t abi_ui_framebuffer_height(int64_t session_id);
+int64_t abi_ui_framebuffer_stride(int64_t session_id);
+
+// ── Window invalidation ───────────────────────────────────────────────
+int64_t abi_ui_invalidate_window(int64_t session_id);
 
 // ── Glyph Accessor ABI (struct field accessors for KainUiGlyph) ────────
 int64_t abi_ui_glyph_bitmap_ptr(int64_t glyph_ptr);

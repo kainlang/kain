@@ -2887,6 +2887,38 @@ int kain_ui_font_get_vmetrics(
     return 0;
 }
 
+// ── Font Metric ABI (individual accessors) ───────────────────────────
+// Each returns a single vertical metric, matching the scaling logic in
+// kain_ui_font_get_vmetrics(). These back the std::ui::font @extern
+// declarations for abi_ui_font_ascent/descent/line_gap.
+
+int64_t abi_ui_font_ascent(int64_t session_id, int64_t font_resource_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
+    if (!resource || !resource->font_data) return 0;
+    KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+    if (!fd->is_initialized) return 0;
+    return (int64_t)((float)fd->ascent * fd->scale + 0.5f);
+}
+
+int64_t abi_ui_font_descent(int64_t session_id, int64_t font_resource_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
+    if (!resource || !resource->font_data) return 0;
+    KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+    if (!fd->is_initialized) return 0;
+    return (int64_t)((float)fd->descent * fd->scale + 0.5f);
+}
+
+int64_t abi_ui_font_line_gap(int64_t session_id, int64_t font_resource_id) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiResource* resource = abi_ui_find_resource(session, font_resource_id);
+    if (!resource || !resource->font_data) return 0;
+    KainUiFontData* fd = (KainUiFontData*)resource->font_data;
+    if (!fd->is_initialized) return 0;
+    return (int64_t)((float)fd->line_gap * fd->scale + 0.5f);
+}
+
 // ── Glyph Accessor ABI ────────────────────────────────────────────────
 // KainUiGlyph is a struct (not returnable via @extern directly), so these
 // accessor functions take a glyph_ptr (cast to int64) and return individual

@@ -1,0 +1,274 @@
+// ============================================================================
+//  widget_showcase.kn — Kain UI Widget Showcase
+//  ============================================================================
+//  A comprehensive demo showing ALL 8 widgets in action:
+//    - Panel with buttons (click counter, reset, exit)
+//    - Checkbox section (settings toggles)
+//    - Slider section (volume, brightness, speed)
+//    - Text input form
+//    - Progress bars (simulated)
+//    - Floating window with stats
+//    - Loads 3 fonts from C:/Windows/Fonts/
+//
+//  Layer: L0 (plain code — widget wrappers + main loop)
+//  Usage:  kain run blades/ui_demos/widget_showcase.kn --target llvm
+//
+//  NOTE: `use std::ui` and `use std::ui::widget` import symbols DIRECTLY
+//  into the current scope — no module prefix needed.
+//  ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1100
+const WIN_H: Int = 720
+
+// ============================================================================
+//  APPLICATION STATE
+// ============================================================================
+
+struct AppState:
+    click_count: Int
+    volume: Float
+    brightness: Float
+    speed: Float
+    music_enabled: Bool
+    effects_enabled: Bool
+    fullscreen_enabled: Bool
+    text_input: String
+    progress_value: Float
+    window_open: Bool
+    exit_signal: Bool
+    frame_count: Int
+
+// ============================================================================
+//  INIT STATE
+// ============================================================================
+
+fn init_state() -> AppState:
+    return AppState {
+        click_count: 0,
+        volume: 0.75,
+        brightness: 0.5,
+        speed: 0.3,
+        music_enabled: true,
+        effects_enabled: false,
+        fullscreen_enabled: false,
+        text_input: "Hello, Kain!",
+        progress_value: 0.0,
+        window_open: true,
+        exit_signal: false,
+        frame_count: 0,
+    }
+
+// ============================================================================
+//  LOAD FONTS
+// ============================================================================
+
+fn load_all_fonts(ctx: Int) -> (Int, Int, Int):
+    let arial = load_font(ctx, "C:/Windows/Fonts/arial.ttf", 14.0)
+    let arial_id = if arial <= 0: load_default_font(ctx, 14.0) else: arial
+
+    let consolas = load_font(ctx, "C:/Windows/Fonts/consola.ttf", 12.0)
+    let consolas_id = if consolas <= 0:
+        let fallback = load_font(ctx, "C:/Windows/Fonts/cour.ttf", 12.0)
+        if fallback <= 0: arial_id else: fallback
+    else:
+        consolas
+
+    let impact = load_font(ctx, "C:/Windows/Fonts/impact.ttf", 18.0)
+    let impact_id = if impact <= 0: arial_id else: impact
+
+    return (arial_id, consolas_id, impact_id)
+
+// ============================================================================
+//  RENDER FUNCTIONS
+// ============================================================================
+
+fn render_controls_panel(ctx: Int, st: AppState) -> AppState:
+    let _p1 = panel_begin(ctx, "INTERACTIVE CONTROLS", 12.0, 50.0, 340.0, 640.0)
+    label(ctx, "Toggle settings and tweak values below.")
+
+    // ── Click counter ────────────────────────────────────────────────
+    label(ctx, "Click Counter: " + str(st.click_count))
+    if button(ctx, "CLICK ME (+1)"):
+        st.click_count = st.click_count + 1
+    if button(ctx, "RESET TO ZERO"):
+        st.click_count = 0
+
+    label(ctx, " ")
+
+    // ── Checkboxes ──────────────────────────────────────────────────
+    label(ctx, "--- SETTINGS ---")
+    let cb1 = checkbox(ctx, "Enable Music", st.music_enabled)
+    if cb1.toggled:
+        st.music_enabled = cb1.value
+
+    let cb2 = checkbox(ctx, "Sound Effects", st.effects_enabled)
+    if cb2.toggled:
+        st.effects_enabled = cb2.value
+
+    let cb3 = checkbox(ctx, "Fullscreen Mode", st.fullscreen_enabled)
+    if cb3.toggled:
+        st.fullscreen_enabled = cb3.value
+
+    label(ctx, " ")
+
+    // ── Sliders ─────────────────────────────────────────────────────
+    label(ctx, "--- SLIDERS ---")
+    let sl1 = slider(ctx, st.volume, 0.0, 1.0)
+    if sl1.changed:
+        st.volume = sl1.value
+
+    let sl2 = slider(ctx, st.brightness, 0.0, 1.0)
+    if sl2.changed:
+        st.brightness = sl2.value
+
+    let sl3 = slider(ctx, st.speed, 0.0, 1.0)
+    if sl3.changed:
+        st.speed = sl3.value
+
+    panel_end(ctx)
+    return st
+
+fn render_text_progress_panel(ctx: Int, st: AppState) -> AppState:
+    let _p2 = panel_begin(ctx, "TEXT INPUT & PROGRESS", 362.0, 50.0, 340.0, 640.0)
+
+    // ── Text input ──────────────────────────────────────────────────
+    label(ctx, "--- TEXT INPUT ---")
+    label(ctx, "Type something below:")
+    let new_text = textbox(ctx, st.text_input, 64)
+    if len(new_text) > 0:
+        st.text_input = new_text
+    label(ctx, "You typed: " + st.text_input)
+    label(ctx, " ")
+
+    // ── Progress bars ───────────────────────────────────────────────
+    label(ctx, "--- PROGRESS BARS ---")
+    let _pg1 = progress(ctx, "Download", st.progress_value, 100.0)
+    let _pg2 = progress(ctx, "Upload",     st.progress_value * 0.6, 100.0)
+    let _pg3 = progress(ctx, "Processing",  st.progress_value * 0.3, 100.0)
+    label(ctx, " ")
+
+    // ── Simulate progress ───────────────────────────────────────────
+    if st.frame_count % 3 == 0:
+        st.progress_value = st.progress_value + 0.5
+        if st.progress_value > 100.0:
+            st.progress_value = 0.0
+
+    // ── Demo buttons ────────────────────────────────────────────────
+    label(ctx, "--- DEMO BUTTONS ---")
+    if button(ctx, "SAVE CONFIG"):
+        label(ctx, "> Config saved!")
+    if button(ctx, "LOAD DEFAULTS"):
+        st.volume = 0.75
+        st.brightness = 0.5
+        st.speed = 0.3
+        st.music_enabled = true
+        st.effects_enabled = false
+        st.text_input = "Defaults loaded"
+        label(ctx, "> Defaults restored!")
+
+    panel_end(ctx)
+    return st
+
+fn render_stats_panel(ctx: Int, st: AppState) -> AppState:
+    let _p3 = panel_begin(ctx, "STATS & WINDOW", 712.0, 50.0, 340.0, 640.0)
+
+    label(ctx, "--- LIVE STATS ---")
+    label(ctx, "Frame:      " + str(st.frame_count))
+    label(ctx, "Clicks:     " + str(st.click_count))
+    label(ctx, "Volume:     " + str(to_int(st.volume * 100.0)) + "%")
+    label(ctx, "Brightness: " + str(to_int(st.brightness * 100.0)) + "%")
+    label(ctx, "Speed:      " + str(to_int(st.speed * 100.0)) + "%")
+    label(ctx, "Music:      " + if st.music_enabled: "ON" else: "OFF")
+    label(ctx, "Effects:    " + if st.effects_enabled: "ON" else: "OFF")
+    label(ctx, "Text len:   " + str(len(st.text_input)))
+    label(ctx, "Progress:   " + str(to_int(st.progress_value)) + "%")
+
+    label(ctx, " ")
+    label(ctx, "--- FLOATING WINDOW ---")
+    if st.window_open:
+        st.window_open = window(ctx, "Stats Window", 720.0, 500.0, 280.0, 160.0, st.window_open)
+        label(ctx, "Frame: " + str(st.frame_count))
+        label(ctx, "Clicks: " + str(st.click_count))
+        if button(ctx, "CLOSE"):
+            st.window_open = false
+        label(ctx, "(Drag title bar to move)")
+    else:
+        if button(ctx, "REOPEN WINDOW"):
+            st.window_open = true
+
+    label(ctx, " ")
+    label(ctx, "--- EXIT ---")
+    if button(ctx, "EXIT DEMO"):
+        st.exit_signal = true
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    // ── Initialize UI session ───────────────────────────────────────
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("WidgetShowcase", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Kain Widget Showcase", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    // ── Create widget context ───────────────────────────────────────
+    let ctx = create(session)
+    if ctx <= 0:
+        return 2
+
+    // ── Load fonts ──────────────────────────────────────────────────
+    let (fb, fm, fh) = load_all_fonts(ctx)
+
+    // ── Init app state ──────────────────────────────────────────────
+    var state = init_state()
+
+    // ── Main loop ───────────────────────────────────────────────────
+    while native_ui_host_should_close(session) == 0:
+        // Pump Windows messages
+        let _pump = native_ui_host_pump(session)
+
+        // UI frame begin
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // Draw header bar
+        let header_node = native_ui_node_create(session, "header")
+        native_ui_node_set_rect(session, header_node, 0.0, 0.0, to_float(WIN_W), 36.0)
+        native_ui_node_set_style_i64(session, header_node, "fill-color", COLOR_HEADER)
+        let _ht = native_ui_draw_text(session, header_node, fh, 12.0, 6.0,
+            " KAIN WIDGET SHOWCASE  --  All 8 Widgets in Action", "header-text")
+
+        // ── Render three panels ─────────────────────────────────────
+        state = render_controls_panel(ctx, state)
+        state = render_text_progress_panel(ctx, state)
+        state = render_stats_panel(ctx, state)
+
+        if state.exit_signal:
+            break
+
+        state.frame_count = state.frame_count + 1
+
+        // ── End UI frame ────────────────────────────────────────────
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_present(session)
+
+    // ── Cleanup ─────────────────────────────────────────────────────
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0
