@@ -2886,3 +2886,43 @@ int kain_ui_font_get_vmetrics(
     if (line_gap) *line_gap = (int)((float)fd->line_gap * fd->scale + 0.5f);
     return 0;
 }
+
+// ── Glyph Accessor ABI ────────────────────────────────────────────────
+// KainUiGlyph is a struct (not returnable via @extern directly), so these
+// accessor functions take a glyph_ptr (cast to int64) and return individual
+// fields. All fields return 0 on null pointer.
+
+int64_t abi_ui_glyph_bitmap_ptr(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)(uintptr_t)g->bitmap : 0;
+}
+
+int64_t abi_ui_glyph_width(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)g->width : 0;
+}
+
+int64_t abi_ui_glyph_height(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)g->height : 0;
+}
+
+int64_t abi_ui_glyph_x_offset(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)g->x_offset : 0;
+}
+
+int64_t abi_ui_glyph_y_offset(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)g->y_offset : 0;
+}
+
+int64_t abi_ui_glyph_advance(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    return g ? (int64_t)g->advance : 0;
+}
+
+void abi_ui_glyph_release(int64_t glyph_ptr) {
+    KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
+    if (g) abi_ui_font_release_glyph(g);
+}

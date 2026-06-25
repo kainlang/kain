@@ -1375,3 +1375,96 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
 
     return *open;
 }
+
+// ============================================================================
+//  ABI WRAPPER FUNCTIONS (expose widget library to Kain's @extern FFI)
+// ============================================================================
+// Each wrapper receives raw int64/f64 params from Kain, casts to native C
+// types, calls the existing widget function, and returns results as int64.
+
+int64_t abi_ui_widget_create(int64_t session_id) {
+    KainUiWidgetContext* ctx = ui_widget_create((int)session_id);
+    return (int64_t)(uintptr_t)ctx;
+}
+
+void abi_ui_widget_destroy(int64_t ctx_ptr) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    ui_widget_destroy(ctx);
+}
+
+void abi_ui_widget_begin_frame(int64_t ctx_ptr) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    ui_widget_begin_frame(ctx);
+}
+
+void abi_ui_widget_end_frame(int64_t ctx_ptr) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    ui_widget_end_frame(ctx);
+}
+
+int64_t abi_ui_widget_load_font(int64_t ctx_ptr, const char* filepath, double size) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return ui_widget_load_font(ctx, filepath, size);
+}
+
+int64_t abi_ui_widget_load_default_font(int64_t ctx_ptr, double size) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return ui_widget_load_default_font(ctx, size);
+}
+
+int64_t abi_ui_widget_button(int64_t ctx_ptr, const char* label) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return (int64_t)ui_button(ctx, label);
+}
+
+int64_t abi_ui_widget_label(int64_t ctx_ptr, const char* text) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return ui_label(ctx, text);
+}
+
+int64_t abi_ui_widget_checkbox(int64_t ctx_ptr, const char* label, int64_t current_value) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    int val = (int)current_value;
+    int toggled = ui_checkbox(ctx, label, &val);
+    // Packed: bit0=new_value, bit1=toggled
+    return (int64_t)((toggled << 1) | val);
+}
+
+int64_t abi_ui_widget_slider(int64_t ctx_ptr, double current_value, double lo, double hi) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    double val = current_value;
+    int changed = ui_slider(ctx, &val, lo, hi);
+    // Pack changed flag into high bit, scaled value into lower 63 bits
+    int64_t int_val = (int64_t)(val * 1000.0);
+    return (changed ? (int64_t)1 << 63 : 0) | (int_val & 0x7FFFFFFFFFFFFFFF);
+}
+
+int64_t abi_ui_widget_textbox_poll(int64_t ctx_ptr, int64_t buf_ptr, int64_t buf_size) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    char* buf = (char*)(uintptr_t)buf_ptr;
+    return (int64_t)ui_textbox(ctx, buf, (int)buf_size);
+}
+
+int64_t abi_ui_widget_panel_begin(int64_t ctx_ptr, const char* title, double x, double y, double w, double h) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return ui_panel(ctx, title, x, y, w, h);
+}
+
+void abi_ui_widget_panel_end(int64_t ctx_ptr) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    ui_panel_end(ctx);
+}
+
+int64_t abi_ui_widget_progress(int64_t ctx_ptr, const char* label, double value, double max_val) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    return ui_progress(ctx, label, value, max_val);
+}
+
+int64_t abi_ui_widget_window(int64_t ctx_ptr, const char* title, double x, double y, double w, double h, int64_t open) {
+    KainUiWidgetContext* ctx = (KainUiWidgetContext*)(uintptr_t)ctx_ptr;
+    int is_open = (int)open;
+    double win_x = x, win_y = y;
+    int result = ui_window(ctx, title, &win_x, &win_y, (int)w, (int)h, &is_open);
+    // Pack results: returns 1 if still open, 0 if closed
+    return result ? (int64_t)(is_open & 1) : 0;
+}

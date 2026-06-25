@@ -923,7 +923,7 @@ static void render_control_panel(KainUiWidgetContext* ctx, VoxelState* s,
             fb[sy * stride + sx] = 0xFF21D4A1;
     }
 
-    ui_widget_draw_text(ctx, px + (int)(10 * g_dpi_scale + 0.5), py + (int)(6 * g_dpi_scale + 0.5), "TERRAIN CONTROLS", 0xFFE8E8F0, (int)(12 * g_dpi_scale + 0.5));
+    ui_widget_draw_text(ctx, px + (int)(10 * g_dpi_scale + 0.5), py + (int)(6 * g_dpi_scale + 0.5), "TERRAIN CONTROLS", 0xFFE8E8F0, 12);
 
     int cx = px + (int)(12 * g_dpi_scale + 0.5), cy = py + (int)(36 * g_dpi_scale + 0.5);
 
@@ -1127,7 +1127,7 @@ int main(void) {
         "C:/Windows/Fonts/CascadiaMono.ttf",  // 5: Cascadia Mono (alt mono)
     };
     const char* font_labels[] = {"Segoe UI","Consolas","Arial","Impact","Georgia","Cascadia"};
-    double font_sizes[] = {12.0 * g_dpi_scale, 11.0 * g_dpi_scale, 12.0 * g_dpi_scale, 18.0 * g_dpi_scale, 11.0 * g_dpi_scale, 11.0 * g_dpi_scale};
+    double font_sizes[] = {12.0, 11.0, 12.0, 18.0, 11.0, 11.0};
 
     s->font_count = 0;
     for (int i = 0; i < MAX_FONTS; i++) {
