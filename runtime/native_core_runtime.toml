@@ -44,7 +44,6 @@ sources = [
     "native/src/core/component_surface.c",
     "native/src/core/vulkan_surface_shim.c",
     "native/src/core/vulkan_stubs.c",
-    "native/src/core/d3d12_surface_shim.c",
     "native/src/core/webgpu_surface_shim.c",
     "native/src/ui/native_ui_surface.c",
     "native/src/core/host_bridge.c",
@@ -80,6 +79,7 @@ windows_sources = [
     "native/src/platform/win32/kain_win32_input_host.c",
     "native/src/platform/win32/win32_shared.c",
     "native/src/platform/win32/crash_handler_win32.c",
+    "native/src/core/d3d12_surface_shim.c",
 ]
 
 linux_sources = [

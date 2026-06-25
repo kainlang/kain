@@ -72,7 +72,6 @@ NATIVE_CORE_RUNTIME = {
         'native/src/core/component_surface.c',
         'native/src/core/vulkan_surface_shim.c',
         'native/src/core/vulkan_stubs.c',
-        'native/src/core/d3d12_surface_shim.c',
         'native/src/core/webgpu_surface_shim.c',
         'native/src/ui/native_ui_surface.c',
         'native/src/core/host_bridge.c',
@@ -100,10 +99,12 @@ NATIVE_CORE_RUNTIME = {
         'native/src/ui/ui_renderer.c',
         'native/src/ui/ui_runtime.c',
         'native/src/ui/ui_hot_reload.c',
+        'native/src/ui/widgets/ui_widget.c',
     ],
     "common_cpp_srcs": [
     ],
     "windows_c_srcs": [
+        'native/src/core/d3d12_surface_shim.c',
         'native/src/platform/win32/kain_win32_app_host.c',
         'native/src/platform/win32/kain_win32_input_host.c',
         'native/src/platform/win32/win32_shared.c',
