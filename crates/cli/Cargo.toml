@@ -53,6 +53,7 @@ unreal_asset = { workspace = true, optional = true }
 gpu = { path = "../gpu", optional = true }
 kain-web = { path = "../web", optional = true }
 kain-sys-codegen = { path = "../sys-codegen", optional = true }
+kain-target = { path = "../target-triple" }
 
 clap = { workspace = true }
 notify = { workspace = true }
