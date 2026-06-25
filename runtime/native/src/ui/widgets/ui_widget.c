@@ -724,7 +724,7 @@ int ui_button(KainUiWidgetContext* ctx, const char* label)
     if (!ctx || !ctx->host) return 0;
 
     int x, y, w, h;
-    layout_next_slot(ctx, &x, &y, &w, &h, UI_BUTTON_WIDTH, UI_BUTTON_HEIGHT);
+    layout_next_slot(ctx, &x, &y, &w, &h, DS(ctx, UI_BUTTON_WIDTH), DS(ctx, UI_BUTTON_HEIGHT));
 
     char key[UI_WIDGET_KEY_SIZE];
     widget_key(ctx, "btn", key, sizeof(key));
