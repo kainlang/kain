@@ -9,6 +9,7 @@ kain-core = { path = "../core" }
 kain-ownership = { path = "../ownership" }
 kain-semantic = { path = "../semantic" }
 gpu = { path = "../gpu" }
+kain-target = { path = "../target" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 inkwell = { workspace = true, optional = true }
