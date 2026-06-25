@@ -213,6 +213,9 @@ pub struct DriverSession {
     /// When true, the LLVM backend emits DWARF debug metadata
     /// (!DILocation, !DISubprogram, !DICompileUnit, etc.).
     pub debug_info: bool,
+    /// Target triple for cross-compilation (e.g. x86_64-unknown-linux-gnu).
+    /// When set, the LLVM codegen emits IR targeting this triple instead of the host.
+    pub target_triple: Option<String>,
 }
 
 impl Default for DriverSession {
@@ -224,6 +227,7 @@ impl Default for DriverSession {
             last_frontend_bundle: RefCell::new(None),
             frontend_advisories: RefCell::new(Vec::new()),
             debug_info: false,
+            target_triple: None,
         }
     }
 }
@@ -523,6 +527,12 @@ impl DriverSession {
     /// Enable DWARF debug metadata in the LLVM backend (`-g` / `--debug`).
     pub fn with_debug_info(mut self, debug_info: bool) -> Self {
         self.debug_info = debug_info;
+        self
+    }
+
+    /// Set the target triple for cross-compilation.
+    pub fn with_target_triple(mut self, target_triple: Option<String>) -> Self {
+        self.target_triple = target_triple;
         self
     }
 
@@ -1162,6 +1172,16 @@ impl DriverSession {
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("unknown.kn");
                             sys::generate_with_debug(&typed_for_codegen, source, filename)
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
+                        } else if let Some(ref triple) = self.target_triple {
+                            sys::generate_llvm_for_target(&typed_for_codegen, Some(triple.as_str()))
                                 .and_then(|bytes| {
                                     String::from_utf8(bytes).map_err(|err| {
                                         KainError::codegen(

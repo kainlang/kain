@@ -15,7 +15,7 @@ kain-interop = { path = "../interop" }
 kain-node = { path = "../node" }
 kain-python = { path = "../python" }
 kain-reflect = { path = "../reflect" }
-kain-target = { path = "../target" }
+kain-target = { path = "../target-triple" }
 kain-ui = { path = "../ui" }
 kain-ui-tauri = { path = "../ui-tauri", optional = true }
 serde = { workspace = true }

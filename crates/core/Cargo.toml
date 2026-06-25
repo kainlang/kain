@@ -27,7 +27,7 @@ kain-fs = { path = "../fs" }
 kain-input = { path = "../input" }
 kain-orchestrate = { path = "../orchestrate" }
 kain-resonate = { path = "../resonate" }
-kain-target = { path = "../target" }
+kain-target = { path = "../target-triple" }
 kain-ui = { path = "../ui" }
 
 [features]

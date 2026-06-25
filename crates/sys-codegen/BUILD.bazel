@@ -36,7 +36,7 @@ rust_library(
         "//crates/gpu:gpu",
         "//crates/ownership:kain-ownership",
         "//crates/semantic:kain-semantic",
-        "//crates/target:kain-target",
+        "//crates/target-triple:kain-target",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,

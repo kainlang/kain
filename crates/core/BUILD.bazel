@@ -45,7 +45,7 @@ rust_library(
         "//crates/ownership:kain-ownership",
         "//crates/resonate:kain-resonate",
         "//crates/semantic:kain-semantic",
-        "//crates/target:kain-target",
+        "//crates/target-triple:kain-target",
         "//crates/ui:kain-ui",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
