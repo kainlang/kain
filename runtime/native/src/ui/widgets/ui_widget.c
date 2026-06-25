@@ -43,10 +43,15 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
 
 // ── Extern stubs from core.c ──────────────────────────────────────────
 extern double kain_clampd(double value, double min_value, double max_value);
+
+// ── DPI scaling macro: multiply a logical value by dpi_scale ─────────
+#define DS(ctx, v) ((int)((v) * (ctx)->dpi_scale + 0.5))
+#define DSD(ctx, v) ((v) * (ctx)->dpi_scale)
 
 // ── Slider / progress bar colors (not in header — use constants) ──────
 #define SLIDER_TRACK_COLOR  0xFF3A3A5C
@@ -357,6 +362,7 @@ KainUiWidgetContext* ui_widget_create(int64_t session_id)
     ctx->session_id = session_id;
     ctx->host = host;
     ctx->session = (struct KainNativeUiSession*)session;
+    ctx->dpi_scale = session->dpi_scale > 0.0 ? session->dpi_scale : 1.0;
 
     // Dark theme defaults
     ctx->color_bg          = UI_COLOR_BG;
@@ -409,6 +415,9 @@ int64_t ui_widget_load_font(KainUiWidgetContext* ctx, const char* filepath, doub
     if (!ctx || !filepath) return 0;
     if (ctx->font_count >= UI_WIDGET_MAX_FONTS) return 0;
 
+    // Scale font size by DPI so text appears correctly sized on high-DPI displays
+    double scaled_size = DSD(ctx, size);
+
     FILE* f = fopen(filepath, "rb");
     if (!f) return 0;
 
@@ -423,7 +432,7 @@ int64_t ui_widget_load_font(KainUiWidgetContext* ctx, const char* filepath, doub
             size_t nread = fread(data, 1, (size_t)len, f);
             if (nread == (size_t)len) {
                 font_id = abi_ui_font_load_ttf(
-                    ctx->session_id, "", "", size, data, (int64_t)len);
+                    ctx->session_id, "", "", scaled_size, data, (int64_t)len);
                 if (font_id > 0) {
                     int idx = ctx->font_count++;
                     ctx->fonts[idx].font_id = font_id;
@@ -597,7 +606,7 @@ void ui_layout_set_next(KainUiWidgetContext* ctx, int width, int height)
 static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
                              int* out_w, int* out_h, int def_w, int def_h)
 {
-    int x, y, w = def_w, h = def_h;
+    int x, y, w = DS(ctx, def_w), h = DS(ctx, def_h);
 
     if (ctx->container_depth > 0) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth - 1];
@@ -634,35 +643,36 @@ static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
 // ── Advance layout cursor after placing a widget ─────────────────────
 static void layout_advance(KainUiWidgetContext* ctx, int used_w, int used_h)
 {
+    int spacing = DS(ctx, UI_SPACING);
     if (ctx->container_depth > 0) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth - 1];
 
         if (ctx->layout_type == 0 && ctx->layout_count > 0) {
             // Row layout: advance horizontally
-            c->cursor_x += used_w + UI_SPACING;
+            c->cursor_x += used_w + spacing;
             ctx->layout_item++;
             if (ctx->layout_item >= ctx->layout_count) {
-                c->cursor_y += used_h + UI_SPACING;
-                c->cursor_x = c->x + UI_PADDING;
+                c->cursor_y += used_h + spacing;
+                c->cursor_x = c->x + DS(ctx, UI_PADDING);
                 ctx->layout_item = 0;
                 ctx->layout_count = 0;
             }
         } else {
             // Default: advance horizontally with auto-wrap
-            c->cursor_x += used_w + UI_SPACING;
+            c->cursor_x += used_w + spacing;
             // Check if next widget would overflow (rough check)
-            if (c->cursor_x + UI_BUTTON_WIDTH > c->x + c->w) {
-                c->cursor_x = c->x + UI_PADDING;
-                c->cursor_y += used_h + UI_SPACING;
+            if (c->cursor_x + DS(ctx, UI_BUTTON_WIDTH) > c->x + c->w) {
+                c->cursor_x = c->x + DS(ctx, UI_PADDING);
+                c->cursor_y += used_h + spacing;
             }
         }
         ctx->layout_x = c->cursor_x;
         ctx->layout_y = c->cursor_y;
     } else {
         // Top-level: advance horizontally
-        ctx->layout_x += used_w + UI_SPACING;
+        ctx->layout_x += used_w + spacing;
         ctx->layout_next_y = fmax(ctx->layout_next_y,
-                                   (double)((int)ctx->layout_y + used_h + UI_SPACING));
+                                   (double)((int)ctx->layout_y + used_h + spacing));
     }
 }
 
@@ -755,7 +765,7 @@ int ui_button(KainUiWidgetContext* ctx, const char* label)
     int fb_w = ctx->host->width;
     int fb_h = ctx->host->height;
 
-    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h, color, 4);
+    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h, color, DS(ctx, 4));
     ui_widget_draw_text_centered(ctx, x, y, w, h, label, ctx->color_text, 14);
 
     // Sync node style for fallback renderer
@@ -775,8 +785,8 @@ int64_t ui_label(KainUiWidgetContext* ctx, const char* text)
     if (!ctx || !ctx->host || !text) return 0;
 
     int tw = text[0] ? ui_widget_text_width(ctx, text) : 0;
-    int w = (tw > 0) ? tw + 4 : 20;
-    int h = UI_LABEL_HEIGHT;
+    int w = (tw > 0) ? tw + DS(ctx, 4) : DS(ctx, 20);
+    int h = DS(ctx, UI_LABEL_HEIGHT);
 
     int x, y;
     layout_next_slot(ctx, &x, &y, &w, &h, w, h);
@@ -786,7 +796,7 @@ int64_t ui_label(KainUiWidgetContext* ctx, const char* text)
     int64_t nid = widget_node(ctx, key, "widget.label", x, y, w, h);
     ctx->widget_counter++;
 
-    ui_widget_draw_text(ctx, x, y + 2, text, ctx->color_text, 14);
+    ui_widget_draw_text(ctx, x, y + DS(ctx, 2), text, ctx->color_text, 14);
 
     abi_ui_node_set_text(ctx->session_id, nid, text);
 
@@ -802,9 +812,10 @@ int ui_checkbox(KainUiWidgetContext* ctx, const char* label, int* value)
 {
     if (!ctx || !ctx->host || !value) return 0;
 
-    int tw = (label && label[0]) ? ui_widget_text_width(ctx, label) + 4 : 0;
-    int w = UI_CHECKBOX_SIZE + 6 + tw;
-    int h = UI_CHECKBOX_SIZE + 4;
+    int cs = DS(ctx, UI_CHECKBOX_SIZE);
+    int tw = (label && label[0]) ? ui_widget_text_width(ctx, label) + DS(ctx, 4) : 0;
+    int w = cs + DS(ctx, 6) + tw;
+    int h = cs + DS(ctx, 4);
 
     int x, y;
     layout_next_slot(ctx, &x, &y, &w, &h, w, h);
@@ -836,23 +847,22 @@ int ui_checkbox(KainUiWidgetContext* ctx, const char* label, int* value)
     int fb_h = ctx->host->height;
 
     int cb_x = x;
-    int cb_y = y + (h - UI_CHECKBOX_SIZE) / 2;
-    int cs = UI_CHECKBOX_SIZE;
+    int cb_y = y + (h - cs) / 2;
 
     if (*value) {
         // Checked: accent fill
         ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
-                                     cb_x, cb_y, cs, cs, UI_COLOR_ACCENT, 3);
-        draw_checkmark(fb, stride, fb_w, fb_h, cb_x + 3, cb_y + 2, cs - 5, 0xFFFFFFFF);
+                                     cb_x, cb_y, cs, cs, UI_COLOR_ACCENT, DS(ctx, 3));
+        draw_checkmark(fb, stride, fb_w, fb_h, cb_x + DS(ctx, 3), cb_y + DS(ctx, 2), cs - DS(ctx, 5), 0xFFFFFFFF);
     } else {
         // Unchecked: dark fill + border
         ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
-                                     cb_x, cb_y, cs, cs, UI_COLOR_SURFACE2, 3);
+                                     cb_x, cb_y, cs, cs, UI_COLOR_SURFACE2, DS(ctx, 3));
         draw_border_rect(fb, stride, fb_w, fb_h, cb_x, cb_y, cs, cs, UI_COLOR_BORDER);
     }
 
     if (label && label[0]) {
-        ui_widget_draw_text(ctx, cb_x + cs + 6, y + (h - 14) / 2,
+        ui_widget_draw_text(ctx, cb_x + cs + DS(ctx, 6), y + (h - DS(ctx, 14)) / 2,
                             label, ctx->color_text, 14);
     }
 

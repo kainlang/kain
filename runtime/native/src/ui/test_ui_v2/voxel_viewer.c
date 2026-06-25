@@ -77,9 +77,9 @@ static LRESULT CALLBACK voxel_wndproc(HWND hwnd, UINT msg, WPARAM w, LPARAM l);
 #define GRID_W              32
 #define GRID_H              32
 #define MAX_VOXEL_HEIGHT    8.0
-#define TILE_W              40
-#define TILE_H              20
-#define VOXEL_H             20
+#define TILE_W              ((int)(40 * g_dpi_scale + 0.5))
+#define TILE_H              ((int)(20 * g_dpi_scale + 0.5))
+#define VOXEL_H             ((int)(20 * g_dpi_scale + 0.5))
 #define SCREEN_W            1280
 #define SCREEN_H            720
 #define MAX_FONTS           6
@@ -88,6 +88,7 @@ static LRESULT CALLBACK voxel_wndproc(HWND hwnd, UINT msg, WPARAM w, LPARAM l);
 // ============================================================================
 //  GLOBALS
 // ============================================================================
+static double g_dpi_scale = 1.0;
 static KainWin32UiHost* g_host = NULL;
 static WNDPROC g_orig_wndproc = NULL;
 
@@ -773,22 +774,24 @@ static void render_selection(uint32_t* fb, int stride, int fb_w, int fb_h,
 // ============================================================================
 static void render_hud(KainUiWidgetContext* ctx, KainWin32UiHost* host,
                        VoxelState* s, int fb_w, int fb_h) {
+    double ds = g_dpi_scale;
+    int top_bar_h = (int)(50 * ds + 0.5);
+    int bot_bar_h = (int)(34 * ds + 0.5);
     uint32_t* fb = (uint32_t*)host->framebuffer;
     int stride = host->fb_stride / 4;
 
     // Semi-transparent HUD background bars
     // Top bar
-    for (int y = 0; y < 50; y++) {
-        uint32_t col = 0x60000000 | ((uint32_t)(10 - y * 10 / 50) << 24);
-        if (y < 50) col = (0x40000000) | ((uint32_t)(y * 3) << 24);
+    for (int y = 0; y < top_bar_h && y < fb_h; y++) {
+        uint32_t col = 0x40000000 | ((uint32_t)(y * 3) << 24);
         for (int x = 0; x < fb_w; x++) {
             blend_px(&fb[y * stride + x], col);
         }
     }
     // Bottom bar
-    for (int y = fb_h - 34; y < fb_h; y++) {
-        int dy = y - (fb_h - 34);
-        uint32_t col = 0x40000000 | ((uint32_t)((33 - dy) * 3) << 24);
+    for (int y = (fb_h > bot_bar_h ? fb_h - bot_bar_h : 0); y < fb_h; y++) {
+        int dy = y - (fb_h - bot_bar_h);
+        uint32_t col = 0x40000000 | ((uint32_t)((bot_bar_h - 1 - dy) * 3) << 24);
         for (int x = 0; x < fb_w; x++) {
             blend_px(&fb[y * stride + x], col);
         }
@@ -801,62 +804,71 @@ static void render_hud(KainUiWidgetContext* ctx, KainWin32UiHost* host,
 
     char buf[128];
 
+    int fs_title = (int)(16 * ds + 0.5);
+    int fs_data = (int)(13 * ds + 0.5);
+    int fs_small = (int)(11 * ds + 0.5);
+    int fs_info = (int)(12 * ds + 0.5);
+    int margin = (int)(12 * ds + 0.5);
+    int margin2 = (int)(16 * ds + 0.5);
+
     // Title (left top)
     {
-    int ty = 6;
+    int ty = (int)(6 * ds + 0.5);
     if (fid_title >= 0 && s->font_ids[fid_title] > 0)
-        ui_widget_draw_text_ex(ctx, 12, ty, "VOXEL ISOMETRIC",
+        ui_widget_draw_text_ex(ctx, margin, ty, "VOXEL ISOMETRIC",
                                0xFFFFDD44, 0, s->font_ids[fid_title]);
     else
-        ui_widget_draw_text(ctx, 12, ty, "VOXEL ISOMETRIC", 0xFFFFDD44, 16);
+        ui_widget_draw_text(ctx, margin, ty, "VOXEL ISOMETRIC", 0xFFFFDD44, fs_title);
     }
 
     // FPS counter (right top)
     {
-    int tx = fb_w - 140;
+    int tx = fb_w - (int)(140 * ds + 0.5);
     snprintf(buf, 128, "FPS: %.0f", s->fps);
-    ui_widget_draw_text(ctx, tx, 8, buf,
+    ui_widget_draw_text(ctx, tx, (int)(8 * ds + 0.5), buf,
                         s->fps >= 110.0 ? 0xFF21D4A1 :
-                        s->fps >= 60.0 ? 0xFFE8914A : 0xFFE84A5F, 13);
+                        s->fps >= 60.0 ? 0xFFE8914A : 0xFFE84A5F, fs_data);
 
     snprintf(buf, 128, "Frame: %d", s->frame_count);
-    ui_widget_draw_text(ctx, tx, 26, buf, 0xFF8888A0, 11);
+    ui_widget_draw_text(ctx, tx, (int)(26 * ds + 0.5), buf, 0xFF8888A0, fs_small);
     }
 
     // Camera info (left, below title)
     {
-    int by = 28;
+    int by = (int)(28 * ds + 0.5);
     snprintf(buf, 128, "Angle: %.0f\370  Zoom: %.1f  Voxels: %d",
              s->cam_angle * 180.0f / PI, s->cam_zoom, GRID_W * GRID_H);
-    ui_widget_draw_text(ctx, 16, by, buf, 0xFF8888A0, 11);
+    ui_widget_draw_text(ctx, margin2, by, buf, 0xFF8888A0, fs_small);
     }
 
     // Key legend (bottom)
     {
-    int ly = fb_h - 28;
+    int ly = fb_h - (int)(28 * ds + 0.5);
     const char* legend = "\xe2\x86\x90\xe2\x86\x91\xe2\x86\x92\xe2\x86\x93=Rotate  W/S=Zoom  "
                          "Click+Drag=Pan  R=Reset  Space=Pause  Esc=Exit";
-    ui_widget_draw_text(ctx, 12, ly, legend, 0xFF666688, 11);
+    ui_widget_draw_text(ctx, margin, ly, legend, 0xFF666688, fs_small);
     }
 
     // Pause overlay
     if (s->paused) {
-        int px = fb_w / 2 - 60;
+        int px = fb_w / 2 - (int)(60 * ds + 0.5);
         if (fid_title >= 0 && s->font_ids[fid_title] > 0)
-            ui_widget_draw_text_ex(ctx, px, fb_h / 2 - 20, ">> PAUSED <<",
+            ui_widget_draw_text_ex(ctx, px, fb_h / 2 - (int)(20 * ds + 0.5), ">> PAUSED <<",
                                    0xFFFF4444, 0, s->font_ids[fid_title]);
         else
-            ui_widget_draw_text(ctx, px, fb_h / 2 - 20, ">> PAUSED <<",
-                               0xFFFF4444, 18);
+            ui_widget_draw_text(ctx, px, fb_h / 2 - (int)(20 * ds + 0.5), ">> PAUSED <<",
+                               0xFFFF4444, (int)(18 * ds + 0.5));
     }
 
     // Selection info
     if (s->has_hover) {
         float h = s->heights[s->hover_gy][s->hover_gx];
-        int sx = 16, sy = fb_h / 2 - 40;
+        int sx = margin2, sy = fb_h / 2 - (int)(40 * ds + 0.5);
+        int box_w = (int)(200 * ds + 0.5);
+        int box_h = (int)(36 * ds + 0.5);
         // Semi-transparent info box
-        for (int dy = 0; dy < 36; dy++)
-            for (int dx = 0; dx < 200; dx++) {
+        for (int dy = 0; dy < box_h; dy++)
+            for (int dx = 0; dx < box_w; dx++) {
                 int px = sx + dx, py = sy + dy;
                 if (px >= 0 && px < fb_w && py >= 0 && py < fb_h)
                     blend_px(&fb[py * stride + px], 0x60000000);
@@ -865,7 +877,7 @@ static void render_hud(KainUiWidgetContext* ctx, KainWin32UiHost* host,
                  s->hover_gx, s->hover_gy, h,
                  h < 0.3f ? "Water" : h < 0.5f ? "Beach" : h < 0.72f ? "Grass" :
                  h < 0.85f ? "Rock" : "Snow");
-        ui_widget_draw_text(ctx, sx + 8, sy + 8, buf, 0xFFFFDD44, 12);
+        ui_widget_draw_text(ctx, sx + (int)(8 * ds + 0.5), sy + (int)(8 * ds + 0.5), buf, 0xFFFFDD44, fs_info);
     }
 }
 
@@ -878,9 +890,9 @@ static void render_control_panel(KainUiWidgetContext* ctx, VoxelState* s,
     int stride = host->fb_stride / 4;
     int fb_w = host->width, fb_h = host->height;
 
-    int px = fb_w - 260;
-    int py = 56;
-    int pw = 250, ph = 220;
+    int px = fb_w - (int)(260 * g_dpi_scale + 0.5);
+    int py = (int)(56 * g_dpi_scale + 0.5);
+    int pw = (int)(250 * g_dpi_scale + 0.5), ph = (int)(220 * g_dpi_scale + 0.5);
 
     // Panel background
     for (int dy = 0; dy < ph; dy++)
@@ -895,8 +907,8 @@ static void render_control_panel(KainUiWidgetContext* ctx, VoxelState* s,
         }
 
     // Title bar
-    int fh = (s->font_ids[2] > 0) ? 2 : 0;
-    for (int dy = 0; dy < 28; dy++)
+    int title_h = (int)(28 * g_dpi_scale + 0.5);
+    for (int dy = 0; dy < title_h; dy++)
         for (int dx = 0; dx < pw; dx++) {
             int sx = px + dx, sy = py + dy;
             if (sx >= 0 && sx < fb_w && sy >= 0 && sy < fb_h)
@@ -905,42 +917,46 @@ static void render_control_panel(KainUiWidgetContext* ctx, VoxelState* s,
 
     // Accent line
     for (int dx = 0; dx < pw; dx++) {
-        int sx = px + dx, sy = py + 28;
+        int sx = px + dx, sy = py + title_h;
         if (sx >= 0 && sx < fb_w && sy >= 0 && sy < fb_h)
             fb[sy * stride + sx] = 0xFF21D4A1;
     }
 
-    ui_widget_draw_text(ctx, px + 10, py + 6, "TERRAIN CONTROLS", 0xFFE8E8F0, 12);
+    ui_widget_draw_text(ctx, px + (int)(10 * g_dpi_scale + 0.5), py + (int)(6 * g_dpi_scale + 0.5), "TERRAIN CONTROLS", 0xFFE8E8F0, (int)(12 * g_dpi_scale + 0.5));
 
-    int cx = px + 12, cy = py + 36;
+    int cx = px + (int)(12 * g_dpi_scale + 0.5), cy = py + (int)(36 * g_dpi_scale + 0.5);
 
     // Amplitude slider
-    ui_widget_draw_text(ctx, cx, cy, "Amplitude", 0xFF8888A0, 10);
-    cy += 14;
+    int fs = (int)(10 * g_dpi_scale + 0.5);
+    int step_sm = (int)(14 * g_dpi_scale + 0.5);
+    int step_md = (int)(26 * g_dpi_scale + 0.5);
+    int step_lg = (int)(36 * g_dpi_scale + 0.5);
+    ui_widget_draw_text(ctx, cx, cy, "Amplitude", 0xFF8888A0, fs);
+    cy += step_sm;
     ui_slider(ctx, &s->amplitude, 1.0, 12.0);
-    cy += 26;
+    cy += step_md;
 
     // Wireframe toggle button
     if (ui_button(ctx, s->wireframe ? "WIREFRAME: ON" : "WIREFRAME: OFF"))
         s->wireframe = !s->wireframe;
-    cy += 36;
+    cy += step_lg;
 
     // Randomize button
     if (ui_button(ctx, "RANDOMIZE TERRAIN")) {
         s->amplitude = 4.0 + (double)(rand() % 80) / 10.0;
         gen_terrain();
     }
-    cy += 36;
+    cy += step_lg;
 
     // Animation checkbox
     ui_checkbox(ctx, "Animate Water & Tree", &s->animate);
 
-    cy += 26;
+    cy += step_md;
 
     // Voxel count
     char buf[64];
     snprintf(buf, 64, "Grid: %dx%d = %d voxels", GRID_W, GRID_H, GRID_W * GRID_H);
-    ui_widget_draw_text(ctx, cx, cy, buf, 0xFF666688, 10);
+    ui_widget_draw_text(ctx, cx, cy, buf, 0xFF666688, fs);
 }
 
 // ============================================================================
@@ -1071,6 +1087,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi_scale = dpi_scale;
     int win_w = (int)(SCREEN_W * dpi_scale + 0.5f);
     int win_h = (int)(SCREEN_H * dpi_scale + 0.5f);
 
@@ -1109,7 +1126,7 @@ int main(void) {
         "C:/Windows/Fonts/CascadiaMono.ttf",  // 5: Cascadia Mono (alt mono)
     };
     const char* font_labels[] = {"Segoe UI","Consolas","Arial","Impact","Georgia","Cascadia"};
-    double font_sizes[] = {12.0, 11.0, 12.0, 18.0, 11.0, 11.0};
+    double font_sizes[] = {12.0 * g_dpi_scale, 11.0 * g_dpi_scale, 12.0 * g_dpi_scale, 18.0 * g_dpi_scale, 11.0 * g_dpi_scale, 11.0 * g_dpi_scale};
 
     s->font_count = 0;
     for (int i = 0; i < MAX_FONTS; i++) {

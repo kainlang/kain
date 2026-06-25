@@ -100,6 +100,9 @@ typedef struct KainUiWidgetContext {
     // Session ID passed at creation
     int64_t session_id;
 
+    // DPI scale factor (e.g., 2.0 on a 4K display at 200%)
+    double dpi_scale;
+
     // Cached host pointer (for framebuffer + GDI access)
     struct KainWin32UiHost* host;
     struct KainNativeUiSession* session;
