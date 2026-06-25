@@ -606,7 +606,7 @@ void ui_layout_set_next(KainUiWidgetContext* ctx, int width, int height)
 static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
                              int* out_w, int* out_h, int def_w, int def_h)
 {
-    int x, y, w = DS(ctx, def_w), h = DS(ctx, def_h);
+    int x, y, w = def_w, h = def_h;
 
     if (ctx->container_depth > 0) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth - 1];
