@@ -61,7 +61,11 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
+
+// ── Global DPI scale for pixel helpers ───────────────────────────
+static float g_dpi = 1.0f;
 
 // ── Color palette — deep space ─────────────────────────────────────────
 #define C_SPACE_0      0xFF0A0A14
@@ -97,9 +101,9 @@ static const uint32_t g_panel_accents[] = {
 // ── Dashboard dimensions (set at runtime) ──────────────────────────────
 static int g_win_w = 1280;
 static int g_win_h = 720;
-static int g_header_h = 48;
-static int g_margin = 14;
-static int g_title_bar_h = 28;
+static int g_header_h = (int)(48 * g_dpi + 0.5f);
+static int g_margin = (int)(14 * g_dpi + 0.5f);
+static int g_title_bar_h = (int)(28 * g_dpi + 0.5f);
 
 // ── Global state ───────────────────────────────────────────────────────
 static int64_t g_session_id = -1;
@@ -220,6 +224,8 @@ static int64_t find_font(const char* name) {
 
 // ── Load all fonts ─────────────────────────────────────────────────────
 static void load_all_fonts(KainUiWidgetContext* wctx) {
+    // Note: ui_widget_load_font scales internally by ctx->dpi_scale,
+    // so pass logical sizes without pre-scaling.
     // Font 0: Arial 14 — general panel text
     int64_t fid = ui_widget_load_font(wctx, "C:/Windows/Fonts/arial.ttf", 14.0);
     snprintf(g_fonts[g_font_count].name, sizeof(g_fonts[0].name), "arial14");
@@ -306,7 +312,7 @@ static void load_all_fonts(KainUiWidgetContext* wctx) {
     g_fonts[g_font_count].font_id = fid;
     g_fonts[g_font_count].loaded = (fid > 0);
     g_fonts[g_font_count].size = 24.0;
-    g_font_count++;
+    g_font_count++
 
     // Set default font to consola14 for widget text rendering
     if (find_font("consola14") > 0) {
@@ -604,8 +610,7 @@ static void draw_panel_bg(uint32_t* fb, int stride, int fb_w, int fb_h,
                            DashboardPanel* p)
 {
     int ix = (int)p->x, iy = (int)p->y, iw = (int)p->w, ih = (int)p->h;
-    int r = 8; // corner radius
-    
+    int r = (int)(8 * g_dpi + 0.5f); // corner radius
     if (ix + iw < 0 || iy + ih < 0 || ix > fb_w || iy > fb_h) return;
     
     // Glass background (dark semi-transparent)
@@ -1628,6 +1633,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi = dpi_scale;
     printf("[DPI] Scale: %.2f (display DPI: %ld\n", dpi_scale,
            (long)(dpi_scale * 96.0f + 0.5f));
 

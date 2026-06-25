@@ -439,6 +439,7 @@ int64_t ui_render_frame(
 
     // Also render draw commands if any exist (explicit draw_rect/draw_text/draw_resource calls)
     // These are recorded by std::ui helpers and stored in session->draw_commands[]
+    double scale = session->dpi_scale > 0.0 ? session->dpi_scale : 1.0;
     int64_t cmd_idx;
     /* Z3-verified: draw_command_count never exceeds ABI_UI_MAX_DRAW_COMMANDS */
     for (cmd_idx = 0; cmd_idx < session->draw_command_count; cmd_idx++) {
@@ -450,8 +451,8 @@ int64_t ui_render_frame(
         if (strcmp(cmd->kind, "rect") == 0 && fill_str) {
             uint32_t fill_color = ui_parse_color(fill_str);
             ui_draw_fill_rect(framebuffer, fb_width, fb_height, fb_stride,
-                              (int)cmd->x, (int)cmd->y,
-                              (int)cmd->width, (int)cmd->height,
+                              (int)(cmd->x * scale), (int)(cmd->y * scale),
+                              (int)(cmd->width * scale), (int)(cmd->height * scale),
                               fill_color);
         }
         // ── Text draw commands via stb_truetype glyphs ────────────
@@ -459,7 +460,7 @@ int64_t ui_render_frame(
             uint32_t ink_color = ui_parse_color(fill_str);
             if (cmd->font_resource_id > 0) {
                 ui_render_glyph_text(framebuffer, fb_width, fb_height, fb_stride,
-                                     (int)cmd->x, (int)cmd->y,
+                                     (int)(cmd->x * scale), (int)(cmd->y * scale),
                                      cmd->text, ink_color,
                                      session->id, cmd->font_resource_id);
             }

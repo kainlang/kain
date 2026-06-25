@@ -618,19 +618,19 @@ static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
     }
 
     if (ctx->layout_type == 0 && ctx->layout_count > 0) {
-        // Row: use specified width per-item
+        // Row: use specified width per-item (scale by DPI)
         if (ctx->layout_item < ctx->layout_count) {
-            w = ctx->layout_sizes[ctx->layout_item];
+            w = DS(ctx, ctx->layout_sizes[ctx->layout_item]);
         }
     } else if (ctx->layout_type == 1 && ctx->layout_count > 0) {
-        // Column: use specified height per-item
+        // Column: use specified height per-item (scale by DPI)
         if (ctx->layout_item < ctx->layout_count) {
-            h = ctx->layout_sizes[ctx->layout_item];
+            h = DS(ctx, ctx->layout_sizes[ctx->layout_item]);
         }
     } else if (ctx->layout_type == 2) {
-        // Explicit: [0]=width, [1]=height
-        w = ctx->layout_sizes[0];
-        h = ctx->layout_sizes[1];
+        // Explicit: [0]=width, [1]=height (scale by DPI)
+        w = DS(ctx, ctx->layout_sizes[0]);
+        h = DS(ctx, ctx->layout_sizes[1]);
         ctx->layout_type = 0; // one-shot
     }
 
@@ -878,8 +878,8 @@ int ui_slider(KainUiWidgetContext* ctx, double* value, double lo, double hi)
 {
     if (!ctx || !ctx->host || !value) return 0;
 
-    int w = UI_SLIDER_WIDTH;
-    int h = UI_SLIDER_HEIGHT;
+    int w = DS(ctx, UI_SLIDER_WIDTH);
+    int h = DS(ctx, UI_SLIDER_HEIGHT);
 
     int x, y;
     layout_next_slot(ctx, &x, &y, &w, &h, w, h);
@@ -898,13 +898,13 @@ int ui_slider(KainUiWidgetContext* ctx, double* value, double lo, double hi)
     if (norm < 0.0) norm = 0.0;
     if (norm > 1.0) norm = 1.0;
 
-    // Track geometry
+    // Track geometry — all sizes scaled by DPI
     int track_x = x;
-    int track_y = y + h / 2 - 3;
+    int track_y = y + h / 2 - DS(ctx, 3);
     int track_w = w;
-    int track_h = 6;
-    int thumb_w = 10;
-    int thumb_h = 18;
+    int track_h = DS(ctx, 6);
+    int thumb_w = DS(ctx, 10);
+    int thumb_h = DS(ctx, 18);
     int thumb_y = y + h / 2 - thumb_h / 2;
     int thumb_x = track_x + (int)(norm * (double)(track_w - thumb_w));
 
@@ -947,13 +947,13 @@ int ui_slider(KainUiWidgetContext* ctx, double* value, double lo, double hi)
     // Track background
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
                                  track_x, track_y, track_w, track_h,
-                                 SLIDER_TRACK_COLOR, 3);
+                                 SLIDER_TRACK_COLOR, DS(ctx, 3));
     // Filled portion
     int fill_w = thumb_x - track_x;
     if (fill_w > 0) {
         ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
                                      track_x, track_y, fill_w, track_h,
-                                     SLIDER_FILL_COLOR, 3);
+                                     SLIDER_FILL_COLOR, DS(ctx, 3));
     }
 
     // Thumb
@@ -961,7 +961,7 @@ int ui_slider(KainUiWidgetContext* ctx, double* value, double lo, double hi)
                            (hovered || on_thumb) ? UI_COLOR_ACCENT2 : UI_COLOR_SURFACE2;
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
                                  thumb_x, thumb_y, thumb_w, thumb_h,
-                                 thumb_color, 4);
+                                 thumb_color, DS(ctx, 4));
     draw_border_rect(fb, stride, fb_w, fb_h,
                      thumb_x, thumb_y, thumb_w, thumb_h, UI_COLOR_BORDER);
 
@@ -984,8 +984,8 @@ int ui_textbox(KainUiWidgetContext* ctx, char* buf, int buf_size)
 {
     if (!ctx || !ctx->host || !buf || buf_size <= 0) return 0;
 
-    int w = UI_TEXTBOX_WIDTH;
-    int h = UI_TEXTBOX_HEIGHT;
+    int w = DS(ctx, UI_TEXTBOX_WIDTH);
+    int h = DS(ctx, UI_TEXTBOX_HEIGHT);
 
     int x, y;
     layout_next_slot(ctx, &x, &y, &w, &h, w, h);
@@ -1084,22 +1084,22 @@ int ui_textbox(KainUiWidgetContext* ctx, char* buf, int buf_size)
     int fb_h = ctx->host->height;
 
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h,
-                                 TEXTBOX_BG_COLOR, 3);
+                                 TEXTBOX_BG_COLOR, DS(ctx, 3));
 
     uint32_t border = (ctx->focused_node == nid) ? UI_COLOR_ACCENT : UI_COLOR_BORDER;
     draw_border_rect(fb, stride, fb_w, fb_h, x, y, w, h, border);
 
     if (buf[0]) {
-        ui_widget_draw_text(ctx, x + 4, y + (h - 14) / 2,
+        ui_widget_draw_text(ctx, x + DS(ctx, 4), y + (h - DS(ctx, 14)) / 2,
                             buf, ctx->color_text, 14);
     }
 
     // Flashing cursor
     if (ctx->focused_node == nid) {
-        int cur_x = x + 4 + ui_widget_text_width(ctx, buf);
-        if (cur_x < x + w - 4) {
+        int cur_x = x + DS(ctx, 4) + ui_widget_text_width(ctx, buf);
+        if (cur_x < x + w - DS(ctx, 4)) {
             ui_widget_fill_rect(fb, stride, fb_w, fb_h,
-                                cur_x, y + 4, 1, h - 8, UI_COLOR_ACCENT);
+                                cur_x, y + DS(ctx, 4), 1, h - DS(ctx, 8), UI_COLOR_ACCENT);
         }
     }
 
@@ -1116,22 +1116,30 @@ int64_t ui_panel(KainUiWidgetContext* ctx, const char* title,
 {
     if (!ctx || !ctx->host) return 0;
 
+    // Scale from logical to physical pixel space
+    double sx = DSD(ctx, x);
+    double sy = DSD(ctx, y);
+    double sw = DSD(ctx, w);
+    double sh = DSD(ctx, h);
+    int padding = DS(ctx, UI_PADDING);
+    int title_bar_h = DS(ctx, 30);
+
     char key[UI_WIDGET_KEY_SIZE];
     widget_key(ctx, "pnl", key, sizeof(key));
     int64_t nid = widget_node(ctx, key, "widget.panel",
-                               (int)x, (int)y, (int)w, (int)h);
+                               (int)sx, (int)sy, (int)sw, (int)sh);
     ctx->widget_counter++;
 
     // Push container
     if (ctx->container_depth < UI_MAX_CONTAINERS) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth];
         c->node_id = nid;
-        c->x = x;
-        c->y = y;
-        c->w = w;
-        c->h = h;
-        c->cursor_x = x + UI_PADDING;
-        c->cursor_y = y + 30 + UI_PADDING;
+        c->x = sx;
+        c->y = sy;
+        c->w = sw;
+        c->h = sh;
+        c->cursor_x = sx + padding;
+        c->cursor_y = sy + title_bar_h + padding;
         ctx->container_depth++;
     }
 
@@ -1140,27 +1148,27 @@ int64_t ui_panel(KainUiWidgetContext* ctx, const char* title,
     int stride = ctx->host->fb_stride / 4;
     int fb_w = ctx->host->width;
     int fb_h = ctx->host->height;
-    int ix = (int)x, iy = (int)y, iw = (int)w, ih = (int)h;
+    int ix = (int)sx, iy = (int)sy, iw = (int)sw, ih = (int)sh;
 
     // Background
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, ix, iy, iw, ih,
-                                 ctx->color_surface, 6);
+                                 ctx->color_surface, DS(ctx, 6));
     draw_border_rect(fb, stride, fb_w, fb_h, ix, iy, iw, ih, ctx->color_border);
 
     // Title bar
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix + 1, iy + 1, iw - 2, 28,
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix + DS(ctx, 1), iy + DS(ctx, 1), iw - DS(ctx, 2), DS(ctx, 28),
                          ctx->color_title_bg);
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix, iy + 29, iw, 1, ctx->color_accent);
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix, iy + DS(ctx, 29), iw, DS(ctx, 1), ctx->color_accent);
 
     if (title && title[0]) {
-        ui_widget_draw_text(ctx, ix + 10, iy + 6, title, ctx->color_text, 13);
+        ui_widget_draw_text(ctx, ix + DS(ctx, 10), iy + DS(ctx, 6), title, ctx->color_text, 13);
     }
 
     abi_ui_node_set_style_string(ctx->session_id, nid, "fill_color", "#252540");
 
     // Sync top-level layout position to panel content
-    ctx->layout_x = x + UI_PADDING;
-    ctx->layout_y = y + 30 + UI_PADDING;
+    ctx->layout_x = sx + padding;
+    ctx->layout_y = sy + title_bar_h + padding;
 
     return nid;
 }
@@ -1191,9 +1199,9 @@ int64_t ui_progress(KainUiWidgetContext* ctx, const char* label,
     if (!ctx || !ctx->host) return 0;
 
     // Estimate label width for total sizing
-    int label_w = (label && label[0]) ? (int)strlen(label) * 7 + 8 : 0;
-    int w = UI_PROGRESS_WIDTH;
-    int h = UI_PROGRESS_HEIGHT;
+    int label_w = (label && label[0]) ? (int)(strlen(label) * 7 * ctx->dpi_scale + DS(ctx, 8)) : 0;
+    int w = DS(ctx, UI_PROGRESS_WIDTH);
+    int h = DS(ctx, UI_PROGRESS_HEIGHT);
 
     int x, y;
     layout_next_slot(ctx, &x, &y, &w, &h, w, h);
@@ -1214,13 +1222,13 @@ int64_t ui_progress(KainUiWidgetContext* ctx, const char* label,
 
     // Background
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h,
-                                 PROGRESS_BG_COLOR, 4);
+                                 PROGRESS_BG_COLOR, DS(ctx, 4));
 
     // Filled portion
     int fill_w = (int)(ratio * (double)w);
-    if (fill_w > 2) {
+    if (fill_w > DS(ctx, 2)) {
         ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, fill_w, h,
-                                     PROGRESS_FILL_COLOR, 4);
+                                     PROGRESS_FILL_COLOR, DS(ctx, 4));
     }
 
     // Percentage text
@@ -1230,7 +1238,7 @@ int64_t ui_progress(KainUiWidgetContext* ctx, const char* label,
 
     // Label
     if (label && label[0]) {
-        ui_widget_draw_text(ctx, x + w + 6, y + (h - 14) / 2,
+        ui_widget_draw_text(ctx, x + w + DS(ctx, 6), y + (h - DS(ctx, 14)) / 2,
                             label, ctx->color_text_dim, 12);
     }
 
@@ -1250,7 +1258,14 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
     if (!ctx || !ctx->host || !x || !y || !open) return 0;
     if (!*open) return 0;
 
-    int ix = (int)*x, iy = (int)*y, iw = (int)w, ih = (int)h;
+    // Scale coordinates
+    double sx = DSD(ctx, *x);
+    double sy = DSD(ctx, *y);
+    double sw = DSD(ctx, w);
+    double sh = DSD(ctx, h);
+    int ix = (int)sx, iy = (int)sy, iw = (int)sw, ih = (int)sh;
+    int padding = DS(ctx, UI_PADDING);
+    int title_bar_h = DS(ctx, 30);
 
     char key[UI_WIDGET_KEY_SIZE];
     widget_key(ctx, "win", key, sizeof(key));
@@ -1261,12 +1276,12 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
     if (ctx->container_depth < UI_MAX_CONTAINERS) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth];
         c->node_id = nid;
-        c->x = *x;
-        c->y = *y;
-        c->w = w;
-        c->h = h;
-        c->cursor_x = *x + UI_PADDING;
-        c->cursor_y = *y + 30 + UI_PADDING;
+        c->x = sx;
+        c->y = sy;
+        c->w = sw;
+        c->h = sh;
+        c->cursor_x = sx + padding;
+        c->cursor_y = sy + title_bar_h + padding;
         ctx->container_depth++;
     }
 
@@ -1276,36 +1291,36 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
     int fb_h = ctx->host->height;
 
     // Shadow
-    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, ix + 3, iy + 3, iw, ih,
-                                 0x40000000, 6);
+    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, ix + DS(ctx, 3), iy + DS(ctx, 3), iw, ih,
+                                 0x40000000, DS(ctx, 6));
 
     // Background
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, ix, iy, iw, ih,
-                                 ctx->color_surface, 6);
+                                 ctx->color_surface, DS(ctx, 6));
     draw_border_rect(fb, stride, fb_w, fb_h, ix, iy, iw, ih, ctx->color_border);
 
     // Title bar
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix + 1, iy + 1, iw - 2, 28,
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix + DS(ctx, 1), iy + DS(ctx, 1), iw - DS(ctx, 2), DS(ctx, 28),
                          ctx->color_title_bg);
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix, iy + 29, iw, 1, ctx->color_accent);
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, ix, iy + DS(ctx, 29), iw, DS(ctx, 1), ctx->color_accent);
 
     if (title && title[0]) {
-        ui_widget_draw_text(ctx, ix + 10, iy + 6, title, ctx->color_text, 13);
+        ui_widget_draw_text(ctx, ix + DS(ctx, 10), iy + DS(ctx, 6), title, ctx->color_text, 13);
     }
 
     // Close button (X) in the top-right
-    int close_x = ix + iw - 24;
-    int close_y = iy + 4;
-    int close_s = 20;
+    int close_s = DS(ctx, 20);
+    int close_x = ix + iw - DS(ctx, 24);
+    int close_y = iy + DS(ctx, 4);
     int close_hover = is_hovered(ctx, (double)close_x, (double)close_y,
                                  (double)close_s, (double)close_s);
 
     if (close_hover) {
         ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h,
                                      close_x, close_y, close_s, close_s,
-                                     UI_COLOR_ACCENT4, 4);
+                                     UI_COLOR_ACCENT4, DS(ctx, 4));
     }
-    draw_x_mark(fb, stride, fb_w, fb_h, close_x + 6, close_y + 6, 8, 0xFFFFFFFF);
+    draw_x_mark(fb, stride, fb_w, fb_h, close_x + DS(ctx, 6), close_y + DS(ctx, 6), DS(ctx, 8), 0xFFFFFFFF);
 
     // Close button click: use close_nid = nid + 1000000 as pseudo-id
     int64_t close_nid = nid + 1000000;
@@ -1319,27 +1334,31 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
         }
     }
 
-    // Window dragging
-    int title_bar_hover = is_hovered(ctx, *x, *y, w - 24.0, 30.0);
+    // Window dragging — positions stay in scaled physical space
+    double title_bar_w = sw - (double)DS(ctx, 24);
+    int title_bar_hover = is_hovered(ctx, sx, sy, title_bar_w, (double)title_bar_h);
     static int drag_active = 0;
     static double drag_ox = 0, drag_oy = 0;
 
     // Drag starts on title bar (only if NOT on close button)
     if (ctx->mouse_down && !ctx->mouse_down_prev && title_bar_hover && !close_hover) {
         drag_active = 1;
-        drag_ox = ctx->mouse_x - *x;
-        drag_oy = ctx->mouse_y - *y;
+        drag_ox = ctx->mouse_x - sx;
+        drag_oy = ctx->mouse_y - sy;
         ctx->pressed_node = nid;
     }
 
     if (ctx->mouse_down && drag_active && ctx->pressed_node == nid) {
-        *x = ctx->mouse_x - drag_ox;
-        *y = ctx->mouse_y - drag_oy;
+        sx = ctx->mouse_x - drag_ox;
+        sy = ctx->mouse_y - drag_oy;
         // Clamp to screen bounds
-        if (*x < 0) *x = 0;
-        if (*y < 0) *y = 0;
-        if (*x > (double)(ctx->host->width - 100)) *x = (double)(ctx->host->width - 100);
-        if (*y > (double)(ctx->host->height - 40)) *y = (double)(ctx->host->height - 40);
+        if (sx < 0) sx = 0;
+        if (sy < 0) sy = 0;
+        if (sx > (double)(ctx->host->width - DS(ctx, 100))) sx = (double)(ctx->host->width - DS(ctx, 100));
+        if (sy > (double)(ctx->host->height - DS(ctx, 40))) sy = (double)(ctx->host->height - DS(ctx, 40));
+        // Write back logical coordinates to caller's pointers
+        *x = sx / ctx->dpi_scale;
+        *y = sy / ctx->dpi_scale;
     }
 
     // On release, if we were dragging, stop
@@ -1350,8 +1369,8 @@ int ui_window(KainUiWidgetContext* ctx, const char* title,
         }
     }
 
-    // Update node position for dragging
-    abi_ui_node_set_rect(ctx->session_id, nid, *x, *y, w, h);
+    // Update node position for dragging (physical coords)
+    abi_ui_node_set_rect(ctx->session_id, nid, sx, sy, sw, sh);
 
     return *open;
 }

@@ -55,10 +55,12 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
 
 // ── Global state for wndproc access ────────────────────────────
 static KainWin32UiHost* g_sandbox_host = NULL;
+static double g_dpi_scale = 1.0;
 static WNDPROC g_orig_sandbox_wndproc = NULL;
 
 // ── Stubs from core.c ────────────────────────────────────────
@@ -791,21 +793,27 @@ static void draw_panel_frame(KainUiWidgetContext* ctx,
     uint32_t* fb = (uint32_t*)ctx->host->framebuffer;
     int stride = ctx->host->fb_stride / 4;
     int fb_w = ctx->host->width, fb_h = ctx->host->height;
+    double ds2 = g_dpi_scale;
 
     /* Shadow */
-    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x + 4, y + 4, w, h, 0x40000000, 8);
+    ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x + (int)(4*ds2+0.5), y + (int)(4*ds2+0.5), w, h, 0x40000000, 8);
     /* Surface */
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h, 0xFF1A1A2E, 8);
     /* Border */
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x, y, w, h, 0x303A3A5C, 8);
     ui_widget_fill_rounded_rect(fb, stride, fb_w, fb_h, x + 1, y + 1, w - 2, h - 2, 0xFF1A1A2E, 7);
 
+    int tb_h = (int)(26 * ds2 + 0.5);
+    int ac_y = (int)(28 * ds2 + 0.5);
+    int tx = (int)(10 * ds2 + 0.5);
+    int ty = (int)(6 * ds2 + 0.5);
+    int ts = (int)(13 * ds2 + 0.5);
     /* Title bar */
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, x + 2, y + 2, w - 4, 26, 0xFF12121E);
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, x + 2, y + 2, w - 4, tb_h, 0xFF12121E);
     /* Accent underline */
-    ui_widget_fill_rect(fb, stride, fb_w, fb_h, x, y + 28, w, 2, accent);
+    ui_widget_fill_rect(fb, stride, fb_w, fb_h, x, y + ac_y, w, 2, accent);
     /* Title text (using Segoe UI / default font) */
-    ui_widget_draw_text(ctx, x + 10, y + 6, title, 0xFFE8E8F0, 13);
+    ui_widget_draw_text(ctx, x + tx, y + ty, title, 0xFFE8E8F0, ts);
 }
 
 // ============================================================================
@@ -842,6 +850,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi_scale = dpi_scale;
     int win_w = (int)(1280 * dpi_scale + 0.5f);
     int win_h = (int)(720 * dpi_scale + 0.5f);
 
@@ -880,7 +889,7 @@ int main(void) {
         "C:/Windows/Fonts/arial.ttf",     /* 2: labels             */
         "C:/Windows/Fonts/impact.ttf",    /* 3: large titles       */
     };
-    double font_sizes[FONT_COUNT] = {14.0, 12.0, 14.0, 16.0};
+    double font_sizes[FONT_COUNT] = {14.0 * g_dpi_scale, 12.0 * g_dpi_scale, 14.0 * g_dpi_scale, 16.0 * g_dpi_scale};
     const char* font_labels[FONT_COUNT] = {"Segoe UI","Consolas","Arial","Impact"};
 
     for (int i = 0; i < FONT_COUNT; i++) {
@@ -1003,11 +1012,12 @@ int main(void) {
         }
 
         /* ── 5. Floating 3D panels (drawn deepest first) ─────── */
+        double ds = g_dpi_scale;
         struct { double depth, bx, by, bw, bh; uint32_t accent; const char* title; } pdef[4] = {
-            { 50, 200, 150, 270, 210, 0xFF21D4A1, "Transform Controls" },
-            {100, 540, 130, 240, 200, 0xFF4A90D9, "Color Picker" },
-            {160, 190, 390, 250, 180, 0xFFE8914A, "Scene Info" },
-            {220, 510, 390, 280, 210, 0xFFE84A5F, "Log" },
+            { 50, 200*ds, 150*ds, 270*ds, 210*ds, 0xFF21D4A1, "Transform Controls" },
+            {100, 540*ds, 130*ds, 240*ds, 200*ds, 0xFF4A90D9, "Color Picker" },
+            {160, 190*ds, 390*ds, 250*ds, 180*ds, 0xFFE8914A, "Scene Info" },
+            {220, 510*ds, 390*ds, 280*ds, 210*ds, 0xFFE84A5F, "Log" },
         };
 
         for (int pi = 3; pi >= 0; pi--) {

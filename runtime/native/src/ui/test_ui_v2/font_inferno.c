@@ -62,7 +62,11 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
+
+// ── Global DPI scale for pixel helpers ───────────────────────────
+static float g_dpi = 1.0f;
 
 // ============================================================================
 //  CONSTANTS
@@ -157,6 +161,7 @@ typedef struct {
 
 static AppState g_app;
 static KainWin32UiHost* g_host = NULL;
+static double g_dpi_scale = 1.0;
 static WNDPROC g_orig_wndproc = NULL;
 
 // ============================================================================
@@ -319,7 +324,7 @@ static void scan_and_load_fonts(int64_t session_id) {
         char path[MAX_PATH];
         snprintf(path, sizeof(path), "C:/Windows/Fonts/%s", ffd.cFileName);
 
-        int64_t fid = load_font_direct(session_id, path, 36.0);
+        int64_t fid = load_font_direct(session_id, path, 36.0 * g_dpi_scale);
         if (fid > 0) {
             FontEntry* fi = &g_app.fonts[g_app.font_count];
             fi->font_id = fid;
@@ -355,7 +360,7 @@ static void scan_and_load_fonts(int64_t session_id) {
             NULL
         };
         for (int i = 0; fallbacks[i]; i++) {
-            int64_t fid = load_font_direct(session_id, fallbacks[i], 36.0);
+            int64_t fid = load_font_direct(session_id, fallbacks[i], 36.0 * g_dpi_scale);
             if (fid > 0 && g_app.font_count < MAX_FONTS) {
                 FontEntry* fi = &g_app.fonts[g_app.font_count++];
                 fi->font_id = fid;
@@ -784,6 +789,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi_scale = dpi_scale;
 
     int win_w = (int)(SCREEN_W * dpi_scale + 0.5f);
     int win_h = (int)(SCREEN_H * dpi_scale + 0.5f);
@@ -805,7 +811,7 @@ int main(void) {
     // ── Init app state ────────────────────────────────────────────────
     memset(&g_app, 0, sizeof(g_app));
     g_app.running = 1;
-    g_app.size_rage_val = 36;
+    g_app.size_rage_val = (int)(36 * g_dpi_scale + 0.5);
     g_app.size_rage_dir = 1;
     g_app.speed_mult = 1.0;
     g_app.show_hud = 1;
@@ -859,6 +865,8 @@ int main(void) {
 
     // Load at least one default font for the widget system (HUD text)
     printf("[3/6] Loading widget default font...\n");
+    // Note: ui_widget_load_font now scales internally by ctx->dpi_scale,
+    // so pass logical size (14.0) without pre-scaling.
     int64_t default_fid = ui_widget_load_font(ctx, "C:/Windows/Fonts/consola.ttf", 14.0);
     if (default_fid <= 0) {
         default_fid = ui_widget_load_font(ctx, "C:/Windows/Fonts/arial.ttf", 14.0);
@@ -973,8 +981,8 @@ int main(void) {
 
             // ── Update size rage ──────────────────────────────────────
             g_app.size_rage_val += g_app.size_rage_dir;
-            if (g_app.size_rage_val >= 72) { g_app.size_rage_val = 72; g_app.size_rage_dir = -1; }
-            if (g_app.size_rage_val <= 12) { g_app.size_rage_val = 12; g_app.size_rage_dir = 1; }
+            if (g_app.size_rage_val >= (int)(72 * g_dpi_scale + 0.5)) { g_app.size_rage_val = (int)(72 * g_dpi_scale + 0.5); g_app.size_rage_dir = -1; }
+            if (g_app.size_rage_val <= (int)(12 * g_dpi_scale + 0.5)) { g_app.size_rage_val = (int)(12 * g_dpi_scale + 0.5); g_app.size_rage_dir = 1; }
 
             // ── Update glitch ─────────────────────────────────────────
             g_app.glitch_timer++;
@@ -982,8 +990,8 @@ int main(void) {
                 g_app.glitch_timer = 0;
                 if (rand() % 3 == 0) {
                     g_app.glitch_active = 1;
-                    g_app.glitch_y = rand() % (g_host ? g_host->height - 60 : 660);
-                    g_app.glitch_h = 10 + rand() % 40;
+                    g_app.glitch_y = rand() % (g_host ? g_host->height - (int)(60 * g_dpi_scale + 0.5) : (int)(660 * g_dpi_scale + 0.5));
+                    g_app.glitch_h = (int)(10 * g_dpi_scale + 0.5) + rand() % (int)(40 * g_dpi_scale + 0.5);
                 }
             }
         }
@@ -1046,13 +1054,13 @@ int main(void) {
                     if (g_app.locked_quadrants[q]) {
                         char lock_str[8];
                         snprintf(lock_str, sizeof(lock_str), "LOCKED");
-                        ui_widget_draw_text(ctx, qx + qw - 55, qy + 3, lock_str, 0xFFFFFF44, 11);
+                        ui_widget_draw_text(ctx, qx + qw - (int)(55 * g_dpi_scale + 0.5), qy + (int)(3 * g_dpi_scale + 0.5), lock_str, 0xFFFFFF44, (int)(11 * g_dpi_scale + 0.5));
                     }
 
                     // Quadrant number hint
                     char qnum[4];
                     snprintf(qnum, sizeof(qnum), "%d", q + 1);
-                    ui_widget_draw_text(ctx, qx + 4, qy + qh - 16, qnum, 0x44FFFFFF, 11);
+                    ui_widget_draw_text(ctx, qx + (int)(4 * g_dpi_scale + 0.5), qy + qh - (int)(16 * g_dpi_scale + 0.5), qnum, 0x44FFFFFF, (int)(11 * g_dpi_scale + 0.5));
                 }
 
             } else if (g_app.fullscreen_mode) {
@@ -1061,26 +1069,26 @@ int main(void) {
                 if (font_idx >= 0 && font_idx < g_app.font_count && g_app.fonts[font_idx].loaded) {
                     // Border glow
                     uint32_t border = hsl_to_rgb(g_app.total_time_ms * 0.03, 0.8, 0.5, 1.0);
-                    draw_rect_border(2, 30, fb_w - 4, fb_h - 32, border);
+                    draw_rect_border((int)(2 * g_dpi_scale + 0.5), (int)(30 * g_dpi_scale + 0.5), fb_w - (int)(4 * g_dpi_scale + 0.5), fb_h - (int)(32 * g_dpi_scale + 0.5), border);
 
                     int64_t fid = g_app.fonts[font_idx].font_id;
                     const char* name = g_app.fonts[font_idx].name;
 
                     // Gigantic font name (centered, upper third)
-                    draw_glow_text_centered(ctx, fb_w / 2, 50, name, 0xFFFFFFFF, fid);
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(50 * g_dpi_scale + 0.5), name, 0xFFFFFFFF, fid);
 
                     // Pangram (centered, middle)
                     const char* pangram = "The quick brown fox jumps over the lazy dog";
-                    draw_glow_text_centered(ctx, fb_w / 2, 100, pangram, 0xFFE0E0F0, fid);
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(100 * g_dpi_scale + 0.5), pangram, 0xFFE0E0F0, fid);
 
                     // Full alphabet
-                    draw_glow_text_centered(ctx, fb_w / 2, 140,
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(140 * g_dpi_scale + 0.5),
                         "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0xFFAADDFF, fid);
-                    draw_glow_text_centered(ctx, fb_w / 2, 170,
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(170 * g_dpi_scale + 0.5),
                         "abcdefghijklmnopqrstuvwxyz", 0xFF88AACC, fid);
 
                     // Digits & special
-                    draw_glow_text_centered(ctx, fb_w / 2, 200,
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(200 * g_dpi_scale + 0.5),
                         "0123456789  !@#$%^&*()  []{}<>?/+=_-:;,.~",
                         0xFFFFAA88, fid);
 
@@ -1088,20 +1096,20 @@ int main(void) {
                     char sz_info[64];
                     snprintf(sz_info, sizeof(sz_info), "Size: 36px  |  Font %d / %d",
                              font_idx + 1, g_app.font_count);
-                    draw_glow_text_centered(ctx, fb_w / 2, 240, sz_info,
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(240 * g_dpi_scale + 0.5), sz_info,
                         hsl_to_rgb(g_app.total_time_ms * 0.05, 0.9, 0.6, 1.0), fid);
 
                     // Second pangram
-                    draw_glow_text_centered(ctx, fb_w / 2, 280,
+                    draw_glow_text_centered(ctx, fb_w / 2, (int)(280 * g_dpi_scale + 0.5),
                         "How quickly daft jumping zebras vex!  0123456789",
                         0xFFCCCCDD, fid);
 
                     // Extra showcase if room
                     if (fb_h > 400) {
-                        draw_glow_text_centered(ctx, fb_w / 2, 330,
+                        draw_glow_text_centered(ctx, fb_w / 2, (int)(330 * g_dpi_scale + 0.5),
                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz",
                             0xFFBBBBCC, fid);
-                        draw_glow_text_centered(ctx, fb_w / 2, 370,
+                        draw_glow_text_centered(ctx, fb_w / 2, (int)(370 * g_dpi_scale + 0.5),
                             "!@#$%^&*()_+-=[]{}|;':\",./<>?`~ ¡™£¢∞§¶•ªº–≠",
                             0xFF99AACC, fid);
                     }
@@ -1110,7 +1118,7 @@ int main(void) {
             } else {
                 // ── NORMAL: 3-column carousel ─────────────────────────
                 int col_w = fb_w / COLUMN_COUNT;
-                int col_start_y = 32;
+                int col_start_y = (int)(32 * g_dpi_scale + 0.5);
                 int col_h = fb_h - col_start_y - 2;
 
                 // Column separator lines

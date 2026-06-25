@@ -65,7 +65,11 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
+
+// ── Global DPI scale for pixel helpers ───────────────────────────
+static float g_dpi = 1.0f;
 
 // ── Forward declarations ──────────────────────────────────────────────
 static LRESULT CALLBACK retrowave_wndproc(HWND hwnd, UINT msg, WPARAM w, LPARAM l);
@@ -313,6 +317,11 @@ static void blend_px(uint32_t* dst, uint32_t src) {
 // ── Fill rect with bounds checking ────────────────────────────────────
 static void fill_rect(KainWin32UiHost* host, int x, int y, int w, int h, uint32_t color) {
     if (!host || !host->framebuffer || w <= 0 || h <= 0) return;
+    // Scale from logical to physical pixel space
+    float s = g_dpi;
+    x = (int)(x * s + 0.5f); y = (int)(y * s + 0.5f);
+    w = (int)(w * s + 0.5f); h = (int)(h * s + 0.5f);
+    if (w <= 0 || h <= 0) return;
     int fb_w = host->width, fb_h = host->height;
     int stride = host->fb_stride / 4;
     uint32_t* fb = (uint32_t*)host->framebuffer;
@@ -344,6 +353,10 @@ static void draw_rect_border(KainWin32UiHost* host, int x, int y, int w, int h,
 // ── Draw a line using Bresenham ───────────────────────────────────────
 static void draw_line(KainWin32UiHost* host, int x1, int y1, int x2, int y2,
                        uint32_t color) {
+    // Scale endpoints from logical to physical pixel space
+    float s = g_dpi;
+    x1 = (int)(x1 * s + 0.5f); y1 = (int)(y1 * s + 0.5f);
+    x2 = (int)(x2 * s + 0.5f); y2 = (int)(y2 * s + 0.5f);
     int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
     int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
     int err = dx + dy;
@@ -359,6 +372,10 @@ static void draw_line(KainWin32UiHost* host, int x1, int y1, int x2, int y2,
 // ── Draw circle outline ───────────────────────────────────────────────
 static void draw_circle(KainWin32UiHost* host, int cx, int cy, int r,
                          uint32_t color) {
+    // Scale from logical to physical pixel space
+    float s = g_dpi;
+    cx = (int)(cx * s + 0.5f); cy = (int)(cy * s + 0.5f);
+    r = (int)(r * s + 0.5f);
     int x = 0, y = r, d = 3 - 2 * r;
     while (y >= x) {
         write_px(host, cx + x, cy + y, color);
@@ -378,6 +395,10 @@ static void draw_circle(KainWin32UiHost* host, int cx, int cy, int r,
 // ── Draw filled circle ────────────────────────────────────────────────
 static void draw_filled_circle(KainWin32UiHost* host, int cx, int cy, int r,
                                 uint32_t color) {
+    // Scale from logical to physical pixel space
+    float s = g_dpi;
+    cx = (int)(cx * s + 0.5f); cy = (int)(cy * s + 0.5f);
+    r = (int)(r * s + 0.5f);
     for (int y = -r; y <= r; y++) {
         int row = cy + y;
         if (row < 0 || row >= host->height) continue;
@@ -1174,7 +1195,8 @@ static void draw_panel_frame(KainWin32UiHost* host, int x, int y, int w, int h,
 // ============================================================================
 
 static void load_fonts(KainUiWidgetContext* ctx) {
-    // Load 6+ different fonts for the retro wave panels
+    // Note: ui_widget_load_font scales internally by ctx->dpi_scale,
+    // so pass logical sizes without pre-scaling.
     g_app.font_body    = ui_widget_load_font(ctx, "C:/Windows/Fonts/segoeui.ttf", 14.0);
     g_app.font_heading = ui_widget_load_font(ctx, "C:/Windows/Fonts/impact.ttf", 16.0);
     g_app.font_mono    = ui_widget_load_font(ctx, "C:/Windows/Fonts/consola.ttf", 14.0);
@@ -1220,6 +1242,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi = dpi_scale;  // store for pixel helpers
 
     int win_w = (int)(SCREEN_W * dpi_scale + 0.5f);
     int win_h = (int)(SCREEN_H * dpi_scale + 0.5f);

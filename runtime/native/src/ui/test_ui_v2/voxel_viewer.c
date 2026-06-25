@@ -66,6 +66,7 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
 
 // ── Forward declarations ──────────────────────────────────────────────
