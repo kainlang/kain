@@ -467,6 +467,8 @@ pub struct KainFileBuildOptions {
     pub progress: Option<ToolingProgressSink>,
     /// Emit DWARF debug metadata in LLVM IR.
     pub debug_info: bool,
+    /// Target triple for cross-compilation (e.g. x86_64-unknown-linux-gnu).
+    pub target_triple: Option<String>,
 }
 
 impl KainFileBuildOptions {

@@ -4460,6 +4460,7 @@ pub fn main_entry() {
                     keep_artifacts,
                     dry_run,
                     args: run_args,
+                    target_triple,
                 }) => {
                     let request = match command {
                         Some(RunCommand::Dev {
