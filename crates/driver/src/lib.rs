@@ -1171,7 +1171,13 @@ impl DriverSession {
                                 .and_then(|p| p.file_name())
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("unknown.kn");
-                            sys::generate_with_debug(&typed_for_codegen, source, filename)
+                            if let Some(ref triple) = self.target_triple {
+                                sys::generate_with_debug_for_target(
+                                    &typed_for_codegen,
+                                    source,
+                                    filename,
+                                    Some(triple.as_str()),
+                                )
                                 .and_then(|bytes| {
                                     String::from_utf8(bytes).map_err(|err| {
                                         KainError::codegen(
@@ -1180,6 +1186,17 @@ impl DriverSession {
                                         )
                                     })
                                 })
+                            } else {
+                                sys::generate_with_debug(&typed_for_codegen, source, filename)
+                                    .and_then(|bytes| {
+                                        String::from_utf8(bytes).map_err(|err| {
+                                            KainError::codegen(
+                                                format!("LLVM output was not valid UTF-8: {err}"),
+                                                Span::default(),
+                                            )
+                                        })
+                                    })
+                            }
                         } else if let Some(ref triple) = self.target_triple {
                             sys::generate_llvm_for_target(&typed_for_codegen, Some(triple.as_str()))
                                 .and_then(|bytes| {
@@ -1211,7 +1228,7 @@ impl DriverSession {
                             CompilerProgressPhase::Codegen,
                         );
                         let llvm_target = sys::resolve_llvm_target_for_compile_target(target);
-                        sys::generate_llvm_with_target(&typed_for_codegen, llvm_target)
+                        sys::generate_llvm_with_target(&typed_for_codegen, &llvm_target)
                             .and_then(|bytes| {
                                 String::from_utf8(bytes).map_err(|err| {
                                     KainError::codegen(

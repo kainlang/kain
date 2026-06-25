@@ -418,14 +418,14 @@ fn llvm_orchestrate_trace_enabled() -> bool {
     )
 }
 
-fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
+fn resolve_host_llvm_target_descriptor() -> LlvmTargetDescriptor {
     LlvmTargetDescriptor::host()
 }
 
 /// Resolve the LLVM target descriptor for a given Kain compile target.
 pub fn resolve_llvm_target_for_compile_target(
     target: CompileTarget,
-) -> &'static LlvmTargetDescriptor {
+) -> LlvmTargetDescriptor {
     match target {
         CompileTarget::BareMetal => LlvmTargetDescriptor::for_triple("x86_64-unknown-none"),
         _ => resolve_host_llvm_target_descriptor(),
@@ -433,12 +433,12 @@ pub fn resolve_llvm_target_for_compile_target(
 }
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
-    generate_with_target(program, resolve_host_llvm_target_descriptor())
+    generate_with_target(program, &resolve_host_llvm_target_descriptor())
 }
 
 pub fn generate_with_target(
     program: &TypedProgram,
-    target: &'static LlvmTargetDescriptor,
+    target: &LlvmTargetDescriptor,
 ) -> KainResult<Vec<u8>> {
     generate_with_options(program, false, None, "", target)
 }
@@ -455,7 +455,7 @@ pub fn generate_llvm_for_target(
         Some(t) => LlvmTargetDescriptor::for_triple(t),
         None => LlvmTargetDescriptor::host(),
     };
-    generate_with_target(program, descriptor)
+    generate_with_target(program, &descriptor)
 }
 
 /// Generate LLVM IR with optional DWARF debug metadata.
@@ -470,8 +470,26 @@ pub fn generate_with_debug(program: &TypedProgram, source: &str, filename: &str)
         true,
         Some(source),
         filename,
-        resolve_host_llvm_target_descriptor(),
+        &resolve_host_llvm_target_descriptor(),
     )
+}
+
+/// Generate LLVM IR with DWARF debug metadata, targeting a specific triple.
+///
+/// Like `generate_with_debug`, but accepts a target triple string so that
+/// cross-compiled debug IR uses the correct target triple instead of falling
+/// back to the host.
+pub fn generate_with_debug_for_target(
+    program: &TypedProgram,
+    source: &str,
+    filename: &str,
+    target_triple: Option<&str>,
+) -> KainResult<Vec<u8>> {
+    let descriptor = match target_triple {
+        Some(t) => LlvmTargetDescriptor::for_triple(t),
+        None => LlvmTargetDescriptor::host(),
+    };
+    generate_with_options(program, true, Some(source), filename, &descriptor)
 }
 
 fn generate_with_options(
@@ -479,7 +497,7 @@ fn generate_with_options(
     debug_info: bool,
     source: Option<&str>,
     filename: &str,
-    target: &'static LlvmTargetDescriptor,
+    target: &LlvmTargetDescriptor,
 ) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
@@ -494,7 +512,7 @@ fn generate_with_options(
             starts
         })
         .unwrap_or_default();
-    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts, target);
+    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts, target.clone());
     gen.collect_original_pointer_let_type_hints(program);
     gen.compile_module(&lowered)?;
     Ok(gen.output.into_bytes())
@@ -662,7 +680,7 @@ struct LlvmGenerator {
     current_impl_target: Option<String>,
     actor_return_label: Option<String>,
     actor_return_slot: Option<String>,
-    target: &'static LlvmTargetDescriptor,
+    target: LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
     const_globals: HashMap<String, ConstGlobalInfo>,
     python_import_globals: HashMap<String, PythonImportGlobalInfo>,
@@ -801,7 +819,7 @@ fn codegen_error(message: String, span: Span) -> KainError {
 }
 
 impl LlvmGenerator {
-    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>, target: &'static LlvmTargetDescriptor) -> Self {
+    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>, target: LlvmTargetDescriptor) -> Self {
         Self {
             output: String::new(),
             reg_count: 0,
