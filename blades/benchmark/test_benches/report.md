@@ -1,19 +1,19 @@
 # Bench Report
 
-**Folder:** `X:/blades/benchmark/test_benches`  
-**Date:** 2026-06-24 20:20:06  
+**Folder:** `X:/blades/benchmark/test_benches/`  
+**Date:** 2026-06-24 20:45:50  
 **Target:** 1000ms per benchmark  
 **Benchmarks:** 7
 
 | Benchmark | Iters | Median | Min | Max | Mean | ns/iter | Checksum |
 |-----------|-------|--------|-----|-----|------|---------|----------|
-| `bench_actor_spam` | 256 | 19ms | 18ms | 19ms | 18ms | 74218 | `186472393` |
-| `bench_json_parse` | 4096 | 26ms | 26ms | 26ms | 26ms | 6347 | `9637` |
-| `bench_memory_atomics` | 4096 | 24ms | 23ms | 25ms | 24ms | 5859 | `320012` |
-| `bench_ownership` | 8192 | 228ms | 228ms | 265ms | 237ms | 27832 | `390689129` |
-| `levenshtein` | 64 | 128ms | 128ms | 258ms | 171ms | 2000000 | `3` |
-| `scalar_template` | 65536 | 15353ms | 15127ms | 15756ms | 15412ms | 234268 | `522933064` |
-| `shatter_ecs` | 8 | 718ms | 704ms | 765ms | 733ms | 89750000 | `0` |
+| `bench_actor_spam` | 256 | 20ms | 19ms | 20ms | 19ms | 78125 | `186472393` |
+| `bench_json_parse` | 4096 | 26ms | 26ms | 27ms | 26ms | 6347 | `9637` |
+| `bench_memory_atomics` | 4096 | 23ms | 22ms | 29ms | 23ms | 5615 | `320012` |
+| `bench_ownership` | 8192 | 219ms | 211ms | 244ms | 223ms | 26733 | `390689129` |
+| `levenshtein` | 32 | 61ms | 59ms | 126ms | 82ms | 1906250 | `3` |
+| `scalar_template` | 65536 | 15499ms | 15372ms | 15613ms | 15494ms | 236495 | `522933064` |
+| `shatter_ecs` | 8 | 873ms | 782ms | 932ms | 855ms | 109125000 | `0` |
 
 ## Details
 
@@ -23,10 +23,10 @@ Actor hot path: spawn 4 actors, send 20 rounds of ask/reply per iteration. Exerc
 
 - **Iterations:** 256
 - **Checksum:** `186472393`
-- **Median:** 19ms (74218 ns/iter)
-- **Min/Max:** 18ms / 19ms
-- **Mean:** 18ms
-- **Samples:** 18ms, 18ms, 19ms, 19ms, 19ms
+- **Median:** 20ms (78125 ns/iter)
+- **Min/Max:** 19ms / 20ms
+- **Mean:** 19ms
+- **Samples:** 19ms, 19ms, 20ms, 20ms, 20ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\bench_actor_spam\compile\bench_actor_spam.exe`
 
 **Custom telemetry:**
@@ -39,9 +39,9 @@ Actor hot path: spawn 4 actors, send 20 rounds of ask/reply per iteration. Exerc
 - **Iterations:** 4096
 - **Checksum:** `9637`
 - **Median:** 26ms (6347 ns/iter)
-- **Min/Max:** 26ms / 26ms
+- **Min/Max:** 26ms / 27ms
 - **Mean:** 26ms
-- **Samples:** 26ms, 26ms, 26ms
+- **Samples:** 26ms, 26ms, 27ms
 - **Binary:** `X:\bench_json_parse.exe`
 
 ### bench_memory_atomics
@@ -50,10 +50,10 @@ Memory hot path: ordered atomic load/store/fence operations + pointer chains. Ex
 
 - **Iterations:** 4096
 - **Checksum:** `320012`
-- **Median:** 24ms (5859 ns/iter)
-- **Min/Max:** 23ms / 25ms
-- **Mean:** 24ms
-- **Samples:** 23ms, 24ms, 24ms, 24ms, 25ms
+- **Median:** 23ms (5615 ns/iter)
+- **Min/Max:** 22ms / 29ms
+- **Mean:** 23ms
+- **Samples:** 22ms, 22ms, 23ms, 23ms, 29ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\bench_memory_atomics\compile\bench_memory_atomics.exe`
 
 **Custom telemetry:**
@@ -67,10 +67,10 @@ Ownership hot path: 200 rapid alloc/collapse/observe/decay cycles per iteration.
 
 - **Iterations:** 8192
 - **Checksum:** `390689129`
-- **Median:** 228ms (27832 ns/iter)
-- **Min/Max:** 228ms / 265ms
-- **Mean:** 237ms
-- **Samples:** 228ms, 228ms, 228ms, 238ms, 265ms
+- **Median:** 219ms (26733 ns/iter)
+- **Min/Max:** 211ms / 244ms
+- **Mean:** 223ms
+- **Samples:** 211ms, 215ms, 219ms, 227ms, 244ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\bench_ownership\compile\bench_ownership.exe`
 
 **Custom telemetry:**
@@ -81,31 +81,31 @@ Ownership hot path: 200 rapid alloc/collapse/observe/decay cycles per iteration.
 
 ### levenshtein
 
-- **Iterations:** 64
+- **Iterations:** 32
 - **Checksum:** `3`
-- **Median:** 128ms (2000000 ns/iter)
-- **Min/Max:** 128ms / 258ms
-- **Mean:** 171ms
-- **Samples:** 128ms, 128ms, 258ms
+- **Median:** 61ms (1906250 ns/iter)
+- **Min/Max:** 59ms / 126ms
+- **Mean:** 82ms
+- **Samples:** 59ms, 61ms, 126ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\levenshtein\compile\levenshtein.exe`
 
 ### scalar_template
 
 - **Iterations:** 65536
 - **Checksum:** `522933064`
-- **Median:** 15353ms (234268 ns/iter)
-- **Min/Max:** 15127ms / 15756ms
-- **Mean:** 15412ms
-- **Samples:** 15127ms, 15353ms, 15756ms
+- **Median:** 15499ms (236495 ns/iter)
+- **Min/Max:** 15372ms / 15613ms
+- **Mean:** 15494ms
+- **Samples:** 15372ms, 15499ms, 15613ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\scalar_template\compile\scalar_template.exe`
 
 ### shatter_ecs
 
 - **Iterations:** 8
 - **Checksum:** `0`
-- **Median:** 718ms (89750000 ns/iter)
-- **Min/Max:** 704ms / 765ms
-- **Mean:** 733ms
-- **Samples:** 704ms, 715ms, 718ms, 764ms, 765ms
+- **Median:** 873ms (109125000 ns/iter)
+- **Min/Max:** 782ms / 932ms
+- **Mean:** 855ms
+- **Samples:** 782ms, 810ms, 873ms, 880ms, 932ms
 - **Binary:** `X:/blades/benchmark\.kain\out\x86_64-windows\dev\ll\shatter_ecs\compile\shatter_ecs.exe`
 

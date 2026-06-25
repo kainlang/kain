@@ -308,9 +308,11 @@ static void scan_and_load_fonts(int64_t session_id) {
         return;
     }
 
+    DWORD last_progress = GetTickCount();
     do {
         if (g_app.font_count >= MAX_FONTS) {
-            printf("[FONT] Reached max fonts (%d), stopping scan.\n", MAX_FONTS);
+            printf("  [FONT] Reached max fonts (%d), stopping scan.\n", MAX_FONTS);
+            fflush(stdout);
             break;
         }
 
@@ -329,17 +331,20 @@ static void scan_and_load_fonts(int64_t session_id) {
             fi->loaded = 1;
             g_app.font_count++;
 
-            if (g_app.font_count % 25 == 0) {
+            DWORD now = GetTickCount();
+            if (now - last_progress >= 2000) {
                 printf("  [FONT] Loaded %d fonts...\n", g_app.font_count);
+                fflush(stdout);
+                last_progress = now;
             }
-        } else {
-            // Silently skip — many .ttf files may fail (collections, corrupted, etc.)
         }
+        // Skip failures silently — .ttc collections, corrupted, etc.
     } while (FindNextFileA(hFind, &ffd) != 0);
 
     FindClose(hFind);
 
     printf("[FONT] === TOTAL: %d fonts loaded ===\n", g_app.font_count);
+    fflush(stdout);
     if (g_app.font_count == 0) {
         printf("[FONT] WARNING: No fonts loaded! Will try fallback paths.\n");
         // Load a couple known-good fonts manually
@@ -440,6 +445,14 @@ static void update_particles(double dt_ms) {
 
 static void draw_particles(KainUiWidgetContext* ctx) {
     if (!ctx) return;
+    // Use first column's font for particles, with bounds safety
+    int particle_font_idx = (g_app.font_count > 0 && g_app.col_font_idx[0] >= 0 &&
+                             g_app.col_font_idx[0] < g_app.font_count)
+                            ? g_app.col_font_idx[0] : 0;
+    int64_t particle_fid = (g_app.font_count > 0 && g_app.fonts[particle_font_idx].loaded)
+                           ? g_app.fonts[particle_font_idx].font_id : 0;
+    if (particle_fid <= 0) return;
+
     for (int i = 0; i < MAX_PARTICLES; i++) {
         Particle* p = &g_app.particles[i];
         if (p->lifetime <= 0) continue;
@@ -458,18 +471,13 @@ static void draw_particles(KainUiWidgetContext* ctx) {
         int py = (int)p->y;
 
         // Glow pass
-        ui_widget_draw_text_ex(ctx, px - 1, py - 1, p->text, glow, 0,
-                               g_app.fonts[g_app.col_font_idx[0]].font_id);
-        ui_widget_draw_text_ex(ctx, px + 1, py - 1, p->text, glow, 0,
-                               g_app.fonts[g_app.col_font_idx[0]].font_id);
-        ui_widget_draw_text_ex(ctx, px - 1, py + 1, p->text, glow, 0,
-                               g_app.fonts[g_app.col_font_idx[0]].font_id);
-        ui_widget_draw_text_ex(ctx, px + 1, py + 1, p->text, glow, 0,
-                               g_app.fonts[g_app.col_font_idx[0]].font_id);
+        ui_widget_draw_text_ex(ctx, px - 1, py - 1, p->text, glow, 0, particle_fid);
+        ui_widget_draw_text_ex(ctx, px + 1, py - 1, p->text, glow, 0, particle_fid);
+        ui_widget_draw_text_ex(ctx, px - 1, py + 1, p->text, glow, 0, particle_fid);
+        ui_widget_draw_text_ex(ctx, px + 1, py + 1, p->text, glow, 0, particle_fid);
 
         // Main text
-        ui_widget_draw_text_ex(ctx, px, py, p->text, color, 0,
-                               g_app.fonts[g_app.col_font_idx[0]].font_id);
+        ui_widget_draw_text_ex(ctx, px, py, p->text, color, 0, particle_fid);
     }
 }
 
@@ -859,14 +867,17 @@ int main(void) {
         default_fid = ui_widget_load_font(ctx, "C:/Windows/Fonts/segoeui.ttf", 14.0);
     }
     printf("  Default font ID: %lld\n", (long long)default_fid);
+    fflush(stdout);
 
     // ── Scan and load ALL fonts ───────────────────────────────────────
     printf("[4/6] Scanning & loading C:/Windows/Fonts/*.ttf...\n");
+    fflush(stdout);
     DWORD scan_start = GetTickCount();
     scan_and_load_fonts(g_app.session_id);
     DWORD scan_end = GetTickCount();
     printf("  Scan took %.2f seconds\n", (double)(scan_end - scan_start) / 1000.0);
     printf("  Total: %d fonts loaded\n", g_app.font_count);
+    fflush(stdout);
 
     if (g_app.font_count == 0) {
         fprintf(stderr, "FATAL: No fonts could be loaded. Exiting.\n");
@@ -1111,10 +1122,11 @@ int main(void) {
                     }
                 }
 
-                // Top accent line
-                for (int x = 0; x < fb_w; x++) {
-                    if (x >= 0 && x < fb_w && col_start_y - 1 >= 0 && col_start_y - 1 < fb_h)
+                // Top accent line (always valid since x ranges 0..fb_w-1)
+                if (col_start_y - 1 >= 0 && col_start_y - 1 < fb_h) {
+                    for (int x = 0; x < fb_w; x++) {
                         fb[(col_start_y - 1) * stride + x] = 0xFF44AAFF;
+                    }
                 }
 
                 uint32_t col_colors[] = {0xFFFF4488, 0xFF44FF88, 0xFF4488FF};

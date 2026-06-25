@@ -1032,30 +1032,29 @@ static void handle_input(VoxelState* s, float dt) {
     if (GetAsyncKeyState(VK_UP) & 0x8000)    s->cam_angle -= rot_speed;
     if (GetAsyncKeyState(VK_DOWN) & 0x8000)  s->cam_angle += rot_speed;
 
-    // W/S = zoom (W = zoom in = increase zoom)
+    // W/S = zoom
     float zoom_speed = 0.5f * dt;
     if (GetAsyncKeyState('W') & 0x8000) s->cam_zoom += zoom_speed;
     if (GetAsyncKeyState('S') & 0x8000) s->cam_zoom -= zoom_speed;
     s->cam_zoom = fclampf(s->cam_zoom, 0.3f, 4.0f);
 
-    // Single-press keys (detect transitions)
-    static int prev_keys[256];
-    for (int k = 0; k < 256; k++) {
-        int now = (GetAsyncKeyState(k) & 0x8000) ? 1 : 0;
-        if (now && !prev_keys[k]) {
-            switch (k) {
-            case 'R': case 'r':
-                s->cam_angle = 0.0f;
-                s->cam_zoom = 1.0f;
-                s->cam_pan_x = g_host ? (float)g_host->width * 0.5f : 640.0f;
-                s->cam_pan_y = g_host ? (float)g_host->height * 0.5f + 30.0f : 390.0f;
-                break;
-            case VK_SPACE:
-                s->paused = !s->paused;
-                break;
-            }
+    // Single-press keys (edge detection using static key states)
+    #define KEY_JUST_PRESSED(vk) ((GetAsyncKeyState(vk) & 0x8001) && !((GetAsyncKeyState(vk) & 0x8000) ? 1 : 0))
+    {
+        static int prev_r = 0, prev_space = 0;
+        int r_now = (GetAsyncKeyState('R') & 0x8000) ? 1 : 0;
+        int sp_now = (GetAsyncKeyState(VK_SPACE) & 0x8000) ? 1 : 0;
+        if (r_now && !prev_r) {
+            s->cam_angle = 0.0f;
+            s->cam_zoom = 1.0f;
+            s->cam_pan_x = g_host ? (float)g_host->width * 0.5f : 640.0f;
+            s->cam_pan_y = g_host ? (float)g_host->height * 0.5f + 30.0f : 390.0f;
         }
-        prev_keys[k] = now;
+        if (sp_now && !prev_space) {
+            s->paused = !s->paused;
+        }
+        prev_r = r_now;
+        prev_space = sp_now;
     }
 }
 
@@ -1186,8 +1185,8 @@ int main(void) {
         POINT mp;
         GetCursorPos(&mp);
         ScreenToClient(hwnd, &mp);
-        s->mouse_x = mp.x / dpi_scale;
-        s->mouse_y = mp.y / dpi_scale;
+        s->mouse_x = (double)mp.x;
+        s->mouse_y = (double)mp.y;
         s->mouse_down_prev = s->mouse_down;
         s->mouse_down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) ? 1 : 0;
 
