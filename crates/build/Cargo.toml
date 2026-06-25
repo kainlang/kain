@@ -17,7 +17,7 @@ kain-fs = { path = "../fs" }
 kain-host = { path = "../host", default-features = false }
 kain-omni = { path = "../omni", default-features = false }
 kain-sys-codegen = { path = "../sys-codegen" }
-kain-target = { path = "../target" }
+kain-target = { path = "../target-triple" }
 kain-test = { path = "../test" }
 serde = { workspace = true }
 serde_json = { workspace = true }

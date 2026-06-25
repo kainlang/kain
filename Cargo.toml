@@ -28,7 +28,7 @@ members = [
     "crates/node",
     "crates/python",
     "crates/3d",
-    "crates/target",
+    "crates/target-triple",
     "crates/ui",
     "crates/ui-native",
     "crates/ui-tauri",

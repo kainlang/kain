@@ -591,6 +591,10 @@ pub enum KainCommand {
         /// Output artifact type for native builds. Implies --target llvm.
         #[arg(long, value_enum)]
         emit: Option<EmitMode>,
+
+        /// Target triple for cross-compilation (e.g. x86_64-unknown-linux-gnu)
+        #[arg(long = "target-triple")]
+        target_triple: Option<String>,
     },
 
     /// Run a file, blade, manifest, or workspace through the unified run pipeline
@@ -613,6 +617,10 @@ pub enum KainCommand {
         /// Emit the run report JSON to stdout
         #[arg(long)]
         json: bool,
+
+        /// Target triple for cross-compilation (e.g. x86_64-unknown-linux-gnu)
+        #[arg(long = "target-triple")]
+        target_triple: Option<String>,
 
         /// Include trace-oriented report detail
         #[arg(long)]

@@ -42,7 +42,7 @@ rust_library(
         "//crates/host:kain-host",
         "//crates/omni:kain-omni",
         "//crates/sys-codegen:kain-sys-codegen",
-        "//crates/target:kain-target",
+        "//crates/target-triple:kain-target",
         "//crates/test:kain-test",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
