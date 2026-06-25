@@ -48,6 +48,7 @@ rust_library(
         "//crates/python:kain-python",
         "//crates/reflect:kain-reflect",
         "//crates/sys-codegen:kain-sys-codegen",
+        "//crates/target:kain-target",
         "//crates/ue5-editor:ue5-editor",
         "//crates/ue5-shaders:ue5-shaders",
         "//crates/ue5:ue5",
