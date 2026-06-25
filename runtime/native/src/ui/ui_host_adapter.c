@@ -198,14 +198,33 @@ static LRESULT CALLBACK kain_win32_ui_window_proc(HWND hwnd, UINT msg, WPARAM w_
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
             if (hdc && host && host->hdc_buffer) {
-                // BitBlt from the permanent DC that already has the DIB selected.
-                // Do NOT create a temp DC — GDI cannot SelectObject the same bitmap
-                // into two DCs, and the second SelectObject silently fails, leaving
-                // a default 1x1 monochrome bitmap selected instead of the DIB.
-                BitBlt(hdc, ps.rcPaint.left, ps.rcPaint.top,
-                       ps.rcPaint.right - ps.rcPaint.left,
-                       ps.rcPaint.bottom - ps.rcPaint.top,
-                       host->hdc_buffer, ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+                // ── Full-rect BitBlt ──────────────────────────────────────────
+                // Always blit the ENTIRE DIB framebuffer to the ENTIRE window
+                // client area. This matches the proven pattern from the C demos
+                // (cosmic_dashboard.c, path_a_full_pipeline.c) that render
+                // correctly.
+                //
+                // Why full-rect and not ps.rcPaint:
+                // 1. CS_OWNDC: BeginPaint does NOT set the clipping region to the
+                //    invalid area. Using ps.rcPaint only blits the invalid rect,
+                //    leaving perfectly valid-but-unpainted regions to show the
+                //    default COLOR_WINDOW background (grey).
+                // 2. CreateDIBSection returns UNDEFINED memory (per MSDN). On
+                //    first window show, the initial DIB contents are not
+                //    guaranteed to be zeroed. Full-rect blit ensures the
+                //    renderer's cleared framebuffer (0xFF1A1A24) always reaches
+                //    the screen.
+                // 3. InvalidateRect(..., FALSE) marks regions invalid WITHOUT
+                //    erasing background. If ps.rcPaint doesn't cover the full
+                //    client (e.g. during initial show or resize), partial blit
+                //    leaves non-invalidated regions grey.
+                //
+                // Do NOT create a temp DC — GDI cannot SelectObject the same
+                // bitmap into two DCs simultaneously. The second SelectObject
+                // silently fails, leaving a default 1x1 monochrome bitmap
+                // selected instead of the DIB.
+                BitBlt(hdc, 0, 0, host->width, host->height,
+                       host->hdc_buffer, 0, 0, SRCCOPY);
             }
             EndPaint(hwnd, &ps);
             return 0;
@@ -295,6 +314,17 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
     ReleaseDC(NULL, hdc_screen2);
 
     // Create framebuffer at actual client size
+    // NOTE: During CreateWindowExA above, WM_SIZE fires and creates a DIB
+    // at the client size. That DIB is NOT selected into any DC because
+    // hdc_buffer didn't exist yet. We must delete the stale DIB to avoid
+    // leaking it, then create the real DIB and clear it immediately since
+    // CreateDIBSection memory is UNDEFINED per MSDN.
+    if (host->hbitmap) {
+        DeleteObject(host->hbitmap);
+        host->hbitmap = NULL;
+        host->framebuffer = NULL;
+    }
+
     HDC hdc_screen = GetDC(NULL);
     host->hdc_buffer = CreateCompatibleDC(hdc_screen);
     if (host->hdc_buffer) {
@@ -311,6 +341,15 @@ static KainWin32UiHost* win32_host_create(int width, int height) {
         if (host->hbitmap) {
             SelectObject(host->hdc_buffer, host->hbitmap);
             host->fb_stride = actual_w * 4;
+            // ── Clear the DIB immediately ──────────────────────────────
+            // CreateDIBSection returns UNDEFINED pixel memory per MSDN.
+            // On most Windows versions the pages are zero-filled, but this
+            // is NOT guaranteed. Explicitly clear to black so the first
+            // WM_PAINT (from UpdateWindow below) blits a defined state to
+            // the screen, not garbage.
+            if (host->framebuffer) {
+                memset(host->framebuffer, 0, (size_t)actual_w * actual_h * 4);
+            }
         }
     }
     ReleaseDC(NULL, hdc_screen);

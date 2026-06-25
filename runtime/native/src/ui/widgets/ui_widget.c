@@ -26,7 +26,7 @@
 
 #include "ui_widget.h"
 #include "ui_system.h"          /* from -I../../../include */
-#include "ui_system_internal.h"  /* from -I.. */
+#include "../ui_system_internal.h"  /* from parent dir */
 #include "ui_font.h"             /* new font ABI */
 #include "ui_color.h"            /* ui_color_blend */
 
@@ -439,6 +439,15 @@ int64_t ui_widget_load_font(KainUiWidgetContext* ctx, const char* filepath, doub
                     ctx->fonts[idx].ttf_data = data;
                     ctx->fonts[idx].ttf_len = (int)len;
                     data = NULL; // ownership transferred
+                    // ── Auto-set default_font on first load ────────
+                    // If no default font is set yet, make this loaded
+                    // font the default. Without this, callers who use
+                    // load_font() directly (not load_default_font())
+                    // silently get no text rendering because
+                    // widget_font_id() returns 0 when default_font < 0.
+                    if (ctx->default_font < 0) {
+                        ctx->default_font = idx;
+                    }
                 }
             }
             if (data) free(data);

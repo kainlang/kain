@@ -4,6 +4,7 @@
 #include "ui_system_internal.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 
 // ── Drawing primitives (all operate on uint32_t* framebuffer) ──────────
@@ -407,13 +408,22 @@ int64_t ui_render_frame(
         return 0;
     }
 
-    /* Clear framebuffer to default dark background */
+    /* Clear framebuffer to background color.
+     * Data-driven via KAIN_UI_BG env var (hex #RRGGBB or #RRGGBBAA),
+     * falling back to the default dark background. */
     /* Z3-proven: 64-bit dual-pixel fill ≡ pixel-by-pixel fill; memcpy
      * avoids C11 strict aliasing UB (ui-framebuffer-simd-fill.smt2: UNSAT,
      * ui-renderer-fb-clear-no-aliasing.smt2: UNSAT).
      * 2x fewer stores: ~460K → ~230K at 1280x720. */
     {
-        uint32_t pixel = 0xFF1A1A24;
+        uint32_t pixel = 0xFF1A1A24; /* default dark bg */
+        const char* bg_env = getenv("KAIN_UI_BG");
+        if (bg_env && bg_env[0]) {
+            uint32_t parsed = ui_parse_color(bg_env);
+            if (parsed != 0 || (bg_env[0] == '#' && bg_env[1] == '0' && bg_env[2] == '0')) {
+                pixel = parsed;
+            }
+        }
         uint64_t pat64 = ((uint64_t)pixel << 32) | pixel;
         int total = fb_width * fb_height;
         int i;
