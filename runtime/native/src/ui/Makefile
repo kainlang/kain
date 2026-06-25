@@ -28,11 +28,17 @@ LDFLAGS := -luser32 -lgdi32 -lopengl32
 AR      := $(or $(AR),llvm-ar)
 ARFLAGS := rcs
 
-# Static library name — .a on Linux/MinGW, .lib on Windows
-# llvm-ar creates .a files that lld-link can consume on Windows too.
-# For MSVC-style .lib, llvm-lib would be used instead.
+# Static library
 LIB_NAME := libkain_ui.a
 LIB_DIR  := X:/runtime/native/src/ui
+
+# ── Build output directory ────────────────────────────────────────────
+BUILD_DIR := _build
+OBJ_DIR   := $(BUILD_DIR)/obj
+BIN_DIR   := $(BUILD_DIR)/bin
+
+# Ensure directories exist
+$(shell mkdir -p $(OBJ_DIR) $(BIN_DIR) $(OBJ_DIR)/$(WIDGET_DIR) $(OBJ_DIR)/$(CORE_DIR) 2>nul)
 
 # ── Paths ──────────────────────────────────────────────────────────────
 UI_DIR      := .
@@ -104,14 +110,18 @@ DEMO_SRCS := \
 	$(DEMO_DIR)/fire_life_plasma.c \
 	$(DEMO_DIR)/voxel_viewer.c
 
-# ── Object files (cached for incremental builds) ───────────────────────
-UI_OBJS        := $(UI_SRCS:.c=.o)
-CORE_OBJS      := $(CORE_SRCS:.c=.o)
-WIDGET_OBJS    := $(WIDGET_SRCS:.c=.o)
-ALL_LIB_OBJS   := $(UI_OBJS) $(CORE_OBJS) $(WIDGET_OBJS)
+# ── Object files (in _build/obj/) ─────────────────────────────────────
+# Maps: source.c → _build/obj/source.o with directory structure preserved
+UI_OBJS   := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(UI_SRCS)))
+CORE_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(CORE_SRCS)))
+WIDGET_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(WIDGET_SRCS)))
+ALL_LIB_OBJS := $(UI_OBJS) $(CORE_OBJS) $(WIDGET_OBJS)
+
+# Executables go in _build/bin/
+TEST_EXES := $(patsubst %.c,$(BIN_DIR)/%.exe,$(notdir $(TEST_SRCS)))
+DEMO_EXES := $(patsubst %.c,$(BIN_DIR)/%.exe,$(notdir $(DEMO_SRCS)))
 
 # ── Flags ──────────────────────────────────────────────────────────────
-# Auto-generate dependency files for incremental builds
 DEPFLAGS = -MMD -MF $(@:.o=.d)
 
 .PHONY: all static libs tests demos widgets clean \
@@ -124,15 +134,14 @@ all: static tests demos
 
 # ── Build static library ───────────────────────────────────────────────
 static: $(ALL_LIB_OBJS)
-	$(AR) $(ARFLAGS) $(LIB_DIR)/$(LIB_NAME) $(ALL_LIB_OBJS)
+	$(AR) $(ARFLAGS) $(BUILD_DIR)/$(LIB_NAME) $(ALL_LIB_OBJS)
 	@echo "[STATIC] $(LIB_NAME) ($(words $(ALL_LIB_OBJS)) objects)"
 
 # ── Build UI library objects ───────────────────────────────────────────
 libs: $(ALL_LIB_OBJS)
 	@echo "[LIBS] $(words $^) objects cached"
+	@true
 
-# ── Pattern: compile any .c to .o with dependency tracking ────────────
-%.o: %.c
 	$(CC) $(CFLAGS) $(INC) $(DEPFLAGS) -c $< -o $@
 
 # ── Build test executables (test_ui/) ──────────────────────────────────
@@ -201,12 +210,8 @@ $(TEST_DIR)/calculator.exe: $(TEST_DIR)/calculator.c $(ALL_LIB_OBJS)
 
 # ── Clean ──────────────────────────────────────────────────────────────
 clean:
-	find $(UI_DIR) -name '*.o' -o -name '*.d' -o -name '*.exe' -o -name '*.pdb' 2>/dev/null | xargs rm -f 2>/dev/null; \
-	find $(TEST_DIR) -name '*.o' -o -name '*.d' -o -name '*.exe' -o -name '*.pdb' 2>/dev/null | xargs rm -f 2>/dev/null; \
-	find $(DEMO_DIR) -name '*.o' -o -name '*.d' -o -name '*.exe' -o -name '*.pdb' 2>/dev/null | xargs rm -f 2>/dev/null; \
-	find $(WIDGET_DIR) -name '*.o' -o -name '*.d' -o -name '*.exe' -o -name '*.pdb' 2>/dev/null | xargs rm -f 2>/dev/null; \
-	find $(CORE_DIR) -name '*.o' -o -name '*.d' 2>/dev/null | xargs rm -f 2>/dev/null; \
-	echo "[CLEAN] done"
+	rm -rf $(BUILD_DIR) $(UI_DIR)/$(LIB_NAME)
+	@echo "[CLEAN] removed $(BUILD_DIR)/"
 
 # ── Include auto-generated dependency files ────────────────────────────
 -include $(ALL_LIB_OBJS:.o=.d)
@@ -240,3 +245,10 @@ help:
 	@echo "  make CFLAGS=-O2   — optimized build"
 	@echo ""
 	@echo "Incremental: Only changed .c files recompile. Dependencies tracked."
+
+# VPATH: find source files across directories
+VPATH := .:../core:widgets
+
+# Pattern: compile .c → _build/obj/%.o
+$(OBJ_DIR)/%.o: %.c
+	$(CC) $(CFLAGS) $(INC) $(DEPFLAGS) -c $< -o $@
