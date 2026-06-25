@@ -339,3 +339,4 @@ blades/web/test_kauri.ps1
 stdlib/STDLIB_MAP.llm.md
 runtime/native/src/ui/test_ui/build.bat
 runtime/native/src/ui/test_ui/README.md
+*.a

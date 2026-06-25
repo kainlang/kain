@@ -257,7 +257,8 @@ static int ui_render_glyph_text(
                     unsigned char alpha = src_row[col];
                     if (alpha == 0) continue;
                     /* Modulate the glyph's alpha with the text color's alpha */
-                    uint32_t src_color = (color & 0xFFFFFF00) | (uint32_t)(((double)(color & 0xFF) * alpha) / 255.0);
+                    /* Fast integer alpha modulation — no floating point in the per-pixel loop */
+                    uint32_t src_color = (color & 0xFFFFFF00) | (uint32_t)(((color & 0xFF) * (uint32_t)alpha) / 255);
                     dst[fb_col] = ui_color_blend(src_color, dst[fb_col]);
                 }
             }
@@ -303,10 +304,11 @@ static void ui_render_node(
     /* Z3-proven batch flag test: single branch ≡ 4 separate branches (ui-branchless-flag-batch.smt2: UNSAT) */
     if (!node->in_use || (node->flags & ABI_UI_NODE_HIDDEN)) return;
 
-    int nx = (int)node->x;
-    int ny = (int)node->y;
-    int nw = (int)node->width;
-    int nh = (int)node->height;
+    double scale = s->dpi_scale > 0.0 ? s->dpi_scale : 1.0;
+    int nx = (int)(node->x * scale);
+    int ny = (int)(node->y * scale);
+    int nw = (int)(node->width * scale);
+    int nh = (int)(node->height * scale);
 
     // ── Render children (depth-first, sibling-linked list) ─────────
     // Children MUST always be traversed regardless of parent dimensions.
@@ -336,6 +338,8 @@ static void ui_render_node(
     double border_width    = ui_render_style_f64(s, node->id, "border_width", 0.0);
     double corner_radius   = ui_render_style_f64(s, node->id, "corner_radius", 0.0);
     double opacity         = ui_render_style_f64(s, node->id, "opacity", 1.0);
+    border_width  *= scale;
+    corner_radius *= scale;
 
     // ── Draw background fill ────────────────────────────────────────
     if (fill_str) {

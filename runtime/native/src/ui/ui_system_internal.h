@@ -177,6 +177,7 @@ typedef struct KainNativeUiSession {
     char app_name[ABI_UI_MAX_KEY];
     char window_title[ABI_UI_MAX_TEXT];
     char host_backend[ABI_UI_MAX_KEY];
+    double dpi_scale;          // DPI scale: 1.0 = 96 DPI, 2.0 = 192 DPI
     char clipboard_text[ABI_UI_MAX_TEXT];
     char ime_text[ABI_UI_MAX_TEXT];
     char drag_payload[ABI_UI_MAX_TEXT];
