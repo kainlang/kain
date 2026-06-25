@@ -12,6 +12,7 @@ use kain_driver::{
 use kain_fs as kfs;
 use kain_omni::fabric::FabricSessionStatus;
 use kain_process::{ProcessEnvironmentEntry, ProcessSpec, ProcessStdioMode};
+use kain_target::Platform;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet};
@@ -861,7 +862,7 @@ fn decode_platform_lock_path(workspace_root: &Path, raw: &str) -> Option<PathBuf
         return Some(workspace_root.to_path_buf());
     }
     if let Some(rest) = raw.strip_prefix("//?/") {
-        let normalized = if cfg!(windows) {
+        let normalized = if Platform::host().exe_extension == "exe" {
             rest.replace('/', "\\")
         } else {
             rest.to_string()
@@ -2478,7 +2479,7 @@ fn ensure_file(path: &Path, label: &str) -> RunResult<()> {
 fn cached_c_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathBuf> {
     let hash = cached_artifact_hash(source)?;
     let name = path_stem_or_name(source);
-    let ext = if cfg!(target_os = "windows") {
+    let ext = if Platform::host().exe_extension == "exe" {
         "exe"
     } else {
         "bin"
@@ -2491,7 +2492,7 @@ fn cached_c_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathB
 fn cached_llvm_executable_path(cache_root: &Path, source: &Path) -> RunResult<PathBuf> {
     let hash = cached_artifact_hash(source)?;
     let name = path_stem_or_name(source);
-    let ext = if cfg!(target_os = "windows") {
+    let ext = if Platform::host().exe_extension == "exe" {
         "exe"
     } else {
         "bin"

@@ -1242,6 +1242,22 @@ impl LlvmGenerator {
                         "void (i64, i64, i8*)*",
                         &[(session_reg, "i64"), (element_reg, "i64"), (&val_reg, "i8*")],
                     );
+                } else if mapped.vtable_offset == OFF_ELEMENT_SET_ATTR_I64 {
+                    // String value for an i64 attribute — convert known keywords to integers.
+                    // direction="vertical" → 1, direction="horizontal" → 0, etc.
+                    let int_val: i64 = match value.as_str() {
+                        "vertical" | "column" => 1,
+                        "horizontal" | "row" => 0,
+                        _ => 0, // unknown string → default to 0
+                    };
+                    let int_str = int_val.to_string();
+                    let key_str = self.compile_static_c_string_literal(&style_key);
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        mapped.vtable_offset,
+                        mapped.fn_ptr_ty,
+                        &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), (&int_str, "i64")],
+                    );
                 } else {
                     // Emit style call: element_set_attr_* (i64, i64, i8*, value) — session, element, key, value
                     let key_str = self.compile_static_c_string_literal(&style_key);
