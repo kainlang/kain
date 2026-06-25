@@ -104,11 +104,11 @@ NATIVE_CORE_RUNTIME = {
     "common_cpp_srcs": [
     ],
     "windows_c_srcs": [
-        'native/src/core/d3d12_surface_shim.c',
         'native/src/platform/win32/kain_win32_app_host.c',
         'native/src/platform/win32/kain_win32_input_host.c',
         'native/src/platform/win32/win32_shared.c',
         'native/src/platform/win32/crash_handler_win32.c',
+        'native/src/core/d3d12_surface_shim.c',
     ],
     "windows_cpp_srcs": [
     ],

@@ -22,8 +22,10 @@
 
 #include "ui_system.h"
 #include "component_surface.h"
+#include "../../include/ui_font.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 // ============================================================================
 //  Forward declarations — wrappers for abi_ui_* signature mismatches.
@@ -206,6 +208,52 @@ static void wrap_end_frame(int64_t session_id) {
 //  Programs that don't want a window simply don't declare a surface on
 //  their world. No surface → no frame loop → this function is never called.
 
+// ── Default font loading ──────────────────────────────────────────
+// Loads a platform TTF at session birth so the renderer's tree-walker
+// can rasterize text nodes that have ink_color set. Path priority:
+//   1. KAIN_UI_FONT env var (explicit override)
+//   2. Platform default (segoeui.ttf / DejaVuSans.ttf / Helvetica)
+// Returns the font resource ID, or 0 if no font could be loaded.
+static int64_t native_ui_load_default_font(int64_t session_id) {
+    const char* env_path = getenv("KAIN_UI_FONT");
+    const char* paths[4] = { NULL, NULL, NULL, NULL };
+    int path_count = 0;
+
+    if (env_path && env_path[0]) {
+        paths[path_count++] = env_path;
+    }
+#ifdef _WIN32
+    paths[path_count++] = "C:/Windows/Fonts/segoeui.ttf";
+    paths[path_count++] = "C:/Windows/Fonts/arial.ttf";
+#elif defined(__APPLE__)
+    paths[path_count++] = "/System/Library/Fonts/Helvetica.ttc";
+    paths[path_count++] = "/Library/Fonts/Arial.ttf";
+#else
+    paths[path_count++] = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    paths[path_count++] = "/usr/share/fonts/TTF/DejaVuSans.ttf";
+#endif
+
+    for (int i = 0; i < path_count; i++) {
+        if (!paths[i] || !paths[i][0]) continue;
+        FILE* f = fopen(paths[i], "rb");
+        if (!f) continue;
+        fseek(f, 0, SEEK_END);
+        long len = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        if (len <= 0 || len > 64 * 1024 * 1024) { fclose(f); continue; }
+        uint8_t* data = (uint8_t*)malloc((size_t)len);
+        if (!data) { fclose(f); continue; }
+        size_t nread = fread(data, 1, (size_t)len, f);
+        fclose(f);
+        if (nread != (size_t)len) { free(data); continue; }
+        int64_t font_id = abi_ui_font_load_ttf(
+            session_id, "default", "system", 14.0, data, (int64_t)len);
+        free(data);
+        if (font_id > 0) return font_id;
+    }
+    return 0;
+}
+
 static int64_t native_ui_session_create(const char* name, int64_t width, int64_t height) {
     int64_t sid = abi_ui_session_create(name, width, height);
     if (sid <= 0) return sid;
@@ -215,6 +263,10 @@ static int64_t native_ui_session_create(const char* name, int64_t width, int64_t
 #ifdef _WIN32
     abi_ui_host_attach(sid, "winit");
 #endif
+    // Load a default system font so text nodes rendered through the tree
+    // walker (ui_render_node) can find a font resource and rasterize glyphs.
+    // Font path is data-driven via KAIN_UI_FONT env var with platform fallbacks.
+    native_ui_load_default_font(sid);
     return sid;
 }
 
