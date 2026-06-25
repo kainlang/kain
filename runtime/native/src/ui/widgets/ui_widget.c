@@ -568,7 +568,7 @@ void ui_layout_row(KainUiWidgetContext* ctx, int count, const int* widths)
     }
 
     for (int i = 0; i < count; i++) {
-        ctx->layout_sizes[i] = widths[i];
+        ctx->layout_sizes[i] = DS(ctx, widths[i]);
     }
 }
 
@@ -589,7 +589,7 @@ void ui_layout_column(KainUiWidgetContext* ctx, int count, const int* heights)
     }
 
     for (int i = 0; i < count; i++) {
-        ctx->layout_sizes[i] = heights[i];
+        ctx->layout_sizes[i] = DS(ctx, heights[i]);
     }
 }
 
@@ -598,8 +598,8 @@ void ui_layout_set_next(KainUiWidgetContext* ctx, int width, int height)
     if (!ctx) return;
     ctx->layout_type = 2; // explicit single-item
     ctx->layout_size_count = 2;
-    ctx->layout_sizes[0] = width;
-    ctx->layout_sizes[1] = height;
+    ctx->layout_sizes[0] = DS(ctx, width);
+    ctx->layout_sizes[1] = DS(ctx, height);
 }
 
 // ── Get next widget rect from layout, with defaults ──────────────────
@@ -618,19 +618,19 @@ static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
     }
 
     if (ctx->layout_type == 0 && ctx->layout_count > 0) {
-        // Row: use specified width per-item (scale by DPI)
+        // Row: use specified width per-item
         if (ctx->layout_item < ctx->layout_count) {
-            w = DS(ctx, ctx->layout_sizes[ctx->layout_item]);
+            w = ctx->layout_sizes[ctx->layout_item];
         }
     } else if (ctx->layout_type == 1 && ctx->layout_count > 0) {
-        // Column: use specified height per-item (scale by DPI)
+        // Column: use specified height per-item
         if (ctx->layout_item < ctx->layout_count) {
-            h = DS(ctx, ctx->layout_sizes[ctx->layout_item]);
+            h = ctx->layout_sizes[ctx->layout_item];
         }
     } else if (ctx->layout_type == 2) {
-        // Explicit: [0]=width, [1]=height (scale by DPI)
-        w = DS(ctx, ctx->layout_sizes[0]);
-        h = DS(ctx, ctx->layout_sizes[1]);
+        // Explicit: [0]=width, [1]=height
+        w = ctx->layout_sizes[0];
+        h = ctx->layout_sizes[1];
         ctx->layout_type = 0; // one-shot
     }
 
@@ -644,6 +644,7 @@ static void layout_next_slot(KainUiWidgetContext* ctx, int* out_x, int* out_y,
 static void layout_advance(KainUiWidgetContext* ctx, int used_w, int used_h)
 {
     int spacing = DS(ctx, UI_SPACING);
+    int padding = DS(ctx, UI_PADDING);
     if (ctx->container_depth > 0) {
         UiContainer* c = &ctx->container_stack[ctx->container_depth - 1];
 
@@ -653,7 +654,7 @@ static void layout_advance(KainUiWidgetContext* ctx, int used_w, int used_h)
             ctx->layout_item++;
             if (ctx->layout_item >= ctx->layout_count) {
                 c->cursor_y += used_h + spacing;
-                c->cursor_x = c->x + DS(ctx, UI_PADDING);
+                c->cursor_x = c->x + padding;
                 ctx->layout_item = 0;
                 ctx->layout_count = 0;
             }
@@ -662,7 +663,7 @@ static void layout_advance(KainUiWidgetContext* ctx, int used_w, int used_h)
             c->cursor_x += used_w + spacing;
             // Check if next widget would overflow (rough check)
             if (c->cursor_x + DS(ctx, UI_BUTTON_WIDTH) > c->x + c->w) {
-                c->cursor_x = c->x + DS(ctx, UI_PADDING);
+                c->cursor_x = c->x + padding;
                 c->cursor_y += used_h + spacing;
             }
         }

@@ -101,9 +101,9 @@ static const uint32_t g_panel_accents[] = {
 // ── Dashboard dimensions (set at runtime) ──────────────────────────────
 static int g_win_w = 1280;
 static int g_win_h = 720;
-static int g_header_h = (int)(48 * g_dpi + 0.5f);
-static int g_margin = (int)(14 * g_dpi + 0.5f);
-static int g_title_bar_h = (int)(28 * g_dpi + 0.5f);
+static int g_header_h = 48;
+static int g_margin = 14;
+static int g_title_bar_h = 28;
 
 // ── Global state ───────────────────────────────────────────────────────
 static int64_t g_session_id = -1;
@@ -312,7 +312,7 @@ static void load_all_fonts(KainUiWidgetContext* wctx) {
     g_fonts[g_font_count].font_id = fid;
     g_fonts[g_font_count].loaded = (fid > 0);
     g_fonts[g_font_count].size = 24.0;
-    g_font_count++
+    g_font_count++;
 
     // Set default font to consola14 for widget text rendering
     if (find_font("consola14") > 0) {
@@ -573,9 +573,9 @@ static void init_panels(void) {
 }
 
 static void layout_panels(void) {
-    int margin = g_margin;
-    int title_h = g_header_h;
-    int tb_h = g_title_bar_h;
+    int margin = (int)(g_margin * g_dpi + 0.5f);
+    int title_h = (int)(g_header_h * g_dpi + 0.5f);
+    int tb_h = (int)(g_title_bar_h * g_dpi + 0.5f);
     int ww = g_win_w;
     int wh = g_win_h;
     

@@ -57,6 +57,7 @@ typedef struct KainWin32UiHost {
     HBITMAP hbitmap;
     int64_t session_id;
     int64_t input_session_id;
+    float dpi_scale;
 } KainWin32UiHost;
 
 // ============================================================================
@@ -80,6 +81,9 @@ typedef struct KainWin32UiHost {
 #define MAX_PALETTES     6
 #define PALETTE_SIZE     256
 
+// ── DPI scaling ──────────────────────────────────────────────────────
+static double g_dpi_scale = 1.0;
+
 // ── Panel positions (computed at runtime from WINDOW_W/PANEL_TOP/etc) ─
 static int g_fire_x, g_fire_y, g_life_y, g_plasma_y;
 static int g_pw;           // panel width
@@ -90,15 +94,17 @@ static int g_life_ox, g_life_oy;               // life offset inside panel
 static int g_plasma_ox, g_plasma_oy;           // plasma offset inside panel
 
 static void compute_layout(void) {
-    int aw = WINDOW_W;
-    g_pw = (aw - PANEL_GAP * 4) / 3;
-    int ph = WINDOW_H - PANEL_TOP - STATUS_H - PANEL_GAP;
-    int label_h = 28;
+    double ds = g_dpi_scale;
+    int aw = (int)(WINDOW_W * ds + 0.5);
+    int gap = (int)(PANEL_GAP * ds + 0.5);
+    g_pw = (aw - gap * 4) / 3;
+    int ph = (int)(WINDOW_H * ds + 0.5) - (int)(PANEL_TOP * ds + 0.5) - (int)(STATUS_H * ds + 0.5) - gap;
+    int label_h = (int)(28 * ds + 0.5);
 
-    g_fire_x   = PANEL_GAP;
-    g_life_x   = PANEL_GAP * 2 + g_pw;
-    g_plasma_x = PANEL_GAP * 3 + g_pw * 2;
-    g_fire_y = g_life_y = g_plasma_y = PANEL_TOP;
+    g_fire_x   = gap;
+    g_life_x   = gap * 2 + g_pw;
+    g_plasma_x = gap * 3 + g_pw * 2;
+    g_fire_y = g_life_y = g_plasma_y = (int)(PANEL_TOP * ds + 0.5);
 
     // Center each effect in its panel
     g_fire_ox   = g_fire_x   + (g_pw - FIRE_W) / 2;
@@ -488,6 +494,8 @@ static void rect_border(uint32_t* fb, int stride, int x, int y, int w, int h,
 
 static void load_fonts(void) {
     KainUiWidgetContext* ctx = g_app.ctx;
+    // Note: ui_widget_load_font scales internally by ctx->dpi_scale,
+    // so pass logical sizes without pre-scaling.
     g_app.font_title   = ui_widget_load_font(ctx, "C:/Windows/Fonts/impact.ttf", 26.0);
     g_app.font_heading = ui_widget_load_font(ctx, "C:/Windows/Fonts/arialbd.ttf", 15.0);
     g_app.font_label   = ui_widget_load_font(ctx, "C:/Windows/Fonts/verdana.ttf", 13.0);
@@ -572,6 +580,7 @@ static void draw_panel_bg(uint32_t* fb, int stride, int fb_w, int fb_h,
 
 static void render_frame(double dt) {
     if (!g_host || !g_host->framebuffer) return;
+    double ds = g_dpi_scale;
     uint32_t* fb = (uint32_t*)g_host->framebuffer;
     int stride = g_host->fb_stride / 4;
     int fb_w = g_host->width;
@@ -580,16 +589,21 @@ static void render_frame(double dt) {
     uint32_t bg = 0xFF08080E;
     int pal_idx = g_current_palette;
 
-    // ── 1. Clear framebuffer to dark background ──────────────────────
+    int header_h = (int)(HEADER_H * ds + 0.5);
+    int status_h = (int)(STATUS_H * ds + 0.5);
+    int gap = (int)(PANEL_GAP * ds + 0.5);
+    int label_h = (int)(28 * ds + 0.5);
+
+    // --- 1. Clear framebuffer to dark background ----------------------
     for (int y = 0; y < fb_h; y++)
         for (int x = 0; x < fb_w; x++)
             fb[y * stride + x] = bg;
 
-    // ── 2. Draw header bar ──────────────────────────────────────────
+    // --- 2. Draw header bar ------------------------------------------
     {
         // Dark gradient header
-        for (int y = 0; y < HEADER_H && y < fb_h; y++) {
-            float t = (float)y / (float)HEADER_H;
+        for (int y = 0; y < header_h && y < fb_h; y++) {
+            float t = (float)y / (float)header_h;
             uint32_t hcol = (uint32_t)((40 + (1.0f - t) * 20)) << 24;
             hcol |= 0x00080A18;
             for (int x = 0; x < fb_w; x++)
@@ -598,68 +612,64 @@ static void render_frame(double dt) {
         // Accent underline
         uint32_t accent_bar = palette_color(pal_idx, 200);
         for (int x = 0; x < fb_w; x++)
-            fb[(HEADER_H - 2) * stride + x] = accent_bar;
+            fb[(header_h - 2) * stride + x] = accent_bar;
 
         // Title
-        int tx = 14;
-        draw_text(tx, 11, "FIRE + LIFE + PLASMA", 0xFFE8E8F0, g_app.font_title);
+        int tx = (int)(14 * ds + 0.5);
+        draw_text(tx, (int)(11 * ds + 0.5), "FIRE + LIFE + PLASMA", 0xFFE8E8F0, g_app.font_title);
 
         // Palette name badge
         char pal_badge[32];
         snprintf(pal_badge, sizeof(pal_badge), "[ %s ]", palette_names[pal_idx]);
         int pbw = text_width(pal_badge, g_app.font_mono);
-        draw_text(fb_w - pbw - 160, 15, pal_badge, accent_bar, g_app.font_mono);
+        draw_text(fb_w - pbw - (int)(160 * ds + 0.5), (int)(15 * ds + 0.5), pal_badge, accent_bar, g_app.font_mono);
 
         // FPS in header right
-        draw_text(fb_w - text_width(g_app.fps_str, g_app.font_heading) - 14,
-                  13, g_app.fps_str, 0xFF00FF88, g_app.font_heading);
+        draw_text(fb_w - text_width(g_app.fps_str, g_app.font_heading) - (int)(14 * ds + 0.5),
+                  (int)(13 * ds + 0.5), g_app.fps_str, 0xFF00FF88, g_app.font_heading);
     }
 
-    // ── 3. Draw panels ──────────────────────────────────────────────
+    // --- 3. Draw panels ----------------------------------------------
     uint32_t fire_accent  = palette_color(pal_idx, 200);
     uint32_t life_accent  = palette_color(pal_idx, 170);
     uint32_t plasma_accent = palette_color(pal_idx, 180);
 
-    int ph = fb_h - PANEL_TOP - STATUS_H - PANEL_GAP;
-    int label_h = 28;
+    int panel_ph = fb_h - (int)(PANEL_TOP * ds + 0.5) - status_h - gap;
+    int panel_pt = (int)(PANEL_TOP * ds + 0.5);
 
-    // ── Panel 1: DOOM FIRE ──────────────────────────────────────────
+    // --- Panel 1: DOOM FIRE ------------------------------------------
     if (g_app.show_fire) {
         draw_panel_bg(fb, stride, fb_w, fb_h,
-                       g_fire_x, g_fire_y, g_pw, ph, fire_accent);
-        // Label
+                       g_fire_x, g_fire_y, g_pw, panel_ph, fire_accent);
         char fire_label[64];
-        snprintf(fire_label, sizeof(fire_label), "DOOM FIRE  —  Gen %d", g_fire_gen);
-        draw_text(g_fire_x + 10, g_fire_y + 6, fire_label, fire_accent, g_app.font_heading);
+        snprintf(fire_label, sizeof(fire_label), "DOOM FIRE â  Gen %d", g_fire_gen);
+        draw_text(g_fire_x + (int)(10 * ds + 0.5), g_fire_y + (int)(6 * ds + 0.5), fire_label, fire_accent, g_app.font_heading);
 
-        // Render fire buffer into framebuffer (1:1 pixel)
         for (int fy = 0; fy < FIRE_H; fy++) {
             for (int fx = 0; fx < FIRE_W; fx++) {
                 int px = g_fire_ox + fx;
                 int py = g_fire_oy + fy;
-                if (px >= g_fire_x && px < g_fire_x + g_pw && py >= g_fire_y && py < g_fire_y + ph) {
+                if (px >= g_fire_x && px < g_fire_x + g_pw && py >= g_fire_y && py < g_fire_y + panel_ph) {
                     int heat = g_fire_buf[fy][fx];
                     fb[py * stride + px] = palette_color(pal_idx, heat);
                 }
             }
         }
 
-        // Draw border around fire area
         rect_border(fb, stride, g_fire_ox - 1, g_fire_oy - 1,
                      FIRE_W + 2, FIRE_H + 2, fb_w, fb_h,
                      (fire_accent & 0x00FFFFFF) | (0x30 << 24));
     }
 
-    // ── Panel 2: GAME OF LIFE ───────────────────────────────────────
+    // --- Panel 2: GAME OF LIFE ---------------------------------------
     if (g_app.show_life) {
         draw_panel_bg(fb, stride, fb_w, fb_h,
-                       g_life_x, g_life_y, g_pw, ph, life_accent);
+                       g_life_x, g_life_y, g_pw, panel_ph, life_accent);
         char life_label[64];
-        snprintf(life_label, sizeof(life_label), "GAME OF LIFE  —  Gen %d  Alive %d",
+        snprintf(life_label, sizeof(life_label), "GAME OF LIFE â  Gen %d  Alive %d",
                  g_life_gen, g_life_alive);
-        draw_text(g_life_x + 10, g_life_y + 6, life_label, life_accent, g_app.font_heading);
+        draw_text(g_life_x + (int)(10 * ds + 0.5), g_life_y + (int)(6 * ds + 0.5), life_label, life_accent, g_app.font_heading);
 
-        // Render grid cells
         int cell = CELL_SIZE;
         uint32_t dead_bg  = 0xFF0A0A14;
         uint32_t grid_line = (life_accent & 0x00FFFFFF) | (0x08 << 24);
@@ -669,19 +679,17 @@ static void render_frame(double dt) {
                 int px = g_life_ox + lx * cell;
                 int py = g_life_oy + ly * cell;
                 if (g_life_buf[ly][lx]) {
-                    // Color by age: newborn = bright green, old = dark green
                     int age = g_life_age[ly][lx];
                     uint32_t alive_color;
-                    if (age < 3) alive_color = 0xFF88FF44;       // newborn bright
+                    if (age < 3) alive_color = 0xFF88FF44;
                     else if (age < 10) alive_color = 0xFF44DD22;
                     else if (age < 30) alive_color = 0xFF22AA11;
                     else if (age < 80) alive_color = 0xFF117710;
-                    else alive_color = 0xFF0A4408;                // old
+                    else alive_color = 0xFF0A4408;
                     fill_rect(fb, stride, px, py, cell, cell, fb_w, fb_h, alive_color);
                 } else {
                     fill_rect(fb, stride, px, py, cell, cell, fb_w, fb_h, dead_bg);
                 }
-                // Faint grid lines
                 if (lx < LIFE_W - 1)
                     write_px(fb, stride, px + cell - 1, py, fb_w, fb_h, grid_line);
                 if (ly < LIFE_H - 1)
@@ -691,24 +699,23 @@ static void render_frame(double dt) {
         }
     }
 
-    // ── Panel 3: PLASMA ─────────────────────────────────────────────
+    // --- Panel 3: PLASMA ---------------------------------------------
     if (g_app.show_plasma) {
         draw_panel_bg(fb, stride, fb_w, fb_h,
-                       g_plasma_x, g_plasma_y, g_pw, ph, plasma_accent);
+                       g_plasma_x, g_plasma_y, g_pw, panel_ph, plasma_accent);
         char plasma_label[64];
         int pp = g_plasma_palette;
-        snprintf(plasma_label, sizeof(plasma_label), "PLASMA  —  %s",
+        snprintf(plasma_label, sizeof(plasma_label), "PLASMA â  %s",
                  palette_names[pp]);
-        draw_text(g_plasma_x + 10, g_plasma_y + 6, plasma_label, plasma_accent, g_app.font_heading);
+        draw_text(g_plasma_x + (int)(10 * ds + 0.5), g_plasma_y + (int)(6 * ds + 0.5), plasma_label, plasma_accent, g_app.font_heading);
 
-        // Render plasma directly into framebuffer
         double t = g_plasma_time;
         for (int py = 0; py < PLASMA_H; py++) {
             for (int px = 0; px < PLASMA_W; px++) {
                 int sx = g_plasma_ox + px;
                 int sy = g_plasma_oy + py;
                 if (sx >= g_plasma_x && sx < g_plasma_x + g_pw &&
-                    sy >= g_plasma_y && sy < g_plasma_y + ph) {
+                    sy >= g_plasma_y && sy < g_plasma_y + panel_ph) {
                     int v = plasma_sample(px, py, t);
                     fb[sy * stride + sx] = palette_color(pp, v);
                 }
@@ -716,29 +723,27 @@ static void render_frame(double dt) {
         }
     }
 
-    // ── 4. Status bar ───────────────────────────────────────────────
+    // --- 4. Status bar -----------------------------------------------
     {
-        int sbar_y = fb_h - STATUS_H;
+        int sbar_y = fb_h - status_h;
         for (int y = sbar_y; y < fb_h && y < fb_h; y++) {
-            float t = (float)(y - sbar_y) / (float)STATUS_H;
+            float t = (float)(y - sbar_y) / (float)status_h;
             uint32_t scol = (uint32_t)((40 + t * 15)) << 24;
             scol |= 0x00080A14;
             for (int x = 0; x < fb_w; x++)
                 fb[y * stride + x] = scol;
         }
-        // Accent line
         for (int x = 0; x < fb_w; x++)
             fb[sbar_y * stride + x] = (palette_color(pal_idx, 200) & 0x00FFFFFF) | (0x55 << 24);
 
-        // Status text
         int total_px = FIRE_W * FIRE_H + LIFE_W * LIFE_H + PLASMA_W * PLASMA_H;
         snprintf(g_app.status_str, sizeof(g_app.status_str),
                  "FPS: %.0f  |  Pixels: %d  |  Frame: %.1fms  |  Gen: %d  |  Space=pause  F=fire  G=life  P=palette  1/2/3=toggle  Esc=exit",
                  g_app.fps, total_px, g_app.frame_time_ms * 1000.0, g_fire_gen);
-        draw_text(12, sbar_y + 8, g_app.status_str, 0xFF808090, g_app.font_legend);
+        draw_text((int)(12 * ds + 0.5), sbar_y + (int)(8 * ds + 0.5), g_app.status_str, 0xFF808090, g_app.font_legend);
     }
 
-    // ── 5. Legend overlay (top-right, fades after 5 sec) ────────────
+    // --- 5. Legend overlay (top-right, fades after 5 sec) ------------
     if (g_app.total_time < 6.0) {
         const char* legend =
             "Space = Pause All\n"
@@ -750,15 +755,14 @@ static void render_frame(double dt) {
             "\n"
             "Mouse over fire = Blow\n"
             "Click life = Toggle cell";
-        int lx = fb_w - 220;
-        int ly = HEADER_H + 10;
+        int lx = fb_w - (int)(220 * ds + 0.5);
+        int ly = header_h + (int)(10 * ds + 0.5);
         uint8_t fade = (uint8_t)(255 * (1.0 - g_app.total_time / 6.0));
         uint32_t legend_bg = ((uint32_t)(fade / 2) << 24) | 0x00080A18;
-        fill_rect(fb, stride, lx, ly, 200, 150, fb_w, fb_h, legend_bg);
-        draw_text(lx + 8, ly + 8, legend, ((uint32_t)fade << 24) | 0x00A0A0C0, g_app.font_legend);
+        fill_rect(fb, stride, lx, ly, (int)(200 * ds + 0.5), (int)(150 * ds + 0.5), fb_w, fb_h, legend_bg);
+        draw_text(lx + (int)(8 * ds + 0.5), ly + (int)(8 * ds + 0.5), legend, ((uint32_t)fade << 24) | 0x00A0A0C0, g_app.font_legend);
     }
 }
-
 // ============================================================================
 //  WINDOW PROCEDURE
 // ============================================================================
@@ -905,6 +909,7 @@ int main(void) {
     float dpi_scale = (float)GetDeviceCaps(dpi_dc, LOGPIXELSX) / 96.0f;
     ReleaseDC(NULL, dpi_dc);
     if (dpi_scale < 1.0f) dpi_scale = 1.0f;
+    g_dpi_scale = dpi_scale;
 
     int win_w = (int)(WINDOW_W * dpi_scale + 0.5f);
     int win_h = (int)(WINDOW_H * dpi_scale + 0.5f);
