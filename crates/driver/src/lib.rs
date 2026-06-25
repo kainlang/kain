@@ -98,6 +98,8 @@ use ue5_shaders;
 #[cfg(feature = "web")]
 use kain_web;
 
+use kain_target::Platform;
+
 #[derive(Clone, Copy)]
 struct TargetSpec {
     target: CompileTarget,
@@ -3547,9 +3549,10 @@ fn gpu_runtime_cargo_build_is_allowed() -> bool {
 
 #[cfg(feature = "sys")]
 fn gpu_runtime_library_file_name() -> &'static str {
-    if cfg!(windows) {
+    let host = Platform::host();
+    if host.shared_lib_extension == "dll" {
         "kain_gpu_runtime.dll"
-    } else if cfg!(target_os = "macos") {
+    } else if host.shared_lib_extension == "dylib" {
         "libkain_gpu_runtime.dylib"
     } else {
         "libkain_gpu_runtime.so"

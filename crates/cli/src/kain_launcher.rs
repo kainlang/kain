@@ -43,6 +43,7 @@ use kain_fmt::{format_source_with_options, FormatOptions};
 use kain_repl::{
     normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
 };
+use kain_target::{Platform, TargetTriple};
 use kain_lattice::Painter;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -205,11 +206,8 @@ fn resolve_precompiled_runtime_archive() -> Option<PrecompiledRuntimeArchive> {
 
     // 2. Toolchain layout (~/.kain/lib/)
     if let Some(layout) = install_layout::default_kain_install_layout() {
-        let lib_name = if cfg!(windows) {
-            "kain_runtime.lib"
-        } else {
-            "libkain_runtime.a"
-        };
+        let host = TargetTriple::host();
+        let lib_name = host.runtime_lib_name();
         let candidate = layout.lib_dir.join(lib_name);
         if candidate.exists() {
             return Some(PrecompiledRuntimeArchive {
@@ -348,19 +346,18 @@ impl NativeToolchainTuning {
     }
 
     fn apply_link_gc_flags(&self, command: &mut Command) {
-        if cfg!(windows) && !self.debug_info {
-            command.arg("-Wl,/DEBUG:NONE");
+        let host = Platform::host();
+        if let Some(flag) = host.debug_none_flag {
+            if !self.debug_info {
+                command.arg(format!("-Wl,{}", flag));
+            }
         }
         if self.profile == NativeToolchainProfile::Debug {
             return;
         }
-        if cfg!(windows) {
-            command.arg("-Wl,/OPT:REF");
-            command.arg("-Wl,/OPT:ICF");
-        } else if cfg!(target_os = "macos") {
-            command.arg("-Wl,-dead_strip");
-        } else {
-            command.arg("-Wl,--gc-sections");
+        command.arg(format!("-Wl,{}", host.dead_strip_flag));
+        if let Some(icf) = host.icf_flag {
+            command.arg(format!("-Wl,{}", icf));
         }
     }
 
@@ -1838,12 +1835,15 @@ fn run_source_with_session(
                         clang_extra_args.push("-std=c11".to_string());
                     }
                     // Additional GC/dead-strip tuning beyond what link_native_binary adds
-                    if cfg!(windows) && !native_toolchain_tuning.debug_info {
-                        clang_extra_args.push("-Wl,/DEBUG:NONE".to_string());
+                    let host = Platform::host();
+                    if let Some(flag) = host.debug_none_flag {
+                        if !native_toolchain_tuning.debug_info {
+                            clang_extra_args.push(format!("-Wl,{}", flag));
+                        }
                     }
                     if native_toolchain_tuning.profile != NativeToolchainProfile::Debug {
-                        if cfg!(windows) {
-                            clang_extra_args.push("-Wl,/OPT:ICF".to_string());
+                        if let Some(icf) = host.icf_flag {
+                            clang_extra_args.push(format!("-Wl,{}", icf));
                         }
                     }
 
@@ -1890,6 +1890,7 @@ fn run_source_with_session(
                         runtime_artifacts: link_artifacts,
                         extra_args: clang_extra_args,
                         compile_target: target,
+                        target_triple: session.target_triple.clone(),
                     };
 
                     match kain_build::link_native_binary(&link_req) {
@@ -2237,18 +2238,12 @@ fn resolve_native_backend_output_paths(
             .extension()
             .map_or(false, |e| e == target_extension(target))
         {
-            if cfg!(windows) {
-                out.with_extension("exe")
-            } else {
-                out.with_extension("")
-            }
+            out.with_extension(Platform::host().exe_extension)
         } else {
             out.clone()
         }
-    } else if cfg!(windows) {
-        source_path?.with_extension("exe")
     } else {
-        source_path?.with_extension("")
+        source_path?.with_extension(Platform::host().exe_extension)
     };
 
     Some(NativeBackendOutputPaths {
@@ -2477,10 +2472,10 @@ fn stable_fnv1a64_extend(mut hash: u64, bytes: &[u8]) -> u64 {
 }
 
 fn native_executable_cache_file_name() -> &'static str {
-    if cfg!(windows) {
-        "artifact.exe"
-    } else {
+    if Platform::host().exe_extension.is_empty() {
         "artifact"
+    } else {
+        "artifact.exe"
     }
 }
 
@@ -6306,7 +6301,7 @@ fn compile_native_runtime_bundle(
         )
     })?;
 
-    let object_ext = if cfg!(windows) { "obj" } else { "o" };
+    let object_ext = Platform::host().object_extension;
     let mut object_paths_by_source = BTreeMap::<PathBuf, PathBuf>::new();
     let mut object_fingerprints_by_source = BTreeMap::<PathBuf, String>::new();
     let mut reused_object_count = 0usize;
@@ -7098,9 +7093,10 @@ fn unique_link_libs(values: Vec<String>) -> Vec<String> {
 }
 
 fn platform_link_libs(link: &NativeRuntimeLinkManifest) -> Vec<String> {
-    if cfg!(windows) {
+    let host = Platform::host();
+    if host.exe_extension == "exe" {
         link.windows.clone()
-    } else if cfg!(target_os = "macos") {
+    } else if host.shared_lib_extension == "dylib" {
         link.macos.clone()
     } else {
         link.linux.clone()

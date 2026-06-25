@@ -6,6 +6,7 @@ use crate::selfhost_report::{
 };
 use crate::{compile, CompileTarget};
 use chrono::Utc;
+use kain_target::Platform;
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::fs;
@@ -840,7 +841,7 @@ fn discover_runtime_artifacts(contract: &BootstrapContract) -> Result<RuntimeArt
     ensure_path_exists(&objects_dir, "runtime object cache directory")?;
     ensure_path_exists(&archives_dir, "runtime archive cache directory")?;
 
-    let object_ext = if cfg!(windows) { "obj" } else { "o" };
+    let object_ext = Platform::host().object_extension;
     let object_paths = selected_sources
         .iter()
         .enumerate()
@@ -881,7 +882,7 @@ fn discover_runtime_artifacts(contract: &BootstrapContract) -> Result<RuntimeArt
             ));
         }
         archived_source_paths.extend(matches_group);
-        let archive_file_name = if cfg!(windows) {
+        let archive_file_name = if Platform::host().static_lib_extension == "lib" {
             format!("{}.lib", archive_group.name)
         } else {
             format!("lib{}.a", archive_group.name)
@@ -1280,9 +1281,10 @@ fn runtime_cache_host_tag() -> String {
 
 fn current_platform_runtime_sources(manifest: &NativeRuntimeManifest) -> Vec<PathBuf> {
     let mut sources = manifest.sources.clone();
-    if cfg!(windows) {
+    let host = Platform::host();
+    if host.exe_extension == "exe" {
         sources.extend(manifest.windows_sources.clone());
-    } else if cfg!(target_os = "macos") {
+    } else if host.shared_lib_extension == "dylib" {
         sources.extend(manifest.macos_sources.clone());
     } else {
         sources.extend(manifest.linux_sources.clone());
@@ -1291,9 +1293,10 @@ fn current_platform_runtime_sources(manifest: &NativeRuntimeManifest) -> Vec<Pat
 }
 
 fn platform_link_libs(link: &NativeRuntimeLinkManifest) -> Vec<String> {
-    if cfg!(windows) {
+    let host = Platform::host();
+    if host.exe_extension == "exe" {
         link.windows.clone()
-    } else if cfg!(target_os = "macos") {
+    } else if host.shared_lib_extension == "dylib" {
         link.macos.clone()
     } else {
         link.linux.clone()
