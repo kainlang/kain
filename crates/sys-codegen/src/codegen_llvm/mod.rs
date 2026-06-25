@@ -39,20 +39,8 @@ const ATTR_NAKED: &str = "naked";
 const ATTR_INTERRUPT: &str = "interrupt";
 const ATTR_MMIO: &str = "mmio";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum LlvmTargetId {
-    WindowsX64Msvc,
-    LinuxX64Gnu,
-    MacOsArm64,
-    BareMetalX64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LlvmTargetDescriptor {
-    id: LlvmTargetId,
-    triple: &'static str,
-    datalayout: &'static str,
-}
+// LlvmTargetId and LlvmTargetDescriptor are now in the kain-target crate.
+use kain_target::{LlvmTargetId, LlvmTargetDescriptor};
 
 #[derive(Clone, Debug)]
 struct WorldGlobalInfo {
@@ -195,36 +183,8 @@ struct JsonAnyArgument {
     release_after_call: bool,
 }
 
-const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
-    id: LlvmTargetId::WindowsX64Msvc,
-    triple: "x86_64-pc-windows-msvc",
-    datalayout: "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
-};
-
-const LLVM_TARGET_LINUX_X64_GNU: LlvmTargetDescriptor = LlvmTargetDescriptor {
-    id: LlvmTargetId::LinuxX64Gnu,
-    triple: "x86_64-unknown-linux-gnu",
-    datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
-};
-
-const LLVM_TARGET_MACOS_ARM64: LlvmTargetDescriptor = LlvmTargetDescriptor {
-    id: LlvmTargetId::MacOsArm64,
-    triple: "arm64-apple-darwin",
-    datalayout: "e-m:o-i64:64-i128:128-n32:64-S128",
-};
-
-const LLVM_TARGET_BAREMETAL_X64: LlvmTargetDescriptor = LlvmTargetDescriptor {
-    id: LlvmTargetId::BareMetalX64,
-    triple: "x86_64-unknown-none",
-    datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
-};
-
-const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
-    LLVM_TARGET_WINDOWS_X64_MSVC,
-    LLVM_TARGET_LINUX_X64_GNU,
-    LLVM_TARGET_MACOS_ARM64,
-    LLVM_TARGET_BAREMETAL_X64,
-];
+// LLVM target descriptor constants are now in kain-target crate.
+// Use kain_target::LlvmTargetDescriptor::host() or for_triple().
 const ABI_TAGGED_HEADER_BYTES: i64 = 16;
 const ABI_TAG_OPTION_NONE_LLVM: i64 = 0;
 const ABI_TAG_OPTION_SOME_LLVM: i64 = 1;
@@ -459,20 +419,7 @@ fn llvm_orchestrate_trace_enabled() -> bool {
 }
 
 fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
-    let target_id = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        LlvmTargetId::WindowsX64Msvc
-    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        LlvmTargetId::LinuxX64Gnu
-    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        LlvmTargetId::MacOsArm64
-    } else {
-        LlvmTargetId::WindowsX64Msvc
-    };
-
-    LLVM_TARGET_DESCRIPTOR_REGISTRY
-        .iter()
-        .find(|descriptor| descriptor.id == target_id)
-        .unwrap_or(&LLVM_TARGET_WINDOWS_X64_MSVC)
+    LlvmTargetDescriptor::host()
 }
 
 /// Resolve the LLVM target descriptor for a given Kain compile target.
@@ -480,7 +427,7 @@ pub fn resolve_llvm_target_for_compile_target(
     target: CompileTarget,
 ) -> &'static LlvmTargetDescriptor {
     match target {
-        CompileTarget::BareMetal => &LLVM_TARGET_BAREMETAL_X64,
+        CompileTarget::BareMetal => LlvmTargetDescriptor::for_triple("x86_64-unknown-none"),
         _ => resolve_host_llvm_target_descriptor(),
     }
 }
@@ -494,6 +441,21 @@ pub fn generate_with_target(
     target: &'static LlvmTargetDescriptor,
 ) -> KainResult<Vec<u8>> {
     generate_with_options(program, false, None, "", target)
+}
+
+/// Generate LLVM IR for a specific target triple.
+///
+/// When `target_triple` is `Some`, the emitted IR will use that triple
+/// (e.g. `"x86_64-unknown-linux-gnu"`). When `None`, the host target is used.
+pub fn generate_llvm_for_target(
+    program: &TypedProgram,
+    target_triple: Option<&str>,
+) -> KainResult<Vec<u8>> {
+    let descriptor = match target_triple {
+        Some(t) => LlvmTargetDescriptor::for_triple(t),
+        None => LlvmTargetDescriptor::host(),
+    };
+    generate_with_target(program, descriptor)
 }
 
 /// Generate LLVM IR with optional DWARF debug metadata.
