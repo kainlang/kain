@@ -14,6 +14,7 @@ kain-fs = { path = "../fs" }
 kain-host = { path = "../host", default-features = false }
 kain-omni = { path = "../omni", default-features = false }
 kain-process = { path = "../process" }
+kain-target = { path = "../target-triple" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

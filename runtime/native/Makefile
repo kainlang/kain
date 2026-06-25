@@ -11,10 +11,33 @@
 #   make stress   — build stress tests with TSan
 #   make clean    — remove build artifacts
 
-# ── Platform detection ──────────────────────────────────────────────
-UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
-ifeq ($(UNAME_S),Linux)
-  PLATFORM := linux
+# ── Platform detection (overridable for cross-compilation) ────────────
+# Set PLATFORM_OVERRIDE to "linux", "windows", or "darwin" to force a target
+# platform different from the host. Used by the cross-lib target.
+PLATFORM_OVERRIDE ?=
+ifneq ($(PLATFORM_OVERRIDE),)
+  PLATFORM := $(PLATFORM_OVERRIDE)
+else
+  UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+  ifeq ($(UNAME_S),Linux)
+    PLATFORM := linux
+  endif
+  ifeq ($(UNAME_S),Darwin)
+    PLATFORM := darwin
+  endif
+  ifneq ($(findstring MINGW,$(UNAME_S)),)
+    PLATFORM := windows
+  endif
+  ifneq ($(findstring CYGWIN,$(UNAME_S)),)
+    PLATFORM := windows
+  endif
+  ifeq ($(OS),Windows_NT)
+    PLATFORM := windows
+  endif
+endif
+
+# Platform-specific settings (resolved from PLATFORM, not host uname)
+ifeq ($(PLATFORM),linux)
   SHARED_EXT := .so
   SHARED_FLAG := -shared
   STATIC_EXT := .a
@@ -22,8 +45,7 @@ ifeq ($(UNAME_S),Linux)
   EXE_EXT :=
   HAS_SANITIZERS := 1
 endif
-ifeq ($(UNAME_S),Darwin)
-  PLATFORM := darwin
+ifeq ($(PLATFORM),darwin)
   SHARED_EXT := .dylib
   SHARED_FLAG := -dynamiclib
   STATIC_EXT := .a
@@ -31,29 +53,18 @@ ifeq ($(UNAME_S),Darwin)
   EXE_EXT :=
   HAS_SANITIZERS := 1
 endif
-ifneq ($(findstring MINGW,$(UNAME_S)),)
-  PLATFORM := windows
+ifeq ($(PLATFORM),windows)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
   PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
   EXE_EXT := .exe
 endif
-ifneq ($(findstring CYGWIN,$(UNAME_S)),)
-  PLATFORM := windows
-  SHARED_EXT := .dll
-  SHARED_FLAG := -shared
-  STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
-  EXE_EXT := .exe
-endif
-ifeq ($(OS),Windows_NT)
-  PLATFORM := windows
-  SHARED_EXT := .dll
-  SHARED_FLAG := -shared
-  STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp -lwinmm
-  EXE_EXT := .exe
+
+# Override PLATFORM_LIBS for cross-compilation (set TARGET_LIBS)
+TARGET_LIBS ?=
+ifneq ($(TARGET_LIBS),)
+  PLATFORM_LIBS := $(TARGET_LIBS)
 endif
 
 # Sanitizers: only on platforms that support them (not MinGW/GCC)
@@ -229,6 +240,10 @@ _build/test/stress/%$(EXE_EXT): test/stress/%.c $(ALL_OBJS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(TSAN_FLAGS) $< $(ALL_OBJS) -o $@ $(LDFLAGS)
 
+# ── Cross-compilation (target different from host) ─────────────────
+cross-lib:
+	$(MAKE) CC="clang -target $(TARGET)" PLATFORM_OVERRIDE=$(TARGET_OS) TARGET_LIBS="$(TARGET_LIBS)" lib
+
 # ── Clean ───────────────────────────────────────────────────────────
 clean:
 	rm -rf _build
@@ -245,9 +260,11 @@ help:
 	@echo "  make fuzz     build libFuzzer harnesses"
 	@echo "  make stress   build + run TSan stress tests"
 	@echo "  make clean    remove build artifacts"
+	@echo "  make cross-lib TARGET=<triple> TARGET_OS=<os> TARGET_LIBS=<libs>"
+	@echo "                cross-compile static library for TARGET"
 	@echo ""
 	@echo "  Platform: $(PLATFORM)"
 	@echo "  Compiler: $(CC)"
 	@echo "  Sources:  $(words $(CORE_SRCS)) core + $(words $(PLATFORM_SRCS)) platform"
 
-.PHONY: all lib shared test test-smoke test-property fuzz stress clean help
+.PHONY: all lib shared test test-smoke test-property fuzz stress cross-lib clean help
