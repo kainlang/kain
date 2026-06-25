@@ -4131,6 +4131,7 @@ pub fn main_entry() {
                     r#rust,
                     embed,
                     emit,
+                    target_triple,
                 }) => {
                     let lane = match parse_build_lane(lane.as_deref()) {
                         Ok(lane) => lane,
@@ -4293,6 +4294,7 @@ pub fn main_entry() {
                                         options.lane = lane;
                                         options.clean = clean;
                                         options.debug_info = debug;
+                                        options.target_triple = target_triple.clone();
                                         options.progress = cli::progress::stderr_progress_sink(true);
                                         match kain_build::build_kain_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),

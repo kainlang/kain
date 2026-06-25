@@ -254,6 +254,32 @@ int64_t abi_ui_hot_reload_commit(int64_t session_id);
 int64_t abi_ui_hot_reload_generation(int64_t session_id);
 const char* abi_ui_hot_reload_key(int64_t session_id);
 
+// ── Widget Library ABI (from widgets/ui_widget.h) ─────────────────────
+int64_t abi_ui_widget_create(int64_t session_id);
+void    abi_ui_widget_destroy(int64_t ctx_ptr);
+void    abi_ui_widget_begin_frame(int64_t ctx_ptr);
+void    abi_ui_widget_end_frame(int64_t ctx_ptr);
+int64_t abi_ui_widget_load_font(int64_t ctx_ptr, const char* filepath, double size);
+int64_t abi_ui_widget_load_default_font(int64_t ctx_ptr, double size);
+int64_t abi_ui_widget_button(int64_t ctx_ptr, const char* label);
+int64_t abi_ui_widget_label(int64_t ctx_ptr, const char* text);
+int64_t abi_ui_widget_checkbox(int64_t ctx_ptr, const char* label, int64_t current_value);
+int64_t abi_ui_widget_slider(int64_t ctx_ptr, double current_value, double lo, double hi);
+int64_t abi_ui_widget_textbox_poll(int64_t ctx_ptr, int64_t buf_ptr, int64_t buf_size);
+int64_t abi_ui_widget_panel_begin(int64_t ctx_ptr, const char* title, double x, double y, double w, double h);
+void    abi_ui_widget_panel_end(int64_t ctx_ptr);
+int64_t abi_ui_widget_progress(int64_t ctx_ptr, const char* label, double value, double max_val);
+int64_t abi_ui_widget_window(int64_t ctx_ptr, const char* title, double x, double y, double w, double h, int64_t open);
+
+// ── Glyph Accessor ABI (struct field accessors for KainUiGlyph) ────────
+int64_t abi_ui_glyph_bitmap_ptr(int64_t glyph_ptr);
+int64_t abi_ui_glyph_width(int64_t glyph_ptr);
+int64_t abi_ui_glyph_height(int64_t glyph_ptr);
+int64_t abi_ui_glyph_x_offset(int64_t glyph_ptr);
+int64_t abi_ui_glyph_y_offset(int64_t glyph_ptr);
+int64_t abi_ui_glyph_advance(int64_t glyph_ptr);
+void    abi_ui_glyph_release(int64_t glyph_ptr);
+
 #ifdef __cplusplus
 }
 #endif

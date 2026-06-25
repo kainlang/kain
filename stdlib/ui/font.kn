@@ -1,0 +1,280 @@
+// font.kn — std::ui::font — Font loading, glyph access, text measurement
+//
+// Layer: L0 (plain code — wraps C ABI from std::ui and local @extern)
+//
+// Provides the Kain-level API for TrueType font loading, glyph
+// rasterization via stb_truetype, text measurement, and font metrics.
+//
+// ── Architecture ────────────────────────────────────────────────────────
+//   Kain code → font_*() wrappers → @extern → C abi_ui_font_* → stb_truetype
+//
+// The @extern declarations in this file are TEMPORARY. They will be
+// added to stdlib/ui.kn (the parent module) in Stream A Task A.4.
+// Once that happens, remove the @extern block below and use the
+// corresponding symbols from std::ui directly.
+//
+// ── Color Format ───────────────────────────────────────────────────────
+// The renderer uses 0xAABBGGRR format (NOT 0xAARRGGBB):
+//   Byte 0 (LSB) = R, Byte 1 = G, Byte 2 = B, Byte 3 (MSB) = A
+// So 0xFF21D4A1 in code = R=0xA1, G=0xD4, B=0x21, A=0xFF.
+//
+// ── Known Limitations ──────────────────────────────────────────────────
+// - load_from_file() uses std::fs::abi_fs_read_text which reads the file
+//   as a null-terminated string. This works for most TTF files because
+//   stb_truetype doesn't need the full file, but may truncate data after
+//   the first null byte. A proper fs_read_binary() API is future work.
+// - Glyph access returns a full Glyph struct (releasing the C glyph
+//   after copying fields). For raw glyph pointer access, use the
+//   glyph_*() accessor functions directly.
+
+use std::fs
+
+// ============================================================================
+// ⚠  Temporary @extern declarations — will move to stdlib/ui.kn
+// ============================================================================
+// These belong in the parent module std::ui but are declared here for
+// self-containment until Stream A Task A.4 adds them to stdlib/ui.kn.
+
+@extern
+fn abi_ui_font_load_ttf(
+    session_id: Int,
+    key: String,
+    family: String,
+    size: Float,
+    ttf_data: String,
+    ttf_len: Int,
+) -> Int
+
+@extern
+fn abi_ui_font_get_glyph(session_id: Int, font_id: Int, codepoint: Int) -> Int
+
+@extern
+fn abi_ui_font_release_glyph(glyph_ptr: Int)
+
+// ── Glyph field accessors ───────────────────────────────────────────────
+// Work directly with the C KainUiGlyph* pointer (passed as Int).
+// Each returns the corresponding field from the struct.
+
+@extern
+fn abi_ui_glyph_bitmap_ptr(glyph_ptr: Int) -> Int
+
+@extern
+fn abi_ui_glyph_width(glyph_ptr: Int) -> Int
+
+@extern
+fn abi_ui_glyph_height(glyph_ptr: Int) -> Int
+
+@extern
+fn abi_ui_glyph_x_offset(glyph_ptr: Int) -> Int
+
+@extern
+fn abi_ui_glyph_y_offset(glyph_ptr: Int) -> Int
+
+@extern
+fn abi_ui_glyph_advance(glyph_ptr: Int) -> Int
+
+// ── Individual font metric getters ──────────────────────────────────────
+// These avoid the int* mutable-pointer issue in Kain by returning each
+// vertical metric as a separate Int. C-side wrappers call the single
+// kain_ui_font_get_vmetrics() and return individual fields.
+
+@extern
+fn abi_ui_font_ascent(session_id: Int, font_id: Int) -> Int
+
+@extern
+fn abi_ui_font_descent(session_id: Int, font_id: Int) -> Int
+
+@extern
+fn abi_ui_font_line_gap(session_id: Int, font_id: Int) -> Int
+
+// ── Text measurement (mirrors existing @extern in std::ui) ──────────────
+// Redeclared here so font.kn is self-contained. Remove when switching to
+// use std::ui qualified calls.
+
+@extern
+fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
+
+@extern
+fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
+
+// ============================================================================
+// T Y P E S
+// ============================================================================
+
+// A rasterized glyph bitmap with layout information.
+// The bitmap_ptr field is a raw pointer to an alpha mask array
+// (width × height bytes, 1 byte/pixel, 0=transparent, 255=opaque).
+//
+// Layout in framebuffer:
+//   pixel_x = pen_x + x_offset + col   (0 <= col < width)
+//   pixel_y = pen_y + y_offset + row   (0 <= row < height)
+//   advance = distance to move pen_x horizontally after rendering
+pub struct Glyph:
+    bitmap_ptr: Int    // raw pointer to alpha mask data
+    width: Int         // bitmap width in pixels
+    height: Int        // bitmap height in pixels
+    x_offset: Int      // x offset from glyph origin (typically negative)
+    y_offset: Int      // y offset from baseline to top of bitmap (typically negative)
+    advance: Int       // horizontal advance in scaled pixels
+
+// ============================================================================
+// F O N T  L O A D I N G
+// ============================================================================
+
+// Load a TrueType font from raw byte data into the session's resource table.
+//   session_id — UI session identifier
+//   key        — lookup key for this font (e.g. "ui-font")
+//   family     — font family name (e.g. "Segoe UI")
+//   size       — pixel size (e.g. 14.0)
+//   ttf_data   — raw TTF file bytes as a string
+//   ttf_len    — length of ttf_data in bytes
+// Returns font resource ID (> 0) on success, <= 0 on failure.
+pub fn load_ttf(
+    session_id: Int,
+    key: String,
+    family: String,
+    size: Float,
+    ttf_data: String,
+    ttf_len: Int,
+) -> Int:
+    return abi_ui_font_load_ttf(session_id, key, family, size, ttf_data, ttf_len)
+
+// Load a TrueType font from a file path.
+// Reads the file using std::fs, then registers it with the session.
+//
+// ⚠  Uses abi_fs_read_text() which reads the file as a null-terminated
+//    string. This works for most TTF files because stb_truetype only
+//    needs a pointer to the beginning of the data and parses internal
+//    offsets. However, binary data after the first null byte may be
+//    truncated. A future std::fs binary read API will fix this.
+//
+// Returns font resource ID (> 0) on success, <= 0 on failure.
+pub fn load_from_file(
+    session_id: Int,
+    key: String,
+    family: String,
+    size: Float,
+    path: String,
+) -> Int:
+    let ttf_data = abi_fs_read_text(path)
+    let ttf_len = len(ttf_data)
+    if ttf_len == 0:
+        return -1
+    return abi_ui_font_load_ttf(session_id, key, family, size, ttf_data, ttf_len)
+
+// ============================================================================
+// G L Y P H  A C C E S S
+// ============================================================================
+
+// Get a rasterized glyph for a single Unicode codepoint from a loaded font.
+// Returns a Glyph struct (with the C glyph data copied to Kain-managed
+// memory), or none if the codepoint is not found in the font or the font
+// is invalid.
+//
+// The C glyph is released internally after copying — the returned Glyph
+// is safe to use indefinitely.
+pub fn get_glyph(session_id: Int, font_id: Int, codepoint: Int) -> Option<Glyph>:
+    let glyph_ptr = abi_ui_font_get_glyph(session_id, font_id, codepoint)
+    if glyph_ptr <= 0:
+        return None
+    let g = Glyph {
+        bitmap_ptr: abi_ui_glyph_bitmap_ptr(glyph_ptr),
+        width: abi_ui_glyph_width(glyph_ptr),
+        height: abi_ui_glyph_height(glyph_ptr),
+        x_offset: abi_ui_glyph_x_offset(glyph_ptr),
+        y_offset: abi_ui_glyph_y_offset(glyph_ptr),
+        advance: abi_ui_glyph_advance(glyph_ptr),
+    }
+    abi_ui_font_release_glyph(glyph_ptr)
+    return Some(g)
+
+// Release a cached C glyph bitmap.
+// Only needed if you obtain the glyph pointer directly via
+// abi_ui_font_get_glyph() instead of using get_glyph().
+pub fn release_glyph(glyph_ptr: Int):
+    abi_ui_font_release_glyph(glyph_ptr)
+
+// ============================================================================
+// R A W  G L Y P H  A C C E S S O R S
+// ============================================================================
+// These work directly with the C KainUiGlyph* pointer (as an opaque Int).
+// Prefer get_glyph() which returns a proper Kain struct; these are for
+// advanced use cases where you need to avoid copying the bitmap data.
+
+// Get the alpha mask bitmap pointer from a raw C glyph.
+pub fn glyph_bitmap_ptr(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_bitmap_ptr(glyph_ptr)
+
+// Get the bitmap width in pixels from a raw C glyph.
+pub fn glyph_width(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_width(glyph_ptr)
+
+// Get the bitmap height in pixels from a raw C glyph.
+pub fn glyph_height(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_height(glyph_ptr)
+
+// Get the x offset from glyph origin to left edge of bitmap.
+// Typically negative for leftward-protruding glyphs.
+pub fn glyph_x_offset(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_x_offset(glyph_ptr)
+
+// Get the y offset from baseline to top edge of bitmap.
+// Typically negative (glyph extends above baseline).
+pub fn glyph_y_offset(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_y_offset(glyph_ptr)
+
+// Get the horizontal advance in scaled pixels.
+// Add this to the pen_x position after rendering the glyph.
+pub fn glyph_advance(glyph_ptr: Int) -> Int:
+    return abi_ui_glyph_advance(glyph_ptr)
+
+// ============================================================================
+// F O N T  M E T R I C S
+// ============================================================================
+
+// Get font vertical metrics (ascent, descent, line_gap) in pixels.
+// All values are scaled to the font's pixel size.
+//   ascent  — pixels above baseline (positive)
+//   descent — pixels below baseline (negative)
+//   line_gap — recommended line spacing gap in pixels
+pub fn get_vmetrics(session_id: Int, font_id: Int) -> (Int, Int, Int):
+    let ascent = abi_ui_font_ascent(session_id, font_id)
+    let descent = abi_ui_font_descent(session_id, font_id)
+    let line_gap = abi_ui_font_line_gap(session_id, font_id)
+    return (ascent, descent, line_gap)
+
+// Get the font ascent in pixels (distance from baseline to top).
+// Positive value; scaled to the font's pixel size.
+pub fn get_ascent(session_id: Int, font_id: Int) -> Int:
+    return abi_ui_font_ascent(session_id, font_id)
+
+// Get the font descent in pixels (distance from baseline to bottom).
+// Typically negative; scaled to the font's pixel size.
+pub fn get_descent(session_id: Int, font_id: Int) -> Int:
+    return abi_ui_font_descent(session_id, font_id)
+
+// Get the font line gap in pixels.
+// Recommended additional spacing between lines.
+pub fn get_line_gap(session_id: Int, font_id: Int) -> Int:
+    return abi_ui_font_line_gap(session_id, font_id)
+
+// ============================================================================
+// T E X T  M E A S U R E M E N T
+// ============================================================================
+
+// Measure the width of a text string when rendered in the specified font.
+// Returns width in pixels (Float for subpixel precision).
+pub fn measure_width(session_id: Int, font_id: Int, text: String) -> Float:
+    return abi_ui_text_measure_width(session_id, font_id, text)
+
+// Measure the height of a text string when rendered in the specified font.
+// Returns height in pixels (Float for subpixel precision).
+pub fn measure_height(session_id: Int, font_id: Int, text: String) -> Float:
+    return abi_ui_text_measure_height(session_id, font_id, text)
+
+// Measure both width and height of a text string in one call.
+// Returns (width, height) in pixels.
+pub fn measure(session_id: Int, font_id: Int, text: String) -> (Float, Float):
+    let w = abi_ui_text_measure_width(session_id, font_id, text)
+    let h = abi_ui_text_measure_height(session_id, font_id, text)
+    return (w, h)
