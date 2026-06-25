@@ -22,6 +22,7 @@ use kain_driver::{
 };
 use kain_fmt::format_program;
 use kain_fs as kfs;
+use kain_target::Platform;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -3833,6 +3834,7 @@ fn run_kain_compile(
                 runtime_artifacts: NativeRuntimeArtifacts::default(),
                 extra_args: Vec::new(),
                 compile_target: target,
+                target_triple: target_triple.map(String::from),
             };
             match link_native_binary(&link_req) {
                 Ok(exe_path) => {
@@ -4513,7 +4515,7 @@ fn run_c_shared_library(
     let mut command = Command::new(&clang);
     kain_core::install_layout::apply_windows_msvc_link_env(&mut command);
     command.arg("-shared").arg("-O2");
-    if !cfg!(target_os = "windows") {
+    if Platform::host().exe_extension != "exe" {
         command.arg("-fPIC");
     }
     let header_parent = header.parent().unwrap_or_else(|| Path::new("."));
@@ -5820,9 +5822,10 @@ fn path_stem_or_name(path: &Path) -> String {
 }
 
 fn platform_dynamic_library_name(name: &str) -> String {
-    if cfg!(target_os = "windows") {
+    let host = Platform::host();
+    if host.shared_lib_extension == "dll" {
         format!("{name}.dll")
-    } else if cfg!(target_os = "macos") {
+    } else if host.shared_lib_extension == "dylib" {
         format!("lib{name}.dylib")
     } else {
         format!("lib{name}.so")
@@ -5890,7 +5893,7 @@ fn default_executable_name(blade: Option<&ResolvedBlade>, root: &Path) -> String
         .map(sanitize_id)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "kain-app".to_string());
-    if cfg!(target_os = "windows") {
+    if Platform::host().exe_extension == "exe" {
         format!("{stem}.exe")
     } else {
         stem

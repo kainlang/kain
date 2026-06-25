@@ -5,17 +5,17 @@ pub(crate) mod evaluated_build;
 pub mod native_link;
 pub mod workspace;
 pub use workspace::*;
-pub use native_link::{NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts, link_native_binary, platform_link_libs};
+pub use native_link::{NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts, link_native_binary, platform_link_libs, platform_link_libs_for_target};
 
 /// Default C++ link libraries for the current platform.
 pub fn platform_cpp_link_libs() -> Vec<&'static str> {
-    if cfg!(windows) {
-        Vec::new()
-    } else if cfg!(target_os = "macos") {
-        vec!["c++"]
-    } else {
-        vec!["stdc++"]
-    }
+    platform_cpp_link_libs_for_target(None)
+}
+
+/// Default C++ link libraries for a specific target triple.
+pub fn platform_cpp_link_libs_for_target(target_triple: Option<&str>) -> Vec<&'static str> {
+    let platform = native_link::resolve_target_platform(target_triple);
+    platform.cpp_link_libs.to_vec()
 }
 
 pub use kain_host::{

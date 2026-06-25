@@ -25,6 +25,7 @@
 
 use kain_core::install_layout;
 use kain_core::CompileTarget;
+use kain_target::{Platform, TargetTriple};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -48,21 +49,20 @@ impl Default for NativeEmit {
 }
 
 impl NativeEmit {
-    /// File extension for this emit mode on the current platform.
+    /// File extension for this emit mode on the current host platform.
     pub fn extension(&self) -> &'static str {
+        self.extension_for_target(None)
+    }
+
+    /// File extension for this emit mode on a specific target platform.
+    /// When `target_triple` is `None`, uses the host platform.
+    pub fn extension_for_target(&self, target_triple: Option<&str>) -> &'static str {
+        let platform = resolve_target_platform(target_triple);
         match self {
-            Self::Exe => {
-                if cfg!(windows) { "exe" } else { "" }
-            }
-            Self::SharedLib => {
-                if cfg!(windows) { "dll" } else { "so" }
-            }
-            Self::StaticLib => {
-                if cfg!(windows) { "lib" } else { "a" }
-            }
-            Self::Object => {
-                if cfg!(windows) { "obj" } else { "o" }
-            }
+            Self::Exe => platform.exe_extension,
+            Self::SharedLib => platform.shared_lib_extension,
+            Self::StaticLib => platform.static_lib_extension,
+            Self::Object => platform.object_extension,
         }
     }
 }
@@ -102,6 +102,10 @@ pub struct NativeLinkRequest<'a> {
     pub extra_args: Vec<String>,
     /// Kain compile target (affects linker flags for bare metal, etc.).
     pub compile_target: CompileTarget,
+    /// Target triple for cross-compilation (e.g. "x86_64-unknown-linux-gnu").
+    /// When `None` (host build) or equal to the host triple, no `-target` flag
+    /// is passed to clang.
+    pub target_triple: Option<String>,
 }
 
 // ── Precompiled runtime archive ──────────────────────────────────────
@@ -120,11 +124,8 @@ pub fn resolve_precompiled_runtime_archive() -> Option<PathBuf> {
     }
 
     if let Some(layout) = install_layout::default_kain_install_layout() {
-        let lib_name = if cfg!(windows) {
-            "kain_runtime.lib"
-        } else {
-            "libkain_runtime.a"
-        };
+        let host = TargetTriple::host();
+        let lib_name = host.runtime_lib_name();
         let candidate = layout.lib_dir.join(lib_name);
         if candidate.exists() {
             return Some(candidate);
@@ -180,7 +181,7 @@ pub fn resolve_precompiled_freestanding_runtime_archive() -> Option<PathBuf> {
     }
 
     if let Some(layout) = install_layout::default_kain_install_layout() {
-        let lib_name = if cfg!(windows) {
+        let lib_name = if TargetTriple::host().is_windows() {
             "kain_runtime_core.lib"
         } else {
             "libkain_runtime_core.a"
@@ -221,20 +222,35 @@ pub fn link_native_binary(req: &NativeLinkRequest<'_>) -> Result<PathBuf, String
 
 // ── Emit-specific linkers ────────────────────────────────────────────
 
-fn base_clang_command(clang: &str, _req: &NativeLinkRequest<'_>) -> Command {
+fn base_clang_command(clang: &str, req: &NativeLinkRequest<'_>) -> Command {
     let mut cmd = Command::new(clang);
     cmd.arg("-O2");
     cmd.arg("-Wno-override-module");
-    install_layout::apply_windows_msvc_link_env(&mut cmd);
+    // Only set MSVC link environment when targeting Windows
+    let platform = resolve_target_platform(req.target_triple.as_deref());
+    if platform.subsystem_flag.is_some() {
+        install_layout::apply_windows_msvc_link_env(&mut cmd);
+    }
     cmd
 }
 
 fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
+    let platform = resolve_target_platform(req.target_triple.as_deref());
 
     // Append caller-supplied extra args (toolchain tuning, etc.)
     for arg in &req.extra_args {
         cmd.arg(arg);
+    }
+
+    // Cross-compilation: pass -target to clang when target differs from host
+    if req.compile_target != CompileTarget::BareMetal {
+        if let Some(ref triple) = req.target_triple {
+            let host = TargetTriple::host();
+            if triple != &host.to_string() {
+                cmd.arg("-target").arg(triple);
+            }
+        }
     }
 
     // Bare metal target-specific flags
@@ -274,21 +290,16 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String>
         }
     }
 
-    if req.compile_target != CompileTarget::BareMetal {
-        #[cfg(windows)]
-        cmd.arg("-Wl,/subsystem:console");
+    // Subsystem flag (Windows only)
+    if let Some(flag) = platform.subsystem_flag {
+        cmd.arg(format!("-Wl,{}", flag));
     }
 
     cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
 
     // Add linker dead-stripping flags
-    #[cfg(target_os = "linux")]
-    cmd.arg("-Wl,--gc-sections");
-    #[cfg(target_os = "macos")]
-    cmd.arg("-Wl,-dead_strip");
-    #[cfg(windows)]
-    cmd.arg("-Wl,/OPT:REF");
+    cmd.arg(format!("-Wl,{}", platform.dead_strip_flag));
 
     // Emit library search paths before the link libraries
     for search_path in &req.runtime_artifacts.library_search_paths {
@@ -297,7 +308,7 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String>
 
     // Default runtime link libraries for the platform
     if req.compile_target != CompileTarget::BareMetal {
-        for lib in platform_link_libs() {
+        for lib in platform_link_libs_for_target(req.target_triple.as_deref()) {
             cmd.arg(format!("-l{}", lib));
         }
     }
@@ -312,11 +323,22 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String>
 
 fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
+    let platform = resolve_target_platform(req.target_triple.as_deref());
     cmd.arg("-shared");
 
     // Append caller-supplied extra args (toolchain tuning, etc.)
     for arg in &req.extra_args {
         cmd.arg(arg);
+    }
+
+    // Cross-compilation: pass -target to clang when target differs from host
+    if req.compile_target != CompileTarget::BareMetal {
+        if let Some(ref triple) = req.target_triple {
+            let host = TargetTriple::host();
+            if triple != &host.to_string() {
+                cmd.arg("-target").arg(triple);
+            }
+        }
     }
 
     // Bare metal target-specific flags
@@ -359,12 +381,7 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
     cmd.arg("-o").arg(req.output_path);
 
     // Add linker dead-stripping flags
-    #[cfg(target_os = "linux")]
-    cmd.arg("-Wl,--gc-sections");
-    #[cfg(target_os = "macos")]
-    cmd.arg("-Wl,-dead_strip");
-    #[cfg(windows)]
-    cmd.arg("-Wl,/OPT:REF");
+    cmd.arg(format!("-Wl,{}", platform.dead_strip_flag));
 
     // Emit library search paths before the link libraries
     for search_path in &req.runtime_artifacts.library_search_paths {
@@ -373,7 +390,7 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
 
     // Default runtime link libraries for the platform
     if req.compile_target != CompileTarget::BareMetal {
-        for lib in platform_link_libs() {
+        for lib in platform_link_libs_for_target(req.target_triple.as_deref()) {
             cmd.arg(format!("-l{}", lib));
         }
     }
@@ -445,20 +462,26 @@ fn run_clang(mut cmd: Command, output: &Path) -> Result<PathBuf, String> {
 /// Default link libraries for the current platform.
 /// These are needed by the precompiled runtime archive.
 pub fn platform_link_libs() -> Vec<&'static str> {
-    if cfg!(windows) {
-        vec![
-            "legacy_stdio_definitions",
-            "user32",
-            "gdi32",
-            "shell32",
-            "ws2_32",
-            "winhttp",
-            "advapi32",
-        ]
-    } else if cfg!(target_os = "macos") {
-        Vec::new()
-    } else {
-        vec!["pthread", "dl", "rt", "m"]
+    platform_link_libs_for_target(None)
+}
+
+/// Default link libraries for a specific target triple.
+/// When `target_triple` is `None`, uses the host platform.
+pub fn platform_link_libs_for_target(target_triple: Option<&str>) -> Vec<&'static str> {
+    let platform = resolve_target_platform(target_triple);
+    platform.link_libs.to_vec()
+}
+
+/// Resolve a `Platform` from an optional target triple string.
+/// When `None` or parse fails, returns the host platform.
+pub(crate) fn resolve_target_platform(target_triple: Option<&str>) -> Platform {
+    match target_triple {
+        Some(t) => {
+            TargetTriple::parse(t)
+                .map(|tt| Platform::for_triple(&tt))
+                .unwrap_or_else(|_| Platform::host())
+        }
+        None => Platform::host(),
     }
 }
 
@@ -483,17 +506,17 @@ mod tests {
 
     #[test]
     fn emit_extensions_are_platform_appropriate() {
-        if cfg!(windows) {
-            assert_eq!(NativeEmit::Exe.extension(), "exe");
-            assert_eq!(NativeEmit::SharedLib.extension(), "dll");
-            assert_eq!(NativeEmit::StaticLib.extension(), "lib");
-            assert_eq!(NativeEmit::Object.extension(), "obj");
-        } else {
-            assert_eq!(NativeEmit::Exe.extension(), "");
-            assert_eq!(NativeEmit::SharedLib.extension(), "so");
-            assert_eq!(NativeEmit::StaticLib.extension(), "a");
-            assert_eq!(NativeEmit::Object.extension(), "o");
-        }
+        let host = Platform::host();
+        assert_eq!(NativeEmit::Exe.extension(), host.exe_extension);
+        assert_eq!(NativeEmit::SharedLib.extension(), host.shared_lib_extension);
+        assert_eq!(NativeEmit::StaticLib.extension(), host.static_lib_extension);
+        assert_eq!(NativeEmit::Object.extension(), host.object_extension);
+
+        // Verify target-specific extension_for_target works
+        let linux_triple = "x86_64-unknown-linux-gnu";
+        assert_eq!(NativeEmit::Exe.extension_for_target(Some(linux_triple)), "");
+        let win_triple = "x86_64-pc-windows-msvc";
+        assert_eq!(NativeEmit::Exe.extension_for_target(Some(win_triple)), "exe");
     }
 
     #[test]
