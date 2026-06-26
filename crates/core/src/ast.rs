@@ -570,9 +570,21 @@ pub struct Component {
     pub state: Vec<StateDecl>,
     pub methods: Vec<Function>,
     pub effects: Vec<Effect>,
+    pub pulses: Vec<PulseDef>,
+    pub resonates: Vec<ResonateDef>,
+    pub dimensions: Option<ComponentDimensions>,
     pub body: JSXNode,
     pub visibility: Visibility,
     pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+/// Optional explicit width/height overrides on a component declaration.
+/// When `None`, the renderer uses platform defaults (e.g. 1024x768).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ComponentDimensions {
+    pub width: Option<Expr>,
+    pub height: Option<Expr>,
     pub span: Span,
 }
 
@@ -636,7 +648,17 @@ pub enum JSXAttrValue {
     String(String),
     Expr(Expr),
     Bool(bool),
+    /// Event handler callback, e.g. on_click={handler_fn}.
+    /// Contains the event kind string (e.g. "click", "change") and the function expression.
+    Callback(String, Box<Expr>),
 }
+
+/// JSX attribute names that are treated as event callbacks rather than style props.
+pub const EVENT_CALLBACK_ATTRS: &[&str] = &[
+    "on_click", "on_change", "on_toggle", "on_focus", "on_blur",
+    "on_mouseenter", "on_mouseleave", "on_submit", "on_cancel",
+    "on_hover", "on_press", "on_release", "on_drag",
+];
 
 // === SHADERS (GPU Programs) ===
 
