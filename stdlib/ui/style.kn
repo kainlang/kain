@@ -1,149 +1,67 @@
-// style.kn — std::ui::style — Color constants, sizes, theme palette
+// style.kn — std::ui::style — DEPRECATED — replaced by std::ui::theme
 //
-// Layer: L0 (plain constants and pure helper functions)
-//
-// Color palette and default widget sizes matching the C widget library's
-// theme in ui_widget.c. All color constants use 0xAARRGGBB format.
-//
-// Usage:
-//   use std::ui::style
-//
-//   let bg_color = style::COLOR_BG
-//   let accent   = style::COLOR_ACCENT
-//   let button_w = style::BUTTON_WIDTH
-//   let rgba     = style::ui_color_rgba(33, 212, 161, 255)
-//
-// ── Color Format ─────────────────────────────────────────────────────────
-// The renderer uses 0xAABBGGRR format (NOT 0xAARRGGBB):
-//   Byte 0 (LSB) = Red
-//   Byte 1       = Green
-//   Byte 2       = Blue
-//   Byte 3 (MSB) = Alpha
-//
-// So 0xFF21D4A1 in code = R=0xA1, G=0xD4, B=0x21, A=0xFF.
-//
-// For ui_style_color_rgba(session, node, key, r, g, b, a) — r,g,b,a
-// are floats 0.0-1.0, stored as separate style keys on the node.
+// Color constants and helpers matching the C widget library's theme.
+// This legacy module retains old constants for backward compatibility.
+// Will be removed in Phase 5. New code: use std::ui::theme
+
+use std::ui::theme
 
 // ============================================================================
-// C O R E  C O L O R S  (0xAARRGGBB)
+// C O R E  C O L O R S  (0xAARRGGBB) — backward-compatible
 // ============================================================================
 
-// Background — deepest layer
 pub const COLOR_BG:          Int = 0xFF1A1A24
-
-// Surface panels (one level above background)
 pub const COLOR_SURFACE:     Int = 0xFF252540
 pub const COLOR_SURFACE2:    Int = 0xFF2E2E48
-
-// Header / title bars
 pub const COLOR_HEADER:      Int = 0xFF1E1E32
 pub const COLOR_TITLE_BG:    Int = 0xFF23233C
-
-// Accent colors
-pub const COLOR_ACCENT:      Int = 0xFF21D4A1   // green/teal — primary accent
-pub const COLOR_ACCENT2:     Int = 0xFF4A90D9   // blue — secondary accent
-pub const COLOR_ACCENT3:     Int = 0xFFE8914A   // orange — tertiary accent
-pub const COLOR_ACCENT4:     Int = 0xFFE84A5F   // red — destructive/warning
-
-// Text
-pub const COLOR_TEXT:        Int = 0xFFE8E8F0   // primary text (light)
-pub const COLOR_TEXT_DIM:    Int = 0xFF8888A0   // dim/muted text
-
-// Borders and dividers
+pub const COLOR_ACCENT:      Int = 0xFF21D4A1
+pub const COLOR_ACCENT2:     Int = 0xFF4A90D9
+pub const COLOR_ACCENT3:     Int = 0xFFE8914A
+pub const COLOR_ACCENT4:     Int = 0xFFE84A5F
+pub const COLOR_TEXT:        Int = 0xFFE8E8F0
+pub const COLOR_TEXT_DIM:    Int = 0xFF8888A0
 pub const COLOR_BORDER:      Int = 0xFF3A3A5C
 pub const COLOR_HIGHLIGHT:   Int = 0xFF2A2A4E
-
-// Buttons
-pub const COLOR_BUTTON:      Int = 0xFF303050   // normal
-pub const COLOR_BUTTON_HL:   Int = 0xFF404068   // hovered
-pub const COLOR_BUTTON_PR:   Int = 0xFF505080   // pressed
-
-// Input fields
+pub const COLOR_BUTTON:      Int = 0xFF303050
+pub const COLOR_BUTTON_HL:   Int = 0xFF404068
+pub const COLOR_BUTTON_PR:   Int = 0xFF505080
 pub const COLOR_INPUT_BG:    Int = 0xFF0A0A14
+pub const COLOR_SLIDER:      Int = 0xFF3A3A5C
+pub const COLOR_SLIDER_F:    Int = 0xFF2A2A44
 
-// Slider track
-pub const COLOR_SLIDER:      Int = 0xFF3A3A5C   // track background
-pub const COLOR_SLIDER_F:    Int = 0xFF2A2A44   // filled portion
-
-// ============================================================================
-// D E F A U L T  W I D G E T  S I Z E S  (logical pixels)
-// ============================================================================
-
-// Button
 pub const BUTTON_WIDTH:      Int = 100
 pub const BUTTON_HEIGHT:     Int = 30
-
-// Checkbox
 pub const CHECKBOX_SIZE:     Int = 18
-
-// Slider
 pub const SLIDER_WIDTH:      Int = 200
 pub const SLIDER_HEIGHT:     Int = 20
-
-// Text input
 pub const TEXTBOX_WIDTH:     Int = 160
 pub const TEXTBOX_HEIGHT:    Int = 26
-
-// Label
 pub const LABEL_HEIGHT:      Int = 20
-
-// Panel title bar
 pub const PANEL_TITLE_H:     Int = 28
-
-// Progress bar
 pub const PROGRESS_WIDTH:    Int = 150
 pub const PROGRESS_HEIGHT:   Int = 18
-
-// Window
 pub const WINDOW_TITLE_H:    Int = 32
-
-// Layout spacing
 pub const PADDING:           Int = 8
-pub const SPACING:           Int = 4
 
-// ============================================================================
-// C O L O R  H E L P E R S
-// ============================================================================
-
-// Assemble a 0xAARRGGBB color from individual 0-255 component values.
-//   r — red component (0-255)
-//   g — green component (0-255)
-//   b — blue component (0-255)
-//   a — alpha component (0-255, 255 = fully opaque)
-// Returns the packed color integer.
 pub fn ui_color_rgba(r: Int, g: Int, b: Int, a: Int) -> Int:
     return (a << 24) | (r << 16) | (g << 8) | b
 
-// Assemble a fully opaque 0xFFRRGGBB color from individual 0-255 components.
-//   r — red component (0-255)
-//   g — green component (0-255)
-//   b — blue component (0-255)
-// Returns the packed color integer with alpha = 255.
 pub fn ui_color_rgb(r: Int, g: Int, b: Int) -> Int:
     return 0xFF000000 | (r << 16) | (g << 8) | b
 
-// Extract the red component from a packed 0xAARRGGBB color.
 pub fn color_red(c: Int) -> Int:
     return (c >> 16) & 0xFF
 
-// Extract the green component from a packed 0xAARRGGBB color.
 pub fn color_green(c: Int) -> Int:
     return (c >> 8) & 0xFF
 
-// Extract the blue component from a packed 0xAARRGGBB color.
 pub fn color_blue(c: Int) -> Int:
     return c & 0xFF
 
-// Extract the alpha component from a packed 0xAARRGGBB color.
 pub fn color_alpha(c: Int) -> Int:
     return (c >> 24) & 0xFF
 
-// Linearly interpolate between two packed colors.
-//   a — first color (0xAARRGGBB)
-//   b — second color (0xAARRGGBB)
-//   t — interpolation factor (0.0 = a, 1.0 = b)
-// Returns the interpolated color (alpha-premultiplied).
 pub fn ui_color_lerp(a: Int, b: Int, t: Float) -> Int:
     let ar = color_red(a)
     let ag = color_green(a)
@@ -153,17 +71,12 @@ pub fn ui_color_lerp(a: Int, b: Int, t: Float) -> Int:
     let bg = color_green(b)
     let bb = color_blue(b)
     let ba = color_alpha(b)
-    // Float arithmetic for smooth interpolation, clamped to 0-255
     let r = to_int((to_float(ar) + (to_float(br - ar) * t)) + 0.5)
     let g = to_int((to_float(ag) + (to_float(bg - ag) * t)) + 0.5)
     let b = to_int((to_float(ab) + (to_float(bb - ab) * t)) + 0.5)
     let a_val = to_int((to_float(aa) + (to_float(ba - aa) * t)) + 0.5)
     return ui_color_rgba(r, g, b, a_val)
 
-// Convert a packed color to RGBA float components for use with
-// ui_style_color_rgba().
-//   c — packed 0xAARRGGBB color
-// Returns (r, g, b, a) as floats in 0.0-1.0 range.
 pub fn ui_color_to_floats(c: Int) -> (Float, Float, Float, Float):
     let r = to_float(color_red(c)) / 255.0
     let g = to_float(color_green(c)) / 255.0
