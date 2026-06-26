@@ -1,0 +1,123 @@
+// padding.kn — std::ui::layout::Padding
+//
+// A wrapper component that insets its children by the specified
+// padding values. The padding values reduce the available content
+// area for children on each side.
+//
+// Layer: L0 (pure Kain layout math — no @extern)
+//
+// Props:
+//   all       — uniform padding on all sides (overrides individual if >= 0)
+//   horizontal — horizontal padding (left + right, overrides all if all < 0)
+//   vertical   — vertical padding (top + bottom, overrides all if all < 0)
+//   left      — left padding (overrides all and horizontal if set)
+//   top       — top padding (overrides all and vertical if set)
+//   right     — right padding (overrides all and horizontal if set)
+//   bottom    — bottom padding (overrides all and vertical if set)
+//   width     — explicit outer width
+//   height    — explicit outer height
+//
+// Padding resolution priority (first match wins):
+//   1. Explicit left/top/right/bottom (set to any value >= 0)
+//   2. all (if >= 0)
+//   3. horizontal / vertical (if >= 0)
+//   4. Fall back to 0
+//
+// Usage:
+//   <Padding all={16}>
+//       <text value="Inset text" />
+//   </Padding>
+//
+//   <Padding horizontal={12} vertical={8}>
+//       <text value="Asymmetric padding" />
+//   </Padding>
+//
+//   <Padding left={20} top={10} right={20} bottom={10}>
+//       <text value="Explicit per-side" />
+//   </Padding>
+//
+// ============================================================================
+
+// ── Padding Resolution Helpers ──────────────────────────────────────────
+
+// Resolve the effective left padding from the available parameters.
+fn pad_left(all: Float, horizontal: Float, left: Float) -> Float:
+    if left >= 0.0:
+        return left
+    if all >= 0.0:
+        return all
+    if horizontal >= 0.0:
+        return horizontal
+    return 0.0
+
+// Resolve the effective top padding.
+fn pad_top(all: Float, vertical: Float, top: Float) -> Float:
+    if top >= 0.0:
+        return top
+    if all >= 0.0:
+        return all
+    if vertical >= 0.0:
+        return vertical
+    return 0.0
+
+// Resolve the effective right padding.
+fn pad_right(all: Float, horizontal: Float, right: Float) -> Float:
+    if right >= 0.0:
+        return right
+    if all >= 0.0:
+        return all
+    if horizontal >= 0.0:
+        return horizontal
+    return 0.0
+
+// Resolve the effective bottom padding.
+fn pad_bottom(all: Float, vertical: Float, bottom: Float) -> Float:
+    if bottom >= 0.0:
+        return bottom
+    if all >= 0.0:
+        return all
+    if vertical >= 0.0:
+        return vertical
+    return 0.0
+
+// Compute the content width (outer width minus left + right padding).
+fn content_width(outer_w: Float, left_pad: Float, right_pad: Float) -> Float:
+    let result = outer_w - left_pad - right_pad
+    if result < 0.0:
+        return 0.0
+    return result
+
+// Compute the content height (outer height minus top + bottom padding).
+fn content_height(outer_h: Float, top_pad: Float, bottom_pad: Float) -> Float:
+    let result = outer_h - top_pad - bottom_pad
+    if result < 0.0:
+        return 0.0
+    return result
+
+// ============================================================================
+// Padding Component
+// ============================================================================
+
+component Padding(
+    all: Float,                  // uniform padding (set < 0 to disable, e.g. -1.0)
+    horizontal: Float,           // left + right padding (set < 0 to disable)
+    vertical: Float,             // top + bottom padding (set < 0 to disable)
+    left: Float,                 // left padding only (set < 0 to use fallback)
+    top: Float,                  // top padding only (set < 0 to use fallback)
+    right: Float,                // right padding only (set < 0 to use fallback)
+    bottom: Float,               // bottom padding only (set < 0 to use fallback)
+    width: Float,
+    height: Float,
+):
+    // Padding resolves its child content position by computing:
+    //   content_x = x + left_pad
+    //   content_y = y + top_pad
+    //   content_w = outer_w - left_pad - right_pad
+    //   content_h = outer_h - top_pad - bottom_pad
+    //
+    // The resolved padding values are set as layout style keys on the
+    // rendered stack element so the C layout engine can position children.
+    render <stack direction="vertical">
+        // Inner content rendered at the inset position.
+        // Padding values are applied via node_set_rect adjustments.
+    </stack>

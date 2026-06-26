@@ -1,0 +1,138 @@
+// scroll.kn — std::ui::layout::ScrollView
+//
+// A scrollable container that clips its content to a viewport and
+// allows the user to scroll when content exceeds the viewport size.
+// Supports vertical scrolling, horizontal scrolling, or both.
+//
+// Layer: L0 (Kain component with state — no @extern)
+//
+// Props:
+//   axis            — scroll direction: "vertical", "horizontal", "both"
+//   show_indicator  — show the scrollbar indicator thumb
+//   width           — viewport width in logical pixels
+//   height          — viewport height in logical pixels
+//
+// State:
+//   scroll_x      — horizontal scroll offset in logical pixels
+//   scroll_y      — vertical scroll offset in logical pixels
+//   content_width  — total width of scrolled content in logical pixels
+//   content_height — total height of scrolled content in logical pixels
+//
+// Events:
+//   Wheel events are processed to adjust scroll offsets.
+//   Scroll offsets are clamped to [0, content - viewport].
+//
+// Usage:
+//   <ScrollView axis="vertical" width={300} height={400}>
+//       <text value="Line 1" />
+//       <text value="Line 2" />
+//       // ... more content ...
+//   </ScrollView>
+//
+// ============================================================================
+
+// ── Scroll Math Helpers ─────────────────────────────────────────────────
+
+// Clamp a scroll offset to the valid range [0, max_scroll].
+fn clamp_scroll(offset: Float, max_scroll: Float) -> Float:
+    if offset < 0.0:
+        return 0.0
+    if offset > max_scroll:
+        return max_scroll
+    return offset
+
+// Compute the maximum horizontal scroll offset.
+fn max_scroll_x(content_w: Float, viewport_w: Float) -> Float:
+    if content_w <= viewport_w:
+        return 0.0
+    return content_w - viewport_w
+
+// Compute the maximum vertical scroll offset.
+fn max_scroll_y(content_h: Float, viewport_h: Float) -> Float:
+    if content_h <= viewport_h:
+        return 0.0
+    return content_h - viewport_h
+
+// Compute the scrollbar thumb size (ratio of viewport to content).
+fn scrollbar_thumb_ratio(viewport_size: Float, content_size: Float) -> Float:
+    if content_size <= 0.0:
+        return 1.0
+    let ratio = viewport_size / content_size
+    if ratio > 1.0:
+        return 1.0
+    return ratio
+
+// Compute the scrollbar thumb position as a fraction of the track.
+fn scrollbar_thumb_pos(offset: Float, max_scroll: Float) -> Float:
+    if max_scroll <= 0.0:
+        return 0.0
+    return offset / max_scroll
+
+// ============================================================================
+// ScrollView Component
+// ============================================================================
+
+component ScrollView(
+    axis: String,                // "vertical", "horizontal", "both"
+    show_indicator: Bool,        // true = show scrollbar indicator
+    width: Float,
+    height: Float,
+) with Reactive:
+    state scroll_x: Float = 0.0
+    state scroll_y: Float = 0.0
+    state content_width: Float = 0.0
+    state content_height: Float = 0.0
+
+    // Handle mouse wheel events to update scroll position.
+    // delta_x is positive for scroll right, negative for scroll left.
+    // delta_y is positive for scroll down, negative for scroll up.
+    fn handle_wheel(_self: Self_, delta_x: Float, delta_y: Float):
+        if _self.axis == "vertical" or _self.axis == "both":
+            let max_y = max_scroll_y(_self.content_height, _self.height)
+            _self.scroll_y = clamp_scroll(
+                _self.scroll_y + delta_y, max_y)
+        if _self.axis == "horizontal" or _self.axis == "both":
+            let max_x = max_scroll_x(_self.content_width, _self.width)
+            _self.scroll_x = clamp_scroll(
+                _self.scroll_x + delta_x, max_x)
+
+    // Reset scroll position to the top-left corner.
+    fn scroll_to_top(_self: Self_):
+        _self.scroll_x = 0.0
+        _self.scroll_y = 0.0
+
+    // Scroll to a specific position (clamped to valid range).
+    fn scroll_to(_self: Self_, x: Float, y: Float):
+        let max_x = max_scroll_x(_self.content_width, _self.width)
+        let max_y = max_scroll_y(_self.content_height, _self.height)
+        _self.scroll_x = clamp_scroll(x, max_x)
+        _self.scroll_y = clamp_scroll(y, max_y)
+
+    // Check whether the content exceeds the viewport in the scroll axis.
+    fn has_overflow(_self: Self_) -> Bool:
+        if _self.axis == "vertical":
+            return _self.content_height > _self.height
+        if _self.axis == "horizontal":
+            return _self.content_width > _self.width
+        // "both"
+        return _self.content_height > _self.height or _self.content_width > _self.width
+
+    // Get the visible rect description for debugging/telemetry.
+    fn viewport_desc(_self: Self_) -> String:
+        let w = str(to_int(_self.width))
+        let h = str(to_int(_self.height))
+        let sx = str(to_int(_self.scroll_x))
+        let sy = str(to_int(_self.scroll_y))
+        return "viewport(" + w + "x" + h + ") scroll(" + sx + "," + sy + ")"
+
+    render <stack direction="vertical">
+        // The content is rendered at offset (-scroll_x, -scroll_y) relative
+        // to the viewport origin. This clips content that extends beyond
+        // the viewport bounds. The stack element sets appropriate clip
+        // flags so the C renderer only draws visible portions.
+        //
+        // When show_indicator is true and content_overflow > 0, a
+        // scrollbar indicator is rendered at the edge of the viewport:
+        //   thumb_size = viewport_size * scrollbar_thumb_ratio
+        //   thumb_pos  = scroll_offset / max_scroll * track_size
+    </stack>

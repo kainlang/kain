@@ -1,0 +1,37 @@
+// spacer.kn — std::ui::layout::Spacer
+//
+// A flexible space component that expands to fill available space
+// along a parent stack's primary axis. When given a fixed min_size,
+// it acts as a minimum-size gap. When min_size is 0 (default), it
+// absorbs all remaining space in the parent container.
+//
+// Layer: L0 (pure Kain component — no @extern)
+//
+// Props:
+//   min_size   — minimum size in logical pixels (0 = fully flexible)
+//   axis       — "horizontal" or "vertical" (hint for the parent layout)
+//
+// Usage:
+//   <VStack spacing={8}>
+//       <text value="Top" />
+//       <Spacer min_size={0} />     // pushes "Bottom" to the end
+//       <text value="Bottom" />
+//   </VStack>
+//
+// ============================================================================
+
+component Spacer(
+    min_size: Float,             // minimum size (0 = fully flexible)
+    axis: String,                // "horizontal" (expands width) or
+                                 // "vertical" (expands height)
+):
+    render <box>
+        // Spacer renders as an invisible box that fills available space
+        // along the parent stack's axis. The layout engine distributes
+        // remaining space to flexible children based on their min_size.
+        //
+        // When min_size > 0, the spacer acts as a fixed gap of that size.
+        // When min_size = 0, it absorbs all remaining space in the parent,
+        // effectively pushing sibling children to opposite ends.
+        <text value="" />
+    </box>

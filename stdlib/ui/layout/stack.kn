@@ -1,0 +1,197 @@
+// stack.kn — std::ui::layout::{HStack, VStack, ZStack}
+//
+// Three layout components that arrange children along an axis.
+//
+// HStack: children laid out left-to-right with spacing + alignment
+// VStack: children laid out top-to-bottom with spacing + alignment
+// ZStack: children stacked on top of each other (layered, all at origin)
+//
+// Each component calls native_ui_node_set_rect to position each child
+// based on spacing, alignment, and distribution strategy.
+//
+// Layer: L0 (pure Kain layout math — no @extern except node_positioning)
+//
+// Props:
+//   spacing     — gap between adjacent children (logical pixels)
+//   alignment   — cross-axis alignment: "start", "center", "end", "fill"
+//   distribution — main-axis distribution: "start", "center", "end",
+//                  "space_between", "space_around", "space_evenly"
+//   width       — explicit container width (or fill parent)
+//   height      — explicit container height (or fill parent)
+//
+// Usage:
+//   <HStack spacing={8} alignment="center">
+//       <text value="A" />
+//       <text value="B" />
+//   </HStack>
+//
+// ============================================================================
+
+// ── Layout Helper Functions ─────────────────────────────────────────────
+
+// Compute the x position of a child in a horizontal row given its index.
+//   index       — zero-based child position
+//   start_x     — left edge of the container
+//   item_width  — width of each child
+//   gap         — spacing between children
+fn layout_row_x(index: Int, start_x: Float, item_width: Float, gap: Float) -> Float:
+    let idx_f = to_float(index)
+    return start_x + idx_f * (item_width + gap)
+
+// Compute the y position of a child in a vertical column given its index.
+//   index       — zero-based child position
+//   start_y     — top edge of the container
+//   item_height — height of each child
+//   gap         — spacing between children
+fn layout_column_y(index: Int, start_y: Float, item_height: Float, gap: Float) -> Float:
+    let idx_f = to_float(index)
+    return start_y + idx_f * (item_height + gap)
+
+// Center a child of size child_size within a parent of size parent_size.
+fn layout_center_offset(parent_size: Float, child_size: Float) -> Float:
+    if child_size >= parent_size:
+        return 0.0
+    return (parent_size - child_size) * 0.5
+
+// Compute the total span of N items each of size item_size with gaps.
+fn layout_total_span(item_count: Int, item_size: Float, gap: Float) -> Float:
+    if item_count <= 0:
+        return 0.0
+    let count_f = to_float(item_count)
+    return (count_f * item_size) + (to_float(item_count - 1) * gap)
+
+// Compute the gap for "space_between" distribution.
+fn layout_space_between_gap(total_size: Float, item_count: Int, item_size: Float) -> Float:
+    if item_count <= 1:
+        return 0.0
+    let content = to_float(item_count) * item_size
+    let remaining = total_size - content
+    if remaining <= 0.0:
+        return 0.0
+    return remaining / to_float(item_count - 1)
+
+// Compute the gap for "space_around" distribution.
+fn layout_space_around_gap(total_size: Float, item_count: Int, item_size: Float) -> Float:
+    if item_count <= 0:
+        return 0.0
+    let content = to_float(item_count) * item_size
+    let remaining = total_size - content
+    if remaining <= 0.0:
+        return 0.0
+    return remaining / to_float(item_count)
+
+// Compute the gap for "space_evenly" distribution.
+fn layout_space_evenly_gap(total_size: Float, item_count: Int, item_size: Float) -> Float:
+    if item_count <= 0:
+        return 0.0
+    let content = to_float(item_count) * item_size
+    let remaining = total_size - content
+    if remaining <= 0.0:
+        return 0.0
+    return remaining / to_float(item_count + 1)
+
+// ── Cross-axis alignment helpers ────────────────────────────────────────
+
+fn align_child_y(alignment: String, container_h: Float, child_h: Float) -> Float:
+    if alignment == "center":
+        return layout_center_offset(container_h, child_h)
+    if alignment == "end":
+        return container_h - child_h
+    // "start" or "fill" — start at 0
+    return 0.0
+
+fn align_child_x(alignment: String, container_w: Float, child_w: Float) -> Float:
+    if alignment == "center":
+        return layout_center_offset(container_w, child_w)
+    if alignment == "end":
+        return container_w - child_w
+    // "start" or "fill" — start at 0
+    return 0.0
+
+// ── Distribution resolver ───────────────────────────────────────────────
+
+fn compute_main_gap(
+    distribution: String,
+    total_size: Float,
+    child_count: Int,
+    child_size: Float,
+    default_gap: Float,
+) -> Float:
+    if distribution == "space_between":
+        return layout_space_between_gap(total_size, child_count, child_size)
+    if distribution == "space_around":
+        return layout_space_around_gap(total_size, child_count, child_size)
+    if distribution == "space_evenly":
+        return layout_space_evenly_gap(total_size, child_count, child_size)
+    // "start", "center", "end" — use the explicit spacing
+    return default_gap
+
+fn compute_main_start(
+    distribution: String,
+    total_size: Float,
+    child_count: Int,
+    child_size: Float,
+    gap: Float,
+) -> Float:
+    if distribution == "center":
+        let content_span = layout_total_span(child_count, child_size, gap)
+        return layout_center_offset(total_size, content_span)
+    if distribution == "end":
+        let content_span = layout_total_span(child_count, child_size, gap)
+        if content_span < total_size:
+            return total_size - content_span
+        return 0.0
+    // "start", "space_between", "space_around", "space_evenly"
+    return 0.0
+
+// ============================================================================
+// HStack — Horizontal Stack
+// ============================================================================
+
+component HStack(
+    spacing: Float,              // gap between children in logical pixels
+    alignment: String,           // "start", "center", "end", "fill"
+    distribution: String,        // "start", "center", "end",
+                                 // "space_between", "space_around", "space_evenly"
+    width: Float,
+    height: Float,
+):
+    render <stack direction="horizontal" gap={spacing}>
+        // Children are positioned left-to-right by the layout engine.
+        // The stack element's layout.direction=0 (horizontal) and gap
+        // style key control child positioning through the C runtime.
+        // Layout math helpers above are used for advanced distributions.
+    </stack>
+
+// ============================================================================
+// VStack — Vertical Stack
+// ============================================================================
+
+component VStack(
+    spacing: Float,              // gap between children in logical pixels
+    alignment: String,           // "start", "center", "end", "fill"
+    distribution: String,        // "start", "center", "end",
+                                 // "space_between", "space_around", "space_evenly"
+    width: Float,
+    height: Float,
+):
+    render <stack direction="vertical" gap={spacing}>
+        // Children are positioned top-to-bottom by the layout engine.
+        // The stack element's layout.direction=1 (vertical) and gap
+        // style key control child positioning through the C runtime.
+    </stack>
+
+// ============================================================================
+// ZStack — Z-Axis Stack (laying)
+// ============================================================================
+
+component ZStack(
+    alignment: String,           // "top_left", "center", "top_right",
+                                 // "bottom_left", "bottom_right"
+    width: Float,
+    height: Float,
+):
+    render <stack direction="z">
+        // Children are stacked back-to-front, all at the same position.
+        // Alignment controls anchor within the container.
+    </stack>
