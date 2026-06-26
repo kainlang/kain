@@ -100,6 +100,11 @@ NATIVE_CORE_RUNTIME = {
         'native/src/ui/ui_runtime.c',
         'native/src/ui/ui_hot_reload.c',
         'native/src/ui/widgets/ui_widget.c',
+        'native/src/ui/kain/kain_render_software.c',
+        'native/src/ui/kain/kain_compositor.c',
+        'native/src/ui/kain/kain_input.c',
+        'native/src/ui/kain/kain_font.c',
+        'native/src/ui/kain/kain_host_win32.c',
     ],
     "common_cpp_srcs": [
     ],

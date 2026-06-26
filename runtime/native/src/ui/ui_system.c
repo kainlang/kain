@@ -1839,6 +1839,17 @@ int64_t abi_ui_poll_event(int64_t session_id) {
     memset(&session->events[session->event_head], 0, sizeof(session->events[session->event_head]));
     session->event_head = (session->event_head + 1) & (ABI_UI_MAX_EVENTS - 1);
     session->event_count -= 1;
+
+    // ── Fire callbacks on the event's target node ──────────────
+    // When an event targets a specific node, check for registered
+    // callbacks matching the event kind and invoke them.
+    if (session->active_event.target_node_id > 0) {
+        abi_ui_node_invoke_callback(session_id,
+            session->active_event.target_node_id,
+            session->active_event.kind,
+            NULL);
+    }
+
     return 1;
 }
 
@@ -2957,4 +2968,67 @@ int64_t abi_ui_glyph_advance(int64_t glyph_ptr) {
 void abi_ui_glyph_release(int64_t glyph_ptr) {
     KainUiGlyph* g = (KainUiGlyph*)(uintptr_t)glyph_ptr;
     if (g) abi_ui_font_release_glyph(g);
+}
+
+// ============================================================================
+//  Event callback binding + invocation (slots 23 support).
+// ============================================================================
+//  Each node can store up to 8 callbacks keyed by event_name.
+//  set_callback stores the fn pointer; invoke_callback looks it up
+//  and calls it with the provided arg.
+
+int64_t abi_ui_node_set_callback(int64_t session_id, int64_t node_id,
+                                  const char* event_name, void* callback_fn) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiNode* node;
+    int i;
+
+    if (!session) return ABI_UI_INVALID_SESSION;
+    node = abi_ui_find_node(session, node_id);
+    if (!node) return ABI_UI_INVALID_NODE;
+    if (!event_name || !callback_fn) return ABI_UI_INVALID_ARGUMENT;
+
+    // Check if already registered — overwrite existing
+    for (i = 0; i < node->callback_count; i++) {
+        if (strcmp(node->callbacks[i].event_name, event_name) == 0) {
+            node->callbacks[i].callback_fn = callback_fn;
+            return ABI_UI_OK;
+        }
+    }
+
+    // New callback — add if space available
+    if (node->callback_count >= 8) {
+        return ABI_UI_CAPACITY_EXCEEDED;
+    }
+
+    i = node->callback_count;
+    abi_ui_copy_text(node->callbacks[i].event_name, 32, event_name);
+    node->callbacks[i].callback_fn = callback_fn;
+    node->callback_count++;
+    return ABI_UI_OK;
+}
+
+int64_t abi_ui_node_invoke_callback(int64_t session_id, int64_t node_id,
+                                     const char* event_name, void* arg) {
+    KainNativeUiSession* session = abi_ui_find_session(session_id);
+    KainNativeUiNode* node;
+    int i;
+
+    if (!session) return ABI_UI_INVALID_SESSION;
+    node = abi_ui_find_node(session, node_id);
+    if (!node) return ABI_UI_INVALID_NODE;
+    if (!event_name) return ABI_UI_INVALID_ARGUMENT;
+
+    for (i = 0; i < node->callback_count; i++) {
+        if (strcmp(node->callbacks[i].event_name, event_name) == 0) {
+            if (node->callbacks[i].callback_fn) {
+                void (*fn)(void*) = (void (*)(void*))node->callbacks[i].callback_fn;
+                fn(arg);
+                return ABI_UI_OK;
+            }
+            return ABI_UI_INVALID_ARGUMENT; // callback registered but NULL
+        }
+    }
+
+    return 0; // no matching callback found (not an error)
 }

@@ -4,6 +4,7 @@
 #include "base.h"
 #include "ui_system.h"
 #include "../../include/component_surface.h"
+#include "kain/kain_compositor.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -44,6 +45,13 @@ typedef struct KainNativeUiNode {
     uint64_t stable_key_hash;  /* Z3-verified: full 64-bit FNV-1a hash of stable_key, computed once */
     char accessibility_role[ABI_UI_MAX_KEY];
     char accessibility_label[ABI_UI_MAX_TEXT];
+
+    // ── Event callback storage (max 8 per node) ────────────────
+    struct {
+        char event_name[32];
+        void* callback_fn;
+    } callbacks[8];
+    int callback_count;
 } KainNativeUiNode;
 
 typedef struct KainNativeUiStyleRecord {
@@ -217,6 +225,7 @@ typedef struct KainNativeUiSession {
     void* host_state;
     const struct KainComponentSurface* component_surface;
     int64_t                           component_session_id;
+    KainCompositor* compositor;          /* Phase 1: damage region tracker */
 } KainNativeUiSession;
 
 /* ── Exposed internal helpers for layout.c and renderer.c ─────────────── */
