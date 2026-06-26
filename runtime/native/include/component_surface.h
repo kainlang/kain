@@ -15,6 +15,8 @@
 //  The compiler resolves the surface once at frame-loop init, then calls
 //  through the vtable every frame. The trait is surface-agnostic — "kind"
 //  strings and style keys are interpreted by the backend.
+//
+//  Vtable size: 24 slots (0-23). sizeof = 24 * sizeof(void*) = 192 on x64.
 // ============================================================================
 
 #include <stdint.h>
@@ -97,6 +99,32 @@ typedef struct KainComponentSurface {
     /// return a pointer to a KainGpuSurfaceExtension with at least
     /// load_shader and set_uniform populated.
     const KainGpuSurfaceExtension* (*get_gpu_extension)(int64_t session_id);
+
+    // ── Expanded state persistence (slots 19-22) ────────────────
+    // Float and String state complement the i64 state (slots 8-9).
+    // These enable slider values, text inputs, animation progress,
+    // and any typed component state beyond i64 counters.
+
+    /// Slot 19: Get float state value. Returns fallback (NaN sentinel
+    /// recommended) when key is not found.
+    double (*state_get_f64)(int64_t session_id, const char* key);
+
+    /// Slot 20: Set float state value.
+    void   (*state_set_f64)(int64_t session_id, const char* key, double value);
+
+    /// Slot 21: Get string state value. Returns a pointer to the stored
+    /// string, or empty string "" when key is not found.
+    const char* (*state_get_string)(int64_t session_id, const char* key);
+
+    /// Slot 22: Set string state value. The backend copies the string
+    /// into its own storage.
+    void   (*state_set_string)(int64_t session_id, const char* key, const char* value);
+
+    /// Slot 23: Bind a callback function pointer to a named event on
+    /// an element. The backend stores the callback for later invocation
+    /// when the event fires (via abi_ui_node_invoke_callback).
+    void   (*element_set_callback)(int64_t session_id, int64_t element_id,
+                                    const char* event_name, void* callback_fn);
 } KainComponentSurface;
 
 // ── Surface registry ──────────────────────────────────────────
