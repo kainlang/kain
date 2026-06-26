@@ -664,12 +664,23 @@ struct LlvmGenerator {
     surface_trait_declared: bool,
     /// Current component name during JSX→surface compilation (None outside component)
     current_component_name: Option<String>,
+    /// Current component's methods for inline resolution during JSX compilation
+    current_component_methods: Option<Vec<kain_core::ast::Function>>,
     /// Current session_id register name during component render
     current_component_session: Option<String>,
     /// Current parent_id register name during component render
     current_component_parent: Option<String>,
     /// Pending world-surface frame loop function names to call from main
     pending_frame_loops: Vec<String>,
+    /// Component dimensions keyed by component name: (width, height) for surface loops.
+    /// Falls back to 1280×720 when a component has no explicit dimensions.
+    component_dimensions: HashMap<String, (i64, i64)>,
+    /// Component-internal pulses keyed by component name. Emitted as registration
+    /// calls in the surface frame loop before begin_frame.
+    component_pulses: HashMap<String, Vec<NativePulseInfo>>,
+    /// Component-internal resonates keyed by component name. Emitted as
+    /// registration calls in the surface frame loop before begin_frame.
+    component_resonates: HashMap<String, Vec<NativeResonanceInfo>>,
     /// Hex-encoded SPIR-V strings for shader surfaces, keyed by shader fragment name.
     shader_spirv_hexes: HashMap<String, String>,
     actor_state_initializers: HashMap<String, HashMap<String, Expr>>,
@@ -875,9 +886,13 @@ impl LlvmGenerator {
             component_defs: HashMap::new(),
             surface_trait_declared: false,
             current_component_name: None,
+            current_component_methods: None,
             current_component_session: None,
             current_component_parent: None,
             pending_frame_loops: Vec::new(),
+            component_dimensions: HashMap::new(),
+            component_pulses: HashMap::new(),
+            component_resonates: HashMap::new(),
             shader_spirv_hexes: HashMap::new(),
             actor_state_initializers: HashMap::new(),
             actor_message_reply_types: HashMap::new(),
@@ -12556,6 +12571,9 @@ impl LlvmGenerator {
                             let (suffix, _) = self.compile_string_literal("\"");
                             acc = self.concat_strings(&acc, &suffix);
                         }
+                        JSXAttrValue::Callback(_, _handler_expr) => {
+                            // Callback attributes are event handlers — skip in static HTML.
+                        }
                     }
                 }
                 let (open_end, _) = self.compile_string_literal(">");
@@ -12595,6 +12613,11 @@ impl LlvmGenerator {
                             }
                             JSXAttrValue::Expr(expr) => {
                                 let (val, ty) = self.compile_expr(expr)?;
+                                compiled_args.push(val);
+                                arg_types.push(ty);
+                            }
+                            JSXAttrValue::Callback(_, handler_expr) => {
+                                let (val, ty) = self.compile_expr(handler_expr.as_ref())?;
                                 compiled_args.push(val);
                                 arg_types.push(ty);
                             }
@@ -13668,6 +13691,85 @@ impl LlvmGenerator {
         }
     }
 
+    /// Collect component dimensions, pulses, and resonates for surface loop codegen.
+    /// Called before item compilation so `compile_world_initializer` can query these maps.
+    fn collect_component_metadata(&mut self, items: &[TypedItem]) {
+        for item in items {
+            match item {
+                TypedItem::Component(component) => {
+                    let name = &component.ast.name;
+
+                    // Store dimensions (default 1280×720 when None or non-literal)
+                    let width = component
+                        .ast
+                        .dimensions
+                        .as_ref()
+                        .and_then(|d| d.width.as_ref())
+                        .and_then(|e| {
+                            if let Expr::Int(n, _) = e { Some(*n) } else { None }
+                        })
+                        .unwrap_or(1280);
+                    let height = component
+                        .ast
+                        .dimensions
+                        .as_ref()
+                        .and_then(|d| d.height.as_ref())
+                        .and_then(|e| {
+                            if let Expr::Int(n, _) = e { Some(*n) } else { None }
+                        })
+                        .unwrap_or(720);
+                    self.component_dimensions.insert(name.clone(), (width, height));
+
+                    // Store component-internal pulses
+                    let pulses: Vec<NativePulseInfo> = component
+                        .ast
+                        .pulses
+                        .iter()
+                        .map(|p| NativePulseInfo {
+                            name: format!("{}__{}", name, p.name),
+                            token: Self::stable_runtime_hash64(&format!("{}__{}", name, p.name)),
+                            interval_ns: Self::machine_pulse_duration_ns(&p.interval),
+                            jitter_ns: p.jitter
+                                .as_ref()
+                                .map(|j| Self::machine_pulse_duration_ns(j))
+                                .unwrap_or(0),
+                            budget_alloc: p.budget.as_ref().map_or(u32::MAX, |b| b.alloc.unwrap_or(u32::MAX)),
+                            budget_lock: p.budget.as_ref().map_or(u32::MAX, |b| b.lock.unwrap_or(u32::MAX)),
+                            budget_io: p.budget.as_ref().map_or(u32::MAX, |b| b.io.unwrap_or(u32::MAX)),
+                        })
+                        .collect();
+                    if !pulses.is_empty() {
+                        self.component_pulses.insert(name.clone(), pulses);
+                    }
+
+                    // Store component-internal resonates
+                    let resonates: Vec<NativeResonanceInfo> = component
+                        .ast
+                        .resonates
+                        .iter()
+                        .map(|r| NativeResonanceInfo {
+                            target: r.target.authored_path(),
+                            dampen_ns: r.dampen
+                                .as_ref()
+                                .map(|d| Self::machine_pulse_duration_ns(d) as u64)
+                                .unwrap_or(0),
+                            handler_symbol: format!(
+                                "{}__resonate_{}",
+                                name,
+                                Self::sanitize_symbol_fragment(&r.target.authored_path())
+                            ),
+                        })
+                        .collect();
+                    if !resonates.is_empty() {
+                        self.component_resonates.insert(name.clone(), resonates);
+                    }
+                }
+                TypedItem::Mod(module) => self.collect_component_metadata(&module.items),
+                _ => {}
+            }
+        }
+    }
+
     fn register_world_type_and_global(
         &mut self,
         world: &kain_core::types::TypedWorld,
@@ -14187,6 +14289,7 @@ impl LlvmGenerator {
         self.collect_native_entanglements(&program.items);
         self.collect_native_resonances(&program.items);
         self.collect_machine_stone_metadata(&program.items);
+        self.collect_component_metadata(&program.items);
         self.collect_program_tuple_types(program);
         self.register_builtin_tuple_structs();
         self.emit_runtime_abi_types();
@@ -16300,10 +16403,20 @@ impl LlvmGenerator {
                     continue;
                 }
             };
+
+            // Look up component dimensions (default 1280×720)
+            let (width, height) = self
+                .component_dimensions
+                .get(&root_component)
+                .copied()
+                .unwrap_or((1280, 720));
+
             self.compile_surface_frame_loop(
                 &world.ast.name,
                 surface_kind,
                 &root_component,
+                width,
+                height,
             )?;
             let fn_name = format!("__kain_world_surface_loop_{}",
                 Self::sanitize_symbol_fragment(&world.ast.name));

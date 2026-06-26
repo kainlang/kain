@@ -7,8 +7,8 @@
 //! See `X:/runtime/native/include/component_surface.h` for the C trait layout.
 
 use kain_core::ast::{Expr, JSXAttrValue, JSXAttribute, JSXNode};
-use kain_core::error::KainResult;
-use kain_core::types::TypedComponent;
+use kain_core::error::{KainError, KainResult};
+use kain_core::types::{ResolvedType, TypedComponent};
 use super::LlvmGenerator;
 
 // ── Vtable offset constants — must match KainComponentSurface field order ────
@@ -33,6 +33,16 @@ const OFF_HOST_PUMP: u32 = 16;
 const OFF_SESSION_ATTACH_PLATFORM: u32 = 17;
 /// Slot 18: get_gpu_extension - returns KainGpuSurfaceExtension* or NULL
 pub(crate) const OFF_GET_GPU_EXTENSION: u32 = 18;
+/// Slot 19: state_get_f64 - read double-precision float state from session
+pub(crate) const OFF_STATE_GET_F64: u32 = 19;
+/// Slot 20: state_set_f64 - write double-precision float state to session
+pub(crate) const OFF_STATE_SET_F64: u32 = 20;
+/// Slot 21: state_get_string - read string state from session
+pub(crate) const OFF_STATE_GET_STRING: u32 = 21;
+/// Slot 22: state_set_string - write string state to session
+pub(crate) const OFF_STATE_SET_STRING: u32 = 22;
+/// Slot 23: element_set_callback - register event callback on an element
+pub(crate) const OFF_ELEMENT_SET_CALLBACK: u32 = 23;
 
 // ── JSX attribute → surface call mapping (Contract 11) ──────────────────
 struct AttrMapping {
@@ -43,23 +53,67 @@ struct AttrMapping {
 
 fn map_jsx_attr_to_surface_key(attr_name: &str) -> AttrMapping {
     match attr_name {
+        // ── Existing: numeric (f64) attrs ────────────────────
         "padding" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
         "spacing" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
         "corner_radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "corner_radius" },
+        "radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "radius" },
         "font_size" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "font_size" },
         "opacity" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "opacity" },
         "border" | "border_width" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "border_width" },
+        "stroke_width" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "border_width" },
         "width" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "width" },
         "height" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "height" },
+        "min" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "min" },
+        "max" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "max" },
+        "step" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "step" },
+
+        // ── Existing: string attrs ───────────────────────────
         "background" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "fill_color" },
+        "fill" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "fill_color" },
         "border_color" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "border_color" },
+        "stroke" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "border_color" },
         "color" | "ink_color" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "ink_color" },
         "title" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "title" },
-        "value" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_TEXT, fn_ptr_ty: "void (i64, i64, i8*)*", style_key: "" },
+        "variant" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "variant" },
+        "role" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "role" },
+        "align" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "align" },
+        "font_family" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "font_family" },
+        "distribution" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "layout.distribution" },
+        "axis" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "axis" },
+        "placeholder" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "placeholder" },
+        "tooltip" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "tooltip" },
+
+        // ── Existing: i64 attrs ──────────────────────────────
         "direction" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "layout.direction" },
         "disabled" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "disabled" },
+        "checked" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "checked" },
+        "selected" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "selected" },
+        "tab_index" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "tab_index" },
+        "weight" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_I64, fn_ptr_ty: "void (i64, i64, i8*, i64)*", style_key: "weight" },
+
+        // ── Existing: text attrs ─────────────────────────────
+        "value" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_TEXT, fn_ptr_ty: "void (i64, i64, i8*)*", style_key: "" },
+
         // Unknown attributes pass through as strings with the attr name as the key
         _ => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_STRING, fn_ptr_ty: "void (i64, i64, i8*, i8*)*", style_key: "" },
+    }
+}
+
+// ── State field tracking for type-generic persistence ───────
+enum StateFieldType {
+    I64,
+    F64,
+    String,
+}
+
+impl StateFieldType {
+    fn from_resolved(ty: &ResolvedType) -> Self {
+        match ty {
+            ResolvedType::Float(_) => StateFieldType::F64,
+            ResolvedType::String | ResolvedType::Char => StateFieldType::String,
+            _ => StateFieldType::I64,
+        }
     }
 }
 
@@ -80,10 +134,10 @@ impl LlvmGenerator {
         }
         self.surface_trait_declared = true;
 
-        // Sized trait type with 19 pointer-sized fields (one per vtable slot).
+        // Sized trait type with 24 pointer-sized fields (one per vtable slot).
         // The exact function pointer types differ per slot; we use i8* as a
         // uniform placeholder and bitcast before loading the real fn pointer.
-        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
+        self.emit("%KainComponentSurface = type { i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8* }");
 
         // Registry — resolve a named surface backend
         self.emit("%KainGpuSurfaceExtension = type { i8*, i8* }");
@@ -94,6 +148,10 @@ impl LlvmGenerator {
 
         // Frame delta — high-resolution timer
         self.emit("declare double @__kain_frame_delta_ms()");
+
+        // Callback function pointer type — void fn that receives session_id,
+        // element_id, and an opaque event data pointer (i8*).
+        self.emit("%KainComponentCallback = type void (i64, i64, i8*)*");
 
         // Note: @str_concat and @to_string are declared by the main module preamble.
         // They are NOT re-declared here to avoid duplicate-definition linker errors.
@@ -163,6 +221,19 @@ impl LlvmGenerator {
             .collect::<Vec<_>>()
             .join(", ");
 
+        // Emit stub pulse/resonate handler functions BEFORE the render function.
+        // These handlers are referenced by kain_machine_pulse_start/abi_resonate_register
+        // during registration. Top-level pulse/resonate codegen in mod.rs doesn't know
+        // about component-inline pulses, so we emit minimal stubs here.
+        for pulse in &component.pulse_types {
+            let sym = Self::sanitize_symbol_fragment(&pulse.ast.name);
+            self.emit(&format!("define internal void @__kain_pulse_fire_{}() {{ ret void }}", sym));
+        }
+        for resonate in &component.resonate_types {
+            let sym = Self::sanitize_symbol_fragment(&resonate.ast.name);
+            self.emit(&format!("define internal void @__kain_resonate_{}() {{ ret void }}", sym));
+        }
+
         self.emit(&format!("define void @{}({}) {{", render_name, param_str));
         self.emit_label("entry");
 
@@ -185,11 +256,21 @@ impl LlvmGenerator {
             }
         }
 
-        // Compile state fields (Contract 8) — returns (key, addr_reg) for write-back
+        // Compile state fields (Contract 8) — returns (key, addr_reg, state_ty) for write-back
         let state_fields = self.compile_component_state_init(component, &surface_reg, &session_reg)?;
+
+        // ── Emit component-internal pulse/resonate registration ──
+        // One-time guard: register pulses and resonates on first render,
+        // skip on subsequent frames (idempotent at the runtime level).
+        if !component.pulse_types.is_empty() || !component.resonate_types.is_empty() {
+            self.emit_component_pulse_resonate_registration(
+                component, &surface_reg, &session_reg,
+            )?;
+        }
 
         // Set current component context for JSX compilation
         self.current_component_name = Some(name.clone());
+        self.current_component_methods = Some(component.ast.methods.clone());
         self.current_component_session = Some(session_reg.clone());
         self.current_component_parent = Some(parent_reg.clone());
 
@@ -206,20 +287,46 @@ impl LlvmGenerator {
 
         // Write-back: persist current state field values to the surface
         // so mutations (self.count = self.count + 1) survive across frames.
-        for (key, addr_reg) in &state_fields {
-            let load_reg = self.next_reg();
-            self.emit(&format!("  {} = load i64, i64* {}", load_reg, addr_reg));
+        // Dispatch to the correct vtable slot based on state field type.
+        for (key, addr_reg, field_ty) in &state_fields {
             let key_str = self.compile_static_c_string_literal(key);
-            self.emit_vtable_call_void(
-                &surface_reg,
-                OFF_STATE_SET_I64,
-                "void (i64, i8*, i64)*",
-                &[(&session_reg, "i64"), (&key_str, "i8*"), (&load_reg, "i64")],
-            );
+            match field_ty {
+                StateFieldType::F64 => {
+                    let load_reg = self.next_reg();
+                    self.emit(&format!("  {} = load double, double* {}", load_reg, addr_reg));
+                    self.emit_vtable_call_void(
+                        &surface_reg,
+                        OFF_STATE_SET_F64,
+                        "void (i64, i8*, double)*",
+                        &[(&session_reg, "i64"), (&key_str, "i8*"), (&load_reg, "double")],
+                    );
+                }
+                StateFieldType::String => {
+                    let load_reg = self.next_reg();
+                    self.emit(&format!("  {} = load i8*, i8** {}", load_reg, addr_reg));
+                    self.emit_vtable_call_void(
+                        &surface_reg,
+                        OFF_STATE_SET_STRING,
+                        "void (i64, i8*, i8*)*",
+                        &[(&session_reg, "i64"), (&key_str, "i8*"), (&load_reg, "i8*")],
+                    );
+                }
+                StateFieldType::I64 => {
+                    let load_reg = self.next_reg();
+                    self.emit(&format!("  {} = load i64, i64* {}", load_reg, addr_reg));
+                    self.emit_vtable_call_void(
+                        &surface_reg,
+                        OFF_STATE_SET_I64,
+                        "void (i64, i8*, i64)*",
+                        &[(&session_reg, "i64"), (&key_str, "i8*"), (&load_reg, "i64")],
+                    );
+                }
+            }
         }
 
         // Clear component context
         self.current_component_name = None;
+        self.current_component_methods = None;
         self.current_component_session = None;
         self.current_component_parent = None;
 
@@ -238,7 +345,11 @@ impl LlvmGenerator {
         &mut self,
         world_name: &str,
         shader_fragment_name: &str,
-    ) -> KainResult<()> {        let fn_name = format!("__kain_world_surface_loop_{}", Self::sanitize_symbol_fragment(world_name));
+    ) -> KainResult<()> {
+        // Shader surfaces use default 1280x720
+        let dim_width = "1280";
+        let dim_height = "720";
+        let fn_name = format!("__kain_world_surface_loop_{}", Self::sanitize_symbol_fragment(world_name));
 
         self.emit(&format!("define void @{}() {{", fn_name));
         self.emit_label("entry");
@@ -279,8 +390,8 @@ impl LlvmGenerator {
             "i64 (i8*, i64, i64)*",
             &[
                 (&session_name_str, "i8*"),
-                ("1280", "i64"),
-                ("720", "i64"),
+                (dim_width, "i64"),
+                (dim_height, "i64"),
             ],
         );
 
@@ -586,6 +697,8 @@ impl LlvmGenerator {
         world_name: &str,
         surface_kind: &str,
         root_component_name: &str,
+        width: i64,
+        height: i64,
     ) -> KainResult<()> {
         self.declare_surface_trait_types();
 
@@ -630,15 +743,17 @@ impl LlvmGenerator {
         // ── Create session (vtable offset 0) ──────────────────────
         self.emit_label(&init_block);
         let session_name_str = self.compile_static_c_string_literal(world_name);
-        // Default dimensions: 1280x720
+        // Use component dimensions or fall back to 1280x720
+        let dim_width = width.to_string();
+        let dim_height = height.to_string();
         let session_id = self.emit_vtable_call(
             &surface_reg,
             OFF_SESSION_CREATE,
             "i64 (i8*, i64, i64)*",
             &[
                 (&session_name_str, "i8*"),
-                ("1280", "i64"),
-                ("720", "i64"),
+                (&dim_width, "i64"),
+                (&dim_height, "i64"),
             ],
         );
 
@@ -689,10 +804,43 @@ impl LlvmGenerator {
             &[
                 (&session_id, "i64"),
                 (&window_title_str, "i8*"),
-                ("1280", "i64"),
-                ("720", "i64"),
+                (&dim_width, "i64"),
+                (&dim_height, "i64"),
             ],
         );
+
+        // ── Emit component-internal pulse registration ────────────
+        // These are registered once before the frame loop.
+        // Clone the vec to avoid borrow conflicts with self.emit()
+        let component_pulses = self.component_pulses.get(root_component_name).cloned();
+        if let Some(pulses) = component_pulses {
+            for pulse in &pulses {
+                let token_str = pulse.token.to_string();
+                let interval_str = pulse.interval_ns.to_string();
+                let jitter_str = pulse.jitter_ns.to_string();
+                let fire_sym = format!("@__kain_pulse_fire_{}", pulse.name);
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_machine_pulse_start(i64 {}, i64 {}, i64 {}, void ()* {})",
+                    status, token_str, interval_str, jitter_str, fire_sym
+                ));
+            }
+        }
+
+        // ── Emit component-internal resonate registration ─────────
+        // Clone the vec to avoid borrow conflicts with self.emit()
+        let component_resonates = self.component_resonates.get(root_component_name).cloned();
+        if let Some(resonates) = component_resonates {
+            for resonate in &resonates {
+                let target_str = self.compile_static_c_string_literal(&resonate.target);
+                let dampen_str = resonate.dampen_ns.to_string();
+                let handler_sym = format!("@__kain_resonate_{}", resonate.handler_symbol);
+                self.emit(&format!(
+                    "  call void @abi_resonate_register(i8* {}, i64 {}, void ()* {})",
+                    target_str, dampen_str, handler_sym
+                ));
+            }
+        }
 
         // Fall through to frame loop
         let frame_loop_label = self.next_label();
@@ -883,7 +1031,100 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    /// Try to resolve and inline a call to a component method at the current
+    /// expression site. Returns `Ok(Some((val, ty)))` if the expression was a
+    /// component method call and was successfully inlined, or `Ok(None)` if it
+    /// was not a component method call (fall through to normal `compile_expr`).
+    fn try_inline_component_method(
+        &mut self,
+        expr: &Expr,
+    ) -> KainResult<Option<(String, String)>> {
+        // Extract method name and call args from the expression
+        let (method_name, call_args) = match expr {
+            // Direct call: `method_name(args...)`
+            Expr::Call { callee, args, .. } => {
+                if let Expr::Ident(name, _) = callee.as_ref() {
+                    (name.as_str(), args.as_slice())
+                } else {
+                    return Ok(None);
+                }
+            }
+            // Method call: `self.method_name(args...)`
+            Expr::MethodCall { receiver, method, args, .. } => {
+                if let Expr::Ident(receiver_name, _) = receiver.as_ref() {
+                    if receiver_name == "self" {
+                        (method.as_str(), args.as_slice())
+                    } else {
+                        return Ok(None);
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+            _ => return Ok(None),
+        };
+
+        // Look up in the current component's methods
+        let methods = match &self.current_component_methods {
+            Some(m) => m.clone(),
+            None => return Ok(None),
+        };
+
+        let method = match methods.iter().find(|m| m.name == method_name) {
+            Some(m) => m,
+            None => return Ok(None),
+        };
+
+        // Verify arg count matches param count
+        if call_args.len() != method.params.len() {
+            return Err(KainError::codegen(
+                format!(
+                    "Method '{}' expects {} arguments, got {}",
+                    method_name,
+                    method.params.len(),
+                    call_args.len()
+                ),
+                expr.span(),
+            ));
+        }
+
+        // Push a new scope for method parameters
+        self.scopes.push(Vec::new());
+
+        // Bind call arguments to method parameters as locals
+        for (param, arg) in method.params.iter().zip(call_args.iter()) {
+            let (arg_val, arg_ty) = self.compile_expr(&arg.value)?;
+            let addr_reg = format!("%{}.addr", param.name);
+            self.emit_entry_alloca(&addr_reg, &arg_ty);
+            self.emit(&format!(
+                "  store {} {}, {}* {}",
+                arg_ty, arg_val, arg_ty, addr_reg
+            ));
+            self.locals
+                .insert(param.name.clone(), (addr_reg.clone(), arg_ty.clone()));
+            if let Some(scope) = self.scopes.last_mut() {
+                scope.push(param.name.clone());
+            }
+        }
+
+        // Compile the method body inline
+        let result = self.compile_block_with_result(&method.body)?;
+
+        // Pop the parameter scope
+        if let Some(scope) = self.scopes.pop() {
+            for name in scope {
+                self.locals.remove(&name);
+            }
+        }
+
+        Ok(result)
+    }
+
     /// `{expression}` → evaluate, then emit as `"text"` element via vtable
+    ///
+    /// If the expression is a call to a component method (e.g., `label_font_size()`
+    /// inside a render body), the method body is compiled inline instead of
+    /// trying to resolve a global function symbol.
     fn compile_jsx_expression(
         &mut self,
         surface_reg: &str,
@@ -893,7 +1134,14 @@ impl LlvmGenerator {
         component_name: &str,
         sibling_index: &mut usize,
     ) -> KainResult<()> {
-        let (val, ty) = self.compile_expr(expr)?;
+        // Check for component method calls and inline the method body.
+        // Component methods are NOT compiled as global LLVM functions — they
+        // must be inlined at the call site within the component's render function.
+        let (val, ty) = if let Some(inlined) = self.try_inline_component_method(expr)? {
+            inlined
+        } else {
+            self.compile_expr(expr)?
+        };
         let si = *sibling_index;
         *sibling_index += 1;
 
@@ -970,6 +1218,7 @@ impl LlvmGenerator {
     }
 
     /// `<ComponentName prop="val" />` → call void @ComponentName_render(surface, session, parent, props...)
+    /// Children are compiled as siblings under the same parent after the component render call.
     fn compile_jsx_component_call(
         &mut self,
         surface_reg: &str,
@@ -978,7 +1227,7 @@ impl LlvmGenerator {
         name: &str,
         props: &[JSXAttribute],
         children: &[JSXNode],
-        _component_name: &str,
+        component_name: &str,
     ) -> KainResult<()> {
         let render_name = format!("{}_render", name);
 
@@ -1010,6 +1259,10 @@ impl LlvmGenerator {
                         let (val, ty) = self.compile_expr(expr)?;
                         compiled_args.push((val, ty));
                     }
+                    JSXAttrValue::Callback(_, handler_expr) => {
+                        let (val, ty) = self.compile_expr(handler_expr.as_ref())?;
+                        compiled_args.push((val, ty));
+                    }
                 }
             } else {
                 // Prop not provided → use zero/empty default
@@ -1018,9 +1271,20 @@ impl LlvmGenerator {
             }
         }
 
-        // Children — not passed as a separate arg; component manages its own
-        // children via JSX body.
-        let _ = children;
+        // Emit declare for cross-module component renders.
+        // If the render function was compiled in a different module, the linker
+        // needs a declaration. Skip if already defined in the current module.
+        if !self.functions.contains_key(&render_name) {
+            let mut declare_types: Vec<String> = Vec::new();
+            declare_types.push("%KainComponentSurface*".to_string());
+            declare_types.push("i64".to_string());
+            declare_types.push("i64".to_string());
+            for (_prop_name, _prop_ty) in &defs {
+                declare_types.push(_prop_ty.clone());
+            }
+            let declare_str = declare_types.join(", ");
+            self.emit(&format!("declare void @{}({})", render_name, declare_str));
+        }
 
         let arg_str = compiled_args
             .iter()
@@ -1032,6 +1296,20 @@ impl LlvmGenerator {
             "  call void @{}({})",
             render_name, arg_str
         ));
+
+        // Compile children as siblings under the same parent after the component
+        // render call. This ensures parent/child node linkage across component
+        // boundaries instead of silently ignoring nested children.
+        if !children.is_empty() {
+            let mut child_si = 0usize;
+            for child in children {
+                self.compile_jsx_to_surface(
+                    surface_reg, session_reg, parent_reg,
+                    child, component_name, &mut child_si,
+                )?;
+            }
+        }
+
         Ok(())
     }
 
@@ -1196,6 +1474,58 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    /// Compile an event callback attribute — emit element_set_callback vtable call.
+    /// Called when JSXAttrValue::Callback is encountered.
+    /// The callback is stored as a function pointer on the element for the given event.
+    fn compile_jsx_callback(
+        &mut self,
+        surface_reg: &str,
+        session_reg: &str,
+        element_reg: &str,
+        attr: &JSXAttribute,
+    ) -> KainResult<()> {
+        let (event_kind, fn_expr) = match &attr.value {
+            JSXAttrValue::Callback(kind, expr) => (kind.clone(), expr.as_ref().clone()),
+            _ => return Ok(()), // not a callback — no-op
+        };
+
+        // Emit the event kind string literal (e.g. "click", "change", "toggle")
+        let event_str = self.compile_static_c_string_literal(&event_kind);
+
+        // Compile the handler expression to get the function pointer.
+        // The handler must be a function reference that yields a void (i64, i64, i8*)*
+        // compatible function pointer.
+        let (handler_val, handler_ty) = self.compile_expr(&fn_expr)?;
+
+        // Bitcast the handler to the expected callback type: void (i64, i64, i8*)*
+        let callback_reg = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {} {} to %KainComponentCallback",
+            callback_reg, handler_ty, handler_val
+        ));
+
+        // Emit: element_set_callback(session_id, element_id, event_name, callback_fn)
+        // vtable slot 23: void (i64, i64, i8*, void*)*
+        // The callback is stored in the vtable as a void*; we pass the %KainComponentCallback ptr.
+        let callback_i8 = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast %KainComponentCallback {} to i8*",
+            callback_i8, callback_reg
+        ));
+        self.emit_vtable_call_void(
+            surface_reg,
+            OFF_ELEMENT_SET_CALLBACK,
+            "void (i64, i64, i8*, i8*)*",
+            &[
+                (session_reg, "i64"),
+                (element_reg, "i64"),
+                (&event_str, "i8*"),
+                (&callback_i8, "i8*"),
+            ],
+        );
+        Ok(())
+    }
+
     /// Map a JSX attribute to the correct vtable call (Contract 11)
     fn compile_jsx_attr(
         &mut self,
@@ -1204,6 +1534,11 @@ impl LlvmGenerator {
         element_reg: &str,
         attr: &JSXAttribute,
     ) -> KainResult<()> {
+        // ── Event callbacks are handled separately through the vtable ──
+        if matches!(&attr.value, JSXAttrValue::Callback(_, _)) {
+            return self.compile_jsx_callback(surface_reg, session_reg, element_reg, attr);
+        }
+
         // Resolve the vtable offset and mapped key
         let mapped = map_jsx_attr_to_surface_key(&attr.name);
         let is_text_attr = attr.name == "value";
@@ -1326,6 +1661,11 @@ impl LlvmGenerator {
                         &[(session_reg, "i64"), (element_reg, "i64"), (&key_str, "i8*"), (&val_use, val_ty)],
                     );
                 }
+            }
+            JSXAttrValue::Callback(_, _) => {
+                // Handled at the top of compile_jsx_attr via early return.
+                // This arm is unreachable but needed for exhaustive match.
+                unreachable!("Callback should be routed before attribute mapping");
             }
         }
         Ok(())
@@ -1504,69 +1844,262 @@ impl LlvmGenerator {
         component: &TypedComponent,
         surface_reg: &str,
         session_reg: &str,
-    ) -> KainResult<Vec<(String, String)>> {
-        let mut state_fields: Vec<(String, String)> = Vec::new();
+    ) -> KainResult<Vec<(String, String, StateFieldType)>> {
+        let mut state_fields: Vec<(String, String, StateFieldType)> = Vec::new();
         for state in &component.ast.state {
             let key = format!("{}:{}", component.ast.name, state.name);
             let key_str = self.compile_static_c_string_literal(&key);
 
-            // state_get_i64 through vtable (offset 8)
-            let stored_val = self.emit_vtable_call(
-                surface_reg,
-                OFF_STATE_GET_I64,
-                "i64 (i64, i8*)*",
-                &[(session_reg, "i64"), (&key_str, "i8*")],
-            );
+            // Determine state type from the typechecker's resolved types.
+            // Falls back to I64 for untyped or unknown state.
+            let state_ty = component.state_types.get(&state.name)
+                .map(|t| StateFieldType::from_resolved(t))
+                .unwrap_or(StateFieldType::I64);
 
-            // Check if first frame (get returns 0)
-            let is_first = self.next_reg();
-            self.emit(&format!(
-                "  {} = icmp eq i64 {}, 0",
-                is_first, stored_val
-            ));
+            // Dispatch: get the stored value via the correct vtable slot.
+            // Sentinel values: i64=-1, f64=NaN, string=null — distinct from valid data.
+            let (stored_val, _stored_ty, is_first_check): (String, &str, String) = match &state_ty {
+                StateFieldType::F64 => {
+                    let v = self.emit_vtable_call(
+                        surface_reg,
+                        OFF_STATE_GET_F64,
+                        "double (i64, i8*)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*")],
+                    );
+                    // First-frame check: NaN sentinel (fcmp uno returns true if either is NaN)
+                    let is_first = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = fcmp uno double {}, 0x{:X}",
+                        is_first, v, f64::to_bits(f64::NAN)
+                    ));
+                    // Hoist alloca
+                    let addr_reg = format!("%{}.addr", state.name);
+                    self.emit_entry_alloca(&addr_reg, "double");
+                    self.locals.insert(state.name.clone(), (addr_reg.clone(), "double".to_string()));
+                    if let Some(scope) = self.scopes.last_mut() {
+                        scope.push(state.name.clone());
+                    }
+                    (v, "double", is_first)
+                }
+                StateFieldType::String => {
+                    let v = self.emit_vtable_call(
+                        surface_reg,
+                        OFF_STATE_GET_STRING,
+                        "i8* (i64, i8*)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*")],
+                    );
+                    // First-frame check: null sentinel
+                    let is_first = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = icmp eq i8* {}, null",
+                        is_first, v
+                    ));
+                    // Hoist alloca
+                    let addr_reg = format!("%{}.addr", state.name);
+                    self.emit_entry_alloca(&addr_reg, "i8*");
+                    self.locals.insert(state.name.clone(), (addr_reg.clone(), "i8*".to_string()));
+                    if let Some(scope) = self.scopes.last_mut() {
+                        scope.push(state.name.clone());
+                    }
+                    (v, "i8*", is_first)
+                }
+                StateFieldType::I64 => {
+                    let v = self.emit_vtable_call(
+                        surface_reg,
+                        OFF_STATE_GET_I64,
+                        "i64 (i64, i8*)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*")],
+                    );
+                    // First-frame check: use -1 as sentinel instead of 0
+                    // This avoids the bug where 0 (valid state value) == first-frame sentinel.
+                    let is_first = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = icmp eq i64 {}, -1",
+                        is_first, v
+                    ));
+                    // Hoist alloca
+                    let addr_reg = format!("%{}.addr", state.name);
+                    self.emit_entry_alloca(&addr_reg, "i64");
+                    self.locals.insert(state.name.clone(), (addr_reg.clone(), "i64".to_string()));
+                    if let Some(scope) = self.scopes.last_mut() {
+                        scope.push(state.name.clone());
+                    }
+                    (v, "i64", is_first)
+                }
+            };
+
+            // Save predecessor block BEFORE the branch for correct PHI labels.
+            // For the first state field this is "entry"; for subsequent fields it's
+            // the previous iteration's load block.
+            let pred_block = self.current_block.clone();
 
             let init_block = self.next_label();
             let load_block = self.next_label();
             self.emit(&format!(
                 "  br i1 {}, label %{}, label %{}",
-                is_first, init_block, load_block
+                is_first_check, init_block, load_block
             ));
 
-            // Alloca for the state field (local fast access) — hoisted to entry
-            let addr_reg = format!("%{}.addr", state.name);
-            self.emit_entry_alloca(&addr_reg, "i64");
-            // Track in locals so $self.name works BEFORE init_block emits
-            self.locals.insert(state.name.clone(), (addr_reg.clone(), "i64".to_string()));
-            if let Some(scope) = self.scopes.last_mut() {
-                scope.push(state.name.clone());
-            }
-
+            // Init block: compile initial value and store via the correct vtable set
             self.emit_label(&init_block);
-            // Store initial value through vtable (offset 9)
-            let (init_val, _) = self.compile_expr(&state.initial)?;
-            self.emit_vtable_call_void(
-                surface_reg,
-                OFF_STATE_SET_I64,
-                "void (i64, i8*, i64)*",
-                &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val, "i64")],
-            );
+            let (raw_init_val, raw_init_ty) = self.compile_expr(&state.initial)?;
+            // Coerce to the target type if needed (e.g., literal i64 → f64 for Float state)
+            let init_val = match &state_ty {
+                StateFieldType::F64 if raw_init_ty == "i64" => {
+                    let c = self.next_reg();
+                    self.emit(&format!("  {} = sitofp i64 {} to double", c, raw_init_val));
+                    (c, "double".to_string())
+                }
+                StateFieldType::F64 => (raw_init_val, "double".to_string()),
+                _ => (raw_init_val, raw_init_ty),
+            };
+            match &state_ty {
+                StateFieldType::F64 => {
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_STATE_SET_F64,
+                        "void (i64, i8*, double)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val.0, "double")],
+                    );
+                }
+                StateFieldType::String => {
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_STATE_SET_STRING,
+                        "void (i64, i8*, i8*)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val.0, "i8*")],
+                    );
+                }
+                StateFieldType::I64 => {
+                    self.emit_vtable_call_void(
+                        surface_reg,
+                        OFF_STATE_SET_I64,
+                        "void (i64, i8*, i64)*",
+                        &[(session_reg, "i64"), (&key_str, "i8*"), (&init_val.0, "i64")],
+                    );
+                }
+            }
             self.emit(&format!("  br label %{}", load_block));
 
+            // Load block: PHI merge init_val (first frame) with stored_val (subsequent frames)
             self.emit_label(&load_block);
-            // PHI: merge init_val (first frame) with stored_val (subsequent frames)
-            // NOTE: sentinel 0 means "first frame" — initial value of 0 would
-            // cause re-init every frame. Future: use a separate init-flag key.
+            let addr_reg = format!("%{}.addr", state.name);
             let phi_reg = self.next_reg();
-            self.emit(&format!(
-                "  {} = phi i64 [ {}, %{} ], [ {}, %entry ]",
-                phi_reg, init_val, init_block, stored_val
-            ));
-            self.emit(&format!("  store i64 {}, i64* {}", phi_reg, addr_reg));
+            match &state_ty {
+                StateFieldType::F64 => {
+                    self.emit(&format!(
+                        "  {} = phi double [ {}, %{} ], [ {}, %{} ]",
+                        phi_reg, init_val.0, init_block, stored_val, pred_block
+                    ));
+                    self.emit(&format!("  store double {}, double* {}", phi_reg, addr_reg));
+                }
+                StateFieldType::String => {
+                    self.emit(&format!(
+                        "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+                        phi_reg, init_val.0, init_block, stored_val, pred_block
+                    ));
+                    self.emit(&format!("  store i8* {}, i8** {}", phi_reg, addr_reg));
+                }
+                StateFieldType::I64 => {
+                    self.emit(&format!(
+                        "  {} = phi i64 [ {}, %{} ], [ {}, %{} ]",
+                        phi_reg, init_val.0, init_block, stored_val, pred_block
+                    ));
+                    self.emit(&format!("  store i64 {}, i64* {}", phi_reg, addr_reg));
+                }
+            }
 
             // Track for write-back at end of render function
-            state_fields.push((key, addr_reg));
+            state_fields.push((key, addr_reg, state_ty));
         }
 
         Ok(state_fields)
+    }
+
+    /// Emit one-time pulse and resonate registration for component-inline
+    /// clocks and tripwires. Uses a sentinel key in the vtable state store
+    /// to track whether registration has already occurred (avoids re-registering
+    /// every frame which would reset the timers).
+    fn emit_component_pulse_resonate_registration(
+        &mut self,
+        component: &TypedComponent,
+        surface_reg: &str,
+        session_reg: &str,
+    ) -> KainResult<()> {
+        let name = &component.ast.name;
+        let init_key = format!("{}:__pulses_init", name);
+        let init_key_str = self.compile_static_c_string_literal(&init_key);
+
+        // Check the init flag via vtable state (slot 8: state_get_i64).
+        // Sent -1 means "first render" (not yet registered).
+        let init_flag = self.emit_vtable_call(
+            surface_reg,
+            OFF_STATE_GET_I64,
+            "i64 (i64, i8*)*",
+            &[(session_reg, "i64"), (&init_key_str, "i8*")],
+        );
+        let needs_init = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i64 {}, -1",
+            needs_init, init_flag
+        ));
+
+        let register_block = self.next_label();
+        let skip_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            needs_init, register_block, skip_block
+        ));
+
+        self.emit_label(&register_block);
+
+        // Mark as initialized so subsequent renders skip registration
+        self.emit_vtable_call_void(
+            surface_reg,
+            OFF_STATE_SET_I64,
+            "void (i64, i8*, i64)*",
+            &[(session_reg, "i64"), (&init_key_str, "i8*"), ("1", "i64")],
+        );
+
+        // Emit pulse registration: one kain_machine_pulse_start per inline pulse.
+        // The pulse handler symbols (@__kain_pulse_fire_{name}) are emitted by
+        // the top-level pulse codegen in mod.rs.
+        for pulse in &component.pulse_types {
+            let pulse_sym = format!("@__kain_pulse_fire_{}", pulse.ast.name);
+            // Derive a unique token from the component+pulse name string pointer
+            let token_str = self.compile_static_c_string_literal(
+                &format!("{}:{}", name, pulse.ast.name)
+            );
+            let token = self.next_reg();
+            self.emit(&format!(
+                "  {} = ptrtoint i8* {} to i64",
+                token, token_str
+            ));
+            // interval_ns: parse from pulse.ast.interval (e.g. "16ms" → 16_000_000 ns)
+            // For now, emit a fixed 16ms interval; future: resolve the actual duration.
+            let interval_ns: u64 = 16_000_000; // 16ms in nanoseconds
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_machine_pulse_start(i64 {}, i64 {}, i64 0, void ()* {})",
+                status, token, interval_ns, pulse_sym
+            ));
+        }
+
+        // Emit resonate registration: one abi_resonate_register per inline resonate.
+        // The handler symbols (@__kain_resonate_{name}) are emitted by the top-level
+        // resonate codegen in mod.rs.
+        for resonate in &component.resonate_types {
+            let target_str = self.compile_static_c_string_literal(&resonate.ast.name);
+            let handler_sym = format!("@__kain_resonate_{}", resonate.ast.name);
+            let dampen_ns: u64 = 16_000_000; // 16ms default dampening
+            self.emit(&format!(
+                "  call void @abi_resonate_register(i8* {}, i64 {}, void ()* {})",
+                target_str, dampen_ns, handler_sym
+            ));
+        }
+
+        self.emit(&format!("  br label %{}", skip_block));
+        self.emit_label(&skip_block);
+        Ok(())
     }
 }
