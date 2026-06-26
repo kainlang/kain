@@ -1,0 +1,18 @@
+// label.kn — std::ui::components::Label
+//
+// Thin wrapper over the Text primitive with theme defaults.
+// Pure display component — no interaction state.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Props with defaults are used directly instead of method wrappers.
+
+component Label(
+    value: String,
+    font_size: Float = 14.0,
+    color: String = "text",
+    align: String = "left",
+    weight: Int = 400,
+    width: Float = 0.0,
+    height: Float = 0.0,
+):
+    render <text value={value} font_size={font_size} color={color} align={align} weight={weight} width={width} height={height} />

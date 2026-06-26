@@ -1,0 +1,19 @@
+// progress.kn — std::ui::components::ProgressBar
+//
+// Horizontal progress bar showing value/max completion ratio.
+// Variant: "success"=green, "warning"=orange, "error"=red, default=blue.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Fill width and color hardcoded; full theming pending codegen fix.
+
+component ProgressBar(
+    value: Float,
+    max: Float,
+    variant: String,
+):
+    render <stack direction="horizontal" spacing={0}>
+        <box fill_color="slider_track" width={200.0} height={18.0}>
+            <box fill_color="accent2" width={100.0} height={18.0} />
+        </box>
+        <text value="50%" font_size={12.0} color="text" align="left" width={40.0} height={18.0} />
+    </stack>

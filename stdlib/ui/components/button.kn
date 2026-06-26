@@ -1,0 +1,41 @@
+// button.kn — std::ui::components::Button
+//
+// Interactive button with hover/press visual states.
+// Variants: "primary", "secondary", "destructive", "ghost"
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// State-dependent color logic is simplified; full interactivity pending codegen fix.
+
+component Button(
+    label: String,
+    variant: String,
+    disabled: Bool,
+    width: Float,
+    height: Float,
+):
+    state hovered: Bool = false
+    state pressed: Bool = false
+
+    fn handle_click(_self: Self_):
+        if _self.disabled:
+            return
+
+    fn handle_enter(_self: Self_):
+        if _self.disabled:
+            return
+        _self.hovered = true
+
+    fn handle_leave(_self: Self_):
+        _self.hovered = false
+
+    fn handle_press(_self: Self_):
+        if _self.disabled:
+            return
+        _self.pressed = true
+
+    fn handle_release(_self: Self_):
+        _self.pressed = false
+
+    render <box fill_color="button" width={width} height={height}>
+        <text value={label} font_size={14.0} color="text" align="center" width={width} height={height} />
+    </box>
