@@ -2747,6 +2747,7 @@ impl RustGen {
             JSXAttrValue::String(value) => format!("\"{}\".to_string()", self.escape_string(value)),
             JSXAttrValue::Expr(expr) => self.gen_expr(expr),
             JSXAttrValue::Bool(value) => value.to_string(),
+            JSXAttrValue::Callback(_, handler_expr) => self.gen_expr(handler_expr.as_ref()),
         }
     }
 
@@ -2790,6 +2791,9 @@ impl RustGen {
                             } else {
                                 "String::new()".to_string()
                             }
+                        }
+                        JSXAttrValue::Callback(_, _handler_expr) => {
+                            "String::new()".to_string()
                         }
                     })
                     .collect();
@@ -4597,6 +4601,9 @@ mod tests {
                     span,
                 }],
                 effects: vec![],
+                pulses: vec![],
+                resonates: vec![],
+                dimensions: None,
                 body: JSXNode::Element {
                     tag: "div".to_string(),
                     attributes: vec![kain_core::ast::JSXAttribute {
@@ -4619,6 +4626,9 @@ mod tests {
                 span,
             },
             prop_types: HashMap::new(),
+            state_types: HashMap::new(),
+            pulse_types: vec![],
+            resonate_types: vec![],
         });
 
         let app_shell = TypedItem::Component(TypedComponent {
@@ -4628,6 +4638,9 @@ mod tests {
                 state: vec![],
                 methods: vec![],
                 effects: vec![],
+                pulses: vec![],
+                resonates: vec![],
+                dimensions: None,
                 body: JSXNode::ComponentCall {
                     name: "HudPanel".to_string(),
                     props: vec![kain_core::ast::JSXAttribute {
@@ -4643,6 +4656,9 @@ mod tests {
                 span,
             },
             prop_types: HashMap::new(),
+            state_types: HashMap::new(),
+            pulse_types: vec![],
+            resonate_types: vec![],
         });
 
         let program = TypedProgram {
