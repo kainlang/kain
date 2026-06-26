@@ -775,6 +775,291 @@ pub fn install_c_extras(
         .map_err(|e| format!("vcpkg setup failed: {e}"))
 }
 
+/// Resolve a short target name to its canonical target triple and sysroot directory name.
+///
+/// Supported short names:
+/// - `"linux"` → `"x86_64-unknown-linux-musl"`
+/// - `"linux-aarch64"` → `"aarch64-unknown-linux-musl"`
+fn resolve_sysroot_target(
+    target: &str,
+    triple_override: Option<&str>,
+) -> Result<(kain_target::TargetTriple, String), String> {
+    if let Some(triple_str) = triple_override {
+        let triple = kain_target::TargetTriple::parse(triple_str)
+            .map_err(|e| format!("invalid --triple '{}': {}", triple_str, e))?;
+        let name = triple
+            .sysroot_name()
+            .unwrap_or_else(|| format!("{}-{}-{}", triple.os, triple.arch, triple.env));
+        return Ok((triple, name));
+    }
+
+    match target {
+        "linux" => {
+            let triple =
+                kain_target::TargetTriple::parse("x86_64-unknown-linux-musl").unwrap();
+            Ok((triple, "linux-x86_64-musl".to_string()))
+        }
+        "linux-aarch64" => {
+            let triple =
+                kain_target::TargetTriple::parse("aarch64-unknown-linux-musl").unwrap();
+            Ok((triple, "linux-aarch64-musl".to_string()))
+        }
+        other => Err(format!(
+            "unknown target '{}'. Supported: linux, linux-aarch64. Use --triple for custom targets.",
+            other
+        )),
+    }
+}
+
+/// Return the default musl.cc cross-compiler tarball URL for a known triple.
+fn muslcc_download_url(triple: &kain_target::TargetTriple) -> Option<&'static str> {
+    match triple.raw().as_str() {
+        "x86_64-unknown-linux-musl" => Some("https://musl.cc/x86_64-linux-musl-cross.tgz"),
+        "aarch64-unknown-linux-musl" => Some("https://musl.cc/aarch64-linux-musl-cross.tgz"),
+        _ => None,
+    }
+}
+
+/// Install a cross-compilation sysroot into ~/.kain/sysroot/<name>/.
+///
+/// Downloads a prebuilt musl.cc cross toolchain tarball, extracts it, and places
+/// the sysroot (headers + CRT objects + libc.a) into the Kain home directory so
+/// that `kain build --target-triple` can find them for cross-compilation.
+pub fn install_sysroot(
+    target: &str,
+    triple_override: Option<&str>,
+    from_url: Option<&str>,
+    from_dir: Option<&str>,
+    force: bool,
+    dry_run: bool,
+) -> Result<(), String> {
+    // --- 1. Resolve the target triple and sysroot name ---
+    let (triple, sysroot_name) = resolve_sysroot_target(target, triple_override)?;
+
+    // --- 2. Determine the install path ---
+    let kain_home = default_kain_install_layout()
+        .ok_or_else(|| "KAIN_HOME not found; set KAIN_HOME or run from a kain workspace".to_string())?;
+    let sysroot_dir = kain_home.home_dir.join("sysroot").join(&sysroot_name);
+    let metadata_path = sysroot_dir.join(".kain-sysroot.json");
+
+    // --- 3. Check if already installed ---
+    if sysroot_dir.exists() && sysroot_dir.join("lib").exists() {
+        if !force {
+            println!(
+                "sysroot '{}' already installed at {}",
+                sysroot_name,
+                sysroot_dir.display()
+            );
+            if metadata_path.exists() {
+                let meta = fs::read_to_string(&metadata_path).unwrap_or_default();
+                println!("  metadata: {}", meta.trim());
+            }
+            println!("  (use --force to re-install)");
+            return Ok(());
+        }
+        println!("re-installing sysroot '{}' (--force)", sysroot_name);
+    }
+
+    // --- 4. Handle dry-run ---
+    if dry_run {
+        println!("Would install sysroot '{}'", sysroot_name);
+        println!("  target triple: {}", triple.raw());
+        println!("  install path:  {}", sysroot_dir.display());
+        if let Some(dir) = from_dir {
+            println!("  source dir:    {}", dir);
+        } else if let Some(url) = from_url {
+            println!("  download URL:  {}", url);
+        } else if let Some(url) = muslcc_download_url(&triple) {
+            println!("  download URL:  {}", url);
+        } else {
+            println!("  download URL:  (no default URL for this triple; use --from-url)");
+        }
+        return Ok(());
+    }
+
+    // --- 5. Install from local directory ---
+    if let Some(dir) = from_dir {
+        let src = Path::new(dir);
+        if !src.exists() {
+            return Err(format!("source directory '{}' does not exist", dir));
+        }
+        println!("copying sysroot from '{}' to '{}'", dir, sysroot_dir.display());
+        copy_dir_recursive(src, &sysroot_dir)?;
+        write_sysroot_metadata(&metadata_path, &sysroot_name, &triple, None)?;
+        println!("installed sysroot '{}' at {}", sysroot_name, sysroot_dir.display());
+        return Ok(());
+    }
+
+    // --- 6. Download and extract ---
+    let url = from_url
+        .map(|u| Ok::<&str, String>(u))
+        .unwrap_or_else(|| {
+            muslcc_download_url(&triple)
+                .ok_or_else(|| {
+                    format!(
+                        "no default download URL for triple '{}'. Use --from-url to specify one.",
+                        triple.raw()
+                    )
+                })
+        })?;
+
+    println!("downloading sysroot from {}", url);
+    let tmp_root = std::env::temp_dir().join(format!("kain-sysroot-{}", std::process::id()));
+    fs::create_dir_all(&tmp_root)
+        .map_err(|e| format!("cannot create temp dir: {}", e))?;
+    let tarball_path = tmp_root.join("sysroot.tgz");
+
+    // Download
+    let response = reqwest::blocking::get(url)
+        .map_err(|e| format!("download failed: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("download returned HTTP {}", response.status()));
+    }
+    let bytes = response
+        .bytes()
+        .map_err(|e| format!("failed to read response body: {}", e))?;
+    fs::write(&tarball_path, &bytes)
+        .map_err(|e| format!("failed to write temp file: {}", e))?;
+
+    // Extract
+    println!("extracting sysroot...");
+    let extract_dir = tmp_root.join("extracted");
+    fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("cannot create extract dir: {}", e))?;
+
+    let tarball = fs::File::open(&tarball_path)
+        .map_err(|e| format!("cannot open tarball: {}", e))?;
+    let decoder = flate2::read::GzDecoder::new(tarball);
+    let mut archive = tar::Archive::new(decoder);
+    archive
+        .unpack(&extract_dir)
+        .map_err(|e| format!("extract failed: {}", e))?;
+
+    // --- 7. Find the actual sysroot inside the extracted tree ---
+    // musl.cc tarballs have a layout like:
+    //   x86_64-linux-musl-cross/
+    //     x86_64-linux-musl/         <-- actual sysroot
+    //       lib/   (crt1.o, libc.a, ...)
+    //       include/
+    //     bin/   (cross compiler)
+    // We want just the sysroot directory.
+    let sysroot_src = find_sysroot_in_extract(&extract_dir, &triple)?;
+
+    // --- 8. Install (move to target location) ---
+    if sysroot_dir.exists() {
+        fs::remove_dir_all(&sysroot_dir)
+            .map_err(|e| format!("cannot remove existing sysroot: {}", e))?;
+    }
+    fs::create_dir_all(sysroot_dir.parent().unwrap())
+        .map_err(|e| format!("cannot create sysroot parent dir: {}", e))?;
+
+    // Copy the sysroot (not rename, since we're on a tempdir)
+    copy_dir_recursive(&sysroot_src, &sysroot_dir)?;
+    write_sysroot_metadata(&metadata_path, &sysroot_name, &triple, Some(url))?;
+
+    println!(
+        "installed sysroot '{}' at {}",
+        sysroot_name,
+        sysroot_dir.display()
+    );
+    Ok(())
+}
+
+/// Search the extracted tarball tree for the actual sysroot directory.
+///
+/// musl.cc tarballs have a top-level `<arch>-linux-musl-cross/` directory
+/// that contains the sysroot at `<arch>-linux-musl/`.
+fn find_sysroot_in_extract(
+    extract_dir: &Path,
+    triple: &kain_target::TargetTriple,
+) -> Result<PathBuf, String> {
+    // The musl sysroot directory name inside the tarball
+    let musl_sysroot_name = format!("{}-{}-musl", triple.arch, triple.vendor);
+
+    let result = find_dir_named(extract_dir, &musl_sysroot_name, 0);
+    result.ok_or_else(|| {
+        format!(
+            "could not find sysroot directory '{}' inside extracted tarball at '{}'",
+            musl_sysroot_name,
+            extract_dir.display()
+        )
+    })
+}
+
+/// Recursively search for a directory with the given name, up to `depth` levels.
+/// Returns the first match that contains a `lib/` subdirectory (sysroot indicator).
+fn find_dir_named(root: &Path, name: &str, depth: usize) -> Option<PathBuf> {
+    if depth > 3 {
+        return None;
+    }
+    let entries = fs::read_dir(root).ok()?;
+    for entry in entries.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_dir() {
+            if entry.file_name() == name && path.join("lib").exists() {
+                return Some(path);
+            }
+            if let Some(found) = find_dir_named(&path, name, depth + 1) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+/// Recursively copy a directory tree.
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("cannot create '{}': {}", dst.display(), e))?;
+
+    for entry in
+        fs::read_dir(src).map_err(|e| format!("cannot read '{}': {}", src.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("cannot read entry: {}", e))?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("cannot copy '{}': {}", src_path.display(), e))?;
+        }
+    }
+    Ok(())
+}
+
+/// Write a `.kain-sysroot.json` metadata file in the installed sysroot.
+fn write_sysroot_metadata(
+    metadata_path: &Path,
+    sysroot_name: &str,
+    triple: &kain_target::TargetTriple,
+    source_url: Option<&str>,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct SysrootMetadata<'a> {
+        name: &'a str,
+        target_triple: &'a str,
+        version: &'a str,
+        installed_at: &'a str,
+        source_url: Option<&'a str>,
+    }
+
+    let meta = SysrootMetadata {
+        name: sysroot_name,
+        target_triple: &triple.raw(),
+        version: env!("CARGO_PKG_VERSION"),
+        installed_at: &chrono::Utc::now().to_rfc3339(),
+        source_url,
+    };
+
+    let json = serde_json::to_string_pretty(&meta)
+        .map_err(|e| format!("cannot serialize metadata: {}", e))?;
+    fs::write(metadata_path, json)
+        .map_err(|e| format!("cannot write metadata: {}", e))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
