@@ -1114,6 +1114,7 @@ fn ui_value_truthy(value: &UiValue) -> bool {
             "" | "0" | "false" | "no" | "off" | "null" => false,
             _ => true,
         },
+        UiValue::Callback { .. } => true,
     }
 }
 
@@ -1124,6 +1125,7 @@ fn ui_value_to_string(value: &UiValue) -> String {
         UiValue::Int(v) => v.to_string(),
         UiValue::Float(v) => v.to_string(),
         UiValue::String(v) => v.clone(),
+        UiValue::Callback { event, .. } => format!("<callback {}>", event),
     }
 }
 

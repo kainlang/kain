@@ -258,6 +258,12 @@ pub enum UiValue {
     Int(i64),
     Float(f64),
     String(String),
+    /// Event handler callback: stores the event name and a string key
+    /// identifying the callback function (resolved at runtime).
+    Callback {
+        event: String,
+        function_key: String,
+    },
 }
 
 impl UiValue {
@@ -920,6 +926,12 @@ pub struct UiSurface {
     pub kind: UiSurfaceKind,
     pub node: UiNodeId,
     pub title: Option<String>,
+    /// Explicit surface width in logical pixels. When None, the
+    /// renderer uses a platform-default (typically 1280).
+    pub width: Option<f64>,
+    /// Explicit surface height in logical pixels. When None, the
+    /// renderer uses a platform-default (typically 720).
+    pub height: Option<f64>,
     #[serde(default)]
     pub renderer_preference: UiSurfaceRendererPreference,
     #[serde(default)]
@@ -3122,6 +3134,8 @@ fn ui_surface_for_node(node: &UiNode) -> Option<UiSurface> {
         kind,
         node: node.id,
         title: node_prop_string(node, "title"),
+        width: None,
+        height: None,
         renderer_preference,
         composition_mode,
         preferred_host_backend,
@@ -3514,6 +3528,7 @@ fn first_bool_prop(node: &UiNode, keys: &[&str]) -> Option<bool> {
                 _ => None,
             },
             UiValue::Null => None,
+            UiValue::Callback { .. } => None,
         })
     })
 }

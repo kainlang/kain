@@ -8386,6 +8386,9 @@ impl WasmCompiler {
                         kain_core::ast::JSXAttrValue::Bool(b) => {
                             builder.i64_const(if *b { 1 } else { 0 });
                         }
+                        kain_core::ast::JSXAttrValue::Callback(_, handler_expr) => {
+                            self.compile_expr(ctx, builder, handler_expr.as_ref())?;
+                        }
                     }
                 }
 
