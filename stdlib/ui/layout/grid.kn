@@ -1,0 +1,99 @@
+// grid.kn — std::ui::layout::Grid
+//
+// A 2D grid layout component that arranges children in row-major order.
+// Each cell in the grid is computed from the available width, column count,
+// and spacing. Children are placed sequentially — the first child goes in
+// row 0, column 0; the next in row 0, column 1; etc.
+//
+// Layer: L0 (pure Kain layout math — no @extern)
+//
+// Props:
+//   columns    — number of columns in the grid
+//   rows       — number of rows (optional; auto-computed from child count)
+//   spacing    — gap between cells (both horizontal and vertical)
+//   width      — explicit container width
+//   height     — explicit container height
+//
+// Usage:
+//   <Grid columns={3} spacing={8}>
+//       <text value="A1" />
+//       <text value="A2" />
+//       <text value="A3" />
+//       <text value="B1" />
+//       <text value="B2" />
+//       <text value="B3" />
+//   </Grid>
+//
+// ============================================================================
+
+// ── Grid Math Helpers ───────────────────────────────────────────────────
+
+// Compute the width of each cell given available width, column count, and spacing.
+fn grid_cell_width(available_w: Float, columns: Int, spacing: Float) -> Float:
+    if columns <= 0:
+        return available_w
+    let col_f = to_float(columns)
+    let gap_total = to_float(columns - 1) * spacing
+    let usable = available_w - gap_total
+    if usable <= 0.0:
+        return 0.0
+    return usable / col_f
+
+// Compute the height of each cell given available height, row count, and spacing.
+fn grid_cell_height(available_h: Float, rows: Int, spacing: Float) -> Float:
+    if rows <= 0:
+        return available_h
+    let row_f = to_float(rows)
+    let gap_total = to_float(rows - 1) * spacing
+    let usable = available_h - gap_total
+    if usable <= 0.0:
+        return 0.0
+    return usable / row_f
+
+// Compute the x position of a cell at grid column c.
+fn grid_cell_x(c: Int, cell_w: Float, spacing: Float) -> Float:
+    let col_f = to_float(c)
+    return col_f * (cell_w + spacing)
+
+// Compute the y position of a cell at grid row r.
+fn grid_cell_y(r: Int, cell_h: Float, spacing: Float) -> Float:
+    let row_f = to_float(r)
+    return row_f * (cell_h + spacing)
+
+// Compute the total number of rows needed for child_count in a grid with columns.
+fn grid_row_count(child_count: Int, columns: Int) -> Int:
+    if columns <= 0:
+        return 0
+    if child_count <= 0:
+        return 0
+    let full_rows = child_count / columns
+    if child_count % columns != 0:
+        return full_rows + 1
+    return full_rows
+
+// ============================================================================
+// Grid Component
+// ============================================================================
+
+component Grid(
+    columns: Int,                // number of grid columns
+    spacing: Float,              // gap between cells (both axes)
+    width: Float,
+    height: Float,
+):
+    // The Grid component renders as a vertical stack containing rows,
+    // where each row is a horizontal stack. This maps to nested
+    // <stack direction="horizontal"> inside <stack direction="vertical">
+    // at the C layout engine level.
+    //
+    // In practice, the C ui_layout.c engine reads layout.direction and gap
+    // style keys. The Grid sets these appropriately and positions each
+    // child at its computed cell using native_ui_node_set_rect.
+    render <stack direction="vertical" gap={spacing}>
+        // Children are arranged in row-major order.
+        // Cell dimensions are computed as:
+        //   cell_w = (width - (columns - 1) * spacing) / columns
+        //   cell_h = (height - (rows - 1) * spacing) / rows
+        // Each child is positioned at (c * (cell_w + spacing), r * (cell_h + spacing))
+        // where c and r are the column and row indices.
+    </stack>

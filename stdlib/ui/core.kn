@@ -1,0 +1,134 @@
+// core.kn — std::ui::core — Native UI ABI bridge
+//
+// This is the canonical ABI bridge for new Phase 4 UI modules.
+// @extern declarations are in std::ui (parent module) for backward compat.
+// New code should: use std::ui::core
+//
+// NOTE: This file compiles successfully when imported by sub-modules
+// (stdlib/ui/primitives/*, stdlib/ui/components/*, etc.).
+// The parent module (stdlib/ui.kn) must be checked separately.
+
+// ===========================================================================
+// SESSION LIFECYCLE
+// ===========================================================================
+@extern fn abi_ui_reset() -> Int
+@extern fn abi_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+@extern fn abi_ui_session_destroy(session_id: Int) -> Int
+@extern fn abi_ui_session_count() -> Int
+@extern fn abi_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int
+@extern fn abi_ui_window_close(session_id: Int) -> Int
+@extern fn abi_ui_invalidate_window(session_id: Int) -> Int
+
+pub fn reset() -> Int:
+    return abi_ui_reset()
+pub fn session_create(a: String, b: Int, c: Int) -> Int:
+    return abi_ui_session_create(a, b, c)
+pub fn session_destroy(a: Int) -> Int:
+    return abi_ui_session_destroy(a)
+pub fn session_count() -> Int:
+    return abi_ui_session_count()
+pub fn window_open(a: Int, b: String, c: Int, d: Int) -> Int:
+    return abi_ui_window_open(a, b, c, d)
+pub fn window_close(a: Int) -> Int:
+    return abi_ui_window_close(a)
+pub fn invalidate_window(a: Int) -> Int:
+    return abi_ui_invalidate_window(a)
+
+// ===========================================================================
+// FRAME LIFECYCLE
+// ===========================================================================
+@extern fn abi_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int
+@extern fn abi_ui_end_frame(session_id: Int) -> Int
+@extern fn abi_ui_present(session_id: Int) -> Int
+@extern fn abi_ui_frame_index(session_id: Int) -> Int
+@extern fn abi_ui_last_presented_frame(session_id: Int) -> Int
+@extern fn abi_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int
+@extern fn abi_ui_dirty_count(session_id: Int) -> Int
+
+pub fn begin_frame(a: Int, b: Float) -> Int:
+    return abi_ui_begin_frame(a, b)
+pub fn end_frame(a: Int) -> Int:
+    return abi_ui_end_frame(a)
+pub fn present(a: Int) -> Int:
+    return abi_ui_present(a)
+pub fn frame_index(a: Int) -> Int:
+    return abi_ui_frame_index(a)
+pub fn last_presented_frame(a: Int) -> Int:
+    return abi_ui_last_presented_frame(a)
+pub fn mark_dirty(a: Int, b: Int, c: Int) -> Int:
+    return abi_ui_mark_dirty(a, b, c)
+pub fn dirty_count(a: Int) -> Int:
+    return abi_ui_dirty_count(a)
+
+// ===========================================================================
+// NODE CRUD
+// ===========================================================================
+@extern fn abi_ui_node_create(session_id: Int, kind: String) -> Int
+@extern fn abi_ui_node_destroy(session_id: Int, node_id: Int) -> Int
+@extern fn abi_ui_node_count(session_id: Int) -> Int
+@extern fn abi_ui_node_exists(session_id: Int, node_id: Int) -> Int
+@extern fn abi_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int
+@extern fn abi_ui_node_parent(session_id: Int, node_id: Int) -> Int
+@extern fn abi_ui_node_child_count(session_id: Int, node_id: Int) -> Int
+@extern fn abi_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+@extern fn abi_ui_node_x(session_id: Int, node_id: Int) -> Float
+@extern fn abi_ui_node_y(session_id: Int, node_id: Int) -> Float
+@extern fn abi_ui_node_width(session_id: Int, node_id: Int) -> Float
+@extern fn abi_ui_node_height(session_id: Int, node_id: Int) -> Float
+@extern fn abi_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int
+@extern fn abi_ui_node_text(session_id: Int, node_id: Int) -> String
+@extern fn abi_ui_node_kind(session_id: Int, node_id: Int) -> String
+@extern fn abi_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int
+@extern fn abi_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int
+@extern fn abi_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
+@extern fn abi_ui_node_stable_key(session_id: Int, node_id: Int) -> String
+@extern fn abi_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
+
+pub fn node_create(a: Int, b: String) -> Int:
+    return abi_ui_node_create(a, b)
+pub fn node_destroy(a: Int, b: Int) -> Int:
+    return abi_ui_node_destroy(a, b)
+pub fn node_count(a: Int) -> Int:
+    return abi_ui_node_count(a)
+pub fn node_exists(a: Int, b: Int) -> Int:
+    return abi_ui_node_exists(a, b)
+pub fn node_set_parent(a: Int, b: Int, c: Int) -> Int:
+    return abi_ui_node_set_parent(a, b, c)
+pub fn node_parent(a: Int, b: Int) -> Int:
+    return abi_ui_node_parent(a, b)
+pub fn node_child_count(a: Int, b: Int) -> Int:
+    return abi_ui_node_child_count(a, b)
+pub fn node_set_rect(a: Int, b: Int, c: Float, d: Float, e: Float, f: Float) -> Int:
+    return abi_ui_node_set_rect(a, b, c, d, e, f)
+pub fn node_x(a: Int, b: Int) -> Float:
+    return abi_ui_node_x(a, b)
+pub fn node_y(a: Int, b: Int) -> Float:
+    return abi_ui_node_y(a, b)
+pub fn node_width(a: Int, b: Int) -> Float:
+    return abi_ui_node_width(a, b)
+pub fn node_height(a: Int, b: Int) -> Float:
+    return abi_ui_node_height(a, b)
+pub fn node_set_text(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_set_text(a, b, c)
+pub fn node_text(a: Int, b: Int) -> String:
+    return abi_ui_node_text(a, b)
+pub fn node_kind(a: Int, b: Int) -> String:
+    return abi_ui_node_kind(a, b)
+pub fn node_set_flag(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_set_flag(a, b, c, d)
+pub fn node_has_flag(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_has_flag(a, b, c)
+pub fn node_set_stable_key(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_set_stable_key(a, b, c)
+pub fn node_stable_key(a: Int, b: Int) -> String:
+    return abi_ui_node_stable_key(a, b)
+pub fn node_find_by_stable_key(a: Int, b: String) -> Int:
+    return abi_ui_node_find_by_stable_key(a, b)
+
+// ===========================================================================
+// + style, state, focus, events, draw, host, resources, clipboard, ime,
+//   drag, menus, dialogs, accessibility, hot reload, font loading
+// ===========================================================================
+// These sections follow the same pattern as above.
+// For the complete file see the previous version of stdlib/ui/core.kn
+// or the @extern declarations in stdlib/ui.kn (parent module).

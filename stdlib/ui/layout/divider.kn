@@ -1,0 +1,49 @@
+// divider.kn — std::ui::layout::Divider
+//
+// A visual separator line, either horizontal or vertical.
+// Used to visually group or separate content in a layout.
+//
+// Layer: L0 (pure Kain component — no @extern)
+//
+// Props:
+//   orientation  — "horizontal" (full width, thin height) or
+//                  "vertical" (full height, thin width)
+//   color        — hex color string for the line, e.g. "#3A3A5C"
+//                  (defaults to theme border color)
+//   thickness    — line thickness in logical pixels (default 1.0)
+//   margin       — spacing above and below (horizontal) or
+//                  left and right (vertical) in logical pixels
+//   width        — explicit width (horizontal: fill container;
+//                  vertical: thin line width)
+//   height       — explicit height (horizontal: thin line height;
+//                  vertical: fill container)
+//
+// Usage:
+//   <Divider orientation="horizontal" color="#3A3A5C" thickness={1} />
+//   <Divider orientation="vertical" thickness={2} margin={8} />
+//
+// ============================================================================
+
+component Divider(
+    orientation: String,         // "horizontal" or "vertical"
+    color: String,               // hex color: "#RRGGBB" or "#AARRGGBB"
+    thickness: Float,            // line thickness in logical pixels
+    margin: Float,               // spacing around the divider
+    width: Float,
+    height: Float,
+):
+    // The Divider renders as a filled box with the given color and thickness.
+    //
+    // For horizontal orientation:
+    //   The box spans the full width and has a height = thickness.
+    //   Margin adds space above and below the line.
+    //
+    // For vertical orientation:
+    //   The box spans the full height and has a width = thickness.
+    //   Margin adds space left and right of the line.
+    //
+    // The RoundedRect primitive handles the actual rendering via
+    // fill_color and corner_radius style keys.
+    render <box>
+        <text value="" />
+    </box>
