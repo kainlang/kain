@@ -1,1676 +1,549 @@
-use std::graphics::shared
-use std::input
-
-@extern
-fn abi_ui_reset() -> Int
-
-@extern
-fn abi_ui_session_create(app_name: String, width: Int, height: Int) -> Int
-
-@extern
-fn abi_ui_session_destroy(session_id: Int) -> Int
-
-@extern
-fn abi_ui_session_count() -> Int
-
-@extern
-fn abi_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int
-
-@extern
-fn abi_ui_window_close(session_id: Int) -> Int
-
-@extern
-fn abi_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int
-
-@extern
-fn abi_ui_end_frame(session_id: Int) -> Int
-
-@extern
-fn abi_ui_present(session_id: Int) -> Int
-
-@extern
-fn abi_ui_frame_index(session_id: Int) -> Int
-
-@extern
-fn abi_ui_last_presented_frame(session_id: Int) -> Int
-
-@extern
-fn abi_ui_node_create(session_id: Int, kind: String) -> Int
-
-@extern
-fn abi_ui_node_destroy(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_node_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_node_exists(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int
-
-@extern
-fn abi_ui_node_parent(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_node_child_count(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
-
-@extern
-fn abi_ui_node_x(session_id: Int, node_id: Int) -> Float
-
-@extern
-fn abi_ui_node_y(session_id: Int, node_id: Int) -> Float
-
-@extern
-fn abi_ui_node_width(session_id: Int, node_id: Int) -> Float
-
-@extern
-fn abi_ui_node_height(session_id: Int, node_id: Int) -> Float
-
-@extern
-fn abi_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int
-
-@extern
-fn abi_ui_node_text(session_id: Int, node_id: Int) -> String
-
-@extern
-fn abi_ui_node_kind(session_id: Int, node_id: Int) -> String
-
-@extern
-fn abi_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int
-
-@extern
-fn abi_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int
-
-@extern
-fn abi_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
-
-@extern
-fn abi_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
-
-@extern
-fn abi_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
-
-@extern
-fn abi_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
-
-@extern
-fn abi_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
-
-@extern
-fn abi_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
-
-@extern
-fn abi_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
-
-@extern
-fn abi_ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
-
-@extern
-fn abi_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
-
-@extern
-fn abi_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
-
-@extern
-fn abi_ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
-
-@extern
-fn abi_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
-
-@extern
-fn abi_ui_state_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_focus(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_focused_node(session_id: Int) -> Int
-
-@extern
-fn abi_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int
-
-@extern
-fn abi_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int
-
-@extern
-fn abi_ui_dirty_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int
-
-@extern
-fn abi_ui_poll_event(session_id: Int) -> Int
-
-@extern
-fn abi_ui_event_kind(session_id: Int) -> String
-
-@extern
-fn abi_ui_event_target(session_id: Int) -> Int
-
-@extern
-fn abi_ui_event_x(session_id: Int) -> Float
-
-@extern
-fn abi_ui_event_y(session_id: Int) -> Float
-
-@extern
-fn abi_ui_event_key_code(session_id: Int) -> Int
-
-@extern
-fn abi_ui_event_text(session_id: Int) -> String
-
-@extern
-fn abi_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
-
-@extern
-fn abi_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
-
-@extern
-fn abi_ui_draw_command_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_draw_command_kind(session_id: Int, command_index: Int) -> String
-
-@extern
-fn abi_ui_draw_command_node(session_id: Int, command_index: Int) -> Int
-
-@extern
-fn abi_ui_host_attach(session_id: Int, backend_id: String) -> Int
-
-@extern
-fn abi_ui_host_pump(session_id: Int) -> Int
-
-@extern
-fn abi_ui_host_present(session_id: Int) -> Int
-
-@extern
-fn abi_ui_framebuffer_ptr(session_id: Int) -> Int
-
-@extern
-fn abi_ui_framebuffer_width(session_id: Int) -> Int
-
-@extern
-fn abi_ui_framebuffer_height(session_id: Int) -> Int
-
-@extern
-fn abi_ui_framebuffer_stride(session_id: Int) -> Int
-
-@extern
-fn abi_ui_host_presented_draw_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_host_frame_hash(session_id: Int) -> Int
-
-@extern
-fn abi_ui_host_should_close(session_id: Int) -> Int
-
-@extern
-fn abi_ui_host_backend(session_id: Int) -> String
-
-@extern
-fn abi_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
-
-@extern
-fn abi_ui_node_stable_key(session_id: Int, node_id: Int) -> String
-
-@extern
-fn abi_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
-
-@extern
-fn abi_ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int
-
-@extern
-fn abi_ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int
-
-@extern
-fn abi_ui_accessibility_role(session_id: Int, node_id: Int) -> String
-
-@extern
-fn abi_ui_accessibility_label(session_id: Int, node_id: Int) -> String
-
-@extern
-fn abi_ui_draw_command_resource(session_id: Int, command_index: Int) -> Int
-
-@extern
-fn abi_ui_draw_command_x(session_id: Int, command_index: Int) -> Float
-
-@extern
-fn abi_ui_draw_command_y(session_id: Int, command_index: Int) -> Float
-
-@extern
-fn abi_ui_draw_command_width(session_id: Int, command_index: Int) -> Float
-
-@extern
-fn abi_ui_draw_command_height(session_id: Int, command_index: Int) -> Float
-
-@extern
-fn abi_ui_draw_command_text(session_id: Int, command_index: Int) -> String
-
-@extern
-fn abi_ui_draw_command_style(session_id: Int, command_index: Int) -> String
-
-@extern
-fn abi_ui_draw_command_font(session_id: Int, command_index: Int) -> Int
-
-@extern
-fn abi_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int
-
-@extern
-fn abi_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
-
-@extern
-fn abi_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
-
-@extern
-fn abi_ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int
-
-@extern
-fn abi_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int
-
-@extern
-fn abi_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
-
-@extern
-fn abi_ui_resource_count(session_id: Int) -> Int
-
-@extern
-fn abi_ui_resource_exists(session_id: Int, resource_id: Int) -> Int
-
-@extern
-fn abi_ui_resource_type(session_id: Int, resource_id: Int) -> String
-
-@extern
-fn abi_ui_resource_key(session_id: Int, resource_id: Int) -> String
-
-@extern
-fn abi_ui_resource_width(session_id: Int, resource_id: Int) -> Int
-
-@extern
-fn abi_ui_resource_height(session_id: Int, resource_id: Int) -> Int
-
-@extern
-fn abi_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int
-
-@extern
-pub fn abi_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
-
-@extern
-pub fn abi_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float
-
-@extern
-fn abi_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
-
-@extern
-fn abi_ui_clipboard_set_text(session_id: Int, text: String) -> Int
-
-@extern
-fn abi_ui_clipboard_text(session_id: Int) -> String
-
-@extern
-fn abi_ui_ime_begin(session_id: Int, node_id: Int) -> Int
-
-@extern
-fn abi_ui_ime_commit_text(session_id: Int, text: String) -> Int
-
-@extern
-fn abi_ui_ime_end(session_id: Int) -> Int
-
-@extern
-fn abi_ui_ime_active_node(session_id: Int) -> Int
-
-@extern
-fn abi_ui_ime_text(session_id: Int) -> String
-
-@extern
-fn abi_ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int
-
-@extern
-fn abi_ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int
-
-@extern
-fn abi_ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int
-
-@extern
-fn abi_ui_drag_active_node(session_id: Int) -> Int
-
-@extern
-fn abi_ui_drag_drop_target(session_id: Int) -> Int
-
-@extern
-fn abi_ui_drag_x(session_id: Int) -> Float
-
-@extern
-fn abi_ui_drag_y(session_id: Int) -> Float
-
-@extern
-fn abi_ui_drag_payload(session_id: Int) -> String
-
-@extern
-fn abi_ui_menu_create(session_id: Int, key: String) -> Int
-
-@extern
-fn abi_ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int
-
-@extern
-fn abi_ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int
-
-@extern
-fn abi_ui_menu_active(session_id: Int) -> Int
-
-@extern
-fn abi_ui_menu_item_count(session_id: Int, menu_id: Int) -> Int
-
-@extern
-fn abi_ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String
-
-@extern
-fn abi_ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int
-
-@extern
-fn abi_ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int
-
-@extern
-fn abi_ui_dialog_active(session_id: Int) -> Int
-
-@extern
-fn abi_ui_dialog_kind(session_id: Int, dialog_id: Int) -> String
-
-@extern
-fn abi_ui_dialog_title(session_id: Int, dialog_id: Int) -> String
-
-@extern
-fn abi_ui_dialog_message(session_id: Int, dialog_id: Int) -> String
-
-@extern
-fn abi_ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int
-
-@extern
-fn abi_ui_dialog_poll_response(session_id: Int) -> Int
-
-@extern
-fn abi_ui_dialog_response_text(session_id: Int) -> String
-
-@extern
-fn abi_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
-
-@extern
-fn abi_ui_hot_reload_commit(session_id: Int) -> Int
-
-@extern
-fn abi_ui_hot_reload_generation(session_id: Int) -> Int
-
-@extern
-fn abi_ui_hot_reload_key(session_id: Int) -> String
+// ui.kn — std::ui — Re-export hub (self-contained)
+//
+// @extern declarations: the canonical source is std::ui::core.
+// This file keeps @extern for backward compatibility.
+// Theme constants extracted to std::ui::theme.
+// New code should prefer: use std::ui::core, use std::ui::theme
+
+// ===========================================================================
+// SESSION LIFECYCLE
+// ===========================================================================
+@extern fn abi_ui_reset() -> Int
+@extern fn abi_ui_session_create(a: String, b: Int, c: Int) -> Int
+@extern fn abi_ui_session_destroy(a: Int) -> Int
+@extern fn abi_ui_session_count() -> Int
+@extern fn abi_ui_window_open(a: Int, b: String, c: Int, d: Int) -> Int
+@extern fn abi_ui_window_close(a: Int) -> Int
+@extern fn abi_ui_invalidate_window(a: Int) -> Int
 
 pub fn native_ui_reset() -> Int:
     return abi_ui_reset()
-
-pub fn native_ui_session_create(app_name: String, width: Int, height: Int) -> Int:
-    return abi_ui_session_create(app_name, width, height)
-
-pub fn native_ui_session_destroy(session_id: Int) -> Int:
-    return abi_ui_session_destroy(session_id)
-
+pub fn native_ui_session_create(a: String, b: Int, c: Int) -> Int:
+    return abi_ui_session_create(a, b, c)
+pub fn native_ui_session_destroy(a: Int) -> Int:
+    return abi_ui_session_destroy(a)
 pub fn native_ui_session_count() -> Int:
     return abi_ui_session_count()
-
-pub fn native_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int:
-    return abi_ui_window_open(session_id, title, width, height)
-
-pub fn native_ui_window_close(session_id: Int) -> Int:
-    return abi_ui_window_close(session_id)
-
-pub fn native_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int:
-    return abi_ui_begin_frame(session_id, delta_ms)
-
-pub fn native_ui_end_frame(session_id: Int) -> Int:
-    return abi_ui_end_frame(session_id)
-
-pub fn native_ui_present(session_id: Int) -> Int:
-    return abi_ui_present(session_id)
-
-pub fn native_ui_frame_index(session_id: Int) -> Int:
-    return abi_ui_frame_index(session_id)
-
-pub fn native_ui_last_presented_frame(session_id: Int) -> Int:
-    return abi_ui_last_presented_frame(session_id)
-
-pub fn native_ui_node_create(session_id: Int, kind: String) -> Int:
-    return abi_ui_node_create(session_id, kind)
-
-pub fn native_ui_node_destroy(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_node_destroy(session_id, node_id)
-
-pub fn native_ui_node_count(session_id: Int) -> Int:
-    return abi_ui_node_count(session_id)
-
-pub fn native_ui_node_exists(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_node_exists(session_id, node_id)
-
-pub fn native_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int:
-    return abi_ui_node_set_parent(session_id, node_id, parent_id)
-
-pub fn native_ui_node_parent(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_node_parent(session_id, node_id)
-
-pub fn native_ui_node_child_count(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_node_child_count(session_id, node_id)
-
-pub fn native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return abi_ui_node_set_rect(session_id, node_id, x, y, width, height)
-
-pub fn native_ui_node_x(session_id: Int, node_id: Int) -> Float:
-    return abi_ui_node_x(session_id, node_id)
-
-pub fn native_ui_node_y(session_id: Int, node_id: Int) -> Float:
-    return abi_ui_node_y(session_id, node_id)
-
-pub fn native_ui_node_width(session_id: Int, node_id: Int) -> Float:
-    return abi_ui_node_width(session_id, node_id)
-
-pub fn native_ui_node_height(session_id: Int, node_id: Int) -> Float:
-    return abi_ui_node_height(session_id, node_id)
-
-pub fn native_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int:
-    return abi_ui_node_set_text(session_id, node_id, text)
-
-pub fn native_ui_node_text(session_id: Int, node_id: Int) -> String:
-    return abi_ui_node_text(session_id, node_id)
-
-pub fn native_ui_node_kind(session_id: Int, node_id: Int) -> String:
-    return abi_ui_node_kind(session_id, node_id)
-
-pub fn native_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int:
-    return abi_ui_node_set_flag(session_id, node_id, flag, enabled)
-
-pub fn native_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int:
-    return abi_ui_node_has_flag(session_id, node_id, flag)
-
-pub fn native_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return abi_ui_node_set_style_i64(session_id, node_id, key, value)
-
-pub fn native_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return abi_ui_node_set_style_f64(session_id, node_id, key, value)
-
-pub fn native_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return abi_ui_node_set_style_string(session_id, node_id, key, value)
-
-pub fn native_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return abi_ui_node_style_i64(session_id, node_id, key, fallback)
-
-pub fn native_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return abi_ui_node_style_f64(session_id, node_id, key, fallback)
-
-pub fn native_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return abi_ui_node_style_string(session_id, node_id, key, fallback)
-
-pub fn native_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return abi_ui_node_set_state_i64(session_id, node_id, key, value)
-
-pub fn native_ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return abi_ui_node_set_state_f64(session_id, node_id, key, value)
-
-pub fn native_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return abi_ui_node_set_state_string(session_id, node_id, key, value)
-
-pub fn native_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return abi_ui_node_state_i64(session_id, node_id, key, fallback)
-
-pub fn native_ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return abi_ui_node_state_f64(session_id, node_id, key, fallback)
-
-pub fn native_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return abi_ui_node_state_string(session_id, node_id, key, fallback)
-
-pub fn native_ui_state_count(session_id: Int) -> Int:
-    return abi_ui_state_count(session_id)
-
-pub fn native_ui_focus(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_focus(session_id, node_id)
-
-pub fn native_ui_focused_node(session_id: Int) -> Int:
-    return abi_ui_focused_node(session_id)
-
-pub fn native_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int:
-    return abi_ui_hit_test(session_id, x, y)
-
-pub fn native_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int:
-    return abi_ui_mark_dirty(session_id, node_id, reason)
-
-pub fn native_ui_dirty_count(session_id: Int) -> Int:
-    return abi_ui_dirty_count(session_id)
-
-pub fn native_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int:
-    return abi_ui_push_event(session_id, kind, target_node_id, x, y, key_code, text)
-
-pub fn native_ui_poll_event(session_id: Int) -> Int:
-    return abi_ui_poll_event(session_id)
-
-pub fn native_ui_event_kind(session_id: Int) -> String:
-    return abi_ui_event_kind(session_id)
-
-pub fn native_ui_event_target(session_id: Int) -> Int:
-    return abi_ui_event_target(session_id)
-
-pub fn native_ui_event_x(session_id: Int) -> Float:
-    return abi_ui_event_x(session_id)
-
-pub fn native_ui_event_y(session_id: Int) -> Float:
-    return abi_ui_event_y(session_id)
-
-pub fn native_ui_event_key_code(session_id: Int) -> Int:
-    return abi_ui_event_key_code(session_id)
-
-pub fn native_ui_event_text(session_id: Int) -> String:
-    return abi_ui_event_text(session_id)
-
-pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return abi_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
-
-pub fn native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
-    return abi_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
-
-pub fn native_ui_draw_command_count(session_id: Int) -> Int:
-    return abi_ui_draw_command_count(session_id)
-
-pub fn native_ui_draw_command_kind(session_id: Int, command_index: Int) -> String:
-    return abi_ui_draw_command_kind(session_id, command_index)
-
-pub fn native_ui_draw_command_node(session_id: Int, command_index: Int) -> Int:
-    return abi_ui_draw_command_node(session_id, command_index)
-
-pub fn native_ui_host_attach(session_id: Int, backend_id: String) -> Int:
-    return abi_ui_host_attach(session_id, backend_id)
-
-pub fn native_ui_host_pump(session_id: Int) -> Int:
-    return abi_ui_host_pump(session_id)
-
-pub fn native_ui_host_present(session_id: Int) -> Int:
-    return abi_ui_host_present(session_id)
-
-pub fn native_ui_host_presented_draw_count(session_id: Int) -> Int:
-    return abi_ui_host_presented_draw_count(session_id)
-
-pub fn native_ui_host_frame_hash(session_id: Int) -> Int:
-    return abi_ui_host_frame_hash(session_id)
-
-pub fn native_ui_host_should_close(session_id: Int) -> Int:
-    return abi_ui_host_should_close(session_id)
-
-pub fn native_ui_host_backend(session_id: Int) -> String:
-    return abi_ui_host_backend(session_id)
-
-pub fn native_ui_framebuffer_ptr(session_id: Int) -> Int:
-    return abi_ui_framebuffer_ptr(session_id)
-
-pub fn native_ui_framebuffer_width(session_id: Int) -> Int:
-    return abi_ui_framebuffer_width(session_id)
-
-pub fn native_ui_framebuffer_height(session_id: Int) -> Int:
-    return abi_ui_framebuffer_height(session_id)
-
-pub fn native_ui_framebuffer_stride(session_id: Int) -> Int:
-    return abi_ui_framebuffer_stride(session_id)
-
-@extern
-fn abi_ui_invalidate_window(session_id: Int) -> Int
-
-// ── Widget Library @extern (from widgets/ui_widget.h) ──────────────────
-
-@extern
-fn abi_ui_widget_create(session_id: Int) -> Int
-
-@extern
-fn abi_ui_widget_destroy(ctx_ptr: Int)
-
-@extern
-fn abi_ui_widget_begin_frame(ctx_ptr: Int)
-
-@extern
-fn abi_ui_widget_end_frame(ctx_ptr: Int)
-
-@extern
-fn abi_ui_widget_load_font(ctx_ptr: Int, filepath: String, size: Float) -> Int
-
-@extern
-fn abi_ui_widget_load_default_font(ctx_ptr: Int, size: Float) -> Int
-
-@extern
-fn abi_ui_widget_button(ctx_ptr: Int, label: String) -> Bool
-
-@extern
-fn abi_ui_widget_label(ctx_ptr: Int, text: String) -> Int
-
-@extern
-fn abi_ui_widget_checkbox(ctx_ptr: Int, label: String, current_value: Int) -> Int
-
-@extern
-fn abi_ui_widget_slider(ctx_ptr: Int, current_value: Float, lo: Float, hi: Float) -> Int
-
-@extern
-fn abi_ui_widget_textbox_poll(ctx_ptr: Int, buf_ptr: Int, buf_size: Int) -> Int
-
-@extern
-fn abi_ui_widget_textbox(ctx_ptr: Int, text: String, max_len: Int) -> String
-
-@extern
-fn abi_ui_widget_panel_begin(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float) -> Int
-
-@extern
-fn abi_ui_widget_panel_end(ctx_ptr: Int)
-
-@extern
-fn abi_ui_widget_progress(ctx_ptr: Int, label: String, value: Float, max: Float) -> Int
-
-@extern
-fn abi_ui_widget_window(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float, open: Int) -> Bool
-
-@extern
-fn abi_ui_widget_layout_row(ctx_ptr: Int, count: Int, widths: ptr<Int>) -> Int
-
-@extern
-fn abi_ui_widget_layout_column(ctx_ptr: Int, count: Int, heights: ptr<Int>) -> Int
-
-@extern
-fn abi_ui_widget_layout_set_next(ctx_ptr: Int, w: Int, h: Int) -> Int
-
-@extern
-fn abi_ui_widget_layout_begin(ctx_ptr: Int, count: Int, layout_type: Int) -> Int
-
-@extern
-fn abi_ui_widget_layout_set_size(ctx_ptr: Int, index: Int, size: Int) -> Int
-
-pub fn native_ui_invalidate_window(session_id: Int) -> Int:
-    return abi_ui_invalidate_window(session_id)
-
-pub fn ui_fb_ptr(session_id: Int) -> Int:
-    return native_ui_framebuffer_ptr(session_id)
-
-pub fn ui_fb_width(session_id: Int) -> Int:
-    return native_ui_framebuffer_width(session_id)
-
-pub fn ui_fb_height(session_id: Int) -> Int:
-    return native_ui_framebuffer_height(session_id)
-
-pub fn ui_fb_stride(session_id: Int) -> Int:
-    return native_ui_framebuffer_stride(session_id)
-
-pub fn native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int:
-    return abi_ui_node_set_stable_key(session_id, node_id, stable_key)
-
-pub fn native_ui_node_stable_key(session_id: Int, node_id: Int) -> String:
-    return abi_ui_node_stable_key(session_id, node_id)
-
-pub fn native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int:
-    return abi_ui_node_find_by_stable_key(session_id, stable_key)
-
-pub fn native_ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int:
-    return abi_ui_accessibility_set_role(session_id, node_id, role)
-
-pub fn native_ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int:
-    return abi_ui_accessibility_set_label(session_id, node_id, label)
-
-pub fn native_ui_accessibility_role(session_id: Int, node_id: Int) -> String:
-    return abi_ui_accessibility_role(session_id, node_id)
-
-pub fn native_ui_accessibility_label(session_id: Int, node_id: Int) -> String:
-    return abi_ui_accessibility_label(session_id, node_id)
-
-pub fn native_ui_draw_command_resource(session_id: Int, command_index: Int) -> Int:
-    return abi_ui_draw_command_resource(session_id, command_index)
-
-pub fn native_ui_draw_command_x(session_id: Int, command_index: Int) -> Float:
-    return abi_ui_draw_command_x(session_id, command_index)
-
-pub fn native_ui_draw_command_y(session_id: Int, command_index: Int) -> Float:
-    return abi_ui_draw_command_y(session_id, command_index)
-
-pub fn native_ui_draw_command_width(session_id: Int, command_index: Int) -> Float:
-    return abi_ui_draw_command_width(session_id, command_index)
-
-pub fn native_ui_draw_command_height(session_id: Int, command_index: Int) -> Float:
-    return abi_ui_draw_command_height(session_id, command_index)
-
-pub fn native_ui_draw_command_text(session_id: Int, command_index: Int) -> String:
-    return abi_ui_draw_command_text(session_id, command_index)
-
-pub fn native_ui_draw_command_style(session_id: Int, command_index: Int) -> String:
-    return abi_ui_draw_command_style(session_id, command_index)
-
-pub fn native_ui_draw_command_font(session_id: Int, command_index: Int) -> Int:
-    return abi_ui_draw_command_font(session_id, command_index)
-
-pub fn native_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int:
-    return abi_ui_resource_create(session_id, resource_type, key, width, height, byte_length)
-
-pub fn native_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int:
-    return abi_ui_font_create(session_id, key, family, size)
-
-pub fn native_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int:
-    return abi_ui_texture_create(session_id, key, width, height, format, byte_length)
-
-pub fn native_ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int:
-    return abi_ui_canvas_create(session_id, key, width, height)
-
-pub fn native_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int:
-    return abi_ui_shader_create(session_id, key, stage, byte_length)
-
-pub fn native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int:
-    return abi_ui_resource_set_bytes_hex(session_id, resource_id, bytes_hex)
-
-pub fn native_ui_resource_count(session_id: Int) -> Int:
-    return abi_ui_resource_count(session_id)
-
-pub fn native_ui_resource_exists(session_id: Int, resource_id: Int) -> Int:
-    return abi_ui_resource_exists(session_id, resource_id)
-
-pub fn native_ui_resource_type(session_id: Int, resource_id: Int) -> String:
-    return abi_ui_resource_type(session_id, resource_id)
-
-pub fn native_ui_resource_key(session_id: Int, resource_id: Int) -> String:
-    return abi_ui_resource_key(session_id, resource_id)
-
-pub fn native_ui_resource_width(session_id: Int, resource_id: Int) -> Int:
-    return abi_ui_resource_width(session_id, resource_id)
-
-pub fn native_ui_resource_height(session_id: Int, resource_id: Int) -> Int:
-    return abi_ui_resource_height(session_id, resource_id)
-
-pub fn native_ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int:
-    return abi_ui_resource_byte_length(session_id, resource_id)
-
-pub fn native_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return abi_ui_text_measure_width(session_id, font_resource_id, text)
-
-pub fn native_ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return abi_ui_text_measure_height(session_id, font_resource_id, text)
-
-pub fn native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return abi_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
-
-pub fn native_ui_clipboard_set_text(session_id: Int, text: String) -> Int:
-    return abi_ui_clipboard_set_text(session_id, text)
-
-pub fn native_ui_clipboard_text(session_id: Int) -> String:
-    return abi_ui_clipboard_text(session_id)
-
-pub fn native_ui_ime_begin(session_id: Int, node_id: Int) -> Int:
-    return abi_ui_ime_begin(session_id, node_id)
-
-pub fn native_ui_ime_commit_text(session_id: Int, text: String) -> Int:
-    return abi_ui_ime_commit_text(session_id, text)
-
-pub fn native_ui_ime_end(session_id: Int) -> Int:
-    return abi_ui_ime_end(session_id)
-
-pub fn native_ui_ime_active_node(session_id: Int) -> Int:
-    return abi_ui_ime_active_node(session_id)
-
-pub fn native_ui_ime_text(session_id: Int) -> String:
-    return abi_ui_ime_text(session_id)
-
-pub fn native_ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int:
-    return abi_ui_drag_begin(session_id, node_id, payload, x, y)
-
-pub fn native_ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int:
-    return abi_ui_drag_update(session_id, x, y, drop_target_node_id)
-
-pub fn native_ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int:
-    return abi_ui_drag_drop(session_id, drop_target_node_id)
-
-pub fn native_ui_drag_active_node(session_id: Int) -> Int:
-    return abi_ui_drag_active_node(session_id)
-
-pub fn native_ui_drag_drop_target(session_id: Int) -> Int:
-    return abi_ui_drag_drop_target(session_id)
-
-pub fn native_ui_drag_x(session_id: Int) -> Float:
-    return abi_ui_drag_x(session_id)
-
-pub fn native_ui_drag_y(session_id: Int) -> Float:
-    return abi_ui_drag_y(session_id)
-
-pub fn native_ui_drag_payload(session_id: Int) -> String:
-    return abi_ui_drag_payload(session_id)
-
-pub fn native_ui_menu_create(session_id: Int, key: String) -> Int:
-    return abi_ui_menu_create(session_id, key)
-
-pub fn native_ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int:
-    return abi_ui_menu_add_item(session_id, menu_id, key, label, command_id)
-
-pub fn native_ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int:
-    return abi_ui_menu_open(session_id, menu_id, x, y)
-
-pub fn native_ui_menu_active(session_id: Int) -> Int:
-    return abi_ui_menu_active(session_id)
-
-pub fn native_ui_menu_item_count(session_id: Int, menu_id: Int) -> Int:
-    return abi_ui_menu_item_count(session_id, menu_id)
-
-pub fn native_ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String:
-    return abi_ui_menu_item_label(session_id, menu_id, item_index)
-
-pub fn native_ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int:
-    return abi_ui_menu_item_command(session_id, menu_id, item_index)
-
-pub fn native_ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int:
-    return abi_ui_dialog_request(session_id, kind, title, message)
-
-pub fn native_ui_dialog_active(session_id: Int) -> Int:
-    return abi_ui_dialog_active(session_id)
-
-pub fn native_ui_dialog_kind(session_id: Int, dialog_id: Int) -> String:
-    return abi_ui_dialog_kind(session_id, dialog_id)
-
-pub fn native_ui_dialog_title(session_id: Int, dialog_id: Int) -> String:
-    return abi_ui_dialog_title(session_id, dialog_id)
-
-pub fn native_ui_dialog_message(session_id: Int, dialog_id: Int) -> String:
-    return abi_ui_dialog_message(session_id, dialog_id)
-
-pub fn native_ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int:
-    return abi_ui_dialog_respond(session_id, dialog_id, result, response_text)
-
-pub fn native_ui_dialog_poll_response(session_id: Int) -> Int:
-    return abi_ui_dialog_poll_response(session_id)
-
-pub fn native_ui_dialog_response_text(session_id: Int) -> String:
-    return abi_ui_dialog_response_text(session_id)
-
-pub fn native_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int:
-    return abi_ui_hot_reload_begin(session_id, revision_key)
-
-pub fn native_ui_hot_reload_commit(session_id: Int) -> Int:
-    return abi_ui_hot_reload_commit(session_id)
-
-pub fn native_ui_hot_reload_generation(session_id: Int) -> Int:
-    return abi_ui_hot_reload_generation(session_id)
-
-pub fn native_ui_hot_reload_key(session_id: Int) -> String:
-    return abi_ui_hot_reload_key(session_id)
-
-pub fn ui_layout_column_y(index_offset: Float, start_y: Float, item_height: Float, gap: Float) -> Float:
-    return start_y + ((item_height + gap) * index_offset)
-
-pub fn ui_layout_row_x(index_offset: Float, start_x: Float, item_width: Float, gap: Float) -> Float:
-    return start_x + ((item_width + gap) * index_offset)
-
-pub fn ui_float_min(left: Float, right: Float) -> Float:
-    if left < right:
-        return left
-    return right
-
-pub fn ui_float_max(left: Float, right: Float) -> Float:
-    if left > right:
-        return left
-    return right
-
-pub fn ui_float_clamp(value: Float, low: Float, high: Float) -> Float:
-    if value < low:
-        return low
-    if value > high:
-        return high
-    return value
-
-pub fn ui_rect_right(x: Float, width: Float) -> Float:
-    return x + width
-
-pub fn ui_rect_bottom(y: Float, height: Float) -> Float:
-    return y + height
-
-pub fn ui_rect_contains(px: Float, py: Float, x: Float, y: Float, width: Float, height: Float) -> Int:
-    if px >= x and px <= x + width and py >= y and py <= y + height:
-        return 1
-    return 0
-
-pub fn ui_layout_inset_x(x: Float, inset: Float) -> Float:
-    return x + inset
-
-pub fn ui_layout_inset_y(y: Float, inset: Float) -> Float:
-    return y + inset
-
-pub fn ui_layout_inset_width(width: Float, left: Float, right: Float) -> Float:
-    return ui_float_max(0.0, width - left - right)
-
-pub fn ui_layout_inset_height(height: Float, top: Float, bottom: Float) -> Float:
-    return ui_float_max(0.0, height - top - bottom)
-
-pub fn ui_layout_center_x(x: Float, width: Float, child_width: Float) -> Float:
-    return x + ((width - child_width) * 0.5)
-
-pub fn ui_layout_center_y(y: Float, height: Float, child_height: Float) -> Float:
-    return y + ((height - child_height) * 0.5)
-
-pub fn ui_layout_column_height(item_count: Float, item_height: Float, gap: Float) -> Float:
-    if item_count <= 0.0:
-        return 0.0
-    return (item_count * item_height) + ((item_count - 1.0) * gap)
-
-pub fn ui_layout_row_width(item_count: Float, item_width: Float, gap: Float) -> Float:
-    if item_count <= 0.0:
-        return 0.0
-    return (item_count * item_width) + ((item_count - 1.0) * gap)
-
-pub fn ui_layout_split_left_width(width: Float, fraction: Float, gap: Float) -> Float:
-    return ui_float_max(0.0, (width - gap) * ui_float_clamp(fraction, 0.0, 1.0))
-
-pub fn ui_layout_split_right_x(x: Float, width: Float, fraction: Float, gap: Float) -> Float:
-    return x + ui_layout_split_left_width(width, fraction, gap) + gap
-
-pub fn ui_layout_split_right_width(width: Float, fraction: Float, gap: Float) -> Float:
-    return ui_float_max(0.0, width - ui_layout_split_left_width(width, fraction, gap) - gap)
-
+pub fn native_ui_window_open(a: Int, b: String, c: Int, d: Int) -> Int:
+    return abi_ui_window_open(a, b, c, d)
+pub fn native_ui_window_close(a: Int) -> Int:
+    return abi_ui_window_close(a)
+pub fn native_ui_invalidate_window(a: Int) -> Int:
+    return abi_ui_invalidate_window(a)
+
+// ===========================================================================
+// FRAME LIFECYCLE
+// ===========================================================================
+@extern fn abi_ui_begin_frame(a: Int, b: Float) -> Int
+@extern fn abi_ui_end_frame(a: Int) -> Int
+@extern fn abi_ui_present(a: Int) -> Int
+@extern fn abi_ui_frame_index(a: Int) -> Int
+@extern fn abi_ui_last_presented_frame(a: Int) -> Int
+@extern fn abi_ui_mark_dirty(a: Int, b: Int, c: Int) -> Int
+@extern fn abi_ui_dirty_count(a: Int) -> Int
+
+pub fn native_ui_begin_frame(a: Int, b: Float) -> Int:
+    return abi_ui_begin_frame(a, b)
+pub fn native_ui_end_frame(a: Int) -> Int:
+    return abi_ui_end_frame(a)
+pub fn native_ui_present(a: Int) -> Int:
+    return abi_ui_present(a)
+pub fn native_ui_frame_index(a: Int) -> Int:
+    return abi_ui_frame_index(a)
+pub fn native_ui_last_presented_frame(a: Int) -> Int:
+    return abi_ui_last_presented_frame(a)
+pub fn native_ui_mark_dirty(a: Int, b: Int, c: Int) -> Int:
+    return abi_ui_mark_dirty(a, b, c)
+pub fn native_ui_dirty_count(a: Int) -> Int:
+    return abi_ui_dirty_count(a)
+
+// ===========================================================================
+// NODE CRUD
+// ===========================================================================
+@extern fn abi_ui_node_create(a: Int, b: String) -> Int
+@extern fn abi_ui_node_destroy(a: Int, b: Int) -> Int
+@extern fn abi_ui_node_count(a: Int) -> Int
+@extern fn abi_ui_node_exists(a: Int, b: Int) -> Int
+@extern fn abi_ui_node_set_parent(a: Int, b: Int, c: Int) -> Int
+@extern fn abi_ui_node_parent(a: Int, b: Int) -> Int
+@extern fn abi_ui_node_child_count(a: Int, b: Int) -> Int
+@extern fn abi_ui_node_set_rect(a: Int, b: Int, c: Float, d: Float, e: Float, f: Float) -> Int
+@extern fn abi_ui_node_x(a: Int, b: Int) -> Float
+@extern fn abi_ui_node_y(a: Int, b: Int) -> Float
+@extern fn abi_ui_node_width(a: Int, b: Int) -> Float
+@extern fn abi_ui_node_height(a: Int, b: Int) -> Float
+@extern fn abi_ui_node_set_text(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_node_text(a: Int, b: Int) -> String
+@extern fn abi_ui_node_kind(a: Int, b: Int) -> String
+@extern fn abi_ui_node_set_flag(a: Int, b: Int, c: String, d: Int) -> Int
+@extern fn abi_ui_node_has_flag(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_node_set_stable_key(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_node_stable_key(a: Int, b: Int) -> String
+@extern fn abi_ui_node_find_by_stable_key(a: Int, b: String) -> Int
+
+pub fn native_ui_node_create(a: Int, b: String) -> Int:
+    return abi_ui_node_create(a, b)
+pub fn native_ui_node_destroy(a: Int, b: Int) -> Int:
+    return abi_ui_node_destroy(a, b)
+pub fn native_ui_node_count(a: Int) -> Int:
+    return abi_ui_node_count(a)
+pub fn native_ui_node_exists(a: Int, b: Int) -> Int:
+    return abi_ui_node_exists(a, b)
+pub fn native_ui_node_set_parent(a: Int, b: Int, c: Int) -> Int:
+    return abi_ui_node_set_parent(a, b, c)
+pub fn native_ui_node_parent(a: Int, b: Int) -> Int:
+    return abi_ui_node_parent(a, b)
+pub fn native_ui_node_child_count(a: Int, b: Int) -> Int:
+    return abi_ui_node_child_count(a, b)
+pub fn native_ui_node_set_rect(a: Int, b: Int, c: Float, d: Float, e: Float, f: Float) -> Int:
+    return abi_ui_node_set_rect(a, b, c, d, e, f)
+pub fn native_ui_node_x(a: Int, b: Int) -> Float:
+    return abi_ui_node_x(a, b)
+pub fn native_ui_node_y(a: Int, b: Int) -> Float:
+    return abi_ui_node_y(a, b)
+pub fn native_ui_node_width(a: Int, b: Int) -> Float:
+    return abi_ui_node_width(a, b)
+pub fn native_ui_node_height(a: Int, b: Int) -> Float:
+    return abi_ui_node_height(a, b)
+pub fn native_ui_node_set_text(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_set_text(a, b, c)
+pub fn native_ui_node_text(a: Int, b: Int) -> String:
+    return abi_ui_node_text(a, b)
+pub fn native_ui_node_kind(a: Int, b: Int) -> String:
+    return abi_ui_node_kind(a, b)
+pub fn native_ui_node_set_flag(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_set_flag(a, b, c, d)
+pub fn native_ui_node_has_flag(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_has_flag(a, b, c)
+pub fn native_ui_node_set_stable_key(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_node_set_stable_key(a, b, c)
+pub fn native_ui_node_stable_key(a: Int, b: Int) -> String:
+    return abi_ui_node_stable_key(a, b)
+pub fn native_ui_node_find_by_stable_key(a: Int, b: String) -> Int:
+    return abi_ui_node_find_by_stable_key(a, b)
+
+// ===========================================================================
+// STYLE
+// ===========================================================================
+@extern fn abi_ui_node_set_style_i64(a: Int, b: Int, c: String, d: Int) -> Int
+@extern fn abi_ui_node_set_style_f64(a: Int, b: Int, c: String, d: Float) -> Int
+@extern fn abi_ui_node_set_style_string(a: Int, b: Int, c: String, d: String) -> Int
+@extern fn abi_ui_node_style_i64(a: Int, b: Int, c: String, d: Int) -> Int
+@extern fn abi_ui_node_style_f64(a: Int, b: Int, c: String, d: Float) -> Float
+@extern fn abi_ui_node_style_string(a: Int, b: Int, c: String, d: String) -> String
+
+pub fn native_ui_node_set_style_i64(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_set_style_i64(a, b, c, d)
+pub fn native_ui_node_set_style_f64(a: Int, b: Int, c: String, d: Float) -> Int:
+    return abi_ui_node_set_style_f64(a, b, c, d)
+pub fn native_ui_node_set_style_string(a: Int, b: Int, c: String, d: String) -> Int:
+    return abi_ui_node_set_style_string(a, b, c, d)
+pub fn native_ui_node_style_i64(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_style_i64(a, b, c, d)
+pub fn native_ui_node_style_f64(a: Int, b: Int, c: String, d: Float) -> Float:
+    return abi_ui_node_style_f64(a, b, c, d)
+pub fn native_ui_node_style_string(a: Int, b: Int, c: String, d: String) -> String:
+    return abi_ui_node_style_string(a, b, c, d)
+
+// ===========================================================================
+// STATE
+// ===========================================================================
+@extern fn abi_ui_node_set_state_i64(a: Int, b: Int, c: String, d: Int) -> Int
+@extern fn abi_ui_node_set_state_f64(a: Int, b: Int, c: String, d: Float) -> Int
+@extern fn abi_ui_node_set_state_string(a: Int, b: Int, c: String, d: String) -> Int
+@extern fn abi_ui_node_state_i64(a: Int, b: Int, c: String, d: Int) -> Int
+@extern fn abi_ui_node_state_f64(a: Int, b: Int, c: String, d: Float) -> Float
+@extern fn abi_ui_node_state_string(a: Int, b: Int, c: String, d: String) -> String
+@extern fn abi_ui_state_count(a: Int) -> Int
+
+pub fn native_ui_node_set_state_i64(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_set_state_i64(a, b, c, d)
+pub fn native_ui_node_set_state_f64(a: Int, b: Int, c: String, d: Float) -> Int:
+    return abi_ui_node_set_state_f64(a, b, c, d)
+pub fn native_ui_node_set_state_string(a: Int, b: Int, c: String, d: String) -> Int:
+    return abi_ui_node_set_state_string(a, b, c, d)
+pub fn native_ui_node_state_i64(a: Int, b: Int, c: String, d: Int) -> Int:
+    return abi_ui_node_state_i64(a, b, c, d)
+pub fn native_ui_node_state_f64(a: Int, b: Int, c: String, d: Float) -> Float:
+    return abi_ui_node_state_f64(a, b, c, d)
+pub fn native_ui_node_state_string(a: Int, b: Int, c: String, d: String) -> String:
+    return abi_ui_node_state_string(a, b, c, d)
+pub fn native_ui_state_count(a: Int) -> Int:
+    return abi_ui_state_count(a)
+
+// ===========================================================================
+// FOCUS
+// ===========================================================================
+@extern fn abi_ui_focus(a: Int, b: Int) -> Int
+@extern fn abi_ui_focused_node(a: Int) -> Int
+@extern fn abi_ui_hit_test(a: Int, b: Float, c: Float) -> Int
+
+pub fn native_ui_focus(a: Int, b: Int) -> Int:
+    return abi_ui_focus(a, b)
+pub fn native_ui_focused_node(a: Int) -> Int:
+    return abi_ui_focused_node(a)
+pub fn native_ui_hit_test(a: Int, b: Float, c: Float) -> Int:
+    return abi_ui_hit_test(a, b, c)
+
+// ===========================================================================
+// EVENTS
+// ===========================================================================
+@extern fn abi_ui_push_event(a: Int, b: String, c: Int, d: Float, e: Float, f: Int, g: String) -> Int
+@extern fn abi_ui_poll_event(a: Int) -> Int
+@extern fn abi_ui_event_kind(a: Int) -> String
+@extern fn abi_ui_event_target(a: Int) -> Int
+@extern fn abi_ui_event_x(a: Int) -> Float
+@extern fn abi_ui_event_y(a: Int) -> Float
+@extern fn abi_ui_event_key_code(a: Int) -> Int
+@extern fn abi_ui_event_text(a: Int) -> String
+
+pub fn native_ui_push_event(a: Int, b: String, c: Int, d: Float, e: Float, f: Int, g: String) -> Int:
+    return abi_ui_push_event(a, b, c, d, e, f, g)
+pub fn native_ui_poll_event(a: Int) -> Int:
+    return abi_ui_poll_event(a)
+pub fn native_ui_event_kind(a: Int) -> String:
+    return abi_ui_event_kind(a)
+pub fn native_ui_event_target(a: Int) -> Int:
+    return abi_ui_event_target(a)
+pub fn native_ui_event_x(a: Int) -> Float:
+    return abi_ui_event_x(a)
+pub fn native_ui_event_y(a: Int) -> Float:
+    return abi_ui_event_y(a)
+pub fn native_ui_event_key_code(a: Int) -> Int:
+    return abi_ui_event_key_code(a)
+pub fn native_ui_event_text(a: Int) -> String:
+    return abi_ui_event_text(a)
+
+// ===========================================================================
+// DRAW
+// ===========================================================================
+@extern fn abi_ui_draw_rect(a: Int, b: Int, c: Float, d: Float, e: Float, f: Float, g: String) -> Int
+@extern fn abi_ui_draw_text(a: Int, b: Int, c: Int, d: Float, e: Float, f: String, g: String) -> Int
+@extern fn abi_ui_draw_command_count(a: Int) -> Int
+@extern fn abi_ui_draw_command_kind(a: Int, b: Int) -> String
+@extern fn abi_ui_draw_command_node(a: Int, b: Int) -> Int
+@extern fn abi_ui_draw_command_resource(a: Int, b: Int) -> Int
+@extern fn abi_ui_draw_command_x(a: Int, b: Int) -> Float
+@extern fn abi_ui_draw_command_y(a: Int, b: Int) -> Float
+@extern fn abi_ui_draw_command_width(a: Int, b: Int) -> Float
+@extern fn abi_ui_draw_command_height(a: Int, b: Int) -> Float
+@extern fn abi_ui_draw_command_text(a: Int, b: Int) -> String
+@extern fn abi_ui_draw_command_style(a: Int, b: Int) -> String
+@extern fn abi_ui_draw_command_font(a: Int, b: Int) -> Int
+
+pub fn native_ui_draw_rect(a: Int, b: Int, c: Float, d: Float, e: Float, f: Float, g: String) -> Int:
+    return abi_ui_draw_rect(a, b, c, d, e, f, g)
+pub fn native_ui_draw_text(a: Int, b: Int, c: Int, d: Float, e: Float, f: String, g: String) -> Int:
+    return abi_ui_draw_text(a, b, c, d, e, f, g)
+pub fn native_ui_draw_command_count(a: Int) -> Int:
+    return abi_ui_draw_command_count(a)
+pub fn native_ui_draw_command_kind(a: Int, b: Int) -> String:
+    return abi_ui_draw_command_kind(a, b)
+pub fn native_ui_draw_command_node(a: Int, b: Int) -> Int:
+    return abi_ui_draw_command_node(a, b)
+pub fn native_ui_draw_command_resource(a: Int, b: Int) -> Int:
+    return abi_ui_draw_command_resource(a, b)
+pub fn native_ui_draw_command_x(a: Int, b: Int) -> Float:
+    return abi_ui_draw_command_x(a, b)
+pub fn native_ui_draw_command_y(a: Int, b: Int) -> Float:
+    return abi_ui_draw_command_y(a, b)
+pub fn native_ui_draw_command_width(a: Int, b: Int) -> Float:
+    return abi_ui_draw_command_width(a, b)
+pub fn native_ui_draw_command_height(a: Int, b: Int) -> Float:
+    return abi_ui_draw_command_height(a, b)
+pub fn native_ui_draw_command_text(a: Int, b: Int) -> String:
+    return abi_ui_draw_command_text(a, b)
+pub fn native_ui_draw_command_style(a: Int, b: Int) -> String:
+    return abi_ui_draw_command_style(a, b)
+pub fn native_ui_draw_command_font(a: Int, b: Int) -> Int:
+    return abi_ui_draw_command_font(a, b)
+
+// ===========================================================================
+// HOST
+// ===========================================================================
+@extern fn abi_ui_host_attach(a: Int, b: String) -> Int
+@extern fn abi_ui_host_pump(a: Int) -> Int
+@extern fn abi_ui_host_present(a: Int) -> Int
+@extern fn abi_ui_host_presented_draw_count(a: Int) -> Int
+@extern fn abi_ui_host_frame_hash(a: Int) -> Int
+@extern fn abi_ui_host_should_close(a: Int) -> Int
+@extern fn abi_ui_host_backend(a: Int) -> String
+@extern fn abi_ui_framebuffer_ptr(a: Int) -> Int
+@extern fn abi_ui_framebuffer_width(a: Int) -> Int
+@extern fn abi_ui_framebuffer_height(a: Int) -> Int
+@extern fn abi_ui_framebuffer_stride(a: Int) -> Int
+
+pub fn native_ui_host_attach(a: Int, b: String) -> Int:
+    return abi_ui_host_attach(a, b)
+pub fn native_ui_host_pump(a: Int) -> Int:
+    return abi_ui_host_pump(a)
+pub fn native_ui_host_present(a: Int) -> Int:
+    return abi_ui_host_present(a)
+pub fn native_ui_host_presented_draw_count(a: Int) -> Int:
+    return abi_ui_host_presented_draw_count(a)
+pub fn native_ui_host_frame_hash(a: Int) -> Int:
+    return abi_ui_host_frame_hash(a)
+pub fn native_ui_host_should_close(a: Int) -> Int:
+    return abi_ui_host_should_close(a)
+pub fn native_ui_host_backend(a: Int) -> String:
+    return abi_ui_host_backend(a)
+pub fn native_ui_framebuffer_ptr(a: Int) -> Int:
+    return abi_ui_framebuffer_ptr(a)
+pub fn native_ui_framebuffer_width(a: Int) -> Int:
+    return abi_ui_framebuffer_width(a)
+pub fn native_ui_framebuffer_height(a: Int) -> Int:
+    return abi_ui_framebuffer_height(a)
+pub fn native_ui_framebuffer_stride(a: Int) -> Int:
+    return abi_ui_framebuffer_stride(a)
+
+// ===========================================================================
+// RESOURCES
+// ===========================================================================
+@extern fn abi_ui_resource_create(a: Int, b: String, c: String, d: Int, e: Int, f: Int) -> Int
+@extern fn abi_ui_font_create(a: Int, b: String, c: String, d: Float) -> Int
+@extern fn abi_ui_texture_create(a: Int, b: String, c: Int, d: Int, e: String, f: Int) -> Int
+@extern fn abi_ui_canvas_create(a: Int, b: String, c: Int, d: Int) -> Int
+@extern fn abi_ui_shader_create(a: Int, b: String, c: String, d: Int) -> Int
+@extern fn abi_ui_resource_set_bytes_hex(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_resource_count(a: Int) -> Int
+@extern fn abi_ui_resource_exists(a: Int, b: Int) -> Int
+@extern fn abi_ui_resource_type(a: Int, b: Int) -> String
+@extern fn abi_ui_resource_key(a: Int, b: Int) -> String
+@extern fn abi_ui_resource_width(a: Int, b: Int) -> Int
+@extern fn abi_ui_resource_height(a: Int, b: Int) -> Int
+@extern fn abi_ui_resource_byte_length(a: Int, b: Int) -> Int
+@extern fn abi_ui_text_measure_width(a: Int, b: Int, c: String) -> Float
+@extern fn abi_ui_text_measure_height(a: Int, b: Int, c: String) -> Float
+@extern fn abi_ui_draw_resource(a: Int, b: Int, c: Int, d: Float, e: Float, f: Float, g: Float, h: String) -> Int
+
+pub fn native_ui_resource_create(a: Int, b: String, c: String, d: Int, e: Int, f: Int) -> Int:
+    return abi_ui_resource_create(a, b, c, d, e, f)
+pub fn native_ui_font_create(a: Int, b: String, c: String, d: Float) -> Int:
+    return abi_ui_font_create(a, b, c, d)
+pub fn native_ui_texture_create(a: Int, b: String, c: Int, d: Int, e: String, f: Int) -> Int:
+    return abi_ui_texture_create(a, b, c, d, e, f)
+pub fn native_ui_canvas_create(a: Int, b: String, c: Int, d: Int) -> Int:
+    return abi_ui_canvas_create(a, b, c, d)
+pub fn native_ui_shader_create(a: Int, b: String, c: String, d: Int) -> Int:
+    return abi_ui_shader_create(a, b, c, d)
+pub fn native_ui_resource_set_bytes_hex(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_resource_set_bytes_hex(a, b, c)
+pub fn native_ui_resource_count(a: Int) -> Int:
+    return abi_ui_resource_count(a)
+pub fn native_ui_resource_exists(a: Int, b: Int) -> Int:
+    return abi_ui_resource_exists(a, b)
+pub fn native_ui_resource_type(a: Int, b: Int) -> String:
+    return abi_ui_resource_type(a, b)
+pub fn native_ui_resource_key(a: Int, b: Int) -> String:
+    return abi_ui_resource_key(a, b)
+pub fn native_ui_resource_width(a: Int, b: Int) -> Int:
+    return abi_ui_resource_width(a, b)
+pub fn native_ui_resource_height(a: Int, b: Int) -> Int:
+    return abi_ui_resource_height(a, b)
+pub fn native_ui_resource_byte_length(a: Int, b: Int) -> Int:
+    return abi_ui_resource_byte_length(a, b)
+pub fn native_ui_text_measure_width(a: Int, b: Int, c: String) -> Float:
+    return abi_ui_text_measure_width(a, b, c)
+pub fn native_ui_text_measure_height(a: Int, b: Int, c: String) -> Float:
+    return abi_ui_text_measure_height(a, b, c)
+pub fn native_ui_draw_resource(a: Int, b: Int, c: Int, d: Float, e: Float, f: Float, g: Float, h: String) -> Int:
+    return abi_ui_draw_resource(a, b, c, d, e, f, g, h)
+
+// ===========================================================================
+// CLIPBOARD
+// ===========================================================================
+@extern fn abi_ui_clipboard_set_text(a: Int, b: String) -> Int
+@extern fn abi_ui_clipboard_text(a: Int) -> String
+pub fn native_ui_clipboard_set_text(a: Int, b: String) -> Int:
+    return abi_ui_clipboard_set_text(a, b)
+pub fn native_ui_clipboard_text(a: Int) -> String:
+    return abi_ui_clipboard_text(a)
+
+// ===========================================================================
+// IME
+// ===========================================================================
+@extern fn abi_ui_ime_begin(a: Int, b: Int) -> Int
+@extern fn abi_ui_ime_commit_text(a: Int, b: String) -> Int
+@extern fn abi_ui_ime_end(a: Int) -> Int
+@extern fn abi_ui_ime_active_node(a: Int) -> Int
+@extern fn abi_ui_ime_text(a: Int) -> String
+pub fn native_ui_ime_begin(a: Int, b: Int) -> Int:
+    return abi_ui_ime_begin(a, b)
+pub fn native_ui_ime_commit_text(a: Int, b: String) -> Int:
+    return abi_ui_ime_commit_text(a, b)
+pub fn native_ui_ime_end(a: Int) -> Int:
+    return abi_ui_ime_end(a)
+pub fn native_ui_ime_active_node(a: Int) -> Int:
+    return abi_ui_ime_active_node(a)
+pub fn native_ui_ime_text(a: Int) -> String:
+    return abi_ui_ime_text(a)
+
+// ===========================================================================
+// DRAG
+// ===========================================================================
+@extern fn abi_ui_drag_begin(a: Int, b: Int, c: String, d: Float, e: Float) -> Int
+@extern fn abi_ui_drag_update(a: Int, b: Float, c: Float, d: Int) -> Int
+@extern fn abi_ui_drag_drop(a: Int, b: Int) -> Int
+@extern fn abi_ui_drag_active_node(a: Int) -> Int
+@extern fn abi_ui_drag_drop_target(a: Int) -> Int
+@extern fn abi_ui_drag_x(a: Int) -> Float
+@extern fn abi_ui_drag_y(a: Int) -> Float
+@extern fn abi_ui_drag_payload(a: Int) -> String
+pub fn native_ui_drag_begin(a: Int, b: Int, c: String, d: Float, e: Float) -> Int:
+    return abi_ui_drag_begin(a, b, c, d, e)
+pub fn native_ui_drag_update(a: Int, b: Float, c: Float, d: Int) -> Int:
+    return abi_ui_drag_update(a, b, c, d)
+pub fn native_ui_drag_drop(a: Int, b: Int) -> Int:
+    return abi_ui_drag_drop(a, b)
+pub fn native_ui_drag_active_node(a: Int) -> Int:
+    return abi_ui_drag_active_node(a)
+pub fn native_ui_drag_drop_target(a: Int) -> Int:
+    return abi_ui_drag_drop_target(a)
+pub fn native_ui_drag_x(a: Int) -> Float:
+    return abi_ui_drag_x(a)
+pub fn native_ui_drag_y(a: Int) -> Float:
+    return abi_ui_drag_y(a)
+pub fn native_ui_drag_payload(a: Int) -> String:
+    return abi_ui_drag_payload(a)
+
+// ===========================================================================
+// MENUS
+// ===========================================================================
+@extern fn abi_ui_menu_create(a: Int, b: String) -> Int
+@extern fn abi_ui_menu_add_item(a: Int, b: Int, c: String, d: String, e: Int) -> Int
+@extern fn abi_ui_menu_open(a: Int, b: Int, c: Float, d: Float) -> Int
+@extern fn abi_ui_menu_active(a: Int) -> Int
+@extern fn abi_ui_menu_item_count(a: Int, b: Int) -> Int
+@extern fn abi_ui_menu_item_label(a: Int, b: Int, c: Int) -> String
+@extern fn abi_ui_menu_item_command(a: Int, b: Int, c: Int) -> Int
+pub fn native_ui_menu_create(a: Int, b: String) -> Int:
+    return abi_ui_menu_create(a, b)
+pub fn native_ui_menu_add_item(a: Int, b: Int, c: String, d: String, e: Int) -> Int:
+    return abi_ui_menu_add_item(a, b, c, d, e)
+pub fn native_ui_menu_open(a: Int, b: Int, c: Float, d: Float) -> Int:
+    return abi_ui_menu_open(a, b, c, d)
+pub fn native_ui_menu_active(a: Int) -> Int:
+    return abi_ui_menu_active(a)
+pub fn native_ui_menu_item_count(a: Int, b: Int) -> Int:
+    return abi_ui_menu_item_count(a, b)
+pub fn native_ui_menu_item_label(a: Int, b: Int, c: Int) -> String:
+    return abi_ui_menu_item_label(a, b, c)
+pub fn native_ui_menu_item_command(a: Int, b: Int, c: Int) -> Int:
+    return abi_ui_menu_item_command(a, b, c)
+
+// ===========================================================================
+// DIALOGS
+// ===========================================================================
+@extern fn abi_ui_dialog_request(a: Int, b: String, c: String, d: String) -> Int
+@extern fn abi_ui_dialog_active(a: Int) -> Int
+@extern fn abi_ui_dialog_kind(a: Int, b: Int) -> String
+@extern fn abi_ui_dialog_title(a: Int, b: Int) -> String
+@extern fn abi_ui_dialog_message(a: Int, b: Int) -> String
+@extern fn abi_ui_dialog_respond(a: Int, b: Int, c: Int, d: String) -> Int
+@extern fn abi_ui_dialog_poll_response(a: Int) -> Int
+@extern fn abi_ui_dialog_response_text(a: Int) -> String
+pub fn native_ui_dialog_request(a: Int, b: String, c: String, d: String) -> Int:
+    return abi_ui_dialog_request(a, b, c, d)
+pub fn native_ui_dialog_active(a: Int) -> Int:
+    return abi_ui_dialog_active(a)
+pub fn native_ui_dialog_kind(a: Int, b: Int) -> String:
+    return abi_ui_dialog_kind(a, b)
+pub fn native_ui_dialog_title(a: Int, b: Int) -> String:
+    return abi_ui_dialog_title(a, b)
+pub fn native_ui_dialog_message(a: Int, b: Int) -> String:
+    return abi_ui_dialog_message(a, b)
+pub fn native_ui_dialog_respond(a: Int, b: Int, c: Int, d: String) -> Int:
+    return abi_ui_dialog_respond(a, b, c, d)
+pub fn native_ui_dialog_poll_response(a: Int) -> Int:
+    return abi_ui_dialog_poll_response(a)
+pub fn native_ui_dialog_response_text(a: Int) -> String:
+    return abi_ui_dialog_response_text(a)
+
+// ===========================================================================
+// ACCESSIBILITY
+// ===========================================================================
+@extern fn abi_ui_accessibility_set_role(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_accessibility_set_label(a: Int, b: Int, c: String) -> Int
+@extern fn abi_ui_accessibility_role(a: Int, b: Int) -> String
+@extern fn abi_ui_accessibility_label(a: Int, b: Int) -> String
+pub fn native_ui_accessibility_set_role(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_accessibility_set_role(a, b, c)
+pub fn native_ui_accessibility_set_label(a: Int, b: Int, c: String) -> Int:
+    return abi_ui_accessibility_set_label(a, b, c)
+pub fn native_ui_accessibility_role(a: Int, b: Int) -> String:
+    return abi_ui_accessibility_role(a, b)
+pub fn native_ui_accessibility_label(a: Int, b: Int) -> String:
+    return abi_ui_accessibility_label(a, b)
+
+// ===========================================================================
+// HOT RELOAD
+// ===========================================================================
+@extern fn abi_ui_hot_reload_begin(a: Int, b: String) -> Int
+@extern fn abi_ui_hot_reload_commit(a: Int) -> Int
+@extern fn abi_ui_hot_reload_generation(a: Int) -> Int
+@extern fn abi_ui_hot_reload_key(a: Int) -> String
+pub fn native_ui_hot_reload_begin(a: Int, b: String) -> Int:
+    return abi_ui_hot_reload_begin(a, b)
+pub fn native_ui_hot_reload_commit(a: Int) -> Int:
+    return abi_ui_hot_reload_commit(a)
+pub fn native_ui_hot_reload_generation(a: Int) -> Int:
+    return abi_ui_hot_reload_generation(a)
+pub fn native_ui_hot_reload_key(a: Int) -> String:
+    return abi_ui_hot_reload_key(a)
+
+// ===========================================================================
+// CONVENIENCE
+// ===========================================================================
 pub fn ui_host_session_create(app_name: String, window_title: String, width: Int, height: Int, backend_id: String) -> Int:
     let session = native_ui_session_create(app_name, width, height)
-    let _window = native_ui_window_open(session, window_title, width, height)
-    let _host = native_ui_host_attach(session, backend_id)
+    let _ = native_ui_window_open(session, window_title, width, height)
+    let _ = native_ui_host_attach(session, backend_id)
     return session
 
-pub fn ui_frame_begin(session_id: Int, delta_ms: Float) -> Int:
-    return native_ui_begin_frame(session_id, delta_ms)
-
-pub fn ui_frame_submit(session_id: Int) -> Int:
-    return ui_present_to_attached_host(session_id)
-
-pub fn ui_node_from_stable_key(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    let existing = native_ui_node_find_by_stable_key(session_id, stable_key)
-    if existing > 0:
-        let _existing_parent = native_ui_node_set_parent(session_id, existing, parent_id)
-        let _existing_rect = native_ui_node_set_rect(session_id, existing, x, y, width, height)
-        let _existing_text = native_ui_node_set_text(session_id, existing, text)
-        return existing
-
-    let node = native_ui_node_create(session_id, kind)
-    let _key = native_ui_node_set_stable_key(session_id, node, stable_key)
-    let _parent = native_ui_node_set_parent(session_id, node, parent_id)
-    let _rect = native_ui_node_set_rect(session_id, node, x, y, width, height)
-    let _text = native_ui_node_set_text(session_id, node, text)
-    return node
-
-pub fn ui_reconcile_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return ui_node_from_stable_key(session_id, parent_id, kind, stable_key, "", x, y, width, height)
-
-pub fn ui_reconcile_text_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return ui_node_from_stable_key(session_id, parent_id, kind, stable_key, text, x, y, width, height)
-
-pub fn ui_reconcile_labeled_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, role: String, label: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    let node = ui_node_from_stable_key(session_id, parent_id, kind, stable_key, text, x, y, width, height)
-    let _role = native_ui_accessibility_set_role(session_id, node, role)
-    let _label = native_ui_accessibility_set_label(session_id, node, label)
-    return node
-
-pub fn ui_reconcile_focusable_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, role: String, label: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    let node = ui_reconcile_labeled_node(session_id, parent_id, kind, stable_key, text, role, label, x, y, width, height)
-    let _focusable = native_ui_node_set_flag(session_id, node, "focusable", 1)
-    return node
-
-pub fn ui_node_style_color_rgba(session_id: Int, node_id: Int, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
-    let _r = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.r", r)
-    let _g = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.g", g)
-    let _b = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.b", b)
-    return native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.a", a)
-
-pub fn ui_style_color_rgba(session_id: Int, node_id: Int, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
-    return ui_node_style_color_rgba(session_id, node_id, style_key, r, g, b, a)
-
-pub fn ui_style_metric(session_id: Int, node_id: Int, style_key: String, metric: String, value: Float) -> Int:
-    return native_ui_node_set_style_f64(session_id, node_id, style_key + "." + metric, value)
-
-pub fn ui_style_metric_value(session_id: Int, node_id: Int, style_key: String, metric: String, fallback: Float) -> Float:
-    return native_ui_node_style_f64(session_id, node_id, style_key + "." + metric, fallback)
-
-pub fn ui_style_padding(session_id: Int, node_id: Int, style_key: String, left: Float, top: Float, right: Float, bottom: Float) -> Int:
-    let _left = ui_style_metric(session_id, node_id, style_key, "padding.left", left)
-    let _top = ui_style_metric(session_id, node_id, style_key, "padding.top", top)
-    let _right = ui_style_metric(session_id, node_id, style_key, "padding.right", right)
-    return ui_style_metric(session_id, node_id, style_key, "padding.bottom", bottom)
-
-pub fn ui_style_spacing(session_id: Int, node_id: Int, style_key: String, gap: Float) -> Int:
-    return ui_style_metric(session_id, node_id, style_key, "gap", gap)
-
-pub fn ui_style_inherit_color_rgba(session_id: Int, parent_id: Int, node_id: Int, parent_style_key: String, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
-    let inherited_r = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.r", r)
-    let inherited_g = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.g", g)
-    let inherited_b = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.b", b)
-    let inherited_a = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.a", a)
-    let resolved_r = native_ui_node_style_f64(session_id, node_id, style_key + ".color.r", inherited_r)
-    let resolved_g = native_ui_node_style_f64(session_id, node_id, style_key + ".color.g", inherited_g)
-    let resolved_b = native_ui_node_style_f64(session_id, node_id, style_key + ".color.b", inherited_b)
-    let resolved_a = native_ui_node_style_f64(session_id, node_id, style_key + ".color.a", inherited_a)
-    return ui_style_color_rgba(session_id, node_id, style_key, resolved_r, resolved_g, resolved_b, resolved_a)
-
-pub fn ui_style_copy_color_rgba(session_id: Int, source_node_id: Int, target_node_id: Int, source_style_key: String, target_style_key: String) -> Int:
-    let r = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.r", 1.0)
-    let g = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.g", 1.0)
-    let b = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.b", 1.0)
-    let a = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.a", 1.0)
-    return ui_style_color_rgba(session_id, target_node_id, target_style_key, r, g, b, a)
-
-pub fn ui_state_set_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return native_ui_node_set_state_i64(session_id, node_id, key, value)
-
-pub fn ui_state_set_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return native_ui_node_set_state_f64(session_id, node_id, key, value)
-
-pub fn ui_state_set_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return native_ui_node_set_state_string(session_id, node_id, key, value)
-
-pub fn ui_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return native_ui_node_state_i64(session_id, node_id, key, fallback)
-
-pub fn ui_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return native_ui_node_state_f64(session_id, node_id, key, fallback)
-
-pub fn ui_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return native_ui_node_state_string(session_id, node_id, key, fallback)
-
-pub fn ui_state_bool(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    if native_ui_node_state_i64(session_id, node_id, key, fallback) != 0:
-        return 1
-    return 0
-
-pub fn ui_state_set_bool(session_id: Int, node_id: Int, key: String, enabled: Int) -> Int:
-    if enabled != 0:
-        return native_ui_node_set_state_i64(session_id, node_id, key, 1)
-    return native_ui_node_set_state_i64(session_id, node_id, key, 0)
-
-pub fn ui_state_toggle(session_id: Int, node_id: Int, key: String) -> Int:
-    let current = ui_state_bool(session_id, node_id, key, 0)
-    if current == 0:
-        let _enabled = native_ui_node_set_state_i64(session_id, node_id, key, 1)
-        return 1
-    let _disabled = native_ui_node_set_state_i64(session_id, node_id, key, 0)
-    return 0
-
-pub fn ui_state_counter(session_id: Int, node_id: Int, key: String, delta: Int) -> Int:
-    let next = native_ui_node_state_i64(session_id, node_id, key, 0) + delta
-    let _state = native_ui_node_set_state_i64(session_id, node_id, key, next)
-    return next
-
-pub fn ui_state_reference(session_id: Int, node_id: Int, key: String, referenced_id: Int) -> Int:
-    return native_ui_node_set_state_i64(session_id, node_id, key, referenced_id)
-
-pub fn ui_state_shape(session_id: Int, node_id: Int, shape_kind: String, shape_payload: String) -> Int:
-    let _kind = native_ui_node_set_state_string(session_id, node_id, "shape.kind", shape_kind)
-    return native_ui_node_set_state_string(session_id, node_id, "shape.payload", shape_payload)
-
-pub fn ui_state_hit(session_id: Int, node_id: Int, hit_kind: String, hit_payload: String) -> Int:
-    let _kind = native_ui_node_set_state_string(session_id, node_id, "hit.kind", hit_kind)
-    return native_ui_node_set_state_string(session_id, node_id, "hit.payload", hit_payload)
-
-pub fn ui_state_draw(session_id: Int, node_id: Int, draw_kind: String, draw_payload: String) -> Int:
-    let _kind = native_ui_node_set_state_string(session_id, node_id, "draw.kind", draw_kind)
-    return native_ui_node_set_state_string(session_id, node_id, "draw.payload", draw_payload)
-
-pub fn ui_state_resource(session_id: Int, node_id: Int, resource_kind: String, resource_payload: String, resource_id: Int) -> Int:
-    let _kind = native_ui_node_set_state_string(session_id, node_id, "resource.kind", resource_kind)
-    let _payload = native_ui_node_set_state_string(session_id, node_id, "resource.payload", resource_payload)
-    return native_ui_node_set_state_i64(session_id, node_id, "resource.id", resource_id)
-
-fn ui_code_is_numeric(code: String) -> Bool:
-    if len(code) == 0:
-        return false
-    var index = 0
-    while index < len(code):
-        let ch = char_at(code, index)
-        if ch < "0" or ch > "9":
-            return false
-        index = index + 1
-    return true
-
-fn ui_input_key_code_or_zero(code: String) -> Int:
-    if ui_code_is_numeric(code):
-        return to_int(code)
-    return 0
-
-pub fn ui_state_shared_buffer_resource(session_id: Int, node_id: Int, resource_view: GraphicsSharedBuffer, resource_id: Int) -> Int:
-    return ui_state_resource(
-        session_id,
-        node_id,
-        resource_view.graphics_kind,
-        json_stringify(graphics_shared_buffer_descriptor(resource_view)),
-        resource_id
-    )
-
-pub fn ui_state_shared_image_resource(session_id: Int, node_id: Int, resource_view: GraphicsSharedImage, resource_id: Int) -> Int:
-    return ui_state_resource(
-        session_id,
-        node_id,
-        resource_view.graphics_kind,
-        json_stringify(graphics_shared_image_descriptor(resource_view)),
-        resource_id
-    )
-
-pub fn ui_reconcile_stateful_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, state_kind: String, state_payload: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    let node = ui_reconcile_node(session_id, parent_id, kind, stable_key, x, y, width, height)
-    let _kind = native_ui_node_set_state_string(session_id, node, "state.kind", state_kind)
-    let _payload = native_ui_node_set_state_string(session_id, node, "state.payload", state_payload)
-    return node
-
-pub fn ui_custom_hit_contains(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
-    let hit_kind = native_ui_node_state_string(session_id, node_id, "hit.kind", "rect")
-    if hit_kind == "none":
-        return 0
-    return ui_node_contains_point(session_id, node_id, x, y)
-
-pub fn ui_custom_hit_targets(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
-    if ui_custom_hit_contains(session_id, node_id, x, y) == 1:
-        return node_id
-    return 0
-
-pub fn ui_text_width(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return native_ui_text_measure_width(session_id, font_resource_id, text)
-
-pub fn ui_text_height(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return native_ui_text_measure_height(session_id, font_resource_id, text)
-
-pub fn native_ui_texture_create_from_hex(session_id: Int, key: String, width: Int, height: Int, format: String, bytes_hex: String) -> Int:
-    let texture = native_ui_texture_create(session_id, key, width, height, format, len(bytes_hex) / 2)
-    let _upload = native_ui_resource_set_bytes_hex(session_id, texture, bytes_hex)
-    return texture
-
-pub fn ui_texture_rgba8_from_hex(session_id: Int, key: String, width: Int, height: Int, bytes_hex: String) -> Int:
-    return native_ui_texture_create_from_hex(session_id, key, width, height, "rgba8", bytes_hex)
-
-pub fn ui_render_box(session_id: Int, node_id: Int, style_key: String) -> Int:
-    return native_ui_draw_rect(session_id, node_id, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id), style_key)
-
-pub fn ui_render_box_at(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
-
-pub fn ui_render_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, style_key: String) -> Int:
-    return native_ui_draw_text(session_id, node_id, font_resource_id, x, y, native_ui_node_text(session_id, node_id), style_key)
-
-pub fn ui_render_text_value(session_id: Int, node_id: Int, font_resource_id: Int, text: String, x: Float, y: Float, style_key: String) -> Int:
-    return native_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
-
-pub fn ui_render_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return native_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
-
-pub fn ui_render_resource_in_node(session_id: Int, node_id: Int, resource_id: Int, style_key: String) -> Int:
-    return native_ui_draw_resource(session_id, node_id, resource_id, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id), style_key)
-
-pub fn ui_render_text_in_box(session_id: Int, node_id: Int, font_resource_id: Int, inset_x: Float, baseline_y: Float, style_key: String) -> Int:
-    return native_ui_draw_text(session_id, node_id, font_resource_id, native_ui_node_x(session_id, node_id) + inset_x, native_ui_node_y(session_id, node_id) + baseline_y, native_ui_node_text(session_id, node_id), style_key)
-
-pub fn ui_event_kind_is(session_id: Int, expected_kind: String) -> Int:
-    let actual_kind = native_ui_event_kind(session_id)
-    if len(actual_kind) != len(expected_kind):
-        return 0
-    let mut index = 0
-    while index < len(expected_kind):
-        if char_at(actual_kind, index) != char_at(expected_kind, index):
-            return 0
-        index = index + 1
-    return 1
-
-pub fn ui_event_targets(session_id: Int, node_id: Int) -> Int:
-    if native_ui_event_target(session_id) == node_id:
-        return 1
-    return 0
-
-pub fn ui_focus_if_event_targets(session_id: Int, node_id: Int) -> Int:
-    if ui_event_targets(session_id, node_id) == 1:
-        return native_ui_focus(session_id, node_id)
-    return 0
-
-pub fn ui_node_contains_point(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
-    return ui_rect_contains(x, y, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id))
-
-pub fn ui_node_is_hit(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
-    if native_ui_hit_test(session_id, x, y) == node_id:
-        return 1
-    return 0
-
-pub fn ui_apply_hover_flag(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
-    let hovered = ui_node_contains_point(session_id, node_id, x, y)
-    let _flag = native_ui_node_set_flag(session_id, node_id, "hovered", hovered)
-    return hovered
-
-pub fn ui_apply_pressed_flag_from_event(session_id: Int, node_id: Int) -> Int:
-    if ui_event_targets(session_id, node_id) == 1 and ui_event_kind_is(session_id, "pointer.down") == 1:
-        let _focus = native_ui_focus(session_id, node_id)
-        let _pressed = native_ui_node_set_flag(session_id, node_id, "pressed", 1)
-        return 1
-    if ui_event_targets(session_id, node_id) == 1 and ui_event_kind_is(session_id, "pointer.up") == 1:
-        let _released = native_ui_node_set_flag(session_id, node_id, "pressed", 0)
-        return 0
-    return native_ui_node_has_flag(session_id, node_id, "pressed")
-
-pub fn ui_drain_events_for_node(session_id: Int, node_id: Int) -> Int:
-    let handled = 0
-    while native_ui_poll_event(session_id) == 1:
-        if ui_event_targets(session_id, node_id) == 1:
-            let _hover = ui_apply_hover_flag(session_id, node_id, native_ui_event_x(session_id), native_ui_event_y(session_id))
-            let _pressed = ui_apply_pressed_flag_from_event(session_id, node_id)
-            handled = handled + 1
-    return handled
-
 pub fn ui_present_to_attached_host(session_id: Int) -> Int:
-    let _end = native_ui_end_frame(session_id)
-    let _present = native_ui_present(session_id)
+    let _ = native_ui_end_frame(session_id)
+    let _ = native_ui_present(session_id)
     return native_ui_host_present(session_id)
 
-# root-domain aliases: generated public std names
-pub fn ui_reset() -> Int:
-    return native_ui_reset()
-
-pub fn ui_session_create(app_name: String, width: Int, height: Int) -> Int:
-    return native_ui_session_create(app_name, width, height)
-
-pub fn ui_session_destroy(session_id: Int) -> Int:
-    return native_ui_session_destroy(session_id)
-
-pub fn ui_session_count() -> Int:
-    return native_ui_session_count()
-
-pub fn ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int:
-    return native_ui_window_open(session_id, title, width, height)
-
-pub fn ui_window_close(session_id: Int) -> Int:
-    return native_ui_window_close(session_id)
-
-pub fn ui_begin_frame(session_id: Int, delta_ms: Float) -> Int:
-    return native_ui_begin_frame(session_id, delta_ms)
-
-pub fn ui_end_frame(session_id: Int) -> Int:
-    return native_ui_end_frame(session_id)
-
-pub fn ui_present(session_id: Int) -> Int:
-    return native_ui_present(session_id)
-
-pub fn ui_frame_index(session_id: Int) -> Int:
-    return native_ui_frame_index(session_id)
-
-pub fn ui_last_presented_frame(session_id: Int) -> Int:
-    return native_ui_last_presented_frame(session_id)
-
-pub fn ui_node_create(session_id: Int, kind: String) -> Int:
-    return native_ui_node_create(session_id, kind)
-
-pub fn ui_node_destroy(session_id: Int, node_id: Int) -> Int:
-    return native_ui_node_destroy(session_id, node_id)
-
-pub fn ui_node_count(session_id: Int) -> Int:
-    return native_ui_node_count(session_id)
-
-pub fn ui_node_exists(session_id: Int, node_id: Int) -> Int:
-    return native_ui_node_exists(session_id, node_id)
-
-pub fn ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int:
-    return native_ui_node_set_parent(session_id, node_id, parent_id)
-
-pub fn ui_node_parent(session_id: Int, node_id: Int) -> Int:
-    return native_ui_node_parent(session_id, node_id)
-
-pub fn ui_node_child_count(session_id: Int, node_id: Int) -> Int:
-    return native_ui_node_child_count(session_id, node_id)
-
-pub fn ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
-    return native_ui_node_set_rect(session_id, node_id, x, y, width, height)
-
-pub fn ui_node_x(session_id: Int, node_id: Int) -> Float:
-    return native_ui_node_x(session_id, node_id)
-
-pub fn ui_node_y(session_id: Int, node_id: Int) -> Float:
-    return native_ui_node_y(session_id, node_id)
-
-pub fn ui_node_width(session_id: Int, node_id: Int) -> Float:
-    return native_ui_node_width(session_id, node_id)
-
-pub fn ui_node_height(session_id: Int, node_id: Int) -> Float:
-    return native_ui_node_height(session_id, node_id)
-
-pub fn ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int:
-    return native_ui_node_set_text(session_id, node_id, text)
-
-pub fn ui_node_text(session_id: Int, node_id: Int) -> String:
-    return native_ui_node_text(session_id, node_id)
-
-pub fn ui_node_kind(session_id: Int, node_id: Int) -> String:
-    return native_ui_node_kind(session_id, node_id)
-
-pub fn ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int:
-    return native_ui_node_set_flag(session_id, node_id, flag, enabled)
-
-pub fn ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int:
-    return native_ui_node_has_flag(session_id, node_id, flag)
-
-pub fn ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return native_ui_node_set_style_i64(session_id, node_id, key, value)
-
-pub fn ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return native_ui_node_set_style_f64(session_id, node_id, key, value)
-
-pub fn ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return native_ui_node_set_style_string(session_id, node_id, key, value)
-
-pub fn ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return native_ui_node_style_i64(session_id, node_id, key, fallback)
-
-pub fn ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return native_ui_node_style_f64(session_id, node_id, key, fallback)
-
-pub fn ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return native_ui_node_style_string(session_id, node_id, key, fallback)
-
-pub fn ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
-    return native_ui_node_set_state_i64(session_id, node_id, key, value)
-
-pub fn ui_node_set_state_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
-    return native_ui_node_set_state_f64(session_id, node_id, key, value)
-
-pub fn ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
-    return native_ui_node_set_state_string(session_id, node_id, key, value)
-
-pub fn ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
-    return native_ui_node_state_i64(session_id, node_id, key, fallback)
-
-pub fn ui_node_state_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
-    return native_ui_node_state_f64(session_id, node_id, key, fallback)
-
-pub fn ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
-    return native_ui_node_state_string(session_id, node_id, key, fallback)
-
-pub fn ui_state_count(session_id: Int) -> Int:
-    return native_ui_state_count(session_id)
-
-pub fn ui_focus(session_id: Int, node_id: Int) -> Int:
-    return native_ui_focus(session_id, node_id)
-
-pub fn ui_focused_node(session_id: Int) -> Int:
-    return native_ui_focused_node(session_id)
-
-pub fn ui_hit_test(session_id: Int, x: Float, y: Float) -> Int:
-    return native_ui_hit_test(session_id, x, y)
-
-pub fn ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int:
-    return native_ui_mark_dirty(session_id, node_id, reason)
-
-pub fn ui_dirty_count(session_id: Int) -> Int:
-    return native_ui_dirty_count(session_id)
-
-pub fn ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int:
-    return native_ui_push_event(session_id, kind, target_node_id, x, y, key_code, text)
-
-pub fn ui_poll_event(session_id: Int) -> Int:
-    return native_ui_poll_event(session_id)
-
-pub fn ui_event_kind(session_id: Int) -> String:
-    return native_ui_event_kind(session_id)
-
-pub fn ui_event_target(session_id: Int) -> Int:
-    return native_ui_event_target(session_id)
-
-pub fn ui_event_x(session_id: Int) -> Float:
-    return native_ui_event_x(session_id)
-
-pub fn ui_event_y(session_id: Int) -> Float:
-    return native_ui_event_y(session_id)
-
-pub fn ui_event_key_code(session_id: Int) -> Int:
-    return native_ui_event_key_code(session_id)
-
-pub fn ui_event_text(session_id: Int) -> String:
-    return native_ui_event_text(session_id)
-
-pub fn ui_event_record(session_id: Int) -> InputEventRecord:
-    return InputEventRecord {
-        index: 0,
-        source_kind: input_source_ui_runtime(),
-        event_kind: ui_event_kind(session_id),
-        code: str(ui_event_key_code(session_id)),
-        action: "",
-        text: ui_event_text(session_id),
-    }
-
-pub fn ui_push_input_event(session_id: Int, target_node_id: Int, event: InputEventRecord) -> Int:
-    return ui_push_event(
-        session_id,
-        event.event_kind,
-        target_node_id,
-        0.0,
-        0.0,
-        ui_input_key_code_or_zero(event.code),
-        event.text
-    )
-
-pub fn ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
-
-pub fn ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
-    return native_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
-
-pub fn ui_draw_command_count(session_id: Int) -> Int:
-    return native_ui_draw_command_count(session_id)
-
-pub fn ui_draw_command_kind(session_id: Int, command_index: Int) -> String:
-    return native_ui_draw_command_kind(session_id, command_index)
-
-pub fn ui_draw_command_node(session_id: Int, command_index: Int) -> Int:
-    return native_ui_draw_command_node(session_id, command_index)
-
-pub fn ui_host_attach(session_id: Int, backend_id: String) -> Int:
-    return native_ui_host_attach(session_id, backend_id)
-
-pub fn ui_host_pump(session_id: Int) -> Int:
-    return native_ui_host_pump(session_id)
-
-pub fn ui_host_present(session_id: Int) -> Int:
-    return native_ui_host_present(session_id)
-
-pub fn ui_host_presented_draw_count(session_id: Int) -> Int:
-    return native_ui_host_presented_draw_count(session_id)
-
-pub fn ui_host_frame_hash(session_id: Int) -> Int:
-    return native_ui_host_frame_hash(session_id)
-
-pub fn ui_host_should_close(session_id: Int) -> Int:
-    return native_ui_host_should_close(session_id)
-
-pub fn ui_host_backend(session_id: Int) -> String:
-    return native_ui_host_backend(session_id)
-
-pub fn ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int:
-    return native_ui_node_set_stable_key(session_id, node_id, stable_key)
-
-pub fn ui_node_stable_key(session_id: Int, node_id: Int) -> String:
-    return native_ui_node_stable_key(session_id, node_id)
-
-pub fn ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int:
-    return native_ui_node_find_by_stable_key(session_id, stable_key)
-
-pub fn ui_accessibility_set_role(session_id: Int, node_id: Int, role: String) -> Int:
-    return native_ui_accessibility_set_role(session_id, node_id, role)
-
-pub fn ui_accessibility_set_label(session_id: Int, node_id: Int, label: String) -> Int:
-    return native_ui_accessibility_set_label(session_id, node_id, label)
-
-pub fn ui_accessibility_role(session_id: Int, node_id: Int) -> String:
-    return native_ui_accessibility_role(session_id, node_id)
-
-pub fn ui_accessibility_label(session_id: Int, node_id: Int) -> String:
-    return native_ui_accessibility_label(session_id, node_id)
-
-pub fn ui_draw_command_resource(session_id: Int, command_index: Int) -> Int:
-    return native_ui_draw_command_resource(session_id, command_index)
-
-pub fn ui_draw_command_x(session_id: Int, command_index: Int) -> Float:
-    return native_ui_draw_command_x(session_id, command_index)
-
-pub fn ui_draw_command_y(session_id: Int, command_index: Int) -> Float:
-    return native_ui_draw_command_y(session_id, command_index)
-
-pub fn ui_draw_command_width(session_id: Int, command_index: Int) -> Float:
-    return native_ui_draw_command_width(session_id, command_index)
-
-pub fn ui_draw_command_height(session_id: Int, command_index: Int) -> Float:
-    return native_ui_draw_command_height(session_id, command_index)
-
-pub fn ui_draw_command_text(session_id: Int, command_index: Int) -> String:
-    return native_ui_draw_command_text(session_id, command_index)
-
-pub fn ui_draw_command_style(session_id: Int, command_index: Int) -> String:
-    return native_ui_draw_command_style(session_id, command_index)
-
-pub fn ui_draw_command_font(session_id: Int, command_index: Int) -> Int:
-    return native_ui_draw_command_font(session_id, command_index)
-
-pub fn ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int:
-    return native_ui_resource_create(session_id, resource_type, key, width, height, byte_length)
-
-pub fn ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int:
-    return native_ui_font_create(session_id, key, family, size)
-
-pub fn ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int:
-    return native_ui_texture_create(session_id, key, width, height, format, byte_length)
-
-pub fn ui_canvas_create(session_id: Int, key: String, width: Int, height: Int) -> Int:
-    return native_ui_canvas_create(session_id, key, width, height)
-
-pub fn ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int:
-    return native_ui_shader_create(session_id, key, stage, byte_length)
-
-pub fn ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int:
-    return native_ui_resource_set_bytes_hex(session_id, resource_id, bytes_hex)
-
-pub fn ui_resource_count(session_id: Int) -> Int:
-    return native_ui_resource_count(session_id)
-
-pub fn ui_resource_exists(session_id: Int, resource_id: Int) -> Int:
-    return native_ui_resource_exists(session_id, resource_id)
-
-pub fn ui_resource_type(session_id: Int, resource_id: Int) -> String:
-    return native_ui_resource_type(session_id, resource_id)
-
-pub fn ui_resource_key(session_id: Int, resource_id: Int) -> String:
-    return native_ui_resource_key(session_id, resource_id)
-
-pub fn ui_resource_width(session_id: Int, resource_id: Int) -> Int:
-    return native_ui_resource_width(session_id, resource_id)
-
-pub fn ui_resource_height(session_id: Int, resource_id: Int) -> Int:
-    return native_ui_resource_height(session_id, resource_id)
-
-pub fn ui_resource_byte_length(session_id: Int, resource_id: Int) -> Int:
-    return native_ui_resource_byte_length(session_id, resource_id)
-
-pub fn ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return native_ui_text_measure_width(session_id, font_resource_id, text)
-
-pub fn ui_text_measure_height(session_id: Int, font_resource_id: Int, text: String) -> Float:
-    return native_ui_text_measure_height(session_id, font_resource_id, text)
-
-pub fn ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
-    return native_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
-
-pub fn ui_clipboard_set_text(session_id: Int, text: String) -> Int:
-    return native_ui_clipboard_set_text(session_id, text)
-
-pub fn ui_clipboard_text(session_id: Int) -> String:
-    return native_ui_clipboard_text(session_id)
-
-pub fn ui_ime_begin(session_id: Int, node_id: Int) -> Int:
-    return native_ui_ime_begin(session_id, node_id)
-
-pub fn ui_ime_commit_text(session_id: Int, text: String) -> Int:
-    return native_ui_ime_commit_text(session_id, text)
-
-pub fn ui_ime_end(session_id: Int) -> Int:
-    return native_ui_ime_end(session_id)
-
-pub fn ui_ime_active_node(session_id: Int) -> Int:
-    return native_ui_ime_active_node(session_id)
-
-pub fn ui_ime_text(session_id: Int) -> String:
-    return native_ui_ime_text(session_id)
-
-pub fn ui_drag_begin(session_id: Int, node_id: Int, payload: String, x: Float, y: Float) -> Int:
-    return native_ui_drag_begin(session_id, node_id, payload, x, y)
-
-pub fn ui_drag_update(session_id: Int, x: Float, y: Float, drop_target_node_id: Int) -> Int:
-    return native_ui_drag_update(session_id, x, y, drop_target_node_id)
-
-pub fn ui_drag_drop(session_id: Int, drop_target_node_id: Int) -> Int:
-    return native_ui_drag_drop(session_id, drop_target_node_id)
-
-pub fn ui_drag_active_node(session_id: Int) -> Int:
-    return native_ui_drag_active_node(session_id)
-
-pub fn ui_drag_drop_target(session_id: Int) -> Int:
-    return native_ui_drag_drop_target(session_id)
-
-pub fn ui_drag_x(session_id: Int) -> Float:
-    return native_ui_drag_x(session_id)
-
-pub fn ui_drag_y(session_id: Int) -> Float:
-    return native_ui_drag_y(session_id)
-
-pub fn ui_drag_payload(session_id: Int) -> String:
-    return native_ui_drag_payload(session_id)
-
-pub fn ui_menu_create(session_id: Int, key: String) -> Int:
-    return native_ui_menu_create(session_id, key)
-
-pub fn ui_menu_add_item(session_id: Int, menu_id: Int, key: String, label: String, command_id: Int) -> Int:
-    return native_ui_menu_add_item(session_id, menu_id, key, label, command_id)
-
-pub fn ui_menu_open(session_id: Int, menu_id: Int, x: Float, y: Float) -> Int:
-    return native_ui_menu_open(session_id, menu_id, x, y)
-
-pub fn ui_menu_active(session_id: Int) -> Int:
-    return native_ui_menu_active(session_id)
-
-pub fn ui_menu_item_count(session_id: Int, menu_id: Int) -> Int:
-    return native_ui_menu_item_count(session_id, menu_id)
-
-pub fn ui_menu_item_label(session_id: Int, menu_id: Int, item_index: Int) -> String:
-    return native_ui_menu_item_label(session_id, menu_id, item_index)
-
-pub fn ui_menu_item_command(session_id: Int, menu_id: Int, item_index: Int) -> Int:
-    return native_ui_menu_item_command(session_id, menu_id, item_index)
-
-pub fn ui_dialog_request(session_id: Int, kind: String, title: String, message: String) -> Int:
-    return native_ui_dialog_request(session_id, kind, title, message)
-
-pub fn ui_dialog_active(session_id: Int) -> Int:
-    return native_ui_dialog_active(session_id)
-
-pub fn ui_dialog_kind(session_id: Int, dialog_id: Int) -> String:
-    return native_ui_dialog_kind(session_id, dialog_id)
-
-pub fn ui_dialog_title(session_id: Int, dialog_id: Int) -> String:
-    return native_ui_dialog_title(session_id, dialog_id)
-
-pub fn ui_dialog_message(session_id: Int, dialog_id: Int) -> String:
-    return native_ui_dialog_message(session_id, dialog_id)
-
-pub fn ui_dialog_respond(session_id: Int, dialog_id: Int, result: Int, response_text: String) -> Int:
-    return native_ui_dialog_respond(session_id, dialog_id, result, response_text)
-
-pub fn ui_dialog_poll_response(session_id: Int) -> Int:
-    return native_ui_dialog_poll_response(session_id)
-
-pub fn ui_dialog_response_text(session_id: Int) -> String:
-    return native_ui_dialog_response_text(session_id)
-
-pub fn ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int:
-    return native_ui_hot_reload_begin(session_id, revision_key)
-
-pub fn ui_hot_reload_commit(session_id: Int) -> Int:
-    return native_ui_hot_reload_commit(session_id)
-
-pub fn ui_hot_reload_generation(session_id: Int) -> Int:
-    return native_ui_hot_reload_generation(session_id)
-
-pub fn ui_hot_reload_key(session_id: Int) -> String:
-    return native_ui_hot_reload_key(session_id)
-
-pub fn ui_texture_create_from_hex(session_id: Int, key: String, width: Int, height: Int, format: String, bytes_hex: String) -> Int:
-    return native_ui_texture_create_from_hex(session_id, key, width, height, format, bytes_hex)
-# end root-domain aliases
+// ===========================================================================
+// BACKWARD-COMPATIBLE CONSTANTS
+// ===========================================================================
+pub const COLOR_BG:          Int = 0xFF1A1A24
+pub const COLOR_SURFACE:     Int = 0xFF252540
+pub const COLOR_SURFACE2:    Int = 0xFF2E2E48
+pub const COLOR_HEADER:      Int = 0xFF1E1E32
+pub const COLOR_TITLE_BG:    Int = 0xFF23233C
+pub const COLOR_ACCENT:      Int = 0xFF21D4A1
+pub const COLOR_ACCENT2:     Int = 0xFF4A90D9
+pub const COLOR_ACCENT3:     Int = 0xFFE8914A
+pub const COLOR_ACCENT4:     Int = 0xFFE84A5F
+pub const COLOR_TEXT:        Int = 0xFFE8E8F0
+pub const COLOR_TEXT_DIM:    Int = 0xFF8888A0
+pub const COLOR_BORDER:      Int = 0xFF3A3A5C
+pub const COLOR_HIGHLIGHT:   Int = 0xFF2A2A4E
+pub const COLOR_BUTTON:      Int = 0xFF303050
+pub const COLOR_BUTTON_HL:   Int = 0xFF404068
+pub const COLOR_BUTTON_PR:   Int = 0xFF505080
+pub const COLOR_INPUT_BG:    Int = 0xFF0A0A14
+pub const COLOR_SLIDER:      Int = 0xFF3A3A5C
+pub const COLOR_SLIDER_F:    Int = 0xFF2A2A44
+pub const BUTTON_WIDTH:      Int = 100
+pub const BUTTON_HEIGHT:     Int = 30
+pub const CHECKBOX_SIZE:     Int = 18
+pub const SLIDER_WIDTH:      Int = 200
+pub const SLIDER_HEIGHT:     Int = 20
+pub const TEXTBOX_WIDTH:     Int = 160
+pub const TEXTBOX_HEIGHT:    Int = 26
+pub const LABEL_HEIGHT:      Int = 20
+pub const PANEL_TITLE_H:     Int = 28
+pub const PROGRESS_WIDTH:    Int = 150
+pub const PROGRESS_HEIGHT:   Int = 18
+pub const WINDOW_TITLE_H:    Int = 32
+pub const PADDING:           Int = 8
+pub const SPACING:           Int = 4
+
+pub fn ui_color_rgba(r: Int, g: Int, b: Int, a: Int) -> Int:
+    return (a << 24) | (r << 16) | (g << 8) | b
+
+pub fn ui_color_rgb(r: Int, g: Int, b: Int) -> Int:
+    return 0xFF000000 | (r << 16) | (g << 8) | b
