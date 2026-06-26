@@ -1,0 +1,17 @@
+// circle.kn — std::ui::primitives::Circle
+//
+// A filled, optionally stroked circle.
+// Rendered as a box with equal width/height and corner_radius
+// equal to radius, producing a perfect circle.
+
+component Circle(
+    radius: Float,
+    fill_color: String,
+    stroke_color: String,
+    stroke_width: Float,
+    opacity: Float,
+):
+    fn diameter(_self: Self_) -> Float:
+        return _self.radius * 2.0
+
+    render <box width={diameter()} height={diameter()} corner_radius={radius} fill_color={fill_color} stroke_color={stroke_color} stroke_width={stroke_width} opacity={opacity} />

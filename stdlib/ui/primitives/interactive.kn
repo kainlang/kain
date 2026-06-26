@@ -1,0 +1,22 @@
+// interactive.kn — std::ui::primitives::InteractiveArea
+// Invisible hit-testable region with pointer event callbacks.
+// State tracks hover and press for interaction feedback.
+
+component InteractiveArea(
+    width: Float,
+    height: Float,
+    cursor: String,
+    enabled: Bool,
+):
+    state hovered: Bool = false
+    state pressed: Bool = false
+
+    fn is_hovered(_self: Self_) -> Bool:
+        return _self.hovered
+
+    fn is_pressed(_self: Self_) -> Bool:
+        return _self.pressed
+
+    render <box width={width} height={height}>
+        <text value="" />
+    </box>

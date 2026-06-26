@@ -1,0 +1,31 @@
+// gradient.kn — std::ui::primitives::GradientRect
+//
+// Renders a rectangle with linear gradient fill.
+// The C software renderer currently renders as solid first color
+// until gradient support is added to the software rasterizer.
+
+component GradientRect(
+    colors: [Int],
+    stops: [Float],
+    direction: String,
+    width: Float,
+    height: Float,
+    opacity: Float,
+):
+    fn to_hex_byte(_self: Self_, v: Int) -> String:
+        let digits = "0123456789ABCDEF"
+        let hi = (v >> 4) & 0xF
+        let lo = v & 0xF
+        return char_at(digits, hi) + char_at(digits, lo)
+
+    fn first_color_str(_self: Self_) -> String:
+        let count = len(_self.colors)
+        if count > 0:
+            let c = _self.colors[0]
+            let r = (c >> 16) & 0xFF
+            let g = (c >> 8) & 0xFF
+            let b = c & 0xFF
+            return "#" + _self.to_hex_byte(r) + _self.to_hex_byte(g) + _self.to_hex_byte(b)
+        return "#000000"
+
+    render <box fill_color={first_color_str()} gradient_direction={direction} width={width} height={height} opacity={opacity} />
