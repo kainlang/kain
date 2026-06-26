@@ -1220,6 +1220,36 @@ pub enum KainCommand {
         dry_run: bool,
     },
 
+    /// Download and install a cross-compilation sysroot (e.g. musl libc for Linux).
+    ///
+    /// Installs to ~/.kain/sysroot/<name>/ so that `kain build --target-triple` can
+    /// find the CRT headers and libraries needed for cross-compilation.
+    #[command(name = "install-sysroot")]
+    InstallSysroot {
+        /// Short target name (linux, linux-aarch64). Default: linux.
+        target: Option<String>,
+
+        /// Full target triple override (e.g. aarch64-unknown-linux-musl)
+        #[arg(long)]
+        triple: Option<String>,
+
+        /// Override the download URL
+        #[arg(long)]
+        from_url: Option<String>,
+
+        /// Use a local directory instead of downloading
+        #[arg(long)]
+        from_dir: Option<String>,
+
+        /// Re-download even if sysroot already exists
+        #[arg(long)]
+        force: bool,
+
+        /// Print what would be done without downloading
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Runtime-contributed command fallback.
     #[command(external_subcommand)]
     External(Vec<String>),
