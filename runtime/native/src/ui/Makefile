@@ -45,12 +45,13 @@ UI_DIR      := .
 TEST_DIR    := test_ui
 DEMO_DIR    := test_ui_v2
 WIDGET_DIR  := widgets
+KAIN_DIR    := kain
 CORE_DIR    := ../core
 INCLUDE_DIR := ../../include
 STB_DIR     := ../../extras/_stb-truetype
 
 # ── Include paths ──────────────────────────────────────────────────────
-INC := -I$(INCLUDE_DIR) -I$(UI_DIR) -I$(WIDGET_DIR) -I$(CORE_DIR) -I$(STB_DIR)
+INC := -I$(INCLUDE_DIR) -I$(UI_DIR) -I$(WIDGET_DIR) -I$(KAIN_DIR) -I$(CORE_DIR) -I$(STB_DIR)
 
 # ── MSVC Library path detection ────────────────────────────────────────
 # Auto-detect VS + SDK library paths if LIB env var not set.
@@ -82,6 +83,14 @@ CORE_SRCS := \
 	$(CORE_DIR)/component_surface.c \
 	$(CORE_DIR)/input_system.c
 
+# Kain substrate sources (Phase 1)
+KAIN_SRCS := \
+	$(KAIN_DIR)/kain_render_software.c \
+	$(KAIN_DIR)/kain_compositor.c \
+	$(KAIN_DIR)/kain_input.c \
+	$(KAIN_DIR)/kain_font.c \
+	$(KAIN_DIR)/kain_host_win32.c
+
 # Widget sources
 WIDGET_SRCS := $(WIDGET_DIR)/ui_widget.c
 
@@ -107,6 +116,7 @@ DEMO_SRCS := \
 	$(DEMO_DIR)/cosmic_dashboard.c \
 	$(DEMO_DIR)/retrowave.c \
 	$(DEMO_DIR)/ui3d_sandbox.c \
+	$(DEMO_DIR)/font_inferno.c \
 	$(DEMO_DIR)/fire_life_plasma.c \
 	$(DEMO_DIR)/voxel_viewer.c
 
@@ -114,8 +124,9 @@ DEMO_SRCS := \
 # Maps: source.c → _build/obj/source.o with directory structure preserved
 UI_OBJS   := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(UI_SRCS)))
 CORE_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(CORE_SRCS)))
+KAIN_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(KAIN_SRCS)))
 WIDGET_OBJS := $(patsubst %.c,$(OBJ_DIR)/%.o,$(notdir $(WIDGET_SRCS)))
-ALL_LIB_OBJS := $(UI_OBJS) $(CORE_OBJS) $(WIDGET_OBJS)
+ALL_LIB_OBJS := $(UI_OBJS) $(CORE_OBJS) $(KAIN_OBJS) $(WIDGET_OBJS)
 
 # Executables go in _build/bin/
 TEST_EXES := $(patsubst %.c,$(BIN_DIR)/%.exe,$(notdir $(TEST_SRCS)))
@@ -150,7 +161,7 @@ tests: $(ALL_LIB_OBJS) $(TEST_SRCS)
 		name=$$(basename $$test .c); \
 		exe=$(TEST_DIR)/$$name.exe; \
 		echo "[TEST] $$name"; \
-		$(CC) $(CFLAGS) $$test $(STUBS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $$exe; \
+		$(CC) $(CFLAGS) $$test $(STUBS) $(KAIN_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $$exe; \
 	done
 	@echo "[TESTS] done"
 
@@ -160,15 +171,45 @@ demos: $(ALL_LIB_OBJS) $(DEMO_SRCS)
 		name=$$(basename $$demo .c); \
 		exe=$(DEMO_DIR)/$$name.exe; \
 		echo "[DEMO] $$name"; \
-		$(CC) $(CFLAGS) $$demo $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $$exe; \
+		$(CC) $(CFLAGS) $$demo $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $$exe; \
 	done
 	@echo "[DEMOS] done"
 
 # ── Build widget library + test ────────────────────────────────────────
 widgets: $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $(WIDGET_DIR)/test_widgets.c $(WIDGET_STUBS) $(WIDGET_SRCS) \
+	$(CC) $(CFLAGS) $(WIDGET_DIR)/test_widgets.c $(WIDGET_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) \
 		$(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $(WIDGET_DIR)/test_widgets.exe
 	@echo "[WIDGETS] done"
+
+# ── Fuzz targets ───────────────────────────────────────────────────────────
+FUZZ_DIR := fuzz
+FUZZ_BUILD_DIR := $(FUZZ_DIR)/_build
+FUZZ_SRCS := $(wildcard $(FUZZ_DIR)/*_fuzzer.c) $(FUZZ_DIR)/fuzzer.c
+
+# Build fuzzer binary (standalone, no widget deps)
+$(FUZZ_BUILD_DIR)/fuzzer.exe: $(FUZZ_SRCS) $(KAIN_SRCS) $(UI_DIR)/ui_color.c
+	mkdir -p $(FUZZ_BUILD_DIR)
+	$(CC) $(CFLAGS) $(INC) -I$(FUZZ_DIR) $^ -o $@ $(LDFLAGS)
+
+fuzz: $(FUZZ_BUILD_DIR)/fuzzer.exe
+	@echo "[FUZZ] Binary ready: $<"
+	@echo "[FUZZ] Run 'python $(FUZZ_DIR)/run_fuzz.py' to execute"
+
+fuzz-run: $(FUZZ_BUILD_DIR)/fuzzer.exe
+	python $(FUZZ_DIR)/run_fuzz.py --iterations 10000
+
+fuzz-stress: $(FUZZ_BUILD_DIR)/fuzzer.exe
+	python $(FUZZ_DIR)/run_fuzz.py --stress
+
+fuzz-quick: $(FUZZ_BUILD_DIR)/fuzzer.exe
+	python $(FUZZ_DIR)/run_fuzz.py --quick
+
+fuzz-clean:
+	rm -rf $(FUZZ_BUILD_DIR)
+	@echo "[FUZZ-CLEAN] removed $(FUZZ_BUILD_DIR)/"
+
+fuzz-report:
+	python $(FUZZ_DIR)/run_fuzz.py $$([ -f $(FUZZ_BUILD_DIR)/fuzz_report.json ] && echo "--report-only $(FUZZ_BUILD_DIR)/fuzz_report.json" || echo "")
 
 # ── Run targets ────────────────────────────────────────────────────────
 run_cosmic: $(DEMO_DIR)/cosmic_dashboard.exe
@@ -190,23 +231,30 @@ run_voxel: $(DEMO_DIR)/voxel_viewer.exe
 	$(DEMO_DIR)/voxel_viewer.exe &
 
 # ── Single-shot targets (build then run) ──────────────────────────────
-$(DEMO_DIR)/cosmic_dashboard.exe: $(DEMO_DIR)/cosmic_dashboard.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+# ── Single-shot demo targets (build then run) ──────────────────────────
+# DEPS = source .o files (kaKain + UI + widgets + core) → static coherence
+DEPS_OBJ := $(ALL_LIB_OBJS)
 
-$(DEMO_DIR)/retrowave.exe: $(DEMO_DIR)/retrowave.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+$(DEMO_DIR)/cosmic_dashboard.exe: $(DEMO_DIR)/cosmic_dashboard.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
 
-$(DEMO_DIR)/ui3d_sandbox.exe: $(DEMO_DIR)/ui3d_sandbox.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+$(DEMO_DIR)/retrowave.exe: $(DEMO_DIR)/retrowave.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
 
-$(DEMO_DIR)/fire_life_plasma.exe: $(DEMO_DIR)/fire_life_plasma.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+$(DEMO_DIR)/ui3d_sandbox.exe: $(DEMO_DIR)/ui3d_sandbox.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
 
-$(DEMO_DIR)/voxel_viewer.exe: $(DEMO_DIR)/voxel_viewer.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+$(DEMO_DIR)/font_inferno.exe: $(DEMO_DIR)/font_inferno.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
 
-$(TEST_DIR)/calculator.exe: $(TEST_DIR)/calculator.c $(ALL_LIB_OBJS)
-	$(CC) $(CFLAGS) $< $(STUBS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+$(DEMO_DIR)/fire_life_plasma.exe: $(DEMO_DIR)/fire_life_plasma.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+
+$(DEMO_DIR)/voxel_viewer.exe: $(DEMO_DIR)/voxel_viewer.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(DEMO_STUBS) $(KAIN_SRCS) $(WIDGET_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
+
+$(TEST_DIR)/calculator.exe: $(TEST_DIR)/calculator.c $(DEPS_OBJ)
+	$(CC) $(CFLAGS) $< $(STUBS) $(KAIN_SRCS) $(UI_SRCS) $(CORE_SRCS) $(INC) $(LDFLAGS) -o $@
 
 # ── Clean ──────────────────────────────────────────────────────────────
 clean:
@@ -239,6 +287,15 @@ help:
 	@echo "  make run_voxel    — build + run isometric voxel viewer"
 	@echo "  make quick_voxel  — run voxel viewer (skip build if up to date)"
 	@echo ""
+	@echo "Fuzz Targets:"
+	@echo "  make fuzz         — build the fuzzer binary"
+	@echo "  make fuzz-run     — build + quick fuzz (10k iterations)"
+	@echo "  make fuzz-stress  — build + stress fuzz (500k iterations)"
+	@echo "  make fuzz-quick   — build + very quick smoke test"
+	@echo "  make fuzz-clean   — remove fuzz build artifacts"
+	@echo "  make fuzz-report  — regenerate report from saved JSON"
+	@echo "  python fuzz/run_fuzz.py --help  — full orchestrator CLI"
+	@echo ""
 	@echo "Options:"
 	@echo "  make -j8          — parallel build (8 jobs)"
 	@echo "  make CC=gcc       — use GCC instead of clang"
@@ -247,7 +304,7 @@ help:
 	@echo "Incremental: Only changed .c files recompile. Dependencies tracked."
 
 # VPATH: find source files across directories
-VPATH := .:../core:widgets
+VPATH := .:../core:widgets:kain
 
 # Pattern: compile .c → _build/obj/%.o
 $(OBJ_DIR)/%.o: %.c
