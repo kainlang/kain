@@ -1,0 +1,15 @@
+// P3-ALPHA test: component with inline resonate definition
+// Verifies that resonate blocks inside a component body are parsed correctly.
+
+world SensorState:
+    state value: Float = 0.0
+
+component ResonateTest(title: String):
+    state last_value: Float = 0.0
+
+    resonate SensorState.value dampen 0ms:
+        last_value = SensorState.value
+
+    render <div>
+        <Text value={last_value} />
+    </div>

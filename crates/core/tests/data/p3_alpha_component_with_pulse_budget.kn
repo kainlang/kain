@@ -1,0 +1,12 @@
+// P3-ALPHA test: component with pulse including budget constraints
+// Verifies that pulse budget parsing works inside component body.
+
+component BudgetedPulse(count: Int):
+    state counter: Int = 0
+
+    pulse tick every 16ms budget(alloc=0, lock=0, io=0):
+        counter = counter + 1
+
+    render <div>
+        <Text value={counter} />
+    </div>

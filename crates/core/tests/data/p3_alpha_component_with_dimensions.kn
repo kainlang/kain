@@ -1,0 +1,7 @@
+// P3-ALPHA test: component with explicit width/height dimensions
+// Verifies that width= and height= in component header are parsed.
+
+component SizedPanel(title: String) width=1024, height=768:
+    render <div>
+        <Text value={title} />
+    </div>

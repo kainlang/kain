@@ -1,0 +1,17 @@
+// P3-BRAVO test: Component with resonate typechecks
+// Resonate target exists and is type-compatible
+
+world AppState:
+    state slider_value: Float = 0.0
+    state slider_fill: Float = 0.0
+
+component Slider(label: String):
+    state local_fill: Float = 0.0
+
+    resonate AppState.slider_value dampen 0ms:
+        local_fill = AppState.slider_value
+
+    render <div class="slider">
+        <Text value={label} />
+        <div class="fill" width={local_fill} />
+    </div>

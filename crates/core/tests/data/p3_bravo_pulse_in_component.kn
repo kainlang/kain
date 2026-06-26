@@ -1,0 +1,13 @@
+// P3-BRAVO test: Component with pulse typechecks
+// Pulse body has access to component state via self.
+
+component Ticker(title: String):
+    state count: Int = 0
+
+    pulse tick every 16ms:
+        count = count + 1
+
+    render <div>
+        <Text value={title} />
+        <Text value={count} />
+    </div>
