@@ -226,6 +226,12 @@ pub struct TypedOrchestrate {
 pub struct TypedComponent {
     pub ast: Component,
     pub prop_types: HashMap<String, ResolvedType>,
+    /// Maps state field name to its resolved type (Float → f64, String → String, Int → i64, Bool → i64).
+    pub state_types: HashMap<String, ResolvedType>,
+    /// Typed inline pulse definitions from the component body.
+    pub pulse_types: Vec<TypedPulse>,
+    /// Typed inline resonate definitions from the component body.
+    pub resonate_types: Vec<TypedResonate>,
 }
 
 #[derive(Debug, Clone)]
@@ -7958,18 +7964,32 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
         props.insert(p.name.clone(), resolve_param_type(env, p, None)?);
     }
 
-    let self_ty = ResolvedType::Struct(c.name.clone(), props.clone());
+    // Build extended self type: includes both props and state for `self.` access.
+    let mut self_fields = props.clone();
+    let mut state_types: HashMap<String, ResolvedType> = HashMap::new();
+
+    // Collect state types before the scope so we can return them.
+    for state in &c.state {
+        let state_ty = resolve_type_in_env(env, &state.ty)?;
+        state_types.insert(state.name.clone(), state_ty.clone());
+        self_fields.insert(state.name.clone(), state_ty);
+    }
+
+    let mut pulse_types: Vec<TypedPulse> = Vec::new();
+    let mut resonate_types: Vec<TypedResonate> = Vec::new();
+
     env.with_scope(|env| {
         let mut component_errors = Vec::new();
         for (name, ty) in &props {
             env.define(name.clone(), ty.clone());
         }
         for method in &c.methods {
-            let signature = function_signature(env, method, Some(&self_ty))?;
+            let signature = function_signature(env, method, None)?;
             env.define(method.name.clone(), signature);
         }
         for state in &c.state {
-            let state_ty = resolve_type_in_env(env, &state.ty)?;
+            let state_ty = state_types.get(&state.name).cloned()
+                .unwrap_or(ResolvedType::Unknown);
             let initial_ty = infer_expr_type(env, &state.initial, None)?;
             ensure_type_compatible(
                 env,
@@ -7981,9 +8001,29 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
             env.define(state.name.clone(), state_ty);
         }
 
+        // Register `self` for component-scoped access to state + props.
+        let self_ty = ResolvedType::Struct(c.name.clone(), self_fields);
+        env.define("self".to_string(), self_ty.clone());
+
         for method in &c.methods {
             if let Err(error) = check_function_with_self(env, method, &self_ty) {
                 extend_accumulated_errors(&mut component_errors, error);
+            }
+        }
+
+        // Typecheck inline pulse blocks — `self` is accessible from the outer component scope.
+        for pulse in &c.pulses {
+            match check_pulse(env, pulse) {
+                Ok(tp) => pulse_types.push(tp),
+                Err(e) => extend_accumulated_errors(&mut component_errors, e),
+            }
+        }
+
+        // Typecheck inline resonate blocks — `self` is accessible from the outer component scope.
+        for resonate in &c.resonates {
+            match check_resonate(env, resonate) {
+                Ok(tr) => resonate_types.push(tr),
+                Err(e) => extend_accumulated_errors(&mut component_errors, e),
             }
         }
 
@@ -7994,6 +8034,9 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
     Ok(TypedComponent {
         ast: c.clone(),
         prop_types: props,
+        state_types,
+        pulse_types,
+        resonate_types,
     })
 }
 
@@ -12659,6 +12702,74 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
     }
 }
 
+/// Known JSX event callback names (after stripping "on_" prefix).
+/// These are the valid event_kind values for `JSXAttrValue::Callback`.
+const KNOWN_JSX_EVENT_KINDS: &[&str] = &[
+    "click", "change", "toggle", "focus", "blur",
+    "mouseenter", "mouseleave", "submit", "cancel",
+    "hover", "press", "release", "drag",
+];
+
+/// Validate a JSX event callback attribute.
+/// Checks that the event_kind is known and the expression is a function type.
+fn validate_jsx_event_callback(
+    env: &mut TypeEnv,
+    event_kind: &str,
+    expr: &Expr,
+    attr_span: Span,
+) -> KainResult<()> {
+    // 1. Validate event kind is known
+    if !KNOWN_JSX_EVENT_KINDS.contains(&event_kind) {
+        return Err(env.type_error(
+            format!(
+                "Unknown JSX event '{}'. Known events: {}",
+                event_kind,
+                KNOWN_JSX_EVENT_KINDS.join(", ")
+            ),
+            attr_span,
+        ));
+    }
+
+    // 2. Validate the callback expression is a function type
+    // Accept: () -> Void, (Event) -> Void, (Float) -> Void (for slider on_change)
+    let fn_ty = infer_expr_type(env, expr, None)?;
+    match &fn_ty {
+        ResolvedType::Function { params, ret, effects: _ } => {
+            // Return type must be Unit-compatible (void, nothing, or inferred)
+            if !matches!(ret.as_ref(), ResolvedType::Unit | ResolvedType::Never | ResolvedType::Unknown) {
+                return Err(env.type_error(
+                    format!(
+                        "Event callback '{}' must return Void (unit), found {}",
+                        event_kind,
+                        describe_type(ret)
+                    ),
+                    attr_span,
+                ));
+            }
+            // Parameter count check: 0, 1, or 2 params are acceptable
+            if params.len() > 2 {
+                return Err(env.type_error(
+                    format!(
+                        "Event callback '{}' takes too many parameters (expected 0-2, got {})",
+                        event_kind,
+                        params.len()
+                    ),
+                    attr_span,
+                ));
+            }
+            Ok(())
+        }
+        _ => Err(env.type_error(
+            format!(
+                "Event callback '{}' must be a function, got {}",
+                event_kind,
+                describe_type(&fn_ty)
+            ),
+            attr_span,
+        )),
+    }
+}
+
 fn check_jsx_semantics(
     env: &mut TypeEnv,
     node: &JSXNode,
@@ -12676,8 +12787,14 @@ fn check_jsx_semantics(
             ..
         } => {
             for attribute in attributes {
-                if let JSXAttrValue::Expr(expr) = &attribute.value {
-                    let _ = infer_expr_type(env, expr, ctx)?;
+                match &attribute.value {
+                    JSXAttrValue::Expr(expr) => {
+                        let _ = infer_expr_type(env, expr, ctx)?;
+                    }
+                    JSXAttrValue::Callback(event_kind, expr) => {
+                        validate_jsx_event_callback(env, event_kind, expr, attribute.span)?;
+                    }
+                    _ => {} // String, Bool — no validation needed
                 }
             }
             for child in children {
