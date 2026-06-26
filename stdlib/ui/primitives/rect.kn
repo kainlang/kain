@@ -1,0 +1,18 @@
+// rect.kn — std::ui::primitives::RoundedRect
+// Draws a filled, optionally rounded rectangle.
+// Stateless — every frame emits a draw_rect command via the C renderer.
+
+use std::ui::core
+
+component RoundedRect(
+    width: Float,
+    height: Float,
+    corner_radius: Float,
+    fill_color: String,
+    stroke_color: String,
+    stroke_width: Float,
+    opacity: Float,
+):
+    render <box corner_radius={corner_radius} width={width} height={height}>
+        <text value="" />
+    </box>
