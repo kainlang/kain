@@ -3994,6 +3994,26 @@ pub fn main_entry() {
                         std::process::exit(1);
                     }
                 }
+                Some(Commands::InstallSysroot {
+                    target,
+                    triple,
+                    from_url,
+                    from_dir,
+                    force,
+                    dry_run,
+                }) => {
+                    if let Err(e) = packages::install_sysroot(
+                        target.as_deref().unwrap_or("linux"),
+                        triple.as_deref(),
+                        from_url.as_deref(),
+                        from_dir.as_deref(),
+                        force,
+                        dry_run,
+                    ) {
+                        eprintln!(" install-sysroot failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
                 Some(Commands::Import { command }) => match command {
                     ImportCommand::Crates {
                         path,
