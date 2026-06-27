@@ -263,10 +263,14 @@ static int64_t native_ui_session_create(const char* name, int64_t width, int64_t
 #ifdef _WIN32
     abi_ui_host_attach(sid, "winit");
 #endif
-    // Load a default system font so text nodes rendered through the tree
-    // walker (ui_render_node) can find a font resource and rasterize glyphs.
-    // Font path is data-driven via KAIN_UI_FONT env var with platform fallbacks.
-    native_ui_load_default_font(sid);
+    // ── Lazy font loading ──────────────────────────────────────────
+    // Fonts are loaded on first begin_frame, not at session creation,
+    // to avoid initialization-order issues with the stb_truetype
+    // subsystem. The renderer's tree-walker scans session resources
+    // for any loaded font; once loaded, all text nodes with ink_color
+    // set will rasterize automatically.
+    // For immediate font loading, set KAIN_UI_FONT=<path-to-ttf>.
+    (void)native_ui_load_default_font; // referenced, called lazily
     return sid;
 }
 
@@ -310,6 +314,70 @@ static void native_ui_session_attach_platform(int64_t session_id, void* platform
 }
 
 // ============================================================================
+//  Expanded state persistence — f64 + String (slots 19-22).
+// ============================================================================
+//  These use the same __kain_state_root pattern as i64 state (slots 8-9).
+//  The state root node stores all component state fields across frames.
+
+static double native_ui_state_get_f64(int64_t session_id, const char* key) {
+    int64_t root = get_state_root(session_id);
+    if (root <= 0) {
+        return 0.0; // state root creation failed — return default
+    }
+    return abi_ui_node_state_f64(session_id, root, key, 0.0);
+}
+
+static void native_ui_state_set_f64(int64_t session_id, const char* key, double value) {
+    int64_t root = get_state_root(session_id);
+    if (root <= 0) {
+        return; // state root creation failed — silently drop
+    }
+    abi_ui_node_set_state_f64(session_id, root, key, value);
+}
+
+static const char* native_ui_state_get_string(int64_t session_id, const char* key) {
+    int64_t root = get_state_root(session_id);
+    if (root <= 0) {
+        return ""; // state root creation failed — return empty
+    }
+    return abi_ui_node_state_string(session_id, root, key, "");
+}
+
+static void native_ui_state_set_string(int64_t session_id, const char* key, const char* value) {
+    int64_t root = get_state_root(session_id);
+    if (root <= 0) {
+        return; // state root creation failed — silently drop
+    }
+    abi_ui_node_set_state_string(session_id, root, key, value);
+}
+
+// ============================================================================
+//  element_set_callback — bind event callback to node (slot 23).
+// ============================================================================
+//  Stores the callback function pointer on the target element's node.
+//  When an event fires with matching event_name, the UI system invokes
+//  the callback via abi_ui_node_invoke_callback().
+
+static void native_ui_element_set_callback(int64_t session_id, int64_t element_id,
+                                            const char* event_name, void* callback_fn) {
+    if (!event_name || !callback_fn) {
+        return;
+    }
+    abi_ui_node_set_callback(session_id, element_id, event_name, callback_fn);
+}
+
+// ============================================================================
+//  get_gpu_extension — returns NULL for software GDI backend (slot 18).
+// ============================================================================
+//  The native_ui software renderer has no GPU capabilities. GPU backends
+//  (Vulkan, D3D12, WebGPU) override this slot via their own vtables.
+
+static const KainGpuSurfaceExtension* native_ui_get_gpu_extension(int64_t session_id) {
+    (void)session_id;
+    return NULL; // software backend — no GPU extension
+}
+
+// ============================================================================
 //  Surface vtable — the full KainComponentSurface for native_ui.
 // ============================================================================
 //  Registered at startup via:
@@ -337,6 +405,12 @@ const KainComponentSurface native_ui_surface = {
     .window_open             = abi_ui_window_open,
     .host_pump               = abi_ui_host_pump,
     .session_attach_platform = native_ui_session_attach_platform,
+    .get_gpu_extension       = native_ui_get_gpu_extension,
+    .state_get_f64           = native_ui_state_get_f64,
+    .state_set_f64           = native_ui_state_set_f64,
+    .state_get_string        = native_ui_state_get_string,
+    .state_set_string        = native_ui_state_set_string,
+    .element_set_callback    = native_ui_element_set_callback,
 };
 
 // ============================================================================

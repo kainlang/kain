@@ -1,0 +1,23 @@
+// P3-BRAVO test: Component with on_click callback typechecks
+// Callback must be a function type
+
+fn handle_click():
+    ()
+
+fn handle_change(value: Float):
+    ()
+
+component Button(label: String, disabled: Bool = false):
+    state hovered: Bool = false
+    state pressed: Bool = false
+
+    render <button on_click={handle_click} disabled={disabled}>
+        <Text value={label} />
+    </button>
+
+component Slider(min: Float, max: Float, step: Float):
+    state value: Float = 0.0
+
+    render <div class="slider">
+        <input type="range" on_change={handle_change} />
+    </div>

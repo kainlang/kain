@@ -1,0 +1,10 @@
+// P3-ALPHA test: component using on_click callback attribute
+// Verifies that on_* JSX attribute produces JSXAttrValue::Callback variant.
+
+fn handle_click():
+    ()
+
+component Button(label: String):
+    render <button on_click={handle_click}>
+        <Text value={label} />
+    </button>

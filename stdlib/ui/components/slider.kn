@@ -1,0 +1,50 @@
+// slider.kn — std::ui::components::Slider
+//
+// Horizontal track with draggable thumb.
+// Value clamped to [min, max] with optional step granularity.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Track fill width hardcoded; full interactivity pending codegen fix.
+
+component Slider(
+    value: Float,
+    min: Float,
+    max: Float,
+    step: Float,
+):
+    state dragging: Bool = false
+    state drag_value: Float = value
+
+    fn current_value(_self: Self_) -> Float:
+        if _self.dragging:
+            return _self.drag_value
+        return _self.value
+
+    fn fraction(_self: Self_) -> Float:
+        let range = _self.max - _self.min
+        if range <= 0.0:
+            return 0.0
+        return (_self.current_value() - _self.min) / range
+
+    fn handle_drag_start(_self: Self_):
+        _self.dragging = true
+        _self.drag_value = _self.value
+
+    fn handle_drag_move(_self: Self_, mouse_x: Float):
+        let fraction = (mouse_x - 8.0) / 184.0
+        let clamped = if fraction < 0.0: 0.0 elif fraction > 1.0: 1.0 else: fraction
+        let raw = _self.min + clamped * (_self.max - _self.min)
+        if _self.step > 0.0:
+            let steps = to_float(to_int((raw - _self.min) / _self.step + 0.5))
+            _self.drag_value = _self.min + steps * _self.step
+        else:
+            _self.drag_value = raw
+
+    fn handle_drag_end(_self: Self_):
+        _self.dragging = false
+
+    render <stack direction="vertical" spacing={0}>
+        <box fill_color="slider_track" width={200.0} height={6.0} />
+        <box fill_color="slider_fill" width={92.0} height={6.0} />
+        <box fill_color="slider_thumb" width={16.0} height={16.0} />
+    </stack>

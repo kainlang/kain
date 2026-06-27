@@ -1,0 +1,16 @@
+// text.kn — std::ui::primitives::Text
+// Renders a text string with font resource.
+// Stateless — text content is set via the node's text field.
+
+use std::ui::core
+
+component Text(
+    value: String,
+    font_size: Float,
+    color: String,
+    align: String,
+    width: Float,
+    height: Float,
+    opacity: Float,
+):
+    render <text value={value} font_size={font_size} align={align} />

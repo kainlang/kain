@@ -2537,6 +2537,90 @@ impl<'a> Parser<'a> {
             )),
         }
     }
+    /// Parse the body of a pulse definition after the `pulse` keyword has been consumed.
+    /// Syntax: `name every <duration> [jitter <dur>] [budget(...)]: <block>`
+    fn parse_pulse_inline(&mut self) -> KainResult<PulseDef> {
+        let start = self.current_span();
+        let name = self.parse_ident()?;
+        self.expect_contextual_ident("every")?;
+        let interval = self.parse_pulse_duration()?;
+        let jitter = if self.peek_contextual_ident("jitter") {
+            self.advance();
+            Some(self.parse_pulse_duration()?)
+        } else {
+            None
+        };
+        let budget = if self.peek_contextual_ident("budget") {
+            self.advance();
+            Some(self.parse_pulse_budget()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        Ok(PulseDef {
+            name,
+            interval,
+            jitter,
+            budget,
+            body,
+            visibility: Visibility::Private,
+            attributes: vec![],
+            span: start.merge(body_span),
+        })
+    }
+
+    /// Parse the body of a resonate definition after the `resonate` keyword has been consumed.
+    /// Syntax: `resonate <target> [dampen <duration>]: <block>`
+    fn parse_resonate_inline(&mut self) -> KainResult<ResonateDef> {
+        let start = self.current_span();
+        let target = self.parse_resonate_endpoint()?;
+        let dampen = if self.peek_contextual_ident("dampen") {
+            self.advance();
+            Some(self.parse_pulse_duration()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        let name = format!("resonate__{}", target.segments.join("__"));
+        Ok(ResonateDef {
+            name,
+            target,
+            dampen,
+            body,
+            visibility: Visibility::Private,
+            attributes: vec![],
+            span: start.merge(body_span),
+        })
+    }
+
+    /// Parse optional component dimension overrides: `width=<expr>[, height=<expr>]`
+    fn parse_component_dimensions(&mut self) -> KainResult<Option<ComponentDimensions>> {
+        let start = self.current_span();
+        if !self.peek_contextual_ident("width") {
+            return Ok(None);
+        }
+        self.advance(); // consume 'width'
+        self.expect(TokenKind::Eq)?;
+        let w = self.parse_expr()?;
+        let h = if self.check(TokenKind::Comma) {
+            self.advance();
+            self.expect_contextual_ident("height")?;
+            self.expect(TokenKind::Eq)?;
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+        Ok(Some(ComponentDimensions {
+            width: Some(w),
+            height: h,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
     #[allow(dead_code)]
     fn parse_component(&mut self, vis: Visibility) -> KainResult<Item> {
         let start = self.current_span();
@@ -2546,6 +2630,10 @@ impl<'a> Parser<'a> {
         let props = self.parse_params()?;
         self.expect(TokenKind::RParen)?;
         let effects = self.parse_effects()?;
+
+        // Parse optional dimension overrides: width=<expr>[, height=<expr>]
+        let dimensions = self.parse_component_dimensions()?;
+
         self.expect(TokenKind::Colon)?;
 
         self.skip_newlines();
@@ -2553,6 +2641,8 @@ impl<'a> Parser<'a> {
 
         let mut state = Vec::new();
         let mut methods = Vec::new();
+        let mut pulses = Vec::new();
+        let mut resonates = Vec::new();
         let mut body = None;
 
         // Parse component body items
@@ -2628,6 +2718,16 @@ impl<'a> Parser<'a> {
                              self.current_span()
                          ));
                     }
+                } else if s == "pulse" {
+                    // Parse inline pulse: pulse name every <duration> [jitter <dur>] [budget(...)]: body
+                    self.advance(); // consume 'pulse' ident
+                    let pulse_def = self.parse_pulse_inline()?;
+                    pulses.push(pulse_def);
+                } else if s == "resonate" {
+                    // Parse inline resonate: resonate <target> [dampen <dur>]: body
+                    self.advance(); // consume 'resonate' ident
+                    let resonate_def = self.parse_resonate_inline()?;
+                    resonates.push(resonate_def);
                 } else if s == "render" {
                     self.advance();
                     if self.check(TokenKind::LBrace) {
@@ -2654,7 +2754,7 @@ impl<'a> Parser<'a> {
                 } else {
                     return Err(self.parser_error(
                         format!(
-                            "Unexpected identifier '{}' in component. Valid keywords: 'state', 'weak', 'render', or 'fn' for methods",
+                            "Unexpected identifier '{}' in component. Valid keywords: 'state', 'weak', 'pulse', 'resonate', 'render', or 'fn' for methods",
                             s
                         ),
                         self.current_span()
@@ -2666,7 +2766,7 @@ impl<'a> Parser<'a> {
             } else {
                 return Err(self.parser_error(
                     format!(
-                        "Unexpected token in component: {}. Expected 'state', 'weak', 'render', 'fn', or JSX element",
+                        "Unexpected token in component: {}. Expected 'state', 'weak', 'pulse', 'resonate', 'render', 'fn', or JSX element",
                         crate::error::token_kind_to_user_string(&self.peek_kind())
                     ),
                     self.current_span()
@@ -2692,6 +2792,9 @@ impl<'a> Parser<'a> {
             state,
             methods,
             effects,
+            pulses,
+            resonates,
+            dimensions,
             body,
             visibility: vis,
             attributes: vec![],
@@ -2712,12 +2815,18 @@ impl<'a> Parser<'a> {
         let props = self.parse_params()?;
         self.expect(TokenKind::RParen)?;
         let effects = self.parse_effects()?;
+
+        // Parse optional dimension overrides: width=<expr>[, height=<expr>]
+        let dimensions = self.parse_component_dimensions()?;
+
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
         self.expect(TokenKind::Indent)?;
 
         let mut state = Vec::new();
         let mut methods = Vec::new();
+        let mut pulses = Vec::new();
+        let mut resonates = Vec::new();
         let mut body = None;
 
         while !self.check(TokenKind::Dedent) && !self.at_end() {
@@ -2746,6 +2855,14 @@ impl<'a> Parser<'a> {
                         attributes: vec![],
                         span: self.current_span(),
                     });
+                } else if s == "pulse" {
+                    self.advance(); // consume 'pulse' ident
+                    let pulse_def = self.parse_pulse_inline()?;
+                    pulses.push(pulse_def);
+                } else if s == "resonate" {
+                    self.advance(); // consume 'resonate' ident
+                    let resonate_def = self.parse_resonate_inline()?;
+                    resonates.push(resonate_def);
                 } else if s == "render" {
                     self.advance();
                     if self.check(TokenKind::Colon) {
@@ -2807,6 +2924,9 @@ impl<'a> Parser<'a> {
             state,
             methods,
             effects,
+            pulses,
+            resonates,
+            dimensions,
             body,
             visibility: vis,
             attributes: attrs,
@@ -7059,6 +7179,7 @@ impl<'a> Parser<'a> {
         while !self.check(TokenKind::Gt) && !self.check(TokenKind::Slash) {
             let name = self.parse_jsx_attribute_name()?;
             self.expect(TokenKind::Eq)?;
+            let is_event_attr = crate::ast::EVENT_CALLBACK_ATTRS.contains(&name.as_str());
             let value = if self.check(TokenKind::LBrace) {
                 self.advance();
                 let e = if self.check(TokenKind::Lt) {
@@ -7068,10 +7189,22 @@ impl<'a> Parser<'a> {
                     self.parse_expr()?
                 };
                 self.expect(TokenKind::RBrace)?;
-                JSXAttrValue::Expr(e)
+                if is_event_attr {
+                    // on_click={handler_fn} — strip "on_" prefix for event kind
+                    let event_kind = name.strip_prefix("on_").unwrap_or(&name).to_string();
+                    JSXAttrValue::Callback(event_kind, Box::new(e))
+                } else {
+                    JSXAttrValue::Expr(e)
+                }
             } else if let TokenKind::String(s) = self.peek_kind() {
                 self.advance();
-                JSXAttrValue::String(s)
+                if is_event_attr {
+                    // on_click="handler_name" — treat as callback with string ref
+                    let event_kind = name.strip_prefix("on_").unwrap_or(&name).to_string();
+                    JSXAttrValue::Callback(event_kind, Box::new(Expr::Ident(s, self.current_span())))
+                } else {
+                    JSXAttrValue::String(s)
+                }
             } else {
                 return Err(self.parser_error("Expected attribute value", self.current_span()));
             };

@@ -831,6 +831,11 @@ impl JSGen {
                                 self.writeln(");");
                             }
                         }
+                        JSXAttrValue::Callback(event_kind, handler_expr) => {
+                            self.write(&format!("__el.addEventListener('{}', ", event_kind));
+                            self.gen_expr(handler_expr.as_ref());
+                            self.writeln(");");
+                        }
                     }
                 }
 
@@ -893,6 +898,7 @@ impl JSGen {
                         JSXAttrValue::String(s) => self.write(&format!("'{}'", s)),
                         JSXAttrValue::Bool(b) => self.write(&b.to_string()),
                         JSXAttrValue::Expr(e) => self.gen_expr(e),
+                        JSXAttrValue::Callback(_, _) => self.write("null"),
                     }
                 }
                 if !children.is_empty() {

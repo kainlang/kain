@@ -2826,6 +2826,14 @@ impl SourceFormatter {
                     Ok(format!("{}={{{}}}", attr.name, self.format_expr(expr)?))
                 }
                 JSXAttrValue::Bool(value) => Ok(format!("{}={{{}}}", attr.name, value)),
+                JSXAttrValue::Callback(event_kind, handler_expr) => {
+                    Ok(format!(
+                        "{}_{}={{{}}}",
+                        event_kind,
+                        attr.name,
+                        self.format_expr(handler_expr.as_ref())?
+                    ))
+                }
             })
             .collect::<KainResult<Vec<_>>>()?
             .join(" ");

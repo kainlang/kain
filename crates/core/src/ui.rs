@@ -127,6 +127,26 @@ pub enum UIEvent {
     Custom(String),
 }
 
+impl UIEvent {
+    /// Return the canonical event name string (e.g. "click", "change").
+    pub fn name(&self) -> &str {
+        match self {
+            UIEvent::Click => "click",
+            UIEvent::Input => "input",
+            UIEvent::Change => "change",
+            UIEvent::Submit => "submit",
+            UIEvent::Focus => "focus",
+            UIEvent::Blur => "blur",
+            UIEvent::KeyDown => "keydown",
+            UIEvent::KeyUp => "keyup",
+            UIEvent::PointerDown => "pointerdown",
+            UIEvent::PointerUp => "pointerup",
+            UIEvent::PointerMove => "pointermove",
+            UIEvent::Custom(name) => name.as_str(),
+        }
+    }
+}
+
 /// Runtime component instance snapshot.
 #[derive(Clone, Debug)]
 pub struct ComponentInstance {
@@ -156,6 +176,63 @@ pub enum VNode {
 impl fmt::Display for VNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", render_to_string(self))
+    }
+}
+
+/// Event callback storage and lookup on VNodes.
+impl VNode {
+    /// Return all event handlers attached to this element.
+    /// Returns an empty vec for Text, Fragment, and Component nodes.
+    pub fn event_handlers(&self) -> Vec<(&UIEvent, &Value, Option<&Expr>)> {
+        match self {
+            VNode::Element { attrs, .. } => attrs
+                .iter()
+                .filter_map(|attr| {
+                    if let UIAttr::Event { event, handler, expr, .. } = attr {
+                        Some((event, handler, expr.as_ref()))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Find the handler for a specific event kind (e.g. "click", "change").
+    /// Returns None if no handler is registered for that event.
+    pub fn find_event_handler(&self, event_kind: &str) -> Option<&UIAttr> {
+        match self {
+            VNode::Element { attrs, .. } => attrs.iter().find(|attr| {
+                matches!(attr, UIAttr::Event { event, .. } if event.name() == event_kind)
+            }),
+            _ => None,
+        }
+    }
+
+    /// Return all event names registered on this element (e.g. ["click", "change"]).
+    pub fn event_names(&self) -> Vec<&str> {
+        match self {
+            VNode::Element { attrs, .. } => attrs
+                .iter()
+                .filter_map(|attr| {
+                    if let UIAttr::Event { event, .. } = attr {
+                        Some(event.name())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Returns true if this element has at least one event handler.
+    pub fn has_events(&self) -> bool {
+        match self {
+            VNode::Element { attrs, .. } => attrs.iter().any(|attr| matches!(attr, UIAttr::Event { .. })),
+            _ => false,
+        }
     }
 }
 
@@ -1408,6 +1485,7 @@ fn render_ui_value_contract(value: &UiValue) -> String {
         UiValue::String(value) => {
             serde_json::to_string(value).unwrap_or_else(|_| format!(r#""{}""#, value))
         }
+        UiValue::Callback { event, .. } => format!("callback:{}", event),
     }
 }
 
@@ -2359,6 +2437,8 @@ impl AuthoredUiSystemsAccumulator {
             kind,
             node: id,
             title,
+            width: None,
+            height: None,
             renderer_preference,
             composition_mode,
             preferred_host_backend,
@@ -3209,6 +3289,15 @@ fn eval_attrs(env: &mut Env, attributes: &[crate::ast::JSXAttribute]) -> KainRes
                     }
                 }
             }
+            JSXAttrValue::Callback(event_kind, handler_expr) => {
+                let handler = eval_expr(env, handler_expr)?;
+                UIAttr::Event {
+                    name: attr.name.clone(),
+                    event: UIEvent::Custom(event_kind.clone()),
+                    handler,
+                    expr: Some((**handler_expr).clone()),
+                }
+            }
         };
         attrs.push(lowered);
     }
@@ -3471,6 +3560,9 @@ mod tests {
             state: Vec::new(),
             methods: Vec::new(),
             effects: Vec::new(),
+            pulses: vec![],
+            resonates: vec![],
+            dimensions: None,
             body: JSXNode::Element {
                 tag: "panel".to_string(),
                 attributes: vec![JSXAttribute {

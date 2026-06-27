@@ -1681,6 +1681,11 @@ impl TSGen {
                                 self.writeln("));");
                             }
                         }
+                        JSXAttrValue::Callback(event_kind, handler_expr) => {
+                            self.write(&format!("__el.addEventListener('{}', ", event_kind));
+                            self.gen_expr(handler_expr.as_ref());
+                            self.writeln(" as EventListener);");
+                        }
                     }
                 }
 
@@ -1738,6 +1743,7 @@ impl TSGen {
                         JSXAttrValue::String(s) => self.write(&format!("'{}'", s)),
                         JSXAttrValue::Bool(b) => self.write(&b.to_string()),
                         JSXAttrValue::Expr(e) => self.gen_expr(e),
+                        JSXAttrValue::Callback(_, _) => self.write("null"),
                     }
                 }
                 if !children.is_empty() {
@@ -2284,12 +2290,18 @@ mod tests {
                 state: vec![],
                 methods: vec![],
                 effects: vec![],
+                pulses: vec![],
+                resonates: vec![],
+                dimensions: None,
                 body: JSXNode::Text("test".to_string(), Span::default()),
                 visibility: Visibility::Public,
                 attributes: vec![],
                 span: Span::default(),
             },
             prop_types: Default::default(),
+            state_types: Default::default(),
+            pulse_types: vec![],
+            resonate_types: vec![],
         };
         gen.gen_typed_component(&comp);
         let output = gen.output.build();
@@ -2306,12 +2318,18 @@ mod tests {
                 state: vec![],
                 methods: vec![],
                 effects: vec![],
+                pulses: vec![],
+                resonates: vec![],
+                dimensions: None,
                 body: JSXNode::Text("test".to_string(), Span::default()),
                 visibility: Visibility::Public,
                 attributes: vec![],
                 span: Span::default(),
             },
             prop_types: Default::default(),
+            state_types: Default::default(),
+            pulse_types: vec![],
+            resonate_types: vec![],
         };
         gen.gen_typed_component(&comp);
         let output = gen.output.build();

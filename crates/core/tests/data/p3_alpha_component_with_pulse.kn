@@ -1,0 +1,12 @@
+// P3-ALPHA test: component with inline pulse definition
+// Verifies that pulse blocks inside a component body are parsed correctly.
+
+component PulseTest(count: Int):
+    state tick_count: Int = 0
+
+    pulse tick every 16ms:
+        tick_count = tick_count + 1
+
+    render <div>
+        <Text value={tick_count} />
+    </div>

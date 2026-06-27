@@ -1540,6 +1540,11 @@ impl KsGen {
                             self.expr_to_str(e, &mut vs);
                             vs
                         }
+                        JSXAttrValue::Callback(_, handler_expr) => {
+                            let mut vs = String::new();
+                            self.expr_to_str(handler_expr.as_ref(), &mut vs);
+                            vs
+                        }
                     };
                     if attr.name.starts_with("on") {
                         out.push_str(&format!(
@@ -1585,6 +1590,11 @@ impl KsGen {
                         JSXAttrValue::Expr(e) => {
                             let mut vs = String::new();
                             self.expr_to_str(e, &mut vs);
+                            vs
+                        }
+                        JSXAttrValue::Callback(_, handler_expr) => {
+                            let mut vs = String::new();
+                            self.expr_to_str(handler_expr.as_ref(), &mut vs);
                             vs
                         }
                     };

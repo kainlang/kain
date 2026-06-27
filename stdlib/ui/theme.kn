@@ -1,0 +1,214 @@
+// theme.kn — std::ui::theme — Color, Spacing, Theme, DEFAULT_THEME
+//
+// Layer: L0 (pure data — no @extern, no C dependency)
+//
+// Pure Kain theme structs replacing the old style.kn #define constants.
+// Colors are represented as Float r/g/b/a (0.0-1.0) with a pack()
+// method for 0xAARRGGBB Int conversion when needed.
+//
+// Theme values match the C widget library colors from ui_widget.h.
+
+// ===========================================================================
+// Color struct
+// ===========================================================================
+
+pub struct Color:
+    r: Float  // 0.0 - 1.0
+    g: Float  // 0.0 - 1.0
+    b: Float  // 0.0 - 1.0
+    a: Float  // 0.0 - 1.0
+
+// Color constructor with float components
+pub fn color_rgba(r: Float, g: Float, b: Float, a: Float) -> Color:
+    return Color { r: r, g: g, b: b, a: a }
+
+pub fn color_rgb(r: Float, g: Float, b: Float) -> Color:
+    return Color { r: r, g: g, b: b, a: 1.0 }
+
+// ===========================================================================
+// Spacing struct — consistent 4px grid
+// ===========================================================================
+
+pub struct Spacing:
+    xs:   Float  // 2px
+    sm:   Float  // 4px
+    md:   Float  // 8px
+    lg:   Float  // 16px
+    xl:   Float  // 24px
+    xxl:  Float  // 32px
+    section: Float  // 48px
+
+pub const SPACING: Spacing = Spacing {
+    xs: 2.0, sm: 4.0, md: 8.0, lg: 16.0,
+    xl: 24.0, xxl: 32.0, section: 48.0,
+}
+
+// ===========================================================================
+// CornerRadius struct
+// ===========================================================================
+
+pub struct CornerRadius:
+    top_left: Float
+    top_right: Float
+    bottom_right: Float
+    bottom_left: Float
+
+pub fn corner_radius(all: Float) -> CornerRadius:
+    return CornerRadius {
+        top_left: all, top_right: all,
+        bottom_right: all, bottom_left: all,
+    }
+
+// ===========================================================================
+// Theme struct — complete visual theme
+// ===========================================================================
+
+pub struct Theme:
+    // Core colors
+    bg: Color
+    surface: Color
+    surface2: Color
+    header: Color
+
+    // Accent colors
+    accent: Color       // primary interactive (teal/green)
+    accent2: Color      // secondary accent (blue)
+    accent3: Color      // tertiary accent (orange)
+    accent4: Color      // destructive/warning (red)
+
+    // Text
+    text: Color
+    text_dim: Color
+    text_inverse: Color
+
+    // Borders
+    border: Color
+    highlight: Color
+
+    // Button states
+    button: Color
+    button_hover: Color
+    button_press: Color
+    button_disabled: Color
+
+    // Input
+    input_bg: Color
+    input_focus: Color
+
+    // Slider
+    slider_track: Color
+    slider_fill: Color
+    slider_thumb: Color
+
+    // Sizes
+    spacing: Spacing
+    corner_radius: CornerRadius
+    font_size: Float
+
+    // Misc
+    border_width: Float
+    shadow_opacity: Float
+
+// ===========================================================================
+// DEFAULT_THEME — the canonical dark theme matching the C widget library
+// ===========================================================================
+
+pub const DEFAULT_THEME: Theme = Theme {
+    // Core (matching #1A1A24, #252540, #2E2E48, #1E1E32)
+    bg: Color { r: 0.102, g: 0.102, b: 0.141, a: 1.0 },
+    surface: Color { r: 0.145, g: 0.145, b: 0.251, a: 1.0 },
+    surface2: Color { r: 0.180, g: 0.180, b: 0.282, a: 1.0 },
+    header: Color { r: 0.118, g: 0.118, b: 0.196, a: 1.0 },
+
+    // Accents (matching #21D4A1, #4A90D9, #E8914A, #E84A5F)
+    accent: Color { r: 0.129, g: 0.831, b: 0.631, a: 1.0 },
+    accent2: Color { r: 0.290, g: 0.565, b: 0.851, a: 1.0 },
+    accent3: Color { r: 0.910, g: 0.569, b: 0.290, a: 1.0 },
+    accent4: Color { r: 0.910, g: 0.290, b: 0.373, a: 1.0 },
+
+    // Text (matching #E8E8F0, #8888A0)
+    text: Color { r: 0.910, g: 0.910, b: 0.941, a: 1.0 },
+    text_dim: Color { r: 0.533, g: 0.533, b: 0.627, a: 1.0 },
+    text_inverse: Color { r: 0.102, g: 0.102, b: 0.141, a: 1.0 },
+
+    // Borders (matching #3A3A5C, #2A2A4E)
+    border: Color { r: 0.227, g: 0.227, b: 0.361, a: 1.0 },
+    highlight: Color { r: 0.165, g: 0.165, b: 0.306, a: 1.0 },
+
+    // Buttons (matching #303050, #404068, #505080)
+    button: Color { r: 0.188, g: 0.188, b: 0.314, a: 1.0 },
+    button_hover: Color { r: 0.251, g: 0.251, b: 0.408, a: 1.0 },
+    button_press: Color { r: 0.314, g: 0.314, b: 0.502, a: 1.0 },
+    button_disabled: Color { r: 0.145, g: 0.145, b: 0.251, a: 0.5 },
+
+    // Input (matching #0A0A14)
+    input_bg: Color { r: 0.039, g: 0.039, b: 0.078, a: 1.0 },
+    input_focus: Color { r: 0.129, g: 0.831, b: 0.631, a: 0.3 },
+
+    // Slider (matching #3A3A5C, #2A2A44, #21D4A1)
+    slider_track: Color { r: 0.227, g: 0.227, b: 0.361, a: 1.0 },
+    slider_fill: Color { r: 0.165, g: 0.165, b: 0.267, a: 1.0 },
+    slider_thumb: Color { r: 0.129, g: 0.831, b: 0.631, a: 1.0 },
+
+    // Spacing
+    spacing: SPACING,
+    corner_radius: CornerRadius { top_left: 4.0, top_right: 4.0, bottom_right: 4.0, bottom_left: 4.0 },
+
+    // Defaults
+    font_size: 14.0,
+    border_width: 1.0,
+    shadow_opacity: 0.3,
+}
+
+// ===========================================================================
+// Color utility helpers
+// ===========================================================================
+
+// Pack a Color to 0xAARRGGBB Int
+pub fn color_pack(c: Color) -> Int:
+    let ri = (to_int(c.r * 255.0) & 0xFF) << 16
+    let gi = (to_int(c.g * 255.0) & 0xFF) << 8
+    let bi = to_int(c.b * 255.0) & 0xFF
+    let ai = (to_int(c.a * 255.0) & 0xFF) << 24
+    return ai | ri | gi | bi
+
+// Create color from packed 0xAARRGGBB integer
+pub fn color_from_packed(packed: Int) -> Color:
+    let b = to_float(packed & 0xFF) / 255.0
+    let g = to_float((packed >> 8) & 0xFF) / 255.0
+    let r = to_float((packed >> 16) & 0xFF) / 255.0
+    let a = to_float((packed >> 24) & 0xFF) / 255.0
+    return Color { r: r, g: g, b: b, a: a }
+
+// Linear interpolate between two colors
+pub fn color_lerp(a: Color, b: Color, t: Float) -> Color:
+    return Color {
+        r: a.r + (b.r - a.r) * t,
+        g: a.g + (b.g - a.g) * t,
+        b: a.b + (b.b - a.b) * t,
+        a: a.a + (b.a - a.a) * t,
+    }
+
+// Multiply alpha by factor
+pub fn color_with_alpha(c: Color, alpha: Float) -> Color:
+    return Color { r: c.r, g: c.g, b: c.b, a: c.a * alpha }
+
+// Blend two colors using source-over alpha compositing
+pub fn color_blend(over: Color, under: Color) -> Color:
+    let out_a = over.a + under.a * (1.0 - over.a)
+    if out_a <= 0.0:
+        return Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
+    return Color {
+        r: (over.r * over.a + under.r * under.a * (1.0 - over.a)) / out_a,
+        g: (over.g * over.a + under.g * under.a * (1.0 - over.a)) / out_a,
+        b: (over.b * over.a + under.b * under.a * (1.0 - over.a)) / out_a,
+        a: out_a,
+    }
+
+// Convert 0xAARRGGBB to 0xAABBGGRR (renderer format)
+pub fn color_to_renderer_format(val: Int) -> Int:
+    let a = (val >> 24) & 0xFF
+    let r = (val >> 16) & 0xFF
+    let g = (val >> 8) & 0xFF
+    let b = val & 0xFF
+    return (a << 24) | (b << 16) | (g << 8) | r

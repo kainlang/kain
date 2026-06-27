@@ -1421,6 +1421,43 @@ impl StdLib {
             "Set a raw native runtime boolean-like config value before launch using 0 or 1",
         );
 
+        // ── UI surface state persistence + callbacks (vtable slots 19-23) ──
+        lib.add_fn(
+            "state_get_f64",
+            &[("session_id", "Int"), ("key", "String")],
+            "Float",
+            "Read a double-precision float state value from a UI session",
+        );
+        lib.add_fn(
+            "state_set_f64",
+            &[("session_id", "Int"), ("key", "String"), ("value", "Float")],
+            "Unit",
+            "Write a double-precision float state value into a UI session",
+        );
+        lib.add_fn(
+            "state_get_string",
+            &[("session_id", "Int"), ("key", "String")],
+            "String",
+            "Read a string state value from a UI session",
+        );
+        lib.add_fn(
+            "state_set_string",
+            &[("session_id", "Int"), ("key", "String"), ("value", "String")],
+            "Unit",
+            "Write a string state value into a UI session",
+        );
+        lib.add_fn(
+            "element_set_callback",
+            &[
+                ("session_id", "Int"),
+                ("element_id", "Int"),
+                ("event_name", "String"),
+                ("callback", "Any"),
+            ],
+            "Unit",
+            "Register an event callback function on a UI element",
+        );
+
         let registrars = STDLIB_EXTENSION_REGISTRARS
             .read()
             .unwrap()

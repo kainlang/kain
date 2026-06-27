@@ -1,0 +1,29 @@
+// checkbox.kn — std::ui::components::Checkbox
+//
+// Square toggle box with checkmark and optional label.
+// Hover feedback on the box background.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Visual state hardcoded; full interactivity pending codegen fix.
+
+component Checkbox(
+    label: String,
+    checked: Bool,
+):
+    state hovered: Bool = false
+
+    fn handle_toggle(_self: Self_):
+        let _ = _self.checked
+
+    fn handle_enter(_self: Self_):
+        _self.hovered = true
+
+    fn handle_leave(_self: Self_):
+        _self.hovered = false
+
+    render <stack direction="horizontal" spacing={8.0}>
+        <box fill_color="button" width={18.0} height={18.0}>
+            <text value="" font_size={12.0} color="text_inverse" align="center" width={18.0} height={18.0} />
+        </box>
+        <text value={label} font_size={14.0} color="text" align="left" />
+    </stack>

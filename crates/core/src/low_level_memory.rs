@@ -610,6 +610,13 @@ fn lower_typed_item_memory(
                 .iter()
                 .map(|(name, ty)| (name.clone(), lower_resolved_type_memory(ty)))
                 .collect(),
+            state_types: component
+                .state_types
+                .iter()
+                .map(|(name, ty)| (name.clone(), lower_resolved_type_memory(ty)))
+                .collect(),
+            pulse_types: component.pulse_types.clone(),
+            resonate_types: component.resonate_types.clone(),
         }),
         TypedItem::Actor(actor) => TypedItem::Actor(TypedActor {
             ast: Actor {

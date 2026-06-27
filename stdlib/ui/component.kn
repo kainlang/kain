@@ -1,157 +1,80 @@
-# std::ui::component — Bridge between Kain components and the immediate-mode widget system
-#
-# Kain components use a retained-mode paradigm (create nodes, set properties,
-# reconcile). The widget library uses an immediate-mode paradigm (each frame,
-# draw everything, track interaction state). This module translates between them.
-#
-# Bridge functions take a widget context (Int — opaque C pointer) explicitly.
-# The caller manages context lifecycle via std::ui::widget functions directly:
-#   1. widget.widget_create_context(session_id)
-#   2. widget.widget_load_default_font(ctx, size)
-#   3. component.begin_frame(ctx) / component.end_frame(ctx) each frame
-#   4. component.render_button(ctx, ...) from component render() methods
-#   5. widget.widget_destroy_context(ctx) at shutdown
-#
-# Layout:
-#   Layer 0 (fn): render_* helpers, layout helpers — pure functions
-#
-# Note on Bool parameters: Kain's parser does not accept Bool as a function
-# parameter type (only as a return type). Boolean-like values are passed as
-# Int (0 = false, non-zero = true), matching the C ABI convention.
+// component.kn — std::ui::component — DEPRECATED
+//
+// Bridge between Kain components and the immediate-mode widget system.
+// Retained for backward compatibility. Will be removed in Phase 5.
+// Uses widget ABI functions declared locally.
 
-use std::ui::widget
+@extern fn abi_ui_widget_button(ctx_ptr: Int, label: String) -> Bool
+@extern fn abi_ui_widget_label(ctx_ptr: Int, text: String) -> Int
+@extern fn abi_ui_widget_checkbox(ctx_ptr: Int, label: String, current_value: Int) -> Int
+@extern fn abi_ui_widget_slider(ctx_ptr: Int, current_value: Float, lo: Float, hi: Float) -> Int
+@extern fn abi_ui_widget_textbox(ctx_ptr: Int, text: String, max_len: Int) -> String
+@extern fn abi_ui_widget_panel_begin(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float) -> Int
+@extern fn abi_ui_widget_panel_end(ctx_ptr: Int)
+@extern fn abi_ui_widget_progress(ctx_ptr: Int, label: String, value: Float, max: Float) -> Int
+@extern fn abi_ui_widget_window(ctx_ptr: Int, title: String, x: Float, y: Float, w: Float, h: Float, open: Int) -> Bool
+@extern fn abi_ui_widget_layout_set_next(ctx_ptr: Int, w: Int, h: Int) -> Int
+@extern fn abi_ui_widget_begin_frame(ctx_ptr: Int)
+@extern fn abi_ui_widget_end_frame(ctx_ptr: Int)
 
-# Type alias — opaque C pointer, mirrors widget.WidgetContext
-pub type WidgetContext = Int
-
-# ── Frame Management ──────────────────────────────────────────────────────
-#
-# Wrap the widget library's begin/end frame calls. Call begin_frame()
-# before any widget rendering in the frame, and end_frame() after all widgets
-# are drawn. The widget library uses begin_frame to update mouse state and
-# reset the widget counter; end_frame flushes pending state.
-
-# Begin a widget frame. Updates mouse position/button state from Win32.
 pub fn begin_frame(ctx: Int):
-    widget.widget_begin_frame(ctx)
+    abi_ui_widget_begin_frame(ctx)
 
-# End a widget frame. Flushes any pending widget state.
 pub fn end_frame(ctx: Int):
-    widget.widget_end_frame(ctx)
+    abi_ui_widget_end_frame(ctx)
 
-# ── Component Render Helpers ───────────────────────────────────────────────
-#
-# These translate component JSX element concepts into widget library calls.
-# Each is a pure pass-through that maps Kain-idiomatic types to widget calls.
-#
-# Boolean-like parameters use Int (0 = false, non-zero = true).
-# Return values use Bool where possible for ergonomic if checks.
-#
-# Return value contracts:
-#   render_button  -> true if clicked this frame (to fire component onClick)
-#   render_label   -> no return (void side effect)
-#   render_panel   -> no return (stateful — calls widget_panel_begin)
-#   render_panel_end -> no return (closes most recent panel)
-#   render_checkbox -> new Int value (0 or 1) after potential toggle
-#   render_slider  -> new Float value (original if unchanged)
-#   render_textbox -> (potentially modified) String
-#   render_progress -> no return
-#   render_window  -> new open state as Int (0 if closed via [X] button)
-
-# Render a clickable button.
-#   label       — text displayed on the button
-#   has_handler — 1 if the component has an onClick handler bound, 0 otherwise
-#   enabled     — 1 for normal, 0 to disable interaction
-# Returns true if the button was clicked, signaling the caller to fire its handler.
 pub fn render_button(ctx: Int, label: String, has_handler: Int, enabled: Int) -> Bool:
     if has_handler == 0 or enabled == 0:
         return false
-    return widget.widget_button(ctx, label)
+    return abi_ui_widget_button(ctx, label)
 
-# Render static text.
 pub fn render_label(ctx: Int, text: String):
-    let _ = widget.widget_label(ctx, text)
+    let _ = abi_ui_widget_label(ctx, text)
 
-# Begin a titled container panel. Children are rendered between this
-# call and render_panel_end(). Panels provide a visual border, title bar,
-# and clip their content area.
-#   x, y — position in logical pixels
-#   w, h — size in logical pixels
 pub fn render_panel(ctx: Int, title: String, x: Float, y: Float, w: Float, h: Float):
-    let _ = widget.widget_panel_begin(ctx, title, x, y, w, h)
+    let _ = abi_ui_widget_panel_begin(ctx, title, x, y, w, h)
 
-# End the most recently opened panel.
 pub fn render_panel_end(ctx: Int):
-    widget.widget_panel_end(ctx)
+    abi_ui_widget_panel_end(ctx)
 
-# Render a togglable checkbox with label.
-#   value — current state: 0 = unchecked, 1 = checked
-# Returns the new state as Int (0 or 1).
 pub fn render_checkbox(ctx: Int, label: String, value: Int) -> Int:
     let value_bool = value != 0
-    let (toggled, new_val) = widget.widget_checkbox(ctx, label, value_bool)
-    if new_val:
-        return 1
+    let packed = abi_ui_widget_checkbox(ctx, label, if value_bool: 1 else: 0)
+    let new_val = (packed & 1) != 0
+    if new_val: return 1
     return 0
 
-# Render a horizontal slider for selecting a value in [lo, hi].
-# Returns the new Float value (original if the user didn't interact).
 pub fn render_slider(ctx: Int, value: Float, lo: Float, hi: Float) -> Float:
-    let (changed, new_val) = widget.widget_slider(ctx, value, lo, hi)
+    let packed = abi_ui_widget_slider(ctx, value, lo, hi)
+    let changed = (packed >> 63) != 0
     if changed:
-        return new_val
+        let int_val = packed & 0x7FFFFFFFFFFFFFFF
+        return to_float(int_val) * 0.001
     return value
 
-# Render a single-line text input field.
-#   buf     — current text content
-#   max_len — maximum characters allowed
-# Returns the (possibly modified) String after user editing.
-# Note: the widget context maintains its own internal edit buffer.
 pub fn render_textbox(ctx: Int, buf: String, max_len: Int) -> String:
-    let changed = widget.widget_textbox(ctx, buf, max_len)
-    # Textbox edit buffer lives inside the widget context's edit_buf.
-    # When the textbox widget is properly wired, the edited text is
-    # accessible via a poll/retrieve pattern.
-    return buf
+    return abi_ui_widget_textbox(ctx, buf, max_len)
 
-# Render a progress bar showing value/max progress.
 pub fn render_progress(ctx: Int, label: String, value: Float, max: Float):
-    let _ = widget.widget_progress(ctx, label, value, max)
+    let _ = abi_ui_widget_progress(ctx, label, value, max)
 
-# Render a draggable, closable window container.
-#   open — current open state: 1 = open, 0 = closed
-# Returns the new open state as Int (1 = still open, 0 = closed).
 pub fn render_window(ctx: Int, title: String, x: Float, y: Float, w: Float, h: Float, open: Int) -> Int:
     let open_bool = open != 0
-    let (should_draw, new_x, new_y, still_open) = widget.widget_window(ctx, title, x, y, w, h, open_bool)
-    if still_open:
-        return 1
+    let still_open = abi_ui_widget_window(ctx, title, x, y, w, h, if open_bool: 1 else: 0)
+    if still_open: return 1
     return 0
 
-# ── Layout Helpers ─────────────────────────────────────────────────────────
-#
-# The widget library uses an immediate-mode layout system: call layout_row()
-# or layout_column() to declare a row/column of items, then each subsequent
-# widget call auto-positions into the next slot. layout_set_next() sets the
-# size for the very next widget only.
-
-# Declare a horizontal row of items with specific pixel widths.
-# Each subsequent widget advances to the next column in the row.
 pub fn layout_row(ctx: Int, widths: [Int]):
     var i = 0
     while i < len(widths):
-        widget.widget_layout_set_next(ctx, widths[i], 0)
+        abi_ui_widget_layout_set_next(ctx, widths[i], 0)
         i = i + 1
 
-# Declare a vertical column of items with specific pixel heights.
-# Each subsequent widget advances to the next row in the column.
 pub fn layout_column(ctx: Int, heights: [Int]):
     var i = 0
     while i < len(heights):
-        widget.widget_layout_set_next(ctx, 0, heights[i])
+        abi_ui_widget_layout_set_next(ctx, 0, heights[i])
         i = i + 1
 
-# Set a specific size for the next widget to be drawn.
-# Overrides any row/column auto-positioning for that single widget.
 pub fn layout_set_next(ctx: Int, w: Int, h: Int):
-    widget.widget_layout_set_next(ctx, w, h)
+    abi_ui_widget_layout_set_next(ctx, w, h)

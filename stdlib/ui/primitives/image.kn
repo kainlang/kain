@@ -1,0 +1,13 @@
+// image.kn — std::ui::primitives::Image
+//
+// Renders a texture resource at the specified size.
+// Wraps native_ui_draw_resource for the C renderer.
+
+component Image(
+    resource_id: Int,
+    width: Float,
+    height: Float,
+    fit: String,
+    opacity: Float,
+):
+    render <box resource_id={resource_id} image_fit={fit} width={width} height={height} opacity={opacity} />

@@ -1,0 +1,6 @@
+// P3-BRAVO test: Component with invalid callback (not a function) — should produce error
+
+component BadButton(label: String):
+    render <button on_click={"not_a_function"}>
+        <Text value={label} />
+    </button>

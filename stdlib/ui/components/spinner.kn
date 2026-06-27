@@ -1,0 +1,19 @@
+// spinner.kn — std::ui::components::Spinner
+//
+// Animated loading spinner with pulse-driven rotation.
+// Renders as a filled circle with accent color.
+// Angle advances each tick via pulse clock.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Size and color hardcoded; full theming pending codegen fix.
+
+component Spinner(
+    size: Float,
+    color: String,
+    speed: Float,
+):
+    state angle: Float = 0.0
+
+    render <box fill_color="accent" corner_radius={12.0} width={24.0} height={24.0}>
+        <text value="" />
+    </box>

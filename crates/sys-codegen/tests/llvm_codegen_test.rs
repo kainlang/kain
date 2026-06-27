@@ -1389,6 +1389,9 @@ fn llvm_generates_component_and_jsx_calls() {
             state: vec![],
             methods: vec![],
             effects: vec![],
+            pulses: vec![],
+            resonates: vec![],
+            dimensions: None,
             body: JSXNode::Element {
                 tag: "div".to_string(),
                 attributes: vec![JSXAttribute {
@@ -1409,6 +1412,9 @@ fn llvm_generates_component_and_jsx_calls() {
             span: span(),
         },
         prop_types: HashMap::from([("title".to_string(), ResolvedType::String)]),
+        state_types: HashMap::new(),
+        pulse_types: vec![],
+        resonate_types: vec![],
     });
 
     let app_shell = TypedItem::Component(TypedComponent {
@@ -1418,6 +1424,9 @@ fn llvm_generates_component_and_jsx_calls() {
             state: vec![],
             methods: vec![],
             effects: vec![],
+            pulses: vec![],
+            resonates: vec![],
+            dimensions: None,
             body: JSXNode::ComponentCall {
                 name: "HudPanel".to_string(),
                 props: vec![JSXAttribute {
@@ -1433,6 +1442,9 @@ fn llvm_generates_component_and_jsx_calls() {
             span: span(),
         },
         prop_types: HashMap::new(),
+        state_types: HashMap::new(),
+        pulse_types: vec![],
+        resonate_types: vec![],
     });
 
     let program = TypedProgram {

@@ -1,0 +1,16 @@
+// P3-BRAVO test: Component with f64 state typechecks
+// Float state resolves to Float (f64 internally)
+
+component Slider(label: String, min: Float, max: Float):
+    state value: Float = 0.0
+    state dragging: Bool = false
+
+    fn get_fill(_self: Self_) -> Float:
+        return _self.value
+
+    render <div class="slider">
+        <Text value={label} />
+        <div class="track">
+            <div class="thumb" x={value} />
+        </div>
+    </div>

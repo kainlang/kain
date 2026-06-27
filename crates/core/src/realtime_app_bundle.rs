@@ -643,6 +643,7 @@ pub(crate) fn ui_session_state_string(output: &UiBuildOutput, key: &str) -> Opti
             UiValue::Float(value) => Some(value.to_string()),
             UiValue::Bool(value) => Some(value.to_string()),
             UiValue::Null => None,
+            UiValue::Callback { .. } => None,
         })
 }
 

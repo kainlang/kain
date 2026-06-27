@@ -2402,7 +2402,8 @@ fn collect_implicit_root_stdlib_modules_from_jsx(
                         );
                     }
                     kain_core::ast::JSXAttrValue::String(_)
-                    | kain_core::ast::JSXAttrValue::Bool(_) => {}
+                    | kain_core::ast::JSXAttrValue::Bool(_)
+                    | kain_core::ast::JSXAttrValue::Callback(_, _) => {}
                 }
             }
             for child in children {
@@ -2425,7 +2426,8 @@ fn collect_implicit_root_stdlib_modules_from_jsx(
                         );
                     }
                     kain_core::ast::JSXAttrValue::String(_)
-                    | kain_core::ast::JSXAttrValue::Bool(_) => {}
+                    | kain_core::ast::JSXAttrValue::Bool(_)
+                    | kain_core::ast::JSXAttrValue::Callback(_, _) => {}
                 }
             }
             for child in children {

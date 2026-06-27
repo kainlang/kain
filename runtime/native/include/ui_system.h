@@ -315,6 +315,15 @@ int64_t abi_ui_glyph_y_offset(int64_t glyph_ptr);
 int64_t abi_ui_glyph_advance(int64_t glyph_ptr);
 void    abi_ui_glyph_release(int64_t glyph_ptr);
 
+// ── Event callback binding + invocation ──────────────────────────────
+// Store a callback function pointer on a node for a named event.
+// When the event fires (via abi_ui_node_invoke_callback), the stored
+// function pointer is called with the provided arg.
+int64_t abi_ui_node_set_callback(int64_t session_id, int64_t node_id,
+                                  const char* event_name, void* callback_fn);
+int64_t abi_ui_node_invoke_callback(int64_t session_id, int64_t node_id,
+                                     const char* event_name, void* arg);
+
 #ifdef __cplusplus
 }
 #endif

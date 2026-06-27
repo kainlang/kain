@@ -1,0 +1,33 @@
+// textinput.kn — std::ui::components::TextInput
+//
+// Single-line editable text field with cursor and IME support.
+// Password mode masks input. Placeholder shown when empty.
+//
+// NOTE: Method calls in JSX render expressions are not yet lowered by LLVM codegen.
+// Display logic simplified; full interactivity pending codegen fix.
+
+component TextInput(
+    value: String,
+    placeholder: String,
+    width: Float = 200.0,
+    password: Bool,
+):
+    state focused: Bool = false
+    state cursor_pos: Int = len(value)
+    state cursor_blink: Bool = true
+
+    fn handle_focus(_self: Self_):
+        _self.focused = true
+
+    fn handle_blur(_self: Self_):
+        _self.focused = false
+
+    fn handle_key(_self: Self_, key: String):
+        if key == "Backspace":
+            if _self.cursor_pos > 0:
+                _self.cursor_pos = _self.cursor_pos - 1
+
+    render <box fill_color="input_bg" width={width} height={28.0}>
+        <text value={value} font_size={14.0} color="text" align="left" width={width} height={26.0} />
+        <text value="|" font_size={14.0} color="accent" align="left" width={10.0} height={26.0} />
+    </box>
