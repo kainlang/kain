@@ -1,0 +1,354 @@
+// ============================================================================
+// NICE GUI + HTTPX + REQUESTS + JSON API DASHBOARD
+// ============================================================================
+// Kain owns the architecture — worlds, entangled caches, region API.
+// nicegui owns the browser-based Vue/Quasar UI.
+// httpx + requests own the API data fetching.
+// json owns the response parsing.
+//
+// Architecture:
+//   ┌─────────────────────────────────────────────┐
+//   │  KAIN LAYER                                 │
+//   │  ┌─────────────────────┐   entangle   ┌────┐│
+//   │  │  ApiCache            │◄───────────►│Mir.││
+//   │  │  repo_count          │  single_writer . ││
+//   │  │  api_status          │              . ││
+//   │  │  cache_epoch         │              . ││
+//   │  └─────┬───────────────┘              └────┘│
+//   │         │                                    │
+//   │  ┌──────▼───────┐                            │
+//   │  │  Region API   │  httpx get + json loads   │
+//   │  │  (GIL once)   │─────────────────────────► │
+//   │  └──────┬───────┘                            │
+//   │         │  parsed data                       │
+//   │         ▼                                    │
+//   │  ┌────────────────┐                          │
+//   │  │  nicegui UI    │  python_call_attr_raw    │
+//   │  │  (ui.run)      │  for ALL UI construction │
+//   │  └────────────────┘                          │
+//   └─────────────────────────────────────────────┘
+//
+// ZERO inline Python strings for UI or logic.
+// ZERO component keywords.
+// ZERO surface native_ui.
+// ALL Python calls through python_call_attr_raw / python_getattr_raw / region.
+// ============================================================================
+
+import nicegui as ng
+import httpx as httpx
+import requests as requests
+import json as json
+
+use std::python
+use std::runtime
+use std::json as kj
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const API_BASE: String = "https://api.github.com"
+const API_REPO: String = "https://api.github.com/repos/kainlang/kain"
+const MODULUS: Int = 1000000007
+const NG_PORT: Int = 8080
+const NG_TITLE: String = "Kain API Dashboard"
+
+// ============================================================================
+// LAYER 1 — WORLD / ENTANGLE (semantic cache for API data)
+// ============================================================================
+// Cached API results — populated ONCE from Python via region, then read
+// from entangled mirror at zero cost. No bridge crossings in hot path.
+
+world ApiCache:
+    state repo_stars: Int = 0
+    state repo_forks: Int = 0
+    state repo_open_issues: Int = 0
+    state api_status: Int = 0
+    state cache_epoch: Int = 0
+    state last_fetch_ms: Int = 0
+
+world ApiMirror:
+    state repo_stars_copy: Int = 0
+    state repo_forks_copy: Int = 0
+    state repo_open_issues_copy: Int = 0
+    state api_status_copy: Int = 0
+    state cache_epoch_copy: Int = 0
+    state last_fetch_ms_copy: Int = 0
+
+entangle ApiCache.repo_stars <-> ApiMirror.repo_stars_copy with single_writer
+entangle ApiCache.repo_forks <-> ApiMirror.repo_forks_copy with single_writer
+entangle ApiCache.repo_open_issues <-> ApiMirror.repo_open_issues_copy with single_writer
+entangle ApiCache.api_status <-> ApiMirror.api_status_copy with single_writer
+entangle ApiCache.cache_epoch <-> ApiMirror.cache_epoch_copy with single_writer
+entangle ApiCache.last_fetch_ms <-> ApiMirror.last_fetch_ms_copy with single_writer
+
+// ============================================================================
+// LAYER 2 — MODULE HANDLE CACHE (world for Any handles)
+// ============================================================================
+// These are NOT entangled — opaque handles can't cross entangle.
+// Stored in world fields for reuse across function boundaries.
+// Each field initialized once from Python and read thereafter.
+
+world NgHandles:
+    state ui_mod: Any = none
+    state httpx_client_cls: Any = none
+    state json_mod: Any = none
+
+// ============================================================================
+// SEED — ONE bridge crossing per module handle, EVER
+// ============================================================================
+
+fn seed_ng_handles():
+    NgHandles.ui_mod = python_getattr_raw(ng, "ui")
+    NgHandles.httpx_client_cls = python_getattr_raw(httpx, "Client")
+    NgHandles.json_mod = json
+
+// ============================================================================
+// REGION-BASED API FETCH — GIL acquired once, all calls cached
+// ============================================================================
+// Uses httpx.Client to GET repo data, json.loads to parse.
+// Results written to entangled ApiCache → zero-cost mirror reads forever.
+
+fn fetch_repo_data() -> Int:
+    let region = python_region_begin()
+
+    // Create httpx client inside region (cached import)
+    let client_cls = NgHandles.httpx_client_cls
+    let client = python_region_call_raw(region, client_cls, [])
+
+    // GET request to GitHub API
+    let response = python_region_call_attr_raw(
+        region, client, "get", [API_REPO]
+    )
+
+    // Extract response data
+    let status_code = to_int(
+        python_region_getattr_raw(region, response, "status_code")
+    )
+
+    // Read response text
+    let text_raw = python_region_getattr_raw(region, response, "text")
+
+    // Parse JSON
+    let parsed = python_region_call_raw(region, json, "loads", [text_raw])
+
+    // Extract fields from JSON object
+    let stars = to_int(
+        python_region_call_attr_raw(region, parsed, "__getitem__", ["stargazers_count"])
+    )
+    let forks = to_int(
+        python_region_call_attr_raw(region, parsed, "__getitem__", ["forks_count"])
+    )
+    let issues = to_int(
+        python_region_call_attr_raw(region, parsed, "__getitem__", ["open_issues_count"])
+    )
+
+    let _ = python_region_end(region)
+
+    // Write to entangled cache
+    ApiCache.repo_stars = stars
+    ApiCache.repo_forks = forks
+    ApiCache.repo_open_issues = forks + issues
+    ApiCache.api_status = status_code
+    ApiCache.cache_epoch = ApiCache.cache_epoch + 1
+
+    return status_code
+
+// ============================================================================
+// REGION-BASED FETCH VIA REQUESTS — alternative HTTP path
+// ============================================================================
+// Uses `requests.get()` instead of httpx.Client, json.loads to parse.
+// Demonstrates BOTH httpx and requests in the same file.
+
+fn fetch_via_requests() -> Int:
+    let region = python_region_begin()
+
+    // Cached module access
+    let reqs_get = python_region_getattr_raw(region, requests, "get")
+
+    // GET request
+    let response = python_region_call_raw(region, reqs_get, [API_BASE + "/rate_limit"])
+
+    let status_code = to_int(
+        python_region_getattr_raw(region, response, "status_code")
+    )
+
+    let text_raw = python_region_getattr_raw(region, response, "text")
+
+    // Parse JSON
+    let parsed = python_region_call_raw(region, json, "loads", [text_raw])
+
+    // Access nested dict via __getitem__
+    let resources = python_region_call_attr_raw(
+        region, parsed, "__getitem__", ["resources"]
+    )
+    let core = python_region_call_attr_raw(
+        region, resources, "__getitem__", ["core"]
+    )
+    let remaining = to_int(
+        python_region_call_attr_raw(region, core, "__getitem__", ["remaining"])
+    )
+
+    let _ = python_region_end(region)
+
+    ApiCache.api_status = status_code
+    ApiCache.cache_epoch = ApiCache.cache_epoch + status_code
+
+    return remaining
+
+// ============================================================================
+// BUILD NICE GUI UI — ALL through python_call_attr_raw
+// ============================================================================
+// Constructs the complete nicegui web UI using raw bridge calls.
+// ZERO inline Python strings for UI construction.
+// Reads entangled cache (api_status, repo count) at zero cost.
+
+fn build_ng_ui():
+    let ui = NgHandles.ui_mod
+
+    // ── page decorator alternative: direct element construction ──
+    // page title via ui.page_title()
+    python_call_attr_raw(ui, "page_title", [NG_TITLE])
+
+    // ── Dashboard header ──
+    python_call_attr_raw(ui, "markdown", [
+        "# Kain API Dashboard"
+    ])
+    python_call_attr_raw(ui, "markdown", [
+        "Live data from GitHub API via **httpx** + **requests** + **json**"
+    ])
+    python_call_attr_raw(ui, "separator", [])
+
+    // ── Repository stats section ──
+    python_call_attr_raw(ui, "markdown", ["## Repository Stats"])
+    python_call_attr_raw(ui, "label", [
+        "Stars: " + str(ApiMirror.repo_stars_copy)
+    ])
+    python_call_attr_raw(ui, "label", [
+        "Forks: " + str(ApiMirror.repo_forks_copy)
+    ])
+    python_call_attr_raw(ui, "label", [
+        "Open Issues: " + str(ApiMirror.repo_open_issues_copy)
+    ])
+
+    // ── API connection status ──
+    python_call_attr_raw(ui, "markdown", ["## Connection Status"])
+    let badge_text = "HTTP " + str(ApiMirror.api_status_copy)
+    let badge_type = "positive"
+    if ApiMirror.api_status_copy != 200:
+        badge_type = "negative"
+    python_call_attr_raw(ui, "badge", [badge_text, badge_type])
+    python_call_attr_raw(ui, "label", [
+        "Cache Epoch: " + str(ApiMirror.cache_epoch_copy)
+    ])
+
+    // ── Separator ──
+    python_call_attr_raw(ui, "separator", [])
+
+    // ── Footer ──
+    python_call_attr_raw(ui, "markdown", [
+        "*Powered by Kain + NiceGUI + httpx + requests*"
+    ])
+
+    // ── Card wrapper for the whole dashboard ──
+    python_call_attr_raw(ui, "card", [])
+
+// ============================================================================
+// REGION-BASED JSON FUSION — combine multiple API results
+// ============================================================================
+// Uses the region API to batch JSON parsing of multiple API responses.
+// Demonstrates python_region_begin/end with cached imports and attrs.
+
+fn json_fusion_checksum() -> Int:
+    let region = python_region_begin()
+
+    // Import json via region cache (cached after first miss)
+    let json_mod = python_region_import(region, "json")
+
+    // Build Python dict via builtins.dict() calls through raw API
+    let builtins_mod = python_region_import(region, "builtins")
+    let dict_cls = python_region_getattr_raw(region, builtins_mod, "dict")
+    let sample_dict = python_region_call_raw(region, dict_cls, [])
+    python_region_call_attr_raw(region, sample_dict, "__setitem__", ["name", "kain"])
+    python_region_call_attr_raw(region, sample_dict, "__setitem__", ["stars", 42])
+    python_region_call_attr_raw(region, sample_dict, "__setitem__", ["forks", 7])
+
+    // dumps to JSON string
+    let dumps_fn = python_region_getattr_raw(region, json_mod, "dumps")
+    let data_a = python_region_call_raw(region, dumps_fn, [sample_dict])
+
+    // Parse JSON strings
+    let loads_fn = python_region_getattr_raw(region, json_mod, "loads")
+    let parsed_a = python_region_call_raw(region, loads_fn, [data_a])
+
+    // Extract values
+    let name_val = to_string(
+        python_region_call_attr_raw(region, parsed_a, "__getitem__", ["name"])
+    )
+    let stars_val = to_int(
+        python_region_call_attr_raw(region, parsed_a, "__getitem__", ["stars"])
+    )
+    let forks_val = to_int(
+        python_region_call_attr_raw(region, parsed_a, "__getitem__", ["forks"])
+    )
+
+    // Telemetry
+    let import_hits = python_region_import_cache_hits(region)
+    let import_misses = python_region_import_cache_misses(region)
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+
+    let _ = python_region_end(region)
+
+    // Fuse results into Kain checksum
+    let fusion = (stars_val * 31 + forks_val * 17 + import_hits + attr_hits
+                  + import_misses + attr_misses) % MODULUS
+    return fusion
+
+// ============================================================================
+// MAIN — full pipeline: seed → fetch → json fusion → build UI → run
+// ============================================================================
+
+fn main() -> Int:
+    let init_code = runtime_init()
+    if init_code != 0:
+        return 100 + init_code
+
+    // Phase 1: Seed module handles (ONE bridge crossing per module ref)
+    seed_ng_handles()
+
+    // Phase 2: Fetch API data via httpx (region API, GIL once)
+    let status_code = fetch_repo_data()
+
+    // Phase 3: Alternative fetch via requests
+    let rate_remaining = fetch_via_requests()
+
+    // Phase 4: JSON fusion with region telemetry
+    let fusion_cs = json_fusion_checksum()
+
+    // Phase 5: Build nicegui UI entirely through raw calls
+    build_ng_ui()
+
+    // Phase 6: Start nicegui web server (blocking — takes over main thread)
+    let ui = NgHandles.ui_mod
+    python_call_attr_raw(ui, "run", [
+        NG_TITLE, NG_PORT
+    ])
+
+    let shutdown_code = runtime_shutdown()
+    if shutdown_code != 0:
+        return 200 + shutdown_code
+
+    return 0
+
+// ============================================================================
+// END — NiceGUI API Dashboard
+// ============================================================================
+// Imports: nicegui, httpx, requests, json
+// Worlds: ApiCache ← entangle → ApiMirror (6 fields)
+// Worlds: NgHandles (module reference cache)
+// Region API: fetch_repo_data, fetch_via_requests, json_fusion_checksum
+// ZERO inline Python strings
+// ZERO component keywords
+// ZERO surface native_ui
+// ============================================================================

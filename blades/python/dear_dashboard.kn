@@ -1,0 +1,276 @@
+// ============================================================================
+// DEAR DASHBOARD — DearPyGui + NumPy + Psutil Data Dashboard
+// ============================================================================
+//
+// CONCEPT: GPU-accelerated desktop UI (DearPyGui) with live system
+//          metrics (psutil) and NumPy array statistics. All Python
+//          calls cross the Kain bridge — zero inline Python strings
+//          for application logic.
+//
+// SEMANTIC STACK:
+//   L0: import, fn, struct, const, if/while, let/var
+//   L1: world, entangle (module name cache + dashboard state)
+//   L7: actor (DashBridge — bridge callbacks from Python render loop)
+//
+// RULES ENFORCEMENT:
+//   ✅ NO component keyword
+//   ✅ NO surface native_ui
+//   ✅ ALL constant Python values entangled at startup
+//   ✅ ALL UI calls via python_call_attr_raw / python_getattr_raw
+//   ✅ ALL hot numpy ops via python_region_begin/end
+//   ✅ Bootstrap Python: ONLY window creation + event loop
+//   ✅ ZERO .py files
+//   ✅ ZERO inline Python strings for application logic
+//
+// BUILD: kain build dear_dashboard.kn --target llvm
+// CHECK: kain check dear_dashboard.kn --json
+// ============================================================================
+
+// ── First-class Python imports (AST-level, not string wrappers) ──
+import dearpygui.dearpygui as dpg
+import numpy as np
+import psutil as psutil
+
+// ── Stdlib imports ──
+use std::runtime
+use std::os
+use std::python
+
+// ── Constants ──
+const MODULUS: Int = 1000000007
+const NUM_SAMPLES: Int = 256
+const SAMPLE_RATE: Float = 1.0
+const DPG_WIDTH: Int = 800
+const DPG_HEIGHT: Int = 600
+const MAX_FRAMES: Int = 600
+
+// ── UI tags (constant strings, entangled for zero-cost reads) ──
+world TagCache:
+    state tag_cpu: String = "cpu_text"
+    state tag_mem: String = "mem_text"
+    state tag_disk: String = "disk_text"
+    state tag_mean: String = "np_mean_text"
+    state tag_std: String = "np_std_text"
+    state tag_frame: String = "frame_text"
+    state tag_plot: String = "numpy_plot"
+
+world TagMirror:
+    state tag_cpu_copy: String = ""
+    state tag_mem_copy: String = ""
+    state tag_disk_copy: String = ""
+    state tag_mean_copy: String = ""
+    state tag_std_copy: String = ""
+    state tag_frame_copy: String = ""
+    state tag_plot_copy: String = ""
+
+entangle TagCache.tag_cpu <-> TagMirror.tag_cpu_copy with single_writer
+entangle TagCache.tag_mem <-> TagMirror.tag_mem_copy with single_writer
+entangle TagCache.tag_disk <-> TagMirror.tag_disk_copy with single_writer
+entangle TagCache.tag_mean <-> TagMirror.tag_mean_copy with single_writer
+entangle TagCache.tag_std <-> TagMirror.tag_std_copy with single_writer
+entangle TagCache.tag_frame <-> TagMirror.tag_frame_copy with single_writer
+entangle TagCache.tag_plot <-> TagMirror.tag_plot_copy with single_writer
+
+// ── Module name cache (cross bridge ONCE, read forever) ──
+world ModCache:
+    state dpg_name: String = ""
+    state np_name: String = ""
+    state psutil_name: String = ""
+
+world ModMirror:
+    state dpg_name_copy: String = ""
+    state np_name_copy: String = ""
+    state psutil_name_copy: String = ""
+
+entangle ModCache.dpg_name <-> ModMirror.dpg_name_copy with single_writer
+entangle ModCache.np_name <-> ModMirror.np_name_copy with single_writer
+entangle ModCache.psutil_name <-> ModMirror.psutil_name_copy with single_writer
+
+// ── Dashboard state cache (entangled — read at zero cost) ──
+world DashData:
+    state cpu_percent: Float = 0.0
+    state mem_percent: Float = 0.0
+    state disk_percent: Float = 0.0
+    state np_mean: Float = 0.0
+    state np_std: Float = 0.0
+    state frame_count: Int = 0
+
+world DashMirror:
+    state cpu_percent_copy: Float = 0.0
+    state mem_percent_copy: Float = 0.0
+    state disk_percent_copy: Float = 0.0
+    state np_mean_copy: Float = 0.0
+    state np_std_copy: Float = 0.0
+    state frame_count_copy: Int = 0
+
+entangle DashData.cpu_percent <-> DashMirror.cpu_percent_copy with single_writer
+entangle DashData.mem_percent <-> DashMirror.mem_percent_copy with single_writer
+entangle DashData.disk_percent <-> DashMirror.disk_percent_copy with single_writer
+entangle DashData.np_mean <-> DashMirror.np_mean_copy with single_writer
+entangle DashData.np_std <-> DashMirror.np_std_copy with single_writer
+entangle DashData.frame_count <-> DashMirror.frame_count_copy with single_writer
+
+// ── Struct for DPG value payloads ──
+struct DpgValue:
+    tag: String
+    value: String
+
+// ── Seed: ONE bridge crossing per constant value, EVER ──
+fn seed_entangled_caches():
+    // Module names (never change)
+    ModCache.dpg_name = python_call_attr(dpg, "__str__", [])
+    ModCache.np_name = python_call_attr(np, "__str__", [])
+    ModCache.psutil_name = python_call_attr(psutil, "__str__", [])
+
+    // UI tags (static strings)
+    TagCache.tag_cpu = "cpu_text"
+    TagCache.tag_mem = "mem_text"
+    TagCache.tag_disk = "disk_text"
+    TagCache.tag_mean = "np_mean_text"
+    TagCache.tag_std = "np_std_text"
+    TagCache.tag_frame = "frame_text"
+    TagCache.tag_plot = "numpy_plot"
+
+// ── Format helpers (pure Kain — zero bridge crossings) ──
+fn fmt_pct(label: String, value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 100.0) as Int
+    let str_val: String = str(truncated) + "." + str(frac) + "%"
+    return label + ": " + str_val
+
+fn fmt_four(label: String, value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 10000.0) as Int
+    let str_val: String = str(truncated) + "." + str(frac)
+    return label + ": " + str_val
+
+fn fmt_frame(value: Int) -> String:
+    return "Frame: " + str(value)
+
+// ── Actor: bridge callback receiving DPG render loop pings ──
+//     Runs on Kain scheduler thread — all Python calls cross the bridge
+actor DashBridge:
+    state tick: Int = 0
+
+    on FrameTick(frame: Int):
+        self.tick = self.tick + 1
+
+        // STEP 1: Collect system metrics via bridge calls
+        // psutil.cpu_percent() → Float
+        // psutil.cpu_percent() → auto-converts to Float
+        DashData.cpu_percent = python_call_attr(psutil, "cpu_percent", [])
+
+        // psutil.virtual_memory() → object → .percent
+        let mem_info = python_call_attr_raw(psutil, "virtual_memory", [])
+        DashData.mem_percent = python_call_attr(mem_info, "percent", [])
+
+        // psutil.disk_usage('/') → object → .percent
+        let disk_info = python_call_attr_raw(psutil, "disk_usage", ["/"])
+        DashData.disk_percent = python_call_attr(disk_info, "percent", [])
+
+        // STEP 2: NumPy computation via region API (GIL acquired once)
+        //   np.random.rand(N) → np.mean() → np.std()
+        let region = python_region_begin()
+        let rand_fn = python_region_getattr_raw(region, np, "random.rand")
+        let np_rand = python_region_call_raw(region, rand_fn, [NUM_SAMPLES as Float])
+
+        let mean_fn = python_region_getattr_raw(region, np, "mean")
+        let mean_py = python_region_call_raw(region, mean_fn, [np_rand])
+        DashData.np_mean = python_call_attr(mean_py, "__float__", [])
+
+        let std_fn = python_region_getattr_raw(region, np, "std")
+        let std_py = python_region_call_raw(region, std_fn, [np_rand])
+        DashData.np_std = python_call_attr(std_py, "__float__", [])
+
+        let views_released = python_region_end(region)
+
+        // STEP 3: Update frame count
+        DashData.frame_count = self.tick
+
+        // STEP 4: Push formatted strings to DPG via bridge calls
+        //   dpg.set_value("tag", "CPU: 45.2%")
+        let cpu_str: String = fmt_pct("CPU", DashData.cpu_percent)
+        let mem_str: String = fmt_pct("Memory", DashData.mem_percent)
+        let disk_str: String = fmt_pct("Disk", DashData.disk_percent)
+        let mean_str: String = fmt_four("Mean", DashData.np_mean)
+        let std_str: String = fmt_four("Std", DashData.np_std)
+        let frame_str: String = fmt_frame(DashData.frame_count)
+
+        // These cross the bridge — but they are UI updates, not data computation
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_cpu_copy, cpu_str])
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_mem_copy, mem_str])
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_disk_copy, disk_str])
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_mean_copy, mean_str])
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_std_copy, std_str])
+        python_call_attr_raw(dpg, "set_value", [TagMirror.tag_frame_copy, frame_str])
+
+
+// ── Main entry point ──
+//     Phase 1: Seed entangled caches (ONE bridge crossing per value)
+//     Phase 2: Spawn bridge actor
+//     Phase 3: Register actor callback on Python __main__
+//     Phase 4: Python bootstrap — DPG context + UI setup + render loop
+//     Phase 5: Cleanup
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Phase 1: Seed ALL entangled caches
+    seed_entangled_caches()
+
+    // Phase 2: Spawn bridge actor
+    let bridge = spawn DashBridge(tick = 0)
+
+    // Phase 3: Register actor callback on Python __main__
+    //   When Python calls `__main__.kain_cb()`, the C runtime serializes
+    //   the args and delivers FrameTick to the DashBridge actor.
+    let frame_cb = python_actor_callback(bridge as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_cb", frame_fn)
+
+    // Phase 4: Python bootstrap — ONLY window creation + UI setup + event loop
+    //   NO application logic in this string. All data collection and UI
+    //   updates happen in the DashBridge actor handler (Kain code).
+    python_exec("
+import __main__
+
+# Wrap the module reference for use in bootstrap
+import dearpygui.dearpygui as dpg
+
+# ── STEP 1: Create DPG context and viewport ──
+dpg.create_context()
+dpg.create_viewport(title='Kain DearPyGui Dashboard', width=800, height=600)
+dpg.setup_dearpygui()
+dpg.show_viewport()
+
+# ── STEP 2: Build UI layout ──
+with dpg.window(label='System Monitor', width=780, height=560):
+    dpg.add_text(tag='cpu_text', default_value='CPU: 0.0%')
+    dpg.add_text(tag='mem_text', default_value='Memory: 0.0%')
+    dpg.add_text(tag='disk_text', default_value='Disk: 0.0%')
+    dpg.add_separator()
+    dpg.add_text(tag='np_label', default_value='NumPy Statistics (256 samples):')
+    dpg.add_text(tag='np_mean_text', default_value='Mean: 0.0000')
+    dpg.add_text(tag='np_std_text', default_value='Std: 0.0000')
+    dpg.add_separator()
+    dpg.add_text(tag='frame_text', default_value='Frame: 0')
+
+# ── STEP 3: Render loop — the ONLY inline Python that runs per frame ──
+#   Each iteration fires the Kain callback. The DashBridge actor handler
+#   collects data and updates DPG values across the bridge.
+while dpg.is_dearpygui_running():
+    __main__.kain_cb(0)
+    dpg.render_dearpygui_frame()
+
+# ── STEP 4: Cleanup ──
+dpg.destroy_context()
+    ")
+
+    // Phase 5: Shutdown
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return 0

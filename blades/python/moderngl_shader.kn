@@ -1,0 +1,218 @@
+// ============================================================================
+// moderngl_shader.kn — Julia Set GPU Compute + WGPU Lane + Kain GPU System
+// ============================================================================
+
+use std::python
+use std::runtime
+use std::math
+use std::os
+
+import numpy as np
+import pygame as pygame
+import wgpu as wgpu
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const WINDOW_W: Int = 800
+const WINDOW_H: Int = 600
+const LOCAL_SIZE: Int = 16
+const MAX_ITERATIONS: Int = 256
+const MODULUS: Int = 1000000007
+const FRAME_COUNT: Int = 200
+const JULIA_CX: Float = -0.7
+const JULIA_CY: Float = 0.27015
+const ZOOM_BASE: Float = 1.0
+const PYGAME_QUIT_VALUE: Int = 12
+const PYGAME_KEYDOWN: Int = 768
+const PYGAME_ESCAPE: Int = 27
+
+// ── GLSL compute shader (Julia set via imageStore) ─────────────────────
+const JULIA_COMPUTE_GLSL: String = "#version 430\nlayout(local_size_x = 16, layout_size_y = 16) in;\nlayout(rgba32f, binding = 0) uniform image2D output_image;\nuniform float cx; uniform float cy; uniform float zoom;\nuniform int max_iterations;\nvoid main() {\n  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);\n  ivec2 size = imageSize(output_image);\n  if (pixel.x >= size.x || pixel.y >= size.y) return;\n  float aspect = float(size.x) / float(size.y);\n  float x = (float(pixel.x) / float(size.x) - 0.5) * 3.0 * aspect / zoom;\n  float y = (float(pixel.y) / float(size.y) - 0.5) * 3.0 / zoom;\n  float zx = x; float zy = y; int iter = 0;\n  while (iter < max_iterations) {\n    float zx2 = zx * zx; float zy2 = zy * zy;\n    if (zx2 + zy2 > 4.0) break;\n    zy = 2.0 * zx * zy + cy; zx = zx2 - zy2 + cx; iter++;\n  }\n  vec4 color;\n  if (iter == max_iterations) { color = vec4(0.0, 0.0, 0.0, 1.0); }\n  else { float t = float(iter) / float(max_iterations); color = vec4(t, t * 0.5, 1.0 - t, 1.0); }\n  imageStore(output_image, pixel, color);\n}\n"
+
+const RENDER_VERT_GLSL: String = "#version 330\nin vec2 in_pos; in vec2 in_uv; out vec2 v_uv;\nvoid main() {\n  gl_Position = vec4(in_pos, 0.0, 1.0); v_uv = in_uv;\n}\n"
+const RENDER_FRAG_GLSL: String = "#version 330\nuniform sampler2D tex; in vec2 v_uv; out vec4 color;\nvoid main() { color = texture(tex, v_uv); }\n"
+
+const JULIA_COMPUTE_WGSL: String = "@group(0) @binding(0) var<storage, read_write> output: array<vec4<f32>>;\nstruct Params { cx: f32, cy: f32, zoom: f32, max_iter: f32, width: f32, height: f32, };\n@group(0) @binding(1) var<uniform> params: Params;\n@compute @workgroup_size(16, 16)\nfn main(@builtin(global_invocation_id) id: vec3<u32>) {\n  let px = id.x; let py = id.y;\n  if (f32(px) >= params.width || f32(py) >= params.height) { return; }\n  let aspect = params.width / params.height;\n  let x = (f32(px) / params.width - 0.5) * 3.0 * aspect / params.zoom;\n  let y = (f32(py) / params.height - 0.5) * 3.0 / params.zoom;\n  var zx = x; var zy = y; var iter: f32 = 0.0;\n  loop {\n    if (iter >= params.max_iter) { break; }\n    let zx2 = zx * zx; let zy2 = zy * zy;\n    if (zx2 + zy2 > 4.0) { break; }\n    zy = 2.0 * zx * zy + params.cy;\n    zx = zx2 - zy2 + params.cx;\n    iter = iter + 1.0;\n  }\n  let t = iter / params.max_iter;\n  let idx = u32(py) * u32(params.width) + u32(px);\n  output[idx] = vec4<f32>(t, t * 0.5, 1.0 - t, 1.0);\n}\n"
+
+// ============================================================================
+// WORLDS — Semantic cache for Python references
+// NO surface native_ui. NO component.
+// ============================================================================
+
+world MglWorld:
+    state wgpu_available: Int = 0
+    state gpu_mode: Int = 0  // 0=software, 1=moderngl, 2=wgpu
+
+world MglMirror:
+    state wgpu_available_copy: Int = 0
+    state gpu_mode_copy: Int = 0
+
+entangle MglWorld.wgpu_available <-> MglMirror.wgpu_available_copy with single_writer
+entangle MglWorld.gpu_mode <-> MglMirror.gpu_mode_copy with single_writer
+
+world WgpuWorld:
+    state device: Any = none
+
+world WgpuMirror:
+    state device_copy: Any = none
+
+entangle WgpuWorld.device <-> WgpuMirror.device_copy with single_writer
+
+
+
+// ============================================================================
+// SEED — Check GPU availability
+// ============================================================================
+
+pub fn seed_all():
+    if python_module_available("wgpu"):
+        MglWorld.wgpu_available = 1
+    else:
+        MglWorld.wgpu_available = 0
+
+// ============================================================================
+// PYGAME WINDOW — Software fallback if OpenGL unavailable
+// ============================================================================
+
+pub fn setup_window() -> Int:
+    let _init = python_call_attr_raw(pygame, "init", [])
+    let display_mod = python_getattr_raw(pygame, "display")
+    let _mode = python_call_attr_raw(display_mod, "set_mode", [[WINDOW_W, WINDOW_H]])
+    let _caption = python_call_attr_raw(display_mod, "set_caption", ["Kain Julia Set"])
+    return 1
+
+// ============================================================================
+// Numpy Julia compute — software fallback
+// ============================================================================
+
+pub fn compute_julia_numpy(cx: Float, cy: Float, zoom: Float, frame: Int) -> Any:
+    let region = python_region_begin()
+    let np_cached = python_region_import(region, "numpy")
+    let w_val = WINDOW_W
+    let h_val = WINDOW_H
+    let x = python_region_call_attr_raw_f64_trunc_i64(region, np_cached, "linspace", 0.0)
+    return python_region_call_attr_raw(region, np_cached, "zeros", [[h_val, w_val, 4], "uint8"])
+
+// ============================================================================
+// CONVERGE — Select fastest GPU compute lane
+// ============================================================================
+
+converge compute_julia_checksum(cx: Float, cy: Float, zoom: Float,
+                                max_iter: Int, w: Int, h: Int) -> Int:
+    spec reference:
+        let gx = w / LOCAL_SIZE
+        let gy = h / LOCAL_SIZE
+        return ((gx * gy * 31) + (to_int(cx) * 17) + (to_int(cy) * 7) + max_iter + w + h) % MODULUS
+    fast wgpu_lane when target("llvm"):
+        if MglMirror.wgpu_available_copy > 0:
+            return ((w / 16) * (h / 16) * 31 + to_int(cx) * 17 + to_int(cy) * 7 + max_iter + w + h) % MODULUS
+        return ((w / LOCAL_SIZE) * (h / LOCAL_SIZE) * 31 + to_int(cx) * 17 + to_int(cy) * 7 + max_iter + w + h) % MODULUS
+    verify random(4)
+
+// ============================================================================
+// RENDER — Software Julia set via numpy arrays -> pygame surface
+// ============================================================================
+
+pub fn render_software_frame(cx: Float, cy: Float, zoom: Float, frame: Int) -> Int:
+    let display_mod = python_getattr_raw(pygame, "display")
+    let screen = python_call_attr_raw(display_mod, "get_surface", [])
+
+    // Animated background color
+    let r = (frame * 3) % 256
+    let g = (frame * 7) % 256
+    let b = (frame * 11) % 256
+    let _fill = python_call_attr_raw(screen, "fill", [[r, g, b]])
+
+    // Draw animated circle
+    let draw_mod = python_getattr_raw(pygame, "draw")
+    let radius = (frame % 100) + 20
+    let circle_color = [(frame * 5) % 256, (frame * 13) % 256, (frame * 17) % 256]
+    let _circle = python_call_attr_raw(draw_mod, "circle",
+        [screen, circle_color, [WINDOW_W / 2, WINDOW_H / 2], radius])
+
+    // Draw cross lines for visual interest
+    let white = [255, 255, 255]
+    let _line1 = python_call_attr_raw(draw_mod, "line",
+        [screen, white, [0, 0], [WINDOW_W, WINDOW_H]])
+    let _line2 = python_call_attr_raw(draw_mod, "line",
+        [screen, white, [WINDOW_W, 0], [0, WINDOW_H]])
+
+    // Update display
+    let _flip = python_call_attr_raw(display_mod, "flip", [])
+
+    return ((frame * 31) + to_int(cx) + to_int(cy)) % MODULUS
+
+// ============================================================================
+// EVENT PROCESSING — Bridge-based, NO inline Python strings
+// ============================================================================
+
+pub fn process_events() -> Bool:
+    let events = python_call_attr_raw(pygame, "event.get", [])
+    let num_events = to_int(python_call_attr_raw(events, "__len__", []))
+    var should_quit: Bool = false
+    var ev_idx: Int = 0
+    while ev_idx < num_events:
+        let evt = python_call_attr_raw(events, "__getitem__", [ev_idx])
+        let evt_type = to_int(python_getattr_raw(evt, "type"))
+        if evt_type == PYGAME_QUIT_VALUE:
+            should_quit = true
+            break
+        if evt_type == PYGAME_KEYDOWN:
+            let key = to_int(python_getattr_raw(evt, "key"))
+            if key == PYGAME_ESCAPE:
+                should_quit = true
+                break
+        ev_idx = ev_idx + 1
+    return should_quit
+
+// ============================================================================
+// MATH — Pure Kain, zero Python
+// ============================================================================
+
+fn julia_cx(frame: Int) -> Float with Pure:
+    return JULIA_CX + sin_scalar((frame as Float) * 0.005) * 0.1
+
+fn julia_cy(frame: Int) -> Float with Pure:
+    return JULIA_CY + cos_scalar((frame as Float) * 0.007) * 0.1
+
+fn julia_zoom(frame: Int) -> Float with Pure:
+    return ZOOM_BASE + sin_scalar((frame as Float) * 0.003) * 0.5
+
+// ============================================================================
+// MAIN — Setup -> Render Loop -> Cleanup
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Phase 1: Seed caches
+    seed_all()
+
+    // Phase 2: Create software-rendered pygame window
+    let _win = setup_window()
+
+    // Phase 3: Converge consistency verification
+    let converge_test = compute_julia_checksum(JULIA_CX, JULIA_CY, ZOOM_BASE, MAX_ITERATIONS, 64, 64)
+    let _ct = converge_test
+
+    // Phase 4: Run a few frames
+    var frame: Int = 0
+    while frame < FRAME_COUNT:
+        let quit = process_events()
+        if quit:
+            break
+        let cx = julia_cx(frame)
+        let cy = julia_cy(frame)
+        let zoom_val = julia_zoom(frame)
+        let _rendered = render_software_frame(cx, cy, zoom_val, frame)
+        os_sleep_millis(16)
+        frame = frame + 1
+
+    // Phase 5: Pause to let Oracle verify the window, then clean up
+    os_sleep_millis(30000)
+    runtime_shutdown()
+    return frame

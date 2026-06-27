@@ -1,0 +1,918 @@
+// -- KAIN RAW AMALGAMATION -- src ----------------------------------------------------------
+// kind:       directory
+// contents:   source
+// structure:  7 files | 7 modules
+//
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+//
+// [types]
+//   shatter struct JuliaPixel
+//   shatter struct GpuParticle
+//   shatter struct MetricsSnapshot
+//   shatter struct PackageVersion
+// [actors]
+//   actor GpuBridge
+// [worlds]
+//   world GpuAuthority
+//   world GpuMirror
+// [functions]
+//   fn probe_metal_layer() -> (Int, Int, Int, Int) with Unsafe
+//   fn exercise_raw_memory() -> Int with Unsafe
+//   fn probe_os_layer() -> Int
+//   fn probe_packages() -> Int
+//   fn exercise_packages() -> Int
+//   fn run_pre_simulation(gate: GpuBridge, rounds: Int) -> Int
+//   fn register_gpu_bridge(gate: GpuBridge) -> (Any, Any, Any, Any)
+//   fn launch_gpu_compute() -> Int
+//   fn validate_after_shutdown() -> Int
+//   fn main() -> Int with Unsafe
+// [patches]
+//   patch commit_frame(authority: GpuAuthority, frame: Int) -> Int
+//   patch commit_fps(authority: GpuAuthority, fps: Int) -> Int
+//   patch commit_metrics(authority: GpuAuthority, cpu: Int, ram_pct: Int, ram_used: Int, ram_total: Int) -> Int
+//   patch commit_gpu_checksum(authority: GpuAuthority, checksum: Int) -> Int
+//   patch commit_julia_params(authority: GpuAuthority, zoom: Int, cx: Int, cy: Int) -> Int
+//   patch commit_packages(authority: GpuAuthority, mask: Int) -> Int
+//   patch commit_status(authority: GpuAuthority, status: Int) -> Int
+//   patch reset_world(authority: GpuAuthority) -> Int
+// [laws]
+//   law frame_valid(value: Int) -> Bool
+//   law fps_valid(value: Int) -> Bool
+//   law percent_valid(value: Int) -> Bool
+//   law status_valid(value: Int) -> Bool
+// [converges]
+//   converge gpu_checksum_fast(r: Int, g: Int, b: Int, x: Int, y: Int) -> Int
+//   converge normalize_zoom(raw: Int) -> Int
+// [orchestrates]
+//   orchestrate gpu_frame_pipeline(frame: Int, cpu: Int, ram: Int, checksum: Int) -> Int
+//
+// ============================================================================
+// actors.kn
+// ============================================================================
+// ============================================================================
+//  ACTORS — GPU TOOLS Bridge Actor
+// ============================================================================
+//  GpuBridge receives frame ticks, system metrics, GPU checksum, and event
+//  callbacks from the Python moderngl+pygame loop via python_actor_callback.
+//  Patches everything into GpuAuthority world state.
+//  NO components. NO surface. Pure actor bridge.
+// ============================================================================
+
+use std::actor
+use std::python
+
+use world::GpuAuthority
+use world::commit_frame
+use world::commit_fps
+use world::commit_metrics
+use world::commit_gpu_checksum
+use world::commit_julia_params
+use world::commit_packages
+use world::commit_status
+use helpers::gpu_mix
+use helpers::gpu_clamp
+use helpers::TARGET_FPS
+
+// ── GpuBridge — main bridge between Python GPU compute and Kain worlds ──
+
+actor GpuBridge:
+    state tick_count: Int = 0
+    state last_fps: Int = TARGET_FPS
+    state bias: Int = 31
+    state running: Bool = true
+
+    // ── Frame tick from Python — called every frame ──
+
+    on FrameTick(dt: Float, frame_number: Int):
+        self.tick_count = frame_number
+        let dt_ms: Int = to_int(dt * 1000.0)
+        if dt_ms > 0:
+            self.last_fps = 1000 / dt_ms
+        else:
+            self.last_fps = TARGET_FPS
+
+        let _ = commit_frame(GpuAuthority, frame_number)
+        let _ = commit_fps(GpuAuthority, self.last_fps)
+
+    // ── System metrics from psutil — called every frame ──
+
+    on MetricsUpdate(cpu: Float, ram_pct: Float, ram_used_mb: Float, ram_total_mb: Float):
+        let cpu_i = gpu_clamp(to_int(cpu * 100.0), 0, 10000) / 100
+        let ram_i = gpu_clamp(to_int(ram_pct * 100.0), 0, 10000) / 100
+        let ram_used_i = to_int(ram_used_mb)
+        let ram_total_i = to_int(ram_total_mb)
+
+        let _ = commit_metrics(GpuAuthority, cpu_i, ram_i, ram_used_i, ram_total_i)
+
+    // ── GPU checksum from cryptography — called every frame ──
+
+    on GpuChecksum(checksum: Int):
+        let _ = commit_gpu_checksum(GpuAuthority, checksum)
+
+    // ── Julia parameters update — called on param change ──
+
+    on JuliaParams(zoom: Int, cx: Int, cy: Int):
+        let _ = commit_julia_params(GpuAuthority, zoom, cx, cy)
+
+    // ── Package load mask — called once at startup ──
+
+    on PackageMask(mask: Int):
+        let _ = commit_packages(GpuAuthority, mask)
+
+    // ── Keyboard event from Python — called on key press ──
+
+    on InputEvent(event_type: String, key_code: Int):
+        if key_code == 32:  // SPACE — pause toggle
+            if GpuAuthority.status == 0:
+                let _ = commit_status(GpuAuthority, 1)
+            else:
+                let _ = commit_status(GpuAuthority, 0)
+        if key_code == 27:  // ESC — shutdown
+            let _ = commit_status(GpuAuthority, 2)
+
+    // ── ask()-able: pre-bridge simulation relay ──
+
+    on Fold(reply_to: P, request: Int):
+        let mix = gpu_mix(request, self.bias, self.tick_count)
+        send reply_to.Reply(value = mix)
+
+    // ── ask()-able: shutdown ──
+
+    on Shutdown(reply_to: P):
+        self.running = false
+        let _ = commit_status(GpuAuthority, 2)
+        send reply_to.Reply(value = 0)
+
+// ============================================================================
+// bridge.kn
+// ============================================================================
+// ============================================================================
+//  BRIDGE — GPU TOOLS: 21 Package Imports + moderngl Julia Compute + HUD
+// ============================================================================
+//  ZERO .py files. All via Kain's native `import` syntax.
+//  NO components. NO surface. Pure pygame window + moderngl GPU compute.
+//  The inline Python bootstrap creates the moderngl context inside pygame.
+// ============================================================================
+
+use std::python
+use std::runtime
+use std::actor
+
+// ── Import ALL 21 packages (verified at startup) ──
+
+import moderngl as mgl
+import glcontext as glctx
+import wgpu as wgpu
+import rich as rich
+import typer as typer
+import pygments as pyg
+import win32api as win32api
+import pydantic as pydantic
+import pydantic_core as pydantic_core
+import cryptography as crypto
+import cffi as cffi
+import pycparser as pycparser
+import numpy as np
+import pygame as pygame
+import pandas as pd
+import tabulate as tabulate
+import tqdm as tqdm
+import zstandard as zstd
+import msgpack as msgpack
+import ruamel.yaml as yaml
+import psutil as psutil
+
+pub const PACKAGE_COUNT: Int = 21
+
+// ── Probe helpers ──
+
+pub fn probe_package(pkg: Any, expected_name: String) -> Bool:
+    let name = to_string(python_getattr_raw(pkg, "__name__"))
+    return name == expected_name
+
+pub fn get_package_name(pkg: Any) -> String:
+    return to_string(python_getattr_raw(pkg, "__name__"))
+
+// ── Probe all 21 packages, return bitmask ──
+
+pub fn probe_all_packages() -> Int:
+    var mask: Int = 0
+    // Manual probe for each of 21 packages
+    if probe_package(mgl, "moderngl"): mask = mask | 1
+    if probe_package(glctx, "glcontext"): mask = mask | 2
+    if probe_package(wgpu, "wgpu"): mask = mask | 4
+    if probe_package(rich, "rich"): mask = mask | 8
+    if probe_package(typer, "typer"): mask = mask | 16
+    if probe_package(pyg, "pygments"): mask = mask | 32
+    if probe_package(win32api, "win32api"): mask = mask | 64
+    if probe_package(pydantic, "pydantic"): mask = mask | 128
+    if probe_package(pydantic_core, "pydantic_core"): mask = mask | 256
+    if probe_package(crypto, "cryptography"): mask = mask | 512
+    if probe_package(cffi, "cffi"): mask = mask | 1024
+    if probe_package(pycparser, "pycparser"): mask = mask | 2048
+    if probe_package(np, "numpy"): mask = mask | 4096
+    if probe_package(pygame, "pygame"): mask = mask | 8192
+    if probe_package(pd, "pandas"): mask = mask | 16384
+    if probe_package(tabulate, "tabulate"): mask = mask | 32768
+    if probe_package(tqdm, "tqdm"): mask = mask | 65536
+    if probe_package(zstd, "zstandard"): mask = mask | 131072
+    if probe_package(msgpack, "msgpack"): mask = mask | 262144
+    if probe_package(yaml, "ruamel.yaml"): mask = mask | 524288
+    if probe_package(psutil, "psutil"): mask = mask | 1048576
+    return mask
+
+// ── Exercise packages for checksums ──
+
+pub fn exercise_numpy() -> Int:
+    let arr = python_call_attr_raw(np, "arange", [100])
+    let shape = python_call_attr_raw(arr, "shape")
+    return to_int(python_getattr_raw(shape, "__getitem__", [0]))
+
+pub fn exercise_msgpack() -> Int:
+    let d = python_eval("{'a':1,'b':2,'c':3}")
+    let packed = python_call_attr_raw(msgpack, "packb", [d])
+    return to_int(python_call_attr_raw(packed, "__len__", []))
+
+pub fn exercise_zstandard() -> Int:
+    let orig = python_eval("b'hello gpu tools compress!'")
+    let cctx = python_call_raw(zstd, [])
+    let compressed = python_call_attr_raw(cctx, "compress", [orig])
+    return to_int(python_call_attr_raw(compressed, "__len__", []))
+
+pub fn exercise_cryptography() -> Int:
+    let hash_class = python_getattr_raw(crypto, "hashes")
+    let sha256_class = python_getattr_raw(hash_class, "SHA256")
+    let hash_obj = python_call_raw(sha256_class, [])
+    return to_int(python_call_attr_raw(hash_obj, "name", []))
+
+pub fn exercise_all_packages() -> Int:
+    var cs: Int = 0
+    cs = (cs + exercise_numpy()) % 1000000007
+    cs = (cs + exercise_msgpack()) % 1000000007
+    cs = (cs + exercise_zstandard()) % 1000000007
+    cs = (cs + exercise_cryptography()) % 1000000007
+    return cs
+
+// ── Version getters ──
+
+pub fn get_numpy_version() -> String:
+    return to_string(python_getattr_raw(np, "__version__"))
+
+pub fn get_pygame_version() -> String:
+    let ver_mod = python_getattr_raw(pygame, "version")
+    return to_string(python_getattr_raw(ver_mod, "ver"))
+
+pub fn get_psutil_version() -> String:
+    return to_string(python_getattr_raw(psutil, "__version__"))
+
+pub fn get_moderngl_version() -> String:
+    return to_string(python_getattr_raw(mgl, "__version__"))
+
+pub fn get_rich_version() -> String:
+    return to_string(python_getattr_raw(rich, "__version__"))
+
+// ── Build inline Python bootstrap for GPU compute + pygame ──
+//
+//  Creates a pygame window with OpenGL context, runs a moderngl compute
+//  shader (Julia set animation), renders with fullscreen quad, overlays
+//  rich-styled HUD as OpenGL textured quads. psutil for system metrics,
+//  cryptography/hashlib for GPU pixel checksums.
+//
+//  Callbacks pre-bound: kain_frame_cb, kain_metrics_cb, kain_gpu_cs_cb, kain_event_cb
+
+pub fn build_gpu_bootstrap() -> String:
+    return "\nimport pygame, moderngl, numpy as np, psutil, hashlib\nimport sys, time, math, struct, ctypes\nW=1280; H=800; CW=1024; CH=768\npygame.init()\npygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION,4)\npygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION,4)\npygame.display.gl_set_attribute(pygame.GL_CONTEXT_PROFILE_MASK,pygame.GL_CONTEXT_PROFILE_CORE)\nscreen=pygame.display.set_mode((W,H),pygame.OPENGL|pygame.DOUBLEBUF)\npygame.display.set_caption('GPU Tools :: moderngl Julia Compute')\nclock=pygame.time.Clock()\nctx=moderngl.create_context()\nctx.enable(moderngl.BLEND)\n# GLSL compute shader\nCOMPUTE_SRC='''#version 430\nlayout(local_size_x=16,local_size_y=16)in;\nlayout(rgba32f,binding=0)uniform image2D img;\nuniform vec2 center;uniform float zoom;uniform float time;\nvoid main(){ivec2 sz=imageSize(img);ivec2 p=ivec2(gl_GlobalInvocationID.xy);\nif(p.x>=sz.x||p.y>=sz.y)return;\nvec2 c=vec2(-0.7269+sin(time*0.3)*0.1,0.1889+cos(time*0.2)*0.1);\nvec2 z=vec2((float(p.x)/float(sz.x)-0.5)*zoom+center.x,(float(p.y)/float(sz.y)-0.5)*zoom+center.y);\nfloat it=0.0;\nfor(int i=0;i<256;i++){z=vec2(z.x*z.x-z.y*z.y,2.0*z.x*z.y)+c;if(dot(z,z)>4.0)break;it+=1.0;}\nfloat v=it/256.0;\nvec3 col=0.5+0.5*cos(vec3(1.0,2.0,3.0)*v*6.283+vec3(0.0,0.33,0.67));\nimageStore(img,p,vec4(col,1.0));}'''\ncompute=ctx.compute_shader(COMPUTE_SRC)\n# Julia texture\njtex=ctx.texture((CW,CH),4,dtype='f4')\njtex.bind_as_image(0,read=True,write=True)\n# Fullscreen quad\nvs='''#version 330\nin vec2 p;in vec2 u;out vec2 v;void main(){gl_Position=vec4(p,0,1);v=u;}'''\nfs='''#version 330\nuniform sampler2D t;in vec2 v;out vec4 c;void main(){c=texture(t,v);}'''\nprog=ctx.program(vertex_shader=vs,fragment_shader=fs)\nverts=np.array([-1,-1,0,0,1,-1,1,0,-1,1,0,1,1,1,1,1],dtype='f4')\nvbo=ctx.buffer(verts.tobytes())\nidx=np.array([0,1,2,1,3,2],dtype='i4')\nibo=ctx.buffer(idx.tobytes())\nvao=ctx.vertex_array(prog,[(vbo,'2f 2f','p','u')],ibo)\n# HUD overlay shader\nhud_vs='''#version 330\nin vec2 p;in vec2 u;out vec2 v;void main(){gl_Position=vec4(p,0,1);v=u;}'''\nhud_fs='''#version 330\nuniform sampler2D t;uniform float a;in vec2 v;out vec4 c;void main(){vec4 tc=texture(t,v);c=mix(vec4(0),tc,a);}'''\nhud_prog=ctx.program(vertex_shader=hud_vs,fragment_shader=hud_fs)\nhud_verts=np.array([-1,1,0,1,-0.35,1,1,1,-1,-1,0,0,-0.35,-1,1,0],dtype='f4')\nhud_vbo=ctx.buffer(hud_verts.tobytes())\nhud_idx=np.array([0,1,2,1,3,2],dtype='i4')\nhud_ibo=ctx.buffer(hud_idx.tobytes())\nhud_vao=ctx.vertex_array(hud_prog,[(hud_vbo,'2f 2f','p','u')],hud_ibo)\n# Fonts\nfbig=pygame.font.Font(None,30)\nfmed=pygame.font.Font(None,22)\nfsmall=pygame.font.Font(None,17)\n# State\ncx=0.0;cy=0.0;zm=3.0;tv=0.0;run=True;f=0;ko=True\npsutil.cpu_percent(None)\n# HUD rendering helper\ndef hud_tex(text_lines):\n  sfc=pygame.Surface((400,780),pygame.SRCALPHA)\n  sfc.fill((0,0,0,200))\n  yy=10\n  for txt,col in text_lines:\n    if col==None:yy+=6;continue\n    sf=fmed.render(txt,True,col)\n    sfc.blit(sf,(10,yy))\n    yy+=26\n  return pygame.image.tostring(sfc,'RGBA',True)\n# Controls/status info builder\ndef build_lines(fr,cp,rm,rmu,rmt,sha):\n  ls=[]\n  ls.append(('GPU TOOLS :: moderngl + Kain',(255,200,50)))\n  ls.append((f'Frame: {fr}  FPS: {int(clock.get_fps())}',(200,200,200)))\n  ls.append((f'Julia: z={zm:.2f} center=({cx:.3f},{cy:.3f})',(170,170,170)))\n  ls.append((None,None))\n  ls.append(('SYSTEM (pywin32/psutil)',(100,200,255)))\n  ls.append((f'CPU: {cp:.1f}%',(200,200,200)))\n  ls.append((f'RAM: {rm:.1f}% ({int(rmu)}/{int(rmt)} MB)',(200,200,200)))\n  ls.append((None,None))\n  ls.append(('GPU COMPUTE (moderngl)',(100,255,100)))\n  ls.append((f'Shader: Julia x 256 iter/pixel',(180,180,180)))\n  ls.append((f'Grid: {CW}x{CH}  workgroups: {CW//16}x{CH//16}',(180,180,180)))\n  ls.append((f'SHA256: {sha[:20]}...',(180,180,180)))\n  ls.append((None,None))\n  ls.append(('PACKAGES',(255,150,100)))\n  ls.append(('21 pkgs: moderngl, glcontext, wgpu, rich, typer',(170,170,170)))\n  ls.append(('pygments, win32api, pydantic, pydantic-core',(170,170,170)))\n  ls.append(('cryptography, cffi, pycparser, numpy, pygame',(170,170,170)))\n  ls.append(('pandas, tabulate, tqdm, zstandard, msgpack',(170,170,170)))\n  ls.append(('ruamel.yaml, psutil',(170,170,170)))\n  ls.append((None,None))\n  ls.append(('CONTROLS',(150,150,150)))\n  ls.append(('Arrows: pan  +/-: zoom  ESC: quit',(140,140,140)))\n  ls.append(('SPACE: reset view',(140,140,140)))\n  ls.append((None,None))\n  kc=(100,255,100)if ko else (255,100,100)\n  ls.append((f'Kain: {\"CONNECTED\" if ko else \"OFFLINE\"}',kc))\n  return ls\nwhile run:\n  dt=clock.tick(60)/1000.0\n  if dt<0.001:dt=0.016\n  f+=1;tv+=dt\n  for e in pygame.event.get():\n    if e.type==pygame.QUIT:run=False\n    elif e.type==pygame.KEYDOWN:\n      try:kain_event_cb('keydown',e.key)\n      except:ko=False\n      if e.key==pygame.K_ESCAPE:run=False\n      elif e.key==pygame.K_SPACE:cx=0.0;cy=0.0;zm=3.0\n      elif e.key==pygame.K_EQUALS:zm/=1.2\n      elif e.key==pygame.K_MINUS:zm*=1.2\n  k=pygame.key.get_pressed()\n  if k[pygame.K_LEFT]:cx-=0.02*zm\n  if k[pygame.K_RIGHT]:cx+=0.02*zm\n  if k[pygame.K_UP]:cy-=0.02*zm\n  if k[pygame.K_DOWN]:cy+=0.02*zm\n  if k[pygame.K_PLUS]or k[pygame.K_EQUALS]:zm/=1.01\n  if k[pygame.K_MINUS]:zm*=1.01\n  # GPU compute dispatch\n  compute['center']=(cx,cy)\n  compute['zoom']=zm\n  compute['time']=tv\n  gx=(CW+15)//16;gy=(CH+15)//16\n  compute.run(gx,gy,1)\n  # Render Julia\n  ctx.clear(0.02,0.02,0.06,1.0)\n  jtex.use(0)\n  prog['t'].value=0\n  vao.render()\n  # Read GPU pixels for checksum\n  px=ctx.read(viewport=(0,0,CW,CH),components=3)\n  sha=hashlib.sha256(px).hexdigest()\n  # System metrics\n  cpu=psutil.cpu_percent(None)\n  rm=psutil.virtual_memory()\n  rmp=rm.percent;rmu=rm.used/1048576;rmt=rm.total/1048576\n  # Build HUD\n  lines=build_lines(f,cpu,rmp,rmu,rmt,sha)\n  hud_data=hud_tex(lines)\n  hud_tex_obj=ctx.texture((400,780),4,data=hud_data,dtype='u1')\n  hud_tex_obj.use(1)\n  hud_prog['t'].value=1\n  hud_prog['a'].value=0.85\n  hud_vao.render()\n  # GPU checksum int\n  cs_int=int(sha[:8],16)%1000000007\n  # Kain callbacks\n  try:\n    kain_frame_cb(dt,f)\n    kain_metrics_cb(cpu,rmp,rmu,rmt)\n    kain_gpu_cs_cb(cs_int)\n  except Exception as e:print('gpu cs err:',e,file=__import__('sys').stderr)\n  try:kain_frame_cb(dt,f)\n    kain_metrics_cb(cpu,rmp,rmu,rmt)\n  except Exception as e2:print('frame cb err:',e2,file=__import__('sys').stderr);ko=False\n  pygame.display.flip()\npygame.quit()\nsys.exit(0)\n"
+
+// ============================================================================
+// helpers.kn
+// ============================================================================
+// ============================================================================
+//  HELPERS — Constants, Math, Packing for GPU TOOLS
+// ============================================================================
+
+pub const MODULUS: Int = 1000000007
+pub const PACK_SHIFT: Int = 100000
+
+// Window dimensions
+pub const WIN_W: Int = 1280
+pub const WIN_H: Int = 800
+
+// Julia compute resolution (must match compute shader workgroup math)
+pub const COMPUTE_W: Int = 1024
+pub const COMPUTE_H: Int = 768
+
+// Layout zones for HUD overlay (pygame-drawn, not components)
+pub const HUD_X: Int = 10
+pub const HUD_Y: Int = 10
+pub const HUD_W: Int = 400
+pub const HUD_H: Int = 780
+pub const GPU_X: Int = 420
+pub const GPU_Y: Int = 10
+pub const GPU_W: Int = 850
+pub const GPU_H: Int = 780
+
+pub const TARGET_FPS: Int = 60
+
+// ── Modular arithmetic ──
+
+pub fn gpu_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+// ── Mixing ──
+
+pub fn gpu_mix(a: Int, b: Int, c: Int) -> Int:
+    return gpu_mod((a * 53) + (b * 37) + (c * 19) + 131, MODULUS)
+
+// ── Clamp ──
+
+pub fn gpu_clamp(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+// ── Pack/Unpack for actor messages ──
+
+pub fn gpu_pack(a: Int, b: Int) -> Int:
+    return gpu_mod(a + b * PACK_SHIFT, MODULUS)
+
+pub fn gpu_unpack_a(packed: Int) -> Int:
+    return packed % PACK_SHIFT
+
+pub fn gpu_unpack_b(packed: Int) -> Int:
+    return packed / PACK_SHIFT
+
+// ============================================================================
+// main.kn
+// ============================================================================
+// ============================================================================
+//  GPU TOOLS — Entry Point
+// ============================================================================
+//  PHASES:
+//    1. Metal Probe      - rdtsc, CPUID, VM page size
+//    2. Package Probe    - all 21 packages imported and verified
+//    3. Pre-Simulation   - exercise semantic stack without pygame
+//    4. Bridge           - register python_actor_callback, bind to __main__
+//    5. Launch           - python_exec the GPU compute bootstrap (BLOCKS)
+//    6. Validate         - check world state, mirror propagation, telemetry
+//
+//  NO components. NO surface native_ui. Pygame + moderngl is the window.
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::python
+use std::intent
+use std::machine::rdtsc
+use std::machine::cpuid_eax
+use std::machine::vm_page_size
+use std::machine::cpu_core_count
+use std::os
+use std::os::os_getpid
+use std::os::os_getcwd
+use std::os::os_name
+use std::os::os_cpu_count
+use std::os::os_getpagesize
+use std::os::os_sleep_millis
+
+use world::GpuAuthority
+use world::GpuMirror
+use world::commit_frame
+use world::commit_metrics
+use world::commit_gpu_checksum
+use world::commit_julia_params
+use world::commit_packages
+use world::commit_status
+use world::reset_world
+use actors::GpuBridge
+use bridge::probe_all_packages
+use bridge::exercise_all_packages
+use bridge::build_gpu_bootstrap
+use bridge::get_numpy_version
+use bridge::get_pygame_version
+use bridge::get_psutil_version
+use bridge::get_moderngl_version
+use bridge::get_rich_version
+use pipeline::gpu_checksum_fast
+use pipeline::pipeline_health_check
+use pipeline::gpu_frame_pipeline
+use helpers::gpu_mix
+use helpers::gpu_mod
+use helpers::MODULUS
+
+// ── Phase 1: Metal Probe ──
+//  Proves we're on real hardware with Kain's metal layer.
+
+fn probe_metal_layer() -> (Int, Int, Int, Int) with Unsafe:
+    let rdtsc_val = rdtsc()
+    let cpuid_sig = cpuid_eax(0, 0)
+    let page_size = vm_page_size()
+    let cores = cpu_core_count()
+    return (cpuid_sig, rdtsc_val, page_size, cores)
+
+// ── Phase 1b: Raw memory ownership exercise ──
+
+fn exercise_raw_memory() -> Int with Unsafe:
+    let n = 64
+    let mut cells: ptr<Int> = alloc_zeroed(n, "Int")
+
+    collapse cells:
+        var i: Int = 0
+        while i < n:
+            mem_store(ptr_offset(cells, i, "Int"), (i * 17) + 3, "Int")
+            i = i + 1
+        0
+
+    let checksum: Int = observe cells:
+        var sum: Int = 0
+        var j: Int = 0
+        while j < n:
+            sum = (sum + mem_load(ptr_offset(cells, j, "Int"), "Int")) % MODULUS
+            j = j + 1
+        sum
+
+    decay cells
+    return checksum
+
+// ── Phase 1c: OS probe ──
+
+fn probe_os_layer() -> Int:
+    let pid = os_getpid()
+    let cwd = os_getcwd()
+    let os_name_val = os_name()
+    let cpu_count = os_cpu_count()
+    let page_size = os_getpagesize()
+    return pid + cpu_count + page_size
+
+// ── Phase 2: Probe all 21 packages ──
+
+fn probe_packages() -> Int:
+    let mask = probe_all_packages()
+    let _ = commit_packages(GpuAuthority, mask)
+    return mask
+
+// ── Phase 2b: Exercise packages for checksums ──
+
+fn exercise_packages() -> Int:
+    return exercise_all_packages()
+
+// ── Phase 3: Pre-Simulation ──
+//  Exercises the semantic stack without pygame.
+
+fn run_pre_simulation(gate: GpuBridge, rounds: Int) -> Int:
+    var checksum: Int = 137
+    var round: Int = 0
+    while round < rounds:
+        // Exercise converge lane
+        let mix_val = gpu_checksum_fast(round, round * 3, round * 7, round, round)
+        // Exercise actor relay
+        let reply = ask(gate, "Fold", checksum + round)
+        // Mix all results
+        checksum = (checksum + mix_val + reply) % MODULUS
+        // Commit frame to world
+        let _ = commit_frame(GpuAuthority, round)
+        round = round + 1
+
+    // Verify converge lanes
+    let health = pipeline_health_check()
+    if health != 0:
+        return -10
+
+    return checksum
+
+// ── Phase 4: Register Callback Bridge ──
+//  Creates Python callable objects that the GPU compute loop can invoke.
+
+fn register_gpu_bridge(gate: GpuBridge) -> (Any, Any, Any, Any):
+    // Frame tick callback
+    let frame_cb = python_actor_callback(gate as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+
+    // Metrics update callback
+    let metrics_cb = python_actor_callback(gate as Int, "MetricsUpdate")
+    let metrics_fn = python_actor_callback_callable(metrics_cb)
+
+    // GPU checksum callback
+    let gpu_cs_cb = python_actor_callback(gate as Int, "GpuChecksum")
+    let gpu_cs_fn = python_actor_callback_callable(gpu_cs_cb)
+
+    // Input event callback
+    let event_cb = python_actor_callback(gate as Int, "InputEvent")
+    let event_fn = python_actor_callback_callable(event_cb)
+
+    // Bind to Python __main__ globals
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_frame_cb", frame_fn)
+    python_setattr(main_mod, "kain_metrics_cb", metrics_fn)
+    python_setattr(main_mod, "kain_gpu_cs_cb", gpu_cs_fn)
+    python_setattr(main_mod, "kain_event_cb", event_fn)
+
+    return (frame_fn, metrics_fn, gpu_cs_fn, event_fn)
+
+// ── Phase 5: Launch GPU Compute ──
+//  Injects inline Python. BLOCKS until window closes.
+
+fn launch_gpu_compute() -> Int:
+    let _bootstrap = build_gpu_bootstrap()
+    let _result = python_exec(_bootstrap)
+    return 0
+
+// ── Phase 6: Validate ──
+//  After window closes, verify worlds, packages, and telemetry.
+
+fn validate_after_shutdown() -> Int:
+    // World should have advanced at least a few frames
+    let f = GpuAuthority.frame
+    println("validate: frame=" + str(f))
+    if f <= 0:
+        return 50
+
+    // Mirror should have received entangle propagation
+    let mf = GpuMirror.frame_copy
+    println("validate: mirror_frame=" + str(mf))
+    if mf <= 0:
+        return 60
+
+    // At least some packages should be loaded
+    let pk = GpuAuthority.packages_loaded
+    println("validate: packages=" + str(pk))
+    if pk <= 0:
+        return 70
+
+    // Status must be clean
+    let status = GpuAuthority.status
+    println("validate: status=" + str(status))
+    if status != 0 and status != 2:
+        return 90 + status
+
+    println("validate: ALL OK")
+    return 0
+
+// ── Print package versions ──
+
+pub fn print_package_versions():
+    let np_ver = get_numpy_version()
+    let pg_ver = get_pygame_version()
+    let ps_ver = get_psutil_version()
+    let mg_ver = get_moderngl_version()
+    let rc_ver = get_rich_version()
+    println("numpy: " + np_ver)
+    println("pygame: " + pg_ver)
+    println("psutil: " + ps_ver)
+    println("moderngl: " + mg_ver)
+    println("rich: " + rc_ver)
+
+// ── MAIN ──
+
+fn main() -> Int with Unsafe:
+    // ── Init runtime ──
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // ── Phase 1: Metal Probe ──
+    let (cpuid_sig, rdtsc_val, page_size, cpu_cores) = probe_metal_layer()
+    println("cpuid=" + str(cpuid_sig) + " rdtsc=" + str(rdtsc_val) +
+            " page=" + str(page_size) + " cores=" + str(cpu_cores))
+
+    // ── Phase 1b: Raw memory exercise ──
+    let mem_checksum = exercise_raw_memory()
+    println("mem_checksum=" + str(mem_checksum))
+
+    // ── Phase 1c: OS probe ──
+    let os_sum = probe_os_layer()
+    println("os_sum=" + str(os_sum))
+
+    // ── Phase 2: Package Probe ──
+    let pkg_mask = probe_packages()
+    let pkg_exercise_cs = exercise_packages()
+    print_package_versions()
+    println("pkg_mask=" + str(pkg_mask))
+    println("pkg_exercise_cs=" + str(pkg_exercise_cs))
+
+    // Count loaded packages
+    var pkg_count: Int = 0
+    var bit: Int = 0
+    while bit < 21:
+        if ((pkg_mask >> bit) & 1) != 0:
+            pkg_count = pkg_count + 1
+        bit = bit + 1
+    println("packages loaded: " + str(pkg_count) + "/21")
+
+    // Check if pygame is available
+    let pygame_available = python_module_available("pygame")
+    println("pygame available: " + (if pygame_available: "yes" else: "no"))
+
+    if pygame_available == false:
+        // No pygame — run headless pre-simulation only
+        println("headless mode — pygame not available")
+        let gate = spawn GpuBridge()
+        let _warm = ask(gate, "Fold", 1)
+        let sim_result = run_pre_simulation(gate, 12)
+        let final_shutdown = runtime_shutdown()
+        if sim_result < 0:
+            return 90
+        println("pre-sim OK, exiting")
+        return 0
+
+    // ── Phase 3: Spawn bridge actor ──
+    println("spawning bridge actor...")
+    let gate = spawn GpuBridge()
+    let _warm = ask(gate, "Fold", 1)
+    println("bridge actor ready")
+
+    // ── Phase 4: Register callbacks ──
+    println("registering callbacks...")
+    let (_frame_fn, _metrics_fn, _gpu_cs_fn, _event_fn) = register_gpu_bridge(gate)
+    println("callbacks registered")
+
+    // ── Phase 5: Launch GPU Compute ──
+    println("launching GPU compute window...")
+    let launch_result = launch_gpu_compute()
+    println("GPU compute done, frames=" + str(GpuAuthority.frame))
+
+    if launch_result != 0:
+        let shutdown = runtime_shutdown()
+        return 200 + launch_result
+
+    // ── Phase 6: Validate ──
+    println("validating...")
+    let validate_result = validate_after_shutdown()
+    println("validate result=" + str(validate_result))
+    if validate_result != 0:
+        println("validate FAILED=" + str(validate_result))
+        let shutdown = runtime_shutdown()
+        return 300 + validate_result
+
+    // ── Clean shutdown ──
+    println("--- GPU TOOLS SHUTDOWN ---")
+    println("frame=" + str(GpuAuthority.frame) +
+            " cpu=" + str(GpuAuthority.cpu_percent) +
+            " ram=" + str(GpuAuthority.ram_percent) +
+            " gpu_cs=" + str(GpuAuthority.gpu_checksum) +
+            " pkg_mask=" + str(GpuAuthority.packages_loaded) +
+            " cpuid=" + str(cpuid_sig))
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+
+    println("--- GPU TOOLS DONE ---")
+    return 0
+
+// ============================================================================
+// pipeline.kn
+// ============================================================================
+// ============================================================================
+//  PIPELINE — Converge + Orchestrate + Pulse for GPU TOOLS
+// ============================================================================
+//  GPU dispatch strategies, multi-stage rendering pipelines, timing.
+//  All semantic machinery — no components, no surfaces.
+// ============================================================================
+
+use std::intent
+
+use world::GpuAuthority
+use world::commit_frame
+use world::commit_metrics
+use world::commit_gpu_checksum
+use world::frame_valid
+use world::percent_valid
+use helpers::gpu_mix
+use helpers::gpu_mod
+use helpers::gpu_clamp
+use helpers::MODULUS
+
+// ── CONVERGE: GPU Checksum Strategy (fast path vs reference) ──
+
+converge gpu_checksum_fast(r: Int, g: Int, b: Int, x: Int, y: Int) -> Int:
+    spec reference:
+        return ((r * 73) + (g * 97) + (b * 113) + (x * 17) + (y * 31)) % MODULUS
+    fast llvm_lane when target("llvm"):
+        return ((r * 73) + (g * 97) + (b * 113) + (x * 17) + (y * 31)) % MODULUS
+    verify random(4)
+
+// ── CONVERGE: Zoom parameter normalization ──
+
+converge normalize_zoom(raw: Int) -> Int:
+    spec reference:
+        if raw < 50: return 50
+        if raw > 5000: return 5000
+        return raw
+    fast clamp_lane when target("llvm"):
+        let v = raw & 8191
+        if v < 50: return 50
+        if v > 5000: return 5000
+        return v
+    verify random(4)
+
+// ── ORCHESTRATE: GPU frame pipeline ──
+
+orchestrate gpu_frame_pipeline(frame: Int, cpu: Int, ram: Int, checksum: Int) -> Int:
+    stage validate_frame: law frame_valid(frame) residency host policy static
+    stage validate_cpu: law percent_valid(cpu) residency host policy static
+    stage validate_ram: law percent_valid(ram) residency host policy static
+    stage normalize_gpu: converge gpu_checksum_fast(checksum % 256, (checksum / 256) % 256, (checksum / 65536) % 256, frame % 1024, frame / 1024) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    stage mix_all: cpu gpu_mix(normalize_gpu, cpu + ram, frame) deps [normalize_gpu] residency host transfer none policy telemetry_prefer_cpu
+    stage commit_result: patch commit_gpu_checksum(GpuAuthority, normalize_gpu) deps [mix_all] requires validate_frame residency host policy telemetry_balance_latency
+    return mix_all
+
+// ── PULSE: Frame heartbeat ──
+
+pulse gpu_heartbeat every 16 ms jitter 2 ms:
+    let _ = commit_frame(GpuAuthority, GpuAuthority.frame + 1)
+
+// ── Pipeline health check ──
+
+pub fn pipeline_health_check() -> Int:
+    let converge_before = converge_mismatch_count()
+    let _sample = gpu_checksum_fast(42, 73, 101, 7, 3)
+    let converge_delta = converge_mismatch_count() - converge_before
+    if converge_delta > 0:
+        return -1
+    return 0
+
+// ============================================================================
+// scene.kn
+// ============================================================================
+// ============================================================================
+//  SCENE — GPU Data Layout (Shatter Structs)
+// ============================================================================
+//  No components, no UI. Just data schemas for GPU compute workloads.
+// ============================================================================
+
+use helpers::COMPUTE_W
+use helpers::COMPUTE_H
+
+// ── Julia pixel sample — SoA layout for GPU output ──
+
+shatter struct JuliaPixel:
+    r: Int
+    g: Int
+    b: Int
+    iteration: Int
+    escaped: Bool
+
+// ── GPU particle — for compute shader particle system ──
+
+shatter struct GpuParticle:
+    pos_x: Float
+    pos_y: Float
+    vel_x: Float
+    vel_y: Float
+    life: Float
+    max_life: Float
+    alive: Bool
+
+// ── System metrics snapshot — SoA for psutil data ──
+
+shatter struct MetricsSnapshot:
+    cpu_percent: Float
+    ram_percent: Float
+    ram_used_gb: Float
+    ram_total_gb: Float
+    proc_count: Int
+
+// ── Package version info ──
+
+shatter struct PackageVersion:
+    name_hash: Int
+    version_major: Int
+    version_minor: Int
+    version_patch: Int
+    loaded: Bool
+
+pub const PIXEL_COUNT: Int = COMPUTE_W * COMPUTE_H
+pub const MAX_PACKAGES: Int = 24
+
+pub fn make_empty_pixels() -> [JuliaPixel]:
+    return []
+
+pub fn make_empty_metrics() -> MetricsSnapshot:
+    return MetricsSnapshot {
+        cpu_percent: 0.0, ram_percent: 0.0,
+        ram_used_gb: 0.0, ram_total_gb: 0.0,
+        proc_count: 0
+    }
+
+// ============================================================================
+// world.kn
+// ============================================================================
+// ============================================================================
+//  WORLD — GPU TOOLS State Authority + Mirror + Laws + Patches
+// ============================================================================
+//  NO component. NO surface native_ui. Pure state authority for GPU compute.
+//  Pygame + moderngl is the ONLY window — worlds just hold data.
+// ============================================================================
+
+use helpers::WIN_W
+use helpers::WIN_H
+use helpers::gpu_clamp
+
+// ── Authority — mutable GPU tools state ──
+
+world GpuAuthority:
+    state frame: Int = 0
+    state fps: Int = 60
+    state cpu_percent: Int = 0
+    state ram_percent: Int = 0
+    state ram_used_mb: Int = 0
+    state ram_total_mb: Int = 0
+    state gpu_checksum: Int = 0      // cryptographic checksum of GPU output
+    state julia_zoom: Int = 300       // zoom level * 100
+    state julia_center_x: Int = 0     // center x * 1000
+    state julia_center_y: Int = 0     // center y * 1000
+    state particle_count: Int = 4096  // GPU particle count
+    state packages_loaded: Int = 0    // bitmask of loaded packages
+    state status: Int = 0             // 0 = running, 1 = paused, 2 = shutdown
+
+// ── Mirror — read-only view for entangle propagation ──
+
+world GpuMirror:
+    state frame_copy: Int = 0
+    state fps_copy: Int = 60
+    state cpu_percent_copy: Int = 0
+    state ram_percent_copy: Int = 0
+    state gpu_checksum_copy: Int = 0
+    state packages_loaded_copy: Int = 0
+    state status_copy: Int = 0
+
+// ── Entangle — compiler-owned reactive sync ──
+
+entangle GpuAuthority.frame <-> GpuMirror.frame_copy with single_writer
+entangle GpuAuthority.fps <-> GpuMirror.fps_copy with single_writer
+entangle GpuAuthority.cpu_percent <-> GpuMirror.cpu_percent_copy with single_writer
+entangle GpuAuthority.ram_percent <-> GpuMirror.ram_percent_copy with single_writer
+entangle GpuAuthority.gpu_checksum <-> GpuMirror.gpu_checksum_copy with single_writer
+entangle GpuAuthority.packages_loaded <-> GpuMirror.packages_loaded_copy with single_writer
+entangle GpuAuthority.status <-> GpuMirror.status_copy with single_writer
+
+// ── Laws — invariant predicates ──
+
+law frame_valid(value: Int) -> Bool:
+    return value >= 0
+
+law fps_valid(value: Int) -> Bool:
+    return value >= 0 and value < 1000
+
+law percent_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 100
+
+law status_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 2
+
+// ── Patches — journaled world mutations ──
+
+patch commit_frame(authority: GpuAuthority, frame: Int) -> Int:
+    authority.frame = frame
+    return authority.frame
+
+patch commit_fps(authority: GpuAuthority, fps: Int) -> Int:
+    authority.fps = fps
+    return authority.fps
+
+patch commit_metrics(authority: GpuAuthority, cpu: Int, ram_pct: Int, ram_used: Int, ram_total: Int) -> Int:
+    authority.cpu_percent = cpu
+    authority.ram_percent = ram_pct
+    authority.ram_used_mb = ram_used
+    authority.ram_total_mb = ram_total
+    return cpu + ram_pct
+
+patch commit_gpu_checksum(authority: GpuAuthority, checksum: Int) -> Int:
+    authority.gpu_checksum = checksum
+    return authority.gpu_checksum
+
+patch commit_julia_params(authority: GpuAuthority, zoom: Int, cx: Int, cy: Int) -> Int:
+    authority.julia_zoom = zoom
+    authority.julia_center_x = cx
+    authority.julia_center_y = cy
+    return zoom + cx + cy
+
+patch commit_packages(authority: GpuAuthority, mask: Int) -> Int:
+    authority.packages_loaded = mask
+    return authority.packages_loaded
+
+patch commit_status(authority: GpuAuthority, status: Int) -> Int:
+    authority.status = status
+    return authority.status
+
+patch reset_world(authority: GpuAuthority) -> Int:
+    authority.frame = 0
+    authority.fps = 60
+    authority.cpu_percent = 0
+    authority.ram_percent = 0
+    authority.ram_used_mb = 0
+    authority.ram_total_mb = 0
+    authority.gpu_checksum = 0
+    authority.julia_zoom = 300
+    authority.julia_center_x = 0
+    authority.julia_center_y = 0
+    authority.particle_count = 4096
+    authority.packages_loaded = 0
+    authority.status = 0
+    return 0
+

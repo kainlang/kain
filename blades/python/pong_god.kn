@@ -1,0 +1,424 @@
+// ============================================================================
+// PONG_GOD.KN — Entanglement Pong
+// ============================================================================
+//
+//  SINGLE-FILE Kain god component: classic Pong using pygame
+//  through Kain's Python interop bridge.
+//
+//  TWO entangled paddles:
+//    Player 1 (left) — keyboard via actor callbacks
+//    Player 2 (right) — AI reading entangled mirror state
+//
+//  Semantic Layers Exercised:
+//    L0: fn, struct, let, const, if, while
+//    L1: world, entangle (state authority + semantic cache)
+//    L2: law, patch (score integrity, journaled mutation)
+//    L3: converge (collision detection spec + fast lane)
+//    L7: actor (keyboard input + frame tick via callbacks)
+//    Python: semantic cache, region API, actor callbacks, bridge calls
+//
+//  BUILD:   kain build pong_god.kn --target llvm
+//  OUTPUT:  .kain/out/x86_64-windows/dev/ll/pong_god/compile/pong_god.exe
+// ============================================================================
+
+use std::runtime
+use std::python
+use std::actor
+use std::intent
+
+// ============================================================================
+// PYTHON IMPORTS — AST-level, not string-based
+// ============================================================================
+
+import pygame as pygame
+import math as py_math
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const SCREEN_W: Int = 800
+const SCREEN_H: Int = 600
+const PADDLE_W: Int = 15
+const PADDLE_H: Int = 100
+const BALL_SIZE: Int = 15
+const PADDLE_SPEED: Int = 6
+const BALL_SPEED: Int = 5
+const AI_SPEED: Int = 4
+const MODULUS: Int = 1000000007
+const START_X: Int = 400
+const START_Y: Int = 300
+const START_LP: Int = 250
+const START_RP: Int = 250
+const CENTERLINE_GAP: Int = 40
+
+// Collision result constants
+const COL_NONE: Int = 0
+const COL_LEFT_PADDLE: Int = 1
+const COL_RIGHT_PADDLE: Int = 2
+const COL_WALL_TOP: Int = 3
+const COL_WALL_BOTTOM: Int = 4
+const COL_SCORE_LEFT: Int = 5
+const COL_SCORE_RIGHT: Int = 6
+
+// ============================================================================
+// LAYER 1: STATE AUTHORITY — Worlds (NO surface native_ui)
+// ============================================================================
+
+// Semantic cache: Python constants seeded ONCE, read from mirror at zero cost
+world PyCache:
+    state tau: Int = 0
+    state pi: Int = 0
+
+world PyMirror:
+    state tau_copy: Int = 0
+    state pi_copy: Int = 0
+
+entangle PyCache.tau <-> PyMirror.tau_copy with single_writer
+entangle PyCache.pi <-> PyMirror.pi_copy with single_writer
+
+// Game authority: owns mutable paddle/ball/score state
+world GameWorld:
+    state left_paddle_y: Int = START_LP
+    state right_paddle_y: Int = START_RP
+    state ball_x: Int = START_X
+    state ball_y: Int = START_Y
+    state ball_dx: Int = BALL_SPEED
+    state ball_dy: Int = BALL_SPEED
+    state left_score: Int = 0
+    state right_score: Int = 0
+    state frame: Int = 0
+
+// Game mirror: AI reads ball position at zero cost via entangle
+world GameMirror:
+    state right_paddle_copy: Int = START_RP
+    state ball_x_copy: Int = START_X
+    state ball_y_copy: Int = START_Y
+    state left_score_copy: Int = 0
+    state right_score_copy: Int = 0
+
+entangle GameWorld.right_paddle_y <-> GameMirror.right_paddle_copy with single_writer
+entangle GameWorld.ball_x <-> GameMirror.ball_x_copy with single_writer
+entangle GameWorld.ball_y <-> GameMirror.ball_y_copy with single_writer
+entangle GameWorld.left_score <-> GameMirror.left_score_copy with single_writer
+entangle GameWorld.right_score <-> GameMirror.right_score_copy with single_writer
+
+// ============================================================================
+// LAYER 2: STATE INTEGRITY — Laws + Patches
+// ============================================================================
+
+law score_valid(s: Int) -> Bool:
+    return s >= 0 and s < 10000
+
+law paddle_in_bounds(y: Int) -> Bool:
+    return y >= 0 and y <= SCREEN_H - PADDLE_H
+
+// Patch: journaled frame update with epoch bump
+patch commit_frame(gw: GameWorld, lp: Int, rp: Int, bx: Int, by: Int,
+                   bdx: Int, bdy: Int) -> Int:
+    gw.left_paddle_y = lp
+    gw.right_paddle_y = rp
+    gw.ball_x = bx
+    gw.ball_y = by
+    gw.ball_dx = bdx
+    gw.ball_dy = bdy
+    gw.frame = gw.frame + 1
+    return gw.frame
+
+// Patch: journaled score update
+patch commit_score(gw: GameWorld, left: Int, right: Int) -> Int:
+    gw.left_score = left
+    gw.right_score = right
+    return gw.left_score + gw.right_score
+
+// Patch: reset ball to center after a point
+patch reset_ball(gw: GameWorld, dx_sign: Int) -> Int:
+    gw.ball_x = START_X
+    gw.ball_y = START_Y
+    gw.ball_dx = BALL_SPEED * dx_sign
+    gw.ball_dy = BALL_SPEED
+    gw.frame = gw.frame + 1
+    return gw.frame
+
+// ============================================================================
+// LAYER 3: DISPATCH — Converge for collision detection
+// ============================================================================
+// Returns a single Int code: 0=none, 1=left paddle, 2=right paddle,
+// 3=top wall, 4=bottom wall, 5=left scored, 6=right scored
+
+fn collision_check_against(nbx: Int, nby: Int, bdx: Int, bdy: Int,
+                           lp: Int, rp: Int) -> Int:
+    // Check wall bounces — reflect vertically
+    if nby <= 0:
+        return COL_WALL_TOP
+    if nby + BALL_SIZE >= SCREEN_H:
+        return COL_WALL_BOTTOM
+
+    // Check left paddle
+    if nbx <= PADDLE_W:
+        if nby + BALL_SIZE >= lp and nby <= lp + PADDLE_H:
+            return COL_LEFT_PADDLE
+        // Ball passed left paddle — right scores
+        return COL_SCORE_RIGHT
+
+    // Check right paddle
+    if nbx + BALL_SIZE >= SCREEN_W - PADDLE_W:
+        if nby + BALL_SIZE >= rp and nby <= rp + PADDLE_H:
+            return COL_RIGHT_PADDLE
+        // Ball passed right paddle — left scores
+        return COL_SCORE_LEFT
+
+    return COL_NONE
+
+converge collision_detect(bx: Int, by: Int, bdx: Int, bdy: Int,
+                           lp: Int, rp: Int) -> Int:
+    spec reference:
+        return collision_check_against(bx + bdx, by + bdy, bdx, bdy, lp, rp)
+    fast llvm_lane when target("llvm"):
+        return collision_check_against(bx + bdx, by + bdy, bdx, bdy, lp, rp)
+    verify random(4)
+
+// ============================================================================
+// LAYER 7: SYSTEMS — Actor callbacks for input + frame tick
+// ============================================================================
+
+actor GameBridge:
+    state move_up: Bool = false
+    state move_down: Bool = false
+    state running: Bool = true
+    state frame_count: Int = 0
+
+    // Keyboard input from pygame event pump
+    on KeyDown(key: Int):
+        if key == 273 or key == 119:  // UP arrow or W
+            self.move_up = true
+        if key == 274 or key == 115:  // DOWN arrow or S
+            self.move_down = true
+        if key == 113:  // Q — quit
+            self.running = false
+
+    on KeyUp(key: Int):
+        if key == 273 or key == 119:
+            self.move_up = false
+        if key == 274 or key == 115:
+            self.move_down = false
+
+    // Frame tick: game logic + drawing via bridge calls
+    on FrameTick(dt: Float):
+        self.frame_count = self.frame_count + 1
+
+        // ── Step 1: Player paddle from input ──
+        var lp: Int = GameWorld.left_paddle_y
+        if self.move_up and lp > 0:
+            lp = lp - PADDLE_SPEED
+        if self.move_down and lp < SCREEN_H - PADDLE_H:
+            lp = lp + PADDLE_SPEED
+
+        // ── Step 2: AI reads entangled mirror — ZERO bridge cost ──
+        let ball_y_base: Int = GameMirror.ball_y_copy
+
+        // AI: chase ball with imperfect tracking
+        var rp: Int = GameWorld.right_paddle_y
+        let ai_target: Int = ball_y_base - (PADDLE_H / 2)
+        if rp < ai_target - 10:
+            rp = rp + AI_SPEED
+        elif rp > ai_target + 10:
+            rp = rp - AI_SPEED
+        if rp < 0:
+            rp = 0
+        if rp > SCREEN_H - PADDLE_H:
+            rp = SCREEN_H - PADDLE_H
+
+        // ── Step 3: Read current ball state ──
+        let cur_bx: Int = GameWorld.ball_x
+        let cur_by: Int = GameWorld.ball_y
+        let cur_bdx: Int = GameWorld.ball_dx
+        let cur_bdy: Int = GameWorld.ball_dy
+
+        // ── Step 4: Collision detection via converge ──
+        let col: Int = collision_detect(cur_bx, cur_by, cur_bdx, cur_bdy, lp, rp)
+
+        // ── Step 5: Process collision result ──
+        var nbx: Int = cur_bx + cur_bdx
+        var nby: Int = cur_by + cur_bdy
+        var nbdx: Int = cur_bdx
+        var nbdy: Int = cur_bdy
+        var scored: Int = 0  // 0=no score, 1=left scored, 2=right scored
+
+        if col == COL_WALL_TOP or col == COL_WALL_BOTTOM:
+            nbdy = -nbdy
+
+        if col == COL_LEFT_PADDLE:
+            nbx = PADDLE_W + 2
+            nbdx = -nbdx
+            if nbdx > -BALL_SPEED - 1:
+                nbdx = -(BALL_SPEED + 1)
+
+        if col == COL_RIGHT_PADDLE:
+            nbx = SCREEN_W - PADDLE_W - BALL_SIZE - 2
+            nbdx = -nbdx
+            if nbdx < BALL_SPEED + 1:
+                nbdx = BALL_SPEED + 1
+
+        if col == COL_SCORE_RIGHT:
+            scored = 2
+
+        if col == COL_SCORE_LEFT:
+            scored = 1
+
+        // ── Step 6: Handle scoring ──
+        var ls: Int = GameWorld.left_score
+        var rs: Int = GameWorld.right_score
+
+        if scored == 1:
+            ls = ls + 1
+            let _r = reset_ball(GameWorld, -1)
+            let _s = commit_score(GameWorld, ls, rs)
+            // After reset, update positions for drawing
+            nbx = GameWorld.ball_x
+            nby = GameWorld.ball_y
+            nbdx = GameWorld.ball_dx
+            nbdy = GameWorld.ball_dy
+        elif scored == 2:
+            rs = rs + 1
+            let _r = reset_ball(GameWorld, 1)
+            let _s = commit_score(GameWorld, ls, rs)
+            nbx = GameWorld.ball_x
+            nby = GameWorld.ball_y
+            nbdx = GameWorld.ball_dx
+            nbdy = GameWorld.ball_dy
+        else:
+            let _f = commit_frame(GameWorld, lp, rp, nbx, nby, nbdx, nbdy)
+
+        // ── Step 7: Draw via bridge calls ──
+        let main_mod: Any = python_import("__main__")
+        let screen: Any = python_getattr_raw(main_mod, "kain_screen")
+
+        // Fill black
+        let fill_fn: Any = python_getattr_raw(screen, "fill")
+        let _fill: Any = python_call_raw(fill_fn, [[0, 0, 0]])
+
+        // Draw paddles
+        let draw_mod: Any = python_getattr_raw(main_mod, "kain_pygame_draw")
+        let rect_fn: Any = python_getattr_raw(draw_mod, "rect")
+        let white_list: Any = [255, 255, 255]
+        let gray_list: Any = [128, 128, 128]
+        let _lp_draw: Any = python_call_raw(rect_fn, [screen, white_list, [10, lp, PADDLE_W, PADDLE_H]])
+        let _rp_draw: Any = python_call_raw(rect_fn, [screen, white_list, [SCREEN_W - 10 - PADDLE_W, rp, PADDLE_W, PADDLE_H]])
+
+        // Draw ball
+        let _ball_draw: Any = python_call_raw(rect_fn, [screen, white_list,
+            [nbx, nby, BALL_SIZE, BALL_SIZE]])
+
+        // Draw center line
+        var cy: Int = 0
+        while cy < SCREEN_H:
+            let _line: Any = python_call_raw(rect_fn, [screen, gray_list,
+                [SCREEN_W / 2 - 2, cy, 4, 20]])
+            cy = cy + CENTERLINE_GAP
+
+        // Draw scores
+        let font_mod: Any = python_getattr_raw(pygame, "font")
+        let font_fn: Any = python_getattr_raw(font_mod, "Font")
+        let font: Any = python_call_raw(font_fn, [none, 48])
+        let render_fn: Any = python_getattr_raw(font, "render")
+        let ls_str: String = str(GameMirror.left_score_copy)
+        let rs_str: String = str(GameMirror.right_score_copy)
+        let ls_surf: Any = python_call_raw(render_fn, [ls_str, true, white_list])
+        let rs_surf: Any = python_call_raw(render_fn, [rs_str, true, white_list])
+        let blit_fn: Any = python_getattr_raw(screen, "blit")
+        let _ls_blit: Any = python_call_raw(blit_fn, [ls_surf, [SCREEN_W / 2 - 60, 20]])
+        let _rs_blit: Any = python_call_raw(blit_fn, [rs_surf, [SCREEN_W / 2 + 40, 20]])
+
+        // Quit if requested
+        if self.running == false:
+            let quit_fn: Any = python_getattr_raw(pygame, "quit")
+            let _quit: Any = python_call_raw(quit_fn, [])
+
+    // ask()-able warmup handler
+    on Ping(reply_to: P, _dummy: Int):
+        send reply_to.Reply(value = self.frame_count)
+
+// ============================================================================
+// SEMANTIC CACHE SEED — ONE bridge crossing per value
+// ============================================================================
+
+fn seed_cache() -> Int:
+    let tau_v: Int = to_int(python_getattr_raw(py_math, "tau"))
+    let pi_v: Int = to_int(python_getattr_raw(py_math, "pi"))
+    PyCache.tau = tau_v
+    PyCache.pi = pi_v
+    return tau_v + pi_v
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let boot: Int = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // ── Phase 1: Seed entangled semantic cache ──
+    let _seed: Int = seed_cache()
+    let _tau: Int = PyMirror.tau_copy
+    let _pi: Int = PyMirror.pi_copy
+
+    // ── Phase 2: Spawn game bridge actor ──
+    let gate = spawn GameBridge(move_up = false, move_down = false,
+                                  running = true, frame_count = 0)
+    let _warm = ask(gate, "Ping", 0)
+
+    // ── Phase 3: Register actor callbacks on __main__ ──
+    let frame_cb: Any = python_actor_callback(gate as Int, "FrameTick")
+    let frame_fn: Any = python_actor_callback_callable(frame_cb)
+    let keydown_cb: Any = python_actor_callback(gate as Int, "KeyDown")
+    let keydown_fn: Any = python_actor_callback_callable(keydown_cb)
+    let keyup_cb: Any = python_actor_callback(gate as Int, "KeyUp")
+    let keyup_fn: Any = python_actor_callback_callable(keyup_cb)
+
+    let main_mod: Any = python_import("__main__")
+    let _sf: Int = python_setattr(main_mod, "kain_frame", frame_fn)
+    let _sd: Int = python_setattr(main_mod, "kain_keydown", keydown_fn)
+    let _su: Int = python_setattr(main_mod, "kain_keyup", keyup_fn)
+
+    // ── Phase 4: Bootstrap pygame window + event loop ──
+    //
+    // MINIMAL Python — ONLY creates window, pumps events, flips.
+    // ALL game logic + drawing is in Kain's FrameTick actor handler.
+    //
+    python_exec("
+import __main__
+import pygame
+
+pygame.init()
+screen = pygame.display.set_mode((800, 600))
+pygame.display.set_caption('Entanglement Pong — Kain + Pygame')
+
+__main__.kain_screen = screen
+__main__.kain_pygame_draw = pygame.draw
+
+clock = pygame.time.Clock()
+running = True
+
+while running:
+    dt = clock.tick(60) / 1000.0
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            __main__.kain_keydown(event.key)
+        elif event.type == pygame.KEYUP:
+            __main__.kain_keyup(event.key)
+    __main__.kain_frame(dt)
+    pygame.display.flip()
+
+pygame.quit()
+    ")
+
+    // ── Phase 5: Shutdown ──
+    let shutdown: Int = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+
+    return 0
