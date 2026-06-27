@@ -12,15 +12,6 @@
 //   L1: world, entangle (module name cache + dashboard state)
 //   L7: actor (FletBridge — bridge callbacks from Python event loop)
 //
-// RULES ENFORCEMENT:
-//   ✅ NO component keyword
-//   ✅ NO surface native_ui
-//   ✅ ALL constant Python values entangled at startup
-//   ✅ ALL UI calls via python_call_attr_raw / python_getattr_raw
-//   ✅ ALL hot numpy ops via python_region_begin/end
-//   ✅ Bootstrap Python: ONLY app creation + event loop
-//   ✅ ZERO .py files
-//   ✅ ZERO inline Python strings for application logic
 //
 // BUILD: kain build flet_monitor.kn --target llvm
 // CHECK: kain check flet_monitor.kn --json

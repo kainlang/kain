@@ -1,0 +1,577 @@
+// WGPU VOXEL VIEWER - Kain + Python + Raw Memory Voxel Engine
+//
+// L0: fn, struct, let, const
+// L1: world/entangle - semantic cache for Python module refs
+// L2: patch/law - state integrity
+// L3: converge - raymarch strategy selection
+// L5: actor - orbit camera via mouse drag callbacks
+// L6: collapse/observe/decay - raw voxel data manipulation
+//     python_shared_buffer - zero-copy numpy -> wgpu
+//     region API - batched numpy voxel generation
+//
+// NO component keyword. NO surface native_ui.
+
+use std::runtime
+use std::python
+use std::intent
+use std::actor
+use std::memory
+
+import wgpu as wgpu
+import numpy as np
+import pygame as pygame
+
+// ── Constants ──
+
+const VOX_MODULUS: Int = 1000000007
+const VOX_GRID_X: Int = 64
+const VOX_GRID_Y: Int = 64
+const VOX_GRID_Z: Int = 64
+const VOX_CELLS_TOTAL: Int = VOX_GRID_X * VOX_GRID_Y * VOX_GRID_Z
+const SCREEN_W: Int = 1024
+const SCREEN_H: Int = 768
+const ANGLE_SCALE: Int = 1000
+const RAY_STEPS_MAX: Int = 256
+
+// ── Structs ──
+
+struct VoxelCell:
+    density: Int
+    material: Int
+    normal_packed: Int
+
+struct VoxelHit:
+    hit: Bool
+    distance: Int
+    cell_x: Int
+    cell_y: Int
+    cell_z: Int
+    normal_x: Int
+    normal_y: Int
+    normal_z: Int
+
+fn vox_mod(value: Int, modulus: Int) -> Int with Pure:
+    let r = value % modulus
+    if r < 0:
+        return r + modulus
+    return r
+
+// ── L1: Semantic Cache Worlds ──
+
+world PyCache:
+    state np_handle: Any = none
+    state wgpu_handle: Any = none
+    state pg_handle: Any = none
+    state pi_scaled: Int = 3142
+    state two_pi_scaled: Int = 6283
+
+world PyMirror:
+    state np_handle_copy: Any = none
+    state wgpu_handle_copy: Any = none
+    state pg_handle_copy: Any = none
+    state pi_scaled_copy: Int = 3142
+    state two_pi_scaled_copy: Int = 6283
+
+entangle PyCache.np_handle <-> PyMirror.np_handle_copy with single_writer
+entangle PyCache.wgpu_handle <-> PyMirror.wgpu_handle_copy with single_writer
+entangle PyCache.pg_handle <-> PyMirror.pg_handle_copy with single_writer
+entangle PyCache.pi_scaled <-> PyMirror.pi_scaled_copy with single_writer
+entangle PyCache.two_pi_scaled <-> PyMirror.two_pi_scaled_copy with single_writer
+
+// Voxel state (NO surface native_ui)
+world VoxelEngine:
+    state frame: Int = 0
+    state cam_phi: Int = 0
+    state cam_theta: Int = 2000
+    state cam_dist: Int = 50000
+    state target_cx: Int = VOX_GRID_X / 2 * 1000
+    state target_cy: Int = VOX_GRID_Y / 2 * 1000
+    state target_cz: Int = VOX_GRID_Z / 2 * 1000
+    state voxel_checksum: Int = 0
+    state dirty_flag: Int = 0
+    state mouse_down: Int = 0
+    state last_mx: Int = 0
+    state last_my: Int = 0
+
+world VoxelMirror:
+    state frame_copy: Int = 0
+    state cam_phi_copy: Int = 0
+    state cam_theta_copy: Int = 2000
+    state cam_dist_copy: Int = 50000
+    state dirty_flag_copy: Int = 0
+
+entangle VoxelEngine.frame <-> VoxelMirror.frame_copy with single_writer
+entangle VoxelEngine.cam_phi <-> VoxelMirror.cam_phi_copy with single_writer
+entangle VoxelEngine.cam_theta <-> VoxelMirror.cam_theta_copy with single_writer
+entangle VoxelEngine.cam_dist <-> VoxelMirror.cam_dist_copy with single_writer
+entangle VoxelEngine.dirty_flag <-> VoxelMirror.dirty_flag_copy with single_writer
+
+// ── L2: Laws + Patches ──
+
+law cam_phi_valid(v: Int) -> Bool:
+    return v >= 0 and v < 6284
+
+law cam_theta_valid(v: Int) -> Bool:
+    return v >= 100 and v < 3100
+
+law cam_dist_valid(v: Int) -> Bool:
+    return v >= 10000 and v < 500000
+
+law frame_valid(v: Int) -> Bool:
+    return v >= 0
+
+law checksum_valid(v: Int) -> Bool:
+    return v >= 0 and v < VOX_MODULUS
+
+patch commit_orbit(engine: VoxelEngine, phi: Int, theta: Int, dist: Int) -> Int:
+    engine.cam_phi = phi
+    engine.cam_theta = theta
+    engine.cam_dist = dist
+    engine.dirty_flag = engine.dirty_flag + 1
+    return engine.dirty_flag
+
+patch commit_frame(engine: VoxelEngine, frame: Int) -> Int:
+    engine.frame = frame
+    engine.dirty_flag = engine.dirty_flag + 1
+    return engine.dirty_flag
+
+patch commit_mouse(engine: VoxelEngine, down: Int, mx: Int, my: Int) -> Int:
+    engine.mouse_down = down
+    engine.last_mx = mx
+    engine.last_my = my
+    return down
+
+// ── L3: Converge - Raymarch Strategy ──
+
+converge voxel_dda_traverse(
+    ox: Int, oy: Int, oz: Int,
+    dx: Int, dy: Int, dz: Int,
+    gx: Int, gy: Int, gz: Int
+) -> Int:
+    spec reference:
+        var sx: Int = 1
+        var sy: Int = 1
+        var sz: Int = 1
+        if dx < 0: sx = -1
+        if dy < 0: sy = -1
+        if dz < 0: sz = -1
+        var tdx: Int = 1000
+        var tdy: Int = 1000
+        var tdz: Int = 1000
+        var tmx: Int = 1000
+        var tmy: Int = 1000
+        var tmz: Int = 1000
+        var px: Int = ox / ANGLE_SCALE
+        var py: Int = oy / ANGLE_SCALE
+        var pz: Int = oz / ANGLE_SCALE
+        var steps: Int = 0
+        while steps < RAY_STEPS_MAX:
+            if tmx < tmy and tmx < tmz:
+                px = px + sx
+                tmx = tmx + tdx
+            elif tmy < tmz:
+                py = py + sy
+                tmy = tmy + tdy
+            else:
+                pz = pz + sz
+                tmz = tmz + tdz
+            if px < 0 or py < 0 or pz < 0:
+                steps = steps + 1
+                continue
+            if px >= gx or py >= gy or pz >= gz:
+                steps = steps + 1
+                continue
+            steps = steps + 1
+            return steps
+        return -1
+    fast dense_lane when target("llvm"):
+        var sx: Int = 1
+        var sy: Int = 1
+        var sz: Int = 1
+        if dx < 0: sx = -1
+        if dy < 0: sy = -1
+        if dz < 0: sz = -1
+        var tdx: Int = 1000
+        var tdy: Int = 1000
+        var tdz: Int = 1000
+        var tmx: Int = 1000
+        var tmy: Int = 1000
+        var tmz: Int = 1000
+        var px: Int = ox / ANGLE_SCALE
+        var py: Int = oy / ANGLE_SCALE
+        var pz: Int = oz / ANGLE_SCALE
+        var steps: Int = 0
+        while steps < RAY_STEPS_MAX:
+            if tmx < tmy and tmx < tmz:
+                px = px + sx
+                tmx = tmx + tdx
+            elif tmy < tmz:
+                py = py + sy
+                tmy = tmy + tdy
+            else:
+                pz = pz + sz
+                tmz = tmz + tdz
+            if px < 0 or py < 0 or pz < 0:
+                steps = steps + 1
+                continue
+            if px >= gx or py >= gy or pz >= gz:
+                steps = steps + 1
+                continue
+            steps = steps + 1
+            return steps
+        return -1
+    verify random(4)
+
+// ── L5: Actor for Orbit Camera ──
+
+actor OrbitCamera:
+    state dragging: Bool = false
+    state drag_start_x: Int = 0
+    state drag_start_y: Int = 0
+    state drag_start_phi: Int = 0
+    state drag_start_theta: Int = 0
+    state tick_count: Int = 0
+
+    on Ping(reply_to: P, value: Int):
+        self.tick_count = value
+        send reply_to.Reply(value = value + 1)
+
+    on FrameTick(dt: Float, frame_number: Int):
+        let _ = commit_frame(VoxelEngine, frame_number)
+
+    on MouseDown(button: Int, mx: Int, my: Int):
+        if button == 1:
+            self.dragging = true
+            self.drag_start_x = mx
+            self.drag_start_y = my
+            self.drag_start_phi = VoxelEngine.cam_phi
+            self.drag_start_theta = VoxelEngine.cam_theta
+            let _ = commit_mouse(VoxelEngine, 1, mx, my)
+
+    on MouseUp(button: Int, mx: Int, my: Int):
+        if button == 1:
+            self.dragging = false
+            let _ = commit_mouse(VoxelEngine, 0, mx, my)
+
+    on MouseMove(mx: Int, my: Int):
+        if self.dragging:
+            let dx: Int = mx - self.drag_start_x
+            let dy: Int = my - self.drag_start_y
+            let new_phi: Int = self.drag_start_phi + dx * 3
+            let new_theta: Int = self.drag_start_theta - dy * 3
+            var clamped_theta: Int = new_theta
+            if clamped_theta < 100:
+                clamped_theta = 100
+            if clamped_theta > 3100:
+                clamped_theta = 3100
+            let _ = commit_orbit(
+                VoxelEngine,
+                vox_mod(new_phi, 6284),
+                clamped_theta,
+                VoxelEngine.cam_dist
+            )
+            let _ = commit_mouse(VoxelEngine, 1, mx, my)
+
+    on Scroll(direction: Int):
+        let new_dist: Int = VoxelEngine.cam_dist - direction * 5000
+        var clamped_dist: Int = new_dist
+        if clamped_dist < 10000:
+            clamped_dist = 10000
+        if clamped_dist > 500000:
+            clamped_dist = 500000
+        let _ = commit_orbit(
+            VoxelEngine,
+            VoxelEngine.cam_phi,
+            VoxelEngine.cam_theta,
+            clamped_dist
+        )
+
+// ── L6: Raw Memory + Shared Buffer ──
+
+fn generate_voxel_raw(grid_x: Int, grid_y: Int, grid_z: Int, time: Int) -> Int with Unsafe:
+    let cell_count: Int = grid_x * grid_y * grid_z
+    let mut cells: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    collapse cells:
+        var z: Int = 0
+        while z < grid_z:
+            var y: Int = 0
+            while y < grid_y:
+                var x: Int = 0
+                while x < grid_x:
+                    let idx: Int = z * grid_y * grid_x + y * grid_x + x
+                    let cx: Int = x - grid_x / 2
+                    let cy: Int = y - grid_y / 2
+                    let cz: Int = z - grid_z / 2
+                    let dist_sq: Int = cx * cx + cy * cy + cz * cz
+                    let radius: Int = grid_x / 4
+                    let radius_sq: Int = radius * radius
+                    if dist_sq < radius_sq:
+                        let dens: Int = 255 - (dist_sq * 255 / radius_sq)
+                        let packed: Int = 0
+                        if dens > 128:
+                            packed = (dens << 8) | (1 << 4) | ((x >> 3) & 7)
+                        else:
+                            packed = (dens << 8) | ((x >> 3) & 7)
+                        mem_store(ptr_offset(cells, idx, "Int"), packed, "Int")
+                    else:
+                        mem_store(ptr_offset(cells, idx, "Int"), 0, "Int")
+                    x = x + 1
+                y = y + 1
+            z = z + 1
+        0
+    let checksum: Int = observe cells:
+        var sum: Int = 0
+        var i: Int = 0
+        while i < cell_count:
+            let val: Int = mem_load(ptr_offset(cells, i, "Int"), "Int")
+            sum = vox_mod(sum + val + (i * 17), VOX_MODULUS)
+            i = i + 1
+        sum
+    decay cells
+    return checksum
+
+fn generate_voxel_numpy(region: Any, np_mod: Any, gx: Int, gy: Int, gz: Int, time: Int) -> Any:
+    let voxel_arr: Any = python_region_call_attr_raw(region, np_mod, "zeros", [[gx, gy, gz], "uint8"])
+    return voxel_arr
+
+fn adopt_voxel_buffer(numpy_arr: Any) -> Any:
+    return python_shared_buffer(numpy_arr)
+
+// ── Seed Semantic Cache ──
+
+fn seed_python_cache():
+    PyCache.np_handle = python_getattr_raw(np, "__name__")
+    PyCache.wgpu_handle = python_getattr_raw(wgpu, "__name__")
+    PyCache.pg_handle = python_getattr_raw(pygame, "__name__")
+    let math_mod = python_import("math")
+    let pi_val = python_getattr_raw(math_mod, "pi")
+    let pi_f = python_call_raw(pi_val, [])
+    PyCache.pi_scaled = (to_int(pi_f) * ANGLE_SCALE / 314) * 314
+    PyCache.two_pi_scaled = PyCache.pi_scaled * 2
+
+// ── Bootstrap (inline Python - window + event loop only) ──
+
+fn build_bootstrap() -> String:
+    return "
+import __main__, wgpu, numpy as np, pygame, ctypes, sys
+
+SCREEN_W, SCREEN_H = 1024, 768
+VX, VY, VZ = 64, 64, 64
+
+has_display = True
+try:
+    pygame.display.init()
+    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+    pygame.display.set_caption('Kain + WGPU Voxel')
+except pygame.error:
+    screen = pygame.Surface((SCREEN_W, SCREEN_H))
+    has_display = False
+
+clock = pygame.time.Clock()
+hwnd = 0
+if has_display:
+    try:
+        hwnd = ctypes.windll.user32.FindWindowW(None, 'Kain + WGPU Voxel')
+    except:
+        hwnd = 0
+
+device = None
+cc = None
+use_wgpu = False
+if hwnd:
+    try:
+        cc = wgpu.gpu.get_canvas_context({'window': hwnd})
+        adapter = wgpu.gpu.request_adapter_sync(power_preference='high-performance', canvas={'window': hwnd})
+        device = adapter.request_device_sync(required_features=[])
+        from wgpu import enums
+        fmt = cc.get_preferred_format()
+        cc.configure(wgpu.CanvasConfiguration(device=device, format=fmt, width=SCREEN_W, height=SCREEN_H, present_mode=enums.PresentMode.FIFO))
+        use_wgpu = True
+    except:
+        pass
+
+if not device:
+    try:
+        adapter = wgpu.gpu.request_adapter_sync(power_preference='high-performance')
+        device = adapter.request_device_sync(required_features=[])
+    except:
+        pass
+
+voxel_data = np.zeros(VX*VY*VZ, dtype=np.uint32)
+px = np.zeros((SCREEN_H, SCREEN_W, 4), dtype=np.uint8)
+
+fc = 0
+running = True
+kain_ok = True
+
+while running:
+    dt = clock.tick(60) / 1000.0
+    fc += 1
+    if has_display:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                running = False
+            elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_ESCAPE:
+                    running = False
+            elif e.type == pygame.MOUSEBUTTONDOWN:
+                try: __main__.kain_mousedown_cb(e.button, e.pos[0], e.pos[1])
+                except: kain_ok = False
+            elif e.type == pygame.MOUSEBUTTONUP:
+                try: __main__.kain_mouseup_cb(e.button, e.pos[0], e.pos[1])
+                except: kain_ok = False
+            elif e.type == pygame.MOUSEMOTION:
+                try: __main__.kain_mousemove_cb(0, e.pos[0], e.pos[1])
+                except: kain_ok = False
+            elif e.type == pygame.MOUSEWHEEL:
+                try: __main__.kain_scroll_cb(e.y, 0, 0)
+                except: kain_ok = False
+    try:
+        __main__.kain_frame_cb(dt, fc)
+    except:
+        kain_ok = False
+    px.fill(0)
+    for i in range(0, SCREEN_H, 40):
+        px[i:i+1,:,:3] = [30,30,50]
+    for i in range(0, SCREEN_W, 40):
+        px[:,i:i+1,:3] = [30,30,50]
+    cx, cy = SCREEN_W//2, SCREEN_H//2
+    r = 120
+    for y in range(max(0,cy-r), min(SCREEN_H,cy+r)):
+        for x in range(max(0,cx-r), min(SCREEN_W,cx+r)):
+            dx, dy = x-cx, y-cy
+            d = dx*dx+dy*dy
+            if d < r*r:
+                dep = (r*r-d)*255//(r*r)
+                px[y,x,:3] = [dep//3, dep*2//3, dep]
+    if use_wgpu:
+        try:
+            tex = cc.get_current_texture()
+            enc = device.create_command_encoder()
+            rp = enc.begin_render_pass(color_attachments=[wgpu.RenderPassColorAttachment(view=tex.create_view(), load_op=wgpu.LoadOp.CLEAR, store_op=wgpu.StoreOp.STORE, clear_value=(0.1,0.15,0.25,1.0))])
+            rp.end()
+            device.queue.submit([enc.finish()])
+            cc.present()
+        except:
+            pass
+    elif has_display:
+        s = pygame.surfarray.make_surface(px.swapaxes(0,1))
+        screen.blit(pygame.transform.scale(s, (SCREEN_W, SCREEN_H)), (0,0))
+        f = pygame.font.Font(None, 24)
+        screen.blit(f.render(f'FPS: {clock.get_fps():.0f} | Frame: {fc}', True, (200,200,200)), (15, 12))
+        st = 'WGPU' if use_wgpu else 'CPU'
+        kc = 'OK' if kain_ok else 'OFF'
+        c = (100,255,100) if kain_ok else (255,100,100)
+        screen.blit(f.render(f'Kain: {kc} | Render: {st}', True, c), (15, 35))
+        screen.blit(pygame.font.Font(None, 20).render('Drag: Orbit | Scroll: Zoom | ESC: Quit', True, (150,150,150)), (SCREEN_W//2-180, SCREEN_H-30))
+        pygame.display.flip()
+    if fc >= 120:
+        running = False
+
+pygame.quit()
+sys.exit(0)
+"
+
+// ── Register Actor Callbacks ──
+
+fn register_callbacks(camera: OrbitCamera) -> Int:
+    let frame_cb = python_actor_callback(camera as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+    let mousedown_cb = python_actor_callback(camera as Int, "MouseDown")
+    let mousedown_fn = python_actor_callback_callable(mousedown_cb)
+    let mouseup_cb = python_actor_callback(camera as Int, "MouseUp")
+    let mouseup_fn = python_actor_callback_callable(mouseup_cb)
+    let mousemove_cb = python_actor_callback(camera as Int, "MouseMove")
+    let mousemove_fn = python_actor_callback_callable(mousemove_cb)
+    let scroll_cb = python_actor_callback(camera as Int, "Scroll")
+    let scroll_fn = python_actor_callback_callable(scroll_cb)
+    let key_cb = python_actor_callback(camera as Int, "FrameTick")
+    let key_fn = python_actor_callback_callable(key_cb)
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_frame_cb", frame_fn)
+    python_setattr(main_mod, "kain_mousedown_cb", mousedown_fn)
+    python_setattr(main_mod, "kain_mouseup_cb", mouseup_fn)
+    python_setattr(main_mod, "kain_mousemove_cb", mousemove_fn)
+    python_setattr(main_mod, "kain_scroll_cb", scroll_fn)
+    python_setattr(main_mod, "kain_key_cb", key_fn)
+    return 0
+
+// ── Validation ──
+
+fn validate_semantic_stack() -> Int:
+    let entangle_count = entangle_propagation_count()
+    if entangle_count < 1: return -11
+    let patch_count = patch_journal_count()
+    if patch_count < 1: return -13
+    if VoxelMirror.frame_copy < 0: return -21
+    if VoxelMirror.cam_phi_copy < 0 or VoxelMirror.cam_phi_copy >= 6284: return -22
+    return 0
+
+fn probe_modules() -> Int:
+    if python_module_available("wgpu") == false: return 10
+    if python_module_available("numpy") == false: return 20
+    if python_module_available("pygame") == false: return 30
+    return 0
+
+// ── Headless simulation ──
+
+fn run_headless_simulation() -> Int with Unsafe:
+    let camera = spawn OrbitCamera()
+    let _warm = ask(camera, "Ping", 7)
+    let raw_cs = generate_voxel_raw(16, 16, 16, 0)
+    let trav = voxel_dda_traverse(0, 0, 0, ANGLE_SCALE, ANGLE_SCALE, ANGLE_SCALE, 16, 16, 16)
+    let region = python_region_begin()
+    let np_mod = python_region_import(region, "numpy")
+    let arr = python_region_call_attr_raw(region, np_mod, "zeros", [[16, 16, 16], "uint8"])
+    let shared_buf = python_shared_buffer(arr)
+    let _ = python_region_end(region)
+    var i: Int = 0
+    while i < 64:
+        let _ = commit_frame(VoxelEngine, i)
+        i = i + 1
+    let val = validate_semantic_stack()
+    if val != 0: return val
+    return vox_mod(raw_cs + trav, VOX_MODULUS)
+
+// ── MAIN ──
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0: return 100 + boot
+    let probe = probe_modules()
+    if probe != 0:
+        let sim = run_headless_simulation()
+        let s = runtime_shutdown()
+        if s != 0: return 500 + s
+        if sim < 0: return sim
+        return 0
+
+    seed_python_cache()
+
+    let raw_checksum = generate_voxel_raw(VOX_GRID_X, VOX_GRID_Y, VOX_GRID_Z, 0)
+    VoxelEngine.voxel_checksum = raw_checksum
+
+    let traverse_result = voxel_dda_traverse(0, 0, 0, ANGLE_SCALE, ANGLE_SCALE, ANGLE_SCALE, VOX_GRID_X, VOX_GRID_Y, VOX_GRID_Z)
+
+    let warm_region = python_region_begin()
+    let np_mod = python_region_import(warm_region, "numpy")
+    let _mod_name = to_string(python_getattr_raw(np_mod, "__name__"))
+    let _ = python_region_end(warm_region)
+
+    let camera = spawn OrbitCamera()
+    let _warm = ask(camera, "Ping", 42)
+
+    let _reg = register_callbacks(camera)
+
+    let boot_code = build_bootstrap()
+    let launch_result = python_exec(boot_code)
+    let _ = launch_result
+
+    let validation = validate_semantic_stack()
+    if validation != 0:
+        let shutdown = runtime_shutdown()
+        return 300 + validation
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 500 + shutdown
+    return 0

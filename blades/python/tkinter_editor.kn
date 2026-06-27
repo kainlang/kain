@@ -1,0 +1,474 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// tkinter_editor.kn  —  Tkinter + Json + Numpy + Entangle Config Editor
+// ──────────────────────────────────────────────────────────────────────────────
+// Single .kn file for `kain build --target llvm`.
+// ZERO .py files.  ZERO inline Python strings for application logic.
+// ZERO component keyword.  ZERO surface native_ui.
+// ──────────────────────────────────────────────────────────────────────────────
+// LAYERS:
+//   L1: world + entangle  (window prefs, cached module names)
+//   L0: fn, struct, let   (all UI logic through bridge calls)
+// ──────────────────────────────────────────────────────────────────────────────
+
+use std::fs
+use std::json
+use std::python
+use std::runtime
+use std::intent
+
+import tkinter as tk
+import tkinter.ttk as ttk
+import json as py_json
+import numpy as np
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+const MODULUS: Int = 1000000007
+const DEFAULT_W: Int = 900
+const DEFAULT_H: Int = 600
+const TABLE_ROWS: Int = 10
+const TABLE_COLS: Int = 5
+const SAMPLE_SIZE: Int = 100
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYER 1: STATE AUTHORITY  —  world + entangle, NO surface native_ui
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Authority: window preferences
+world WndConfig:
+    state width: Int = DEFAULT_W
+    state height: Int = DEFAULT_H
+    state font_size: Int = 10
+
+world WndConfigMirror:
+    state width_m: Int = DEFAULT_W
+    state height_m: Int = DEFAULT_H
+    state font_size_m: Int = 10
+
+entangle WndConfig.width <-> WndConfigMirror.width_m with single_writer
+entangle WndConfig.height <-> WndConfigMirror.height_m with single_writer
+entangle WndConfig.font_size <-> WndConfigMirror.font_size_m with single_writer
+
+// Authority: cached Python module name strings
+world PyCacheMgr:
+    state tk_name: String = ""
+    state np_name: String = ""
+    state json_name: String = ""
+    state ttk_name: String = ""
+    state config_text: String = ""
+
+world PyCacheMgrMirror:
+    state tk_name_m: String = ""
+    state np_name_m: String = ""
+    state json_name_m: String = ""
+    state ttk_name_m: String = ""
+    state config_text_m: String = ""
+
+entangle PyCacheMgr.tk_name <-> PyCacheMgrMirror.tk_name_m with single_writer
+entangle PyCacheMgr.np_name <-> PyCacheMgrMirror.np_name_m with single_writer
+entangle PyCacheMgr.json_name <-> PyCacheMgrMirror.json_name_m with single_writer
+entangle PyCacheMgr.ttk_name <-> PyCacheMgrMirror.ttk_name_m with single_writer
+entangle PyCacheMgr.config_text <-> PyCacheMgrMirror.config_text_m with single_writer
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEED CACHES  —  ONE bridge crossing per value, EVER
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn seed_caches():
+    PyCacheMgr.tk_name = to_string(python_getattr_raw(tk, "__name__"))
+    PyCacheMgr.np_name = to_string(python_getattr_raw(np, "__name__"))
+    PyCacheMgr.json_name = to_string(python_getattr_raw(py_json, "__name__"))
+    PyCacheMgr.ttk_name = to_string(python_getattr_raw(ttk, "__name__"))
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILD SAMPLE CONFIG  —  Pure Kain std::json, zero Python
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn build_config_json() -> String:
+    let root = json_object()
+    let _app = json_object_set_string(root, "app_name", "Kain Config Editor")
+    let _ver = json_object_set_int(root, "version", 1)
+
+    let modules_arr = json_array()
+    let _m1 = json_array_push_string(modules_arr, "tkinter")
+    let _m2 = json_array_push_string(modules_arr, "numpy")
+    let _m3 = json_array_push_string(modules_arr, "json")
+    let _m4 = json_array_push_string(modules_arr, "tkinter.ttk")
+    let _mods = json_object_set_array(root, "modules", modules_arr)
+
+    let datasets_arr = json_array()
+    let ds1 = json_object()
+    let _ds1n = json_object_set_string(ds1, "name", "linear_samples")
+    let _ds1s = json_object_set_int(ds1, "size", SAMPLE_SIZE)
+    let _ds1d = json_object_set_string(ds1, "dtype", "float64")
+    let _ds1r = json_object_set_string(ds1, "range", "0.0 -- 1.0")
+    let _p1 = json_array_push_object(datasets_arr, ds1)
+
+    let ds2 = json_object()
+    let _ds2n = json_object_set_string(ds2, "name", "random_grid")
+    let _ds2r = json_object_set_int(ds2, "rows", TABLE_ROWS)
+    let _ds2c = json_object_set_int(ds2, "cols", TABLE_COLS)
+    let _ds2d = json_object_set_string(ds2, "dtype", "float64")
+    let _p2 = json_array_push_object(datasets_arr, ds2)
+    let _dss = json_object_set_array(root, "datasets", datasets_arr)
+
+    let prefs = json_object()
+    let _pw = json_object_set_int(prefs, "window_width", DEFAULT_W)
+    let _ph = json_object_set_int(prefs, "window_height", DEFAULT_H)
+    let _pf = json_object_set_int(prefs, "font_size", 10)
+    let _pt = json_object_set_string(prefs, "theme", "clam")
+    let _prefs = json_object_set_object(root, "preferences", prefs)
+
+    let status = json_object()
+    let _st = json_object_set_string(status, "mode", "connected")
+    let _se = json_object_set_int(status, "entangle_count", 4)
+    let _sp = json_object_set_string(status, "backend", "llvm")
+    let _stat = json_object_set_object(root, "status", status)
+
+    return json_stringify(root)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STRUCT:  NumpyDataPair  —  returned from generate step
+// ══════════════════════════════════════════════════════════════════════════════
+
+struct NumpyDataPair:
+    linspace: Any
+    grid: Any
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GENERATE NUMPY DATA  —  Region API (GIL acquired once)
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn generate_numpy_data(region: Any, rows: Int, cols: Int) -> NumpyDataPair:
+    let np_mod = python_region_import(region, "numpy")
+    let random_mod = python_region_getattr_raw(region, np_mod, "random")
+    let linspace = python_region_call_attr_raw(region, np_mod, "linspace", [0.0, 1.0, SAMPLE_SIZE])
+    let grid = python_region_call_attr_raw(region, random_mod, "rand", [rows, cols])
+    return NumpyDataPair { linspace: linspace, grid: grid }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POPULATE JSON TREEVIEW  —  all calls through raw Python bridge
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn populate_treeview(tree: Any, config: Any) -> Int:
+    let tk_end = python_getattr_raw(tk, "END")
+    let tk_none = ""
+
+    // Root item — insert returns a string item ID
+    let root_kw = json_object()
+    let _rt = json_object_set_string(root_kw, "text", "config")
+    let _ro = json_object_set_int(root_kw, "open", 1)
+    let root_item_raw = python_call_attr_kwargs(tree, "insert", [tk_none, tk_end], root_kw)
+    let root_item = to_string(root_item_raw)
+    if len(root_item) == 0:
+        return 10
+
+    // --- modules section ---
+    let mods_kw = json_object()
+    let _mt = json_object_set_string(mods_kw, "text", "modules")
+    let _mo = json_object_set_int(mods_kw, "open", 1)
+    let mods_item = python_call_attr_kwargs(tree, "insert", [root_item, tk_end], mods_kw)
+
+    let mods_res = json_array_field(config, "modules")
+    if mods_res.ok:
+        let mods_arr = mods_res.value
+        var mi: Int = 0
+        while mi < json_array_length(mods_arr):
+            let mname = json_string_value(json_array_value_at(mods_arr, mi))
+            let ck = json_object()
+            let _ct = json_object_set_string(ck, "text", mname)
+            let _cv = json_object_set_string(ck, "values", "loaded")
+            let _ = python_call_attr_kwargs(tree, "insert", [mods_item, tk_end], ck)
+            mi = mi + 1
+
+    // --- datasets section ---
+    let ds_kw = json_object()
+    let _dt = json_object_set_string(ds_kw, "text", "datasets")
+    let _do = json_object_set_int(ds_kw, "open", 1)
+    let ds_item = python_call_attr_kwargs(tree, "insert", [root_item, tk_end], ds_kw)
+
+    let dss_res = json_array_field(config, "datasets")
+    if dss_res.ok:
+        let dss_arr = dss_res.value
+        var di: Int = 0
+        while di < json_array_length(dss_arr):
+            let dobj = json_array_value_at(dss_arr, di)
+            let dname = json_string_or(dobj, "name", "unknown")
+            let dk = json_object()
+            let _dct = json_object_set_string(dk, "text", dname)
+            let _dcv = json_object_set_string(dk, "values", "ready")
+            let _ = python_call_attr_kwargs(tree, "insert", [ds_item, tk_end], dk)
+            di = di + 1
+
+    // --- preferences section ---
+    let pref_kw = json_object()
+    let _pt = json_object_set_string(pref_kw, "text", "preferences")
+    let _po = json_object_set_int(pref_kw, "open", 0)
+    let pref_item = python_call_attr_kwargs(tree, "insert", [root_item, tk_end], pref_kw)
+
+    let prefs_res = json_object_field(config, "preferences")
+    if prefs_res.ok:
+        let pobj = prefs_res.value
+        let pkeys = ["window_width", "window_height", "font_size"]
+        var pi: Int = 0
+        while pi < len(pkeys):
+            let pkname = pkeys[pi]
+            let pval = str(json_int_or(pobj, pkname, 0))
+            let pk_kw = json_object()
+            let _pkt = json_object_set_string(pk_kw, "text", pkname)
+            let _pkv = json_object_set_string(pk_kw, "values", pval)
+            let _ = python_call_attr_kwargs(tree, "insert", [pref_item, tk_end], pk_kw)
+            pi = pi + 1
+
+        let theme_val = json_string_or(pobj, "theme", "clam")
+        let th_kw = json_object()
+        let _tht = json_object_set_string(th_kw, "text", "theme")
+        let _thv = json_object_set_string(th_kw, "values", theme_val)
+        let _ = python_call_attr_kwargs(tree, "insert", [pref_item, tk_end], th_kw)
+
+    // --- status section ---
+    let stat_kw = json_object()
+    let _st = json_object_set_string(stat_kw, "text", "status")
+    let _so = json_object_set_int(stat_kw, "open", 0)
+    let stat_item = python_call_attr_kwargs(tree, "insert", [root_item, tk_end], stat_kw)
+
+    let stat_res = json_object_field(config, "status")
+    if stat_res.ok:
+        let sobj = stat_res.value
+        let skeys = ["mode", "entangle_count", "backend"]
+        var si: Int = 0
+        while si < len(skeys):
+            let skname = skeys[si]
+            let sval = json_string_or(sobj, skname, "")
+            let sk_kw = json_object()
+            let _skt = json_object_set_string(sk_kw, "text", skname)
+            let _skv = json_object_set_string(sk_kw, "values", sval)
+            let _ = python_call_attr_kwargs(tree, "insert", [stat_item, tk_end], sk_kw)
+            si = si + 1
+
+    return 0
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POPULATE NUMPY DATA TABLE
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn populate_table(table: Any, rows: Int, cols: Int) -> Int:
+    let tk_end = python_getattr_raw(tk, "END")
+    let tk_none = ""
+
+    // Configure column headings
+    var ci: Int = 0
+    while ci < cols:
+        let cid = "#" + str(ci + 1)
+        let ck = json_object()
+        let _ct = json_object_set_string(ck, "text", "Col " + str(ci))
+        let _ = python_call_attr_kwargs(table, "heading", [cid], ck)
+        ci = ci + 1
+
+    // Insert rows
+    var ri: Int = 0
+    while ri < rows:
+        let mut vals: Array<String> = []
+        var cj: Int = 0
+        while cj < cols:
+            push(vals, str((ri * cols + cj) % 100))
+            cj = cj + 1
+        let rk = json_object()
+        let _rt = json_object_set_string(rk, "text", "Row " + str(ri))
+        let _rv = json_object_set_array(rk, "values", json_array_from_strings(vals))
+        let _ = python_call_attr_kwargs(table, "insert", [tk_none, tk_end], rk)
+        ri = ri + 1
+    return 0
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUILD TKINTER UI  —  All bridge calls, NO inline Python strings
+// ══════════════════════════════════════════════════════════════════════════════
+
+struct UiHandles:
+    root: Any
+    tree: Any
+    table: Any
+
+fn build_ui() -> UiHandles:
+    let tk_mod = tk
+    let ttk_mod = ttk
+
+    // Reusable kwarg objects
+    let pfb = json_object()
+    let _p1 = json_object_set_string(pfb, "fill", "both")
+    let _p2 = json_object_set_int(pfb, "expand", 1)
+
+    // ── Root window ──
+    let root = python_call_attr_raw(tk_mod, "Tk", [])
+    let _rt = python_call_attr_raw(root, "title",
+        ["Kain Config Editor - Tkinter JSON NumPy"])
+    let geom = str(DEFAULT_W) + "x" + str(DEFAULT_H)
+    let _rg = python_call_attr_raw(root, "geometry", [geom])
+
+    // ── PanedWindow container ──
+    let panned = python_call_attr_raw(ttk_mod, "PanedWindow", [root])
+    let panned_cfg = json_object()
+    let _po = json_object_set_string(panned_cfg, "orient", "horizontal")
+    let _pc = python_call_attr_kwargs(panned, "configure", [panned_cfg])
+    let _pp = python_call_attr_kwargs(panned, "pack", [], pfb)
+
+    // ── Left panel: JSON tree ──
+    let left = python_call_attr_raw(ttk_mod, "Frame", [panned])
+    let _lp = python_call_attr_kwargs(left, "pack", [], pfb)
+    let _la = python_call_attr_raw(panned, "add", [left])
+
+    // Treeview
+    let tree = python_call_attr_raw(ttk_mod, "Treeview", [left])
+    let td_kw = json_object()
+    let _td1 = json_object_set_string(td_kw, "show", "tree headings")
+    let _td2 = json_object_set_string(td_kw, "columns", "value")
+    let _tcfg1 = python_call_attr_kwargs(tree, "configure", [td_kw])
+
+    let h0_kw = json_object()
+    let _h0t = json_object_set_string(h0_kw, "text", "Key")
+    let _h0 = python_call_attr_kwargs(tree, "heading", ["#0"], h0_kw)
+
+    let hv_kw = json_object()
+    let _hvt = json_object_set_string(hv_kw, "text", "Value")
+    let _hv = python_call_attr_kwargs(tree, "heading", ["value"], hv_kw)
+
+    let c0_kw = json_object()
+    let _c0w = json_object_set_int(c0_kw, "width", 220)
+    let _c0 = python_call_attr_kwargs(tree, "column", ["#0"], c0_kw)
+
+    let cv_kw = json_object()
+    let _cvw = json_object_set_int(cv_kw, "width", 180)
+    let _cv = python_call_attr_kwargs(tree, "column", ["value"], cv_kw)
+    let _tp = python_call_attr_kwargs(tree, "pack", [], pfb)
+
+    // ── Right panel: NumPy data table ──
+    let right = python_call_attr_raw(ttk_mod, "Frame", [panned])
+    let _rp = python_call_attr_kwargs(right, "pack", [], pfb)
+    let _ra = python_call_attr_raw(panned, "add", [right])
+
+    let td2_kw = json_object()
+    let _td2s = json_object_set_string(td2_kw, "show", "headings")
+    let table = python_call_attr_raw(ttk_mod, "Treeview", [right])
+    let _tcfg2 = python_call_attr_kwargs(table, "configure", [td2_kw])
+    let _tp2 = python_call_attr_kwargs(table, "pack", [], pfb)
+
+    return UiHandles { root: root, tree: tree, table: table }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // ── Phase 1: Seed caches — ONE bridge crossing per value ──
+    WndConfig.width = DEFAULT_W
+    WndConfig.height = DEFAULT_H
+    WndConfig.font_size = 10
+    seed_caches()
+
+    // ── Phase 2: Build config JSON — pure std::json, zero Python ──
+    let config_str = build_config_json()
+    PyCacheMgr.config_text = config_str
+    let config_obj = json_parse_text(config_str)
+
+    // ── Phase 3: Region for numpy + module caching ──
+    let region = python_region_begin()
+
+    let npair = generate_numpy_data(region, TABLE_ROWS, TABLE_COLS)
+    let linspace_val = npair.linspace
+    let grid_val = npair.grid
+
+    // ── Phase 4: Build tkinter UI ──
+    let handles = build_ui()
+    let root = handles.root
+    let tree = handles.tree
+    let table = handles.table
+
+    // ── Phase 5: Populate treeview ──
+    let tstatus = populate_treeview(tree, config_obj)
+    if tstatus != 0:
+        let _ = python_region_end(region)
+        let sd = runtime_shutdown()
+        return 300 + sd + tstatus
+
+    // ── Phase 6: Populate table ──
+    let tbl_status = populate_table(table, TABLE_ROWS, TABLE_COLS)
+    if tbl_status != 0:
+        let _ = python_region_end(region)
+        let sd2 = runtime_shutdown()
+        return 310 + sd2 + tbl_status
+
+    // ── Telemetry ──
+    let import_hits = python_region_import_cache_hits(region)
+    let import_misses = python_region_import_cache_misses(region)
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+    let call_count = python_region_call_count(region)
+    let fast_calls = python_region_fast_call_count(region)
+    let generic_calls = python_region_generic_call_count(region)
+
+    let auto_released = python_region_end(region)
+
+    // ── Phase 7: Show window and run mainloop (blocks) ──
+    let _upd = python_call_attr_raw(root, "update", [])
+    let _dei = python_call_attr_raw(root, "deiconify", [])
+    let _ff = python_call_attr_raw(root, "focus_force", [])
+    let _upd2 = python_call_attr_raw(root, "update", [])
+    let _ml = python_call_attr_raw(root, "mainloop", [])
+
+    // ── Phase 8: Validate ──
+    // Check authority values directly (what we set)
+    let tk_authority = PyCacheMgr.tk_name
+    let np_authority = PyCacheMgr.np_name
+    let json_authority = PyCacheMgr.json_name
+
+    let check_ok: Bool = (
+        import_misses > 0
+        and call_count > 0
+        and auto_released >= 0
+    )
+
+    let authority_ok: Bool = (
+        tk_authority == "tkinter"
+        and np_authority == "numpy"
+        and json_authority == "json"
+    )
+
+    // ── Phase 9: Report ──
+    let rpt = json_object()
+    let _r1 = json_object_set_int(rpt, "import_hits", import_hits)
+    let _r2 = json_object_set_int(rpt, "import_misses", import_misses)
+    let _r3 = json_object_set_int(rpt, "attr_hits", attr_hits)
+    let _r4 = json_object_set_int(rpt, "attr_misses", attr_misses)
+    let _r5 = json_object_set_int(rpt, "call_count", call_count)
+    let _r6 = json_object_set_int(rpt, "fast_calls", fast_calls)
+    let _r7 = json_object_set_int(rpt, "generic_calls", generic_calls)
+    let _r8 = json_object_set_int(rpt, "auto_released", auto_released)
+    let check_val: Int = if check_ok: 1 else: 0
+    let auth_val: Int = if authority_ok: 1 else: 0
+    let _r9 = json_object_set_int(rpt, "check_ok", check_val)
+    let _r10 = json_object_set_int(rpt, "authority_ok", auth_val)
+    let _r11 = json_object_set_int(rpt, "width", WndConfig.width)
+    let _r12 = json_object_set_int(rpt, "height", WndConfig.height)
+    let _r13 = json_object_set_string(rpt, "tk_name", tk_authority)
+    let _r14 = json_object_set_string(rpt, "np_name", np_authority)
+    let _r15 = json_object_set_string(rpt, "config_preview",
+        substring(PyCacheMgr.config_text, 0, 120))
+
+    let rpt_str = json_stringify(rpt)
+    fs_write_text("tkinter_editor_report.json", rpt_str)
+    println("report: " + rpt_str)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if check_ok == false:
+        return 20
+    if authority_ok == false:
+        return 21
+    return 0
