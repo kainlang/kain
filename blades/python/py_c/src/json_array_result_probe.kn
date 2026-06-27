@@ -1,9 +1,0 @@
-use std::fs
-use std::json
-
-fn main() -> Int:
-    let object = json_parse_text("{\"route\":[10,13,17,20]}")
-    let result = json_int_array_field_result(object, "route")
-    let values = result.value
-    fs_write_text("json_array_result_probe_status.txt", to_string(len(values)) + "|" + to_string(values[0]))
-    return len(values)

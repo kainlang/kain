@@ -1,0 +1,409 @@
+// ============================================================================
+// FLET MONITOR — Flet + Psutil + Numpy System Monitor
+// ============================================================================
+//
+// CONCEPT: Flutter desktop UI (Flet) with live system metrics (psutil)
+//          and NumPy trend data visualization. All Python calls cross
+//          the Kain bridge — zero inline Python strings for application
+//          logic.
+//
+// SEMANTIC STACK:
+//   L0: import, fn, struct, const, if/while, let/var
+//   L1: world, entangle (module name cache + dashboard state)
+//   L7: actor (FletBridge — bridge callbacks from Python event loop)
+//
+//
+// BUILD: kain build flet_monitor.kn --target llvm
+// CHECK: kain check flet_monitor.kn --json
+// ============================================================================
+
+// ── First-class Python imports (AST-level, not string wrappers) ──
+import flet as flet
+import numpy as np
+import psutil as psutil
+
+// ── Stdlib imports ──
+use std::runtime
+use std::os
+use std::python
+
+// ── Constants ──
+const MODULUS: Int = 1000000007
+const NUM_SAMPLES: Int = 256
+const UPDATE_INTERVAL_MS: Int = 1000
+
+// ── Module name cache (cross bridge ONCE, read forever) ──
+world ModCache:
+    state flet_name: String = ""
+    state np_name: String = ""
+    state psutil_name: String = ""
+
+world ModMirror:
+    state flet_name_copy: String = ""
+    state np_name_copy: String = ""
+    state psutil_name_copy: String = ""
+
+entangle ModCache.flet_name <-> ModMirror.flet_name_copy with single_writer
+entangle ModCache.np_name <-> ModMirror.np_name_copy with single_writer
+entangle ModCache.psutil_name <-> ModMirror.psutil_name_copy with single_writer
+
+// ── System metrics cache (entangled — read at zero cost) ──
+world SysData:
+    state cpu_percent: Float = 0.0
+    state mem_percent: Float = 0.0
+    state mem_used_gb: Float = 0.0
+    state mem_total_gb: Float = 16.0
+    state disk_percent: Float = 0.0
+    state net_sent_mb: Float = 0.0
+    state net_recv_mb: Float = 0.0
+    state np_mean: Float = 0.0
+    state np_std: Float = 0.0
+    state frame_count: Int = 0
+    state running: Bool = true
+
+world SysMirror:
+    state cpu_percent_copy: Float = 0.0
+    state mem_percent_copy: Float = 0.0
+    state mem_used_gb_copy: Float = 0.0
+    state mem_total_gb_copy: Float = 16.0
+    state disk_percent_copy: Float = 0.0
+    state net_sent_mb_copy: Float = 0.0
+    state net_recv_mb_copy: Float = 0.0
+    state np_mean_copy: Float = 0.0
+    state np_std_copy: Float = 0.0
+    state frame_count_copy: Int = 0
+    state running_copy: Bool = true
+
+entangle SysData.cpu_percent <-> SysMirror.cpu_percent_copy with single_writer
+entangle SysData.mem_percent <-> SysMirror.mem_percent_copy with single_writer
+entangle SysData.mem_used_gb <-> SysMirror.mem_used_gb_copy with single_writer
+entangle SysData.mem_total_gb <-> SysMirror.mem_total_gb_copy with single_writer
+entangle SysData.disk_percent <-> SysMirror.disk_percent_copy with single_writer
+entangle SysData.net_sent_mb <-> SysMirror.net_sent_mb_copy with single_writer
+entangle SysData.net_recv_mb <-> SysMirror.net_recv_mb_copy with single_writer
+entangle SysData.np_mean <-> SysMirror.np_mean_copy with single_writer
+entangle SysData.np_std <-> SysMirror.np_std_copy with single_writer
+entangle SysData.frame_count <-> SysMirror.frame_count_copy with single_writer
+entangle SysData.running <-> SysMirror.running_copy with single_writer
+
+// ── Control key cache (control names used as dict keys) ──
+world CtrlCache:
+    state key_cpu: String = "cpu"
+    state key_mem: String = "mem"
+    state key_disk: String = "disk"
+    state key_net: String = "net"
+    state key_mean: String = "np_mean"
+    state key_std: String = "np_std"
+    state key_frame: String = "frame"
+
+world CtrlMirror:
+    state key_cpu_copy: String = ""
+    state key_mem_copy: String = ""
+    state key_disk_copy: String = ""
+    state key_net_copy: String = ""
+    state key_mean_copy: String = ""
+    state key_std_copy: String = ""
+    state key_frame_copy: String = ""
+
+entangle CtrlCache.key_cpu <-> CtrlMirror.key_cpu_copy with single_writer
+entangle CtrlCache.key_mem <-> CtrlMirror.key_mem_copy with single_writer
+entangle CtrlCache.key_disk <-> CtrlMirror.key_disk_copy with single_writer
+entangle CtrlCache.key_net <-> CtrlMirror.key_net_copy with single_writer
+entangle CtrlCache.key_mean <-> CtrlMirror.key_mean_copy with single_writer
+entangle CtrlCache.key_std <-> CtrlMirror.key_std_copy with single_writer
+entangle CtrlCache.key_frame <-> CtrlMirror.key_frame_copy with single_writer
+
+// ── Seed: ONE bridge crossing per constant value, EVER ──
+fn seed_entangled_caches():
+    // Module names (never change)
+    ModCache.flet_name = python_call_attr(flet, "__str__", [])
+    ModCache.np_name = python_call_attr(np, "__str__", [])
+    ModCache.psutil_name = python_call_attr(psutil, "__str__", [])
+
+    // Control keys (static identifiers)
+    CtrlCache.key_cpu = "cpu"
+    CtrlCache.key_mem = "mem"
+    CtrlCache.key_disk = "disk"
+    CtrlCache.key_net = "net"
+    CtrlCache.key_mean = "np_mean"
+    CtrlCache.key_std = "np_std"
+    CtrlCache.key_frame = "frame"
+
+// ── Format helpers (pure Kain — zero bridge crossings) ──
+fn fmt_pct_1(value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 10.0) as Int
+    if frac < 0: frac = 0
+    if frac > 9: frac = 9
+    return str(truncated) + "." + str(frac) + "%"
+
+fn fmt_gb(value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 100.0) as Int
+    if frac < 0: frac = 0
+    if frac > 99: frac = 99
+    return str(truncated) + "." + str(frac) + " GB"
+
+fn fmt_mb(value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 10.0) as Int
+    if frac < 0: frac = 0
+    if frac > 9: frac = 9
+    return str(truncated) + "." + str(frac) + " MB"
+
+fn fmt_four_1(value: Float) -> String:
+    let truncated: Int = value as Int
+    let frac: Int = ((value - (truncated as Float)) * 1000.0) as Int
+    if frac < 0: frac = 0
+    if frac > 999: frac = 999
+    return str(truncated) + "." + str(frac)
+
+fn fmt_frame_f(value: Int) -> String:
+    return "Frame: " + str(value)
+
+fn fmt_net_sent(sent: Float, recv: Float) -> String:
+    return "↑ " + fmt_mb(sent) + "  ↓ " + fmt_mb(recv)
+
+fn fmt_mem_bar(used: Float, total: Float) -> String:
+    let pct: Int = ((used / total) * 100.0) as Int
+    if pct < 0: pct = 0
+    if pct > 100: pct = 100
+    let filled: Int = pct / 10
+    var bar: String = ""
+    var i: Int = 0
+    while i < filled:
+        bar = bar + "█"
+        i = i + 1
+    while i < 10:
+        bar = bar + "░"
+        i = i + 1
+    return bar + " " + str(pct) + "%"
+
+// ── Actor: bridge callback receiving Flet app pings ──
+//     Runs on Kain scheduler thread — all Python calls cross the bridge
+actor FletBridge:
+    state tick: Int = 0
+    state prev_net_sent: Float = 0.0
+    state prev_net_recv: Float = 0.0
+
+    on FrameTick(seq: Int):
+        self.tick = self.tick + 1
+
+        // ── STEP 1: System metrics via bridge calls ──
+
+        // CPU: psutil.cpu_percent(interval=0) → immediate sample
+        let cpu_raw = python_call_raw(psutil, "cpu_percent", [])
+        SysData.cpu_percent = to_float(cpu_raw)
+
+        // Memory: psutil.virtual_memory() → .percent, .used, .total
+        let mem_info = python_call_attr_raw(psutil, "virtual_memory", [])
+        SysData.mem_percent = to_float(python_getattr_raw(mem_info, "percent"))
+        let mem_used = to_float(python_getattr_raw(mem_info, "used"))
+        let mem_total = to_float(python_getattr_raw(mem_info, "total"))
+        SysData.mem_used_gb = mem_used / 1073741824.0
+        SysData.mem_total_gb = mem_total / 1073741824.0
+
+        // Disk: psutil.disk_usage('/') → .percent
+        let disk_info = python_call_attr_raw(psutil, "disk_usage", ["/"])
+        SysData.disk_percent = to_float(python_getattr_raw(disk_info, "percent"))
+
+        // Network: psutil.net_io_counters() → .bytes_sent, .bytes_recv
+        let net_info = python_call_attr_raw(psutil, "net_io_counters", [])
+        let net_sent = to_float(python_getattr_raw(net_info, "bytes_sent"))
+        let net_recv = to_float(python_getattr_raw(net_info, "bytes_recv"))
+
+        // Compute delta from previous sample
+        let sent_delta: Float = net_sent - self.prev_net_sent
+        let recv_delta: Float = net_recv - self.prev_net_recv
+        if sent_delta < 0.0: sent_delta = 0.0
+        if recv_delta < 0.0: recv_delta = 0.0
+        SysData.net_sent_mb = sent_delta / 1048576.0
+        SysData.net_recv_mb = recv_delta / 1048576.0
+        self.prev_net_sent = net_sent
+        self.prev_net_recv = net_recv
+
+        // ── STEP 2: NumPy trend statistics via region API ──
+        let region = python_region_begin()
+
+        // np.random.rand(NUM_SAMPLES) → array of uniform random values
+        let rand_fn = python_region_getattr_raw(region, np, "random.rand")
+        let np_rand = python_region_call_raw(region, rand_fn, [NUM_SAMPLES as Float])
+
+        // np.mean(arr) → Float
+        let mean_fn = python_region_getattr_raw(region, np, "mean")
+        let mean_raw = python_region_call_raw(region, mean_fn, [np_rand])
+        SysData.np_mean = to_float(mean_raw)
+
+        // np.std(arr) → Float
+        let std_fn = python_region_getattr_raw(region, np, "std")
+        let std_raw = python_region_call_raw(region, std_fn, [np_rand])
+        SysData.np_std = to_float(std_raw)
+
+        let _views = python_region_end(region)
+
+        // ── STEP 3: Frame tracking ──
+        SysData.frame_count = self.tick
+        SysData.running = true
+
+        // ── STEP 4: Update Flet controls via bridge calls ──
+        //     Get __main__ globals where Flet stored page + controls
+        let main_obj = python_import("__main__")
+
+        // Retrieve page reference
+        let page_ref = python_getattr_raw(main_obj, "kain_page")
+
+        // Retrieve controls dict
+        let control_dict = python_getattr_raw(main_obj, "kain_controls")
+
+        // Update each control via the dict
+        let cpu_str: String = "CPU: " + fmt_pct_1(SysData.cpu_percent)
+        let mem_str: String = "Memory: " + fmt_pct_1(SysData.mem_percent) + " (" + fmt_gb(SysData.mem_used_gb) + " / " + fmt_gb(SysData.mem_total_gb) + ")"
+        let mem_bar: String = fmt_mem_bar(SysData.mem_used_gb, SysData.mem_total_gb)
+        let disk_str: String = "Disk: " + fmt_pct_1(SysData.disk_percent)
+        let net_str: String = fmt_net_sent(SysData.net_sent_mb, SysData.net_recv_mb)
+        let mean_str: String = "Mean: " + fmt_four_1(SysData.np_mean)
+        let std_str: String = "Std:  " + fmt_four_1(SysData.np_std)
+        let frame_str: String = fmt_frame_f(SysData.frame_count)
+
+        // python_call_attr_raw for each __setitem__ on the controls dict
+        let cpu_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_cpu_copy])
+        python_setattr(cpu_ctl, "value", cpu_str)
+
+        let mem_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_mem_copy])
+        python_setattr(mem_ctl, "value", mem_str)
+
+        let disk_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_disk_copy])
+        python_setattr(disk_ctl, "value", disk_str)
+
+        let net_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_net_copy])
+        python_setattr(net_ctl, "value", net_str)
+
+        let mean_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_mean_copy])
+        python_setattr(mean_ctl, "value", mean_str)
+
+        let std_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_std_copy])
+        python_setattr(std_ctl, "value", std_str)
+
+        let frame_ctl = python_call_raw(control_dict, "__getitem__", [CtrlMirror.key_frame_copy])
+        python_setattr(frame_ctl, "value", frame_str)
+
+        // ── STEP 5: Push all control changes to the UI ──
+        //     page.update() sends the updates to the Flutter engine
+        python_call_attr_raw(page_ref, "update", [])
+
+
+// ── Main entry point ──
+//     Phase 1: Seed entangled caches (ONE bridge crossing per value)
+//     Phase 2: Spawn bridge actor
+//     Phase 3: Register actor callback on Python __main__
+//     Phase 4: Python bootstrap — Flet app + UI + event loop
+//     Phase 5: Shutdown
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Phase 1: Seed ALL entangled caches
+    seed_entangled_caches()
+
+    // Phase 2: Spawn bridge actor
+    let bridge = spawn FletBridge(tick = 0, prev_net_sent = 0.0, prev_net_recv = 0.0)
+
+    // Phase 3: Register actor callback on Python __main__
+    //   When Python calls `__main__.kain_cb(seq)`, the C runtime serializes
+    //   args and delivers FrameTick to the FletBridge actor.
+    let frame_cb = python_actor_callback(bridge as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_cb", frame_fn)
+
+    // Phase 4: Python bootstrap — Flet app creation + UI + event loop
+    //   NO application logic in this string. All data collection and UI
+    //   value updates happen in the FletBridge actor handler (Kain code).
+    //   The Flet main() function stores page + controls in __main__ globals
+    //   for bridge access, then enters the periodic update loop.
+    python_exec("
+import __main__
+import flet as ft
+import threading
+import time
+
+# Global flag for the update thread
+__main__.kain_running = True
+
+def main(page: ft.Page):
+    # Store page reference for bridge updates
+    __main__.kain_page = page
+
+    # Configure the page
+    page.title = 'Kain System Monitor'
+    page.theme_mode = ft.ThemeMode.DARK
+    page.padding = 20
+    page.spacing = 10
+    page.window_width = 480
+    page.window_height = 620
+
+    # Build UI controls with tags for bridge access
+    cpu = ft.Text(value='CPU: 0.0%', size=16, weight=ft.FontWeight.BOLD)
+    mem = ft.Text(value='Memory: 0.0%', size=16)
+    mem_bar = ft.ProgressBar(value=0.0, width=400, color='green', bgcolor='#333333')
+    disk = ft.Text(value='Disk: 0.0%', size=16)
+    net = ft.Text(value='Net: 0.0 MB', size=14)
+    sep = ft.Divider(height=1)
+    np_mean = ft.Text(value='Mean: 0.0000', size=14, italic=True)
+    np_std = ft.Text(value='Std:  0.0000', size=14, italic=True)
+    sep2 = ft.Divider(height=1)
+    frame = ft.Text(value='Frame: 0', size=12, color='#888888')
+
+    # Add all controls to the page
+    page.add(
+        cpu,
+        mem,
+        mem_bar,
+        disk,
+        net,
+        sep,
+        ft.Text(value='NumPy Trend (256 samples)', size=14, weight=ft.FontWeight.W_600),
+        np_mean,
+        np_std,
+        sep2,
+        frame,
+    )
+
+    # Store control references in a dict for Kain bridge access
+    __main__.kain_controls = {
+        'cpu': cpu,
+        'mem': mem,
+        'mem_bar': mem_bar,
+        'disk': disk,
+        'net': net,
+        'np_mean': np_mean,
+        'np_std': np_std,
+        'frame': frame,
+    }
+
+    # Push initial layout
+    page.update()
+
+    # Start periodic update thread — calls Kain actor callback
+    # All data collection and value computation happens in Kain.
+    # This thread simply triggers the Kain callback and pushes UI updates.
+    def update_loop():
+        while __main__.kain_running:
+            __main__.kain_cb(0)
+            time.sleep(1.0)
+
+    t = threading.Thread(target=update_loop, daemon=True)
+    t.start()
+
+# Launch the Flet desktop app (blocking)
+ft.app(target=main)
+    ")
+
+    // Phase 5: Teardown
+    SysData.running = false
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    return 0

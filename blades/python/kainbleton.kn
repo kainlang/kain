@@ -1,0 +1,1801 @@
+// -- KAIN RAW AMALGAMATION -- src ----------------------------------------------------------
+// kind:       directory
+// contents:   source
+// structure:  18 files | 16 modules
+//
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+//
+// [constants]
+//   KB_FRAME_HASH_MODULUS
+//   KB_SEMANTIC_MODULUS
+//   WIN_W
+//   WIN_H
+//   WIN_MIN_W
+//   WIN_MIN_H
+//   MIXER_H
+// [components]
+//   component KainbletonMixerDeck()
+// [actors]
+//   actor KainbletonRenderConductor
+// [worlds]
+//   world KainbletonAuthority
+//   world KainbletonTransportMirror
+// [functions]
+//   fn kb_preview_axis(frames: Int) -> Array<Float>
+//   fn kb_preview_zeros(frames: Int) -> Array<Float>
+//   fn main() -> Int
+//   fn kb_transport_scalar(value: Int) -> Int
+//   fn kb_track_hex(color: Int) -> String
+//   fn kb_hex2(v: Int) -> String
+//   fn kb_nib(v: Int) -> String
+//   fn kb_axis_hidden() -> Any
+//   fn kb_tick_dict(pos: Float, is_bar: Bool) -> Any
+//   fn kb_playhead_style() -> Any
+//   fn nibble_hex(v: Int) -> String
+//   fn byte_hex(v: Int) -> String
+//   fn log10_approx(x: Float) -> Float
+//   fn float_str_1dp(v: Float) -> String
+//   fn build_native_mirror(project: KainbletonProject) -> KainbletonNativeUiMirror
+// [patches]
+//   patch kb_commit_signal(authority: KainbletonAuthority, value: Int) -> Int
+// [laws]
+//   law kb_transport_is_sane(value: Int) -> Bool
+// [converges]
+//   converge kb_transport_mix(value: Int) -> Int
+//
+// ============================================================================
+// audio_engine.kn
+// ============================================================================
+// ============================================================================
+//                    kainbleton :: audio engine
+// ============================================================================
+// Real audio recording and buffer management. Uses sounddevice for capture
+// and numpy for buffer storage. No synthetic DawDreamer toys — real mic input.
+
+use std::python
+
+import numpy as np
+import sounddevice as sd
+import soundfile as sf
+
+// ---- audio config ----
+
+pub const SAMPLE_RATE: Int = 44100
+pub const MAX_RECORD_SECS: Float = 30.0
+pub const RECORD_CHUNK_SECS: Float = 5.0
+
+// ---- report types ----
+
+pub struct KainbletonAudioReport:
+    module_score: Int
+    sample_rate: Int
+    preview_x: Array<Float>
+    preview_y: Array<Float>
+    output_path: String
+    device_count: Int
+    default_input: String
+
+pub struct KainbletonTrackAudio:
+    track_id: Int
+    buffer: Any
+    sample_rate: Int
+    frame_count: Int
+    is_empty: Int
+    peak: Float
+    rms: Float
+    preview_x: Array<Float>
+    preview_y: Array<Float>
+
+// ---- device enumeration ----
+
+pub fn audio_input_devices() -> Array<String>:
+    let devices: Array<String> = []
+    let py_devices = python_call_attr_raw(sd, "query_devices", [])
+    let count = to_int(python_call_attr_raw(py_devices, "__len__", []))
+    var i: Int = 0
+    while i < count:
+        let dev = python_call_attr_raw(py_devices, "__getitem__", [i])
+        let inputs = to_int(python_call_attr_raw(dev, "__getitem__", ["max_input_channels"]))
+        if inputs > 0:
+            let name = str(python_call_attr_raw(dev, "__getitem__", ["name"]))
+            push(devices, name + " [" + str(inputs) + "ch in]")
+        i = i + 1
+    return devices
+
+pub fn audio_module_score() -> Int:
+    var score: Int = 0
+    if python_module_available("sounddevice"):
+        score = score + 47
+    if python_module_available("numpy"):
+        score = score + 53
+    if python_module_available("soundfile"):
+        score = score + 41
+    if python_module_available("scipy"):
+        score = score + 37
+    if python_module_available("pyaudio"):
+        score = score + 31
+    let py_devices = python_call_attr_raw(sd, "query_devices", [])
+    score = score + to_int(python_call_attr_raw(py_devices, "__len__", []))
+    return score
+
+// ---- recording ----
+
+pub fn audio_record_seconds(seconds: Float, sample_rate: Int, channels: Int, device_index: Int) -> Any:
+    let frames = Int(seconds * Float(sample_rate))
+    let recording = python_call_attr_raw(sd, "rec", [frames, sample_rate, channels, "float32", device_index])
+    let _wait = python_call_attr_raw(sd, "wait", [])
+    return recording
+
+pub fn audio_record_track(seconds: Float) -> KainbletonTrackAudio:
+    let sample_rate = SAMPLE_RATE
+    let buffer = audio_record_seconds(seconds, sample_rate, 1, -1)
+    let frame_count = to_int(python_call_attr_raw(buffer, "__len__", []))
+    let peak = to_float(python_call_attr_raw(np, "max", [python_call_attr_raw(np, "abs", [buffer])]))
+    let squared = python_call_attr_raw(np, "square", [buffer])
+    let mean_square = python_call_attr_raw(np, "mean", [squared])
+    let rms = to_float(python_call_attr_raw(np, "sqrt", [mean_square]))
+    let preview = audio_preview_from_buffer(buffer, frame_count, 512)
+    return KainbletonTrackAudio {
+        track_id: 0,
+        buffer: buffer,
+        sample_rate: sample_rate,
+        frame_count: frame_count,
+        is_empty: 0,
+        peak: peak,
+        rms: rms,
+        preview_x: preview[0],
+        preview_y: preview[1],
+    }
+
+// ---- empty track buffer ----
+
+pub fn audio_empty_buffer() -> KainbletonTrackAudio:
+    return KainbletonTrackAudio {
+        track_id: 0,
+        buffer: python_call_attr_raw(np, "zeros", [1024, "float32"]),
+        sample_rate: SAMPLE_RATE,
+        frame_count: 0,
+        is_empty: 1,
+        peak: 0.0,
+        rms: 0.0,
+        preview_x: kb_preview_axis(256),
+        preview_y: kb_preview_zeros(256),
+    }
+
+fn kb_preview_axis(frames: Int) -> Array<Float>:
+    let axis: Array<Float> = []
+    var i: Int = 0
+    while i < frames:
+        push(axis, Float(i) / Float(frames))
+        i = i + 1
+    return axis
+
+fn kb_preview_zeros(frames: Int) -> Array<Float>:
+    let zeros: Array<Float> = []
+    var i: Int = 0
+    while i < frames:
+        push(zeros, 0.0)
+        i = i + 1
+    return zeros
+
+// ---- waveform preview ----
+
+pub fn audio_preview_from_buffer(buffer: Any, frame_count: Int, take: Int) -> Array<Array<Float>>:
+    let preview_x: Array<Float> = []
+    let preview_y: Array<Float> = []
+    if frame_count <= 0:
+        return [preview_x, preview_y]
+    var i: Int = 0
+    while i < take:
+        let idx = i * frame_count / take
+        let value = to_float(python_call_attr_raw(buffer, "__getitem__", [idx]))
+        push(preview_x, Float(i) / Float(take))
+        push(preview_y, value)
+        i = i + 1
+    return [preview_x, preview_y]
+
+pub fn audio_preview_stereo(buffer: Any, frame_count: Int, take: Int) -> Array<Array<Float>>:
+    let preview_x: Array<Float> = []
+    let preview_y: Array<Float> = []
+    if frame_count <= 0:
+        return [preview_x, preview_y]
+    var i: Int = 0
+    while i < take:
+        let idx = i * frame_count / take
+        let channel0 = to_float(python_call_attr_raw(buffer, "__getitem__", [[idx, 0]]))
+        push(preview_x, Float(i) / Float(take))
+        push(preview_y, channel0)
+        i = i + 1
+    return [preview_x, preview_y]
+
+// ---- audio report (compatibility with old API) ----
+
+pub fn kb_render_audio(output_path: String) -> KainbletonAudioReport:
+    let devices = audio_input_devices()
+    let default_input = ""
+    if len(devices) > 0:
+        default_input = devices[0]
+    let preview_x = kb_preview_axis(256)
+    let preview_y = kb_preview_zeros(256)
+    return KainbletonAudioReport {
+        module_score: audio_module_score(),
+        sample_rate: SAMPLE_RATE,
+        preview_x: preview_x,
+        preview_y: preview_y,
+        output_path: output_path,
+        device_count: len(devices),
+        default_input: default_input,
+    }
+
+// ============================================================================
+// interaction.kn
+// ============================================================================
+use std::input
+use std::python
+
+use ui_workbench::KainbletonUiSession
+use ui_workbench::kb_checkbox_checked_int
+
+import PyQt6.QtCore as qtc
+import PyQt6.QtTest as qt_test
+
+pub struct KainbletonInteractionReport:
+    session_id: Int
+    event_count: Int
+    frame_index: Int
+    action_down: Int
+    clicked: Int
+    armed: Int
+    trace: String
+
+pub fn kb_interaction_boot() -> Int:
+    let _reset = input_reset()
+    let session = input_session_create("kainbleton-input")
+    let _space = input_bind_action(session, input_source_keyboard(), "down", "Space", "transport.toggle")
+    let _click = input_bind_action(session, input_source_pointer(), "press", "Left", "clip.fire")
+    let _rkey = input_bind_action(session, input_source_keyboard(), "down", "R", "track.arm")
+    let _wheel = input_bind_axis(session, input_source_pointer(), "axis", "WheelY", "timeline.zoom", 0.01)
+    return session
+
+pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int) -> KainbletonInteractionReport:
+    let _begin = input_begin_frame(session_id, 16.666)
+    var clicked: Int = 0
+    var transport_armed: Int = 0
+
+    // space bar toggle at frame 12
+    if frame == 12:
+        let _down = input_push_key_down(session_id, "keyboard:0", "Space")
+    if frame == 13:
+        let _up = input_push_key_up(session_id, "keyboard:0", "Space")
+
+    // R key arm at frame 40
+    if frame == 40:
+        let _r_down = input_push_key_down(session_id, "keyboard:0", "R")
+    if frame == 41:
+        let _r_up = input_push_key_up(session_id, "keyboard:0", "R")
+
+    // click transport record button at frame 24
+    if frame == 24:
+        let mouse_button = python_getattr_raw(python_getattr_raw(python_getattr_raw(qtc, "Qt"), "MouseButton"), "LeftButton")
+        let qtest = python_getattr_raw(qt_test, "QTest")
+        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.record_btn, mouse_button])
+        let _repaint = python_call_attr_raw(ui.main_window, "repaint", [])
+        let _pump = python_call_attr_raw(ui.app, "processEvents", [])
+        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "transport-record", 0.99)
+        clicked = kb_checkbox_checked_int(ui.record_btn)
+
+    // agent intent every 30 frames
+    if frame % 30 == 0:
+        let _agent = input_push_agent_intent(session_id, "codex", "scene.launch", "launch scene " + str(frame / 30), 0.94)
+
+    transport_armed = kb_checkbox_checked_int(ui.record_btn)
+
+    let trace = input_trace_json(session_id)
+    return KainbletonInteractionReport {
+        session_id: session_id,
+        event_count: input_event_count(session_id),
+        frame_index: input_frame_index(session_id),
+        action_down: input_action_down(session_id, "transport.toggle"),
+        clicked: clicked,
+        armed: transport_armed,
+        trace: trace,
+    }
+
+pub fn kb_interaction_shutdown(session_id: Int) -> Int:
+    return input_session_destroy(session_id)
+
+// ============================================================================
+// main.kn
+// ============================================================================
+use std::fs
+use std::python
+use std::runtime
+use std::time
+
+use audio_engine::KainbletonAudioReport
+use audio_engine::kb_render_audio
+use interaction::KainbletonInteractionReport
+use interaction::kb_interaction_boot
+use interaction::kb_interaction_frame
+use interaction::kb_interaction_shutdown
+use model::KainbletonProject
+use model::TRANSPORT_STOPPED
+use model::TRANSPORT_PLAYING
+use model::TRANSPORT_RECORDING
+use model::kb_default_project
+use native_bridge::kb_native_label
+use native_bridge::kb_native_signature
+use proof::KainbletonProofReport
+use proof::kb_write_proof
+use paths::kb_artifact_path
+use semantics::KainbletonSemanticProbe
+use semantics::kb_semantic_boot
+use semantics::kb_semantic_frame
+use semantics::kb_semantic_telemetry_score
+use ui_workbench::KainbletonUiSession
+use ui_workbench::kb_ui_close
+use ui_workbench::kb_ui_open
+use ui_workbench::kb_ui_pump
+use ui_workbench::kb_ui_screenshot
+
+// ============================================================================
+//                              kainbleton
+// ============================================================================
+// A Kain-owned DAW workbench. Transport-driven — play to advance the
+// playhead across the timeline, record to capture audio from your mic.
+// No frame budget, no artificial stop. Runs until you close the window.
+
+const KB_FRAME_HASH_MODULUS: Int = 2147483629
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let project: KainbletonProject = kb_default_project()
+    let audio_path = kb_artifact_path("kainbleton-bounce.wav")
+    let screenshot_path = kb_artifact_path("kainbleton-ui.png")
+    let proof_path = kb_artifact_path("kainbleton-proof.json")
+
+    let audio: KainbletonAudioReport = kb_render_audio(audio_path)
+    let probe: KainbletonSemanticProbe = kb_semantic_boot(project)
+    let input_session = kb_interaction_boot()
+    let ui: KainbletonUiSession = kb_ui_open(project, audio, screenshot_path)
+
+    var frame: Int = 0
+    var frame_hash: Int = 0
+    var semantic_score: Int = 0
+    var total_input_events: Int = 0
+    var total_qt_clicks: Int = 0
+    var transport_armed: Int = 0
+    var interaction: KainbletonInteractionReport = kb_interaction_frame(input_session, ui, 0)
+    let frame_begin_ms = now_millis()
+
+    // Transport-driven main loop.
+    // Play button = advance playhead. Record+Play = capture audio.
+    // Runs until the user closes the DAW window.
+    var window_open: Int = 1
+    while window_open == 1:
+        let score = kb_semantic_frame(probe, project, frame)
+        semantic_score = kb_semantic_telemetry_score(score)
+        frame_hash = (frame_hash + kb_ui_pump(ui, project, audio, frame, semantic_score)) % KB_FRAME_HASH_MODULUS
+        interaction = kb_interaction_frame(input_session, ui, frame)
+        total_input_events = total_input_events + interaction.event_count
+        total_qt_clicks = total_qt_clicks + interaction.clicked
+        if interaction.armed > transport_armed:
+            transport_armed = interaction.armed
+        frame = frame + 1
+
+        let vis = str(python_call_attr_raw(ui.main_window, "isVisible", []))
+        if vis == "False":
+            window_open = 0
+
+    var elapsed_ms = now_millis() - frame_begin_ms
+    if elapsed_ms <= 0:
+        elapsed_ms = 1
+    let approx_fps = Float(frame) * 1000.0 / Float(elapsed_ms)
+
+    // Graceful shutdown.
+    let screenshot_status = kb_ui_screenshot(ui)
+    let native_signature = kb_native_signature(frame, len(project.tracks), len(project.clips), project.checksum)
+    let proof: KainbletonProofReport = kb_write_proof(project, audio, proof_path, screenshot_path, frame, frame_hash, native_signature, semantic_score, total_input_events, total_qt_clicks, transport_armed, elapsed_ms, approx_fps, screenshot_status)
+
+    let _close_ui = kb_ui_close(ui)
+    let _input_close = kb_interaction_shutdown(input_session)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    println("kainbleton_ok")
+    println("native=" + kb_native_label())
+    println("proof=" + proof.proof_path)
+    println("screenshot=" + proof.screenshot_path)
+    println("audio=" + proof.audio_path)
+    println("frames=" + str(proof.frames))
+    println("fps=" + str(Int(approx_fps * 100.0)))
+    println("frame_hash=" + str(proof.frame_hash))
+    println("semantic_score=" + str(proof.semantic_score))
+    println("module_score=" + str(proof.module_score))
+    return 0
+
+// ============================================================================
+// model.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: project model
+// ============================================================================
+// Kain owns the DAW state. Tracks carry real audio buffers, not hardcoded toys.
+
+use std::collections
+use std::math
+
+// ---- constants ----
+
+pub const KB_SAMPLE_RATE: Int = 44100
+pub const KB_RENDER_FRAMES: Int = 4096
+pub const KB_TRACKS: Int = 6
+pub const KB_CLIPS: Int = 18
+pub const KB_MAX_RECORD_SECS: Float = 30.0
+pub const KB_PLAYHEAD_MAX_SECS: Float = 60.0
+
+// ---- transport state ----
+
+pub const TRANSPORT_STOPPED: Int = 0
+pub const TRANSPORT_PLAYING: Int = 1
+pub const TRANSPORT_RECORDING: Int = 2
+pub const TRANSPORT_PAUSED: Int = 3
+
+// ---- types ----
+
+pub struct KainbletonTrack:
+    id: Int
+    name: String
+    color: Int
+    gain: Float
+    pan: Float
+    clip_count: Int
+    armed: Bool
+    muted: Bool
+    solo: Bool
+    has_audio: Int
+    audio_frame_count: Int
+    audio_peak: Float
+
+pub struct KainbletonClip:
+    id: Int
+    track_id: Int
+    name: String
+    start_beat: Float
+    length_beats: Float
+    pitch: Int
+    velocity: Float
+    lane: String
+
+pub struct KainbletonScene:
+    id: Int
+    name: String
+    bpm: Float
+    swing: Float
+    seed: Int
+
+pub struct KainbletonProject:
+    name: String
+    bpm: Float
+    sample_rate: Int
+    render_frames: Int
+    tracks: Array<KainbletonTrack>
+    clips: Array<KainbletonClip>
+    scenes: Array<KainbletonScene>
+    checksum: Int
+    // transport
+    transport_state: Int
+    playhead_seconds: Float
+    playhead_beats: Float
+    loop_start_beat: Float
+    loop_end_beat: Float
+
+// ---- constructors ----
+
+pub fn kb_track(id: Int, name: String, color: Int, gain: Float, pan: Float, armed: Bool) -> KainbletonTrack:
+    return KainbletonTrack {
+        id: id,
+        name: name,
+        color: color,
+        gain: gain,
+        pan: pan,
+        clip_count: 3,
+        armed: armed,
+        muted: false,
+        solo: false,
+        has_audio: 0,
+        audio_frame_count: 0,
+        audio_peak: 0.0,
+    }
+
+pub fn kb_clip(id: Int, track_id: Int, name: String, start_beat: Float, length_beats: Float, pitch: Int, lane: String) -> KainbletonClip:
+    return KainbletonClip {
+        id: id,
+        track_id: track_id,
+        name: name,
+        start_beat: start_beat,
+        length_beats: length_beats,
+        pitch: pitch,
+        velocity: 0.70 + Float(id % 4) * 0.06,
+        lane: lane,
+    }
+
+pub fn kb_scene(id: Int, name: String, bpm: Float, swing: Float, seed: Int) -> KainbletonScene:
+    return KainbletonScene {
+        id: id,
+        name: name,
+        bpm: bpm,
+        swing: swing,
+        seed: seed,
+    }
+
+// ---- checksum ----
+
+pub fn kb_project_checksum(project: KainbletonProject) -> Int:
+    var acc: Int = 17
+    var i: Int = 0
+    while i < len(project.tracks):
+        let track = project.tracks[i]
+        acc = acc * 31 + track.id * 7 + track.clip_count * 13 + Int(track.gain * 100.0)
+        acc = acc + (track.color % 997)
+        i = i + 1
+    var c: Int = 0
+    while c < len(project.clips):
+        let clip = project.clips[c]
+        acc = acc * 33 + clip.id * 5 + clip.pitch * 3 + Int(clip.start_beat * 11.0)
+        c = c + 1
+    var s: Int = 0
+    while s < len(project.scenes):
+        let scene = project.scenes[s]
+        acc = acc * 37 + scene.id + scene.seed + Int(scene.bpm * 10.0)
+        s = s + 1
+    if acc < 0:
+        acc = 0 - acc
+    return acc
+
+// ---- default project ----
+
+pub fn kb_default_project() -> KainbletonProject:
+    let tracks: Array<KainbletonTrack> = []
+    push(tracks, kb_track(0, "Nova Drums", 16744256, 0.92, -0.15, false))
+    push(tracks, kb_track(1, "Glass Bass", 4500479, 0.86, 0.10, false))
+    push(tracks, kb_track(2, "Orbit Keys", 9238783, 0.74, -0.05, false))
+    push(tracks, kb_track(3, "Rust Choir", 14454015, 0.68, 0.20, false))
+    push(tracks, kb_track(4, "Knife Lead", 16762112, 0.80, 0.00, false))
+    push(tracks, kb_track(5, "Bus Glue", 7372944, 0.71, 0.00, false))
+
+    let clips: Array<KainbletonClip> = []
+    var track_id: Int = 0
+    var clip_id: Int = 0
+    while track_id < KB_TRACKS:
+        push(clips, kb_clip(clip_id, track_id, "cell-" + str(track_id) + "-A", Float(track_id), 4.0, 36 + track_id * 5, "audio"))
+        clip_id = clip_id + 1
+        push(clips, kb_clip(clip_id, track_id, "cell-" + str(track_id) + "-B", Float(track_id) + 4.0, 4.0, 43 + track_id * 4, "midi"))
+        clip_id = clip_id + 1
+        push(clips, kb_clip(clip_id, track_id, "cell-" + str(track_id) + "-C", Float(track_id) + 8.0, 8.0, 48 + track_id * 3, "hybrid"))
+        clip_id = clip_id + 1
+        track_id = track_id + 1
+
+    let scenes: Array<KainbletonScene> = []
+    push(scenes, kb_scene(0, "ignite", 128.0, 0.05, 11))
+    push(scenes, kb_scene(1, "blackbox", 132.0, 0.12, 29))
+    push(scenes, kb_scene(2, "orbit", 96.0, 0.18, 47))
+
+    let project = KainbletonProject {
+        name: "kainbleton",
+        bpm: 128.0,
+        sample_rate: KB_SAMPLE_RATE,
+        render_frames: KB_RENDER_FRAMES,
+        tracks: tracks,
+        clips: clips,
+        scenes: scenes,
+        checksum: 0,
+        transport_state: TRANSPORT_STOPPED,
+        playhead_seconds: 0.0,
+        playhead_beats: 0.0,
+        loop_start_beat: 0.0,
+        loop_end_beat: 16.0,
+    }
+
+    return KainbletonProject {
+        name: project.name,
+        bpm: project.bpm,
+        sample_rate: project.sample_rate,
+        render_frames: project.render_frames,
+        tracks: project.tracks,
+        clips: project.clips,
+        scenes: project.scenes,
+        checksum: kb_project_checksum(project),
+        transport_state: TRANSPORT_STOPPED,
+        playhead_seconds: 0.0,
+        playhead_beats: 0.0,
+        loop_start_beat: 0.0,
+        loop_end_beat: 16.0,
+    }
+
+// ---- helpers ----
+
+pub fn kb_track_name_deck(project: KainbletonProject) -> String:
+    var deck: String = ""
+    var i: Int = 0
+    while i < len(project.tracks):
+        let track = project.tracks[i]
+        deck = deck + track.name
+        if i + 1 < len(project.tracks):
+            deck = deck + " | "
+        i = i + 1
+    return deck
+
+// ============================================================================
+// native_bridge.kn
+// ============================================================================
+use c::kainbleton_bridge
+
+pub fn kb_native_signature(frames: Int, tracks: Int, clips: Int, salt: Int) -> Int:
+    return kainbleton_bridge_signature(frames, tracks, clips, salt)
+
+pub fn kb_native_meter_color(track: Int, frame: Int, seed: Int) -> Int:
+    return kainbleton_bridge_meter_color(track, frame, seed)
+
+pub fn kb_native_label() -> String:
+    return "kainbleton-native-bridge"
+
+// ============================================================================
+// paths.kn
+// ============================================================================
+use std::fs
+use std::process
+use std::text
+
+pub fn kb_package_root() -> String:
+    let cwd = process_current_working_directory()
+    if text_ends_with_string(cwd, "\\src") or text_ends_with_string(cwd, "/src"):
+        return fs_path_parent(cwd)
+    return cwd
+
+pub fn kb_artifact_root() -> String:
+    return fs_path_join(kb_package_root(), ".kain/out")
+
+pub fn kb_artifact_path(name: String) -> String:
+    return fs_path_join(kb_artifact_root(), name)
+
+// ============================================================================
+// proof.kn
+// ============================================================================
+use std::fs
+use std::json
+use std::time
+
+use audio_engine::KainbletonAudioReport
+use model::KainbletonProject
+
+pub struct KainbletonProofReport:
+    proof_path: String
+    screenshot_path: String
+    audio_path: String
+    frames: Int
+    frame_hash: Int
+    native_signature: Int
+    semantic_score: Int
+    module_score: Int
+    status: Int
+
+pub fn kb_write_proof(
+    project: KainbletonProject,
+    audio: KainbletonAudioReport,
+    proof_path: String,
+    screenshot_path: String,
+    frames: Int,
+    frame_hash: Int,
+    native_signature: Int,
+    semantic_score: Int,
+    input_events: Int,
+    qt_clicks: Int,
+    transport_armed: Int,
+    elapsed_ms: Int,
+    approx_fps: Float,
+    screenshot_status: Int,
+) -> KainbletonProofReport:
+    fs_create_dir_all(fs_path_parent(proof_path))
+
+    let root = json_object()
+    let with_project = json_object_set_string(root, "project", project.name)
+    let with_bpm = json_object_set_float(with_project, "bpm", project.bpm)
+    let with_tracks = json_object_set_int(with_bpm, "tracks", len(project.tracks))
+    let with_clips = json_object_set_int(with_tracks, "clips", len(project.clips))
+    let with_frames = json_object_set_int(with_clips, "frames", frames)
+    let with_audio = json_object_set_string(with_frames, "audio_path", audio.output_path)
+    let with_screen = json_object_set_string(with_audio, "screenshot_path", screenshot_path)
+    let with_sample = json_object_set_int(with_screen, "sample_rate", audio.sample_rate)
+    let with_module_score = json_object_set_int(with_sample, "module_score", audio.module_score)
+    let with_devices = json_object_set_int(with_module_score, "input_devices", audio.device_count)
+    let with_default = json_object_set_string(with_devices, "default_input", audio.default_input)
+    let with_event_count = json_object_set_int(with_default, "input_events", input_events)
+    let with_clicked = json_object_set_int(with_event_count, "qt_clicks", qt_clicks)
+    let with_armed = json_object_set_int(with_clicked, "transport_armed", transport_armed)
+    let with_elapsed = json_object_set_int(with_armed, "frame_loop_ms", elapsed_ms)
+    let with_fps = json_object_set_float(with_elapsed, "approx_fps", approx_fps)
+    let with_frame_hash = json_object_set_int(with_fps, "frame_hash", frame_hash)
+    let with_native = json_object_set_int(with_frame_hash, "native_signature", native_signature)
+    let with_semantic = json_object_set_int(with_native, "semantic_score", semantic_score)
+    let with_screenshot = json_object_set_int(with_semantic, "screenshot_status", screenshot_status)
+    let with_written_at = json_object_set_int(with_screenshot, "written_at_ms", now_millis())
+    fs_write_text(proof_path, json_stringify(with_written_at))
+
+    return KainbletonProofReport {
+        proof_path: proof_path,
+        screenshot_path: screenshot_path,
+        audio_path: audio.output_path,
+        frames: frames,
+        frame_hash: frame_hash,
+        native_signature: native_signature,
+        semantic_score: semantic_score,
+        module_score: audio.module_score,
+        status: screenshot_status,
+    }
+
+// ============================================================================
+// semantics.kn
+// ============================================================================
+use std::actor
+use std::intent
+
+use model::KainbletonProject
+use model::kb_track_name_deck
+
+// ============================================================================
+//                     semantic rack: proven grammar lane
+// ============================================================================
+// Same ambition, tighter syntax: keep the semantic pressure real, but stay
+// close to the world/actor/patch/converge shapes the repo already proves.
+
+const KB_SEMANTIC_MODULUS: Int = 1000000007
+
+component KainbletonMixerDeck():
+    render <panel title="kainbleton semantic deck" />
+
+world KainbletonAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    surface native_ui => KainbletonMixerDeck
+
+world KainbletonTransportMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    surface web => KainbletonMixerDeck
+
+entangle KainbletonAuthority.signal <-> KainbletonTransportMirror.signal_copy with single_writer
+entangle KainbletonAuthority.epoch <-> KainbletonTransportMirror.epoch_copy with single_writer
+
+actor KainbletonRenderConductor:
+    state bias: Int = 11
+
+    on Fold(reply_to: P, request: Int):
+        send reply_to.Reply(value = ((request * 17) + self.bias + 23) % KB_SEMANTIC_MODULUS)
+
+law kb_transport_is_sane(value: Int) -> Bool:
+    return value >= 0 and value < KB_SEMANTIC_MODULUS
+
+patch kb_commit_signal(authority: KainbletonAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    return authority.signal
+
+fn kb_transport_scalar(value: Int) -> Int:
+    return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
+
+converge kb_transport_mix(value: Int) -> Int:
+    spec reference:
+        return kb_transport_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
+    fast interpret_lane when target("interpret"):
+        return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
+    verify random(8)
+
+pub struct KainbletonSemanticProbe:
+    checksum: Int
+    track_deck: String
+
+pub fn kb_semantic_boot(project: KainbletonProject) -> KainbletonSemanticProbe:
+    let authority = KainbletonAuthority
+    let _boot = kb_commit_signal(authority, project.checksum % KB_SEMANTIC_MODULUS)
+    return KainbletonSemanticProbe {
+        checksum: project.checksum,
+        track_deck: kb_track_name_deck(project),
+    }
+
+pub fn kb_semantic_frame(probe: KainbletonSemanticProbe, project: KainbletonProject, frame: Int) -> Int:
+    let authority = KainbletonAuthority
+    let value = (project.checksum + (frame * 131) + probe.checksum) % KB_SEMANTIC_MODULUS
+    if kb_transport_is_sane(value) == false:
+        return 0
+    let committed = kb_commit_signal(authority, value)
+    let conductor = spawn KainbletonRenderConductor(bias = (probe.checksum % 97) + 11)
+    let actor_mix = ask(conductor, "Fold", committed)
+    return kb_transport_mix((committed + actor_mix + frame) % KB_SEMANTIC_MODULUS)
+
+pub fn kb_semantic_telemetry_score(frame_score: Int) -> Int:
+    let journal = patch_journal_count()
+    let entangled = entangle_propagation_count()
+    let converged = converge_mismatch_count()
+    return frame_score + journal * 3 + entangled * 5 + converged * 7
+
+// ============================================================================
+// ui_arrangement.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_arrangement
+// ============================================================================
+// Right-panel DAW timeline. Beat ruler, per-track waveform lanes with
+// real audio data, moving playhead cursor. Uses pyqtgraph for
+// efficient rendering + built-in pan/zoom.
+
+import pyqtgraph as pg
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+import numpy as np
+
+use model::KainbletonProject
+use model::TRANSPORT_STOPPED
+use model::TRANSPORT_PLAYING
+use model::TRANSPORT_RECORDING
+
+// ---- returned handle so the orchestrator can update the playhead ----
+
+pub struct ArrangementHandle:
+    timeline_widget: Any
+    ruler_plot: Any
+    track_plots: Array<Any>
+    track_curves: Array<Any>
+    playhead_line: Any
+    visible_seconds: Float
+
+pub fn build_arrangement_view(parent_layout: Any, project: KainbletonProject) -> ArrangementHandle:
+    let _arr_sp = python_call_attr_raw(parent_layout, "setSpacing", [0])
+    let _arr_m = python_call_attr_raw(parent_layout, "setContentsMargins", [0, 0, 0, 0])
+
+    let total_beats = 64.0
+    let total_seconds = total_beats / (project.bpm / 60.0)
+
+    // ---- timeline: pyqtgraph GraphicsLayoutWidget ----
+    let timeline = python_call_attr_raw(pg, "GraphicsLayoutWidget", [])
+    let _tl_bg = python_call_attr_raw(timeline, "setBackground", ["#0d1117"])
+
+    // ruler row
+    let ruler_plot = python_call_attr_raw(timeline, "addPlot", [0, 0])
+    let _rp_title = python_call_attr_raw(ruler_plot, "setTitle", [])
+    let _rp_x = python_call_attr_raw(ruler_plot, "setXRange", [0.0, total_seconds])
+    let _rp_y = python_call_attr_raw(ruler_plot, "setYRange", [-0.1, 1.1])
+    let _rp_fixed = python_call_attr_raw(ruler_plot, "setFixedHeight", [36])
+    let _rp_mouse_y = python_call_attr_raw(ruler_plot, "setMouseEnabled", [true, false])
+    let _rp_btn = python_call_attr_raw(ruler_plot, "hideButtons", [])
+    let _rp_left = python_call_attr_raw(python_call_attr_raw(ruler_plot, "getAxis", ["left"]), "setStyle", [kb_axis_hidden()])
+    let _rp_bottom = python_call_attr_raw(python_call_attr_raw(ruler_plot, "getAxis", ["bottom"]), "setLabel", ["seconds"])
+
+    // beat tick marks on ruler
+    let beat_count = Int(total_beats)
+    var b: Int = 0
+    while b <= beat_count:
+        let beat_sec = Float(b) / (project.bpm / 60.0)
+        let is_bar = b % 4 == 0
+        let tick_opts = kb_tick_dict(beat_sec, is_bar)
+        let _tick = python_call_attr_raw(ruler_plot, "addItem", [python_call_attr_raw(pg, "InfiniteLine", [beat_sec, 90, tick_opts])])
+        b = b + 1
+
+    // ---- per-track waveform lanes ----
+    let track_plots: Array<Any> = []
+    let track_curves: Array<Any> = []
+
+    var t: Int = 0
+    while t < len(project.tracks):
+        let row = t + 1
+        let plot = python_call_attr_raw(timeline, "addPlot", [row, 0])
+        let _p_title = python_call_attr_raw(plot, "setTitle", [])
+        let _p_x = python_call_attr_raw(plot, "setXRange", [0.0, total_seconds])
+        let _p_y = python_call_attr_raw(plot, "setYRange", [-1.2, 1.2])
+        let _p_fixed = python_call_attr_raw(plot, "setFixedHeight", [56])
+        let _p_mouse = python_call_attr_raw(plot, "setMouseEnabled", [true, false])
+        let _p_btn = python_call_attr_raw(plot, "hideButtons", [])
+        let _p_left = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["left"]), "setStyle", [kb_axis_hidden()])
+
+        // link x-axis to ruler so they scroll/zoom together
+        let _link = python_call_attr_raw(plot, "setXLink", [ruler_plot])
+
+        // empty waveform curve (populated when audio is recorded)
+        let curve = python_call_attr_raw(plot, "plot", [[]])
+        let pen = python_call_attr_raw(pg, "mkPen", [kb_track_hex(project.tracks[t].color), 2])
+        let _cpen = python_call_attr_raw(curve, "setPen", [pen])
+
+        // zero line
+        let _zero = python_call_attr_raw(plot, "addItem", [python_call_attr_raw(pg, "InfiniteLine", [0.0, 0])])
+
+        push(track_plots, plot)
+        push(track_curves, curve)
+        t = t + 1
+
+    // ---- playhead (shared across all plots via x-link) ----
+    let playhead = python_call_attr_raw(pg, "InfiniteLine", [0.0, 90, kb_playhead_style()])
+    let _ph_add = python_call_attr_raw(ruler_plot, "addItem", [playhead])
+
+    let _tl_add = python_call_attr_raw(parent_layout, "addWidget", [timeline])
+
+    return ArrangementHandle {
+        timeline_widget: timeline,
+        ruler_plot: ruler_plot,
+        track_plots: track_plots,
+        track_curves: track_curves,
+        playhead_line: playhead,
+        visible_seconds: total_seconds,
+    }
+
+// ---- playhead update ----
+
+pub fn arrangement_set_playhead(handle: ArrangementHandle, seconds: Float):
+    let _set = python_call_attr_raw(handle.playhead_line, "setPos", [seconds])
+
+pub fn arrangement_update_waveform(handle: ArrangementHandle, track_index: Int, preview_x: Array<Float>, preview_y: Array<Float>):
+    if track_index >= 0 and track_index < len(handle.track_curves):
+        let _set = python_call_attr_raw(handle.track_curves[track_index], "setData", [preview_x, preview_y])
+
+// ---- style helpers ----
+
+fn kb_track_hex(color: Int) -> String:
+    let r = (color >> 16) & 255
+    let g = (color >> 8) & 255
+    let b = color & 255
+    return "#" + kb_hex2(r) + kb_hex2(g) + kb_hex2(b)
+
+fn kb_hex2(v: Int) -> String:
+    let n = kb_nib(v >> 4) + kb_nib(v & 15)
+    return n
+
+fn kb_nib(v: Int) -> String:
+    if v < 10:
+        return str(v)
+    if v == 10:
+        return "a"
+    if v == 11:
+        return "b"
+    if v == 12:
+        return "c"
+    if v == 13:
+        return "d"
+    if v == 14:
+        return "e"
+    return "f"
+
+fn kb_axis_hidden() -> Any:
+    let d = python_call_attr_raw(python_getattr_raw(pg, "PlotWidget"), "__dict__", [])
+    return python_call_attr_raw(pg, "mkPen", ["#21262d", 1])
+
+fn kb_tick_dict(pos: Float, is_bar: Bool) -> Any:
+    let pen_color = "#484f58"
+    if is_bar:
+        pen_color = "#8b949e"
+    return python_call_attr_raw(pg, "mkPen", [pen_color, 1])
+
+fn kb_playhead_style() -> Any:
+    return python_call_attr_raw(pg, "mkPen", ["#ff5f2e", 2])
+
+// ============================================================================
+// ui_helpers.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_helpers
+// ============================================================================
+// Pure utility functions. No Python imports, no widget construction.
+// Everything here is deterministic Kain computation.
+
+import sounddevice as sd
+
+// ---- color encoding ----
+
+fn nibble_hex(v: Int) -> String:
+    if v < 10:
+        return str(v)
+    if v == 10:
+        return "a"
+    if v == 11:
+        return "b"
+    if v == 12:
+        return "c"
+    if v == 13:
+        return "d"
+    if v == 14:
+        return "e"
+    return "f"
+
+fn byte_hex(v: Int) -> String:
+    return nibble_hex((v >> 4) & 15) + nibble_hex(v & 15)
+
+pub fn color_int_to_hex(color: Int) -> String:
+    let r = (color >> 16) & 255
+    let g = (color >> 8) & 255
+    let b = color & 255
+    return "#" + byte_hex(r) + byte_hex(g) + byte_hex(b)
+
+// ---- audio device enumeration ----
+
+pub fn audio_device_list() -> Array<String>:
+    let devices: Array<String> = []
+    let py_devices = python_call_attr_raw(sd, "query_devices", [])
+    let count = to_int(python_call_attr_raw(py_devices, "__len__", []))
+    var i: Int = 0
+    while i < count:
+        let dev = python_call_attr_raw(py_devices, "__getitem__", [i])
+        let name = str(python_call_attr_raw(dev, "__getitem__", ["name"]))
+        let hostapi = str(python_call_attr_raw(dev, "__getitem__", ["hostapi"]))
+        let channels = str(python_call_attr_raw(dev, "__getitem__", ["max_output_channels"]))
+        push(devices, name + " [" + hostapi + "] ch:" + channels)
+        i = i + 1
+    return devices
+
+// ---- time formatting ----
+
+pub fn format_time_mmss_cs(total_seconds: Float) -> String:
+    let minutes = Int(total_seconds / 60.0)
+    let seconds = Int(total_seconds) % 60
+    let cs = Int((total_seconds - Float(minutes * 60 + seconds)) * 100.0)
+    var r: String = ""
+    if minutes < 10:
+        r = r + "0"
+    r = r + str(minutes) + ":"
+    if seconds < 10:
+        r = r + "0"
+    r = r + str(seconds) + "."
+    if cs < 10:
+        r = r + "0"
+    r = r + str(cs)
+    return r
+
+// ---- pan label ----
+
+pub fn pan_label_text(pan: Float) -> String:
+    if pan < -0.05:
+        return "L" + str(Int(-pan * 100.0))
+    if pan > 0.05:
+        return "R" + str(Int(pan * 100.0))
+    return "C"
+
+// ---- dB text ----
+
+pub fn db_label_text(gain: Float) -> String:
+    if gain < 0.001:
+        return "-inf dB"
+    let db = 20.0 * log10_approx(gain)
+    if db > 0.0:
+        return "+" + float_str_1dp(db) + " dB"
+    return float_str_1dp(db) + " dB"
+
+fn log10_approx(x: Float) -> Float:
+    if x <= 0.0:
+        return -60.0
+    var r: Float = 0.0
+    var v: Float = x
+    while v >= 10.0:
+        r = r + 1.0
+        v = v / 10.0
+    while v < 1.0:
+        r = r - 1.0
+        v = v * 10.0
+    return r + (v - 1.0) / 9.0 * 0.9542425
+
+fn float_str_1dp(v: Float) -> String:
+    var sign: String = ""
+    var num: Float = v
+    if num < 0.0:
+        sign = "-"
+        num = 0.0 - num
+    let whole = Int(num)
+    let frac = Int((num - Float(whole)) * 10.0 + 0.5)
+    return sign + str(whole) + "." + str(frac)
+
+// ---- checkbox utility ----
+
+pub fn is_checked(btn: Any) -> Int:
+    let text = str(python_call_attr_raw(btn, "isChecked", []))
+    if text == "true":
+        return 1
+    return 0
+
+// ============================================================================
+// ui_mixer.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_mixer
+// ============================================================================
+// Bottom mixer strip: per-track level meters, vertical faders, dB readouts.
+// Each channel strip is color-coded to match its track.
+
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+
+use model::KainbletonProject
+use ui_helpers::color_int_to_hex
+use ui_helpers::db_label_text
+use ui_styles::style_meter_bar
+
+pub fn build_mixer_strip(parent_layout: Any, project: KainbletonProject):
+    let _mxl_sp = python_call_attr_raw(parent_layout, "setSpacing", [6])
+    let _mxl_m = python_call_attr_raw(parent_layout, "setContentsMargins", [10, 6, 10, 6])
+
+    // master label
+    let mstr = python_call_attr_raw(qtw, "QLabel", ["MASTER"])
+    let _mstr_s = python_call_attr_raw(mstr, "setStyleSheet", ["QLabel { color: #484f58; font-size: 9px; font-weight: 700; letter-spacing: 1px; }"])
+    let _mstr_a = python_call_attr_raw(parent_layout, "addWidget", [mstr])
+
+    // one strip per track
+    var mt: Int = 0
+    while mt < len(project.tracks):
+        let mtrack = project.tracks[mt]
+        let mch = color_int_to_hex(mtrack.color)
+
+        let mstrip = python_call_attr_raw(qtw, "QWidget", [])
+        let msl = python_call_attr_raw(qtw, "QVBoxLayout", [mstrip])
+        let _msl_sp = python_call_attr_raw(msl, "setSpacing", [2])
+        let _msl_m = python_call_attr_raw(msl, "setContentsMargins", [4, 2, 4, 2])
+
+        // track name
+        let mn = python_call_attr_raw(qtw, "QLabel", [mtrack.name])
+        let _mn_s = python_call_attr_raw(mn, "setStyleSheet", ["QLabel { color: " + mch + "; font-size: 9px; font-weight: 700; }"])
+        let _mn_a = python_call_attr_raw(msl, "addWidget", [mn])
+
+        // level meter
+        let meter = python_call_attr_raw(qtw, "QProgressBar", [])
+        let _meter_r = python_call_attr_raw(meter, "setRange", [0, 100])
+        let _meter_v = python_call_attr_raw(meter, "setValue", [Int(mtrack.gain * 100.0)])
+        let _meter_t = python_call_attr_raw(meter, "setTextVisible", [false])
+        let _meter_f = python_call_attr_raw(meter, "setFixedHeight", [8])
+        let _meter_s = python_call_attr_raw(meter, "setStyleSheet", [style_meter_bar(mch)])
+        let _meter_a = python_call_attr_raw(msl, "addWidget", [meter])
+
+        // vertical fader
+        let fader = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Vertical])
+        let _fader_r = python_call_attr_raw(fader, "setRange", [0, 127])
+        let _fader_v = python_call_attr_raw(fader, "setValue", [Int(mtrack.gain * 127.0)])
+        let _fader_f = python_call_attr_raw(fader, "setFixedHeight", [40])
+        let _fader_a = python_call_attr_raw(msl, "addWidget", [fader])
+
+        // dB label
+        let db_lbl = python_call_attr_raw(qtw, "QLabel", [db_label_text(mtrack.gain)])
+        let _db_s = python_call_attr_raw(db_lbl, "setStyleSheet", ["QLabel { color: #8b949e; font-size: 8px; font-family: 'Consolas', monospace; }"])
+        let _db_a = python_call_attr_raw(msl, "addWidget", [db_lbl])
+
+        let _mstrip_a = python_call_attr_raw(parent_layout, "addWidget", [mstrip])
+        mt = mt + 1
+
+    // right spacer
+    let mxs = python_call_attr_raw(qtw, "QWidget", [])
+    let _mxs_p = python_call_attr_raw(mxs, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Preferred])
+    let _mxs_a = python_call_attr_raw(parent_layout, "addWidget", [mxs])
+
+// ============================================================================
+// ui_session.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_session
+// ============================================================================
+// Session types. No widget construction here — just the structs
+// that the component builders and orchestrator consume.
+
+pub struct KainbletonUiSession:
+    app: Any
+    main_window: Any
+    play_btn: Any
+    stop_btn: Any
+    record_btn: Any
+    loop_btn: Any
+    metro_btn: Any
+    bpm_label: Any
+    time_label: Any
+    device_combo: Any
+    screenshot_path: String
+    frame_count: Int
+    frame_hash: Int
+    native_session: Int
+    native_root: Int
+    native_transport: Int
+    arr_playhead: Any
+    arr_ruler: Any
+    arr_curves: Any
+
+pub struct KainbletonNativeUiMirror:
+    session_id: Int
+    root_node: Int
+    transport_node: Int
+
+// ============================================================================
+// ui_styles.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_styles
+// ============================================================================
+// Theme, stylesheet, and widget-style helpers. All visual constants live here.
+// Separated so the rest of the UI stack stays data-driven without repeating
+// color codes or style strings.
+
+// ---- color palette ----
+
+pub const CLR_BG: String = "#0d1117"
+pub const CLR_SURFACE: String = "#161b22"
+pub const CLR_ELEVATED: String = "#1c2333"
+pub const CLR_BORDER: String = "#21262d"
+pub const CLR_ACCENT: String = "#ff5f2e"
+pub const CLR_PLAY: String = "#2ea043"
+pub const CLR_RECORD: String = "#da3633"
+pub const CLR_STOP: String = "#f78166"
+pub const CLR_TEXT: String = "#c9d1d9"
+pub const CLR_MUTED: String = "#484f58"
+pub const CLR_GOLD: String = "#ffd166"
+pub const CLR_CYAN: String = "#8ecae6"
+pub const CLR_SUBTLE: String = "#8b949e"
+pub const CLR_DIM: String = "#30363d"
+
+// ---- global stylesheet ----
+
+pub const DAW_STYLESHEET: String = "
+QMainWindow { background-color: #0d1117; }
+QWidget { background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', 'SF Pro Display', sans-serif; font-size: 13px; }
+QToolBar { background: #161b22; border-bottom: 2px solid #21262d; spacing: 8px; padding: 6px 10px; min-height: 52px; }
+QToolBar QPushButton { background: #1c2333; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 8px 14px; font-weight: 600; font-size: 13px; min-width: 42px; }
+QToolBar QPushButton:hover { background: #30363d; border-color: #484f58; }
+QToolBar QPushButton:pressed { background: #0d1117; }
+QPushButton#record_btn { background: #3d1212; color: #da3633; border: 2px solid #da3633; border-radius: 18px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; font-size: 16px; padding: 0px; }
+QPushButton#record_btn:hover { background: #5a1a1a; }
+QPushButton#record_btn:checked { background: #da3633; color: #ffffff; }
+QPushButton#play_btn { background: #122e1a; color: #2ea043; border: 2px solid #2ea043; border-radius: 18px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; font-size: 16px; padding: 0px; }
+QPushButton#play_btn:hover { background: #1a4228; }
+QPushButton#stop_btn { background: #2e1c16; color: #f78166; border: 2px solid #f78166; border-radius: 18px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; font-size: 14px; padding: 0px; }
+QPushButton#stop_btn:hover { background: #42281e; }
+QLabel#bpm_label { color: #ffd166; font-size: 22px; font-weight: 700; min-width: 60px; padding: 0px 8px; }
+QLabel#time_label { color: #c9d1d9; font-size: 15px; font-weight: 600; font-family: 'Consolas', 'SF Mono', monospace; min-width: 90px; padding: 0px 8px; }
+QLabel#device_label { color: #8b949e; font-size: 11px; padding: 0px 4px; }
+QComboBox { background: #1c2333; color: #c9d1d9; border: 1px solid #30363d; border-radius: 5px; padding: 5px 10px; min-width: 140px; font-size: 12px; }
+QComboBox:hover { border-color: #484f58; }
+QComboBox::drop-down { border: none; width: 20px; }
+QComboBox QAbstractItemView { background: #1c2333; color: #c9d1d9; border: 1px solid #30363d; selection-background-color: #30363d; }
+QSplitter::handle { background: #21262d; width: 3px; }
+QSlider::groove:horizontal { background: #21262d; height: 5px; border-radius: 2px; }
+QSlider::handle:horizontal { background: #ff5f2e; width: 13px; height: 13px; margin: -5px 0; border-radius: 7px; }
+QSlider::handle:horizontal:hover { background: #ff8a65; }
+QSlider::groove:vertical { background: #21262d; width: 5px; border-radius: 2px; }
+QSlider::handle:vertical { background: #ff5f2e; width: 13px; height: 13px; margin: 0 -5px; border-radius: 7px; }
+QScrollBar:horizontal { background: #0d1117; height: 8px; }
+QScrollBar::handle:horizontal { background: #30363d; border-radius: 4px; min-width: 40px; }
+QScrollBar:vertical { background: #0d1117; width: 8px; }
+QScrollBar::handle:vertical { background: #30363d; border-radius: 4px; min-height: 40px; }
+QScrollBar::add-line, QScrollBar::sub-line { height: 0px; width: 0px; }
+QProgressBar { background: #21262d; border: none; border-radius: 3px; height: 8px; text-align: center; }
+QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2ea043, stop:0.75 #ffd166, stop:1 #da3633); border-radius: 3px; }
+QStatusBar { background: #161b22; color: #8b949e; border-top: 1px solid #21262d; font-size: 11px; padding: 2px 8px; }
+"
+
+// ---- widget-style helpers ----
+
+pub fn style_button_arm(armed: Bool) -> String:
+    if armed:
+        return "QPushButton { background: " + CLR_RECORD + "; color: #fff; border: 1px solid " + CLR_RECORD + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:checked { background: " + CLR_RECORD + "; color: #fff; }"
+    return "QPushButton { background: " + CLR_SURFACE + "; color: " + CLR_MUTED + "; border: 1px solid " + CLR_BORDER + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:hover { background: " + CLR_DIM + "; color: " + CLR_TEXT + "; } QPushButton:checked { background: " + CLR_RECORD + "; color: #fff; }"
+
+pub fn style_button_mute(muted: Bool) -> String:
+    if muted:
+        return "QPushButton { background: " + CLR_STOP + "; color: " + CLR_BG + "; border: 1px solid " + CLR_STOP + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:checked { background: " + CLR_STOP + "; color: " + CLR_BG + "; }"
+    return "QPushButton { background: " + CLR_SURFACE + "; color: " + CLR_MUTED + "; border: 1px solid " + CLR_BORDER + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:hover { background: " + CLR_DIM + "; color: " + CLR_TEXT + "; } QPushButton:checked { background: " + CLR_STOP + "; color: " + CLR_BG + "; }"
+
+pub fn style_button_solo(solo: Bool) -> String:
+    if solo:
+        return "QPushButton { background: " + CLR_GOLD + "; color: " + CLR_BG + "; border: 1px solid " + CLR_GOLD + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:checked { background: " + CLR_GOLD + "; color: " + CLR_BG + "; }"
+    return "QPushButton { background: " + CLR_SURFACE + "; color: " + CLR_MUTED + "; border: 1px solid " + CLR_BORDER + "; border-radius: 3px; font-size: 10px; font-weight: 700; min-width: 22px; max-width: 22px; min-height: 18px; max-height: 18px; padding: 0px; } QPushButton:hover { background: " + CLR_DIM + "; color: " + CLR_TEXT + "; } QPushButton:checked { background: " + CLR_GOLD + "; color: " + CLR_BG + "; }"
+
+pub fn style_slider_pan() -> String:
+    return "QSlider::groove:horizontal { background: " + CLR_BORDER + "; height: 3px; border-radius: 1px; } QSlider::handle:horizontal { background: " + CLR_CYAN + "; width: 8px; height: 8px; margin: -3px 0; border-radius: 4px; }"
+
+pub fn style_meter_bar(track_color: String) -> String:
+    return "QProgressBar { background: " + CLR_BORDER + "; border: none; border-radius: 3px; height: 8px; } QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 " + CLR_PLAY + ", stop:0.75 " + CLR_GOLD + ", stop:1 " + track_color + "); border-radius: 3px; }"
+
+pub fn style_record_pulse_on() -> String:
+    return "QPushButton#record_btn { background: " + CLR_RECORD + "; color: #fff; border: 2px solid #ff6666; border-radius: 18px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; font-size: 16px; padding: 0px; }"
+
+pub fn style_record_pulse_dim() -> String:
+    return "QPushButton#record_btn { background: #5a1a1a; color: " + CLR_RECORD + "; border: 2px solid " + CLR_RECORD + "; border-radius: 18px; min-width: 36px; min-height: 36px; max-width: 36px; max-height: 36px; font-size: 16px; padding: 0px; }"
+
+// ============================================================================
+// ui_track_header.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_track_header
+// ============================================================================
+// Left-panel track headers: color strip, track name, R/M/S buttons,
+// volume slider, pan slider. Driven by the project model.
+
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+
+use model::KainbletonProject
+use ui_helpers::color_int_to_hex
+use ui_helpers::pan_label_text
+use ui_styles::style_button_arm
+use ui_styles::style_button_mute
+use ui_styles::style_button_solo
+use ui_styles::style_slider_pan
+
+pub fn build_track_header_panel(parent_layout: Any, project: KainbletonProject):
+    let _hdr_sp = python_call_attr_raw(parent_layout, "setSpacing", [2])
+
+    // section label
+    let count_lbl = python_call_attr_raw(qtw, "QLabel", ["TRACKS (" + str(len(project.tracks)) + ")"])
+    let _count_s = python_call_attr_raw(count_lbl, "setStyleSheet", ["QLabel { color: #484f58; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 4px 6px; }"])
+    let _count_a = python_call_attr_raw(parent_layout, "addWidget", [count_lbl])
+
+    // one row per track
+    var t: Int = 0
+    while t < len(project.tracks):
+        let track = project.tracks[t]
+        let ch = color_int_to_hex(track.color)
+
+        let row = python_call_attr_raw(qtw, "QWidget", [])
+        let _row_s = python_call_attr_raw(row, "setStyleSheet", ["QWidget { background-color: #161b22; border-radius: 5px; margin: 1px 0px; }"])
+        let rl = python_call_attr_raw(qtw, "QHBoxLayout", [row])
+        let _rl_sp = python_call_attr_raw(rl, "setSpacing", [4])
+        let _rl_m = python_call_attr_raw(rl, "setContentsMargins", [6, 3, 6, 3])
+
+        // color strip
+        let strip = python_call_attr_raw(qtw, "QLabel", [" "])
+        let _strip_s = python_call_attr_raw(strip, "setStyleSheet", ["QLabel { background-color: " + ch + "; border-radius: 2px; min-width: 4px; max-width: 4px; min-height: 50px; }"])
+        let _strip_a = python_call_attr_raw(rl, "addWidget", [strip])
+
+        // control stack
+        let cs = python_call_attr_raw(qtw, "QWidget", [])
+        let csl = python_call_attr_raw(qtw, "QVBoxLayout", [cs])
+        let _csl_sp = python_call_attr_raw(csl, "setSpacing", [1])
+        let _csl_m = python_call_attr_raw(csl, "setContentsMargins", [0, 0, 0, 0])
+
+        // track name
+        let name_l = python_call_attr_raw(qtw, "QLabel", [track.name])
+        let _name_s = python_call_attr_raw(name_l, "setStyleSheet", ["QLabel { color: " + ch + "; font-size: 12px; font-weight: 700; }"])
+        let _name_a = python_call_attr_raw(csl, "addWidget", [name_l])
+
+        // R / M / S buttons
+        let br = python_call_attr_raw(qtw, "QWidget", [])
+        let brl = python_call_attr_raw(qtw, "QHBoxLayout", [br])
+        let _brl_sp = python_call_attr_raw(brl, "setSpacing", [3])
+        let _brl_m = python_call_attr_raw(brl, "setContentsMargins", [0, 0, 0, 0])
+
+        let arm_b = python_call_attr_raw(qtw, "QPushButton", ["R"])
+        let _arm_chk = python_call_attr_raw(arm_b, "setCheckable", [true])
+        let _arm_set = python_call_attr_raw(arm_b, "setChecked", [track.armed])
+        let _arm_s = python_call_attr_raw(arm_b, "setStyleSheet", [style_button_arm(track.armed)])
+        let _arm_t = python_call_attr_raw(arm_b, "setToolTip", ["Arm " + track.name])
+        let _arm_a = python_call_attr_raw(brl, "addWidget", [arm_b])
+
+        let mute_b = python_call_attr_raw(qtw, "QPushButton", ["M"])
+        let _mute_chk = python_call_attr_raw(mute_b, "setCheckable", [true])
+        let _mute_set = python_call_attr_raw(mute_b, "setChecked", [track.muted])
+        let _mute_s = python_call_attr_raw(mute_b, "setStyleSheet", [style_button_mute(track.muted)])
+        let _mute_t = python_call_attr_raw(mute_b, "setToolTip", ["Mute " + track.name])
+        let _mute_a = python_call_attr_raw(brl, "addWidget", [mute_b])
+
+        let solo_b = python_call_attr_raw(qtw, "QPushButton", ["S"])
+        let _solo_chk = python_call_attr_raw(solo_b, "setCheckable", [true])
+        let _solo_set = python_call_attr_raw(solo_b, "setChecked", [track.solo])
+        let _solo_s = python_call_attr_raw(solo_b, "setStyleSheet", [style_button_solo(track.solo)])
+        let _solo_t = python_call_attr_raw(solo_b, "setToolTip", ["Solo " + track.name])
+        let _solo_a = python_call_attr_raw(brl, "addWidget", [solo_b])
+
+        let _br_a = python_call_attr_raw(csl, "addWidget", [br])
+
+        // volume slider
+        let vol = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Horizontal])
+        let _vol_r = python_call_attr_raw(vol, "setRange", [0, 100])
+        let _vol_v = python_call_attr_raw(vol, "setValue", [Int(track.gain * 100.0)])
+        let _vol_a = python_call_attr_raw(csl, "addWidget", [vol])
+
+        let _cs_a = python_call_attr_raw(rl, "addWidget", [cs])
+
+        // pan
+        let pw = python_call_attr_raw(qtw, "QWidget", [])
+        let pl = python_call_attr_raw(qtw, "QVBoxLayout", [pw])
+        let _pl_sp = python_call_attr_raw(pl, "setSpacing", [0])
+        let _pl_m = python_call_attr_raw(pl, "setContentsMargins", [0, 0, 0, 0])
+        let plbl = python_call_attr_raw(qtw, "QLabel", ["PAN"])
+        let _plbl_s = python_call_attr_raw(plbl, "setStyleSheet", ["QLabel { color: #484f58; font-size: 8px; }"])
+        let _plbl_a = python_call_attr_raw(pl, "addWidget", [plbl])
+        let pan = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Horizontal])
+        let _pan_r = python_call_attr_raw(pan, "setRange", [-100, 100])
+        let _pan_v = python_call_attr_raw(pan, "setValue", [Int(track.pan * 100.0)])
+        let _pan_s = python_call_attr_raw(pan, "setStyleSheet", [style_slider_pan()])
+        let _pan_a = python_call_attr_raw(pl, "addWidget", [pan])
+        let _pw_a = python_call_attr_raw(rl, "addWidget", [pw])
+
+        let _row_a = python_call_attr_raw(parent_layout, "addWidget", [row])
+        t = t + 1
+
+    // bottom spacer
+    let hs = python_call_attr_raw(qtw, "QWidget", [])
+    let _hs_p = python_call_attr_raw(hs, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Expanding])
+    let _hs_a = python_call_attr_raw(parent_layout, "addWidget", [hs])
+
+// ============================================================================
+// ui_transport.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_transport
+// ============================================================================
+// Transport bar: play, stop, record, loop, metro, BPM, time, device selector.
+// Builds widgets into the given QToolBar and returns the handle struct.
+
+import PyQt6.QtWidgets as qtw
+
+pub struct TransportWidgets:
+    play_btn: Any
+    stop_btn: Any
+    record_btn: Any
+    loop_btn: Any
+    metro_btn: Any
+    bpm_label: Any
+    time_label: Any
+    device_combo: Any
+
+pub fn build_transport_bar(toolbar: Any, bpm: Int, device_names: Array<String>) -> TransportWidgets:
+    let _tb_move = python_call_attr_raw(toolbar, "setMovable", [false])
+
+    // rewind
+    let _rw = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QPushButton", ["\u23EE"])])
+
+    let stop_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25A0"])
+    let _stop_obj = python_call_attr_raw(stop_btn, "setObjectName", ["stop_btn"])
+    let _stop_add = python_call_attr_raw(toolbar, "addWidget", [stop_btn])
+
+    let play_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25B6"])
+    let _play_obj = python_call_attr_raw(play_btn, "setObjectName", ["play_btn"])
+    let _play_add = python_call_attr_raw(toolbar, "addWidget", [play_btn])
+
+    let record_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25CF"])
+    let _rec_obj = python_call_attr_raw(record_btn, "setObjectName", ["record_btn"])
+    let _rec_check = python_call_attr_raw(record_btn, "setCheckable", [true])
+    let _rec_add = python_call_attr_raw(toolbar, "addWidget", [record_btn])
+
+    let _sep1 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let loop_btn = python_call_attr_raw(qtw, "QPushButton", ["\uD83D\uDD01 LOOP"])
+    let _loop_check = python_call_attr_raw(loop_btn, "setCheckable", [true])
+    let _loop_add = python_call_attr_raw(toolbar, "addWidget", [loop_btn])
+
+    let metro_btn = python_call_attr_raw(qtw, "QPushButton", ["\u266A METRO"])
+    let _metro_check = python_call_attr_raw(metro_btn, "setCheckable", [true])
+    let _metro_add = python_call_attr_raw(toolbar, "addWidget", [metro_btn])
+
+    let _sep2 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let bpm_label = python_call_attr_raw(qtw, "QLabel", [str(bpm) + " BPM"])
+    let _bpm_obj = python_call_attr_raw(bpm_label, "setObjectName", ["bpm_label"])
+    let _bpm_add = python_call_attr_raw(toolbar, "addWidget", [bpm_label])
+
+    let time_label = python_call_attr_raw(qtw, "QLabel", ["00:00.00"])
+    let _time_obj = python_call_attr_raw(time_label, "setObjectName", ["time_label"])
+    let _time_add = python_call_attr_raw(toolbar, "addWidget", [time_label])
+
+    let _sep3 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let dev_lbl = python_call_attr_raw(qtw, "QLabel", ["OUTPUT:"])
+    let _dev_obj = python_call_attr_raw(dev_lbl, "setObjectName", ["device_label"])
+    let _dev_add = python_call_attr_raw(toolbar, "addWidget", [dev_lbl])
+
+    let device_combo = python_call_attr_raw(qtw, "QComboBox", [])
+    var d: Int = 0
+    while d < len(device_names):
+        let _add_dev = python_call_attr_raw(device_combo, "addItem", [device_names[d]])
+        d = d + 1
+    let _combo_add = python_call_attr_raw(toolbar, "addWidget", [device_combo])
+
+    return TransportWidgets {
+        play_btn: play_btn,
+        stop_btn: stop_btn,
+        record_btn: record_btn,
+        loop_btn: loop_btn,
+        metro_btn: metro_btn,
+        bpm_label: bpm_label,
+        time_label: time_label,
+        device_combo: device_combo,
+    }
+
+// ============================================================================
+// ui_workbench.kn
+// ============================================================================
+// ============================================================================
+//                         kainbleton :: ui_workbench
+// ============================================================================
+// Thin orchestrator. Imports component builders, assembles the DAW window,
+// manages transport state machine, and exposes the public API.
+//
+// Transport states flow through the project model:
+//   STOPPED -> PLAYING (play pressed)  -> playhead advances
+//   STOPPED -> RECORDING (rec+play)    -> audio captured, playhead advances
+//   PLAYING -> STOPPED  (stop pressed) -> playhead freezes
+//   RECORDING -> STOPPED               -> recording saved, playhead freezes
+
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+
+use std::fs
+use std::python
+use std::time
+use std::ui
+
+use audio_engine::KainbletonAudioReport
+use audio_engine::audio_record_track
+use audio_engine::audio_preview_from_buffer
+use model::KainbletonProject
+use model::TRANSPORT_STOPPED
+use model::TRANSPORT_PLAYING
+use model::TRANSPORT_RECORDING
+
+use ui_arrangement::build_arrangement_view
+use ui_arrangement::ArrangementHandle
+use ui_helpers::audio_device_list
+use ui_helpers::format_time_mmss_cs
+use ui_helpers::is_checked
+use ui_mixer::build_mixer_strip
+use ui_session::KainbletonUiSession
+use ui_session::KainbletonNativeUiMirror
+use ui_styles::DAW_STYLESHEET
+use ui_styles::style_record_pulse_on
+use ui_styles::style_record_pulse_dim
+use ui_track_header::build_track_header_panel
+
+const WIN_W: Int = 1440
+const WIN_H: Int = 860
+const WIN_MIN_W: Int = 1024
+const WIN_MIN_H: Int = 640
+const MIXER_H: Int = 120
+
+pub fn kb_checkbox_checked_int(btn: Any) -> Int:
+    return is_checked(btn)
+
+// ---- native mirror ----
+
+fn build_native_mirror(project: KainbletonProject) -> KainbletonNativeUiMirror:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("kainbleton", 1280, 760)
+    let _open = native_ui_window_open(session, "kainbleton native mirror", 1280, 760)
+    let root = native_ui_node_create(session, "deck")
+    let transport = native_ui_node_create(session, "transport")
+    let _root_key = native_ui_node_set_stable_key(session, root, "kainbleton.root")
+    let _transport_key = native_ui_node_set_stable_key(session, transport, "kainbleton.transport")
+    let _transport_parent = native_ui_node_set_parent(session, transport, root)
+    let _root_rect = native_ui_node_set_rect(session, root, 0.0, 0.0, 1280.0, 760.0)
+    let _transport_rect = native_ui_node_set_rect(session, transport, 32.0, 34.0, 1210.0, 78.0)
+    let _root_text = native_ui_node_set_text(session, root, project.name + " // " + str(len(project.tracks)) + " tracks")
+    let _transport_text = native_ui_node_set_text(session, transport, "BPM " + str(Int(project.bpm)) + " // Kain transport authority")
+    let _style = native_ui_node_set_style_string(session, root, "accent", "#ff5f2e")
+    let _dirty = native_ui_mark_dirty(session, root, 1)
+    return KainbletonNativeUiMirror {
+        session_id: session,
+        root_node: root,
+        transport_node: transport,
+    }
+
+// ============================================================================
+//                    kb_ui_open
+// ============================================================================
+
+pub fn kb_ui_open(project: KainbletonProject, audio: KainbletonAudioReport, screenshot_path: String) -> KainbletonUiSession:
+    fs_create_dir_all(fs_path_parent(screenshot_path))
+
+    let native = build_native_mirror(project)
+    let devices = audio_device_list()
+
+    // ---- app + main window ----
+    let app = python_call_attr_raw(qtw, "QApplication", [[]])
+    let _app_style = python_call_attr_raw(app, "setStyleSheet", [DAW_STYLESHEET])
+
+    let win = python_call_attr_raw(qtw, "QMainWindow", [])
+    let _win_title = python_call_attr_raw(win, "setWindowTitle", ["kainbleton // Kain DAW Workbench"])
+    let _win_resize = python_call_attr_raw(win, "resize", [WIN_W, WIN_H])
+    let _win_min = python_call_attr_raw(win, "setMinimumSize", [WIN_MIN_W, WIN_MIN_H])
+
+    // ---- central layout ----
+    let central = python_call_attr_raw(qtw, "QWidget", [])
+    let cl = python_call_attr_raw(qtw, "QVBoxLayout", [central])
+    let _cl_spacing = python_call_attr_raw(cl, "setSpacing", [0])
+    let _cl_margin = python_call_attr_raw(cl, "setContentsMargins", [0, 0, 0, 0])
+
+    // ---- transport bar ----
+    let toolbar = python_call_attr_raw(qtw, "QToolBar", ["Transport"])
+    let _tb_add = python_call_attr_raw(win, "addToolBar", [qtc.Qt_ToolBarArea.TopToolBarArea, toolbar])
+    let _tb_move = python_call_attr_raw(toolbar, "setMovable", [false])
+
+    let _rw = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QPushButton", ["\u23EE"])])
+
+    let stop_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25A0"])
+    let _stop_obj = python_call_attr_raw(stop_btn, "setObjectName", ["stop_btn"])
+    let _stop_add = python_call_attr_raw(toolbar, "addWidget", [stop_btn])
+
+    let play_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25B6"])
+    let _play_obj = python_call_attr_raw(play_btn, "setObjectName", ["play_btn"])
+    let _play_add = python_call_attr_raw(toolbar, "addWidget", [play_btn])
+
+    let record_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25CF"])
+    let _rec_obj = python_call_attr_raw(record_btn, "setObjectName", ["record_btn"])
+    let _rec_check = python_call_attr_raw(record_btn, "setCheckable", [true])
+    let _rec_add = python_call_attr_raw(toolbar, "addWidget", [record_btn])
+
+    let _sep1 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let loop_btn = python_call_attr_raw(qtw, "QPushButton", ["\uD83D\uDD01 LOOP"])
+    let _loop_check = python_call_attr_raw(loop_btn, "setCheckable", [true])
+    let _loop_add = python_call_attr_raw(toolbar, "addWidget", [loop_btn])
+
+    let metro_btn = python_call_attr_raw(qtw, "QPushButton", ["\u266A METRO"])
+    let _metro_check = python_call_attr_raw(metro_btn, "setCheckable", [true])
+    let _metro_add = python_call_attr_raw(toolbar, "addWidget", [metro_btn])
+
+    let _sep2 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let bpm_label = python_call_attr_raw(qtw, "QLabel", [str(Int(project.bpm)) + " BPM"])
+    let _bpm_obj = python_call_attr_raw(bpm_label, "setObjectName", ["bpm_label"])
+    let _bpm_add = python_call_attr_raw(toolbar, "addWidget", [bpm_label])
+
+    let time_label = python_call_attr_raw(qtw, "QLabel", ["00:00.00"])
+    let _time_obj = python_call_attr_raw(time_label, "setObjectName", ["time_label"])
+    let _time_add = python_call_attr_raw(toolbar, "addWidget", [time_label])
+
+    let _sep3 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let dev_lbl = python_call_attr_raw(qtw, "QLabel", ["OUTPUT:"])
+    let _dev_obj = python_call_attr_raw(dev_lbl, "setObjectName", ["device_label"])
+    let _dev_add = python_call_attr_raw(toolbar, "addWidget", [dev_lbl])
+
+    let device_combo = python_call_attr_raw(qtw, "QComboBox", [])
+    var d: Int = 0
+    while d < len(devices):
+        let _add_dev = python_call_attr_raw(device_combo, "addItem", [devices[d]])
+        d = d + 1
+    let _combo_add = python_call_attr_raw(toolbar, "addWidget", [device_combo])
+
+    // ---- content: track headers + arrangement ----
+    let content_row = python_call_attr_raw(qtw, "QWidget", [])
+    let cr = python_call_attr_raw(qtw, "QHBoxLayout", [content_row])
+    let _cr_margin = python_call_attr_raw(cr, "setContentsMargins", [0, 0, 0, 0])
+
+    let header_widget = python_call_attr_raw(qtw, "QWidget", [])
+    let header_layout = python_call_attr_raw(qtw, "QVBoxLayout", [header_widget])
+    let _hdr_margins = python_call_attr_raw(header_layout, "setContentsMargins", [4, 2, 4, 2])
+    build_track_header_panel(header_layout, project)
+    let _hdr_add = python_call_attr_raw(cr, "addWidget", [header_widget])
+
+    let arr_widget = python_call_attr_raw(qtw, "QWidget", [])
+    let arr_layout = python_call_attr_raw(qtw, "QVBoxLayout", [arr_widget])
+    let arr_handle = build_arrangement_view(arr_layout, project)
+    let _arr_add = python_call_attr_raw(cr, "addWidget", [arr_widget])
+
+    let _content_add = python_call_attr_raw(cl, "addWidget", [content_row])
+
+    // ---- mixer ----
+    let mixer = python_call_attr_raw(qtw, "QWidget", [])
+    let _mix_s = python_call_attr_raw(mixer, "setStyleSheet", ["QWidget { background-color: #161b22; border-top: 2px solid #21262d; }"])
+    let _mix_f = python_call_attr_raw(mixer, "setFixedHeight", [MIXER_H])
+    let mxl = python_call_attr_raw(qtw, "QHBoxLayout", [mixer])
+    build_mixer_strip(mxl, project)
+    let _mix_a = python_call_attr_raw(cl, "addWidget", [mixer])
+
+    // ---- final assembly ----
+    let _set_c = python_call_attr_raw(win, "setCentralWidget", [central])
+
+    let status = python_call_attr_raw(win, "statusBar", [])
+    let _status_msg = python_call_attr_raw(status, "showMessage", ["kainbleton v0.2  |  " + str(len(project.tracks)) + " tracks  |  record-ready  |  PyQt6 + sounddevice + numpy"])
+
+    let _show = python_call_attr_raw(win, "show", [])
+    let _raise = python_call_attr_raw(win, "raise_", [])
+    let _process = python_call_attr_raw(app, "processEvents", [])
+
+    return KainbletonUiSession {
+        app: app,
+        main_window: win,
+        play_btn: play_btn,
+        stop_btn: stop_btn,
+        record_btn: record_btn,
+        loop_btn: loop_btn,
+        metro_btn: metro_btn,
+        bpm_label: bpm_label,
+        time_label: time_label,
+        device_combo: device_combo,
+        screenshot_path: screenshot_path,
+        frame_count: 0,
+        frame_hash: 0,
+        native_session: native.session_id,
+        native_root: native.root_node,
+        native_transport: native.transport_node,
+        // arrangement handle stored for playhead/waveform updates
+        arr_playhead: arr_handle.playhead_line,
+        arr_ruler: arr_handle.ruler_plot,
+        arr_curves: arr_handle.track_curves,
+    }
+
+// ============================================================================
+//                    kb_ui_pump
+// ============================================================================
+
+pub fn kb_ui_pump(session: KainbletonUiSession, project: KainbletonProject, audio: KainbletonAudioReport, frame: Int, semantic_score: Int) -> Int:
+    // transport state machine
+    let was_playing = project.transport_state == TRANSPORT_PLAYING
+    let was_recording = project.transport_state == TRANSPORT_RECORDING
+
+    // check button states
+    let play_pressed = is_checked(session.play_btn)
+    let rec_armed = is_checked(session.record_btn)
+
+    // determine new transport state
+    var new_state: Int = project.transport_state
+    if play_pressed == 1 and project.transport_state == TRANSPORT_STOPPED:
+        if rec_armed == 1:
+            new_state = TRANSPORT_RECORDING
+        else:
+            new_state = TRANSPORT_PLAYING
+    if play_pressed == 0:
+        new_state = TRANSPORT_STOPPED
+
+    // advance playhead if playing or recording
+    var playhead_sec: Float = project.playhead_seconds
+    if new_state == TRANSPORT_PLAYING or new_state == TRANSPORT_RECORDING:
+        playhead_sec = project.playhead_seconds + 0.016
+        if playhead_sec > 60.0:
+            playhead_sec = 0.0
+
+    // update playhead on timeline
+    let _ph = python_call_attr_raw(session.arr_playhead, "setPos", [playhead_sec])
+
+    // time display
+    let _time = python_call_attr_raw(session.time_label, "setText", [format_time_mmss_cs(playhead_sec)])
+
+    // transport label
+    var state_label: String = "STOPPED"
+    if new_state == TRANSPORT_PLAYING:
+        state_label = "PLAYING"
+    if new_state == TRANSPORT_RECORDING:
+        state_label = "RECORDING"
+    let _bpm = python_call_attr_raw(session.bpm_label, "setText", [str(Int(project.bpm)) + " BPM " + state_label])
+
+    // record button pulse
+    if rec_armed == 1 and frame % 8 < 4:
+        let _pulse_on = python_call_attr_raw(session.record_btn, "setStyleSheet", [style_record_pulse_on()])
+    if rec_armed == 1 and frame % 8 >= 4:
+        let _pulse_dim = python_call_attr_raw(session.record_btn, "setStyleSheet", [style_record_pulse_dim()])
+
+    let title = "kainbleton // " + state_label + " // " + format_time_mmss_cs(playhead_sec) + " // " + str(len(project.tracks)) + " tracks"
+    let _wt = python_call_attr_raw(session.main_window, "setWindowTitle", [title])
+
+    let _nt = native_ui_node_set_text(session.native_session, session.native_transport, state_label + " @ " + format_time_mmss_cs(playhead_sec))
+
+    let _process = python_call_attr_raw(session.app, "processEvents", [])
+    sleep_millis(16)
+
+    // write back transport state
+    project.transport_state = new_state
+    project.playhead_seconds = playhead_sec
+
+    return frame * 131 + project.checksum
+
+// ============================================================================
+//                    screenshot + close
+// ============================================================================
+
+pub fn kb_ui_screenshot(session: KainbletonUiSession) -> Int:
+    let _repaint = python_call_attr_raw(session.main_window, "repaint", [])
+    let _process = python_call_attr_raw(session.app, "processEvents", [])
+    let grab = python_call_attr_raw(session.main_window, "grab", [])
+    let saved = python_call_attr_raw(grab, "save", [session.screenshot_path])
+    return to_int(saved)
+
+pub fn kb_ui_close(session: KainbletonUiSession) -> Int:
+    let _close = python_call_attr_raw(session.main_window, "close", [])
+    let _native_close = native_ui_window_close(session.native_session)
+    let _native_destroy = native_ui_session_destroy(session.native_session)
+    let _quit = python_call_attr_raw(session.app, "quit", [])
+    return 0
+

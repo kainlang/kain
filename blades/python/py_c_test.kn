@@ -1,3 +1,79 @@
+// -- KAIN RAW AMALGAMATION -- src ----------------------------------------------------------
+// kind:       directory
+// contents:   source
+// structure:  8 files | 8 modules
+//
+// -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
+//
+// [constants]
+//   PYTHON_LAB_MODULUS
+//   PYTHON_LAB_CONFIG_PATH
+//   PYTHON_LAB_ROUTE_WIDTH
+//   PYTHON_LAB_PYGAME_CHANNELS
+// [types]
+//   shatter struct PythonInteropShard
+//   struct IntArrayWrap
+//   struct ProbeStatus
+//   struct ProbeWrap
+// [components]
+//   component PythonInteropPanel()
+// [actors]
+//   actor PythonInteropRelay
+// [worlds]
+//   world PythonInteropAuthority
+//   world PythonInteropMirror
+// [functions]
+//   fn main() -> Int
+//   fn config_text() -> String
+//   fn config_plan(plan_text: String) -> Any
+//   fn config_int(plan: Any, key: String, fallback: Int) -> Int
+//   fn config_string(plan: Any, key: String, fallback: String) -> String
+//   fn patterned_bytes(byte_length: Int, seed: Int) -> Array<Int>
+//   fn byte_signature(bytes: Array<Int>) -> Int
+//   fn module_probe_lane(plan: Any, plan_text: String) -> Int
+//   fn shared_contract_lane(plan: Any, plan_text: String) -> Int
+//   fn tensor_semantics_lane(plan: Any, plan_text: String) -> Int with Unsafe
+//   fn main() -> Int with Unsafe
+//   fn make_numpy_source() -> Any
+//   fn make_torch_source() -> Any
+//   fn make_replacement_bytes(length: Int, seed: Int) -> Array<Int>
+//   fn probe_shared_buffer(label: String, source: Any, mutate_index: Int, mutate_value: Int, replace_seed: Int) -> Int
+//   fn build_wrap() -> IntArrayWrap
+//   fn forward_wrap() -> IntArrayWrap
+//   fn build_wrap() -> ProbeWrap
+// [patches]
+//   patch commit_python_signal(authority: PythonInteropAuthority, value: Int, module_score: Int, route_score: Int, surface_score: Int, native_score: Int) -> Int
+// [laws]
+//   law python_signal_in_bounds(value: Int) -> Bool
+//
+// ============================================================================
+// cross_module_struct_probe.kn
+// ============================================================================
+use std::fs
+
+use struct_probe_support::build_cross_module_wrap
+
+fn main() -> Int:
+    let wrap = build_cross_module_wrap()
+    fs_write_text("cross_module_struct_probe_status.txt", to_string(len(wrap.value)) + "|" + to_string(wrap.value[0]))
+    return len(wrap.value)
+
+// ============================================================================
+// json_array_result_probe.kn
+// ============================================================================
+use std::fs
+use std::json
+
+fn main() -> Int:
+    let object = json_parse_text("{\"route\":[10,13,17,20]}")
+    let result = json_int_array_field_result(object, "route")
+    let values = result.value
+    fs_write_text("json_array_result_probe_status.txt", to_string(len(values)) + "|" + to_string(values[0]))
+    return len(values)
+
+// ============================================================================
+// main.kn
+// ============================================================================
 use std::actor
 use std::fs
 use std::intent
@@ -410,3 +486,280 @@ fn main() -> Int with Unsafe:
     if authority.native_score <= 0:
         return 67
     return 0
+
+// ============================================================================
+// route_probe.kn
+// ============================================================================
+use std::fs
+use std::json
+use std::python
+
+import python_lab.bridge as py_lab
+from python_lab.bridge import solve_lane_plan_default as py_solve_lane_plan_default
+
+fn main() -> Int:
+    let plan_text = fs_read_text("data/lab_config.json")
+    if python_hasattr(py_lab, "solve_lane_plan_default") == false:
+        fs_write_text("route_probe_status.txt", "missing-attr")
+        return 80
+
+    let imported_route_text = to_string(py_solve_lane_plan_default(plan_text))
+    let direct_route_text = to_string(python_call_attr_raw(py_lab, "solve_lane_plan_default", [plan_text]))
+    fs_write_text("route_probe_output.json", imported_route_text)
+    fs_write_text("route_probe_output_direct.json", direct_route_text)
+
+    let imported_route_plan = json_parse_text(imported_route_text)
+    let imported_route_key = "route"
+    let imported_reused_has = json_has_key(imported_route_plan, imported_route_key)
+    let imported_reused_value = json_get(imported_route_plan, imported_route_key)
+    let imported_fresh_value = json_get(imported_route_plan, "route")
+    let imported_route_result = json_int_array_field_result(imported_route_plan, "route")
+    if imported_route_result.ok == false:
+        let direct_route_plan = json_parse_text(direct_route_text)
+        let direct_route_key = "route"
+        let direct_reused_has = json_has_key(direct_route_plan, direct_route_key)
+        let direct_reused_value = json_get(direct_route_plan, direct_route_key)
+        let direct_fresh_value = json_get(direct_route_plan, "route")
+        let direct_route_result = json_int_array_field_result(direct_route_plan, "route")
+        let imported_route_value = json_get(imported_route_plan, "route")
+        let direct_route_value = json_get(direct_route_plan, "route")
+        let imported_route_first = json_array_get(imported_route_value, 0)
+        let direct_route_first = json_array_get(direct_route_value, 0)
+        let imported_route_second = json_array_get(imported_route_value, 1)
+        let imported_route_third = json_array_get(imported_route_value, 2)
+        let imported_route_fourth = json_array_get(imported_route_value, 3)
+        let direct_route_second = json_array_get(direct_route_value, 1)
+        let direct_route_third = json_array_get(direct_route_value, 2)
+        let direct_route_fourth = json_array_get(direct_route_value, 3)
+        if direct_route_result.ok == true:
+            fs_write_text("route_probe_status.txt", "member-import-only")
+            return 81
+        fs_write_text(
+            "route_probe_status.txt",
+            "imported=" + to_string(imported_route_result.status.code) +
+            "|" + to_string(imported_route_result.status.index) +
+            "|" + imported_route_result.status.actual_kind +
+            "|" + to_string(imported_reused_has) +
+            "|" + json_value_kind(imported_reused_value) +
+            "|" + to_string(json_value_kind_code(imported_reused_value)) +
+            "|" + json_value_kind(imported_fresh_value) +
+            "|" + to_string(json_value_kind_code(imported_fresh_value)) +
+            "|" + json_value_kind(imported_route_plan) +
+            "|" + json_value_kind(imported_route_value) +
+            "|" + to_string(json_value_kind_code(imported_route_value)) +
+            "|" + json_value_kind(imported_route_first) +
+            "|" + to_string(json_value_kind_code(imported_route_first)) +
+            "|" + to_string(json_value_kind_code(imported_route_second)) +
+            "|" + to_string(json_value_kind_code(imported_route_third)) +
+            "|" + to_string(json_value_kind_code(imported_route_fourth)) +
+            " direct=" + to_string(direct_route_result.status.code) +
+            "|" + to_string(direct_route_result.status.index) +
+            "|" + direct_route_result.status.actual_kind +
+            "|" + to_string(direct_reused_has) +
+            "|" + json_value_kind(direct_reused_value) +
+            "|" + to_string(json_value_kind_code(direct_reused_value)) +
+            "|" + json_value_kind(direct_fresh_value) +
+            "|" + to_string(json_value_kind_code(direct_fresh_value)) +
+            "|" + json_value_kind(direct_route_plan) +
+            "|" + json_value_kind(direct_route_value) +
+            "|" + to_string(json_value_kind_code(direct_route_value)) +
+            "|" + json_value_kind(direct_route_first) +
+            "|" + to_string(json_value_kind_code(direct_route_first)) +
+            "|" + to_string(json_value_kind_code(direct_route_second)) +
+            "|" + to_string(json_value_kind_code(direct_route_third)) +
+            "|" + to_string(json_value_kind_code(direct_route_fourth))
+        )
+        return 90
+
+    let imported_route = imported_route_result.value
+    fs_write_text(
+        "route_probe_status.txt",
+        "ok|" +
+        to_string(len(imported_route)) +
+        "|" +
+        to_string(imported_route[0]) +
+        "|" +
+        to_string(imported_route[1]) +
+        "|" +
+        to_string(imported_route[2]) +
+        "|" +
+        to_string(imported_route[3])
+    )
+    return len(imported_route)
+
+// ============================================================================
+// shared_buffer_probe.kn
+// ============================================================================
+use std::interop
+use std::python
+
+import numpy as np
+import torch as torch
+
+fn make_numpy_source() -> Any:
+    let base = python_call_attr_raw(np, "arange", [8])
+    let lane = python_call_attr_raw(base, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [lane])
+
+fn make_torch_source() -> Any:
+    let dtype = python_getattr_raw(torch, "uint8")
+    let base = python_call_attr_raw(torch, "arange", [0, 8])
+    let lane = python_call_attr_raw(base, "to", [dtype])
+    return python_call_attr_raw(lane, "contiguous", [])
+
+fn make_replacement_bytes(length: Int, seed: Int) -> Array<Int>:
+    let out = []
+    let index = 0
+    while index < length:
+        push(out, (seed + (index * 17)) % 251)
+        index = index + 1
+    return out
+
+fn probe_shared_buffer(label: String, source: Any, mutate_index: Int, mutate_value: Int, replace_seed: Int) -> Int:
+    let handle = python_shared_buffer(source)
+    if handle == 0:
+        print(label + ".handle=0")
+        return 10
+
+    let info = interop_shared_buffer_info(handle)
+    print(label + ".ownership=" + info.ownership)
+    print(label + ".zero_copy=" + to_string(info.zero_copy))
+    print(label + ".adoption_path=" + to_string(info.adoption_path))
+    print(label + ".fallback_reason=" + to_string(info.fallback_reason))
+    print(label + ".byte_length=" + to_string(info.byte_length))
+    print(label + ".source_backend=" + to_string(info.source_backend))
+    if info.ownership != "shared" or info.zero_copy == false:
+        kain_shared_buffer_release(handle)
+        return 11
+
+    let python_before = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    let before_bytes = interop_shared_buffer_bytes(handle)
+    if len(before_bytes) != info.byte_length:
+        kain_shared_buffer_release(handle)
+        return 12
+
+    let _python_write = python_call_attr_raw(source, "__setitem__", [mutate_index, mutate_value])
+    let after_python_bytes = interop_shared_buffer_bytes(handle)
+    let python_after = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    print(label + ".python_before=" + to_string(python_before))
+    print(label + ".python_after=" + to_string(python_after))
+    print(label + ".kain_after_python=" + to_string(after_python_bytes[mutate_index]))
+    if after_python_bytes[mutate_index] != mutate_value or python_after != mutate_value:
+        kain_shared_buffer_release(handle)
+        return 13
+
+    let replacement = make_replacement_bytes(info.byte_length, replace_seed)
+    interop_shared_buffer_replace_bytes(handle, replacement)
+    let replaced_info = interop_shared_buffer_info(handle)
+    let replaced_bytes = interop_shared_buffer_bytes(handle)
+    let python_after_replace = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    print(label + ".post_replace.ownership=" + replaced_info.ownership)
+    print(label + ".post_replace.zero_copy=" + to_string(replaced_info.zero_copy))
+    print(label + ".post_replace.adoption_path=" + to_string(replaced_info.adoption_path))
+    print(label + ".post_replace.fallback_reason=" + to_string(replaced_info.fallback_reason))
+    print(label + ".post_replace.kain_byte0=" + to_string(replaced_bytes[0]))
+    print(label + ".post_replace.python_index=" + to_string(python_after_replace))
+    if replaced_info.ownership != "owned" or replaced_info.zero_copy:
+        kain_shared_buffer_release(handle)
+        return 14
+    if to_string(replaced_info.adoption_path) != "manual_replace_bytes":
+        kain_shared_buffer_release(handle)
+        return 15
+    if replaced_bytes[0] != replacement[0]:
+        kain_shared_buffer_release(handle)
+        return 16
+    if python_after_replace != mutate_value:
+        kain_shared_buffer_release(handle)
+        return 17
+
+    kain_shared_buffer_release(handle)
+    return 0
+
+fn main() -> Int:
+    let numpy_status = probe_shared_buffer("numpy", make_numpy_source(), 3, 199, 41)
+    if numpy_status != 0:
+        return 100 + numpy_status
+
+    let torch_status = probe_shared_buffer("torch", make_torch_source(), 4, 177, 73)
+    if torch_status != 0:
+        return 200 + torch_status
+
+    return 0
+
+// ============================================================================
+// struct_array_probe.kn
+// ============================================================================
+use std::fs
+
+struct IntArrayWrap:
+    ok: Bool
+    value: Array<Int>
+
+fn build_wrap() -> IntArrayWrap:
+    let items: Array<Int> = [10, 13, 17, 20]
+    return IntArrayWrap {
+        ok: true,
+        value: items
+    }
+
+fn forward_wrap() -> IntArrayWrap:
+    let wrap = build_wrap()
+    if wrap.ok == false:
+        return IntArrayWrap {
+            ok: false,
+            value: []
+        }
+    return IntArrayWrap {
+        ok: true,
+        value: wrap.value
+    }
+
+fn main() -> Int:
+    let wrap = forward_wrap()
+    fs_write_text("struct_array_probe_status.txt", to_string(len(wrap.value)) + "|" + to_string(wrap.value[0]))
+    return len(wrap.value)
+
+// ============================================================================
+// struct_array_status_probe.kn
+// ============================================================================
+use std::fs
+
+struct ProbeStatus:
+    message: String
+
+struct ProbeWrap:
+    ok: Bool
+    value: Array<Int>
+    status: ProbeStatus
+
+fn build_wrap() -> ProbeWrap:
+    let items: Array<Int> = [10, 13, 17, 20]
+    return ProbeWrap {
+        ok: true,
+        value: items,
+        status: ProbeStatus {
+            message: ""
+        }
+    }
+
+fn main() -> Int:
+    let wrap = build_wrap()
+    fs_write_text("struct_array_status_probe_status.txt", to_string(len(wrap.value)) + "|" + to_string(wrap.value[0]))
+    return len(wrap.value)
+
+// ============================================================================
+// struct_probe_support.kn
+// ============================================================================
+pub struct CrossModuleWrap:
+    ok: Bool
+    value: Array<Int>
+    note: String
+
+pub fn build_cross_module_wrap() -> CrossModuleWrap:
+    let items: Array<Int> = [10, 13, 17, 20]
+    return CrossModuleWrap {
+        ok: true,
+        value: items,
+        note: ""
+    }
+

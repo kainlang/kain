@@ -11,8 +11,19 @@ The Kain native C runtime is the execution substrate for compiled Kain programs.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    UI Layer (src/ui/)                     │
-│  ui_system · ui_runtime · ui_host_adapter · ui_hot_reload │
-│  ui_compiled_bundle                                      │
+│  ┌────────────────────────────────────────────────┐     │
+│  │   RETAINED-MODE UI SESSION (legacy)             │     │
+│  │   ui_system · ui_runtime · ui_host_adapter      │     │
+│  │   ui_hot_reload · ui_compiled_bundle            │     │
+│  │   ui_color · ui_layout · ui_renderer            │     │
+│  │   native_ui_surface (KainComponentSurface impl) │     │
+│  └────────────────────────────────────────────────┘     │
+│  ┌────────────────────────────────────────────────┐     │
+│  │   PHASE 1 KAIN SUBSTRATE (src/ui/kain/)  NEW    │     │
+│  │   kain_geometry · kain_surface · kain_host      │     │
+│  │   kain_host_win32 · kain_input · kain_font      │     │
+│  │   kain_compositor · kain_render_software        │     │
+│  └────────────────────────────────────────────────┘     │
 ├─────────────────────────────────────────────────────────┤
 │                Platform Layer (src/platform/)              │
 │  platform.c · os_system.c · platform_library.c           │
@@ -100,10 +111,14 @@ at runtime by the shims.
 
 ### ABI Paths
 
-All three Kain-to-runtime paths converge through `KainComponentSurface`:
+All three Kain-to-runtime paths converge through `KainComponentSurface` (24-slot vtable, 192 bytes on x64):
 - `std::graphics` → `graphics_system.c` → delegates to component surface
-- `std::ui` → `ui_host_adapter.c` → resolves component surface from registry
+- `std::ui` → `native_ui_surface.c` → resolves component surface from registry
 - `surface vulkan => Component` → compiler emits vtable calls directly
+- `surface native_ui => Component` → routes to GDI by default, or to a GPU shim when `RENDERER_BACKEND` is set
+- `surface shader_canvas => Component` → routes to a GPU backend (no software fallback)
+
+The 24-slot vtable in `component_surface.c` covers session lifecycle, element tree CRUD, attribute setters (i64/f64/string), state persistence (i64/f64/string), frame lifecycle, event polling, window lifecycle, platform handle attachment, GPU extension discovery, and a callback binding slot (see `include/component_surface.h` for the full layout).
 
 ### Build Gates
 
@@ -175,9 +190,27 @@ runtime/native/
 │       ├── ui_host_adapter.c/h  # Host adapter interface
 │       ├── ui_hot_reload.c #   Hot-reload of UI components
 │       ├── ui_compiled_bundle.c # Compiled UI bundle loading
+│       ├── ui_color.c      #   Color parsing, blending, opacity
+│       ├── ui_layout.c     #   Node tree layout engine
+│       ├── ui_renderer.c   #   Node tree → framebuffer software renderer
 │       ├── ui_system_internal.h # Internal header
+│       ├── native_ui_surface.c  # KainComponentSurface vtable impl for "native_ui"
+│       ├── widgets/        #   Immediate-mode widget library
+│       ├── kain/           #   PHASE 1 substrate (KUIF): widget-free UI primitives  NEW
+│       │   ├── kain_geometry.h        #   Rect / Point / Size / Matrix / Color
+│       │   ├── kain_surface.h         #   GPU surface abstraction (software stub)
+│       │   ├── kain_host.h            #   Platform-agnostic host interface vtable
+│       │   ├── kain_host_win32.c      #   Win32 GDI host backend
+│       │   ├── kain_input.h/.c        #   Input pipeline (wraps abi_ui_*)
+│       │   ├── kain_font.h/.c         #   Font subsystem (load / glyph / measure)
+│       │   ├── kain_compositor.h/.c   #   Damage region tracker
+│       │   └── kain_render_software.h/.c # Software draw primitives + clip/transform
+│       ├── research/       #   Architecture notes
 │       └── z3/             #   Z3 verification for UI runtime
 ├── include/                # 50+ headers |-> public C ABI
+│   ├── component_surface.h # 24-slot KainComponentSurface vtable (192 bytes on x64)
+│   ├── ui_*.h              # Legacy retained-mode UI session ABI
+│   └── kain_*.h            # PHASE 1 substrate public headers (twin of src/ui/kain/)  NEW
 ├── test/                   # Verification pipeline
 │   ├── smoke/              #   Sanity-compile-and-run tests
 │   ├── property/           #   Invariant property tests
@@ -204,6 +237,8 @@ runtime/native/
 ---
 
 ## Core Layer (`src/core/`)
+
+> **Note:** `component_surface.c` is the heart of the surface dispatch layer. It owns a 16-entry name → vtable registry, supports `RENDERER_BACKEND`-driven GPU routing (Vulkan / D3D12 / WebGPU), and resolves the canonical 24-slot `KainComponentSurface` vtable that all compiled Kain component code calls through. When the env var is set, resolving `"native_ui"` automatically rewrites to a GPU backend; `"shader_canvas"` requires a GPU backend (returns NULL otherwise).
 
 ### Initialization & Lifecycle
 
@@ -334,6 +369,13 @@ runtime/native/
 
 ## UI Layer (`src/ui/`)
 
+The UI layer is organized in two cooperating sublayers:
+
+1. **Retained-mode UI session** (`ui_*.c`, `native_ui_surface.c`) — The legacy retained-mode node tree, hot-reload, compiled bundle loader, software renderer, layout engine, and the `KainComponentSurface` adapter for the `"native_ui"` surface.
+2. **Phase 1 Kain substrate** (`src/ui/kain/`) — Widget-free, tree-free UI primitives: geometry types, GPU surface abstraction, host vtable, input pipeline, font subsystem, damage tracker, and software draw primitives. This sublayer extracts the platform-agnostic, immediate-mode primitives that the retained-mode session currently owns inline, and lays the foundation for GPU backends (Vulkan / D3D12 / WebGPU) in Phase 2.
+
+### Retained-Mode UI Session
+
 | File | Purpose |
 |------|---------|
 | **`ui_system.c`** | UI component system: component state management, invalidation tracking, focus routing, and event dispatch. |
@@ -342,6 +384,29 @@ runtime/native/
 | **`ui_host_adapter.c` / `ui_host_adapter.h`** | Interface layer between the platform window system and the Kain UI component tree. Translates platform events into component updates. |
 | **`ui_hot_reload.c`** | UI hot-reload support. Monitors compiled UI bundles for changes and triggers seamless component swaps. |
 | **`ui_compiled_bundle.c`** | Loads and validates compiled UI bundle payloads (pre-compiled component trees from the Kain compiler). |
+| **`ui_color.c`** | Color parsing (`#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(...)`, `rgba(...)`, ~34 named), straight-alpha blending via Z3-proven `div255_fast`, and opacity multiplication. |
+| **`ui_layout.c`** | Node tree layout engine: direction-aware child distribution, padding/spacing, dirty-flag caching (Z3-proven ~51× speedup), sibling-linked child enumeration (Z3-proven ~4000× speedup vs linear scan). |
+| **`ui_renderer.c`** | Software framebuffer renderer: walks the retained-mode node tree and rasterizes fill / border / rounded-rect / opacity into a caller-provided `uint32_t*` pixel buffer. Branchless clamp, dual-pixel fill, and corner falloff are Z3-proven. |
+| **`native_ui_surface.c`** | `KainComponentSurface` vtable implementation for the `"native_ui"` surface. Reconciles by stable key, persists state on a hidden `__kain_state_root` node, and dispatches every frame to the legacy `abi_ui_*` ABI in `ui_system.c`. |
+
+### Phase 1 Kain Substrate (`src/ui/kain/`) — NEW
+
+The Kain substrate (KUIF Phase 1) is a widget-free, tree-free layer of UI primitives extracted from the retained-mode session. The retained-mode session still calls into the substrate for geometry, fonts, and input; the substrate is the future home for GPU-backed draw and host backends. Each header in `include/kain_*.h` has a twin copy inside `src/ui/kain/` so internal code can use a local include path while external consumers (stdlib bridges, blades) include from `include/`.
+
+| File | Purpose |
+|------|---------|
+| **`kain_geometry.h`** | Primitive geometry types: `kainRect`, `kainPoint`, `kainSize`, 2D affine `kainMatrix`, float-RGBA `kainColor`. Provides inline helpers for rect construction, intersection / union, point arithmetic, color space conversion (`kain_color_from_u32` / `kain_color_to_u32`), color lerp, and matrix multiply / transform. The default dark background constant `KAIN_COLOR_DARK_BG` matches the retained-mode session's `0xFF1A1A24` clear color. |
+| **`kain_surface.h`** | GPU surface abstraction. In Phase 1 the only live backend is `KAIN_SURFACE_SOFTWARE`; the `kainSurfaceKind` enum reserves Vulkan, D3D12, and WebGPU slots for Phase 2. Lifecycle: `kain_surface_create` / `kain_surface_destroy` / `kain_surface_resize`. Pixel access is via `kain_surface_pixels` (returns NULL for GPU backends). |
+| **`kain_host.h`** | Platform-agnostic host interface vtable. Defines `kainHostVTable` with slots for identification, window lifecycle, message pump, framebuffer access, present, clipboard, cursor, and a GPU surface extension handle. Per-platform backends (`KAIN_HOST_WIN32`, `_X11`, `_WAYLAND`, `_MACOS`, `_WASM`) fill the vtable; `kain_host_native()` returns the live one. |
+| **`kain_host_win32.c`** | Win32 GDI host backend. Extracted from `ui_host_adapter.c`. Registers the `KainWin32UI` window class, creates a top-down 32-bit DIB section via `CreateDIBSection`, pumps messages via `PeekMessageA` / `DispatchMessageA`, and presents with `BitBlt` on `WM_PAINT`. Bridges `WM_KEYDOWN` / `WM_KEYUP` / `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` / `WM_RBUTTONDOWN` / `WM_MOUSEWHEEL` into the universal `abi_input_push_event()` API with a VK → key-string lookup. DPI scaling via `SetProcessDpiAwarenessContext` and `GetDeviceCaps`. |
+| **`kain_input.h` / `kain_input.c`** | Input pipeline. Thin typed wrapper over the existing `abi_ui_push_event` / `abi_ui_poll_event` ring buffer in `ui_system.c`. Maps string event kinds to a `KainInputEventKind` enum (`KEY_DOWN`, `KEY_UP`, `TEXT`, `POINTER_*`, `FOCUS_*`, `DRAG`, `DROP`) and returns a structured `KainInputEvent` record (kind, key_code, x/y, delta, UTF-8 text, device_id, timestamp). Hit-test delegation via `abi_ui_hit_test`. |
+| **`kain_font.h` / `kain_font.c`** | Font subsystem. Wraps the existing `abi_ui_font_load_ttf` / `abi_ui_font_get_glyph` / `abi_ui_text_measure_*` ABI. Load from raw TTF bytes (`kain_font_load`), file path (`kain_font_load_path`), or platform default (`kain_font_load_default`). Platform search order: Windows → `segoeui.ttf` / `arial.ttf` / `tahoma.ttf` / `consola.ttf`; macOS → `Helvetica.ttc` / `SFNS.ttf` / `Arial.ttf`; Linux → DejaVu variants. `KAIN_UI_FONT` env var overrides everything. Returns font resource id (>0) on success, 0 on failure (no crash). |
+| **`kain_compositor.h` / `kain_compositor.c`** | Damage region tracker. Accumulates up to 64 dirty rectangles per frame; `kain_compositor_damaged_region()` returns the bounding union for partial redraws. `kain_compositor_damage_node()` is a Phase-1 stub (no node tree access) that will look up the node rect in later phases. Frame-bounded lifecycle: `begin_frame` clears, `end_frame` computes the union. |
+| **`kain_render_software.h` / `kain_render_software.c`** | Backend-agnostic software draw primitives: fill / stroke / rounded-rect / fill-circle / stroke-circle / gradient-fill / blit / box-blur / text. Owns a clip stack (max depth 16) and a transform stack (max depth 16). Strict-aliasing-safe (dual-pixel writes use `memcpy`, not `uint64_t*` casts). Z3-proven: branchless clamp, dual-pixel fill equivalence, corner radius falloff, all extracted from `ui_renderer.c`. |
+
+### Substrate / Session Boundary
+
+The retained-mode UI session is unchanged at the ABI level. The substrate is additive: it adds a parallel API for the parts of UI that the retained-mode session is about to stop owning inline (immediate-mode draw primitives, platform host, surface abstraction, font / input / damage tracking). The Phase 1 split does not break any existing call site — the substrate forwards into the same `abi_ui_*` ABI that the legacy session uses.
 
 ---
 
@@ -436,10 +501,22 @@ The `runtime/runtime_manifest_data.bzl` manifest (auto-generated by `tools/bazel
 
 | File | Purpose |
 |------|---------|
-| **`runtime/native_core_runtime.toml`** | Canonical runtime manifest used by production Bazel builds. Lists all sources, platform-conditioned files, defines, link libraries, versions, and ~35 registered services with status/requirement/platform metadata. |
+| **`runtime/native_core_runtime.toml`** | Canonical runtime manifest used by production Bazel builds. Lists all sources (including the Phase 1 substrate under `native/src/ui/kain/`), platform-conditioned files, defines, link libraries, versions, and ~50 registered services with status/requirement/platform metadata. |
 | **`runtime/native_runtime.toml`** | Compatibility mirror of the canonical manifest (older discovery paths). |
 | **`runtime/native_attrition_runtime.toml`** | Runtime variant for the attrition (certification) pipeline. |
 | **`runtime/native_async_benchmark_runtime.toml`** | Runtime variant for async subsystem benchmarks. |
+
+The canonical `native_core_runtime.toml` now compiles the five Phase 1 substrate C files alongside the legacy UI session:
+
+```toml
+"native/src/ui/kain/kain_render_software.c",
+"native/src/ui/kain/kain_compositor.c",
+"native/src/ui/kain/kain_input.c",
+"native/src/ui/kain/kain_font.c",
+"native/src/ui/kain/kain_host_win32.c",
+```
+
+Headers are public from `include/kain_*.h` (twin of the local copies in `src/ui/kain/`). The `kain_surface` / `kain_host` / `kain_geometry` headers are header-only and ship from `include/`.
 
 ---
 
@@ -572,6 +649,13 @@ The `include/` directory exposes the full public C ABI. Each header corresponds 
 | `ui_runtime.h` | UI runtime lifecycle. |
 | `ui_system.h` | UI component system. |
 | `union.h` | Union type access. |
+| `kain_geometry.h` | **NEW** — Phase 1 substrate: `kainRect`, `kainPoint`, `kainSize`, `kainMatrix` (2D affine), `kainColor` (float RGBA), inline ops (intersect / union / lerp / transform). |
+| `kain_surface.h` | **NEW** — Phase 1 substrate: GPU surface abstraction (`kainSurface`, `kainSurfaceKind` enum: SOFTWARE / VULKAN / D3D12 / WEBGPU). |
+| `kain_host.h` | **NEW** — Phase 1 substrate: `kainHostVTable` (platform-agnostic host interface) + `kainHostPlatform` enum (WIN32 / X11 / WAYLAND / MACOS / WASM). |
+| `kain_input.h` | **NEW** — Phase 1 substrate: typed input pipeline wrapping the existing `abi_ui_*` event ring buffer (`KainInputEvent`, `KainInputEventKind`). |
+| `kain_font.h` | **NEW** — Phase 1 substrate: font load / glyph / measure / metrics over the `abi_ui_font_*` ABI. |
+| `kain_compositor.h` | **NEW** — Phase 1 substrate: damage region tracker (64-rect accumulator, bounding union). |
+| `kain_render_software.h` | **NEW** — Phase 1 substrate: software draw primitives (fill / stroke / rounded / circle / gradient / blit / blur / text) + clip + transform stacks. |
 | `version.h` | ABI/runtime version constants. |
 | `virtual_alloc.h` | OS page management. |
 | `vulkan_loader_subset.h` | Minimal Vulkan loader bindings. |

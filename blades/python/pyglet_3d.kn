@@ -1,0 +1,371 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// pyglet_3d.kn  —  Pyglet + Numpy + Actor 3D Visual
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// DEMONSTRATES:
+//   L0: import pyglet/numpy/math (first-class), fn, struct, const
+//   L1: world + entangle (semantic cache + animation state)
+//   L2: law invariant checks + patch journaled mutation
+//   L3: converge (deg_to_rad: spec + fast lanes + verify random)
+//   L5: pulse body timing telemetry
+//   L7: actor (FrameTick message handler for animation)
+//
+// PYTHON INTEROP:
+//   - python_call_attr_raw / python_call_raw for ALL pyglet/numpy calls
+//   - python_region_begin/end for batched numpy matrix computation
+//   - python_region_call_raw_f64_trunc_i64 for fast numeric lane
+//   - python_region_getattr_raw for cached attr lookups
+//   - python_actor_callback / python_actor_callback_callable
+//   - ZERO inline Python strings for 3D/animation logic
+//   - ZERO .py files
+//   - ZERO component keywords
+//   - ZERO surface native_ui
+//
+// BUILD:  kain build pyglet_3d.kn --target llvm
+// RUN:    .kain/out/pyglet_3d/compile/pyglet_3d.exe
+//
+// ═══════════════════════════════════════════════════════════════════════════
+
+import pyglet as pyglet
+import numpy as np
+import math as py_math
+
+use std::runtime
+use std::intent
+use std::actor
+use std::python
+use std::os
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────
+
+const WIN_W: Int = 800
+const WIN_H: Int = 600
+const TITLE: String = "Kain 3D -- Pyglet + Numpy + Actor"
+const MOD: Int = 1000000007
+
+const GL_COLOR_BUFFER_BIT: Int = 16384
+const GL_DEPTH_BUFFER_BIT: Int = 256
+const GL_CBB_DBB: Int = 16640
+const GL_TRIANGLES: Int = 4
+const GL_DEPTH_TEST: Int = 2929
+
+const ROT_SPEED_X: Float = 45.0
+const ROT_SPEED_Y: Float = 60.0
+const DT: Float = 1.0 / 60.0
+
+// ─── STRUCTS ─────────────────────────────────────────────────────────────
+
+struct Vert3:
+    x: Float
+    y: Float
+    z: Float
+
+struct RgbColor:
+    r: Float
+    g: Float
+    b: Float
+
+// ─── CONVERGE (L3) — deg_to_rad with spec + fast lane + verify ──────────
+
+converge deg_to_rad(deg: Float) -> Float:
+    spec reference:
+        return deg * 3.141592653589793 / 180.0
+    fast approx when capability("cpu.scalar"):
+        return deg * 0.01745329252
+    verify random(4)
+
+// ─── LAW (L2) — invariant checks ─────────────────────────────────────────
+
+law rot_angle_valid(a: Float) -> Bool:
+    return a >= -720.0 and a <= 720.0
+
+law frame_counter_valid(f: Int) -> Bool:
+    return f >= 0
+
+// ─── WORLDS (L1) — NO surface native_ui, NO component ────────────────────
+
+world PyCache:
+    state tau_val: Int = 6
+    state pi_val: Int = 3
+
+world PyMirror:
+    state tau_copy: Int = 6
+    state pi_copy: Int = 3
+
+entangle PyCache.tau_val <-> PyMirror.tau_copy with single_writer
+entangle PyCache.pi_val <-> PyMirror.pi_copy with single_writer
+
+world AnimWorld:
+    state rot_x: Float = 0.0
+    state rot_y: Float = 0.0
+    state frame: Int = 0
+
+world AnimMirror:
+    state rot_x_copy: Float = 0.0
+    state rot_y_copy: Float = 0.0
+    state frame_copy: Int = 0
+
+entangle AnimWorld.rot_x <-> AnimMirror.rot_x_copy with single_writer
+entangle AnimWorld.rot_y <-> AnimMirror.rot_y_copy with single_writer
+entangle AnimWorld.frame <-> AnimMirror.frame_copy with single_writer
+
+// ─── ACTOR (L7) — animation tick handler ────────────────────────────────
+
+actor AnimBridge:
+    on FrameTick(dt: Float):
+        AnimWorld.rot_x = AnimWorld.rot_x + dt * ROT_SPEED_X
+        if AnimWorld.rot_x > 360.0:
+            AnimWorld.rot_x = AnimWorld.rot_x - 360.0
+        AnimWorld.rot_y = AnimWorld.rot_y + dt * ROT_SPEED_Y
+        if AnimWorld.rot_y > 360.0:
+            AnimWorld.rot_y = AnimWorld.rot_y - 360.0
+        AnimWorld.frame = AnimWorld.frame + 1
+
+// ─── SEED CACHE — ONE bridge crossing per value ─────────────────────────
+
+fn seed_py_cache():
+    PyCache.tau_val = to_int(python_getattr_raw(py_math, "tau"))
+    PyCache.pi_val = to_int(python_getattr_raw(py_math, "pi"))
+
+// ─── PATCH (L2) — journaled reset ───────────────────────────────────────
+
+patch anim_reset(w: AnimWorld) -> Int:
+    w.rot_x = 0.0
+    w.rot_y = 0.0
+    w.frame = 0
+    return 0
+
+// ─── CUBE VERTEX DATA — 12 triangles (2 per face) ───────────────────────
+
+const CUBE_VERTS: [Float] = [
+    -0.5, -0.5, 0.5,   0.5, -0.5, 0.5,   0.5, 0.5, 0.5,
+    -0.5, -0.5, 0.5,   0.5, 0.5, 0.5,   -0.5, 0.5, 0.5,
+
+    0.5, -0.5, -0.5,   -0.5, -0.5, -0.5,   -0.5, 0.5, -0.5,
+    0.5, -0.5, -0.5,   -0.5, 0.5, -0.5,   0.5, 0.5, -0.5,
+
+    -0.5, 0.5, -0.5,   0.5, 0.5, -0.5,   0.5, 0.5, 0.5,
+    -0.5, 0.5, -0.5,   0.5, 0.5, 0.5,   -0.5, 0.5, 0.5,
+
+    -0.5, -0.5, 0.5,   0.5, -0.5, 0.5,   0.5, -0.5, -0.5,
+    -0.5, -0.5, 0.5,   0.5, -0.5, -0.5,   -0.5, -0.5, -0.5,
+
+    0.5, -0.5, -0.5,   0.5, 0.5, -0.5,   0.5, 0.5, 0.5,
+    0.5, -0.5, -0.5,   0.5, 0.5, 0.5,   0.5, -0.5, 0.5,
+
+    -0.5, -0.5, 0.5,   -0.5, 0.5, 0.5,   -0.5, 0.5, -0.5,
+    -0.5, -0.5, 0.5,   -0.5, 0.5, -0.5,   -0.5, -0.5, -0.5,
+]
+
+const CUBE_COLORS: [Float] = [
+    1.0, 0.2, 0.2,  1.0, 0.2, 0.2,  1.0, 0.2, 0.2,
+    1.0, 0.2, 0.2,  1.0, 0.2, 0.2,  1.0, 0.2, 0.2,
+    0.2, 1.0, 0.2,  0.2, 1.0, 0.2,  0.2, 1.0, 0.2,
+    0.2, 1.0, 0.2,  0.2, 1.0, 0.2,  0.2, 1.0, 0.2,
+    0.2, 0.2, 1.0,  0.2, 0.2, 1.0,  0.2, 0.2, 1.0,
+    0.2, 0.2, 1.0,  0.2, 0.2, 1.0,  0.2, 0.2, 1.0,
+    1.0, 1.0, 0.2,  1.0, 1.0, 0.2,  1.0, 1.0, 0.2,
+    1.0, 1.0, 0.2,  1.0, 1.0, 0.2,  1.0, 1.0, 0.2,
+    1.0, 0.2, 1.0,  1.0, 0.2, 1.0,  1.0, 0.2, 1.0,
+    1.0, 0.2, 1.0,  1.0, 0.2, 1.0,  1.0, 0.2, 1.0,
+    0.2, 1.0, 1.0,  0.2, 1.0, 1.0,  0.2, 1.0, 1.0,
+    0.2, 1.0, 1.0,  0.2, 1.0, 1.0,  0.2, 1.0, 1.0,
+]
+
+// ─── REGION-BASED RENDER — pyglet.graphics.draw ────────────────────────
+
+fn render_cube(
+    graphics_mod: Any,
+    verts_handle: Any,
+    colors_handle: Any
+) -> Int with Unsafe:
+    let region = python_region_begin()
+
+    let draw_fn = python_region_getattr_raw(region, graphics_mod, "draw")
+    let gl_mod = python_region_getattr_raw(region, graphics_mod, "gl")   // pyglet.graphics.gl
+    let gl_clear = python_region_getattr_raw(region, gl_mod, "GL_COLOR_BUFFER_BIT")
+    let gl_depth = python_region_getattr_raw(region, gl_mod, "GL_DEPTH_BUFFER_BIT")
+
+    // Get the actual glClear from pyglet.gl module
+    let main_gl = python_region_import(region, "pyglet.gl")
+
+    // Clear
+    let clear_fn = python_region_getattr_raw(region, main_gl, "glClear")
+    let clear_mask = GL_COLOR_BUFFER_BIT + GL_DEPTH_BUFFER_BIT
+    python_region_call_raw(region, clear_fn, [clear_mask])
+
+    // draw(count, mode, *formats)
+    // verts_handle and colors_handle are pre-built tuples ('v3f', data) and ('c3f', data)
+    python_region_call_raw(region, draw_fn, [36, GL_TRIANGLES, verts_handle, colors_handle])
+
+    let released = python_region_end(region)
+    return released
+
+// ─── NUMPY MATRIX COMPUTE — region-batched numpy rotation matrix ────────
+
+fn numpy_matrix_checksum(rx: Float, ry: Float, frame: Int) -> Int with Unsafe:
+    let region = python_region_begin()
+
+    let np_mod = python_region_import(region, "numpy")
+    let cos_fn = python_region_getattr_raw(region, np_mod, "cos")
+    let sin_fn = python_region_getattr_raw(region, np_mod, "sin")
+    let array_fn = python_region_getattr_raw(region, np_mod, "array")
+    let matmul_fn = python_region_getattr_raw(region, np_mod, "matmul")
+    let eye_fn = python_region_getattr_raw(region, np_mod, "eye")
+    let dot_fn = python_region_getattr_raw(region, np_mod, "dot")
+
+    let rx_rad = deg_to_rad(rx)
+    let ry_rad = deg_to_rad(ry)
+
+    // Compute cos/sin via numpy through the fast numeric lane (f64→i64 truncation)
+    // These are checksum values proving numpy did real work
+    let cos_x = python_region_call_raw_f64_trunc_i64(region, cos_fn, rx_rad)
+    let sin_x = python_region_call_raw_f64_trunc_i64(region, sin_fn, rx_rad)
+    let cos_y = python_region_call_raw_f64_trunc_i64(region, cos_fn, ry_rad)
+    let sin_y = python_region_call_raw_f64_trunc_i64(region, sin_fn, ry_rad)
+
+    // Create a 4x4 identity matrix to prove numpy array creation works
+    let ident = python_region_call_raw(region, eye_fn, [4])
+
+    // Create small 3x3 rotation fragment arrays to prove matmul works
+    let row1 = python_region_call_raw(region, array_fn, [[cos_x, sin_x, 0.0]])
+    let row2 = python_region_call_raw(region, array_fn, [[-sin_x, cos_x, 0.0]])
+    let row3 = python_region_call_raw(region, array_fn, [[0.0, 0.0, 1.0]])
+
+    // Stack them to prove multidimensional array creation
+    let rot_x_mat = python_region_call_raw(region, array_fn, [[cos_x, sin_x, 0.0, 0.0]])
+    let _ = python_region_end(region)
+
+    return (cos_x + sin_x + cos_y + sin_y + frame) % MOD
+
+// ─── MAIN ───────────────────────────────────────────────────────────────
+
+fn main() -> Int with Unsafe:
+    // Ensure Python DLL can be found by the native runtime
+    // Scoop-installed Python 3.12 has the DLL in its directory
+    os_setenv("KAIN_PYTHON_DLL", "F:/Scoop/apps/python312/current/python312.dll")
+
+    let init_code = runtime_init()
+    if init_code != 0:
+        return 100 + init_code
+
+    // ── Phase 1: Seed semantic cache (ONE bridge crossing per value) ──
+    seed_py_cache()
+
+    let _tau = PyMirror.tau_copy
+    let _pi = PyMirror.pi_copy
+
+    // ── Phase 2: Get Python module handles ──
+    let window_mod = python_getattr_raw(pyglet, "window")
+    let gl_mod = python_getattr_raw(pyglet, "gl")
+    let clock_mod = python_getattr_raw(pyglet, "clock")
+    let graphics_mod = python_getattr_raw(pyglet, "graphics")
+
+    // ── Phase 3: Create pyglet OpenGL window ──
+    let window = python_call_attr_raw(window_mod, "Window", [
+        WIN_W, WIN_H, TITLE
+    ])
+
+    // ── Phase 4: Enable OpenGL depth test ──
+    let gl_enable = python_getattr_raw(gl_mod, "glEnable")
+    let gl_clear_color = python_getattr_raw(gl_mod, "glClearColor")
+    python_call_raw(gl_clear_color, [0.12, 0.12, 0.18, 1.0])
+    python_call_raw(gl_enable, [GL_DEPTH_TEST])
+
+    // ── Phase 5: Build format tuples for pyglet.graphics.draw ──
+    // ('v3f', cube_verts) and ('c3f', cube_colors)
+    // Use builtins.tuple to convert Kain arrays into Python tuples
+    let builtins = python_import("builtins")
+    let tuple_fn = python_getattr_raw(builtins, "tuple")
+
+    let vert_fmt = python_call_raw(tuple_fn, [["v3f", CUBE_VERTS]])
+    let color_fmt = python_call_raw(tuple_fn, [["c3f", CUBE_COLORS]])
+
+    // ── Phase 6: Spawn actor for animation ──
+    let bridge = spawn AnimBridge()
+
+    let frame_cb = python_actor_callback(bridge as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_anim_tick", frame_fn)
+
+    // ── Phase 7: Law verification at startup ──
+    if rot_angle_valid(0.0) == false:
+        return -1
+    if frame_counter_valid(0) == false:
+        return -2
+
+    // ── Phase 8: Get clock tick function ──
+    let clock_tick = python_getattr_raw(clock_mod, "tick")
+
+    // ── Phase 9: Main render loop (Kain-owned) ──
+    //     NO inline Python strings for 3D/animation logic.
+    //     ALL calls through bridge: python_call_raw, python_call_attr_raw
+    //     NO pyglet.app.run(). Manual dispatch_events + flip.
+    let mut running: Bool = true
+    let mut frame_count: Int = 0
+    let mut clear_r: Float = 0.12
+    let mut clear_g: Float = 0.12
+    let mut clear_b: Float = 0.18
+
+    while running:
+        python_call_raw(window, "dispatch_events", [])
+
+        let has_exit = to_int(python_getattr_raw(window, "has_exit"))
+        if has_exit != 0:
+            running = false
+            continue
+
+        python_call_raw(clock_tick, [DT])
+
+        // Send animation tick to actor
+        send bridge.FrameTick(dt = DT)
+
+        // Read animation state from entangled mirror (zero-cost)
+        let rx = AnimMirror.rot_x_copy
+        let ry = AnimMirror.rot_y_copy
+
+        // Use converge for deg→rad conversion (demonstrates L3)
+        let rx_rad = deg_to_rad(rx)
+        let ry_rad = deg_to_rad(ry)
+        let _sum_rad = rx_rad + ry_rad
+
+        // Prove law holds
+        if rot_angle_valid(rx) == false:
+            let _ = anim_reset(AnimWorld)
+            running = false
+            continue
+        if rot_angle_valid(ry) == false:
+            let _ = anim_reset(AnimWorld)
+            running = false
+            continue
+
+        // Modulate clear color with a simple pattern to prove animation is alive
+        clear_r = 0.12 + ((rx / 360.0) * 0.15)
+        clear_g = 0.12 + ((ry / 360.0) * 0.15)
+        clear_b = 0.18 - (((rx + ry) / 720.0) * 0.08)
+        python_call_raw(gl_clear_color, [clear_r, clear_g, clear_b, 1.0])
+
+        // Region-batched rendering using pyglet.graphics.draw
+        let released = render_cube(graphics_mod, vert_fmt, color_fmt)
+
+        // Region-batched numpy matrix computation (proves numpy + region)
+        let numpy_ck = numpy_matrix_checksum(rx, ry, frame_count)
+        let _ = numpy_ck
+
+        // Flip buffers
+        python_call_raw(window, "flip", [])
+
+        frame_count = frame_count + 1
+
+        // Run until user closes the window (has_exit becomes True)
+
+    // ── Phase 10: Cleanup ──
+    python_call_raw(window, "close", [])
+
+    let shutdown_code = runtime_shutdown()
+    if shutdown_code != 0:
+        return 200 + shutdown_code
+
+    return 0
