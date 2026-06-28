@@ -4,7 +4,7 @@ state (actor)	state field: Type = initial	Private mutable actor state; never sha
 on	on MessageName(reply_to: P, params):	Message handler for a typed message; each on handles one message type	send, reply_to, ask
 reply_to: P	reply_to: P (in handler params)	Compiler-injected typed reply port for ask/response pattern	send reply_to.Reply(), ask
 send	send target.Message(field = value)	Fire-and-forget asynchronous message dispatch (cast)	on, ask
-ask	ask(actor, "MessageName", payload) -> Int	Synchronous-looking request with reply (blocks caller until reply or timeout)	send, reply_to, spawn
+ask	"ask(actor, ""MessageName"", payload) -> Int"	Synchronous-looking request with reply (blocks caller until reply or timeout)	send, reply_to, spawn
 spawn	spawn ActorName(field = value, ...)	Create an actor instance; returns typed actor handle	ask, send, actor
 P (reply port type)	P (synthetic type in handler params)	Compiler-generated synthetic actor ref for ask reply routing; reused via TLS cache	reply_to, ask
 pack/unpack	pack(a,b) -> Int; unpack_a(v), unpack_b(v)	Pack multiple values into single Int for ask replies (temporary limitation)	ask, reply_to

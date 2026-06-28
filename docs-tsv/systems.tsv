@@ -1,10 +1,10 @@
 keyword	syntax	purpose	file_line	related
-asm	asm("instruction")	Emit raw LLVM inline assembly	SYSTEMS:§2.1	Unsafe
-asm_pause	asm("pause")	CPU spin-loop yield hint	SYSTEMS:§2.1	spin_loop_hint
-asm_nop	asm("nop")	Single-byte no-op	SYSTEMS:§2.1	asm
-asm_clflush	asm("clflush ($0)", addr, memory=true)	Cache line flush with address binding	SYSTEMS:§2.1	clflush
-asm_rep_stosd	asm("rep stosd", ptr, cnt, val, constraints="{rdi},{rcx},{rax}", clobbers="rdi,rcx,rax", memory=true, intel=true)	Fast memory fill with register binding	SYSTEMS:§2.1	mem_store
-asm_ret	asm("ret")	Function return in @naked	SYSTEMS:§2.11	naked
+asm	"asm(""instruction"")"	Emit raw LLVM inline assembly	SYSTEMS:§2.1	Unsafe
+asm_pause	"asm(""pause"")"	CPU spin-loop yield hint	SYSTEMS:§2.1	spin_loop_hint
+asm_nop	"asm(""nop"")"	Single-byte no-op	SYSTEMS:§2.1	asm
+asm_clflush	"asm(""clflush ($0)"", addr, memory=true)"	Cache line flush with address binding	SYSTEMS:§2.1	clflush
+asm_rep_stosd	"asm(""rep stosd"", ptr, cnt, val, constraints=""{rdi},{rcx},{rax}"", clobbers=""rdi,rcx,rax"", memory=true, intel=true)"	Fast memory fill with register binding	SYSTEMS:§2.1	mem_store
+asm_ret	"asm(""ret"")"	Function return in @naked	SYSTEMS:§2.11	naked
 lfence	lfence()	Load fence — serialize load instructions	SYSTEMS:§2.2	mfence
 sfence	sfence()	Store fence — serialize store instructions	SYSTEMS:§2.2	mfence
 mfence	mfence()	Full memory barrier — serialize all memory ops	SYSTEMS:§2.2	lfence
@@ -30,7 +30,7 @@ set_current_thread_affinity	set_current_thread_affinity(core_index)	Pin thread t
 prefetch_read	prefetch_read(ptr, locality)	Prefetch into cache (0-3 locality)	SYSTEMS:§2.4	prefetch_write
 prefetch_write	prefetch_write(ptr, locality)	Prefetch for write (0-3 locality)	SYSTEMS:§2.4	prefetch_read
 cache_flush	cache_flush(ptr)	Flush a cache line by address	SYSTEMS:§2.4	cpu_cache_line_bytes
-spin_loop_hint	spin_loop_hint()	Equivalent to asm("pause")	SYSTEMS:§2.4	asm_pause
+spin_loop_hint	spin_loop_hint()	"Equivalent to asm(""pause"")"	SYSTEMS:§2.4	asm_pause
 vm_page_size	vm_page_size()	System page size in bytes	SYSTEMS:§2.5	vm_reserve
 vm_reserve	vm_reserve(byte_count)	Reserve virtual address space	SYSTEMS:§2.5	vm_commit
 vm_commit	vm_commit(address, count)	Commit backed physical pages	SYSTEMS:§2.5	vm_decommit
@@ -46,19 +46,19 @@ vm_protect_execute_read	vm_protect_execute_read(address, count)	Read-execute	SYS
 vm_protect_execute_read_write	vm_protect_execute_read_write(address, count)	Read-write-execute	SYSTEMS:§2.5	vm_protect_read
 vm_lock	vm_lock(address, count)	Lock pages into RAM (mlock)	SYSTEMS:§2.5	vm_unlock
 vm_unlock	vm_unlock(address, count)	Unlock pages from RAM	SYSTEMS:§2.5	vm_lock
-alloc	alloc(n, "Type")	Heap allocation	SYSTEMS:§9.1	free
-alloc_zeroed	alloc_zeroed(n, "Type")	Zeroed heap allocation	SYSTEMS:§9.1	alloc
-free	free(ptr, n, "Type")	Heap deallocation	SYSTEMS:§9.1	alloc
-realloc_mem	realloc_mem(ptr, old, new, "Type")	Resize allocation	SYSTEMS:§9.1	alloc
+alloc	"alloc(n, ""Type"")"	Heap allocation	SYSTEMS:§9.1	free
+alloc_zeroed	"alloc_zeroed(n, ""Type"")"	Zeroed heap allocation	SYSTEMS:§9.1	alloc
+free	"free(ptr, n, ""Type"")"	Heap deallocation	SYSTEMS:§9.1	alloc
+realloc_mem	"realloc_mem(ptr, old, new, ""Type"")"	Resize allocation	SYSTEMS:§9.1	alloc
 collapse	collapse ptr: ...	Enter mutable ownership scope on raw pointer	SYSTEMS:§9.1	observe
 observe	observe ptr: ...	Enter read-only ownership scope	SYSTEMS:§9.1	collapse
 decay	decay ptr	Release ownership of raw pointer	SYSTEMS:§9.1	collapse
-mem_load	mem_load(ptr, "Type")	Read value from raw pointer	SYSTEMS:§9.1	mem_store
-mem_store	mem_store(ptr, val, "Type")	Write value to raw pointer	SYSTEMS:§9.1	mem_load
-ptr_offset	ptr_offset(ptr, i, "Type")	Pointer arithmetic (offset by i elements)	SYSTEMS:§9.1	mem_load
+mem_load	"mem_load(ptr, ""Type"")"	Read value from raw pointer	SYSTEMS:§9.1	mem_store
+mem_store	"mem_store(ptr, val, ""Type"")"	Write value to raw pointer	SYSTEMS:§9.1	mem_load
+ptr_offset	"ptr_offset(ptr, i, ""Type"")"	Pointer arithmetic (offset by i elements)	SYSTEMS:§9.1	mem_load
 ptr_to_int	ptr_to_int(ptr)	Convert pointer to integer address	SYSTEMS:§9.5	int_to_ptr
-int_to_ptr	int_to_ptr(i, "Type")	Convert integer to pointer	SYSTEMS:§9.5	ptr_to_int
-bitcast	bitcast(ptr, "From", "To")	Reinterpret pointer type	SYSTEMS:§9.5	mem_load
+int_to_ptr	"int_to_ptr(i, ""Type"")"	Convert integer to pointer	SYSTEMS:§9.5	ptr_to_int
+bitcast	"bitcast(ptr, ""From"", ""To"")"	Reinterpret pointer type	SYSTEMS:§9.5	mem_load
 volatile_load_int	volatile_load_int(address)	Volatile MMIO read (never optimized out)	SYSTEMS:§2.3	volatile_store_int
 volatile_store_int	volatile_store_int(address, value)	Volatile MMIO write (hardware-visible)	SYSTEMS:§2.3	volatile_load_int
 atomic_load_relaxed	atomic_load_relaxed(ptr)	Atomic load with Relaxed ordering	SYSTEMS:§6.1	atomic_load_acquire
@@ -119,9 +119,9 @@ mmio_to_big32	mmio_to_big32(value)	Host to big-endian 32-bit	SYSTEMS:§8.4	mmio_
 mmio_from_big32	mmio_from_big32(value)	Big-endian to host 32-bit	SYSTEMS:§8.4	mmio_to_big32
 mmio_bit_mask	mmio_bit_mask(width)	Create bitmask of given width	SYSTEMS:§8.3	mmio_field_get
 naked	@naked	No prologue/epilogue emitted for function	SYSTEMS:§2.8	asm
-section	@section("name")	Place function in custom ELF/PE section	SYSTEMS:§2.8	naked
-link_name	@link_name("symbol")	Override emitted symbol name	SYSTEMS:§2.8	section
-callconv	@callconv("win64")	Set calling convention (win64/vectorcall/sysv64)	SYSTEMS:§2.7	naked
+section	"@section(""name"")"	Place function in custom ELF/PE section	SYSTEMS:§2.8	naked
+link_name	"@link_name(""symbol"")"	Override emitted symbol name	SYSTEMS:§2.8	section
+callconv	"@callconv(""win64"")"	Set calling convention (win64/vectorcall/sysv64)	SYSTEMS:§2.7	naked
 os_syscall0	os_syscall0(nr)	Direct OS syscall with 0 args	SYSTEMS:§3.8	os_syscall6
 os_syscall6	os_syscall6(nr, a1, a2, a3, a4, a5, a6)	Direct OS syscall with 6 args	SYSTEMS:§3.8	os_syscall0
 os_mmap_anon	os_mmap_anon(size)	Anonymous mmap	SYSTEMS:§3.6	os_munmap

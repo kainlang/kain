@@ -2,10 +2,10 @@ construct	syntax	purpose	file_line	related
 component	component Name(props): state fn render	Declare a UI widget with props, state, methods, and JSX render	ui.md:§6.1	world surface
 render	render <tag attr={expr}>...</tag>	Describe UI tree as JSX inside component	ui.md:§6.1	component
 state	state name: Type = initial	Declare persistent component state that survives frames	ui.md:§6.2	component
-box	<box fill_color="x" width={n} height={n}>	Filled rectangle with corner_radius, fill_color, stroke	ui.md:§3.5	panel
-text	<text value="x" font_size={n} color="x">	Text label element	ui.md:§3.5	label
-stack	<stack direction="x" gap={n} alignment="x">	Layout container (horizontal/vertical/z)	ui.md:§4.3	box
-panel	<panel title="x">	Container with title bar (via box + style)	ui.md:§3.5	box
+box	"<box fill_color=""x"" width={n} height={n}>"	Filled rectangle with corner_radius, fill_color, stroke	ui.md:§3.5	panel
+text	"<text value=""x"" font_size={n} color=""x"">"	Text label element	ui.md:§3.5	label
+stack	"<stack direction=""x"" gap={n} alignment=""x"">"	Layout container (horizontal/vertical/z)	ui.md:§4.3	box
+panel	"<panel title=""x"">"	Container with title bar (via box + style)	ui.md:§3.5	box
 on_click	on_click={handler}	Event binding for click on element	ui.md:§3.5	element_set_callback
 on_change	on_change={handler}	Event binding for value change	ui.md:§3.5	on_click
 on_focus	on_focus={handler}	Event binding for focus in	ui.md:§3.5	on_blur
@@ -107,22 +107,22 @@ window_open	window_open(session_id, title, width, height)	Create platform window
 host_pump	host_pump(session_id)	Pump platform message loop (vtable slot 16)	ui.md:§3.2	should_close
 poll_event	poll_event(session_id, out_event, max_size)	Poll next event non-blocking (vtable slot 13)	ui.md:§3.2	present
 get_gpu_extension	get_gpu_extension(session_id)	Get GPU surface extension or NULL (vtable slot 18)	ui.md:§11.3	gpu_backend
-fill_color	fill_color="name"	Named color key for element fill	ui.md:§10.6	theme
+fill_color	"fill_color=""name"""	Named color key for element fill	ui.md:§10.6	theme
 corner_radius	corner_radius={n}	Corner radius attribute for rounded elements	ui.md:§3.5	fill_color
 padding	padding={n}	Padding attribute	for elements	ui.md:§3.5	spacing
 spacing	spacing={n}	Spacing between children in layout	ui.md:§3.5	padding
 font_size	font_size={n}	Font size attribute for text	ui.md:§3.5	color
-color	color="name"	Text color named key	ui.md:§10.6	fill_color
-background	background="name"	Alias for fill_color	ui.md:§3.5	fill_color
-border_color	border_color="name"	Border color attribute	ui.md:§3.5	fill_color
+color	"color=""name"""	Text color named key	ui.md:§10.6	fill_color
+background	"background=""name"""	Alias for fill_color	ui.md:§3.5	fill_color
+border_color	"border_color=""name"""	Border color attribute	ui.md:§3.5	fill_color
 border_width	border_width={n}	Border width in pixels	ui.md:§3.5	fill_color
 opacity	opacity={n}	Element opacity (0.0-1.0)	ui.md:§3.5	fill_color
-direction	direction="horizontal/vertical/z"	Stack direction attribute	ui.md:§3.5	stack
-alignment	alignment="start/center/end/fill"	Alignment attribute for stacks	ui.md:§4.3	direction
-distribution	distribution="start/center/end/space_between/space_around/space_evenly"	Distribution attribute for stacks	ui.md:§4.3	alignment
+direction	"direction=""horizontal/vertical/z"""	Stack direction attribute	ui.md:§3.5	stack
+alignment	"alignment=""start/center/end/fill"""	Alignment attribute for stacks	ui.md:§4.3	direction
+distribution	"distribution=""start/center/end/space_between/space_around/space_evenly"""	Distribution attribute for stacks	ui.md:§4.3	alignment
 disabled	disabled={bool}	Disable interactive element	ui.md:§3.5	enabled
-title	title="string"	Title attribute (for panel, window)	ui.md:§3.5	value
-value	value="string"	Text content attribute (maps to element_set_text)	ui.md:§3.5	title
+title	"title=""string"""	Title attribute (for panel, window)	ui.md:§3.5	value
+value	"value=""string"""	Text content attribute (maps to element_set_text)	ui.md:§3.5	title
 pulse	pulse name every Nms jitter Jms:	Temporal beat for animation inside components	ui.md:§6.6	resonate
 resonate	resonate Field.dampen Nms:	React to world field changes inside components	ui.md:§6.6	pulse
 Theme	Theme struct { bg, surface, accent, text, spacing, ... }	Complete color/spacing/font theme definition	ui.md:§5.4	DEFAULT_THEME
@@ -136,9 +136,9 @@ color_lerp	color_lerp(a, b, t)	Linearly interpolate between two colors	ui.md:§5
 color_blend	color_blend(over, under)	Alpha-blend foreground over background	ui.md:§5.2	color_lerp
 color_to_renderer_format	color_to_renderer_format(val)	Convert ARGB to ABGR for renderer	ui.md:§5.2	color_pack
 KainComponentSurface	24-slot vtable (session, element, style, state, frame, events, window, GPU, callbacks)	ABI contract between Kain compiler and rendering backend	ui.md:§3.1	native_ui_surface
-native_ui_surface	vtable "native_ui" with GDI/software backend	Software rendering backend registered at startup	ui.md:§3.3	KainComponentSurface
-vulkan_surface	vtable "vulkan" with Vulkan backend	Vulkan GPU rendering backend (future/live)	ui.md:§11.1	native_ui_surface
-d3d12_surface	vtable "d3d12" with D3D12 backend	D3D12 GPU rendering backend (future/live)	ui.md:§11.1	native_ui_surface
+native_ui_surface	"vtable ""native_ui"" with GDI/software backend"	Software rendering backend registered at startup	ui.md:§3.3	KainComponentSurface
+vulkan_surface	"vtable ""vulkan"" with Vulkan backend"	Vulkan GPU rendering backend (future/live)	ui.md:§11.1	native_ui_surface
+d3d12_surface	"vtable ""d3d12"" with D3D12 backend"	D3D12 GPU rendering backend (future/live)	ui.md:§11.1	native_ui_surface
 KainGpuSurfaceExtension	{load_shader, set_uniform}	GPU extension struct for shader/uniform binding (slot 18)	ui.md:§11.3	KainComponentSurface
 Ghost Harness	python harness.py <file.kn>	Launches Kain app in invisible window for gaslight-proof UI testing	ui.md:§7.1	oracle
 kain_render_fill_rect	kain_render_fill_rect(r, rect, color)	Render filled rectangle primitive (C substrate)	ui.md:§2.3	kain_render_stroke_rect

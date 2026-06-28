@@ -21,7 +21,7 @@ publish	kain publish <INPUT> [--artifacts] [--evidence] [--archive] [-o <OUTPUT>
 add	kain add <PACKAGE> [--version <VER>]	Record capsule-backed dependency in KAIN.lock	workflow	Package can be name, local path, or capsule .kn file path
 install	kain install <PACKAGE> [--version <VER>]	Install package into ~/.kain/packages/<name>/<version>/	workflow	Stores source.kn + artifacts.kn + evidence.kn + workspace/ directory
 lockfile	KAIN.lock	Pins exact capsule digests with [[packages]] entries	metadata	schema = 1; no version range resolution; digest IS the truth
-build-graph-integration	amalgamate_capsule("id") / capsule_set("id")	Wired into build.kn as a build task	build.kn	Runs after its dependencies; respects build graph DAG ordering
+build-graph-integration	"amalgamate_capsule(""id"") / capsule_set(""id"")"	Wired into build.kn as a build task	build.kn	Runs after its dependencies; respects build graph DAG ordering
 pack-flags	--name, --version, --author, --tag, --meta, --note	Metadata flags for capsule packaging	flags	All repeatable except name/version
 pack-flags	--header rich|minimal|off	Header rendering mode in capsule file	flags	rich: full preview directory; minimal: basic info; off: no header
 pack-flags	--compression zstd|none	Archive payload compression (archive mode only)	flags	Default: zstd; level 19 compression

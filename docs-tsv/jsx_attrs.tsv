@@ -21,9 +21,9 @@ stroke	7 (element_set_attr_string)	String	Stroke color alias (style key: border_
 color	7 (element_set_attr_string)	String	Text/ink color (style key: ink_color)
 ink_color	7 (element_set_attr_string)	String	Text/ink color (style key: ink_color)
 title	7 (element_set_attr_string)	String	Panel or tooltip title
-variant	7 (element_set_attr_string)	String	Style variant (e.g. "primary", "ghost")
+variant	7 (element_set_attr_string)	String	"Style variant (e.g. ""primary"", ""ghost"")"
 role	7 (element_set_attr_string)	String	Accessibility role
-align	7 (element_set_attr_string)	String	Text alignment ("left"/"center"/"right")
+align	7 (element_set_attr_string)	String	"Text alignment (""left""/""center""/""right"")"
 font_family	7 (element_set_attr_string)	String	Font family name
 distribution	7 (element_set_attr_string)	String	Stack distribution (style key: layout.distribution)
 axis	7 (element_set_attr_string)	String	Scroll axis
@@ -35,14 +35,14 @@ checked	5 (element_set_attr_i64)	Bool	Checkbox/toggle state (style key: checked)
 selected	5 (element_set_attr_i64)	Bool	Selected state (style key: selected)
 tab_index	5 (element_set_attr_i64)	Int	Tab order index (style key: tab_index)
 weight	5 (element_set_attr_i64)	Int	Font weight (style key: weight)
-on_click	23 (element_set_callback)	() -> Void or (Event) -> Void	Click event callback (event kind: "click")
-on_change	23 (element_set_callback)	() -> Void or (Event) -> Void	Change event callback (event kind: "change")
-on_toggle	23 (element_set_callback)	() -> Void	Toggle event callback (event kind: "toggle")
-on_focus	23 (element_set_callback)	() -> Void	Focus event callback (event kind: "focus")
-on_blur	23 (element_set_callback)	() -> Void	Blur event callback (event kind: "blur")
-on_mouseenter	23 (element_set_callback)	() -> Void	Mouse enter event callback (event kind: "mouseenter")
-on_mouseleave	23 (element_set_callback)	() -> Void	Mouse leave event callback (event kind: "mouseleave")
-on_submit	23 (element_set_callback)	() -> Void	Submit event callback (event kind: "submit")
-on_cancel	23 (element_set_callback)	() -> Void	Cancel event callback (event kind: "cancel")
+on_click	23 (element_set_callback)	() -> Void or (Event) -> Void	"Click event callback (event kind: ""click"")"
+on_change	23 (element_set_callback)	() -> Void or (Event) -> Void	"Change event callback (event kind: ""change"")"
+on_toggle	23 (element_set_callback)	() -> Void	"Toggle event callback (event kind: ""toggle"")"
+on_focus	23 (element_set_callback)	() -> Void	"Focus event callback (event kind: ""focus"")"
+on_blur	23 (element_set_callback)	() -> Void	"Blur event callback (event kind: ""blur"")"
+on_mouseenter	23 (element_set_callback)	() -> Void	"Mouse enter event callback (event kind: ""mouseenter"")"
+on_mouseleave	23 (element_set_callback)	() -> Void	"Mouse leave event callback (event kind: ""mouseleave"")"
+on_submit	23 (element_set_callback)	() -> Void	"Submit event callback (event kind: ""submit"")"
+on_cancel	23 (element_set_callback)	() -> Void	"Cancel event callback (event kind: ""cancel"")"
 src	4 (element_set_text) or 7 (element_set_attr_string)	String	Image source URL or path
 fit	7 (element_set_attr_string)	String	Image fit mode for <image> element

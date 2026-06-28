@@ -12,8 +12,8 @@ shader	shader closesthit <Name>(...) -> ...	closesthit	uniform @N		NVIDIA/Optix 
 shader	shader miss <Name>(...) -> ...	miss	uniform @N		NVIDIA/Optix miss — ray miss shader
 shader	shader intersection <Name>(...) -> ...	intersection	uniform @N		NVIDIA/Optix intersection — custom geometry intersection
 shader	shader callable <Name>(...) -> ...	callable	uniform @N		NVIDIA/Optix callable — indirect function call from shader
-dispatch	dispatch "shader::<Name>::compute" [<X>, <Y>, <Z>]	compute	Grid dimensions (workgroup counts)	N/A	Host-side GPU compute kernel launch — requires `with GPU, Unsafe`
-dispatch	dispatch "shader::<Name>::compute" from <buf>	compute	Indirect buffer (DispatchIndirectCommand)	N/A	Indirect dispatch — reads grid dimensions from GPU-written buffer (VkDispatchIndirectCommand)
+dispatch	"dispatch ""shader::<Name>::compute"" [<X>, <Y>, <Z>]"	compute	Grid dimensions (workgroup counts)	N/A	Host-side GPU compute kernel launch — requires `with GPU, Unsafe`
+dispatch	"dispatch ""shader::<Name>::compute"" from <buf>"	compute	Indirect buffer (DispatchIndirectCommand)	N/A	Indirect dispatch — reads grid dimensions from GPU-written buffer (VkDispatchIndirectCommand)
 workgroup	workgroup(<W>, <H>, <D>)	compute (attached to shader return type)	Local thread group size	N/A	Workgroup size declaration for compute shaders
 subgroup	subgroup(<N>):\n    // lockstep code	all compute	Warp-synchronous scope	within workgroup	Warp-synchronous execution scope — all threads in lockstep, compile-time divergence safety enforced
 uniform	uniform <type> @<N>	all	Descriptor set binding @N	N/A	Resource binding — buffers, textures, samplers at descriptor slot N
@@ -30,4 +30,4 @@ LOCAL_SIZE_X	uniform LOCAL_SIZE_X: Int @<N>	compute	Inlined compile-time constan
 LOCAL_SIZE_Y	uniform LOCAL_SIZE_Y: Int @<N>	compute	Inlined compile-time constant (not a resource binding)	N/A	Workgroup Y dimension — inlined at compile time, not a real binding
 LOCAL_SIZE_Z	uniform LOCAL_SIZE_Z: Int @<N>	compute	Inlined compile-time constant (not a resource binding)	N/A	Workgroup Z dimension — inlined at compile time, not a real binding
 comptime	comptime:\n    let compute = (<workgroup>, <dispatch>, <tensors>, <streams>, <nodes>)	compute (shader body)	Metadata — not a binding	N/A	Compute metadata block — dispatch plan, tensor plans, stream plans, neural node plans
-spec_constants	comptime:\n    let compute = (..., [("name", "type", default, "SPEC"), ...])	compute	OpSpecConstant in SPIR-V	N/A	Specialization constants in compute metadata — 6-element tuple form
+spec_constants	"comptime:\n    let compute = (..., [(""name"", ""type"", default, ""SPEC""), ...])"	compute	OpSpecConstant in SPIR-V	N/A	Specialization constants in compute metadata — 6-element tuple form

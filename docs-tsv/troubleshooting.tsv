@@ -1,5 +1,5 @@
 error	symptom	cause	fix	reference
-bazel not found on PATH	Script fails at step 0	Bazel not installed or not in PATH	Install Bazelisk or Bazel; run "where bazel"	TROUBLESHOOTING:LLM Table
+bazel not found on PATH	Script fails at step 0	Bazel not installed or not in PATH	"Install Bazelisk or Bazel; run ""where bazel"""	TROUBLESHOOTING:LLM Table
 repo root not found	Script fails with exit code 4	Running from wrong directory	cd X:/ then re-run; script needs MODULE.bazel or .git parent	TROUBLESHOOTING:LLM Table
 runtime manifest not found	Script fails with exit code 4	native_core_runtime.toml deleted or repo damaged	Check file at X:/runtime/native_core_runtime.toml; re-clone if needed	TROUBLESHOOTING:LLM Table
 runtime source directory not found	Script fails with exit code 4	runtime/native/src/ missing	git status / re-clone repo	TROUBLESHOOTING:LLM Table

@@ -6,10 +6,10 @@ as	Contextual	L0	value as Type / include ... as alias / import ... as alias	Type
 async	Contextual	L0	async fn name(params) -> Type with Async	Asynchronous function modifier returning a future	KEYWORDS.MD:453	Async, await, EFFECTS.MD	Async
 Async	Hard Lexer	L0	with Async	Async effect annotation for async execution context	KEYWORDS.MD:465	async, await, EFFECTS.MD	Async
 await	Contextual	L0	let result = await future	Await a future value, blocking until completion	KEYWORDS.MD:543	async, Async, EFFECTS.MD	Async
-axiom	Contextual	L6	axiom Name: when pred / guarantee "str" / fallback fn	Capability assumption declaration with fallback	KEYWORDS.MD:1700	when, target, capability, guarantee, fallback, AXIOM.MD	none
+axiom	Contextual	L6	"axiom Name: when pred / guarantee ""str"" / fallback fn"	Capability assumption declaration with fallback	KEYWORDS.MD:1700	when, target, capability, guarantee, fallback, AXIOM.MD	none
 break	Hard Lexer	L0	break / break value	Loop exit with optional value; exits innermost loop	KEYWORDS.MD:461	break, continue	none
 by	Contextual	L4	guarded by axiom_name	Axiom reference in a guarded by clause	KEYWORDS.MD:1424	orchestrate, guarded, axiom, ORCHESTRATE.MD	none
-capability	Contextual	L3	when capability("cpu.x86.avx2")	Hardware/runtime capability selector for gates	KEYWORDS.MD:1612	converge, when, target, axiom, CONVERGE.MD	none
+capability	Contextual	L3	"when capability(""cpu.x86.avx2"")"	Hardware/runtime capability selector for gates	KEYWORDS.MD:1612	converge, when, target, axiom, CONVERGE.MD	none
 collapse	Contextual	L7	collapse ptr: body	Exclusive ownership mutation scope on ptr<T>	KEYWORDS.MD:1875	observe, decay, share, OWNERSHIP.MD	Unsafe
 component	Contextual	UI	component Name(props): state x: T / render <jsx />	React-like UI widget with props, state, methods, JSX	KEYWORDS.MD:2331	state, render, surface, COMPONENT.MD	none
 comptime	Contextual	L0	comptime: body	Compile-time code execution block (shader metadata, etc.)	KEYWORDS.MD:2260	shader, compute, macro	none
@@ -21,7 +21,7 @@ dampen	Contextual	L5	resonate field dampen Nms	Absorption window for resonate ha
 decay	Contextual	L7	decay ptr	Deterministic ownership teardown; ptr is dead after this	KEYWORDS.MD:1906	collapse, observe, defer, OWNERSHIP.MD	Unsafe
 defer	Contextual	L0	defer expr	Block-scoped LIFO cleanup; defers run on block exit	KEYWORDS.MD:525	collapse, decay, return, break, continue	none
 deps	Contextual	L4	stage name: ... deps [stage_a, stage_b]	Explicit dependency list for orchestrate stages	KEYWORDS.MD:1397	orchestrate, stage, after, ORCHESTRATE.MD	none
-dispatch	Contextual	L0	dispatch "shader::Kernel::compute" [x, y, z]	Host-side GPU kernel launch with workgroup counts	KEYWORDS.MD:2248	shader, compute, GPU, Unsafe, SHADER_GPU.MD	GPU, Unsafe
+dispatch	Contextual	L0	"dispatch ""shader::Kernel::compute"" [x, y, z]"	Host-side GPU kernel launch with workgroup counts	KEYWORDS.MD:2248	shader, compute, GPU, Unsafe, SHADER_GPU.MD	GPU, Unsafe
 else	Hard Lexer	L0	if cond: / else:	Fallback branch for if and elif chains	KEYWORDS.MD:379	if, elif	none
 elif	Hard Lexer	L0	if cond: / elif cond: / else:	Else-if conditional: chains additional condition after if	KEYWORDS.MD:389	if, else	none
 emit	Hard Lexer	N/A	(reserved)	Reserved keyword with TokenKind but no parser rule yet	KEYWORDS.MD:2480	receive	none
@@ -37,13 +37,13 @@ for	Hard Lexer	L0	for var in iterable: body	Iteration over a sequence; also used
 fragment	Contextual	L0	shader fragment Name(uv: Vec2) -> Vec4	Fragment (pixel) shader variant of shader	KEYWORDS.MD:2184	shader, vertex, compute, SHADER_GPU.MD	GPU
 from	Contextual	L6	teleport ... from WorldA / from module import name	Source introducer for teleport and import	KEYWORDS.MD:1784	teleport, to, import, TELEPORT.MD, PYTHON.MD	none
 GPU	Hard Lexer	L0	with GPU	GPU compute effect annotation	KEYWORDS.MD:473	dispatch, shader, compute, Unsafe, EFFECTS.MD	GPU
-guarantee	Contextual	L6	guarantee "human-readable assertion"	Guarantee string in an axiom declaration	KEYWORDS.MD:1718	axiom, AXIOM.MD	none
+guarantee	Contextual	L6	"guarantee ""human-readable assertion"""	Guarantee string in an axiom declaration	KEYWORDS.MD:1718	axiom, AXIOM.MD	none
 guarded	Contextual	L4	stage ... guarded by axiom_name	Capability gate introducer for orchestrate stages	KEYWORDS.MD:1413	orchestrate, stage, by, axiom, ORCHESTRATE.MD	none
 if	Hard Lexer	L0	if cond: body elif cond: body else: body	Conditional branching expression; returns a value	KEYWORDS.MD:355	elif, else, match	none
 impl	Hard Lexer	L0	impl Type: / impl Trait for Type:	Implementation block adding methods to a struct or trait impl	KEYWORDS.MD:710	trait, struct, Self	none
 import	Contextual	L0	import module as alias / from module import name	Python host-object import; named args become Python kwargs	KEYWORDS.MD:2315	from, as, include, PYTHON.MD	none
 in	Hard Lexer	L0	for var in iterable	Iteration introducer for for loops; also in JSX	KEYWORDS.MD:555	for, component	none
-include	Contextual	L0	include <header.h> as alias / include "path/header.h" as alias	C header import via libclang; local and system forms	KEYWORDS.MD:2300	import, as, C.MD	none
+include	Contextual	L0	"include <header.h> as alias / include ""path/header.h"" as alias"	C header import via libclang; local and system forms	KEYWORDS.MD:2300	import, as, C.MD	none
 IO	Hard Lexer	L0	with IO	Input/Output effect annotation	KEYWORDS.MD:442	Pure, Unsafe, EFFECTS.MD	IO
 jitter	Contextual	L5	pulse ... jitter Nms	Random offset window around pulse interval	KEYWORDS.MD:1675	pulse, every, PULSE.MD	none
 law	Contextual	L2	law name(params) -> Bool: body	Invariant predicate returning Bool; compiler-witnessable	KEYWORDS.MD:1496	patch, orchestrate, guarded, LAW.MD	none
@@ -102,7 +102,7 @@ via	Contextual	L6	teleport ... via channel_name	Channel specification for telepo
 viewport3d	Contextual	L1	surface viewport3d => Component	3D viewport surface target for world projection	KEYWORDS.MD:1307	surface, world, native_ui	none
 web	Contextual	L1	surface web => Component	Web surface target for world projection (HTML backend)	KEYWORDS.MD:1315	surface, world, native_ui	none
 weak	Contextual	L7	weak ptr_alias = ptr	Non-owning pointer annotation; must not be decayed	KEYWORDS.MD:2370	collapse, observe, decay, ptr, OWNERSHIP.MD	Unsafe
-when	Contextual	L3/L6	when target("llvm") / when capability("cpu.x86.avx2")	Guard introducer for converge fast lanes and axiom predicates	KEYWORDS.MD:1564	converge, fast, axiom, target, capability, CONVERGE.MD, AXIOM.MD	none
+when	Contextual	L3/L6	"when target(""llvm"") / when capability(""cpu.x86.avx2"")"	Guard introducer for converge fast lanes and axiom predicates	KEYWORDS.MD:1564	converge, fast, axiom, target, capability, CONVERGE.MD, AXIOM.MD	none
 where	Contextual	L0	fn name<T>(t: T) -> R with Pure where T: Trait	Generic constraint clause for trait bounds	KEYWORDS.MD:2320	trait, fn, type	none
 while	Hard Lexer	L0	while cond: body	Conditional loop; executes body while Bool condition is true	KEYWORDS.MD:444	for, loop, break, continue	none
 with	Hard Lexer	L0	fn name() -> Type with Effect	Effect annotation introducer on fn declarations	KEYWORDS.MD:565	Pure, IO, Unsafe, Async, GPU, Reactive, EFFECTS.MD	none

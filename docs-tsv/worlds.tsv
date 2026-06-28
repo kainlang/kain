@@ -4,7 +4,7 @@ world	Name	World identifier used in dotted paths (WorldName.field)	WORLD.MD	enta
 state	state field: Type = initial	Declares a typed state slot with compile-time validated initializer	WORLD.MD	patch, entangle, resonate
 surface native_ui	surface native_ui => Component	Native OS window with retained-mode UI (GDI + GPU backends)	WORLD_SURFACES.MD	component (18-slot vtable)
 surface shader_canvas	surface shader_canvas => FragmentName	Fullscreen GPU shader rendering (19-slot vtable + GPU extension)	WORLD_SURFACES.MD	shader fragment (SPIR-V embedding blocked)
-surface viewport3d	surface viewport3d => "name"	3D viewport (parsed only, no codegen)	WORLD_SURFACES.MD	planned: shader_canvas alias
+surface viewport3d	"surface viewport3d => ""name"""	3D viewport (parsed only, no codegen)	WORLD_SURFACES.MD	planned: shader_canvas alias
 surface web	surface web => Component	Web browser projection (parsed only, no codegen)	WORLD_SURFACES.MD	planned WASM backend
 world surface requirement	(no surface declaration)	World without surfaces is a valid pure-state authority	WORLD.MD	benchmark, CI, server-mode
 entangle	entangle WorldA.field <-> WorldB.field with single_writer	Bidirectional state coupling with single-writer policy	WORLD.MD, ENTANGLE.MD	patch, mirror

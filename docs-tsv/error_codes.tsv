@@ -104,7 +104,7 @@ KAIN-PARSE-0016	error	Use/Import Syntax Error	Import path could not be parsed	En
 KAIN-PARSE-0017	error	Visibility Modifier Error	pub without following declaration	Attach pub to a valid declaration
 KAIN-PARSE-0018	error	Comptime Block Syntax Error	comptime block body not valid Kain expressions	Ensure comptime body contains valid evaluable expressions
 KAIN-PARSE-0019	error	Macro Invocation Syntax Error	Macro definition/invocation could not be parsed	Use macro name(params...): { body } form
-KAIN-PARSE-0020	error	Test Declaration Syntax Error	test block declaration could not be parsed	Use test "name": { body } or test "name" { body }
+KAIN-PARSE-0020	error	Test Declaration Syntax Error	test block declaration could not be parsed	"Use test ""name"": { body } or test ""name"" { body }"
 KAIN-PATCH-0001	error	Patch Error	A patch or law declaration has a well-formedness error	See patch documentation
 KAIN-PATCH-0002	error	Patch Target Is Not A World	First parameter of patch must be a world type	Change patch target to a declared world
 KAIN-PATCH-0003	error	Patch Law Precondition Failed	Law predicate guarding patch site failed precondition check	Ensure value satisfies all law predicates
