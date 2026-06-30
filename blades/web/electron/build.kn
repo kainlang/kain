@@ -1,0 +1,602 @@
+// ============================================================================
+//  build.kn — Kain Construct Visualizer: electron playground demo builder
+// ============================================================================
+//
+//  WHAT:    Build authority for the Electron playground's Kain demos.
+//           Each *.kn file in `demos/` becomes its own project, typechecked
+//           and compiled to BOTH a native EXE (for the child_process bridge)
+//           AND a WASM artifact (for the in-browser WASM bridge).
+//
+//  HOW TO ADD A NEW DEMO:
+//    1. Drop `demos/<name>.kn` into the demos/ directory.
+//    2. Copy one of the demo blocks below and rename `bridge` to your name.
+//    3. Add the 4 new tasks to the final return chain at the bottom.
+//    4. Run `kain build .` from X:/blades/web/electron.
+//    5. Outputs land at:
+//         .kain/out/demos/<name>.exe
+//         .kain/out/demos/<name>.wasm
+//    6. The Electron app discovers demos at runtime by scanning the output
+//       directory — no settings.js edits required.
+//
+//  WHY build.kn (NOT a shell script):
+//    The Kain build DSL gives us a typed evidence DAG. Every demo has a
+//    check task that must pass before any compile, and the compile tasks
+//    are explicit typed nodes that the runner can execute in parallel,
+//    retry, and report. A shell script loses all of that.
+//
+//  COMPILE: From X:/blades/web/electron, run:
+//             kain build .
+//             → produces:
+//                 .kain/out/demos/<name>.exe
+//                 .kain/out/demos/<name>.wasm
+//
+//  IMPLEMENTATION NOTES:
+//    This file is written in the form the *deterministic* build.kn evaluator
+//    supports: only `let` bindings, bare expressions, returns, and for loops.
+//    No helper functions, no `x = x.method()` reassignment. The fluent
+//    `let x = builder("...").method("...").method("...")` chain style works
+//    inside `build()` because each line of the chain ends in a simple
+//    identifier argument (not a `+` binary expression), so the parser
+//    accepts the chain continuing on the next indented line.
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    // ── Shared path strings ────────────────────────────────────────────────
+    let demos_dir: String = "demos"
+    let out_root: String = ".kain/out"
+    let demos_out: String = "demos"
+    let blade_cache: String = ".kain/cache/build"
+    let input_glob: String = "demos/*.kn"
+    let build_kn: String = "build.kn"
+
+    // ── Demo 1: bridge (L1 entangle + L5 pulse) ───────────────────────────
+    let bridge_id: String = "demo-bridge"
+    let bridge_entry: String = "demos/bridge.kn"
+    let bridge_exe_out: String = "$blade/demos/bridge.exe"
+    let bridge_wasm_out: String = "$blade/demos/bridge.wasm"
+    let bridge_check_id: String = "check-bridge"
+    let bridge_exe_id: String = "exe-bridge"
+    let bridge_wasm_id: String = "wasm-bridge"
+    let bridge_telemetry: String = "electron.demo.bridge"
+    let bridge_native_telemetry: String = "electron.demo.bridge.native"
+    let bridge_wasm_telemetry: String = "electron.demo.bridge.wasm"
+
+    let bridge_project = project(bridge_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: bridge")
+        .entry(bridge_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm", "wasm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let bridge_check = check_task(bridge_check_id)
+        .project(bridge_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(bridge_telemetry)
+
+    let bridge_exe = native_executable(bridge_exe_id)
+        .project(bridge_project)
+        .target("llvm")
+        .output(bridge_exe_out)
+        .requires(bridge_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(bridge_native_telemetry)
+
+    let bridge_wasm = native_executable(bridge_wasm_id)
+        .project(bridge_project)
+        .target("wasm")
+        .output(bridge_wasm_out)
+        .requires(bridge_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(bridge_wasm_telemetry)
+
+    // ── Demo 2: actor (L7 actor + state + on) ──────────────────────────────
+    let actor_id: String = "demo-actor"
+    let actor_entry: String = "demos/actor.kn"
+    let actor_exe_out: String = "$blade/demos/actor.exe"
+    let actor_wasm_out: String = "$blade/demos/actor.wasm"
+    let actor_check_id: String = "check-actor"
+    let actor_exe_id: String = "exe-actor"
+    let actor_wasm_id: String = "wasm-actor"
+    let actor_telemetry: String = "electron.demo.actor"
+    let actor_native_telemetry: String = "electron.demo.actor.native"
+    let actor_wasm_telemetry: String = "electron.demo.actor.wasm"
+
+    let actor_project = project(actor_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: actor")
+        .entry(actor_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm", "wasm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let actor_check = check_task(actor_check_id)
+        .project(actor_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(actor_telemetry)
+
+    let actor_exe = native_executable(actor_exe_id)
+        .project(actor_project)
+        .target("llvm")
+        .output(actor_exe_out)
+        .requires(actor_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(actor_native_telemetry)
+
+    let actor_wasm = native_executable(actor_wasm_id)
+        .project(actor_project)
+        .target("wasm")
+        .output(actor_wasm_out)
+        .requires(actor_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(actor_wasm_telemetry)
+
+    // ── Demo 3: converge (L3 converge + spec + fast) ───────────────────────
+    let converge_id: String = "demo-converge"
+    let converge_entry: String = "demos/converge.kn"
+    let converge_exe_out: String = "$blade/demos/converge.exe"
+    let converge_wasm_out: String = "$blade/demos/converge.wasm"
+    let converge_check_id: String = "check-converge"
+    let converge_exe_id: String = "exe-converge"
+    let converge_wasm_id: String = "wasm-converge"
+    let converge_telemetry: String = "electron.demo.converge"
+    let converge_native_telemetry: String = "electron.demo.converge.native"
+    let converge_wasm_telemetry: String = "electron.demo.converge.wasm"
+
+    let converge_project = project(converge_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: converge")
+        .entry(converge_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm", "wasm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let converge_check = check_task(converge_check_id)
+        .project(converge_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(converge_telemetry)
+
+    let converge_exe = native_executable(converge_exe_id)
+        .project(converge_project)
+        .target("llvm")
+        .output(converge_exe_out)
+        .requires(converge_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(converge_native_telemetry)
+
+    let converge_wasm = native_executable(converge_wasm_id)
+        .project(converge_project)
+        .target("wasm")
+        .output(converge_wasm_out)
+        .requires(converge_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(converge_wasm_telemetry)
+
+    // ── Demo 4: pulse (L5 pulse + resonate + world) ────────────────────────
+    let pulse_id: String = "demo-pulse"
+    let pulse_entry: String = "demos/pulse.kn"
+    let pulse_exe_out: String = "$blade/demos/pulse.exe"
+    let pulse_wasm_out: String = "$blade/demos/pulse.wasm"
+    let pulse_check_id: String = "check-pulse"
+    let pulse_exe_id: String = "exe-pulse"
+    let pulse_wasm_id: String = "wasm-pulse"
+    let pulse_telemetry: String = "electron.demo.pulse"
+    let pulse_native_telemetry: String = "electron.demo.pulse.native"
+    let pulse_wasm_telemetry: String = "electron.demo.pulse.wasm"
+
+    let pulse_project = project(pulse_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: pulse")
+        .entry(pulse_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm", "wasm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let pulse_check = check_task(pulse_check_id)
+        .project(pulse_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(pulse_telemetry)
+
+    let pulse_exe = native_executable(pulse_exe_id)
+        .project(pulse_project)
+        .target("llvm")
+        .output(pulse_exe_out)
+        .requires(pulse_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(pulse_native_telemetry)
+
+    let pulse_wasm = native_executable(pulse_wasm_id)
+        .project(pulse_project)
+        .target("wasm")
+        .output(pulse_wasm_out)
+        .requires(pulse_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(pulse_wasm_telemetry)
+
+    // ── Demo 5: engine_demo (10K instanced cubes via electron_bridge) ────
+    let enginedemo_id: String = "demo-engine-demo"
+    let enginedemo_entry: String = "demos/engine_demo.kn"
+    let enginedemo_exe_out: String = "$blade/demos/engine_demo.exe"
+    let enginedemo_wasm_out: String = "$blade/demos/engine_demo.wasm"
+    let enginedemo_check_id: String = "check-engine-demo"
+    let enginedemo_exe_id: String = "exe-engine-demo"
+    let enginedemo_wasm_id: String = "wasm-engine-demo"
+    let enginedemo_telemetry: String = "electron.demo.engine_demo"
+    let enginedemo_native_telemetry: String = "electron.demo.engine_demo.native"
+    let enginedemo_wasm_telemetry: String = "electron.demo.engine_demo.wasm"
+
+    let enginedemo_project = project(enginedemo_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: engine_demo (10K cubes)")
+        .entry(enginedemo_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm", "wasm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let enginedemo_check = check_task(enginedemo_check_id)
+        .project(enginedemo_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginedemo_telemetry)
+
+    let enginedemo_exe = native_executable(enginedemo_exe_id)
+        .project(enginedemo_project)
+        .target("llvm")
+        .output(enginedemo_exe_out)
+        .requires(enginedemo_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginedemo_native_telemetry)
+
+    let enginedemo_wasm = native_executable(enginedemo_wasm_id)
+        .project(enginedemo_project)
+        .target("wasm")
+        .output(enginedemo_wasm_out)
+        .requires(enginedemo_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginedemo_wasm_telemetry)
+    // ── Demo 6: engine_mini (minimal pulse + gate demo) ──────────────────
+    let enginemin_id: String = "demo-engine-mini"
+    let enginemin_entry: String = "demos/engine_mini.kn"
+    let enginemin_exe_out: String = "$blade/demos/engine_mini.exe"
+    let enginemin_check_id: String = "check-engine-mini"
+    let enginemin_exe_id: String = "exe-engine-mini"
+    let enginemin_telemetry: String = "electron.demo.engine_mini"
+    let enginemin_native_telemetry: String = "electron.demo.engine_mini.native"
+
+    let enginemin_project = project(enginemin_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: engine_mini (minimal pulse)")
+        .entry(enginemin_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let enginemin_check = check_task(enginemin_check_id)
+        .project(enginemin_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginemin_telemetry)
+
+    let enginemin_exe = native_executable(enginemin_exe_id)
+        .project(enginemin_project)
+        .target("llvm")
+        .output(enginemin_exe_out)
+        .requires(enginemin_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginemin_native_telemetry)
+
+    // ── Demo 7: engine_smoke (Kerr black hole v2) ──────────────────────────
+    let enginesmoke_id: String = "demo-engine-smoke"
+    let enginesmoke_entry: String = "demos/engine_smoke.kn"
+    let enginesmoke_exe_out: String = "$blade/demos/engine_smoke.exe"
+    let enginesmoke_check_id: String = "check-engine-smoke"
+    let enginesmoke_exe_id: String = "exe-engine-smoke"
+    let enginesmoke_telemetry: String = "electron.demo.engine_smoke"
+    let enginesmoke_native_telemetry: String = "electron.demo.engine_smoke.native"
+
+    let enginesmoke_project = project(enginesmoke_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: engine_smoke (Kerr black hole)")
+        .entry(enginesmoke_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let enginesmoke_check = check_task(enginesmoke_check_id)
+        .project(enginesmoke_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginesmoke_telemetry)
+
+    let enginesmoke_exe = native_executable(enginesmoke_exe_id)
+        .project(enginesmoke_project)
+        .target("llvm")
+        .output(enginesmoke_exe_out)
+        .requires(enginesmoke_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginesmoke_native_telemetry)
+
+    // ── Demo 8: engine_cook (multi-geometry mesh armada) ────────────────────
+    let enginecook_id: String = "demo-engine-cook"
+    let enginecook_entry: String = "demos/engine_cook.kn"
+    let enginecook_exe_out: String = "$blade/demos/engine_cook.exe"
+    let enginecook_check_id: String = "check-engine-cook"
+    let enginecook_exe_id: String = "exe-engine-cook"
+    let enginecook_telemetry: String = "electron.demo.engine_cook"
+    let enginecook_native_telemetry: String = "electron.demo.engine_cook.native"
+
+    let enginecook_project = project(enginecook_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: engine_cook (10K meshes x4 geo)")
+        .entry(enginecook_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let enginecook_check = check_task(enginecook_check_id)
+        .project(enginecook_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginecook_telemetry)
+
+    let enginecook_exe = native_executable(enginecook_exe_id)
+        .project(enginecook_project)
+        .target("llvm")
+        .output(enginecook_exe_out)
+        .requires(enginecook_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginecook_native_telemetry)
+
+    // ── Demo 9: engine_stress (50K instanced cubes) ─────────────────────────
+    let enginestress_id: String = "demo-engine-stress"
+    let enginestress_entry: String = "demos/engine_stress.kn"
+    let enginestress_exe_out: String = "$blade/demos/engine_stress.exe"
+    let enginestress_check_id: String = "check-engine-stress"
+    let enginestress_exe_id: String = "exe-engine-stress"
+    let enginestress_telemetry: String = "electron.demo.engine_stress"
+    let enginestress_native_telemetry: String = "electron.demo.engine_stress.native"
+
+    let enginestress_project = project(enginestress_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: engine_stress (50K cubes)")
+        .entry(enginestress_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let enginestress_check = check_task(enginestress_check_id)
+        .project(enginestress_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginestress_telemetry)
+
+    let enginestress_exe = native_executable(enginestress_exe_id)
+        .project(enginestress_project)
+        .target("llvm")
+        .output(enginestress_exe_out)
+        .requires(enginestress_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(enginestress_native_telemetry)
+    // ── Demo 10: pong (Pong game with std::input-backed interact) ──────
+    let pong_id: String = "demo-pong"
+    let pong_entry: String = "demos/pong.kn"
+    let pong_exe_out: String = "$blade/demos/pong.exe"
+    let pong_check_id: String = "check-pong"
+    let pong_exe_id: String = "exe-pong"
+    let pong_telemetry: String = "electron.demo.pong"
+    let pong_native_telemetry: String = "electron.demo.pong.native"
+
+    let pong_project = project(pong_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: pong")
+        .entry(pong_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let pong_check = check_task(pong_check_id)
+        .project(pong_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(pong_telemetry)
+
+    let pong_exe = native_executable(pong_exe_id)
+        .project(pong_project)
+        .target("llvm")
+        .output(pong_exe_out)
+        .requires(pong_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(pong_native_telemetry)
+
+    // ── Demo 11: raycast (click-to-deform terrain) ───────────────────
+    let raycast_id: String = "demo-raycast"
+    let raycast_entry: String = "demos/raycast.kn"
+    let raycast_exe_out: String = "$blade/demos/raycast.exe"
+    let raycast_check_id: String = "check-raycast"
+    let raycast_exe_id: String = "exe-raycast"
+    let raycast_telemetry: String = "electron.demo.raycast"
+    let raycast_native_telemetry: String = "electron.demo.raycast.native"
+
+    let raycast_project = project(raycast_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: raycast terrain sculpt")
+        .entry(raycast_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let raycast_check = check_task(raycast_check_id)
+        .project(raycast_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(raycast_telemetry)
+
+    let raycast_exe = native_executable(raycast_exe_id)
+        .project(raycast_project)
+        .target("llvm")
+        .output(raycast_exe_out)
+        .requires(raycast_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(raycast_native_telemetry)
+
+    // ── Demo 12: input_test (stdin input verification) ─────────────────
+    let input_test_id: String = "demo-input-test"
+    let input_test_entry: String = "demos/input_test.kn"
+    let input_test_exe_out: String = "$blade/demos/input_test.exe"
+    let input_test_check_id: String = "check-input-test"
+    let input_test_exe_id: String = "exe-input-test"
+    let input_test_telemetry: String = "electron.demo.input_test"
+    let input_test_native_telemetry: String = "electron.demo.input_test.native"
+
+    let input_test_project = project(input_test_id)
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Electron playground demo: input_test")
+        .entry(input_test_entry)
+        .source_root(demos_dir)
+        .module_root(demos_dir)
+        .targets("llvm")
+        .artifact_root(out_root)
+        .cache_root(blade_cache)
+        .profile("debug")
+
+    let input_test_check = check_task(input_test_check_id)
+        .project(input_test_project)
+        .target("llvm")
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(input_test_telemetry)
+
+    let input_test_exe = native_executable(input_test_exe_id)
+        .project(input_test_project)
+        .target("llvm")
+        .output(input_test_exe_out)
+        .requires(input_test_check_id)
+        .input(input_glob)
+        .input(build_kn)
+        .telemetry(input_test_native_telemetry)
+    // ── Assemble the build graph ──────────────────────────────────────────
+    // One project + three tasks (check + exe + wasm) per demo, in a single
+    // chained return expression. Adding a new demo = paste a new 4-line
+    // block above + insert .project(...).task(...).task(...).task(...)
+    // into the chain below.
+    return build_graph()
+        .project(bridge_project)
+        .task(bridge_check)
+        .task(bridge_exe)
+        .task(bridge_wasm)
+        .project(actor_project)
+        .task(actor_check)
+        .task(actor_exe)
+        .task(actor_wasm)
+        .project(converge_project)
+        .task(converge_check)
+        .task(converge_exe)
+        .task(converge_wasm)
+        .project(pulse_project)
+        .task(pulse_check)
+        .task(pulse_exe)
+        .task(pulse_wasm)
+        .project(enginedemo_project)
+        .task(enginedemo_check)
+        .task(enginedemo_exe)
+        .task(enginedemo_wasm)
+        .project(enginemin_project)
+        .task(enginemin_check)
+        .task(enginemin_exe)
+        .project(enginesmoke_project)
+        .task(enginesmoke_check)
+        .task(enginesmoke_exe)
+        .project(enginecook_project)
+        .task(enginecook_check)
+        .task(enginecook_exe)
+        .project(enginestress_project)
+        .task(enginestress_check)
+        .task(enginestress_exe)
+        .project(pong_project)
+        .task(pong_check)
+        .task(pong_exe)
+        .project(raycast_project)
+        .task(raycast_check)
+        .task(raycast_exe)
+        .project(input_test_project)
+        .task(input_test_check)
+        .task(input_test_exe)
+)
