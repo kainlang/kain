@@ -14350,7 +14350,7 @@ impl LlvmGenerator {
         self.compile_entangle_registration_function();
 
         // Collect shader SPIR-V hexes for surface shader codegen (before item compilation
-        // so globals are available when compile_shader_surface_loop references them).
+        // so globals are available when compile_surface_frame_loop references them).
         self.collect_shader_spirv_hexes(&program.items)?;
         self.emit_shader_spirv_globals();
 
@@ -15304,7 +15304,10 @@ impl LlvmGenerator {
             match item {
                 TypedItem::World(world) => {
                     for surface in &world.ast.surfaces {
-                        if surface.kind == kain_core::ast::WorldSurfaceKind::ShaderCanvas {
+                        // COMPILE-TIME: Check if this surface kind needs shader compilation.
+                        // Uses the extensible registry in component.rs (slot 18 can't help
+                        // here — the vtable doesn't exist at compile time).
+                        if component::surface_needs_shader_compilation(surface.kind.as_str()) {
                             if let Expr::Ident(shader_name, _) = &surface.expr {
                                 if self.shader_spirv_hexes.contains_key(shader_name.as_str()) {
                                     continue;
