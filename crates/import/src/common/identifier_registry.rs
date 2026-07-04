@@ -52,16 +52,6 @@ const EXTRA_LEXER_KEYWORDS: &[&str] = &[
     "from",
     "to",
     "via",
-    "surface",
-    "native_ui",
-    "viewport3d",
-    "web",
-    "ue5",
-    "compute",
-    "uniform",
-    "render",
-    "on",
-    "weak",
     "single_writer",
 ];
 

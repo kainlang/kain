@@ -6685,7 +6685,7 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
     env.in_world = true;
     let res = (|| {
         let mut state_types = HashMap::new();
-        let mut seen_surface_kinds = HashSet::new();
+        let mut seen_surface_kinds: HashSet<String> = HashSet::new();
         for state in &world.states {
             let resolved_ty = resolve_type_in_env(env, &state.ty)?;
             let initial_ty = infer_expr_type(env, &state.initial, None)?;
@@ -6706,10 +6706,10 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
         // window is created. Use this for benchmarks, CI, server-mode, or any
         // world that only holds state for entangle/patch/law/orchestrate.
         // When a surface IS declared, it controls rendering intent — the
-        // surface kind (native_ui, web, viewport3d, ue5) determines which
+        // surface kind string (any registered backend name) determines which
         // backend the frame loop resolves at runtime.
         for surface in &world.surfaces {
-            if !seen_surface_kinds.insert(surface.kind) {
+            if !seen_surface_kinds.insert(surface.kind.clone()) {
                 return Err(env.type_error(
                     format!(
                         "world '{}' declares duplicate '{}' surface",
@@ -6976,50 +6976,32 @@ fn check_world_surface_projection(
     env: &mut TypeEnv,
     surface: &WorldSurfaceProjection,
 ) -> KainResult<()> {
-    match surface.kind {
-        WorldSurfaceKind::NativeUi | WorldSurfaceKind::Web => match &surface.expr {
+    // Accept any expression for any surface kind.
+    // The runtime handles shape mismatches with better error messages
+    // than the compiler can produce at the typechecking stage.
+    // We accept identifiers and string literals as valid surface targets;
+    // codegen and runtime resolution validate the actual binding.
+    match &surface.expr {
+        Expr::Ident(_, _) | Expr::String(_, _) => Ok(()),
+        Expr::Call { callee, .. } => match callee.as_ref() {
             Expr::Ident(_, _) => Ok(()),
-            Expr::Call { callee, .. } => match callee.as_ref() {
-                Expr::Ident(_, _) => Ok(()),
-                other => Err(env.type_error(
-                    format!(
-                        "world surface '{}' expects a component identifier or call, found {:?}",
-                        surface.kind.as_str(),
-                        other
-                    ),
-                    surface.span,
-                )),
-            },
             other => Err(env.type_error(
                 format!(
                     "world surface '{}' expects a component identifier or call, found {:?}",
-                    surface.kind.as_str(),
+                    surface.kind,
                     other
                 ),
                 surface.span,
             )),
         },
-        WorldSurfaceKind::ShaderCanvas => match &surface.expr {
-            Expr::Ident(_, _) => Ok(()),
-            other => Err(env.type_error(
-                format!(
-                    "world surface 'shader_canvas' expects a shader fragment identifier, found {:?}",
-                    other
-                ),
-                surface.span,
-            )),
-        },
-        WorldSurfaceKind::Viewport3d | WorldSurfaceKind::Ue5 => match &surface.expr {
-            Expr::Ident(_, _) | Expr::String(_, _) => Ok(()),
-            other => Err(env.type_error(
-                format!(
-                    "world surface '{}' expects an identifier or string literal, found {:?}",
-                    surface.kind.as_str(),
-                    other
-                ),
-                surface.span,
-            )),
-        },
+        other => Err(env.type_error(
+            format!(
+                "world surface '{}' expects an identifier, string, or component call, found {:?}",
+                surface.kind,
+                other
+            ),
+            surface.span,
+        )),
     }
 }
 
