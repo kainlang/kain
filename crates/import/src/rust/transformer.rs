@@ -7038,12 +7038,12 @@ mod tests {
     fn preserves_self_receiver_value_paths_inside_methods() {
         let program = transform_source(
             r#"
-            enum WorldSurfaceKind {
+            enum TestSurfaceKind {
                 NativeUi,
                 Web,
             }
 
-            impl WorldSurfaceKind {
+            impl TestSurfaceKind {
                 fn as_str(&self) -> &'static str {
                     match self {
                         Self::NativeUi => "native_ui",
@@ -7065,7 +7065,7 @@ mod tests {
                 ty: Type::Ref { inner, .. },
                 ..
             }] if name == "_self"
-                && matches!(inner.as_ref(), Type::Named { name, .. } if name == "WorldSurfaceKind")
+                && matches!(inner.as_ref(), Type::Named { name, .. } if name == "TestSurfaceKind")
         ));
         let Stmt::Expr(Expr::Match {
             scrutinee, arms, ..
@@ -7081,12 +7081,12 @@ mod tests {
         assert!(matches!(
             &arms[0].pattern,
             Pattern::Variant { enum_name: Some(enum_name), variant, .. }
-                if enum_name == "WorldSurfaceKind" && variant == "NativeUi"
+                if enum_name == "TestSurfaceKind" && variant == "NativeUi"
         ));
         assert!(matches!(
             &arms[1].pattern,
             Pattern::Variant { enum_name: Some(enum_name), variant, .. }
-                if enum_name == "WorldSurfaceKind" && variant == "Web"
+                if enum_name == "TestSurfaceKind" && variant == "Web"
         ));
     }
 

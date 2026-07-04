@@ -40,7 +40,7 @@ fn main() {
     .source_window("world Demo:\n    state hp: Int = 3")
     .add_repair(
         "insert_surface_native_ui",
-        "Add a native_ui surface projection",
+        "Add a surface projection",
         "surface native_ui => DemoPanel",
     )
     .add_downstream(DiagnosticCode::TypeGeneric);
