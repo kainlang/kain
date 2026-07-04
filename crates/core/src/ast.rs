@@ -426,30 +426,9 @@ pub struct WorldStateSlot {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WorldSurfaceKind {
-    NativeUi,
-    Viewport3d,
-    Web,
-    Ue5,
-    ShaderCanvas,  // fullscreen shader output on a GPU canvas
-}
-
-impl WorldSurfaceKind {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::NativeUi => "native_ui",
-            Self::Viewport3d => "viewport3d",
-            Self::Web => "web",
-            Self::Ue5 => "ue5",
-            Self::ShaderCanvas => "shader_canvas",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorldSurfaceProjection {
-    pub kind: WorldSurfaceKind,
+    pub kind: String,
     pub expr: Expr,
     pub span: Span,
 }
