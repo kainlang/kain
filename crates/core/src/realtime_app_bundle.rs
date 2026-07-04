@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::{
     Block, ComputeMetadata, ConvergeSelector, DispatchSize, ElseBranch, Expr, ShaderStage, Stmt, Type,
-    WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
+    COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
     PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch,
@@ -960,7 +960,7 @@ fn realtime_world_binding(world: &TypedWorld) -> RealtimeWorldBinding {
         .surfaces
         .iter()
         .map(|surface| RealtimeWorldSurfaceBinding {
-            kind: surface.kind.as_str().to_string(),
+            kind: surface.kind.clone(),
             authored_expr: render_authored_expr_contract(&surface.expr),
             surface_key: format!("world.{}.{}", world.ast.name, surface.kind.as_str()),
         })
@@ -2512,10 +2512,10 @@ fn collect_requirements(
     let has_compute_refs = shader_bundle_refs
         .iter()
         .any(|entry| entry.stage == "compute");
-    let has_world_native_ui = bundle_has_world_surface(worlds, WorldSurfaceKind::NativeUi);
-    let has_world_viewport3d = bundle_has_world_surface(worlds, WorldSurfaceKind::Viewport3d);
-    let has_world_web = bundle_has_world_surface(worlds, WorldSurfaceKind::Web);
-    let has_world_ue5 = bundle_has_world_surface(worlds, WorldSurfaceKind::Ue5);
+    let has_world_native_ui = bundle_has_world_surface(worlds, "native_ui");
+    let has_world_viewport3d = bundle_has_world_surface(worlds, "viewport3d");
+    let has_world_web = bundle_has_world_surface(worlds, "web");
+    let has_world_ue5 = bundle_has_world_surface(worlds, "ue5");
     let mut requirements = vec![
         "runtime.contract.bundle".to_string(),
         "shader.bundle.metadata".to_string(),
@@ -2665,13 +2665,12 @@ fn sanitize_bundle_symbol_ident(name: &str) -> String {
     }
 }
 
-fn bundle_has_world_surface(worlds: &[RealtimeWorldBinding], kind: WorldSurfaceKind) -> bool {
-    let expected = kind.as_str();
+fn bundle_has_world_surface(worlds: &[RealtimeWorldBinding], kind: &str) -> bool {
     worlds.iter().any(|world| {
         world
             .surfaces
             .iter()
-            .any(|surface| surface.kind == expected)
+            .any(|surface| surface.kind == kind)
     })
 }
 
