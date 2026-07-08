@@ -381,3 +381,9 @@ blades/semantic-search/README.md
 /llvm-kain/z__research_api
 /llvm-kain/z__research
 runtime/native/extras/_stb-truetype/z3/RESEARCH_FINDINGS.md
+/packaging/stage
+
+# Packaging artifacts (releases go on GitHub, not in git)
+/packaging/windows/
+/packaging/linux/
+/packaging/darwin/
