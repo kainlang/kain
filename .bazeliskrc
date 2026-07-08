@@ -1,1 +1,1 @@
-BAZELISK_HOME=F:/_b/bazelisk
+BAZELISK_HOME=../.bazel-cache/kain/bazelisk

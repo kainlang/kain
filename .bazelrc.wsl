@@ -1,13 +1,11 @@
-# WSL Bazel config.
-# Keep Linux mutable state on Ubuntu ext4 so WSL builds do not choke on the
-# nearly-full Windows F: cache drive. We still reuse the shared repository
-# cache to avoid re-downloading the universe when possible.
-common --repository_cache=/mnt/f/_b/repository-cache
-startup --output_user_root=/home/zenta/.cache/kain-bazel/output-user-root
-common --repo_env=TMP=/home/zenta/.cache/kain-bazel/tmp
-common --repo_env=TEMP=/home/zenta/.cache/kain-bazel/tmp
-common --repo_env=TMPDIR=/home/zenta/.cache/kain-bazel/tmp
-common --action_env=TMP=/home/zenta/.cache/kain-bazel/tmp
-common --action_env=TEMP=/home/zenta/.cache/kain-bazel/tmp
-common --action_env=TMPDIR=/home/zenta/.cache/kain-bazel/tmp
+# WSL Bazel config — hermetic sibling cache pattern
+# Cache lives at ../.bazel-cache/kain/ one level up from repo root
+common --repository_cache=../.bazel-cache/kain/repo
+startup --output_user_root=../.bazel-cache/kain/output-user-root
+common --repo_env=TMP=../.bazel-cache/kain/tmp
+common --repo_env=TEMP=../.bazel-cache/kain/tmp
+common --repo_env=TMPDIR=../.bazel-cache/kain/tmp
+common --action_env=TMP=../.bazel-cache/kain/tmp
+common --action_env=TEMP=../.bazel-cache/kain/tmp
+common --action_env=TMPDIR=../.bazel-cache/kain/tmp
 build --action_env=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

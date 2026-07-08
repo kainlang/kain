@@ -1,5 +1,5 @@
 {
-  "checksum": "2e51c80d103d6e61211817a2d11481fc602a785b7c8f8f0a48c8445465477ce7",
+  "checksum": "2912b73be6e2638728b4912eeb3a98f136c362e473a7bdc81c9249edfea0e0a1",
   "crates": {
     "adler2 2.0.1": {
       "name": "adler2",
@@ -14918,22 +14918,11 @@
         "compile_data_glob": [
           "**"
         ],
-        "deps": {
-          "common": [
-            {
-              "id": "serde 1.0.228",
-              "target": "serde"
-            }
-          ],
-          "selects": {}
-        },
         "edition": "2021",
         "version": "0.1.0"
       },
-      "license": "MIT",
-      "license_ids": [
-        "MIT"
-      ],
+      "license": null,
+      "license_ids": [],
       "license_file": null
     },
     "kain-test 0.1.0": {
@@ -22371,7 +22360,7 @@
           "common": {},
           "selects": {
             "x86_64-pc-windows-msvc": {
-              "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe"
+              "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe"
             },
             "x86_64-unknown-linux-gnu": {
               "PYO3_PYTHON": "/usr/bin/python3",
@@ -22473,7 +22462,7 @@
           "common": {},
           "selects": {
             "x86_64-pc-windows-msvc": {
-              "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe"
+              "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe"
             },
             "x86_64-unknown-linux-gnu": {
               "PYO3_PYTHON": "/usr/bin/python3",

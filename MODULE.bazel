@@ -41,7 +41,8 @@ crate.annotation_select(
     crate = "pyo3-build-config",
     triples = ["x86_64-pc-windows-msvc"],
     build_script_env = {
-        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
+        # PYO3_PYTHON — set to path on this machine via .bazelrc.local or build env
+        "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe",
     },
 )
 crate.annotation_select(
@@ -56,7 +57,7 @@ crate.annotation_select(
     crate = "pyo3-ffi",
     triples = ["x86_64-pc-windows-msvc"],
     build_script_env = {
-        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
+        "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe",
     },
 )
 crate.annotation_select(

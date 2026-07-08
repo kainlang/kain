@@ -3,20 +3,18 @@ common --announce_rc
 common --color=yes
 common --curses=yes
 common --experimental_convenience_symlinks=ignore
-# This repo lives at X:\ root, so Bazel caches cannot live under the workspace
-# without tripping Bazel's "cache inside main repo" guard. Keep the heavy
-# mutable state on the Z: NVMe drive under a short root; Rust external repo
-# names get long enough on Windows that every path segment matters.
-common --repository_cache=Z:/_b/repository-cache
-startup --output_user_root=Z:/_b/output-user-root
-common --repo_env=TMP=Z:/_b/tmp
-common --repo_env=TEMP=Z:/_b/tmp
-common --repo_env=TMPDIR=Z:/_b/tmp
+# Hermetic build: Bazel cache/output lives in a sibling directory .bazel-cache/kain/
+# outside the repo root (Bazel forbids caches inside the workspace).
+common --repository_cache=../.bazel-cache/kain/repo
+startup --output_user_root=../.bazel-cache/kain/output-user-root
+common --repo_env=TMP=F:/.bazel-cache/kain/tmp
+common --repo_env=TEMP=F:/.bazel-cache/kain/tmp
+common --repo_env=TMPDIR=F:/.bazel-cache/kain/tmp
 # clang-sys needs LIBCLANG_PATH for crate resolution and build scripts
 common --repo_env=LIBCLANG_PATH
-common --action_env=TMP=Z:/_b/tmp
-common --action_env=TEMP=Z:/_b/tmp
-common --action_env=TMPDIR=Z:/_b/tmp
+common --action_env=TMP=F:/.bazel-cache/kain/tmp
+common --action_env=TEMP=F:/.bazel-cache/kain/tmp
+common --action_env=TMPDIR=F:/.bazel-cache/kain/tmp
 # rules_rust's Windows process wrapper reconstructs the rustc child environment
 # from Bazel's action env, so we must explicitly preserve the normal loader and
 # per-user process variables that MSVC-target proc-macro DLLs expect.
@@ -42,7 +40,7 @@ common --action_env=PROCESSOR_IDENTIFIER
 # clang-sys needs LIBCLANG_PATH at build time to find libclang.dll
 common --action_env=LIBCLANG_PATH
 
-build --disk_cache=Z:/_b/disk-cache
+build --disk_cache=../.bazel-cache/kain/disk
 build --jobs=HOST_CPUS*.625
 build --loading_phase_threads=HOST_CPUS*.5
 build --local_resources=cpu=HOST_CPUS*.625
@@ -68,9 +66,9 @@ build:warnings --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings
 test --test_output=errors
 test --test_summary=short
 test --local_test_jobs=HOST_CPUS*.25
-test --test_env=TMP=Z:/_b/tmp
-test --test_env=TEMP=Z:/_b/tmp
-test --test_env=TMPDIR=Z:/_b/tmp
+test --test_env=TMP=F:/.bazel-cache/kain/tmp
+test --test_env=TEMP=F:/.bazel-cache/kain/tmp
+test --test_env=TMPDIR=F:/.bazel-cache/kain/tmp
 test --test_env=PATH
 test --test_env=PATHEXT
 
