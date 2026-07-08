@@ -176,7 +176,7 @@ pub fn classify_catalog_word(word: &str) -> Option<KeywordFamily> {
         }
         "actor" | "spawn" | "send" | "receive" | "emit" | "on" => Some(KeywordFamily::Actor),
         "state" | "patch" | "law" | "world" | "entangle" | "shatter" | "teleport" | "pulse"
-        | "surface" | "native_ui" | "viewport3d" | "web" | "ue5" | "single_writer" => {
+        | "surface" | "single_writer" => {
             Some(KeywordFamily::World)
         }
         "collapse" | "observe" | "decay" | "share" | "weak" => Some(KeywordFamily::Ownership),

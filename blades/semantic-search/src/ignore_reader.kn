@@ -1,0 +1,57 @@
+// ============================================================================
+//  ignore_reader.kn — Ignore.md Skip System
+//
+//  Gitignore-style directory skipping: if any directory contains an
+//  ignore.md file, the indexer skips that directory and everything under it.
+//
+//  The ignore.md file can be empty — just its existence means "skip".
+//  Optionally, it can contain a markdown comment explaining why.
+//
+//  Layer 0: plain fn with IO effect (filesystem access).
+// ============================================================================
+
+use std::fs
+
+// ============================================================================
+//  CHECK — Does a directory contain ignore.md?
+// ============================================================================
+
+pub fn is_dir_ignored(dir_path: String) -> Bool with IO:
+    let ignore_path: String = dir_path + "/ignore.md"
+    return fs_exists(ignore_path)
+
+// ============================================================================
+//  RECURSIVE WALK — Collect files while respecting ignore.md
+// ============================================================================
+//
+//  Walks the directory tree starting at `root`, returning a flat list of
+//  all non-ignored file paths. Directories containing ignore.md are
+//  skipped entirely (the directory and all descendants).
+//
+//  Symlinks are skipped to prevent infinite loops.
+//  Empty directories and permission errors are handled gracefully.
+
+pub fn walk_with_ignore(root: String) -> [String] with IO:
+    var normalized_root: String = replace(root, "/", "\\")
+    var results: [String] = []
+    let entries: [FsDirEntry] = fs_read_dir(normalized_root)
+    var i: Int = 0
+    while i < len(entries):
+        let entry: FsDirEntry = entries[i]
+        var full_path: String = entry.path
+        if starts_with(full_path, normalized_root) == false:
+            full_path = fs_path_join(normalized_root, entry.path)
+        full_path = replace(full_path, "/", "\\")
+
+        if entry.file_type == "dir":
+            if is_dir_ignored(full_path) == false:
+                let sub_files: [String] = walk_with_ignore(full_path)
+                var j: Int = 0
+                while j < len(sub_files):
+                    push(results, sub_files[j])
+                    j = j + 1
+        elif entry.file_type == "file":
+            push(results, full_path)
+
+        i = i + 1
+    return results

@@ -14,7 +14,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use kain_core::ast::{
-    Block, DispatchSize, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use, WorldSurfaceKind,
+    Block, DispatchSize, Expr, Item, JSXNode, Program, ShaderStage, Stmt, Use,
 };
 use kain_core::diagnostics::SourceOriginSegment;
 use kain_core::error::KainError;
@@ -437,7 +437,7 @@ struct WorldSelectionInfo {
 
 #[derive(Debug, Clone)]
 struct WorldSurfaceSelection {
-    kind: WorldSurfaceKind,
+    kind: String,
     root_component: Option<String>,
 }
 
@@ -983,7 +983,7 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<String, KainError> {
-        self.compile_with_source_path_and_progress(source, source_path, target, None)
+        self.compile_with_source_path_and_progress(source, source_path, target, None, false)
     }
 
     pub fn compile_with_source_path_and_progress(
@@ -992,6 +992,7 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
         progress: Option<&ToolingProgressSink>,
+        is_shared_library: bool,
     ) -> Result<String, KainError> {
         match target {
             #[cfg(feature = "ue5")]
@@ -1173,7 +1174,21 @@ impl DriverSession {
                                 .and_then(|p| p.file_name())
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("unknown.kn");
-                            if let Some(ref triple) = self.target_triple {
+                            if is_shared_library {
+                                sys::generate_with_debug_for_shared_library(
+                                    &typed_for_codegen,
+                                    source,
+                                    filename,
+                                )
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
+                            } else if let Some(ref triple) = self.target_triple {
                                 sys::generate_with_debug_for_target(
                                     &typed_for_codegen,
                                     source,
@@ -1199,6 +1214,16 @@ impl DriverSession {
                                         })
                                     })
                             }
+                        } else if is_shared_library {
+                            sys::generate_for_shared_library(&typed_for_codegen)
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
                         } else if let Some(ref triple) = self.target_triple {
                             sys::generate_llvm_for_target(&typed_for_codegen, Some(triple.as_str()))
                                 .and_then(|bytes| {
@@ -3133,7 +3158,7 @@ pub(crate) fn resolve_world_selection(
                 .join(", ");
             return Err(KainError::runtime(format!(
                 "Multiple worlds declare {} surfaces ({world_names}); pass --root <world-name> to select one explicitly",
-                required_surface.as_str()
+                required_surface
             )));
         }
         if let Some(world) = eligible_worlds.first() {
@@ -3146,7 +3171,7 @@ pub(crate) fn resolve_world_selection(
         if !worlds.is_empty() {
             return Err(KainError::runtime(format!(
                 "No world declares the required '{}' surface for target {:?}",
-                required_surface.as_str(),
+                required_surface,
                 target
             )));
         }
@@ -3173,7 +3198,7 @@ pub(crate) fn resolve_world_selection(
     })
 }
 
-fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfaceKind> {
+fn required_world_surface_for_target(target: CompileTarget) -> Option<&'static str> {
     match target {
         // LLVM, Rust, C, C++, BareMetal: surfaces are OPTIONAL.
         // A world without a surface is a pure state authority (benchmarks, CI, servers).
@@ -3183,9 +3208,9 @@ fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfa
             None
         }
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
-            Some(WorldSurfaceKind::Web)
+            Some("web")
         }
-        CompileTarget::Ue5 | CompileTarget::Ue5Editor => Some(WorldSurfaceKind::Ue5),
+        CompileTarget::Ue5 | CompileTarget::Ue5Editor => Some("ue5"),
         _ => None,
     }
 }
@@ -3193,14 +3218,14 @@ fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfa
 fn ensure_world_supports_target_surface(
     world: &WorldSelectionInfo,
     target: CompileTarget,
-    required_surface: Option<WorldSurfaceKind>,
+    required_surface: Option<&str>,
 ) -> Result<(), KainError> {
     if let Some(required_surface) = required_surface {
         if !world.has_surface(required_surface) {
             return Err(KainError::runtime(format!(
                 "World '{}' does not declare the required '{}' surface for target {:?}",
                 world.name,
-                required_surface.as_str(),
+                required_surface,
                 target
             )));
         }
@@ -3218,16 +3243,16 @@ fn fallback_root_component(component_names: &[String]) -> Option<String> {
 
 fn preferred_world_root_component(
     world: &WorldSelectionInfo,
-    required_surface: Option<WorldSurfaceKind>,
+    required_surface: Option<&str>,
 ) -> Option<String> {
     world_root_component_for_target(world, required_surface)
-        .or_else(|| world.root_component_for(WorldSurfaceKind::NativeUi))
+        .or_else(|| world.root_component_for("native_ui"))
         .or_else(|| world.first_root_component())
 }
 
 fn world_root_component_for_target(
     world: &WorldSelectionInfo,
-    required_surface: Option<WorldSurfaceKind>,
+    required_surface: Option<&str>,
 ) -> Option<String> {
     required_surface.and_then(|surface| world.root_component_for(surface))
 }
@@ -3330,7 +3355,7 @@ fn collect_world_selection_info_into(items: &[TypedItem], output: &mut Vec<World
                     .surfaces
                     .iter()
                     .map(|surface| WorldSurfaceSelection {
-                        kind: surface.kind,
+                        kind: surface.kind.clone(),
                         root_component: expr_component_name(&surface.expr),
                     })
                     .collect(),
@@ -3342,11 +3367,11 @@ fn collect_world_selection_info_into(items: &[TypedItem], output: &mut Vec<World
 }
 
 impl WorldSelectionInfo {
-    fn has_surface(&self, kind: WorldSurfaceKind) -> bool {
+    fn has_surface(&self, kind: &str) -> bool {
         self.surfaces.iter().any(|surface| surface.kind == kind)
     }
 
-    fn root_component_for(&self, kind: WorldSurfaceKind) -> Option<String> {
+    fn root_component_for(&self, kind: &str) -> Option<String> {
         self.surfaces
             .iter()
             .find(|surface| surface.kind == kind)

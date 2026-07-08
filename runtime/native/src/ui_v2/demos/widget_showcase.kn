@@ -1,0 +1,5 @@
+// widget_showcase.kn — Kain demo: all widgets, layout, fonts, state management
+// Demonstrates every Kaintana widget type (button, label, slider, textbox,
+// checkbox, progress, panel, window) in a single interactive page. Exercises
+// flexbox layout, font loading, state management, and event handling through
+// the Kaintana KainComponentSurface vtable.

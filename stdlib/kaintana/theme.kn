@@ -1,0 +1,239 @@
+// ============================================================================
+//  theme.kn — Kaintana theme system
+//  P0-003: Complete color/spacing/theme system.
+//
+//  Rules:
+//  - KtColor uses Float r/g/b/a (0.0-1.0), NOT packed Int.
+//  - to_hex() outputs "#RRGGBB" or "#RRGGBBAA" hex strings for C-side kt_fill.
+//  - Named colors are String constants, NOT Int constants.
+//  - Theme struct fields are String hex values for direct kt_fill() consumption.
+//  - NO reverse dependency — core.kn must NOT import theme.kn.
+// ============================================================================
+
+use std::fmt
+use std::kaintana::core as core
+
+// ============================================================================
+//  KtColor — float RGBA color with hex conversion and math
+// ============================================================================
+
+/// sRGB color in float [0.0, 1.0] range.
+pub struct KtColor:
+    r: Float
+    g: Float
+    b: Float
+    a: Float
+
+pub impl KtColor:
+    /// Construct KtColor from packed 0xAARRGGBB integer.
+    pub fn from_u32(col: Int) -> KtColor:
+        let r = ((col >> 16) & 0xFF) as Float / 255.0
+        let g = ((col >>  8) & 0xFF) as Float / 255.0
+        let b = ((col >>  0) & 0xFF) as Float / 255.0
+        let a = ((col >> 24) & 0xFF) as Float / 255.0
+        return KtColor { r: r, g: g, b: b, a: a }
+
+    /// Pack to hex string for C-side kt_fill: "#RRGGBB" or "#RRGGBBAA".
+    pub fn to_hex(_self: Self_) -> String:
+        let r = ((_self.r * 255.0) + 0.5) as Int
+        let g = ((_self.g * 255.0) + 0.5) as Int
+        let b = ((_self.b * 255.0) + 0.5) as Int
+        let a = ((_self.a * 255.0) + 0.5) as Int
+
+        // Clamp to valid u8 range
+        let ri = if r < 0: 0 elif r > 255: 255 else: r
+        let gi = if g < 0: 0 elif g > 255: 255 else: g
+        let bi = if b < 0: 0 elif b > 255: 255 else: b
+        let ai = if a < 0: 0 elif a > 255: 255 else: a
+
+        var hex = "#" + hex_byte(ri) + hex_byte(gi) + hex_byte(bi)
+        if ai < 255:
+            hex = hex + hex_byte(ai)
+        return hex
+
+    /// Linear interpolation between two KtColors.
+    pub fn lerp(_self: Self_, other: KtColor, t: Float) -> KtColor:
+        return KtColor {
+            r: _self.r + (other.r - _self.r) * t,
+            g: _self.g + (other.g - _self.g) * t,
+            b: _self.b + (other.b - _self.b) * t,
+            a: _self.a + (other.a - _self.a) * t
+        }
+
+    /// Multiply all channels by opacity.
+    /// Use this for fade transitions and disabled overlays.
+    pub fn with_opacity(_self: Self_, opacity: Float) -> KtColor:
+        return KtColor {
+            r: _self.r * opacity,
+            g: _self.g * opacity,
+            b: _self.b * opacity,
+            a: _self.a * opacity
+        }
+
+    /// Straight-to-premultiplied alpha conversion.
+    pub fn premultiplied(_self: Self_) -> KtColor:
+        return KtColor {
+            r: _self.r * _self.a,
+            g: _self.g * _self.a,
+            b: _self.b * _self.a,
+            a: _self.a
+        }
+
+// Private helper: format a single u8 byte as uppercase 2-char hex string.
+fn hex_byte(v: Int) -> String:
+    var spec = fmt_spec_default()
+    spec = fmt_spec_base(spec, FMT_BASE_HEX)
+    spec = fmt_spec_uppercase(spec, true)
+    spec = fmt_spec_width(spec, 2)
+    spec = fmt_spec_pad(spec, "0")
+    return fmt_int_spec(v, spec)
+
+// ============================================================================
+//  Named Color Constants — 14 core palette colors as hex strings
+// ============================================================================
+
+pub const KT_COLOR_BG:           String = "#1A1A24"
+pub const KT_COLOR_SURFACE:      String = "#232339"
+pub const KT_COLOR_ACCENT:       String = "#21D4A1"
+pub const KT_COLOR_ACCENT2:      String = "#7C3AED"
+pub const KT_COLOR_ACCENT3:      String = "#F59E0B"
+pub const KT_COLOR_ACCENT4:      String = "#EF4444"
+pub const KT_COLOR_TEXT:         String = "#F1F1F6"
+pub const KT_COLOR_TEXT_DIM:     String = "#6B6B80"
+pub const KT_COLOR_BORDER:       String = "#2E2E4A"
+pub const KT_COLOR_BUTTON:       String = "#2A2A40"
+pub const KT_COLOR_BUTTON_HOVER: String = "#3A3A58"
+pub const KT_COLOR_BUTTON_PRESS: String = "#4A4A66"
+pub const KT_COLOR_INPUT_BG:     String = "#141420"
+pub const KT_COLOR_TRANSPARENT:  String = "#00000000"
+
+// ============================================================================
+//  KtSpacing — consistent spacing scale
+// ============================================================================
+
+/// Spacing scale following the standard sequence: 2, 4, 8, 16, 24, 32, 48.
+pub struct KtSpacing:
+    xs:      Float
+    sm:      Float
+    md:      Float
+    lg:      Float
+    xl:      Float
+    xxl:     Float
+    section: Float
+
+/// Default spacing values (px logical points).
+pub const KT_SPACING: KtSpacing = KtSpacing {
+    xs: 2.0, sm: 4.0, md: 8.0, lg: 16.0, xl: 24.0, xxl: 32.0, section: 48.0
+}
+
+// ============================================================================
+//  KtTheme — complete 24-field theme descriptor
+// ============================================================================
+
+/// Complete theme descriptor. All color fields are hex strings for
+/// direct consumption by C-side kt_fill(). Values flow as data.
+pub struct KtTheme:
+    // ── Background hierarchy ──────────────────────────────────────────────
+    bg:            String
+    surface:       String
+    input_bg:      String
+
+    // ── Interactive colors ────────────────────────────────────────────────
+    accent:        String
+    accent2:       String
+    accent3:       String
+    accent4:       String
+
+    // ── Text hierarchy ────────────────────────────────────────────────────
+    text:          String
+    text_dim:      String
+
+    // ── Surface colors ────────────────────────────────────────────────────
+    border:           String
+    button:           String
+    button_hover:     String
+    button_press:     String
+    button_disabled:  String
+
+    // ── Spacing ───────────────────────────────────────────────────────────
+    spacing:       KtSpacing
+
+    // ── Typography ────────────────────────────────────────────────────────
+    font_size_sm:  Float
+    font_size_md:  Float
+    font_size_lg:  Float
+    font_size_xl:  Float
+
+    // ── Corner radii ──────────────────────────────────────────────────────
+    radius_sm:     Float
+    radius_md:     Float
+    radius_lg:     Float
+    radius_full:   Float
+
+    // ── Animation ─────────────────────────────────────────────────────────
+    anim_speed:    Float
+
+// ============================================================================
+//  DEFAULT_THEME — dark theme
+// ============================================================================
+
+/// Default dark theme. Primary theme target for all applications.
+pub const DEFAULT_THEME: KtTheme = KtTheme {
+    bg:            "#1A1A24",
+    surface:       "#232339",
+    input_bg:      "#141420",
+    accent:        "#21D4A1",
+    accent2:       "#7C3AED",
+    accent3:       "#F59E0B",
+    accent4:       "#EF4444",
+    text:          "#F1F1F6",
+    text_dim:      "#6B6B80",
+    border:        "#2E2E4A",
+    button:        "#2A2A40",
+    button_hover:  "#3A3A58",
+    button_press:  "#4A4A66",
+    button_disabled: "#1A1A28",
+    spacing:       KT_SPACING,
+    font_size_sm:  12.0,
+    font_size_md:  14.0,
+    font_size_lg:  18.0,
+    font_size_xl:  24.0,
+    radius_sm:     2.0,
+    radius_md:     4.0,
+    radius_lg:     8.0,
+    radius_full:   999.0,
+    anim_speed:    1.0
+}
+
+// ============================================================================
+//  LIGHT_THEME — light variant with same accent palette
+// ============================================================================
+
+/// Light theme variant. Background/surface/text colors inverted for
+/// light-background environments. Brand accent colors are preserved.
+pub const LIGHT_THEME: KtTheme = KtTheme {
+    bg:            "#F5F5F7",
+    surface:       "#FFFFFF",
+    input_bg:      "#EEEEF0",
+    accent:        "#21D4A1",
+    accent2:       "#7C3AED",
+    accent3:       "#F59E0B",
+    accent4:       "#EF4444",
+    text:          "#1A1A24",
+    text_dim:      "#8A8AA0",
+    border:        "#D0D0D8",
+    button:        "#E8E8EE",
+    button_hover:  "#D0D0D8",
+    button_press:  "#B8B8C8",
+    button_disabled: "#F3F4F6",
+    spacing:       KT_SPACING,
+    font_size_sm:  12.0,
+    font_size_md:  14.0,
+    font_size_lg:  18.0,
+    font_size_xl:  24.0,
+    radius_sm:     2.0,
+    radius_md:     4.0,
+    radius_lg:     8.0,
+    radius_full:   999.0,
+    anim_speed:    1.0
+}

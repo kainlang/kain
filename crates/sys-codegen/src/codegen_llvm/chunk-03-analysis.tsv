@@ -1,0 +1,93 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+runtime_symbol_for_stdlib_function	Stdlib (C ABI bridge)	Maps stdlib fn names to C runtime symbols (kain_floor_i64, etc.)	N/A (name mapping helper)	mapped	234-241
+stdlib_function_uses_borrowed_string_param	Stdlib (string params)	Parameter index check for borrowed string usage in stdlib functions	N/A (parameter inspection)	mapped	243-248
+kain_map_codegen_mix_u64	Map (hash utility)	Pure u64 mixing with wrapping_mul/shift/rotate	N/A (hash algorithm)	mapped	250-257
+kain_map_codegen_hash_bytes	Map (hash utility)	Bytes→u64 hash with Murmur-like mixing	N/A (hash algorithm)	mapped	259-284
+kain_map_codegen_magic_prefix_state	Map (hash utility)	4-word→u64 folded prefix with magic constants	N/A (hash prefix state)	mapped	286-304
+kain_map_codegen_static_key_metadata	Map (hash utility)	Extracts (key_length, key_hash, key_prefix) from static key string	N/A (metadata extraction)	mapped	306-335
+llvm_runtime_declaration_is_preemitted	Runtime (pre-declared)	Checks if a C ABI function name is pre-emitted in LLVM IR preamble	N/A (name matching)	mapped	337-382
+python_import_binding_infos	Python import	Extracts PythonImportInitKind from Import AST (Module/Member variants)	N/A (binding extraction)	mapped	384-422
+llvm_orchestrate_trace_enabled	Orchestrate (trace)	Reads KAIN_LLVM_ORCHESTRATE_TRACE / KAIN_NATIVE_PROFILE env vars	N/A (env var check)	mapped	424-447
+resolve_host_llvm_target_descriptor	LLVM target (host)	Returns LlvmTargetDescriptor::host()	LLVMGetHostTargetTriple-like	mapped	449-451
+resolve_llvm_target_for_compile_target	LLVM target (cross-compile)	Returns descriptor for BareMetal (x86_64-unknown-none) or host	LLVMGetDefaultTargetTriple-like	mapped	454-461
+generate	Codegen (entry)	Public entry: generate_with_target(program, &host_descriptor)	LLVMPrintModuleToFile-like	mapped	463-465
+generate_with_target	Codegen (entry)	Public: generate_with_options(program, false, None, "", target)	LLVMTargetMachineEmit-like	mapped	467-472
+generate_llvm_for_target	Codegen (cross-target)	Public: generates for optional target triple	LLVMCreateTargetMachine-like	mapped	478-487
+generate_with_debug	Codegen (debug)	Public: generates with DWARF debug metadata from source	LLVMSetCurrentDebugLocation-like	mapped	495-503
+generate_with_debug_for_target	Codegen (cross-debug)	Public: generates with debug info for a target triple	LLVMSetCurrentDebugLocation-like	mapped	510-521
+generate_with_options	Codegen (internal)	Internal: memory lowering → validation → LlvmGenerator::new → compile_module	LLVMContextCreate/ModuleCreate-like	mapped	523-547
+codegen_error	Codegen (diagnostics)	Creates KainError with DiagnosticReport + semantic enrichment	N/A (error construction)	mapped	846-858
+expr_is_full_width_initial_store_on_target	Ownership (ephemeral elision)	Checks Expr::Call/__kain_mem_store or Expr::MemStore storing full width on target pointer	LLVMBuildStore (if matched)	mapped	~862-891
+stmt_is_full_width_initial_store_on_target	Ownership (ephemeral elision)	Delegates to expr_is_full_width_initial_store_on_target via Stmt::Expr	N/A (delegation)	mapped	~893-909
+collapse_body_begins_with_full_width_store	Ownership (ephemeral elision)	Checks if collapse body's first stmt is a full-width store on target	LLVMBuildStore (via analysis)	mapped	~911-938
+remaining_statements_allow_ephemeral_zero_init_elision	Ownership (ephemeral elision)	Iterates remain stmts; allows elision if collapse/full-store, rejects if observe/decay/fn-ref	LLVMBuildStore/LLVMBuildLoad (via pattern)	mapped	~940-1007
+expr_is_safe_for_ephemeral_local	Ownership (ephemeral safety)	Recursive safety check: int/float/string/bool/none/alloca/uninit safe; instructions referencing target not safe	N/A (safety analysis)	mapped	~1009-1245
+stmt_is_safe_for_ephemeral_local	Ownership (ephemeral safety)	Recursive stmt safety: let/expr/defer/dispatch/return/for/while/loop/fanout	N/A (stmt safety)	mapped	~1247-1286
+block_is_safe_for_ephemeral_local	Ownership (ephemeral safety)	All stmts safe wrapper for Block	N/A (block safety)	mapped	~1288-1293
+else_branch_is_safe_for_ephemeral_local	Ownership (ephemeral safety)	Else/ElseIf branch safety for ephemeral locals	N/A (branch safety)	mapped	~1295-1307
+remaining_statements_preserve_ephemeral_contract	Ownership (ephemeral contract)	Iterates remain stmts; accepts decay+observe/collapse if safe; rejects anything touching target after decay	N/A (contract analysis)	mapped	~1309-1380
+collect_block_ephemeral_candidate_names	Ownership (ephemeral candidates)	Collects local names whose helper_alloc + remaining stmts preserve ephemeral contract	N/A (candidate collection)	mapped	~1382-1416
+collect_block_ephemeral_zero_init_elision_names	Ownership (ephemeral zero-init)	Collects locals where zeroed alloc + full-width first store + remaining contract preserved allows eliding init	N/A (zero init candidate)	mapped	~1418-1467
+expr_is_fixed_i64_array_literal	Fixed array (analysis)	Checks if expr is Array or vec![] macro with only i64/bool/cast/binary items	N/A (array literal check)	mapped	~1469-1487
+expr_is_safe_fixed_array_use	Fixed array (analysis)	Recursive safety: len/load index safe; assign/store unsafe on target; rest safe if no target ref	N/A (use safety)	mapped	~1489-1607
+stmt_is_safe_fixed_array_use	Fixed array (analysis)	Stmt wrapper for expr_is_safe_fixed_array_use with dispatch/return/for/while/loop handling	N/A (stmt safety)	mapped	~1609-1644
+block_is_safe_fixed_array_use	Fixed array (analysis)	All stmts safe for fixed array usage	N/A (block safety)	mapped	~1646-1651
+collect_block_fixed_array_candidate_names	Fixed array (analysis)	Collects names where value is fixed_i64_array_literal and all remaining uses are safe	N/A (candidate collection)	mapped	~1653-1672
+expr_is_direct_shattered_array_literal	Shatter (stack candidate)	Checks if expr's struct name is in self.shattered_structs	N/A (shatter check)	mapped	~1674-1676
+expr_matches_closed_shatter_field_projection	Shatter (stack candidate)	Checks Expr::Field(Index(target, idx)) or cast/paren chains targeting the shatter local	N/A (projection match)	mapped	~1678-1702
+expr_is_safe_stack_shatter_use	Shatter (stack candidate)	Recursive safety: field-projection on target safe; len(target) safe; Index on target unsafe; assign to target unsafe	N/A (use safety)	mapped	~1704-1827
+stmt_is_safe_stack_shatter_use	Shatter (stack candidate)	Stmt wrapper for stack shatter safety with dispatch/return/for/while/loop handling	N/A (stmt safety)	mapped	~1829-1864
+block_is_safe_stack_shatter_use	Shatter (stack candidate)	All stmts safe for stack shatter usage	N/A (block safety)	mapped	~1866-1871
+collect_block_stack_shatter_candidate_names	Shatter (stack candidate)	Collects names whose value is direct_shattered_array_literal and all remaining uses are stack-safe	N/A (candidate collection)	mapped	~1873-1892
+expr_is_literal_map_seed	Literal map (analysis)	Checks if expr is map_new() with no args	N/A (seed check)	mapped	~1894-1900
+expr_matches_literal_map_set	Literal map (analysis)	Checks if expr is map_set(target, string_key, int_value) on the map local	N/A (set match)	mapped	~1902-1911
+expr_is_safe_literal_map_use	Literal map (analysis)	Recursive safety: map_get(target, string_key) safe; others safe if no target ref	N/A (use safety)	mapped	~1913-2025
+stmt_is_safe_literal_map_use	Literal map (analysis)	Stmt safety: allows map_set on target + safe expr; otherwise delegates to expr safety	N/A (stmt safety)	mapped	~2027-2065
+block_is_safe_literal_map_use	Literal map (analysis)	All stmts safe for literal map usage	N/A (block safety)	mapped	~2067-2072
+collect_block_literal_map_candidate_names	Literal map (analysis)	Collects names seeded with map_new() and all remaining stmts use literal map pattern	N/A (candidate collection)	mapped	~2074-2093
+extract_string_literal	String (utility)	Extracts String value from Expr::String or Expr::Paren wrapper	N/A (string extraction)	mapped	~2095-2101
+extract_static_string_literal	String (utility)	Extracts string from Expr::String, Paren, or const_globals lookup	N/A (static extraction)	mapped	~2103-2113
+is_known_string_ident	String (utility)	Checks if name is in string_locals or const_globals with is_known_string flag	N/A (ident check)	mapped	~2115-2122
+expr_is_known_string	String (utility)	Recursive: String/FString true; Ident via is_known_string_ident; Binary(Add) if either side known string	N/A (expr check)	mapped	~2124-2137
+expr_static_string_bytes	String (utility)	Gets string bytes from String literal or const_globals	N/A (bytes extraction)	mapped	~2139-2149
+collect_string_concat_terms	String (concat)	Collects leaf terms from nested known-string Binary(Add) expressions into linear vec	N/A (term collection)	mapped	~2151-2170
+emit_fixed_arity_string_concat_call	String (codegen)	Emits call to @str_concat{N}(...) for 3–10 args; returns result reg	LLVMBuildCall (to str_concatN)	mapped	~2172-2189
+compile_string_concat_expression	String (codegen)	Full concat compilation: collects terms, compiles each, emits fixed-arity or pairwise concat with RC release	LLVMBuildCall (str_concatN/pairwise)	mapped	~2191-2247
+compile_string_data_pointer_for_byte_view	String (codegen)	Gets i8* pointer to string data: static literal → @global, ident → compile_expr, or GEP	LLVMBuildGEP (for data pointer)	mapped	~2249-2281
+compile_string_length_value	String (codegen)	Gets i64 length of string: known literal→len, ident→cache or compile, unknown→emit_len_for_pointer_value	LLVMBuildCall (to @len)	mapped	~2283-2312
+prime_string_param_length_cache	String (codegen)	Loads string param ptr then emits len call, caches in string_length_values	LLVMBuildLoad + LLVMBuildCall	mapped	~2314-2323
+emit_len_for_pointer_value	String (codegen)	ptrtoint i8*→i64, then call @len(i64)	LLVMBuildPtrToInt + LLVMBuildCall	mapped	~2325-2331
+compile_expr_as_i64	Numeric (conversion)	Compiles expr, then cast_numeric_value to i64 if not already i64	LLVMBuildIntCast/LLVMBuildFPToSI	mapped	~2333-2339
+compile_ord_builtin	Stdlib (ord)	Emits call i64 @kain_ord(i8* value)	LLVMBuildCall (to @kain_ord)	mapped	~2341-2356
+compile_chr_builtin	Stdlib (chr)	Emits call i8* @kain_chr(i64 value)	LLVMBuildCall (to @kain_chr)	mapped	~2358-2363
+compile_to_int_builtin	Stdlib (to_int)	i64→identity; i32/i8/i1/double→cast; i8*→call @kain_parse_i64_string; JSON/Any→call @to_int	LLVMBuildCall (to @to_int/kain_parse_i64_string)	mapped	~2365-2398
+compile_to_float_builtin	Stdlib (to_float)	double→identity; i64→@to_float if JSON/Any else cast; i8*→@kain_parse_f64_string	LLVMBuildCall (to @to_float/@kain_parse_f64_string)	mapped	~2400-2436
+decompose_char_at_call	String (char_at)	Decomposes char_at(string, index) call into (text_expr, index_expr)	N/A (call decomposition)	mapped	~2438-2449
+compile_char_at_string_equality_fast_path	String (fast path)	Emits two char_at byte loads, bounds checks, phi merge for char equality	LLVMBuildGEP + LLVMBuildLoad + LLVMBuildICmp + LLVMBuildPhi	mapped	~2451-2568
+compile_byte_at_fast_path	String (fast path)	Emits byte_at: null+index bounds check, GEP+load, phi(-1/byte)	LLVMBuildGEP + LLVMBuildLoad + LLVMBuildPhi	mapped	~2570-2642
+compile_find_substring_from_fast_path	String (fast path)	Compiles find_substring_from(text, needle, start) via known-length inline search	LLVMBuildGEP + LLVMBuildCall (to @memchr/@memcmp)	mapped	~2644-2672
+compile_known_length_find_substring_inline	String (codegen)	~300-line inline search: null checks, needle fits, memchr loop, static byte tail compare, phi merge	LLVMBuildCall (to @memchr/@memcmp) + LLVMBuildPhi	mapped	~2674-2968
+compile_known_length_find_substring_inline_static_two_byte_needle	String (codegen)	Optimized 2-byte needle search: packed i16 compare instead of memchr tail check	LLVMBuildLoad + LLVMBuildICmp (i16 packed) + LLVMBuildPhi	mapped	~2970-3126
+expr_strip_parens	Utility (expr)	Recursively strips Expr::Paren, Expr::Cast, Expr::Bitcast wrappers	N/A (expr unwrap)	mapped	3128-3136
+pattern_binding_name	Utility (pattern)	Extracts binding name from Pattern::Binding	N/A (pattern extraction)	mapped	3138-3143
+expr_is_ident	Utility (expr)	Checks if stripped expr is Expr::Ident with expected name	N/A (ident check)	mapped	3145-3147
+expr_int_literal	Utility (expr)	Extracts i64 from Expr::Int or unary-neg Int	N/A (int extraction)	mapped	3149-3159
+expr_is_zero	Utility (expr)	Checks if expr_int_literal == Some(0)	N/A (zero check)	mapped	3161-3163
+expr_is_len_call_of	Substring (analysis)	Checks if expr is len(ident) call matching expected ident	N/A (call pattern)	mapped	3165-3175
+expr_is_manual_substring_needle_len	Substring (analysis)	Checks expr = needle_len_binding OR len(needle_name)	N/A (pattern match)	mapped	3177-3186
+match_manual_substring_needle_len_binding	Substring (analysis)	Matches let binding = len(needle_name) stmt	N/A (stmt match)	mapped	3188-3204
+stmt_is_manual_substring_empty_needle_guard	Substring (analysis)	Matches if needle_len == 0: return start pattern	N/A (stmt pattern)	mapped	3206-3249
+match_manual_substring_index_init	Substring (analysis)	Matches let index = start_name binding	N/A (stmt match)	mapped	3251-3267
+expr_is_manual_substring_search_bound	Substring (analysis)	Matches index + needle_len <= len(text) bound check	N/A (expr pattern)	mapped	3269-3306
+stmt_is_manual_substring_match_guard	Substring (analysis)	Matches if starts_with_at(text, index, needle): return index guard	N/A (stmt pattern)	mapped	3308-3344
+stmt_is_manual_substring_increment	Substring (analysis)	Matches index = index + 1 increment statement	N/A (stmt pattern)	mapped	3346-3367
+stmt_is_manual_substring_search_loop	Substring (analysis)	Matches while index + needle_len <= len(text): [match_guard, increment]	N/A (stmt pattern)	mapped	3369-3401
+match_manual_substring_miss_return	Substring (analysis)	Matches return len(text) or return -1 miss behavior	N/A (stmt pattern)	mapped	3403-3417
+detect_manual_find_substring_function	Substring (analysis)	Full 5-stmt pattern: (needle_len_binding?) + empty_guard + index_init + search_loop + miss_return	N/A (function pattern)	mapped	3419-3471
+expr_is_direct_string_byte_view	String (utility)	Checks if stripped expr is String literal or Ident	N/A (bool check)	mapped	3473-3478
+compile_direct_string_view_and_length	String (codegen)	Compiles (ptr, len) pair for direct string byte views	LLVMBuildGEP + LLVMBuildCall (to @len)	mapped	3480-3492
+compile_manual_find_substring_call_fast_path	String (fast path)	Compiles manual find_substring call: empty→start, else inline search with miss shaping	LLVMBuildCall (to @memchr/@memcmp) + LLVMBuildPhi	mapped	3494-3547
+map_type	Type mapping (LLVM IR)	Resolves Kain ResolvedType → LLVM type string (i64, double, i1, i8*, %StructName*, etc.)	LLVMIntType/LLVMPointerType/LLVMStructType-like	mapped	3549-3585
+prefer_resolved_param_codegen_type	Type mapping (param)	Prefers resolved type's LLVM type over authored if authored was i64 but resolved is different	N/A (type preference)	mapped	3587-3600
+resolved_struct_pointer_llvm_ty	Type mapping (ptr)	Extracts struct pointer LLVM type (%StructName*) from Ptr/Ref resolved types	N/A (struct ptr type)	mapped	3602-3611
+unit_only_enum_name_from_llvm_ptr	Type mapping (enum)	Extracts unit-only enum name from LLVM type string (%EnumName*) via unit_only_enums set	N/A (enum name extraction)	mapped	3613-3618

@@ -1,0 +1,55 @@
+id	core_subsystem	kaintana_file	change	priority	status	z3_proofs	notes
+P0-1	arena.h (KAIN_ARENA_MAIN)	tree.c, arena.c, internal.h	Replace ALL malloc/free with kain_arena_alloc_lo(). Per-frame marker in begin_frame/end_frame. 64KB default arena + virtual alloc for session struct.	P0	done	833 CBMC + Z3	Session struct allocated via kain_virtual_reserve_and_commit(). Arena for all per-frame allocations. No remaining malloc/free/calloc.
+P0-2	component_surface.h	kaintana.h	kaintana.h must MATCH exact slot order and signatures of component_surface.h. Slot numbers are ABSOLUTE.	P0	partial	—	Compiler LLVM codegen emits calls through this layout. Single include prevents drift.
+P0-3	component_surface.c	kaintana.h, kaintana_init()	Call kain_component_surface_register("kaintana", &vtable) at startup. Must happen BEFORE renderer_session_boot().	P0	done	—	kain_component_surface_register(KAINTANA_SURFACE_NAME, &kaintana_vtable) in kt_init() at line 135.
+P0-4	kain_host.h (kainHostVTable)	backends/win32/host_win32.c	Use get_framebuffer() slot for pixel buffer. Win32: CreateDIBSection top-down 32-bit DIB, BitBlt on present.	P0	partial	—	Win32 host exists, needs retrofitting from old ui_system.c pattern.
+P0-5	renderer_session.h/c	kaintana_init(), kaintana_backend_init()	Call renderer_session_boot() to resolve RENDERER_BACKEND env var, probe GPU shims, fall back to software.	P0	not started	—	Resolved active_surface is the vtable Kaintana calls through.
+P0-6	platform.h	kaintana_init(), backends/	kain_platform_current_kind() -> select backend. Check service mask for clipboard/app-host/input.	P0	not started	—	
+P0-7	native_core_runtime.toml	ALL ui_v2/ files	Replace old src/ui/*.c with src/ui_v2/*.c. Add backend files under platform sources. Run update_runtime.py.	P0	not started	—	
+P0-8	input_system.h	tree.c	Replace abi_ui_push_event/abi_ui_poll_event with abi_input_push_event/abi_input_event_count/abi_input_event_kind.	P0	done	Z3 (collision-free)	All input functions (mouse_move/down/up/scroll) use abi_input_push_event(). abi_input_session_create("kaintana") called in kt_make(). Event count/kind wired into poll_event.
+P0-9	input_system.h	tree.c	Use abi_input_action_pressed/down/released for slot 23 callback dispatch.	P0	partial	Z3 (action binding)	Input session created, action bindings ready for slot 23. Slot 23 callback dispatch (v_element_set_callback) still a stub — full wired in P2-39.
+P0-10	input_system.h	tree.c	Call abi_input_begin_frame() each frame for action/axis event reduction.	P0	done	Z3 (hash probe bounds)	abi_input_begin_frame() called in kt_begin() at line 265 (gated by input_sid).
+P0-11	diagnostics.h/c	ALL core files	Use KAIN_DIAG_SUBSYSTEM_UI (code range 5000-5999) for invalid attributes, layout overflow, render errors.	P0	done	—	6 new KT_DIAG_CODE_UI_* codes in kaintana.h (§1B). kaintana__diag_ui() helper in tree.c. Wired into node_alloc, v_element_set_attr_i64/f64/string, kt_backend_select failure paths.
+P0-12	crash_handler.h/c	ALL Kaintana files	No changes needed. Crash handler binary-searches compiler-emitted crash table. Kaintana structures already in-process.	P0	already works	Z3 (crash table)	Free correctness via existing infrastructure.
+P0-13	memory.c (KainAllocHeader)	arena.c	Kaintana's arena uses raw bump alloc — no headers per node. Separate from heap-managed memory. Already clean.	P0	already works	Z3 (alloc header)	
+P0-14	handle.h	tree.c, hash_table.c	Use kain_handle_table_acquire/resolve for stable key->node mapping. Z3 generation-tagged handles reject stale refs.	P0	done	Z3 (4 proofs)	Handle table initialized in kt_make() via kain_handle_table_init(). Handle acquired for each stable-key node in kt_row(). Handles provide generation-tagged identity.
+P0-15	handle.h	tree.c	State keys (i64/f64/string) stored on hidden __kain_state_root node, resolved via handle.	P0	partial	—	Handle table initialized and ready for state root. Full state-key migration to hidden handle-based node deferred — state_entries array still primary. Root node (index 0) serves as implicit state root.
+P0-16	input_system.h (same hash)	hash_table.c, tree.c	Use FNV-1a open-addressing hash (same as input_system). Z3-proven collision bounds.	P0	done	Z3 (hash bounds)	hash_table.c already uses FNV-1a open-addressing with no probe limit (BUG-012 fixed). Max load 256/4096 (6.25%), average 1.07 probes. Same hash algorithm as input_system.
+P0-17	virtual_alloc.h	arena.c, tree.c	kain_virtual_reserve_and_commit() for large dynamic arenas + session struct allocation. Default 64KB arena buffer + virtual alloc for session.	P0	done	—	Session struct allocated via kain_virtual_reserve_and_commit(64-byte aligned) in kt_make(). Released via kain_virtual_release() in kt_free(). Replaces raw calloc/free.
+P0-18	services.h/c	kaintana_init()	Register ui.kaintana service key. Check KAIN_SERVICE_KEY_PLATFORM_INPUT before using input.	P0	done	Z3 (perfect hash)	ui.kaintana service registered in kt_init() via kain_service_registry_global() + kain_service_registry_register(). Provider=NATIVE_CORE, status=AVAILABLE, requirement=OPTIONAL.
+P1-19	renderer_backend.h/c	kaintana_backend_init()	Backend catalog registration.	P1	not started	—	
+P1-20	diagnostics.h/c	kaintana_init()	Startup validation collector.	P1	not started	—	
+P1-21	runtime_tiers.h	ALL core files	Runtime tiers integration. KAIN_PROFILE_SCOPE gated by tier.	P1	not started	—	
+P1-22	profile.h/c	box_math.c, damage.c, draw_pixels.c	Profile scopes for hot paths. KAIN_PROFILE_SCOPE("kaintana_layout") etc.	P1	not started	—	
+P1-23	memory.h (memcpy-based)	draw_pixels.c	Strict-aliasing-safe pixel ops. memcpy for dual-pixel fill as proven by Z3.	P1	not started	Z3 (strict aliasing)	
+P1-24	N/A (via ctypes)	tests/python_abi/	Python ABI tests driving 24-slot vtable from Python. Test session/layout/damage/render.	P1	not started	—	
+P1-25	diagnostics.h/c	tests/fuzzer/	Fuzz suite bombing element_set_attr_string with random keys/values. Arena integrity check.	P1	not started	—	
+P1-26	services.h/c	backends/*/host_*.c	Service availability gates. Check kain_service_registry_is_available() before platform features.	P1	not started	—	
+P1-27	component_surface.c	kaintana.h	Surface registration name. "native_ui", "vulkan", "webgpu", etc.	P1	not started	—	
+P1-28	input_system.h	tree.c	Input session lifecycle: abi_input_session_create/destroy.	P1	done	—	abi_input_session_create("kaintana") called in kt_make(). abi_input_session_destroy called in kt_free(). Session ID stored in sess->input_sid.
+P1-29	machine_stones.h/c	kaintana_animation_init(), animation.kn	Pulse animation timing via kain_machine_pulse_start(). 64-slot background thread.	P1	not started	Z3 (6 proofs)	
+P1-30	entangle.h/c	tree.c	Entangle surface discovery for multi-surface state sync.	P1	not started	Z3 (5 proofs)	
+P1-31	machine_stones.h/c	backends/vulkan/	Axiom capability gating for GPU backend selection.	P1	not started	Z3 (capability)	
+P1-32	version.h/c	kaintana.h	ABI version check at startup via version_check_abi_compatibility().	P1	done	—	version_check_abi_compatibility(KT_API_VERSION) called in kt_init(). Already present before this change.
+P1-33	deferred_free.h/c	damage.c	Deferred free list for damage tracking: mark dirty, flush at end_frame.	P1	not started	—	
+P1-34	converge.h/c	core.kn (Kain-side)	Converge backend selection block in core.kn.	P1	not started	Z3 (5 proofs)	
+P1-35	machine_stones.h/c	surface_teleport()	Teleport surface handoff for zero-copy surface-to-surface state handoff.	P1	not started	Z3 (teleport)	
+P1-36	memory.h (atomic ops)	draw_pixels.c, damage.c	Atomic state flags via __kain_atomic_load_seqcst/store_seqcst.	P1	not started	Z3 (CAS ordering)	
+P1-37	platform_library.h	backends/vulkan/ (Phase 2)	Platform library check for GPU backends.	P1	not started	—	
+P2-38	gpu_surface_extension.h	shader_canvas backend	GPU extension for shader_canvas: wire slot 18 (get_gpu_extension).	P2	not started	—	
+P2-39	ui_system.c (internal)	tree.c	Slot 23 callback binding for event->callback dispatch.	P2	not started	—	
+P2-40	Vulkan/D3D12/webgpu_shim.c	GPU backends	GPU surface shim integration via surface shim resolver.	P2	not started	—	
+P2-41	fanout.h/c	render pipeline	Fan-out parallel render for multi-lane dispatch.	P3	not started	—	
+P2-42	actor.h/c	event loop	Actor-backed event loop for mailbox-driven UI.	P3	not started	5676 CBMC	
+P2-43	async.h/c	render pipeline	Async render tasks for GPU fence polling.	P3	not started	—	
+P2-44	test/cbmc/check_arena.c	arena.c	Extended CBMC arena harness with Kaintana's grow/reset patterns.	P2	not started	833 CBMC	Run with new arena patterns
+P2-45	cpu.h/c	backends/	CPU detection for SIMD and worker thread count.	P3	not started	—	
+P2-46	compatibility.h/c	core files	Compatibility class for bundle version validation.	P3	not started	—	
+P2-47	contract.h/c	core files	Contract bundle integration.	P3	not started	—	
+P2-48	memory.h (__kain_ptr_offset)	draw_pixels.c	Safe pointer arithmetic for framebuffer row offset computation.	P2	not started	—	
+P2-49	c_runtime_math_subset.h	animation system	Math subset for animation interpolation.	P3	not started	—	
+P2-50	reflection.h/c	attribute system	Reflection for dynamic attribute registration.	P3	not started	—	
+P2-51	reflection.h/c	attribute system	Reflection-driven attribute registration (Phase 3+).	P3	not started	—	
+P2-52	simd.h/c + cpu.h/c	draw_pixels.c	SIMD-accelerated pixel fill operations.	P3	not started	—	
+P2-53	gpu_surface_extension.h	shader_canvas	GPU extension load_shader/set_uniform stubs.	P3	not started	—	
+P2-54	self_updating_ptr.h	arena.c	Self-updating pointer for arena relocation (if ever needed).	P3	not started	—	

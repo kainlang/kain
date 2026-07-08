@@ -1,0 +1,18 @@
+// v2_world_no_surface.kn — world with state but NO surface binding
+// Does world declaration cause issues without surface?
+
+use std::runtime
+
+world BareWorld:
+    state x: Int = 1
+
+component BareComponent():
+    render <text value="world, no surface" font_size={12} />
+
+fn main() -> Int:
+    let _ = BareWorld.x
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

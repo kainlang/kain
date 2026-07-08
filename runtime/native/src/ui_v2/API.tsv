@@ -1,0 +1,179 @@
+category	name	kind	file	signature/description	notes
+Version Constant	KT_VERSION_MAJOR	constant	kaintana.h	#define KT_VERSION_MAJOR 0	Bump on breaking changes
+Version Constant	KT_VERSION_MINOR	constant	kaintana.h	#define KT_VERSION_MINOR 1
+Version Constant	KT_VERSION_PATCH	constant	kaintana.h	#define KT_VERSION_PATCH 0
+Version Constant	KT_VERSION	constant	kaintana.h	#define KT_VERSION "0.1.0"
+Version Constant	KT_API_VERSION	constant	kaintana.h	#define KT_API_VERSION 1	Bump on ABI-breaking changes
+Export Macro	KT_API	macro	kaintana.h	#define KT_API extern	Export marker for public functions
+Surface Name	KAINTANA_SURFACE_NAME	constant	kaintana.h	#define KAINTANA_SURFACE_NAME "kaintana"	Used by kain_component_surface_register
+Type	kt_Vec2	type	kaintana.h	typedef struct { float x, y; } kt_Vec2	8 bytes, 2D point/vector
+Type	kt_Rect	type	kaintana.h	typedef struct { float x, y, w, h; } kt_Rect	16 bytes, axis-aligned rectangle
+Type	kt_Color	type	kaintana.h	typedef struct { float r, g, b, a; } kt_Color	16 bytes, float RGBA
+Type	kt_Matrix	type	kaintana.h	typedef struct { float m[6]; } kt_Matrix	24 bytes, 2D affine row-major
+Type	kt_Fixed8_8	type	kaintana.h	typedef uint16_t kt_Fixed8_8	Fixed-point 8.8, 1/256 precision
+Type	kt_Session	type	kaintana.h	typedef struct kt_Session_t kt_Session	Opaque session handle (full def in internal.h)
+Type	kt_Input	type	kaintana.h	typedef struct { float mouse_x/y, scroll_dx/dy, int keys_down[256], mouse_down[5], char text_input[32], int text_len, double time_ms; } kt_Input	Per-frame input state, ImGuiIO-style
+Type	kt_Cmd	type	kaintana.h	typedef struct { kt_CmdType type; kt_Rect bounds; uint32_t color, color_b; float radius, thickness; int text_id, image_id; } kt_Cmd	Draw command, 48 bytes
+Type	kt_DrawData	type	kaintana.h	typedef struct { const kt_Cmd* cmds; int cmd_count; } kt_DrawData	Per-frame render output
+Type	KaintanaBackendConfig	type	kaintana.h	typedef struct { const char* title; int width, height; int fullscreen; void* platform_handle; } KaintanaBackendConfig	Backend configuration
+Type	KaintanaBackendVTable	type	kaintana.h	typedef struct { int (*init)(config); void (*shutdown)(void); void (*new_frame)(void); void (*render)(draw_data); } KaintanaBackendVTable	4-function backend contract
+Type	KaintanaComponentSurface	type	kaintana.h	typedef KainComponentSurface KaintanaComponentSurface	Alias for the 24-slot vtable
+Enum	kt_CmdType	enum	kaintana.h	KT_CMD_FILL=0, _STROKE=1, _TEXT=2, _IMAGE=3, _CLIP=4, _UNCLIP=5	6 draw primitives
+Enum	KaintanaInputKind	enum	kaintana.h	KT_INPUT_NONE=0, _MOUSE_MOVE=1, _MOUSE_DOWN=2, _MOUSE_UP=3, _SCROLL=4, _KEY_DOWN=5, _KEY_UP=6, _TEXT=7, _COUNT=8	8 input event types
+Enum	KaintanaLayoutDir	enum	kaintana.h	KT_DIR_ROW=0, _COLUMN=1, _ROW_REVERSE=2, _COLUMN_REVERSE=3	4 flex directions
+Enum	KaintanaJustify	enum	kaintana.h	KT_JUSTIFY_FLEX_START=0, _CENTER=1, _FLEX_END=2, _SPACE_BETWEEN=3, _SPACE_AROUND=4, _SPACE_EVENLY=5	6 justify-content modes
+Enum	KaintanaAlign	enum	kaintana.h	KT_ALIGN_STRETCH=0, _FLEX_START=1, _CENTER=2, _FLEX_END=3, _BASELINE=4, _AUTO=5	6 cross-axis align modes
+Enum	KaintanaWrap	enum	kaintana.h	KT_WRAP_NO_WRAP=0, _WRAP=1, _WRAP_REVERSE=2	3 flex-wrap modes
+Enum	KaintanaUnit	enum	kaintana.h	KT_UNIT_UNDEFINED=0, _POINT=1, _PERCENT=2, _AUTO=3	4 length unit types
+Enum	KaintanaBlendMode	enum	kaintana.h	KT_BLEND_SRC_OVER=0 through KT_BLEND_LUMINOSITY=26, _COUNT=27	27 Porter-Duff + CSS blend modes
+Session Lifecycle	kt_init	function	tree.c	void kt_init(void)	Initialize Kaintana system. Call once at startup.
+Session Lifecycle	kt_make	function	tree.c	kt_Session* kt_make(const char* name, int w, int h)	Create UI session, returns opaque handle or NULL
+Session Lifecycle	kt_free	function	tree.c	void kt_free(kt_Session* s)	Destroy UI session. Null-safe.
+Frame Loop	kt_begin	function	tree.c	void kt_begin(kt_Session* s, double delta_ms)	Start a new frame with delta time (ms)
+Frame Loop	kt_end	function	tree.c	void kt_end(kt_Session* s)	Conclude command recording for current frame
+Frame Loop	kt_present	function	tree.c	void kt_present(kt_Session* s)	Put pixels on screen via registered backend
+Frame Loop	kt_should_close	function	tree.c	int kt_should_close(kt_Session* s)	Returns 1 if close requested, 0 otherwise
+Input Funnel	kt_input_mouse_move	function	tree.c	void kt_input_mouse_move(kt_Session* s, float x, float y)	Feed mouse move before kt_begin()
+Input Funnel	kt_input_mouse_down	function	tree.c	void kt_input_mouse_down(kt_Session* s, int button)	Feed mouse button press (0=left,1=right,2=middle)
+Input Funnel	kt_input_mouse_up	function	tree.c	void kt_input_mouse_up(kt_Session* s, int button)	Feed mouse button release
+Input Funnel	kt_input_scroll	function	tree.c	void kt_input_scroll(kt_Session* s, float dx, float dy)	Feed scroll delta
+Input Funnel	kt_input_key_down	function	tree.c	void kt_input_key_down(kt_Session* s, int key)	Feed key press (scancode)
+Input Funnel	kt_input_key_up	function	tree.c	void kt_input_key_up(kt_Session* s, int key)	Feed key release
+Input Funnel	kt_input_text	function	tree.c	void kt_input_text(kt_Session* s, const char* text)	Feed UTF-8 text input
+Element Tree	kt_row	function	tree.c	int kt_row(kt_Session* s, int parent, const char* kind, const char* key)	Begin element, returns element ID
+Element Tree	kt_end_row	function	tree.c	void kt_end_row(kt_Session* s)	Close most recently opened element
+Element Tree	kt_text	function	tree.c	void kt_text(kt_Session* s, int elem, const char* text)	Set text content on element
+Layout Attribute	kt_width	function	tree.c	void kt_width(kt_Session* s, int elem, float w)	Set element width
+Layout Attribute	kt_height	function	tree.c	void kt_height(kt_Session* s, int elem, float h)	Set element height
+Layout Attribute	kt_pad	function	tree.c	void kt_pad(kt_Session* s, int elem, float all)	Set uniform padding on all sides
+Layout Attribute	kt_pad_xy	function	tree.c	void kt_pad_xy(kt_Session* s, int elem, float x, float y)	Set horizontal+vertical padding
+Layout Attribute	kt_gap	function	tree.c	void kt_gap(kt_Session* s, int elem, float gap)	Set gap between children
+Layout Attribute	kt_direction	function	tree.c	void kt_direction(kt_Session* s, int elem, int dir)	0=row, 1=col, 2=row-rev, 3=col-rev
+Style Attribute	kt_fill	function	tree.c	void kt_fill(kt_Session* s, int elem, const char* color)	Set fill color (hex string "#RRGGBB" or named)
+Style Attribute	kt_stroke	function	tree.c	void kt_stroke(kt_Session* s, int elem, const char* color, float w)	Set stroke color + width
+Style Attribute	kt_radius	function	tree.c	void kt_radius(kt_Session* s, int elem, float r)	Set corner radius
+Style Attribute	kt_opacity	function	tree.c	void kt_opacity(kt_Session* s, int elem, float a)	Set opacity (0.0-1.0)
+Style Attribute	kt_font	function	tree.c	void kt_font(kt_Session* s, int elem, float size)	Set font size
+State Persistence	kt_put	function	tree.c	void kt_put(kt_Session* s, const char* key, int64_t v)	Store int64 state by key
+State Persistence	kt_put_f	function	tree.c	void kt_put_f(kt_Session* s, const char* key, double v)	Store double state by key
+State Persistence	kt_put_s	function	tree.c	void kt_put_s(kt_Session* s, const char* key, const char* v)	Store string state by key
+State Persistence	kt_get	function	tree.c	int64_t kt_get(kt_Session* s, const char* key, int64_t fallback)	Read int64 state, return fallback if missing
+State Persistence	kt_get_f	function	tree.c	double kt_get_f(kt_Session* s, const char* key, double fallback)	Read double state
+State Persistence	kt_get_s	function	tree.c	const char* kt_get_s(kt_Session* s, const char* key, const char* fallback)	Read string state
+Draw Output	kt_cmd_count	function	tree.c	int kt_cmd_count(kt_Session* s)	Number of draw commands this frame
+Draw Output	kt_cmd_get	function	tree.c	kt_Cmd kt_cmd_get(kt_Session* s, int index)	Get draw command by index
+DPI Scale	kt_scale_factor_x	function	tree.c	float kt_scale_factor_x(kt_Session* s)	Effective horizontal scale = native_scale_x × user_zoom. Backends use for rendering.
+DPI Scale	kt_scale_factor_y	function	tree.c	float kt_scale_factor_y(kt_Session* s)	Effective vertical scale.
+DPI Scale	kt_native_scale_x	function	tree.c	float kt_native_scale_x(kt_Session* s)	OS-reported DPI only. For font rasterization density.
+DPI Scale	kt_native_scale_y	function	tree.c	float kt_native_scale_y(kt_Session* s)	Vertical OS DPI only.
+DPI Scale	kt_set_native_scale	function	tree.c	void kt_set_native_scale(kt_Session* s, float sx, float sy)	Called by backends at init + DPI change. Bumps layout_generation. Invalidates measure cache.
+DPI Scale	kt_set_zoom	function	tree.c	void kt_set_zoom(kt_Session* s, float zoom)	User zoom 0.2-5.0. Deferred to next frame (egui pattern).
+DPI Pixel Snap	kt_round_to_pixel_x	inline	kaintana.h	float kt_round_to_pixel_x(float logical, float scale)	roundf(logical × scale) / scale. Snap to nearest physical pixel X.
+DPI Pixel Snap	kt_round_to_pixel_y	inline	kaintana.h	float kt_round_to_pixel_y(float logical, float scale)	Same for Y axis.
+DPI Pixel Snap	kt_round_to_pixel_center_x	inline	kaintana.h	float kt_round_to_pixel_center_x(float logical, float scale)	(floorf(logical × scale) + 0.5f) / scale. Center 1px line.
+DPI Pixel Snap	kt_one_physical_pixel	inline	kaintana.h	float kt_one_physical_pixel(float scale)	1.0f / scale. Xilem Divider pattern.
+DPI Pixel Snap	kt_round_ui	inline	kaintana.h	float kt_round_ui(float x)	roundf(x × 64.0f) / 64.0f. Layout numerical stability. egui uses 1/32; we use 1/64.
+DPI Constant	KT_DEFAULT_SCALE	constant	kaintana.h	#define KT_DEFAULT_SCALE 1.0f	96 DPI = 100% scaling. All backends default to this until OS query completes.
+DPI Constant	KT_DPI_BASELINE	constant	kaintana.h	#define KT_DPI_BASELINE 96.0f	Standard DPI reference. scale = dpi / 96.0.
+DPI Constant	KT_ZOOM_MIN	constant	kaintana.h	#define KT_ZOOM_MIN 0.2f	Minimum user zoom (egui: 0.2).
+DPI Constant	KT_ZOOM_MAX	constant	kaintana.h	#define KT_ZOOM_MAX 5.0f	Maximum user zoom (egui: 5.0).
+DPI Constant	KT_ZOOM_STEP	constant	kaintana.h	#define KT_ZOOM_STEP 0.1f	Keyboard zoom granularity.
+DPI Constant	KT_ROUND_UI_FACTOR	constant	kaintana.h	#define KT_ROUND_UI_FACTOR 64.0f	1/64 logical point for layout stability.
+Backend Registry	kt_backend_register	function	tree.c	int kt_backend_register(kt_Session* s, const char* name, const KaintanaBackendVTable* vtable)	Register a render backend (max 8)
+Backend Registry	kt_backend_select	function	tree.c	int kt_backend_select(kt_Session* s, const char* name)	Activate a registered backend by name
+Backend Registry	kt_backend_probe	function	tree.c	int kt_backend_probe(kt_Session* s)	Auto-select via RENDERER_BACKEND env var or first registered
+Color Inline	kt_color_from_u32	inline	kaintana.h	kt_Color kt_color_from_u32(uint32_t col)	Unpack 0xAARRGGBB to float kt_Color	Z3 UNSAT
+Color Inline	kt_color_to_u32	inline	kaintana.h	uint32_t kt_color_to_u32(kt_Color c)	Pack float kt_Color to 0xAARRGGBB	Branchless, Z3 UNSAT
+Color Function	kt_color_parse_hex	function	color.c	uint32_t kt_color_parse_hex(const char* hex)	Parse #RGB/#RRGGBB/#RRGGBBAA + 24 named colors	Z3 UNSAT
+Color Inline	kt_color_premultiply	inline	kaintana.h	kt_Color kt_color_premultiply(kt_Color c)	Straight to premultiplied (float)	Z3 UNSAT
+Color Inline	kt_color_premultiply_u8	inline	kaintana.h	uint32_t kt_color_premultiply_u8(uint32_t argb)	Straight to premultiplied (integer)	Z3 UNSAT
+Color Inline	kt_color_unpremultiply	inline	kaintana.h	kt_Color kt_color_unpremultiply(kt_Color c)	Premultiplied to straight (NaN-guarded)	Z3 UNSAT
+Color Inline	kt_color_lerp	inline	kaintana.h	kt_Color kt_color_lerp(kt_Color a, kt_Color b, float t)	sRGB lerp: a + (b-a)*t	Z3 UNSAT
+Color Function	kt_color_gradient_sample	function	color.c	uint32_t kt_color_gradient_sample(const uint32_t* stops, const float* positions, int n_stops, float x)	Sample N-stop gradient, O(log N) for n>4	Z3 UNSAT
+Color Inline	kt_color_srgb_to_linear	inline	kaintana.h	float kt_color_srgb_to_linear(float c)	sRGB byte [0,1] to linear float	Piecewise
+Color Inline	kt_color_linear_to_srgb	inline	kaintana.h	float kt_color_linear_to_srgb(float c)	Linear float to sRGB [0,1]	Piecewise
+Blend Inline	kt_blend_compose	inline	kaintana.h	kt_Color kt_blend_compose(kt_Color cs, float as, kt_Color cb, float ab, int mode)	Porter-Duff with SRC_OVER fast path	Z3 UNSAT
+Blend Inline	kt_blend_mix	inline	kaintana.h	float kt_blend_mix(float cb, float cs, int mode)	CSS mix blend mode dispatch (multiply, screen, overlay, dodge, burn, hard/soft light, darken, lighten, difference, exclusion)	11 blend modes
+HSL Blend	kt_blend_mix_hue	inline	kaintana.h	kt_Color kt_blend_mix_hue(kt_Color cb, kt_Color cs)	HSL hue blend mode
+HSL Blend	kt_blend_mix_saturation	inline	kaintana.h	kt_Color kt_blend_mix_saturation(kt_Color cb, kt_Color cs)	HSL saturation blend mode
+HSL Blend	kt_blend_mix_color	inline	kaintana.h	kt_Color kt_blend_mix_color(kt_Color cb, kt_Color cs)	HSL color blend mode
+HSL Blend	kt_blend_mix_luminosity	inline	kaintana.h	kt_Color kt_blend_mix_luminosity(kt_Color cb, kt_Color cs)	HSL luminosity blend mode
+Luminance Inline	kt_color_luminance	inline	kaintana.h	float kt_color_luminance(kt_Color c)	Rec. 601 luminance via FMA	Z3 UNSAT
+Luminance Inline	kt_luminance_u8	inline	kaintana.h	uint8_t kt_luminance_u8(uint32_t rgb)	Integer luminance from packed ARGB	Z3 UNSAT
+Luminance Inline	kt_color_saturation	inline	kaintana.h	float kt_color_saturation(kt_Color c)	max(R,G,B)-min(R,G,B) branchless	Z3 UNSAT
+Luminance Inline	kt_saturation_u8	inline	kaintana.h	uint8_t kt_saturation_u8(uint32_t rgb)	Integer saturation from packed ARGB	Z3 UNSAT
+Opacity Inline	kt_apply_opacity	inline	kaintana.h	kt_Color kt_apply_opacity(kt_Color c, float opacity)	Apply opacity (premultiplied float)	Z3 UNSAT
+Opacity Inline	kt_apply_opacity_u32	inline	kaintana.h	uint32_t kt_apply_opacity_u32(uint32_t color, uint8_t opacity_255)	Apply opacity to packed uint32	Z3 UNSAT
+Easing Inline	kt_ease_smoothstep	inline	kaintana.h	float kt_ease_smoothstep(float t)	t^2(3-2t), C1 continuous	Z3 UNSAT
+Easing Inline	kt_ease_smootherstep	inline	kaintana.h	float kt_ease_smootherstep(float t)	t^3(t(6t-15)+10), C2 continuous	Z3 UNSAT
+Easing Inline	kt_ease_in	inline	kaintana.h	float kt_ease_in(float t)	CSS ease-in ~= t^3	Z3 UNSAT
+Easing Inline	kt_ease_out	inline	kaintana.h	float kt_ease_out(float t)	CSS ease-out ~= 1-(1-t)^3	Z3 UNSAT
+Easing Inline	kt_ease_in_out	inline	kaintana.h	float kt_ease_in_out(float t)	CSS ease-in-out piecewise cubic	Z3 UNSAT
+Easing Inline	kt_ease_cubic_bezier	inline	kaintana.h	float kt_ease_cubic_bezier(float x1, float y1, float x2, float y2, float x)	Newton iteration (5 iters) solving cubic-bezier	Z3 UNSAT, 16 claims
+Easing Inline	kt_ease_cubic_in	inline	kaintana.h	float kt_ease_cubic_in(float t)	t^3
+Easing Inline	kt_ease_cubic_out	inline	kaintana.h	float kt_ease_cubic_out(float t)	1-(1-t)^3
+Easing Inline	kt_ease_cubic_in_out	inline	kaintana.h	float kt_ease_cubic_in_out(float t)	Piecewise cubic
+Utility Macro	kaintana__MIN	macro	kaintana.h	#define kaintana__MIN(a,b) ((a)<(b)?(a):(b))
+Utility Macro	kaintana__MAX	macro	kaintana.h	#define kaintana__MAX(a,b) ((a)>(b)?(a):(b))
+Utility Macro	kaintana__CLAMP	macro	kaintana.h	#define kaintana__CLAMP(v,lo,hi) MIN(MAX(v,lo),hi)
+Utility Macro	kaintana__DIV255	macro	kaintana.h	#define kaintana__DIV255(x) (((x)+1+((x)>>8))>>8)	Fast u8/255, error +/-0.5, Z3 UNSAT
+Utility Macro	kaintana__ALIGN_UP	macro	kaintana.h	#define kaintana__ALIGN_UP(v,a) (((v)+(a)-1)&~((size_t)(a)-1))	Align up to power-of-2
+Utility Macro	kaintana__ALIGN_DOWN	macro	kaintana.h	#define kaintana__ALIGN_DOWN(v,a) ((v)&~((size_t)(a)-1))	Align down to power-of-2
+Utility Macro	kaintana__SIZEOF_ARRAY	macro	kaintana.h	#define kaintana__SIZEOF_ARRAY(arr) (sizeof(arr)/sizeof((arr)[0]))
+Static Assert	KT_STATIC_ASSERT	macro	kaintana.h	#define KT_STATIC_ASSERT(cond,msg) typedef char kaintana__assert_##msg[(cond)?1:-1]
+Arena API	kaintana_arena_init	function	arena.c	void kaintana_arena_init(kt_Session* s)	Initialize frame arena with KAIN_ARENA_MAIN
+Arena API	kaintana_arena_alloc	function	arena.c	void* kaintana_arena_alloc(kt_Session* s, size_t size, size_t align)	Allocate from frame arena
+Arena API	kaintana_arena_mark	function	arena.c	void kaintana_arena_mark(kt_Session* s)	Set frame marker at current position
+Arena API	kaintana_arena_release	function	arena.c	void kaintana_arena_release(kt_Session* s)	Release back to last marker (O(1))
+Arena API	kaintana_arena_reset	function	arena.c	void kaintana_arena_reset(kt_Session* s)	Full arena reset
+Hash Table	kaintana_hash_fnv1a	function	hash_table.c	uint64_t kaintana_hash_fnv1a(const char* key)	FNV-1a 64-bit hash	Z3 UNSAT
+Hash Table	kaintana_hash_lookup	function	hash_table.c	int kaintana_hash_lookup(kt_Session* s, uint64_t hash)	Open-addressing lookup, NO probe limit	Z3 UNSAT
+Hash Table	kaintana_hash_insert	function	hash_table.c	void kaintana_hash_insert(kt_Session* s, uint64_t hash, int value)	Insert hash→value with tombstone handling	Z3 UNSAT
+Hash Table	kaintana_hash_remove	function	hash_table.c	bool kaintana_hash_remove(kt_Session* s, uint64_t hash)	Remove via tombstone sentinel
+Hash Table	kaintana_hash_clear	function	hash_table.c	void kaintana_hash_clear(kt_Session* s)	Wipe all entries
+Hash Table	kaintana_hash_load	function	hash_table.c	int kaintana_hash_load(kt_Session* s)	Count occupied slots (O(n))
+Attr Table	kaintana__attr_lookup	function	attr_table.c	int kaintana__attr_lookup(const char* key)	Find attribute index by name (linear scan, <50 entries)
+Attr Table	kaintana__attr_get_entry	function	attr_table.c	const KaintanaAttrEntry* kaintana__attr_get_entry(int index)	Get attribute entry by index	INTERNAL
+Attr Table	kaintana__attr_count	function	attr_table.c	int kaintana__attr_count(void)	Number of attribute entries (excl sentinel)	INTERNAL
+Internal	tree.c	kaintana__node_find	function	tree.c	int kaintana__node_find(kt_Session* s, const char* stable_key)	Find node by stable key hash	INTERNAL
+Internal	tree.c	kaintana__node_mark_dirty	function	tree.c	void kaintana__node_mark_dirty(kt_Session* s, int idx, int reason)	Mark node dirty, cascade to parent	INTERNAL
+Internal	box_math.c	kaintana__layout_pass1	function	box_math.c	void kaintana__layout_pass1(kt_Session* s)	Bottom-up desired sizes (prepass)	INTERNAL
+Internal	box_math.c	kaintana__layout_pass2	function	box_math.c	void kaintana__layout_pass2(kt_Session* s)	Top-down position resolution (arrange)	INTERNAL
+Internal	damage.c	kaintana__damage_process	function	damage.c	void kaintana__damage_process(kt_Session* s)	Three-phase invalidation pipeline	INTERNAL
+Internal	damage.c	kaintana__damage_add	function	damage.c	void kaintana__damage_add(kt_Session* s, kt_Rect r)	Add rect to damage accumulator	INTERNAL
+Internal	draw_pixels.c	kaintana__draw_generate	function	draw_pixels.c	void kaintana__draw_generate(kt_Session* s)	Walk nodes, emit draw commands	INTERNAL
+Internal	draw_pixels.c	kaintana__draw_merge	function	draw_pixels.c	void kaintana__draw_merge(kt_Session* s)	Auto-merge adjacent draw commands	INTERNAL
+Internal	arena.c	kaintana__arena_push	function	arena.c	void* kaintana__arena_push(kt_Session* s, size_t bytes)	Arena alloc with 16-byte alignment	INTERNAL
+Internal	arena.c	kaintana__arena_reset	function	arena.c	void kaintana__arena_reset(kt_Session* s)	Full arena reset	INTERNAL
+Internal	hash_table.c	kaintana__hash_lookup	function	hash_table.c	int kaintana__hash_lookup(kt_Session* s, uint64_t hash)	Wrapper for kaintana_hash_lookup	INTERNAL
+Internal	hash_table.c	kaintana__hash_insert	function	hash_table.c	void kaintana__hash_insert(kt_Session* s, uint64_t hash, int idx)	Wrapper for kaintana_hash_insert	INTERNAL
+Backend VTable	null backend	backend	null/host_null.c	const KaintanaBackendVTable kaintana_null_backend	In-memory framebuffer, 256 lines, no platform deps	Register: kt_backend_register(s, "null", &kaintana_null_backend)
+Backend VTable	terminal backend	backend	terminal/host_terminal.c	const KaintanaBackendVTable kaintana_terminal_backend	ANSI truecolor terminal output via termbox2, 342 lines	Register: kt_backend_register(s, "terminal", &kaintana_terminal_backend)
+VTable Slot 0	session_create	vtable_slot	component_surface.h	int64_t (*session_create)(const char* name, int64_t width, int64_t height)	Create session
+VTable Slot 1	session_destroy	vtable_slot	component_surface.h	void (*session_destroy)(int64_t session_id)	Destroy session
+VTable Slot 2	element_begin	vtable_slot	component_surface.h	int64_t (*element_begin)(int64_t sid, int64_t parent, const char* kind, const char* stable_key)	Begin element
+VTable Slot 3	element_end	vtable_slot	component_surface.h	void (*element_end)(int64_t sid, int64_t elem)	End element
+VTable Slot 4	element_set_text	vtable_slot	component_surface.h	void (*element_set_text)(int64_t sid, int64_t elem, const char* text)	Set text
+VTable Slot 5	element_set_attr_i64	vtable_slot	component_surface.h	void (*element_set_attr_i64)(int64_t sid, int64_t elem, const char* key, int64_t val)	Set int attribute
+VTable Slot 6	element_set_attr_f64	vtable_slot	component_surface.h	void (*element_set_attr_f64)(int64_t sid, int64_t elem, const char* key, double val)	Set float attribute
+VTable Slot 7	element_set_attr_string	vtable_slot	component_surface.h	void (*element_set_attr_string)(int64_t sid, int64_t elem, const char* key, const char* val)	Set string attribute
+VTable Slot 8	state_get_i64	vtable_slot	component_surface.h	int64_t (*state_get_i64)(int64_t sid, const char* key)	Get int64 state
+VTable Slot 9	state_set_i64	vtable_slot	component_surface.h	void (*state_set_i64)(int64_t sid, const char* key, int64_t val)	Set int64 state
+VTable Slot 10	begin_frame	vtable_slot	component_surface.h	void (*begin_frame)(int64_t sid, double delta_ms)	Begin frame
+VTable Slot 11	end_frame	vtable_slot	component_surface.h	void (*end_frame)(int64_t sid)	End frame
+VTable Slot 12	present	vtable_slot	component_surface.h	void (*present)(int64_t sid)	Present to screen
+VTable Slot 13	poll_event	vtable_slot	component_surface.h	int64_t (*poll_event)(int64_t sid, void* out_event, int64_t max_size)	Poll input event
+VTable Slot 14	should_close	vtable_slot	component_surface.h	int64_t (*should_close)(int64_t sid)	Check close requested
+VTable Slot 15	window_open	vtable_slot	component_surface.h	int64_t (*window_open)(int64_t sid, const char* title, int64_t w, int64_t h)	Open OS window
+VTable Slot 16	host_pump	vtable_slot	component_surface.h	int64_t (*host_pump)(int64_t sid)	Pump OS message queue
+VTable Slot 17	session_attach_platform	vtable_slot	component_surface.h	void (*session_attach_platform)(int64_t sid, void* handle)	Attach platform window handle
+VTable Slot 18	get_gpu_extension	vtable_slot	component_surface.h	const KainGpuSurfaceExtension* (*get_gpu_extension)(int64_t sid)	Get GPU surface extension (NULL if software)
+VTable Slot 19	state_get_f64	vtable_slot	component_surface.h	double (*state_get_f64)(int64_t sid, const char* key)	Get float state
+VTable Slot 20	state_set_f64	vtable_slot	component_surface.h	void (*state_set_f64)(int64_t sid, const char* key, double val)	Set float state
+VTable Slot 21	state_get_string	vtable_slot	component_surface.h	const char* (*state_get_string)(int64_t sid, const char* key)	Get string state
+VTable Slot 22	state_set_string	vtable_slot	component_surface.h	void (*state_set_string)(int64_t sid, const char* key, const char* val)	Set string state
+VTable Slot 23	element_set_callback	vtable_slot	component_surface.h	void (*element_set_callback)(int64_t sid, int64_t elem, const char* event, void* fn)	Bind event callback	Currently a no-op stub
+Interaction Query	kt_hovered	function	tree.c	int kt_hovered(kt_Session* s, int elem)	Returns 1 if pointer is over element this frame	NEW
+Interaction Query	kt_clicked	function	tree.c	int kt_clicked(kt_Session* s, int elem)	Returns 1 if element was clicked this frame	NEW
+Interaction Query	kt_active	function	tree.c	int kt_active(kt_Session* s, int elem)	Returns 1 if element has pointer capture	NEW
+Internal	tree.c	kaintana__hit_test	function	tree.c	void kaintana__hit_test(kt_Session* s)	Pointer→node matching after layout	NEW

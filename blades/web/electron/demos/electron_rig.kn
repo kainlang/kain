@@ -1,0 +1,272 @@
+// ============================================================================
+//  electron_rig.kn — Kain → Electron 3D Rig & Animation Bridge
+// ============================================================================
+//
+//  WHAT:      A full rig/animation control module for the Electron playground.
+//             Load GLB models with skeletons, create procedural bone hierarchies,
+//             play baked animations with crossfade, drive bones procedurally via
+//             flat SoA arrays, look-at targeting, and analytical two-bone IK.
+//
+//             Designed for the SoA hot path: set_bone_pose sends 6 flat float
+//             arrays (rx[], ry[], rz[], tx[], ty[], tz[]) — one array per bone
+//             lane. The JS side unpacks into Float32Array and pushes directly
+//             to bone transforms. No per-bone JSON object overhead.
+//
+//  IMPORT:    use electron_rig     (imports electron_bridge for flush)
+//
+//  PATTERN:   Build → flush. Every command is a typed JSON object dispatched
+//             to SceneManager._rig() on the JS side.
+//
+//  COMMANDS:  load_glb / unload_glb / create_skeleton
+//             play_anim / stop_anim / pause_anim / set_anim_speed / set_anim_weight
+//             set_bone_pose / set_bone_transform
+//             look_at_bone / two_bone_ik
+//
+//  SEMANTIC LAYER: L0 (plain code — fn, let, use)
+//  STDLIB:         std::json
+//  DEPENDS:        electron_bridge (for flush)
+//
+// ============================================================================
+
+use std::json
+use electron_bridge
+
+// ============================================================================
+//  GLB LIFECYCLE — load/unload full skinned models from .glb/.gltf files
+// ============================================================================
+
+// load_glb: load a GLB/GLTF model into the 3D scene, parse skeleton + animations.
+// id: unique identifier for this model instance
+// url: path to .glb file (e.g. "models/mannequin.glb" or absolute path)
+//      Models/ directory is resolved relative to the electron/ project root.
+// Animations are indexed by name and available via play_animation.
+pub fn load_glb(id: String, url: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "load_glb")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "url", url)
+    flush(cmd)
+
+// unload_glb: remove the model and all its bones, animations, and materials.
+pub fn unload_glb(id: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "unload")
+    json_object_set_string(cmd, "id", id)
+    flush(cmd)
+
+// ============================================================================
+//  PROCEDURAL SKELETON — create a bone hierarchy from Kain (no GLB needed)
+// ============================================================================
+//
+//  bone_hierarchy is a JsonArray where each entry defines one bone:
+//    {
+//      "name": "hips",
+//      "parent": "",               // "" = root bone
+//      "x": 0.0, "y": 0.0, "z": 0.0,  // position relative to parent
+//      "rx": 0.0, "ry": 0.0, "rz": 0.0  // rotation relative to parent (Euler)
+//    }
+//
+//  Bones are created as THREE.Bone objects in a parent-child hierarchy.
+//  A simple box mesh is attached to each bone for visual feedback.
+//  The skeleton is added to the scene with a SkinnedMesh.
+//
+//  EXAMPLE (minimal humanoid):
+//    let bones = json_array()
+//    json_array_push_object(bones, json_object(
+//        "name", "hips", "parent", "",
+//        "x", 0.0, "y", 1.0, "z", 0.0,
+//        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+//    json_array_push_object(bones, json_object(
+//        "name", "spine", "parent", "hips",
+//        "x", 0.0, "y", 0.4, "z", 0.0,
+//        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+//    create_skeleton("mannequin", bones)
+//
+pub fn create_skeleton(id: String, bone_hierarchy: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "create_skeleton")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_array(cmd, "bones", bone_hierarchy)
+    flush(cmd)
+
+// ============================================================================
+//  ANIMATION CLIPS — play/stop/pause/speed/weight control
+// ============================================================================
+//
+//  For GLB-loaded models, animations are the baked clips from the model file.
+//  For procedural skeletons, animations are created via the mixer at load time.
+//  Crossfade smoothly transitions from current animation to the new one.
+
+// play_animation: start playing a named animation with optional crossfade.
+// id: model identifier from load_glb or create_skeleton
+// name: animation clip name (e.g. "idle", "walk", "run", "jump")
+// loop: true = loop forever, false = play once and hold last frame
+// crossfade_sec: seconds to crossfade from current animation (0 = instant)
+pub fn play_animation(id: String, name: String, looping: Bool, crossfade_sec: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "play_anim")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "name", name)
+    json_object_set_bool(cmd, "loop", looping)
+    json_object_set_float(cmd, "crossfade", crossfade_sec)
+    flush(cmd)
+
+// stop_animation: stop all animations on this rig, return to bind pose.
+pub fn stop_animation(id: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "stop_anim")
+    json_object_set_string(cmd, "id", id)
+    flush(cmd)
+
+// pause_animation: pause (true) or resume (false) the animation mixer.
+pub fn pause_animation(id: String, paused: Bool):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "pause_anim")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_bool(cmd, "paused", paused)
+    flush(cmd)
+
+// set_anim_speed: change the global playback speed for all animations.
+// speed: 1.0 = normal, 2.0 = double, 0.5 = slo-mo, 0.0 = pause
+pub fn set_anim_speed(id: String, speed: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "anim_speed")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_float(cmd, "speed", speed)
+    flush(cmd)
+
+// set_anim_weight: set the blend weight for a specific animation.
+// weight: 0.0 (invisible) to 1.0 (full influence)
+// Use for animation layering — e.g. walk at 0.3 + wave arm at 1.0
+pub fn set_anim_weight(id: String, name: String, weight: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "anim_weight")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "name", name)
+    json_object_set_float(cmd, "weight", weight)
+    flush(cmd)
+
+// ============================================================================
+//  BONE POSE — HOT PATH — set ALL bone transforms at once (SoA flat arrays)
+// ============================================================================
+//
+//  This is the performance hot path. Instead of sending N individual JSON
+//  objects (one per bone), send 6 flat Float arrays — one lane per transform
+//  component. The JS side unpacks into Float32Array and assigns directly:
+//    for (let i = 0; i < n; i++) {
+//      bones[i].position.set(tx[i], ty[i], tz[i]);
+//      bones[i].rotation.set(rx[i], ry[i], rz[i]);
+//    }
+//
+//  rx, ry, rz: flat JSON arrays of Euler angles (radians) for each bone
+//    e.g. [0.0, 0.1, -0.3, 0.5, ...] — length = bone count
+//  tx, ty, tz: flat JSON arrays of position offsets for each bone
+//    e.g. [0.0, 0.4, 0.0, 0.0, ...] — length = bone count
+//
+//  Call ONCE per frame with ALL bone transforms. Individual set_bone_transform
+//  exists for FK/IK override but is NOT the hot path.
+//
+pub fn set_bone_pose(id: String,
+    rx: JsonArray, ry: JsonArray, rz: JsonArray,
+    tx: JsonArray, ty: JsonArray, tz: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "set_pose")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_array(cmd, "rx", rx)
+    json_object_set_array(cmd, "ry", ry)
+    json_object_set_array(cmd, "rz", rz)
+    json_object_set_array(cmd, "tx", tx)
+    json_object_set_array(cmd, "ty", ty)
+    json_object_set_array(cmd, "tz", tz)
+    flush(cmd)
+
+// ============================================================================
+//  BONE TRANSFORM — single-bone FK update (not the hot path)
+// ============================================================================
+//
+//  For per-bone overrides like FK targeting or IK result application.
+//  If you're calling this N times per frame, restructure as set_bone_pose.
+
+// set_bone_transform: set a single bone's Euler rotation + position.
+// bone_idx: index in the bone array (0 = root)
+pub fn set_bone_transform(id: String, bone_idx: Int,
+    rx: Float, ry: Float, rz: Float,
+    tx: Float, ty: Float, tz: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "set_bone")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_int(cmd, "bone", bone_idx)
+    json_object_set_float(cmd, "rx", rx)
+    json_object_set_float(cmd, "ry", ry)
+    json_object_set_float(cmd, "rz", rz)
+    json_object_set_float(cmd, "tx", tx)
+    json_object_set_float(cmd, "ty", ty)
+    json_object_set_float(cmd, "tz", tz)
+    flush(cmd)
+
+// ============================================================================
+//  LOOK-AT TARGETING — orient a bone toward a world-space point
+// ============================================================================
+
+// look_at_bone: orient a bone's +Z axis toward a world-space target.
+// id: model identifier
+// bone: bone name (e.g. "head", "l_hand")
+// tx, ty, tz: world-space target position
+// up: up direction (+1 = Y-up, -1 = Y-down). Default 1.0.
+pub fn look_at_bone(id: String, bone: String, tx: Float, ty: Float, tz: Float, up: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "look_at")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "bone", bone)
+    json_object_set_float(cmd, "tx", tx)
+    json_object_set_float(cmd, "ty", ty)
+    json_object_set_float(cmd, "tz", tz)
+    json_object_set_float(cmd, "up", up)
+    flush(cmd)
+
+// ============================================================================
+//  TWO-BONE IK — solve a 2-bone chain (shoulder→elbow→hand / hip→knee→foot)
+// ============================================================================
+//
+//  Uses analytical 2-bone IK (law of cosines) solved entirely on the JS side.
+//  Result is applied directly to root_bone and mid_bone quaternions.
+//  No data round-trip — Kain sends target + pole, JS solves + applies.
+//
+//  root_bone: start of the chain (e.g. "l_thigh" or "r_shoulder")
+//  mid_bone:  middle joint (e.g. "l_shin" or "r_forearm")
+//  tip_bone:  end of the chain (e.g. "l_foot" or "r_hand")
+//  tx, ty, tz: world-space target for the tip bone
+//  px, py, pz: pole vector direction (controls elbow/knee bend direction)
+//
+pub fn two_bone_ik(id: String, root_bone: String, mid_bone: String, tip_bone: String,
+    tx: Float, ty: Float, tz: Float,
+    px: Float, py: Float, pz: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "rig")
+    json_object_set_string(cmd, "action", "two_bone_ik")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "root", root_bone)
+    json_object_set_string(cmd, "mid", mid_bone)
+    json_object_set_string(cmd, "tip", tip_bone)
+    json_object_set_float(cmd, "tx", tx)
+    json_object_set_float(cmd, "ty", ty)
+    json_object_set_float(cmd, "tz", tz)
+    json_object_set_float(cmd, "px", px)
+    json_object_set_float(cmd, "py", py)
+    json_object_set_float(cmd, "pz", pz)
+    flush(cmd)
+
+// ============================================================================
+//  END electron_rig.kn
+// ============================================================================

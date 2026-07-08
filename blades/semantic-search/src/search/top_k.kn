@@ -1,0 +1,88 @@
+// ============================================================================
+//  search/top_k.kn — Top-K Result Merge
+//
+//  Layer 0: plain functions with selection/merge logic for scored docs.
+//  Uses a simple bounded insertion sort for O(n log k) top-K selection.
+//  Small K (25) means insertion sort is faster than heap overhead.
+// ============================================================================
+
+use types::ScoredDoc
+use types::MAX_RESULTS
+use util
+
+// ============================================================================
+//  SIMPLE TOP-K — Insertion-sort based
+//  Best for K <= 50 where heap overhead dominates
+// ============================================================================
+
+pub fn select_top_k(docs: [ScoredDoc]) -> [ScoredDoc]:
+    let k: Int = i_min(MAX_RESULTS, len(docs))
+    if k <= 0:
+        return []
+
+    // Simple selection: sort in-place descending by score
+    var sorted: [ScoredDoc] = docs
+    bubble_top_k(sorted, k)
+
+    // Return top k
+    var result: [ScoredDoc] = []
+    var i: Int = 0
+    while i < k:
+        push(result, sorted[i])
+        i = i + 1
+    return result
+
+// ============================================================================
+//  BUBBLE TOP-K — Efficient partial sort for small k
+// ============================================================================
+
+fn bubble_top_k(arr: [ScoredDoc], k: Int) -> [ScoredDoc]:
+    let n: Int = len(arr)
+    if n <= 1:
+        return arr
+
+    var sorted: [ScoredDoc] = arr
+    var i: Int = 0
+    while i < i_min(k, n):
+        var max_idx: Int = i
+        var j: Int = i + 1
+        while j < n:
+            if sorted[j].score > sorted[max_idx].score:
+                max_idx = j
+            j = j + 1
+        // Swap
+        let temp: ScoredDoc = sorted[i]
+        sorted[i] = sorted[max_idx]
+        sorted[max_idx] = temp
+        i = i + 1
+    return sorted
+
+// ============================================================================
+//  TOP-K WITH DUPLICATE REMOVAL
+// ============================================================================
+
+// Removes duplicate doc_ids, keeping the highest score
+pub fn dedup_and_top_k(docs: [ScoredDoc]) -> [ScoredDoc]:
+    // Simple dedup: track seen doc_ids
+    var seen: [Int] = []
+    var deduped: [ScoredDoc] = []
+
+    var i: Int = 0
+    while i < len(docs):
+        let doc_id: Int = docs[i].doc_id
+        var dup: Bool = false
+        var j: Int = 0
+        while j < len(seen):
+            if seen[j] == doc_id:
+                // Keep higher score
+                if docs[i].score > deduped[j].score:
+                    deduped[j] = docs[i]
+                dup = true
+                j = len(seen)
+            j = j + 1
+        if dup == false:
+            push(seen, doc_id)
+            push(deduped, docs[i])
+        i = i + 1
+
+    return select_top_k(deduped)

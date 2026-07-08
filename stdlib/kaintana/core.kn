@@ -1,0 +1,381 @@
+// ============================================================================
+//  core.kn — Kaintana Vtable Bridge Layer
+//  Single point of ABI contact between Kain and the C substrate.
+//  One @extern per C function. Safe wrappers for ergonomics.
+//
+//  This file has ZERO dependencies — no stdlib imports, no theme.kn.
+//  KtSession is Int, NOT a newtype. All @extern signatures match kaintana.h.
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+//  Layout: Every section matches the C API in kaintana.h exactly.
+// ============================================================================
+
+// ── Version constants ─────────────────────────────────────────────────────
+
+pub const KT_API_VERSION: Int = 1
+
+// ── Type aliases matching C types (kaintana.h §2) ─────────────────────────
+//  KtSession = opaque pointer stored as Int (NOT a newtype — simple alias)
+//  KtElementId = element handle returned by kt_row
+//  KtResult = C convention: 0 = failure, 1 = success
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+pub type KtResult    = Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 8: SESSION LIFECYCLE (3 functions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Initialize Kaintana system. Call once at startup before kt_make.
+@extern fn kt_init() -> Void
+
+/// Create a UI session. Returns opaque session handle or -1 (NULL) on failure.
+@extern fn kt_make(name: String, w: Int, h: Int) -> KtSession
+
+/// Destroy a UI session. Call at program exit. Null-safe.
+@extern fn kt_free(s: KtSession) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 9: FRAME LOOP (4 functions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Start a new frame. delta_ms = time since last frame in milliseconds.
+@extern fn kt_begin(s: KtSession, delta_ms: Float) -> Void
+
+/// Conclude command recording for this frame.
+@extern fn kt_end(s: KtSession) -> Void
+
+/// Present the framebuffer to the screen via the active render backend.
+@extern fn kt_present(s: KtSession) -> Void
+
+/// Returns 1 if close requested (window X button), 0 otherwise.
+@extern fn kt_should_close(s: KtSession) -> Int
+
+/// Pump the OS message queue (Win32 PeekMessageA / X11 XPending).
+/// Call once per frame before kt_begin. Returns 1 if messages processed.
+@extern fn kt_host_pump(s: KtSession) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 10: INPUT FUNNEL (7 functions)
+//  Feed input BEFORE kt_begin(). Backend calls these from OS event loop.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Feed mouse move event (screen-space logical coordinates).
+@extern fn kt_input_mouse_move(s: KtSession, x: Float, y: Float) -> Void
+
+/// Feed mouse button press (0=left, 1=right, 2=middle).
+@extern fn kt_input_mouse_down(s: KtSession, button: Int) -> Void
+
+/// Feed mouse button release.
+@extern fn kt_input_mouse_up(s: KtSession, button: Int) -> Void
+
+/// Feed scroll wheel delta.
+@extern fn kt_input_scroll(s: KtSession, dx: Float, dy: Float) -> Void
+
+/// Feed key press (platform scancode).
+@extern fn kt_input_key_down(s: KtSession, key: Int) -> Void
+
+/// Feed key release.
+@extern fn kt_input_key_up(s: KtSession, key: Int) -> Void
+
+/// Feed UTF-8 text input (from IME/keyboard composition).
+@extern fn kt_input_text(s: KtSession, text: String) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 11: ELEMENT TREE (3 functions)
+//  Call between kt_begin() and kt_end(). Elements form a parent-ordered
+//  hierarchy via kt_row/kt_end_row pairs.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Begin a new element. kind = "box", "text", "stack", "button", etc.
+/// key = stable key like "login_button" ("" for auto-generated).
+/// Returns element ID for setting attributes and querying interaction.
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+
+/// Close the most recently opened element (pops back to parent).
+@extern fn kt_end_row(s: KtSession) -> Void
+
+/// Set text content on an element. Used for label text, button labels, etc.
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 11b: INTERACTION QUERY (3 functions)
+//  Frame-query pattern: check hovered/clicked/active every frame.
+//  This is the PRIMARY interaction model — NOT callback registration.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Returns 1 if the pointer is over this element this frame.
+@extern fn kt_hovered(s: KtSession, elem: KtElementId) -> Int
+
+/// Returns 1 if this element was clicked this frame (press then release on same element).
+@extern fn kt_clicked(s: KtSession, elem: KtElementId) -> Int
+
+/// Returns 1 if this element currently has pointer capture (dragging, pressed, etc.).
+@extern fn kt_active(s: KtSession, elem: KtElementId) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 12: LAYOUT ATTRIBUTES (6 functions)
+//  Set layout properties on elements after kt_row, before kt_end_row.
+//  C-side box_math.c implements the two-pass flexbox solver.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Set element width in logical points (0 = auto-sized).
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+
+/// Set element height in logical points (0 = auto-sized).
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+
+/// Set uniform padding on all four sides.
+@extern fn kt_pad(s: KtSession, elem: KtElementId, all: Float) -> Void
+
+/// Set horizontal and vertical padding independently.
+@extern fn kt_pad_xy(s: KtSession, elem: KtElementId, x: Float, y: Float) -> Void
+
+/// Set gap between children in a flex container.
+@extern fn kt_gap(s: KtSession, elem: KtElementId, gap: Float) -> Void
+
+/// Set layout direction. 0=row, 1=col, 2=row-reverse, 3=col-reverse.
+@extern fn kt_direction(s: KtSession, elem: KtElementId, dir: Int) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 13: STYLE ATTRIBUTES (5 functions)
+//  Colors passed as hex strings ("#21D4A1") or named theme colors.
+//  The C substrate is a dumb pipe — it parses hex but does not interpret
+//  semantic color names. Color naming lives in Kain code (theme.kn).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Set fill color as hex string ("#RRGGBB" or "#RRGGBBAA") or named color.
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+
+/// Set stroke (outline) color and width.
+@extern fn kt_stroke(s: KtSession, elem: KtElementId, color: String, w: Float) -> Void
+
+/// Set corner radius in logical points for rounded rectangles.
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+
+/// Set opacity multiplier (0.0 = fully transparent, 1.0 = fully opaque).
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+
+/// Set font size in logical points for text elements.
+@extern fn kt_font(s: KtSession, elem: KtElementId, size: Float) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 14: STATE PERSISTENCE (6 functions)
+//  Values survive across frames. Scoped to session. String-keyed.
+//  Used by component state persistence and hooks (useState, useRef).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Store int64 state by string key.
+@extern fn kt_put(s: KtSession, key: String, v: Int) -> Void
+
+/// Store double (Float) state by string key.
+@extern fn kt_put_f(s: KtSession, key: String, v: Float) -> Void
+
+/// Store string state by string key.
+@extern fn kt_put_s(s: KtSession, key: String, v: String) -> Void
+
+/// Read int64 state, return fallback if key not found.
+@extern fn kt_get(s: KtSession, key: String, fallback: Int) -> Int
+
+/// Read double (Float) state, return fallback if key not found.
+@extern fn kt_get_f(s: KtSession, key: String, fallback: Float) -> Float
+
+/// Read string state, return fallback if key not found.
+@extern fn kt_get_s(s: KtSession, key: String, fallback: String) -> String
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 15: DRAW OUTPUT (2 functions)
+//  Read after kt_end() to inspect the frame's render commands.
+//  Primarily used by the GPU test runner and CI golden-file comparisons.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Number of draw commands emitted this frame.
+@extern fn kt_cmd_count(s: KtSession) -> Int
+
+/// Get draw command by index. Returns Int (kt_Cmd* pointer)—cast to access fields.
+@extern fn kt_cmd_get(s: KtSession, index: Int) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 16: BACKEND REGISTRY (3 functions)
+//  Backends implement the 4-function KaintanaBackendVTable.
+//  Register at startup, select before first frame.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Register a render backend. Returns 1 on success, 0 on failure (max 8 backends).
+@extern fn kt_backend_register(s: KtSession, name: String, vtable: Int) -> Int
+
+/// Activate a registered backend by name. Returns 1 on success, 0 on failure.
+@extern fn kt_backend_select(s: KtSession, name: String) -> Int
+
+/// Auto-select backend: RENDERER_BACKEND env var or first registered. Returns 1 on success.
+@extern fn kt_backend_probe(s: KtSession) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SECTION 20: DPI API (6 functions)
+//  Backends report OS DPI via kt_set_native_scale(). Kain code sets user zoom.
+//  Effective scale = native_scale × user_zoom. All coordinates in logical pts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Effective horizontal scale (native_scale_x × user_zoom). Backends use for rendering.
+@extern fn kt_scale_factor_x(s: KtSession) -> Float
+
+/// Effective vertical scale.
+@extern fn kt_scale_factor_y(s: KtSession) -> Float
+
+/// OS-reported DPI scale only — no user zoom. For font rasterization density.
+@extern fn kt_native_scale_x(s: KtSession) -> Float
+
+/// OS-reported vertical DPI scale only (no user zoom).
+@extern fn kt_native_scale_y(s: KtSession) -> Float
+
+/// Called by backends at init and on DPI change (e.g. WM_DPICHANGED). Clamped [0.1, 10.0].
+@extern fn kt_set_native_scale(s: KtSession, sx: Float, sy: Float) -> Void
+
+/// Set user zoom factor. Clamped to [0.2, 5.0]. Deferred to next frame (egui pattern).
+@extern fn kt_set_zoom(s: KtSession, zoom: Float) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  VTABLE SLOT 18: GPU EXTENSION (1 function)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Discover the GPU surface extension pointer. Returns -1 if no GPU backend.
+/// The extension provides load_shader/set_uniform for custom GPU shader effects.
+@extern fn kt_get_gpu_extension(s: KtSession) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SAFE WRAPPERS + CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert C's 0/1 Int convention to a Kain Bool.
+pub fn kt_should_close_bool(s: KtSession) -> Bool:
+    let result = kt_should_close(s)
+    return result != 0
+
+// ── Layout direction constants (match KaintanaLayoutDir C enum) ──────────
+
+pub const KT_DIR_ROW:            Int = 0
+pub const KT_DIR_COLUMN:         Int = 1
+pub const KT_DIR_ROW_REVERSE:    Int = 2
+pub const KT_DIR_COLUMN_REVERSE: Int = 3
+
+/// Convenience: set element direction to row (horizontal layout).
+pub fn kt_set_direction_row(s: KtSession, elem: KtElementId):
+    kt_direction(s, elem, KT_DIR_ROW)
+
+/// Convenience: set element direction to column (vertical layout).
+pub fn kt_set_direction_column(s: KtSession, elem: KtElementId):
+    kt_direction(s, elem, KT_DIR_COLUMN)
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KtElement FLUENT BUILDER
+//  NOT a component. A stateful builder for constructing raw elements when
+//  JSX syntax is not available or desired.
+//  Does NOT call kt_begin/kt_end/kt_present — those are session-level
+//  lifecycle calls that surround element construction.
+//
+//  Usage:
+//    let el = KtElement.open(s, parent, "box", "my-key")
+//               .fill("#21D4A1")
+//               .width(120.0)
+//               .height(32.0)
+//               .radius(4.0)
+//    el.end()
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub struct KtElement:
+    s:      KtSession
+    parent: KtElementId
+    id:     KtElementId
+
+pub impl KtElement:
+    /// Open a new KtElement by calling kt_row. Must close with end().
+    pub fn open(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElement:
+        let id = kt_row(s, parent, kind, key)
+        return KtElement { s: s, parent: parent, id: id }
+
+    // ── Style setters ────────────────────────────────────────────────
+
+    /// Set fill color. Returns Self for chaining.
+    pub fn fill(_self: Self_, color: String) -> KtElement:
+        kt_fill(_self.s, _self.id, color)
+        return _self
+
+    /// Set stroke color and width. Returns Self for chaining.
+    pub fn stroke(_self: Self_, color: String, w: Float) -> KtElement:
+        kt_stroke(_self.s, _self.id, color, w)
+        return _self
+
+    /// Set corner radius. Returns Self for chaining.
+    pub fn radius(_self: Self_, r: Float) -> KtElement:
+        kt_radius(_self.s, _self.id, r)
+        return _self
+
+    /// Set opacity. Returns Self for chaining.
+    pub fn opacity(_self: Self_, a: Float) -> KtElement:
+        kt_opacity(_self.s, _self.id, a)
+        return _self
+
+    /// Set font size. Returns Self for chaining.
+    pub fn font(_self: Self_, size: Float) -> KtElement:
+        kt_font(_self.s, _self.id, size)
+        return _self
+
+    // ── Layout setters ───────────────────────────────────────────────
+
+    /// Set element width. Returns Self for chaining.
+    pub fn width(_self: Self_, w: Float) -> KtElement:
+        kt_width(_self.s, _self.id, w)
+        return _self
+
+    /// Set element height. Returns Self for chaining.
+    pub fn height(_self: Self_, h: Float) -> KtElement:
+        kt_height(_self.s, _self.id, h)
+        return _self
+
+    /// Set uniform padding on all sides. Returns Self for chaining.
+    pub fn pad(_self: Self_, all: Float) -> KtElement:
+        kt_pad(_self.s, _self.id, all)
+        return _self
+
+    /// Set horizontal and vertical padding independently. Returns Self for chaining.
+    pub fn pad_xy(_self: Self_, x: Float, y: Float) -> KtElement:
+        kt_pad_xy(_self.s, _self.id, x, y)
+        return _self
+
+    /// Set gap between children in a flex container. Returns Self for chaining.
+    pub fn gap(_self: Self_, g: Float) -> KtElement:
+        kt_gap(_self.s, _self.id, g)
+        return _self
+
+    /// Set layout direction. Returns Self for chaining.
+    pub fn direction(_self: Self_, dir: Int) -> KtElement:
+        kt_direction(_self.s, _self.id, dir)
+        return _self
+
+    // ── Text ─────────────────────────────────────────────────────────
+
+    /// Set text content on this element. Returns Self for chaining.
+    pub fn text(_self: Self_, value: String) -> KtElement:
+        kt_text(_self.s, _self.id, value)
+        return _self
+
+    // ── Interaction queries (read-only) ───────────────────────────────
+
+    /// Returns true if the pointer is over this element this frame.
+    pub fn hovered(_self: Self_) -> Bool:
+        return kt_hovered(_self.s, _self.id) != 0
+
+    /// Returns true if this element was clicked this frame.
+    pub fn clicked(_self: Self_) -> Bool:
+        return kt_clicked(_self.s, _self.id) != 0
+
+    /// Returns true if this element currently has pointer capture.
+    pub fn active(_self: Self_) -> Bool:
+        return kt_active(_self.s, _self.id) != 0
+
+    // ── Close ────────────────────────────────────────────────────────
+
+    /// Close this element by calling kt_end_row.
+    pub fn end(_self: Self_):
+        kt_end_row(_self.s)

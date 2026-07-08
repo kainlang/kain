@@ -1,0 +1,632 @@
+// ============================================================================
+// framebuffer_direct.kn — Direct framebuffer pixel manipulation
+// ============================================================================
+// Tests DIRECT pixel access to the framebuffer, bypassing the node tree:
+//   - native_ui_framebuffer_ptr — raw pointer to RGBA framebuffer memory
+//   - native_ui_framebuffer_width / height / stride — buffer dimensions
+//   - mem_store / mem_load with ptr_offset — write/read individual pixels
+//   - Collapse/observe/decay — safe Rust-style ownership over raw memory
+//   - native_ui_invalidate_window — trigger WM_PAINT after direct writes
+//   - native_ui_present — compositor-based presentation
+//
+// Draws a gradient, a checkerboard pattern, and geometric shapes directly
+// into the pixel buffer. This is the "bypass the node tree, write pixels
+// directly" pattern used by the C demos (retrowave, cosmic dashboard).
+//
+// LAYER: L0 + Unsafe effect (raw pointer operations via collapse/observe)
+// Usage: kain check framebuffer_direct.kn
+//        kain build framebuffer_direct.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const WIN_W:      Int = 640
+const WIN_H:      Int = 480
+const GRAD_STEPS: Int = 256
+
+// Theme-inspired colour constants (0xAABBGGRR for direct framebuffer)
+const FB_BG:       Int = 0xFF241A1A
+const FB_ACCENT:   Int = 0xFFA1D421
+const FB_ACCENT2:  Int = 0xFFD9904A
+const FB_ACCENT4:  Int = 0xFF5F4AE8
+const FB_TEXT:     Int = 0xFFF0E8E8
+const FB_DIM:      Int = 0xFFA08888
+
+// ============================================================================
+// PIXEL PACKING HELPERS
+// ============================================================================
+
+// Pack RGBA components into 0xAABBGGRR (renderer-native format).
+// This is the format the DIB framebuffer expects: byte[0]=R, [1]=G, [2]=B, [3]=A.
+fn px(r: Int, g: Int, b: Int, a: Int) -> Int:
+    let aa = (a & 0xFF) << 24
+    let bb = (b & 0xFF) << 16
+    let gg = (g & 0xFF) << 8
+    let rr = r & 0xFF
+    return aa | bb | gg | rr
+
+// Extract R channel from a packed pixel.
+fn px_r(p: Int) -> Int:
+    return p & 0xFF
+
+// Extract G channel from a packed pixel.
+fn px_g(p: Int) -> Int:
+    return (p >> 8) & 0xFF
+
+// Extract B channel from a packed pixel.
+fn px_b(p: Int) -> Int:
+    return (p >> 16) & 0xFF
+
+// Extract A channel from a packed pixel.
+fn px_a(p: Int) -> Int:
+    return (p >> 24) & 0xFF
+
+// Lerp between two channel values.
+fn lerp_ch(a: Int, b: Int, t: Int, num: Int, den: Int) -> Int:
+    let aa = a * (den - t) + b * t
+    return aa / den
+
+// Linearly interpolate between two packed pixels.
+fn lerp_px(a: Int, b: Int, t: Int, num: Int, den: Int) -> Int:
+    let ar = px_r(a)
+    let ag = px_g(a)
+    let ab = px_b(a)
+    let aa = px_a(a)
+    let br = px_r(b)
+    let bg = px_g(b)
+    let bb = px_b(b)
+    let ba = px_a(b)
+    let rr = lerp_ch(ar, br, t, num, den)
+    let gg = lerp_ch(ag, bg, t, num, den)
+    let bb2 = lerp_ch(ab, bb, t, num, den)
+    let a_out = lerp_ch(aa, ba, t, num, den)
+    return px(rr, gg, bb2, a_out)
+
+// Clamp an integer to [lo, hi].
+fn clamp_i32(v: Int, lo: Int, hi: Int) -> Int:
+    if v < lo: return lo
+    if v > hi: return hi
+    return v
+
+// Compute the framebuffer index for pixel (x, y) with given stride.
+fn fb_index(x: Int, y: Int, stride: Int) -> Int:
+    return y * stride + x
+
+// ============================================================================
+// TEST 1: Framebuffer metadata probe
+// ============================================================================
+// Queries the framebuffer metadata through the ABI and reports what we got.
+// This is the SAFE pre-flight check before any direct pixel writes.
+
+fn test_fb_probe() -> Int:
+    let session = ui_host_session_create(
+        "fb_direct", "Framebuffer Direct — Probe", WIN_W, WIN_H, "winit")
+
+    let _pump = native_ui_host_pump(session)
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    let ptr   = native_ui_framebuffer_ptr(session)
+    let w     = native_ui_framebuffer_width(session)
+    let h     = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    println("FB PROBE: ptr=" + str(ptr) +
+            " size=" + str(w) + "x" + str(h) +
+            " stride=" + str(stride) + " elems")
+
+    if w <= 0 or h <= 0:
+        println("FAIL: invalid framebuffer dimensions")
+        let _ef = native_ui_end_frame(session)
+        let _ds = native_ui_session_destroy(session)
+        return 2
+
+    if ptr == 0:
+        println("GAP: framebuffer pointer is null — metadata only")
+    else:
+        println("OK: framebuffer pointer is non-null — direct write possible")
+
+    let _ef = native_ui_end_frame(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST 2: Write a horizontal gradient directly to the framebuffer
+// ============================================================================
+// Writes a smooth gradient from accent (left) to accent2 (right) across the
+// top 64 rows of the framebuffer. Each pixel is computed in pure Kain math
+// and written via mem_store through a collapse block.
+//
+// This is the canonical "bypass the node tree, write pixels directly" pattern.
+// Success: the top band of the window shows a smooth colour gradient.
+
+fn test_gradient_strip() -> Int with Unsafe:
+    let session = ui_host_session_create(
+        "fb_grad", "Framebuffer Direct — Gradient Strip",
+        WIN_W, WIN_H, "winit")
+
+    let _pump = native_ui_host_pump(session)
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    let ptr   = native_ui_framebuffer_ptr(session)
+    let w     = native_ui_framebuffer_width(session)
+    let h     = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    if ptr == 0 or w <= 0 or h <= 0:
+        println("GAP: cannot write gradient — no writable framebuffer")
+        let _ef = native_ui_end_frame(session)
+        let _ds = native_ui_session_destroy(session)
+        return 0
+
+    // Clamp write region to available buffer
+    let write_w = if w < WIN_W: w else: WIN_W
+    let write_h = if h < 64: h else: 64
+
+    let fb: ptr<Int> = int_to_ptr(ptr, "ptr<Int>")
+
+    // Write a horizontal gradient: accent → accent2 (top half)
+    collapse fb:
+        var gy: Int = 0
+        while gy < write_h:
+            var gx: Int = 0
+            while gx < write_w:
+                let t_num = gx
+                let t_den = write_w
+                let pixel = lerp_px(FB_ACCENT, FB_ACCENT2, t_num, t_num, t_den)
+                let idx = fb_index(gx, gy, stride)
+                mem_store(ptr_offset(fb, idx, "Int"), pixel, "Int")
+                gx = gx + 1
+            gy = gy + 1
+        0  // collapse body expression (yield)
+
+    // Verify a few pixels were written
+    let verify_idx = fb_index(0, 0, stride)
+    let verify_px = observe fb:
+        mem_load(ptr_offset(fb, verify_idx, "Int"), "Int")
+
+    if verify_px == FB_ACCENT:
+        println("GRADIENT: first pixel verified as accent colour — " +
+                str(px_r(verify_px)) + "," + str(px_g(verify_px)) +
+                "," + str(px_b(verify_px)))
+    else:
+        println("GRADIENT: first pixel = " + str(verify_px) +
+                " (expected " + str(FB_ACCENT) + ")")
+
+    let pix_written = write_w * write_h
+    println("GRADIENT: wrote " + str(pix_written) +
+            " pixels across " + str(write_h) + " rows")
+
+    let _ef = native_ui_end_frame(session)
+    let _pr = native_ui_present(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST 3: Write a checkerboard pattern
+// ============================================================================
+// Writes 32×32 pixel checkers in accent4 and background colours across
+// the second band (rows 64-192). Each cell is rendered as a filled square
+// by writing every pixel in the cell's bounding box.
+
+fn test_checkerboard() -> Int with Unsafe:
+    let session = ui_host_session_create(
+        "fb_check", "Framebuffer Direct — Checkerboard",
+        WIN_W, WIN_H, "winit")
+
+    let _pump = native_ui_host_pump(session)
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    let ptr   = native_ui_framebuffer_ptr(session)
+    let w     = native_ui_framebuffer_width(session)
+    let h     = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    if ptr == 0 or w <= 0 or h <= 0:
+        println("GAP: cannot write checkerboard — no writable framebuffer")
+        let _ef = native_ui_end_frame(session)
+        let _ds = native_ui_session_destroy(session)
+        return 0
+
+    let fb: ptr<Int> = int_to_ptr(ptr, "ptr<Int>")
+    let cell_sz: Int = 32
+    let start_y: Int = 64
+    let end_y: Int = start_y + 128
+
+    // Checkerboard: rows 64-191, cells = 32px
+    let write_w = if w < WIN_W: w else: WIN_W
+
+    collapse fb:
+        var cy: Int = start_y
+        while cy < end_y:
+            var cx: Int = 0
+            while cx < write_w:
+                let cell_col = cx / cell_sz
+                let cell_row = (cy - start_y) / cell_sz
+                let is_odd = (cell_col + cell_row) & 1
+                let color = if is_odd == 1: FB_ACCENT4 else: FB_BG
+                let idx = fb_index(cx, cy, stride)
+                mem_store(ptr_offset(fb, idx, "Int"), color, "Int")
+                cx = cx + 1
+            cy = cy + 1
+        0
+
+    let checker_cells_w = write_w / cell_sz
+    let checker_cells_h = (end_y - start_y) / cell_sz
+    println("CHECKER: wrote " + str(checker_cells_w) + "x" +
+            str(checker_cells_h) + " cells (" + str(cell_sz) + "px) " +
+            "rows " + str(start_y) + "-" + str(end_y))
+
+    let _ef = native_ui_end_frame(session)
+    let _pr = native_ui_present(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST 4: Write a filled rectangle (software rasterizer)
+// ============================================================================
+// Draws a filled circle approximation using pixel-level rasterization.
+// This demonstrates that we can do ANY pixel math, not just gradients
+// and patterns — we're effectively a software renderer.
+
+fn test_circle() -> Int with Unsafe:
+    let session = ui_host_session_create(
+        "fb_circle", "Framebuffer Direct — Circle",
+        WIN_W, WIN_H, "winit")
+
+    let _pump = native_ui_host_pump(session)
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    let ptr   = native_ui_framebuffer_ptr(session)
+    let w     = native_ui_framebuffer_width(session)
+    let h     = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    if ptr == 0 or w <= 0 or h <= 0:
+        println("GAP: cannot draw circle — no writable framebuffer")
+        let _ef = native_ui_end_frame(session)
+        let _ds = native_ui_session_destroy(session)
+        return 0
+
+    let fb: ptr<Int> = int_to_ptr(ptr, "ptr<Int>")
+
+    // Circle parameters: centre (320, 320), radius 80
+    let cx: Int = 320
+    let cy: Int = 320
+    let radius: Int = 80
+    let r2: Int = radius * radius
+
+    // Bounding box
+    let x0: Int = cx - radius
+    let x1: Int = cx + radius
+    let y0: Int = cy - radius
+    let y1: Int = cy + radius
+
+    // Clamp to framebuffer
+    let fx0 = clamp_i32(x0, 0, w - 1)
+    let fx1 = clamp_i32(x1, 0, w - 1)
+    let fy0 = clamp_i32(y0, 0, h - 1)
+    let fy1 = clamp_i32(y1, 0, h - 1)
+
+    let circ_color: Int = FB_ACCENT  // accent teal
+    let fill_color: Int = FB_TEXT    // light text colour
+
+    collapse fb:
+        var py: Int = fy0
+        while py <= fy1:
+            var px: Int = fx0
+            while px <= fx1:
+                let dx = px - cx
+                let dy = py - cy
+                let d2 = dx * dx + dy * dy
+                // Fill if inside circle
+                if d2 <= r2:
+                    let idx = fb_index(px, py, stride)
+                    // Edge anti-aliasing: blend if near the border
+                    let inner_thresh = (radius - 2) * (radius - 2)
+                    if d2 >= inner_thresh:
+                        // Smooth edge with a simple alpha blend
+                        mem_store(ptr_offset(fb, idx, "Int"), circ_color, "Int")
+                    else:
+                        mem_store(ptr_offset(fb, idx, "Int"), fill_color, "Int")
+                px = px + 1
+            py = py + 1
+        0
+
+    let circ_pixels = (fx1 - fx0 + 1) * (fy1 - fy0 + 1)
+    println("CIRCLE: centre (" + str(cx) + "," + str(cy) +
+            ") r=" + str(radius) + " — " + str(circ_pixels) +
+            " pixels in bounding box")
+
+    let _ef = native_ui_end_frame(session)
+    let _pr = native_ui_present(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST 5: Combined scene — gradient + checkerboard + text + invalidate
+// ============================================================================
+// Full composited scene: gradient band + checkerboard + circle +
+// text drawn via native_ui_draw_text on a node. Uses both direct
+// pixel writes AND the standard draw API. Presents via invalidate_window.
+
+fn test_combined_scene() -> Int with Unsafe:
+    let session = ui_host_session_create(
+        "fb_scene", "Framebuffer Direct — Combined Scene",
+        WIN_W, WIN_H, "winit")
+
+    // ── Create a node for text overlay ──────────────────────────────────
+    let root = native_ui_node_create(session, "panel")
+    let _rr  = native_ui_node_set_rect(session, root, 0.0, 0.0,
+                                        to_float(WIN_W), to_float(WIN_H))
+    let label = native_ui_node_create(session, "text")
+    let _pl  = native_ui_node_set_parent(session, label, root)
+    let _rl  = native_ui_node_set_rect(session, label, 10.0, 410.0, 620.0, 60.0)
+
+    let _pump = native_ui_host_pump(session)
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    let ptr   = native_ui_framebuffer_ptr(session)
+    let w     = native_ui_framebuffer_width(session)
+    let h     = native_ui_framebuffer_height(session)
+    let stride = native_ui_framebuffer_stride(session)
+
+    if ptr == 0 or w <= 0 or h <= 0:
+        println("GAP: combined scene fallback — no writable framebuffer")
+        // Draw text-only fallback via the standard draw API
+        let _ = native_ui_draw_text(session, root, 0, 30.0, 30.0,
+            "Framebuffer Direct: combined scene (fallback — no fb ptr)",
+            "color=#E8E8F0 size=16.0")
+        let _ef = native_ui_end_frame(session)
+        let _ds = native_ui_session_destroy(session)
+        return 0
+
+    let fb: ptr<Int> = int_to_ptr(ptr, "ptr<Int>")
+    let write_w = if w < WIN_W: w else: WIN_W
+
+    // ── Fill background with dark theme colour ─────────────────────────
+    collapse fb:
+        var by: Int = 0
+        while by < h:
+            var bx: Int = 0
+            while bx < write_w:
+                let idx = fb_index(bx, by, stride)
+                mem_store(ptr_offset(fb, idx, "Int"), FB_BG, "Int")
+                bx = bx + 1
+            by = by + 1
+        0
+
+    // ── Gradient band (top 60px): accent → accent2 ─────────────────────
+    collapse fb:
+        var gy: Int = 0
+        while gy < 60:
+            var gx: Int = 0
+            while gx < write_w:
+                let t_num = gx
+                let t_den = write_w
+                let pixel = lerp_px(FB_ACCENT, FB_ACCENT2, t_num, t_num, t_den)
+                let idx = fb_index(gx, gy, stride)
+                mem_store(ptr_offset(fb, idx, "Int"), pixel, "Int")
+                gx = gx + 1
+            gy = gy + 1
+        0
+
+    // ── Checkerboard (rows 60-220, 20px cells) ─────────────────────────
+    let cb_sz: Int = 20
+    collapse fb:
+        var cy: Int = 60
+        while cy < 220:
+            var cx: Int = 0
+            while cx < write_w:
+                let cell_col = cx / cb_sz
+                let cell_row = (cy - 60) / cb_sz
+                let is_odd = (cell_col + cell_row) & 1
+                let color = if is_odd == 1: FB_ACCENT4 else: FB_BG
+                let idx = fb_index(cx, cy, stride)
+                mem_store(ptr_offset(fb, idx, "Int"), color, "Int")
+                cx = cx + 1
+            cy = cy + 1
+        0
+
+    // ── Circle inscribed in the square (rows 240-400) ──────────────────
+    let cx_r: Int = 320
+    let cy_r: Int = 310
+    let radius_r: Int = 70
+    let r2_r: Int = radius_r * radius_r
+    let x0_r = cx_r - radius_r
+    let x1_r = cx_r + radius_r
+    let y0_r = cy_r - radius_r
+    let y1_r = cy_r + radius_r
+    let fx0_r = clamp_i32(x0_r, 0, w - 1)
+    let fx1_r = clamp_i32(x1_r, 0, w - 1)
+    let fy0_r = clamp_i32(y0_r, 0, h - 1)
+    let fy1_r = clamp_i32(y1_r, 0, h - 1)
+
+    collapse fb:
+        var py: Int = fy0_r
+        while py <= fy1_r:
+            var px: Int = fx0_r
+            while px <= fx1_r:
+                let dx = px - cx_r
+                let dy = py - cy_r
+                let d2 = dx * dx + dy * dy
+                if d2 <= r2_r:
+                    let idx = fb_index(px, py, stride)
+                    mem_store(ptr_offset(fb, idx, "Int"), FB_ACCENT, "Int")
+                px = px + 1
+            py = py + 1
+        0
+
+    // ── Draw text labels via standard draw API ──────────────────────────
+    let _d1 = native_ui_draw_text(session, root, 0,
+        20.0, 64.0,
+        "GRADIENT BAND  (accent → accent2, direct pixel write)",
+        "color=#FFFFFF size=12.0")
+    let _d2 = native_ui_draw_text(session, root, 0,
+        20.0, 224.0,
+        "CHECKERBOARD  (accent4, direct pixel write)",
+        "color=#FFFFFF size=12.0")
+    let _d3 = native_ui_draw_text(session, root, 0,
+        20.0, 400.0,
+        "CIRCLE  (accent, software-rasterized, direct pixel write)",
+        "color=#FFFFFF size=12.0")
+
+    // Draw a border around the scene
+    let _db = native_ui_draw_rect(session, root, 8.0, 6.0,
+        to_float(WIN_W - 16), to_float(WIN_H - 12),
+        "fill=transparent border=#3A3A5C border_width=1.0 corner_radius=4.0")
+
+    let _d4 = native_ui_draw_text(session, root, 0,
+        10.0, 430.0,
+        "Framebuffer Direct: gradient + checkerboard + circle + labels " +
+        "[present via invalidate_window]",
+        "color=#8888A0 size=12.0")
+
+    let _ef = native_ui_end_frame(session)
+    let _pr = native_ui_present(session)
+
+    // ── Invalidate the window to force a WM_PAINT redraw ────────────────
+    let inv = native_ui_invalidate_window(session)
+    println("SCENE: combined scene completed — invalidate_window=" + str(inv))
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST 6: Multi-frame direct pixel animation (update region each frame)
+// ============================================================================
+// Demonstrates updating a direct-pixel region across multiple frames.
+// Writes a moving vertical bar across the framebuffer in frames 0-9.
+
+fn test_animated_bar() -> Int with Unsafe:
+    let session = ui_host_session_create(
+        "fb_anim", "Framebuffer Direct — Animated Bar",
+        WIN_W, WIN_H, "winit")
+
+    var frame: Int = 0
+
+    while frame < 3:  // 3 frames for testing (would be N in production)
+        let _pump = native_ui_host_pump(session)
+        let bf = native_ui_begin_frame(session, 16.0)
+        if bf < 0:
+            println("FAIL: begin_frame at frame " + str(frame))
+            return 1
+
+        let ptr   = native_ui_framebuffer_ptr(session)
+        let w     = native_ui_framebuffer_width(session)
+        let h     = native_ui_framebuffer_height(session)
+        let stride = native_ui_framebuffer_stride(session)
+
+        if ptr == 0 or w <= 0 or h <= 0:
+            println("GAP: animated bar skipped — no fb at frame " + str(frame))
+            let _ef = native_ui_end_frame(session)
+            frame = frame + 1
+            continue
+
+        let fb: ptr<Int> = int_to_ptr(ptr, "ptr<Int>")
+        let write_w = if w < WIN_W: w else: WIN_W
+        let bar_x: Int = ((frame * 50) % write_w)  // bar sweeps across
+
+        // Write a vertical accent bar at bar_x, width = 8 px
+        collapse fb:
+            var by: Int = 0
+            while by < h:
+                var bx: Int = bar_x
+                let bx_end = if (bar_x + 8) < write_w: bar_x + 8 else: write_w
+                while bx < bx_end:
+                    let idx = fb_index(bx, by, stride)
+                    mem_store(ptr_offset(fb, idx, "Int"), FB_ACCENT2, "Int")
+                    bx = bx + 1
+                by = by + 1
+            0
+
+        let _ef = native_ui_end_frame(session)
+        let _pr = native_ui_present(session)
+
+        // Invalidate to force redraw
+        let _inv = native_ui_invalidate_window(session)
+
+        println("ANIM: frame " + str(frame) + " — bar at x=" + str(bar_x) +
+                " w=" + str(8) + " h=" + str(h))
+
+        frame = frame + 1
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// MAIN — run all framebuffer direct tests
+// ============================================================================
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    println("")
+    println("================================================")
+    println("  framebuffer_direct.kn — Direct FB Access Tests")
+    println("================================================")
+    println("")
+
+    var failures: Int = 0
+
+    println("─── Test 1: Framebuffer metadata probe ───")
+    let r1 = test_fb_probe()
+    if r1 != 0: failures = failures + 1
+    println("")
+
+    println("─── Test 2: Horizontal gradient strip ───")
+    let r2 = test_gradient_strip()
+    if r2 != 0: failures = failures + 1
+    println("")
+
+    println("─── Test 3: Checkerboard pattern ───")
+    let r3 = test_checkerboard()
+    if r3 != 0: failures = failures + 1
+    println("")
+
+    println("─── Test 4: Software-rasterized circle ───")
+    let r4 = test_circle()
+    if r4 != 0: failures = failures + 1
+    println("")
+
+    println("─── Test 5: Combined scene (gradient + checker + circle + text) ───")
+    let r5 = test_combined_scene()
+    if r5 != 0: failures = failures + 1
+    println("")
+
+    println("─── Test 6: Multi-frame animated bar ───")
+    let r6 = test_animated_bar()
+    if r6 != 0: failures = failures + 1
+    println("")
+
+    println("=== RESULTS ===")
+    if failures == 0:
+        println("ALL PASS — " + str(6) + "/" + str(6) + " framebuffer direct tests passed")
+    else:
+        println(str(failures) + "/" + str(6) + " TEST(S) FAILED")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return failures

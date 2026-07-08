@@ -1,0 +1,471 @@
+// ============================================================================
+//  electron_interact.kn — Kain ↔ Electron Interaction Bridge (std::input)
+// ============================================================================
+//
+//  WHAT:      A MODULAR bridge for bidirectional interaction using std::input
+//             as the event processing backbone. Any Kain demo can `use
+//             electron_interact` and get keyboard/mouse/click/raycast input
+//             from the Electron renderer — without writing any JSON parsing
+//             or event dispatch code.
+//
+//  IMPORT:    use electron_interact
+//
+//  NEW API (preferred — uses std::input):
+//    interact_init()                              — create input session, bind actions
+//    interact_poll()                              — read one stdin event, push into std::input
+//    interact_begin_frame(delta_ms: Float)        — call input_begin_frame (processes events)
+//    interact_action_pressed(action: String) -> Int — action pressed THIS frame?
+//    interact_action_down(action: String) -> Int    — action currently held?
+//    interact_action_released(action: String) -> Int — action released THIS frame?
+//    interact_axis(axis: String) -> Float           — analog axis value (e.g. "mouse_x")
+//    interact_mouse_x() -> Float                    — convenience: axis "mouse_x"
+//    interact_mouse_y() -> Float                    — convenience: axis "mouse_y"
+//
+//  LEGACY API (backward-compatible, wraps the same events):
+//    interact_clear()                              — reset per-frame state (no-op, kept for compat)
+//    click_count() -> Int                          — clicks since last frame (max 8)
+//    click_x(index: Int) -> Float                  — screen X of click #index
+//    click_y(index: Int) -> Float                  — screen Y of click #index
+//    key_pressed(key: String) -> Bool              — is this key currently held?
+//    key_just_pressed(key: String) -> Bool         — was this key pressed THIS frame?
+//    mouse_x() -> Float                            — current mouse X in screen coords
+//    mouse_y() -> Float                            — current mouse Y in screen coords
+//    ray_hit() -> Bool                             — did last click hit a 3D object?
+//    ray_hit_id() -> String                        — Kain-side id of hit object
+//    ray_hit_x/y/z() -> Float                      — world-space hit point
+//    ray_hit_nx/ny/nz() -> Float                   — surface normal at hit point
+//    ray_distance() -> Float                       — distance from camera to hit
+//
+//  PREFERRED PATTERN:
+//    pulse game_loop every 16 ms:
+//        interact_poll()                           // read stdin event, push into std::input
+//        interact_begin_frame(16.0)                // process events for this frame
+//
+//        // New API — action queries
+//        if interact_action_pressed("confirm") != 0:
+//            scene_clear()
+//        if interact_action_down("up") != 0:
+//            paddle_y = paddle_y + 0.05
+//
+//        // Legacy API — still works
+//        if key_just_pressed("c"):
+//            scene_clear()
+//
+//  ARCHITECTURE:
+//    renderer.js DOM events → ipcRenderer.send('bridge-event') → main.js
+//    → bridgeProcess.stdin → Kain read_line() → interact_poll()
+//    → input_push_key_down/Up/Axis() → input_begin_frame()
+//    → input_action_pressed/down/released() (+ backward-compat world state)
+//
+//  SEMANTIC LAYER: L0 (fn, let, while) + L1 (world for all state)
+//  STDLIB:         std::input (backbone), std::json (event parsing)
+// ============================================================================
+
+use std::input
+use std::json
+
+// ============================================================================
+//  ALL STATE — world-owned (module-level var not supported in Kain)
+// ============================================================================
+
+world __Interact:
+    // Session state
+    state session_id: Int = 0
+    state inited:     Int = 0
+
+    // Mouse tracking
+    state mouse_x: Float = 400.0
+    state mouse_y: Float = 300.0
+
+    // Click queue — up to 8 clicks per frame
+    state click_x_0: Float = 0.0
+    state click_y_0: Float = 0.0
+    state click_x_1: Float = 0.0
+    state click_y_1: Float = 0.0
+    state click_x_2: Float = 0.0
+    state click_y_2: Float = 0.0
+    state click_x_3: Float = 0.0
+    state click_y_3: Float = 0.0
+    state click_x_4: Float = 0.0
+    state click_y_4: Float = 0.0
+    state click_x_5: Float = 0.0
+    state click_y_5: Float = 0.0
+    state click_x_6: Float = 0.0
+    state click_y_6: Float = 0.0
+    state click_x_7: Float = 0.0
+    state click_y_7: Float = 0.0
+    state click_count: Int = 0
+
+    // Held keys — pipe-delimited string: "|key1|key2|...|"
+    state held_keys: String = "|"
+
+    // Just-pressed keys this frame — pipe-delimited string
+    state jpress_keys: String = "|"
+
+    // 3D raycast state — set by each click's raycaster result
+    state ray_hit: Bool = false
+    state ray_id: String = ""
+    state ray_x: Float = 0.0
+    state ray_y: Float = 0.0
+    state ray_z: Float = 0.0
+    state ray_nx: Float = 0.0
+    state ray_ny: Float = 0.0
+    state ray_nz: Float = 0.0
+    state ray_distance: Float = 0.0
+
+// ============================================================================
+//  INTERNAL HELPERS — string-based key tracking (backward compat)
+// ============================================================================
+
+fn __key_delim(key: String) -> String:
+    return "|" + key + "|"
+
+fn __str_contains(haystack: String, needle: String) -> Bool:
+    let hl: Int = len(haystack)
+    let nl: Int = len(needle)
+    if nl == 0:
+        return false
+    if nl > hl:
+        return false
+    var i: Int = 0
+    let max_i: Int = hl - nl
+    while i <= max_i:
+        var matched: Bool = true
+        var j: Int = 0
+        while j < nl:
+            if char_at(haystack, i + j) != char_at(needle, j):
+                matched = false
+                j = nl
+            j = j + 1
+        if matched:
+            return true
+        i = i + 1
+    return false
+
+fn __str_remove(haystack: String, needle: String) -> String:
+    let hl: Int = len(haystack)
+    let nl: Int = len(needle)
+    if nl == 0:
+        return haystack
+    if nl > hl:
+        return haystack
+    var result: String = ""
+    var i: Int = 0
+    while i < hl:
+        var matched: Bool = true
+        if i + nl <= hl:
+            var j: Int = 0
+            while j < nl:
+                if char_at(haystack, i + j) != char_at(needle, j):
+                    matched = false
+                    j = nl
+                j = j + 1
+        else:
+            matched = false
+        if matched:
+            i = i + nl
+        else:
+            result = result + char_at(haystack, i)
+            i = i + 1
+    return result
+
+// ============================================================================
+//  BACKWARD-COMPAT KEY HANDLERS — update legacy world state
+// ============================================================================
+
+fn __handle_keydown_bc(key: String):
+    let delim: String = __key_delim(key)
+    if __str_contains(__Interact.held_keys, delim):
+        return
+    __Interact.held_keys = __Interact.held_keys + key + "|"
+    if __str_contains(__Interact.jpress_keys, delim):
+        return
+    __Interact.jpress_keys = __Interact.jpress_keys + key + "|"
+
+fn __handle_keyup_bc(key: String):
+    let delim: String = __key_delim(key)
+    __Interact.held_keys = __str_remove(__Interact.held_keys, delim)
+
+fn __handle_click_bc(evt: JsonObject):
+    let x: Float = json_float_or(evt, "x", 0.0)
+    let y: Float = json_float_or(evt, "y", 0.0)
+    let c: Int = __Interact.click_count
+    if c >= 8:
+        return
+    if c == 0:
+        __Interact.click_x_0 = x
+        __Interact.click_y_0 = y
+    if c == 1:
+        __Interact.click_x_1 = x
+        __Interact.click_y_1 = y
+    if c == 2:
+        __Interact.click_x_2 = x
+        __Interact.click_y_2 = y
+    if c == 3:
+        __Interact.click_x_3 = x
+        __Interact.click_y_3 = y
+    if c == 4:
+        __Interact.click_x_4 = x
+        __Interact.click_y_4 = y
+    if c == 5:
+        __Interact.click_x_5 = x
+        __Interact.click_y_5 = y
+    if c == 6:
+        __Interact.click_x_6 = x
+        __Interact.click_y_6 = y
+    if c == 7:
+        __Interact.click_x_7 = x
+        __Interact.click_y_7 = y
+    __Interact.click_count = c + 1
+
+fn __handle_raycast_bc(evt: JsonObject):
+    let hit: Bool = json_bool_or(evt, "hit", false)
+    if hit:
+        __Interact.ray_id = json_string_or(evt, "id", "")
+        __Interact.ray_x = json_float_or(evt, "x", 0.0)
+        __Interact.ray_y = json_float_or(evt, "y", 0.0)
+        __Interact.ray_z = json_float_or(evt, "z", 0.0)
+        __Interact.ray_nx = json_float_or(evt, "nx", 0.0)
+        __Interact.ray_ny = json_float_or(evt, "ny", 1.0)
+        __Interact.ray_nz = json_float_or(evt, "nz", 0.0)
+        __Interact.ray_distance = json_float_or(evt, "distance", 0.0)
+    __Interact.ray_hit = hit
+
+// ============================================================================
+//  EVENT DISPATCH — pushes events into std::input AND backward-compat state
+// ============================================================================
+
+fn __dispatch_event(evt: JsonObject):
+    let evt_type: String = json_string_or(evt, "type", "")
+    let sid: Int = __Interact.session_id
+    let sid_valid: Bool = __Interact.inited != 0
+
+    if evt_type == "keydown":
+        let key: String = json_string_or(evt, "key", "")
+        if key == "": return
+        if sid_valid:
+            let _ = input_push_key_down(sid, "renderer", key)
+        __handle_keydown_bc(key)
+
+    if evt_type == "keyup":
+        let key: String = json_string_or(evt, "key", "")
+        if key == "": return
+        if sid_valid:
+            let _ = input_push_key_up(sid, "renderer", key)
+        __handle_keyup_bc(key)
+
+    if evt_type == "mousemove":
+        let x: Float = json_float_or(evt, "x", 400.0)
+        let y: Float = json_float_or(evt, "y", 300.0)
+        if sid_valid:
+            let _ = input_push_axis(sid, "human.pointer", "mouse", "x", x)
+            let _ = input_push_axis(sid, "human.pointer", "mouse", "y", y)
+        __Interact.mouse_x = x
+        __Interact.mouse_y = y
+
+    if evt_type == "click":
+        if sid_valid:
+            let _ = input_push_event(sid, "human.pointer", "renderer", "key_down", "click", 1.0, "", 1.0)
+        __handle_click_bc(evt)
+
+    if evt_type == "raycast":
+        __handle_raycast_bc(evt)
+
+// ============================================================================
+//  PUBLIC API — New
+// ============================================================================
+
+// interact_init: create the input session and bind default actions.
+// Call ONCE at startup before the main loop.
+pub fn interact_init() -> Int:
+    let sid: Int = input_session_create("electron")
+    if sid < 0:
+        __Interact.inited = 0
+        return sid
+
+    // Bind keyboard actions (code → conceptual action name)
+    // Movement — WASD
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "w", "up")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "W", "up")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "ArrowUp", "up")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "s", "down")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "S", "down")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "ArrowDown", "down")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "a", "left")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "A", "left")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "ArrowLeft", "left")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "d", "right")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "D", "right")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "ArrowRight", "right")
+
+    // Game actions
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", " ", "confirm")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "Enter", "confirm")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "Escape", "cancel")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "r", "reset")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "R", "reset")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "c", "clear")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "C", "clear")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "p", "pause")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "P", "pause")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "f", "fullscreen")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "F", "fullscreen")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "t", "toggle")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "T", "toggle")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "1", "slot_1")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "2", "slot_2")
+    let _ = input_bind_action(sid, "human.keyboard", "key_down", "3", "slot_3")
+
+    // Mouse click bound as action "click"
+    let _ = input_bind_action(sid, "human.pointer", "key_down", "click", "click")
+
+    // Bind axis names for mouse position
+    let _ = input_bind_axis(sid, "human.pointer", "axis", "x", "mouse_x", 1.0)
+    let _ = input_bind_axis(sid, "human.pointer", "axis", "y", "mouse_y", 1.0)
+
+    __Interact.session_id = sid
+    __Interact.inited = 1
+    return sid
+
+// interact_poll: read one line from stdin, parse JSON, push events into
+// std::input AND update backward-compat state.
+// Called once per frame from the demo's pulse body.
+// NOTE: read_line() BLOCKS until a line arrives from the Electron pipe.
+pub fn interact_poll():
+    let raw_line: String = read_line()
+    if raw_line == "":
+        return
+    let evt = json_parse_text(raw_line)
+    __dispatch_event(evt)
+    return
+
+// interact_begin_frame: call input_begin_frame to process all queued events
+// and compute action states for this frame.
+// Call AFTER interact_poll(), BEFORE action queries.
+pub fn interact_begin_frame(delta_ms: Float):
+    if __Interact.inited == 0: return
+    let _ = input_begin_frame(__Interact.session_id, delta_ms)
+    return
+
+// interact_action_pressed: was the named action triggered THIS frame?
+// Returns 1 if pressed this frame, 0 otherwise.
+pub fn interact_action_pressed(action: String) -> Int:
+    if __Interact.inited == 0: return 0
+    return input_action_pressed(__Interact.session_id, action)
+
+// interact_action_down: is the named action currently held down?
+// Returns 1 if currently held, 0 otherwise.
+pub fn interact_action_down(action: String) -> Int:
+    if __Interact.inited == 0: return 0
+    return input_action_down(__Interact.session_id, action)
+
+// interact_action_released: was the named action released THIS frame?
+// Returns 1 if released this frame, 0 otherwise.
+pub fn interact_action_released(action: String) -> Int:
+    if __Interact.inited == 0: return 0
+    return input_action_released(__Interact.session_id, action)
+
+// interact_axis: get the current analog value of a named axis.
+// Returns float value (e.g. mouse_x, mouse_y in screen coords).
+pub fn interact_axis(axis: String) -> Float:
+    if __Interact.inited == 0: return 0.0
+    return input_axis_value(__Interact.session_id, axis)
+
+// interact_mouse_x: convenience wrapper for interact_axis("mouse_x").
+pub fn interact_mouse_x() -> Float:
+    return interact_axis("mouse_x")
+
+// interact_mouse_y: convenience wrapper for interact_axis("mouse_y").
+pub fn interact_mouse_y() -> Float:
+    return interact_axis("mouse_y")
+
+// ============================================================================
+//  PUBLIC API — Backward-compatible wrappers
+// ============================================================================
+
+// interact_clear: reset per-frame transient state.
+// NOTE: In the new design, input_begin_frame handles this. This is a no-op
+// kept for backward compatibility with existing demos.
+pub fn interact_clear():
+    __Interact.click_count = 0
+    __Interact.jpress_keys = "|"
+
+// click_count: number of clicks received since last frame.
+pub fn click_count() -> Int:
+    return __Interact.click_count
+
+// click_x: screen-space X coordinate of click #index (0-based).
+pub fn click_x(index: Int) -> Float:
+    if index == 0: return __Interact.click_x_0
+    if index == 1: return __Interact.click_x_1
+    if index == 2: return __Interact.click_x_2
+    if index == 3: return __Interact.click_x_3
+    if index == 4: return __Interact.click_x_4
+    if index == 5: return __Interact.click_x_5
+    if index == 6: return __Interact.click_x_6
+    if index == 7: return __Interact.click_x_7
+    return 0.0
+
+// click_y: screen-space Y coordinate of click #index (0-based).
+pub fn click_y(index: Int) -> Float:
+    if index == 0: return __Interact.click_y_0
+    if index == 1: return __Interact.click_y_1
+    if index == 2: return __Interact.click_y_2
+    if index == 3: return __Interact.click_y_3
+    if index == 4: return __Interact.click_y_4
+    if index == 5: return __Interact.click_y_5
+    if index == 6: return __Interact.click_y_6
+    if index == 7: return __Interact.click_y_7
+    return 0.0
+
+// key_pressed: returns true if the named key is currently held down.
+pub fn key_pressed(key_name: String) -> Bool:
+    return __str_contains(__Interact.held_keys, __key_delim(key_name))
+
+// key_just_pressed: returns true if the key was pressed THIS frame.
+pub fn key_just_pressed(key_name: String) -> Bool:
+    return __str_contains(__Interact.jpress_keys, __key_delim(key_name))
+
+// mouse_x: current mouse X position in screen coordinates.
+pub fn mouse_x() -> Float:
+    return __Interact.mouse_x
+
+// mouse_y: current mouse Y position in screen coordinates.
+pub fn mouse_y() -> Float:
+    return __Interact.mouse_y
+
+// ray_hit: returns true if the last click hit a 3D scene object.
+pub fn ray_hit() -> Bool:
+    return __Interact.ray_hit
+
+// ray_hit_id: returns the Kain-side id of the hit object.
+pub fn ray_hit_id() -> String:
+    return __Interact.ray_id
+
+// ray_hit_x/y/z: world-space position of the intersection point.
+pub fn ray_hit_x() -> Float:
+    return __Interact.ray_x
+
+pub fn ray_hit_y() -> Float:
+    return __Interact.ray_y
+
+pub fn ray_hit_z() -> Float:
+    return __Interact.ray_z
+
+// ray_hit_nx/ny/nz: surface normal at the intersection point.
+pub fn ray_hit_nx() -> Float:
+    return __Interact.ray_nx
+
+pub fn ray_hit_ny() -> Float:
+    return __Interact.ray_ny
+
+pub fn ray_hit_nz() -> Float:
+    return __Interact.ray_nz
+
+// ray_distance: distance from camera to the hit point.
+pub fn ray_distance() -> Float:
+    return __Interact.ray_distance
+
+// ============================================================================
+//  END electron_interact.kn
+// ============================================================================

@@ -1,0 +1,162 @@
+// ============================================================================
+//  search/search_engine.kn — Search Orchestrator
+//
+//  Layer 4 (orchestrate): typed stage graph for query execution.
+//  Pipeline: tokenize → fst_lookup → bm25_score → top_k → enrich_profile.
+//
+//  Uses converge for tokenization, FST for term lookup, BM25 for scoring,
+//  and the connection graph for profile enrichment.
+// ============================================================================
+
+use std::time
+
+use types::SearchIndex
+use types::ScoredDoc
+use types::SearchResult
+use types::Connection
+use types::DocMeta
+use types::Posting
+use types::FST_CHAR_CODE
+use types::FST_SIBLING
+use types::FST_CHILD
+use types::FST_IS_FINAL
+use types::FST_DOC_FREQ
+use types::FST_TERM_ID
+use util
+use config
+use search::bm25
+use search::fst_lookup
+use search::top_k
+use indexer::tokenizer
+use profile::connection_graph
+
+// ============================================================================
+//  SEARCH — Full Query Pipeline
+// ============================================================================
+
+pub fn search(query: String, lang: String) -> [SearchResult] with Unsafe:
+    let t_start: Int = now_millis()
+
+    // 1. Tokenize query
+    let query_terms: [String] = extract_terms(query, lang)
+    if len(query_terms) == 0:
+        return []
+
+    // 2. Lookup each term in FST
+    var lookups: [FSTLookupResult] = []
+    var matched_terms: [String] = []
+    var i: Int = 0
+    while i < len(query_terms):
+        let qt: String = query_terms[i]
+        let result: FSTLookupResult = lookup_term(qt)
+        if result.found:
+            push(lookups, result)
+            push(matched_terms, qt)
+        i = i + 1
+
+    if len(lookups) == 0:
+        return []
+
+    // 3. Score using per-term posting ranges — only touch relevant postings
+    var scored: [ScoredDoc] = []
+    let doc_count: Int = SearchIndex.doc_count
+    let avgdl: Float = SearchIndex.avg_doc_len
+    let posting_tids: ptr<Int> = SearchIndex.posting_term_ids
+    let posting_dids: ptr<Int> = SearchIndex.posting_doc_ids
+    let posting_tfs: ptr<Int> = SearchIndex.posting_term_freqs
+
+    if doc_count <= 0:
+        return []
+
+    // Collect (doc_id => BM25 score) via accumulator array
+    // Only iterate postings within each matched term's range
+    var ti: Int = 0
+    while ti < len(lookups):
+        let lr: FSTLookupResult = lookups[ti]
+        let start: Int = lr.postings_start
+        if start < 0:
+            ti = ti + 1
+            continue
+
+        // Sequential scan limited to this term's postings block
+        // Postings are grouped by term_id (contiguous blocks from build_postings_for_term)
+        var pi: Int = start
+        var in_range: Bool = true
+        while pi < SearchIndex.postings_count and in_range:
+            let ptid: Int = mem_load(ptr_offset(posting_tids, pi, "Int"), "Int")
+            if ptid != lr.term_id:
+                in_range = false
+            else:
+                let doc_id: Int = mem_load(ptr_offset(posting_dids, pi, "Int"), "Int")
+                if doc_id >= 0 and doc_id < doc_count:
+                    let meta: DocMeta = SearchIndex.doc_store[doc_id]
+                    let doc_len: Int = i_max(meta.lines, 1)
+                    let tf: Int = mem_load(ptr_offset(posting_tfs, pi, "Int"), "Int")
+                    let score: Float = bm25_score(
+                        tf, doc_len, avgdl, doc_count,
+                        i_max(lr.doc_freq, 1))
+
+                    // Accumulate score (merge across terms)
+                    var found: Bool = false
+                    var si: Int = 0
+                    while si < len(scored):
+                        if scored[si].doc_id == doc_id:
+                            scored[si].score = scored[si].score + score
+                            found = true
+                            si = len(scored)
+                        si = si + 1
+                    if found == false:
+                        push(scored, ScoredDoc {
+                            doc_id: doc_id, score: score, meta: meta
+                        })
+
+                pi = pi + 1
+
+        ti = ti + 1
+
+    // 4. Top-K
+    let top: [ScoredDoc] = dedup_and_top_k(scored)
+
+    // 5. Build results
+    var results: [SearchResult] = []
+    var ri: Int = 0
+    while ri < len(top):
+        push(results, SearchResult {
+            doc: top[ri],
+            connections: [],
+            matched_terms: matched_terms,
+        })
+        ri = ri + 1
+
+    // 5b. Enrich with connection graph
+    var enriched: [SearchResult] = []
+    var ei: Int = 0
+    while ei < len(results):
+        let enriched_res: SearchResult = enrich_result(results[ei])
+        push(enriched, enriched_res)
+        ei = ei + 1
+
+    return enriched
+
+// ============================================================================
+//  SIMPLE SEARCH — Direct interface
+// ============================================================================
+
+pub fn simple_search(query: String) -> [SearchResult] with Unsafe:
+    return search(query, "kain")
+
+// ============================================================================
+//  RESONATE — Cache Warm on Index Update
+// ============================================================================
+
+resonate SearchIndex.doc_count dampen 5000 ms:
+    // When the index grows, recompute avg_doc_len for up-to-date scoring
+    let dc: Int = resonate_new_i64
+    if dc > 0:
+        if SearchIndex.total_terms_in_docs > 0:
+            SearchIndex.avg_doc_len = to_float(SearchIndex.total_terms_in_docs) / to_float(dc)
+            0
+        else:
+            0
+    else:
+        0

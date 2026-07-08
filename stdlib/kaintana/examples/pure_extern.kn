@@ -1,0 +1,26 @@
+@extern fn kt_init() -> Void
+@extern fn kt_make(n: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, dt: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_backend_register(s: Int, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: Int, name: String) -> Int
+
+const APP_W: Int = 400
+const APP_H: Int = 300
+
+fn main() -> Int:
+    kt_init()
+    let sid = kt_make("PureExtern", APP_W, APP_H)
+    if sid < 0:
+        return 1
+    let reg = kt_backend_register(sid, "null", 0)
+    let sel = kt_backend_select(sid, "null")
+    while kt_should_close(sid) == 0:
+        kt_begin(sid, 16.0)
+        kt_end(sid)
+        kt_present(sid)
+    kt_free(sid)
+    return 0

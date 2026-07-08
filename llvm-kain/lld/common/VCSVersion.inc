@@ -1,0 +1,1 @@
+// llvm-kain stub

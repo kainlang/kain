@@ -1,0 +1,1 @@
+// Stub: DiagnosticCrossTUCompatIDs.inc

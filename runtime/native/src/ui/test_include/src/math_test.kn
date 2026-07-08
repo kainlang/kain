@@ -1,0 +1,16 @@
+include <math.h> as cmath
+
+use std::runtime
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let root = cmath_sqrt(144.0)
+    let root_check = floor(root + 0.5)
+    if root_check != 12:
+        return 1
+
+    let shutdown = runtime_shutdown()
+    return if shutdown != 0: 200 + shutdown else: 0

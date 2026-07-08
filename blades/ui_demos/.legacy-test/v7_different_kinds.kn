@@ -1,0 +1,25 @@
+// v7_different_kinds.kn — test every element kind string
+
+use std::runtime
+
+world KindWorld:
+    surface native_ui => KindRoot
+
+component KindRoot():
+    render <panel title="KINDS" background="#0F172A">
+        <stack direction="vertical" padding={16} spacing={8}>
+            <text value="text element" color="#E8E8F0" font_size={14} />
+            <stack direction="horizontal" spacing={8}>
+                <text value="rect" color="#21D4A1" font_size={12} />
+                <text value="circle" color="#4A90D9" font_size={12} />
+                <text value="line" color="#E8914A" font_size={12} />
+            </stack>
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

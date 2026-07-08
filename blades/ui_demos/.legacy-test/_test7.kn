@@ -1,0 +1,10 @@
+use std::runtime
+use std::os
+use std::fs
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let _rc = os_system("cmd /c \"dir /b X:\blades\ui_demos\*.kn 2>nul\" > X:\blades\ui_demos\.kain\_filelist.txt")
+    let text = os_read_text("X:/blades/ui_demos/.kain/_filelist.txt")
+    println("output: " + text)
+    return 0

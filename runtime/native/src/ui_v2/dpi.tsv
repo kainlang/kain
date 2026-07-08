@@ -1,0 +1,118 @@
+section	id	name	kind	file	signature	notes
+SCALE_MODEL	1	logical_canonical	rule	ALL	All kt_Rect/kt_Vec2/kt_Cmd.bounds in logical pixels. Physical only at input÷scale and output×scale boundaries.	Slint/egui/Xilem proven. Anti-pattern: microui int-only, Nuklear scissor-only.
+SCALE_MODEL	2	type_separation	rule	kaintana.h	kt_Rect/kt_Vec2 = always logical. kt_PhysicalSize = explicit physical. ScaleFactor param on every conversion.	C equivalent of Slint's euclid::Scale<f32, LogicalPx, PhysicalPx>.
+SCALE_MODEL	3	per_window_scale	rule	internal.h	One scale factor per KaintanaSession. NOT per-app global. NOT per-monitor-within-window.	Xilem RenderRootState.scale_factor, Slint Window.scale_factor(), egui ViewportInfo.
+SCALE_MODEL	4	dpi_first_class_event	rule	tree.c	DPI change = kt_set_native_scale() → session flag → invalidate caches → next frame re-layout.	Slint ScaleFactorChanged, Xilem WindowEvent::Rescale. Anti-pattern: ImGui ScaleAllSizes() lossy.
+SCALE_MODEL	5	font_rasterization_density	rule	font system	RasterizationSize = LogicalFontSize × RasterizerDensity. Layout sees logical size only.	ImGui ImFontConfig::RasterizerDensity. Anti-pattern: Nuklear fixed-pixel atlas.
+SCALE_MODEL	6	input_divide_by_scale	rule	backends	Physical mouse/touch coords ÷ scale_factor → logical before hit-testing.	Xilem p.to_logical(), egui screen_size_in_points, ImGui Win32 AddMousePosEvent.
+SCALE_MODEL	7	pixel_grid_snap	rule	draw_pixels.c	round(value × pointScaleFactor) / pointScaleFactor at tessellation time, not layout.	Yoga pointScaleFactor, egui round_to_pixels(). Text gets forceFloor to prevent clipping.
+SCALE_MODEL	8	single_render_transform	rule	backends	Backend applies scale_factor once to entire kt_DrawData. No per-command × scale.	Xilem Affine::scale on entire scene, egui ScreenDescriptor::pixels_per_point.
+SCALE_MODEL	9	dpi_from_day_one	rule	ALL	Every backend must implement DPI before shipping. No retrofit.	ImGui FIXME-DPI scars, Nuklear D3D11/GDI broken, Clay TODO AdjustWindowRectExForDpi.
+SESSION_FIELD	1	native_scale_x	field	internal.h	float native_scale_x	OS-reported horizontal DPI scale (e.g. 1.0, 1.5, 2.0). Set by backend via kt_set_native_scale().
+SESSION_FIELD	2	native_scale_y	field	internal.h	float native_scale_y	OS-reported vertical DPI scale. Separate for non-square pixels (rare, but supported).
+SESSION_FIELD	3	user_zoom	field	internal.h	float user_zoom	User-controlled zoom factor. Default 1.0. Range 0.2–5.0. Set via kt_set_zoom().
+SESSION_FIELD	4	scale_changed	field	internal.h	bool scale_changed	Set true by kt_set_native_scale() when DPI changes. Cleared after frame processes invalidation.
+PUBLIC_API	1	kt_scale_factor_x	function	kaintana.h	float kt_scale_factor_x(kt_Session* s)	Effective scale = native_scale_x × user_zoom. The value backends use for rendering.
+PUBLIC_API	2	kt_scale_factor_y	function	kaintana.h	float kt_scale_factor_y(kt_Session* s)	Vertical effective scale.
+PUBLIC_API	3	kt_native_scale_x	function	kaintana.h	float kt_native_scale_x(kt_Session* s)	OS DPI only — no user zoom. For font rasterization density.
+PUBLIC_API	4	kt_native_scale_y	function	kaintana.h	float kt_native_scale_y(kt_Session* s)	Vertical OS DPI only.
+PUBLIC_API	5	kt_set_native_scale	function	kaintana.h	void kt_set_native_scale(kt_Session* s, float sx, float sy)	Called by backends at init and on DPI change. Sets scale_changed=true, bumps layout_generation, invalidates text measure cache.
+PUBLIC_API	6	kt_set_zoom	function	kaintana.h	void kt_set_zoom(kt_Session* s, float zoom)	Called by Kain code. Clamped to 0.2–5.0. Deferred to next frame (egui pattern — avoids jitter).
+PIXEL_SNAP	1	kt_round_to_pixel_x	inline	kaintana.h	float kt_round_to_pixel_x(float logical, float scale)	roundf(logical × scale) / scale. Snap to nearest physical pixel X.
+PIXEL_SNAP	2	kt_round_to_pixel_y	inline	kaintana.h	float kt_round_to_pixel_y(float logical, float scale)	Same for Y axis.
+PIXEL_SNAP	3	kt_round_to_pixel_center_x	inline	kaintana.h	float kt_round_to_pixel_center_x(float logical, float scale)	(floorf(logical × scale) + 0.5f) / scale. Center a 1px line on pixel grid.
+PIXEL_SNAP	4	kt_one_physical_pixel	inline	kaintana.h	float kt_one_physical_pixel(float scale)	1.0f / scale. Expresses 1 physical pixel in logical space. Xilem Divider pattern.
+PIXEL_SNAP	5	kt_round_ui	inline	kaintana.h	float kt_round_ui(float x)	roundf(x × 64.0f) / 64.0f. Numerical stability for layout math. egui's 1/32 equivalent — we use 1/64 for finer precision.
+BACKEND_DPI	1	win32_enable_dpi	function	host_win32.c	void win32_enable_dpi(void)	LoadLibraryW("shcore.dll") → GetProcAddress("SetProcessDpiAwareness") → PROCESS_PER_MONITOR_DPI_AWARE. Called before window creation. NOTE: comment says V2 but code uses V1 — future: upgrade to SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2).
+BACKEND_DPI	2	win32_update_dpi_scale	function	host_win32.c	void win32_update_dpi_scale(void)	g_dpi_scale_x = GetDeviceCaps(hdc, LOGPIXELSX) / 96.0f. g_dpi_scale_y = GetDeviceCaps(hdc, LOGPIXELSY) / 96.0f. Falls back to 1.0 if no HWND/HDC. Called at init, WM_DPICHANGED. MUST also call kt_set_native_scale() after updating globals (task 1.15).
+BACKEND_DPI	3	win32_wndproc_dpi	handler	host_win32.c	case WM_DPICHANGED	RECT* suggested = (RECT*)lp → win32_update_dpi_scale() → SetWindowPos(suggested) → win32_dirty_full(). SetWindowPos triggers WM_SIZE which recreates framebuffer at new physical size. MUST add kt_set_native_scale() call here.
+BACKEND_DPI	4	win32_input_dpi	handler	host_win32.c	case WM_MOUSEMOVE	g_mouse_x = GET_X_LPARAM(lp) / g_dpi_scale_x. Converts physical→logical. CORRECT. Should use kt_scale_factor_x() once bridged.
+BACKEND_DPI	5	win32_fb_dpi	calc	host_win32.c	fb_w = (int)((float)w × g_dpi_scale_x)	framebuffer at physical pixel size. Called at init (line 716) and WM_SIZE (line 457). CORRECT.
+BACKEND_DPI	6	win32_present_full	render	host_win32.c	BitBlt(hdc, 0, 0, g_window_width, g_window_height, g_hdc_dib, 0, 0, SRCCOPY)	Full-dirty present. DPI-UNSAFE — no explicit scaling. Relies on GDI auto-mapping. POTENTIAL BUG on certain DPI configs. Should use StretchBlt like dirty-rect path.
+BACKEND_DPI	7	win32_present_dirty	render	host_win32.c	StretchBlt(hdc, dx, dy, dw, dh, g_hdc_dib, rx, ry, rw, rh, SRCCOPY)	dx/dy/dw/dh = r->left/g_dpi_scale_x etc. DPI-CORRECT. Source in physical pixels, dest in logical pixels.
+BACKEND_DPI	8	win32_present_invalidate	present	host_win32.c	InvalidateRect with DPI-scaled coords	r.left = (LONG)(r.left / g_dpi_scale_x) etc. Converts framebuffer coords → window logical coords. CORRECT.
+BACKEND_DPI	9	g_dpi_scale_x	global	host_win32.c	static float g_dpi_scale_x = 1.0f	File-static. MUST be replaced by session.scale_factor reads once bridged (task 1.15).
+BACKEND_DPI	10	g_dpi_scale_y	global	host_win32.c	static float g_dpi_scale_y = 1.0f	File-static. Same fate as g_dpi_scale_x.
+BACKEND_DPI	11	win32_get_dpi_scale_x	accessor	host_win32.c	float win32_get_dpi_scale_x(void)	Public accessor for tree.c input funnel. OBSOLETE once kt_scale_factor_x() exists.
+BACKEND_DPI	12	win32_get_dpi_scale_y	accessor	host_win32.c	float win32_get_dpi_scale_y(void)	Same — obsolete post-bridge.
+BACKEND_DPI	13	null_backend_dpi	init	host_null.c	N/A — always 1.0	Headless testing. Will call kt_set_native_scale(s, 1.0, 1.0) at init (task 1.16).
+BACKEND_DPI	14	terminal_backend_dpi	init	host_terminal.c	N/A — always 1.0	Fixed 80×24 cell grid. No DPI concept. Will call kt_set_native_scale(s, 1.0, 1.0) (task 1.17).
+BACKEND_DPI	15	vulkan_backend_dpi	init	render_vulkan.c	STUB — 9 lines	Needs: vkGetPhysicalDeviceSurfaceCapabilitiesKHR → surface size ÷ window logical size → kt_set_native_scale().
+BACKEND_DPI	16	d3d12_backend_dpi	init	render_d3d12.c	STUB — 8 lines	Needs: IDXGISwapChain::GetBuffer → framebuffer size ÷ window logical size → kt_set_native_scale().
+BACKEND_DPI	17	x11_backend_dpi	init	host_x11.c	STUB — 9 lines	Needs: XrmGetResource("Xft.dpi") / 96.0 or GDK_SCALE env var → kt_set_native_scale().
+BACKEND_DPI	18	wayland_backend_dpi	init	host_wayland.c	STUB — 8 lines	Needs: wp_fractional_scale_v1::preferred_scale → kt_set_native_scale().
+BACKEND_DPI	19	macos_backend_dpi	init	host_macos.m	STUB — 8 lines	Needs: [NSScreen backingScaleFactor] → kt_set_native_scale(). Integer scales only (1.0, 2.0).
+BACKEND_DPI	20	wasm_backend_dpi	init	host_wasm.c	STUB — 8 lines	Needs: window.devicePixelRatio → kt_set_native_scale(). Canvas: width=logical×dpr, style.width=logical.
+PLATFORM_WIN32	1	dpi_awareness_modes	reference	host_win32.c	Unaware → System(SetProcessDPIAware) → PerMonitor(SetProcessDpiAwareness) → PerMonitorV2(SetProcessDpiAwarenessContext)	V2 = Windows 10 1703+. V1 = Windows 8.1+. System = Vista+. Currently using V1 — should upgrade to V2.
+PLATFORM_WIN32	2	query_dpi_monitor	reference	host_win32.c	GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY); scale = dpiX / 96.0f	Win 8.1+. Per-monitor. Preferred over system DPI.
+PLATFORM_WIN32	3	query_dpi_window	reference	host_win32.c	UINT dpi = GetDpiForWindow(hwnd); scale = dpi / 96.0f	Win 10 1607+. Simplest per-window API.
+PLATFORM_WIN32	4	query_dpi_fallback	reference	host_win32.c	GetDeviceCaps(hdc, LOGPIXELSX) / 96.0f	Pre-Win 8.1 fallback. Currently what win32_update_dpi_scale() uses. System DPI only.
+PLATFORM_WIN32	5	dpi_change_event	reference	host_win32.c	WM_DPICHANGED: lParam = suggested rect (physical), wParam = new DPI	Must call SetWindowPos with suggested rect. Must recreate framebuffer. Currently implemented correctly.
+PLATFORM_WIN32	6	dib_physical_size	reference	host_win32.c	biWidth = (int)(logical_w × dpi_scale); biHeight = -(int)(logical_h × dpi_scale)	biHeight<0 = top-down DIB. biSizeImage = biWidth × |biHeight| × 4. Correct.
+PLATFORM_WIN32	7	font_dpi	reference	host_win32.c	MulDiv(point_size, GetDeviceCaps(hdc, LOGPIXELSY), 72)	Convert logical points to physical pixels for CreateFontW. Automatic when DC is DPI-aware.
+PLATFORM_MACOS	1	scale_factor	reference	host_macos.m	[[NSScreen mainScreen] backingScaleFactor]	1.0 or 2.0. Integer only. No 1.5x support.
+PLATFORM_MACOS	2	convert_coords	reference	host_macos.m	[NSView convertPointToBacking:] / convertSizeToBacking:	Logical↔physical conversion.
+PLATFORM_MACOS	3	dpi_change	reference	host_macos.m	NSWindowDidChangeBackingPropertiesNotification	Notification on scale change.
+PLATFORM_MACOS	4	framebuffer	reference	host_macos.m	CGDisplayBounds → logical. Framebuffer = logical × scale.	Automatically 2× on Retina.
+PLATFORM_X11	1	scale_detection	reference	host_x11.c	XrmGetResource(XResourceManagerString(display), "Xft.dpi") / 96.0	No standard protocol. Fallback: GDK_SCALE env var (integer), QT_SCALE_FACTOR env var (fractional).
+PLATFORM_X11	2	xdpyinfo_fallback	reference	host_x11.c	xdpyinfo | grep dimensions → physical mm → DPI	Unreliable — many drivers report wrong values. Last resort.
+PLATFORM_WAYLAND	1	integer_scale	reference	host_wayland.c	wl_output::scale event	Integer only: 1, 2, 3.
+PLATFORM_WAYLAND	2	fractional_scale	reference	host_wayland.c	wp_fractional_scale_v1::preferred_scale	Fractional: 1.25, 1.5, 1.75. Preferred protocol.
+PLATFORM_WAYLAND	3	buffer_scale	reference	host_wayland.c	wl_surface::set_buffer_scale	Client tells compositor its buffer scale. Compositor handles final output scaling.
+PLATFORM_WEB	1	device_pixel_ratio	reference	host_wasm.c	window.devicePixelRatio	1.0 standard, 2.0 Retina, fractional on mobile. Can change dynamically.
+PLATFORM_WEB	2	canvas_sizing	reference	host_wasm.c	canvas.width = logical × dpr; canvas.style.width = logical + 'px'	CSS pixels vs device pixels separation.
+PLATFORM_WEB	3	dpi_change	reference	host_wasm.c	matchMedia('(resolution: 2dppx)').addEventListener('change', ...)	Media query-based DPI change detection.
+PLATFORM_MOBILE	1	ios_scale	reference	—	UIScreen.main.scale	1.0, 2.0, 3.0. traitCollectionDidChange on change. Dynamic Type via preferredContentSizeCategory.
+PLATFORM_MOBILE	2	android_density	reference	—	DisplayMetrics.density	1.0 = 160dpi (mdpi). onConfigurationChanged on change. fontScale separate from density.
+FRAMEWORK_REF	1	slint	reference	slintdpi.md	Gold standard: euclid::Scale<f32, LogicalPx, PhysicalPx>. Type-system enforced. Per-window reactive Property<f32>. ScaleFactorChanged event.	Kaintana equivalent: naming convention + explicit ScaleFactor param.
+FRAMEWORK_REF	2	egui	reference	eguidpi.md	Three-tier: pixels_per_point = zoom_factor × native_pixels_per_point. round_ui() (1/32) for layout stability, round_to_pixels(pp) for sharp rendering. Keyboard zoom Cmd+/−.	Kaintana steals: two rounding modes, zoom factor, deferred zoom application.
+FRAMEWORK_REF	3	xilem	reference	xilemdpi.md	Single scale_factor: f64 per RenderRoot. Affine::scale on entire scene. 1.0/scale_factor for physical pixel expression.	Kaintana steals: single render transform, one_physical_pixel pattern.
+FRAMEWORK_REF	4	imgui	reference	imguidpi.md	DisplayFramebufferScale × DisplaySize = framebuffer. RasterizerDensity separates font bake from layout size. Per-monitor GetDpiForMonitor + MDT_EFFECTIVE_DPI.	Kaintana steals: RasterizerDensity pattern, Win32 DPI detection chain.
+FRAMEWORK_REF	5	clay	reference	claydpi.md	Zero core DPI. Renderer-owned dpi_scale float. Clay_ResetMeasureTextCache() on change. 4 backends = 4 different approaches.	Kaintana avoids: fragmentation. Steals: ResetMeasureTextCache pattern.
+FRAMEWORK_REF	6	yoga	reference	yogadpi.md	pointScaleFactor for pixel-grid rounding. Compute in points, round to grid. Text forceFloor. Version-bump cache invalidation.	Kaintana steals: two-phase compute-then-round, generation counter invalidation.
+FRAMEWORK_REF	7	vello	reference	vellodpi.md	No DPI — pure renderer. Validates that backends should be DPI-agnostic. Consumer owns all scaling.	Validates Kaintana's architecture: layout in core, DPI-agnostic backends.
+FRAMEWORK_REF	8	nuklear	reference	nukleardpi.md	CAUTIONARY: fb_scale for scissor-only. Layout/fonts/mouse NOT scaled. D3D11+GDI completely broken.	Kaintana avoids: partial scaling, DPI-unaware backends.
+FRAMEWORK_REF	9	microui	reference	microuidpi.md	COMPLETE ANTI-PATTERN: int-only mu_Rect. Fixed bitmap atlas. No DPI concept. Zero scaling.	What Kaintana must NEVER become.
+CONSTANT	1	DEFAULT_SCALE	constant	kaintana.h	1.0f	96 DPI = 100% scaling. All backends default to this until OS query completes.
+CONSTANT	2	ZOOM_MIN	constant	kaintana.h	0.2f	Minimum user zoom factor (egui: 0.2).
+CONSTANT	3	ZOOM_MAX	constant	kaintana.h	5.0f	Maximum user zoom factor (egui: 5.0).
+CONSTANT	4	ZOOM_STEP	constant	kaintana.h	0.1f	Keyboard zoom granularity (egui).
+CONSTANT	5	ROUND_UI_FACTOR	constant	kaintana.h	64.0f	1/64 logical point for layout numerical stability. egui uses 1/32; we use 1/64 for finer precision on 4K+.
+CONSTANT	6	DPI_BASELINE	constant	kaintana.h	96.0f	Standard DPI reference. scale = monitor_dpi / 96.0.
+CONSTANT	7	WHEEL_DELTA	constant	host_win32.c	120.0f	Win32 mouse wheel normalization: raw_delta / WHEEL_DELTA.
+FORMULA	1	scale_from_dpi	formula	—	scale_factor = monitor_dpi / 96.0f	Universal formula. 96 DPI = 100% baseline.
+FORMULA	2	logical_from_physical	formula	—	logical = physical / scale_factor	Input conversion. Mouse, touch, scroll.
+FORMULA	3	physical_from_logical	formula	—	physical = logical × scale_factor	Framebuffer sizing, render coordinate conversion.
+FORMULA	4	fb_width	formula	—	fb_width = (int)(logical_width × scale_factor)	DIB/swapchain/backbuffer physical width.
+FORMULA	5	fb_height	formula	—	fb_height = (int)(logical_height × scale_factor)	DIB/swapchain/backbuffer physical height.
+FORMULA	6	round_to_pixel	formula	—	round(value × pp) / pp	egui/Yoga pixel-grid snap.
+FORMULA	7	round_to_pixel_center	formula	—	(floor(value × pp) + 0.5) / pp	Center 1px line on pixel boundary.
+FORMULA	8	one_physical_px	formula	—	1.0 / scale_factor	Xilem Divider pattern. e.g. at 2x = 0.5 logical points.
+FORMULA	9	font_raster_size	formula	—	font_size × RasterizerDensity	ImGui pattern. Separate from layout size.
+FORMULA	10	dib_sizeimage	formula	—	biWidth × |biHeight| × 4	32bpp DIB total memory.
+FORMULA	11	point_to_pixel	formula	—	MulDiv(point_size, dpi, 72)	Win32 font point size → logical pixel height.
+CROSSREF	1	MASTER_DPI_AND_SCALING.md	doc	z___research/	§1-9	The definitive DPI reference. 9 golden rules, 9 frameworks, 6 platforms, full pipeline.
+CROSSREF	2	MASTER_PLATFORM.md	doc	z___research/	§1 Zero Platform Deps, §4 Output Contract, §5 Two-Backend, §7 DPI Math, §12 Backend Selection	Platform abstraction + backend contract.
+CROSSREF	3	MASTER_OS_AND_CONTRACT.md	doc	z___research/	§7 DPI & Coordinate Space Math	Full DPI pipeline with Win32/macOS/X11/Wayland/Web specifics.
+CROSSREF	4	MASTER_RENDERER.md	doc	z___research/	§8 Backend Consumption Patterns	How each backend consumes kt_DrawData — DPI scaling at consumption time.
+CROSSREF	5	MASTER_KAINTANA.md	doc	z___research/	§3 4-Layer Architecture, §6 Surface Types, §12 Core Math Contracts	Where DPI lives in the stack.
+CROSSREF	6	MASTER_ARCHITECTURE.md	doc	z___research/	§2 File Layout, §3 Creation Order	File dependencies for DPI implementation.
+CROSSREF	7	MASTER_CONTRACT.md	doc	z___research/	§4 Path A/B/C	Core runtime integration points affected by DPI.
+CROSSREF	8	MASTER_MEMORY_AND_ARENA.md	doc	z___research/	§2 Cache Line Alignment, §7 GPU DMA	DPI affects glyph cache sizing and GPU layout upload alignment.
+CROSSREF	9	slintdpi.md	doc	reference-git/	Gold standard DPI analysis	Type-system enforced logical/physical separation.
+CROSSREF	10	eguidpi.md	doc	reference-git/	Three-tier zoom model, two rounding modes	User zoom + OS DPI + pixel snapping.
+CROSSREF	11	xilemdpi.md	doc	reference-git/	Single scene transform, 1.0/scale pattern	Per-window scale, render-time transform.
+CROSSREF	12	imguidpi.md	doc	reference-git/	RasterizerDensity, Win32 DPI detection chain	Font rasterization at native DPI.
+CROSSREF	13	claydpi.md	doc	reference-git/	Renderer-owned DPI, measure cache reset	What to avoid: fragmentation.
+CROSSREF	14	yogadpi.md	doc	reference-git/	pointScaleFactor, text forceFloor	Pixel-grid rounding math.
+CROSSREF	15	vellodpi.md	doc	reference-git/	No DPI in renderer — validates architecture	Backends should be DPI-agnostic.
+CROSSREF	16	nukleardpi.md	doc	reference-git/	Scissor-only partial DPI	What to avoid: incomplete scaling.
+CROSSREF	17	microuidpi.md	doc	reference-git/	Int-only, no scaling, baked atlas	What to NEVER become.
+CROSSREF	18	implementationplan.tsv	tsv	ui_v2/	Tasks 1.11-1.17	DPI implementation plan (this TSV's implementation tasks).
+TASK	1	1.11	kaintana.h API	task	implementationplan.tsv	Add kt_scale_factor_x/y, kt_native_scale_x/y, kt_set_native_scale, kt_set_zoom, pixel snap helpers	P0. 60 lines. API freeze.
+TASK	2	1.12	internal.h fields	task	implementationplan.tsv	Add native_scale_x/y, user_zoom, scale_changed to kt_Session_t	P0. 15 lines.
+TASK	3	1.13	tree.c scale integration	task	implementationplan.tsv	Implement all DPI public API functions. Wire scale_changed → layout_generation++, text cache reset.	P0. 80 lines.
+TASK	4	1.14	draw_pixels.c pixel snap	task	implementationplan.tsv	Apply kt_round_to_pixel_x/y when emitting draw commands from layout coords	P1. 40 lines.
+TASK	5	1.15	win32→core bridge	task	implementationplan.tsv	Call kt_set_native_scale() at init + WM_DPICHANGED. Replace g_dpi_scale globals with API queries.	P0. 50 lines.
+TASK	6	1.16	null backend scale	task	implementationplan.tsv	Report native_scale = 1.0f via kt_set_native_scale()	P2. 5 lines.
+TASK	7	1.17	terminal backend scale	task	implementationplan.tsv	Report native_scale = 1.0f	P3. 5 lines.

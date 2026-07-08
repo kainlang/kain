@@ -1,0 +1,357 @@
+// ============================================================================
+//  flappy.kn — FLAPPY BIRD in Kain
+//  ============================================================================
+//  Classic Flappy Bird using the terminal_pong rendering pattern:
+//    - Create fresh nodes every frame
+//    - set_rect + set_style_i64("fill-color", color) + ui_render_box() to draw
+//    - ui_frame_submit to present
+//    - native_ui_font_create for fonts (no widget context)
+//    - native_ui_poll_event == 1 for input
+//
+//  Controls:  SPACE = flap  |  ESC = exit
+//  After game over: SPACE = restart
+//
+//  Layer: L0 (plain code — terminal_pong render pattern)
+//  Usage:  kain run blades/ui_demos/flappy.kn --target llvm
+//  ============================================================================
+
+use std::ui
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 400
+const WIN_H: Int = 600
+
+const BIRD_X: Float = 80.0
+const BIRD_W: Float = 34.0
+const BIRD_H: Float = 24.0
+
+const GRAVITY: Float = 0.45
+const FLAP_VEL: Float = -7.5
+const MAX_FALL: Float = 10.0
+
+const PIPE_W: Float = 60.0
+const PIPE_GAP: Float = 150.0
+const PIPE_SPEED: Float = 3.0
+const PIPE_SPAWN_EVERY: Int = 90
+const MAX_PIPES: Int = 8
+
+const GROUND_Y: Float = 550.0
+const GROUND_H: Float = 50.0
+const CEILING: Float = 0.0
+
+// Key codes
+const KEY_SPACE: Int = 32
+const KEY_ESC: Int = 27
+
+// Colors (0xAARRGGBB)
+const C_SKY:       Int = 0xFF87CEEB
+const C_BIRD:      Int = 0xFFFFD700
+const C_BIRD_EYE:  Int = 0xFFFFFFFF
+const C_PIPE:      Int = 0xFF27AE60
+const C_PIPE_EDGE: Int = 0xFF1E8449
+const C_GROUND:    Int = 0xFF8B4513
+const C_GRASS:     Int = 0xFF2ECC40
+const C_WHITE:     Int = 0xFFFFFFFF
+const C_RED:       Int = 0xFFFF4444
+const C_SHADOW:    Int = 0x66000000
+
+// ============================================================================
+//  GAME STATE — parallel arrays for codegen compatibility
+// ============================================================================
+
+struct GameState:
+    bird_y: Float
+    bird_vy: Float
+    score: Int
+    game_over: Int      // 0=playing, 1=dead, 2=exit
+    frame: Int
+    pipe_spawn_timer: Int
+
+    // Pipes — parallel arrays
+    pipe_count: Int
+    pipe_x: [Float]
+    pipe_gap_y: [Float]
+    pipe_scored: [Int]
+    pipe_active: [Int]
+
+// ============================================================================
+//  SIMPLE RANDOM
+// ============================================================================
+
+fn rand_float(seed: Int) -> Float:
+    let r = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+    return to_float(r) / 2147483648.0
+
+// ============================================================================
+//  DRAW HELPERS — terminal_pong pattern: set_style → set_rect → ui_render_box
+// ============================================================================
+
+fn draw_rect(session: Int, node: Int, x: Float, y: Float, w: Float, h: Float, color: Int):
+    native_ui_node_set_style_i64(session, node, "fill-color", color)
+    native_ui_node_set_rect(session, node, x, y, w, h)
+    ui_render_box(session, node, "fill-color")
+
+// ============================================================================
+//  INIT STATE
+// ============================================================================
+
+fn init_state() -> GameState:
+    var px: [Float] = []
+    var py: [Float] = []
+    var ps: [Int] = []
+    var pa: [Int] = []
+    var i = 0
+    while i < MAX_PIPES:
+        push(px, 0.0)
+        push(py, 0.0)
+        push(ps, 0)
+        push(pa, 0)
+        i = i + 1
+    return GameState {
+        bird_y: 300.0,
+        bird_vy: 0.0,
+        score: 0,
+        game_over: 0,
+        frame: 0,
+        pipe_spawn_timer: 0,
+        pipe_count: 0,
+        pipe_x: px,
+        pipe_gap_y: py,
+        pipe_scored: ps,
+        pipe_active: pa,
+    }
+
+// ============================================================================
+//  SPAWN A PIPE
+// ============================================================================
+
+fn spawn_pipe(st: GameState) -> GameState:
+    if st.pipe_count >= MAX_PIPES:
+        return st
+
+    let idx = st.pipe_count
+    let seed = st.frame * 7 + st.score * 13
+    let gap_y = 120.0 + rand_float(seed) * 280.0
+
+    st.pipe_x[idx] = to_float(WIN_W)
+    st.pipe_gap_y[idx] = gap_y
+    st.pipe_scored[idx] = 0
+    st.pipe_active[idx] = 1
+    st.pipe_count = st.pipe_count + 1
+    return st
+
+// ============================================================================
+//  MOVE PIPES
+// ============================================================================
+
+fn move_pipes(st: GameState) -> GameState:
+    var i = 0
+    while i < st.pipe_count:
+        if st.pipe_active[i] != 0:
+            st.pipe_x[i] = st.pipe_x[i] - PIPE_SPEED
+            if st.pipe_x[i] < -PIPE_W - 20.0:
+                st.pipe_active[i] = 0
+        i = i + 1
+    return st
+
+// ============================================================================
+//  CHECK COLLISION
+// ============================================================================
+
+fn check_collision(st: GameState) -> Int:
+    let bx = BIRD_X
+    let by = st.bird_y
+    let bw = BIRD_W
+    let bh = BIRD_H
+
+    if by + bh >= GROUND_Y: return 1
+    if by <= CEILING: return 1
+
+    var i = 0
+    while i < st.pipe_count:
+        if st.pipe_active[i] == 0:
+            i = i + 1
+            continue
+        let px = st.pipe_x[i]
+        let gap_y = st.pipe_gap_y[i]
+        let gap_top = gap_y - PIPE_GAP / 2.0
+        let gap_bot = gap_y + PIPE_GAP / 2.0
+        if bx + bw > px and bx < px + PIPE_W:
+            if by < gap_top: return 1
+            if by + bh > gap_bot: return 1
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  CHECK SCORE
+// ============================================================================
+
+fn check_score(st: GameState) -> (Int, Int):
+    var added = 0
+    var i = 0
+    while i < st.pipe_count:
+        if st.pipe_active[i] != 0 and st.pipe_scored[i] == 0:
+            if BIRD_X > st.pipe_x[i] + PIPE_W:
+                st.pipe_scored[i] = 1
+                added = added + 1
+        i = i + 1
+    return (added, 0)
+
+// ============================================================================
+//  RESET GAME
+// ============================================================================
+
+fn reset_game() -> GameState:
+    return init_state()
+
+// ============================================================================
+//  RENDER FRAME — draw all game elements using the terminal_pong pattern
+// ============================================================================
+
+fn render_frame(session: Int, node: Int, st: GameState, font_id: Int):
+    // ── Sky background ──────────────────────────────────────────────
+    draw_rect(session, node, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H), C_SKY)
+
+    // ── Ground ──────────────────────────────────────────────────────
+    draw_rect(session, node, 0.0, GROUND_Y, to_float(WIN_W), GROUND_H, C_GROUND)
+
+    // ── Grass strip ─────────────────────────────────────────────────
+    draw_rect(session, node, 0.0, GROUND_Y, to_float(WIN_W), 6.0, C_GRASS)
+
+    // ── Pipes ───────────────────────────────────────────────────────
+    var i = 0
+    while i < st.pipe_count:
+        if st.pipe_active[i] != 0:
+            let px = st.pipe_x[i]
+            let gap_y = st.pipe_gap_y[i]
+            let gap_top = gap_y - PIPE_GAP / 2.0
+            let gap_bot = gap_y + PIPE_GAP / 2.0
+
+            // Top pipe
+            let th = gap_top - CEILING
+            if th > 0.0:
+                draw_rect(session, node, px, CEILING, PIPE_W, th, C_PIPE)
+                // Pipe cap
+                draw_rect(session, node, px - 3.0, gap_top - 4.0, PIPE_W + 6.0, 8.0, C_PIPE_EDGE)
+
+            // Bottom pipe
+            let bh = GROUND_Y - gap_bot
+            if bh > 0.0:
+                draw_rect(session, node, px, gap_bot, PIPE_W, bh, C_PIPE)
+                // Pipe cap
+                draw_rect(session, node, px - 3.0, gap_bot - 4.0, PIPE_W + 6.0, 8.0, C_PIPE_EDGE)
+        i = i + 1
+
+    // ── Bird ────────────────────────────────────────────────────────
+    draw_rect(session, node, BIRD_X, st.bird_y, BIRD_W, BIRD_H, C_BIRD)
+    // Bird eye
+    draw_rect(session, node, BIRD_X + BIRD_W - 12.0, st.bird_y + 6.0, 6.0, 6.0, C_BIRD_EYE)
+
+    // ── Score ───────────────────────────────────────────────────────
+    if font_id > 0:
+        let score_str = str(st.score)
+        let tx = to_float(WIN_W) / 2.0 - 15.0
+        native_ui_draw_text(session, node, font_id, tx, 8.0, score_str, "fill-color")
+
+    // ── Game over overlay ───────────────────────────────────────────
+    if st.game_over == 1:
+        // Semi-transparent overlay
+        draw_rect(session, node, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H), C_SHADOW)
+
+        if font_id > 0:
+            native_ui_draw_text(session, node, font_id,
+                to_float(WIN_W) / 2.0 - 55.0, 230.0,
+                "GAME OVER", "fill-color")
+            native_ui_draw_text(session, node, font_id,
+                to_float(WIN_W) / 2.0 - 85.0, 270.0,
+                "Press SPACE to restart", "fill-color")
+
+// ============================================================================
+//  MAIN — terminal_pong pattern
+// ============================================================================
+
+pub fn main() -> Int:
+    // ── Init UI session ─────────────────────────────────────────────
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FlappyBird", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Flappy Bird — Kain", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    // ── Load font (native_ui_font_create, no widget context) ───────
+    let font_id = native_ui_font_create(session, "flappy-font", "Arial", 24.0)
+    let score_font = if font_id <= 0: 0 else: font_id
+    let small_id = native_ui_font_create(session, "flappy-small", "Arial", 14.0)
+    let small_font = if small_id <= 0: score_font else: small_id
+
+    // ── Init game ──────────────────────────────────────────────────
+    var st = init_state()
+
+    // ── Main loop ──────────────────────────────────────────────────
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+
+        // ── Create fresh render node each frame ────────────────────
+        let node = native_ui_node_create(session, "render")
+
+        // ── INPUT ──────────────────────────────────────────────────
+        while native_ui_poll_event(session) == 1:
+            let kind = native_ui_event_kind(session)
+            let code = native_ui_event_key_code(session)
+            let is_down = kind == "key.down" or kind == "keyboard"
+            if is_down:
+                if code == KEY_SPACE:
+                    if st.game_over == 1:
+                        st = reset_game()
+                    elif st.game_over == 0:
+                        st.bird_vy = FLAP_VEL
+                elif code == KEY_ESC:
+                    st.game_over = 2
+
+        if st.game_over == 2:
+            break
+
+        // ── PHYSICS ────────────────────────────────────────────────
+        if st.game_over == 0:
+            st.bird_vy = st.bird_vy + GRAVITY
+            if st.bird_vy > MAX_FALL:
+                st.bird_vy = MAX_FALL
+            st.bird_y = st.bird_y + st.bird_vy
+            if st.bird_y < CEILING:
+                st.bird_y = CEILING
+                st.bird_vy = 0.0
+
+            // Pipe spawning
+            st.pipe_spawn_timer = st.pipe_spawn_timer - 1
+            if st.pipe_spawn_timer <= 0:
+                st = spawn_pipe(st)
+                st.pipe_spawn_timer = PIPE_SPAWN_EVERY
+
+            // Move pipes
+            st = move_pipes(st)
+
+            // Scoring
+            let (added, _) = check_score(st)
+            st.score = st.score + added
+
+            // Collision
+            if check_collision(st) != 0:
+                st.game_over = 1
+
+            st.frame = st.frame + 1
+
+        // ── RENDER ─────────────────────────────────────────────────
+        render_frame(session, node, st, score_font)
+
+        // ── Submit frame ───────────────────────────────────────────
+        let _submit = ui_frame_submit(session)
+
+    // ── Cleanup ─────────────────────────────────────────────────────
+    let _ds = native_ui_session_destroy(session)
+    return 0

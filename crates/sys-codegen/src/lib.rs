@@ -16,6 +16,9 @@ pub use codegen_llvm::generate_llvm_for_target;
 pub use codegen_llvm::resolve_llvm_target_for_compile_target;
 pub use codegen_llvm::generate_with_debug as generate_with_debug;
 pub use codegen_llvm::generate_with_debug_for_target;
+pub use codegen_llvm::generate_for_shared_library;
+pub use codegen_llvm::generate_with_target_for_shared_library;
+pub use codegen_llvm::generate_with_debug_for_shared_library;
 pub use codegen_rust::generate as generate_rust;
 pub use codegen_rust::generate_gpu_host_wrappers as generate_rust_gpu_host_wrappers;
 pub use codegen_rust::{

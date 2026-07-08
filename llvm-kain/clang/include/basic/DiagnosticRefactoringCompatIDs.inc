@@ -1,0 +1,1 @@
+// Stub: DiagnosticRefactoringCompatIDs.inc

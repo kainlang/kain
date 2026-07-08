@@ -1,0 +1,100 @@
+// ============================================================================
+//  widgets/Checkbox.kn — Interactive checkbox with checkmark and label
+//  P2-011: Two-state toggle (checked/unchecked) with local _checked state.
+//          Checkmark rendered as Unicode "✓" text glyph inside square box.
+//          Box fill changes color based on checked state. Label text beside.
+//          on_toggle fires on click with new checked value.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+use std::kaintana::core::KtSession
+use std::kaintana::core::KtElementId
+use std::kaintana::core::kt_row
+use std::kaintana::core::kt_end_row
+use std::kaintana::core::kt_text
+use std::kaintana::core::kt_hovered
+use std::kaintana::core::kt_clicked
+use std::kaintana::core::kt_active
+use std::kaintana::core::kt_fill
+use std::kaintana::core::kt_width
+use std::kaintana::core::kt_height
+use std::kaintana::core::kt_radius
+use std::kaintana::core::kt_stroke
+use std::kaintana::core::kt_opacity
+use std::kaintana::core::kt_gap
+
+// ── Widget trait (from Widget.kn) ─────────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: Checkbox
+// ============================================================================
+
+/// Interactive checkbox toggle with square box, checkmark glyph, and label.
+///
+/// Props:
+///   checked   — initial checked state (Bool)
+///   label     — text label displayed beside the checkbox (String)
+///   theme     — accent color hex string for checked fill (defaults to "#21D4A1")
+///   on_toggle — callback fired on click with new checked value (optional)
+///   key       — stable key for element reconciliation
+///
+/// State:
+///   _checked  — current checked state, toggled on click
+///   _box_elem — element ID of the root box for interaction queries
+component Checkbox(
+    checked:   Bool = false,
+    label:     String = "",
+    theme:     String = "",
+    on_toggle = none,
+    key:       String = "checkbox",
+):
+    state _checked:  Bool = checked
+    state _box_elem: Int = -1
+
+    /// Resolve fill color: accent when checked, input background when unchecked.
+    fn box_fill(_self: Self_) -> String:
+        if _self._checked:
+            if _self.theme != "":
+                return _self.theme
+            return "#21D4A1"
+        return "#141420"
+
+    /// Process click interaction. Toggles _checked state and fires on_toggle.
+    fn process_interaction(_self: Self_, s: KtSession):
+        if _self._box_elem < 0:
+            return
+        let clk = kt_clicked(s, _self._box_elem)
+        if clk != 0:
+            _self._checked = _self._checked == false
+            if _self.on_toggle != none:
+                _self.on_toggle(_self._checked)
+
+    render <box kind="checkbox" key={key} gap={4}>
+        <box kind="checkbox_box" width={16} height={16} fill={box_fill} radius={2}>
+            <text value={if _checked: "✓" else: ""} />
+        </box>
+        <text value={label} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Checkbox
+// ============================================================================
+
+impl Widget for Checkbox:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "checkbox"
+    fn element_id(_self: Self_) -> Int:
+        return _self._box_elem
+    fn tick_interaction(_self: Self_):
+        return

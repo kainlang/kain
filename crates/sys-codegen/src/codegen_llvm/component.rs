@@ -55,7 +55,9 @@ fn map_jsx_attr_to_surface_key(attr_name: &str) -> AttrMapping {
     match attr_name {
         // ── Existing: numeric (f64) attrs ────────────────────
         "padding" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
+        "pad" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
         "spacing" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
+        "gap" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
         "corner_radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "corner_radius" },
         "radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "radius" },
         "font_size" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "font_size" },
@@ -115,6 +117,22 @@ impl StateFieldType {
             _ => StateFieldType::I64,
         }
     }
+}
+
+// ── Compile-time SPIR-V compilation gate ─────────────────
+/// Returns true if the surface kind requires SPIR-V hex compilation.
+/// This is a compile-time concern — the runtime vtable doesn't exist yet,
+/// so slot 18 (`get_gpu_extension != NULL`) cannot answer this question.
+///
+/// This helper bridges the gap: it tells `collect_shader_spirv_hexes`
+/// which surfaces need shader compilation, based on the surface kind
+/// string. Extend this list when new GPU-capable surface kinds are
+/// registered. Future: a `with shader_compile` annotation on the surface
+/// declaration would eliminate this compile-time registry entirely.
+pub(crate) fn surface_needs_shader_compilation(surface_kind: &str) -> bool {
+    // Known shader-capable surface kinds.
+    // Future: this could be driven by a build-time metadata file.
+    matches!(surface_kind, "shader_canvas")
 }
 
 impl LlvmGenerator {
@@ -337,315 +355,6 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    /// Emit a GPU shader surface frame loop for worlds with surface shader => Fragment.
-    /// Generates: resolve surface -> session -> attach platform -> get_gpu_extension ->
-    /// load_shader -> frame loop (host_pump, begin_frame, set_uniform*3, end_frame,
-    /// present, should_close) -> session_destroy.
-    fn compile_shader_surface_loop(
-        &mut self,
-        world_name: &str,
-        shader_fragment_name: &str,
-    ) -> KainResult<()> {
-        // Shader surfaces use default 1280x720
-        let dim_width = "1280";
-        let dim_height = "720";
-        let fn_name = format!("__kain_world_surface_loop_{}", Self::sanitize_symbol_fragment(world_name));
-
-        self.emit(&format!("define void @{}() {{", fn_name));
-        self.emit_label("entry");
-
-        // Resolve surface
-        let surface_name_str = self.compile_static_c_string_literal("shader_canvas");
-        let surface_reg = self.next_reg();
-        self.emit(&format!(
-            "  {} = call %KainComponentSurface* @kain_component_surface_resolve(i8* {})",
-            surface_reg, surface_name_str
-        ));
-
-        let is_null = self.next_reg();
-        self.emit(&format!(
-            "  {} = icmp eq %KainComponentSurface* {}, null",
-            is_null, surface_reg
-        ));
-        let null_block = self.next_label();
-        let init_block = self.next_label();
-        self.emit(&format!(
-            "  br i1 {}, label %{}, label %{}",
-            is_null, null_block, init_block
-        ));
-
-        // Error: surface not registered
-        self.emit_label(&null_block);
-        let err_msg = format!("surface shader_canvas not registered for world {}", world_name);
-        let err_str = self.compile_static_c_string_literal(&err_msg);
-        self.emit(&format!("  call void @kain_runtime_panic(i8* {})", err_str));
-        self.emit("  unreachable");
-
-        // Create session (vtable offset 0)
-        self.emit_label(&init_block);
-        let session_name_str = self.compile_static_c_string_literal(world_name);
-        let session_id = self.emit_vtable_call(
-            &surface_reg,
-            OFF_SESSION_CREATE,
-            "i64 (i8*, i64, i64)*",
-            &[
-                (&session_name_str, "i8*"),
-                (dim_width, "i64"),
-                (dim_height, "i64"),
-            ],
-        );
-
-        let session_err = self.next_reg();
-        self.emit(&format!(
-            "  {} = icmp slt i64 {}, 0",
-            session_err, session_id
-        ));
-        let session_fail = self.next_label();
-        let window_init_label = self.next_label();
-        self.emit(&format!(
-            "  br i1 {}, label %{}, label %{}",
-            session_err, session_fail, window_init_label
-        ));
-
-        self.emit_label(&session_fail);
-        let fail_msg = format!("session_create failed for world {}", world_name);
-        let fail_str = self.compile_static_c_string_literal(&fail_msg);
-        self.emit(&format!("  call void @kain_runtime_panic(i8* {})", fail_str));
-        self.emit("  unreachable");
-
-        // Attach platform (vtable offset 17)
-        self.emit_label(&window_init_label);
-        let handle_reg = self.next_reg();
-        self.emit(&format!("  {} = alloca [8 x i8], align 8", handle_reg));
-        self.emit(&format!("  call void @llvm.memset.p0i8.i64(i8* {}, i8 0, i64 8, i1 false)", handle_reg));
-        self.emit_vtable_call_void(
-            &surface_reg,
-            OFF_SESSION_ATTACH_PLATFORM,
-            "void (i64, i8*)*",
-            &[(&session_id, "i64"), (&handle_reg, "i8*")],
-        );
-
-        // window_open (vtable offset 15)
-        let window_title_str = self.compile_static_c_string_literal(world_name);
-        let _window_ok = self.emit_vtable_call(
-            &surface_reg,
-            OFF_WINDOW_OPEN,
-            "i64 (i64, i8*, i64, i64)*",
-            &[
-                (&session_id, "i64"),
-                (&window_title_str, "i8*"),
-                ("1280", "i64"),
-                ("720", "i64"),
-            ],
-        );
-
-        // Get GPU extension (vtable slot 18)
-        let ext_reg = self.emit_vtable_call(
-            &surface_reg,
-            OFF_GET_GPU_EXTENSION,
-            "i8* (i64)*",
-            &[(&session_id, "i64")],
-        );
-
-        let ext_is_null = self.next_reg();
-        self.emit(&format!(
-            "  {} = icmp eq i8* {}, null",
-            ext_is_null, ext_reg
-        ));
-        let gpu_panic = self.next_label();
-        let gpu_ok = self.next_label();
-        self.emit(&format!(
-            "  br i1 {}, label %{}, label %{}",
-            ext_is_null, gpu_panic, gpu_ok
-        ));
-
-        self.emit_label(&gpu_panic);
-        let gpu_err = self.compile_static_c_string_literal(
-            "shader surface requires GPU backend (set RENDERER_BACKEND=vulkan|d3d12|webgpu)"
-        );
-        self.emit(&format!("  call void @kain_runtime_panic(i8* {})", gpu_err));
-        self.emit("  unreachable");
-
-        // Load shader (extension offset 0)
-        self.emit_label(&gpu_ok);
-        // Bitcast the extension pointer to KainGpuSurfaceExtension*
-        let ext_typed = self.next_reg();
-        self.emit(&format!(
-            "  {} = bitcast i8* {} to %KainGpuSurfaceExtension*",
-            ext_typed, ext_reg
-        ));
-
-        // gep into extension struct at offset 0 -> load_shader fn ptr
-        let load_gep = self.next_reg();
-        self.emit(&format!(
-            "  {} = getelementptr inbounds %KainGpuSurfaceExtension, %KainGpuSurfaceExtension* {}, i32 0, i32 0",
-            load_gep, ext_typed
-        ));
-        let load_cast = self.next_reg();
-        self.emit(&format!(
-            "  {} = bitcast i8** {} to i64 (i64, i8*)**",
-            load_cast, load_gep
-        ));
-        let load_fn = self.next_reg();
-        self.emit(&format!(
-            "  {} = load i64 (i64, i8*)*, i64 (i64, i8*)** {}",
-            load_fn, load_cast
-        ));
-        // Embed SPIR-V hex from the global emitted in the codegen preamble
-        let spirv_ptr = if let Some(hex) = self.shader_spirv_hexes.get(shader_fragment_name) {
-            let global_name = format!("@__kain_spirv_{}", shader_fragment_name);
-            let byte_len = hex.len() + 1; // +1 for null terminator
-            let gep = self.next_reg();
-            self.emit(&format!(
-                "  {} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
-                gep, byte_len, byte_len, global_name
-            ));
-            gep
-        } else {
-            // Fallback: empty string (shader fragment not found in collected hexes)
-            self.compile_static_c_string_literal("")
-        };
-        let _load_result = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i64 {}(i64 {}, i8* {})",
-            _load_result, load_fn, session_id, spirv_ptr
-        ));
-
-        // Frame loop
-        let frame_loop_label = self.next_label();
-        self.emit(&format!("  br label %{}", frame_loop_label));
-        self.emit_label(&frame_loop_label);
-
-        // Alloca for time accumulator (Float, 4 bytes)
-        let time_addr = self.next_reg();
-        self.emit(&format!("  {} = alloca float, align 4", time_addr));
-        self.emit(&format!("  store float 0.0, float* {}", time_addr));
-
-        // host_pump (vtable offset 16)
-        let _pump_ok = self.emit_vtable_call(
-            &surface_reg,
-            OFF_HOST_PUMP,
-            "i64 (i64)*",
-            &[(&session_id, "i64")],
-        );
-
-        // begin_frame (vtable offset 10)
-        let delta = self.next_reg();
-        self.emit(&format!(
-            "  {} = call double @__kain_frame_delta_ms()",
-            delta
-        ));
-        let delta_float = self.next_reg();
-        self.emit(&format!(
-            "  {} = fptrunc double {} to float",
-            delta_float, delta
-        ));
-        self.emit_vtable_call_void(
-            &surface_reg,
-            OFF_BEGIN_FRAME,
-            "void (i64, double)*",
-            &[(&session_id, "i64"), (&delta, "double")],
-        );
-
-        // Update uniforms via extension
-        // Binding 0: time (Float, 4 bytes)
-        self.emit_gpu_set_uniform(
-            &ext_typed, &session_id, 0, &time_addr, "float", 4,
-        );
-
-        // Binding 1: resolution (Vec2, 8 bytes) - alloca two floats
-        let res_addr = self.next_reg();
-        self.emit(&format!("  {} = alloca [2 x float], align 4", res_addr));
-        let res_x_ptr = self.next_reg();
-        self.emit(&format!(
-            "  {} = getelementptr inbounds [2 x float], [2 x float]* {}, i32 0, i32 0",
-            res_x_ptr, res_addr
-        ));
-        self.emit(&format!("  store float 0x1.4p+10, float* {}", res_x_ptr));
-        let res_y_ptr = self.next_reg();
-        self.emit(&format!(
-            "  {} = getelementptr inbounds [2 x float], [2 x float]* {}, i32 0, i32 1",
-            res_y_ptr, res_addr
-        ));
-        self.emit(&format!("  store float 0x1.68p+9, float* {}", res_y_ptr));
-        self.emit_gpu_set_uniform(
-            &ext_typed, &session_id, 1, &res_addr, "[2 x float]", 8,
-        );
-
-        // Binding 2: mouse (Vec2, 8 bytes) - zero-initialized
-        let mouse_addr = self.next_reg();
-        self.emit(&format!("  {} = alloca [2 x float], align 4", mouse_addr));
-        self.emit(&format!(
-            "  call void @llvm.memset.p0i8.i64(i8* {}, i8 0, i64 8, i1 false)",
-            mouse_addr
-        ));
-        self.emit_gpu_set_uniform(
-            &ext_typed, &session_id, 2, &mouse_addr, "[2 x float]", 8,
-        );
-
-        // end_frame (vtable offset 11)
-        self.emit_vtable_call_void(
-            &surface_reg,
-            OFF_END_FRAME,
-            "void (i64)*",
-            &[(&session_id, "i64")],
-        );
-
-        // present (vtable offset 12)
-        self.emit_vtable_call_void(
-            &surface_reg,
-            OFF_PRESENT,
-            "void (i64)*",
-            &[(&session_id, "i64")],
-        );
-
-        // Update time accumulator: time += delta (in seconds)
-        let delta_sec = self.next_reg();
-        self.emit(&format!(
-            "  {} = fdiv float {}, 1.0e+3",
-            delta_sec, delta_float
-        ));
-        let old_time = self.next_reg();
-        self.emit(&format!("  {} = load float, float* {}", old_time, time_addr));
-        let new_time = self.next_reg();
-        self.emit(&format!(
-            "  {} = fadd float {}, {}",
-            new_time, old_time, delta_sec
-        ));
-        self.emit(&format!("  store float {}, float* {}", new_time, time_addr));
-
-        // should_close (vtable offset 14)
-        let should_close = self.emit_vtable_call(
-            &surface_reg,
-            OFF_SHOULD_CLOSE,
-            "i64 (i64)*",
-            &[(&session_id, "i64")],
-        );
-        let keep_going = self.next_reg();
-        self.emit(&format!(
-            "  {} = icmp eq i64 {}, 0",
-            keep_going, should_close
-        ));
-        let shutdown = self.next_label();
-        self.emit(&format!(
-            "  br i1 {}, label %{}, label %{}",
-            keep_going, frame_loop_label, shutdown
-        ));
-
-        // Shutdown
-        self.emit_label(&shutdown);
-        self.emit_vtable_call_void(
-            &surface_reg,
-            OFF_SESSION_DESTROY,
-            "void (i64)*",
-            &[(&session_id, "i64")],
-        );
-        self.emit("  ret void");
-        self.emit("}");
-        self.emit("");
-
-        Ok(())
-    }
 
     /// Emit a call to set_uniform through the GPU extension struct.
     fn emit_gpu_set_uniform(
@@ -702,10 +411,9 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.declare_surface_trait_types();
 
-        // Branch: shader surfaces emit a GPU shader loop (no component render)
-        if surface_kind == "shader_canvas" {
-            return self.compile_shader_surface_loop(world_name, root_component_name);
-        }
+        // The runtime branch on vtable slot 18 (get_gpu_extension != NULL)
+        // selects the GPU vs component render path. No compile-time string
+        // matching needed — LLVM LTO constant-folds this at -O2.
 
         let fn_name = format!("__kain_world_surface_loop_{}", Self::sanitize_symbol_fragment(world_name));
         let render_name = format!("{}_render", root_component_name);
@@ -809,9 +517,204 @@ impl LlvmGenerator {
             ],
         );
 
+        // LLVM LTO constant-folds this branch at -O2 because the vtable
+        // is a link-time constant global. Zero runtime cost.
+        // ── Declare shared shutdown label ─────────────────────────
+        let shutdown = self.next_label();
+
+        // ── Probe vtable slot 18: get_gpu_extension ──────────────
+        let ext_reg = self.emit_vtable_call(
+            &surface_reg,
+            OFF_GET_GPU_EXTENSION,
+            "i8* (i64)*",
+            &[(&session_id, "i64")],
+        );
+        
+        let has_gpu = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp ne i8* {}, null",
+            has_gpu, ext_reg
+        ));
+        let gpu_init_block = self.next_label();
+        let component_init_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            has_gpu, gpu_init_block, component_init_block
+        ));
+
+        // ═══════════════════════════════════════════════════════════
+        //  GPU shader path (slot 18 != NULL)
+        // ═══════════════════════════════════════════════════════════
+        self.emit_label(&gpu_init_block);
+
+        // Bitcast the extension pointer to KainGpuSurfaceExtension*
+        let ext_typed = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to %KainGpuSurfaceExtension*",
+            ext_typed, ext_reg
+        ));
+
+        // gep into extension struct at offset 0 -> load_shader fn ptr
+        let load_gep = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %KainGpuSurfaceExtension, %KainGpuSurfaceExtension* {}, i32 0, i32 0",
+            load_gep, ext_typed
+        ));
+        let load_cast = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8** {} to i64 (i64, i8*)**",
+            load_cast, load_gep
+        ));
+        let load_fn = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i64 (i64, i8*)*, i64 (i64, i8*)** {}",
+            load_fn, load_cast
+        ));
+
+        // Embed SPIR-V hex from the global emitted in the codegen preamble
+        let spirv_ptr = if let Some(hex) = self.shader_spirv_hexes.get(root_component_name) {
+            let global_name = format!("@__kain_spirv_{}", root_component_name);
+            let byte_len = hex.len() + 1; // +1 for null terminator
+            let gep = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+                gep, byte_len, byte_len, global_name
+            ));
+            gep
+        } else {
+            self.compile_static_c_string_literal("")
+        };
+        let _load_result = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 {}(i64 {}, i8* {})",
+            _load_result, load_fn, session_id, spirv_ptr
+        ));
+
+        // GPU frame loop
+        let gpu_frame_loop_label = self.next_label();
+        self.emit(&format!("  br label %{}", gpu_frame_loop_label));
+        self.emit_label(&gpu_frame_loop_label);
+
+        // Alloca for time accumulator (Float, 4 bytes)
+        let time_addr = self.next_reg();
+        self.emit(&format!("  {} = alloca float, align 4", time_addr));
+        self.emit(&format!("  store float 0.0, float* {}", time_addr));
+
+        // host_pump (vtable offset 16)
+        let _gpu_pump = self.emit_vtable_call(
+            &surface_reg,
+            OFF_HOST_PUMP,
+            "i64 (i64)*",
+            &[(&session_id, "i64")],
+        );
+
+        // begin_frame (vtable offset 10)
+        let gpu_delta = self.next_reg();
+        self.emit(&format!(
+            "  {} = call double @__kain_frame_delta_ms()",
+            gpu_delta
+        ));
+        let gpu_delta_float = self.next_reg();
+        self.emit(&format!(
+            "  {} = fptrunc double {} to float",
+            gpu_delta_float, gpu_delta
+        ));
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_BEGIN_FRAME,
+            "void (i64, double)*",
+            &[(&session_id, "i64"), (&gpu_delta, "double")],
+        );
+
+        // Binding 0: time (Float, 4 bytes)
+        self.emit_gpu_set_uniform(
+            &ext_typed, &session_id, 0, &time_addr, "float", 4,
+        );
+
+        // Binding 1: resolution (Vec2, 8 bytes)
+        let res_addr = self.next_reg();
+        self.emit(&format!("  {} = alloca [2 x float], align 4", res_addr));
+        let res_x_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds [2 x float], [2 x float]* {}, i32 0, i32 0",
+            res_x_ptr, res_addr
+        ));
+        self.emit(&format!("  store float 1280.0, float* {}", res_x_ptr));
+        let res_y_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds [2 x float], [2 x float]* {}, i32 0, i32 1",
+            res_y_ptr, res_addr
+        ));
+        self.emit(&format!("  store float 720.0, float* {}", res_y_ptr));
+        self.emit_gpu_set_uniform(
+            &ext_typed, &session_id, 1, &res_addr, "[2 x float]", 8,
+        );
+
+        // Binding 2: mouse (Vec2, 8 bytes) - zero-initialized
+        let mouse_addr = self.next_reg();
+        self.emit(&format!("  {} = alloca [2 x float], align 4", mouse_addr));
+        self.emit(&format!(
+            "  call void @llvm.memset.p0i8.i64(i8* {}, i8 0, i64 8, i1 false)",
+            mouse_addr
+        ));
+        self.emit_gpu_set_uniform(
+            &ext_typed, &session_id, 2, &mouse_addr, "[2 x float]", 8,
+        );
+
+        // end_frame (vtable offset 11)
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_END_FRAME,
+            "void (i64)*",
+            &[(&session_id, "i64")],
+        );
+
+        // present (vtable offset 12)
+        self.emit_vtable_call_void(
+            &surface_reg,
+            OFF_PRESENT,
+            "void (i64)*",
+            &[(&session_id, "i64")],
+        );
+
+        // Update time accumulator: time += delta (in seconds)
+        let gpu_delta_sec = self.next_reg();
+        self.emit(&format!(
+            "  {} = fdiv float {}, 1.0e+3",
+            gpu_delta_sec, gpu_delta_float
+        ));
+        let gpu_old_time = self.next_reg();
+        self.emit(&format!("  {} = load float, float* {}", gpu_old_time, time_addr));
+        let gpu_new_time = self.next_reg();
+        self.emit(&format!(
+            "  {} = fadd float {}, {}",
+            gpu_new_time, gpu_old_time, gpu_delta_sec
+        ));
+        self.emit(&format!("  store float {}, float* {}", gpu_new_time, time_addr));
+
+        // should_close (vtable offset 14)
+        let gpu_close = self.emit_vtable_call(
+            &surface_reg,
+            OFF_SHOULD_CLOSE,
+            "i64 (i64)*",
+            &[(&session_id, "i64")],
+        );
+        let gpu_keep = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i64 {}, 0",
+            gpu_keep, gpu_close
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            gpu_keep, gpu_frame_loop_label, shutdown
+        ));
+
+        // ═══════════════════════════════════════════════════════════
+        //  Component render path (slot 18 == NULL)
+        // ═══════════════════════════════════════════════════════════
+        self.emit_label(&component_init_block);
+
         // ── Emit component-internal pulse registration ────────────
-        // These are registered once before the frame loop.
-        // Clone the vec to avoid borrow conflicts with self.emit()
         let component_pulses = self.component_pulses.get(root_component_name).cloned();
         if let Some(pulses) = component_pulses {
             for pulse in &pulses {
@@ -828,7 +731,6 @@ impl LlvmGenerator {
         }
 
         // ── Emit component-internal resonate registration ─────────
-        // Clone the vec to avoid borrow conflicts with self.emit()
         let component_resonates = self.component_resonates.get(root_component_name).cloned();
         if let Some(resonates) = component_resonates {
             for resonate in &resonates {
@@ -843,16 +745,14 @@ impl LlvmGenerator {
         }
 
         // Fall through to frame loop
-        let frame_loop_label = self.next_label();
-        self.emit(&format!("  br label %{}", frame_loop_label));
+        let component_frame_loop_label = self.next_label();
+        self.emit(&format!("  br label %{}", component_frame_loop_label));
 
-        // ── Frame loop ─────────────────────────────────────────────
-        self.emit_label(&frame_loop_label);
+        // ── Component frame loop ─────────────────────────────────
+        self.emit_label(&component_frame_loop_label);
 
-        // host_pump (vtable offset 16) — process OS messages
-        // On Win32: PeekMessageA → TranslateMessage → DispatchMessageA
-        // Keeps the window responsive (close, resize, input).
-        let _pump_ok = self.emit_vtable_call(
+        // host_pump (vtable offset 16)
+        let _comp_pump = self.emit_vtable_call(
             &surface_reg,
             OFF_HOST_PUMP,
             "i64 (i64)*",
@@ -872,7 +772,7 @@ impl LlvmGenerator {
             &[(&session_id, "i64"), (&delta, "double")],
         );
 
-        // Render root component — pass surface, session, and root parent (0)
+        // Render root component
         self.emit(&format!(
             "  call void @{}(%KainComponentSurface* {}, i64 {}, i64 0)",
             render_name, surface_reg, session_id
@@ -906,13 +806,12 @@ impl LlvmGenerator {
             "  {} = icmp eq i64 {}, 0",
             keep_going, should_close
         ));
-        let shutdown = self.next_label();
         self.emit(&format!(
             "  br i1 {}, label %{}, label %{}",
-            keep_going, frame_loop_label, shutdown
+            keep_going, component_frame_loop_label, shutdown
         ));
 
-        // ── Shutdown ───────────────────────────────────────────────
+        // ── Shared Shutdown ───────────────────────────────────────
         self.emit_label(&shutdown);
         // session_destroy (vtable offset 1)
         self.emit_vtable_call_void(

@@ -1,0 +1,44 @@
+section_id	title	line_range	summary
+arch-overview	Architecture Overview	9-88	Multi-layer architecture with UI Layer (retained-mode + Phase 1 substrate), Platform Layer (win32/linux/macos), Core Layer (8 subsystems), and Z3 proof packs
+gpu-arch	GPU Backend Architecture (Multi-Backend Layered)	90-143	Two-layer GPU design: Layer 1 Runtime Shims (~650 lines, src/core/) and Layer 2 ABI Libraries (~2,900 lines, extras/<name>-abi/); all converge through KainComponentSurface (24-slot vtable, 192 bytes)
+gpu-backends	Backends	104-111	Table of 3 GPU backends: Vulkan (cross-platform + MoltenVK), D3D12 (Windows only), WebGPU (native + WASM)
+gpu-abi-paths	ABI Paths	112-122	Five Kain-to-runtime paths through KainComponentSurface: std::graphics, std::ui, surface vulkan, surface native_ui, surface shader_canvas
+gpu-build-gates	Build Gates	123-130	Three compile-time gates: KAIN_RUNTIME_HAS_VULKAN_LOADER (Desktop), _D3D12 (Windows), _WEBGPU (All platforms)
+gpu-vulkan-pfn	Raw PFN Access	131-137	Vulkan ABI library exposes KainVulkanPfnTable (57 PFNs) for blade-level raw Vulkan consumers
+gpu-precedent	Precedent	138-143	Architecture mirrors cuda_runtime.c pattern: shim owns catalog entry + dlopen; library owns concrete GPU calls
+gpu-abi-libs	GPU Backend ABI Libraries	144-165	Separately-linked ABI libraries in extras/: vulkan-abi (~2,050 lines), d3d12-abi, webgpu-abi (~870 lines)
+gpu-extras-vulkan	extras/vulkan-abi/ (~2,050 lines)	148-155	libkain-vulkan-abi.so/.dll: 43+ Vulkan PFNs, per-platform WSI, swapchain, 18 vtable slots, 57-PFN KainVulkanPfnTable
+gpu-extras-d3d12	extras/d3d12-abi/	156-160	libkain-d3d12-abi.dll: D3D12 backend with native mesh shader pipeline (ShaderStage::Mesh + Task), Windows-only
+gpu-extras-webgpu	extras/webgpu-abi/ (~870 lines)	161-165	libkain-webgpu-abi.so: WebGPU via wgpu-native, WASM browser fallback, WGSL subgroup intrinsics
+dir-layout	Directory Layout	168-237	Full directory tree: src/core/ (50+ .c files, z3 proofs), src/platform/ (win32/linux/macos), src/ui/ (retained + kain substrate), include/ (50+ headers), test/ (4 verification layers)
+core	Core Layer (`src/core/`)	239-332	8 subsystem groups: Init & Lifecycle, Crash Forensics, Memory & Ownership, Concurrency, Compiler-Semantic Runtime, System Services, Data & Interop, Attrition & Reflection; component_surface.c is heart of surface dispatch
+core-init	Initialization & Lifecycle	243-254	Runtime bootstrap (core.c), version constants (version.c), structured diagnostics (diagnostics.c), profiling zones (profile.c), service registry (services.c), contract validation (contract.c), compatibility (compatibility.c)
+core-crash	Crash Forensics	255-260	Cross-platform crash_handler.c binary-searches compiler-emitted __kain_crash_table for source mapping; no libunwind/libdwarf/addr2line dependencies
+core-memory	Memory & Ownership	261-275	Arena allocator (833 CBMC proven), buddy allocator, deferred free, virtual_alloc, ownership state machine (collapse/observe/decay), fixup, handles, bitfield, union access
+core-concurrency	Concurrency	276-284	Actor runtime (5,676 CBMC proven), async task/future runtime, fanout over OS threads, batch message queue
+core-semantic	Compiler-Semantic Runtime	285-293	Entangle world registry, converge multi-lane dispatch telemetry, machine_stones (axiom/pulse/shatter/teleport), wire data encoding
+core-services	System Services	294-307	Networking (net_system), process management (process_system), input sessions (input_system), graphics kernel (graphics_system), renderer backends, scene graph, CUDA PTX (cuda_runtime), SIMD detection (simd)
+core-interop	Data & Interop	308-323	JSON parse/render, interop contracts, zero-copy interop, Python runtime bridge (base + async + buffers + GPU + region)
+core-attrition	Attrition & Reflection	324-331	Attrition certification harness, reflection payload loading, host bridge (Rust/Python/Node/C/Zig), CPU feature detection
+platform	Platform Layer (`src/platform/`)	335-366	Platform capability descriptors (platform.c), OS helpers (os_system.c), dynamic library loader (platform_library.c), platform-specific crash handlers
+platform-common	Common Files	337-344	platform.c (11-service capability descriptor), os_system.c (env, paths, directories), platform_library.c (dlopen/LoadLibrary wrappers)
+platform-win32	Windows (`src/platform/win32/`)	345-353	kain_win32_app_host.c (window host), kain_win32_input_host.c (input translation), win32_shared.c (helpers), crash_handler_win32.c (VEH handler)
+platform-linux	Linux (`src/platform/linux/`)	354-360	crash_handler_linux.c (sigaction for SIGSEGV/SIGILL/SIGFPE/SIGABRT), linux_shared.c (/proc/self/exe and environment helpers)
+platform-macos	macOS (`src/platform/macos/`)	361-365	crash_handler_macos.c (sigaction), macos_shared.c (_NSGetExecutablePath for binary path)
+ui	UI Layer (`src/ui/`)	370-410	Two cooperating sublayers: retained-mode UI session (legacy node tree, hot-reload, compiled bundles, software renderer, layout, color) and Phase 1 Kain substrate (7 widget-free modules)
+ui-retained	Retained-Mode UI Session	377-391	ui_system (component state/events/focus), ui_runtime (lifecycle), ui_host_adapter (platform bridge), ui_hot_reload, ui_compiled_bundle, ui_color (Z3-proven div255_fast), ui_layout (Z3-proven dirty flag), ui_renderer (Z3-proven branchless), native_ui_surface (KainComponentSurface vtable)
+ui-kain	Phase 1 Kain Substrate (`src/ui/kain/`) -- NEW	392-406	7 widget-free modules: kain_geometry.h (primitives), kain_surface.h (GPU abstraction), kain_host.h (vtable), kain_host_win32.c (GDI backend), kain_input (typed events), kain_font (load/measure/glyph), kain_compositor (damage tracker), kain_render_software (16 primitives)
+ui-boundary	Substrate / Session Boundary	407-410	Additive API: substrate forwards into same abi_ui_* ABI; no breaking changes to legacy retained-mode session
+verification	Formal Verification	413-456	CBMC harnesses (check_arena 833 pass, check_actor 5,676 pass, check_crash_handler, check_crash_handler_linux) and Z3 proof packs (140 YAML proofs in 4 domains)
+verif-cbmc	CBMC Harnesses (`test/cbmc/`)	415-427	4 harnesses: check_arena (833 assertions, arena bounds/marker/alloc), check_actor (5,676 assertions, queue/mailbox), check_crash_handler, check_crash_handler_linux; combined sources for single-TU CBMC verification
+verif-z3	Z3 Proof Packs (`src/core/z3/`)	428-455	140 YAML proof packs (Actor, Memory, Services, Allocation); 8-script Python pipeline (01_catalog to run_pipeline.py); cache for tree-sitter + libclang
+verif-pipeline	Verification Pipeline (`test/`)	458-480	3-layer pipeline: Layer 1 Sanitizer (ASan+UBSan+TSan, seconds), Layer 2 Fuzz (libFuzzer, minutes), Layer 3 CBMC Formal Verification (exhaustive path exploration)
+build	Build System	482-521	Makefile for fast local dev (clang/C11), Bazel for production builds (runtime_manifest_data.bzl), 4 TOML manifests for runtime variants
+build-make	Makefile (Fast Local Dev)	484-495	7 targets: make (compile .o), make lib (static lib), make shared (.so/.dylib/.dll), make test (ASan+UBSan), make fuzz (libFuzzer), make stress (TSan), make clean
+build-bazel	Bazel (Production Build)	496-499	runtime_manifest_data.bzl auto-generated by sync_native_runtime_builds.py; native_runtime_rules.bzl with platform_select() macros for platform-conditioned resolution
+build-toml	TOML Manifests	500-521	4 manifests: native_core_runtime.toml (canonical, ~50 services), native_runtime.toml (compat), native_attrition_runtime.toml (certification), native_async_benchmark_runtime.toml (benchmarks)
+services	Service Table	523-579	50+ service entries across 7 categories (base, memory, actor, async, io, gfx, scene, asset, ui, reflection, compatibility, host); all via services.h/services.c with alias canonicalization
+runtime-tiers	Runtime Tiers	581-593	3 compile-time tiers: NOOP (removed at compile time), GATED (active low-cost), FULL (full instrumentation); independent subsystem tiers (DIAG/PROFILE/FIXUP)
+headers	Public Headers (`include/`)	595-668	50+ headers: core C ABI (base through union) + 7 Phase 1 kain_* substrate headers + version/virtual_alloc/vulkan_loader_subset/ffmpeg_version_subset/c_runtime_math_subset/win32/wire/self_updating_ptr/ray_sphere_benchmark
+prefixing	Symbol Prefixing	671-674	kain_prefix_rename_manifest.json and kain_prefixed_symbol_inventory.json/.md document systematic kain_ prefix renaming to avoid symbol collisions
+portability	Portability	677-687	3 platforms: Windows (MSVC/clang-cl, 11/11 services, CRITICAL_SECTION/HANDLE/VEH/VirtualAlloc/WS2_32/WinHTTP), Linux (GCC/clang, 5/11, pthread/mmap/POSIX), macOS (Apple clang, 5/11, POSIX base); base.h provides POSIX->Win32 shims

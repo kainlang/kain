@@ -1,0 +1,202 @@
+// ============================================================================
+//  widgets/TextInput.kn — Single-line text input with cursor, placeholder,
+//                          focus state, and password mode
+//  P2-012: Focus state tracked via _focused component state. Cursor position
+//          tracked via component _cursor_pos state. Password mode masks
+//          displayed characters with "•". Placeholder text shows when _text
+//          empty AND not focused. Cursor blink driven by pulse animate block
+//          (500ms cycle). on_change fires on each character input, on_submit
+//          fires on Enter key.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+use std::kaintana::core::KtSession
+use std::kaintana::core::KtElementId
+use std::kaintana::core::kt_row
+use std::kaintana::core::kt_end_row
+use std::kaintana::core::kt_text
+use std::kaintana::core::kt_hovered
+use std::kaintana::core::kt_clicked
+use std::kaintana::core::kt_active
+use std::kaintana::core::kt_fill
+use std::kaintana::core::kt_width
+use std::kaintana::core::kt_height
+use std::kaintana::core::kt_radius
+use std::kaintana::core::kt_stroke
+use std::kaintana::core::kt_opacity
+use std::kaintana::core::kt_font
+use std::kaintana::core::kt_pad
+use std::kaintana::core::kt_gap
+
+// ── Widget trait (from Widget.kn) ─────────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: TextInput
+// ============================================================================
+
+/// Single-line text input with cursor, placeholder text, focus handling,
+/// password masking, and on_change/on_submit callbacks.
+///
+/// Props:
+///   value       — initial text value (String)
+///   placeholder — placeholder text shown when empty and not focused (String)
+///   theme       — accent color hex string for focused border (defaults to "#21D4A1")
+///   password    — if true, masks displayed characters with "•" (Bool)
+///   width       — element width in logical points (default 200.0)
+///   on_change   — callback fired on each character input with new text (optional)
+///   on_submit   — callback fired on Enter key with current text (optional)
+///   key         — stable key for element reconciliation
+///
+/// State:
+///   _focused       — whether the input has keyboard focus
+///   _text          — current text content
+///   _cursor_pos    — cursor position index within _text
+///   _cursor_visible — whether the cursor is currently blinking visible
+///   _elem          — element ID of the root box for interaction queries
+///
+/// Pulse:
+///   blink — toggles _cursor_visible every 500ms when focused
+///
+/// Interaction:
+///   Click to focus. Click outside to blur (requires parent to manage).
+///   Keyboard input appends characters when focused.
+///   Backspace removes character before cursor.
+///   Enter fires on_submit.
+component TextInput(
+    value:       String = "",
+    placeholder: String = "",
+    theme:       String = "",
+    password:    Bool = false,
+    width:       Float = 200.0,
+    on_change = none,
+    on_submit = none,
+    key:         String = "input",
+):
+    state _focused:        Bool = false
+    state _text:           String = value
+    state _cursor_pos:     Int = len(value)
+    state _cursor_visible: Bool = false
+    state _elem:           Int = -1
+
+    /// Resolve fill color: input focus bg when focused, input bg when default.
+    fn input_fill(_self: Self_) -> String:
+        if _self._focused:
+            return "#1A1A28"
+        return "#141420"
+
+    /// Resolve border stroke color: accent when focused, border when default.
+    fn input_stroke(_self: Self_) -> String:
+        if _self._focused:
+            if _self.theme != "":
+                return _self.theme
+            return "#21D4A1"
+        return "#2E2E4A"
+
+    /// Resolve font size. Fixed at 14px body text.
+    fn input_font_size(_self: Self_) -> Float:
+        return 14.0
+
+    /// Compute display text: masked if password, raw if not.
+    fn display_text(_self: Self_) -> String:
+        if _self._text == "":
+            return ""
+        if _self.password:
+            var masked: String = ""
+            var i: Int = 0
+            while i < len(_self._text):
+                masked = masked + "•"
+                i = i + 1
+            return masked
+        return _self._text
+
+    /// Resolve visible text: placeholder when empty+unfocused, text otherwise.
+    fn visible_text(_self: Self_) -> String:
+        if _self._text == "" and _self._focused == false:
+            return _self.placeholder
+        return _self.display_text()
+
+    /// Resolve text color: placeholder dim when showing placeholder, normal text otherwise.
+    fn text_color(_self: Self_) -> String:
+        if _self._text == "" and _self._focused == false:
+            return "#6B6B80"
+        return "#F1F1F6"
+
+    /// Build cursor text: a vertical bar "|" shown when focused and cursor is visible.
+    fn cursor_text(_self: Self_) -> String:
+        if _self._focused == false:
+            return ""
+        if _self._cursor_visible == false:
+            return ""
+        return "|"
+
+    /// Handle character input: append character to _text, advance cursor, fire on_change.
+    fn handle_char(_self: Self_, ch: String):
+        _self._text = _self._text + ch
+        _self._cursor_pos = len(_self._text)
+        if _self.on_change != none:
+            _self.on_change(_self._text)
+
+    /// Handle backspace: remove last character from _text, adjust cursor, fire on_change.
+    fn handle_backspace(_self: Self_):
+        if _self._text == "":
+            return
+        let n = len(_self._text)
+        var new_text: String = ""
+        var i: Int = 0
+        while i < n - 1:
+            new_text = new_text + chr(byte_at(_self._text, i))
+            i = i + 1
+        _self._text = new_text
+        _self._cursor_pos = len(_self._text)
+        if _self.on_change != none:
+            _self.on_change(_self._text)
+
+    /// Process interaction: handle click to focus, keyboard input when focused.
+    fn process_interaction(_self: Self_, s: KtSession):
+        if _self._elem < 0:
+            return
+        let clk = kt_clicked(s, _self._elem)
+        if clk != 0:
+            _self._focused = true
+
+    // ── Cursor blink pulse ──────────────────────────────────
+    pulse blink every 500ms:
+        if _focused:
+            _cursor_visible = _cursor_visible == false
+
+    render <box kind="textinput" key={key} width={width} height={32} fill={input_fill} stroke={input_stroke} stroke_width={1} radius={4} pad={8} gap={4} direction={0}>
+        <text value={visible_text} color={text_color} font_size={input_font_size} />
+        <text value={cursor_text} color="#F1F1F6" font_size={input_font_size} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for TextInput
+// ============================================================================
+
+impl Widget for TextInput:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "textinput"
+    fn element_id(_self: Self_) -> Int:
+        return _self._elem
+    fn tick_interaction(_self: Self_):
+        return
+
+// ⚠ NOTE: Keyboard input handling (character insertion, backspace, Enter) is
+//   partially implemented via handle_char/handle_backspace methods. Full keyboard
+//   event dispatch requires the C substrate's key event queue to be wired into
+//   the component interaction pipeline via kt_input_key_down/kt_input_text.
+//   When the input system delivers key events to focused components, call
+//   handle_char() for printable characters and handle_backspace() for backspace.
+//   For Enter: fire on_submit(current_text).
+//   For left/right arrows: adjust _cursor_pos within [0, len(_text)].

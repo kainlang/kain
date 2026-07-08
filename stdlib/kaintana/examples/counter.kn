@@ -1,0 +1,150 @@
+// ============================================================================
+//  examples/counter.kn — Complete Kaintana Counter Application
+//  From MASTER_STDLIB.md §15.1: CounterApp with increment/decrement/reset.
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+//
+//  Architecture:
+//    - CounterWorld: compiler-owned state authority with count + theme
+//    - CounterApp: component with mutable _count, _theme, _frame_count
+//    - main(): session lifecycle, win32 backend, frame loop
+//    - Frame-query pattern: on_click callbacks triggered by kt_clicked
+//
+//  Dependencies:
+//    - theme.kn: KtTheme, DEFAULT_THEME
+//    - layout.kn: VStack, HStack
+//    - widgets/Button.kn: Button component
+//    - widgets/Label.kn: Label component
+// ============================================================================
+
+// ── Session lifecycle functions (from std::kaintana::core) ─────────────
+use std::kaintana::core::kt_init
+use std::kaintana::core::kt_make
+use std::kaintana::core::kt_free
+use std::kaintana::core::kt_begin
+use std::kaintana::core::kt_end
+use std::kaintana::core::kt_present
+use std::kaintana::core::kt_should_close
+use std::kaintana::core::kt_backend_register
+use std::kaintana::core::kt_backend_select
+
+// ── Theme imports (from std::kaintana) ────────────────────────────────────
+
+use std::kaintana::theme as theme_mod
+use std::kaintana::theme::DEFAULT_THEME
+use std::kaintana::theme::KtTheme
+
+// ── Layout imports ────────────────────────────────────────────────────────
+
+use std::kaintana::layout::VStack
+use std::kaintana::layout::HStack
+
+// ── Widget imports (Button + Label) ───────────────────────────────────────
+
+use std::kaintana::Button
+use std::kaintana::Label
+
+// ============================================================================
+//  World: CounterWorld
+//  Compiler-owned state authority holding count + theme.
+//  Surface bound to CounterApp component for rendering.
+// ============================================================================
+
+/// Counter application state. The world holds the authoritative count and
+/// theme. Surface projects to CounterApp for rendering.
+world CounterWorld:
+    state count: Int = 0
+    state theme: KtTheme = DEFAULT_THEME
+    surface kaintana => CounterApp
+
+// ============================================================================
+//  Component: CounterApp
+//  Renders a vertical stack with title, count display, and button row.
+//  Uses VStack for vertical layout, HStack for button row.
+//  on_click callbacks increment/decrement/reset the count.
+// ============================================================================
+
+/// Counter application UI. Displays the current count and provides
+/// increment (+), decrement (-), and reset buttons.
+///
+/// Layout:
+///   VStack (padding=20, spacing=16, width=300, height=200)
+///     ├─ Label "Kaintana Counter" (font_size=24)
+///     ├─ Label "Count: N" (font_size=48, color=theme.accent)
+///     └─ HStack (spacing=12)
+///          ├─ Button "-" (width=48, on_click=on_decrement)
+///          ├─ Button "+" (width=48, on_click=on_increment, variant=primary)
+///          └─ Button "Reset" (width=80, on_click=on_reset, variant=ghost)
+component CounterApp():
+    state _count: Int = 0
+    state _theme: KtTheme = DEFAULT_THEME
+    state _frame_count: Int = 0
+
+    /// Increment the counter by 1.
+    fn on_increment(_self: Self_):
+        _self._count = _self._count + 1
+
+    /// Decrement the counter by 1.
+    fn on_decrement(_self: Self_):
+        _self._count = _self._count - 1
+
+    /// Reset the counter to 0.
+    fn on_reset(_self: Self_):
+        _self._count = 0
+
+    /// Format the count display text.
+    fn display_text(_self: Self_) -> String:
+        return "Count: " + str(_self._count)
+
+    render <VStack padding={20} spacing={16} width={300} height={200} key="counter-root">
+            <Label value="Kaintana Counter" font_size={24} key="title" />
+            <Label value={display_text()} font_size={48} color={_theme.accent} key="count-display" />
+            <HStack spacing={12} key="button-row">
+                <Button label="-" width={48} on_click={on_decrement} key="dec-btn" />
+                <Button label="+" width={48} on_click={on_increment} variant="primary" key="inc-btn" />
+                <Button label="Reset" width={80} on_click={on_reset} variant="ghost" key="reset-btn" />
+            </HStack>
+        </VStack>
+
+// ============================================================================
+//  Program Entry Point
+//  Initializes Kaintana, creates a session, registers the win32 backend,
+//  runs the frame loop, and cleans up.
+// ============================================================================
+
+/// Application entry point.
+///
+/// Flow:
+///   1. kt_init() — initialize the Kaintana C substrate
+///   2. kt_make("CounterApp", 1280, 720) — create UI session
+///   3. kt_backend_register + select — activate win32 renderer
+///   4. Frame loop:
+///      a. kt_begin(s, 16.0) — start new frame
+///      b. Components render via JSX lower to vtable calls
+///      c. kt_end(s) — conclude element tree
+///      d. kt_present(s) — flip swapchain / blit backbuffer
+///      e. Check kt_should_close(s) for exit signal
+///   5. kt_free(s) — destroy session
+fn main() -> Int:
+    let init_result = kt_init()
+
+    let s = kt_make("CounterApp", 1280, 720)
+    if s < 0:
+        return 1
+
+    // Register and select the null backend for compilation/testing.
+    // Replace "null" with "win32" for native desktop rendering.
+    let reg_result = kt_backend_register(s, "null", 0)
+    let sel_result = kt_backend_select(s, "null")
+
+    // Frame loop: begin → render (via JSX lowering) → end → present
+    while kt_should_close(s) == 0:
+        kt_begin(s, 16.0)
+        // The CounterApp component is rendered here via the world→surface
+        // projection. The compiler wires CounterApp's render to the
+        // current session's element tree.
+        kt_end(s)
+        kt_present(s)
+
+    kt_free(s)
+    return 0

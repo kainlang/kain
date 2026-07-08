@@ -1,0 +1,28 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("semantic-search")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Cross-subsystem codebase search for Kain: indexes crates/ + runtime/ + stdlib/ with BM25+FST")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/semantic-search.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)

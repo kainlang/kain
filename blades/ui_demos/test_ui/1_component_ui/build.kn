@@ -1,0 +1,34 @@
+// build.kn — Component UI test project
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let project = project("component-ui-tests")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Component UI keyword tests — basic, state, events, pulse, resonate, nested")
+        .entry("src/main.kn")
+        .source_roots(["src"])
+        .module_roots(["src"])
+        .generated_root("telemetry")
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+
+    let sources = source_set("cut-sources")
+        .root("src")
+        .glob("src/**/*.kn")
+
+    let check = check_task("check-llvm")
+        .project(project)
+        .target("llvm")
+        .inputs(sources)
+        .telemetry("cut.evidence")
+
+    let exe = native_executable("root-executable")
+        .project(project)
+        .output("$blade/component_ui_tests.exe")
+        .requires(check)
+
+    return build_graph(project)
+        .sources(sources)
+        .tasks(check, exe)

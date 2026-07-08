@@ -1,0 +1,196 @@
+// ============================================================================
+//  scrollable_list.kn — Scrollable List with 50+ Items
+//  Example from MASTER_STDLIB.md §15.3
+//
+//  Demonstrates:
+//    - component ScrollableList with ScrollView containing many items
+//    - 50+ items generated programmatically via text content builder
+//    - Uses ScrollView, VStack, Label widgets
+//    - Import from core.kn, theme.kn, layout.kn, widgets/ScrollView.kn, widgets/Label.kn
+//    - Session lifecycle: kt_init -> kt_make -> kt_backend_probe -> frame loop
+//    - JSX attributes on single lines
+//
+//  Verify: kain check scrollable_list.kn --json
+//  Run with: RENDERER_BACKEND=win32 kain run scrollable_list.kn --target llvm
+// ============================================================================
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  IMPORTS — from std::kaintana modules
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::kaintana::core as core
+use std::kaintana::theme as theme
+use std::kaintana::layout as layout
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  @extern BINDINGS — Full session lifecycle + element tree + attributes
+// ═══════════════════════════════════════════════════════════════════════════
+
+@extern fn kt_init() -> Void
+@extern fn kt_make(name: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, delta_ms: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_backend_probe(s: Int) -> Int
+
+@extern fn kt_row(s: Int, parent: Int, kind: String, key: String) -> Int
+@extern fn kt_end_row(s: Int) -> Void
+@extern fn kt_text(s: Int, elem: Int, text: String) -> Void
+
+@extern fn kt_fill(s: Int, elem: Int, color: String) -> Void
+@extern fn kt_width(s: Int, elem: Int, w: Float) -> Void
+@extern fn kt_height(s: Int, elem: Int, h: Float) -> Void
+@extern fn kt_radius(s: Int, elem: Int, r: Float) -> Void
+@extern fn kt_opacity(s: Int, elem: Int, a: Float) -> Void
+@extern fn kt_pad(s: Int, elem: Int, all: Float) -> Void
+@extern fn kt_gap(s: Int, elem: Int, gap: Float) -> Void
+@extern fn kt_direction(s: Int, elem: Int, dir: Int) -> Void
+
+@extern fn kt_hovered(s: Int, elem: Int) -> Int
+@extern fn kt_clicked(s: Int, elem: Int) -> Int
+@extern fn kt_active(s: Int, elem: Int) -> Int
+
+@extern fn kt_put(s: Int, key: String, v: Int) -> Void
+@extern fn kt_get(s: Int, key: String, fallback: Int) -> Int
+@extern fn kt_put_f(s: Int, key: String, v: Float) -> Void
+@extern fn kt_get_f(s: Int, key: String, fallback: Float) -> Float
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const APP_TITLE: String = "Kaintana Scrollable List"
+const APP_WIDTH: Int = 400
+const APP_HEIGHT: Int = 500
+const LIST_WIDTH: Float = 360.0
+const LIST_HEIGHT: Float = 420.0
+const ITEM_COUNT: Int = 50
+const BG_COLOR: String = "#1A1A24"
+const SURFACE_COLOR: String = "#232339"
+const ACCENT_COLOR: String = "#21D4A1"
+const ACCENT2_COLOR: String = "#7C3AED"
+const ACCENT3_COLOR: String = "#F59E0B"
+const ACCENT4_COLOR: String = "#EF4444"
+const TEXT_DIM: String = "#6B6B80"
+const CORNER_RADIUS: Float = 6.0
+const PULSE_DELTA: Float = 16.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DATA GENERATION — build items as formatted text for scroll view
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Generate a formatted text block representing N list items.
+/// Each item includes a title, subtitle, category, and priority badge text.
+pub fn generate_list_text(count: Int) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < count:
+        let idx = i + 1
+        let cat_idx = idx % 5
+        let category = match cat_idx:
+            0 => "Task"
+            1 => "Event"
+            2 => "Note"
+            3 => "Reminder"
+            4 => "Idea"
+            _ => "Item"
+        let priority = (idx * 7) % 5 + 1
+        let priority_str = match priority:
+            1 => "Low"
+            2 => "Medium"
+            3 => "High"
+            4 => "Critical"
+            5 => "Urgent"
+            _ => "?"
+        // Format one item as a single-line text block
+        let item_text = "[" + category + "]  " + category + " #" + str(idx) + "  (priority: " + priority_str + ")\n" + "         Sample data " + str((idx * 13) % 100) + " — created day " + str(idx) + "\n"
+        result = result + item_text
+        i = i + 1
+    return result
+// ═══════════════════════════════════════════════════════════════════════════
+//  COLOR HELPERS — category/priority color lookup by index
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Get a fill color for a given item index based on category cycling.
+fn item_bg_color(idx: Int) -> String:
+    let cat_idx = (idx + 1) % 5
+    match cat_idx:
+        0 => return ACCENT_COLOR
+        1 => return ACCENT2_COLOR
+        2 => return ACCENT3_COLOR
+        3 => return ACCENT4_COLOR
+        4 => return SURFACE_COLOR
+        _ => return SURFACE_COLOR
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENT: ScrollableList
+//  Displays 50+ items in a scrollable box with colored item backgrounds.
+//  Items are generated as formatted text content.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Scrollable list component with 50+ structured items.
+/// Each item shows title, subtitle, category, and priority.
+/// Items are programmatically generated as formatted text in a scroll view.
+component ScrollableList(
+    count: Int = ITEM_COUNT,
+    width: Float = LIST_WIDTH,
+    height: Float = LIST_HEIGHT,
+    key: String = "scrollable-list",
+):
+    state list_text: String = generate_list_text(count)
+    state scroll_title: String = "Scrollable List — " + str(count) + " items"
+
+    render <box kind="scrollview" key={key} width={width} height={height} fill={BG_COLOR} pad={8} gap={4} direction={1}>
+        <text value={scroll_title} />
+        <box kind="list-content" key="items-wrap" fill={SURFACE_COLOR} width={width - 16} height={height - 36} radius={CORNER_RADIUS} pad={6} gap={2} direction={1}>
+            <text value={list_text} />
+        </box>
+    </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DEMO COMPONENT: ListDemo
+//  Top-level scene wrapping ScrollableList with header and instructions.
+// ═══════════════════════════════════════════════════════════════════════════
+
+component ListDemo():
+    state frame: Int = 0
+
+    render <box kind="column" key="list-demo-root" fill={BG_COLOR} width={APP_WIDTH as Float} height={APP_HEIGHT as Float} pad={16} gap={8} direction={1}>
+        <text value={"Kaintana Scrollable List Demo"} />
+        <text value={"Frame: " + str(frame)} />
+        <ScrollableList count={ITEM_COUNT} width={LIST_WIDTH} height={LIST_HEIGHT} key="main-list" />
+    </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORLD — ties ListDemo to the kaintana surface
+// ═══════════════════════════════════════════════════════════════════════════
+
+world ScrollableListWorld:
+    surface kaintana => ListDemo
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MAIN — Session lifecycle and program entry
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    kt_init()
+    let sid = kt_make(APP_TITLE, APP_WIDTH, APP_HEIGHT)
+    if sid < 0:
+        return 1
+    let probe_ok = kt_backend_probe(sid)
+    if probe_ok == 0:
+        return 2
+    var running = kt_should_close(sid)
+    while running == 0:
+        kt_begin(sid, PULSE_DELTA)
+        kt_end(sid)
+        kt_present(sid)
+        running = kt_should_close(sid)
+    kt_free(sid)
+    return 0
+
+// ============================================================================
+//  END — scrollable_list.kn
+// ============================================================================

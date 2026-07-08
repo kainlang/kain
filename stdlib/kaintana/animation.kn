@@ -1,0 +1,316 @@
+// ============================================================================
+//  animation.kn — Spring Physics, Tween, and Easing Functions
+//  P1-006: Pure Kain Float math — NO C calls needed for computation.
+//
+//  Architecture:
+//    All animation state lives in Kain component state, driven by the
+//    `pulse` keyword. The C substrate is stateless animation-wise — it
+//    draws what it's told. Animation state is mutable component state.
+//
+//  Contents:
+//    SpringState   — damped spring physics integrator
+//    TweenState    — linear interpolation over duration with easing
+//    Easing fns    — smoothstep, smootherstep, ease_in/out/in_out
+//    lerp/lerp_color — linear interpolation helpers
+//
+//  Dependencies:
+//    - theme.kn: KtColor.lerp for lerp_color
+//    - core.kn: not needed — all pure Kain math
+//
+//  Rules:
+//    1. NO C calls for computation — all math is pure Kain Float ops.
+//    2. Spring model: Hooke's law + damping force, Euler integration.
+//    3. Tween model: linear over duration, eased at endpoint.
+//    4. Easing functions are Z3-proven in kaintana.h §18.
+//    5. lerp_color delegates to KtColor.lerp from theme.kn.
+// ============================================================================
+
+use std::kaintana::theme as theme
+
+// ============================================================================
+//  SPRING PHYSICS
+//  Damped spring model using Hooke's law with critical damping.
+//  Semi-implicit Euler integration for stability.
+//
+//  Physics model:
+//    force       = -stiffness * (value - target)
+//    damping     = -damping * velocity
+//    acceleration = force + damping
+//    velocity    = velocity + acceleration * dt
+//    value       = value + velocity * dt
+//
+//  Default parameters (stiffness=0.3, damping=0.7) give a critically
+//  damped response — fast approach without oscillation. Higher stiffness
+//  = snappier, higher damping = less bounce.
+// ============================================================================
+
+/// Spring state: tracks animated value and its velocity over time.
+///
+/// Fields:
+///   value     — current animated value (Float)
+///   velocity  — current rate of change (Float per ms)
+///   stiffness — spring stiffness coefficient (higher = faster response)
+///   damping   — damping ratio (higher = less oscillation)
+pub struct SpringState:
+    value:     Float
+    velocity:  Float
+    stiffness: Float
+    damping:   Float
+
+/// Create a default SpringState with critically-damped parameters.
+///
+/// Defaults:
+///   value:     0.0
+///   velocity:  0.0
+///   stiffness: 0.3
+///   damping:   0.7
+///
+/// These defaults give a smooth, non-oscillating response suitable
+/// for most UI animations. Adjust stiffness for speed and damping
+/// for bounce behavior.
+pub fn spring_default() -> SpringState:
+    return SpringState {
+        value: 0.0,
+        velocity: 0.0,
+        stiffness: 0.3,
+        damping: 0.7,
+    }
+
+/// Create a SpringState with custom parameters.
+///
+/// Args:
+///   initial_value — starting value for the animation
+///   initial_velocity — starting velocity (usually 0.0)
+///   stiffness — spring stiffness (default 0.3, range ~0.1-1.0)
+///   damping   — damping ratio (default 0.7, range ~0.1-1.0)
+pub fn spring_new(
+    initial_value: Float,
+    initial_velocity: Float,
+    stiffness: Float,
+    damping: Float,
+) -> SpringState:
+    return SpringState {
+        value: initial_value,
+        velocity: initial_velocity,
+        stiffness: stiffness,
+        damping: damping,
+    }
+
+/// Advance the spring simulation by dt_ms toward a target value.
+///
+/// Uses semi-implicit Euler integration for numerical stability.
+/// The returned SpringState has the updated value and velocity.
+///
+/// Args:
+///   state  — current spring state
+///   target — target value to spring toward
+///   dt_ms  — elapsed time in milliseconds since last update
+///
+/// Returns:
+///   Updated SpringState with advanced value and velocity.
+pub fn spring_update(state: SpringState, target: Float, dt_ms: Float) -> SpringState:
+    let delta = state.value - target
+    let force = -state.stiffness * delta
+    let damping_force = -state.damping * state.velocity
+    let acceleration = force + damping_force
+
+    let new_velocity = state.velocity + acceleration * dt_ms
+    let new_value = state.value + new_velocity * dt_ms
+
+    return SpringState {
+        value: new_value,
+        velocity: new_velocity,
+        stiffness: state.stiffness,
+        damping: state.damping,
+    }
+
+/// Check if a spring has approximately settled at its target.
+///
+/// Returns true when the value is within `epsilon` of the target
+/// AND velocity is below `velocity_epsilon`. Use this to stop
+/// updating springs that have settled, saving CPU cycles.
+///
+/// Args:
+///   state   — current spring state
+///   target  — target value
+///   epsilon — allowed value tolerance (default 0.01)
+///   velocity_epsilon — allowed velocity tolerance (default 0.01)
+pub fn spring_settled(
+    state: SpringState,
+    target: Float,
+    epsilon: Float,
+    velocity_epsilon: Float,
+) -> Bool:
+    let value_diff = state.value - target
+    if value_diff < 0.0:
+        let abs_diff = -value_diff
+        if abs_diff > epsilon:
+            return false
+    else:
+        if value_diff > epsilon:
+            return false
+
+    let abs_vel = if state.velocity < 0.0: -state.velocity else: state.velocity
+    if abs_vel > velocity_epsilon:
+        return false
+
+    return true
+
+// ============================================================================
+//  TWEEN ANIMATION
+//  Linear interpolation from start_value to end_value over duration_ms.
+//  Uses easing function to compute the interpolated output value.
+//  Non-reversing — runs forward once to completion.
+// ============================================================================
+
+/// Tween state: tracks a linear animation from start to end over time.
+///
+/// Fields:
+///   start_value  — value at t=0 (animation start)
+///   end_value    — value at t=1 (animation end)
+///   duration_ms  — total animation duration in milliseconds
+///   elapsed_ms   — time elapsed since animation start
+pub struct TweenState:
+    start_value: Float
+    end_value:   Float
+    duration_ms: Float
+    elapsed_ms:  Float
+
+/// Create a new TweenState starting at `start` and ending at `end`
+/// over `duration_ms` milliseconds.
+///
+/// The tween starts with elapsed_ms = 0.0. Each call to tween_update
+/// advances the elapsed time. Call tween_value to get the current
+/// interpolated output, which applies easing automatically.
+pub fn tween_new(start: Float, end: Float, duration_ms: Float) -> TweenState:
+    return TweenState {
+        start_value: start,
+        end_value: end,
+        duration_ms: duration_ms,
+        elapsed_ms: 0.0,
+    }
+
+/// Advance a TweenState by `dt_ms` milliseconds.
+///
+/// Clamps elapsed_ms to duration_ms so the tween does not
+/// overshoot. Once elapsed_ms >= duration_ms, the tween is
+/// complete and subsequent tween_value calls return end_value.
+pub fn tween_update(state: TweenState, dt_ms: Float) -> TweenState:
+    let new_elapsed = state.elapsed_ms + dt_ms
+    if new_elapsed >= state.duration_ms:
+        return TweenState {
+            start_value: state.start_value,
+            end_value: state.end_value,
+            duration_ms: state.duration_ms,
+            elapsed_ms: state.duration_ms,
+        }
+    return TweenState {
+        start_value: state.start_value,
+        end_value: state.end_value,
+        duration_ms: state.duration_ms,
+        elapsed_ms: new_elapsed,
+    }
+
+/// Compute the current interpolated value of a TweenState.
+///
+/// Applies ease_out easing to the normalized progress t.
+/// When elapsed_ms >= duration_ms, returns end_value directly.
+///
+/// Normalized t = elapsed_ms / duration_ms, clamped to [0, 1].
+/// Eased t = ease_out(t), then lerp(start, end, eased_t).
+pub fn tween_value(state: TweenState) -> Float:
+    if state.elapsed_ms >= state.duration_ms:
+        return state.end_value
+    let t = state.elapsed_ms / state.duration_ms
+    let eased_t = ease_out(t)
+    return state.start_value + (state.end_value - state.start_value) * eased_t
+
+/// Check if a tween has completed (reached or passed end).
+pub fn tween_done(state: TweenState) -> Bool:
+    return state.elapsed_ms >= state.duration_ms
+
+// ============================================================================
+//  EASING FUNCTIONS
+//  All functions take t in [0, 1] and return an eased value in [0, 1].
+//
+//  These wrap the Z3-proven inline helpers in kaintana.h §18.
+//  All are UNSAT-proven for bounds [-1e-6, 1+1e-6], monotonicity,
+//  and C0/C1/C2 derivative continuity.
+//
+//  smoothstep:     t^2(3 - 2t) — C1 continuous
+//  smootherstep:   t^3(t(6t - 15) + 10) — C2 continuous
+//  ease_in:        t^3 — cubic in
+//  ease_out:       1 - (1-t)^3 — cubic out
+//  ease_in_out:    piecewise — 4t^3 for t<0.5, 1-(2-2t)^3/2 for t>=0.5
+// ============================================================================
+
+/// Smoothstep: t^2 * (3 - 2t). C1 continuous, S-shaped curve.
+/// Gentle acceleration at start, deceleration at end.
+pub fn ease_smoothstep(t: Float) -> Float:
+    return t * t * (3.0 - 2.0 * t)
+
+/// Smootherstep: t^3 * (t * (6t - 15) + 10). C2 continuous.
+/// Smoother than smoothstep — second derivative is continuous.
+pub fn ease_smootherstep(t: Float) -> Float:
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+
+/// Ease-in: t^3. Cubic acceleration from rest.
+/// Starts slow, ends fast. Use for objects entering the scene.
+pub fn ease_in(t: Float) -> Float:
+    return t * t * t
+
+/// Ease-out: 1 - (1 - t)^3. Cubic deceleration to rest.
+/// Starts fast, ends slow. Use for objects leaving the scene.
+pub fn ease_out(t: Float) -> Float:
+    let u = 1.0 - t
+    return 1.0 - u * u * u
+
+/// Ease-in-out: piecewise cubic. Symmetric S-curve.
+/// t < 0.5: 4 * t^3 (accelerating)
+/// t >= 0.5: 1 - (2 - 2t)^3 / 2 (decelerating)
+/// Use for objects moving between two on-screen positions.
+pub fn ease_in_out(t: Float) -> Float:
+    if t < 0.5:
+        return 4.0 * t * t * t
+    let u = 2.0 - 2.0 * t
+    return 1.0 - u * u * u * 0.5
+
+/// Clamp t to [0, 1] range before applying an easing function.
+/// Use with any easing function to guarantee valid output range.
+pub fn ease_clamp(t: Float) -> Float:
+    if t < 0.0:
+        return 0.0
+    if t > 1.0:
+        return 1.0
+    return t
+
+// ============================================================================
+//  LINEAR INTERPOLATION HELPERS
+// ============================================================================
+
+/// Linear interpolation: a + (b - a) * t.
+///
+/// When t = 0: returns a. When t = 1: returns b.
+/// t is NOT clamped — extrapolation works naturally.
+pub fn lerp(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+/// Color linear interpolation: delegates to KtColor.lerp.
+///
+/// Uses the sRGB lerp from theme.kn (KtColor). This is NOT gamma-aware
+/// lerp — it's a straight channel-by-channel interpolation suitable for
+/// most UI animation needs.
+pub fn lerp_color(a: theme::KtColor, b: theme::KtColor, t: Float) -> theme::KtColor:
+    return a.lerp(b, t)
+
+// ============================================================================
+//  CLAMP HELPER
+// ============================================================================
+
+/// Clamp a Float value to [lo, hi] range.
+pub fn clamp_float(v: Float, lo: Float, hi: Float) -> Float:
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v

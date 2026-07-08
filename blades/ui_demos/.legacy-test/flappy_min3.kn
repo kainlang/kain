@@ -1,0 +1,42 @@
+// Minimal test 3: node created OUTSIDE loop, same as widget_showcase header
+use std::ui
+use std::ui::widget
+use std::ui::style
+
+const WIN_W: Int = 400
+const WIN_H: Int = 600
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FlappyMin3", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Flappy Test", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+
+    // Create nodes OUTSIDE the loop (like widget_showcase header)
+    let bg = native_ui_node_create(session, "bg")
+    native_ui_node_set_rect(session, bg, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H))
+    native_ui_node_set_style_i64(session, bg, "fill-color", 0xFFFF0000)
+
+    var frame = 0
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        frame = frame + 1
+        if frame > 300:
+            break
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

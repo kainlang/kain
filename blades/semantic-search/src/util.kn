@@ -1,0 +1,201 @@
+// ============================================================================
+//  util.kn — Pure Helper Functions
+//
+//  Layer 0: plain fn with Pure effect. No world, no actor, no raw memory.
+//  Just utility math and string operations used everywhere.
+// ============================================================================
+
+use std::text
+
+// ============================================================================
+//  MATH HELPERS
+// ============================================================================
+
+pub fn mod_pos(v: Int, m: Int) -> Int:
+    if m <= 0:
+        return 0
+    let r = v % m
+    if r < 0:
+        return r + m
+    return r
+
+pub fn i_clamp(v: Int, lo: Int, hi: Int) -> Int:
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+pub fn i_min(a: Int, b: Int) -> Int:
+    if a < b:
+        return a
+    return b
+
+pub fn i_max(a: Int, b: Int) -> Int:
+    if a > b:
+        return a
+    return b
+
+pub fn f_min(a: Float, b: Float) -> Float:
+    if a < b:
+        return a
+    return b
+
+pub fn f_max(a: Float, b: Float) -> Float:
+    if a > b:
+        return a
+    return b
+
+// ============================================================================
+//  STRING HASHING
+// ============================================================================
+
+// FNV-1a 32-bit hash for a string.
+// Pure — no memory effects, no IO. Deterministic on any platform.
+pub fn hash_string(s: String) -> Int:
+    let h: Int = 2166136261   // FNV offset basis
+    let prime: Int = 16777619
+    let i: Int = 0
+    let n: Int = len(s)
+    while i < n:
+        let byte: Int = ord(char_at(s, i))
+        if byte >= 0:
+            h = (h ^ (byte & 0xFF)) * prime
+        i = i + 1
+    return h & 0x7FFFFFFF  // ensure positive
+
+// Combine two hashes (for multi-term compound keys)
+pub fn hash_combine(a: Int, b: Int) -> Int:
+    return a ^ (b * 0x9E3779B9 + (a << 6) + (a >> 2))
+
+// ============================================================================
+//  STRING UTILITIES
+// ============================================================================
+
+// Check if a character is whitespace
+pub fn is_whitespace(ch: String) -> Bool:
+    if ch == " ":
+        return true
+    if ch == "\t":
+        return true
+    if ch == "\n":
+        return true
+    if ch == "\r":
+        return true
+    return false
+
+// Check if a character is punctuation for tokenization purposes
+pub fn is_punctuation(ch: String) -> Bool:
+    if ch >= "a" and ch <= "z":
+        return false
+    if ch >= "A" and ch <= "Z":
+        return false
+    if ch >= "0" and ch <= "9":
+        return false
+    if ch == "_":
+        return false
+    if is_whitespace(ch):
+        return false
+    return true
+
+// Check if a character is alphanumeric or underscore (identifier-valid)
+pub fn is_ident_char(ch: String) -> Bool:
+    if ch >= "a" and ch <= "z":
+        return true
+    if ch >= "A" and ch <= "Z":
+        return true
+    if ch >= "0" and ch <= "9":
+        return true
+    if ch == "_":
+        return true
+    return false
+
+// Check if a character is a colon or double-colon starter (for Rust paths)
+pub fn is_path_sep(ch: String) -> Bool:
+    return ch == ":"
+
+// ============================================================================
+//  FILE EXTENSION HELPERS
+// ============================================================================
+
+// Get the extension of a file path (everything after the last '.')
+// Returns empty string if no extension.
+pub fn file_extension(path: String) -> String:
+    let n: Int = len(path)
+    var i: Int = n - 1
+    while i >= 0:
+        let ch: String = char_at(path, i)
+        if ch == ".":
+            return substring(path, i + 1, n)
+        if ch == "/" or ch == "\\":
+            return ""
+        i = i - 1
+    return ""
+
+// Get the file name (everything after the last '/' or '\')
+pub fn file_name(path: String) -> String:
+    let n: Int = len(path)
+    var i: Int = n - 1
+    while i >= 0:
+        let ch: String = char_at(path, i)
+        if ch == "/" or ch == "\\":
+            return substring(path, i + 1, n)
+        i = i - 1
+    return path
+
+// Map file extension to language string
+pub fn extension_to_lang(ext: String) -> String:
+    if ext == "rs":
+        return "rust"
+    if ext == "c" or ext == "h":
+        return "c"
+    if ext == "kn":
+        return "kain"
+    return "unknown"
+
+// Map file path to domain string
+pub fn path_to_domain(path: String) -> String:
+    // Normalize both slash types — check for domain directory names in path
+    if text_contains_string(path, "/crates") or text_contains_string(path, "\\crates"):
+        return "crates"
+    if text_contains_string(path, "/runtime") or text_contains_string(path, "\\runtime"):
+        return "runtime"
+    if text_contains_string(path, "/stdlib") or text_contains_string(path, "\\stdlib"):
+        return "stdlib"
+    return "other"
+
+// Extract subsystem from a file path
+// e.g. "crates/actor/src/lib.rs" -> "actor"
+//       "../../crates/actor/src/lib.rs" -> "actor"
+//       "runtime/native/src/core/actor.c" -> "core"
+//       "stdlib/actor.kn" -> "actor"
+pub fn path_to_subsys(path: String) -> String:
+    let parts: Array<String> = text_split_string(path, "/")
+    // Scan for domain markers and return the component after them
+    var i: Int = 0
+    while i < len(parts):
+        let p: String = parts[i]
+        if p == "crates" or p == "runtime" or p == "stdlib":
+            // For crates/X/..., subsystem is the next part
+            if i + 1 < len(parts):
+                return parts[i + 1]
+            return p
+        i = i + 1
+    return "root"
+
+// ============================================================================
+//  STRING TOLOWER
+// ============================================================================
+
+pub fn to_lower_simple(s: String) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < len(s):
+        let ch: String = char_at(s, i)
+        if ch >= "A" and ch <= "Z":
+            let lower_byte: Int = ord(ch) + 32
+            result = result + chr(lower_byte)
+        else:
+            result = result + ch
+        i = i + 1
+    return result

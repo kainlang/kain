@@ -1,0 +1,382 @@
+// ============================================================================
+//  file_explorer.kn — Kain File Explorer UI Demo
+// ============================================================================
+//  A file explorer with:
+//    - Left sidebar: quick nav + filters + directory stats
+//    - Center: file list with scroll + search bar
+//    - Right: file details panel
+//    - Top header bar with breadcrumb path
+//    - Bottom status bar
+//    - Real filesystem via std::fs + std::os
+//
+//  Layout: 3-COLUMN SIDEBAR (NOT horizontal stacked panels!)
+//  Window: 1050 x 680
+//  Theme: Teal/steel dark
+//
+//  Usage: kain run blades/ui_demos/file_explorer.kn --target llvm
+// ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+use std::fs
+use std::os
+
+const WIN_W: Int = 1050
+const WIN_H: Int = 680
+
+// Teal/steel theme
+const CLR_SIDEBAR: Int = 0xFF141C26
+const CLR_MAIN: Int = 0xFF1A1A24
+const CLR_TEAL: Int = 0xFF00BFA5
+const CLR_STATUS: Int = 0xFF0D1117
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct FileEntry:
+    name: String
+    is_dir: Bool
+    size: Int
+
+struct ExplorerState:
+    cwd: String
+    entries: Array<FileEntry>
+    selected: Int
+    search_text: String
+    scroll_offset: Int
+    frame_count: Int
+    show_hidden: Bool
+    detail_mode: Bool
+    entry_count: Int
+
+fn init_explorer() -> ExplorerState:
+    let cwd = os_getcwd()
+    let entries = scan_directory(cwd)
+    return ExplorerState {
+        cwd: cwd,
+        entries: entries,
+        selected: -1,
+        search_text: "",
+        scroll_offset: 0,
+        frame_count: 0,
+        show_hidden: false,
+        detail_mode: false,
+        entry_count: len(entries),
+    }
+
+// ============================================================================
+//  FILESYSTEM HELPERS
+// ============================================================================
+
+fn scan_directory(path: String) -> Array<FileEntry>:
+    var result: Array<FileEntry> = []
+    if fs_is_dir(path) == false:
+        return result
+    let dir_paths = fs_read_dir_paths(path)
+    let count = len(dir_paths)
+    var i = 0
+    while i < count:
+        let entry_path = dir_paths[i]
+        let file_name = fs_path_file_name(entry_path)
+        let is_dir = fs_is_dir(entry_path)
+        var size = 0
+        if is_dir == false:
+            let meta = fs_try_metadata(entry_path)
+            if meta.ok:
+                size = meta.value.len
+        push(result, FileEntry { name: file_name, is_dir: is_dir, size: size })
+        i = i + 1
+    return result
+
+fn file_type_label(entry: FileEntry) -> String:
+    if entry.is_dir:
+        return "Folder"
+    let ext = fs_path_extension(entry.name)
+    if ext == ".kn": return "Kain Source"
+    if ext == ".rs": return "Rust Source"
+    if ext == ".c" or ext == ".h": return "C Source"
+    if ext == ".py": return "Python"
+    if ext == ".js" or ext == ".ts": return "JavaScript"
+    if ext == ".json": return "JSON"
+    if ext == ".toml": return "TOML Config"
+    if ext == ".md": return "Markdown"
+    if ext == ".txt": return "Text"
+    if ext == ".exe": return "Executable"
+    if ext == ".dll": return "Library"
+    if ext == ".spv": return "SPIR-V Shader"
+    if ext == ".wasm": return "WebAssembly"
+    if len(ext) > 0: return ext + " File"
+    return "File"
+
+fn format_size(bytes: Int) -> String:
+    if bytes < 1024: return str(bytes) + " B"
+    if bytes < 1048576: return str(bytes / 1024) + " KB"
+    if bytes < 1073741824: return str(bytes / 1048576) + " MB"
+    return str(bytes / 1073741824) + " GB"
+
+fn pad_right(s: String, width: Int) -> String:
+    var result = s
+    var i = len(s)
+    while i < width:
+        result = result + " "
+        i = i + 1
+    return result
+
+fn navigate_to(st: ExplorerState, new_path: String) -> ExplorerState:
+    if fs_is_dir(new_path) == false:
+        return st
+    st.cwd = new_path
+    st.entries = scan_directory(new_path)
+    st.entry_count = len(st.entries)
+    st.selected = -1
+    st.scroll_offset = 0
+    return st
+
+// ============================================================================
+//  RENDER: SIDEBAR (left column)
+// ============================================================================
+
+fn render_sidebar(ctx: Int, st: ExplorerState) -> ExplorerState:
+    let _p = panel_begin(ctx, "NAVIGATE", 8.0, 50.0, 230.0, 570.0)
+
+    label(ctx, "  QUICK ACCESS")
+    label(ctx, " ")
+
+    if button(ctx, "  Desktop"):
+        let p = os_getenv("USERPROFILE") + "\\Desktop"
+        st = navigate_to(st, p)
+
+    if button(ctx, "  Documents"):
+        let p = os_getenv("USERPROFILE") + "\\Documents"
+        st = navigate_to(st, p)
+
+    if button(ctx, "  Downloads"):
+        let p = os_getenv("USERPROFILE") + "\\Downloads"
+        st = navigate_to(st, p)
+
+    if button(ctx, "  C:\\"):
+        st = navigate_to(st, "C:\\")
+
+    if button(ctx, "  X:\\ Repo Root"):
+        st = navigate_to(st, "X:\\")
+
+    label(ctx, " ")
+    label(ctx, "  FILTERS")
+    let cb1 = checkbox(ctx, "Show Hidden", st.show_hidden)
+    if cb1.toggled:
+        st.show_hidden = cb1.value
+
+    let cb2 = checkbox(ctx, "Detail Mode", st.detail_mode)
+    if cb2.toggled:
+        st.detail_mode = cb2.value
+
+    label(ctx, " ")
+    label(ctx, "  STATS")
+    var dirs = 0
+    var files = 0
+    var total_size = 0
+    var i = 0
+    while i < st.entry_count:
+        if st.entries[i].is_dir:
+            dirs = dirs + 1
+        else:
+            files = files + 1
+            total_size = total_size + st.entries[i].size
+        i = i + 1
+
+    label(ctx, "  Folders:      " + str(dirs))
+    label(ctx, "  Files:        " + str(files))
+    label(ctx, "  Total Size:   " + format_size(total_size))
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: FILE LIST (center column)
+// ============================================================================
+
+fn render_file_list(ctx: Int, st: ExplorerState) -> ExplorerState:
+    let _p = panel_begin(ctx, "FILES", 248.0, 50.0, 520.0, 570.0)
+
+    // Path bar
+    label(ctx, "  PATH: " + st.cwd)
+    label(ctx, " ")
+
+    // Search
+    let new_search = textbox(ctx, st.search_text, 128)
+    if len(new_search) > 0:
+        st.search_text = new_search
+
+    label(ctx, " ")
+
+    // Navigation buttons
+    if button(ctx, "  UP (Parent Dir)"):
+        let parent = fs_path_parent(st.cwd)
+        if len(parent) > 0 and fs_is_dir(parent):
+            st = navigate_to(st, parent)
+
+    if button(ctx, "  REFRESH"):
+        st.entries = scan_directory(st.cwd)
+        st.entry_count = len(st.entries)
+
+    label(ctx, " ")
+
+    // Column header
+    label(ctx, "  NAME                           TYPE       SIZE")
+    label(ctx, "  ----------------------------------------------------")
+
+    // File list
+    let visible = 14
+    let start = st.scroll_offset
+    var end_idx = start + visible
+    if end_idx > st.entry_count:
+        end_idx = st.entry_count
+
+    var i = start
+    while i < end_idx:
+        let entry = st.entries[i]
+        let icon = if entry.is_dir: "[DIR]" else: "[FIL]"
+        let type_label = file_type_label(entry)
+        let size_str = if entry.is_dir: "<DIR>   " else: format_size(entry.size)
+        let name_col = pad_right(entry.name, 30)
+        let type_col = pad_right(type_label, 10)
+
+        let row_text = "  " + icon + " " + name_col + type_col + size_str
+
+        if i == st.selected:
+            if button(ctx, ">> " + row_text):
+                st.selected = i
+                // Navigate into directory on second click
+                if entry.is_dir:
+                    let new_path = fs_path_join(st.cwd, entry.name)
+                    st = navigate_to(st, new_path)
+        else:
+            if button(ctx, "   " + row_text):
+                st.selected = i
+
+        i = i + 1
+
+    // Scroll buttons
+    label(ctx, " ")
+    if button(ctx, "  SCROLL UP"):
+        if st.scroll_offset > 0:
+            st.scroll_offset = st.scroll_offset - visible
+            if st.scroll_offset < 0:
+                st.scroll_offset = 0
+
+    if button(ctx, "  SCROLL DOWN"):
+        if st.scroll_offset + visible < st.entry_count:
+            st.scroll_offset = st.scroll_offset + visible
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: DETAILS (right column)
+// ============================================================================
+
+fn render_details(ctx: Int, st: ExplorerState) -> ExplorerState:
+    let _p = panel_begin(ctx, "DETAILS", 778.0, 50.0, 262.0, 570.0)
+
+    label(ctx, "  FILE INFO")
+    label(ctx, " ")
+
+    if st.selected >= 0 and st.selected < st.entry_count:
+        let entry = st.entries[st.selected]
+        label(ctx, "  Name:")
+        label(ctx, "    " + entry.name)
+        label(ctx, " ")
+        label(ctx, "  Type:")
+        label(ctx, "    " + file_type_label(entry))
+        label(ctx, " ")
+        label(ctx, "  Size:")
+        label(ctx, "    " + format_size(entry.size))
+        label(ctx, "    (" + str(entry.size) + " bytes)")
+        label(ctx, " ")
+        label(ctx, "  Full Path:")
+        label(ctx, "    " + st.cwd + "\\" + entry.name)
+
+        if entry.is_dir:
+            label(ctx, " ")
+            label(ctx, "  [Directory]")
+            if button(ctx, "  OPEN FOLDER"):
+                let new_path = fs_path_join(st.cwd, entry.name)
+                st = navigate_to(st, new_path)
+        else:
+            label(ctx, " ")
+            label(ctx, "  Extension: " + fs_path_extension(entry.name))
+    else:
+        label(ctx, "  No file selected")
+        label(ctx, " ")
+        label(ctx, "  Click a file in the")
+        label(ctx, "  list to see its details.")
+        label(ctx, " ")
+        label(ctx, "  Double-click a folder")
+        label(ctx, "  to navigate into it.")
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FileExplorer", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Kain File Explorer", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+    if ctx <= 0:
+        return 2
+
+    let font_body = load_font(ctx, "C:/Windows/Fonts/arial.ttf", 13.0)
+    let body_id = if font_body <= 0: load_default_font(ctx, 13.0) else: font_body
+
+    let font_mono = load_font(ctx, "C:/Windows/Fonts/consola.ttf", 12.0)
+    let mono_id = if font_mono <= 0: body_id else: font_mono
+
+    let font_title = load_font(ctx, "C:/Windows/Fonts/arial.ttf", 18.0)
+    let title_id = if font_title <= 0: body_id else: font_title
+
+    var state = init_explorer()
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // ── Header bar ──────────────────────────────────────────────
+        let hdr = native_ui_node_create(session, "header")
+        native_ui_node_set_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), 38.0)
+        native_ui_node_set_style_i64(session, hdr, "fill-color", CLR_STATUS)
+        let _ht = native_ui_draw_text(session, hdr, title_id, 14.0, 6.0,
+            " KAIN FILE EXPLORER  |  " + state.cwd, "hdr-text")
+
+        // ── Three columns ───────────────────────────────────────────
+        state = render_sidebar(ctx, state)
+        state = render_file_list(ctx, state)
+        state = render_details(ctx, state)
+
+        // ── Status bar ──────────────────────────────────────────────
+        let status = native_ui_node_create(session, "status")
+        native_ui_node_set_rect(session, status, 0.0, to_float(WIN_H - 28), to_float(WIN_W), 28.0)
+        native_ui_node_set_style_i64(session, status, "fill-color", CLR_STATUS)
+        let status_msg = "  " + str(state.entry_count) + " items  |  " + state.cwd + "  |  frame " + str(state.frame_count)
+        let _st = native_ui_draw_text(session, status, mono_id, 10.0, 4.0, status_msg, "status-text")
+
+        state.frame_count = state.frame_count + 1
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

@@ -87,12 +87,13 @@ title = "Invalid World Surface Kind"
 severity = "error"
 docs_key = "world/surface-kind"
 help = """
-`surface` declarations inside a `world` block must use one of the four
-built-in surface kinds: native_ui, viewport3d, web, or ue5.
+`surface` declarations inside a `world` block must use a valid
+identifier naming a registered surface backend (e.g., 'native_ui',
+'kaintana', 'vulkan').
 
-Fix: replace the unknown kind with a valid surface projection kind.
+Fix: replace the unknown token with a valid surface identifier.
 """
-example_bad = "surface desktop => MyPanel"
+example_bad = "surface 42 => MyPanel"
 example_good = "surface native_ui => MyPanel"
 see_also = ["KAIN-WORLD-0001"]
 

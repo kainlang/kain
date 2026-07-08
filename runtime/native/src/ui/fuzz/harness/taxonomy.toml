@@ -1,0 +1,1890 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Kain UI Telemetry Taxonomy — Data-Driven Test Definition
+# ═══════════════════════════════════════════════════════════════════════════
+#  Every test case is data. Add new tests by editing this file, not by
+#  writing code. Each category maps to one or more API surfaces.
+#
+#  Schema version: 1.0.0
+#  Format:         TOML
+#  Generator:      run_telemetry.py
+# ═══════════════════════════════════════════════════════════════════════════
+
+[meta]
+schema_version = "1.0.0"
+generated = "2026-06-26"
+description = "Complete Kain UI telemetry taxonomy — 9 categories, all API surfaces"
+runtime_abi = "native_ui_surface"
+c_test_binary = "kain_ui_test_runner.exe"
+
+[settings]
+timeout_ms = 5000
+repeat_count = 3
+report_dir = "../reports"
+c_test_dir = "c_tests"
+crash_repro_dir = "../reports/crashes"
+screenshot_dir = "../reports/screenshots"
+max_workers = 4
+verbosity = "info"
+fail_fast = false
+collect_perf = true
+collect_cov = true
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 1: geometry
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.geometry]
+name = "geometry"
+description = "Primitive geometry types and operations: rect, point, size, color, matrix"
+api_header = "kain_geometry.h"
+source_file = "../../../../include/kain_geometry.h"
+weight = 1.0
+
+# ── Rect construction ────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "rect_make"
+name = "kain_rect_make"
+api = "kain_rect_make"
+signature = "kainRect(float x, float y, float w, float h) -> kainRect"
+import_path = "kain_geometry.h"
+group = "rect_construction"
+pass_criteria = "returns rect with correct fields"
+
+[[category.geometry.tests.inputs]]
+desc = "normal rect"
+x = 0.0
+y = 0.0
+w = 100.0
+h = 100.0
+
+[[category.geometry.tests.inputs]]
+desc = "negative origin"
+x = -50.0
+y = -50.0
+w = 200.0
+h = 200.0
+
+[[category.geometry.tests.inputs]]
+desc = "zero width"
+x = 1.5
+y = 2.5
+w = 0.0
+h = 10.0
+
+[[category.geometry.tests.inputs]]
+desc = "large and small values"
+x = 1000000.0
+y = 1000000.0
+w = 0.000001
+h = 0.000001
+
+# ── Rect contains ────────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "rect_contains"
+name = "kain_rect_contains"
+api = "kain_rect_contains"
+signature = "bool(kainRect r, kainPoint p)"
+import_path = "kain_geometry.h"
+group = "rect_queries"
+pass_criteria = "returns true when point inside rect, false otherwise"
+
+[[category.geometry.tests.inputs]]
+desc = "point inside rect"
+r_x = 0.0
+r_y = 0.0
+r_w = 100.0
+r_h = 100.0
+p_x = 50.0
+p_y = 50.0
+expect = true
+
+[[category.geometry.tests.inputs]]
+desc = "point outside rect"
+r_x = 0.0
+r_y = 0.0
+r_w = 100.0
+r_h = 100.0
+p_x = -1.0
+p_y = 50.0
+expect = false
+
+[[category.geometry.tests.inputs]]
+desc = "point on edge"
+r_x = 0.0
+r_y = 0.0
+r_w = 100.0
+r_h = 100.0
+p_x = 100.0
+p_y = 50.0
+expect = true
+
+[[category.geometry.tests.inputs]]
+desc = "point on corner"
+r_x = 0.0
+r_y = 0.0
+r_w = 100.0
+r_h = 100.0
+p_x = 0.0
+p_y = 0.0
+expect = true
+
+# ── Rect overlaps ────────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "rect_overlaps"
+name = "kain_rect_overlaps"
+api = "kain_rect_overlaps"
+signature = "bool(kainRect a, kainRect b)"
+import_path = "kain_geometry.h"
+group = "rect_queries"
+pass_criteria = "correctly detects overlapping - non-overlapping rects"
+
+[[category.geometry.tests.inputs]]
+desc = "overlapping rects"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 5.0
+b_y = 5.0
+b_w = 10.0
+b_h = 10.0
+expect = true
+
+[[category.geometry.tests.inputs]]
+desc = "non-overlapping rects"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 20.0
+b_y = 20.0
+b_w = 10.0
+b_h = 10.0
+expect = false
+
+[[category.geometry.tests.inputs]]
+desc = "edge-touching rects"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 10.0
+b_y = 0.0
+b_w = 5.0
+b_h = 10.0
+expect = false
+
+# ── Rect intersect ───────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "rect_intersect"
+name = "kain_rect_intersect"
+api = "kain_rect_intersect"
+signature = "kainRect(kainRect a, kainRect b)"
+import_path = "kain_geometry.h"
+group = "rect_queries"
+pass_criteria = "returns correct intersection rect"
+
+[[category.geometry.tests.inputs]]
+desc = "overlapping intersection"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 5.0
+b_y = 5.0
+b_w = 10.0
+b_h = 10.0
+expect_w = 5.0
+expect_h = 5.0
+
+[[category.geometry.tests.inputs]]
+desc = "non-overlapping zero intersection"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 20.0
+b_y = 20.0
+b_w = 10.0
+b_h = 10.0
+expect_w = 0.0
+expect_h = 0.0
+
+# ── Rect union ───────────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "rect_union"
+name = "kain_rect_union"
+api = "kain_rect_union"
+signature = "kainRect(kainRect a, kainRect b)"
+import_path = "kain_geometry.h"
+group = "rect_queries"
+pass_criteria = "returns correct bounding union"
+
+[[category.geometry.tests.inputs]]
+desc = "bounding union"
+a_x = 0.0
+a_y = 0.0
+a_w = 10.0
+a_h = 10.0
+b_x = 5.0
+b_y = 5.0
+b_w = 10.0
+b_h = 10.0
+expect_w = 15.0
+expect_h = 15.0
+
+# ── Point operations ─────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "point_make"
+name = "kain_point_make"
+api = "kain_point_make"
+signature = "kainPoint(float x, float y)"
+import_path = "kain_geometry.h"
+group = "point"
+pass_criteria = "returns point with correct coordinates"
+
+[[category.geometry.tests.inputs]]
+desc = "positive coordinates"
+x = 10.0
+y = 20.0
+
+[[category.geometry.tests.inputs]]
+desc = "negative mixed"
+x = -5.0
+y = 3.14
+
+[[category.geometry.tests.inputs]]
+desc = "origin"
+x = 0.0
+y = 0.0
+
+[[category.geometry.tests]]
+id = "point_add"
+name = "kain_point_add"
+api = "kain_point_add"
+signature = "kainPoint(kainPoint a, kainPoint b)"
+import_path = "kain_geometry.h"
+group = "point"
+pass_criteria = "returns component-wise sum"
+
+[[category.geometry.tests.inputs]]
+desc = "positive offset"
+a_x = 1.0
+a_y = 2.0
+b_x = 3.0
+b_y = 4.0
+expect_x = 4.0
+expect_y = 6.0
+
+[[category.geometry.tests.inputs]]
+desc = "cancel to zero"
+a_x = -1.0
+a_y = 5.0
+b_x = 1.0
+b_y = -5.0
+expect_x = 0.0
+expect_y = 0.0
+
+[[category.geometry.tests]]
+id = "point_sub"
+name = "kain_point_sub"
+api = "kain_point_sub"
+signature = "kainPoint(kainPoint a, kainPoint b)"
+import_path = "kain_geometry.h"
+group = "point"
+pass_criteria = "returns component-wise difference"
+
+[[category.geometry.tests.inputs]]
+desc = "positive difference"
+a_x = 5.0
+a_y = 5.0
+b_x = 2.0
+b_y = 3.0
+expect_x = 3.0
+expect_y = 2.0
+
+# ── Color operations ─────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "color_rgba"
+name = "kain_color_rgba"
+api = "kain_color_rgba"
+signature = "kainColor(float r, float g, float b, float a)"
+import_path = "kain_geometry.h"
+group = "color"
+pass_criteria = "creates color with correct channels"
+
+[[category.geometry.tests.inputs]]
+desc = "opaque orange"
+r = 1.0
+g = 0.5
+b = 0.0
+a = 1.0
+
+[[category.geometry.tests.inputs]]
+desc = "fully transparent"
+r = 0.0
+g = 0.0
+b = 0.0
+a = 0.0
+
+[[category.geometry.tests.inputs]]
+desc = "out-of-range values"
+r = -0.5
+g = 1.5
+b = 2.0
+a = -1.0
+
+[[category.geometry.tests]]
+id = "color_from_u32"
+name = "kain_color_from_u32"
+api = "kain_color_from_u32"
+signature = "kainColor(uint32_t argb)"
+import_path = "kain_geometry.h"
+group = "color"
+pass_criteria = "correctly converts ARGB uint32 to float color"
+
+[[category.geometry.tests.inputs]]
+desc = "ARGB red"
+argb = 4294901760
+expect_r = 1.0
+expect_g = 0.0
+expect_b = 0.0
+expect_a = 1.0
+
+[[category.geometry.tests.inputs]]
+desc = "ARGB green"
+argb = 4278255360
+expect_r = 0.0
+expect_g = 1.0
+expect_b = 0.0
+expect_a = 1.0
+
+[[category.geometry.tests]]
+id = "color_to_u32"
+name = "kain_color_to_u32"
+api = "kain_color_to_u32"
+signature = "uint32_t(kainColor c)"
+import_path = "kain_geometry.h"
+group = "color"
+pass_criteria = "correctly converts float color to ARGB uint32"
+
+[[category.geometry.tests.inputs]]
+desc = "float red to ARGB"
+c_r = 1.0
+c_g = 0.0
+c_b = 0.0
+c_a = 1.0
+expect = 4278190080
+
+[[category.geometry.tests.inputs]]
+desc = "semi-transparent green"
+c_r = 0.0
+c_g = 1.0
+c_b = 0.0
+c_a = 0.5
+expect = 2130706432
+
+[[category.geometry.tests]]
+id = "color_lerp"
+name = "kain_color_lerp"
+api = "kain_color_lerp"
+signature = "kainColor(kainColor a, kainColor b, float t)"
+import_path = "kain_geometry.h"
+group = "color"
+pass_criteria = "correctly interpolates between two colors"
+
+[[category.geometry.tests.inputs]]
+desc = "midpoint gray"
+a_r = 0.0
+a_g = 0.0
+a_b = 0.0
+a_a = 1.0
+b_r = 1.0
+b_g = 1.0
+b_b = 1.0
+b_a = 1.0
+t = 0.5
+expect_r = 0.5
+expect_g = 0.5
+expect_b = 0.5
+expect_a = 1.0
+
+[[category.geometry.tests.inputs]]
+desc = "endpoint b"
+a_r = 1.0
+a_g = 0.0
+a_b = 0.0
+a_a = 1.0
+b_r = 0.0
+b_g = 1.0
+b_b = 0.0
+b_a = 1.0
+t = 1.0
+expect_r = 0.0
+expect_g = 1.0
+expect_b = 0.0
+expect_a = 1.0
+
+[[category.geometry.tests]]
+id = "color_clamp"
+name = "kain_color_clamp"
+api = "kain_color_clamp"
+signature = "kainColor(kainColor c)"
+import_path = "kain_geometry.h"
+group = "color"
+pass_criteria = "clamps all channels to [0,1]"
+
+[[category.geometry.tests.inputs]]
+desc = "out-of-range clamped"
+c_r = -0.5
+c_g = 1.5
+c_b = 2.0
+c_a = -1.0
+expect_r = 0.0
+expect_g = 1.0
+expect_b = 1.0
+expect_a = 0.0
+
+# ── Matrix operations ────────────────────────────────────────────────────
+[[category.geometry.tests]]
+id = "matrix_identity"
+name = "kain_matrix_identity"
+api = "kain_matrix_identity"
+signature = "kainMatrix()"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "returns identity matrix"
+
+[[category.geometry.tests.inputs]]
+desc = "identity matrix"
+expected_diagonal = true
+
+[[category.geometry.tests]]
+id = "matrix_translate"
+name = "kain_matrix_translate"
+api = "kain_matrix_translate"
+signature = "kainMatrix(float tx, float ty)"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "creates translation matrix"
+
+[[category.geometry.tests.inputs]]
+desc = "positive translation"
+tx = 10.0
+ty = 20.0
+
+[[category.geometry.tests.inputs]]
+desc = "negative translation"
+tx = -5.0
+ty = 0.0
+
+[[category.geometry.tests]]
+id = "matrix_scale"
+name = "kain_matrix_scale"
+api = "kain_matrix_scale"
+signature = "kainMatrix(float sx, float sy)"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "creates scale matrix"
+
+[[category.geometry.tests.inputs]]
+desc = "uniform scale"
+sx = 2.0
+sy = 2.0
+
+[[category.geometry.tests.inputs]]
+desc = "non-uniform scale"
+sx = 0.5
+sy = 1.5
+
+[[category.geometry.tests]]
+id = "matrix_rotate"
+name = "kain_matrix_rotate"
+api = "kain_matrix_rotate"
+signature = "kainMatrix(float angle_rad)"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "creates rotation matrix"
+
+[[category.geometry.tests.inputs]]
+desc = "180 degree rotation"
+angle = 3.14159265
+
+[[category.geometry.tests.inputs]]
+desc = "zero rotation"
+angle = 0.0
+
+[[category.geometry.tests.inputs]]
+desc = "90 degree rotation"
+angle = 1.57079633
+
+[[category.geometry.tests]]
+id = "matrix_mul"
+name = "kain_matrix_mul"
+api = "kain_matrix_mul"
+signature = "kainMatrix(kainMatrix a, kainMatrix b)"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "multiplies two affine matrices correctly"
+
+[[category.geometry.tests.inputs]]
+desc = "translate then scale"
+a_m0 = 1.0
+a_m1 = 0.0
+a_m2 = 10.0
+a_m3 = 0.0
+a_m4 = 1.0
+a_m5 = 20.0
+b_m0 = 2.0
+b_m1 = 0.0
+b_m2 = 0.0
+b_m3 = 0.0
+b_m4 = 2.0
+b_m5 = 0.0
+expect_tx = 20.0
+expect_ty = 40.0
+
+[[category.geometry.tests]]
+id = "transform_point"
+name = "kain_matrix_transform_point"
+api = "kain_matrix_transform_point"
+signature = "kainPoint(kainMatrix m, kainPoint p)"
+import_path = "kain_geometry.h"
+group = "matrix"
+pass_criteria = "transforms point through affine matrix"
+
+[[category.geometry.tests.inputs]]
+desc = "translate origin"
+m_m0 = 1.0
+m_m1 = 0.0
+m_m2 = 10.0
+m_m3 = 0.0
+m_m4 = 1.0
+m_m5 = 20.0
+p_x = 0.0
+p_y = 0.0
+expect_x = 10.0
+expect_y = 20.0
+
+[[category.geometry.tests.inputs]]
+desc = "scale point"
+m_m0 = 2.0
+m_m1 = 0.0
+m_m2 = 0.0
+m_m3 = 0.0
+m_m4 = 2.0
+m_m5 = 0.0
+p_x = 5.0
+p_y = 5.0
+expect_x = 10.0
+expect_y = 10.0
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 2: render — kain_render_* draw primitives
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.render]
+name = "render"
+description = "Software rendering draw primitives: fill_rect, stroke_rect, circle, gradient, blur, clip, transform"
+api_header = "kain_render_software.h"
+source_file = "../../../../include/kain_render_software.h"
+weight = 2.0
+
+[[category.render.tests]]
+id = "render_create_destroy"
+name = "kain_renderer_create - kain_renderer_destroy"
+api = "kain_renderer_create"
+signature = "KainSoftwareRenderer*(int fb_width, int fb_height, uint32_t* framebuffer)"
+import_path = "kain_render_software.h"
+group = "lifecycle"
+pass_criteria = "creates and destroys renderer without leak"
+
+[[category.render.tests.inputs]]
+desc = "640x480 with null fb"
+fb_w = 640
+fb_h = 480
+null_fb = true
+
+[[category.render.tests.inputs]]
+desc = "1x1 with null fb"
+fb_w = 1
+fb_h = 1
+null_fb = true
+
+[[category.render.tests.inputs]]
+desc = "0x0 with null fb"
+fb_w = 0
+fb_h = 0
+null_fb = true
+
+[[category.render.tests]]
+id = "render_clear"
+name = "kain_renderer_clear"
+api = "kain_renderer_clear"
+signature = "void(KainSoftwareRenderer*, kainColor)"
+import_path = "kain_render_software.h"
+group = "frame"
+pass_criteria = "clears entire framebuffer to solid color"
+
+[[category.render.tests.inputs]]
+desc = "clear BLACK on 320x240"
+color = "BLACK"
+fb_w = 320
+fb_h = 240
+
+[[category.render.tests.inputs]]
+desc = "clear WHITE on 320x240"
+color = "WHITE"
+fb_w = 320
+fb_h = 240
+
+[[category.render.tests.inputs]]
+desc = "clear TRANSPARENT on 320x240"
+color = "TRANSPARENT"
+fb_w = 320
+fb_h = 240
+
+[[category.render.tests]]
+id = "render_fill_rect"
+name = "kain_render_fill_rect"
+api = "kain_render_fill_rect"
+signature = "void(KainSoftwareRenderer*, kainRect, kainColor)"
+import_path = "kain_render_software.h"
+group = "rect_primitives"
+pass_criteria = "fills axis-aligned rectangle with solid color"
+
+[[category.render.tests.inputs]]
+desc = "full framebuffer rect RED"
+r_x = 0.0
+r_y = 0.0
+r_w = 320.0
+r_h = 240.0
+color = "RED"
+
+[[category.render.tests.inputs]]
+desc = "small rect at center BLUE"
+r_x = 140.0
+r_y = 100.0
+r_w = 40.0
+r_h = 40.0
+color = "BLUE"
+
+[[category.render.tests.inputs]]
+desc = "partial offscreen left"
+r_x = -50.0
+r_y = 0.0
+r_w = 100.0
+r_h = 100.0
+color = "GREEN"
+
+[[category.render.tests.inputs]]
+desc = "partial offscreen top"
+r_x = 0.0
+r_y = -30.0
+r_w = 100.0
+r_h = 100.0
+color = "GREEN"
+
+[[category.render.tests.inputs]]
+desc = "zero-width rect"
+r_x = 10.0
+r_y = 10.0
+r_w = 0.0
+r_h = 50.0
+color = "RED"
+
+[[category.render.tests]]
+id = "render_fill_rounded_rect"
+name = "kain_render_fill_rounded_rect"
+api = "kain_render_fill_rounded_rect"
+signature = "void(KainSoftwareRenderer*, kainRect, float radius, kainColor)"
+import_path = "kain_render_software.h"
+group = "rect_primitives"
+pass_criteria = "fills rounded rectangle with correct corner radius"
+
+[[category.render.tests.inputs]]
+desc = "square with radius 5"
+r_x = 10.0
+r_y = 10.0
+r_w = 100.0
+r_h = 100.0
+radius = 5.0
+color = "BLUE"
+
+[[category.render.tests.inputs]]
+desc = "radius=0 falls back"
+r_x = 10.0
+r_y = 10.0
+r_w = 50.0
+r_h = 50.0
+radius = 0.0
+color = "RED"
+
+[[category.render.tests.inputs]]
+desc = "radius > half width-height"
+r_x = 10.0
+r_y = 10.0
+r_w = 30.0
+r_h = 30.0
+radius = 20.0
+color = "GREEN"
+
+[[category.render.tests]]
+id = "render_stroke_rect"
+name = "kain_render_stroke_rect"
+api = "kain_render_stroke_rect"
+signature = "void(KainSoftwareRenderer*, kainRect, float thickness, kainColor)"
+import_path = "kain_render_software.h"
+group = "rect_primitives"
+pass_criteria = "draws rectangle outline with correct thickness"
+
+[[category.render.tests.inputs]]
+desc = "thin border 1px"
+r_x = 0.0
+r_y = 0.0
+r_w = 320.0
+r_h = 240.0
+thickness = 1.0
+color = "WHITE"
+
+[[category.render.tests.inputs]]
+desc = "thick border 5px"
+r_x = 50.0
+r_y = 50.0
+r_w = 100.0
+r_h = 100.0
+thickness = 5.0
+color = "WHITE"
+
+[[category.render.tests.inputs]]
+desc = "border thicker than rect"
+r_x = 10.0
+r_y = 10.0
+r_w = 5.0
+r_h = 5.0
+thickness = 10.0
+color = "WHITE"
+
+[[category.render.tests]]
+id = "render_fill_circle"
+name = "kain_render_fill_circle"
+api = "kain_render_fill_circle"
+signature = "void(KainSoftwareRenderer*, kainPoint center, float radius, kainColor)"
+import_path = "kain_render_software.h"
+group = "circle_primitives"
+pass_criteria = "fills circle with solid color"
+
+[[category.render.tests.inputs]]
+desc = "medium circle at center RED"
+cx = 160.0
+cy = 120.0
+radius = 50.0
+color = "RED"
+
+[[category.render.tests.inputs]]
+desc = "small circle BLUE"
+cx = 160.0
+cy = 120.0
+radius = 5.0
+color = "BLUE"
+
+[[category.render.tests.inputs]]
+desc = "partial offscreen circle GREEN"
+cx = 0.0
+cy = 120.0
+radius = 50.0
+color = "GREEN"
+
+[[category.render.tests.inputs]]
+desc = "zero-radius circle RED"
+cx = 160.0
+cy = 120.0
+radius = 0.0
+color = "RED"
+
+[[category.render.tests]]
+id = "render_stroke_circle"
+name = "kain_render_stroke_circle"
+api = "kain_render_stroke_circle"
+signature = "void(KainSoftwareRenderer*, kainPoint, float radius, float thickness, kainColor)"
+import_path = "kain_render_software.h"
+group = "circle_primitives"
+pass_criteria = "draws circle outline with correct thickness"
+
+[[category.render.tests.inputs]]
+desc = "thin circle"
+cx = 160.0
+cy = 120.0
+radius = 60.0
+thickness = 1.0
+color = "WHITE"
+
+[[category.render.tests.inputs]]
+desc = "thick circle"
+cx = 160.0
+cy = 120.0
+radius = 60.0
+thickness = 8.0
+color = "WHITE"
+
+[[category.render.tests]]
+id = "render_blit"
+name = "kain_render_blit"
+api = "kain_render_blit"
+signature = "void(KainSoftwareRenderer*, kainRect src, kainRect dst, int64_t texture_id)"
+import_path = "kain_render_software.h"
+group = "texture"
+pass_criteria = "blits texture region to destination rect"
+
+[[category.render.tests.inputs]]
+desc = "identity blit"
+src_x = 0.0
+src_y = 0.0
+src_w = 100.0
+src_h = 100.0
+dst_x = 0.0
+dst_y = 0.0
+dst_w = 100.0
+dst_h = 100.0
+texture_id = 0
+
+[[category.render.tests.inputs]]
+desc = "scaled blit"
+src_x = 0.0
+src_y = 0.0
+src_w = 100.0
+src_h = 100.0
+dst_x = 0.0
+dst_y = 0.0
+dst_w = 200.0
+dst_h = 200.0
+texture_id = 0
+
+[[category.render.tests]]
+id = "render_clip_push_pop"
+name = "kain_render_push_clip - kain_render_pop_clip"
+api = "kain_render_push_clip"
+signature = "void(KainSoftwareRenderer*, kainRect)"
+import_path = "kain_render_software.h"
+group = "clip_stack"
+pass_criteria = "correctly clips subsequent draw calls"
+
+[[category.render.tests.inputs]]
+desc = "single clip rect"
+r_x = 50.0
+r_y = 50.0
+r_w = 100.0
+r_h = 100.0
+
+[[category.render.tests.inputs]]
+desc = "nested clips"
+r_x = 20.0
+r_y = 20.0
+r_w = 200.0
+r_h = 200.0
+
+[[category.render.tests]]
+id = "render_transform_push_pop"
+name = "kain_render_push_transform - kain_render_pop_transform"
+api = "kain_render_push_transform"
+signature = "void(KainSoftwareRenderer*, kainMatrix)"
+import_path = "kain_render_software.h"
+group = "transform_stack"
+pass_criteria = "correctly transforms subsequent draw calls"
+
+[[category.render.tests.inputs]]
+desc = "identity transform"
+apply_identity = true
+
+[[category.render.tests.inputs]]
+desc = "translation transform"
+apply_translate = true
+
+[[category.render.tests]]
+id = "render_submit_present"
+name = "kain_renderer_submit - kain_renderer_present"
+api = "kain_renderer_submit"
+signature = "void(KainSoftwareRenderer*)"
+import_path = "kain_render_software.h"
+group = "frame"
+pass_criteria = "submit and present complete without error"
+
+[[category.render.tests.inputs]]
+desc = "no-op submit"
+skip = true
+
+[[category.render.tests.inputs]]
+desc = "present after draws"
+skip = true
+
+[[category.render.tests]]
+id = "render_set_framebuffer"
+name = "kain_renderer_set_framebuffer"
+api = "kain_renderer_set_framebuffer"
+signature = "void(KainSoftwareRenderer*, uint32_t*, int, int)"
+import_path = "kain_render_software.h"
+group = "lifecycle"
+pass_criteria = "replaces framebuffer without crash"
+
+[[category.render.tests.inputs]]
+desc = "resize to larger"
+w = 1024
+h = 768
+
+[[category.render.tests.inputs]]
+desc = "resize to smaller"
+w = 16
+h = 16
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 3: compositor — damage region tracking
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.compositor]
+name = "compositor"
+description = "Damage region tracking, frame lifecycle, dirty-rect accumulator"
+api_header = "kain_compositor.h"
+source_file = "../../../../include/kain_compositor.h"
+weight = 1.0
+
+[[category.compositor.tests]]
+id = "comp_create_destroy"
+name = "kain_compositor_create - kain_compositor_destroy"
+api = "kain_compositor_create"
+signature = "KainCompositor*(int fb_width, int fb_height)"
+import_path = "kain_compositor.h"
+group = "lifecycle"
+pass_criteria = "creates and destroys compositor"
+
+[[category.compositor.tests.inputs]]
+desc = "640x480"
+fb_w = 640
+fb_h = 480
+
+[[category.compositor.tests.inputs]]
+desc = "zero size"
+fb_w = 0
+fb_h = 0
+
+[[category.compositor.tests.inputs]]
+desc = "4K resolution"
+fb_w = 4096
+fb_h = 4096
+
+[[category.compositor.tests]]
+id = "comp_begin_end_frame"
+name = "kain_compositor_begin_frame - kain_compositor_end_frame"
+api = "kain_compositor_begin_frame"
+signature = "void(KainCompositor*)"
+import_path = "kain_compositor.h"
+group = "frame_lifecycle"
+pass_criteria = "begin-end frame lifecycle works"
+
+[[category.compositor.tests.inputs]]
+desc = "begin then end with no damage"
+skip = true
+
+[[category.compositor.tests.inputs]]
+desc = "begin, damage, end"
+skip = true
+
+[[category.compositor.tests]]
+id = "comp_damage_rect"
+name = "kain_compositor_damage_rect"
+api = "kain_compositor_damage_rect"
+signature = "void(KainCompositor*, float x, float y, float w, float h)"
+import_path = "kain_compositor.h"
+group = "damage"
+pass_criteria = "records damage rects correctly"
+
+[[category.compositor.tests.inputs]]
+desc = "single rect at origin"
+x = 0.0
+y = 0.0
+w = 100.0
+h = 100.0
+
+[[category.compositor.tests.inputs]]
+desc = "zero-size rect (no-op)"
+x = 10.0
+y = 10.0
+w = 0.0
+h = 0.0
+
+[[category.compositor.tests.inputs]]
+desc = "negative-size rect"
+x = 10.0
+y = 10.0
+w = -10.0
+h = -5.0
+
+[[category.compositor.tests]]
+id = "comp_damaged_region"
+name = "kain_compositor_damaged_region"
+api = "kain_compositor_damaged_region"
+signature = "kainRect(KainCompositor*)"
+import_path = "kain_compositor.h"
+group = "damage"
+pass_criteria = "returns correct bounding union"
+
+[[category.compositor.tests.inputs]]
+desc = "after single damage rect"
+skip = true
+expect_w = 100.0
+expect_h = 100.0
+
+[[category.compositor.tests]]
+id = "comp_has_damage"
+name = "kain_compositor_has_damage"
+api = "kain_compositor_has_damage"
+signature = "bool(KainCompositor*)"
+import_path = "kain_compositor.h"
+group = "damage"
+pass_criteria = "correctly reports damage state"
+
+[[category.compositor.tests.inputs]]
+desc = "no damage yet"
+expect = false
+
+[[category.compositor.tests.inputs]]
+desc = "after damage rect"
+expect = true
+
+[[category.compositor.tests]]
+id = "comp_clear_damage"
+name = "kain_compositor_clear_damage"
+api = "kain_compositor_clear_damage"
+signature = "void(KainCompositor*)"
+import_path = "kain_compositor.h"
+group = "damage"
+pass_criteria = "resets all damage state"
+
+[[category.compositor.tests.inputs]]
+desc = "clear after damage"
+skip = true
+
+[[category.compositor.tests]]
+id = "comp_damage_node"
+name = "kain_compositor_damage_node"
+api = "kain_compositor_damage_node"
+signature = "void(KainCompositor*, int64_t node_id)"
+import_path = "kain_compositor.h"
+group = "damage"
+pass_criteria = "damage_node handles all inputs"
+
+[[category.compositor.tests.inputs]]
+desc = "valid node_id"
+node_id = 1
+
+[[category.compositor.tests.inputs]]
+desc = "zero node_id"
+node_id = 0
+
+[[category.compositor.tests.inputs]]
+desc = "negative node_id"
+node_id = -1
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 4: input — event pipeline
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.input]
+name = "input"
+description = "Event pipeline: poll, push, hit-test, event type mapping"
+api_header = "kain_input.h"
+source_file = "../../../../include/kain_input.h"
+weight = 1.0
+
+[[category.input.tests]]
+id = "input_pipeline_create_destroy"
+name = "kain_input_pipeline_create - kain_input_pipeline_destroy"
+api = "kain_input_pipeline_create"
+signature = "KainInputPipeline*(int64_t session_id)"
+import_path = "kain_input.h"
+group = "lifecycle"
+pass_criteria = "creates and destroys pipeline without leak"
+
+[[category.input.tests.inputs]]
+desc = "session_id = 0"
+session_id = 0
+
+[[category.input.tests.inputs]]
+desc = "session_id = -1"
+session_id = -1
+
+[[category.input.tests.inputs]]
+desc = "large session_id"
+session_id = 999999999
+
+[[category.input.tests]]
+id = "input_poll_event_empty"
+name = "kain_input_poll_event (empty queue)"
+api = "kain_input_poll_event"
+signature = "bool(KainInputPipeline*, KainInputEvent*)"
+import_path = "kain_input.h"
+group = "events"
+pass_criteria = "returns false when queue empty"
+
+[[category.input.tests.inputs]]
+desc = "poll with no prior push events"
+skip = true
+
+[[category.input.tests]]
+id = "input_push_poll_roundtrip"
+name = "kain_input_push_event"
+api = "kain_input_push_event"
+signature = "void(KainInputPipeline*, const KainInputEvent*)"
+import_path = "kain_input.h"
+group = "events"
+pass_criteria = "pushed events are pollable in FIFO order"
+
+[[category.input.tests.inputs]]
+desc = "pointer_down at (100,200)"
+kind = "pointer_down"
+x = 100.0
+y = 200.0
+
+[[category.input.tests.inputs]]
+desc = "key_down 'A'"
+kind = "key_down"
+key_code = 65
+
+[[category.input.tests.inputs]]
+desc = "pointer_move (50,75)"
+kind = "pointer_move"
+x = 50.0
+y = 75.0
+
+[[category.input.tests.inputs]]
+desc = "text 'hello'"
+kind = "text"
+text = "hello"
+
+[[category.input.tests.inputs]]
+desc = "pointer_wheel delta (0,120)"
+kind = "pointer_wheel"
+delta_x = 0.0
+delta_y = 120.0
+
+[[category.input.tests.inputs]]
+desc = "focus_in"
+kind = "focus_in"
+
+[[category.input.tests.inputs]]
+desc = "drag (10,10) delta (5,5)"
+kind = "drag"
+x = 10.0
+y = 10.0
+delta_x = 5.0
+delta_y = 5.0
+
+[[category.input.tests.inputs]]
+desc = "drop at (200,300)"
+kind = "drop"
+x = 200.0
+y = 300.0
+
+[[category.input.tests]]
+id = "input_event_type_name_all"
+name = "kain_input_event_type_name (all kinds)"
+api = "kain_input_event_type_name"
+signature = "const char*(KainInputEventKind)"
+import_path = "kain_input.h"
+group = "events"
+pass_criteria = "every event kind maps to a human-readable name"
+
+[[category.input.tests.inputs]]
+desc = "NONE -> none"
+kind = "KAIN_INPUT_NONE"
+expect = "none"
+
+[[category.input.tests.inputs]]
+desc = "KEY_DOWN -> key_down"
+kind = "KAIN_INPUT_KEY_DOWN"
+expect = "key_down"
+
+[[category.input.tests.inputs]]
+desc = "KEY_UP -> key_up"
+kind = "KAIN_INPUT_KEY_UP"
+expect = "key_up"
+
+[[category.input.tests.inputs]]
+desc = "POINTER_DOWN -> pointer_down"
+kind = "KAIN_INPUT_POINTER_DOWN"
+expect = "pointer_down"
+
+[[category.input.tests.inputs]]
+desc = "POINTER_MOVE -> pointer_move"
+kind = "KAIN_INPUT_POINTER_MOVE"
+expect = "pointer_move"
+
+[[category.input.tests.inputs]]
+desc = "POINTER_WHEEL -> axis"
+kind = "KAIN_INPUT_POINTER_WHEEL"
+expect = "axis"
+
+[[category.input.tests.inputs]]
+desc = "FOCUS_IN -> focus_in"
+kind = "KAIN_INPUT_FOCUS_IN"
+expect = "focus_in"
+
+[[category.input.tests.inputs]]
+desc = "DRAG -> drag"
+kind = "KAIN_INPUT_DRAG"
+expect = "drag"
+
+[[category.input.tests.inputs]]
+desc = "DROP -> drop"
+kind = "KAIN_INPUT_DROP"
+expect = "drop"
+
+[[category.input.tests]]
+id = "input_hit_test"
+name = "kain_input_hit_test"
+api = "kain_input_hit_test"
+signature = "int64_t(KainInputPipeline*, float x, float y)"
+import_path = "kain_input.h"
+group = "hit_test"
+pass_criteria = "returns node_id or -1 for no hit"
+
+[[category.input.tests.inputs]]
+desc = "no session nodes yet"
+x = 0.0
+y = 0.0
+
+[[category.input.tests.inputs]]
+desc = "out of bounds"
+x = -100.0
+y = -100.0
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 5: font — load, measure, glyph access
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.font]
+name = "font"
+description = "Font loading, glyph access, text measurement, metrics"
+api_header = "kain_font.h"
+source_file = "../../../../include/kain_font.h"
+weight = 1.0
+
+[[category.font.tests]]
+id = "font_load"
+name = "kain_font_load"
+api = "kain_font_load"
+signature = "int64_t(int64_t session_id, const uint8_t* ttf_data, int64_t ttf_len, float size)"
+import_path = "kain_font.h"
+group = "loading"
+pass_criteria = "loads font from raw TTF bytes"
+
+[[category.font.tests.inputs]]
+desc = "null data returns 0"
+session_id = 0
+null_data = true
+size = 16.0
+
+[[category.font.tests.inputs]]
+desc = "zero length returns 0"
+session_id = 0
+data_len = 0
+size = 16.0
+
+[[category.font.tests.inputs]]
+desc = "multiple sizes"
+session_id = 0
+size = 16.0
+use_default = true
+
+[[category.font.tests]]
+id = "font_load_default"
+name = "kain_font_load_default"
+api = "kain_font_load_default"
+signature = "int64_t(int64_t session_id, float size)"
+import_path = "kain_font.h"
+group = "loading"
+pass_criteria = "loads platform default font or returns 0"
+
+[[category.font.tests.inputs]]
+desc = "default at 16px"
+session_id = 0
+size = 16.0
+
+[[category.font.tests.inputs]]
+desc = "default at 72px"
+session_id = 0
+size = 72.0
+
+[[category.font.tests.inputs]]
+desc = "default at 0px (invalid)"
+session_id = 0
+size = 0.0
+
+[[category.font.tests]]
+id = "font_measure_text"
+name = "kain_font_measure_text"
+api = "kain_font_measure_text"
+signature = "float(int64_t session_id, int64_t font_id, const char* text)"
+import_path = "kain_font.h"
+group = "measurement"
+pass_criteria = "returns non-negative width for text"
+
+[[category.font.tests.inputs]]
+desc = "empty string"
+session_id = 0
+text = ""
+font_id = -1
+
+[[category.font.tests.inputs]]
+desc = "short string"
+session_id = 0
+text = "Hello"
+font_id = -1
+
+[[category.font.tests.inputs]]
+desc = "long string"
+session_id = 0
+text = "The quick brown fox jumps over the lazy dog 1234567890"
+font_id = -1
+
+[[category.font.tests]]
+id = "font_glyph_access"
+name = "kain_font_get_glyph - kain_font_release_glyph"
+api = "kain_font_get_glyph"
+signature = "void*(int64_t session_id, int64_t font_id, int codepoint)"
+import_path = "kain_font.h"
+group = "glyph"
+pass_criteria = "gets and releases glyph handles"
+
+[[category.font.tests.inputs]]
+desc = "ASCII 'A' codepoint 65"
+session_id = 0
+font_id = -1
+codepoint = 65
+
+[[category.font.tests.inputs]]
+desc = "space codepoint 32"
+session_id = 0
+font_id = -1
+codepoint = 32
+
+[[category.font.tests.inputs]]
+desc = "null codepoint 0"
+session_id = 0
+font_id = -1
+codepoint = 0
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 6: host — window lifecycle, DPI, clipboard
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.host]
+name = "host"
+description = "Platform host interface: window lifecycle, DPI, clipboard, cursor, message pump"
+api_header = "kain_host.h"
+source_file = "../../../../include/kain_host.h"
+weight = 1.0
+
+[[category.host.tests]]
+id = "host_get_vtable"
+name = "kain_host_get - kain_host_native"
+api = "kain_host_get"
+signature = "const kainHostVTable*(kainHostPlatform)"
+import_path = "kain_host.h"
+group = "dispatch"
+pass_criteria = "returns valid vtable for known platforms"
+
+[[category.host.tests.inputs]]
+desc = "unknown platform returns NULL"
+platform = "KAIN_HOST_UNKNOWN"
+expect_null = true
+
+[[category.host.tests.inputs]]
+desc = "WIN32 platform"
+platform = "KAIN_HOST_WIN32"
+
+[[category.host.tests]]
+id = "host_backend_id"
+name = "kainHostVTable::backend_id"
+api = "host_vtable_backend_id"
+signature = "const char*(void)"
+import_path = "kain_host.h"
+group = "vtable"
+pass_criteria = "returns non-null non-empty backend identifier"
+
+[[category.host.tests.inputs]]
+desc = "native backend"
+skip = true
+
+[[category.host.tests]]
+id = "host_window_create_destroy"
+name = "kainHostVTable::window_create - window_destroy"
+api = "host_vtable_window_create"
+signature = "void*(const char* title, int width, int height)"
+import_path = "kain_host.h"
+group = "window"
+pass_criteria = "creates and destroys platform window"
+
+[[category.host.tests.inputs]]
+desc = "800x600 window"
+title = "Kain UI Test"
+w = 800
+h = 600
+
+[[category.host.tests.inputs]]
+desc = "100x100 window"
+title = "Small"
+w = 100
+h = 100
+
+[[category.host.tests]]
+id = "host_dpi"
+name = "kainHostVTable::window_get_dpi"
+api = "host_vtable_window_get_dpi"
+signature = "float(void* state)"
+import_path = "kain_host.h"
+group = "window"
+pass_criteria = "returns positive DPI value"
+
+[[category.host.tests.inputs]]
+desc = "after window creation"
+skip = true
+
+[[category.host.tests]]
+id = "host_pump_events"
+name = "kainHostVTable::pump_events"
+api = "host_vtable_pump_events"
+signature = "void(void* state)"
+import_path = "kain_host.h"
+group = "message_pump"
+pass_criteria = "pump events without crash"
+
+[[category.host.tests.inputs]]
+desc = "single pump call"
+skip = true
+
+[[category.host.tests]]
+id = "host_should_close"
+name = "kainHostVTable::should_close"
+api = "host_vtable_should_close"
+signature = "int(void* state)"
+import_path = "kain_host.h"
+group = "message_pump"
+pass_criteria = "returns 0 initially"
+
+[[category.host.tests.inputs]]
+desc = "fresh window returns 0"
+skip = true
+
+[[category.host.tests]]
+id = "host_clipboard_set_get"
+name = "kainHostVTable::clipboard_set_text - clipboard_get_text"
+api = "host_vtable_clipboard_set_text"
+signature = "int(void* state, const char* text)"
+import_path = "kain_host.h"
+group = "clipboard"
+pass_criteria = "sets and retrieves clipboard text"
+
+[[category.host.tests.inputs]]
+desc = "roundtrip simple text"
+text = "hello clipboard"
+
+[[category.host.tests.inputs]]
+desc = "empty text"
+text = ""
+
+[[category.host.tests]]
+id = "host_platform_name"
+name = "kain_host_platform_name"
+api = "kain_host_platform_name"
+signature = "const char*(kainHostPlatform p)"
+import_path = "kain_host.h"
+group = "dispatch"
+pass_criteria = "returns human-readable platform name"
+
+[[category.host.tests.inputs]]
+desc = "win32"
+platform = "KAIN_HOST_WIN32"
+expect = "win32"
+
+[[category.host.tests.inputs]]
+desc = "unknown"
+platform = "KAIN_HOST_UNKNOWN"
+expect = "unknown"
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 7: vtable — all 24 KainComponentSurface slots
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.vtable]
+name = "vtable"
+description = "All 24 KainComponentSurface vtable slots"
+api_header = "component_surface.h"
+source_file = "../../../include/component_surface.h"
+weight = 3.0
+
+[[category.vtable.tests]]
+id = "vt_session_create_destroy"
+name = "slot_0_session_create - slot_1_session_destroy"
+api = "KainComponentSurface::session_create"
+signature = "int64_t(const char* name, int64_t width, int64_t height)"
+import_path = "component_surface.h"
+group = "session"
+pass_criteria = "creates and destroys session"
+
+[[category.vtable.tests.inputs]]
+desc = "800x600 default session"
+name = "test"
+w = 800
+h = 600
+
+[[category.vtable.tests.inputs]]
+desc = "zero size session"
+name = "zero"
+w = 0
+h = 0
+
+[[category.vtable.tests]]
+id = "vt_element_begin"
+name = "slots_2-5: element_begin / element_end"
+api = "KainComponentSurface::element_begin"
+signature = "int64_t(session_id, parent_id, kind, stable_key)"
+import_path = "component_surface.h"
+group = "element"
+pass_criteria = "builds element tree correctly"
+
+[[category.vtable.tests.inputs]]
+desc = "root element"
+kind = "root"
+stable_key = "app"
+
+[[category.vtable.tests.inputs]]
+desc = "nested element"
+kind = "button"
+parent_id = 1
+stable_key = "btn1"
+
+[[category.vtable.tests]]
+id = "vt_attr_i64"
+name = "slot_6: element_set_attr_i64"
+api = "KainComponentSurface::element_set_attr_i64"
+signature = "void(session_id, element_id, key, int64_t value)"
+import_path = "component_surface.h"
+group = "element"
+pass_criteria = "sets i64 attributes correctly"
+
+[[category.vtable.tests.inputs]]
+desc = "disabled flag"
+key = "disabled"
+value = 1
+
+[[category.vtable.tests.inputs]]
+desc = "layout direction"
+key = "layout.direction"
+value = 0
+
+[[category.vtable.tests.inputs]]
+desc = "max value"
+key = "z_index"
+value = 2147483647
+
+[[category.vtable.tests.inputs]]
+desc = "negative value"
+key = "offset"
+value = -1
+
+[[category.vtable.tests]]
+id = "vt_attr_f64"
+name = "slot_7: element_set_attr_f64"
+api = "KainComponentSurface::element_set_attr_f64"
+signature = "void(session_id, element_id, key, double value)"
+import_path = "component_surface.h"
+group = "element"
+pass_criteria = "sets f64 attributes correctly"
+
+[[category.vtable.tests.inputs]]
+desc = "padding = 16.0"
+key = "padding"
+value = 16.0
+
+[[category.vtable.tests.inputs]]
+desc = "opacity = 0.5"
+key = "opacity"
+value = 0.5
+
+[[category.vtable.tests.inputs]]
+desc = "font_size = 14.0"
+key = "font_size"
+value = 14.0
+
+[[category.vtable.tests.inputs]]
+desc = "zero value"
+key = "spacing"
+value = 0.0
+
+[[category.vtable.tests.inputs]]
+desc = "negative value"
+key = "corner_radius"
+value = -5.0
+
+[[category.vtable.tests]]
+id = "vt_attr_string"
+name = "slot_8: element_set_attr_string"
+api = "KainComponentSurface::element_set_attr_string"
+signature = "void(session_id, element_id, key, const char* value)"
+import_path = "component_surface.h"
+group = "element"
+pass_criteria = "sets string attributes correctly"
+
+[[category.vtable.tests.inputs]]
+desc = "fill color"
+key = "fill_color"
+value = "#FF0000"
+
+[[category.vtable.tests.inputs]]
+desc = "null value (no crash)"
+key = "label"
+value = ""
+
+[[category.vtable.tests.inputs]]
+desc = "empty value"
+key = "title"
+value = ""
+
+[[category.vtable.tests]]
+id = "vt_state_i64"
+name = "slots_9-10: state_get_i64 - state_set_i64"
+api = "KainComponentSurface::state_get_i64"
+signature = "int64_t(session_id, key)"
+import_path = "component_surface.h"
+group = "state"
+pass_criteria = "persists and retrieves i64 state"
+
+[[category.vtable.tests.inputs]]
+desc = "set then get = 42"
+key = "counter"
+set = 42
+expect = 42
+
+[[category.vtable.tests.inputs]]
+desc = "get default = 0"
+key = "nonexistent"
+expect = 0
+
+[[category.vtable.tests.inputs]]
+desc = "negative value"
+key = "neg"
+set = -1
+expect = -1
+
+[[category.vtable.tests.inputs]]
+desc = "overwrite existing"
+key = "overwrite"
+set = 200
+expect = 200
+
+[[category.vtable.tests]]
+id = "vt_frame_lifecycle"
+name = "slots_11-13: begin_frame - end_frame - present"
+api = "KainComponentSurface::begin_frame"
+signature = "void(session_id, double delta_ms)"
+import_path = "component_surface.h"
+group = "frame"
+pass_criteria = "frame lifecycle completes without error"
+
+[[category.vtable.tests.inputs]]
+desc = "single frame 16.67ms"
+delta_ms = 16.67
+
+[[category.vtable.tests.inputs]]
+desc = "zero delta"
+delta_ms = 0.0
+
+[[category.vtable.tests.inputs]]
+desc = "negative delta"
+delta_ms = -16.67
+
+[[category.vtable.tests]]
+id = "vt_poll_event"
+name = "slot_14: poll_event"
+api = "KainComponentSurface::poll_event"
+signature = "int64_t(session_id, void* out_event, int64_t max_size)"
+import_path = "component_surface.h"
+group = "event"
+pass_criteria = "polls events from the session"
+
+[[category.vtable.tests.inputs]]
+desc = "no events pending"
+skip = true
+
+[[category.vtable.tests]]
+id = "vt_state_f64"
+name = "slots_20-21: state_get_f64 - state_set_f64"
+api = "KainComponentSurface::state_get_f64"
+signature = "double(session_id, key)"
+import_path = "component_surface.h"
+group = "state"
+pass_criteria = "persists and retrieves f64 state"
+
+[[category.vtable.tests.inputs]]
+desc = "set 0.75 -> get 0.75"
+key = "slider"
+set = 0.75
+expect = 0.75
+
+[[category.vtable.tests.inputs]]
+desc = "negative value"
+key = "offset"
+set = -1.5
+expect = -1.5
+
+[[category.vtable.tests.inputs]]
+desc = "PI value"
+key = "pi"
+set = 3.141592653589793
+expect = 3.141592653589793
+
+[[category.vtable.tests]]
+id = "vt_state_string"
+name = "slots_22-23: state_get_string - state_set_string"
+api = "KainComponentSurface::state_get_string"
+signature = "const char*(session_id, key)"
+import_path = "component_surface.h"
+group = "state"
+pass_criteria = "persists and retrieves string state"
+
+[[category.vtable.tests.inputs]]
+desc = "set Hello World"
+key = "name"
+set = "Hello World"
+expect = "Hello World"
+
+[[category.vtable.tests.inputs]]
+desc = "empty string"
+key = "empty"
+set = ""
+expect = ""
+
+[[category.vtable.tests]]
+id = "vt_element_set_callback"
+name = "slot_24: element_set_callback"
+api = "KainComponentSurface::element_set_callback"
+signature = "void(session_id, element_id, event_name, callback_fn)"
+import_path = "component_surface.h"
+group = "element"
+pass_criteria = "binds callback without crash"
+
+[[category.vtable.tests.inputs]]
+desc = "on_click callback"
+event = "on_click"
+
+[[category.vtable.tests.inputs]]
+desc = "on_hover callback"
+event = "on_hover"
+
+[[category.vtable.tests]]
+id = "vt_full_session_workflow"
+name = "integration: full session workflow"
+api = "integration_workflow"
+signature = "end-to-end: create session, build tree, set state, render frame, destroy"
+import_path = "component_surface.h"
+group = "integration"
+pass_criteria = "full workflow completes without crash"
+
+[[category.vtable.tests.inputs]]
+desc = "minimal workflow"
+skip = true
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  CATEGORY 8: stress — rapid operations, memory pressure
+# ═══════════════════════════════════════════════════════════════════════════
+
+[category.stress]
+name = "stress"
+description = "Stress tests: rapid operations, high allocation count, memory pressure"
+api_header = "combined"
+source_file = "combined"
+weight = 3.0
+
+[[category.stress.tests]]
+id = "stress_rapid_create_destroy"
+name = "rapid session create-destroy cycles"
+api = "stress_create_destroy_cycles"
+signature = "1000 session create-destroy cycles"
+import_path = "combined"
+group = "cycles"
+pass_criteria = "no memory leak, no crash after cycles"
+
+[[category.stress.tests.inputs]]
+desc = "1000 cycles"
+cycles = 1000
+
+[[category.stress.tests.inputs]]
+desc = "10000 cycles"
+cycles = 10000
+
+[[category.stress.tests]]
+id = "stress_damage_rects"
+name = "rapid damage region accumulation"
+api = "stress_damage_rects"
+signature = "add 10000 damage rects in one frame"
+import_path = "combined"
+group = "damage"
+pass_criteria = "no crash with excessive damage rects"
+
+[[category.stress.tests.inputs]]
+desc = "10000 sequential damage rects"
+count = 10000
+
+[[category.stress.tests.inputs]]
+desc = "100 rects x 100 frames"
+count = 100
+frames = 100
+
+[[category.stress.tests]]
+id = "stress_render_ops"
+name = "render stress test"
+api = "stress_render_ops"
+signature = "execute draw operations per frame for many frames"
+import_path = "combined"
+group = "render"
+pass_criteria = "no crash with sustained rendering"
+
+[[category.stress.tests.inputs]]
+desc = "1000 ops per frame, 100 frames"
+ops_per_frame = 1000
+frames = 100
+
+[[category.stress.tests.inputs]]
+desc = "10000 ops per frame, 10 frames"
+ops_per_frame = 10000
+frames = 10
+
+[[category.stress.tests]]
+id = "stress_memory_pressure"
+name = "memory pressure test"
+api = "stress_memory_pressure"
+signature = "fill all slots, verify graceful handling"
+import_path = "combined"
+group = "memory"
+pass_criteria = "gracefully handles resource exhaustion"
+
+[[category.stress.tests.inputs]]
+desc = "fill all slots"
+fill_all = true
+
+[[category.stress.tests]]
+id = "stress_mixed"
+name = "mixed workload (all APIs)"
+api = "stress_mixed"
+signature = "interleave geometry, render, compositor, input, font, host operations"
+import_path = "combined"
+group = "integration"
+pass_criteria = "no crash with interleaved API calls"
+
+[[category.stress.tests.inputs]]
+desc = "100 iterations of mixed ops"
+iterations = 100
+
+[[category.stress.tests.inputs]]
+desc = "1000 iterations of mixed ops"
+iterations = 1000

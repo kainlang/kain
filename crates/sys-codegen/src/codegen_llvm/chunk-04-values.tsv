@@ -1,0 +1,88 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+runtime_symbol_for_stdlib_function	L0-fn, stdlib symbol resolution	Compile-time string match → runtime symbol name remapping	none (Rust helper)	mapped	234-241
+stdlib_function_uses_borrowed_string_param	L0-fn, stdlib ABI	String param borrow check via match tuple	none (Rust helper)	mapped	243-248
+kain_map_codegen_mix_u64	L0-fn, hash helper	u64 xor-shift-multiply mixing (no IR emission)	none (Rust helper)	mapped	250-257
+kain_map_codegen_hash_bytes	L0-fn, hash helper	u64 rolling hash with Murmur-style mixing (no IR)	none (Rust helper)	mapped	259-284
+kain_map_codegen_magic_prefix_state	L0-fn, hash helper	4-word folded state with magic constants (no IR)	none (Rust helper)	mapped	286-304
+kain_map_codegen_static_key_metadata	L0-fn, hash helper	Extract (key_length, key_hash, key_prefix) tuple (no IR)	none (Rust helper)	mapped	306-335
+llvm_runtime_declaration_is_preemitted	runtime, external decl tracking	Compile-time string match for pre-emitted symbols	none (Rust helper)	mapped	337-382
+python_import_binding_infos	Python import	Compile-time binding info extraction from Import AST (no IR)	none (Rust helper)	mapped	384-422
+llvm_orchestrate_trace_enabled	orchestrate, env flag	Env var check for `KAIN_LLVM_ORCHESTRATE_TRACE` or `KAIN_NATIVE_PROFILE`	none (Rust helper)	mapped	424-447
+resolve_host_llvm_target_descriptor	LLVM target model	Delegates to `LlvmTargetDescriptor::host()`	LLVMGetHostCPUName, LLVMGetHostCPUFeatures	mapped	449-451
+resolve_llvm_target_for_compile_target	LLVM target model	Match on CompileTarget → `for_triple("x86_64-unknown-none")` for BareMetal	LLVMGetDefaultTargetTriple	mapped	454-461
+generate	LLVM IR generation, public entry	`generate_with_target(program, &host_descriptor)` → produces Vec<u8>	LLVMTargetMachineEmitToMemoryBuffer	mapped	463-465
+generate_with_target	LLVM IR generation	`generate_with_options(program, false, None, "", target)`	LLVMTargetMachineEmitToMemoryBuffer	mapped	467-472
+generate_llvm_for_target	LLVM IR generation, cross-target	Resolves target triple → `generate_with_target`	LLVMTargetMachineEmitToMemoryBuffer	mapped	478-487
+generate_with_debug	LLVM IR generation, DWARF	`generate_with_options(program, true, source, filename, host)` with debug metadata	LLVMAddNamedMetadataOperand, LLVMSetCurrentDebugLocation	mapped	495-503
+generate_with_debug_for_target	LLVM IR generation, DWARF+cross	`generate_with_options` with debug=+target_triple	LLVMAddNamedMetadataOperand, LLVMSetCurrentDebugLocation	mapped	510-521
+generate_with_options	LLVM IR generation, internal	`lower_typed_program_memory` + `validate` + `gen.compile_module` → bytes	LLVMContextCreate, LLVMModuleCreateWithNameInContext	mapped	523-547
+codegen_error	error helper	Creates DiagnosticReport + semantic enrichment	none (Rust helper)	mapped	846-858
+compile_enum_tag_load	enum, tagged values	`getelementptr inbounds %Enum, %Enum* %val, i32 0, i32 0` + `load i64`	LLVMBuildGEP2, LLVMBuildLoad2	mapped	862-873
+intern_string_global_name	string literal dedup	Allocates `@.str.N` global symbol, stores in HashMap	LLVMAddGlobal	mapped	875-884
+compile_string_literal	string literal	`getelementptr [N x i8]* @.str.N → i8*` + `call i8* @string_new(i8*)`	LLVMBuildGEP2, LLVMBuildCall2, LLVMAddGlobal	mapped	886-938
+string_literal_release_after_use	string literal lifecycle	Checks entry_preamble_insert_offset + scopes depth	none (Rust helper)	mapped	940-942
+compile_string_literal_value	string literal wrapper	Calls compile_string_literal + tracks release flag	LLVMBuildGEP2, LLVMBuildCall2	mapped	944-948
+compile_static_c_string_literal	C string literal	`getelementptr [N x i8]* @.str.N, i64 0, i64 0` (no string_new call)	LLVMBuildGEP2	mapped	950-960
+concat_strings	string concatenation	`call i8* @str_concat(i8* %lhs, i8* %rhs)`	LLVMBuildCall2	mapped	962-969
+stringify_value	value-to-string conversion	`sext i8→i64` or `zext i1→i64` or `call @llvm.fptosi.sat.i64.f64` + `call i8* @to_string(i64)`	LLVMBuildCall2, LLVMBuildSExt	mapped	971-1005
+zero_value_for_ty	zero initializer	Pattern matches type → "0.0", "0", "null", "zeroinitializer"	LLVMConstNull, LLVMConstReal, LLVMConstInt	mapped	1007-1016
+compile_expr_for_target_type	expression lowering, type coercion	Dispatches unwrap/expect/unwrap_or on Option/Result i8*; falls through to ask/None/coerce	LLVMBuildLoad2, LLVMBuildPhi, LLVMBuildCall2	mapped	1018-1136
+coerce_compiled_value_to_target_type	LLVM type coercion	bitcast ptr→ptr, inttoptr i64→ptr*, load %T from %T*, ptrtoint ptr→i64, bitcast %T→%U	LLVMBuildBitCast, LLVMBuildIntToPtr, LLVMBuildLoad2	mapped	1138-1222
+align_abi_size	ABI alignment helper	`size.div_ceil(align) * align`	none (pure math)	mapped	1224-1230
+abi_layout_for_ty	ABI layout computation	Recursive struct field size/align from struct_defs; scalar size table	LLVMOffsetOfElement, LLVMStructGetSizeInBits	mapped	1232-1264
+compile_bitcast_expr	bitcast / type punning	`bitcast %src %val to %dst` or `ptrtoint` or `inttoptr` if widths differ	LLVMBuildBitCast, LLVMBuildPtrToInt, LLVMBuildIntToPtr	mapped	1266-1327
+emit_tagged_value_handle_bits	tagged value, immediate encoding	`ptrtoint i8* %boxed to i64` → handle bits	LLVMBuildPtrToInt	mapped	1329-1336
+emit_tagged_immediate_tag_bits_from_handle_bits	tagged immediate decoding	`and i64 %handle, 7` → tag bits (mask 7)	LLVMBuildAnd	mapped	1338-1345
+compile_tagged_immediate_integer_handle_from_i64	tagged immediate encoding	`shl i64 %value, 3` → `or i64 %shifted, %tag` → `inttoptr i64 %tagged to i8*`	LLVMBuildShl, LLVMBuildOr, LLVMBuildIntToPtr	mapped	1347-1365
+compile_tagged_immediate_integer_payload_from_i64_bits	tagged immediate decoding	`ashr i64 %handle_bits, 3` → optional cast to target type	LLVMBuildAShr, LLVMBuildTrunc, LLVMBuildSExt	mapped	1367-1380
+compile_tagged_immediate_borrowed_pointer_handle	tagged borrowed pointer	`ptrtoint i8* %ptr to i64` → `or i64 %ptr_bits, %tag` → `inttoptr i64 %tagged to i8*`	LLVMBuildPtrToInt, LLVMBuildOr, LLVMBuildIntToPtr	mapped	1382-1403
+emit_tagged_value_tag_load	tagged value tag access	`bitcast i8* %boxed to i64*` + `load i64`	LLVMBuildBitCast, LLVMBuildLoad2	mapped	1405-1414
+emit_tagged_value_payload_ptr	tagged value payload GEP	`getelementptr i8, i8* %boxed, i64 16` → past 16-byte header	LLVMBuildGEP2	mapped	1416-1423
+compile_tagged_value_is_tag	tagged value tag matching	`icmp eq i8* %boxed, null` + branch → immediate path (and i64,7, icmp eq tag) + boxed path (load i64, icmp eq) → phi merge	LLVMBuildICmp, LLVMBuildPhi, LLVMBuildAnd, LLVMBuildLoad2	mapped	1425-1516
+compile_tagged_value_payload_copy	tagged value payload extraction	Handle bits → ashr 3 → trunc/sext to target; boxed → GEP to payload + load + align 1 + phi merge	LLVMBuildGEP2, LLVMBuildLoad2, LLVMBuildPhi, LLVMBuildBitCast	mapped	1518-1593
+compile_tagged_value_from_compiled_payload	tagged value boxing	Integer: range check (sge/sle, and, br) → immediate shl/or/inttoptr or boxed KAIN_alloc+store; non-integer: always boxed KAIN_alloc	LLVMBuildICmp, LLVMBuildAnd, LLVMBuildPhi, LLVMBuildCall2	mapped	1595-1669
+compile_tagged_box_from_payload	tagged heap box allocation	`call i8* @KAIN_alloc(size)` + store tag i64 + store size i64 + memcpy payload via bitcast+load+store	LLVMBuildCall2, LLVMBuildBitCast, LLVMBuildStore	mapped	1671-1737
+compile_tagged_box_from_value	tagged value to box	Delegates to compile_tagged_value_from_compiled_payload if size>0; otherwise alloc+tag only	LLVMBuildCall2, LLVMBuildBitCast, LLVMBuildStore	mapped	1739-1797
+compile_runtime_mem_load	raw memory load (collapse/observe)	Ephemeral: `load %ty, %ty* %typed_ptr, align N`; fallback: compile_non_ephemeral_typed_memory_pointer + load	LLVMBuildLoad2	mapped	1799-1846
+compile_runtime_mem_store	raw memory store (collapse)	Ephemeral: `store %ty %val, %ty* %typed_ptr`; fallback: same via non_ephemeral	LLVMBuildStore	mapped	1848-1906
+compile_runtime_volatile_mem_load	volatile MMIO load	`load volatile %ty, %ty* %typed_ptr, align N`	LLVMBuildLoad2	mapped	1908-1950
+compile_runtime_volatile_mem_store	volatile MMIO store	`store volatile %ty %val, %ty* %typed_ptr`	LLVMBuildStore	mapped	1952-1993
+compile_atomic_i64_pointer	atomic pointer preparation	compile_expr → coerce_to_i64_storage → `inttoptr i64 %val to i64*`	LLVMBuildIntToPtr	mapped	1995-2004
+atomic_ordering_code_from_expr	atomic ordering constant	Matches Int/String/Ident → 0=relaxed through 4=seq_cst	none (compile-time eval)	mapped	2006-2028
+atomic_ordering_code_from_name	atomic ordering name lookup	String match: relaxed/acquire/release/acq_rel/seq_cst → 0-4	none (compile-time)	mapped	2030-2039
+atomic_ordering_name_from_code	atomic ordering reverse lookup	Code 0-4 → string name	none (compile-time)	mapped	2041-2050
+validate_atomic_ordering_code	atomic ordering validation	Range check (0..=4), error otherwise	none (compile-time)	mapped	2052-2061
+atomic_ordering_strength	atomic ordering strength ordering	0→0, 1→2, 2→3, 3→4, 4→5	none (compile-time)	mapped	2063-2071
+validate_atomic_store_ordering	atomic store ordering validation	Relaxed/release/seq_cst only; acquire/acq_rel rejected	none (compile-time)	mapped	2073-2086
+validate_atomic_compare_exchange_failure_ordering	atomic CAS ordering validation	Failure ord must not be release/acq_rel, must be ≤ success strength	none (compile-time)	mapped	2088-2117
+llvm_atomic_load_ordering	atomic LLVM ordering string	Code→"monotonic"|"acquire"|"seq_cst"	LLVMAtomicOrdering enum	mapped	2119-2125
+llvm_atomic_store_ordering	atomic LLVM store ordering	Code→"monotonic"|"release"|"seq_cst"	LLVMAtomicOrdering enum	mapped	2127-2133
+llvm_atomic_rmw_ordering	atomic LLVM RMW ordering	Code→"monotonic"|"acquire"|"release"|"acq_rel"|"seq_cst"	LLVMAtomicRMWBinOp + ordering	mapped	2135-2143
+llvm_atomic_failure_ordering	atomic LLVM failure ordering	Code→"monotonic"|"acquire"|"seq_cst"	LLVMAtomicOrdering enum	mapped	2145-2151
+compile_ordered_atomic_load	atomic ordered load	`load atomic i64, i64* %ptr monotonic/acquire/seq_cst, align 8`	LLVMBuildLoad2 + LLVMAtomicOrdering	mapped	2153-2168
+compile_ordered_atomic_store	atomic ordered store	`store atomic i64 %val, i64* %ptr monotonic/release/seq_cst, align 8`	LLVMBuildStore + LLVMAtomicOrdering	mapped	2170-2189
+compile_ordered_atomic_rmw	atomic RMW	`%prev = atomicrmw %op i64* %ptr, i64 %val %ordering`	LLVMBuildAtomicRMW	mapped	2191-2209
+compile_ordered_atomic_compare_exchange	atomic CAS	`%pair = cmpxchg i64* %ptr, i64 %expected, i64 %desired %succ %fail` + `extractvalue %pair, 1`	LLVMBuildCmpXchg	mapped	2211-2242
+compile_ordered_atomic_fence	atomic fence	`fence acquire` / `fence release` / `fence acq_rel` / `fence seq_cst`	LLVMBuildFence	mapped	2244-2258
+emit_scaled_byte_offset	pointer arithmetic	`shl i64 %offset, %shift` if power-of-2, else `mul i64 %offset, %stride`	LLVMBuildShl, LLVMBuildMul	mapped	2260-2285
+compile_raw_ptr_offset_i64	ptr<T> offset	compile_expr → ptrtoint/inttoptr → getelementptr i8, i8* %base, i64 %offset → ptrtoint to i64	LLVMBuildGEP2, LLVMBuildPtrToInt, LLVMBuildIntToPtr	mapped	2287-2323
+compile_ownership_pointer	ownership (collapse/observe)	compile_expr → bitcast to i8*; emit_lazy_import_ownership_region for Imported/Unknown provenance	LLVMBuildBitCast, LLVMBuildIntToPtr	mapped	2325-2347
+emit_lazy_import_ownership_region	ownership import guard	`call i32 @__kain_ownership_ensure_imported(i8*)` + `icmp eq i32 %status, 0` + br abort/continue	LLVMBuildCall2, LLVMBuildICmp	mapped	2349-2371
+emit_checked_ownership_call	ownership state machine	`call i32 @function_name(i8*)` + `icmp eq i32 %status, 0` + br abort/continue	LLVMBuildCall2, LLVMBuildICmp	mapped	2373-2391
+emit_helper_owned_local_decay_cleanup	ownership decay cleanup	`load i8*` → `icmp ne i8* %ptr, null` → `call __kain_ownership_decay_helper`	LLVMBuildLoad2, LLVMBuildICmp, LLVMBuildCall2	mapped	2393-2408
+clear_decayed_helper_owned_local	ownership decay nulling	Store null to decayed helper-owned local	LLVMBuildStore	mapped	2410-2424
+helper_realloc_source_local_name	ownership realloc tracking	Extracts source name from `__kain_realloc(ident, ...)` call	none (Rust helper)	mapped	2426-2438
+invalidate_helper_owned_local_storage	ownership storage invalidation	Store null to helper-owned i8* local	LLVMBuildStore	mapped	2440-2451
+collect_helper_owned_pointer_mem_store_transfer_locals	ownership transfer tracking	Recursively collect helper-owned locals in expr	none (Rust helper)	mapped	2453-2472
+helper_owned_pointer_mem_store_transfer_locals	ownership transfer wrap	Calls collect, returns HashSet	none (Rust helper)	mapped	2474-2478
+mark_helper_owned_pointer_transfers	ownership transfer marking	Remove from helper_owned, insert into borrowed_locals	none (Rust state)	mapped	2480-2486
+invalidate_consumed_helper_realloc_source_for_let	ownership let realloc	Invalidate storage of realloc source on let binding	LLVMBuildStore	mapped	2488-2493
+invalidate_consumed_helper_realloc_source_for_assignment	ownership assignment realloc	Invalidate storage of realloc source on assignment	LLVMBuildStore	mapped	2495-2507
+compile_scoped_ownership_expr	collapse/observe scope	Ephemeral: skip; else: `ownership_begin(ptr)` + body + `ownership_end(ptr)`	LLVMBuildCall2	mapped	2509-2538
+compile_decay_expr	decay statement	`__kain_ownership_decay(ptr)` or `__kain_ownership_decay_helper(ptr)` + clear_helper	LLVMBuildCall2	mapped	2540-2557
+emit_abort_on_nonzero_i32_status	abort-on-failure guard	`icmp eq i32 %status, 0` → br continue else call abort+unreachable	LLVMBuildICmp, LLVMBuildCall2	mapped	2559-2572
+compile_range_iter_bounds	for loop range bounds	Compiles range(start, end) or Expr::Range { start, end, inclusive } → add one for inclusive	LLVMBuildAdd, LLVMBuildICmp	mapped	2574-2628
+compile_fanout_worker_function	share/fanout worker	Emitted as `define internal void @worker(i8* %ctx_arg, i64 %index_arg)` with entry label + GEP captures + compile_block	none (standalone function)	mapped	2630-2700
+compile_fanout_stmt	share/fanout statement	Captures locals, creates context struct, calls `__kain_fanout_i64(i64 start, i64 end, i8* ctx, void(i8*,i64)* @worker)`	LLVMBuildCall2	mapped	2702-2792
+compile_payload_pointer_from_value	value→payload pointer	Entry alloca + store + bitcast to i8*; RC retain for i8* types	LLVMBuildAlloca, LLVMBuildStore, LLVMBuildBitCast	mapped	2794-2827
+compile_tagged_payload_copy	tagged value copy	Entry alloca + bitcast to i8* + `call @abi_future_await_payload_copy(i8*, i8*, i64)` + load result	LLVMBuildCall2, LLVMBuildAlloca, LLVMBuildLoad2	mapped	2829-2859

@@ -628,7 +628,7 @@ fn rank_repairs(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -> Vec<Ra
             if !already_has {
                 repairs.push(RankedRepair {
                     repair_id: "add_surface_clause".into(),
-                    description: "Add a 'surface native_ui => ...' or 'surface web => ...' clause"
+                    description: "Add a 'surface native_ui => ...' clause (or any registered backend name)"
                         .into(),
                     score: 0.90,
                     replacement_text: Some("surface native_ui => MyPanel".into()),
@@ -851,7 +851,7 @@ fn generate_explanation(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -
             )
         }
         FailureMode::MissingSurface => {
-            "This world declaration is missing a surface clause. Every world must declare at least one surface (e.g., 'surface native_ui => ...', 'surface web => ...', or 'surface viewport3d => ...').".to_string()
+            "This world declaration is missing a surface clause. Every world must declare at least one surface (e.g., 'surface native_ui => MyPanel').".to_string()
         }
         FailureMode::OwnershipViolation => {
             "Ownership violation detected. Check that you are not borrowing or mutating data across a collapse/observe boundary.".to_string()

@@ -1,0 +1,13 @@
+use std::kaintana::theme::DEFAULT_THEME
+@extern fn kt_init() -> Void
+@extern fn kt_make(n: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, dt: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+
+fn main() -> Int:
+    let _ = DEFAULT_THEME.accent
+    return 0
+

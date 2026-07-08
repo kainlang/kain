@@ -1,0 +1,18 @@
+// v8_no_use_ui.kn — no std::ui import, pure component
+
+use std::runtime
+
+world PureWorld:
+    surface native_ui => PureRoot
+
+component PureRoot():
+    render <panel title="PURE" background="#1A1A2E">
+        <text value="no std::ui import" color="#8888A0" font_size={14} />
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

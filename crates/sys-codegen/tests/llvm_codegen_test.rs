@@ -19,6 +19,7 @@ use kain_core::types::{
 };
 use kain_core::Span;
 use kain_sys_codegen::generate_llvm;
+use kain_target::LlvmTargetDescriptor;
 
 fn span() -> Span {
     (0..0).into()
@@ -3961,4 +3962,55 @@ fn demo(slot: ptr<Int>) -> Int with Unsafe:
     ));
 
     verify_llvm_ir_with_repo_llvm_as(&llvm, "x86-arch-fences-cache-flush-inline-asm");
+}
+
+#[test]
+fn llvm_emits_dllexport_for_link_name_in_shared_lib_mode() {
+    let source = r#"
+@callconv("win64")
+@link_name("__kain_exported_fn")
+fn exported_fn(value: Int) -> Int:
+    return value * 2
+
+@link_name("__kain_exported_const")
+const EXPORTED_CONST: Int = 42
+
+fn main() -> Int:
+    return exported_fn(EXPORTED_CONST)
+"#;
+
+    let program = typed_program_from_source(source);
+    let win_target = LlvmTargetDescriptor::for_triple("x86_64-pc-windows-msvc");
+
+    // Without shared-lib mode, should NOT have dllexport
+    let llvm_exe = String::from_utf8(
+        kain_sys_codegen::generate_llvm_with_target(&program, &win_target)
+            .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
+    assert!(
+        !llvm_exe.contains("dllexport"),
+        "dllexport should NOT appear in non-shared-lib mode"
+    );
+
+    // With shared-lib mode + Windows target, should have dllexport on function
+    let llvm_dll = String::from_utf8(
+        kain_sys_codegen::generate_with_target_for_shared_library(&program, &win_target)
+            .expect("llvm generation should succeed"),
+    )
+    .expect("llvm output should be utf8");
+
+    // Function should have dllexport
+    assert!(
+        llvm_dll.contains("define dso_local dllexport win64cc i64 @__kain_exported_fn"),
+        "Expected dllexport on exported function, got:\n{}",
+        llvm_dll
+    );
+
+    // Const global should have dllexport
+    assert!(
+        llvm_dll.contains("@__kain_exported_const = dso_local dllexport constant i64 42"),
+        "Expected dllexport on exported const, got:\n{}",
+        llvm_dll
+    );
 }

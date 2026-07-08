@@ -1,0 +1,239 @@
+// ============================================================================
+//  cli.kn — CLI Argument Parser for Semantic Search Engine
+//
+//  Layer 0: plain fn parsing argv into typed configs for dispatch.
+//  Subcommands: index, query, connect, profile, stats, watch.
+// ============================================================================
+
+use std::process
+
+// ============================================================================
+//  EXIT CODES
+// ============================================================================
+
+pub const EXIT_OK:      Int = 0
+pub const EXIT_HELP:    Int = 1
+pub const EXIT_ERROR:   Int = 2
+pub const EXIT_UNKNOWN: Int = 3
+
+// ============================================================================
+//  SUBCOMMAND CONSTANTS
+// ============================================================================
+
+pub const CMD_INDEX:   String = "index"
+pub const CMD_QUERY:   String = "query"
+pub const CMD_CONNECT: String = "connect"
+pub const CMD_PROFILE: String = "profile"
+pub const CMD_STATS:   String = "stats"
+pub const CMD_WATCH:   String = "watch"
+pub const CMD_HELP:    String = "help"
+
+// ============================================================================
+//  CLI CONFIG — All parsed arguments
+// ============================================================================
+
+pub struct CliConfig:
+    subcommand:       String
+    // Index flags
+    index_crates:     Bool
+    index_runtime:    Bool
+    index_stdlib:     Bool
+    index_all:        Bool
+    // Query
+    query_text:       String
+    query_lang:       String
+    // Connect
+    connect_symbol:   String
+    // Profile
+    profile_path:     String
+    // Watch
+    watch_interval:   Int
+    // Global flags
+    verbose:          Bool
+    show_help:        Bool
+    json:             Bool
+
+pub fn default_config() -> CliConfig:
+    return CliConfig {
+        subcommand: CMD_HELP,
+        index_crates: false,
+        index_runtime: false,
+        index_stdlib: false,
+        index_all: false,
+        query_text: "",
+        query_lang: "kain",
+        connect_symbol: "",
+        profile_path: "",
+        watch_interval: 60000,
+        verbose: false,
+        show_help: false,
+        json: false,
+    }
+
+// ============================================================================
+//  GET USER ARGS
+// ============================================================================
+
+pub fn get_user_args() -> Array<String>:
+    return process_user_args()
+
+// ============================================================================
+//  IS SUBCOMMAND
+// ============================================================================
+
+fn is_subcommand(s: String) -> Bool:
+    if s == CMD_INDEX:   return true
+    if s == CMD_QUERY:   return true
+    if s == CMD_CONNECT: return true
+    if s == CMD_PROFILE: return true
+    if s == CMD_STATS:   return true
+    if s == CMD_WATCH:   return true
+    return false
+
+// ============================================================================
+//  PARSE ARGS
+// ============================================================================
+
+pub fn parse_args(argv: Array<String>) -> CliConfig:
+    var cfg = default_config()
+    var found_subcommand = false
+    var flags_done = false
+    var index: Int = 0
+
+    while index < len(argv):
+        let arg: String = argv[index]
+
+        if arg == "--":
+            flags_done = true
+            index = index + 1
+            continue
+
+        if flags_done == false and len(arg) > 0 and char_at(arg, 0) == "-":
+            // ── Flags ─────────────────────────────────────────────────
+            if arg == "--help" or arg == "-h":
+                cfg.show_help = true
+
+            elif arg == "--verbose" or arg == "-v":
+                cfg.verbose = true
+
+            elif arg == "--json":
+                cfg.json = true
+
+            elif arg == "--crates":
+                cfg.index_crates = true
+
+            elif arg == "--runtime":
+                cfg.index_runtime = true
+
+            elif arg == "--stdlib":
+                cfg.index_stdlib = true
+
+            elif arg == "--all" or arg == "-a":
+                cfg.index_all = true
+
+            elif arg == "--lang" or arg == "-l":
+                if index + 1 < len(argv):
+                    cfg.query_lang = argv[index + 1]
+                    index = index + 1
+
+            else:
+                // Unknown flags silently ignored
+                let _ = 0
+
+            index = index + 1
+            continue
+
+        // ── Subcommand or positional ─────────────────────────────────
+        if found_subcommand == false:
+            if is_subcommand(arg):
+                cfg.subcommand = arg
+                found_subcommand = true
+                index = index + 1
+                continue
+            else:
+                // No subcommand — first positional might be query text
+                // (treat as "query" if it's not a known subcommand)
+                cfg.subcommand = CMD_QUERY
+                cfg.query_text = arg
+                found_subcommand = true
+                index = index + 1
+                continue
+
+        // ── Subcommand-specific positional args ──────────────────────
+        if cfg.subcommand == CMD_INDEX:
+            if arg == "--crates":
+                cfg.index_crates = true
+            elif arg == "--runtime":
+                cfg.index_runtime = true
+            elif arg == "--stdlib":
+                cfg.index_stdlib = true
+            elif arg == "--all" or arg == "-a":
+                cfg.index_all = true
+
+        elif cfg.subcommand == CMD_QUERY:
+            if cfg.query_text == "":
+                cfg.query_text = arg
+            else:
+                cfg.query_text = cfg.query_text + " " + arg
+
+        elif cfg.subcommand == CMD_CONNECT:
+            if cfg.connect_symbol == "":
+                cfg.connect_symbol = arg
+
+        elif cfg.subcommand == CMD_PROFILE:
+            if cfg.profile_path == "":
+                cfg.profile_path = arg
+
+        index = index + 1
+
+    // Post-processing defaults
+    if cfg.index_all:
+        cfg.index_crates = true
+        cfg.index_runtime = true
+        cfg.index_stdlib = true
+
+    return cfg
+
+// ============================================================================
+//  USAGE TEXT
+// ============================================================================
+
+pub fn usage() -> String:
+    var text: String = "semantic-search 0.1.0 — Kain Codebase Connection Search\n"
+    text = text + "\n"
+    text = text + "Index the Kain codebase (crates/ + runtime/ + stdlib/) with a BM25+FST\n"
+    text = text + "inverted index. Search with cross-subsystem connection profiles.\n"
+    text = text + "\n"
+    text = text + "USAGE:\n"
+    text = text + "  semantic-search <subcommand> [options] [args]\n"
+    text = text + "\n"
+    text = text + "SUBCOMMANDS:\n"
+    text = text + "  index [--all|--crates|--runtime|--stdlib]\n"
+    text = text + "                          Build the inverted index (default: --all)\n"
+    text = text + "  query <expression>       Search the index, return top-25 results\n"
+    text = text + "  connect <symbol>         Show connection graph for a symbol\n"
+    text = text + "  profile <path>           Show profile of a single file\n"
+    text = text + "  stats                    Show index statistics\n"
+    text = text + "  watch                    Watch + auto-reindex every 60s\n"
+    text = text + "  help                     Show this help message\n"
+    text = text + "\n"
+    text = text + "FLAGS:\n"
+    text = text + "  -h, --help               Show help\n"
+    text = text + "  -v, --verbose            Verbose output\n"
+    text = text + "  --json                   Structured JSON output\n"
+    text = text + "  -l, --lang <lang>        Query language (rust|c|kain, default: kain)\n"
+    text = text + "\n"
+    text = text + "EXAMPLES:\n"
+    text = text + "  semantic-search index --all\n"
+    text = text + "  semantic-search query \"entangle propagate\"\n"
+    text = text + "  semantic-search connect \"teleport\"\n"
+    text = text + "  semantic-search profile \"crates/core/src/types.rs\"\n"
+    text = text + "  semantic-search stats\n"
+    text = text + "  semantic-search watch\n"
+    text = text + "\n"
+    text = text + "EXIT CODES:\n"
+    text = text + "  0   Success\n"
+    text = text + "  1   Help shown\n"
+    text = text + "  2   Error\n"
+    text = text + "  3   Unknown subcommand\n"
+    return text

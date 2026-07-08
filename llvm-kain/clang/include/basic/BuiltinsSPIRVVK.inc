@@ -1,0 +1,1 @@
+// Stub: BuiltinsSPIRVVK.inc

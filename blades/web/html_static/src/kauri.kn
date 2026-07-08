@@ -1,0 +1,188 @@
+// ============================================================================
+//  kauri.kn — Kauri: Kain + TypeScript Web App Server
+//
+//  Ladder: Layer 0 + Layer 1 + Layer 7
+//    - Static file serving (L0)
+//    - MIME type resolution (L0)
+//    - Webview/launch helpers (L0)
+//    - KauriRequest/KauriResponse types (L0)
+//
+//  This module sits on top of greeble's actor infrastructure.
+//  It adds:
+//    1. Static file serving from a frontend/ directory
+//    2. Auto-opening the webview on startup
+//    3. JSON-RPC style request routing
+// ============================================================================
+
+use std::net
+use std::os
+use std::process
+use std::json
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const KAURI_VERSION: String = "0.1.0"
+
+// Default frontend directory — relative to the executable
+pub const KAURI_FRONTEND_DIR: String = "frontend"
+
+// ============================================================================
+//  MIME TYPES — minimal but covers the web
+// ============================================================================
+
+pub fn mime_for_extension(ext: String) -> String:
+    if ext == "html" or ext == "htm":
+        return "text/html; charset=utf-8"
+    if ext == "css":
+        return "text/css; charset=utf-8"
+    if ext == "js":
+        return "application/javascript; charset=utf-8"
+    if ext == "mjs":
+        return "application/javascript; charset=utf-8"
+    if ext == "ts":
+        return "text/plain; charset=utf-8"
+    if ext == "tsx":
+        return "text/plain; charset=utf-8"
+    if ext == "json":
+        return "application/json"
+    if ext == "png":
+        return "image/png"
+    if ext == "jpg" or ext == "jpeg":
+        return "image/jpeg"
+    if ext == "gif":
+        return "image/gif"
+    if ext == "svg":
+        return "image/svg+xml"
+    if ext == "ico":
+        return "image/x-icon"
+    if ext == "woff2":
+        return "font/woff2"
+    if ext == "woff":
+        return "font/woff"
+    if ext == "ttf":
+        return "font/ttf"
+    if ext == "map":
+        return "application/json"
+    if ext == "wasm":
+        return "application/wasm"
+    return "application/octet-stream"
+
+// ============================================================================
+//  KAURI CONFIG
+// ============================================================================
+
+pub struct KauriConfig:
+    port: Int
+    root_component: String
+    enable_telemetry: Bool
+    auto_launch: Bool
+    app_mode: String       // "edge", "browser", "none"
+
+pub fn default_kauri_config() -> KauriConfig:
+    return KauriConfig {
+        port: 9090,
+        root_component: "App",
+        enable_telemetry: true,
+        auto_launch: true,
+        app_mode: "edge",
+    }
+
+// ============================================================================
+//  SERVE STATIC FILE
+//  Reads a file from the frontend/ directory and builds an HTTP response.
+//  Returns an HttpResponse struct (defined in greeble's types.kn).
+//  Caller (main.kn) is responsible for sending the response through the
+//  HTTP server.
+//
+//  NOTE: This module does NOT import types.kn directly to avoid coupling.
+//  The caller should call this and construct the response.
+// ============================================================================
+
+pub fn serve_static_file(frontend_dir: String, request_path: String) -> (Int, String, String):
+    // Default to index.html for root
+    var file_path: String = request_path
+    if file_path == "/" or file_path == "":
+        file_path = "/index.html"
+
+    // Strip leading slash
+    var clean_path: String = ""
+    var i: Int = 0
+    var after_slash: Bool = false
+    if len(file_path) > 0 and char_at(file_path, 0) == "/":
+        after_slash = true
+    while i < len(file_path):
+        if after_slash == false:
+            if char_at(file_path, i) == "/":
+                after_slash = true
+        else:
+            clean_path = clean_path + char_at(file_path, i)
+        i = i + 1
+
+    let full_path = frontend_dir + "/" + clean_path
+
+    // Security: reject paths with ".."
+    var j: Int = 0
+    while j < len(full_path) - 1:
+        if char_at(full_path, j) == "." and char_at(full_path, j + 1) == ".":
+            return (403, "text/plain", "Forbidden")
+        j = j + 1
+
+    if os_isfile(full_path) == false:
+        return (404, "text/plain", "Not Found")
+
+    let content = os_read_text(full_path)
+
+    // Extract extension for MIME type
+    var ext: String = ""
+    var dot_pos: Int = -1
+    var k: Int = 0
+    while k < len(full_path):
+        if char_at(full_path, k) == ".":
+            dot_pos = k
+        k = k + 1
+    if dot_pos >= 0:
+        ext = substr(full_path, dot_pos + 1, len(full_path))
+
+    let mime = mime_for_extension(ext)
+    return (200, mime, content)
+
+// ============================================================================
+//  LAUNCH WEBVIEW
+//  Opens the webview/browser pointing at the Kauri server.
+//  Supports different app modes.
+// ============================================================================
+
+pub fn launch_webview(port: Int, mode: String) -> Int:
+    let url = "http://127.0.0.1:" + str(port)
+
+    if mode == "edge":
+        // Windows: Edge in app mode (no chrome)
+        let cmd = "start msedge --app=" + url + " --no-first-run --no-default-browser-check"
+        return os_system(cmd)
+
+    if mode == "browser":
+        // Open in default browser — cross-platform
+        if os_is_windows():
+            return os_system("start " + url)
+        elif os_is_macos():
+            return os_system("open " + url)
+        else:
+            // Linux
+            return os_system("xdg-open " + url)
+
+    // "none" or unknown — don't launch
+    return 0
+
+// ============================================================================
+//  SUBSTR — safe string slice helper
+// ============================================================================
+
+fn substr(s: String, start: Int, end: Int) -> String:
+    var result: String = ""
+    var i: Int = start
+    while i < end and i < len(s):
+        result = result + char_at(s, i)
+        i = i + 1
+    return result

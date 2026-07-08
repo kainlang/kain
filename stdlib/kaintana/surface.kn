@@ -1,0 +1,75 @@
+// ============================================================================
+//  surface.kn — Session lifecycle helpers and frame loop runner
+//  P2-021: Session lifecycle helpers wrapping kt_make, kt_free, kt_begin,
+//          kt_end, kt_present, kt_should_close.
+//          SessionConfig struct.
+//
+//  Design:
+//    - make_session wraps kt_make (returns session handle or -1 on failure).
+//    - destroy_session is null-safe (handles -1).
+//    - Frame loop helpers for caller-managed rendering.
+//
+//  Declares its own @extern bindings for the session lifecycle C API.
+// ============================================================================
+
+use std::kaintana::core::kt_init
+use std::kaintana::core::kt_make
+use std::kaintana::core::kt_free
+use std::kaintana::core::kt_begin
+use std::kaintana::core::kt_end
+use std::kaintana::core::kt_present
+use std::kaintana::core::kt_should_close
+use std::kaintana::KtSession
+
+use std::kaintana::core as core
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SessionConfig
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Configuration for creating a Kaintana session.
+pub struct SessionConfig:
+    title:  String
+    width:  Int
+    height: Int
+
+/// Default config: 1280x720 "KaintanaApp".
+pub const DEFAULT_SESSION_CONFIG: SessionConfig = SessionConfig {
+    title:  "KaintanaApp",
+    width:  1280,
+    height: 720,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Session Lifecycle
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Initialize system and create a session. Returns -1 on failure.
+pub fn make_session(config: SessionConfig) -> KtSession:
+    kt_init()
+    let sid = kt_make(config.title, config.width, config.height)
+    return sid
+
+/// Destroy a session. Null-safe.
+pub fn destroy_session(s: KtSession):
+    kt_free(s)
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Frame Loop Primitives
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Returns true if the session is still running.
+pub fn session_running(s: KtSession) -> Bool:
+    return kt_should_close(s) == 0
+
+/// Begin a new frame with given delta time in ms.
+pub fn begin_frame(s: KtSession, delta_ms: Float):
+    kt_begin(s, delta_ms)
+
+/// End command recording for the current frame.
+pub fn end_frame(s: KtSession):
+    kt_end(s)
+
+/// Present the frame to the screen.
+pub fn present_frame(s: KtSession):
+    kt_present(s)

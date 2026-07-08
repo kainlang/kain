@@ -1,0 +1,30 @@
+// ============================================================================
+//  first_forensics_test.kn — Python interop with de-blackbox suite
+// ============================================================================
+
+use std::runtime
+use std::fmt
+
+import no_mo_blackbox.run_forensics as forensics
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    println("=== no-mo-blackbox Forensics Test ===")
+
+    // Test 1: Analyze a known-working .exe
+    println("[1/3] Running forensics on widget_showcase.exe...")
+    let r1 = forensics.run_full_pipeline(
+        "X:\\blades\\ui_demos\\.legacy-test\\widget_showcase.exe",
+        true, 30.0, 4000, none, false, true, false, false
+    )
+    println("    Verdict: " + to_string(r1))
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    println("=== Done ===")
+    return 0

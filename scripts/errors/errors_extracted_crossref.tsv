@@ -1,0 +1,279 @@
+code	title	severity	in_spec	in_compiler	status	spec_source
+KAIN-ACTOR-0001	Component/Actor Error	error	yes	yes	implemented	spec_toml
+KAIN-ACTOR-0002	Actor Spawn Failed	error	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0003	Send To Invalid Actor	error	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0004	Receive Handler Missing	error	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0005	Emit Without Listener	warning	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0006	Decay Transition Invalid	error	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0007	Component Lifecycle Violation	error	yes	no	spec_only	spec_toml
+KAIN-ACTOR-0008	On Handler Duplicate	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0001	Borrow Error	error	yes	yes	implemented	spec_toml
+KAIN-BORROW-0002	Multiple Mutable Borrows	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0003	Borrow And Mutation Conflict	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0004	Use After Move	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0005	Shared State Without Annotation	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0006	Single Writer Violation	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0007	Weak Reference Upgraded Unsafely	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0008	Lifetime Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0009	Send Constraint Violation	error	yes	no	spec_only	spec_toml
+KAIN-BORROW-0010	Implicit Clone On Large Value	warning	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0001	Codegen Error	error	yes	yes	implemented	spec_toml
+KAIN-CODEGEN-0002	Unknown Codegen Variable	error	yes	yes	implemented	spec_toml
+KAIN-CODEGEN-0003	Lowering Pass Failed	error	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0004	Backend Compilation Failed	error	yes	yes	implemented	spec_toml
+KAIN-CODEGEN-0005	Linking Failed	error	yes	yes	implemented	spec_toml
+KAIN-CODEGEN-0006	Unsupported Target Architecture	error	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0007	Target Capability Missing	error	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0008	Foreign ABI Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0009	Codegen Intrinsic Not Found	error	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0010	Optimization Pass Failed	warning	yes	no	spec_only	spec_toml
+KAIN-CODEGEN-0011	Codegen Budget Exceeded	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0001	Comptime Error	error	yes	yes	implemented	spec_toml
+KAIN-COMPTIME-0002	Comptime Evaluation Exceeded Recursion Limit	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0003	Comptime Access To Runtime Value	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0004	Macro Expansion Error	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0005	Patch Target Not Found	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0006	Law Violation	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0007	Axiom Contradiction	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0008	Orchestrate Dependency Cycle	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0009	Converge Failed	error	yes	no	spec_only	spec_toml
+KAIN-COMPTIME-0010	Shatter Pattern Incomplete	error	yes	no	spec_only	spec_toml
+KAIN-CONFIG-0001	Config Error	error	yes	yes	implemented	spec_toml
+KAIN-CONFIG-0002	Manifest Parse Error	error	yes	no	spec_only	spec_toml
+KAIN-CONFIG-0003	Toolchain Not Found	error	yes	no	spec_only	spec_toml
+KAIN-CONFIG-0004	Target Specification Invalid	error	yes	no	spec_only	spec_toml
+KAIN-CONFIG-0005	Feature Flag Conflict	error	yes	no	spec_only	spec_toml
+KAIN-CONFIG-0006	Dependency Resolution Failed	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0001	Converge Error	error	yes	yes	implemented	spec_toml
+KAIN-CONVERGE-0002	Converge Missing Spec Lane	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0003	Converge Fast Lane Contract Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0004	Converge Verifier Failed	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0005	Converge Capability Gap At Target	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0006	Converge Return Type Divergence	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0007	Converge Effect Set Divergence	error	yes	no	spec_only	spec_toml
+KAIN-CONVERGE-0008	Converge Ambiguous Lane Selection	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0001	Effect Violation	error	yes	yes	implemented	spec_toml
+KAIN-EFFECT-0002	Missing Effect Capability	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0003	Effect Polymorphism Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0004	Pure Function With Side Effect	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0005	Capability Gate Failure	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0006	Async In Sync Context	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0007	Await Outside Async	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0008	GPU Effect In Host Context	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0009	Reactive Cycle Detected	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0010	Unsafe Block Not Allowed	error	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0011	Effect Leakage Through Public API	warning	yes	no	spec_only	spec_toml
+KAIN-EFFECT-0012	Conflicting Effect Annotations	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0001	Entangle Error	error	yes	yes	implemented	spec_toml
+KAIN-ENTANGLE-0002	Entangle Cycle Detected	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0003	Entangle Single Writer Violation	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0004	Entangle Dangling Reference	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0005	Entangle Cross-World Scope Error	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0006	Entangle Type Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-ENTANGLE-0007	Entangle Direction Conflict	error	yes	no	spec_only	spec_toml
+KAIN-INTERNAL-0001	Internal Error	error	yes	yes	implemented	spec_toml
+KAIN-IO-0001	IO Error	error	yes	yes	implemented	spec_toml
+KAIN-IO-0002	File Not Found	error	yes	no	spec_only	spec_toml
+KAIN-IO-0003	File Read Error	error	yes	no	spec_only	spec_toml
+KAIN-IO-0004	File Write Error	error	yes	no	spec_only	spec_toml
+KAIN-IO-0005	Network Request Failed	error	yes	no	spec_only	spec_toml
+KAIN-IO-0006	Asset Import Failed	error	yes	no	spec_only	spec_toml
+KAIN-MEM-0001	Memory Lowering Required	error	yes	yes	implemented	spec_toml
+KAIN-MEM-0002	Memory Semantics Unsupported By Backend	error	yes	yes	implemented	spec_toml
+KAIN-MEM-0003	Illegal Bitfield Address	error	yes	yes	implemented	spec_toml
+KAIN-MEM-0004	Memory Layout Overflow	error	yes	yes	implemented	spec_toml
+KAIN-MEM-0005	Alignment Requirement Not Satisfied	error	yes	no	spec_only	spec_toml
+KAIN-MEM-0006	Null Pointer Dereference	error	yes	no	spec_only	spec_toml
+KAIN-MEM-0007	Out Of Bounds Access	error	yes	no	spec_only	spec_toml
+KAIN-MEM-0008	Address Space Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0001	Parse Error	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0001-ACTOR	Unexpected identifier in actor	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ACTOR2	Invalid token in actor	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-AXIOM	Duplicate axiom fallback	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-AXIOM2	Invalid axiom keyword	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-AXIOM3	Unknown axiom predicate	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-COMPONENT	Missing state after weak in component	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-COMPONENT2	Unexpected identifier in component body	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-COMPONENT3	Unexpected token in component	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-COMPONENT4	Component missing render body	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-CONVERGE	Duplicate converge spec lane	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-CONVERGE2	Invalid converge keyword	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-CONVERGE3	Converge requires spec lane	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-CONVERGE4	Converge requires fast lane	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-DEFER	Defer missing expression	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-DELEGATE	Expected delegate keyword	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ENTANGLE	Entangle missing from/to	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ENTANGLE2	Invalid entangle endpoint	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-IDENT	Expected identifier	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-IDENT2	Unexpected end of input	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-IF	Expected if after else	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-IMPL	Trait path before for expected (impl)	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-IMPL2	Only fn allowed in impl blocks	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-INCDEC	No ++ or -- in Kain	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-INCLUDE	Invalid C include target	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-INCLUDE2	Bare include with version rejected	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ITEM	Top-level item expected	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-JSX	Expected attribute value	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-JSX2	JSX element name must be uppercase	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-JSX3	Expected closing tag	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-JSX4	Expected JSX tag name	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-JSX5	Expected = in JSX attribute	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-MACRO	Unknown macro param kind	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ORCH	Unknown orchestrate stage kind	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ORCH2	Unknown orchestrate residency	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ORCH3	Unknown orchestrate transfer	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-ORCH4	Unknown orchestrate policy	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-PRIMARY	Struct literal syntax rejected	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-PRIMARY2	Unclosed brace in f-string	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-PRIMARY3	Spawn requires named arguments	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-RESONATE	Invalid resonate endpoint	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-SHADER	Invalid shader stage	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-SHADER2	Expected shader stage	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-SHADER3	Invalid uniform binding	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-STATE	Unexpected method in state definition	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-STATE2	Animation property not a string	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-STRUCTLIT	Duplicate struct update ..base	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-STRUCTLIT2	Empty struct update ..	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-UNARY	Send requires named arguments	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-UNARY2	Expected message call after send	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-UNARY3	Unknown scoped ownership keyword	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0001-WORLD	World missing surface (parse-level)	error	yes	no	spec_only	X:\docs-tsv\error_codes_parser.tsv
+KAIN-PARSE-0002	Expected Token	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0003	Unexpected Token	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0004	Reserved Identifier	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0005	Missing Delimiter Before Newline	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0006	Invalid World Surface Kind	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0007	Expected Contextual Keyword	error	yes	yes	implemented	spec_toml
+KAIN-PARSE-0008	Unclosed Delimiter	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0009	Mismatched Delimiter	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0010	Invalid Numeric Literal	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0011	Invalid String Literal	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0012	Invalid Character Literal	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0013	Attribute Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0014	Effect Annotation Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0015	Module Declaration Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0016	Use/Import Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0017	Visibility Modifier Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0018	Comptime Block Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0019	Macro Invocation Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PARSE-0020	Test Declaration Syntax Error	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0001	Patch Error	error	yes	yes	implemented	spec_toml
+KAIN-PATCH-0002	Patch Target Is Not A World	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0003	Patch Law Precondition Failed	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0004	Patch Law Postcondition Failed	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0005	Patch Applied Outside World Scope	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0006	Conflicting Patch Mutations	error	yes	no	spec_only	spec_toml
+KAIN-PATCH-0007	Patch Law Return Type Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-PULSE-BUDGET-0001	Pulse Budget Alloc Violation	error	yes	yes	implemented	X:\docs-tsv\error_codes_typechecker.tsv
+KAIN-PULSE-BUDGET-0002	Pulse Budget Lock Violation	error	yes	yes	implemented	X:\docs-tsv\error_codes_typechecker.tsv
+KAIN-PULSE-BUDGET-0003	Pulse Budget IO Violation	error	yes	yes	implemented	X:\docs-tsv\error_codes_typechecker.tsv
+KAIN-RUNTIME-0001	Runtime Error	error	yes	yes	implemented	spec_toml
+KAIN-RUNTIME-0002	Actor Panic	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0003	Message Delivery Failed	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0004	Resource Exhausted	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0005	Deadlock Detected	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0006	World Initialization Failed	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0007	Shader Dispatch Failed	error	yes	no	spec_only	spec_toml
+KAIN-RUNTIME-0008	Timeout Exceeded	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0001	Unsupported Shader Call	error	yes	yes	implemented	spec_toml
+KAIN-SHADER-0002	Shader Stage Mismatch	error	yes	yes	implemented	spec_toml
+KAIN-SHADER-0003	Uniform Binding Error	error	yes	yes	implemented	spec_toml
+KAIN-SHADER-0004	Compute Dispatch Dimension Error	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0005	Shader Resource Not GPU-Compatible	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0006	Vertex Input Layout Error	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0007	Fragment Output Layout Error	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0008	Collapse Target Invalid	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0009	Fanout Width Exceeded	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0010	Shader Compilation Failed	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0011	GPU Memory Budget Exceeded	error	yes	no	spec_only	spec_toml
+KAIN-SHADER-0012	Shared Memory Bank Conflict	warning	yes	no	spec_only	spec_toml
+KAIN-SHADER-0042	Subgroup Nested	error	yes	yes	implemented	X:\docs-tsv\error_codes_typechecker.tsv
+KAIN-SHADER-0043	Subgroup Divergent Escape	error	yes	yes	implemented	X:\docs-tsv\error_codes_typechecker.tsv
+KAIN-STATE-0001	State Error	error	yes	yes	implemented	spec_toml
+KAIN-STATE-0002	State Machine Inexhaustive	error	yes	no	spec_only	spec_toml
+KAIN-STATE-0003	State Transition Cycle	error	yes	no	spec_only	spec_toml
+KAIN-STATE-0004	Invalid State Transition	error	yes	no	spec_only	spec_toml
+KAIN-STATE-0005	Pulse Without State	error	yes	no	spec_only	spec_toml
+KAIN-STATE-0006	Guarantee Violation	error	yes	no	spec_only	spec_toml
+KAIN-STATE-0007	Every Clause Unbounded	warning	yes	no	spec_only	spec_toml
+KAIN-STATE-0008	Fallback Handler Unreachable	warning	yes	no	spec_only	spec_toml
+KAIN-TEST-0001	Test Error	error	yes	yes	implemented	spec_toml
+KAIN-TEST-0002	Assertion Failed	error	yes	no	spec_only	spec_toml
+KAIN-TEST-0003	Spec Property Violated	error	yes	no	spec_only	spec_toml
+KAIN-TEST-0004	Fast Test Exceeded Time Budget	warning	yes	no	spec_only	spec_toml
+KAIN-TEST-0005	Verify Block Infallible	warning	yes	no	spec_only	spec_toml
+KAIN-TEST-0006	Random Seed Not Reproducible	warning	yes	no	spec_only	spec_toml
+KAIN-TEST-0007	Jitter Range Invalid	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0001	Type Error	error	yes	yes	implemented	spec_toml
+KAIN-TYPE-0002	Unknown Identifier	error	yes	yes	implemented	spec_toml
+KAIN-TYPE-0003	World Requires Surface	error	yes	yes	implemented	spec_toml
+KAIN-TYPE-0004	Duplicate Symbol	error	yes	yes	implemented	spec_toml
+KAIN-TYPE-0005	Builtin Symbol Shadowed	warning	yes	yes	implemented	spec_toml
+KAIN-TYPE-0006	Missing Type Annotation	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0007	Trait Not Satisfied	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0008	Trait Method Missing	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0009	Ambiguous Trait Implementation	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0010	Unresolved Import	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0011	Cyclic Type Definition	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0012	Mutable/Immutable Conflict	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0013	Pattern Match Inexhaustive	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0014	Recursive Type Without Indirection	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0015	Type Alias Cycle	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0016	Impl On Foreign Type	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0017	Self Type In Static Context	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0018	Invalid Type Parameter Count	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0019	Type Argument Kind Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0020	Return Type Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0021	Missing Return In Non-Void Function	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0022	Void Value Used In Expression	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0023	Callable Type Expected	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0024	Field Not Found	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0025	Type Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-TYPE-0026	Index Not Supported	error	yes	no	spec_only	spec_toml
+KAIN-VALIDATE-0001	Validation Error	error	yes	yes	implemented	spec_toml
+KAIN-WORLD-0001	World Missing Surface	error	yes	yes	implemented	spec_toml
+KAIN-WORLD-0002	Duplicate Surface Kind	error	yes	no	spec_only	spec_toml
+KAIN-WORLD-0003	Surface Component Type Error	error	yes	no	spec_only	spec_toml
+KAIN-WORLD-0004	World Orphan	error	yes	no	spec_only	spec_toml
+KAIN-WORLD-0005	Entanglement Target Invalid	error	yes	yes	implemented	spec_toml
+KAIN-WORLD-0006	Teleport Destination Invalid	error	yes	yes	implemented	spec_toml
+KAIN-WORLD-0007	World Cross-Reference Cycle	error	yes	no	spec_only	spec_toml
+KAIN-WORLD-0008	Surface Kind Platform Mismatch	error	yes	no	spec_only	spec_toml
+KAIN-ACCESSDENIED-XXXX			no	yes	compiler_only	
+KAIN-ALREADYEXISTS-XXXX			no	yes	compiler_only	
+KAIN-BORROW-XXXX			no	yes	compiler_only	
+KAIN-CODEGEN-XXXX			no	yes	compiler_only	
+KAIN-COMPONENT-XXXX			no	yes	compiler_only	
+KAIN-COMPTIME-XXXX			no	yes	compiler_only	
+KAIN-CONFIG-XXXX			no	yes	compiler_only	
+KAIN-CONVERGE-XXXX			no	yes	compiler_only	
+KAIN-CROSSDEVICE-XXXX			no	yes	compiler_only	
+KAIN-CROSSESDEVICES-XXXX			no	yes	compiler_only	
+KAIN-DIRECTORYNOTEMPTY-XXXX			no	yes	compiler_only	
+KAIN-EFFECT-XXXX			no	yes	compiler_only	
+KAIN-ENTANGLE-XXXX			no	yes	compiler_only	
+KAIN-GLOBPATTERN-XXXX			no	yes	compiler_only	
+KAIN-GLOBREAD-XXXX			no	yes	compiler_only	
+KAIN-INTERNAL-XXXX			no	yes	compiler_only	
+KAIN-INTERRUPTED-XXXX			no	yes	compiler_only	
+KAIN-INVALIDDATA-XXXX			no	yes	compiler_only	
+KAIN-INVALIDINPUT-XXXX			no	yes	compiler_only	
+KAIN-IO-XXXX			no	yes	compiler_only	
+KAIN-ISADIRECTORY-XXXX			no	yes	compiler_only	
+KAIN-ISDIRECTORY-XXXX			no	yes	compiler_only	
+KAIN-MEM-XXXX			no	yes	compiler_only	
+KAIN-MEMORY-XXXX			no	yes	compiler_only	
+KAIN-NOTADIRECTORY-XXXX			no	yes	compiler_only	
+KAIN-NOTFOUND-XXXX			no	yes	compiler_only	
+KAIN-OTHER-XXXX			no	yes	compiler_only	
+KAIN-PARSE-XXXX			no	yes	compiler_only	
+KAIN-PATCH-XXXX			no	yes	compiler_only	
+KAIN-PERMISSIONDENIED-XXXX			no	yes	compiler_only	
+KAIN-RUNTIME-XXXX			no	yes	compiler_only	
+KAIN-SHADER-XXXX			no	yes	compiler_only	
+KAIN-STATE-XXXX			no	yes	compiler_only	
+KAIN-TEST-XXXX			no	yes	compiler_only	
+KAIN-TYPE-XXXX			no	yes	compiler_only	
+KAIN-UNSUPPORTED-XXXX			no	yes	compiler_only	
+KAIN-VALIDATION-XXXX			no	yes	compiler_only	
+KAIN-WORLD-XXXX			no	yes	compiler_only	

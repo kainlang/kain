@@ -1,0 +1,363 @@
+// ============================================================================
+//  examples/todo_app.kn — Kaintana Todo List Application
+//  World + surface kaintana + component with state + widgets + ScrollView
+//
+//  Features:
+//    - World + surface kaintana binding
+//    - Component with persistent state (pipe-delimited item storage)
+//    - TextInput for adding new todo items
+//    - Checkboxes to mark items as done
+//    - Completed vs total count summary with ProgressBar
+//    - ScrollView wrapping the item list
+//    - Null backend for compilation/testing
+//
+//  Verify:  kain check todo_app.kn --json
+//  Build:   RENDERER_BACKEND=null kain build todo_app.kn --target llvm
+//  Run:     RENDERER_BACKEND=win32 kain run todo_app.kn --target llvm
+// ============================================================================
+
+type KtSession = Int
+type KtElementId = Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  @EXTERN BINDINGS
+// ═══════════════════════════════════════════════════════════════════════════
+
+@extern fn kt_init() -> Int
+@extern fn kt_make(name: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: KtSession) -> Void
+@extern fn kt_begin(s: KtSession, delta_ms: Float) -> Void
+@extern fn kt_end(s: KtSession) -> Void
+@extern fn kt_present(s: KtSession) -> Void
+@extern fn kt_should_close(s: KtSession) -> Int
+@extern fn kt_host_pump(s: KtSession) -> Int
+@extern fn kt_backend_register(s: KtSession, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: KtSession, name: String) -> Int
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_stroke(s: KtSession, elem: KtElementId, color: String, w: Float) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+@extern fn kt_font(s: KtSession, elem: KtElementId, size: Float) -> Void
+@extern fn kt_pad(s: KtSession, elem: KtElementId, all: Float) -> Void
+@extern fn kt_gap(s: KtSession, elem: KtElementId, gap: Float) -> Void
+@extern fn kt_direction(s: KtSession, elem: KtElementId, dir: Int) -> Void
+@extern fn kt_hovered(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_clicked(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_active(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_put(s: KtSession, key: String, v: Int) -> Void
+@extern fn kt_get(s: KtSession, key: String, fallback: Int) -> Int
+@extern fn kt_put_s(s: KtSession, key: String, v: String) -> Void
+@extern fn kt_get_s(s: KtSession, key: String, fallback: String) -> String
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WIDGET IMPORTS — Self-contained components from std::kaintana
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::kaintana::Button
+use std::kaintana::Label
+use std::kaintana::TextInput
+use std::kaintana::Checkbox
+use std::kaintana::ScrollView
+use std::kaintana::ProgressBar
+use std::kaintana::Divider
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  THEME CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BG_COLOR:       String = "#1A1A24"
+const SURFACE_COLOR:  String = "#232339"
+const ACCENT_COLOR:   String = "#21D4A1"
+const TEXT_COLOR:     String = "#F1F1F6"
+const TEXT_DIM_COLOR: String = "#6B6B80"
+const BORDER_COLOR:   String = "#2E2E4A"
+const PIPE_BYTE:      Int    = 124
+
+const APP_W: Int = 420
+const APP_H: Int = 660
+const LIST_W: Float = 380.0
+const LIST_H: Float = 340.0
+const ITEM_H: Float = 36.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  STRING SEGMENT HELPERS — pipe-delimited storage for item data
+//  These are pub (top-level) functions that the LLVM codegen can resolve.
+//  Component JSX expressions call these directly instead of method calls.
+// ═══════════════════════════════════════════════════════════════════════════
+
+pub fn seg_count(s: String) -> Int:
+    if s == "":
+        return 0
+    var count: Int = 1
+    var i: Int = 0
+    let n = len(s)
+    while i < n:
+        if byte_at(s, i) == PIPE_BYTE:
+            count = count + 1
+        i = i + 1
+    return count
+
+pub fn seg_build(s: String, start: Int, length: Int) -> String:
+    var result: String = ""
+    var i: Int = 0
+    while i < length:
+        result = result + chr(byte_at(s, start + i))
+        i = i + 1
+    return result
+
+pub fn seg_get(s: String, idx: Int) -> String:
+    var current: Int = 0
+    var start: Int = 0
+    var i: Int = 0
+    let n = len(s)
+    while i < n:
+        if byte_at(s, i) == PIPE_BYTE:
+            if current == idx:
+                return seg_build(s, start, i - start)
+            current = current + 1
+            start = i + 1
+        i = i + 1
+    if current == idx:
+        return seg_build(s, start, i - start)
+    return ""
+
+pub fn seg_append(s: String, val: String) -> String:
+    if s == "":
+        return val
+    return s + "|" + val
+
+pub fn seg_remove(s: String, idx: Int) -> String:
+    let total = seg_count(s)
+    if total <= 0 or idx < 0 or idx >= total:
+        return s
+    var result: String = ""
+    var current: Int = 0
+    var start: Int = 0
+    var i: Int = 0
+    let n = len(s)
+    while i < n:
+        if byte_at(s, i) == PIPE_BYTE:
+            if current != idx:
+                if result != "":
+                    result = result + "|"
+                result = result + seg_build(s, start, i - start)
+            current = current + 1
+            start = i + 1
+        i = i + 1
+    if current != idx:
+        if result != "":
+            result = result + "|"
+        result = result + seg_build(s, start, i - start)
+    return result
+
+pub fn seg_set(s: String, idx: Int, val: String) -> String:
+    var result: String = ""
+    var current: Int = 0
+    var start: Int = 0
+    var i: Int = 0
+    let n = len(s)
+    while i < n:
+        if byte_at(s, i) == PIPE_BYTE:
+            if current == idx:
+                result = result + val + "|"
+            else:
+                result = result + seg_build(s, start, i - start) + "|"
+            current = current + 1
+            start = i + 1
+        i = i + 1
+    if current == idx:
+        result = result + val
+    else:
+        result = result + seg_build(s, start, i - start)
+    return result
+
+pub fn flip_done(v: String) -> String:
+    if v == "0":
+        return "1"
+    return "0"
+
+pub fn completed_for(done: String) -> Int:
+    let n = seg_count(done)
+    var cnt: Int = 0
+    var i: Int = 0
+    while i < n:
+        if seg_get(done, i) == "1":
+            cnt = cnt + 1
+        i = i + 1
+    return cnt
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENT: TodoApp
+//  JSX expressions use pub helper functions + direct state access only.
+//  Component methods (on_*, on_toggle_*) are only for on_click callbacks.
+// ═══════════════════════════════════════════════════════════════════════════
+
+component TodoApp():
+    state _items: String = "Buy groceries|Walk the dog|Write Kain code|Review PR|Read a book|Clean workspace"
+    state _done:  String = "0|0|1|0|0|0"
+    state _input: String = ""
+    state _frame: Int = 0
+
+    fn on_add(_self: Self_):
+        let text = _self._input
+        if text != "":
+            _self._items = seg_append(_self._items, text)
+            _self._done = seg_append(_self._done, "0")
+            _self._input = ""
+
+    fn on_toggle_0(_self: Self_):
+        _self._done = seg_set(_self._done, 0, flip_done(seg_get(_self._done, 0)))
+
+    fn on_toggle_1(_self: Self_):
+        _self._done = seg_set(_self._done, 1, flip_done(seg_get(_self._done, 1)))
+
+    fn on_toggle_2(_self: Self_):
+        _self._done = seg_set(_self._done, 2, flip_done(seg_get(_self._done, 2)))
+
+    fn on_toggle_3(_self: Self_):
+        _self._done = seg_set(_self._done, 3, flip_done(seg_get(_self._done, 3)))
+
+    fn on_toggle_4(_self: Self_):
+        _self._done = seg_set(_self._done, 4, flip_done(seg_get(_self._done, 4)))
+
+    fn on_toggle_5(_self: Self_):
+        _self._done = seg_set(_self._done, 5, flip_done(seg_get(_self._done, 5)))
+
+    fn on_toggle_6(_self: Self_):
+        _self._done = seg_set(_self._done, 6, flip_done(seg_get(_self._done, 6)))
+
+    fn on_toggle_7(_self: Self_):
+        _self._done = seg_set(_self._done, 7, flip_done(seg_get(_self._done, 7)))
+
+    fn on_remove_0(_self: Self_):
+        _self._items = seg_remove(_self._items, 0)
+        _self._done = seg_remove(_self._done, 0)
+
+    fn on_remove_1(_self: Self_):
+        _self._items = seg_remove(_self._items, 1)
+        _self._done = seg_remove(_self._done, 1)
+
+    fn on_remove_2(_self: Self_):
+        _self._items = seg_remove(_self._items, 2)
+        _self._done = seg_remove(_self._done, 2)
+
+    fn on_remove_3(_self: Self_):
+        _self._items = seg_remove(_self._items, 3)
+        _self._done = seg_remove(_self._done, 3)
+
+    fn on_remove_4(_self: Self_):
+        _self._items = seg_remove(_self._items, 4)
+        _self._done = seg_remove(_self._done, 4)
+
+    fn on_remove_5(_self: Self_):
+        _self._items = seg_remove(_self._items, 5)
+        _self._done = seg_remove(_self._done, 5)
+
+    fn on_remove_6(_self: Self_):
+        _self._items = seg_remove(_self._items, 6)
+        _self._done = seg_remove(_self._done, 6)
+
+    fn on_remove_7(_self: Self_):
+        _self._items = seg_remove(_self._items, 7)
+        _self._done = seg_remove(_self._done, 7)
+
+    render <box kind="stack" direction={1} pad={16} gap={8} width={APP_W as Float} height={APP_H as Float} fill={BG_COLOR} key="todo-root">
+
+        <Label value={"Todo App \u2014 " + str(seg_count(_items)) + " items"} font_size={22} color={TEXT_COLOR} key="header" />
+
+        <box kind="stack" direction={0} gap={8} height={ITEM_H} key="input-row">
+            <TextInput value={_input} placeholder="Add a new task..." width={280} key="todo-input" />
+            <Button label="Add" variant="primary" on_click={on_add} key="add-btn" />
+        </box>
+
+        <Label value={"Completed: " + str(completed_for(_done)) + " / " + str(seg_count(_items))} font_size={13} color={ACCENT_COLOR} key="summary" />
+
+        <ProgressBar value={(completed_for(_done) as Float / seg_count(_items) as Float) * 100.0} max={100.0} width={360} height={6} fill_color={ACCENT_COLOR} track_color={BORDER_COLOR} key="progress" />
+
+        <box kind="box" height={1} fill={BORDER_COLOR} key="divider" />
+
+        <ScrollView axis="vertical" width={LIST_W} height={LIST_H} key="todo-list">
+            <box kind="stack" direction={1} gap={4} pad={4} key="items-box">
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-0">
+                    <Checkbox checked={seg_get(_done, 0) == "1"} label={seg_get(_items, 0)} key="chk-0" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_0} key="rm-0" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-1">
+                    <Checkbox checked={seg_get(_done, 1) == "1"} label={seg_get(_items, 1)} key="chk-1" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_1} key="rm-1" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-2">
+                    <Checkbox checked={seg_get(_done, 2) == "1"} label={seg_get(_items, 2)} key="chk-2" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_2} key="rm-2" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-3">
+                    <Checkbox checked={seg_get(_done, 3) == "1"} label={seg_get(_items, 3)} key="chk-3" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_3} key="rm-3" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-4">
+                    <Checkbox checked={seg_get(_done, 4) == "1"} label={seg_get(_items, 4)} key="chk-4" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_4} key="rm-4" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-5">
+                    <Checkbox checked={seg_get(_done, 5) == "1"} label={seg_get(_items, 5)} key="chk-5" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_5} key="rm-5" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-6">
+                    <Checkbox checked={seg_get(_done, 6) == "1"} label={seg_get(_items, 6)} key="chk-6" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_6} key="rm-6" />
+                </box>
+                <box kind="stack" direction={0} gap={8} height={ITEM_H} key="row-7">
+                    <Checkbox checked={seg_get(_done, 7) == "1"} label={seg_get(_items, 7)} key="chk-7" />
+                    <Button label="X" variant="ghost" width={28} height={28} on_click={on_remove_7} key="rm-7" />
+                </box>
+            </box>
+        </ScrollView>
+
+        <Label value={"Frame: " + str(_frame)} font_size={11} color={TEXT_DIM_COLOR} key="fps" />
+    </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORLD: TodoWorld
+// ═══════════════════════════════════════════════════════════════════════════
+
+world TodoWorld:
+    surface kaintana => TodoApp
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MAIN — Program entry point
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    let init_result = kt_init()
+    let sid = kt_make("Todo App", APP_W, APP_H)
+    if sid < 1:
+        return 1
+
+    let reg = kt_backend_register(sid, "null", 0)
+    if reg == 0:
+        kt_free(sid)
+        return 2
+    let sel = kt_backend_select(sid, "null")
+    if sel == 0:
+        kt_free(sid)
+        return 3
+
+    var frame: Int = 0
+    while kt_should_close(sid) == 0:
+        let _ = kt_host_pump(sid)
+        kt_begin(sid, 16.0)
+        kt_end(sid)
+        kt_present(sid)
+        frame = frame + 1
+
+    kt_free(sid)
+    return 0
+
+// ============================================================================
+//  END — examples/todo_app.kn
+// ============================================================================

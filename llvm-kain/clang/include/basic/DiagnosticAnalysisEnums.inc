@@ -1,0 +1,1 @@
+// Stub: DiagnosticAnalysisEnums.inc

@@ -1,0 +1,13 @@
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "voxel_bridge"
+header = "src/native/voxel_bridge.h"
+sources = ["src/native/voxel_bridge.c"]
+include_paths = [
+  "src/native",
+  "src/../widgets",
+  "src/..",
+  "../../../include",
+]
+link_libs = ["user32", "gdi32", "opengl32"]

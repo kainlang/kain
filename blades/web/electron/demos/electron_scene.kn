@@ -1,0 +1,326 @@
+// ============================================================================
+//  electron_scene.kn — SCENE COMPOSITION MODULE
+// ============================================================================
+//
+//  WHAT:      Pre-built scene elements composed from electron_bridge +
+//             electron_extras primitives. Any demo can `use electron_scene`
+//             and call scene_forest(), scene_sky(), scene_water(), etc.
+//
+//  IMPORT:    use electron_bridge
+//             use electron_extras
+//             use electron_scene
+//
+//  PATTERN:   Each function calls create_mesh / create_particles / set_* /
+//             update_* from the bridge + extras APIs. No hand-rolled JSON.
+//             All IDs are auto-generated from the SceneState world.
+//
+//  ID SYSTEM: scene_tree("prefix") → "prefix_tree_42"
+//             SceneState.next_id is a monotonic counter in a world.
+//
+//  FUNCTIONS:
+//    ATMOSPHERE:   scene_sky(), scene_night(), scene_sunset()
+//    LANDSCAPE:    scene_ground(width, depth, color), scene_mountain(x,z,h,r)
+//    VEGETATION:   scene_tree(x,y,z,h), scene_forest(cx,cz,r,count),
+//                  scene_bush(x,y,z)
+//    STRUCTURES:   scene_tower(x,z,h), scene_wall(x1,z1,x2,z2,h)
+//    WATER:        scene_water(y)
+//    LIGHTING:     scene_sunlight(), scene_fill_light()
+//    SKYBOX:       scene_mountains_backdrop(count)
+//
+//  SEMANTIC LAYER: L0 (fn, let, use) + L1 (world for ID counter)
+//  STDLIB:         std::math (sin, cos, sqrt)
+//  DEPENDS:        electron_bridge, electron_extras
+// ============================================================================
+
+use std::math
+use electron_bridge
+use electron_extras
+
+// ============================================================================
+//  LAYER 1: ID COUNTER — monotonic ID generator shared by all scene functions
+// ============================================================================
+// WHY: world = compiler-owned module-level state. Each scene_* function
+//      increments next_id to guarantee unique IDs without passing counters.
+
+world SceneState:
+    state next_id: Int = 0
+
+// ============================================================================
+//  INTERNAL HELPERS
+// ============================================================================
+
+// __scene_next_id: generate and return the next unique object ID.
+fn __scene_next_id(prefix: String) -> String:
+    let id_str: String = prefix + str(SceneState.next_id)
+    SceneState.next_id = SceneState.next_id + 1
+    return id_str
+
+// __scene_hash: deterministic quasi-random float in [0, 1) from an index.
+// Uses the classic "sin hash" pattern — same seed every call gives same result.
+fn __scene_hash(seed: Int) -> Float:
+    let s: Float = sin(seed * 12.9898 + 78.233) * 43758.5453123
+    return s - __scene_floor(s)
+
+// __scene_floor: floor function for floats (stdlib doesn't have a standalone floor).
+fn __scene_floor(x: Float) -> Float:
+    let ix: Int = x as Int
+    if x < 0.0 and x != (ix as Float):
+        return (ix - 1) as Float
+    return ix as Float
+
+// __scene_random_range: deterministic random in [lo, hi) from index.
+fn __scene_random_range(seed: Int, lo: Float, hi: Float) -> Float:
+    return lo + __scene_hash(seed) * (hi - lo)
+
+// ============================================================================
+//  ATMOSPHERE
+// ============================================================================
+
+// scene_sky: daytime atmosphere — blue sky gradient, atmospheric fog,
+// ambient light, a distant sun sphere with emissive glow, and a directional
+// sun light.
+pub fn scene_sky():
+    set_background("#5588cc")
+    set_fog("#8899cc", 30.0, 120.0)
+    set_ambient("#8899bb", 0.6)
+
+    // Sun sphere — large, distant, glowing
+    let sun_id: String = __scene_next_id("sky_sun_")
+    create_mesh(sun_id, "sphere", "#ffffcc")
+    update_transform(sun_id, 80.0, 60.0, -50.0, 8.0, 8.0, 8.0)
+    update_emissive(sun_id, "#ffffaa", 4.5)
+    set_material(sun_id, 0.0, 0.0, 1.0)
+
+    // Directional sun light
+    let sun_light_id: String = __scene_next_id("sky_sun_light_")
+    create_light(sun_light_id, "directional", "#ffffcc", 3.5, 80.0, 60.0, -50.0)
+
+// scene_night: dark night atmosphere — black/blue background, starfield,
+// moon sphere, dim ambient light.
+pub fn scene_night():
+    set_background("#050515")
+    set_fog("#050515", 20.0, 100.0)
+    set_ambient("#111133", 0.15)
+
+    // Starfield — 200 tiny distant particles
+    let stars_id: String = __scene_next_id("night_stars_")
+    create_particles(stars_id, 200, "#ffffff")
+    update_particle_size(stars_id, 0.06)
+
+    // Scatter stars in a large hemisphere at y>0
+    var si: Int = 0
+    while si < 200:
+        let s_hash: Float = __scene_hash(si * 7 + 1)
+        let phi: Float = __scene_hash(si * 13 + 5) * 6.283185307
+        let theta: Float = __scene_hash(si * 17 + 3) * 1.57         // 0 to π/2
+        let sr: Float = 40.0 + __scene_hash(si * 19 + 7) * 30.0
+        let sx: Float = cos(phi) * sin(theta) * sr
+        let sy: Float = cos(theta) * sr
+        let sz: Float = sin(phi) * sin(theta) * sr
+
+        // Build flat position update inline (single-vertex particle trick)
+        println("{\"cmd\":\"update\",\"id\":\"" + stars_id + "\",\"flat\":[" +
+            str(sx) + "," + str(sy) + "," + str(sz) + "]}")
+        si = si + 1
+
+    // Moon — medium sphere, cool blue-white emissive
+    let moon_id: String = __scene_next_id("night_moon_")
+    create_mesh(moon_id, "sphere", "#ddddff")
+    update_transform(moon_id, 40.0, 45.0, -30.0, 4.0, 4.0, 4.0)
+    update_emissive(moon_id, "#ccddff", 2.0)
+    set_material(moon_id, 0.1, 0.0, 1.0)
+
+    // Dim moonlight
+    let moon_light_id: String = __scene_next_id("night_moon_light_")
+    create_light(moon_light_id, "directional", "#aaccff", 0.8, 40.0, 45.0, -30.0)
+
+// scene_sunset: warm orange/pink horizon atmosphere — low sun, warm fog,
+// golden ambient light.
+pub fn scene_sunset():
+    set_background("#332211")
+    set_fog("#332211", 8.0, 60.0)
+    set_ambient("#332211", 0.4)
+
+    // Low sun — warm orange, near horizon
+    let sun_id: String = __scene_next_id("sunset_sun_")
+    create_mesh(sun_id, "sphere", "#ff8833")
+    update_transform(sun_id, 50.0, 3.0, -60.0, 6.0, 6.0, 6.0)
+    update_emissive(sun_id, "#ff6622", 3.5)
+    set_material(sun_id, 0.0, 0.0, 1.0)
+
+    // Warm directional light from low angle
+    let sun_light_id: String = __scene_next_id("sunset_light_")
+    create_light(sun_light_id, "directional", "#ff8844", 2.5, 50.0, 3.0, -60.0)
+
+// ============================================================================
+//  LANDSCAPE
+// ============================================================================
+
+// scene_ground: flat plane at y=0 with matte (high roughness) material.
+pub fn scene_ground(width: Float, depth: Float, color: String):
+    let id: String = __scene_next_id("ground_")
+    create_mesh(id, "plane", color)
+    update_transform(id, 0.0, 0.0, 0.0, width, 1.0, depth)
+    set_material(id, 0.9, 0.0, 1.0)         // matte, no metal
+
+// scene_mountain: cone at position (x, 0, z) as a mountain.
+// Wide at base (radius), narrow at top. Rock-like material.
+pub fn scene_mountain(x: Float, z: Float, height: Float, radius: Float):
+    let id: String = __scene_next_id("mountain_")
+    // Cone has radius at bottom, 0 at top, height along Y
+    create_mesh(id, "cone", "#666655")
+    update_transform(id, x, height * 0.5, z, radius, height, radius)
+    set_material(id, 0.85, 0.05, 1.0)        // rough, slight metal
+
+// ============================================================================
+//  VEGETATION
+// ============================================================================
+
+// scene_tree: brown cylinder trunk + green icosahedron canopy.
+// Trunk: radius 0.1, height = `height`. Canopy: radius 1.5, at top of trunk.
+pub fn scene_tree(x: Float, y: Float, z: Float, height: Float):
+    let trunk_id: String = __scene_next_id("tree_trunk_")
+    let canopy_id: String = __scene_next_id("tree_canopy_")
+
+    // Trunk
+    create_mesh(trunk_id, "cylinder", "#553311")
+    update_transform(trunk_id, x, y + height * 0.5, z, 0.12, height * 0.5, 0.12)
+    set_material(trunk_id, 0.9, 0.0, 1.0)
+
+    // Canopy — icosahedron gives a nice organic tree shape
+    create_mesh(canopy_id, "icosahedron", "#336622")
+    update_transform(
+        canopy_id,
+        x + __scene_hash(SceneState.next_id * 3) * 0.2 - 0.1,
+        y + height + 0.3,
+        z + __scene_hash(SceneState.next_id * 5) * 0.2 - 0.1,
+        1.5, 1.2, 1.5
+    )
+    set_material(canopy_id, 0.7, 0.0, 1.0)
+
+// scene_forest: spawns `count` trees in a circular area around (cx, cz).
+// Trees have varying height 3-8. Uses deterministic quasi-random distribution.
+pub fn scene_forest(center_x: Float, center_z: Float, radius: Float, count: Int):
+    var i: Int = 0
+    while i < count:
+        let angle: Float = __scene_random_range(i * 7 + 1, 0.0, 6.283185307)
+        let dist: Float = sqrt(__scene_hash(i * 11 + 3)) * radius
+        let tx: Float = center_x + cos(angle) * dist
+        let tz: Float = center_z + sin(angle) * dist
+        let th: Float = 3.0 + __scene_hash(i * 13 + 5) * 5.0   // 3-8 height
+
+        scene_tree(tx, 0.0, tz, th)
+        i = i + 1
+
+// scene_bush: small green sphere, slightly flattened for a bush look.
+pub fn scene_bush(x: Float, y: Float, z: Float):
+    let id: String = __scene_next_id("bush_")
+    create_mesh(id, "sphere", "#338822")
+    update_transform(id, x, y + 0.3, z, 0.6, 0.35, 0.6)
+    set_material(id, 0.75, 0.0, 1.0)
+
+// ============================================================================
+//  STRUCTURES
+// ============================================================================
+
+// scene_tower: cylinder body + cone roof + emissive window at top.
+// Gray stone colored, with warm window glow.
+pub fn scene_tower(x: Float, z: Float, height: Float):
+    let body_id: String = __scene_next_id("tower_body_")
+    let roof_id: String = __scene_next_id("tower_roof_")
+    let window_id: String = __scene_next_id("tower_window_")
+
+    // Tower body — cylinder
+    create_mesh(body_id, "cylinder", "#888877")
+    update_transform(body_id, x, height * 0.5, z, 0.8, height * 0.5, 0.8)
+    set_material(body_id, 0.7, 0.1, 1.0)
+
+    // Cone roof
+    create_mesh(roof_id, "cone", "#665544")
+    update_transform(roof_id, x, height + 0.3, z, 1.1, 0.8, 1.1)
+    set_material(roof_id, 0.6, 0.15, 1.0)
+
+    // Emissive window at top
+    create_mesh(window_id, "sphere", "#ffcc66")
+    update_transform(window_id, x, height - 0.4, z, 0.3, 0.3, 0.3)
+    update_emissive(window_id, "#ffaa33", 2.5)
+    set_material(window_id, 0.2, 0.0, 1.0)
+
+// scene_wall: box wall segment between (x1, z1) and (x2, z2).
+// Creates multiple box segments if the wall is longer than 2 units.
+pub fn scene_wall(x1: Float, z1: Float, x2: Float, z2: Float, height: Float):
+    let dx: Float = x2 - x1
+    let dz: Float = z2 - z1
+    let length: Float = sqrt(dx * dx + dz * dz)
+
+    // Unit direction
+    let nx: Float = dx / length
+    let nz: Float = dz / length
+
+    // Segment the wall into ~1.5-unit pieces
+    let seg_count: Int = ((length / 1.5) as Int) + 1
+    let seg_len: Float = length / (seg_count as Float)
+
+    var s: Int = 0
+    while s < seg_count:
+        let id: String = __scene_next_id("wall_seg_")
+        let frac: Float = (s as Float + 0.5) / (seg_count as Float)
+        let cx: Float = x1 + dx * frac
+        let cz: Float = z1 + dz * frac
+        let thickness: Float = 0.3
+
+        create_mesh(id, "box", "#998877")
+        update_transform(id, cx, height * 0.5, cz, seg_len * 0.5, height * 0.5, thickness)
+        set_material(id, 0.7, 0.1, 1.0)
+        s = s + 1
+
+// ============================================================================
+//  WATER
+// ============================================================================
+
+// scene_water: large flat blue plane at y, semi-transparent with blue glow.
+pub fn scene_water(y: Float):
+    let id: String = __scene_next_id("water_")
+
+    create_mesh(id, "plane", "#3366aa")
+    update_transform(id, 0.0, y, 0.0, 50.0, 1.0, 50.0)
+    set_material(id, 0.1, 0.3, 0.6)          // slightly shiny, semi-transparent
+    update_emissive(id, "#225599", 0.6)       // subtle blue glow
+
+// ============================================================================
+//  LIGHTING HELPERS
+// ============================================================================
+
+// scene_sunlight: strong directional light from above-right, simulating sun.
+pub fn scene_sunlight():
+    let id: String = __scene_next_id("sunlight_")
+    create_light(id, "directional", "#ffffcc", 3.0, 30.0, 40.0, 20.0)
+
+// scene_fill_light: dim point light for fill, positioned near the camera.
+pub fn scene_fill_light():
+    let id: String = __scene_next_id("fill_light_")
+    create_light(id, "point", "#8899bb", 0.5, 5.0, 8.0, 12.0)
+
+// ============================================================================
+//  SKYBOX / DISTANT ELEMENTS
+// ============================================================================
+
+// scene_mountains_backdrop: creates `count` distant mountain silhouettes.
+// Mountains are dark cones placed along the far horizon (z = -80 to -100).
+pub fn scene_mountains_backdrop(count: Int):
+    var i: Int = 0
+    while i < count:
+        let mx: Float = -40.0 + (i as Float) * (80.0 / (count as Float))
+        let mz: Float = -70.0 + __scene_hash(i * 23 + 7) * 10.0 - 20.0
+        let mh: Float = 8.0 + __scene_hash(i * 29 + 11) * 15.0
+        let mr: Float = 4.0 + __scene_hash(i * 31 + 13) * 4.0
+
+        let id: String = __scene_next_id("backdrop_mtn_")
+        create_mesh(id, "cone", "#332222")
+        update_transform(id, mx, mh * 0.5, mz, mr, mh, mr)
+        set_material(id, 0.95, 0.0, 1.0)       // very rough, no highlight
+        i = i + 1
+
+// ============================================================================
+//  END electron_scene.kn
+// ============================================================================

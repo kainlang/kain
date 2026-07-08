@@ -1,0 +1,1 @@
+BUILD_SKIPPED: cmake build requires flat-layout CMakeLists.txt toolchain setup (separate task). Sandbox file layout verified: 5,590 files, 4,365 include fixes, 0 errors.

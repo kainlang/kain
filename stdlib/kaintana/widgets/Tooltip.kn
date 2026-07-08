@@ -1,0 +1,150 @@
+// ============================================================================
+//  widgets/Tooltip.kn — Hover-revealed tooltip with delay timer
+//  P3-023: Hover-revealed tooltip with delay timer (hover for N ms before
+//          show). Positioned relative to parent element. Auto-dismiss on
+//          mouse leave. Optional theming.
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+//
+//  Design:
+//    - Tooltip wraps a trigger area (children between JSX tags)
+//    - Hover timer tracked via _timer state, incremented each frame
+//    - Tooltip overlay shown after delay_ms of continuous hover
+//    - Auto-dismiss on mouse leave (kt_hovered returns 0)
+//    - Tooltip rendered as overlay box with themed surface bg + text
+//    - Position prop controls overlay placement (top/bottom/left/right)
+//    - process_timer method called by application after each frame render
+//
+//  Dependencies:
+//    - core.kn: kt_row, kt_end_row, kt_text, kt_hovered, kt_fill,
+//               kt_radius, kt_opacity, KtSession, KtElementId
+//    - theme.kn: resolved_bg defaults to surface (#232339)
+// ============================================================================
+
+// ── Type aliases matching C types (from core.kn) ─────────────────────────
+
+use std::kaintana::core::KtSession
+use std::kaintana::core::KtElementId
+use std::kaintana::core::kt_row
+use std::kaintana::core::kt_end_row
+use std::kaintana::core::kt_text
+use std::kaintana::core::kt_hovered
+use std::kaintana::core::kt_fill
+use std::kaintana::core::kt_radius
+use std::kaintana::core::kt_opacity
+use std::kaintana::core::kt_width
+use std::kaintana::core::kt_height
+
+// ── Widget trait (from Widget.kn) ─────────────────────────────────────────
+
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ── Tooltip layout mode constants ─────────────────────────────────────────
+
+/// Tooltip appears above the trigger (default).
+pub const KT_TIP_TOP:    Int = 0
+/// Tooltip appears below the trigger.
+pub const KT_TIP_BOTTOM: Int = 1
+/// Tooltip appears to the left of the trigger.
+pub const KT_TIP_LEFT:   Int = 2
+/// Tooltip appears to the right of the trigger.
+pub const KT_TIP_RIGHT:  Int = 3
+
+// ============================================================================
+//  Component: Tooltip
+// ============================================================================
+
+/// Hover-revealed tooltip with configurable delay and position.
+///
+/// Props:
+///   text     — tooltip text content (required)
+///   position — placement hint: "top", "bottom", "left", "right" (default "top")
+///   delay_ms — hover time before showing tooltip in ms (default 500)
+///   theme    — hex color string for background, "" = surface default
+///   key      — stable key for reconciliation
+///
+/// State:
+///   _visible      — becomes true after delay_ms of continuous hover
+///   _timer        — accumulated hover time in ms, resets on mouse leave
+///   _trigger_elem — root box element ID for hover queries
+///
+/// Usage:
+///   <Tooltip text="Click to save" position="top" delay_ms={500}>
+///       <Button label="Save" variant="primary" />
+///   </Tooltip>
+///
+/// Call process_timer(s) after each frame's element tree is built
+/// to update the hover timer and tooltip visibility.
+component Tooltip(
+    text: String,
+    position: String = "top",
+    delay_ms: Float = 500.0,
+    theme: String = "",
+    key: String = "tooltip",
+):
+    state _visible: Bool = false
+    state _timer: Float = 0.0
+    state _trigger_elem: Int = -1
+
+    /// Resolve tooltip background color from theme prop or default surface.
+    fn resolved_bg(_self: Self_) -> String:
+        if _self.theme != "":
+            return _self.theme
+        return "#232339"
+
+    /// Resolve tooltip text color — always uses the theme text default.
+    fn resolved_text(_self: Self_) -> String:
+        return "#F1F1F6"
+
+    /// Process hover timer each frame. Call after element tree is built.
+    ///
+    /// Checks kt_hovered on the trigger element. If hovering, increments
+    /// _timer by approximate frame delta (16ms). When _timer >= delay_ms,
+    /// sets _visible true. On mouse leave, resets timer and hides.
+    fn process_timer(_self: Self_, s: KtSession):
+        if _self._trigger_elem < 0:
+            return
+        let hov = kt_hovered(s, _self._trigger_elem)
+        if hov != 0:
+            if _self._visible == false:
+                _self._timer = _self._timer + 16.0
+                if _self._timer >= _self.delay_ms:
+                    _self._visible = true
+        else:
+            if _self._visible != false:
+                _self._visible = false
+                _self._timer = 0.0
+
+    /// Resolve opacity: 1.0 when visible, 0.0 when hidden.
+    fn overlay_opacity(_self: Self_) -> Float:
+        if _self._visible:
+            return 1.0
+        return 0.0
+
+    render <box kind="tooltip" key={key}>
+        <box kind="tooltip-overlay" key={key + ".overlay"} fill={resolved_bg()} radius={4.0} opacity={overlay_opacity()} width={160.0}>
+            <text value={text} />
+        </box>
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Tooltip
+// ============================================================================
+
+impl Widget for Tooltip:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "tooltip"
+    fn element_id(_self: Self_) -> Int:
+        return _self._trigger_elem
+    fn tick_interaction(_self: Self_):
+        return

@@ -1,0 +1,1 @@
+// Stub: DiagnosticCrossTUEnums.inc

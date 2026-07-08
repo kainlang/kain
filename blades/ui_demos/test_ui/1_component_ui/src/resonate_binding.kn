@@ -1,0 +1,41 @@
+// resonate_binding.kn — World state + component + resonate tripwire syntax
+// NOTE: resonate parsed & typechecked but NOT codegen-wired (Phase 3 pending)
+use std::runtime
+
+world RBWorld:
+    state slider_value: Int = 50
+    surface native_ui => ResonateDemo
+
+// Law for validation
+law rb_value_in_range(v: Int) -> Bool:
+    return v >= 0 and v <= 100
+
+// Patch for journaled mutation
+patch rb_set_slider(authority: RBWorld, value: Int) -> Int:
+    authority.slider_value = value
+    return authority.slider_value
+
+component ResonateDemo():
+    state display_value: Int = 50
+
+    // Resonate tripwire — parsed, typechecked, but not codegen-wired
+    resonate RBWorld.slider_value dampen 0ms:
+        self.display_value = RBWorld.slider_value
+
+    render <panel title="Resonate Binding — World → Component Tripwire" fill_color="#1a1a2e">
+        <stack direction="vertical" spacing={12.0} padding={16.0}>
+            <text value="Resonate Binding Proof" font_size={18.0} fill_color="#E8E8F0" />
+            <text value="Resonate syntax: resonate World.field dampen 0ms" font_size={12.0} fill_color="#8888A0" />
+            <text value="Body locals: resonate_new_i64, resonate_old_i64, resonate_fired" font_size={12.0} fill_color="#4A90D9" />
+            <text value="State access via 'self' in resonate bodies." font_size={12.0} fill_color="#E8914A" />
+            <text value="Self-feedback rule: cannot write to own trigger field." font_size={12.0} fill_color="#E84A5F" />
+            <text value="Also parse-checked: law + patch keywords." font_size={12.0} fill_color="#21D4A1" />
+            <text value="STATUS: codegen not yet wired. Exe builds but resonate doesn't fire." font_size={12.0} fill_color="#E84A5F" />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

@@ -1,0 +1,11 @@
+use std::runtime
+use std::fs
+use std::os
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let ok = fs_exists("X:/blades/ui_demos")
+    println("fs_exists: " + str(ok))
+    let cwd = os_getcwd()
+    println("cwd: " + cwd)
+    return 0

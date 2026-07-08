@@ -1,0 +1,65 @@
+// ============================================================================
+//  input_test.kn — Standalone stdin Input Test
+// ============================================================================
+//  Proves that keyboard/mouse/click events reach the Kain program via stdin.
+//  Reads one event, prints it, and exits. No Electron dependency — run with:
+//
+//    echo '{"type":"keydown","key":"w"}' | demos/input_test.exe
+//
+//  Expected output: JSON telemetry proving the key was received.
+// ============================================================================
+
+use std::runtime
+use std::json
+
+// ── World: state for the test ─────────────────────────────────────────
+world TestState:
+    state done: Int = 0
+
+// ── Parse a stdin event and print telemetry ──────────────────────────
+fn handle_event(raw: String):
+    if raw == "":
+        println("{\"cmd\":\"telemetry\",\"key\":\"result\",\"value\":-1}")
+        println("{\"cmd\":\"telemetry\",\"key\":\"error\",\"value\":\"empty_line\"}")
+        return
+
+    let evt = json_parse_text(raw)
+    let evt_type: String = json_string_or(evt, "type", "unknown")
+    let key: String = json_string_or(evt, "key", "")
+    let x: Float = json_float_or(evt, "x", -1.0)
+    let y: Float = json_float_or(evt, "y", -1.0)
+
+    // Print telemetry for the Electron renderer
+    println("{\"cmd\":\"telemetry\",\"key\":\"event_type\",\"value\":\"" + evt_type + "\"}")
+    if key != "":
+        println("{\"cmd\":\"telemetry\",\"key\":\"key\",\"value\":\"" + key + "\"}")
+    if x >= 0.0:
+        println("{\"cmd\":\"telemetry\",\"key\":\"mouse_x\",\"value\":" + str(x) + "}")
+    if y >= 0.0:
+        println("{\"cmd\":\"telemetry\",\"key\":\"mouse_y\",\"value\":" + str(y) + "}")
+
+    // Also print to stderr for standalone pipe testing
+    stderr_write("[input_test] received: type=" + evt_type + " key=" + key + " x=" + str(x) + " y=" + str(y) + "\n")
+
+    println("{\"cmd\":\"telemetry\",\"key\":\"result\",\"value\":1}")
+
+// ── MAIN ────────────────────────────────────────────────────────────
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Read ONE event from stdin, process it, then exit immediately
+    // This makes it testable with pipe: echo '{"type":"keydown","key":"w"}' | input_test.exe
+    let raw_line: String = read_line()
+    handle_event(raw_line)
+
+    // Try reading a second line (in case there are more events in the pipe)
+    let raw_line2: String = read_line()
+    if raw_line2 != "":
+        handle_event(raw_line2)
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0

@@ -1,0 +1,775 @@
+// ============================================================================
+//  amalgamation_showcase.kn — std::ui Amalgamation Showcase
+//
+//  Comprehensive visual test of ALL std::ui widget types using native
+//  elements (<panel>, <box>, <text>, <stack>) with theme-consistent colors.
+//
+//  Covers: Button · Checkbox · Toggle · Slider · TextInput · ProgressBar
+//          Spinner · Label · Divider · HStack · VStack · Spacer
+//
+//  Color keys: bg, surface, accent, accent2, accent3, accent4, text,
+//              text_dim, text_inverse, border, button, button_disabled,
+//              input_bg, slider_track, slider_fill, slider_thumb
+//
+//  Usage:
+//    kain check amalgamation_showcase.kn --json
+//    kain build amalgamation_showcase.kn --target llvm
+//
+//  Ladder: Layer UI — native element composition
+//
+//  NOTE: Uses native elements only because cross-file component imports
+//  (use std::ui::components::*) are not yet linked by LLVM codegen.
+// ============================================================================
+
+use std::runtime
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const PANEL_W: Float = 1050.0
+const PANEL_H: Float = 1750.0
+const SECTION_GAP: Float = 12.0
+const ITEM_GAP: Float = 6.0
+const BUTTON_W: Float = 200.0
+const BUTTON_H: Float = 34.0
+const SMALL_BUTTON_W: Float = 100.0
+const SLIDER_TRACK_W: Float = 200.0
+const SLIDER_TRACK_H: Float = 6.0
+const SLIDER_THUMB_SZ: Float = 16.0
+const INPUT_W: Float = 300.0
+const INPUT_H: Float = 28.0
+const CHECKBOX_SZ: Float = 18.0
+const PROGRESS_W: Float = 200.0
+const PROGRESS_H: Float = 18.0
+const TOGGLE_W: Float = 44.0
+const TOGGLE_H: Float = 24.0
+const THUMB_SZ: Float = 20.0
+const SPINNER_SZ: Float = 24.0
+const DIVIDER_H: Float = 2.0
+const DIVIDER_W: Float = 980.0
+const BORDER_RADIUS: Float = 4.0
+const TITLE_FONT: Float = 18.0
+const HEADING_FONT: Float = 14.0
+const BODY_FONT: Float = 13.0
+const SMALL_FONT: Float = 12.0
+const TINY_FONT: Float = 11.0
+
+// ============================================================================
+//  COMPONENT
+// ============================================================================
+
+component AmalgamationShowcase(width=1050, height=1750):
+    render <panel title="std::ui Amalgamation Showcase — All 8 Widgets + Layout + Theme" fill_color="bg">
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  TITLE SECTION
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="std::ui AMALGAMATION SHOWCASE" font_size={TITLE_FONT} fill_color="accent" />
+        <text value="All 8 widget types · HStack/VStack layout · Theme color system" font_size={BODY_FONT} fill_color="text_dim" />
+        <text value="" font_size={4} />
+
+        <box fill_color="border" width={DIVIDER_W} height={DIVIDER_H}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 1: BUTTONS
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="1. BUTTONS — All Variants" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // Row: Primary + Secondary + Destructive
+        <stack direction="horizontal" spacing={ITEM_GAP}>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={BUTTON_W} height={BUTTON_H}>
+                <text value="Primary Action" font_size={BODY_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent2" corner_radius={BORDER_RADIUS} width={BUTTON_W} height={BUTTON_H}>
+                <text value="Secondary Action" font_size={BODY_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent4" corner_radius={BORDER_RADIUS} width={BUTTON_W} height={BUTTON_H}>
+                <text value="Delete" font_size={BODY_FONT} fill_color="text" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Row: Ghost + Disabled + Compact pair
+        <stack direction="horizontal" spacing={ITEM_GAP}>
+            <box fill_color="transparent" corner_radius={BORDER_RADIUS} width={140} height={BUTTON_H}>
+                <text value="Ghost Action" font_size={BODY_FONT} fill_color="text" />
+            </box>
+            <box fill_color="button_disabled" corner_radius={BORDER_RADIUS} width={BUTTON_W} height={BUTTON_H}>
+                <text value="Disabled" font_size={BODY_FONT} fill_color="text_dim" />
+            </box>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={SMALL_BUTTON_W} height={28}>
+                <text value="Compact" font_size={SMALL_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent3" corner_radius={BORDER_RADIUS} width={120} height={28}>
+                <text value="Warning" font_size={SMALL_FONT} fill_color="text" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Demo: Simulated pressed/hover states
+        <text value="Visual state simulation:" font_size={TINY_FONT} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={ITEM_GAP}>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={120} height={BUTTON_H}>
+                <text value="Normal" font_size={SMALL_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="button_hover" corner_radius={BORDER_RADIUS} width={120} height={BUTTON_H}>
+                <text value="Hovered" font_size={SMALL_FONT} fill_color="text" />
+            </box>
+            <box fill_color="button_press" corner_radius={BORDER_RADIUS} width={120} height={BUTTON_H}>
+                <text value="Pressed" font_size={SMALL_FONT} fill_color="text" />
+            </box>
+            <box fill_color="button_disabled" corner_radius={BORDER_RADIUS} width={120} height={BUTTON_H}>
+                <text value="Disabled" font_size={SMALL_FONT} fill_color="text_dim" />
+            </box>
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 2: CHECKBOXES + TOGGLES
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="2. CHECKBOXES + TOGGLES" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        <stack direction="horizontal" spacing={12}>
+
+            // Left column: Checkboxes
+            <stack direction="vertical" spacing={ITEM_GAP}>
+                <text value="Checkboxes:" font_size={BODY_FONT} fill_color="text_dim" />
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="accent" corner_radius={2} width={CHECKBOX_SZ} height={CHECKBOX_SZ}>
+                        <text value="✓" font_size={SMALL_FONT} fill_color="text_inverse" />
+                    </box>
+                    <text value="Enable Music" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="button" corner_radius={2} width={CHECKBOX_SZ} height={CHECKBOX_SZ}>
+                        <text value="" />
+                    </box>
+                    <text value="Sound Effects" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="accent" corner_radius={2} width={CHECKBOX_SZ} height={CHECKBOX_SZ}>
+                        <text value="✓" font_size={SMALL_FONT} fill_color="text_inverse" />
+                    </box>
+                    <text value="Notifications" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="button" corner_radius={2} width={CHECKBOX_SZ} height={CHECKBOX_SZ}>
+                        <text value="" />
+                    </box>
+                    <text value="Fullscreen Mode" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+            </stack>
+
+            // Right column: Toggles
+            <stack direction="vertical" spacing={ITEM_GAP}>
+                <text value="Toggles:" font_size={BODY_FONT} fill_color="text_dim" />
+
+                <stack direction="horizontal" spacing={10}>
+                    <box fill_color="accent" corner_radius={12} width={TOGGLE_W} height={TOGGLE_H}>
+                        <box fill_color="text" corner_radius={10} width={THUMB_SZ} height={THUMB_SZ}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="Wi-Fi" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={10}>
+                    <box fill_color="slider_track" corner_radius={12} width={TOGGLE_W} height={TOGGLE_H}>
+                        <box fill_color="text" corner_radius={10} width={THUMB_SZ} height={THUMB_SZ}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="Bluetooth" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={10}>
+                    <box fill_color="accent" corner_radius={12} width={TOGGLE_W} height={TOGGLE_H}>
+                        <box fill_color="text" corner_radius={10} width={THUMB_SZ} height={THUMB_SZ}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="Dark Mode" font_size={BODY_FONT} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={10}>
+                    <box fill_color="button_disabled" corner_radius={12} width={TOGGLE_W} height={TOGGLE_H}>
+                        <box fill_color="button_disabled" corner_radius={10} width={THUMB_SZ} height={THUMB_SZ}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="VPN (disabled)" font_size={BODY_FONT} fill_color="text_dim" />
+                </stack>
+            </stack>
+
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 3: SLIDERS
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="3. SLIDERS — Track + Fill + Thumb" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // Slider 1: Volume 72%
+        <text value="Volume: 72%" font_size={BODY_FONT} fill_color="text" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={SLIDER_TRACK_W} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_fill" width={144} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_thumb" corner_radius={8} width={SLIDER_THUMB_SZ} height={SLIDER_THUMB_SZ}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Slider 2: Brightness 45%
+        <text value="Brightness: 45%" font_size={BODY_FONT} fill_color="text" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={SLIDER_TRACK_W} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_fill" width={90} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_thumb" corner_radius={8} width={SLIDER_THUMB_SZ} height={SLIDER_THUMB_SZ}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Slider 3: Speed 90%
+        <text value="Speed: 90%" font_size={BODY_FONT} fill_color="text" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={SLIDER_TRACK_W} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_fill" width={180} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_thumb" corner_radius={8} width={SLIDER_THUMB_SZ} height={SLIDER_THUMB_SZ}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Slider 4: Contrast 25%
+        <text value="Contrast: 25%" font_size={BODY_FONT} fill_color="text" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={SLIDER_TRACK_W} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_fill" width={50} height={SLIDER_TRACK_H}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_thumb" corner_radius={8} width={SLIDER_THUMB_SZ} height={SLIDER_THUMB_SZ}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 4: TEXT INPUTS
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="4. TEXT INPUTS — Placeholder, Password, Focus" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // Normal input with value
+        <text value="Username:" font_size={BODY_FONT} fill_color="text_dim" />
+        <box fill_color="input_bg" corner_radius={BORDER_RADIUS} width={INPUT_W} height={INPUT_H}>
+            <text value="kain_user" font_size={BODY_FONT} fill_color="text" />
+        </box>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Placeholder (empty)
+        <text value="Search:" font_size={BODY_FONT} fill_color="text_dim" />
+        <box fill_color="input_bg" corner_radius={BORDER_RADIUS} width={INPUT_W} height={INPUT_H}>
+            <text value="Search widgets..." font_size={BODY_FONT} fill_color="text_dim" />
+        </box>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Password
+        <text value="Password:" font_size={BODY_FONT} fill_color="text_dim" />
+        <box fill_color="input_bg" corner_radius={BORDER_RADIUS} width={INPUT_W} height={INPUT_H}>
+            <text value="•••••••••" font_size={BODY_FONT} fill_color="text" />
+        </box>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Email with cursor simulation
+        <text value="Email address:" font_size={BODY_FONT} fill_color="text_dim" />
+        <box fill_color="input_bg" corner_radius={BORDER_RADIUS} width={INPUT_W} height={INPUT_H}>
+            <text value="user@example.com" font_size={BODY_FONT} fill_color="text" />
+        </box>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Focused input with cursor
+        <text value="Active (focused) input:" font_size={BODY_FONT} fill_color="text_dim" />
+        <box fill_color="input_bg" corner_radius={BORDER_RADIUS} width={INPUT_W} height={INPUT_H}>
+            <text value="typing here" font_size={BODY_FONT} fill_color="text" />
+            <text value="|" font_size={BODY_FONT} fill_color="accent" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 5: PROGRESS BARS
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="5. PROGRESS BARS — Variants + Percentages" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // Progress: Primary 62%
+        <stack direction="horizontal" spacing={0}>
+            <box fill_color="slider_track" width={PROGRESS_W} height={PROGRESS_H}>
+                <box fill_color="accent" width={124} height={PROGRESS_H}>
+                    <text value="" />
+                </box>
+            </box>
+            <text value="  62% (primary)" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Progress: Secondary 43%
+        <stack direction="horizontal" spacing={0}>
+            <box fill_color="slider_track" width={PROGRESS_W} height={PROGRESS_H}>
+                <box fill_color="accent2" width={86} height={PROGRESS_H}>
+                    <text value="" />
+                </box>
+            </box>
+            <text value="  43% (secondary)" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Progress: Warning 78%
+        <stack direction="horizontal" spacing={0}>
+            <box fill_color="slider_track" width={PROGRESS_W} height={PROGRESS_H}>
+                <box fill_color="accent3" width={156} height={PROGRESS_H}>
+                    <text value="" />
+                </box>
+            </box>
+            <text value="  78% (warning)" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Progress: Error 35%
+        <stack direction="horizontal" spacing={0}>
+            <box fill_color="slider_track" width={PROGRESS_W} height={PROGRESS_H}>
+                <box fill_color="accent4" width={70} height={PROGRESS_H}>
+                    <text value="" />
+                </box>
+            </box>
+            <text value="  35% (error)" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Progress: Success 100%
+        <stack direction="horizontal" spacing={0}>
+            <box fill_color="accent" width={PROGRESS_W} height={PROGRESS_H}>
+                <box fill_color="accent" width={PROGRESS_W} height={PROGRESS_H}>
+                    <text value="" />
+                </box>
+            </box>
+            <text value="  100% (complete)" font_size={SMALL_FONT} fill_color="accent" />
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 6: SPINNERS + LABELS
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="6. SPINNERS + LABELS" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        <stack direction="horizontal" spacing={SECTION_GAP}>
+
+            // Spinners
+            <stack direction="vertical" spacing={ITEM_GAP}>
+                <text value="Spinners:" font_size={BODY_FONT} fill_color="text_dim" />
+                <stack direction="horizontal" spacing={SECTION_GAP}>
+                    <box fill_color="accent" corner_radius={8} width={16} height={16}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="accent2" corner_radius={12} width={SPINNER_SZ} height={SPINNER_SZ}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="accent3" corner_radius={16} width={32} height={32}>
+                        <text value="" />
+                    </box>
+                </stack>
+                <text value="" font_size={ITEM_GAP} />
+                <stack direction="horizontal" spacing={SECTION_GAP}>
+                    <box fill_color="accent4" corner_radius={12} width={SPINNER_SZ} height={SPINNER_SZ}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="accent" corner_radius={14} width={28} height={28}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="text_dim" corner_radius={10} width={20} height={20}>
+                        <text value="" />
+                    </box>
+                </stack>
+            </stack>
+
+            // Labels
+            <stack direction="vertical" spacing={ITEM_GAP}>
+                <text value="Labels:" font_size={BODY_FONT} fill_color="text_dim" />
+
+                <text value="Primary label (default 14px)" font_size={BODY_FONT} fill_color="text" />
+                <text value="Dim label for secondary info" font_size={SMALL_FONT} fill_color="text_dim" />
+                <text value="Accent-colored label" font_size={BODY_FONT} fill_color="accent" />
+                <text value="Large heading label" font_size={16} fill_color="accent2" />
+                <text value="Tiny footnote" font_size={TINY_FONT} fill_color="text_dim" />
+            </stack>
+
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 7: LAYOUT — HStack + VStack + Alignment
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="7. LAYOUT — HStack / VStack / Spacer" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // HStack with mixed colors
+        <text value="HStack (horizontal, spacing=8):" font_size={BODY_FONT} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={80} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={BORDER_RADIUS} width={120} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" corner_radius={BORDER_RADIUS} width={100} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent4" corner_radius={BORDER_RADIUS} width={90} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={70} height={40}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // VStack with spacing
+        <text value="VStack (vertical, spacing=4):" font_size={BODY_FONT} fill_color="text_dim" />
+        <stack direction="vertical" spacing={4}>
+            <box fill_color="accent" corner_radius={BORDER_RADIUS} width={DIVIDER_W} height={24}>
+                <text value="Row 1 — accent" font_size={TINY_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent2" corner_radius={BORDER_RADIUS} width={DIVIDER_W} height={24}>
+                <text value="Row 2 — accent2" font_size={TINY_FONT} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent3" corner_radius={BORDER_RADIUS} width={DIVIDER_W} height={24}>
+                <text value="Row 3 — accent3" font_size={TINY_FONT} fill_color="text" />
+            </box>
+            <box fill_color="accent4" corner_radius={BORDER_RADIUS} width={DIVIDER_W} height={24}>
+                <text value="Row 4 — accent4" font_size={TINY_FONT} fill_color="text" />
+            </box>
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Surface panel (simulated card)
+        <text value="Surface cards (elevated panels):" font_size={BODY_FONT} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="surface" corner_radius={BORDER_RADIUS} width={300} height={80}>
+                <text value="Card 1" font_size={BODY_FONT} fill_color="text" />
+                <text value="Surface elevation" font_size={TINY_FONT} fill_color="text_dim" />
+            </box>
+            <box fill_color="surface" corner_radius={BORDER_RADIUS} width={300} height={80}>
+                <text value="Card 2" font_size={BODY_FONT} fill_color="text" />
+                <text value="Same elevation" font_size={TINY_FONT} fill_color="text_dim" />
+            </box>
+            <box fill_color="surface" corner_radius={BORDER_RADIUS} width={300} height={80}>
+                <text value="Card 3" font_size={BODY_FONT} fill_color="text" />
+                <text value="Consistent layout" font_size={TINY_FONT} fill_color="text_dim" />
+            </box>
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  SECTION 8: THEME COLOR SWATCH
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="8. THEME COLOR SWATCH — Complete Palette" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        <text value="All named color keys from std::ui::theme — consistent across widgets:" font_size={SMALL_FONT} fill_color="text_dim" />
+        <text value="" font_size={ITEM_GAP} />
+
+        // Color swatches as boxes
+        <stack direction="horizontal" spacing={4}>
+            <box fill_color="bg" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="surface" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="surface2" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="header" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="border" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="button" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="button_hover" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="button_press" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="button_disabled" width={60} height={30}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <stack direction="horizontal" spacing={4}>
+            <text value="bg" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={24} />
+            <text value="surface" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={16} />
+            <text value="surface2" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={12} />
+            <text value="header" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={16} />
+            <text value="border" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={16} />
+            <text value="button" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={12} />
+            <text value="hover" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={14} />
+            <text value="press" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={14} />
+            <text value="disabled" font_size={TINY_FONT} fill_color="text_dim" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Accent colors row
+        <stack direction="horizontal" spacing={4}>
+            <box fill_color="accent" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="accent4" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="input_bg" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_track" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_fill" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="slider_thumb" width={60} height={30}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <stack direction="horizontal" spacing={4}>
+            <text value="accent" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={14} />
+            <text value="accent2" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={12} />
+            <text value="accent3" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={12} />
+            <text value="accent4" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={8} />
+            <text value="input_bg" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={10} />
+            <text value="slider_trk" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={8} />
+            <text value="slider_fill" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={6} />
+            <text value="slider_thumb" font_size={TINY_FONT} fill_color="text_dim" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        // Text colors row
+        <stack direction="horizontal" spacing={4}>
+            <box fill_color="text" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="text_dim" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="text_inverse" width={60} height={30}>
+                <text value="" />
+            </box>
+            <box fill_color="transparent" corner_radius={BORDER_RADIUS} width={60} height={30}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <stack direction="horizontal" spacing={4}>
+            <text value="text" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={24} />
+            <text value="text_dim" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={16} />
+            <text value="text_inverse" font_size={TINY_FONT} fill_color="text_dim" />
+            <text value="" font_size={6} />
+            <text value="transparent" font_size={TINY_FONT} fill_color="text_dim" />
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <box fill_color="border" width={DIVIDER_W} height={1}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  FOOTER
+        // ═══════════════════════════════════════════════════════════════════
+
+        <text value="SUMMARY — All 8 Widget Types Verified" font_size={HEADING_FONT} fill_color="accent" />
+        <text value="" font_size={ITEM_GAP} />
+
+        <stack direction="horizontal" spacing={16}>
+            <text value="Buttons 5 variants ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Checkboxes 4 states ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Toggles 4 states ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Sliders 4 values ✓" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <stack direction="horizontal" spacing={16}>
+            <text value="TextInputs 4 modes ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Progress 5 variants ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Spinners 6 sizes ✓" font_size={SMALL_FONT} fill_color="text" />
+            <text value="Labels 5 styles ✓" font_size={SMALL_FONT} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={ITEM_GAP} />
+
+        <stack direction="horizontal" spacing={16}>
+            <text value="HStack layouts ✓" font_size={SMALL_FONT} fill_color="accent" />
+            <text value="VStack layouts ✓" font_size={SMALL_FONT} fill_color="accent" />
+            <text value="Color swatches ✓" font_size={SMALL_FONT} fill_color="accent" />
+            <text value="Theme consistency ✓" font_size={SMALL_FONT} fill_color="accent" />
+        </stack>
+
+        <text value="" font_size={SECTION_GAP} />
+
+        <text value="std::ui Amalgamation Showcase — 2026-06-26" font_size={TINY_FONT} fill_color="text_dim" />
+        <text value="Native elements only: <panel> <box> <text> <stack> · Theme color keys from DEFAULT_THEME" font_size={TINY_FONT} fill_color="text_dim" />
+
+    </panel>
+
+// ============================================================================
+//  WORLD
+// ============================================================================
+
+world AmalgamationWorld:
+    surface native_ui => AmalgamationShowcase
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

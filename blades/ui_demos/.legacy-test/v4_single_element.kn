@@ -1,0 +1,16 @@
+// v4_single_element.kn — absolute minimum: one element, no nesting
+
+use std::runtime
+
+world OneWorld:
+    surface native_ui => OneRoot
+
+component OneRoot():
+    render <panel title="ONE" background="#FF0000" />
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

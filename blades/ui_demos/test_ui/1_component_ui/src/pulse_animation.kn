@@ -1,0 +1,33 @@
+// pulse_animation.kn — Pulse clock syntax in component body
+// NOTE: pulse parsed & typechecked but NOT codegen-wired (Phase 3 pending)
+use std::runtime
+
+component AnimatedDemo():
+    state angle: Float = 0.0
+    state opacity: Float = 1.0
+    state scale: Float = 1.0
+
+    // Pulse clock syntax — parsed, typechecked, but not codegen-wired yet
+    pulse animation_clock every 16ms jitter 2ms:
+        self.angle = self.angle + 0.017
+        self.opacity = 0.65
+        self.scale = 1.3
+
+    render <panel title="Pulse Animation — 60 FPS Clock" fill_color="#1a1a2e">
+        <stack direction="vertical" spacing={8.0} padding={16.0}>
+            <text value="Pulse Animation Proof" font_size={18.0} fill_color="#E8E8F0" />
+            <text value="Pulse syntax parsed and typechecked: pulse clock every 16ms jitter 2ms" font_size={12.0} fill_color="#8888A0" />
+            <text value="Body locals: pulse_tick, pulse_dt_ms, pulse_missed" font_size={12.0} fill_color="#4A90D9" />
+            <text value="State access via 'self' (not '_self') in pulse bodies." font_size={12.0} fill_color="#E8914A" />
+            <text value="STATUS: codegen not yet wired. Exe builds but pulse doesn't fire." font_size={12.0} fill_color="#E84A5F" />
+        </stack>
+    </panel>
+
+world PAWorld:
+    surface native_ui => AnimatedDemo
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

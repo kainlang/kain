@@ -1,0 +1,28 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("ui_demo_runner")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kain UI Demo Runner — discovers, compiles, runs, and reports on UI demos")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("dev")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/ui_demo_runner.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)

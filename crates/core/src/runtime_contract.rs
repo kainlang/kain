@@ -1,10 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
     AxiomPredicate, Block, ConvergeSelector, DispatchSize, Expr, PulseDuration, ShaderStage, Stmt, Type,
-    UseOrigin, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
+    UseOrigin, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
@@ -655,32 +655,12 @@ fn collect_runtime_capabilities(
             Some("Program declares compiler-owned orchestration stages across silicon, invariants, and compatibility adapters."),
         ));
     }
-    if summary.world_native_ui > 0 {
+    for (surface_kind, _count) in &summary.world_surface_counts {
+        let cap_key = surface_capability_key(surface_kind);
         capabilities.push(runtime_capability(
-            "world.native-ui",
+            &cap_key,
             "kain-core.runtime_contract",
-            Some("Program declares compiler-owned native UI world projections."),
-        ));
-    }
-    if summary.world_viewport3d > 0 {
-        capabilities.push(runtime_capability(
-            "world.viewport3d",
-            "kain-core.runtime_contract",
-            Some("Program declares compiler-owned viewport3d world projections."),
-        ));
-    }
-    if summary.world_web > 0 {
-        capabilities.push(runtime_capability(
-            "world.web",
-            "kain-core.runtime_contract",
-            Some("Program declares compiler-owned web world projections."),
-        ));
-    }
-    if summary.world_ue5 > 0 {
-        capabilities.push(runtime_capability(
-            "world.ue5",
-            "kain-core.runtime_contract",
-            Some("Program declares compiler-owned UE5 world projections."),
+            Some("Program declares compiler-owned world surface projections."),
         ));
     }
 
@@ -877,7 +857,7 @@ fn runtime_service_bindings_for_target(
                 "raw-native",
             ));
         }
-        if summary.world_viewport3d > 0 {
+        if summary.world_surface_counts.contains_key("viewport3d") {
             bindings.push(runtime_service_binding(
                 "gfx.viewport",
                 "runtime/native",
@@ -939,67 +919,71 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
-    if summary.world_native_ui > 0
-        && matches!(
-            target,
-            CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
-        )
-    {
-        bindings.push(runtime_service_binding(
-            "world.native-ui",
-            if matches!(target, CompileTarget::Rust) {
-                "kain-ui"
-            } else {
-                "runtime/native"
-            },
-            runtime_lane_name(target),
-        ));
-    }
-    if summary.world_viewport3d > 0
-        && matches!(
-            target,
-            CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
-        )
-    {
-        bindings.push(runtime_service_binding(
-            "world.viewport3d",
-            if matches!(target, CompileTarget::Rust) {
-                "kain-ui-native"
-            } else {
-                "runtime/native"
-            },
-            runtime_lane_name(target),
-        ));
-    }
-    if summary.world_web > 0
-        && matches!(
-            target,
-            CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
-        )
-    {
-        bindings.push(runtime_service_binding(
-            "world.web",
-            "web",
-            runtime_lane_name(target),
-        ));
-    }
-    if summary.world_ue5 > 0 && matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor) {
-        bindings.push(runtime_service_binding(
-            "world.ue5",
-            "ue5",
-            runtime_lane_name(target),
-        ));
+    for (surface_kind, _count) in &summary.world_surface_counts {
+        let cap_key = surface_capability_key(surface_kind);
+        match surface_kind.as_ref() {
+            "native_ui" if matches!(target, CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm) => {
+                bindings.push(runtime_service_binding(
+                    &cap_key,
+                    if matches!(target, CompileTarget::Rust) {
+                        "kain-ui"
+                    } else {
+                        "runtime/native"
+                    },
+                    runtime_lane_name(target),
+                ));
+            }
+            "viewport3d" if matches!(target, CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm) => {
+                bindings.push(runtime_service_binding(
+                    &cap_key,
+                    if matches!(target, CompileTarget::Rust) {
+                        "kain-ui-native"
+                    } else {
+                        "runtime/native"
+                    },
+                    runtime_lane_name(target),
+                ));
+            }
+            "web" if matches!(target, CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid) => {
+                bindings.push(runtime_service_binding(
+                    &cap_key,
+                    "web",
+                    runtime_lane_name(target),
+                ));
+            }
+            "ue5" if matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor) => {
+                bindings.push(runtime_service_binding(
+                    &cap_key,
+                    "ue5",
+                    runtime_lane_name(target),
+                ));
+            }
+            _ => {} // Unknown surface kinds: capability emitted but no runtime binding needed
+        }
     }
 
     bindings
 }
 
+fn surface_capability_key(kind: &str) -> String {
+    match kind {
+        "native_ui" => "world.native-ui".to_string(),
+        "viewport3d" => "world.viewport3d".to_string(),
+        "web" => "world.web".to_string(),
+        "ue5" => "world.ue5".to_string(),
+        "shader_canvas" => "ui.shader-canvas".to_string(),
+        other => format!("world.{}", other.replace('_', "-")),
+    }
+}
+
 fn raw_native_needs_platform_host(summary: &ItemSummary) -> bool {
-    summary.world_native_ui > 0 || summary.world_viewport3d > 0
+    summary.world_surface_counts.contains_key("native_ui")
+        || summary.world_surface_counts.contains_key("viewport3d")
+
 }
 
 fn raw_native_needs_ui_bundle(summary: &ItemSummary) -> bool {
-    summary.components > 0 || summary.world_native_ui > 0
+    summary.components > 0 || summary.world_surface_counts.contains_key("native_ui")
 }
 
 fn runtime_capability(key: &str, source: &str, detail: Option<&str>) -> RuntimeCapability {
@@ -1802,11 +1786,7 @@ struct ItemSummary {
     worlds: usize,
     entanglements: usize,
     orchestrations: usize,
-    world_native_ui: usize,
-    world_viewport3d: usize,
-    world_web: usize,
-    world_ue5: usize,
-    world_shader_canvas: usize,
+    world_surface_counts: HashMap<String, usize>,
     shaders: usize,
     compute_shaders: usize,
     compute_plan_shaders: usize,
@@ -2637,13 +2617,7 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
             TypedItem::World(world) => {
                 summary.worlds += 1;
                 for surface in &world.ast.surfaces {
-                    match surface.kind {
-                        WorldSurfaceKind::NativeUi => summary.world_native_ui += 1,
-                        WorldSurfaceKind::Viewport3d => summary.world_viewport3d += 1,
-                        WorldSurfaceKind::Web => summary.world_web += 1,
-                        WorldSurfaceKind::Ue5 => summary.world_ue5 += 1,
-                        WorldSurfaceKind::ShaderCanvas => summary.world_shader_canvas += 1,
-                    }
+                    *summary.world_surface_counts.entry(surface.kind.clone()).or_insert(0) += 1;
                 }
             }
             TypedItem::Entangle(_) => summary.entanglements += 1,

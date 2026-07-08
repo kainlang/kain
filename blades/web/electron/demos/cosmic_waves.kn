@@ -1,0 +1,587 @@
+// ============================================================================
+//  cosmic_waves.kn — NEURAL NEXUS: 3D Neural Network Activation Simulation
+// ============================================================================
+//
+//  WHAT:        A living 3D neural network visualization. Three layers of
+//               sphere nodes (3→5→3) connected by zigzag synaptic bundles.
+//               An activation wave sweeps through the network — nodes pulse
+//               brighter and larger with higher activation. Synaptic spark
+//               particles fly between active regions. Neural dust particles
+//               drift in the background.
+//
+//               Layer rings (torus) frame the network structure. Three
+//               cool electric point lights (cyan, blue, magenta) orbit the
+//               network. Everything pulses with an evolving wave pattern.
+//
+//  KEYS:        1 = smooth sine wave, 2 = stepped activation, 3 = chaotic
+//               F = toggle fog, R = toggle auto-rotate
+//
+//  LAYERS:      L0 (fn, let, var, while), L1 (world state), L5 (pulse 32ms)
+//               electron_bridge + electron_extras + electron_interact
+//
+//  COLOR PALETTE: Cool electric — cyan #00ff88, electric blue #0088ff,
+//                 violet #4400ff, magenta #ff00aa, on dark purple #050010
+//  GEOMETRY:      sphere ×11 (nodes), lines ×2 (synaptic bundles),
+//                 torus ×2 (layer rings), particles ×2 (sparks + dust),
+//                 lights ×3 (cyan, blue, magenta)
+//
+//  COMPILE:     cd X:/blades/web/electron
+//               kain build demos/cosmic_waves.kn --target llvm
+//
+//  RUN:         npm start (or cosmic_waves.exe directly)
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+// Network topology
+const LAYER0_N: Int = 3
+const LAYER1_N: Int = 5
+const LAYER2_N: Int = 3
+const NODE_N:   Int = 11
+
+// Spatial layout
+const L0_X: Float = -5.0
+const L1_X: Float =  0.0
+const L2_X: Float =  5.0
+const L0_SPAN: Float = 1.5
+const L1_SPAN: Float = 2.0
+const L2_SPAN: Float = 1.5
+
+// Connection edges between layers
+// L0→L1: 3 nodes → 5 nodes = 15 edges (shown as 5-segment zigzag)
+// L1→L2: 5 nodes → 3 nodes = 15 edges (shown as 5-segment zigzag)
+const ZIG_N: Int = 5
+
+// Particle counts
+const SPARK_N: Int = 80
+const DUST_N:  Int = 150
+
+// Visual
+const NODE_BASE:    Float = 0.25
+const NODE_PULSE:   Float = 0.20
+const RING_SCALE:   Float = 2.5
+const EDGE_COLOR:   String = "#00aaff"
+const NODE_COLOR:   String = "#00ff88"
+const SPARK_COLOR:  String = "#ff00aa"
+const DUST_COLOR:   String = "#4455aa"
+
+// ============================================================================
+//  ACTIVATION FUNCTION — drives node pulsing and emissive
+// ============================================================================
+//  Higher activation = bigger node, brighter glow
+//  Three modes controlled by keyboard (1/2/3)
+
+fn node_activation(layer: Int, idx: Int, t: Float, mode: Int) -> Float:
+    let phase: Float = layer * 2.0 + idx * 0.7 - t * 0.8
+
+    if mode == 0:
+        // Smooth sine wave — gentle sweeping activation
+        let raw: Float = sin(phase)
+        return raw * 0.5 + 0.5
+
+    if mode == 1:
+        // Stepped wave — sharp on/off transitions
+        let raw: Float = sin(phase)
+        let cubed: Float = raw * raw * raw
+        return cubed * 0.5 + 0.5
+
+    // Mode 2: Chaotic — multiple frequencies for organic complexity
+    let a: Float = sin(phase * 0.5)
+    let b: Float = cos(phase * 1.3)
+    let c: Float = sin(phase * 2.7 + 1.0)
+    return a * b * 0.5 + c * 0.25 + 0.5
+
+// ============================================================================
+//  NODE POSITION HELPERS
+// ============================================================================
+
+fn node_x(index: Int) -> Float:
+    if index < LAYER0_N: return L0_X
+    if index < LAYER0_N + LAYER1_N: return L1_X
+    return L2_X
+
+fn node_y(index: Int) -> Float:
+    if index < LAYER0_N:
+        return (index * L0_SPAN) - L0_SPAN + 0.5
+    if index < LAYER0_N + LAYER1_N:
+        let li: Int = index - LAYER0_N
+        return (li * L1_SPAN * 0.5) - L1_SPAN + 0.5
+    let li: Int = index - LAYER0_N - LAYER1_N
+    return (li * L2_SPAN) - L2_SPAN + 0.5
+
+fn node_z(index: Int) -> Float:
+    return 0.0
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world for toggle state + wave mode
+// ============================================================================
+
+world NexusState:
+    state ready:     Int = 0
+    state fog_on:    Int = 1
+    state rotate_on: Int = 1
+    state wave_mode: Int = 0      // 0=smooth, 1=stepped, 2=chaotic
+    state frame:     Int = 0
+    state avg_act:   Int = 0      // average activation * 100 as int for telemetry
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 32ms pulse drives neural activation + animation
+// ============================================================================
+
+pulse nexus_clock every 32 ms:
+    if NexusState.ready == 0:
+        return
+
+    let tick: Int = pulse_tick
+    let t: Float = tick * 0.06
+    NexusState.frame = tick
+
+    // ── INTERACTION POLL ───────────────────────────────────────────────
+    interact_poll()
+
+    // ── KEYBOARD HANDLING ──────────────────────────────────────────────
+    if key_just_pressed("f"):
+        if NexusState.fog_on == 1:
+            NexusState.fog_on = 0
+            set_fog("#050010", 999.0, 1000.0)
+        else:
+            NexusState.fog_on = 1
+            set_fog("#050010", 8.0, 35.0)
+
+    if key_just_pressed("r"):
+        if NexusState.rotate_on == 1:
+            NexusState.rotate_on = 0
+        else:
+            NexusState.rotate_on = 1
+
+    if key_just_pressed("1"):
+        NexusState.wave_mode = 0
+    if key_just_pressed("2"):
+        NexusState.wave_mode = 1
+    if key_just_pressed("3"):
+        NexusState.wave_mode = 2
+
+    // ── INTERACT CLEAR ──────────────────────────────────────────────
+    interact_clear()
+
+    let mode: Int = NexusState.wave_mode
+
+    // ════════════════════════════════════════════════════════════════════
+    //  NODE ACTIVATION — update each node's scale and emissive glow
+    // ════════════════════════════════════════════════════════════════════
+
+    var total_act: Float = 0.0
+    var node_idx: Int = 0
+
+    while node_idx < NODE_N:
+        let layer: Int = 0
+        if node_idx < LAYER0_N:
+            layer = 0
+        if node_idx >= LAYER0_N:
+            layer = 1
+        if node_idx >= LAYER0_N + LAYER1_N:
+            layer = 2
+
+        let local_idx: Int = 0
+        if node_idx < LAYER0_N:
+            local_idx = node_idx
+        if node_idx >= LAYER0_N and node_idx < LAYER0_N + LAYER1_N:
+            local_idx = node_idx - LAYER0_N
+        if node_idx >= LAYER0_N + LAYER1_N:
+            local_idx = node_idx - LAYER0_N - LAYER1_N
+
+        let act: Float = node_activation(layer, local_idx, t, mode)
+        total_act = total_act + act
+
+        // Scale pulses with activation: base + activation * pulse factor
+        let node_scale: Float = NODE_BASE + act * NODE_PULSE
+        let nx: Float = node_x(node_idx)
+        let ny: Float = node_y(node_idx)
+        let nz: Float = node_z(node_idx)
+
+        // Build node id: "node_0" through "node_10"
+        var nid: String = "node_"
+        nid = nid + str(node_idx)
+
+        update_transform(nid, nx, ny, nz,
+            node_scale, node_scale, node_scale)
+
+        // Emissive glow: dim when inactive, bright when active
+        let glow_intensity: Float = 0.2 + act * 3.0
+        update_emissive(nid, "#00ff88", glow_intensity)
+
+        node_idx = node_idx + 1
+
+    let avg_activation: Float = total_act / NODE_N
+    NexusState.avg_act = (avg_activation * 100) as Int
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SYNAPTIC BUNDLES — zigzag connection lines between layers
+    //  Built as a continuous zigzag that traces neural pathways
+    // ════════════════════════════════════════════════════════════════════
+
+    // Bundle 0: Layer 0 → Layer 1 (5-segment zigzag)
+    // Pattern: L0[0]→L1[0]→L0[1]→L1[1]→L0[2]→L1[2]→L0[0]→L1[3]→L0[1]→L1[4]
+    var bundle0_json: String = "{\"cmd\":\"update\",\"id\":\"bundle_0\",\"points\":["
+    var b0_first: Int = 1
+    var zi: Int = 0
+    while zi < ZIG_N:
+        // Source = L0[ zi % LAYER0_N ]
+        let src_l0: Int = zi % LAYER0_N
+        let sx0: Float = L0_X
+        let sy0: Float = (src_l0 * L0_SPAN) - L0_SPAN + 0.5
+        let sz0: Float = 0.0
+
+        // Target = L1[ zi % LAYER1_N ]
+        let tgt_l1: Int = zi % LAYER1_N
+        let tx1: Float = L1_X
+        let ty1: Float = (tgt_l1 * L1_SPAN * 0.5) - L1_SPAN + 0.5
+        let tz1: Float = 0.0
+
+        if b0_first == 0:
+            bundle0_json = bundle0_json + ","
+        b0_first = 0
+        bundle0_json = bundle0_json + "{\"x\":" + str(sx0) + ",\"y\":" + str(sy0) + ",\"z\":" + str(sz0) + "}"
+
+        bundle0_json = bundle0_json + ",{\"x\":" + str(tx1) + ",\"y\":" + str(ty1) + ",\"z\":" + str(tz1) + "}"
+
+        zi = zi + 1
+    bundle0_json = bundle0_json + "]}"
+    println(bundle0_json)
+
+    // Bundle 1: Layer 1 → Layer 2 (5-segment zigzag)
+    // Pattern: L1[0]→L2[0]→L1[1]→L2[1]→L1[2]→L2[2]→L1[3]→L2[0]→L1[4]→L2[1]
+    var bundle1_json: String = "{\"cmd\":\"update\",\"id\":\"bundle_1\",\"points\":["
+    var b1_first: Int = 1
+    zi = 0
+    while zi < ZIG_N:
+        let src_l1: Int = zi % LAYER1_N
+        let sx1: Float = L1_X
+        let sy1: Float = (src_l1 * L1_SPAN * 0.5) - L1_SPAN + 0.5
+        let sz1: Float = 0.0
+
+        let tgt_l2: Int = zi % LAYER2_N
+        let tx2: Float = L2_X
+        let ty2: Float = (tgt_l2 * L2_SPAN) - L2_SPAN + 0.5
+        let tz2: Float = 0.0
+
+        if b1_first == 0:
+            bundle1_json = bundle1_json + ","
+        b1_first = 0
+        bundle1_json = bundle1_json + "{\"x\":" + str(sx1) + ",\"y\":" + str(sy1) + ",\"z\":" + str(sz1) + "}"
+
+        bundle1_json = bundle1_json + ",{\"x\":" + str(tx2) + ",\"y\":" + str(ty2) + ",\"z\":" + str(tz2) + "}"
+
+        zi = zi + 1
+    bundle1_json = bundle1_json + "]}"
+    println(bundle1_json)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  LAYER RINGS — torus rings framing the network structure
+    //  Counter-rotate for visual interest
+    // ════════════════════════════════════════════════════════════════════
+
+    let ring_rx: Float = t * 0.2
+    let ring_lx: Float = t * -0.15
+
+    update_transform_r("ring_0", L0_X, 0.0, 0.0,
+        0.0, ring_rx, ring_rx * 0.5,
+        RING_SCALE * 0.8, RING_SCALE * 0.8, RING_SCALE * 0.8)
+
+    update_transform_r("ring_1", L2_X, 0.0, 0.0,
+        0.5, ring_lx, ring_lx * 0.3,
+        RING_SCALE * 0.8, RING_SCALE * 0.8, RING_SCALE * 0.8)
+
+    let ring_glow: Float = 0.5 + sin(t * 0.8) * 0.25
+    update_emissive("ring_0", "#4400ff", ring_glow)
+    update_emissive("ring_1", "#4400ff", 0.3 + cos(t * 0.9) * 0.15)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SYNAPTIC SPARKS — 80 particles near active nodes
+    //  Particles cluster around the most active regions
+    // ════════════════════════════════════════════════════════════════════
+
+    var spark_json: String = "{\"cmd\":\"update\",\"id\":\"synaptic_sparks\",\"flat\":["
+    var s: Int = 0
+    while s < SPARK_N:
+        if s > 0:
+            spark_json = spark_json + ","
+        let seed: Float = s * 0.0785
+        // Determine which node this spark is near
+        let node_ref: Int = (s * 3) % NODE_N
+        let act_at_node: Float = node_activation(
+            if node_ref < LAYER0_N: 0
+            elif node_ref < LAYER0_N + LAYER1_N: 1
+            else: 2,
+            if node_ref < LAYER0_N: node_ref
+            elif node_ref < LAYER0_N + LAYER1_N: node_ref - LAYER0_N
+            else: node_ref - LAYER0_N - LAYER1_N,
+            t + seed * 0.3, mode)
+        let spread: Float = 0.5 + act_at_node * 1.5
+        spark_json = spark_json + str(node_x(node_ref) + sin(seed * 3.0 + t * 2.0) * spread)
+        spark_json = spark_json + ","
+        spark_json = spark_json + str(node_y(node_ref) + cos(seed * 4.0 + t * 1.5) * spread * 0.6)
+        spark_json = spark_json + ","
+        spark_json = spark_json + str(sin(seed * 5.0 + t * 1.8) * spread * 0.8)
+        s = s + 1
+    spark_json = spark_json + "]}"
+    println(spark_json)
+
+    let spark_sz: Float = 0.05 + avg_activation * 0.04
+    update_particle_size("synaptic_sparks", spark_sz)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  NEURAL DUST — 150 ambient particles drifting in a cloud
+    //  Slow ambient drift around the entire network
+    // ════════════════════════════════════════════════════════════════════
+
+    var dust_json: String = "{\"cmd\":\"update\",\"id\":\"neural_dust\",\"flat\":["
+    var d: Int = 0
+    while d < DUST_N:
+        if d > 0:
+            dust_json = dust_json + ","
+        let d_seed: Float = d * 0.0419
+        let drift_x: Float = sin(d_seed * 1.3 + t * 0.15) * 8.0
+        let drift_y: Float = cos(d_seed * 0.9 + t * 0.12) * 4.0
+        let drift_z: Float = sin(d_seed * 1.1 + t * 0.10) * 3.0 - 2.0
+        dust_json = dust_json + str(drift_x)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(drift_y)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(drift_z)
+        d = d + 1
+    dust_json = dust_json + "]}"
+    println(dust_json)
+
+    let dust_sz: Float = 0.02 + sin(t * 0.3) * 0.01
+    update_particle_size("neural_dust", dust_sz)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ORBITING LIGHTS — 3 cool electric point lights
+    // ════════════════════════════════════════════════════════════════════
+
+    // Light A: electric cyan, fast outer orbit
+    let la_a: Float = t * 0.35
+    update_light_position("light_cyan",
+        cos(la_a) * 9.0,
+        sin(la_a * 1.2) * 3.0 + 2.0,
+        sin(la_a) * 9.0)
+    let la_i: Float = 2.5 + sin(t * 1.3) * 0.6
+    update_light("light_cyan", "#00ddff", la_i)
+
+    // Light B: electric blue, mid orbit
+    let lb_a: Float = t * 0.25 + 2.0
+    update_light_position("light_blue",
+        cos(lb_a) * 6.5,
+        sin(lb_a * 0.9) * 2.5 - 1.0,
+        sin(lb_a) * 6.5)
+    let lb_i: Float = 2.0 + sin(t * 1.1 + 1.0) * 0.5
+    update_light("light_blue", "#4488ff", lb_i)
+
+    // Light C: magenta accent, inner orbit
+    let lc_a: Float = t * 0.45 + 4.0
+    update_light_position("light_magenta",
+        cos(lc_a) * 4.0,
+        sin(lc_a * 1.5) * 2.0 + 0.5,
+        sin(lc_a) * 4.0)
+    let lc_i: Float = 1.5 + sin(t * 1.6 + 2.0) * 0.4
+    update_light("light_magenta", "#ff44aa", lc_i)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  TELEMETRY
+    // ════════════════════════════════════════════════════════════════════
+
+    telemetry("tick", tick)
+    telemetry("avg_act", NexusState.avg_act)
+    telemetry("wave_mode", mode)
+    telemetry("sparks", SPARK_N)
+    telemetry("dust", DUST_N)
+    telemetry("nodes", NODE_N)
+
+// ============================================================================
+//  MAIN — scene setup, then keep-alive loop
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── CAMERA ────────────────────────────────────────────────────────────
+    // Positioned slightly above and to the side for the best network view
+    camera_look_at(0.0, 4.0, 14.0, 0.0, 0.0, 0.0)
+
+    // ── SCENE ATMOSPHERE ──────────────────────────────────────────────────
+    // Deep dark purple — cool, electric, cybernetic feel
+    set_background("#050010")
+    set_fog("#050010", 8.0, 35.0)
+    set_ambient("#111133", 0.25)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  NETWORK NODES — 11 sphere meshes in 3 layers (3→5→3)
+    //  Each node positioned and initialized with emissive glow
+    // ═══════════════════════════════════════════════════════════════════════
+
+    var ni: Int = 0
+    while ni < NODE_N:
+        var nid: String = "node_"
+        nid = nid + str(ni)
+
+        let nx: Float = node_x(ni)
+        let ny: Float = node_y(ni)
+        let nz: Float = node_z(ni)
+
+        create_mesh(nid, "sphere", NODE_COLOR)
+        update_emissive(nid, "#00ff88", 0.5)
+        update_transform(nid, nx, ny, nz,
+            NODE_BASE, NODE_BASE, NODE_BASE)
+
+        ni = ni + 1
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SYNAPTIC BUNDLES — zigzag connection lines between layers
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_lines("bundle_0", EDGE_COLOR)
+    create_lines("bundle_1", "#0088ff")
+
+    // Initialize bundles with starting zigzag positions
+    var init_b0_json: String = "{\"cmd\":\"update\",\"id\":\"bundle_0\",\"points\":["
+    var b0_first: Int = 1
+    var zi: Int = 0
+    while zi < ZIG_N:
+        let src_l0: Int = zi % LAYER0_N
+        let sx0: Float = L0_X
+        let sy0: Float = (src_l0 * L0_SPAN) - L0_SPAN + 0.5
+        let tgt_l1: Int = zi % LAYER1_N
+        let tx1: Float = L1_X
+        let ty1: Float = (tgt_l1 * L1_SPAN * 0.5) - L1_SPAN + 0.5
+        if b0_first == 0:
+            init_b0_json = init_b0_json + ","
+        b0_first = 0
+        init_b0_json = init_b0_json + "{\"x\":" + str(sx0) + ",\"y\":" + str(sy0) + ",\"z\":0}"
+        init_b0_json = init_b0_json + ",{\"x\":" + str(tx1) + ",\"y\":" + str(ty1) + ",\"z\":0}"
+        zi = zi + 1
+    init_b0_json = init_b0_json + "]}"
+    println(init_b0_json)
+
+    var init_b1_json: String = "{\"cmd\":\"update\",\"id\":\"bundle_1\",\"points\":["
+    var b1_first: Int = 1
+    zi = 0
+    while zi < ZIG_N:
+        let src_l1: Int = zi % LAYER1_N
+        let sx1: Float = L1_X
+        let sy1: Float = (src_l1 * L1_SPAN * 0.5) - L1_SPAN + 0.5
+        let tgt_l2: Int = zi % LAYER2_N
+        let tx2: Float = L2_X
+        let ty2: Float = (tgt_l2 * L2_SPAN) - L2_SPAN + 0.5
+        if b1_first == 0:
+            init_b1_json = init_b1_json + ","
+        b1_first = 0
+        init_b1_json = init_b1_json + "{\"x\":" + str(sx1) + ",\"y\":" + str(sy1) + ",\"z\":0}"
+        init_b1_json = init_b1_json + ",{\"x\":" + str(tx2) + ",\"y\":" + str(ty2) + ",\"z\":0}"
+        zi = zi + 1
+    init_b1_json = init_b1_json + "]}"
+    println(init_b1_json)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  LAYER RINGS — torus rings framing layer 0 and layer 2
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_mesh("ring_0", "torus", "#220088")
+    update_emissive("ring_0", "#4400ff", 0.5)
+    update_transform("ring_0", L0_X, 0.0, 0.0,
+        RING_SCALE * 0.8, RING_SCALE * 0.8, RING_SCALE * 0.8)
+
+    create_mesh("ring_1", "torus", "#220088")
+    update_emissive("ring_1", "#4400ff", 0.3)
+    update_transform("ring_1", L2_X, 0.0, 0.0,
+        RING_SCALE * 0.8, RING_SCALE * 0.8, RING_SCALE * 0.8)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PARTICLES — synaptic sparks + neural dust
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_particles("synaptic_sparks", SPARK_N, SPARK_COLOR)
+    update_particle_size("synaptic_sparks", 0.05)
+
+    create_particles("neural_dust", DUST_N, DUST_COLOR)
+    update_particle_size("neural_dust", 0.02)
+
+    // Initialize spark positions
+    var init_spark: String = "{\"cmd\":\"update\",\"id\":\"synaptic_sparks\",\"flat\":["
+    var si: Int = 0
+    while si < SPARK_N:
+        if si > 0:
+            init_spark = init_spark + ","
+        let seed: Float = si * 0.0785
+        let node_ref: Int = (si * 3) % NODE_N
+        init_spark = init_spark + str(node_x(node_ref) + sin(seed * 3.0) * 0.5)
+        init_spark = init_spark + ","
+        init_spark = init_spark + str(node_y(node_ref) + cos(seed * 4.0) * 0.5)
+        init_spark = init_spark + ","
+        init_spark = init_spark + str(sin(seed * 5.0) * 0.5)
+        si = si + 1
+    init_spark = init_spark + "]}"
+    println(init_spark)
+
+    // Initialize dust positions
+    var init_dust: String = "{\"cmd\":\"update\",\"id\":\"neural_dust\",\"flat\":["
+    var di: Int = 0
+    while di < DUST_N:
+        if di > 0:
+            init_dust = init_dust + ","
+        let d_seed: Float = di * 0.0419
+        init_dust = init_dust + str(sin(d_seed * 1.3) * 8.0)
+        init_dust = init_dust + ","
+        init_dust = init_dust + str(cos(d_seed * 0.9) * 4.0)
+        init_dust = init_dust + ","
+        init_dust = init_dust + str(sin(d_seed * 1.1) * 3.0 - 2.0)
+        di = di + 1
+    init_dust = init_dust + "]}"
+    println(init_dust)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTS — 3 cool electric point lights
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_light("light_cyan", "point", "#00ddff", 2.5, 9.0, 2.0, 0.0)
+    create_light("light_blue", "point", "#4488ff", 2.0, 0.0, -1.0, 6.5)
+    create_light("light_magenta", "point", "#ff44aa", 1.5, 4.0, 0.5, 0.0)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HUD
+    // ═══════════════════════════════════════════════════════════════════════
+
+    telemetry_string("status", "NEURAL NEXUS: 32ms pulse")
+    telemetry("nodes", NODE_N)
+    telemetry("sparks", SPARK_N)
+    telemetry("dust", DUST_N)
+    telemetry("wave_mode", 0)
+
+    // ── READY — pulse starts firing ──────────────────────────────────────
+    NexusState.ready = 1
+
+    // ── KEEP-ALIVE ────────────────────────────────────────────────────────
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END cosmic_waves.kn — Neural Nexus
+// ============================================================================

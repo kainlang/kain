@@ -1,0 +1,4 @@
+# box_math_proofs.yaml — Z3 proof pack: layout bounds safety
+# Proves: no integer/float overflow in constraint solving, correct
+# clamping for min/max sizes, sibling bounds never overlap,
+# parent rect always contains children after arrange pass.

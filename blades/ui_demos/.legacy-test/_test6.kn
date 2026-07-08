@@ -1,0 +1,8 @@
+use std::runtime
+use std::os
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let entries = os_scandir("X:/blades/ui_demos")
+    println("len: " + str(len(entries)))
+    return 0

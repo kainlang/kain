@@ -1,0 +1,64 @@
+// Minimal test: window + colored rectangles only (no fonts)
+use std::ui
+use std::ui::widget
+use std::ui::style
+
+const WIN_W: Int = 400
+const WIN_H: Int = 600
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FlappyMin", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Flappy Bird - Kain", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+
+    // Background
+    let bg = native_ui_node_create(session, "bg")
+    native_ui_node_set_rect(session, bg, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H))
+    native_ui_node_set_style_i64(session, bg, "fill-color", 0xFF87CEEB)
+
+    // Ground
+    let ground = native_ui_node_create(session, "ground")
+    native_ui_node_set_rect(session, ground, 0.0, 550.0, to_float(WIN_W), 50.0)
+    native_ui_node_set_style_i64(session, ground, "fill-color", 0xFF8B4513)
+
+    // Bird
+    let bird = native_ui_node_create(session, "bird")
+    native_ui_node_set_rect(session, bird, 80.0, 300.0, 34.0, 24.0)
+    native_ui_node_set_style_i64(session, bird, "fill-color", 0xFFFFD700)
+
+    // Pipe
+    let pipe = native_ui_node_create(session, "pipe")
+    native_ui_node_set_rect(session, pipe, 200.0, 200.0, 60.0, 200.0)
+    native_ui_node_set_style_i64(session, pipe, "fill-color", 0xFF27AE60)
+
+    var frame = 0
+    var bird_y = 300.0
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // Move bird down
+        bird_y = bird_y + 1.0
+        if bird_y > 500.0:
+            bird_y = 100.0
+        native_ui_node_set_rect(session, bird, 80.0, bird_y, 34.0, 24.0)
+
+        frame = frame + 1
+        if frame > 300:
+            break
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

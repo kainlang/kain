@@ -1,0 +1,471 @@
+// ============================================================================
+//  converge.kn — PARTICLE COLLIDER v1: Beam Collision Simulation
+// ============================================================================
+//
+//  WHAT:      A particle collider simulation. Two beams of particles
+//             accelerate toward each other from opposite sides and
+//             collide at center. On collision, a bright flash erupts
+//             and a shower of debris particles fans outward. Three
+//             collision energy levels are selected by the `converge`
+//             construct (low/medium/high), affecting beam speed,
+//             flash intensity, and debris velocity. The center sphere
+//             pulses with the collision energy.
+//
+//  RADICALLY DIFFERENT FROM PRIOR converge.kn:
+//    - NO concentric rings, NO spiral particles, NO lane colors
+//    - Linear beam geometry instead of circular rings
+//    - Particle collision physics instead of orbital mechanics
+//    - Debris shower ejection instead of smooth spiral drift
+//    - Converge selects COLLISION ENERGY not lane winner
+//    - Cyan + magenta beam colors instead of gold/blue/red
+//    - Purple-black atmosphere instead of navy-black
+//    - No center color shift — collision flash instead
+//    - Auto-rotate very slow (0.5) — you orbit the collider
+//
+//  LAYERS:    L0 (fn, let, var, while, const), L1 (world state),
+//             L3 (converge: spec + fast + verify random(8)),
+//             L5 (pulse every 16ms)
+//             electron_bridge + electron_extras + electron_interact
+//             std::intent (for converge_mismatch_count)
+//
+//  KEYS:      1/2/3 = select collision energy, C = auto (converge picks),
+//             R = reset collision count, F = toggle fog
+//
+//  COMPILE:   cd X:/blades/web/electron
+//             kain build demos/converge.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use std::intent
+use std::json
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const BEAM_N:       Int = 60            // particles per beam
+const DEBRIS_N:     Int = 400           // debris particles
+const TWO_PI:       Float = 6.283185307
+const BEAM_LENGTH:  Float = 8.0         // half-length of beam from center
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world (ready-gate + collision tracking)
+// ============================================================================
+
+world ColliderScene:
+    state ready:            Int = 0
+    state fog_on:           Int = 1
+    state manual_energy:    Int = -1    // -1 = auto via converge, 0/1/2 = manual
+    state prev_energy:      Int = -1    // track changes for flash
+    state flash_frame:      Int = 0     // flash decay counter
+    state collision_count:  Int = 0
+    state tick:             Int = 0
+
+// ============================================================================
+//  LAYER 3: DISPATCH — converge (spec + fast lane + verify)
+// ============================================================================
+//  Returns 0 (low energy), 1 (medium energy), or 2 (high energy).
+//  The converge construct probes the platform and selects the best lane.
+//  verify random(8) ensures the lanes produce identical results.
+
+converge select_energy(tick: Int, entropy: Int) -> Int:
+    spec reference:
+        return ((tick * 31 + entropy * 7 + tick % 17) * 11 + entropy) % 3
+    fast simd_lane when target("llvm"):
+        return ((tick * 341 + entropy * 77 + (tick % 17) * 11) % 3 + 300) % 3
+    verify random(8)
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — pulse (16ms, ~60fps)
+// ============================================================================
+
+pulse collider_clock every 16 ms:
+    // ── READY GATE ─────────────────────────────────────────────────────────
+    if ColliderScene.ready == 0:
+        return
+
+    // ── INTERACTION: poll stdin for keyboard events ────────────────────────
+    interact_poll()
+
+    // ── KEYBOARD HANDLERS ──────────────────────────────────────────────────
+    if key_just_pressed("1"):
+        ColliderScene.manual_energy = 0
+    elif key_just_pressed("2"):
+        ColliderScene.manual_energy = 1
+    elif key_just_pressed("3"):
+        ColliderScene.manual_energy = 2
+    elif key_just_pressed("c"):
+        ColliderScene.manual_energy = -1
+    elif key_just_pressed("r"):
+        ColliderScene.collision_count = 0
+    elif key_just_pressed("f"):
+        if ColliderScene.fog_on == 1:
+            ColliderScene.fog_on = 0
+            set_fog("#080015", 0.0, 9999.0)
+        else:
+            ColliderScene.fog_on = 1
+            set_fog("#080015", 8.0, 35.0)
+
+    let t: Float = pulse_tick * 0.06
+    let tick: Int = pulse_tick
+    ColliderScene.tick = tick
+
+    // ── CONVERGE ENERGY SELECTION ──────────────────────────────────────────
+    let energy: Int = if ColliderScene.manual_energy >= 0:
+        ColliderScene.manual_energy
+    else:
+        select_energy(tick, 13)
+
+    // ── TRACK ENERGY CHANGE FOR COLLISION FLASH ───────────────────────────
+    let prev: Int = ColliderScene.prev_energy
+    let changed: Bool = energy != prev
+    ColliderScene.prev_energy = energy
+    if changed:
+        ColliderScene.collision_count = ColliderScene.collision_count + 1
+        ColliderScene.flash_frame = 15      // start bright flash
+
+    let flash: Int = ColliderScene.flash_frame
+    if flash > 0:
+        ColliderScene.flash_frame = flash - 1
+
+    // ── ENERGY PARAMETERS ──────────────────────────────────────────────────
+    // Higher energy = faster beams, brighter flash, faster debris
+    let beam_speed: Float = 0.8
+    let flash_intensity: Float = 1.0
+    let debris_speed: Float = 0.8
+    let beam_width: Float = 1.0
+
+    if energy == 0:                     // Low energy
+        beam_speed = 0.5
+        flash_intensity = 0.6
+        debris_speed = 0.4
+        beam_width = 0.8
+    elif energy == 1:                   // Medium energy
+        beam_speed = 1.0
+        flash_intensity = 1.5
+        debris_speed = 1.0
+        beam_width = 1.0
+    else:                               // High energy
+        beam_speed = 1.8
+        flash_intensity = 3.0
+        debris_speed = 1.8
+        beam_width = 1.2
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  BEAM PARTICLES — left (cyan) and right (magenta)
+    //  Particles stream from opposite sides toward center, then wrap.
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── LEFT BEAM (cyan) — particles move from -BEAM_LENGTH toward 0 ──────
+    var left_json: String = "{\"cmd\":\"update\",\"id\":\"beam_left\",\"flat\":["
+    var li: Int = 0
+    while li < BEAM_N:
+        if li > 0:
+            left_json = left_json + ","
+        let fl: Float = li
+        // Each particle starts at a different phase along the beam
+        let phase: Float = (fl / BEAM_N + t * beam_speed * 0.15) % 1.0
+        // Spread particles in a cone shape (diverge slightly)
+        let spread: Float = (1.0 - phase) * beam_width * 0.3
+        let ang: Float = fl * 0.7 + t * 0.1
+        let x: Float = -BEAM_LENGTH + phase * BEAM_LENGTH * 2.0
+        let y: Float = sin(ang) * spread
+        let z: Float = cos(ang * 1.3) * spread
+        left_json = left_json + str(x)
+        left_json = left_json + ","
+        left_json = left_json + str(y)
+        left_json = left_json + ","
+        left_json = left_json + str(z)
+        li = li + 1
+    left_json = left_json + "]}"
+    println(left_json)
+
+    // ── RIGHT BEAM (magenta) — particles move from +BEAM_LENGTH toward 0 ───
+    var right_json: String = "{\"cmd\":\"update\",\"id\":\"beam_right\",\"flat\":["
+    var ri: Int = 0
+    while ri < BEAM_N:
+        if ri > 0:
+            right_json = right_json + ","
+        let fr: Float = ri
+        let phase: Float = (fr / BEAM_N + t * beam_speed * 0.15) % 1.0
+        let spread: Float = (1.0 - phase) * beam_width * 0.3
+        let ang: Float = fr * 0.7 + t * 0.1 + 2.0
+        let x: Float = BEAM_LENGTH - phase * BEAM_LENGTH * 2.0
+        let y: Float = sin(ang) * spread
+        let z: Float = cos(ang * 1.3) * spread
+        right_json = right_json + str(x)
+        right_json = right_json + ","
+        right_json = right_json + str(y)
+        right_json = right_json + ","
+        right_json = right_json + str(z)
+        ri = ri + 1
+    right_json = right_json + "]}"
+    println(right_json)
+
+    // ── Beam particle sizes — pulse with energy ───────────────────────────
+    let beam_size: Float = 0.12 + energy * 0.04 + sin(t * 2.0) * 0.02
+    update_particle_size("beam_left", beam_size)
+    update_particle_size("beam_right", beam_size)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DEBRIS PARTICLES — 400 particles ejected from collision point
+    //  Each frame, debris fans outward in a cone. Energy affects speed.
+    //  Golden-orange color, fading as they travel.
+    // ════════════════════════════════════════════════════════════════════════
+
+    var debris_json: String = "{\"cmd\":\"update\",\"id\":\"debris\",\"flat\":["
+    var di: Int = 0
+    while di < DEBRIS_N:
+        if di > 0:
+            debris_json = debris_json + ","
+        let fd: Float = di
+        // Debris particle: position depends on index (randomized by golden angle)
+        let d_theta: Float = fd * 2.39996
+        let d_phi: Float = fd * 1.61803
+        let d_r: Float = 0.2 + (fd / DEBRIS_N) * debris_speed * 3.5
+        let d_y: Float = cos(d_phi) * d_r * 1.2
+        let d_rad: Float = sin(d_phi) * d_r
+        let d_x: Float = cos(d_theta + t * 0.1) * d_rad
+        let d_z: Float = sin(d_theta + t * 0.1) * d_rad
+        // Add some wobble
+        let wobble: Float = 1.0 + sin(t * 1.5 + fd * 0.3) * 0.1
+        debris_json = debris_json + str(d_x * wobble)
+        debris_json = debris_json + ","
+        debris_json = debris_json + str(d_y * wobble)
+        debris_json = debris_json + ","
+        debris_json = debris_json + str(d_z * wobble)
+        di = di + 1
+    debris_json = debris_json + "]}"
+    println(debris_json)
+
+    // ── Debris particle size — pulses on flash ────────────────────────────
+    let flash_bonus: Float = if flash > 0:
+        0.12 + flash * 0.01
+    else:
+        0.08
+    let debris_size: Float = 0.06 + energy * 0.02 + flash_bonus
+    if debris_size > 0.25:
+        update_particle_size("debris", 0.25)
+    else:
+        update_particle_size("debris", debris_size)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  BEAM PATH LINES — static visual guides showing beam trajectory
+    //  Left beam line: from (-BEAM_LENGTH,0,0) to (0,0,0)
+    //  Right beam line: from (BEAM_LENGTH,0,0) to (0,0,0)
+    //  Color pulses with energy
+    // ════════════════════════════════════════════════════════════════════════
+
+    let line_glow: Float = 0.3 + energy * 0.3 + sin(t * 1.5) * 0.1
+    update_emissive("beam_line_left", "#44ddff", line_glow)
+    update_emissive("beam_line_right", "#ff44cc", line_glow)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  SOURCE RINGS — torus rings at each beam's origin, slowly rotating
+    // ════════════════════════════════════════════════════════════════════════
+
+    update_rotation("ring_left", 0.1, t * 0.4, 0.1)
+    update_rotation("ring_right", -0.1, t * -0.4, 0.05)
+
+    let ring_glow: Float = 0.5 + energy * 0.4 + sin(t * 2.0) * 0.2
+    update_emissive("ring_left", "#44ddff", ring_glow)
+    update_emissive("ring_right", "#ff44cc", ring_glow)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  COLLISION POINT — sphere at center, pulses with energy + flash
+    // ════════════════════════════════════════════════════════════════════════
+
+    let flash_bump: Float = if flash > 0:
+        1.0 + flash * 0.07
+    else:
+        1.0
+
+    let cp_pulse: Float = 1.0 + sin(t * 4.0 + energy) * 0.2 + sin(t * 8.0) * 0.1
+    let cp_scale: Float = 0.5 * cp_pulse * flash_bump
+    update_transform("collision_point", 0.0, 0.0, 0.0, cp_scale, cp_scale, cp_scale)
+
+    // Collision point emissive color depends on energy
+    let cp_color: String = "#aaddff"       // Low: white-blue
+    if energy == 1:
+        cp_color = "#ffddaa"               // Medium: gold-white
+    elif energy == 2:
+        cp_color = "#ff8888"               // High: hot pink-white
+
+    let cp_glow: Float = flash_intensity * (1.0 + sin(t * 4.0) * 0.5)
+    update_emissive("collision_point", cp_color, cp_glow)
+
+    // Update collision point base color too
+    update_color("collision_point", cp_color)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTS — collision light pulses with flash + energy
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Collision light — intense point light at origin
+    let cl_intensity: Float = flash_intensity * (3.0 + sin(t * 4.0) * 1.0)
+    update_light("collision_light", cp_color, cl_intensity)
+
+    // Beam origin lights — orbit slowly
+    let bl_angle: Float = t * 0.15
+    update_light_position("beam_light_left",
+        cos(bl_angle) * -BEAM_LENGTH, sin(bl_angle * 0.5) * 0.5, sin(bl_angle) * 0.3)
+    update_light("beam_light_left", "#44ddff", 0.5 + energy * 0.3)
+
+    update_light_position("beam_light_right",
+        cos(bl_angle + 3.14159) * BEAM_LENGTH, sin(bl_angle * 0.5 + 1.0) * 0.5, sin(bl_angle + 1.0) * 0.3)
+    update_light("beam_light_right", "#ff44cc", 0.5 + energy * 0.3)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  TELEMETRY — HUD readout
+    // ════════════════════════════════════════════════════════════════════════
+
+    telemetry("tick", tick)
+    telemetry("energy", energy)
+    telemetry("collisions", ColliderScene.collision_count)
+    telemetry("flash", flash)
+    telemetry("mismatch", converge_mismatch_count())
+
+    let energy_label: String = "LOW"
+    if energy == 1:
+        energy_label = "MEDIUM"
+    elif energy == 2:
+        energy_label = "HIGH"
+
+    let mode_label: String = "AUTO"
+    if ColliderScene.manual_energy >= 0:
+        mode_label = "MANUAL"
+
+    telemetry_string("energy_level", energy_label)
+    telemetry_string("mode", mode_label)
+
+    // ── Clear per-frame interaction state ──────────────────────────────────
+    interact_clear()
+
+// ============================================================================
+//  MAIN — scene setup, then keep-alive loop
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  ATMOSPHERE — dark purple-black lab void
+    // ════════════════════════════════════════════════════════════════════════
+
+    set_background("#080015")                      // deep purple-black
+    set_fog("#080015", 8.0, 35.0)                  // matching fog
+    set_ambient("#1a0a2a", 0.3)                    // dim purple fill
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  CAMERA — side view to see both beams
+    // ════════════════════════════════════════════════════════════════════════
+
+    camera_look_at(0.0, 3.0, 16.0, 0.0, 0.0, 0.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  BEAM PATH LINES — visual guides for beam trajectories
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_lines("beam_line_left", "#44ddff")
+    println("{\"cmd\":\"update\",\"id\":\"beam_line_left\",\"points\":[{\"x\":-8,\"y\":0,\"z\":0},{\"x\":0,\"y\":0,\"z\":0}]}")
+    update_emissive("beam_line_left", "#44ddff", 0.3)
+
+    create_lines("beam_line_right", "#ff44cc")
+    println("{\"cmd\":\"update\",\"id\":\"beam_line_right\",\"points\":[{\"x\":8,\"y\":0,\"z\":0},{\"x\":0,\"y\":0,\"z\":0}]}")
+    update_emissive("beam_line_right", "#ff44cc", 0.3)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  SOURCE RINGS — torus rings at beam origins
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_mesh("ring_left", "torus", "#44ddff")
+    update_transform("ring_left", -BEAM_LENGTH, 0.0, 0.0, 0.6, 0.6, 0.6)
+    update_rotation("ring_left", 0.1, 0.0, 0.1)
+    update_emissive("ring_left", "#44ddff", 0.5)
+
+    create_mesh("ring_right", "torus", "#ff44cc")
+    update_transform("ring_right", BEAM_LENGTH, 0.0, 0.0, 0.6, 0.6, 0.6)
+    update_rotation("ring_right", -0.1, 0.0, 0.05)
+    update_emissive("ring_right", "#ff44cc", 0.5)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  COLLISION POINT — sphere at center
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_mesh("collision_point", "sphere", "#aaddff")
+    update_transform("collision_point", 0.0, 0.0, 0.0, 0.5, 0.5, 0.5)
+    update_emissive("collision_point", "#aaddff", 1.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PARTICLES — 2 beam systems + 1 debris system
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_particles("beam_left", BEAM_N, "#44ddff")       // cyan beam
+    create_particles("beam_right", BEAM_N, "#ff44cc")      // magenta beam
+    create_particles("debris", DEBRIS_N, "#ffaa44")        // gold-orange debris
+
+    update_particle_size("beam_left", 0.12)
+    update_particle_size("beam_right", 0.12)
+    update_particle_size("debris", 0.08)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTS — collision point + beam source lights
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_light("collision_light", "point", "#aaddff", 3.0, 0.0, 0.0, 0.0)
+    create_light("beam_light_left", "point", "#44ddff", 0.5, -BEAM_LENGTH, 0.0, 0.0)
+    create_light("beam_light_right", "point", "#ff44cc", 0.5, BEAM_LENGTH, 0.0, 0.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  HUD TELEMETRY
+    // ════════════════════════════════════════════════════════════════════════
+
+    telemetry_string("status", "PARTICLE COLLIDER: beam collision + converge")
+    telemetry("beam_particles", BEAM_N)
+    telemetry("debris_particles", DEBRIS_N)
+    telemetry_string("controls", "1/2/3=energy C=auto R=reset F=fog")
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  READY — pulse is now allowed to fire
+    // ════════════════════════════════════════════════════════════════════════
+
+    ColliderScene.ready = 1
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  KEEP-ALIVE — indefinite loop, pulse drives all animation
+    // ════════════════════════════════════════════════════════════════════════
+
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END converge.kn — PARTICLE COLLIDER v1
+// ============================================================================
+//                  create_light, update_light, update_light_position,
+//                  update_emissive, update_particle_size, update_rotation,
+//                  update_color
+//  INTERACT USED:  interact_poll, interact_clear, key_just_pressed
+//  BRIDGE USED:    create_mesh, create_particles, create_lines,
+//                  update_transform, camera_look_at, telemetry,
+//                  telemetry_float, telemetry_string, update_color,
+//                  println (flat JSON + inline JSON)
+//  CONVERGE USED:  select_energy (spec + fast + verify random(8))
+//  INTENT USED:    converge_mismatch_count
+//  GEOMETRY:       sphere, torus (2×), lines (2×), particles (3 systems)
+//  LAYERS:         L0 (fn, let, var, while, const), L1 (world),
+//                  L3 (converge), L5 (pulse every 16ms)
+// ============================================================================

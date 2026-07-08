@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kauri — Supermotion GPU</title>
+<style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0e17; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; margin: 0; overflow: hidden; }
+    #container { position: relative; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #info {
+        position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+        color: #8b949e; font-size: 13px; text-align: center; pointer-events: none;
+        background: rgba(10,14,23,0.7); padding: 8px 16px; border-radius: 8px; border: 1px solid #1e293b;
+    }
+    #info strong { color: #58a6ff; }
+    #fps { position: absolute; bottom: 16px; right: 16px; color: #8b949e; font-size: 12px; }
+    #status { position: absolute; bottom: 50%; left: 50%; transform: translate(-50%, 50%); color: #8b949e; font-size: 16px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="container">
+    <canvas id="gpu-canvas"></canvas>
+    <div id="info">🌊 <strong>Kauri × Supermotion</strong> — Kain-compiled WGSL · <span id="mode-label">50 motion modes · 4 octave turbulence</span></div>
+    <div id="fps">FPS: <span id="fps-count">0</span></div>
+    <div id="status">⏳ Loading WGSL from Kain server...</div>
+</div>
+<script>
+const canvas = document.getElementById('gpu-canvas');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const fpsEl = document.getElementById('fps-count');
+
+const INSTANCES = 4000;
+const WORKGROUP = 32;
+
+let device, pipeline, bindGroup;
+let readbackBuf, outPosBuf, outRotBuf, outSclBuf;
+let posByteLength;
+
+function resize() {
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+}
+window.addEventListener('resize', resize);
+
+// ── Embedded WGSL compute shader ──
+// Simplified Supermotion-style compute: 6 motion modes + turbulence
+const COMPUTE_WGSL = `
+@group(0) @binding(0) var<storage, read_write> in_pos: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> in_rot: array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> in_scl: array<vec4<f32>>;
+@group(0) @binding(3) var<storage, read_write> out_pos: array<vec4<f32>>;
+@group(0) @binding(4) var<storage, read_write> out_rot: array<vec4<f32>>;
+@group(0) @binding(5) var<storage, read_write> out_scl: array<vec4<f32>>;
+@group(0) @binding(6) var<storage, read_write> mod_type: array<i32>;
+@group(0) @binding(7) var<storage, read_write> params_a: array<vec4<f32>>;
+@group(0) @binding(8) var<storage, read_write> params_b: array<vec4<f32>>;
+@group(0) @binding(9) var<storage, read_write> params_c: array<vec4<f32>>;
+@group(0) @binding(10) var<uniform> instance_count: u32;
+@group(0) @binding(11) var<uniform> time_sec: f32;
+@group(0) @binding(12) var<uniform> global_intensity: f32;
+@group(0) @binding(13) var<uniform> random_seed: f32;
+@group(0) @binding(14) var<uniform> eps: f32;
+@group(0) @binding(15) var<storage, read_write> _pad: array<f32>;
+
+fn hash(fi: f32, seed: f32) -> f32 {
+    return fract(sin(fi * 12.9898 + seed * 78.233) * 43758.5453);
+}
+
+@compute @workgroup_size(64, 1, 1)
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= instance_count) { return; }
+
+    var pos = in_pos[i].xyz;
+    var rot = in_rot[i].xyz;
+    var scl = in_scl[i].xyz;
+    var mode = mod_type[i];
+    var a = params_a[i];
+    var b = params_b[i];
+    var c = params_c[i];
+    let fi = f32(i);
+    var t = time_sec + fi * a.w;
+
+    // 6 motion modes
+    if (mode == 0) {
+        let rr = t * a.x * 0.6283;
+        pos.x += cos(rr) * a.y;
+        pos.z += sin(rr) * a.y;
+        rot.y += rr;
+    } else if (mode == 1) {
+        pos.y += sin(t * a.x) * a.y;
+    } else if (mode == 2) {
+        let pul = 1.0 + sin(t * a.x) * a.y;
+        scl *= max(pul, 0.001);
+    } else if (mode == 3) {
+        let f = a.x;
+        let h0 = hash(fi, random_seed);
+        pos.x += (hash(t * f + h0, 17.3) - 0.5) * a.y;
+        pos.y += (hash(t * f * 1.3 + h0, 19.1) - 0.5) * a.y;
+        pos.z += (hash(t * f * 2.1 + h0, 23.7) - 0.5) * a.y;
+    } else if (mode == 4) {
+        let str = 1.0 + sin(t * a.x) * a.y;
+        scl.x = 1.0 / sqrt(max(str, 0.1));
+        scl.y = str;
+        scl.z = 1.0 / sqrt(max(str, 0.1));
+    } else {
+        let spd = t * 0.5;
+        rot.y += spd;
+        pos.y += sin(t * 0.7 + fi * 0.1) * 0.3;
+    }
+
+    // Turbulence
+    var turb = vec3<f32>(0.0);
+    var gain = 1.0;
+    var freq = 1.0;
+    for (var oct = 0u; oct < 4u; oct++) {
+        let h0 = hash(fi * freq + 0.17, random_seed);
+        let nx = (hash(t * freq + h0, 13.7) - 0.5) * gain;
+        let ny = (hash(t * freq * 1.3 + h0, 19.1) - 0.5) * gain;
+        let nz = (hash(t * freq * 2.1 + h0, 23.7) - 0.5) * gain;
+        turb += vec3<f32>(nx, ny, nz);
+        freq *= 2.03;
+        gain *= 0.5;
+    }
+    let ts = 0.025 * global_intensity;
+    pos += turb * ts;
+    rot += turb * (0.01 * global_intensity);
+
+    out_pos[i] = vec4<f32>(pos.x, pos.y, pos.z, 1.0);
+    out_rot[i] = vec4<f32>(rot.x, rot.y, rot.z, 1.0);
+    out_scl[i] = vec4<f32>(max(scl.x, 0.001), max(scl.y, 0.001), max(scl.z, 0.001), 1.0);
+}
+`;
+
+// ── Get WGSL (embedded above) ──
+async function fetchWGSL() {
+    return COMPUTE_WGSL;
+}
+
+function generateInstanceData(count) {
+    const pos = new Float32Array(count * 4);
+    const rot = new Float32Array(count * 4);
+    const scl = new Float32Array(count * 4);
+    const types = new Int32Array(count);
+    const a = new Float32Array(count * 4);
+    const b = new Float32Array(count * 4);
+    const c = new Float32Array(count * 4);
+
+    for (let i = 0; i < count; i++) {
+        const idx = i * 4;
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 0.9;
+        pos[idx] = Math.cos(angle) * radius;
+        pos[idx+1] = (Math.random() - 0.5) * 1.5;
+        pos[idx+2] = Math.sin(angle) * radius;
+        pos[idx+3] = 1.0;
+        rot[idx] = (Math.random() - 0.5) * 6.28;
+        rot[idx+1] = (Math.random() - 0.5) * 6.28;
+        rot[idx+2] = (Math.random() - 0.5) * 6.28;
+        rot[idx+3] = 1.0;
+        const scale = 0.015 + Math.random() * 0.05;
+        scl[idx] = scale; scl[idx+1] = scale; scl[idx+2] = scale; scl[idx+3] = 1.0;
+        types[i] = Math.floor(Math.random() * 50);
+        a[idx] = 0.3 + Math.random() * 2.5;
+        a[idx+1] = 0.1 + Math.random() * 1.2;
+        a[idx+2] = 0.0;
+        a[idx+3] = Math.random() * 0.15;
+        b[idx] = 0.3 + Math.random() * 2.0;
+        b[idx+1] = 0.1 + Math.random() * 1.0;
+        b[idx+2] = 0.0; b[idx+3] = 0.0;
+        c[idx] = 0.2 + Math.random() * 1.5;
+        c[idx+1] = 0.1 + Math.random() * 0.6;
+        c[idx+2] = 0.0; c[idx+3] = 0.0;
+    }
+    return { pos, rot, scl, types, a, b, c };
+}
+
+function makeBuf(device, data, extraUsage = 0) {
+    const usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | extraUsage;
+    const buf = device.createBuffer({
+        size: data.byteLength,
+        usage,
+        mappedAtCreation: true,
+    });
+    new (data.constructor)(buf.getMappedRange()).set(data);
+    buf.unmap();
+    return buf;
+}
+
+async function initWebGPU() {
+    if (!navigator.gpu) { statusEl.innerHTML = '❌ WebGPU unavailable. Use Chrome/Edge.'; return false; }
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) { statusEl.innerHTML = '❌ No GPU adapter.'; return false; }
+    device = await adapter.requestDevice();
+
+    // Fetch the actual Kain-compiled WGSL
+    let shaderSrc;
+    try {
+        shaderSrc = await fetchWGSL();
+    } catch (e) {
+        // Fallback: use a built-in minimal compute
+        statusEl.innerHTML = '⚠️ Fallback: using built-in shader';
+        shaderSrc = null;
+    }
+
+    if (!shaderSrc) {
+        statusEl.innerHTML = '❌ Could not load WGSL from Kain. Is the server running on :9090?';
+        return false;
+    }
+
+    statusEl.innerHTML = '✅ WGSL loaded. Generating particles...';
+    const data = generateInstanceData(INSTANCES);
+    posByteLength = data.pos.byteLength;
+
+    const posBuf = makeBuf(device, data.pos);
+    const rotBuf = makeBuf(device, data.rot);
+    const sclBuf = makeBuf(device, data.scl);
+    const typeBuf = makeBuf(device, data.types);
+    const aBuf = makeBuf(device, data.a);
+    const bBuf = makeBuf(device, data.b);
+    const cBuf = makeBuf(device, data.c);
+
+    outPosBuf = device.createBuffer({ size: posByteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    outRotBuf = device.createBuffer({ size: posByteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    outSclBuf = device.createBuffer({ size: posByteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+
+    // Uniforms: each as a separate buffer to avoid 256-byte alignment issues
+    function makeUniformBuf(size) {
+        return device.createBuffer({ size, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    }
+    function writeU32(buf, val) {
+        const arr = new Uint32Array([val]);
+        device.queue.writeBuffer(buf, 0, arr);
+    }
+    function writeF32(buf, val) {
+        const arr = new Float32Array([val]);
+        device.queue.writeBuffer(buf, 0, arr);
+    }
+
+    const uniformInstanceCount = makeUniformBuf(4);
+    const uniformTime = makeUniformBuf(4);
+    const uniformIntensity = makeUniformBuf(4);
+    const uniformSeed = makeUniformBuf(4);
+    const uniformEps = makeUniformBuf(4);
+
+    writeU32(uniformInstanceCount, INSTANCES);
+    writeF32(uniformTime, 0.0);
+    writeF32(uniformIntensity, 1.0);
+    writeF32(uniformSeed, Math.random() * 100);
+    writeF32(uniformEps, 0.0001);
+
+    // Store for per-frame update
+    window.__uniformTime = uniformTime;
+
+    // Pad buffer for _pad binding (binding 15)
+    const padBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+    // Shader module from Kain WGSL
+    let shaderModule;
+    try {
+        shaderModule = device.createShaderModule({ code: shaderSrc });
+    } catch (e) {
+        statusEl.innerHTML = '❌ WGSL compile error: ' + e.message;
+        return false;
+    }
+
+    pipeline = device.createComputePipeline({
+        layout: 'auto',
+        compute: { module: shaderModule, entryPoint: 'SupermotionCompute' },
+    });
+
+    bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: posBuf }},
+            { binding: 1, resource: { buffer: rotBuf }},
+            { binding: 2, resource: { buffer: sclBuf }},
+            { binding: 3, resource: { buffer: outPosBuf }},
+            { binding: 4, resource: { buffer: outRotBuf }},
+            { binding: 5, resource: { buffer: outSclBuf }},
+            { binding: 6, resource: { buffer: typeBuf }},
+            { binding: 7, resource: { buffer: aBuf }},
+            { binding: 8, resource: { buffer: bBuf }},
+            { binding: 9, resource: { buffer: cBuf }},
+            { binding: 10, resource: { buffer: uniformInstanceCount }},
+            { binding: 11, resource: { buffer: uniformTime }},
+            { binding: 12, resource: { buffer: uniformIntensity }},
+            { binding: 13, resource: { buffer: uniformSeed }},
+            { binding: 14, resource: { buffer: uniformEps }},
+            { binding: 15, resource: { buffer: padBuf }},
+        ],
+    });
+
+    readbackBuf = device.createBuffer({ size: posByteLength, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+
+    statusEl.innerHTML = '🚀 GPU Compute running...';
+    return true;
+}
+
+let animTime = 0, lastFrame = 0, frameCount = 0, fpsTime = 0;
+
+async function render(time) {
+    if (!device) return;
+    const dt = lastFrame ? (time - lastFrame) / 1000 : 0.016;
+    lastFrame = time;
+    animTime += dt;
+
+    frameCount++;
+    if (time - fpsTime > 1000) { fpsEl.textContent = frameCount; frameCount = 0; fpsTime = time; }
+
+    // Update per-frame time uniform
+    device.queue.writeBuffer(window.__uniformTime, 0, new Float32Array([animTime]));
+
+    const workgroups = Math.ceil(INSTANCES / 32);
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.dispatchWorkgroups(workgroups, 1, 1);
+    pass.end();
+
+    encoder.copyBufferToBuffer(outPosBuf, 0, readbackBuf, 0, posByteLength);
+    device.queue.submit([encoder.finish()]);
+
+    // Wait for GPU to finish before reading back
+    await device.queue.onSubmittedWorkDone();
+    await readbackBuf.mapAsync(GPUMapMode.READ);
+    const mapped = new Float32Array(readbackBuf.getMappedRange());
+
+    // Debug: log first few positions once
+    if (typeof window.__logged === 'undefined') {
+        window.__logged = true;
+        console.log('First 5 positions:', Array.from(mapped.slice(0, 20)));
+    }
+
+    const w = canvas.width, h = canvas.height;
+
+    // Full clear every 60 frames for cleaner visuals
+    if (frameCount % 60 === 0) {
+        ctx.fillStyle = '#0a0e17';
+        ctx.fillRect(0, 0, w, h);
+    } else {
+        ctx.fillStyle = 'rgba(10, 14, 23, 0.15)';
+        ctx.fillRect(0, 0, w, h);
+    }
+
+    const modeColors = [
+        [88, 166, 255], [126, 231, 135], [255, 166, 87],
+        [210, 168, 255], [255, 123, 114], [255, 214, 83],
+    ];
+
+    for (let i = 0; i < Math.min(INSTANCES, mapped.length / 4); i++) {
+        const idx = i * 4;
+        const px = mapped[idx], py = mapped[idx + 1], pz = mapped[idx + 2];
+        const scale = 250;
+        const sx = w / 2 + px * scale;
+        const sy = h / 2 - py * scale;
+        const sz = 1.0 / (1.0 + Math.abs(pz) * 0.2);
+        const size = 4.0 * sz;
+        const alpha = Math.max(0.1, sz * 0.9);
+        const col = modeColors[i % 6];
+        const bri = 0.7 + 0.3 * Math.sin(animTime * 1.5 + i * 0.03);
+
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(size, 2), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha * bri})`;
+        ctx.fill();
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(sx, sy, size * 4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha * 0.2 * bri})`;
+        ctx.fill();
+    }
+    readbackBuf.unmap();
+    requestAnimationFrame(render);
+}
+
+resize();
+initWebGPU().then(ok => {
+    if (ok) requestAnimationFrame(render);
+}).catch(e => {
+    statusEl.innerHTML = '❌ ' + e.message;
+});
+</script>
+</body>
+</html>

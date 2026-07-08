@@ -1,0 +1,41 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("spring_playground")
+        .version("0.1.0")
+        .description("Spring Animation Playground — Kaintana UI demo")
+
+    let blade_spec = blade("spring_playground")
+        .kind("kain_library")
+        .entry("spring_playground.kn")
+        .source_root(".")
+        .module_root(".")
+        .build_target("llvm")
+
+    let defaults = build_defaults()
+        .entry("spring_playground.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let check = build_check("check-llvm")
+        .entry("spring_playground.kn")
+        .target("llvm")
+        .axis("target", "llvm")
+        .input("spring_playground.kn")
+        .input("build.kn")
+
+    let exe = native_executable("spring-playground-exe")
+        .entry("spring_playground.kn")
+        .root_output("$blade/spring_playground.exe")
+        .requires("check-llvm")
+        .input("spring_playground.kn")
+        .input("build.kn")
+
+    return build_graph()
+        .package(pkg)
+        .blade(blade_spec)
+        .defaults(defaults)
+        .task(check)
+        .task(exe)

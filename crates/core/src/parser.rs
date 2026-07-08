@@ -2393,40 +2393,25 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect_contextual_ident("surface")?;
         let kind = match self.peek_kind() {
-            TokenKind::Ident(ref value) if value == "native_ui" => {
+            TokenKind::Ident(ref value) => {
+                let kind_str = value.clone();
                 self.advance();
-                WorldSurfaceKind::NativeUi
-            }
-            TokenKind::Ident(ref value) if value == "viewport3d" => {
-                self.advance();
-                WorldSurfaceKind::Viewport3d
-            }
-            TokenKind::Ident(ref value) if value == "web" => {
-                self.advance();
-                WorldSurfaceKind::Web
-            }
-            TokenKind::Ident(ref value) if value == "ue5" => {
-                self.advance();
-                WorldSurfaceKind::Ue5
-            }
-            TokenKind::Ident(ref value) if value == "shader_canvas" => {
-                self.advance();
-                WorldSurfaceKind::ShaderCanvas
+                kind_str
             }
             _ => {
                 let span = self.current_span();
                 let report = self
                     .parser_report_at_code(
                         DiagnosticCode::ParseInvalidWorldSurfaceKind,
-                        "Expected a built-in world surface kind",
+                        "Expected a surface kind identifier after 'surface'",
                         span,
                         "surface kind expected here",
                     )
                     .note(
-                        "A surface declaration starts with a built-in surface kind, not an arbitrary identifier.",
+                        "Surface declarations start with an identifier that names the rendering backend.",
                     )
-                    .help("Use one of: native_ui, viewport3d, web, ue5, shader.")
-                    .help("Example: surface native_ui => MyPanel");
+                    .help("Example: surface native_ui => MyPanel")
+                    .help("Any registered backend name (e.g., 'kaintana', 'vulkan', 'd3d12') is valid.");
                 return Err(self.rich_parser_report(report));
             }
         };

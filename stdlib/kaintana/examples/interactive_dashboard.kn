@@ -1,0 +1,171 @@
+// ============================================================================
+//  examples/interactive_dashboard.kn — Interactive Animated Dashboard
+//  Pulse-driven metric simulation with dark theme.
+//
+//  Features:
+//    - 4 live metric panels (CPU, Memory, Network, Disk I/O) with
+//      animated ProgressBar values
+//    - Pulse-driven simulation updating every 500ms with triangle-wave
+//      oscillation of all four metrics
+//    - Frame counter display
+//
+//  Architecture:
+//    - InteractiveDashboardWorld — compiler-owned state authority
+//    - InteractiveDashboard — main component with pulse + render
+//    - All layout uses native <box>/<text> elements
+//    - Self-contained @extern declarations (no stdlib imports)
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ═══════════════════════════════════════════════════════════════════
+
+@extern fn kt_init() -> Void
+@extern fn kt_make(name: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, delta_ms: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_host_pump(s: Int) -> Int
+@extern fn kt_backend_register(s: Int, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: Int, name: String) -> Int
+@extern fn kt_row(s: Int, parent: Int, kind: String, key: String) -> Int
+@extern fn kt_end_row(s: Int) -> Void
+@extern fn kt_text(s: Int, elem: Int, text: String) -> Void
+@extern fn kt_fill(s: Int, elem: Int, color: String) -> Void
+@extern fn kt_stroke(s: Int, elem: Int, color: String, w: Float) -> Void
+@extern fn kt_width(s: Int, elem: Int, w: Float) -> Void
+@extern fn kt_height(s: Int, elem: Int, h: Float) -> Void
+@extern fn kt_radius(s: Int, elem: Int, r: Float) -> Void
+@extern fn kt_pad(s: Int, elem: Int, all: Float) -> Void
+@extern fn kt_gap(s: Int, elem: Int, gap: Float) -> Void
+@extern fn kt_direction(s: Int, elem: Int, dir: Int) -> Void
+@extern fn kt_opacity(s: Int, elem: Int, a: Float) -> Void
+@extern fn kt_font(s: Int, elem: Int, size: Float) -> Void
+@extern fn kt_hovered(s: Int, elem: Int) -> Int
+@extern fn kt_clicked(s: Int, elem: Int) -> Int
+@extern fn kt_active(s: Int, elem: Int) -> Int
+
+const KT_DIR_ROW: Int = 0
+const KT_DIR_COLUMN: Int = 1
+const APP_W: Int = 900
+const APP_H: Int = 600
+const BG: String = "#1A1A24"
+const BORDER: String = "#2E2E4A"
+const SURFACE: String = "#232339"
+const GREEN: String = "#21D4A1"
+const PURPLE: String = "#7C3AED"
+const AMBER: String = "#F59E0B"
+const RED: String = "#EF4444"
+const PRG_H: Float = 8.0
+const PRG_W: Float = 760.0
+const LBL_COL: Float = 60.0
+
+fn session_alive(s: Int) -> Bool:
+    return kt_should_close(s) == 0
+
+fn session_create(title: String, w: Int, h: Int) -> Int:
+    kt_init()
+    return kt_make(title, w, h)
+
+fn session_destroy(s: Int):
+    kt_free(s)
+
+component InteractiveDashboard():
+    state _frame_count: Int = 0
+    state _cpu: Float = 34.0
+    state _memory: Float = 62.0
+    state _network: Float = 78.0
+    state _disk_io: Float = 45.0
+
+    pulse simulate every 500ms jitter 15ms:
+        _frame_count = _frame_count + 1
+        let t = _frame_count % 100
+        let p = if t < 50: t else: 100 - t
+        let f = p as Float / 50.0
+        _cpu    = 15.0  + f * 70.0
+        _memory = 30.0  + f * 55.0
+        _network = 40.0 + f * 50.0
+        _disk_io = 10.0 + f * 65.0
+
+    render <box kind="col" key="root" fill={BG} width={APP_W as Float} height={APP_H as Float} pad={16.0} gap={4.0} direction={KT_DIR_COLUMN}>
+        <box kind="row" key="hdr" gap={8.0} direction={KT_DIR_ROW}>
+            <text value="Interactive Dashboard" />
+            <box kind="spc" key="spc" width={0.0} />
+            <text value={"Frames:" + str(_frame_count)} />
+        </box>
+
+        <box kind="div" key="d1" height={1.0} fill={BORDER} width={0.0} />
+
+        <box kind="col" key="mcol" gap={8.0} pad={4.0} direction={KT_DIR_COLUMN}>
+            <box kind="row" key="r1" gap={8.0} direction={KT_DIR_ROW}>
+                <box kind="col" key="l1" gap={4.0} direction={KT_DIR_COLUMN} width={LBL_COL}>
+                    <text value="CPU" />
+                    <text value={str(_cpu as Int) + "%"} />
+                </box>
+                <box kind="trk" key="b1" fill={BORDER} width={PRG_W} height={PRG_H} radius={(PRG_H * 0.5)}>
+                    <box kind="fl" key="f1" fill={GREEN} width={_cpu} height={PRG_H} radius={(PRG_H * 0.5)} />
+                </box>
+            </box>
+
+            <box kind="row" key="r2" gap={8.0} direction={KT_DIR_ROW}>
+                <box kind="col" key="l2" gap={4.0} direction={KT_DIR_COLUMN} width={LBL_COL}>
+                    <text value="Memory" />
+                    <text value={str(_memory as Int) + "%"} />
+                </box>
+                <box kind="trk" key="b2" fill={BORDER} width={PRG_W} height={PRG_H} radius={(PRG_H * 0.5)}>
+                    <box kind="fl" key="f2" fill={PURPLE} width={_memory} height={PRG_H} radius={(PRG_H * 0.5)} />
+                </box>
+            </box>
+
+            <box kind="row" key="r3" gap={8.0} direction={KT_DIR_ROW}>
+                <box kind="col" key="l3" gap={4.0} direction={KT_DIR_COLUMN} width={LBL_COL}>
+                    <text value="Network" />
+                    <text value={str(_network as Int) + "%"} />
+                </box>
+                <box kind="trk" key="b3" fill={BORDER} width={PRG_W} height={PRG_H} radius={(PRG_H * 0.5)}>
+                    <box kind="fl" key="f3" fill={AMBER} width={_network} height={PRG_H} radius={(PRG_H * 0.5)} />
+                </box>
+            </box>
+
+            <box kind="row" key="r4" gap={8.0} direction={KT_DIR_ROW}>
+                <box kind="col" key="l4" gap={4.0} direction={KT_DIR_COLUMN} width={LBL_COL}>
+                    <text value="Disk I/O" />
+                    <text value={str(_disk_io as Int) + "%"} />
+                </box>
+                <box kind="trk" key="b4" fill={BORDER} width={PRG_W} height={PRG_H} radius={(PRG_H * 0.5)}>
+                    <box kind="fl" key="f4" fill={RED} width={_disk_io} height={PRG_H} radius={(PRG_H * 0.5)} />
+                </box>
+            </box>
+        </box>
+
+        <box kind="div" key="d2" height={1.0} fill={BORDER} width={0.0} />
+
+        <box kind="row" key="ctrls" gap={12.0} direction={KT_DIR_ROW} pad={4.0}>
+            <text value={"Frame:" + str(_frame_count)} />
+            <box kind="spc" key="s2" width={0.0} />
+            <box kind="btn" key="rst" fill={SURFACE} width={80.0} height={32.0} radius={4.0}>
+                <text value="Reset" />
+            </box>
+        </box>
+    </box>
+
+world InteractiveDashboardWorld:
+    surface kaintana => InteractiveDashboard
+
+fn main() -> Int:
+    let sid = session_create("Dashboard", APP_W, APP_H)
+    if sid == -1:
+        return 1
+    if kt_backend_register(sid, "null", 0) == 0:
+        session_destroy(sid)
+        return 2
+    if kt_backend_select(sid, "null") == 0:
+        session_destroy(sid)
+        return 3
+    while session_alive(sid):
+        let _ = kt_host_pump(sid)
+        kt_begin(sid, 16.0)
+        kt_end(sid)
+        kt_present(sid)
+    session_destroy(sid)
+    return 0

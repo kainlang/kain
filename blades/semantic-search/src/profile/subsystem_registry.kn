@@ -1,0 +1,136 @@
+// ============================================================================
+//  profile/subsystem_registry.kn — Subsystem Registry
+//
+//  Layer 1: world SubsystemRegistry maps file paths to subsystem names.
+//  This is the authority on "what subsystem does this file belong to?"
+//  Used by the connection graph to build cross-subsystem edges.
+// ============================================================================
+
+use std::text
+use util
+
+// ============================================================================
+//  SUBSYSTEM MAPPING CONSTANTS
+// ============================================================================
+
+// Known crates/ subsystems
+pub const CRATES_SUBSYSTEMS: [String] = [
+    "core", "actor", "ownership", "entangle", "orchestrate", "converge",
+    "sys-codegen", "gpu", "gpu-runtime", "check", "test", "build", "run",
+    "blades", "fs", "input", "net", "process", "interop",
+    "c-ffi", "foreign-abi", "crate-ffi",
+    "ui", "ui-native", "3d",
+    "amalgamate", "commands", "driver", "lattice",
+    "reflect", "semantic", "error-semantic",
+    "service-api", "stdlib-map",
+]
+
+// Known runtime/ subsystems
+pub const RUNTIME_SUBSYSTEMS: [String] = [
+    "core", "actor", "async", "ownership", "memory",
+    "entangle", "converge", "machine_stones",
+    "ui", "graphics", "gpu",
+    "net", "process", "os",
+    "platform", "stdlib",
+]
+
+// Known stdlib modules
+pub const STDLIB_MODULES: [String] = [
+    "actor", "alloc", "ascii", "atomic", "attrition", "base64", "bench",
+    "bits", "build", "bytes", "certify", "collections", "compress",
+    "crypto", "cuda",
+    "diagnostics", "elf", "fmt", "fs",
+    "gen_server", "gpu", "graphics", "hash", "http", "http2",
+    "input", "intent", "interop", "io",
+    "js", "json",
+    "kain", "machine", "markscript", "math", "mcp", "memory", "mks", "mmio",
+    "net", "no_std",
+    "os", "os_path", "path", "platform", "process", "proof", "python",
+    "random", "reflect", "reload", "result", "runtime",
+    "semver", "simd", "sync",
+    "tar", "target", "test", "text", "thread", "time", "tls",
+    "ui", "unicode", "uri",
+    "vulkan",
+    "wasm",
+    "z3", "zip",
+]
+
+// ============================================================================
+//  WORLD — Subsystem Registry
+// ============================================================================
+
+world SubsystemRegistry:
+    // Map from path pattern to subsystem name
+    // The compiler tracks all registered mappings
+    state entry_count: Int = 0
+
+// ============================================================================
+//  GET SUBSYSTEM — Determine subsystem from file path
+// ============================================================================
+
+pub fn get_subsystem(path: String) -> String:
+    // crates/actor/src/lib.rs → "actor"
+    // runtime/native/src/core/actor.c → "core"
+    // stdlib/actor.kn → "actor"
+    let parts: Array<String> = text_split_string(path, "/")
+    let n: Int = len(parts)
+
+    // crates/ pattern
+    if n >= 2 and parts[0] == "crates":
+        return parts[1]
+
+    // runtime/native/src/core/ pattern — subsystem is "core" or "actor" etc.
+    if n >= 4 and parts[0] == "runtime" and parts[1] == "native":
+        // runtime/native/src/core/...
+        if n >= 5:
+            return parts[4]  // the actual subsystem subdir
+
+    // stdlib/ pattern
+    if n >= 2 and parts[0] == "stdlib":
+        let stem: String = file_name(path)
+        let ext: String = file_extension(path)
+        let name: String = substring(stem, 0, len(stem) - len(ext) - 1)
+        return name  // stdlib/actor.kn → "actor"
+
+    return "other"
+
+// ============================================================================
+//  GET DOMAIN — Determine domain from file path
+// ============================================================================
+
+pub fn get_domain(path: String) -> String:
+    if starts_with(path, "crates/"):
+        return "crates"
+    if starts_with(path, "runtime/"):
+        return "runtime"
+    if starts_with(path, "stdlib/"):
+        return "stdlib"
+    return "other"
+
+// ============================================================================
+//  CHECK — Is this a known subsystem?
+// ============================================================================
+
+pub fn is_known_crates_subsys(name: String) -> Bool:
+    var i: Int = 0
+    while i < len(CRATES_SUBSYSTEMS):
+        if CRATES_SUBSYSTEMS[i] == name:
+            return true
+        i = i + 1
+    return false
+
+pub fn is_known_runtime_subsys(name: String) -> Bool:
+    var i: Int = 0
+    while i < len(RUNTIME_SUBSYSTEMS):
+        if RUNTIME_SUBSYSTEMS[i] == name:
+            return true
+        i = i + 1
+    return false
+
+pub fn is_known_stdlib_module(name: String) -> Bool:
+    var i: Int = 0
+    while i < len(STDLIB_MODULES):
+        if STDLIB_MODULES[i] == name:
+            return true
+        i = i + 1
+    return false

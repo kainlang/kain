@@ -1,0 +1,86 @@
+// ============================================================================
+//  terminal.kn — Colored terminal output for Kaintana test runner
+//
+//  Provides human-readable pass/fail output with colored status indicators
+//  for interactive development sessions.
+//
+//  Ladder: Layer 0 — plain fn with Pure effect. No world, no actor.
+// ============================================================================
+
+// ============================================================================
+//  ANSI COLOR CONSTANTS
+// ============================================================================
+
+pub const TERM_RESET:   String = "\x1b[0m"
+pub const TERM_RED:     String = "\x1b[31m"
+pub const TERM_GREEN:   String = "\x1b[32m"
+pub const TERM_YELLOW:  String = "\x1b[33m"
+pub const TERM_BLUE:    String = "\x1b[34m"
+pub const TERM_BOLD:    String = "\x1b[1m"
+pub const TERM_DIM:     String = "\x1b[2m"
+
+// ============================================================================
+//  PRINT STATUS — colored status character
+// ============================================================================
+
+pub fn status_char(status: String) -> String:
+    if status == "pass":
+        return TERM_GREEN + "✓" + TERM_RESET
+    if status == "fail" or status == "error":
+        return TERM_RED + "✗" + TERM_RESET
+    if status == "skip":
+        return TERM_YELLOW + "~" + TERM_RESET
+    return "?"
+
+// ============================================================================
+//  PRINT LINE — formatted test result line
+// ============================================================================
+
+pub fn print_test_result(name: String, status: String, cmd_count: Int,
+    expected: String, pixel_status: String, duration_us: Int):
+    let sc = status_char(status)
+    var pixel_tag: String = ""
+    if pixel_status == "skip":
+        pixel_tag = " [pixel:skip]"
+    elif pixel_status != "pass":
+        pixel_tag = TERM_RED + " [pixel:fail]" + TERM_RESET
+
+    println(sc + " " + name + " — " + str(cmd_count) + " cmds (expected " + expected + ")"
+        + pixel_tag + " — " + str(duration_us) + "µs")
+
+// ============================================================================
+//  PRINT HEADER — suite start banner
+// ============================================================================
+
+pub fn print_header(spec_count: Int, fb_w: Int, fb_h: Int):
+    println("")
+    println(TERM_BOLD + "=== Kaintana Test Runner 0.1.0 ===" + TERM_RESET)
+    println("  Specs:  " + str(spec_count))
+    println("  Buffer: " + str(fb_w) + "x" + str(fb_h))
+    println("")
+
+// ============================================================================
+//  PRINT SUMMARY — final summary line
+// ============================================================================
+
+pub fn print_footer(total: Int, pass_count: Int, fail_count: Int, duration_us: Int):
+    println("")
+    let color = if fail_count > 0: TERM_RED else: TERM_GREEN
+    println(color + TERM_BOLD + "=== Results: " + str(pass_count) + "/" + str(total)
+        + " passed, " + str(fail_count) + " failed, "
+        + str(duration_us) + "µs ===" + TERM_RESET)
+    println("")
+
+// ============================================================================
+//  PRINT ERROR — plain error line (always visible)
+// ============================================================================
+
+pub fn print_error(msg: String):
+    println(TERM_RED + "[ERROR] " + msg + TERM_RESET)
+
+// ============================================================================
+//  PRINT INFO — info line
+// ============================================================================
+
+pub fn print_info(msg: String):
+    println(TERM_BLUE + "[INFO] " + msg + TERM_RESET)

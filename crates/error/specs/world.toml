@@ -8,8 +8,8 @@ severity = "error"
 docs_key = "world/missing-surface"
 help = """
 A `world` block must contain at least one `surface` projection that maps
-Kain UI components to a rendering backend (native_ui, viewport3d, web,
-ue5).
+Kain UI components to a rendering backend (any registered surface name,
+e.g. 'native_ui', 'kaintana', 'vulkan').
 
 Fix: add at least one surface projection inside the world body.
 """
@@ -104,10 +104,9 @@ title = "Surface Kind Platform Mismatch"
 severity = "error"
 docs_key = "world/platform-mismatch"
 help = """
-A surface kind (e.g., `ue5`, `native_ui`) is not supported on the
-current compilation target or platform. Surface kinds are
-target-gated — `ue5` only works on UE5 host targets, `web` only on
-WASM/web targets.
+A surface kind is not supported on the current compilation target or
+platform. Some surface kinds are target-gated — for example, 'web'
+surfaces require WASM/web targets.
 
 Fix: change the surface kind or the compilation target.
 """

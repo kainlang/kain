@@ -1,0 +1,530 @@
+// ============================================================================
+//  blackhole.kn — SUPERNOVA REMNANT v1: Cassiopeia Blast Echo
+// ============================================================================
+//
+//  WHAT:      A living supernova remnant — an expanding shell of stellar
+//             debris surrounds a hot central pulsar. A rotating lighthouse
+//             beam sweeps through the nebula. Three shockwave rings pulse
+//             outward at different angles. Dynamic lights orbit the glowing
+//             wreckage. The whole scene breathes with emissive glow.
+//
+//  RADICALLY DIFFERENT FROM PRIOR blackhole.kn:
+//    - NO black hole, NO accretion disk, NO event horizon, NO photon ring
+//    - Expanding spherical shell instead of Keplerian disk
+//    - Pulsar with rotating directional beam (line) instead of jet particles
+//    - Shockwave rings (ring geometry) at multiple tilts
+//    - Inner nebula cloud (magenta-purple particles) instead of blue jets
+//    - Custom mesh of glowing shards (nebula fragments)
+//    - Crimson-black palette instead of deep-space blue-black
+//
+//  LAYERS:    L0 (fn, let, var, while, const), L1 (world state), L5 (pulse)
+//             electron_bridge + electron_extras + electron_interact
+//
+//  KEYS:      F = toggle fog, L = toggle lights, R = toggle auto-rotate,
+//             P = pause expansion, 1/2/3 = expansion speed,
+//             Space = reset expansion to initial state
+//
+//  COMPILE:   cd X:/blades/web/electron
+//             kain build demos/blackhole.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use std::json
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const SHELL_N:       Int = 1500          // expanding shell particles
+const NEBULA_N:      Int = 800           // inner nebula cloud particles
+const DEBRIS_N:      Int = 0             // placeholder for future use
+const TWO_PI:        Float = 6.283185307
+const GOLD_SPIRAL:  Float = 2.3999632297
+const NEBULA_TRIS:   Int = 40            // triangles in nebula custom mesh
+// NEBULA_TRIS * 9 floats per frame (3 verts × 3 coords)
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world for toggle state + animation
+// ============================================================================
+
+world SNState:
+    state ready:        Int = 0
+    state fog_on:       Int = 1
+    state lights_on:    Int = 1
+    state rotate_on:    Int = 1
+    state paused:       Int = 0
+    state speed_id:     Int = 1           // 0=slow, 1=medium, 2=fast
+    state expansion:    Float = 1.0       // normalized shell radius
+    state beam_angle:   Float = 0.0       // pulsar beam rotation
+    state tick:         Int = 0
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 16ms main render pulse (~60fps)
+// ============================================================================
+
+pulse sn_clock every 16 ms:
+    let raw_t: Float = pulse_tick * 0.06
+    let tick: Int = pulse_tick
+
+    // ── READY GATE ─────────────────────────────────────────────────────────
+    if SNState.ready == 0:
+        return
+
+    // ── INTERACTION POLL ───────────────────────────────────────────────────
+    interact_poll()
+
+    // ── TIME / SPEED ───────────────────────────────────────────────────────
+    let paused: Int = SNState.paused
+    let speed_id: Int = SNState.speed_id
+
+    let speed_mult: Float = 0.5
+    if speed_id == 1:
+        speed_mult = 1.0
+    elif speed_id == 2:
+        speed_mult = 2.0
+
+    let dt: Float = if paused == 1: 0.0 else: speed_mult * 0.06
+    let t: Float = raw_t * speed_mult * (1.0 - (paused))
+
+    // ── KEYBOARD TOGGLES ───────────────────────────────────────────────────
+    if key_just_pressed("f"):
+        if SNState.fog_on == 1:
+            SNState.fog_on = 0
+            set_fog("#050005", 0.0, 9999.0)
+        else:
+            SNState.fog_on = 1
+            set_fog("#050005", 6.0, 45.0)
+
+    if key_just_pressed("l"):
+        if SNState.lights_on == 1:
+            SNState.lights_on = 0
+            update_light("core_light", "#000000", 0.0)
+            update_light("orbit_light_0", "#000000", 0.0)
+            update_light("orbit_light_1", "#000000", 0.0)
+        else:
+            SNState.lights_on = 1
+
+    if key_just_pressed("r"):
+        if SNState.rotate_on == 1:
+            SNState.rotate_on = 0
+        else:
+            SNState.rotate_on = 1
+
+    if key_just_pressed("p"):
+        if SNState.paused == 1:
+            SNState.paused = 0
+        else:
+            SNState.paused = 1
+
+    if key_just_pressed("1"):
+        SNState.speed_id = 0
+    if key_just_pressed("2"):
+        SNState.speed_id = 1
+    if key_just_pressed("3"):
+        SNState.speed_id = 2
+
+    if key_just_pressed(" "):
+        SNState.expansion = 1.0
+
+    // ── UPDATE STATE ───────────────────────────────────────────────────────
+    let exp: Float = SNState.expansion
+    let new_exp: Float = exp + dt * 0.04
+    if new_exp > 4.0:
+        SNState.expansion = 1.0      // wrap: reset and re-expand
+    else:
+        SNState.expansion = new_exp
+
+    let beam_angle: Float = SNState.beam_angle + dt * 1.5
+    if beam_angle > TWO_PI:
+        SNState.beam_angle = beam_angle - TWO_PI
+    else:
+        SNState.beam_angle = beam_angle
+
+    SNState.tick = tick
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  REMNANT SHELL — 1,500 particles on an expanding sphere
+    //  Each particle starts at the center and moves outward.
+    //  The golden angle gives even spherical distribution.
+    // ════════════════════════════════════════════════════════════════════════
+
+    var shell_json: String = "{\"cmd\":\"update\",\"id\":\"remnant_shell\",\"flat\":["
+    var s: Int = 0
+    while s < SHELL_N:
+        if s > 0:
+            shell_json = shell_json + ","
+        let fi: Float = s
+        let y: Float = 1.0 - (fi * 2.0) / SHELL_N
+        let r_lat: Float = sqrt(1.0 - y * y)
+        let theta: Float = GOLD_SPIRAL * fi + t * 0.05
+        let radius: Float = 1.0 + (fi / SHELL_N) * exp * 3.5
+        let wobble: Float = 1.0 + sin(t * 0.7 + fi * 0.13) * 0.08
+        let x: Float = cos(theta) * r_lat * radius * wobble
+        let z: Float = sin(theta) * r_lat * radius * wobble
+        let y_pos: Float = y * radius * (0.8 + sin(t * 0.3 + fi * 0.07) * 0.2)
+        shell_json = shell_json + str(x)
+        shell_json = shell_json + ","
+        shell_json = shell_json + str(y_pos)
+        shell_json = shell_json + ","
+        shell_json = shell_json + str(z)
+        s = s + 1
+    shell_json = shell_json + "]}"
+    println(shell_json)
+
+    // ── Shell particle size — shrinking as it expands ─────────────────────
+    let shell_size: Float = 0.08 + sin(t * 1.5) * 0.02 - exp * 0.008
+    if shell_size < 0.02:
+        update_particle_size("remnant_shell", 0.02)
+    else:
+        update_particle_size("remnant_shell", shell_size)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  NEBULA GLOW — 800 inner particles, magenta-purple, swirling
+    //  These stay near the center and form a glowing cloud.
+    // ════════════════════════════════════════════════════════════════════════
+
+    var neb_json: String = "{\"cmd\":\"update\",\"id\":\"nebula_glow\",\"flat\":["
+    var n: Int = 0
+    while n < NEBULA_N:
+        if n > 0:
+            neb_json = neb_json + ","
+        let nf: Float = n
+        let ny: Float = 1.0 - (nf * 2.0) / NEBULA_N
+        let nr: Float = sqrt(1.0 - ny * ny)
+        let ntheta: Float = GOLD_SPIRAL * nf + t * 0.25
+        let nradius: Float = 1.5 + sin(t * 0.4 + nf * 0.1) * 0.8
+        let nx: Float = cos(ntheta) * nr * nradius * (0.7 + sin(t * 0.6 + nf * 0.05) * 0.3)
+        let nz: Float = sin(ntheta) * nr * nradius * (0.7 + sin(t * 0.6 + nf * 0.05) * 0.3)
+        let ny_pos: Float = ny * nradius * (1.0 + sin(t * 0.5 + nf * 0.09) * 0.2)
+        neb_json = neb_json + str(nx)
+        neb_json = neb_json + ","
+        neb_json = neb_json + str(ny_pos)
+        neb_json = neb_json + ","
+        neb_json = neb_json + str(nz)
+        n = n + 1
+    neb_json = neb_json + "]}"
+    println(neb_json)
+
+    // ── Nebula particle size — breathing ──────────────────────────────────
+    let neb_size: Float = 0.15 + sin(t * 1.2) * 0.05
+    update_particle_size("nebula_glow", neb_size)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  NEBULA CUSTOM MESH — glowing shards (40 disconnected triangles)
+    //  Each triangle is 3 independent vertices forming a "shard."
+    //  Positioned on a sphere surface with animated wobble.
+    // ════════════════════════════════════════════════════════════════════════
+
+    var mesh_json: String = "{\"cmd\":\"update\",\"id\":\"nebula_mesh\",\"type\":\"custom_mesh\",\"verts\":["
+    var m: Int = 0
+    while m < NEBULA_TRIS:
+        let ft: Float = m
+        // Triangle centroid on sphere (using golden spiral)
+        let cy: Float = 1.0 - (ft * 2.0) / NEBULA_TRIS
+        let cr: Float = sqrt(1.0 - cy * cy)
+        let ctheta: Float = GOLD_SPIRAL * ft + t * 0.15
+        let cradius: Float = 2.8 + sin(t * 1.3 + ft * 0.7) * 0.6
+        let cx: Float = cos(ctheta) * cr * cradius
+        let cz: Float = sin(ctheta) * cr * cradius
+        let cy_pos: Float = cy * cradius
+
+        // Three vertices per triangle, offset from centroid, with noise
+        var v: Int = 0
+        while v < 3:
+            let fv: Float = v
+            let noise_r: Float = 0.6 + sin(t * 2.0 + ft * 0.5 + fv * 1.3) * 0.3
+            let noise_ang: Float = fv * 2.094 + t * 0.5
+            let ox: Float = sin(noise_ang) * noise_r
+            let oz: Float = cos(noise_ang) * noise_r
+            let oy: Float = sin(noise_ang * 1.5 + ft) * noise_r * 0.6
+
+            if m > 0 or v > 0:
+                mesh_json = mesh_json + ","
+            mesh_json = mesh_json + str(cx + ox)
+            mesh_json = mesh_json + ","
+            mesh_json = mesh_json + str(cy_pos + oy)
+            mesh_json = mesh_json + ","
+            mesh_json = mesh_json + str(cz + oz)
+            v = v + 1
+        m = m + 1
+    mesh_json = mesh_json + "]}"
+    println(mesh_json)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PULSAR — small sphere with intense emissive, pulsing
+    // ════════════════════════════════════════════════════════════════════════
+
+    let pulsar_pulse: Float = 1.0 + sin(t * 4.0) * 0.3 + sin(t * 8.7) * 0.15
+    let pulsar_scale: Float = 0.25 * pulsar_pulse
+    update_transform("pulsar", 0.0, 0.0, 0.0, pulsar_scale, pulsar_scale, pulsar_scale)
+
+    let pulsar_glow: Float = 3.0 + sin(t * 4.0) * 1.5 + sin(t * 7.3) * 0.8
+    update_emissive("pulsar", "#ffddaa", pulsar_glow)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PULSAR BEAM — rotating line (lighthouse beam)
+    //  Two segments: from origin outward in the beam direction.
+    // ════════════════════════════════════════════════════════════════════════
+
+    let ba: Float = beam_angle
+    let beam_tilt: Float = 0.3
+    let beam_dir_x: Float = cos(ba) * 5.0
+    let beam_dir_y: Float = sin(ba * 0.5) * 1.5 + sin(t * 3.0) * 0.5
+    let beam_dir_z: Float = sin(ba) * 5.0
+
+    println("{\"cmd\":\"update\",\"id\":\"pulsar_beam\",\"points\":[{\"x\":0,\"y\":0,\"z\":0},{\"x\":" +
+        str(beam_dir_x) + ",\"y\":" + str(beam_dir_y) + ",\"z\":" + str(beam_dir_z) + "}]}")
+
+    // ── Pulsar beam emissive color — pulses with the star ─────────────────
+    let beam_glow: Float = 2.0 + sin(t * 4.0) * 1.0
+    update_emissive("pulsar_beam", "#44ddff", beam_glow)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  SHOCKWAVE RINGS — 3 ring meshes at different radii + tilts
+    //  Each ring pulses outward and fades as the remnant expands.
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Shockwave 0 — innermost, purple, tilted
+    let sw0_phase: Float = 1.0 + sin(t * 1.2 + 0.0) * 0.15
+    let sw0_radius: Float = 3.0 * sw0_phase * (0.8 + exp * 0.1)
+    update_transform("shockwave_0", 0.0, 0.0, 0.0, sw0_radius, sw0_radius, sw0_radius)
+    update_rotation("shockwave_0", 0.3, t * 0.4, 0.1)
+    let sw0_glow: Float = 1.5 + sin(t * 1.2) * 0.5
+    let sw0_fade: Float = sw0_glow * (1.0 - (exp - 1.0) * 0.1)
+    if sw0_fade < 0.3:
+        update_emissive("shockwave_0", "#8844ff", 0.3)
+    else:
+        update_emissive("shockwave_0", "#8844ff", sw0_fade)
+
+    // Shockwave 1 — middle, cyan, opposite tilt
+    let sw1_phase: Float = 1.0 + sin(t * 1.7 + 1.5) * 0.12
+    let sw1_radius: Float = 6.0 * sw1_phase * (0.8 + exp * 0.08)
+    update_transform("shockwave_1", 0.0, 0.0, 0.0, sw1_radius, sw1_radius, sw1_radius)
+    update_rotation("shockwave_1", -0.2, t * -0.3, 0.15)
+    let sw1_glow: Float = 1.2 + sin(t * 1.7 + 1.5) * 0.4
+    let sw1_fade: Float = sw1_glow * (1.0 - (exp - 1.0) * 0.08)
+    if sw1_fade < 0.2:
+        update_emissive("shockwave_1", "#44ccff", 0.2)
+    else:
+        update_emissive("shockwave_1", "#44ccff", sw1_fade)
+
+    // Shockwave 2 — outermost, gold, wide tilt
+    let sw2_phase: Float = 1.0 + sin(t * 2.2 + 3.0) * 0.10
+    let sw2_radius: Float = 9.0 * sw2_phase * (0.9 + exp * 0.05)
+    update_transform("shockwave_2", 0.0, 0.0, 0.0, sw2_radius, sw2_radius, sw2_radius)
+    update_rotation("shockwave_2", 0.5, t * 0.2, 0.3)
+    let sw2_glow: Float = 0.8 + sin(t * 2.2 + 3.0) * 0.3
+    let sw2_fade: Float = sw2_glow * (1.0 - (exp - 1.0) * 0.06)
+    if sw2_fade < 0.15:
+        update_emissive("shockwave_2", "#ff8844", 0.15)
+    else:
+        update_emissive("shockwave_2", "#ff8844", sw2_fade)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTING — 3 lights: core + 2 orbiting
+    // ════════════════════════════════════════════════════════════════════════
+
+    if SNState.lights_on == 1:
+        // Core light — pulses with the pulsar
+        let core_glow: Float = 4.0 + sin(t * 4.0) * 2.0 + sin(t * 7.3) * 1.0
+        update_light("core_light", "#ffddaa", core_glow)
+
+        // Orbit light 0 — warm orange, follows the expansion
+        let ol0_angle: Float = t * 0.6
+        let ol0_r: Float = 4.0 + exp * 1.5
+        let ol0_y: Float = sin(ol0_angle * 0.5) * 2.0
+        update_light_position("orbit_light_0",
+            cos(ol0_angle) * ol0_r,
+            ol0_y,
+            sin(ol0_angle) * ol0_r)
+        let ol0_int: Float = 2.0 + sin(t * 2.3) * 0.5
+        update_light("orbit_light_0", "#ff8844", ol0_int)
+
+        // Orbit light 1 — cool blue-purple, higher inclination
+        let ol1_angle: Float = t * 0.4 + 2.0
+        let ol1_r: Float = 5.0 + exp * 1.0
+        let ol1_y: Float = cos(ol1_angle * 0.3) * 3.0
+        update_light_position("orbit_light_1",
+            cos(ol1_angle) * ol1_r,
+            ol1_y,
+            sin(ol1_angle) * ol1_r)
+        let ol1_int: Float = 1.5 + sin(t * 1.8 + 1.0) * 0.4
+        update_light("orbit_light_1", "#8844ff", ol1_int)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  TELEMETRY
+    // ════════════════════════════════════════════════════════════════════════
+
+    telemetry("tick", tick)
+    telemetry_float("expansion", exp)
+    telemetry("speed", speed_id)
+    telemetry_float("pulsar_glow", pulsar_glow)
+    telemetry("paused", paused)
+    telemetry("particles", SHELL_N + NEBULA_N)
+
+    // ── Clear per-frame interaction state ──────────────────────────────────
+    interact_clear()
+
+// ============================================================================
+//  MAIN — build the scene, then keep-alive loop
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  ATMOSPHERE — deep crimson-black void
+    // ════════════════════════════════════════════════════════════════════════
+
+    set_background("#040005")                    // deepest crimson-black
+    set_fog("#050005", 6.0, 45.0)                // matching fog
+    set_ambient("#1a0510", 0.25)                 // very dim red-tinted
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  CAMERA — pulled back to see the full remnant
+    // ════════════════════════════════════════════════════════════════════════
+
+    camera_look_at(0.0, 3.0, 16.0, 0.0, 0.0, 0.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PULSAR — hot dense core, intense white-gold emissive
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_mesh("pulsar", "sphere", "#ffddaa")
+    update_transform("pulsar", 0.0, 0.0, 0.0, 0.25, 0.25, 0.25)
+    update_emissive("pulsar", "#ffddaa", 3.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PULSAR BEAM — rotating directional line (lighthouse)
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_lines("pulsar_beam", "#44ddff")
+    println("{\"cmd\":\"update\",\"id\":\"pulsar_beam\",\"points\":[{\"x\":0,\"y\":0,\"z\":0},{\"x\":5,\"y\":0,\"z\":0}]}")
+    update_emissive("pulsar_beam", "#44ddff", 2.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  SHOCKWAVE RINGS — 3 rings at different radii + tilts
+    //  Using ring geometry for flat shockwave appearance.
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_mesh("shockwave_0", "ring", "#8844ff")      // inner, purple
+    update_transform("shockwave_0", 0.0, 0.0, 0.0, 3.0, 3.0, 3.0)
+    update_rotation("shockwave_0", 0.3, 0.0, 0.1)
+    update_emissive("shockwave_0", "#8844ff", 1.5)
+
+    create_mesh("shockwave_1", "ring", "#44ccff")      // middle, cyan
+    update_transform("shockwave_1", 0.0, 0.0, 0.0, 6.0, 6.0, 6.0)
+    update_rotation("shockwave_1", -0.2, 0.0, 0.15)
+    update_emissive("shockwave_1", "#44ccff", 1.2)
+
+    create_mesh("shockwave_2", "ring", "#ff8844")      // outer, gold
+    update_transform("shockwave_2", 0.0, 0.0, 0.0, 9.0, 9.0, 9.0)
+    update_rotation("shockwave_2", 0.5, 0.0, 0.3)
+    update_emissive("shockwave_2", "#ff8844", 0.8)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  PARTICLES — remnant shell + inner nebula
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_particles("remnant_shell", SHELL_N, "#ff6633")   // orange-red
+    create_particles("nebula_glow", NEBULA_N, "#cc44ff")    // magenta-purple
+
+    update_particle_size("remnant_shell", 0.08)
+    update_particle_size("nebula_glow", 0.15)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  NEBULA CUSTOM MESH — 40 glowing triangular shards
+    //  Build the initial geometry with vertex and index arrays.
+    // ════════════════════════════════════════════════════════════════════════
+
+    var nv_verts: JsonArray = json_array()
+    var nv_idx: JsonArray = json_array()
+    var nm: Int = 0
+    while nm < NEBULA_TRIS:
+        let ft: Float = nm
+        // Centroid on sphere
+        let cy: Float = 1.0 - (ft * 2.0) / NEBULA_TRIS
+        let cr: Float = sqrt(1.0 - cy * cy)
+        let ctheta: Float = GOLD_SPIRAL * ft
+        let cradius: Float = 2.8
+        let cx: Float = cos(ctheta) * cr * cradius
+        let cz: Float = sin(ctheta) * cr * cradius
+        let cy_pos: Float = cy * cradius
+
+        var vv: Int = 0
+        while vv < 3:
+            let fvv: Float = vv
+            let noise_r: Float = 0.6
+            let noise_ang: Float = fvv * 2.094
+            let ox: Float = sin(noise_ang) * noise_r
+            let oz: Float = cos(noise_ang) * noise_r
+            let oy: Float = sin(noise_ang * 1.5 + ft) * noise_r * 0.6
+
+            json_array_push_float(nv_verts, cx + ox)
+            json_array_push_float(nv_verts, cy_pos + oy)
+            json_array_push_float(nv_verts, cz + oz)
+            json_array_push_int(nv_idx, nm * 3 + vv)
+            vv = vv + 1
+        nm = nm + 1
+
+    create_custom_mesh("nebula_mesh", nv_verts, nv_idx, "#cc44ff")
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTS — core + 2 orbiting
+    // ════════════════════════════════════════════════════════════════════════
+
+    create_light("core_light", "point", "#ffddaa", 4.0, 0.0, 0.0, 0.0)
+    create_light("orbit_light_0", "point", "#ff8844", 2.0, 4.0, 0.0, 0.0)
+    create_light("orbit_light_1", "point", "#8844ff", 1.5, 0.0, 3.0, 5.0)
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  HUD TELEMETRY
+    // ════════════════════════════════════════════════════════════════════════
+
+    telemetry_string("status", "SUPERNOVA REMNANT: expanding shell + pulsar")
+    telemetry("shell_particles", SHELL_N)
+    telemetry("nebula_particles", NEBULA_N)
+    telemetry_string("keys", "F=fog L=lights R=rotate P=pause 1/2/3=spd Space=reset")
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  READY — pulse is now allowed to fire
+    // ════════════════════════════════════════════════════════════════════════
+
+    SNState.ready = 1
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  KEEP-ALIVE — sleep 1s loops, pulses fire on their own schedule
+    // ════════════════════════════════════════════════════════════════════════
+
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END blackhole.kn — SUPERNOVA REMNANT v1
+// ============================================================================
+//                  create_light, update_light, update_light_position,
+//                  update_emissive, update_particle_size, update_rotation
+//  INTERACT USED:  interact_poll, interact_clear, key_just_pressed
+//  BRIDGE USED:    create_mesh, create_particles, create_custom_mesh,
+//                  create_lines, update_transform, update_custom_verts,
+//                  camera_look_at, telemetry, telemetry_float,
+//                  telemetry_string, println (flat JSON + inline JSON)
+//  GEOMETRY:       sphere, ring (3×), lines, custom_mesh (40 tris),
+//                  particles (2 systems: shell + nebula)
+//  LAYERS:         L0 (fn, let, var, while, const), L1 (world),
+//                  L5 (pulse every 16ms)
+// ============================================================================
